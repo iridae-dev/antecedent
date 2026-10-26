@@ -267,22 +267,22 @@ def test_the_native_conjugate_entry_solves_another_shape() -> None:
 def test_consume_replays_a_posterior_claim_against_the_retained_identity() -> None:
     hypotheses, levels, likelihood = ILL_WELL
     claim = oq.finite_posterior(hypotheses, [0.5, 0.5], levels, likelihood, ["pos"])
-    consumed = oq.consume_observation_query_artifact(claim.export(), claim.identity)
+    consumed = oq.consume_observation_query_artifact(bytes(claim.export()), claim.identity)
     assert consumed.identity == claim.identity
     assert consumed.operation == "posterior_update"
     # ill 0.5 * 0.9 = 0.45, well 0.5 * 0.05 = 0.025: 0.45 / 0.475 = 18 / 19.
     assert consumed.claim.posterior["ill"] == pytest.approx(18.0 / 19.0, abs=TOL)
     with pytest.raises(ObservationQueryRefusal) as wrong:
-        oq.consume_observation_query_artifact(claim.export(), "f" * 64)
+        oq.consume_observation_query_artifact(bytes(claim.export()), "f" * 64)
     assert wrong.value.detail == "observation_query.artifact_refused"
 
 
 def test_the_native_consume_entry_returns_the_replayed_summary_or_a_refusal() -> None:
     claim = oq.conjugate_posterior(1.0, 1.0, successes=1, failures=0)
-    raw, refusal = _native.observation_query_consume(claim.export(), claim.identity)
+    raw, refusal = _native.observation_query_consume(bytes(claim.export()), claim.identity)
     assert refusal is None and raw is not None
     wire = json.loads(raw)
     assert wire["identity"] == claim.identity
     assert wire["operation"] == "posterior_update"
-    raw, refusal = _native.observation_query_consume(claim.export(), "0" * 64)
+    raw, refusal = _native.observation_query_consume(bytes(claim.export()), "0" * 64)
     assert raw is None and refusal is not None

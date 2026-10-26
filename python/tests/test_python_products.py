@@ -51,6 +51,7 @@ from antecedent.data import event, multi_env, panel
 from antecedent.errors import CausalError
 from antecedent.inference import Frequentist
 from antecedent.intervention import Set
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, read_text
 from _sealed_loads import assert_answer_kept
@@ -352,12 +353,12 @@ def _run_route(kind: str, data: str, structure: str, options: str = "") -> None:
 
     study = result.study
     assert study is not None
-    encoded = result.export()
-    loaded = ant.load(encoded)
+    encoded = bytes(result.export())
+    loaded = require_success(ant.load(encoded))
     assert loaded.decoded_artifact.payload_kind == "analysis_result"
     assert_answer_kept(loaded)
 
-    again = study.estimate()
+    again = require_success(study.estimate())
     assert _same(_point(result), _point(again)), (
         f"{kind}/{data}/{structure}: the retained study did not reproduce its own point"
     )
@@ -367,7 +368,9 @@ def _run_route(kind: str, data: str, structure: str, options: str = "") -> None:
     if options == "callbacks":
         assert seen, "on_progress never fired"
     if options == "validators":
-        attested = ant.load(result.export()).decoded_artifact.contract["claim"]["attested"]
+        attested = require_success(ant.load(bytes(result.export()))).decoded_artifact.contract[
+            "claim"
+        ]["attested"]
         assert [item["name"] for item in attested] == ["matrix.finite_effect"]
 
 

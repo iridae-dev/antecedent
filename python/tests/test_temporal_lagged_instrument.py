@@ -17,6 +17,7 @@ import numpy as np
 import pytest
 from antecedent import errors
 from antecedent.errors import CausalUnsupportedError
+from antecedent.outcomes import require_success
 
 N = 800
 GRAPH = [("z", 2, "x", 1), ("u", 1, "x", 1), ("u", 1, "y", 0), ("x", 1, "y", 0)]
@@ -71,17 +72,19 @@ def ratio_posterior_reference(series, prior_sd, draws=400_000, seed=0):
 
 
 def run(series, graph=GRAPH, **kwargs):
-    return antecedent.analyze(
-        series,
-        graph=graph,
-        query=antecedent.PulseEffect(
-            treatment="x", outcome="y", treatment_lag=1, horizon_steps=1, active_level=1.0
-        ),
-        identifier=antecedent.Identifier.TEMPORAL_IV_UNFOLDED,
-        refute=False,
-        bootstrap=0,
-        seed=2,
-        **kwargs,
+    return require_success(
+        antecedent.analyze(
+            series,
+            graph=graph,
+            query=antecedent.PulseEffect(
+                treatment="x", outcome="y", treatment_lag=1, horizon_steps=1, active_level=1.0
+            ),
+            identifier=antecedent.Identifier.TEMPORAL_IV_UNFOLDED,
+            refute=False,
+            bootstrap=0,
+            seed=2,
+            **kwargs,
+        )
     )
 
 
@@ -127,14 +130,16 @@ def test_a_lagged_confounder_of_the_instrument_is_refused_with_its_next_attempt(
 def test_the_identifier_and_the_estimators_go_together() -> None:
     series = make_series()
     with pytest.raises(CausalUnsupportedError) as info:
-        antecedent.analyze(
-            series,
-            graph=GRAPH,
-            query=antecedent.PulseEffect(
-                treatment="x", outcome="y", treatment_lag=1, horizon_steps=1, active_level=1.0
-            ),
-            estimator=antecedent.Estimator.TEMPORAL_LAGGED_INSTRUMENT,
-            refute=False,
-            bootstrap=0,
+        require_success(
+            antecedent.analyze(
+                series,
+                graph=GRAPH,
+                query=antecedent.PulseEffect(
+                    treatment="x", outcome="y", treatment_lag=1, horizon_steps=1, active_level=1.0
+                ),
+                estimator=antecedent.Estimator.TEMPORAL_LAGGED_INSTRUMENT,
+                refute=False,
+                bootstrap=0,
+            )
         )
     assert info.value.reason_code == "option_not_applicable"

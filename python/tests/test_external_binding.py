@@ -106,7 +106,7 @@ def test_identity_fields_are_detached_from_original_claim_metadata():
     assert claim.quantities == quantities
     assert claim.lineage == lineage
     assert claim.support == ("missing_evidence",) * 3
-    restored = _spec_with_premises().load(claim.export(), expected_identity=identity)
+    restored = _spec_with_premises().load(bytes(claim.export()), expected_identity=identity)
     assert restored.identity == identity
     assert restored.quantities == quantities
 
@@ -330,7 +330,7 @@ def test_unknown_capability_names_are_refused_not_ignored():
 def test_fresh_process_consumer_loads_only_under_its_own_identity(tmp_path: Path):
     spec = _spec_with_premises()
     claim = spec.bind(_response())
-    data = claim.export()
+    data = bytes(claim.export())
     assert spec.load(data, expected_identity=claim.identity).values.tolist() == [1.0, 3.0, 5.0]
     changed = {**claim.identity_fields, "snapshot_id": "other-snapshot"}
     with pytest.raises(Exception, match="differs"):
@@ -408,7 +408,7 @@ def test_a_column_binds_one_quantity_and_is_covered_by_its_digest_not_carried():
         _ = claim.values
     summary = claim.to_dict()
     assert summary["rows"] == 12_000 and "values" not in summary
-    exported = claim.export()
+    exported = bytes(claim.export())
     assert len(exported) < 16 * 1024
     restored = spec.load(exported, expected_identity=claim.identity)
     assert restored.identity == claim.identity and restored.covers(column.values)

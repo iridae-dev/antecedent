@@ -29,6 +29,7 @@ from antecedent import msm_sensitivity as msm
 from antecedent import sensitivity_decision as sd
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
 
 
 def _stratum(mass: float, propensity: float, r1: float, r0: float) -> msm.MsmStratum:
@@ -413,14 +414,20 @@ def test_msm_decision_keeps_sampling_withheld_and_refuses_composition():
 
 def test_msm_artifact_round_trips_and_refuses_a_foreign_identity():
     artifact = _treat_vs(2.0, 3, 0.0)
-    consumed = sd.SensitivityArtifact.consume(
-        artifact.export(), expected_identity=artifact.identity
+    consumed = require_success(
+        sd.SensitivityArtifact.consume(
+            bytes(artifact.export()), expected_identity=artifact.identity
+        )
     )
     assert consumed.identity == artifact.identity
     assert consumed.outcome == artifact.outcome
     other = _treat_vs(3.0, 3, 0.0)
     with pytest.raises(sd.SensitivityRefusal):
-        sd.SensitivityArtifact.consume(artifact.export(), expected_identity=other.identity)
+        require_success(
+            sd.SensitivityArtifact.consume(
+                bytes(artifact.export()), expected_identity=other.identity
+            )
+        )
 
 
 def test_msm_artifact_refuses_a_malformed_surface_and_foreign_arguments():

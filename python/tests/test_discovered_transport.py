@@ -236,7 +236,7 @@ def test_estimate_factory_preserves_the_native_artifact_and_retained_context() -
     }
     artifact = b"opaque native artifact"
     result = discovered._estimate_of(wire, artifact, sentinel.outcome, sentinel.report)
-    assert result.export() is artifact
+    assert bytes(result.export()) is artifact
     assert result.outcome is sentinel.outcome
     assert result.report is sentinel.report
     assert result.identity == "original-result"

@@ -6,6 +6,7 @@ import pytest
 from antecedent import interference
 from antecedent.errors import CausalError, CausalUnsupportedError, CausalValueError
 from antecedent.experiment import StratifiedRandomization
+from antecedent.outcomes import require_success
 
 
 def _design(assignment: list[bool], *, randomization=None) -> ant.experiment.ExperimentDesign:
@@ -26,7 +27,7 @@ def test_calibrated_complete_interval_is_retained_by_analyze_and_prepare():
         "outcome", _design(assignment, randomization=interference.CompleteRandomization(30))
     )
     data = {"outcome": outcomes}
-    result = ant.analyze(data, query=query, refute="none")
+    result = require_success(ant.analyze(data, query=query, refute="none"))
     fit = result.randomized_effect
     assert fit is not None
     assert fit.interval_95 is not None
@@ -36,7 +37,7 @@ def test_calibrated_complete_interval_is_retained_by_analyze_and_prepare():
     assert fit.support_status == "licensed"
     assert result.evidence_status == "licensed"
     prepared = ant.prepare(data, query=query, refute="none")
-    assert prepared.estimate(data).randomized_effect.interval_95 == fit.interval_95
+    assert require_success(prepared.estimate(data)).randomized_effect.interval_95 == fit.interval_95
 
 
 def test_bernoulli_interval_has_exact_graphless_license():
@@ -45,8 +46,11 @@ def test_bernoulli_interval_has_exact_graphless_license():
     outcomes = np.asarray(
         [1.0 + 2.0 * float(assignment[i]) + 0.5 * np.sin(i * 0.3) for i in range(n)]
     )
-    result = ant.analyze(
-        {"outcome": outcomes}, query=ant.experiment.RandomizedEffect("outcome", _design(assignment))
+    result = require_success(
+        ant.analyze(
+            {"outcome": outcomes},
+            query=ant.experiment.RandomizedEffect("outcome", _design(assignment)),
+        )
     )
     assert result.randomized_effect.interval_95 is not None
     assert result.randomized_effect.support_status == "licensed"
@@ -67,8 +71,8 @@ def test_blocked_interval_has_exact_graphless_license():
     outcomes = np.asarray(
         [1.0 + 2.0 * float(assignment[i]) + 0.5 * np.sin(i * 0.3) for i in range(n)]
     )
-    result = ant.analyze(
-        {"outcome": outcomes}, query=ant.experiment.RandomizedEffect("outcome", design)
+    result = require_success(
+        ant.analyze({"outcome": outcomes}, query=ant.experiment.RandomizedEffect("outcome", design))
     )
     assert result.randomized_effect.interval_95 is not None
     assert result.randomized_effect.support_status == "licensed"
@@ -95,8 +99,8 @@ def test_factorial_three_intervals_have_exact_graphless_license():
             for i in range(n)
         ]
     )
-    result = ant.analyze(
-        {"outcome": outcomes}, query=ant.experiment.RandomizedEffect("outcome", design)
+    result = require_success(
+        ant.analyze({"outcome": outcomes}, query=ant.experiment.RandomizedEffect("outcome", design))
     )
     fit = result.randomized_effect
     assert fit.interval_95 is not None
@@ -117,10 +121,12 @@ def test_calibrated_multi_action_intervals_are_pointwise_for_each_action():
         [f"row-{i}" for i in range(400)],
     )
     outcomes = np.asarray([1.0 + float(i % 4) + 0.5 * np.sin(i * 0.3) for i in range(400)])
-    result = ant.analyze(
-        {"outcome": outcomes},
-        query=ant.experiment.RandomizedEffect("outcome", design),
-        refute="none",
+    result = require_success(
+        ant.analyze(
+            {"outcome": outcomes},
+            query=ant.experiment.RandomizedEffect("outcome", design),
+            refute="none",
+        )
     )
     fit = result.randomized_effect
     assert fit is not None
@@ -140,7 +146,7 @@ def test_randomized_effect_runs_in_the_retained_analysis_lifecycle():
     data = {"outcome": 2.0 * np.asarray(assignment, dtype=float)}
     query = ant.experiment.RandomizedEffect("outcome", _design(assignment))
 
-    result = ant.analyze(data, query=query, refute="none")
+    result = require_success(ant.analyze(data, query=query, refute="none"))
 
     assert result.answer.value == pytest.approx(2.0)
     assert result.study is not None
@@ -162,7 +168,9 @@ def test_fixed_cuped_runs_through_retained_analyze_with_declared_uncertainty():
         _design(assignment),
         cuped=ant.experiment.FixedCUPED("baseline", 4.0),
     )
-    result = ant.analyze({"outcome": outcomes, "baseline": covariate}, query=query, refute="none")
+    result = require_success(
+        ant.analyze({"outcome": outcomes, "baseline": covariate}, query=query, refute="none")
+    )
 
     assert result.answer.value == pytest.approx(2.0)
     assert result.randomized_effect.effect == pytest.approx(2.0)
@@ -185,17 +193,21 @@ def test_fixed_cuped_refuses_unsupported_design_and_missing_baseline():
             cuped=ant.experiment.FixedCUPED("baseline", 1.0),
         )
     with pytest.raises(Exception, match="baseline"):
-        ant.analyze(
-            {"outcome": np.asarray(assignment, dtype=float)},
-            query=ant.experiment.RandomizedEffect(
-                "outcome", _design(assignment), cuped=ant.experiment.FixedCUPED("baseline", 1.0)
-            ),
-            refute="none",
+        require_success(
+            ant.analyze(
+                {"outcome": np.asarray(assignment, dtype=float)},
+                query=ant.experiment.RandomizedEffect(
+                    "outcome", _design(assignment), cuped=ant.experiment.FixedCUPED("baseline", 1.0)
+                ),
+                refute="none",
+            )
         )
     with pytest.raises(CausalUnsupportedError, match="through analyze or prepare"):
-        ant.experiment.RandomizedEffect(
-            "outcome", _design(assignment), cuped=ant.experiment.FixedCUPED("baseline", 1.0)
-        ).estimate({"outcome": np.asarray(assignment, dtype=float), "baseline": np.zeros(8)})
+        require_success(
+            ant.experiment.RandomizedEffect(
+                "outcome", _design(assignment), cuped=ant.experiment.FixedCUPED("baseline", 1.0)
+            ).estimate({"outcome": np.asarray(assignment, dtype=float), "baseline": np.zeros(8)})
+        )
 
 
 def test_retained_ancova_uses_multiple_baselines_and_refuses_unsupported_combinations():
@@ -206,7 +218,9 @@ def test_retained_ancova_uses_multiple_baselines_and_refuses_unsupported_combina
     query = ant.experiment.RandomizedEffect(
         "outcome", _design(assignment), ancova_covariates=("x1", "x2")
     )
-    result = ant.analyze({"outcome": outcomes, "x1": x1, "x2": x2}, query=query, refute="none")
+    result = require_success(
+        ant.analyze({"outcome": outcomes, "x1": x1, "x2": x2}, query=query, refute="none")
+    )
     assert result.answer.value == pytest.approx(2.0)
     assert result.randomized_effect.uncertainty == "bernoulli_ancova_hc0_variance_no_interval"
     assert result.randomized_effect.variance_upper_bound == pytest.approx(0.0, abs=1e-20)
@@ -249,7 +263,7 @@ def test_complete_randomization_runs_through_retained_analyze_with_neyman_varian
     )
     outcomes = np.asarray([2.0, 0.0, 4.0, 2.0, 6.0, 4.0, 8.0, 6.0])
 
-    result = ant.analyze({"outcome": outcomes}, query=query, refute="none")
+    result = require_success(ant.analyze({"outcome": outcomes}, query=query, refute="none"))
 
     assert result.answer.value == pytest.approx(2.0)
     assert result.randomized_effect.assignment_design == "complete"
@@ -272,7 +286,7 @@ def test_factorial_randomization_retains_main_effects_interaction_and_no_interva
     query = ant.experiment.RandomizedEffect("outcome", design)
     data = {"outcome": np.asarray([0.0, 2.0, 2.0, 4.0, 1.0, 3.0, 5.0, 7.0])}
 
-    result = ant.analyze(data, query=query, refute="none")
+    result = require_success(ant.analyze(data, query=query, refute="none"))
 
     assert result.answer.value == pytest.approx(3.0)
     assert result.randomized_effect.assignment_design == "factorial_2x2"
@@ -289,7 +303,7 @@ def test_factorial_randomization_retains_main_effects_interaction_and_no_interva
     assert result.evidence_status == "off_axis"
     assert any("known_random_assignment" in assumption for assumption in result.assumptions or ())
     with pytest.raises(CausalUnsupportedError, match="require analyze or prepare"):
-        query.estimate(data)
+        require_success(query.estimate(data))
     with pytest.raises(CausalValueError, match="at least two"):
         ant.experiment.FactorialRandomization(second, (2, 3, 1, 2))
 
@@ -305,10 +319,12 @@ def test_stratified_randomization_runs_through_retained_analyze_with_blocked_var
         blocks=blocks,
         treatment_arms=("control", "treated"),
     )
-    result = ant.analyze(
-        {"outcome": np.asarray([2.0, 0.0, 4.0, 2.0, 6.0, 4.0, 8.0, 6.0])},
-        query=ant.experiment.RandomizedEffect("outcome", design),
-        refute="none",
+    result = require_success(
+        ant.analyze(
+            {"outcome": np.asarray([2.0, 0.0, 4.0, 2.0, 6.0, 4.0, 8.0, 6.0])},
+            query=ant.experiment.RandomizedEffect("outcome", design),
+            refute="none",
+        )
     )
 
     assert result.answer.value == pytest.approx(2.0)
@@ -341,8 +357,8 @@ def test_cluster_assignment_runs_through_retained_analyze_with_cluster_variance(
             [f"y{i}" for i in range(8)],
         ),
     )
-    result = ant.analyze(
-        {"outcome": np.asarray([2.0, 2.0, 0.0, 0.0, 2.0, 2.0, 0.0, 0.0])}, query=query
+    result = require_success(
+        ant.analyze({"outcome": np.asarray([2.0, 2.0, 0.0, 0.0, 2.0, 2.0, 0.0, 0.0])}, query=query)
     )
     assert result.randomized_effect.effect == pytest.approx(2.0)
     assert result.randomized_effect.assignment_design == "cluster"
@@ -365,8 +381,8 @@ def test_cluster_interval_has_exact_graphless_license():
     outcomes = np.asarray(
         [1.0 + 2.0 * float(assignment[i]) + 0.5 * np.sin(i * 0.3) for i in range(n)]
     )
-    result = ant.analyze(
-        {"outcome": outcomes}, query=ant.experiment.RandomizedEffect("outcome", design)
+    result = require_success(
+        ant.analyze({"outcome": outcomes}, query=ant.experiment.RandomizedEffect("outcome", design))
     )
     assert result.randomized_effect.interval_95 is not None
     assert result.randomized_effect.support_status == "licensed"
@@ -385,7 +401,7 @@ def test_cluster_assignment_with_block_metadata_is_refused_on_retained_route():
         ),
     )
     with pytest.raises(CausalUnsupportedError, match="does not combine with block metadata"):
-        ant.analyze({"outcome": np.zeros(8)}, query=query)
+        require_success(ant.analyze({"outcome": np.zeros(8)}, query=query))
 
 
 @pytest.mark.parametrize("design_kind", ["complete", "cluster"])
@@ -410,7 +426,9 @@ def test_direct_native_randomized_effect_runs_design_kernel_and_retains_units(de
             treatment_arms=("usual_care", "new_protocol"),
         )
         outcomes = [12.0, 12.0, 10.0, 10.0]
-    estimate = ant.experiment.RandomizedEffect("outcome", design).estimate({"outcome": outcomes})
+    estimate = require_success(
+        ant.experiment.RandomizedEffect("outcome", design).estimate({"outcome": outcomes})
+    )
     assert estimate.effect == pytest.approx(2.0)
     assert estimate.assignment_design == design_kind
     assert estimate.assignment_units == tuple(design.assignment_units)
@@ -452,8 +470,10 @@ def test_stratified_randomization_runs_direct_blocked_native_estimator():
         [f"y{i}" for i in range(8)],
         blocks=blocks,
     )
-    result = ant.experiment.RandomizedEffect("outcome", design).estimate(
-        {"outcome": [3.0, 0.0, 3.0, 0.0, 13.0, 10.0, 13.0, 10.0]}
+    result = require_success(
+        ant.experiment.RandomizedEffect("outcome", design).estimate(
+            {"outcome": [3.0, 0.0, 3.0, 0.0, 13.0, 10.0, 13.0, 10.0]}
+        )
     )
     assert result.effect == pytest.approx(3.0)
     assert result.assignment_design == "stratified"
@@ -485,10 +505,12 @@ def test_multi_arm_randomized_effect_recovers_known_arm_means_and_contrasts():
         [f"unit-{i}" for i in range(6)],
         [f"row-{i}" for i in range(6)],
     )
-    result = ant.analyze(
-        {"y": [0.0, 2.0, 5.0, 0.0, 2.0, 5.0]},
-        query=ant.experiment.RandomizedEffect("y", design),
-        refute="none",
+    result = require_success(
+        ant.analyze(
+            {"y": [0.0, 2.0, 5.0, 0.0, 2.0, 5.0]},
+            query=ant.experiment.RandomizedEffect("y", design),
+            refute="none",
+        )
     ).randomized_effect
     assert [(arm[0], arm[1]) for arm in result.multi_arm_values] == [
         ("control", 0.0),
@@ -522,7 +544,7 @@ def test_multi_arm_randomized_effect_uses_retained_analyze_and_prepare():
     )
     query = ant.experiment.RandomizedEffect("outcome", design)
     data = {"outcome": [0.0, 2.0, 5.0, 0.0, 2.0, 5.0]}
-    result = ant.analyze(data, query=query, refute="none")
+    result = require_success(ant.analyze(data, query=query, refute="none"))
     assert result.answer.value == pytest.approx(2.0)
     fit = result.randomized_effect
     assert fit is not None
@@ -536,7 +558,7 @@ def test_multi_arm_randomized_effect_uses_retained_analyze_and_prepare():
     assert fit.support_status == "unlicensed_off_matrix"
     assert result.evidence_status == "off_axis"
     prepared = ant.prepare(data, query=query, refute="none")
-    refreshed = prepared.estimate(data)
+    refreshed = require_success(prepared.estimate(data))
     assert refreshed.randomized_effect.multi_arm_values == fit.multi_arm_values
     with pytest.raises(CausalValueError, match="observed support"):
         ant.experiment.MultiArmExperimentDesign(
@@ -563,7 +585,9 @@ def test_switchback_itt_uses_sequence_clustered_native_variance():
         [0.5] * 16,
         treatment_arms=("off", "on"),
     )
-    estimate = ant.experiment.SwitchbackEffect("y", design).estimate({"y": outcomes})
+    estimate = require_success(
+        ant.experiment.SwitchbackEffect("y", design).estimate({"y": outcomes})
+    )
     assert estimate.effect == pytest.approx(2.0)
     assert estimate.sequence_count == 4
     assert estimate.period_count == 16
@@ -588,7 +612,7 @@ def test_switchback_itt_runs_in_retained_analyze_with_period_identity():
         "y",
         ant.experiment.SwitchbackDesign(assignment, sequences, periods, [0.5] * 16, ("off", "on")),
     )
-    result = ant.analyze({"y": outcomes}, query=query, refute="none")
+    result = require_success(ant.analyze({"y": outcomes}, query=query, refute="none"))
 
     assert result.answer.value == pytest.approx(2.5)
     assert result.randomized_effect.variance_upper_bound == pytest.approx(5.0 / 12.0)
@@ -620,8 +644,8 @@ def test_switchback_supported_interval_uses_same_native_point_as_direct_utility(
         "y",
         ant.experiment.SwitchbackDesign(assignment, sequences, periods, [0.5] * len(assignment)),
     )
-    retained = ant.analyze({"y": outcomes}, query=query, refute="none")
-    direct = query.estimate({"y": outcomes})
+    retained = require_success(ant.analyze({"y": outcomes}, query=query, refute="none"))
+    direct = require_success(query.estimate({"y": outcomes}))
     fit = retained.randomized_effect
     assert fit is not None and fit.interval_95 is not None
     assert fit.interval_95[0] < fit.effect < fit.interval_95[1]
@@ -638,7 +662,9 @@ def test_switchback_one_arm_within_sequence_is_valid_when_global_arms_observed()
         ["p0", "p1", "p0", "p1"],
         [0.5] * 4,
     )
-    result = ant.experiment.SwitchbackEffect("y", design).estimate({"y": [2.0, 2.0, 1.0, 1.0]})
+    result = require_success(
+        ant.experiment.SwitchbackEffect("y", design).estimate({"y": [2.0, 2.0, 1.0, 1.0]})
+    )
     assert result.effect == pytest.approx(1.0)
 
 
@@ -663,8 +689,8 @@ def test_complier_effect_runs_in_retained_analyze_with_first_stage():
     )
     receipt = [True, False, True, False, False, False, False, False]
     query = ant.experiment.ComplierEffect("y", design, receipt)
-    result = ant.analyze(
-        {"y": [5.0, 1.0, 5.0, 1.0, 1.0, 1.0, 1.0, 1.0]}, query=query, refute="none"
+    result = require_success(
+        ant.analyze({"y": [5.0, 1.0, 5.0, 1.0, 1.0, 1.0, 1.0, 1.0]}, query=query, refute="none")
     )
     effect = result.randomized_effect
     assert result.answer.value == pytest.approx(4.0)
@@ -700,7 +726,9 @@ def test_one_sided_treatment_on_treated_retains_distinct_estimand_and_refuses_tw
     )
     receipt = [True, False, True, False, False, False, False, False]
     query = ant.experiment.TreatmentOnTreated("y", design, receipt)
-    result = ant.analyze({"y": [5.0, 1.0, 5.0, 1.0, 1.0, 1.0, 1.0, 1.0]}, query=query)
+    result = require_success(
+        ant.analyze({"y": [5.0, 1.0, 5.0, 1.0, 1.0, 1.0, 1.0, 1.0]}, query=query)
+    )
     effect = result.randomized_effect
     assert effect.estimand == "treatment_on_treated"
     assert effect.effect == pytest.approx(4.0)
@@ -732,7 +760,7 @@ def test_exact_complete_randomization_inference_retains_fisher_p_value():
         [f"y{i}" for i in range(4)],
     )
     query = ant.experiment.RandomizedEffect("y", design, exact_randomization_test=True)
-    result = ant.analyze({"y": [1.0, 2.0, 3.0, 4.0]}, query=query, refute="none")
+    result = require_success(ant.analyze({"y": [1.0, 2.0, 3.0, 4.0]}, query=query, refute="none"))
     assert result.answer.value == pytest.approx(-2.0)
     assert result.randomized_effect.randomization_p_value == pytest.approx(1.0 / 3.0)
     assert result.randomized_effect.randomization_allocations == 6
@@ -743,7 +771,7 @@ def test_exact_complete_randomization_inference_retains_fisher_p_value():
     assert result.evidence_status == "off_axis"
     assert any("fisher_sharp_null_two_sided" in item for item in result.assumptions or ())
     with pytest.raises(CausalUnsupportedError, match="requires analyze or prepare"):
-        query.estimate({"y": [1.0, 2.0, 3.0, 4.0]})
+        require_success(query.estimate({"y": [1.0, 2.0, 3.0, 4.0]}))
     with pytest.raises(CausalValueError, match="unadjusted complete"):
         ant.experiment.RandomizedEffect(
             "y",
@@ -889,12 +917,14 @@ def test_bayesian_ids_are_public():
 
 def test_bayesian_finite_population_is_the_default_and_matches_enumeration():
     mean, sd = _finite_population_reference()
-    result = ant.analyze(
-        {"outcome": np.asarray(_TRIAL_Y)},
-        query=_two_arm_query(),
-        inference=_bayes(BernoulliArms(1.0, 1.0)),
-        seed=3,
-        refute="none",
+    result = require_success(
+        ant.analyze(
+            {"outcome": np.asarray(_TRIAL_Y)},
+            query=_two_arm_query(),
+            inference=_bayes(BernoulliArms(1.0, 1.0)),
+            seed=3,
+            refute="none",
+        )
     )
     assert result.estimate.estimator_id == "bayesian.randomized_finite_population"
     assert result.randomized_effect is None
@@ -908,13 +938,15 @@ def test_bayesian_superpopulation_is_selected_by_estimator_id():
     # Beta(4, 2) minus Beta(3, 5): exact moments of the independent Beta arm posteriors.
     mean = 4 / 6 - 3 / 8
     sd = sqrt(4 * 2 / (36 * 7) + 3 * 5 / (64 * 9))
-    result = ant.analyze(
-        {"outcome": np.asarray(_TRIAL_Y)},
-        query=_two_arm_query(),
-        inference=_bayes(BernoulliArms(1.0, 1.0)),
-        estimator=ant.Estimator.BAYESIAN_RANDOMIZED_SUPERPOPULATION,
-        seed=3,
-        refute="none",
+    result = require_success(
+        ant.analyze(
+            {"outcome": np.asarray(_TRIAL_Y)},
+            query=_two_arm_query(),
+            inference=_bayes(BernoulliArms(1.0, 1.0)),
+            estimator=ant.Estimator.BAYESIAN_RANDOMIZED_SUPERPOPULATION,
+            seed=3,
+            refute="none",
+        )
     )
     assert result.estimate.estimator_id == "bayesian.randomized_superpopulation"
     assert result.posterior.effect_mean == pytest.approx(mean, abs=5e-3)
@@ -934,13 +966,15 @@ def test_bayesian_multi_arm_reports_each_action_against_the_reference():
         [f"account-{i}" for i in range(40)],
         [f"row-{i}" for i in range(40)],
     )
-    result = ant.analyze(
-        {"outcome": outcomes},
-        query=ant.experiment.RandomizedEffect("outcome", design),
-        inference=_bayes(BernoulliArms(1.0, 1.0)),
-        estimator=ant.Estimator.BAYESIAN_RANDOMIZED_SUPERPOPULATION,
-        seed=5,
-        refute="none",
+    result = require_success(
+        ant.analyze(
+            {"outcome": outcomes},
+            query=ant.experiment.RandomizedEffect("outcome", design),
+            inference=_bayes(BernoulliArms(1.0, 1.0)),
+            estimator=ant.Estimator.BAYESIAN_RANDOMIZED_SUPERPOPULATION,
+            seed=5,
+            refute="none",
+        )
     )
     # Beta(4, 8) against Beta(6, 6) (exact moments of the first contrast).
     var = 4 * 8 / (144 * 13) + 6 * 6 / (144 * 13)
@@ -951,20 +985,24 @@ def test_bayesian_multi_arm_reports_each_action_against_the_reference():
 def test_bayesian_randomized_route_refuses_an_undeclared_prior_and_a_design_based_estimator():
     data = {"outcome": np.asarray(_TRIAL_Y)}
     with pytest.raises(CausalError, match="design_model") as caught:
-        ant.analyze(
-            data,
-            query=_two_arm_query(),
-            inference=ant.Bayesian(backend="conjugate", n_draws=2000),
-            refute="none",
+        require_success(
+            ant.analyze(
+                data,
+                query=_two_arm_query(),
+                inference=ant.Bayesian(backend="conjugate", n_draws=2000),
+                refute="none",
+            )
         )
     assert caught.value.reason_code == "required_option_missing"
     with pytest.raises(CausalError, match="estimator_inference_mismatch"):
-        ant.analyze(
-            data,
-            query=_two_arm_query(),
-            inference=_bayes(BernoulliArms(1.0, 1.0)),
-            estimator=ant.Estimator.RANDOMIZED_NEYMAN_ITT,
-            refute="none",
+        require_success(
+            ant.analyze(
+                data,
+                query=_two_arm_query(),
+                inference=_bayes(BernoulliArms(1.0, 1.0)),
+                estimator=ant.Estimator.RANDOMIZED_NEYMAN_ITT,
+                refute="none",
+            )
         )
 
 
@@ -1008,12 +1046,14 @@ def _sb_model(carryover, dependence, rho=None):
 
 def test_bayesian_switchback_matches_the_whitened_least_squares_reference():
     data, query = _switchback_query()
-    result = ant.analyze(
-        data,
-        query=query,
-        inference=_bayes(_sb_model("none", "compound_symmetric", 0.4)),
-        seed=7,
-        refute="none",
+    result = require_success(
+        ant.analyze(
+            data,
+            query=query,
+            inference=_bayes(_sb_model("none", "compound_symmetric", 0.4)),
+            seed=7,
+            refute="none",
+        )
     )
     assert result.estimate.estimator_id == "bayesian.switchback_effect"
     assert result.evidence_status != "licensed"
@@ -1031,6 +1071,6 @@ def test_bayesian_switchback_refuses_unrestricted_carryover_and_unspecified_depe
         (_sb_model("none", "unspecified"), "dependence_undeclared", "sensitivity"),
     ):
         with pytest.raises(CausalError) as caught:
-            ant.analyze(data, query=query, inference=_bayes(model), refute="none")
+            require_success(ant.analyze(data, query=query, inference=_bayes(model), refute="none"))
         assert caught.value.reason_code == "cell_not_licensed"
         assert detail in str(caught.value) and next_attempt in str(caught.value)

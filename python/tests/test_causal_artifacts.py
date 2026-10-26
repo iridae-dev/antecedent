@@ -11,6 +11,7 @@ from antecedent._native import (
     decode_causal_artifact,
     encode_causal_artifact,
 )
+from antecedent.outcomes import require_success
 
 
 def _response_query(functional: object) -> dict[str, object]:
@@ -889,7 +890,7 @@ def test_identified_set_interval_survives_export_and_reencode() -> None:
         bootstrap=60,
         seed=5,
     )
-    result = prepared.estimate(data, seed=5)
+    result = require_success(prepared.estimate(data, seed=5))
     assert result.structural_identified_set_interval is not None
     assert result.structural_identified_set_interval_method == "imbens_manski_shared_block"
     assert result.structural_identified_set_interval_truncated is False

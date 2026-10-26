@@ -21,6 +21,7 @@ from antecedent._data import table_column_names, try_as_arrow_c_columns
 from antecedent.errors import CausalError, CausalTypeError, CausalValueError
 from antecedent.estimators import LinearAdjustment
 from antecedent.graph import Admg, Dag
+from antecedent.outcomes import require_success
 
 QUERY = ant.AverageEffect(treatment="t", outcome="y")
 ONE_SHOT = {"bootstrap": 0, "refute": False, "seed": 1}
@@ -70,7 +71,7 @@ def with_nuisance(columns: dict[str, np.ndarray], seed: int) -> pd.DataFrame:
 
 
 def run(data, graph=EDGES, **options):
-    return ant.analyze(data, graph=graph, query=QUERY, **ONE_SHOT, **options)
+    return require_success(ant.analyze(data, graph=graph, query=QUERY, **ONE_SHOT, **options))
 
 
 def same(left, right) -> None:
@@ -117,9 +118,9 @@ def test_the_pandas_index_is_not_exported_as_a_column():
     assert {len(array) for array in arrays} == {len(kept)}
     study = ant.prepare(kept, graph=EDGES, query=QUERY, **ONE_SHOT)
     assert table_column_names(kept) == list(DECLARED)
-    same(study.estimate(), run(kept.reset_index(drop=True)))
+    same(require_success(study.estimate()), run(kept.reset_index(drop=True)))
     # The row count the study analysed is the filtered frame's, not the original frame's.
-    assert study.estimate().missing_data.accounting.rows_total == len(kept)
+    assert require_success(study.estimate()).missing_data.accounting.rows_total == len(kept)
 
 
 @pytest.mark.parametrize("typed", ["dag", "admg"])
@@ -145,16 +146,20 @@ def test_refresh_binds_columns_by_name_and_equals_the_one_shot_estimate():
         query=QUERY,
         **ONE_SHOT,
     )
-    prepared = study.estimate()
+    prepared = require_success(study.estimate())
     same(prepared, run({name: first[name] for name in DECLARED}))
     reversed_names = list(reversed(DECLARED))
     assert reversed_names == ["y", "t", "z2", "z1"]
-    refreshed = study.refresh(pd.DataFrame({name: second[name] for name in reversed_names}))
+    refreshed = require_success(
+        study.refresh(pd.DataFrame({name: second[name] for name in reversed_names}))
+    )
     same(refreshed, run({name: second[name] for name in DECLARED}))
     assert refreshed.estimate.ate != pytest.approx(prepared.estimate.ate, rel=1e-6)
     # Extra columns and Arrow input bind by name as well.
     extra = with_nuisance(second, 8987132)[["note_a", "y", "t", "visit", "z2", "z1"]]
-    same(study.refresh(pa.Table.from_pandas(extra, preserve_index=False)), refreshed)
+    same(
+        require_success(study.refresh(pa.Table.from_pandas(extra, preserve_index=False))), refreshed
+    )
 
 
 @pytest.mark.parametrize("kind", ["pandas", "arrow"])
@@ -319,7 +324,8 @@ def test_string_cluster_labels_drive_the_clustered_variance_over_the_final_mask(
     assert result.estimate.se_analytic != pytest.approx(miscounted, rel=1e-6)
     # Identical labels in another row order are the same clusters.
     reordered = run(
-        frame.sample(frac=1.0, random_state=3).reset_index(drop=True), estimator=estimator
+        require_success(frame.sample(frac=1.0, random_state=3)).reset_index(drop=True),
+        estimator=estimator,
     )
     assert reordered.estimate.se_analytic == pytest.approx(se, rel=1e-9)
 
@@ -331,7 +337,7 @@ def test_one_shot_and_prepared_routes_report_the_same_identifiers_and_estimate()
     study = ant.prepare(
         frame, graph=EDGES, query=QUERY, estimator=estimator, participant="pid", **ONE_SHOT
     )
-    prepared = study.estimate()
+    prepared = require_success(study.estimate())
     assert prepared.estimate.ate == one_shot.estimate.ate
     assert prepared.estimate.se_analytic == one_shot.estimate.se_analytic
     left, right = one_shot.missing_data.accounting, prepared.missing_data.accounting
@@ -343,20 +349,20 @@ def test_one_shot_and_prepared_routes_report_the_same_identifiers_and_estimate()
     # Replay against the same table rebuilds the same identifiers.
     replayed = study.reprepare(frame)
     assert replayed.participants == study.participants
-    assert replayed.estimate().estimate.ate == prepared.estimate.ate
+    assert require_success(replayed.estimate()).estimate.ate == prepared.estimate.ate
 
 
 def test_a_refresh_with_changed_identifiers_lists_them_and_marks_the_claim_for_recompute():
     frame, _, _ = labelled_study(seed=5310927)
     study = ant.prepare(frame, graph=EDGES, query=QUERY, participant="pid", **ONE_SHOT)
-    first = study.estimate()
+    first = require_success(study.estimate())
     changed_rows = np.sort(np.random.default_rng(5).choice(3000, size=25, replace=False))
     changed = frame.copy()
     changed.iloc[changed_rows, changed.columns.get_loc("pid")] = [
         f"REPLACED-{row:05d}" for row in changed_rows
     ]
     with pytest.raises(CausalValueError, match="frozen identifier column 'pid'") as raised:
-        study.refresh(changed)
+        require_success(study.refresh(changed))
     receipt = raised.value.receipt
     assert receipt.column == "pid" and receipt.rows == 3000
     assert receipt.standing == "recompute" and receipt.duplicated == ()
@@ -368,7 +374,7 @@ def test_a_refresh_with_changed_identifiers_lists_them_and_marks_the_claim_for_r
     # Nothing moved: the last result stands, and the unchanged column is accepted.
     assert study.last_result is first
     assert study.participants == tuple(frame["pid"])
-    same(study.refresh(frame), first)
+    same(require_success(study.refresh(frame)), first)
     # Declaring the new identifiers is the way forward, and it binds them.
     rebound = study.reprepare(changed)
     assert rebound.participants == tuple(changed["pid"])
@@ -397,20 +403,20 @@ def test_missing_outcomes_keep_the_identity_of_every_dropped_and_retained_row():
 def test_an_invalid_refresh_leaves_the_prepared_study_exactly_as_it_was():
     frame, _, _ = labelled_study(seed=9438851, missing_outcomes=40)
     study = ant.prepare(frame, graph=EDGES, query=QUERY, participant="pid", **ONE_SHOT)
-    first = study.estimate()
-    before = study.export()
+    first = require_success(study.estimate())
+    before = bytes(study.export())
     participants = study.participants
     duplicated = frame.copy()
     duplicated.iloc[7, duplicated.columns.get_loc("pid")] = frame["pid"].iloc[3]
     with pytest.raises(CausalValueError, match="duplicate identifier on refresh") as raised:
-        study.refresh(duplicated)
+        require_success(study.refresh(duplicated))
     assert raised.value.receipt.duplicated == (frame["pid"].iloc[3],)
     assert [change.row for change in raised.value.receipt.changes] == [7]
     assert frame["pid"].iloc[3] in str(raised.value)
     assert study.last_result is first
     assert study.participants == participants
-    assert study.export() == before
-    again = study.estimate()
+    assert bytes(study.export()) == before
+    again = require_success(study.estimate())
     same(again, first)
     # The exported artifact records the native work of its own estimate (the second click
     # reuses the retained design), so its bytes differ; the scientific identities do not.
@@ -423,7 +429,7 @@ def test_an_invalid_refresh_leaves_the_prepared_study_exactly_as_it_was():
     new_outcomes = declared_frame(3000, 9438852)
     valid = frame.copy()
     valid["y"] = new_outcomes["y"]
-    refreshed = study.refresh(valid)
+    refreshed = require_success(study.refresh(valid))
     assert refreshed.estimate.ate != pytest.approx(first.estimate.ate, rel=1e-6)
     assert study.participants == participants
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_json
 
@@ -47,12 +48,12 @@ def test_adjustment_api_keeps_econml_aliases_layout_and_tool() -> None:
         assert "Y" in columns and "outcome" not in columns
         return {"learner": "caller.learner", "effect": 1.0, "label": "ate"}
 
-    default_run = spec.as_provider(fit).execute({"data": data})
+    default_run = require_success(spec.as_provider(fit).execute({"data": data}))
     assert default_run.provenance["adapter"] == "antecedent.handoff.EconMLProviderAdapter"
     assert default_run.provenance["tool"] == "antecedent.handoff.EconMLSpec"
     custom = antecedent.handoff.adjustment(identified, tool="caller.learner")
     assert dict(custom.spec.provenance) == {"adapter": "caller.learner"}
-    custom_run = custom.as_provider(fit).execute({"data": data})
+    custom_run = require_success(custom.as_provider(fit).execute({"data": data}))
     assert custom_run.provenance["adapter"] == "caller.learner"
     assert custom_run.provenance["tool"] == "caller.learner"
 
@@ -115,8 +116,8 @@ def test_econml_runtime_adapter_registers_and_round_trips_attested_artifact(monk
     monkeypatch.setattr(extension.metadata, "entry_points", lambda: EntryPoints())
     registry = ProviderRegistry()
     registry.load_entry_point("econml")
-    executed = registry.execute("econml", {"data": data})
-    loaded = antecedent.load(executed.artifact)
+    executed = require_success(registry.execute("econml", {"data": data}))
+    loaded = require_success(antecedent.load(executed.artifact))
     assert seen["columns"]["W"].shape == (len(data["t"]), 1)
     assert loaded.calibration.status == "unavailable"
     assert loaded.calibration.reason == "attested_not_reverifiable"
@@ -125,14 +126,16 @@ def test_econml_runtime_adapter_registers_and_round_trips_attested_artifact(monk
     assert executed.provenance["entry_point"] == EconMLEntryPoint.value
 
     # Reference receipt is prepared independently of the provider execution.
-    expected_artifact = spec.attach(
-        learner="econml.dml.CausalForestDML",
-        learner_config={"n_estimators": 5},
-        effect=2.0,
-        interval=[1.5, 2.5],
-        data=data,
-        label="ate",
-    ).export()
+    expected_artifact = bytes(
+        spec.attach(
+            learner="econml.dml.CausalForestDML",
+            learner_config={"n_estimators": 5},
+            effect=2.0,
+            interval=[1.5, 2.5],
+            data=data,
+            label="ate",
+        ).export()
+    )
     report = registry.verify(
         "econml",
         [
@@ -148,23 +151,27 @@ def test_econml_runtime_adapter_registers_and_round_trips_attested_artifact(monk
                     "entry_point": EconMLEntryPoint.value,
                 },
                 artifact_digest=hashlib.sha256(expected_artifact).hexdigest(),
-                artifact_decoder=lambda encoded: antecedent.load(encoded).claim_id,
-                expected_decoded_artifact=antecedent.load(expected_artifact).claim_id,
+                artifact_decoder=lambda encoded: require_success(antecedent.load(encoded)).claim_id,
+                expected_decoded_artifact=require_success(
+                    antecedent.load(expected_artifact)
+                ).claim_id,
             )
         ],
         evidence_origin="independent-econml-fixture/v1",
     )
-    verified = registry.execute("econml", {"data": data})
+    verified = require_success(registry.execute("econml", {"data": data}))
     assert verified.trust is ProviderTrust.VERIFIED_EXTENSION
     assert verified.provenance["verification_evidence_digest"] == report.evidence_digest
-    assert antecedent.load(verified.artifact).claim_id == loaded.claim_id
+    assert require_success(antecedent.load(verified.artifact)).claim_id == loaded.claim_id
 
 
 def test_analyze_result_handoff_matches_identify() -> None:
     data = _backdoor_data()
     query = antecedent.AverageEffect(treatment="t", outcome="y")
-    result = antecedent.analyze(
-        data, graph=_backdoor_graph(), query=query, refute=False, bootstrap=0, seed=1
+    result = require_success(
+        antecedent.analyze(
+            data, graph=_backdoor_graph(), query=query, refute=False, bootstrap=0, seed=1
+        )
     )
     spec = antecedent.handoff.econml(result, treatment="t", outcome="y")
     assert result.plan.structure_source == "explicit"
@@ -185,13 +192,15 @@ def test_partial_id_refuses() -> None:
         for name in pin["columns"]:
             values[name].extend([float(cell[name])] * count)
     data = {name: np.asarray(col, dtype=np.float64) for name, col in values.items()}
-    result = antecedent.analyze(
-        data,
-        graph=graph,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert result.plan.structure_source == "explicit"
     assert result.identification.adjustment_set == tuple([])
@@ -227,14 +236,16 @@ def test_frontdoor_refuses() -> None:
 def test_frequentist_graph_posterior_refuses() -> None:
     from known_truth import FREQ, STATIC, static_data, static_posterior
 
-    result = antecedent.analyze(
-        static_data(int(STATIC["n"])),
-        discovery=static_posterior(),
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=FREQ,
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            static_data(int(STATIC["n"])),
+            discovery=static_posterior(),
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=FREQ,
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert result.plan.structure_source == "graph_posterior"
     assert result.identification.status == "GraphDependent"
@@ -250,14 +261,16 @@ def test_frequentist_graph_posterior_refuses() -> None:
 
 def test_graph_posterior_refuses() -> None:
     data = _backdoor_data()
-    result = antecedent.analyze(
-        data,
-        discovery=antecedent.discovery.ExactDagPosterior(),
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(n_draws=32, prior_scale=100.0, backend="conjugate"),
-        refute=False,
-        bootstrap=0,
-        seed=7,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            discovery=antecedent.discovery.ExactDagPosterior(),
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=32, prior_scale=100.0, backend="conjugate"),
+            refute=False,
+            bootstrap=0,
+            seed=7,
+        )
     )
     with pytest.raises(antecedent.errors.CausalUnsupportedError, match="graph-posterior"):
         antecedent.handoff.econml(result, treatment="t", outcome="y")
@@ -341,8 +354,10 @@ def test_multiple_controls_are_sample_major() -> None:
 def test_relabeling_certificate_is_rejected(analyzed):
     query = antecedent.AverageEffect("t", "y")
     result = (
-        antecedent.analyze(
-            _backdoor_data(), graph=_backdoor_graph(), query=query, refute=False, bootstrap=0
+        require_success(
+            antecedent.analyze(
+                _backdoor_data(), graph=_backdoor_graph(), query=query, refute=False, bootstrap=0
+            )
         )
         if analyzed
         else antecedent.identify(graph=_backdoor_graph(), query=query)
@@ -380,8 +395,8 @@ def test_attach_export_load_keeps_attested_external_estimate() -> None:
         effect=np.full(len(data["t"]), 2.0),
         data=data,
     )
-    loaded = antecedent.load(attached.export())
-    forwarded = antecedent.load(loaded.export())
+    loaded = require_success(antecedent.load(bytes(attached.export())))
+    forwarded = require_success(antecedent.load(bytes(loaded.export())))
     attested = loaded.decoded_artifact.contract["claim"]["attested"]
     assert attested
     assert attested[0]["kind"] == "external_estimate"
@@ -425,12 +440,14 @@ def test_attach_export_load_keeps_attested_external_estimate() -> None:
 
 def test_attach_from_analyzed_parent_does_not_claim_native_calibration() -> None:
     data = _backdoor_data()
-    result = antecedent.analyze(
-        data,
-        graph=_backdoor_graph(),
-        query=antecedent.AverageEffect("t", "y"),
-        refute=False,
-        bootstrap=0,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=_backdoor_graph(),
+            query=antecedent.AverageEffect("t", "y"),
+            refute=False,
+            bootstrap=0,
+        )
     )
     attached = antecedent.handoff.econml(result).attach(
         learner="econml.dml.CausalForestDML",
@@ -438,7 +455,7 @@ def test_attach_from_analyzed_parent_does_not_claim_native_calibration() -> None
         effect=1.5,
         label="ate",
     )
-    loaded = antecedent.load(attached.export())
+    loaded = require_success(antecedent.load(bytes(attached.export())))
     assert loaded.calibration.status == "unavailable"
     assert loaded.calibration.reason == "attested_not_reverifiable"
     claim = loaded.decoded_artifact.contract["claim"]
@@ -479,9 +496,12 @@ def test_attach_scalar_ate_is_bound_through_external_bind() -> None:
     (quantity,) = claim.quantities
     assert quantity.units == "mmHg" and quantity.functional_id == "ate"
     assert quantity.regime_id == "do(t=1) - do(t=0)"
-    assert attached.export_claim()
+    assert bytes(attached.export(quantity="claim"))
     # The attested-estimate receipt is unchanged.
-    assert antecedent.load(attached.export()).calibration.status == "unavailable"
+    assert (
+        require_success(antecedent.load(bytes(attached.export()))).calibration.status
+        == "unavailable"
+    )
 
     bare = spec.attach(learner="x", effect=1.0, data=data, label="ate")
     assert bare.support == ("missing_evidence",)
@@ -535,7 +555,7 @@ def test_attach_cate_column_is_bound_with_lineage_support_and_provider_version()
     assert claim.covers(cate) and not claim.covers(cate + 1e-9) and not claim.covers(cate[:-1])
     with pytest.raises(antecedent.errors.CausalUnsupportedError, match="rows"):
         _ = claim.values
-    exported = attached.export_claim()
+    exported = bytes(attached.export(quantity="claim"))
     assert len(exported) < 16 * 1024
     reloaded = ExternalSpec(contract_id="", graph_id="", identification="", quantities=()).load(
         exported, expected_identity=claim.identity
@@ -543,7 +563,10 @@ def test_attach_cate_column_is_bound_with_lineage_support_and_provider_version()
     assert isinstance(reloaded, BoundExternalColumn) and reloaded.covers(cate)
     assert reloaded.identity_fields == claim.identity_fields
     # The attested-estimate receipt is built exactly as for any attach.
-    assert antecedent.load(attached.export()).calibration.status == "unavailable"
+    assert (
+        require_success(antecedent.load(bytes(attached.export()))).calibration.status
+        == "unavailable"
+    )
     plain = spec.attach(learner="econml.dml.CausalForestDML", effect=cate, data=data)
     assert plain.claim is None
 

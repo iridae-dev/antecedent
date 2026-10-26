@@ -50,6 +50,13 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._native import consume_nonlinear_mediation_artifact as _consume
 from ._native import evaluate_nonlinear_mediation as _evaluate
@@ -265,13 +272,8 @@ class MediationEffects(ScientificResult):
     _artifact_bytes: bytes | None
     _export_refusal: str | None = field(default=None, repr=False)
 
-    def artifact(self) -> ExportedArtifact[MediationEffects]:
-        """Typed bytes envelope for shared scientific consumption."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self)
-
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[MediationEffects]:
         """The checksummed ``nonlinear_mediation_v1`` artifact.
 
         Raises :class:`MediationRefusal` (``route_not_supported``,
@@ -281,7 +283,7 @@ class MediationEffects(ScientificResult):
         if self._artifact_bytes is None:
             raise_refusal(self._export_refusal, MediationRefusal)
         assert self._artifact_bytes is not None
-        return self._artifact_bytes
+        return artifact_from_receipt(self, self._artifact_bytes)
 
     def to_dict(self) -> dict[str, Any]:
         """A plain, JSON-serializable summary (no artifact bytes)."""
@@ -326,6 +328,7 @@ class MediationEffects(ScientificResult):
 def _result(
     report_json: str, artifact: bytes | None, export_refusal: str | None = None
 ) -> MediationEffects:
+    artifact = container_bytes(artifact) if artifact is not None else None
     meta = json.loads(report_json)
     r = meta["result"]
     overlap = r["overlap"]
@@ -539,6 +542,10 @@ def mediation_effects(
     return _result(report, bytes(artifact))
 
 
+@artifact_consumer(
+    proof="nonlinear_mediation.consume_mediation_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_mediation_artifact(
     artifact: bytes,
     *,
@@ -566,6 +573,7 @@ def consume_mediation_artifact(
     (``IdentityMismatch``, ``data``) and omitting it refuses with
     ``nonlinear_mediation.data_required``.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     if expected_identity is None:

@@ -123,6 +123,7 @@ def estimate(
     ]
     from ._analyze import analyze
     from .experiment import MultiArmExperimentDesign, RandomizedEffect
+    from .results import AnalysisResult
 
     cell_design = MultiArmExperimentDesign(
         [labels[index] for index in cell],
@@ -131,9 +132,10 @@ def estimate(
         [f"unit-{i}" for i in range(n)],
         [f"row-{i}" for i in range(n)],
     )
-    fit = analyze(
-        {outcome: y}, query=RandomizedEffect(outcome, cell_design), refute="none"
-    ).randomized_effect
+    result = analyze({outcome: y}, query=RandomizedEffect(outcome, cell_design), refute="none")
+    if not isinstance(result, AnalysisResult):
+        raise CausalValueError("the compiled randomized route returned an unexpected result type")
+    fit = result.randomized_effect
     if fit is None or len(fit.multi_arm_values) != 4:
         raise CausalValueError("the compiled randomized route returned no four-cell result")
     by_label = {

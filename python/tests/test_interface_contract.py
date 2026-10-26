@@ -356,13 +356,13 @@ def rich_contract():
 
 def test_an_exported_contract_round_trips_and_is_inspectable():
     contract = rich_contract()
-    exported = contract.artifact("estimator-contract")
+    exported = contract.export("estimator-contract")
     assert exported.metadata["contract_identity"] == ic.contract_identity(contract)
     consumed = ic.consume_interface_contract_artifact(exported.data, exported.expectation.identity)
     assert consumed.identity == exported.expectation.identity
     assert [p.name for p in consumed.contract.produces] == ["effect", "selection"]
     assert consumed.contract.produces[0].support == ic.SupportDomain.interval(-0.0, 1.0)
-    assert contract.artifact("estimator-contract").data == exported.data
+    assert contract.export("estimator-contract").data == exported.data
     meta = ic.inspect_interface_contract_artifact(exported.data)
     assert meta["feature"] == "interface_contract_v1"
     assert meta["identity"] == exported.expectation.identity
@@ -372,7 +372,7 @@ def test_an_exported_contract_round_trips_and_is_inspectable():
 
 
 def test_the_clean_room_consumer_accepts_an_exported_artifact_and_rejects_mutations(tmp_path):
-    exported = rich_contract().artifact("estimator-contract")
+    exported = rich_contract().export("estimator-contract")
     path = tmp_path / "contract.artifact"
     path.write_bytes(exported.data)
 
@@ -407,7 +407,7 @@ def test_the_clean_room_consumer_accepts_an_exported_artifact_and_rejects_mutati
 
 
 def test_a_fresh_process_consumes_the_artifact_against_a_retained_identity(tmp_path):
-    exported = rich_contract().artifact("estimator-contract")
+    exported = rich_contract().export("estimator-contract")
     path = tmp_path / "contract.artifact"
     path.write_bytes(exported.data)
     script = (

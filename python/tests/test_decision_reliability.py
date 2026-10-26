@@ -16,6 +16,7 @@ import numpy as np
 import pytest
 from antecedent import decision_reliability as dr
 from antecedent.errors import CausalTypeError, CausalValueError
+from antecedent.outcomes import require_success
 
 DR = dr.DecisionReliabilityRefusal
 
@@ -70,7 +71,7 @@ def test_two_gaussian_candidates_match_phi_within_four_standard_errors() -> None
     n = 20_000
     for rho in (0.0, 0.75):
         draws = _draws(_gaussian([1.0, 0.0], n, seed=3, rho=rho))
-        report = dr.rank(draws, dr.RankingRequest(baseline="c01"))
+        report = require_success(dr.rank(draws, dr.RankingRequest(baseline="c01")))
         exact = _phi(1.0 / math.sqrt(2.0 * (1.0 - rho)))
         better = report.statements["c00"]["probability_better_than_baseline"]
         theory_se = math.sqrt(exact * (1.0 - exact) / n)
@@ -90,7 +91,7 @@ def test_enumerated_four_state_law_has_exact_ranking_probabilities() -> None:
             "C": np.array([1.0, 2.0, 1.0, 2.0]),
         }
     )
-    report = dr.rank(draws, dr.RankingRequest(baseline="B", top_k=(2,)))
+    report = require_success(dr.rank(draws, dr.RankingRequest(baseline="B", top_k=(2,))))
     best = {c: report.probability_best(c) for c in "ABC"}
     # The last state is a three-way tie shared 1/3 each.
     assert best == pytest.approx({"A": 7 / 12, "B": 1 / 3, "C": 1 / 12}, abs=1e-12)
@@ -110,7 +111,7 @@ def test_cvar_of_a_known_normal_has_the_influence_function_standard_error() -> N
     values = np.random.default_rng(5).standard_normal(n)
     draws = _draws({"x": values, "y": values - 5.0})
     request = dr.ReliabilityRequest(functional=dr.Functional.cvar(alpha), decision="x")
-    estimate = dr.assess(draws, request).report.monte_carlo_error["decision"]
+    estimate = require_success(dr.assess(draws, request)).report.monte_carlo_error["decision"]
     q = _phi_inverse(alpha)
     truth = -_pdf(q) / alpha
     m1 = q * (1.0 - alpha) - _pdf(q)
@@ -125,7 +126,9 @@ def test_shared_stream_removes_difference_variance_that_independent_streams_keep
     n, rho = 20_000, 0.8
     shared = _gaussian([1.0, 0.0], n, seed=8, rho=rho)
     request = dr.ReliabilityRequest(decision="c00")
-    crn = dr.assess(_draws(shared), request).report.monte_carlo_error["differences"][0]
+    crn = require_success(dr.assess(_draws(shared), request)).report.monte_carlo_error[
+        "differences"
+    ][0]
     separate = _gaussian([1.0, 0.0], n, seed=9, rho=0.0)
     streams = {
         "c00": dr.StreamId(1, "selection", 0, "own/c00"),
@@ -138,7 +141,9 @@ def test_shared_stream_removes_difference_variance_that_independent_streams_keep
         coupling="declared_independent",
         within_stream="independent",
     )
-    independent = dr.assess(independent_draws, request).report.monte_carlo_error["differences"][0]
+    independent = require_success(dr.assess(independent_draws, request)).report.monte_carlo_error[
+        "differences"
+    ][0]
     crn_diff, ind_diff = crn["difference"], independent["difference"]
     # Var(mean difference) = 2 (1 - rho) / n with common random numbers, 2 / n without.
     assert crn_diff["standard_error"] == pytest.approx(math.sqrt(2 * (1 - rho) / n), rel=0.05)
@@ -155,13 +160,17 @@ def test_importance_weights_use_kish_effective_sample_size() -> None:
     weights = np.where(np.arange(n) % 2 == 0, 1.0, 3.0)
     utilities = (np.arange(n) % 2 == 1).astype(float)
     draws = _draws({"a": utilities, "b": utilities - 1.0}, weights=weights)
-    estimate = dr.assess(draws, dr.ReliabilityRequest()).report.monte_carlo_error["decision"]
+    estimate = require_success(dr.assess(draws, dr.ReliabilityRequest())).report.monte_carlo_error[
+        "decision"
+    ]
     # Weighted mean 3/4; sum w^2 (y - m)^2 = 562.5; sum w = 2000; Kish ESS = 2000^2 / 5000.
     assert estimate["value"] == pytest.approx(0.75, abs=1e-12)
     assert estimate["standard_error"] == pytest.approx(math.sqrt(562.5) / 2000.0, abs=1e-12)
     assert estimate["effective_sample_size"] == pytest.approx(800.0, abs=1e-9)
     with pytest.raises(DR) as refused:
-        dr.assess(draws, dr.ReliabilityRequest(functional=dr.Functional.quantile(0.5)))
+        require_success(
+            dr.assess(draws, dr.ReliabilityRequest(functional=dr.Functional.quantile(0.5)))
+        )
     assert refused.value.reason_code == "route_not_supported"
 
 
@@ -184,7 +193,7 @@ def test_in_sample_maximum_is_biased_up_and_held_out_value_is_unbiased() -> None
             {f"c{j:02d}": rng.standard_normal(n) for j in range(candidates)},
             stream=_stream("validation", replicate),
         )
-        report = dr.assess(selection, request, validation=validation).report
+        report = require_success(dr.assess(selection, request, validation=validation)).report
         chosen = report.selection_uncertainty["selected"]
         in_sample.append(chosen["in_sample"]["value"])
         held_out.append(chosen["held_out"]["held_out"]["estimate"]["value"])
@@ -204,24 +213,26 @@ def test_in_sample_maximum_is_biased_up_and_held_out_value_is_unbiased() -> None
 def test_adaptively_generated_candidates_need_a_search_record() -> None:
     columns = _gaussian([0.0, 0.2, 0.4], 200, seed=2, rho=0.3)
     with pytest.raises(DR) as refused:
-        dr.assess(_draws(columns, origin="adaptively_generated"))
+        require_success(dr.assess(_draws(columns, origin="adaptively_generated")))
     assert refused.value.reason_code == "candidate_search_record_required"
     assert refused.value.detail == "decision_reliability.search_record_required"
     with pytest.raises(DR) as ranking:
-        dr.rank(_draws(columns, origin="adaptively_generated"))
+        require_success(dr.rank(_draws(columns, origin="adaptively_generated")))
     assert ranking.value.reason_code == "candidate_search_record_required"
     record = dr.CandidateSearchRecord(
         generator="hill_climb@1", budget=1_000, n_evaluated=500, generator_stream=_stream("source")
     )
     draws = _draws(columns, origin="adaptively_generated", search_record=record)
-    chosen = dr.assess(draws).report.selection_uncertainty["selected"]
+    chosen = require_success(dr.assess(draws)).report.selection_uncertainty["selected"]
     assert chosen["n_considered"] == 500
     assert chosen["winners_curse"]["padded_candidates"] == 497
-    small = dr.assess(_draws(columns)).report.selection_uncertainty["selected"]
+    small = require_success(dr.assess(_draws(columns))).report.selection_uncertainty["selected"]
     assert chosen["winners_curse"]["bound"] > 2.0 * small["winners_curse"]["bound"]
     with pytest.raises(DR) as inconsistent:
         bad = dr.CandidateSearchRecord("g", budget=10, n_evaluated=2)
-        dr.assess(_draws(columns, origin="adaptively_generated", search_record=bad))
+        require_success(
+            dr.assess(_draws(columns, origin="adaptively_generated", search_record=bad))
+        )
     assert inconsistent.value.reason_code == "invalid_argument"
 
 
@@ -232,17 +243,17 @@ def test_undeclared_or_contradicted_dependence_is_refused() -> None:
         ({"within_stream": "unknown"}, "sampling_dependence_unknown"),
     ):
         with pytest.raises(DR) as refused:
-            dr.assess(_draws(columns, **kwargs))
+            require_success(dr.assess(_draws(columns, **kwargs)))
         assert refused.value.reason_code == code
     # Declared one shared simulation, but the candidates sit on different streams.
     streams = {"c00": _stream("selection", 0), "c01": _stream("selection", 1)}
     with pytest.raises(DR) as joint:
-        dr.assess(_draws(columns, stream=streams))
+        require_success(dr.assess(_draws(columns, stream=streams)))
     assert joint.value.reason_code == "joint_law_required"
     # The defaults are honest: nothing is assumed independent.
     bare = dr.DecisionDraws.from_arrays(columns, stream=_stream())
     with pytest.raises(DR) as default:
-        dr.assess(bare)
+        require_success(dr.assess(bare))
     assert default.value.reason_code == "sampling_dependence_unknown"
 
 
@@ -251,11 +262,11 @@ def test_validation_must_be_independent_of_the_selection_draws() -> None:
     selection = _draws(columns)
     request = dr.ReliabilityRequest(validation="provided")
     with pytest.raises(DR) as same:
-        dr.assess(selection, request, validation=_draws(columns))
+        require_success(dr.assess(selection, request, validation=_draws(columns)))
     assert same.value.reason_code == "validation_stream_not_independent"
     assert same.value.remedy
     other = _draws(_gaussian([0.0, 0.5, 1.0], 200, seed=7), stream=_stream("validation"))
-    report = dr.assess(selection, request, validation=other).report
+    report = require_success(dr.assess(selection, request, validation=other)).report
     assert report.dependence["validation_independent_of_selection"] is True
     reused = _draws(
         _gaussian([0.0, 0.5, 1.0], 200, seed=7),
@@ -263,13 +274,15 @@ def test_validation_must_be_independent_of_the_selection_draws() -> None:
         repeated_evaluations=1,
     )
     with pytest.raises(DR):
-        dr.assess(selection, request, validation=reused)
+        require_success(dr.assess(selection, request, validation=reused))
 
 
 def test_sample_splitting_records_disjoint_segments() -> None:
     columns = _gaussian([0.0] * 10, 200, seed=12)
     request = dr.ReliabilityRequest(validation="split", selection_fraction=0.5, gap=10)
-    chosen = dr.assess(_draws(columns), request).report.selection_uncertainty["selected"]
+    chosen = require_success(dr.assess(_draws(columns), request)).report.selection_uncertainty[
+        "selected"
+    ]
     assert chosen["status"] == "sample_split_validated"
     record = chosen["held_out"]["record"]
     selection = record["selection_segments"][0]
@@ -283,7 +296,7 @@ def test_sample_splitting_records_disjoint_segments() -> None:
 def test_three_components_are_separate_and_a_combined_number_is_refused() -> None:
     columns = {k: 2.0 * v for k, v in _gaussian([0.0, 0.3], 500, seed=14, rho=0.5).items()}
     draws = _draws(columns, source="posterior")
-    result = dr.assess(draws)
+    result = require_success(dr.assess(draws))
     report = result.report
     spread = report.source_uncertainty["spread"]["candidates"][1]["standard_deviation"]
     se = report.monte_carlo_error["candidates"][1]["estimate"]["standard_error"]
@@ -292,18 +305,18 @@ def test_three_components_are_separate_and_a_combined_number_is_refused() -> Non
     assert se == pytest.approx(spread / math.sqrt(500), rel=1e-9)
     assert "selected" in report.selection_uncertainty
     assert _draws(columns, source="known_law") is not None
-    known = dr.assess(_draws(columns, source="known_law")).report
+    known = require_success(dr.assess(_draws(columns, source="known_law"))).report
     assert known.source_uncertainty == "known_law"
     with pytest.raises(DR) as combined:
-        dr.assess(draws, dr.ReliabilityRequest(reporting="combined"))
+        require_success(dr.assess(draws, dr.ReliabilityRequest(reporting="combined")))
     assert combined.value.reason_code == "uncertainty_components_not_combined"
     with pytest.raises(DR) as again:
-        result.combined_uncertainty()
+        require_success(result.combined_uncertainty())
     assert again.value.detail == "decision_reliability.combined_uncertainty"
 
 
 def test_every_published_ranking_or_interval_route_is_closed() -> None:
-    result = dr.assess(_draws(_gaussian([0.0, 1.0], 100, seed=1)))
+    result = require_success(dr.assess(_draws(_gaussian([0.0, 1.0], 100, seed=1))))
     assert result.report.coordinate["candidate_set_size"] == 2
     assert result.report.coordinate["mc_budget"] == 100
     assert len(result.report.closed_routes) == 4
@@ -314,19 +327,19 @@ def test_every_published_ranking_or_interval_route_is_closed() -> None:
         "selection_corrected_interval",
     ):
         with pytest.raises(DR) as refused:
-            result.publish(route)
+            require_success(result.publish(route))
         assert refused.value.reason_code == "cell_not_licensed"
         assert refused.value.detail == "decision_reliability.cell_not_licensed"
         with pytest.raises(DR):
-            dr.publish(route, result.report.coordinate)
+            require_success(dr.publish(route, result.report.coordinate))
     with pytest.raises(CausalValueError):
-        dr.publish("not_a_route", result.report.coordinate)
+        require_success(dr.publish("not_a_route", result.report.coordinate))
 
 
 def test_every_published_route_is_licensed_inside_a_measured_coverage_record() -> None:
     # Two candidates, 1000 draws, shared stream, expected-utility selection, level 0.95:
     # inside the measured records (500 to 2000 draws per candidate).
-    result = dr.assess(_draws(_gaussian([0.5, 0.0], 1000, seed=5, rho=0.5)))
+    result = require_success(dr.assess(_draws(_gaussian([0.5, 0.0], 1000, seed=5, rho=0.5))))
     assert result.report.coordinate["mc_budget"] == 1000
     assert len(result.report.closed_routes) == 0
     for route in (
@@ -335,8 +348,8 @@ def test_every_published_route_is_licensed_inside_a_measured_coverage_record() -
         "utility_interval",
         "selection_corrected_interval",
     ):
-        result.publish(route)
-        dr.publish(route, result.report.coordinate)
+        require_success(result.publish(route))
+        require_success(dr.publish(route, result.report.coordinate))
 
 
 # ------------------------------------------------------------------ artifact
@@ -346,18 +359,20 @@ def _sealed() -> tuple[dr.DecisionReliability, dr.DecisionDraws]:
     columns = _gaussian([0.2, 0.0, 0.4], 300, seed=21, rho=0.4)
     draws = _draws(columns)
     request = dr.ReliabilityRequest(ranking=dr.RankingRequest(baseline="c01", top_k=(2,)))
-    return dr.assess(draws, request, artifact_id="python-test"), draws
+    return require_success(dr.assess(draws, request, artifact_id="python-test")), draws
 
 
 def test_artifact_round_trips_and_retained_expectations_are_enforced() -> None:
     result, draws = _sealed()
     digest, set_digest = draws.digests()
-    consumed = dr.consume_decision_reliability_artifact(
-        result.export(),
-        draws_digest=digest,
-        candidate_set_digest=set_digest,
-        selection_stream=_stream(),
-        decided_id=result.report.decided_id,
+    consumed = require_success(
+        dr.consume_decision_reliability_artifact(
+            bytes(result.export()),
+            draws_digest=digest,
+            candidate_set_digest=set_digest,
+            selection_stream=_stream(),
+            decided_id=result.report.decided_id,
+        )
     )
     assert consumed.report.raw == result.report.raw
     assert consumed.inspection["standing"] == "uncalibrated_point_diagnostic"
@@ -367,26 +382,29 @@ def test_artifact_round_trips_and_retained_expectations_are_enforced() -> None:
         {"selection_stream": _stream("selection", 9)},
     ):
         with pytest.raises(DR):
-            dr.consume_decision_reliability_artifact(result.export(), **kwargs)
-    damaged = bytearray(result.export())
+            require_success(
+                dr.consume_decision_reliability_artifact(bytes(result.export()), **kwargs)
+            )
+    damaged = bytearray(bytes(result.export()))
     damaged[len(damaged) // 2] ^= 0xFF
     with pytest.raises(DR):
-        dr.consume_decision_reliability_artifact(bytes(damaged))
+        require_success(dr.consume_decision_reliability_artifact(bytes(damaged)))
     with pytest.raises(DR):
-        dr.consume_decision_reliability_artifact(b"not an artifact")
+        require_success(dr.consume_decision_reliability_artifact(b"not an artifact"))
 
 
 def test_a_fresh_process_consumes_the_artifact_and_recomputes_the_report(tmp_path) -> None:
     result, draws = _sealed()
     path = tmp_path / "reliability.bin"
-    path.write_bytes(result.export())
+    path.write_bytes(bytes(result.export()))
     script = textwrap.dedent(
         """
         import json, sys
         from antecedent import decision_reliability as dr
-        consumed = dr.consume_decision_reliability_artifact(
+        from antecedent.outcomes import require_success
+        consumed = require_success(dr.consume_decision_reliability_artifact(
             open(sys.argv[1], "rb").read(), draws_digest=sys.argv[2]
-        )
+        ))
         print(json.dumps({
             "decided": consumed.report.decided_id,
             "value": consumed.report.monte_carlo_error["decision"]["value"],
@@ -408,7 +426,7 @@ def test_a_fresh_process_consumes_the_artifact_and_recomputes_the_report(tmp_pat
 
 def test_inputs_are_typed() -> None:
     with pytest.raises(CausalTypeError):
-        dr.assess("not draws")  # type: ignore[arg-type]
+        require_success(dr.assess("not draws"))  # type: ignore[arg-type]
     with pytest.raises(CausalTypeError):
         dr.DecisionDraws.from_arrays({}, stream=_stream())
     with pytest.raises(CausalValueError):

@@ -6,6 +6,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.estimation import _bayesian_inference_kwargs
+from antecedent.outcomes import require_success
 
 
 def _confounded(n: int = 120, seed: int = 5):
@@ -19,21 +20,25 @@ def _confounded(n: int = 120, seed: int = 5):
 def test_bayesian_conjugate_vs_laplace_backend():
     data, edges = _confounded()
     query = antecedent.AverageEffect(treatment="t", outcome="y")
-    laplace = antecedent.analyze(
-        data,
-        graph=edges,
-        query=query,
-        inference=antecedent.Bayesian(n_draws=64, backend="laplace"),
-        refute=False,
-        seed=1,
+    laplace = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=query,
+            inference=antecedent.Bayesian(n_draws=64, backend="laplace"),
+            refute=False,
+            seed=1,
+        )
     )
-    conjugate = antecedent.analyze(
-        data,
-        graph=edges,
-        query=query,
-        inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
-        refute=False,
-        seed=1,
+    conjugate = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=query,
+            inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
+            refute=False,
+            seed=1,
+        )
     )
     assert laplace.posterior is not None
     assert conjugate.posterior is not None
@@ -50,15 +55,17 @@ def test_bayesian_conjugate_vs_laplace_backend():
 
 def test_bayesian_hmc_smoke():
     data, edges = _confounded(n=100, seed=9)
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        # Publication-gate schedule (Ř≤1.01, ESS≥100); Rust floors HMC draws
-        # at 3000 when callers ask for less.
-        inference=antecedent.Bayesian(n_draws=4000, backend="hmc"),
-        refute=False,
-        seed=2,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            # Publication-gate schedule (Ř≤1.01, ESS≥100); Rust floors HMC draws
+            # at 3000 when callers ask for less.
+            inference=antecedent.Bayesian(n_draws=4000, backend="hmc"),
+            refute=False,
+            seed=2,
+        )
     )
     assert result.posterior is not None
     assert np.isfinite(result.posterior.effect_mean)

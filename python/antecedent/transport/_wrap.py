@@ -9,7 +9,9 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any, cast
 
+from .._artifact_protocol import ExportedArtifact, artifact_export, artifact_from_receipt
 from .._columns import coerce_fields
+from .._scientific import ScientificResult
 from ..errors import CausalSerializationError, CausalUnsupportedError
 from ..results import (
     AnalysisResult,
@@ -172,15 +174,16 @@ def _empty_performance() -> PerformanceView:
     return PerformanceView()
 
 
-class _ExportAdapter:
+class _ExportAdapter(ScientificResult):
     def __init__(self, result: Any) -> None:
         self._result = result
 
     def export_contracted_artifact(self, artifact_id: str = "analysis-result") -> bytes:
         return encode_transport_view(self._result)
 
-    def export(self) -> bytes:
-        return encode_transport_view(self._result)
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
+        return artifact_from_receipt(self, encode_transport_view(self._result))
 
 
 def _attach(result: Any, study: Any, specialist: Any, section: TransportSection) -> Any:
@@ -309,7 +312,7 @@ def _identification_snapshot(stage: Mapping[str, Any]) -> bytes | None:
 def _specialist_artifacts(distribution: Any) -> list[bytes]:
     if distribution is None:
         return []
-    artifacts = getattr(distribution, "artifacts", None)
+    artifacts = getattr(distribution, "_artifacts", None)
     if artifacts is not None:
         return [bytes(item) for item in artifacts]
     export = getattr(distribution, "export", None)

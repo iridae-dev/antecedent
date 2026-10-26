@@ -9,6 +9,7 @@ import pytest
 from antecedent import joint_panel
 from antecedent.errors import CausalResourceError
 from antecedent.intervention_programs import clip, minimum, var
+from antecedent.outcomes import require_success
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -84,7 +85,7 @@ def test_generic_python_panel_matches_shared_rust_mechanism_and_retains_failed_s
     groups, worlds = declarations()
     prepared = request(groups, worlds)
     assert prepared.inspect()["fits_performed"] == 0
-    result = prepared.estimate(seed=20261021)
+    result = require_success(prepared.estimate(seed=20261021))
     report = result.report()
     assert report["fits_performed"] == 1
     assert not report["identified"]
@@ -126,9 +127,11 @@ def test_generic_python_panel_matches_shared_rust_mechanism_and_retains_failed_s
             assert actual == pytest.approx(expected, abs=1e-12)
     retargeted = prepared.retarget(worlds, seed=20261021)
     del prepared
-    assert retargeted.estimate(seed=20261021).report()["point"] == report["point"]
+    assert require_success(retargeted.estimate(seed=20261021)).report()["point"] == report["point"]
     assert retargeted.inspect()["fits_performed"] == 1
-    replay = joint_panel.consume(result.export(seed=20261021), seed=20261021)
+    replay = require_success(
+        joint_panel.consume(bytes(result.export(seed=20261021)), seed=20261021)
+    )
     assert replay["point"] == report["point"]
     assert replay["draws"] == [None] * 4
     assert replay["grants_current_authority"] is False
@@ -158,7 +161,7 @@ def test_python_panel_refuses_foreign_expression_read_without_fitting():
 def test_compiler_derived_program_certificate_replays_current_fit_and_domain():
     groups, worlds = declarations()
     prepared = request(groups, worlds)
-    result = prepared.estimate(seed=20261021)
+    result = require_success(prepared.estimate(seed=20261021))
     controls = []
     for offset in range(24):
         for name in ("a", "b", "c"):
@@ -185,7 +188,7 @@ def test_compiler_derived_program_certificate_replays_current_fit_and_domain():
     assert report["scope"] == "model_conditional"
     assert report["selected_value_reliability"] == "unmeasured"
     assert len(report["controls"]) == len(controls)
-    artifact = certificate.export(seed=20261021)
+    artifact = bytes(certificate.export(seed=20261021))
     certificate.verify_current(artifact, seed=17)
     historical = joint_panel.consume_program_certificate(artifact, seed=99)
     assert historical["domain_identity"] == report["domain_identity"]
@@ -238,12 +241,12 @@ def test_randomized_program_selection_uses_original_heldout_units_and_replays():
     prepared = joint_panel.prepare_randomized_selection(
         design=design, training=units("train"), validation=units("holdout"), policy=policy
     )
-    result = prepared.execute(repetitions=20, seed=13)
+    result = require_success(prepared.execute(repetitions=20, seed=13))
     report = result.report()
     assert report["selected_program"] == "b"
     assert report["heldout"]["value"] == pytest.approx(1.1)
     assert len(report["repetitions"]) == 20
-    artifact = result.export()
+    artifact = bytes(result.export())
     result.verify_current(artifact, seed=99)
     replay = joint_panel.consume_randomized_selection(artifact, seed=99)
     assert replay["report"] == report
@@ -300,7 +303,7 @@ def test_continuous_instrumented_selection_fits_searches_holds_out_and_replays()
     assert report["selected"]["controls"] == pytest.approx([1.75], abs=0.002)
     assert report["heldout"]["value"] == pytest.approx(7 - 1.75**2, abs=0.005)
     assert len(report["repetitions"]) == 3
-    artifact = selected.export()
+    artifact = bytes(selected.export())
     selected.verify_current(artifact, seed=99)
     replay = joint_panel.consume_instrumented_selection(artifact, seed=99)
     assert replay["report"] == report
@@ -312,7 +315,7 @@ def test_continuous_instrumented_selection_fits_searches_holds_out_and_replays()
 def test_unsupported_certificate_expression_executes_actual_best_found_search():
     groups, worlds = declarations()
     prepared = request(groups, worlds, interactions={"clipped": clip(var("a"), 0.0, 0.5)})
-    result = prepared.estimate(seed=20261021)
+    result = require_success(prepared.estimate(seed=20261021))
     controls = [
         {
             "channel": name,
@@ -342,11 +345,11 @@ def test_unsupported_certificate_expression_executes_actual_best_found_search():
 
 def test_scheduled_contrast_assembles_on_the_shared_draws_and_refuses_separate_worlds():
     groups, worlds = declarations()
-    separate = request(groups, worlds).estimate(seed=20261021)
+    separate = require_success(request(groups, worlds).estimate(seed=20261021))
     with pytest.raises(Exception, match="contrast target"):
         separate.scheduled_contrast()
     prepared = request(groups, worlds, functional={"terms": [(1, 1.0), (0, -1.0)], "reference": 0})
-    result = prepared.estimate(seed=20261021)
+    result = require_success(prepared.estimate(seed=20261021))
     report = result.report()
     contrast = result.scheduled_contrast("terminal_mean", level=0.9)
     assert contrast["point"] == pytest.approx(
@@ -363,7 +366,7 @@ def test_scheduled_contrast_assembles_on_the_shared_draws_and_refuses_separate_w
 def test_reference_decomposition_uses_joint_fit_and_preserves_failed_slots():
     groups, worlds = declarations()
     prepared = request(groups, worlds)
-    result = prepared.estimate(seed=20261021)
+    result = require_success(prepared.estimate(seed=20261021))
     declaration = {
         "before_world": 0,
         "after_world": 1,
@@ -421,7 +424,7 @@ BROADER_FAMILY = {
 def test_broader_family_is_evaluated_by_the_shared_rust_mechanism_and_replays_from_the_artifact():
     groups, worlds = declarations()
     prepared = family_request(groups, worlds, BROADER_FAMILY)
-    result = prepared.estimate(seed=20261021)
+    result = require_success(prepared.estimate(seed=20261021))
     report = result.report()
     point = report["point_parameters"]
     parameters = point["parameters"]
@@ -474,24 +477,26 @@ def test_broader_family_is_evaluated_by_the_shared_rust_mechanism_and_replays_fr
     assert not report["identified"]
     assert report["diagnostics"]["calibration"] == "unmeasured"
     # The frozen artifact carries the family and replays the same numbers.
-    replay = joint_panel.consume(result.export(seed=20261021), seed=20261021)
+    replay = require_success(
+        joint_panel.consume(bytes(result.export(seed=20261021)), seed=20261021)
+    )
     assert replay["point"] == report["point"]
     assert replay["draws"] == report["draws"]
     assert replay["grants_current_authority"] is False
     # Retargeting reuses the fitted broader-family mechanism.
     retargeted = prepared.retarget(worlds, seed=20261021)
-    assert retargeted.estimate(seed=20261021).report()["point"] == report["point"]
+    assert require_success(retargeted.estimate(seed=20261021)).report()["point"] == report["point"]
 
 
 def test_reviewed_family_declaration_is_unchanged_and_family_choices_are_checked():
     groups, worlds = declarations()
-    reviewed = request(groups, worlds).estimate(seed=20261021).report()
+    reviewed = require_success(request(groups, worlds).estimate(seed=20261021)).report()
     assert "family" not in reviewed["point_parameters"]["parameters"]
     explicit = family_request(
         groups, worlds, {"adstock": "simplex", "saturation": "michaelis_menten"}
     )
     # Naming the reviewed family explicitly is the reviewed model, not a different one.
-    again = explicit.estimate(seed=20261021).report()
+    again = require_success(explicit.estimate(seed=20261021)).report()
     assert again["point"] == reviewed["point"]
     assert "family" not in again["point_parameters"]["parameters"]
     # Geometric adstock has no meaning without carryover: refused before any fit.
@@ -540,7 +545,7 @@ def test_broader_family_posterior_uses_the_extra_priors():
         },
     }
     prepared = family_request(groups, worlds, BROADER_FAMILY, inference=inference)
-    report = prepared.estimate(seed=20261021).report()
+    report = require_success(prepared.estimate(seed=20261021)).report()
     assert len(report["draws"]) == 16
     sampled = [draw for draw in report["draws"] if draw is not None]
     assert sampled

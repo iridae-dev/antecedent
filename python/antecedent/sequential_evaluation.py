@@ -62,6 +62,13 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._refusal import raise_refusal
 from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
@@ -1088,17 +1095,12 @@ class EvaluationArtifact(ScientificResult):
         """The policy (with its version) the artifact replays."""
         return _policy_from_wire(json.loads(self._handle.policy_json))
 
-    def artifact(
+    @artifact_export
+    def export(
         self, artifact_id: str = "sequential_evaluation"
     ) -> ExportedArtifact[EvaluationArtifact]:
-        """Typed bytes envelope for shared scientific consumption."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self, artifact_id)
-
-    def export(self, artifact_id: str = "sequential_evaluation") -> bytes:
         """The bounded checksummed container bytes."""
-        return bytes(self._handle.export(artifact_id))
+        return artifact_from_receipt(self, bytes(self._handle.export(artifact_id)))
 
 
 def seal(
@@ -1130,6 +1132,12 @@ def seal(
     return EvaluationArtifact(handle)
 
 
+@artifact_consumer(
+    proof="sequential_evaluation.consume_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+    input="data",
+    identity=("model", "policy", "evaluation"),
+)
 def consume_artifact(
     data: bytes,
     *,
@@ -1143,6 +1151,7 @@ def consume_artifact(
     ``model``, ``policy`` and ``evaluation`` are identities the consumer retained independently
     of the bytes; one that differs is refused.
     """
+    data = container_bytes(data)
     if not isinstance(data, (bytes, bytearray)):
         raise CausalTypeError("an artifact is bytes")
     expected = None

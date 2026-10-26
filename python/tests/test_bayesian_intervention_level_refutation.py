@@ -12,6 +12,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 EDGES = [("z", "t"), ("z", "y"), ("t", "y")]
 
@@ -42,13 +43,15 @@ def _level_query():
 @pytest.mark.parametrize("suite", ["cheap", "full"])
 def test_bayesian_level_refuter_state_runs_and_is_unlicensed(suite):
     data, mean_z = _data()
-    result = antecedent.analyze(
-        data,
-        graph=EDGES,
-        query=_level_query(),
-        inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
-        refute=suite,
-        seed=3,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=EDGES,
+            query=_level_query(),
+            inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
+            refute=suite,
+            seed=3,
+        )
     )
     assert result.evidence_status != "licensed"
     refuters = _refuter_names(result)
@@ -60,13 +63,15 @@ def test_bayesian_level_refuter_state_runs_and_is_unlicensed(suite):
 
 def test_bayesian_level_without_refute_stays_licensed():
     data, _ = _data(seed=7)
-    result = antecedent.analyze(
-        data,
-        graph=EDGES,
-        query=_level_query(),
-        inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
-        refute="none",
-        seed=3,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=EDGES,
+            query=_level_query(),
+            inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
+            refute="none",
+            seed=3,
+        )
     )
     assert result.evidence_status == "licensed"
     # No suite ran: the result carries no refuter reports (no view, or an empty one).
@@ -78,12 +83,14 @@ def test_derivative_cheap_runs_its_refuter_state():
     z = rng.normal(size=1500)
     t = 0.6 * z + rng.normal(size=1500)
     y = 1.0 + 2.0 * t + 1.5 * z + rng.normal(scale=0.5, size=1500)
-    result = antecedent.analyze(
-        {"t": t, "y": y, "z": z},
-        graph=EDGES,
-        query=antecedent.AverageDerivative("t", "y"),
-        refute="cheap",
-        seed=3,
+    result = require_success(
+        antecedent.analyze(
+            {"t": t, "y": y, "z": z},
+            graph=EDGES,
+            query=antecedent.AverageDerivative("t", "y"),
+            refute="cheap",
+            seed=3,
+        )
     )
     assert result.evidence_status != "licensed"
     refuters = _refuter_names(result)

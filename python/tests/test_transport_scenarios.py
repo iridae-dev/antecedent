@@ -18,6 +18,7 @@ from antecedent.errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 NAMES = ["z", "x", "y"]
@@ -109,7 +110,7 @@ def mean(scenario):
 
 
 def test_identified_scenarios_disagree_and_the_envelope_spans_them():
-    report = json.loads(prepare().estimate())
+    report = json.loads(require_success(prepare().estimate()))
     assert report["scope"] == "finite_transport_scenarios_structural_envelope"
     s = by_name(report)
     assert s["standardize"]["status"] == s["direct"]["status"] == "identified"
@@ -122,7 +123,7 @@ def test_identified_scenarios_disagree_and_the_envelope_spans_them():
 
 
 def test_unidentified_scenarios_are_retained_not_filtered():
-    report = json.loads(prepare().estimate())
+    report = json.loads(require_success(prepare().estimate()))
     shift = by_name(report)["outcome_shift"]
     assert shift["status"] == "structurally_unidentified"
     assert shift["identification_status"] == "proven_non_transportable"
@@ -137,7 +138,7 @@ def test_unidentified_scenarios_are_retained_not_filtered():
 
 
 def test_declared_weights_keep_unidentified_and_residual_mass():
-    report = json.loads(prepare(scenarios((0.3, 0.2, 0.4))).estimate())
+    report = json.loads(require_success(prepare(scenarios((0.3, 0.2, 0.4))).estimate()))
     assert report["residual_mass"] == pytest.approx(0.1)
     masses = {m["status"]: m["mass"] for m in report["masses"]}
     assert masses["structurally_unidentified"] == pytest.approx(0.4)
@@ -156,18 +157,23 @@ def test_declared_weights_keep_unidentified_and_residual_mass():
 
 def test_each_scenario_binds_its_own_evidence():
     report = json.loads(
-        prepare(cat=catalog(with_target=False), data=laws(with_target=False)).estimate()
+        require_success(
+            prepare(cat=catalog(with_target=False), data=laws(with_target=False)).estimate()
+        )
     )
     s = by_name(report)
     assert s["standardize"]["status"] == "missing_evidence"
     assert s["direct"]["status"] == "identified"
-    unsupported = json.loads(prepare(data=laws(with_target=False)).estimate())
+    unsupported = json.loads(require_success(prepare(data=laws(with_target=False)).estimate()))
     assert by_name(unsupported)["standardize"]["status"] == "unsupported_provider"
 
 
 def _operations_to_decide(sets):
     for steps in range(1, 10_000):
-        if json.loads(prepare(sets, max_steps=steps).estimate())["receipt"] is None:
+        if (
+            json.loads(require_success(prepare(sets, max_steps=steps).estimate()))["receipt"]
+            is None
+        ):
             return steps
     raise AssertionError("small graphs decide within 10k operations")
 
@@ -178,7 +184,7 @@ def test_a_scenario_budget_reports_the_rest_unevaluated():
             [transport.TransportScenario("direct", graph(), [])], coordinates()
         )
     )
-    report = json.loads(prepare(max_steps=direct).estimate())
+    report = json.loads(require_success(prepare(max_steps=direct).estimate()))
     s = by_name(report)
     assert s["direct"]["status"] == "identified"
     assert s["standardize"]["status"] == "unevaluated"
@@ -197,25 +203,29 @@ def test_scenario_and_variable_order_do_not_change_the_report():
         list(reversed(original.scenarios)), list(reversed(original.coordinates))
     )
     backward = prepare(shuffled)
-    assert json.loads(forward.estimate()) == json.loads(backward.estimate())
+    assert json.loads(require_success(forward.estimate())) == json.loads(
+        require_success(backward.estimate())
+    )
     # The same graphs declared with their variables in another order.
     reordered = prepare(scenarios((0.3, 0.2, 0.4), names=list(reversed(NAMES))))
-    assert json.loads(reordered.estimate()) == json.loads(forward.estimate())
+    assert json.loads(require_success(reordered.estimate())) == json.loads(
+        require_success(forward.estimate())
+    )
 
 
 def test_refresh_keeps_decisions_and_moves_points():
     prepared = prepare()
-    before = json.loads(prepared.estimate())
-    prepared.refresh(laws(source=(0.1, 0.3, 0.3, 0.3)))
-    after = json.loads(prepared.estimate())
+    before = json.loads(require_success(prepared.estimate()))
+    require_success(prepared.refresh(laws(source=(0.1, 0.3, 0.3, 0.3))))
+    after = json.loads(require_success(prepared.estimate()))
     assert [s["status"] for s in after["scenarios"]] == [s["status"] for s in before["scenarios"]]
     assert mean(by_name(after)["direct"]) == pytest.approx(0.6)
 
 
 def test_artifact_round_trip_keeps_failed_scenarios_and_refuses_tampering():
     prepared = prepare(scenarios((0.3, 0.2, 0.4)))
-    live = json.loads(prepared.estimate())
-    artifact = prepared.export()
+    live = json.loads(require_success(prepared.estimate()))
+    artifact = bytes(prepared.export())
     consumed = json.loads(transport.consume_transport_scenarios_artifact(artifact))
     assert consumed["scenarios"] == live["scenarios"]
     assert by_name(consumed)["outcome_shift"]["status"] == "structurally_unidentified"
@@ -276,8 +286,8 @@ def _frame(names, inner):
 
 def test_semantic_artifact_mutations_fail_consume_with_typed_errors():
     prepared = prepare(scenarios((0.3, 0.2, 0.4)))
-    prepared.estimate()
-    artifact = prepared.export()
+    require_success(prepared.estimate())
+    artifact = bytes(prepared.export())
     names, inner = _unframe(artifact)
     assert names == NAMES and _frame(names, inner) == artifact
     # Relabel the variables: z and y swap names. The names are bound into the
@@ -295,8 +305,8 @@ def test_semantic_artifact_mutations_fail_consume_with_typed_errors():
 
 def test_data_identity_binds_law_snapshots_and_the_provider():
     prepared = prepare(scenarios((0.3, 0.2, 0.4)))
-    prepared.estimate()
-    names, inner = _unframe(prepared.export())
+    require_success(prepared.estimate())
+    names, inner = _unframe(bytes(prepared.export()))
     # A snapshot label no report shows: its edit is a data-identity failure, not
     # a scientific-premises one (the premises digest is untouched).
     relabelled = bytes(inner).replace(b"\x65trial", b"\x65other", 1)
@@ -343,7 +353,7 @@ def test_prepare_retains_checked_scenario_plans_after_builder_disposal():
         "outcome_shift": "not_identified:structurally_unidentified",
         "standardize": "compiled",
     }
-    report = json.loads(prepared.estimate())
+    report = json.loads(require_success(prepared.estimate()))
     assert [s["status"] for s in report["scenarios"]] == [
         "identified",
         "structurally_unidentified",
@@ -355,7 +365,7 @@ def test_structural_envelope_executes_from_retained_plans_after_builder_disposal
     prepared = _prepared_without_builder()
     plan = dict(prepared.plan_summary())
     assert plan["standardize"] == "compiled"
-    envelope = json.loads(prepared.estimate())["envelope"]["means"][0]
+    envelope = json.loads(require_success(prepared.estimate()))["envelope"]["means"][0]
     assert (envelope["lower"], envelope["upper"]) == pytest.approx((STANDARDIZED, DIRECT))
 
 
@@ -363,7 +373,7 @@ def test_weighted_report_executes_from_retained_plans_after_builder_disposal():
     prepared = _prepared_without_builder((0.3, 0.2, 0.4))
     plan = [kind for _, kind in prepared.plan_summary()]
     assert plan.count("compiled") == 2
-    weighted = json.loads(prepared.estimate())["weighted"]
+    weighted = json.loads(require_success(prepared.estimate()))["weighted"]
     assert weighted["unaccounted_mass"] == pytest.approx(0.5)
     assert weighted["identified_weighted_sums"]["y"] == pytest.approx(
         0.3 * STANDARDIZED + 0.2 * DIRECT
@@ -374,19 +384,19 @@ def test_consume_rechecks_the_report_from_retained_plans_after_builder_disposal(
     prepared = _prepared_without_builder((0.3, 0.2, 0.4))
     plan = prepared.plan_summary()
     assert len(plan) == 3
-    live = json.loads(prepared.estimate())
-    consumed = json.loads(transport.consume_transport_scenarios_artifact(prepared.export()))
+    live = json.loads(require_success(prepared.estimate()))
+    consumed = json.loads(transport.consume_transport_scenarios_artifact(bytes(prepared.export())))
     assert consumed["scenarios"] == live["scenarios"]
     assert consumed["weighted"] == live["weighted"]
 
 
 def test_refresh_recompiles_retained_plans_after_builder_disposal():
     prepared = _prepared_without_builder()
-    before = json.loads(prepared.estimate())
-    prepared.refresh(laws(source=(0.1, 0.3, 0.3, 0.3)))
+    before = json.loads(require_success(prepared.estimate()))
+    require_success(prepared.refresh(laws(source=(0.1, 0.3, 0.3, 0.3))))
     plan = dict(prepared.plan_summary())
     assert plan["direct"] == "compiled"
-    after = json.loads(prepared.estimate())
+    after = json.loads(require_success(prepared.estimate()))
     assert [s["status"] for s in after["scenarios"]] == [s["status"] for s in before["scenarios"]]
     assert mean(by_name(after)["direct"]) == pytest.approx(0.6)
 
@@ -396,14 +406,14 @@ def test_native_stage_decides_each_scenario_once_and_retains_the_plans_after_bui
     assert type(prepared).__name__ == "PreparedTransportScenariosStage"
     plan = dict(prepared.plan_summary())
     assert set(plan) == {"direct", "outcome_shift", "standardize"}
-    assert json.loads(prepared.estimate())["scenarios"]
+    assert json.loads(require_success(prepared.estimate()))["scenarios"]
 
 
 def test_plan_summary_inspects_each_frozen_plan_after_builder_disposal():
     prepared = _prepared_without_builder()
     plan = prepared.plan_summary()
     assert dict(plan)["outcome_shift"] == "not_identified:structurally_unidentified"
-    prepared.estimate()
+    require_success(prepared.estimate())
     assert prepared.plan_summary() == plan
 
 
@@ -412,9 +422,9 @@ def test_export_frames_the_last_report_after_builder_disposal():
     plan = prepared.plan_summary()
     assert plan
     with pytest.raises(Exception, match="estimate before exporting"):
-        prepared.export()
-    prepared.estimate()
-    assert isinstance(prepared.export(), bytes)
+        bytes(prepared.export())
+    require_success(prepared.estimate())
+    assert isinstance(bytes(prepared.export()), bytes)
 
 
 def _schema_refusal(excinfo):
@@ -477,9 +487,11 @@ def test_weighted_ranges_use_the_declared_outcome_domain():
     # y is declared with three levels; no law realizes y = 2, so no atom has it,
     # yet the unaccounted half may still sit there.
     report = json.loads(
-        prepare(
-            scenarios((0.3, 0.2, 0.4), schema=coordinates(y="categorical", cardinality=3))
-        ).estimate()
+        require_success(
+            prepare(
+                scenarios((0.3, 0.2, 0.4), schema=coordinates(y="categorical", cardinality=3))
+            ).estimate()
+        )
     )
     total = 0.3 * STANDARDIZED + 0.2 * DIRECT
     rng = report["weighted"]["ranges"][0]
@@ -487,7 +499,7 @@ def test_weighted_ranges_use_the_declared_outcome_domain():
 
 
 def test_a_support_failure_is_scenario_local():
-    report = json.loads(prepare(data=laws(source=(0.4, 0.6, 0.0, 0.0))).estimate())
+    report = json.loads(require_success(prepare(data=laws(source=(0.4, 0.6, 0.0, 0.0))).estimate()))
     s = by_name(report)
     assert s["standardize"]["status"] == "support_failure"
     assert s["direct"]["status"] == "identified"
@@ -495,17 +507,17 @@ def test_a_support_failure_is_scenario_local():
 
 
 def test_the_shared_budget_observes_memory_depth_and_cancellation():
-    memory = json.loads(prepare(memory_bytes=1500).estimate(memory_bytes=None))
+    memory = json.loads(require_success(prepare(memory_bytes=1500).estimate(memory_bytes=None)))
     assert memory["receipt"]["stop"] == "search.memory"
     # The first scenario entered stops mid-search: it is unevaluated, not explored.
     assert memory["receipt"]["explored"] == []
     assert memory["receipt"]["unevaluated"] == ["direct", "outcome_shift", "standardize"]
-    depth = json.loads(prepare(max_depth=0).estimate())
+    depth = json.loads(require_success(prepare(max_depth=0).estimate()))
     assert depth["receipt"]["stop"] == "search.depth"
     assert {s["status"] for s in depth["scenarios"]} == {"unevaluated"}
     token = antecedent.state.CancellationToken()
     token.cancel()
-    cancelled = json.loads(prepare(cancel=token).estimate())
+    cancelled = json.loads(require_success(prepare(cancel=token).estimate()))
     assert cancelled["receipt"]["stop"] == "search.cancelled"
     assert cancelled["receipt"]["unevaluated"] == ["direct", "outcome_shift", "standardize"]
     assert {s["detail"] for s in cancelled["scenarios"]} == {
@@ -517,24 +529,24 @@ def test_a_memory_truncated_report_replays_but_a_cancelled_one_is_not_exported()
     # A recorded memory bound is reproduced by the consumer, which replays the
     # identical prefix even though its own context sets no limit.
     prepared = prepare(memory_bytes=1500)
-    live = json.loads(prepared.estimate())
-    consumed = json.loads(transport.consume_transport_scenarios_artifact(prepared.export()))
+    live = json.loads(require_success(prepared.estimate()))
+    consumed = json.loads(transport.consume_transport_scenarios_artifact(bytes(prepared.export())))
     assert consumed["receipt"] == live["receipt"]
     assert consumed["scenarios"] == live["scenarios"]
     # An operation bound is recorded and replays too.
     prepared = prepare(max_steps=25)
-    live = json.loads(prepared.estimate())
+    live = json.loads(require_success(prepared.estimate()))
     assert live["receipt"]["stop"] == "search.operations"
-    consumed = json.loads(transport.consume_transport_scenarios_artifact(prepared.export()))
+    consumed = json.loads(transport.consume_transport_scenarios_artifact(bytes(prepared.export())))
     assert consumed["receipt"] == live["receipt"]
     # Cancellation falls where nothing recorded lets a consumer reproduce, so the
     # exporter refuses rather than write an artifact that can only fail replay.
     token = antecedent.state.CancellationToken()
     token.cancel()
     cancelled = prepare(cancel=token)
-    cancelled.estimate()
+    require_success(cancelled.estimate())
     with pytest.raises(CausalSerializationError, match="cancellation"):
-        cancelled.export()
+        bytes(cancelled.export())
 
 
 def test_the_frozen_scenario_bound_refuses_65_scenarios():
@@ -550,7 +562,9 @@ def test_the_frozen_scenario_bound_refuses_65_scenarios():
         for i in range(65)
     ]
     # 64 are admitted and every one of them is decided and reported.
-    report = json.loads(prepare(transport.TransportScenarioSet(distinct[:64], schema)).estimate())
+    report = json.loads(
+        require_success(prepare(transport.TransportScenarioSet(distinct[:64], schema)).estimate())
+    )
     assert [s["name"] for s in report["scenarios"]] == sorted(s.name for s in distinct[:64])
     assert report["receipt"] is None
     counts = {m["status"]: m["count"] for m in report["masses"]}
@@ -587,10 +601,10 @@ def test_empirical_plug_in_points_per_scenario():
     )
     data = transport.StatisticalTransportData(samples=(trial, target))
     prepared = prepare(cat=cat, data=data)
-    report = json.loads(prepared.estimate())
+    report = json.loads(require_success(prepared.estimate()))
     s = by_name(report)
     assert mean(s["direct"]) == pytest.approx(0.6)
     assert mean(s["standardize"]) == pytest.approx(0.75 * 0.5 + 0.25 * 2 / 3)
     assert s["outcome_shift"]["status"] == "structurally_unidentified"
-    consumed = json.loads(transport.consume_transport_scenarios_artifact(prepared.export()))
+    consumed = json.loads(transport.consume_transport_scenarios_artifact(bytes(prepared.export())))
     assert consumed["scenarios"] == report["scenarios"]

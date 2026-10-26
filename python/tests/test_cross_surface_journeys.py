@@ -26,6 +26,7 @@ from antecedent.errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 from antecedent.transport.advanced import consume_period_refresh_artifact
 
@@ -119,7 +120,7 @@ def test_one_result_reads_the_same_through_plan_report_artifact_and_host(cell) -
     assert "a contract before execution" in before
     assert "## Claim" not in before
 
-    result = prepared.estimate(data, seed=1)
+    result = require_success(prepared.estimate(data, seed=1))
     assert result.estimate.ate == pytest.approx(
         GAUSSIAN["effect"], abs=_tolerance(horizon, bayesian)
     )
@@ -139,16 +140,16 @@ def test_one_result_reads_the_same_through_plan_report_artifact_and_host(cell) -
     assert record["status"] in {"supported", "partial"}
 
     # The independent consumer keeps the answer, and the retained identity binds it.
-    artifact = result.export(artifact_id=_cell_id(cell))
-    loaded = ant.load(artifact)
+    artifact = bytes(result.export(artifact_id=_cell_id(cell)))
+    loaded = require_success(ant.load(artifact))
     assert loaded.acceptance.recognized
     assert loaded.program_id == result.program_id
     assert loaded.claim_id == result.claim_id
     assert loaded.answer == result.answer
-    bound = ant.load(artifact, expected={"claim_id": result.claim_id})
+    bound = require_success(ant.load(artifact, expected={"claim_id": result.claim_id}))
     assert bound.claim_id == result.claim_id
     with pytest.raises(CausalSerializationError, match="expected claim_id differs"):
-        ant.load(artifact, expected={"claim_id": "0" * 64})
+        require_success(ant.load(artifact, expected={"claim_id": "0" * 64}))
 
 
 _CHILD = """
@@ -182,12 +183,12 @@ def _routes() -> dict:
     routes = {}
     for horizon, bayesian in _CELLS:
         prepared, data = _prepare(horizon, bayesian)
-        routes[_cell_id((horizon, bayesian))] = prepared.estimate(data, seed=1)
-    routes["anomaly-attribution"] = ant.analyze(
-        _outlier_chain(), graph=_dag(), query=_anomaly_query()
+        routes[_cell_id((horizon, bayesian))] = require_success(prepared.estimate(data, seed=1))
+    routes["anomaly-attribution"] = require_success(
+        ant.analyze(_outlier_chain(), graph=_dag(), query=_anomaly_query())
     )
-    routes["change-attribution"] = ant.analyze(
-        _two_period_chain(), graph=_dag(), query=_change_query()
+    routes["change-attribution"] = require_success(
+        ant.analyze(_two_period_chain(), graph=_dag(), query=_change_query())
     )
     return routes
 
@@ -195,7 +196,7 @@ def _routes() -> dict:
 def test_every_route_artifact_reloads_in_a_fresh_process_with_its_identities(tmp_path) -> None:
     for name, result in _routes().items():
         path = tmp_path / f"{name}.ant"
-        path.write_bytes(result.export(artifact_id=name))
+        path.write_bytes(bytes(result.export(artifact_id=name)))
         seen = _fresh_process(path)
         assert seen["recognized"] is True, name
         assert seen["status"] in {"verified", "sealed"}, name
@@ -206,15 +207,15 @@ def test_every_route_artifact_reloads_in_a_fresh_process_with_its_identities(tmp
 
 def test_a_changed_byte_is_refused_or_never_a_different_recognized_answer() -> None:
     prepared, data = _prepare(False, False)
-    result = prepared.estimate(data, seed=1)
-    artifact = result.export()
+    result = require_success(prepared.estimate(data, seed=1))
+    artifact = bytes(result.export())
     step = max(1, len(artifact) // 48)
     refused = 0
     for position in range(0, len(artifact), step):
         changed = bytearray(artifact)
         changed[position] ^= 0x01
         try:
-            other = ant.load(bytes(changed))
+            other = require_success(ant.load(bytes(changed)))
         except Exception:  # noqa: BLE001 - every refusal type is the expected outcome
             refused += 1
             continue
@@ -224,7 +225,7 @@ def test_a_changed_byte_is_refused_or_never_a_different_recognized_answer() -> N
     assert refused, "no flipped byte was ever refused"
     # A truncated artifact is never read as a shorter answer.
     with pytest.raises(_REFUSALS):
-        ant.load(artifact[: len(artifact) // 2])
+        require_success(ant.load(artifact[: len(artifact) // 2]))
 
 
 def test_a_refresh_moves_the_data_not_the_program_and_leaves_the_earlier_artifact_intact(
@@ -233,9 +234,9 @@ def test_a_refresh_moves_the_data_not_the_program_and_leaves_the_earlier_artifac
     for horizon, bayesian in _CELLS:
         label = _cell_id((horizon, bayesian))
         prepared, data = _prepare(horizon, bayesian)
-        result = prepared.estimate(data, seed=1)
+        result = require_success(prepared.estimate(data, seed=1))
         program = prepared.plan_view().identity
-        earlier = result.export(artifact_id=label)
+        earlier = bytes(result.export(artifact_id=label))
         earlier_path = tmp_path / f"{label}-earlier.ant"
         earlier_path.write_bytes(earlier)
         before = _fresh_process(earlier_path)
@@ -248,40 +249,44 @@ def test_a_refresh_moves_the_data_not_the_program_and_leaves_the_earlier_artifac
             # One more unit of slope moves the contrast.
             moved = {"t": data["t"], "y": data["y"] + data["t"]}
             truth = GAUSSIAN["effect"] + 1.0
-        refreshed = prepared.refresh(moved, seed=1)
+        refreshed = require_success(prepared.refresh(moved, seed=1))
         tolerance = 2 * _tolerance(horizon, bayesian) if bayesian else 1e-6
         assert refreshed.estimate.ate == pytest.approx(truth, abs=tolerance), label
         assert refreshed.program_id == result.program_id, label
         assert prepared.plan_view().identity == program, label
         assert refreshed.data_snapshot_id != result.data_snapshot_id, label
-        assert refreshed.export(artifact_id=label) != earlier, label
+        assert bytes(refreshed.export(artifact_id=label)) != earlier, label
 
         # The earlier artifact does not follow the refresh, in this process or a fresh one.
         assert _fresh_process(earlier_path) == before, label
-        assert ant.load(earlier).claim_id == result.claim_id, label
-        report = ant.load(earlier).inspect()
+        assert require_success(ant.load(earlier)).claim_id == result.claim_id, label
+        report = require_success(ant.load(earlier)).inspect()
         assert report.data_snapshot_id == result.data_snapshot_id, label
-        later = ant.load(
-            refreshed.export(artifact_id=label),
-            expected={"data_snapshot_id": refreshed.data_snapshot_id},
+        later = require_success(
+            ant.load(
+                bytes(refreshed.export(artifact_id=label)),
+                expected={"data_snapshot_id": refreshed.data_snapshot_id},
+            )
         )
         assert later.program_id == result.program_id, label
         with pytest.raises(CausalSerializationError, match="expected data_snapshot_id differs"):
-            ant.load(
-                refreshed.export(artifact_id=label),
-                expected={"data_snapshot_id": result.data_snapshot_id},
+            require_success(
+                ant.load(
+                    bytes(refreshed.export(artifact_id=label)),
+                    expected={"data_snapshot_id": result.data_snapshot_id},
+                )
             )
 
 
 def test_a_refused_refresh_leaves_the_prepared_study_as_it_was() -> None:
     prepared, data = _prepare(False, False)
-    first = prepared.estimate(data, seed=1)
+    first = require_success(prepared.estimate(data, seed=1))
     program = prepared.plan_view().identity
     wrong_schema = {"t": data["t"], "w": data["y"]}
     with pytest.raises(_REFUSALS):
-        prepared.refresh(wrong_schema, seed=1)
+        require_success(prepared.refresh(wrong_schema, seed=1))
     assert prepared.plan_view().identity == program
-    again = prepared.estimate(data, seed=1)
+    again = require_success(prepared.estimate(data, seed=1))
     assert again.estimate.ate == first.estimate.ate
     assert again.data_snapshot_id == first.data_snapshot_id
 
@@ -355,11 +360,11 @@ def test_a_summary_only_artifact_serves_a_fresh_process_and_refuses_the_rows_it_
     tmp_path, invariant
 ) -> None:
     refresh = started(invariant=invariant)
-    outcome = refresh.refresh(SERIES[6:12], period_window(6, 12, "snap_2"))
+    outcome = require_success(refresh.refresh(SERIES[6:12], period_window(6, 12, "snap_2")))
     assert outcome.outcome == ("extended" if invariant else "restarted")
     live = refresh.least_squares
     seen = _read_summary_in_a_fresh_process(
-        tmp_path, refresh.export_summary_only(), refresh.export()
+        tmp_path, refresh.export_summary_only(), bytes(refresh.export())
     )
 
     assert seen["retention"] == "summary-only"
@@ -377,16 +382,21 @@ def test_a_summary_only_artifact_serves_a_fresh_process_and_refuses_the_rows_it_
     # The ledger the rows stayed in recomputes the same fit that the summary served.
     assert seen["ledger_rows_used"] == live.n
     assert seen["ledger_beta"] == pytest.approx(list(live.beta), abs=1e-9)
-    assert consume_period_refresh_artifact(refresh.export()).rows_used == live.n
-    assert transport.PeriodRefreshSummary.consume(refresh.export_summary_only()).n == live.n
+    assert consume_period_refresh_artifact(bytes(refresh.export())).rows_used == live.n
+    assert (
+        require_success(transport.PeriodRefreshSummary.consume(refresh.export_summary_only())).n
+        == live.n
+    )
 
 
 def test_a_declared_invariant_extension_and_a_restart_serve_different_summaries(tmp_path) -> None:
     extended = started(invariant=True)
-    extended.refresh(SERIES[6:12], period_window(6, 12, "snap_2"))
+    require_success(extended.refresh(SERIES[6:12], period_window(6, 12, "snap_2")))
     restarted = started(invariant=False)
-    restarted.refresh(SERIES[6:12], period_window(6, 12, "snap_2"))
-    pooled = transport.PeriodRefreshSummary.consume(extended.export_summary_only())
-    fresh_start = transport.PeriodRefreshSummary.consume(restarted.export_summary_only())
+    require_success(restarted.refresh(SERIES[6:12], period_window(6, 12, "snap_2")))
+    pooled = require_success(transport.PeriodRefreshSummary.consume(extended.export_summary_only()))
+    fresh_start = require_success(
+        transport.PeriodRefreshSummary.consume(restarted.export_summary_only())
+    )
     assert pooled.n > fresh_start.n, "the restart dropped the first period's rows"
     assert pooled.source_digest != fresh_start.source_digest

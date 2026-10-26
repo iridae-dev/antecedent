@@ -62,12 +62,19 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 from . import _native
-from ._artifact_protocol import bytes_export
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._freeze import thaw
 from ._refusal import StructuredRefusal
 from ._scientific import ScientificResult
 from ._validate import count as _count
 from .errors import CausalTypeError, CausalValueError
+from .outcomes import outcome_operation, require_success
 from .scientific_bridge import _quantity_wire
 
 if TYPE_CHECKING:
@@ -805,16 +812,11 @@ class CallbackExecution(ScientificResult):
     _session: Any = field(default=None, repr=False, compare=False)
     _owner_token: Any = field(default=None, repr=False, compare=False)
 
-    @bytes_export
-    def export(self, artifact_id: str = "callback-result") -> bytes:
+    @artifact_export
+    def export(self, artifact_id: str = "callback-result") -> ExportedArtifact[CallbackConsumed]:
         if self._session is None:
             raise CausalValueError("this execution has no owning session; use artifact resume")
-        return self._session.export(self, artifact_id)
-
-    def artifact(self, artifact_id: str = "callback-result") -> ExportedArtifact[CallbackConsumed]:
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self._session, self, artifact_id=artifact_id)
+        return artifact_from_receipt(self, self._session.export(self, artifact_id))
 
 
 @dataclass(frozen=True, slots=True)
@@ -970,6 +972,7 @@ class CallbackSession:
             CallbackRefusal(decoded["refusal"]) if "refusal" in decoded else None,
         )
 
+    @outcome_operation
     def execute(
         self,
         provider: ProviderCallback,
@@ -1004,6 +1007,7 @@ class CallbackSession:
         assert wire is not None
         return _execution(json.loads(wire), self)
 
+    @outcome_operation
     def resume(
         self,
         artifact: bytes,
@@ -1024,6 +1028,7 @@ class CallbackSession:
         Raises:
             CallbackExecutionRefusal: the artifact or the provider is refused.
         """
+        artifact = container_bytes(artifact)
         identity_json = invoke = state_fn = None
         if provider is not None:
             identity_json, invoke, state_fn = _provider_parts(provider)
@@ -1049,6 +1054,7 @@ class CallbackSession:
         )
 
     def _check_execution(self, execution: CallbackExecution) -> int:
+        execution = require_success(execution)
         if (
             execution._session is not self
             or execution._owner_token is not self._owner_token
@@ -1093,6 +1099,7 @@ class CallbackSession:
             name: self._check_execution(execution) for name, execution in (inputs or {}).items()
         }
 
+    @outcome_operation
     def forecast_law(self, result: CallbackExecution) -> EmpiricalSample:
         """Lift the sample output of an accepted execution to a forecast law.
 
@@ -1110,8 +1117,10 @@ class CallbackSession:
         assert wire is not None
         return EmpiricalSample(tuple(float(v) for v in json.loads(wire)["draws"]))
 
-    @bytes_export
-    def export(self, result: CallbackExecution | int, artifact_id: str) -> ExportedCallbackResult:
+    @artifact_export
+    def export(
+        self, result: CallbackExecution | int, artifact_id: str
+    ) -> ExportedArtifact[CallbackConsumed]:
         """Seal one history record as ``callback_result_v1``.
 
         A declaration and a portable output, not a promise that a callable runs elsewhere.
@@ -1126,12 +1135,19 @@ class CallbackSession:
         done, refusal = self._handle.export_record(int(index), artifact_id)
         _raise(refusal)
         assert done is not None
-        return ExportedCallbackResult(bytes(done[0]), done[1])
+        return artifact_from_receipt(self, ExportedCallbackResult(bytes(done[0]), done[1]))
 
 
 # -- artifacts and closed routes ---------------------------------------------------------------
 
 
+@outcome_operation
+@artifact_consumer(
+    proof="provider_callbacks.consume_callback_result: recompute stored identity and bounds; no callback execution",
+    replayable=False,
+    status="sealed",
+    unresolved=("callback_provider",),
+)
 def consume_callback_result(
     artifact: bytes, expected_identity: str | None = None
 ) -> CallbackConsumed:
@@ -1144,6 +1160,7 @@ def consume_callback_result(
         CallbackRefusal: corruption, a bound, a refused declaration or output, a native trust
             claim or an identity mismatch.
     """
+    artifact = container_bytes(artifact)
     wire, refusal = _native.callback_result_consume(bytes(artifact), expected_identity)
     _raise(refusal)
     assert wire is not None
@@ -1164,6 +1181,7 @@ def consume_callback_result(
 
 def inspect_callback_result(artifact: bytes) -> dict[str, Any]:
     """Read the stored metadata without replaying or executing anything."""
+    artifact = container_bytes(artifact)
     wire, refusal = _native.callback_result_inspect(bytes(artifact))
     _raise(refusal)
     assert wire is not None

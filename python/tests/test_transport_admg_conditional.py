@@ -22,6 +22,7 @@ from antecedent.errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 NAMES = ["x", "y", "w"]
@@ -176,7 +177,7 @@ def test_conditional_transport_identifies_and_matches_the_enumerated_truth():
     assert populations == {"source", "target"}
     prepared = builder.prepare_exact(laws(), REQUESTS)
     del builder
-    result = json.loads(prepared.estimate())
+    result = json.loads(require_success(prepared.estimate()))
     assert prepared.plan()["compiled_plans"] == len(REQUESTS)
     for request, point in zip(REQUESTS, result["requests"], strict=True):
         expected = truth(int(request["x"]), int(request["w"]))
@@ -192,7 +193,9 @@ def test_prepare_exact_compiles_a_plan_after_query_disposal():
     plan = prepared.plan()
     assert plan["compiled_plans"] == 4
     assert plan["remaining"] == ["w"] and plan["reduced_treatments"] == ["x"]
-    assert risk(json.loads(prepared.estimate())) == pytest.approx(truth(0, 0), abs=1e-12)
+    assert risk(json.loads(require_success(prepared.estimate()))) == pytest.approx(
+        truth(0, 0), abs=1e-12
+    )
     # A request that does not bind the conditioned variable is refused by name.
     with pytest.raises(CausalUnsupportedError, match="admg_transport.invalid_request") as info:
         decide().prepare_exact(laws(), {"x": 1.0})
@@ -203,7 +206,7 @@ def test_estimate_returns_exact_points_only():
     builder = decide()
     prepared = builder.prepare_exact(laws(), REQUESTS)
     del builder
-    result = json.loads(prepared.estimate(seed=3))
+    result = json.loads(require_success(prepared.estimate(seed=3)))
     assert prepared.plan()["compiled_plans"] == 4
     assert result["interval"] == {"available": False, "status": "point_only"}
     assert result["scope"] == "admg_conditional_transport_sound_incomplete"
@@ -215,19 +218,19 @@ def test_refresh_keeps_the_proof_and_moves_the_point():
     builder = decide()
     prepared = builder.prepare_exact(laws(), REQUESTS)
     del builder
-    before = json.loads(prepared.estimate())
+    before = json.loads(require_success(prepared.estimate()))
     plan = prepared.plan()
-    prepared.refresh(laws(shift=0.1))
+    require_success(prepared.refresh(laws(shift=0.1)))
     assert prepared.plan() == plan
-    after = json.loads(prepared.estimate())
+    after = json.loads(require_success(prepared.estimate()))
     for request, point in zip(REQUESTS, after["requests"], strict=True):
         expected = truth(int(request["x"]), int(request["w"]), shift=0.1)
         assert risk(point) == pytest.approx(expected, abs=1e-12)
     assert risk(before) != pytest.approx(risk(after), abs=1e-6)
     # Refresh clears the last result: nothing is exported until the plan runs again.
-    prepared.refresh(laws())
+    require_success(prepared.refresh(laws()))
     with pytest.raises(CausalUnsupportedError, match="not_executed"):
-        prepared.export()
+        bytes(prepared.export())
 
 
 def test_export_requires_an_estimate_and_frames_the_names():
@@ -235,10 +238,10 @@ def test_export_requires_an_estimate_and_frames_the_names():
     prepared = builder.prepare_exact(laws(), REQUESTS)
     del builder
     with pytest.raises(CausalUnsupportedError, match="not_executed"):
-        prepared.export()
-    prepared.estimate()
+        bytes(prepared.export())
+    require_success(prepared.estimate())
     assert prepared.plan()["compiled_plans"] == 4
-    artifact = prepared.export()
+    artifact = bytes(prepared.export())
     assert artifact.startswith(b"ANTECEDENT-ADMG-CONDITIONAL\x01")
     # The frame carries the names (CBOR text "x", "y", "w").
     assert b"\x83axayaw" in artifact
@@ -248,9 +251,9 @@ def test_exported_result_is_recomputed_by_the_artifact_consumer():
     builder = decide()
     prepared = builder.prepare_exact(laws(), REQUESTS)
     del builder
-    produced = json.loads(prepared.estimate())
+    produced = json.loads(require_success(prepared.estimate()))
     assert prepared.plan()["remaining"] == ["w"]
-    artifact = prepared.export()
+    artifact = bytes(prepared.export())
     del prepared
     consumed = json.loads(transport.consume_admg_conditional_transport_artifact(artifact))
     assert consumed["probabilities"] == produced["probabilities"]
@@ -512,11 +515,11 @@ def test_a_missing_source_experiment_is_a_missing_evidence_stage():
 def test_a_zero_mass_conditioning_event_is_a_support_failure():
     # The target's w mechanism puts no mass on w = 1: P*(w = 1 | do(x)) = 0.
     prepared = decide().prepare_exact(laws(w_zero=True), [{"x": 0.0, "w": 0.0}])
-    point = json.loads(prepared.estimate())
+    point = json.loads(require_success(prepared.estimate()))
     assert risk(point) == pytest.approx(truth_w_zero(0), abs=1e-12)
     prepared = decide().prepare_exact(laws(w_zero=True), [{"x": 0.0, "w": 1.0}])
     with pytest.raises(CausalUnsupportedError, match="admg_transport.support_failure") as info:
-        prepared.estimate()
+        require_success(prepared.estimate())
     assert info.value.reason_code == "transport_support_failure"
     assert "zero mass" in str(info.value)
 
@@ -542,8 +545,8 @@ def edit_payload(artifact, old, new):
 
 def test_consumer_mismatches_carry_their_reason_codes():
     prepared = decide().prepare_exact(laws(), REQUESTS)
-    produced = json.loads(prepared.estimate())
-    artifact = prepared.export()
+    produced = json.loads(require_success(prepared.estimate()))
+    artifact = bytes(prepared.export())
     # A stored premise (the search operation limit, 4096 -> 4095, CBOR uint16)
     # edited without re-sealing: the premises digest no longer matches.
     key = b"\x71search_operations"
@@ -600,7 +603,7 @@ def prepare_scenarios(at, **options):
 
 def test_conditional_questions_enter_the_scenario_envelope():
     prepared = prepare_scenarios({"x": 1.0, "w": 1.0})
-    report = json.loads(prepared.estimate())
+    report = json.loads(require_success(prepared.estimate()))
     rows = {row["name"]: row for row in report["scenarios"]}
     negative = rows["shifted"]["status"]
     assert {name: row["status"] for name, row in rows.items()} == {
@@ -630,7 +633,7 @@ def test_conditional_questions_enter_the_scenario_envelope():
     counts = {m["status"]: m["count"] for m in report["masses"]}
     assert counts[negative] == 1 and counts["identified"] == 2
     # The artifact replays independently.
-    artifact = prepared.export()
+    artifact = bytes(prepared.export())
     consumed = json.loads(transport.consume_transport_scenarios_artifact(artifact))
     assert [row["status"] for row in consumed["scenarios"]] == [
         row["status"] for row in report["scenarios"]
@@ -703,7 +706,7 @@ def test_an_exported_obstruction_replays_after_its_builder_is_discarded():
         decide(selected=("y",)).prepare_exact(laws(), REQUESTS)
     prepared = decide().prepare_exact(laws(), REQUESTS)
     assert prepared.plan()["compiled_plans"] == len(REQUESTS)
-    assert prepared.estimate()
+    assert require_success(prepared.estimate())
 
 
 def test_the_obstruction_artifact_consumer_needs_no_builder_plan_or_data():
@@ -716,8 +719,8 @@ def test_the_obstruction_artifact_consumer_needs_no_builder_plan_or_data():
     assert consumed["identification_status"] == "proven_non_transportable"
     assert consumed["remaining"] == ["w"]
     prepared = decide().prepare_exact(laws(), REQUESTS)
-    assert prepared.estimate()
-    prepared.estimate()
+    assert require_success(prepared.estimate())
+    require_success(prepared.estimate())
     point = prepared.plan()
     assert point["compiled_plans"] == len(REQUESTS)
     with pytest.raises((CausalSerializationError, CausalUnsupportedError)):

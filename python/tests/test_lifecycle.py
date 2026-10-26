@@ -85,7 +85,7 @@ def test_identify_bind_inspect_decide_and_hand_off_to_a_fresh_process(tmp_path: 
     inspection = claim.inspect()
     assert inspection.native is False
     assert [link.id for link in inspection.lineage][-1] == "claim"
-    data = claim.export()
+    data = bytes(claim.export())
     assert data
     assert {q.functional_id for q in claim.quantities} == {"mean"}
     assert [q.regime_id for q in claim.quantities] == ["do(a=0)", "do(a=1)", "do(a=2)"]
@@ -246,7 +246,7 @@ def test_a_mean_grid_refuses_what_only_a_distribution_can_answer():
     # A mean-sourced decision is not replayable, so it is never silently exported.
     result = base.evaluate(claim)
     with pytest.raises(decision.DecisionRefusal) as export_refusal:
-        result.export()
+        bytes(result.export())
     assert export_refusal.value.reason_code == "route_not_supported"
     assert export_refusal.value.detail == "decision_evaluation.mean_source_not_replayable"
 

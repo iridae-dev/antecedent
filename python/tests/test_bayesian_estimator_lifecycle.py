@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import antecedent
 import numpy as np
+from antecedent.outcomes import require_success
 
 
 def test_new_bayesian_estimator_ids_are_public_and_basis_result_keeps_metadata():
@@ -17,15 +18,17 @@ def test_new_bayesian_estimator_ids_are_public_and_basis_result_keeps_metadata()
     x = rng.normal(size=n)
     treatment = (rng.random(n) < 0.5).astype(float)
     outcome = 0.4 + 1.25 * treatment + 0.6 * x + 0.35 * treatment * x + rng.normal(size=n)
-    result = antecedent.analyze(
-        {"t": treatment, "y": outcome, "x": x},
-        graph=[("t", "y"), ("x", "t"), ("x", "y")],
-        query=antecedent.AverageEffect("t", "y"),
-        estimator=antecedent.Estimator.BAYESIAN_BASIS_GCOMP,
-        inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
-        refute=False,
-        seed=19,
-        return_posterior_artifact=True,
+    result = require_success(
+        antecedent.analyze(
+            {"t": treatment, "y": outcome, "x": x},
+            graph=[("t", "y"), ("x", "t"), ("x", "y")],
+            query=antecedent.AverageEffect("t", "y"),
+            estimator=antecedent.Estimator.BAYESIAN_BASIS_GCOMP,
+            inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
+            refute=False,
+            seed=19,
+            return_posterior_artifact=True,
+        )
     )
 
     assert result.estimate.estimator_id == "bayesian.basis.gcomp"

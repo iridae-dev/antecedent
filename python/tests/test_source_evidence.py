@@ -8,6 +8,7 @@ import sys
 
 import pytest
 from antecedent import decision, program_claims
+from antecedent.outcomes import require_success
 from antecedent.source_evidence import SourceEvidence
 
 from test_program_claims import _contract, _native_program, _native_view
@@ -39,7 +40,7 @@ def test_source_evidence_preserves_original_scopes_and_semantic_coordinates():
             elif original["scope"] == "global":
                 assert local.local_value is None
                 assert local.global_values == tuple(original["values"])
-    loaded = SourceEvidence.consume(evidence.export())
+    loaded = require_success(SourceEvidence.consume(bytes(evidence.export())))
     assert loaded.diagnostics == evidence.diagnostics
     assert loaded.coordinates == evidence.coordinates
     assert loaded.resolution is None
@@ -51,12 +52,14 @@ def test_source_evidence_projection_preserves_contributors_and_resolution_requir
     projected = evidence.project(_contract(decision.Criterion.expected_utility()), ["B"])
     assert projected.action_contributors == {"B": (claim.coordinates[1],)}
     assert projected.diagnostics == evidence.diagnostics
-    resolved = SourceEvidence.consume(projected.export()).resolve_with(claim)
+    resolved = require_success(SourceEvidence.consume(bytes(projected.export()))).resolve_with(
+        claim
+    )
     assert resolved.resolution["kind"] == "original_native_response_reexecution"
     assert resolved.resolution["native_authority_issued"] is False
     assert resolved.resolution["calibration_license_issued"] is False
     assert resolved.original_acceptance == projected.original_acceptance
-    assert SourceEvidence.consume(resolved.export()).resolution is None
+    assert require_success(SourceEvidence.consume(bytes(resolved.export()))).resolution is None
     with pytest.raises(TypeError, match="issued native claim"):
         projected.resolve_with({"verified": True})
 
@@ -72,14 +75,14 @@ def test_source_evidence_rejects_changed_native_source_and_corrupted_envelope():
         evidence.resolve_with(changed_claim)
     assert changed_error.value.reason_code == "invalid_argument"
     with pytest.raises(ValueError, match="source_evidence.invalid_artifact") as invalid_error:
-        SourceEvidence.consume(b"not an evidence artifact")
+        require_success(SourceEvidence.consume(b"not an evidence artifact"))
     assert invalid_error.value.reason_code == "invalid_argument"
 
 
 def test_source_evidence_fresh_process_requires_actual_reanalysis(tmp_path):
     claim = _claim()
     path = tmp_path / "source.art"
-    path.write_bytes(claim.source_evidence.export())
+    path.write_bytes(bytes(claim.source_evidence.export()))
     script = """
 import json,sys
 import antecedent as ac
@@ -137,7 +140,7 @@ def test_source_evidence_survives_native_decision_and_original_inverse_artifact(
     inverse = iq.InverseQuery(contract, ("A", "B"), (iq.target_mean(3.2),)).evaluate(claim)
     assert inverse.selected == "B"
     assert inverse.source_evidence[0].diagnostics == claim.source_evidence.diagnostics
-    loaded = iq.InverseResult.consume(inverse.export())
+    loaded = require_success(iq.InverseResult.consume(bytes(inverse.export())))
     assert loaded.selected == "B"
     assert (
         loaded.source_evidence[0].source_artifact_digest

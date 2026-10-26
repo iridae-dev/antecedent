@@ -18,6 +18,7 @@ from ._artifact_protocol import (
     ArtifactInspection,
     ExportedArtifact,
     LoadContext,
+    container_bytes,
 )
 from ._artifact_protocol import (
     inspect_artifact as inspect,
@@ -115,6 +116,7 @@ def loads(data: bytes) -> CausalArtifact:
     believed only through the registry that holds its verification receipt.
     """
 
+    data = container_bytes(data)
     decoded = _decode_causal_artifact(data)
     payload = json.loads(decoded.payload_json)
     if not isinstance(payload, dict):  # canonical wire payloads are object-shaped
@@ -138,6 +140,7 @@ def loads(data: bytes) -> CausalArtifact:
 def accept(data: bytes) -> dict[str, str]:
     """Independently accept an ``analysis_result`` contract from bytes alone."""
 
+    data = container_bytes(data)
     return dict(_accept_analysis_result_contract(data))
 
 

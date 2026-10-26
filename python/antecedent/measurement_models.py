@@ -96,12 +96,19 @@ from typing import Any
 import numpy as np
 
 from . import _native
-from ._artifact_protocol import ExportedArtifact
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count as _shared_count
 from .errors import CausalTypeError, CausalValueError
+from .outcomes import Answer, outcome_operation
 
 __all__ = [
     "AnalysisBinding",
@@ -1156,17 +1163,37 @@ class MeasurementEstimate(ScientificResult):
     _model: MeasurementModel | None = field(default=None, repr=False, compare=False)
 
     @property
+    def answer(self) -> Answer:
+        return Answer("point", value=self.point, detail=self.route)
+
+    @property
+    def identities(self) -> dict[str, Any]:
+        return {
+            "model_identity": self.model_identity,
+            "functional_id": self.functional_id,
+            "data_identity": self.data_identity,
+        }
+
+    def inspect(self) -> Any:
+        from .results._report import SlotModel
+
+        return ScientificResult.inspect(self).model_copy(
+            update={
+                "uncertainty": SlotModel(
+                    available=self.standard_error is not None,
+                    reason="uncalibrated_no_interval_claim",
+                    summary="delta_method_standard_error"
+                    if self.standard_error is not None
+                    else "point_only",
+                    payload={"standard_error": self.standard_error, "variance": self.variance},
+                )
+            }
+        )
+
+    @property
     def model(self) -> MeasurementModel | None:
         """The retained measurement declaration, when produced by a prepared model."""
         return self._model
-
-    def artifact(
-        self, artifact_id: str = _DEFAULT_ARTIFACT_ID
-    ) -> ExportedArtifact[ConsumedMeasurement]:
-        """Bytes and producer metadata; load returns the typed consumed result."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self, artifact_id)
 
     @property
     def variance(self) -> float | None:
@@ -1183,6 +1210,7 @@ class MeasurementEstimate(ScientificResult):
         """Always raises ``cell_not_licensed``: no coverage record measures the method."""
         raise_refusal(self._handle.interval(), MeasurementModelRefusal)
 
+    @outcome_operation
     def downstream_linear_functional(self, weights: Any) -> tuple[float, float]:
         """Value and variance of ``weights' beta`` over the corrected coefficient vector.
 
@@ -1195,9 +1223,14 @@ class MeasurementEstimate(ScientificResult):
         )
         return float(value), float(variance)
 
-    def export(self, artifact_id: str = _DEFAULT_ARTIFACT_ID) -> bytes:
+    @artifact_export
+    def export(
+        self, artifact_id: str = _DEFAULT_ARTIFACT_ID
+    ) -> ExportedArtifact[ConsumedMeasurement]:
         """The model, its identities and the result with the inputs a consumer recomputes it from."""
-        return bytes(_unwrap(self._handle.export(_name(artifact_id, "artifact_id"))))
+        return artifact_from_receipt(
+            self, bytes(_unwrap(self._handle.export(_name(artifact_id, "artifact_id"))))
+        )
 
 
 @bind_mean_reading
@@ -1361,6 +1394,7 @@ class PreparedMeasurementModel:
         """Always raises ``cell_not_licensed``: no coverage record measures the method."""
         raise_refusal(self._handle.interval(), MeasurementModelRefusal)
 
+    @outcome_operation
     def estimate(self, *, cancel: Any = None) -> MeasurementEstimate:
         """Form the corrected functional from the retained data."""
         result = _estimate(_unwrap(self._handle.estimate(cancel=cancel)))
@@ -1386,9 +1420,7 @@ class PreparedMeasurementModel:
         """
         if not isinstance(data, ContinuousErrorData):
             raise CausalTypeError("data must be a ContinuousErrorData")
-        summary = _unwrap(
-            self._handle.estimate_continuous(_dumps(data.to_wire()), cancel=cancel)
-        )
+        summary = _unwrap(self._handle.estimate_continuous(_dumps(data.to_wire()), cancel=cancel))
         return _continuous(json.loads(summary), self._handle)
 
     def refresh(self, data: MeasurementData, *, cancel: Any = None) -> MeasurementRefresh:
@@ -1522,6 +1554,34 @@ class ConsumedMeasurement(ScientificResult):
     provider_trust: str | None
     _handle: Any = field(repr=False, compare=False)
 
+    @property
+    def answer(self) -> Answer:
+        return Answer("point", value=self.point, detail=self.route)
+
+    @property
+    def identities(self) -> dict[str, Any]:
+        return {
+            "model_identity": self.model_identity,
+            "functional_id": self.functional_id,
+            "data_identity": self.data_identity,
+        }
+
+    def inspect(self) -> Any:
+        from .results._report import SlotModel
+
+        return ScientificResult.inspect(self).model_copy(
+            update={
+                "uncertainty": SlotModel(
+                    available=self.standard_error is not None,
+                    reason="uncalibrated_no_interval_claim",
+                    summary="delta_method_standard_error"
+                    if self.standard_error is not None
+                    else "point_only",
+                    payload={"standard_error": self.standard_error, "variance": self.variance},
+                )
+            }
+        )
+
     def covers_data_identity(self, identity: str) -> bool:
         """Whether the stored result was computed from data with this identity."""
         return bool(self._handle.covers_data_identity(_name(identity, "identity")))
@@ -1534,7 +1594,12 @@ class ConsumedMeasurement(ScientificResult):
         )
 
 
+@outcome_operation
 @bind_mean_reading
+@artifact_consumer(
+    proof="measurement_models.consume_measurement_model_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_measurement_model_artifact(
     artifact: bytes, expected_identity: str
 ) -> ConsumedMeasurement:
@@ -1549,6 +1614,7 @@ def consume_measurement_model_artifact(
         MeasurementModelRefusal: ``measurement_binding_mismatch`` for an identity, binding or
             recomputation failure, ``invalid_argument`` for corrupt, truncated or foreign bytes.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     handle = _unwrap(
@@ -1703,12 +1769,15 @@ class TransportedMeasurementEstimate(ScientificResult):
         """Always raises ``cell_not_licensed``."""
         self.estimate.interval()
 
-    def export(self, artifact_id: str = _DEFAULT_ARTIFACT_ID) -> bytes:
+    @artifact_export
+    def export(
+        self, artifact_id: str = _DEFAULT_ARTIFACT_ID
+    ) -> ExportedArtifact[ConsumedMeasurement]:
         """The existing measurement-model artifact of the re-bound model.
 
         It carries no receipt: a consumer re-derives it with :func:`verify_measurement_transport`.
         """
-        return self.estimate.export(artifact_id)
+        return artifact_from_receipt(self, self.estimate.export(artifact_id))
 
 
 def _structure_wire(structure: InvarianceDeclaration | DifferentialErrorDeclaration | None) -> Any:
@@ -1728,6 +1797,7 @@ def _models_wire(models: Sequence[MeasurementModel]) -> str:
     return _dumps([m.to_wire() for m in listed])
 
 
+@outcome_operation
 def transport_measurement_model(
     models: Sequence[MeasurementModel],
     analysis: AnalysisBinding,

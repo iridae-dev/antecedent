@@ -13,6 +13,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.errors import CausalUnsupportedError
+from antecedent.outcomes import require_success
 
 DISCLOSURE = "estimate.temporal_admg.window"
 N = 300
@@ -65,14 +66,16 @@ def _counted_conditional(series: dict[str, np.ndarray]) -> float:
 
 
 def _run(query, graph=None, **kwargs):
-    return antecedent.analyze(
-        _series(),
-        graph=graph if graph is not None else _graph(),
-        query=query,
-        refute=False,
-        bootstrap=kwargs.pop("bootstrap", 0),
-        seed=3,
-        **kwargs,
+    return require_success(
+        antecedent.analyze(
+            _series(),
+            graph=graph if graph is not None else _graph(),
+            query=query,
+            refute=False,
+            bootstrap=kwargs.pop("bootstrap", 0),
+            seed=3,
+            **kwargs,
+        )
     )
 
 

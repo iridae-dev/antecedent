@@ -41,6 +41,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from ._artifact_protocol import container_bytes
 from ._native import NativePreparedCounterfactualId as _NativePrepared
 from ._native import consume_counterfactual_id_artifact_native as _consume
 from ._native import prepare_counterfactual_id_native as _prepare
@@ -247,6 +248,7 @@ def consume_counterfactual_id_artifact(artifact: bytes, *, seed: int = 1) -> Eff
     a bug shared by the engine and the consumer (which re-derives with the same
     engine, so such a bug replays identically).
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     return _effect(_consume(bytes(artifact), seed=seed))

@@ -7,18 +7,21 @@ import math
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _scm import confounded_scm
 
 
 def test_prepared_reestimate_matches_fresh_analyze():
     data, edges = confounded_scm(n=500, seed=19)
-    fresh = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        latency="interactive",
-        seed=1,
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            latency="interactive",
+            seed=1,
+        )
     )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
@@ -27,8 +30,8 @@ def test_prepared_reestimate_matches_fresh_analyze():
         latency="interactive",
         seed=1,
     )
-    first = prepared.estimate(data, seed=1)
-    second = prepared.refresh(data, seed=1)
+    first = require_success(prepared.estimate(data, seed=1))
+    second = require_success(prepared.refresh(data, seed=1))
     assert math.isfinite(first.ate)
     assert abs(first.ate - 2.0) < 0.5
     assert abs(first.ate - fresh.ate) < 1e-12
@@ -37,21 +40,23 @@ def test_prepared_reestimate_matches_fresh_analyze():
     assert first.identification.adjustment_set == fresh.identification.adjustment_set
     assert first.performance.plan_id == fresh.performance.plan_id
     # Result.refresh uses the retained prepared handle.
-    via_result = first.refresh(data, seed=1)
+    via_result = require_success(first.refresh(data, seed=1))
     assert abs(via_result.ate - fresh.ate) < 1e-12
 
 
 def test_oneshot_analyze_result_retains_study():
     data, edges = confounded_scm(n=200, seed=5)
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        latency="interactive",
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            latency="interactive",
+            seed=1,
+        )
     )
     assert isinstance(result.study, antecedent.estimation.PreparedAnalysis)
-    assert result.refresh(data).effect == pytest.approx(result.effect)
+    assert require_success(result.refresh(data)).effect == pytest.approx(result.effect)
 
 
 def test_prepared_prior_transfer_validates_artifact_at_estimation():
@@ -64,7 +69,7 @@ def test_prepared_prior_transfer_validates_artifact_at_estimation():
         refute=False,
     )
     with pytest.raises(antecedent.errors.CausalSerializationError, match="bad artifact magic"):
-        prepared.estimate(data)
+        require_success(prepared.estimate(data))
 
 
 def test_prepared_second_shot_reuses_identification():
@@ -76,8 +81,8 @@ def test_prepared_second_shot_reuses_identification():
         latency="interactive",
         seed=1,
     )
-    first = prepared.estimate(data, seed=1)
-    second = prepared.estimate(data, seed=1)
+    first = require_success(prepared.estimate(data, seed=1))
+    second = require_success(prepared.estimate(data, seed=1))
     assert any(d.startswith("exec.identify.cached") for d in second.diagnostics)
     assert first.effect == second.effect
 
@@ -90,11 +95,13 @@ def test_prepared_response_curve_matches_analyze():
     data = {"t": t, "y": y, "z": z}
     edges = [("z", "t"), ("z", "y"), ("t", "y")]
     query = antecedent.ResponseCurve("t", "y", grid=[-0.5, 0.0, 0.5])
-    fresh = antecedent.analyze(data, graph=edges, query=query, refute=False, bootstrap=0, seed=1)
+    fresh = require_success(
+        antecedent.analyze(data, graph=edges, query=query, refute=False, bootstrap=0, seed=1)
+    )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data, graph=edges, query=query, latency="interactive", seed=1
     )
-    click = prepared.estimate(data, seed=1)
+    click = require_success(prepared.estimate(data, seed=1))
     assert click.response is not None
     assert fresh.response is not None
     assert click.response.values == fresh.response.values
@@ -136,7 +143,7 @@ def test_prepared_temporal_mediation_cheap_refute_runs():
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data, graph=edges, query=query, refute="cheap", seed=1, latency=None
     )
-    result = prepared.estimate(data)
+    result = require_success(prepared.estimate(data))
     assert len(result.validation.reports) == 2
 
 
@@ -157,7 +164,7 @@ def test_prepared_temporal_mediation_bootstrap_follows_latency_tier():
         prepared = antecedent.estimation.PreparedAnalysis.prepare(
             data, graph=edges, query=query, refute=False, seed=3, **kwargs
         )
-        return prepared.estimate(data, seed=3)
+        return require_success(prepared.estimate(data, seed=3))
 
     interactive = click(latency="interactive")
     assert interactive.estimate.se_bootstrap is None
@@ -189,7 +196,7 @@ def test_prepared_multi_horizon_mediation_retains_every_slice_and_artifact_axis(
         refute=False,
         seed=11,
     )
-    result = prepared.estimate(data, seed=11)
+    result = require_success(prepared.estimate(data, seed=11))
     assert result.mediation is None
     assert result.estimate.ate is None
     assert result.ate is None

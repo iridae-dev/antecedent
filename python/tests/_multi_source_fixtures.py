@@ -29,6 +29,7 @@ from antecedent.joint_distribution import (
     JointDistributionArtifact,
     ScientificQuantity,
 )
+from antecedent.outcomes import require_success
 from antecedent.results.response import (
     CausalResponseView,
 )
@@ -171,18 +172,20 @@ def _executed_native(grid: tuple[float, ...]) -> CausalResponseView:
     levels = np.linspace(0.0, 1.0, 101)
     treatment = np.repeat(levels, 21)
     covariate = np.tile(np.linspace(-1.0, 1.0, 21), len(levels))
-    return ac.analyze(
-        {"x": covariate, "a": treatment, "y": 2 + 2 * treatment + covariate / 2},
-        graph=EDGES,
-        query=ac.ResponseCurve("a", "y", grid=list(grid)),
-        estimator_config={
-            "bandwidth": 2.1,
-            "nuisance_lambda": 0.0,
-            "nuisance_basis": 4,
-            "folds": 2,
-        },
-        bootstrap=0,
-        refute="none",
+    return require_success(
+        ac.analyze(
+            {"x": covariate, "a": treatment, "y": 2 + 2 * treatment + covariate / 2},
+            graph=EDGES,
+            query=ac.ResponseCurve("a", "y", grid=list(grid)),
+            estimator_config={
+                "bandwidth": 2.1,
+                "nuisance_lambda": 0.0,
+                "nuisance_basis": 4,
+                "folds": 2,
+            },
+            bootstrap=0,
+            refute="none",
+        )
     )
 
 
@@ -414,11 +417,13 @@ def signal_spec() -> dr.SignalSpec:
 
 
 #: ``P(k successes | theta)`` posterior of two Bernoulli trials, with ``theta in {1/4, 3/4}``.
-EQUIVALENT_POSTERIOR = dr.ExternalLaw.posterior(
-    states=[0.25, 0.75],
-    statistics=[0.0, 1.0, 2.0],
-    predictive=[0.3125, 0.375, 0.3125],
-    posterior=[[0.9, 0.1], [0.5, 0.5], [0.1, 0.9]],
+EQUIVALENT_POSTERIOR = require_success(
+    dr.ExternalLaw.posterior(
+        states=[0.25, 0.75],
+        statistics=[0.0, 1.0, 2.0],
+        predictive=[0.3125, 0.375, 0.3125],
+        posterior=[[0.9, 0.1], [0.5, 0.5], [0.1, 0.9]],
+    )
 )
 
 
@@ -490,16 +495,16 @@ def composed_builder(
     builder.add_artifact("external_claim", e2_claim(evidence=e2_evidence), node_id="e2claim")
     builder.relate("e1", "e2claim", "independent")
     builder.add_artifact(
-        "decision_contract", contract.export(artifact_id="contract"), node_id="contract_j"
+        "decision_contract", bytes(contract.export(artifact_id="contract")), node_id="contract_j"
     )
     shown = artifact if embedded_law is None else embedded_law
-    builder.add_artifact("distribution", shown.export("law"), node_id="e2law")
+    builder.add_artifact("distribution", bytes(shown.export("law")), node_id="e2law")
     builder.add_artifact(
         "decision_result",
-        contract.evaluate(artifact).export(artifact_id="result"),
+        bytes(contract.evaluate(artifact).export(artifact_id="result")),
         node_id="result_j",
     )
-    builder.add_artifact("study_ranking", rank().export(), node_id="ranking")
+    builder.add_artifact("study_ranking", bytes(rank().export()), node_id="ranking")
     for upstream, dependent in (
         ("program", "e1"),
         ("program", "e2claim"),
@@ -518,7 +523,7 @@ def point_only_builder(claim: external.BoundExternalClaim | None = None) -> cb.B
     builder = cb.Bundle.builder()
     builder.add_artifact("external_claim", bound, node_id="claim")
     builder.add_artifact(
-        "decision_contract", contract.export(artifact_id="contract"), node_id="contract_m"
+        "decision_contract", bytes(contract.export(artifact_id="contract")), node_id="contract_m"
     )
     builder.add_artifact("decision_result", cb.mean_decision(contract, bound), node_id="result_m")
     return builder.connect("claim", "result_m").connect("contract_m", "result_m")

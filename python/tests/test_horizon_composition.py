@@ -37,7 +37,9 @@ def test_a_nonlinear_map_composes_the_same_joint_draws():
 
 def test_a_malformed_declaration_is_refused():
     columns = _coupled()
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError, match="give coefficients for a linear composition or map for a nonlinear one"
+    ):
         compose_horizons(
             [1, 2], columns, evidence_id="e", alignment_id="a", operation="sum",
         )  # fmt: skip

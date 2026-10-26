@@ -45,6 +45,13 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Final
 
+from .._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .._columns import coerce_fields
 from .._digest import canonical_digest
 from .._native import (
@@ -59,6 +66,7 @@ from .._native import (
 from .._native import (
     scenario_shared_covariance_stage as _covariance_stage,
 )
+from .._scientific import ScientificResult
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
 from ..graph import Admg, Cpdag, Pag
 from ._impl import EvidenceCatalog, VariableCoordinate, _non_negative, _optional_non_negative
@@ -261,7 +269,7 @@ def _normalized(edges: Sequence[tuple[str, str]]) -> tuple[tuple[str, str], ...]
 
 
 @dataclass(frozen=True, slots=True)
-class CpdagScenarioResult:
+class CpdagScenarioResult(ScientificResult):
     """Every DAG completion of a CPDAG, with the envelope over the identified ones.
 
     ``completions`` lists every completion found in identity order whatever its
@@ -314,25 +322,27 @@ class CpdagScenarioResult:
         """Inference across completions that share data is not licensed; always refuses."""
         raise _aggregate_refusal(CpdagScenarioRefusal)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
         """The result as an independently consumable artifact.
 
         A consumed result returns the artifact it replayed. A report cut short by
         cancellation refuses with ``cancelled_no_claim``.
         """
         if self._artifact is not None:
-            return self._artifact
+            return artifact_from_receipt(self, self._artifact)
         if self._run is None:
             raise CausalValueError("this result carries no artifact")
         data, refused = self._run.export()
         if refused is not None or data is None:
             raise CpdagScenarioRefusal(json.loads(refused or "{}"))
-        return bytes(data)
+        return artifact_from_receipt(self, bytes(data))
 
 
 def _result(
     raw: Mapping[str, Any], *, run: Any = None, artifact: bytes | None = None
 ) -> CpdagScenarioResult:
+    artifact = container_bytes(artifact)
     completions = tuple(
         CpdagCompletion(
             id=c["id"],
@@ -498,6 +508,12 @@ def cpdag_completion_scenarios(
     return _result(json.loads(run.payload_json), run=run)
 
 
+@artifact_consumer(
+    proof="native CPDAG scenario consumer re-enumerates completions and re-decides and re-evaluates each ordered outcome",
+    replayable=True,
+    resumable=False,
+    identity=(),
+)
 def consume_cpdag_scenarios_artifact(
     artifact: bytes,
     *,
@@ -519,6 +535,7 @@ def consume_cpdag_scenarios_artifact(
     snapshot, evidence binding or CPDAG is refused even when the digests were
     re-sealed.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
     payload, refused = _consume_cpdag(
@@ -694,7 +711,7 @@ class ScenarioEstimator:
 
 
 @dataclass(frozen=True, slots=True)
-class ScenarioCovarianceResult:
+class ScenarioCovarianceResult(ScientificResult):
     """The joint sampling covariance of scenario estimates over one shared row sample.
 
     ``claim`` is ``point_only``: the matrix is never an interval. ``covariance``
@@ -747,21 +764,23 @@ class ScenarioCovarianceResult:
         """No interval is derived from the covariance; always refuses."""
         raise _aggregate_refusal(ScenarioCovarianceRefusal)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
         """The result as an independently recomputable artifact."""
         if self._artifact is not None:
-            return self._artifact
+            return artifact_from_receipt(self, self._artifact)
         if self._run is None:
             raise CausalValueError("this result carries no artifact")
         data, refused = self._run.export()
         if refused is not None or data is None:
             raise ScenarioCovarianceRefusal(json.loads(refused or "{}"))
-        return bytes(data)
+        return artifact_from_receipt(self, bytes(data))
 
 
 def _covariance_result(
     raw: Mapping[str, Any], *, run: Any = None, artifact: bytes | None = None
 ) -> ScenarioCovarianceResult:
+    artifact = container_bytes(artifact)
     return ScenarioCovarianceResult(
         scenario_ids=tuple(raw["scenario_ids"]),
         means=tuple(raw["means"]),
@@ -874,6 +893,12 @@ def scenario_shared_covariance(
     return _covariance_result(json.loads(run.payload_json), run=run)
 
 
+@artifact_consumer(
+    proof="native scenario covariance consumer recomputes covariance from retained rows, scenario order and method seed",
+    replayable=True,
+    resumable=False,
+    identity=(),
+)
 def consume_scenario_covariance_artifact(
     artifact: bytes,
     *,
@@ -892,6 +917,7 @@ def consume_scenario_covariance_artifact(
     re-sealed, and a scenario declared on a different snapshot refuses with
     ``scenario_covariance.unknown_dependence``.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
     payload, refused = _consume_covariance(

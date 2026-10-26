@@ -18,6 +18,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._joint_panel_designs import (
     JointDesignResult,
     NativeJointDesignResult,
@@ -149,12 +155,14 @@ class PanelProgramCertificate:
         """
         return json.loads(self._handle.report())
 
-    def export(self, **execution: Any) -> bytes:
+    @artifact_export
+    def export(self, **execution: Any) -> ExportedArtifact:
         """Export the frozen response, control bindings and replayable bound proof."""
-        return self._handle.export(**execution)
+        return artifact_from_receipt(self, self._handle.export(**execution))
 
     def verify_current(self, artifact: bytes, **execution: Any) -> None:
         """Replay and verify against this exact fitted response and search domain."""
+        artifact = container_bytes(artifact)
         self._handle.verify_current(artifact, **execution)
 
 
@@ -168,12 +176,14 @@ class RandomizedProgramSelection:
         """Return held-out value/error, original split and whole-procedure diagnostics."""
         return json.loads(self._handle.report())
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """Export original observations, procedure and independently replayable results."""
-        return self._handle.export()
+        return artifact_from_receipt(self, self._handle.export())
 
     def verify_current(self, artifact: bytes, **execution: Any) -> None:
         """Replay against this exact current observational source and policy."""
+        artifact = container_bytes(artifact)
         self._handle.verify_current(artifact, **execution)
 
 
@@ -249,11 +259,13 @@ def prepare_randomized_selection(
 
 def consume_program_certificate(artifact: bytes, **execution: Any) -> dict[str, Any]:
     """Independently reconstruct the frozen response and repeat its numerical bound proof."""
+    artifact = container_bytes(artifact)
     return json.loads(_native.consume_panel_program_certificate(artifact, **execution))
 
 
 def consume_randomized_selection(artifact: bytes, **execution: Any) -> dict[str, Any]:
     """Replay the original observational selection procedure without current authorization."""
+    artifact = container_bytes(artifact)
     return json.loads(_native.consume_randomized_program_selection(artifact, **execution))
 
 
@@ -267,12 +279,14 @@ class InstrumentedProgramSelection:
         """Selected doses, training search bounds, held-out value and resampling diagnostics."""
         return json.loads(self._handle.report())
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """Retain original data and the complete procedure for independent replay."""
-        return self._handle.export()
+        return artifact_from_receipt(self, self._handle.export())
 
     def verify_current(self, artifact: bytes, **execution: Any) -> None:
         """Reject changed data, structural premises, domain or algorithm."""
+        artifact = container_bytes(artifact)
         self._handle.verify_current(artifact, **execution)
 
 
@@ -310,6 +324,7 @@ def select_instrumented_program(
 
 def consume_instrumented_selection(artifact: bytes, **execution: Any) -> dict[str, Any]:
     """Replay the complete structural selection procedure without current authorization."""
+    artifact = container_bytes(artifact)
     return json.loads(_native.consume_instrumented_selection(artifact, **execution))
 
 
@@ -353,9 +368,10 @@ class PanelResult:
         """
         return json.loads(self._handle.scheduled_contrast(_json(functional), level))
 
-    def export(self, **execution: Any) -> bytes:
+    @artifact_export
+    def export(self, **execution: Any) -> ExportedArtifact:
         """Encode the actual frozen compiler product; performs no second fit."""
-        return bytes(self._handle.export(**execution))
+        return artifact_from_receipt(self, bytes(self._handle.export(**execution)))
 
     def certify_program(
         self,
@@ -575,4 +591,5 @@ def prepare(
 
 def consume(artifact: bytes, **execution: Any) -> dict[str, Any]:
     """Replay the frozen Rust program in an independent historical consumer."""
+    artifact = container_bytes(artifact)
     return json.loads(_native.consume_joint_panel(artifact, **execution))

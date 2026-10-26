@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import antecedent
 import numpy as np
+from antecedent.outcomes import require_success
 
 
 def _confounded(n: int = 400, seed: int = 11):
@@ -16,13 +17,15 @@ def _confounded(n: int = 400, seed: int = 11):
 
 def test_analyze_refute_full_runs():
     data, edges = _confounded()
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        refute="full",
-        bootstrap=5,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            refute="full",
+            bootstrap=5,
+            seed=1,
+        )
     )
     # Full suite includes more than placebo+rcc when applicable.
     assert result.validation.ran is True

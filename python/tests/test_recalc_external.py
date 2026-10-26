@@ -12,6 +12,7 @@ import antecedent as ac
 import numpy as np
 import pytest
 from antecedent import external
+from antecedent.outcomes import require_success
 from antecedent.program_claims import ProgramBinding
 from antecedent.recalc import RecalcReceipt
 from antecedent.recalc_external import (
@@ -63,19 +64,19 @@ def test_callback_actual_invocation_cache_branch_receipt_and_full_rerun():
     session = ExternalCallbackSession()
     session.plan(request, provider=provider)
     assert calls == [] and not session.is_live
-    first = session.execute(request, provider=provider)
+    first = require_success(session.execute(request, provider=provider))
     assert first.receipt.totals.external_invocations == 1
     np.testing.assert_allclose(first.claim.values, [3.0, 5.0], atol=1e-12)
     assert first.claim.trust.value == "externally_attested" and not first.claim.native
     assert first.claim.identity_fields["causal_contract_id"] == request.program.contract_id
     assert first.claim.support == ("supported", "supported")
-    same = session.execute(request)
+    same = require_success(session.execute(request))
     assert same.receipt.totals.external_invocations == 0 and len(calls) == 1
     changed = replace(
         request, data={"a": request.data["a"], "y": np.asarray(request.data["y"]) + 7.0}
     )
-    updated = session.execute(changed, provider=provider)
-    fresh = ExternalCallbackSession().execute(changed, provider=provider)
+    updated = require_success(session.execute(changed, provider=provider))
+    fresh = require_success(ExternalCallbackSession().execute(changed, provider=provider))
     np.testing.assert_allclose(updated.claim.values, [10.0, 12.0], atol=1e-12)
     np.testing.assert_array_equal(updated.claim.values, fresh.claim.values)
     assert (
@@ -83,17 +84,17 @@ def test_callback_actual_invocation_cache_branch_receipt_and_full_rerun():
         == fresh.receipt.totals.external_invocations
         == 1
     )
-    consumed = RecalcReceipt.consume(first.receipt.export())
+    consumed = require_success(RecalcReceipt.consume(bytes(first.receipt.export())))
     assert consumed.totals.external_invocations == 1
 
 
 def test_callback_policy_descriptor_and_bound_output_failures_count_actual_attempts():
     request, provider, calls = fixture()
     session = ExternalCallbackSession()
-    session.execute(request, provider=provider)
+    require_success(session.execute(request, provider=provider))
     other = replace(request, descriptor=replace(request.descriptor, environment_id="different"))
     with pytest.raises(ExternalCallbackRefusal) as error:
-        session.execute(other, provider=provider)
+        require_success(session.execute(other, provider=provider))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "invalid_argument",
         "external_recalc.provider_mismatch",
@@ -102,7 +103,7 @@ def test_callback_policy_descriptor_and_bound_output_failures_count_actual_attem
     assert len(calls) == 1 and session.is_live
     unknown, unlicensed, unknown_calls = fixture("unknown")
     with pytest.raises(ExternalCallbackRefusal) as error:
-        ExternalCallbackSession().execute(unknown, provider=unlicensed)
+        require_success(ExternalCallbackSession().execute(unknown, provider=unlicensed))
     assert error.value.detail == "external_recalc.policy_unsupported"
     assert error.value.reason_code == "route_not_supported" and unknown_calls == []
     bad = CallbackProvider(
@@ -110,7 +111,7 @@ def test_callback_policy_descriptor_and_bound_output_failures_count_actual_attem
         request.descriptor,
     )
     with pytest.raises(ExternalCallbackRefusal) as error:
-        ExternalCallbackSession().execute(request, provider=bad)
+        require_success(ExternalCallbackSession().execute(request, provider=bad))
     assert error.value.attempt["invocations"] == 1
     assert len(error.value.attempt["request_digest"]) == 64
 
@@ -118,11 +119,11 @@ def test_callback_policy_descriptor_and_bound_output_failures_count_actual_attem
 def test_callback_stateful_execution_and_unsafe_side_effect_retry():
     request, provider, calls = fixture("stateful")
     session = ExternalCallbackSession()
-    session.execute(request, provider=provider)
-    again = session.execute(request, provider=provider)
+    require_success(session.execute(request, provider=provider))
+    again = require_success(session.execute(request, provider=provider))
     assert again.receipt.totals.external_invocations == 1 and len(calls) == 2
     with pytest.raises(ExternalCallbackRefusal) as error:
-        ExternalCallbackSession.resume(session.export_output(), request)
+        require_success(ExternalCallbackSession.resume(bytes(session.export()), request))
     assert error.value.detail == "external_recalc.replay_unsupported"
     side, _, _ = fixture("side_effecting")
     attempts = []
@@ -134,37 +135,23 @@ def test_callback_stateful_execution_and_unsafe_side_effect_retry():
     actual = CallbackProvider(fail, side.descriptor)
     failed = ExternalCallbackSession()
     with pytest.raises(ExternalCallbackRefusal) as error:
-        failed.execute(side, provider=actual)
+        require_success(failed.execute(side, provider=actual))
     assert error.value.detail == "external_recalc.callback_failed"
     assert error.value.attempt["invocations"] == 1 and not failed.is_live
     with pytest.raises(ExternalCallbackRefusal) as error:
-        failed.execute(side, provider=actual)
+        require_success(failed.execute(side, provider=actual))
     assert error.value.detail == "external_recalc.retry_unsafe" and len(attempts) == 1
 
 
 def test_callback_fresh_process_replay_requires_real_provider_and_matches_output(tmp_path):
     request, provider, _ = fixture()
     session = ExternalCallbackSession()
-    result = session.execute(request, provider=provider)
+    result = require_success(session.execute(request, provider=provider))
     artifact = tmp_path / "callback.art"
-    artifact.write_bytes(session.export_output())
-    child = """
-import json
-from test_recalc_external import fixture
-from antecedent.recalc_external import ExternalCallbackSession, ExternalCallbackRefusal
-request, provider, calls = fixture()
-session = ExternalCallbackSession.resume(open(PATH, 'rb').read(), request)
-assert not session.is_live
-try:
-    session.execute(request)
-except ExternalCallbackRefusal as error:
-    assert error.reason_code == 'external_capability_missing'
-else:
-    raise AssertionError('portable labels cannot issue authority')
-result = session.execute(request, provider=provider)
-again = session.execute(request)
-print(json.dumps({'values':result.claim.values.tolist(),'calls':len(calls),'actual':result.receipt.totals.external_invocations,'repeat':again.receipt.totals.external_invocations,'native':result.claim.native}))
-""".replace("PATH", repr(str(artifact)))
+    artifact.write_bytes(bytes(session.export()))
+    child = "from antecedent.outcomes import require_success\nimport json\nfrom test_recalc_external import fixture\nfrom antecedent.recalc_external import ExternalCallbackSession, ExternalCallbackRefusal\nrequest, provider, calls = fixture()\nsession = require_success(ExternalCallbackSession.resume(open(PATH, 'rb').read(), request))\nassert not session.is_live\ntry:\n    require_success(session.execute(request))\nexcept ExternalCallbackRefusal as error:\n    assert error.reason_code == 'external_capability_missing'\nelse:\n    raise AssertionError('portable labels cannot issue authority')\nresult = require_success(session.execute(request, provider=provider))\nagain = require_success(session.execute(request))\nprint(json.dumps({'values': result.claim.values.tolist(), 'calls': len(calls), 'actual': result.receipt.totals.external_invocations, 'repeat': again.receipt.totals.external_invocations, 'native': result.claim.native}))\n".replace(
+        "PATH", repr(str(artifact))
+    )
     env = dict(
         os.environ,
         PYTHONPATH=os.pathsep.join(
@@ -208,7 +195,9 @@ def test_callback_cancellation_bounds_and_replay_mismatch_are_typed():
     cancel = _native.CancellationToken()
     cancel.cancel()
     with pytest.raises(ExternalCallbackRefusal) as error:
-        ExternalCallbackSession().execute(request, provider=provider, cancel=cancel)
+        require_success(
+            ExternalCallbackSession().execute(request, provider=provider, cancel=cancel)
+        )
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "cancelled_no_claim",
         "recalc.cancelled",
@@ -221,8 +210,10 @@ def test_callback_cancellation_bounds_and_replay_mismatch_are_typed():
         return external.Response(request.descriptor.provider, [3.0, 5.0], attested_by="lab")
 
     with pytest.raises(ExternalCallbackRefusal) as error:
-        ExternalCallbackSession().execute(
-            request, provider=CallbackProvider(during, request.descriptor)
+        require_success(
+            ExternalCallbackSession().execute(
+                request, provider=CallbackProvider(during, request.descriptor)
+            )
         )
     assert (
         error.value.detail == "recalc.cancelled" and error.value.reason_code == "cancelled_no_claim"
@@ -230,14 +221,18 @@ def test_callback_cancellation_bounds_and_replay_mismatch_are_typed():
     assert error.value.attempt["invocations"] == 1
     oversized = replace(request, data={"a": np.zeros(100_001)})
     with pytest.raises(CausalValueError) as error:
-        ExternalCallbackSession().execute(oversized, provider=provider, memory_limit_bytes=800_000)
+        require_success(
+            ExternalCallbackSession().execute(
+                oversized, provider=provider, memory_limit_bytes=800_000
+            )
+        )
     assert error.value.reason_code == "invalid_argument" and (
         "recalc.memory_budget_exceeded" in str(error.value)
     )
     session = ExternalCallbackSession()
-    session.execute(request, provider=provider)
-    artifact = session.export_output()
-    replay = ExternalCallbackSession.resume(artifact, request)
+    require_success(session.execute(request, provider=provider))
+    artifact = bytes(session.export())
+    replay = require_success(ExternalCallbackSession.resume(artifact, request))
     bad = CallbackProvider(
         lambda inputs: external.Response(
             request.descriptor.provider,
@@ -248,7 +243,7 @@ def test_callback_cancellation_bounds_and_replay_mismatch_are_typed():
         request.descriptor,
     )
     with pytest.raises(ExternalCallbackRefusal) as error:
-        replay.execute(request, provider=bad)
+        require_success(replay.execute(request, provider=bad))
     assert (error.value.reason_code, error.value.detail, error.value.stage) == (
         "invalid_argument",
         "external_recalc.replay_mismatch",
@@ -272,13 +267,13 @@ def test_callback_capability_requires_actual_issued_native_state():
     assert retained_kind(session) == RetainedKind.READABLE
     with pytest.raises(RecalcUnavailable):
         require_adapter(Family.EXTERNAL, Operation.DATA, session)
-    session.execute(request, provider=provider)
+    require_success(session.execute(request, provider=provider))
     assert retained_kind(session) == RetainedKind.LIVE_EXTERNAL_OUTPUT
     assert (
         require_adapter(Family.EXTERNAL, Operation.DATA, session).state_type
         is ExternalCallbackSession
     )
-    replay = ExternalCallbackSession.resume(session.export_output(), request)
+    replay = require_success(ExternalCallbackSession.resume(bytes(session.export()), request))
     assert retained_kind(replay) == RetainedKind.READABLE
     with pytest.raises(RecalcUnavailable):
         require_adapter(Family.EXTERNAL, Operation.INFERENCE, session)

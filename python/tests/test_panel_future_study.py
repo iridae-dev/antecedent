@@ -24,6 +24,7 @@ from antecedent import scientific_bridge as sb
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
 from antecedent.evidence_ledger import EvidenceLedger, SourceDeclaration, SourceRevision
 from antecedent.intervention_programs import minimum, var
+from antecedent.outcomes import require_success
 
 ROOT = Path(__file__).resolve().parents[2]
 WORLDS = 2
@@ -146,7 +147,7 @@ def _updated():
         functional={"terms": [(1, 1.0), (0, -1.0)], "reference": 0},
         seed=20261021,
     )
-    result = prepared.estimate(seed=20261021)
+    result = require_success(prepared.estimate(seed=20261021))
     report = result.report()
     dependency = report["dependency"]
     draws = report["draws"]
@@ -258,7 +259,11 @@ def test_a_regime_changes_what_the_study_observes_and_carries_its_own_identity()
 def test_a_regime_whose_mapping_evidence_is_withdrawn_is_refused():
     updated, ledger, bridge, dependency, actions, slots = _updated()
     regime = _regime(bridge, ledger, dependency, slots, 2.0, "future-mapping-2")
-    ledger.revise_source(SourceRevision.withdraw(regime.mapping_evidence, "withdrawn mapping"))
+    require_success(
+        ledger.revise_source(
+            require_success(SourceRevision.withdraw(regime.mapping_evidence, "withdrawn mapping"))
+        )
+    )
     with pytest.raises((ValueError, CausalUnsupportedError), match="withdrawn|missing|superseded"):
         updated.rank_next_studies(
             actions=actions,

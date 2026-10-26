@@ -51,6 +51,13 @@ from typing import TYPE_CHECKING, Any, Literal
 import numpy as np
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._native import consume_effect_constancy_artifact as _consume
 from ._native import evaluate_effect_constancy as _evaluate
@@ -304,15 +311,10 @@ class EffectConstancyResult(ScientificResult):
     identity: EffectConstancyIdentity
     _artifact_bytes: bytes
 
-    def artifact(self) -> ExportedArtifact[EffectConstancyResult]:
-        """Typed bytes envelope for shared scientific consumption."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self)
-
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[EffectConstancyResult]:
         """The checksummed ``effect_constancy_v1`` artifact."""
-        return self._artifact_bytes
+        return artifact_from_receipt(self, self._artifact_bytes)
 
     def table(self) -> list[dict[str, Any]]:
         """The per-partition table: label, coordinate, support, effect and standard error."""
@@ -359,6 +361,7 @@ class EffectConstancyResult(ScientificResult):
 
 
 def _result(report_json: str, artifact: bytes) -> EffectConstancyResult:
+    artifact = container_bytes(artifact)
     report = json.loads(report_json)
     result = report["result"]
     family = report["family"]
@@ -517,6 +520,10 @@ def effect_constancy(
     return _result(report, bytes(artifact))
 
 
+@artifact_consumer(
+    proof="temporal.consume_effect_constancy_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_effect_constancy_artifact(
     artifact: bytes,
     *,
@@ -533,6 +540,7 @@ def consume_effect_constancy_artifact(
     Corruption and unknown major versions raise
     :class:`~antecedent.errors.CausalSerializationError`.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     if expected_identity is None:

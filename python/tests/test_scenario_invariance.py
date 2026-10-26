@@ -18,6 +18,7 @@ import json
 import pytest
 from antecedent import Admg
 from antecedent.errors import CausalUnsupportedError
+from antecedent.outcomes import require_success
 from antecedent.scenario_invariance import (
     InvarianceReport,
     ScenarioInvarianceRefusal,
@@ -100,7 +101,7 @@ def estimated(sets=None, data=None):
     stage = prepare(
         sets or scenarios(("standardize", ["z"]), ("direct", []), ("outcome_shift", ["y"])), data
     )
-    stage.estimate()
+    require_success(stage.estimate())
     return stage
 
 
@@ -214,16 +215,16 @@ def test_invariance_identity_ignores_edge_order_and_scenario_name():
 
 def test_invariance_is_derived_and_leaves_the_stage_and_artifact_unchanged():
     stage = estimated()
-    before = stage.export()
+    before = bytes(stage.export())
     first = invariance_report(stage)
-    assert stage.export() == before
+    assert bytes(stage.export()) == before
     assert invariance_report(stage) == first
     # A refresh with the same decisions reports the same invariances.
-    stage.refresh(laws())
-    stage.estimate()
+    require_success(stage.refresh(laws()))
+    require_success(stage.estimate())
     assert invariance_report(stage) == first
     # The report is not part of the scenario report payload.
-    assert "invariance" not in json.dumps(json.loads(stage.estimate()))
+    assert "invariance" not in json.dumps(json.loads(require_success(stage.estimate())))
 
 
 def test_invariance_requires_an_estimated_scenario_stage():

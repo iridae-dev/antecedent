@@ -95,7 +95,7 @@ def test_a_sealed_handoff_round_trips_and_a_fresh_consumer_rederives_it() -> Non
     assert handoff.inspect().family == "TransportHandoff"
 
     consumed = th.consume_for_callback(
-        handoff.export(), callback(), expected_identity=handoff.identity
+        bytes(handoff.export()), callback(), expected_identity=handoff.identity
     )
     assert consumed.identity == handoff.identity
     assert consumed.transport == handoff.transport
@@ -104,7 +104,7 @@ def test_a_sealed_handoff_round_trips_and_a_fresh_consumer_rederives_it() -> Non
     # Another declaration (a changed dependency version at unchanged shape).
     other = refusal_of(
         lambda: th.consume_for_callback(
-            handoff.export(), callback("beta=0.6"), expected_identity=handoff.identity
+            bytes(handoff.export()), callback("beta=0.6"), expected_identity=handoff.identity
         )
     )
     assert other.detail.startswith("provider_transport.")
@@ -124,12 +124,14 @@ def test_a_handoff_that_the_library_refuses_does_not_seal() -> None:
 
 def test_an_edited_handoff_is_refused() -> None:
     handoff = th.hand_to_callback(offer(), callback(), "effect")
-    data = bytearray(handoff.export())
+    data = bytearray(bytes(handoff.export()))
     data[-8] ^= 0x01
     refusal_of(lambda: th.consume_for_callback(bytes(data), callback()))
     # A consumer that retained another identity refuses the bytes.
     refusal_of(
-        lambda: th.consume_for_callback(handoff.export(), callback(), expected_identity=digest(9))
+        lambda: th.consume_for_callback(
+            bytes(handoff.export()), callback(), expected_identity=digest(9)
+        )
     )
     with pytest.raises(CausalTypeError):
         th.consume_for_callback("bytes", callback())  # type: ignore[arg-type]

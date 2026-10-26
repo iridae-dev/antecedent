@@ -16,10 +16,17 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._recalc_bounds import _columns
 from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
 from .external import BoundExternalClaim, ExternalSpec, ProviderObject, Response
+from .outcomes import outcome_operation
 from .program_claims import ProgramBinding
 from .recalc import RecalcPlan, RecalcReceipt, RecalcRefusal, _seed
 
@@ -203,6 +210,7 @@ class ExternalCallbackSession:
         assert result is not None
         return RecalcPlan.from_wire(json.loads(result))
 
+    @outcome_operation
     def execute(
         self,
         request: ExternalCallbackRequest,
@@ -234,12 +242,13 @@ class ExternalCallbackSession:
             BoundExternalClaim(claim, request.spec.statement),
         )
 
-    def export_output(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         result, error = self._handle.export_output()
         raise_refusal(error, ExternalCallbackRefusal)
         if result is None:
             raise CausalSerializationError("external callback has no portable output")
-        return bytes(result)
+        return artifact_from_receipt(self, bytes(result))
 
     @classmethod
     def resume(
@@ -250,6 +259,7 @@ class ExternalCallbackSession:
         memory_limit_bytes: int | None = None,
         cancel: _native.CancellationToken | None = None,
     ) -> ExternalCallbackSession:
+        artifact = container_bytes(artifact)
         names, columns = _columns(
             request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
         )

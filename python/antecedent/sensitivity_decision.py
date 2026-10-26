@@ -7,11 +7,13 @@ answer into a decision: the surface becomes a :class:`SensitivityArtifact`
 uncertainty relationship, provenance), and :func:`decide` evaluates a decision
 contract over it::
 
-    artifact = sensitivity_decision.SensitivityArtifact.from_joint_sensitivity(
+    from antecedent import require_success
+
+    artifact = require_success(sensitivity_decision.evaluate_joint_sensitivity(
         stage, JointDeviation({"outcome_kernel": 0.2}),
         effect=effect, actions=[act, wait], causal_contract_id="contract-1",
-    )
-    result = sensitivity_decision.decide(artifact.contract(), artifact)
+    ))
+    result = require_success(sensitivity_decision.decide(artifact.contract(), artifact))
     result.kind       # "invariant_action" | "assumption_dependent" | "no_robust_action"
     result.switch     # the tipping coordinate of an assumption-dependent switch
 
@@ -30,7 +32,7 @@ Three things stay distinct and are never merged:
 Decisions are evaluated only at the declared grid points; nothing between them is
 evaluated, so the interpolated crossing of a switch is labelled an interpolation.
 Rust owns the artifact, its identity digests, the evaluation, the classification
-and every refusal; this module builds declarations and raises each refusal as
+and every refusal; this module builds declarations and returns scientific refusals in an Outcome retaining
 :class:`SensitivityRefusal`, a :class:`~antecedent.errors.CausalUnsupportedError`
 with its registered ``reason_code``.
 """
@@ -44,6 +46,13 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._native import SensitivityArtifact as _NativeSensitivityArtifact
 from ._native import composition_lineage as _composition_lineage
@@ -52,14 +61,17 @@ from ._native import sensitivity_artifact_from_z_joint as _from_z_joint
 from ._native import sensitivity_contract as _contract
 from ._native import sensitivity_decide as _decide
 from ._refusal import raise_refusal
+from ._scientific import ScientificResult
 from .decision import Contract, StructuralPolicy, _leaf_kinds
 from .decision import Expr as _Expr
 from .decision import const as _const
 from .decision import maximum as _maximum
 from .decision import minimum as _minimum
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from .execution import Execution
 from .external import LineageLink
 from .joint_distribution import ScientificQuantity
+from .outcomes import Answer, outcome_operation, require_success
 
 #: Identity of the reported assumption range within :attr:`SensitivityArtifact.lineage`.
 CLAIM_LINK_ID = "sensitivity_claim"
@@ -464,7 +476,7 @@ class SamplingReport:
 # ---------------------------------------------------------------------- artifact
 
 
-class SensitivityArtifact:
+class SensitivityArtifact(ScientificResult):
     """A composition-ready assumption-sensitivity surface with its identity.
 
     The identity keeps the premises (coordinate, support, quantities, actions,
@@ -535,53 +547,12 @@ class SensitivityArtifact:
         return cls(native)
 
     @classmethod
-    def from_joint_sensitivity(
-        cls,
-        stage: Any,
-        deviation: Any,
-        *,
-        effect: ScientificQuantity,
-        actions: Sequence[SensitivityAction],
-        causal_contract_id: str,
-        grid_points: int | None = None,
-        memory_bytes: int | None = None,
-        cancel: Any = None,
-    ) -> SensitivityArtifact:
-        """Adapt the joint mechanism sensitivity of a prepared z stage.
-
-        ``stage`` and ``deviation`` are exactly what
-        :func:`antecedent.transport.joint_mechanism_sensitivity` takes (a prepared
-        z-transport stage and a :class:`~antecedent.transport.JointDeviation`); the
-        exact range is evaluated on the stage's retained laws and filled on
-        ``grid_points`` equally spaced contamination fractions (one declared factor,
-        default 9) or at the two exact points of the declared box (two factors,
-        which must use 2). The withheld sampling status is carried unchanged: the
-        range stays an assumption range, never a confidence interval.
-        """
-        from .transport._impl import _optional_non_negative
-        from .transport._joint_sensitivity import _deviation, _stage
-
-        deviation = _deviation(deviation)
-        stage = _stage(stage)
-        points = (
-            grid_points if grid_points is not None else (9 if len(deviation._pairs) == 1 else 2)
-        )
-        native, refusal = _from_z_joint(
-            stage,
-            list(deviation._pairs),
-            json.dumps(effect._wire()),
-            int(points),
-            json.dumps([a._wire() for a in actions]),
-            causal_contract_id,
-            **deviation._kwargs(),
-            memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-            cancel=cancel,
-        )
-        raise_refusal(refusal, SensitivityRefusal)
-        assert native is not None
-        return cls(native)
-
-    @classmethod
+    @outcome_operation
+    @artifact_consumer(
+        proof="Independent native sensitivity consumer recomputes the declared surface, its identity and stored sensitivity outcome.",
+        replayable=True,
+        input="data",
+    )
     def consume(
         cls, data: bytes, *, expected_identity: Mapping[str, str] | None = None
     ) -> SensitivityArtifact:
@@ -592,6 +563,7 @@ class SensitivityArtifact:
         retained ``expected_identity`` (the dict of :attr:`identity`) independently of
         the bytes, that identity must match too.
         """
+        data = container_bytes(data)
         if not isinstance(data, bytes):
             raise CausalTypeError("artifact must be bytes")
         native, refusal = _NativeSensitivityArtifact.consume(
@@ -611,18 +583,33 @@ class SensitivityArtifact:
         value = _native.original_sensitivity_source(self._native)
         return None if value is None else bytes(value)
 
-    def export_with_source(self) -> bytes:
-        """Export the original checked joint source and derived surface for full replay."""
-        return bytes(_native.export_sensitivity_source(self._native))
-
     @classmethod
+    @outcome_operation
+    @artifact_consumer(
+        proof="Native source replay reconstructs the checked joint sensitivity source and verifies the complete derived surface.",
+        replayable=True,
+        identity=(),
+        input="data",
+    )
     def consume_with_source(cls, data: bytes) -> SensitivityArtifact:
         """Replay the original numerical source and verify the complete derived surface."""
+        data = container_bytes(data)
         return cls(_native.consume_sensitivity_source(data))
 
-    def export(self, *, artifact_id: str = "sensitivity-decision") -> bytes:
-        """Serialize through the bounded, checksummed container."""
-        return bytes(self._native.export(artifact_id))
+    @artifact_export
+    def export(
+        self, *, artifact_id: str = "sensitivity-decision", include_source: bool = False
+    ) -> ExportedArtifact:
+        """Export the surface, optionally carrying its original checked joint source."""
+        if not isinstance(include_source, bool):
+            raise CausalTypeError("include_source must be bool")
+        if include_source:
+            # This owner exports its original source envelope, rather than the
+            # shared causal container used by the surface-only artifact. Preserve
+            # those native bytes; its independent consumer owns replay validation.
+            raw = _native.export_sensitivity_source(self._native)
+            return ExportedArtifact(bytes(raw), "ANTE-SENSITIVITY-SOURCE-1")
+        return artifact_from_receipt(self, bytes(self._native.export(artifact_id)))
 
     # -- views -----------------------------------------------------------------
 
@@ -737,6 +724,7 @@ class SensitivityArtifact:
         wire = self._summary["outcome"]
         return None if wire is None else Outcome._from_wire(wire)
 
+    @outcome_operation
     def outcome_over(self, range: tuple[float, float] | None = None) -> Outcome:  # noqa: A002
         """Recompute the classification over an inclusive coordinate sub-range from the
         surface and the declared action utilities alone (no contract needed)."""
@@ -781,8 +769,16 @@ class AtomView:
     reason: str | None = None
 
 
-class SensitivityDecision:
+class SensitivityDecision(ScientificResult):
     """A decision over the assumption range of a sensitivity surface."""
+
+    @property
+    def answer(self) -> Answer:
+        return Answer(
+            "structured",
+            detail="sensitivity_decision." + self.kind,
+            structured={"invariant_action": self.invariant_action, "coverage": self.coverage},
+        )
 
     def __init__(self, contract: Contract, artifact: SensitivityArtifact, body: Mapping[str, Any]):
         self._contract = contract
@@ -893,6 +889,7 @@ class SensitivityDecision:
         return f"<SensitivityDecision {self._outcome}>"
 
 
+@outcome_operation
 def decide(
     contract: Contract,
     artifact: SensitivityArtifact,
@@ -913,6 +910,7 @@ def decide(
     requests composing the sampling interval with the range and always refuses with
     ``cell_not_licensed`` today.
     """
+    artifact = require_success(artifact)
     if not isinstance(contract, Contract):
         raise CausalTypeError("contract must be a decision.Contract")
     if not isinstance(artifact, SensitivityArtifact):
@@ -926,6 +924,53 @@ def decide(
     raise_refusal(refusal, SensitivityRefusal)
     assert text is not None
     return SensitivityDecision(contract, artifact, json.loads(text))
+
+
+@outcome_operation
+def evaluate_joint_sensitivity(
+    stage: Any,
+    deviation: Any,
+    *,
+    effect: ScientificQuantity,
+    actions: Sequence[SensitivityAction],
+    causal_contract_id: str,
+    grid_points: int | None = None,
+    execution: Execution | None = None,
+) -> SensitivityArtifact:
+    """Adapt the joint mechanism sensitivity of a prepared z stage.
+
+    ``stage`` and ``deviation`` are exactly what
+    :func:`antecedent.transport.joint_mechanism_sensitivity` takes (a prepared
+    z-transport stage and a :class:`~antecedent.transport.JointDeviation`); the
+    exact range is evaluated on the stage's retained laws and filled on
+    ``grid_points`` equally spaced contamination fractions (one declared factor,
+    default 9) or at the two exact points of the declared box (two factors,
+    which must use 2). The withheld sampling status is carried unchanged: the
+    range stays an assumption range, never a confidence interval.
+    """
+    from .transport._joint_sensitivity import _deviation, _stage
+
+    deviation = _deviation(deviation)
+    stage = _stage(stage)
+    points = grid_points if grid_points is not None else (9 if len(deviation._pairs) == 1 else 2)
+    policy = Execution() if execution is None else execution
+    if not isinstance(policy, Execution):
+        raise CausalTypeError("execution must be an Execution policy")
+    native, refusal = policy._call(
+        _from_z_joint,
+        stage,
+        list(deviation._pairs),
+        json.dumps(effect._wire()),
+        int(points),
+        json.dumps([a._wire() for a in actions]),
+        causal_contract_id,
+        **deviation._kwargs(),
+        memory_bytes=policy.limits.memory_bytes,
+        cancel=policy.cancel,
+    )
+    raise_refusal(refusal, SensitivityRefusal)
+    assert native is not None
+    return SensitivityArtifact(native)
 
 
 __all__ = [
@@ -950,6 +995,7 @@ __all__ = [
     "Uncertainty",
     "const",
     "decide",
+    "evaluate_joint_sensitivity",
     "maximum",
     "minimum",
     "quantity",

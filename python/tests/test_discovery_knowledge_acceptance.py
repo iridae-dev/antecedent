@@ -26,6 +26,7 @@ from antecedent.discovery import (
     Link,
 )
 from antecedent.errors import CausalUnsupportedError
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, read_text
 
@@ -526,13 +527,13 @@ def test_background_knowledge_is_carried_through_dispatch_refresh_serialization_
             return study.inspect_plan().to_dict()["contract"]["discovery_algorithm"]
 
         study = ant.prepare(table, query=query, discovery=config, bootstrap=0, refute=False)
-        first = study.estimate()
+        first = require_success(study.estimate())
         assert stated(study) == f"{algorithm}+knowledge:{digest}"
-        refreshed = study.refresh(refreshed_table)
+        refreshed = require_success(study.refresh(refreshed_table))
         assert refreshed.program_id == first.program_id
         assert stated(study) == f"{algorithm}+knowledge:{digest}"
         replayed = study.reprepare(table)
-        replayed.estimate()
+        require_success(replayed.estimate())
         assert stated(replayed) == stated(study)
         altered = ant.prepare(table, query=query, discovery=other, bootstrap=0, refute=False)
         assert stated(altered) == f"{algorithm}+knowledge:{replaced.background_knowledge}"

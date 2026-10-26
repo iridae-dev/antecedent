@@ -3,6 +3,7 @@
 import pytest
 from antecedent import Admg, ResponseCurve, analyze, load, transport
 from antecedent._transport_results import TransportGridPoint, grid_support_status
+from antecedent.outcomes import require_success
 from antecedent.results import CausalResponseView
 from antecedent.results.response import SupportReport
 from antecedent.transport import advanced
@@ -64,9 +65,11 @@ def test_grid_point_support_status_maps_each_native_status():
 @pytest.mark.parametrize("statistical", [False, True])
 def test_native_grid_points_report_missing_evidence(statistical):
     _, identified, catalog, data = fixture(missing=True, statistical=statistical)
-    result = advanced.prepare_response_grid(
-        identified, catalog, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=19
-    ).estimate()
+    result = require_success(
+        advanced.prepare_response_grid(
+            identified, catalog, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=19
+        ).estimate()
+    )
     assert result.points[0]["status"] == "missing_evidence"
     assert [point.support_status for point in result.points] == ["missing_evidence", "supported"]
     slot = result.inspect().support.payload["slot"]
@@ -74,7 +77,9 @@ def test_native_grid_points_report_missing_evidence(statistical):
         "1 executable; 1 unavailable (1 missing evidence, 0 support failure); "
         "population positivity assumed"
     )
-    assert [point.support_status for point in load(result.export()).points] == [
+    assert [
+        point.support_status for point in require_success(load(bytes(result.export()))).points
+    ] == [
         "missing_evidence",
         "supported",
     ]

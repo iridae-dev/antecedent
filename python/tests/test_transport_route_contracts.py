@@ -47,7 +47,11 @@ print(json.dumps(result.inspect(),sort_keys=True))
 def test_joint_bayesian_factory_replays_without_producer_inputs(tmp_path):
     source_inputs = joint_options(False, "one")
     measured = tr.joint_bayesian_transport(**source_inputs)
-    payload, identity, original = measured.export(), measured.expected_identity, measured.inspect()
+    payload, identity, original = (
+        bytes(measured.export()),
+        measured.expected_identity,
+        measured.inspect(),
+    )
     del source_inputs
     del measured
     loaded = independent_replay(payload, identity, original, tmp_path)
@@ -57,7 +61,11 @@ def test_joint_bayesian_factory_replays_without_producer_inputs(tmp_path):
 def test_learned_joint_factory_replays_without_producer_inputs(tmp_path):
     source_inputs = joint_options(True, "one")
     measured = tr.learned_joint_transport(**source_inputs)
-    payload, identity, original = measured.export(), measured.expected_identity, measured.inspect()
+    payload, identity, original = (
+        bytes(measured.export()),
+        measured.expected_identity,
+        measured.inspect(),
+    )
     del source_inputs
     del measured
     loaded = independent_replay(payload, identity, original, tmp_path)
@@ -67,7 +75,11 @@ def test_learned_joint_factory_replays_without_producer_inputs(tmp_path):
 def test_nested_bayesian_factory_replays_without_producer_inputs(tmp_path):
     source_inputs = {"graph": graph(), "regimes": [{"counts": [250] * 16}], "seed": 817}
     measured = tr.binary_nested_markov(**source_inputs)
-    payload, identity, original = measured.export(), measured.expected_identity, measured.inspect()
+    payload, identity, original = (
+        bytes(measured.export()),
+        measured.expected_identity,
+        measured.inspect(),
+    )
     del source_inputs
     del measured
     loaded = independent_replay(payload, identity, original, tmp_path)
@@ -77,7 +89,11 @@ def test_nested_bayesian_factory_replays_without_producer_inputs(tmp_path):
 def test_nested_fisher_factory_replays_without_producer_inputs(tmp_path):
     source_inputs = {"graph": graph(), "regimes": [{"counts": [250] * 16}]}
     measured = tr.binary_nested_markov_fisher_interval(**source_inputs)
-    payload, identity, original = measured.export(), measured.expected_identity, measured.inspect()
+    payload, identity, original = (
+        bytes(measured.export()),
+        measured.expected_identity,
+        measured.inspect(),
+    )
     del source_inputs
     del measured
     loaded = independent_replay(payload, identity, original, tmp_path)
@@ -92,7 +108,11 @@ def test_direct_temporal_factory_replays_without_producer_inputs(tmp_path):
         "seed": 901,
     }
     measured = tr.temporal_dependent_interval(**source_inputs)
-    payload, identity, original = measured.export(), measured.expected_identity, measured.inspect()
+    payload, identity, original = (
+        bytes(measured.export()),
+        measured.expected_identity,
+        measured.inspect(),
+    )
     del source_inputs
     del measured
     loaded = independent_replay(payload, identity, original, tmp_path)
@@ -102,7 +122,11 @@ def test_direct_temporal_factory_replays_without_producer_inputs(tmp_path):
 def test_sampled_recovery_factory_replays_without_producer_inputs(tmp_path):
     source_inputs = recovery_options()
     measured = tr.sampled_observation_recovery(**source_inputs)
-    payload, identity, original = measured.export(), measured.expected_identity, measured.inspect()
+    payload, identity, original = (
+        bytes(measured.export()),
+        measured.expected_identity,
+        measured.inspect(),
+    )
     del source_inputs
     del measured
     loaded = independent_replay(payload, identity, original, tmp_path)

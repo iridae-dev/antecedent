@@ -15,6 +15,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.errors import CausalUnsupportedError
+from antecedent.outcomes import require_success
 
 DISCLOSURE = "estimate.temporal_class.lag_zero_average_effect"
 N = 1200
@@ -49,14 +50,16 @@ def _cpdag() -> antecedent.graph.TemporalCpdag:
 
 
 def _run(graph, query, inference=None):
-    return antecedent.analyze(
-        _series(),
-        graph=graph,
-        query=query,
-        inference=inference,
-        refute=False,
-        bootstrap=0,
-        seed=7,
+    return require_success(
+        antecedent.analyze(
+            _series(),
+            graph=graph,
+            query=query,
+            inference=inference,
+            refute=False,
+            bootstrap=0,
+            seed=7,
+        )
     )
 
 

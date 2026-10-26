@@ -12,6 +12,7 @@ records what was rejected instead.
 import antecedent as ac
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 HOMOGENEITY = "gcm.counterfactual.unit_effects_homogeneous"
 REJECTED = "gcm.counterfactual.heterogeneity_rejected"
@@ -48,13 +49,15 @@ def diagnostic(result, code):
 
 
 def counterfactual(data, graph, **kwargs):
-    return ac.analyze(
-        data,
-        graph=graph,
-        query=ac.Counterfactual("a", "y"),
-        refute="none",
-        seed=1,
-        **kwargs,
+    return require_success(
+        ac.analyze(
+            data,
+            graph=graph,
+            query=ac.Counterfactual("a", "y"),
+            refute="none",
+            seed=1,
+            **kwargs,
+        )
     )
 
 

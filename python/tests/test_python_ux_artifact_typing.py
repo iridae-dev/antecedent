@@ -23,18 +23,18 @@ def checked(compact: ce.CompactExport, cohort: cd.CohortDecisionSource,
             callback: pc.CallbackExecution, sequential: se.EvaluationArtifact,
             discovery: sd.SelectiveDiscovery, adaptive: ai.AdaptiveInferenceSession,
             crossworld: cw.CrossWorldExecution) -> None:
-    assert_type(compact.artifact(), ExportedArtifact[ce.CompactExport])
-    assert_type(ant.load(compact.artifact(), expected=compact.identity), ce.CompactExport)
-    assert_type(cohort.artifact(), ExportedArtifact[cd.CohortDecisionSource])
-    assert_type(ant.load(cohort.artifact(), expected=cohort.identity), cd.CohortDecisionSource)
-    assert_type(callback.artifact(), ExportedArtifact[pc.CallbackConsumed])
-    assert_type(ant.load(callback.artifact()), pc.CallbackConsumed)
-    assert_type(sequential.artifact(), ExportedArtifact[se.EvaluationArtifact])
-    assert_type(ant.load(sequential.artifact()), se.EvaluationArtifact)
-    assert_type(discovery.artifact(), ExportedArtifact[sd.ConsumedSelectiveDiscovery])
-    assert_type(adaptive.artifact(ai.BayesianPosterior(1)), ExportedArtifact[ai.ConsumedAdaptiveResult])
-    assert_type(adaptive.analyze(ai.BayesianPosterior(1)).artifact(), ExportedArtifact[ai.ConsumedAdaptiveResult])
-    assert_type(crossworld.artifact(), ExportedArtifact[cw.ConsumedCrossWorldExecution])
+    assert_type(compact.export(), ExportedArtifact[ce.CompactExport])
+    assert_type(ant.load(compact.export(), expected=compact.identity), ce.CompactExport)
+    assert_type(cohort.export(), ExportedArtifact[cd.CohortDecisionSource])
+    assert_type(ant.load(cohort.export(), expected=cohort.identity), cd.CohortDecisionSource)
+    assert_type(callback.export(), ExportedArtifact[pc.CallbackConsumed])
+    assert_type(ant.load(callback.export()), pc.CallbackConsumed)
+    assert_type(sequential.export(), ExportedArtifact[se.EvaluationArtifact])
+    assert_type(ant.load(sequential.export()), se.EvaluationArtifact)
+    assert_type(discovery.export(), ExportedArtifact[sd.ConsumedSelectiveDiscovery])
+    assert_type(adaptive.export(ai.BayesianPosterior(1)), ExportedArtifact[ai.ConsumedAdaptiveResult])
+    assert_type(adaptive.analyze(ai.BayesianPosterior(1)).export(), ExportedArtifact[ai.ConsumedAdaptiveResult])
+    assert_type(crossworld.export(), ExportedArtifact[cw.ConsumedCrossWorldExecution])
 """)
     result = subprocess.run(
         [*mypy, str(fixture)],
@@ -47,8 +47,8 @@ def checked(compact: ce.CompactExport, cohort: cd.CohortDecisionSource,
 from antecedent import scientific_bridge as sb
 
 def unchecked(model: mc.PreparedMechanismComposition, bridge: sb.BridgedClaim) -> None:
-    model.artifact(query_typo=mc.MeanContrast.mean_at("y", {}))
-    bridge.artifact(artifact_typo="id")
+    model.export(query_typo=mc.MeanContrast.mean_at("y", {}))
+    bridge.export(artifact_typo="id")
 """)
     result = subprocess.run(
         [*mypy, str(fixture)],

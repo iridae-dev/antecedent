@@ -9,6 +9,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent.errors import CausalDataError, CausalResourceError, CausalValueError
+from antecedent.outcomes import require_success
 
 pa = pytest.importorskip("pyarrow")
 pq = pytest.importorskip("pyarrow.parquet")
@@ -43,7 +44,9 @@ def _with_extras(data: dict[str, np.ndarray]) -> dict[str, object]:
 
 
 def _analyze(data: object) -> object:
-    return ant.analyze(data, query=QUERY, graph=GRAPH, bootstrap=0, refute="none", seed=11)
+    return require_success(
+        ant.analyze(data, query=QUERY, graph=GRAPH, bootstrap=0, refute="none", seed=11)
+    )
 
 
 def test_analyze_over_parquet_equals_the_same_analysis_in_memory(tmp_path):
@@ -64,10 +67,10 @@ def test_prepare_estimate_and_refresh_accept_files(tmp_path):
     shifted = {**data, "y": data["y"] + data["t"]}
     second = _write(tmp_path / "second.parquet", shifted)
     study = ant.prepare(first, query=QUERY, graph=GRAPH, bootstrap=0, refute="none")
-    baseline = study.estimate()
-    refreshed = study.refresh(second)
+    baseline = require_success(study.estimate())
+    refreshed = require_success(study.refresh(second))
     assert refreshed.effect == pytest.approx(baseline.effect + 1.0)
-    other = study.estimate(ant.data.from_parquet(second))
+    other = require_success(study.estimate(ant.data.from_parquet(second)))
     assert other.effect == pytest.approx(refreshed.effect)
 
 

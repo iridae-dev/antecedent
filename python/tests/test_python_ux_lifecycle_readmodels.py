@@ -7,6 +7,7 @@ from typing import Any
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 from antecedent.results._report import InspectionReport, ResultModel, SlotModel
 
 from test_column_name_inputs import _bernoulli, _randomized_named_query
@@ -20,7 +21,7 @@ def test_every_design_rebinding_path_refuses_and_retains_result(operation, chang
     assignment, outcome, ids = _bernoulli(n=64)
     data = {"y": outcome, "arm": assignment, "id": ids}
     study = ant.prepare(data, query=_randomized_named_query())
-    result = study.estimate()
+    result = require_success(study.estimate())
     replacement = {name: values.copy() for name, values in data.items()}
     if change == "assignment":
         replacement["arm"] = ~assignment
@@ -36,7 +37,7 @@ def test_every_design_rebinding_path_refuses_and_retains_result(operation, chang
     assert refusal.value.reason_code == "invalid_argument"
     assert study.last_result is result
     assert study.inspect().answer == result.answer
-    assert study.estimate().answer == result.answer
+    assert require_success(study.estimate()).answer == result.answer
 
 
 def test_design_normalization_and_omission_preserve_frozen_design():
@@ -44,13 +45,15 @@ def test_design_normalization_and_omission_preserve_frozen_design():
     study = ant.prepare(
         {"y": outcome, "arm": assignment, "id": ids}, query=_randomized_named_query()
     )
-    original = study.estimate()
-    normalized = study.estimate({"y": outcome, "arm": assignment.astype(float), "id": ids.tolist()})
-    assert normalized.answer == original.answer
-    assert study.refresh({"y": outcome + assignment}).answer.value == pytest.approx(
-        original.answer.value + 2 * assignment.mean()
+    original = require_success(study.estimate())
+    normalized = require_success(
+        study.estimate({"y": outcome, "arm": assignment.astype(float), "id": ids.tolist()})
     )
-    assert study.estimate({"y": outcome}).answer == original.answer
+    assert normalized.answer == original.answer
+    assert require_success(
+        study.refresh({"y": outcome + assignment})
+    ).answer.value == pytest.approx(original.answer.value + 2 * assignment.mean())
+    assert require_success(study.estimate({"y": outcome})).answer == original.answer
 
 
 def test_exact_snapshot_replacement_invalidates_execution_view_without_running():
@@ -64,7 +67,7 @@ def test_exact_snapshot_replacement_invalidates_execution_view_without_running()
     study = ant.prepare(
         data, query=transport.ExactTransportQuery(identification, catalog, {"x": 1.0})
     )
-    original = study.estimate()
+    original = require_success(study.estimate())
     assert study.last_result is original
     assert study.inspect().stage == "executed"
     updated = transport.ExactTransportData(
@@ -73,7 +76,7 @@ def test_exact_snapshot_replacement_invalidates_execution_view_without_running()
     study.replace_snapshot(updated)
     assert study.last_result is None
     assert study.inspect().stage == "prepared"
-    assert study.estimate().mean("y") != original.mean("y")
+    assert require_success(study.estimate()).mean("y") != original.mean("y")
 
 
 def test_graphless_design_description_retains_native_standing_without_graph_certificate():
@@ -93,7 +96,7 @@ def test_graphless_design_description_retains_native_standing_without_graph_cert
     export = identification.to_dict()
     export["design"]["basis"] = "changed"
     assert identification.design["basis"] == "declared_design"
-    result = study.estimate()
+    result = require_success(study.estimate())
     assert result.longitudinal_regime.support_status == "unlicensed_point_utility"
     assert result.longitudinal_regime.uncertainty == "point_only_no_interval"
 
@@ -232,7 +235,9 @@ def test_interference_design_has_no_fabricated_empty_dag_identification():
     assert identification.design["query_family"] == "InterferenceQuery"
     assert identification.verdict == "design based"
     assert study.inspect().identification.summary == "design based"
-    assert study.estimate().interference.contrast.horvitz_thompson == pytest.approx(2.0)
+    assert require_success(
+        study.estimate()
+    ).interference.contrast.horvitz_thompson == pytest.approx(2.0)
 
 
 def test_copied_inspection_and_result_read_models_freeze_replacement_payloads():
@@ -271,9 +276,9 @@ def test_prepared_question_and_repreparation_detach_mutable_caller_declarations(
     edges.clear()
     identification = study.identification
     assert tuple(identification.query.grid) == (-0.5, 0.0, 0.5)
-    result = study.estimate()
+    result = require_success(study.estimate())
     assert tuple(result.estimand.grid) == (-0.5, 0.0, 0.5)
-    repeated = study.reprepare(data).estimate()
+    repeated = require_success(study.reprepare(data).estimate())
     assert repeated.response.values == result.response.values
     assert repeated.identification == result.identification
 
@@ -294,10 +299,10 @@ def test_repreparation_keeps_graph_and_configuration_despite_caller_edits():
         bootstrap=0,
         refute=False,
     )
-    original = study.estimate()
+    original = require_success(study.estimate())
     edges.clear()
     configuration["se_kind"] = "invalid"
-    repeated = study.reprepare(data).estimate()
+    repeated = require_success(study.reprepare(data).estimate())
     assert repeated.answer == original.answer
     assert repeated.estimate.se_analytic == original.estimate.se_analytic
     assert study.identification.graph == (("z", "t"), ("z", "y"), ("t", "y"))
@@ -318,8 +323,8 @@ def test_restricted_transport_refresh_refusal_preserves_prior_execution_and_expo
         graph=_surrogate_graph(),
         query=_restricted_query(),
     )
-    original = study.estimate()
-    exported = study.export()
+    original = require_success(study.estimate())
+    exported = bytes(study.export())
     kwargs = {}
     if refusal == "invalid_law":
         law = replace(_snapshot_law("refused"), probabilities=(1.0,))
@@ -331,11 +336,11 @@ def test_restricted_transport_refresh_refusal_preserves_prior_execution_and_expo
         kwargs["cancel"] = token
         expected = ant.errors.CausalCancelledError
     with pytest.raises(expected):
-        study.refresh(transport.ExactTransportData((law,)), **kwargs)
+        require_success(study.refresh(transport.ExactTransportData((law,)), **kwargs))
     assert study.last_result is original
-    assert study.export() == exported
-    assert study.estimate().transport.bindings == ("source:z=0.0:original",)
-    assert ant.load(exported).transport.bindings == original.transport.bindings
+    assert bytes(study.export()) == exported
+    assert require_success(study.estimate()).transport.bindings == ("source:z=0.0:original",)
+    assert require_success(ant.load(exported)).transport.bindings == original.transport.bindings
 
 
 def test_restricted_refresh_reuses_identification_and_preserves_original_result(monkeypatch):
@@ -349,17 +354,21 @@ def test_restricted_refresh_reuses_identification_and_preserves_original_result(
         graph=_surrogate_graph(),
         query=_restricted_query(),
     )
-    original = study.estimate()
-    original_bytes = original.export()
+    original = require_success(study.estimate())
+    original_bytes = bytes(original.export())
     stage = study._native.stage
 
     def no_identification(*args, **kwargs):
         raise AssertionError("refresh must reuse the retained Rust identification stage")
 
     monkeypatch.setattr(_restricted, "identify_z_transport", no_identification)
-    updated = study.refresh(transport.ExactTransportData((_snapshot_law("updated"),)))
+    updated = require_success(
+        study.refresh(transport.ExactTransportData((_snapshot_law("updated"),)))
+    )
     assert study._native.stage is stage
     assert updated.transport.bindings == ("source:z=0.0:updated",)
     assert original.transport.bindings == ("source:z=0.0:original",)
-    assert original.export() == original_bytes
-    assert ant.load(original_bytes).transport.bindings == original.transport.bindings
+    assert bytes(original.export()) == original_bytes
+    assert (
+        require_success(ant.load(original_bytes)).transport.bindings == original.transport.bindings
+    )

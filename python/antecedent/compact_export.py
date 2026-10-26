@@ -45,6 +45,13 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._freeze import thaw
 from ._native import build_compact_export as _build
@@ -392,6 +399,10 @@ class CompactExport(ScientificResult):
         )
 
     @classmethod
+    @artifact_consumer(
+        proof="compact_export.CompactExport.consume: independent semantic consumer checks declarations, identities and stored result",
+        replayable=False,
+    )
     def consume(cls, artifact: bytes, *, expected_identity: str) -> CompactExport:
         """Independently verify ``artifact`` against the identity the caller retained.
 
@@ -400,6 +411,7 @@ class CompactExport(ScientificResult):
         tampered coefficient, covariance, term, support, mask or scope (even when the container
         was resealed), a different identity, an oversized claim or an unknown version.
         """
+        artifact = container_bytes(artifact)
         if not isinstance(artifact, bytes | bytearray | memoryview):
             raise CausalTypeError("artifact must be bytes")
         _name(expected_identity, "expected_identity")
@@ -412,15 +424,10 @@ class CompactExport(ScientificResult):
         parsed = json.loads(summary)
         return cls(identity=parsed["identity"], body=parsed["body"], _artifact_bytes=data)
 
-    def artifact(self) -> ExportedArtifact[CompactExport]:
-        """Typed bytes envelope for shared scientific consumption."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self)
-
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[CompactExport]:
         """The checksummed ``compact_runtime_export_v1`` artifact."""
-        return self._artifact_bytes
+        return artifact_from_receipt(self, self._artifact_bytes)
 
     def evaluate(self, query: Mapping[str, Any]) -> PointEstimate:
         """Point prediction and model-based standard error at ``query``.

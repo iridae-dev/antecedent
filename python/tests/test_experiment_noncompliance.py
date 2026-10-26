@@ -9,6 +9,7 @@ from antecedent.experiment import (
     estimate_cuped_effect,
 )
 from antecedent.interference import BernoulliAssignment
+from antecedent.outcomes import require_success
 
 
 def test_randomized_noncompliance_recovers_known_complier_effect_and_itt():
@@ -25,8 +26,10 @@ def test_randomized_noncompliance_recovers_known_complier_effect_and_itt():
         [f"unit-{i}" for i in range(len(outcome))],
         [f"row-{i}" for i in range(len(outcome))],
     )
-    analysis = ant.analyze(
-        {"outcome": outcome}, query=ComplierEffect("outcome", design, receipt), refute="none"
+    analysis = require_success(
+        ant.analyze(
+            {"outcome": outcome}, query=ComplierEffect("outcome", design, receipt), refute="none"
+        )
     )
     result = analysis.randomized_effect
     assert result.intention_to_treat_effect == pytest.approx(1.0)
@@ -43,10 +46,12 @@ def test_randomized_noncompliance_recovers_known_complier_effect_and_itt():
 def test_randomized_noncompliance_refuses_zero_first_stage():
     design2 = ExperimentDesign(BernoulliAssignment(0.5), [False, True], ["a", "b"], ["a", "b"])
     with pytest.raises(CausalUnsupportedError, match="positive receipt first stage"):
-        ant.analyze(
-            {"outcome": [1.0, 2.0]},
-            query=ComplierEffect("outcome", design2, [False, False]),
-            refute="none",
+        require_success(
+            ant.analyze(
+                {"outcome": [1.0, 2.0]},
+                query=ComplierEffect("outcome", design2, [False, False]),
+                refute="none",
+            )
         )
     design4 = ExperimentDesign(
         BernoulliAssignment(0.5),
@@ -55,10 +60,12 @@ def test_randomized_noncompliance_refuses_zero_first_stage():
         ["a", "b", "c", "d"],
     )
     with pytest.raises(CausalUnsupportedError, match="positive receipt first stage"):
-        ant.analyze(
-            {"outcome": [1.0, 0.0, 1.0, 0.0]},
-            query=ComplierEffect("outcome", design4, [True, False, True, False]),
-            refute="none",
+        require_success(
+            ant.analyze(
+                {"outcome": [1.0, 0.0, 1.0, 0.0]},
+                query=ComplierEffect("outcome", design4, [True, False, True, False]),
+                refute="none",
+            )
         )
 
 
@@ -94,8 +101,10 @@ def _complier_route_data(n: int, *, one_sided: bool):
 
 def test_retained_complier_route_licenses_interval_matching_direct_utility():
     outcome, assigned, received, design = _complier_route_data(400, one_sided=False)
-    result = ant.analyze(
-        {"outcome": outcome}, query=ComplierEffect("outcome", design, received), refute="none"
+    result = require_success(
+        ant.analyze(
+            {"outcome": outcome}, query=ComplierEffect("outcome", design, received), refute="none"
+        )
     )
     fit = result.randomized_effect
     assert fit is not None
@@ -108,8 +117,12 @@ def test_retained_complier_route_licenses_interval_matching_direct_utility():
 
 def test_retained_treatment_on_treated_route_licenses_interval():
     outcome, assigned, received, design = _complier_route_data(400, one_sided=True)
-    result = ant.analyze(
-        {"outcome": outcome}, query=TreatmentOnTreated("outcome", design, received), refute="none"
+    result = require_success(
+        ant.analyze(
+            {"outcome": outcome},
+            query=TreatmentOnTreated("outcome", design, received),
+            refute="none",
+        )
     )
     fit = result.randomized_effect
     assert fit is not None

@@ -28,6 +28,8 @@ import json
 import sys
 from pathlib import Path
 
+from antecedent.outcomes import require_success
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from antecedent import composition_bundle as cb  # noqa: E402
@@ -91,11 +93,11 @@ def bundle_parts() -> dict[str, bytes]:
     claim = gen.external_claim()
     means = mean_contract(claim)
     return {
-        "contract": contract.export(artifact_id="contract"),
-        "law": law.export("law"),
-        "result": contract.evaluate(law).export(artifact_id="result"),
-        "claim": claim.export(artifact_id="claim"),
-        "mean_contract": means.export(artifact_id="mean-contract"),
+        "contract": bytes(contract.export(artifact_id="contract")),
+        "law": bytes(law.export("law")),
+        "result": bytes(contract.evaluate(law).export(artifact_id="result")),
+        "claim": bytes(claim.export(artifact_id="claim")),
+        "mean_contract": bytes(means.export(artifact_id="mean-contract")),
         "mean_result": cb.mean_decision(means, claim, artifact_id="mean-result"),
     }
 
@@ -126,7 +128,9 @@ def identity_document(bundle: cb.Bundle) -> bytes:
 def main() -> None:
     FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
     bundle = build_bundle()
-    consumed = cb.consume_bundle(bundle.export(), expected_identity=bundle.identity)
+    consumed = require_success(
+        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
     consumed.require_verified()
     for (node, key), want in EXPECTED_VALUES.items():
         got = consumed.value(node, key)
@@ -135,7 +139,7 @@ def main() -> None:
     assert consumed.claim_label == "point_only_attested"
 
     files = {
-        PY_BUNDLE: bundle.export(artifact_id="composition-bundle"),
+        PY_BUNDLE: bytes(bundle.export(artifact_id="composition-bundle")),
         PY_IDENTITY: identity_document(bundle),
     }
     for name, data in files.items():

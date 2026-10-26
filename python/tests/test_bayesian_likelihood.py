@@ -15,6 +15,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent.errors import CausalUnsupportedError
+from antecedent.outcomes import require_success
 
 from _sealed_loads import assert_answer_kept
 
@@ -57,12 +58,14 @@ def _codes(result: Any) -> list[str]:
 
 
 def _bayes(data: dict[str, np.ndarray], **kwargs: Any) -> Any:
-    return ant.analyze(
-        data,
-        graph=STATIC_DAG,
-        query=ant.AverageEffect("t", "y"),
-        inference=ant.Bayesian(**kwargs),
-        refute="none",
+    return require_success(
+        ant.analyze(
+            data,
+            graph=STATIC_DAG,
+            query=ant.AverageEffect("t", "y"),
+            inference=ant.Bayesian(**kwargs),
+            refute="none",
+        )
     )
 
 
@@ -92,7 +95,7 @@ def test_likelihood_reaches_rust_and_is_bound_into_the_inference_identity(likeli
     assert family[likelihood] in str(chosen["assumptions"])
     assert rust_name[likelihood] in str(chosen_result.inspect().to_dict()["contract"])
 
-    loaded = ant.load(chosen_result.export())
+    loaded = require_success(ant.load(bytes(chosen_result.export())))
     loaded_report = loaded.inspect().to_dict()
     assert_answer_kept(loaded)
     assert loaded_report["inference_binding_id"] == chosen["inference_binding_id"]
@@ -107,7 +110,7 @@ def test_gaussian_fit_to_a_discrete_outcome_is_disclosed() -> None:
     assert DISCLOSURE in _codes(count)
     assert DISCLOSURE not in _codes(_bayes(_count(), likelihood="poisson"))
     assert DISCLOSURE not in _codes(_bayes(_continuous()))
-    loaded = ant.load(binary.export())
+    loaded = require_success(ant.load(bytes(binary.export())))
     assert any(DISCLOSURE in line for line in loaded.inspect().to_dict()["diagnostics"])
 
 
@@ -116,31 +119,37 @@ def test_gaussian_fit_to_a_discrete_outcome_is_disclosed() -> None:
     [
         (
             "conjugate",
-            lambda d: ant.analyze(
-                d,
-                graph=STATIC_DAG,
-                query=ant.AverageEffect("t", "y"),
-                inference=ant.Bayesian(likelihood="logit", backend="conjugate"),
+            lambda d: require_success(
+                ant.analyze(
+                    d,
+                    graph=STATIC_DAG,
+                    query=ant.AverageEffect("t", "y"),
+                    inference=ant.Bayesian(likelihood="logit", backend="conjugate"),
+                )
             ),
         ),
         (
             "cpdag",
-            lambda d: ant.analyze(
-                d,
-                graph=ant.Cpdag.from_directed_undirected(
-                    ["t", "y", "z"], [("z", "y"), ("t", "y")], [("z", "t")]
-                ),
-                query=ant.AverageEffect("t", "y"),
-                inference=ant.Bayesian(likelihood="logit"),
+            lambda d: require_success(
+                ant.analyze(
+                    d,
+                    graph=ant.Cpdag.from_directed_undirected(
+                        ["t", "y", "z"], [("z", "y"), ("t", "y")], [("z", "t")]
+                    ),
+                    query=ant.AverageEffect("t", "y"),
+                    inference=ant.Bayesian(likelihood="logit"),
+                )
             ),
         ),
         (
             "pulse",
-            lambda d: ant.analyze(
-                d,
-                graph=[("t", 1, "y", 0)],
-                query=ant.PulseEffect("t", "y", treatment_lag=1),
-                inference=ant.Bayesian(likelihood="logit"),
+            lambda d: require_success(
+                ant.analyze(
+                    d,
+                    graph=[("t", 1, "y", 0)],
+                    query=ant.PulseEffect("t", "y", treatment_lag=1),
+                    inference=ant.Bayesian(likelihood="logit"),
+                )
             ),
         ),
     ],

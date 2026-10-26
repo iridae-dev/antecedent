@@ -15,6 +15,7 @@ import json
 import pytest
 from antecedent import Admg
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 NAMES = ["t", "y", "z", "rt", "ry", "t_obs", "y_obs"]
@@ -152,7 +153,7 @@ def test_identify_observation_recovery_decides_once_and_executes_its_plan_after_
     assert [f["conditioning"] for f in decision["factors"]] == [["z"], ["rt", "t_obs"]]
     prepared = builder.prepare_exact(observed_law(), REQUESTS)
     del builder
-    result = json.loads(prepared.estimate())
+    result = json.loads(require_success(prepared.estimate()))
     assert result["recovered"]["probabilities"] == pytest.approx(truth(), abs=1e-12)
     assert prepared.plan()["effect"]["treatments"] == ["t"]
 
@@ -164,7 +165,7 @@ def test_prepare_exact_compiles_the_retained_derivation_after_builder_disposal()
     plan = prepared.plan()
     assert plan["rule_version"] == "binary_observation_recovery.v1"
     assert all(m["identity"].startswith("catalog_distribution.v1") for m in plan["margins"])
-    result = json.loads(prepared.estimate())
+    result = json.loads(require_success(prepared.estimate()))
     assert result["recovered"]["origin"] == "recovered"
     assert result["recovered"]["variables"] == ["t", "y", "z"]
 
@@ -173,7 +174,7 @@ def test_estimate_executes_every_request_from_the_retained_plan():
     builder = decide()
     prepared = builder.prepare_exact(observed_law(), REQUESTS)
     del builder
-    result = json.loads(prepared.estimate())
+    result = json.loads(require_success(prepared.estimate()))
     assert [e["assignment"] for e in result["effects"]] == [{"t": 0.0}, {"t": 1.0}]
     for level, effect in enumerate(result["effects"]):
         assert p_one(effect) == pytest.approx(effect_truth(level), abs=1e-12)
@@ -185,13 +186,13 @@ def test_refresh_rebinds_the_snapshot_law_and_re_executes_the_retained_plan():
     builder = decide()
     prepared = builder.prepare_exact(observed_law(), REQUESTS)
     del builder
-    before = json.loads(prepared.estimate())
-    prepared.refresh(observed_law())
-    after = json.loads(prepared.estimate())
+    before = json.loads(require_success(prepared.estimate()))
+    require_success(prepared.refresh(observed_law()))
+    after = json.loads(require_success(prepared.estimate()))
     assert after["recovered"]["probabilities"] == before["recovered"]["probabilities"]
     assert prepared.plan()["rule_version"] == "binary_observation_recovery.v1"
     with pytest.raises(CausalUnsupportedError) as refused:
-        prepared.refresh(observed_law(snapshot="snap-2"))
+        require_success(prepared.refresh(observed_law(snapshot="snap-2")))
     assert refused.value.reason_code == "invalid_argument"
     assert "recovery.invalid_observed_law" in str(refused.value)
 
@@ -200,9 +201,9 @@ def test_export_binds_names_and_the_consumer_recomputes_after_builder_disposal()
     builder = decide()
     prepared = builder.prepare_exact(observed_law(), REQUESTS)
     del builder
-    live = json.loads(prepared.estimate())
+    live = json.loads(require_success(prepared.estimate()))
     plan = prepared.plan()
-    artifact = prepared.export()
+    artifact = bytes(prepared.export())
     del prepared
     consumed = json.loads(transport.consume_observation_recovery_artifact(artifact))
     assert consumed["recovered"]["probabilities"] == live["recovered"]["probabilities"]
@@ -214,9 +215,9 @@ def test_consumer_refuses_an_edited_artifact_and_limits_below_the_stored_ones():
     builder = decide()
     prepared = builder.prepare_exact(observed_law(), REQUESTS)
     del builder
-    live = json.loads(prepared.estimate())
+    live = json.loads(require_success(prepared.estimate()))
     plan = prepared.plan()
-    artifact = prepared.export()
+    artifact = bytes(prepared.export())
     consumed = json.loads(transport.consume_observation_recovery_artifact(artifact))
     assert consumed["effects"] == live["effects"]
     assert consumed["derivation"]["factors"] == plan["factors"]

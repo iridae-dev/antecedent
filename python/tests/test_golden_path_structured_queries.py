@@ -23,6 +23,7 @@ from antecedent import policy, quasi, regimes, survival
 from antecedent.errors import CausalUnsupportedError
 from antecedent.interference import BernoulliAssignment
 from antecedent.observation import IndependentGiven
+from antecedent.outcomes import require_success
 
 
 def _bernoulli(seed: int, n: int = 400) -> dict[str, np.ndarray]:
@@ -168,7 +169,7 @@ def test_golden_path_structured_queries(case: Case) -> None:
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        result = ant.analyze(data, query=case.query, **case.options)
+        result = require_success(ant.analyze(data, query=case.query, **case.options))
 
         # 1. answer kind is what the family declares.
         assert result.answer.kind == case.kind
@@ -179,7 +180,7 @@ def test_golden_path_structured_queries(case: Case) -> None:
 
         # 3. export -> load round-trips, and the loaded answer equals the live answer
         #    (the invariant that silently regressed).
-        loaded = ant.load(result.export())
+        loaded = require_success(ant.load(bytes(result.export())))
         loaded_report = loaded.inspect().to_dict()
         json.dumps(loaded_report, allow_nan=False)
         assert set(report) == set(loaded_report)
@@ -189,17 +190,17 @@ def test_golden_path_structured_queries(case: Case) -> None:
         #    refused by construction -- never an untyped crash.
         study = result.study
         if case.refresh == "same":
-            updated = study.refresh(data)
+            updated = require_success(study.refresh(data))
             assert type(updated) is type(result)
             assert updated.program_id == result.program_id
         elif case.refresh == "refused":
             with pytest.raises(
                 CausalUnsupportedError, match="bound to the prepared evaluation rows"
             ):
-                study.refresh(data)
+                require_success(study.refresh(data))
 
 
 def test_policy_claim_does_not_crash() -> None:
     """Regression: result.claim() read a mistyped field name on every policy result."""
-    result = ant.analyze({"y": _bernoulli(1)["y"]}, query=_policy_query())
+    result = require_success(ant.analyze({"y": _bernoulli(1)["y"]}, query=_policy_query()))
     assert "policy value" in result.claim().lower()

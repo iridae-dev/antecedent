@@ -27,6 +27,7 @@ from antecedent.joint_distribution import (
     ScientificQuantity,
 )
 from antecedent.msm_sensitivity import MsmStratum, OutcomeLaw
+from antecedent.outcomes import require_success
 
 from test_design_ranking import UTILITY_MAP, _guess_candidate, _quantity, _signal
 
@@ -74,7 +75,7 @@ def test_analyze_then_contract_evaluate_takes_the_result_directly() -> None:
     # A mean grid has no outcome draws: no regret, no replayable export.
     assert decided.evpi is None
     with pytest.raises(CausalUnsupportedError) as export:
-        decided.export()
+        bytes(decided.export())
     assert export.value.reason_code == "route_not_supported"
 
 
@@ -115,7 +116,7 @@ def test_analyze_retains_declared_program_for_decision() -> None:
     )
     assert result.program_binding.dose_units == "mg"
     assert _mean_contract(result).evaluate(result).selected == ("high",)
-    refreshed = result.refresh(_curve_data(seed=45))
+    refreshed = require_success(result.refresh(_curve_data(seed=45)))
     assert refreshed.program_binding.dose_units == "mg"
     assert _mean_contract(refreshed).evaluate(refreshed).selected == ("high",)
 
@@ -150,7 +151,7 @@ def test_scalar_effect_evaluates_only_its_original_contrast_coordinate() -> None
     assert decided.original_execution.estimate.se_analytic == scalar.estimate.se_analytic
     assert decided.evpi is None
     with pytest.raises(CausalUnsupportedError):
-        decided.export()
+        bytes(decided.export())
     with pytest.raises(decision.DecisionRefusal):
         _mean_contract(_curve_result()).evaluate(scalar)
 

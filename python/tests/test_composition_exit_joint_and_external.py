@@ -82,7 +82,9 @@ def test_joint_draw_round_trips_and_reproduces_covariance_utility_and_summary() 
     assert np.array_equal(np.asarray(from_python), np.asarray(from_rust))
     assert np.asarray(from_python).tolist() == [[0.0, 0.0], [1.0, 2.0]]
     # Re-export on this surface: the bytes a consumer receives round-trip again.
-    again = JointDistributionArtifact.load(from_rust.export("again"), expected_identity=expected)
+    again = JointDistributionArtifact.load(
+        bytes(from_rust.export("again")), expected_identity=expected
+    )
     assert np.array_equal(np.asarray(again), np.asarray(from_python))
 
     # Nonlinear utility: the decision twin of the committed fixtures, built on each surface.
@@ -195,7 +197,7 @@ def test_external_response_binds_inspects_exports_and_shows_support_and_provenan
 
     # Export and consume under the identity the consumer holds, on both surfaces' bytes.
     spec = gen.external_spec()
-    data = claim.export(artifact_id="claim")
+    data = bytes(claim.export(artifact_id="claim"))
     for blob in (data, _read("py_external_claim.bin"), _read("rust_external_claim.bin")):
         loaded = spec.load(blob, expected_identity=claim.identity)
         assert np.allclose(loaded.values, gen.EXTERNAL_VALUES, atol=TOLERANCE, rtol=0)

@@ -15,6 +15,7 @@ import pytest
 from antecedent.errors import CausalError, CausalEstimateError, CausalUnsupportedError
 from antecedent.estimation import PreparedBatch, RetargetClaim, RetargetContrast
 from antecedent.estimators import Aipw, ClusterDml
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -234,13 +235,15 @@ def test_a_cluster_count_shortfall_reports_found_and_minimum_counts():
     data = {"z0": z0, "z1": z1, "t": t, "y": y}
     cfg = Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=cluster.tolist(), min_clusters=20))
     with pytest.raises(CausalError) as raised:
-        ant.analyze(
-            data,
-            graph=[("z0", "t"), ("z1", "t"), ("z0", "y"), ("z1", "y"), ("t", "y")],
-            query=ant.AverageEffect("t", "y"),
-            estimator=cfg,
-            refute=False,
-            seed=1,
+        require_success(
+            ant.analyze(
+                data,
+                graph=[("z0", "t"), ("z1", "t"), ("z0", "y"), ("z1", "y"), ("t", "y")],
+                query=ant.AverageEffect("t", "y"),
+                estimator=cfg,
+                refute=False,
+                seed=1,
+            )
         )
     error = raised.value
     assert error.reason_code == "too_few_clusters"

@@ -47,6 +47,12 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._scientific import ScientificResult
 from .errors import CausalTypeError
@@ -161,12 +167,14 @@ class TransportHandoff(ScientificResult):
     calibration: str
     _data: bytes = field(repr=False, compare=False, default=b"")
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The checksummed ``transport_handoff_v1`` container."""
-        return self._data
+        return artifact_from_receipt(self, self._data)
 
 
 def _summary(info: Mapping[str, Any], data: bytes) -> TransportHandoff:
+    data = container_bytes(data)
     return TransportHandoff(
         identity=str(info["identity"]),
         standing=str(info["standing"]),
@@ -228,6 +236,7 @@ def consume_for_callback(
             sealed for another callback (``provider_transport.identity_mismatch``) or a
             connection that no longer holds.
     """
+    data = container_bytes(data)
     if not isinstance(data, (bytes, bytearray, memoryview)):
         raise CausalTypeError("data must be bytes")
     if not isinstance(callback, CallbackDeclaration):

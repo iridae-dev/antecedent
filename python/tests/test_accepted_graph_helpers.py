@@ -16,6 +16,7 @@ from antecedent.accepted_graph import (
 )
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
+from antecedent.outcomes import require_success
 
 
 class _Edge:
@@ -142,7 +143,9 @@ def test_from_discovery_and_session_guards():
         algorithm_id="hand",
     )
     with pytest.raises(CausalUnsupportedError, match="rejects discovery"):
-        dag.analyze({"z": [0.0], "t": [1.0], "y": [2.0]}, query=object(), discovery=object())
+        require_success(
+            dag.analyze({"z": [0.0], "t": [1.0], "y": [2.0]}, query=object(), discovery=object())
+        )
     cpdag = AcceptedGraph.from_graph(
         Cpdag.from_directed_undirected(["t", "y"], [], [("t", "y")]),
         algorithm_id="pc",

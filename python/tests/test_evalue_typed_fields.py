@@ -11,6 +11,7 @@ import math
 import antecedent as ac
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 EVALUE = "sensitivity.evalue"
 
@@ -30,13 +31,15 @@ def confounded_fixture():
 def ate(data, graph, refute):
     # No bootstrap: the interval-limit E-value then reads the analytic standard error, which
     # does not move with the resampling stream.
-    return ac.analyze(
-        data,
-        graph=graph,
-        query=ac.AverageEffect("a", "y"),
-        refute=refute,
-        bootstrap=0,
-        seed=1,
+    return require_success(
+        ac.analyze(
+            data,
+            graph=graph,
+            query=ac.AverageEffect("a", "y"),
+            refute=refute,
+            bootstrap=0,
+            seed=1,
+        )
     )
 
 

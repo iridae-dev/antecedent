@@ -144,6 +144,13 @@ struct PreparedSmoothedDoseNative {
 
 #[pymethods]
 impl PreparedSmoothedDoseNative {
+    #[pyo3(signature=(seed=None))]
+    fn fork(&self, seed: Option<u64>) -> PyResult<Self> {
+        let seed = seed.unwrap_or(self.seed);
+        let ctx = execution_context(seed, self.memory_bytes, None);
+        let inner = self.inner.with_seed(seed, &ctx).map_err(error)?;
+        Ok(Self { inner, seed, last: None, ..self.clone() })
+    }
     /// Cross-fit the nuisances on the retained rows and report the grid. The
     /// certificate derived at preparation is reused.
     #[pyo3(signature=(cancel=None))]
@@ -184,18 +191,17 @@ impl PreparedSmoothedDoseNative {
 
     /// Replace the rows with a compatible snapshot; clears the last claim.
     #[pyo3(signature=(data,cancel=None))]
-    fn refresh(
-        &mut self,
+    fn bind_snapshot(
+        &self,
         py: Python<'_>,
         data: &Bound<'_, PyAny>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<()> {
+    ) -> PyResult<Self> {
         let input = parse_input(data, &self.names)?;
         let ctx = execution_context(self.seed, self.memory_bytes, cancel);
         let inner = self.inner.clone();
-        self.inner = crate::detach_catch(py, move || inner.refresh(input, &ctx).map_err(error))?;
-        self.last = None;
-        Ok(())
+        let inner = crate::detach_catch(py, move || inner.refresh(input, &ctx).map_err(error))?;
+        Ok(Self { inner, last: None, ..self.clone() })
     }
 
     /// The last execution as a framed, independently consumable artifact.

@@ -12,9 +12,11 @@ from ._artifact_protocol import ExportedArtifact, LoadContext
 from ._freeze import freeze, thaw
 from .errors import CausalSerializationError, CausalValueError
 from .estimation import PreparedAnalysis, _PreparedQuery, _PreparedResult
+from .execution import Execution
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .missing import MissingPolicy
+from .outcomes import Outcome, outcome_operation
 from .quasi import QuasiRolloutEstimate
 from .results import AnalysisResult, CausalResponseView
 from .results._execution import Answer, CalibrationInfo, ResultAPI, answer_from_artifact
@@ -292,12 +294,14 @@ class LoadedResult(ResultAPI):
             }
         )
 
-    def export(self, *, artifact_id: str | None = None) -> bytes:
+    def export(self, *, artifact_id: str | None = None) -> ExportedArtifact[LoadedResult]:
         if artifact_id is not None and artifact_id != self.decoded_artifact.artifact_id:
             raise CausalSerializationError(
                 "A loaded execution is immutable; its artifact ID cannot be rewritten by forwarding."
             )
-        return self._bytes
+        from ._artifact_protocol import artifact_from_receipt
+
+        return artifact_from_receipt(self, self._bytes)
 
     def __repr__(self) -> str:
         return f"<LoadedResult {self.answer.kind} acceptance={self.acceptance.status}>"
@@ -369,8 +373,12 @@ LoadedT = TypeVar("LoadedT")
 
 @overload
 def load(
-    data: ExportedArtifact[LoadedT], *, expected: Any = None, context: LoadContext | None = None
-) -> LoadedT: ...
+    data: ExportedArtifact[LoadedT],
+    *,
+    expected: Any = None,
+    context: LoadContext | None = None,
+    execution: Execution | None = None,
+) -> Outcome[LoadedT]: ...
 
 
 @overload
@@ -379,18 +387,41 @@ def load(
     *,
     expected: Any = None,
     context: LoadContext | None = None,
-) -> Any: ...
+    execution: Execution | None = None,
+) -> Outcome[Any]: ...
 
 
+@outcome_operation
 @describe_refusal
-def load(data: Any, *, expected: Any = None, context: Any = None) -> Any:
+def load(
+    data: Any,
+    *,
+    expected: Any = None,
+    context: LoadContext | None = None,
+    execution: Execution | None = None,
+) -> Any:
+    """Consume independently under the caller's shared execution policy.
+
+    Nested consumers inherit that same admission pool, cancellation and cache
+    policy. Loading retains no prepared study and never invokes a provider.
+    """
+    from ._artifact_protocol import _load_execution
+
+    policy = _load_execution(context, execution)
+    return (
+        _load(data, expected=expected, context=context)
+        if policy is None
+        else policy._call(_load, data, expected=expected, context=context)
+    )
+
+
+def _load(data: Any, *, expected: Any = None, context: LoadContext | None = None) -> Any:
     """Consume a scientific artifact using its native family consumer.
 
     Expectations must be supplied separately; envelope metadata never binds an identity implicitly.
     Loading never executes callbacks or restores a live study.
     """
     from ._artifact_protocol import (
-        ArtifactAcceptance,
         ArtifactExpectation,
         container_bytes,
         inspect_artifact,
@@ -413,7 +444,11 @@ def load(data: Any, *, expected: Any = None, context: Any = None) -> Any:
         )
     )
     if not legacy_transport and (
-        encoded.startswith((b"CAUSAL\0\0", b"ANTECEDENT-"))
+        encoded.startswith((b"CAUSAL\0\0", b"ANTECEDENT-", b"ANTBOUNDPRIOR1"))
+        or encoded.startswith(
+            len(b"antecedent.model.discretized_scm_artifact").to_bytes(8, "little")
+            + b"antecedent.model.discretized_scm_artifact"
+        )
         or encoded.lstrip().startswith(b"{")
         or (encoded and encoded[0] >> 5 == 5)
     ):
@@ -476,7 +511,11 @@ def load(data: Any, *, expected: Any = None, context: Any = None) -> Any:
                 result, "acceptance", replace(result.acceptance, identity_bound=True)
             )
     if legacy_transport:
+        from ._artifact_protocol import acceptance_from_consumer
+
         object.__setattr__(
-            result, "acceptance", ArtifactAcceptance("verified", expected is not None, True, False)
+            result,
+            "acceptance",
+            acceptance_from_consumer(result, identity_bound=expected is not None),
         )
     return result

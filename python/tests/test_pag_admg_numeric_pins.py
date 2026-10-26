@@ -12,6 +12,7 @@ from typing import Any
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_json
 
@@ -142,9 +143,9 @@ def test_pag_ate_envelope_numeric_pin(
     kwargs = dict(
         graph=graph, query=query, inference=inference, refute=validation, bootstrap=0, seed=1
     )
-    fresh = antecedent.analyze(data, **kwargs)
+    fresh = require_success(antecedent.analyze(data, **kwargs))
     prepared = antecedent.estimation.PreparedAnalysis.prepare(data, **kwargs)
-    click = prepared.estimate(data, seed=1)
+    click = require_success(prepared.estimate(data, seed=1))
     _assert_common_cell_contract(
         fresh,
         click,
@@ -180,13 +181,15 @@ def test_admg_frontdoor_functional_effect_numeric_pin(
     section = _ADMG_PIN["frequentist"]
     seed = 1
 
-    fresh = antecedent.analyze(
-        data,
-        graph=graph,
-        query=query,
-        refute=validation,
-        bootstrap=0,
-        seed=seed,
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            refute=validation,
+            bootstrap=0,
+            seed=seed,
+        )
     )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
@@ -197,7 +200,7 @@ def test_admg_frontdoor_functional_effect_numeric_pin(
         seed=seed,
         latency="interactive",
     )
-    click = prepared.estimate(data, seed=seed)
+    click = require_success(prepared.estimate(data, seed=seed))
 
     _assert_common_cell_contract(
         fresh,
@@ -224,14 +227,14 @@ def test_admg_functional_effect_refresh_exports_replayable_law() -> None:
         bootstrap=0,
         seed=1,
     )
-    first = prepared.estimate(data, seed=1)
-    first_replay = antecedent.artifacts.accept(first.export())
+    first = require_success(prepared.estimate(data, seed=1))
+    first_replay = antecedent.artifacts.accept(bytes(first.export()))
     assert first_replay["accepts_as_verified_program"] == "true"
 
     changed = {**data, "y": 1.0 - data["y"]}
-    refreshed = prepared.refresh(changed, seed=1)
+    refreshed = require_success(prepared.refresh(changed, seed=1))
     assert refreshed.ate == pytest.approx(-first.ate, abs=1e-12)
-    replay = antecedent.artifacts.accept(refreshed.export())
+    replay = antecedent.artifacts.accept(bytes(refreshed.export()))
     assert replay["accepts_as_verified_program"] == "true"
     assert replay["program"] == first_replay["program"]
     assert refreshed.data_snapshot_id != first.data_snapshot_id
@@ -250,8 +253,8 @@ def test_pag_same_schema_refresh_reuses_identification() -> None:
         seed=1,
         latency="interactive",
     )
-    click = prepared.estimate(data, seed=1)
-    refreshed = prepared.refresh(data, seed=1)
+    click = require_success(prepared.estimate(data, seed=1))
+    refreshed = require_success(prepared.refresh(data, seed=1))
     expected = 2.0
     tolerance = 1e-10
     assert click.ate == pytest.approx(expected, abs=tolerance)
@@ -320,13 +323,13 @@ def test_admg_interventional_distribution_numeric_pin(accepted: bool) -> None:
     truth = {float(row["t"]): float(row["p_y1"]) for row in _ADMG_DIST_PIN["truth"]}
     for level, expected in truth.items():
         query = antecedent.InterventionalDistribution("y", interventions={"t": level})
-        fresh = antecedent.analyze(
-            data, graph=graph, query=query, refute=False, bootstrap=0, seed=1
+        fresh = require_success(
+            antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0, seed=1)
         )
         prepared = antecedent.estimation.PreparedAnalysis.prepare(
             data, graph=graph, query=query, refute=False, bootstrap=0, seed=1
         )
-        click = prepared.estimate(data, seed=1)
+        click = require_success(prepared.estimate(data, seed=1))
         assert fresh.ate == pytest.approx(expected, abs=tolerance)
         assert click.ate == pytest.approx(expected, abs=tolerance)
         one = next(a for a in fresh.estimate.distribution if a.outcomes[0][1] == 1.0)
@@ -343,7 +346,7 @@ def test_admg_interventional_distribution_runs_cheap_full_unlicensed(refute: str
     data = _expand_contingency(_ADMG_DIST_PIN)
     graph = _admg_distribution(accepted=False)
     query = antecedent.InterventionalDistribution("y", interventions={"t": 1.0})
-    result = antecedent.analyze(data, graph=graph, query=query, refute=refute)
+    result = require_success(antecedent.analyze(data, graph=graph, query=query, refute=refute))
     assert result.evidence_status != "licensed"
 
 
@@ -355,23 +358,27 @@ def test_admg_response_pins_against_distribution(accepted: bool) -> None:
     tolerance = float(_ADMG_PIN["frequentist"]["absolute_tolerance"])
     dist_means = {}
     for level in (0.0, 1.0):
-        dist = antecedent.analyze(
-            data,
-            graph=graph,
-            query=antecedent.InterventionalDistribution("y", interventions={"t": level}),
-            refute=False,
-            bootstrap=0,
-            seed=1,
+        dist = require_success(
+            antecedent.analyze(
+                data,
+                graph=graph,
+                query=antecedent.InterventionalDistribution("y", interventions={"t": level}),
+                refute=False,
+                bootstrap=0,
+                seed=1,
+            )
         )
-        ir = antecedent.analyze(
-            data,
-            graph=graph,
-            query=antecedent.InterventionResponse(
-                "y", intervention=antecedent.intervention.Set("t", level)
-            ),
-            refute=False,
-            bootstrap=0,
-            seed=1,
+        ir = require_success(
+            antecedent.analyze(
+                data,
+                graph=graph,
+                query=antecedent.InterventionResponse(
+                    "y", intervention=antecedent.intervention.Set("t", level)
+                ),
+                refute=False,
+                bootstrap=0,
+                seed=1,
+            )
         )
         prepared = antecedent.estimation.PreparedAnalysis.prepare(
             data,
@@ -383,29 +390,33 @@ def test_admg_response_pins_against_distribution(accepted: bool) -> None:
             bootstrap=0,
             seed=1,
         )
-        click = prepared.estimate(data, seed=1)
+        click = require_success(prepared.estimate(data, seed=1))
         dist_means[level] = float(dist.ate)
         assert ir.ate == pytest.approx(dist_means[level], abs=tolerance)
         assert click.ate == pytest.approx(dist_means[level], abs=tolerance)
         assert ir.response is not None
-    curve = antecedent.analyze(
-        data,
-        graph=graph,
-        query=antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0]),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    curve = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0]),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert curve.response is not None
     values = list(curve.response.values)
     assert values[0][0] == pytest.approx(dist_means[0.0], abs=tolerance)
     assert values[1][0] == pytest.approx(dist_means[1.0], abs=tolerance)
-    ate = antecedent.analyze(
-        data,
-        graph=graph,
-        query=_query(_ADMG_PIN),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    ate = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=_query(_ADMG_PIN),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert (dist_means[1.0] - dist_means[0.0]) == pytest.approx(ate.ate, abs=tolerance)

@@ -9,7 +9,15 @@ from types import BuiltinFunctionType
 from typing import Any, Literal, cast
 
 from .. import _native
+from .._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .._columns import coerce_fields
+from .._scientific import ScientificResult
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from ._candidate_data import detached, freeze
 
@@ -32,7 +40,7 @@ class SampledRecoveryIdentity:
 
 
 @dataclass(frozen=True, slots=True, init=False)
-class SampledRecoveryCandidate:
+class SampledRecoveryCandidate(ScientificResult):
     """Checked whole-row bootstrap candidate, with no measured coverage license.
 
     Created through the private candidate hook in a calibration-internal build.
@@ -48,6 +56,7 @@ class SampledRecoveryCandidate:
 
     @classmethod
     def _from_native(cls, payload: str, artifact: bytes) -> SampledRecoveryCandidate:
+        artifact = container_bytes(artifact)
         consume = getattr(_native, "consume_sampled_recovery_candidate", None)
         if (
             not isinstance(consume, BuiltinFunctionType)
@@ -103,10 +112,17 @@ class SampledRecoveryCandidate:
         """Detached original law, covariance, interval, diagnostics and work receipt."""
         return dict(detached(self._body))
 
-    def export(self) -> bytes:
-        return self._artifact
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
+        return artifact_from_receipt(self, self._artifact)
 
     @classmethod
+    @artifact_consumer(
+        proof="native sampled recovery consumer re-identifies and reruns the whole-row bootstrap under the independent model/data expectation",
+        replayable=True,
+        resumable=False,
+        identity=("expected",),
+    )
     def load(
         cls,
         artifact: bytes,
@@ -118,6 +134,7 @@ class SampledRecoveryCandidate:
         cancel: _native.CancellationToken | None = None,
     ) -> SampledRecoveryCandidate:
         """Independently re-identify and rerun whole-row bootstrap under expectations."""
+        artifact = container_bytes(artifact)
         if not isinstance(artifact, bytes):
             raise CausalTypeError("artifact must be bytes")
         if not isinstance(expected, SampledRecoveryIdentity):

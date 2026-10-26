@@ -23,6 +23,7 @@ from antecedent import mechanism_composition as mc
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
 from antecedent.mechanism_composition import MechanismCompositionRefusal
 from antecedent.model import fit_gcm
+from antecedent.outcomes import require_success
 
 TOL = 1e-9
 ROLES = {"X": "treatment", "M": "mediator", "Y": "outcome"}
@@ -219,14 +220,16 @@ def test_carried_and_refitted_components_give_the_path_algebra_law(source_gcm, t
     # The value is the target structural system's, not the source's.
     ate = mc.MeanContrast.ate("Y", "X", 1.0, 0.0)
     expected = BY[1] + BY[2] * BM_TARGET[1]
-    assert transported.mean_contrast(ate) == pytest.approx(expected, abs=TOL)
+    assert require_success(transported.mean_contrast(ate)) == pytest.approx(expected, abs=TOL)
     _, mean_one, _ = scm_law(TARGET_SPEC, {"X": 1.0})
     _, mean_zero, _ = scm_law(TARGET_SPEC, {"X": 0.0})
     names = sorted(TARGET_SPEC)
     assert (mean_one - mean_zero)[names.index("Y")] == pytest.approx(expected, abs=1e-8)
     assert expected != pytest.approx(BY[1] + BY[2] * BM_SOURCE[1], abs=0.5)
     # The source composition is untouched by the transport.
-    assert source.mean_contrast(ate) == pytest.approx(BY[1] + BY[2] * BM_SOURCE[1], abs=TOL)
+    assert require_success(source.mean_contrast(ate)) == pytest.approx(
+        BY[1] + BY[2] * BM_SOURCE[1], abs=TOL
+    )
 
 
 def test_a_refit_replaces_the_carried_mechanism_and_is_never_averaged(
@@ -238,10 +241,14 @@ def test_a_refit_replaces_the_carried_mechanism_and_is_never_averaged(
     carried = source.transport_to(transport(into=()))
     assert carried.receipt.transported_variables == ("M", "X", "Y")
     ate = mc.MeanContrast.ate("Y", "X", 1.0, 0.0)
-    assert carried.mean_contrast(ate) == pytest.approx(BY[1] + BY[2] * BM_SOURCE[1], abs=TOL)
+    assert require_success(carried.mean_contrast(ate)) == pytest.approx(
+        BY[1] + BY[2] * BM_SOURCE[1], abs=TOL
+    )
     replaced = source.transport_to(transport(into=(), refits=[refit_m(target_gcm)]))
     assert replaced.receipt.native_variables == ("M",)
-    assert replaced.mean_contrast(ate) == pytest.approx(BY[1] + BY[2] * BM_TARGET[1], abs=TOL)
+    assert require_success(replaced.mean_contrast(ate)) == pytest.approx(
+        BY[1] + BY[2] * BM_TARGET[1], abs=TOL
+    )
     assert replaced.identity != carried.identity
 
 
@@ -253,8 +260,10 @@ def test_changed_numbers_at_an_unchanged_shape_move_the_identity(source_gcm, tar
     assert moved.identity != base.identity
     assert moved.receipt.transported_variables == base.receipt.transported_variables
     # The same declaration is re-derived to the same identity by a fresh consumer.
-    again = source.verify_transport(
-        transport(refits=[refit_m(target_gcm)]), expected_identity=base.identity
+    again = require_success(
+        source.verify_transport(
+            transport(refits=[refit_m(target_gcm)]), expected_identity=base.identity
+        )
     )
     assert again == base.receipt
 
@@ -282,7 +291,7 @@ def test_variance_is_parameter_only_scoped_and_has_no_interval(source_gcm, targe
     sigma[3:6, 3:6] = np.diag([0.09, 0.01, 0.0025])
     variance = float(gradient @ sigma @ gradient)
 
-    value = transported.mean_contrast_uncertainty(contrast)
+    value = require_success(transported.mean_contrast_uncertainty(contrast))
     assert value.point == pytest.approx(a_y + 2.0 * b_yx + b_ym * (a_m + 2.0 * b_mx), abs=TOL)
     assert value.variance == pytest.approx(variance, abs=1e-8)
     assert value.standard_error == pytest.approx(np.sqrt(variance), abs=1e-8)
@@ -299,8 +308,8 @@ def test_an_unknown_dependence_refuses_the_variance_but_not_the_point(
     source = source_composition(source_gcm, uncertain=True, independent=False)
     transported = source.transport_to(transport(refits=[refit_m(target_gcm, uncertain=True)]))
     contrast = mc.MeanContrast.mean_at("Y", {"X": 2.0})
-    assert np.isfinite(transported.mean_contrast(contrast))
-    error = refusal_of(lambda: transported.mean_contrast_uncertainty(contrast))
+    assert np.isfinite(require_success(transported.mean_contrast(contrast)))
+    error = refusal_of(lambda: require_success(transported.mean_contrast_uncertainty(contrast)))
     assert error.reason_code == "joint_law_required"
 
 
@@ -310,14 +319,14 @@ def test_an_unknown_dependence_refuses_the_variance_but_not_the_point(
 def test_the_transported_artifact_is_the_existing_one_and_replays(source_gcm, target_gcm) -> None:
     source = source_composition(source_gcm)
     transported = source.transport_to(transport(refits=[refit_m(target_gcm)]))
-    exported = transported.export({"X": 2.0}, outcome="Y")
+    exported = bytes(transported.export({"X": 2.0}, outcome="Y"))
     names, mean, cov = scm_law(TARGET_SPEC, {"X": 2.0})
     assert exported.result.mean == pytest.approx(mean[names.index("Y")], abs=1e-8)
     assert exported.result.variance == pytest.approx(
         cov[names.index("Y"), names.index("Y")], abs=1e-8
     )
-    consumed = mc.consume_mechanism_composition_artifact(
-        exported.artifact, exported.premises_digest
+    consumed = require_success(
+        mc.consume_mechanism_composition_artifact(exported.artifact, exported.premises_digest)
     )
     assert consumed.family == "linear_gaussian"
     assert consumed.result.mean == pytest.approx(exported.result.mean, abs=0.0)

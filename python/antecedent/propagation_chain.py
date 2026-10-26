@@ -48,8 +48,15 @@ from typing import Any
 import numpy as np
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._refusal import StructuredRefusal, raise_refusal
 from .errors import CausalTypeError, CausalValueError
+from .outcomes import outcome_operation
 
 __all__ = [
     "ChainSource",
@@ -353,7 +360,9 @@ def pool(
     """Pool estimates of one quantity. ``dependent=True`` weights by the joint covariance of the
     aligned draws (shared evidence is counted once); ``dependent=False`` weights by the variances
     alone and is refused when the inputs share evidence."""
-    return _stage(id, "pooling", inputs, {"op": "pool", "dependent": bool(dependent)}, own_factors, None)
+    return _stage(
+        id, "pooling", inputs, {"op": "pool", "dependent": bool(dependent)}, own_factors, None
+    )
 
 
 def binary(
@@ -642,16 +651,20 @@ class PropagationChain:
 
     def dependents_of(self, source: str) -> list[str]:
         """The stages that depend on ``source``: the ones a change to it reaches."""
-        stages, refusal = _native.propagation_chain_dependents(self._record, _text(source, "source"))
+        stages, refusal = _native.propagation_chain_dependents(
+            self._record, _text(source, "source")
+        )
         _refuse(refusal)
         assert stages is not None
         return list(stages)
 
+    @outcome_operation
     def withdraw(self, source: str, *, cancel: Any = None) -> PropagationChain:
         """Withdraw ``source``: stages that depend on it are invalidated and carry no number."""
         change = json.dumps({"change": "withdraw", "source": _text(source, "source")})
         return _chain(_native.propagation_chain_change(self._record, change, cancel))
 
+    @outcome_operation
     def reweight(
         self, source: str, log_weights: Sequence[float] | np.ndarray, *, cancel: Any = None
     ) -> PropagationChain:
@@ -688,9 +701,10 @@ class PropagationChain:
             )
         )
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The sealed ``propagation_chain_v1`` record."""
-        return self._bytes
+        return artifact_from_receipt(self, self._bytes)
 
 
 @dataclass(repr=False, frozen=True)
@@ -748,6 +762,7 @@ def _declaration(
     }
 
 
+@outcome_operation
 def propagate(
     sources: Sequence[ChainSource],
     stages: Sequence[ChainStage],
@@ -791,11 +806,13 @@ def plan_view(
     return dict(json.loads(view))
 
 
+@outcome_operation
 def consume_propagation_chain(
     data: bytes, *, expected_identity: str | None = None, cancel: Any = None
 ) -> ConsumedPropagationChain:
     """Independently consume an exported record: the rule is checked again and every stage is
     replayed to identical bits. Any edit is refused, resealed or not."""
+    data = container_bytes(data)
     replayed, refusal = _native.propagation_chain_consume(bytes(data), expected_identity, cancel)
     _refuse(refusal)
     assert replayed is not None

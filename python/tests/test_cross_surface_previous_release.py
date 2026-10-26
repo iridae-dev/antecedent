@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 from antecedent import release_migration as rm
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError
+from antecedent.outcomes import require_success
 from antecedent.recalc import (
     RecalcNoLiveState,
     RecalcRequest,
@@ -69,16 +70,22 @@ def artifact(
 def in_process_receipt() -> bytes:
     base = request()
     session = RecalcSession()
-    session.execute(base, seed=SEED)
-    return session.execute(replace(base, utility=Utility(3.0, 0.1)), seed=SEED).receipt.export()
+    require_success(session.execute(base, seed=SEED))
+    return bytes(
+        require_success(
+            session.execute(replace(base, utility=Utility(3.0, 0.1)), seed=SEED)
+        ).receipt.export()
+    )
 
 
 def fresh_process_receipt() -> bytes:
     base = request()
     first = RecalcSession()
-    first.execute(base, seed=SEED)
-    resumed = RecalcSession.resume(first.identities, ResumeContext(supplied_data=True))
-    return resumed.execute(base, seed=SEED).receipt.export()
+    require_success(first.execute(base, seed=SEED))
+    resumed = require_success(
+        RecalcSession.resume(first.identities, ResumeContext(supplied_data=True))
+    )
+    return bytes(require_success(resumed.execute(base, seed=SEED)).receipt.export())
 
 
 def test_a_stale_score_digest_or_a_foreign_target_digest_is_refused_with_the_remedy() -> None:
@@ -131,10 +138,14 @@ def test_a_receipt_that_reuses_a_derived_stage_in_a_fresh_process_is_refused() -
     # A session cannot claim portable scores it was never handed, so no such receipt exists.
     base = request()
     first = RecalcSession()
-    first.execute(base, seed=SEED)
+    require_success(first.execute(base, seed=SEED))
     claimed = ResumeContext(portable_scores=True, supplied_data=True)
     with pytest.raises(RecalcNoLiveState) as caught:
-        RecalcSession.resume(first.identities, claimed).execute(base, seed=SEED)
+        require_success(
+            require_success(RecalcSession.resume(first.identities, claimed)).execute(
+                base, seed=SEED
+            )
+        )
     assert caught.value.stage == "score_artifact"
 
 

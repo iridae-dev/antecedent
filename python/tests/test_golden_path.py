@@ -26,6 +26,7 @@ from typing import Any
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 from antecedent.transport.advanced import SelectionDiagram, TransportQuery
 
 from _sealed_loads import assert_answer_kept
@@ -224,11 +225,11 @@ def test_golden_path(case: Case) -> None:
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        result = ant.analyze(data, graph=graph, query=query, **options)
+        result = require_success(ant.analyze(data, graph=graph, query=query, **options))
         study = result.study
-        updated = study.refresh(new_data)
+        updated = require_success(study.refresh(new_data))
         report = result.inspect().to_dict()
-        loaded = ant.load(result.export())
+        loaded = require_success(ant.load(bytes(result.export())))
 
         # Refresh re-executed the same program on new data, of the same result type,
         # and the earlier result still exports its own execution (checked below
@@ -274,10 +275,12 @@ def test_response_curve_on_a_binary_treatment_is_a_coded_refusal(graph: Any) -> 
     That is refused by name, with the queries that do answer a binary treatment,
     rather than surfacing the backend's singular-matrix message."""
     with pytest.raises(ant.errors.CausalUnsupportedError) as caught:
-        ant.analyze(
-            _static(1),
-            graph=graph,
-            query=ant.ResponseCurve("treatment", "outcome", grid=[0.0, 1.0]),
+        require_success(
+            ant.analyze(
+                _static(1),
+                graph=graph,
+                query=ant.ResponseCurve("treatment", "outcome", grid=[0.0, 1.0]),
+            )
         )
     assert caught.value.reason_code == "treatment_support_too_discrete"
     message = str(caught.value)
@@ -329,11 +332,11 @@ def test_autoregressive_treatment_pulse_is_identified_by_parent_adjustment(
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        result = ant.analyze(_autoregressive(1), query=query, **options)
+        result = require_success(ant.analyze(_autoregressive(1), query=query, **options))
         study = result.study
-        updated = study.refresh(_autoregressive(2))
+        updated = require_success(study.refresh(_autoregressive(2)))
         report = result.inspect().to_dict()
-        loaded = ant.load(result.export())
+        loaded = require_success(ant.load(bytes(result.export())))
 
     for answer in (result.answer, updated.answer):
         assert answer.kind == "point"
@@ -371,10 +374,12 @@ def test_sustained_effect_on_an_autoregressive_treatment_still_refuses() -> None
     sustained window meets time-varying confounding through the treatment's own
     past, so the refusal still names the lagged cycle."""
     with pytest.raises(ant.errors.CausalIdentifyError) as caught:
-        ant.analyze(
-            _autoregressive(1),
-            graph=AUTOREGRESSIVE_DAG,
-            query=ant.SustainedEffect("t", "y", window=(-2, -1)),
+        require_success(
+            ant.analyze(
+                _autoregressive(1),
+                graph=AUTOREGRESSIVE_DAG,
+                query=ant.SustainedEffect("t", "y", window=(-2, -1)),
+            )
         )
     message = str(caught.value)
     assert "lagged cycle" in message

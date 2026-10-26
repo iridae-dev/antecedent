@@ -28,6 +28,7 @@ from antecedent.joint_distribution import (
     DistributionIdentity,
     JointDistributionArtifact,
 )
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -95,9 +96,9 @@ def _joint_bytes(law: JointDistributionArtifact | None = None) -> dict[str, byte
     law = law or gen.decision_source()
     result = contract.evaluate(law)
     return {
-        "contract": contract.export(artifact_id="contract"),
-        "law": law.export("law"),
-        "result": result.export(artifact_id="result"),
+        "contract": bytes(contract.export(artifact_id="contract")),
+        "law": bytes(law.export("law")),
+        "result": bytes(result.export(artifact_id="result")),
     }
 
 
@@ -118,7 +119,11 @@ def _joint_bundle(parts: dict[str, bytes] | None = None) -> cb.Bundle:
 
 
 def _consume(bundle: cb.Bundle, supplied: cb.SuppliedSources | None = None) -> cb.ConsumedBundle:
-    return cb.consume_bundle(bundle.export(), expected_identity=bundle.identity, supplied=supplied)
+    return require_success(
+        cb.consume_bundle(
+            bytes(bundle.export()), expected_identity=bundle.identity, supplied=supplied
+        )
+    )
 
 
 def _failed_stage(consumed: cb.ConsumedBundle, node_id: str) -> str:
@@ -165,7 +170,7 @@ def test_python_built_bundle_is_consumed_in_process_and_reports_the_decision() -
 def test_fresh_interpreter_consumes_the_exported_bundle(tmp_path: Path) -> None:
     bundle = _joint_bundle()
     path = tmp_path / "bundle.bin"
-    path.write_bytes(bundle.export())
+    path.write_bytes(bytes(bundle.export()))
     script = textwrap.dedent(
         """
         import json, sys
@@ -207,7 +212,7 @@ def test_order_invariance_and_deterministic_derived_ids() -> None:
     forward = _joint_builder(parts).build()
     reverse = _joint_builder(parts, reverse=True).build()
     assert forward.identity == reverse.identity
-    assert forward.export(artifact_id="same") == reverse.export(artifact_id="same")
+    assert bytes(forward.export(artifact_id="same")) == bytes(reverse.export(artifact_id="same"))
 
     derived = cb.Bundle.builder().add_artifact("auto", parts["law"])
     again = cb.Bundle.builder().add_artifact("distribution", parts["law"])
@@ -217,14 +222,14 @@ def test_order_invariance_and_deterministic_derived_ids() -> None:
 
 def _wrong_identity() -> None:
     bundle = _joint_bundle()
-    cb.consume_bundle(bundle.export(), expected_identity="0" * IDENTITY_LEN)
+    require_success(cb.consume_bundle(bytes(bundle.export()), expected_identity="0" * IDENTITY_LEN))
 
 
 def _flipped_byte() -> None:
     bundle = _joint_bundle()
-    data = bytearray(bundle.export())
+    data = bytearray(bytes(bundle.export()))
     data[len(data) // 2] ^= 0xFF
-    cb.consume_bundle(bytes(data), expected_identity=bundle.identity)
+    require_success(cb.consume_bundle(bytes(data), expected_identity=bundle.identity))
 
 
 def _unknown_kind() -> None:
@@ -289,7 +294,7 @@ def test_tamper_table_names_the_failed_stage_on_the_dependent_node() -> None:
     renamed = tuple(
         dataclasses.replace(q, variable_id="p2") if i == 0 else q for i, q in enumerate(gen.COLUMNS)
     )
-    swapped = _consume(_joint_bundle({**parts, "law": _law(renamed).export("law")}))
+    swapped = _consume(_joint_bundle({**parts, "law": bytes(_law(renamed).export("law"))}))
     assert swapped.node("law").verified
     assert _failed_stage(swapped, "result") == "tampered_quantity"
     assert swapped.value("result", "safe.expected_utility") is None
@@ -309,7 +314,7 @@ def test_tamper_table_names_the_failed_stage_on_the_dependent_node() -> None:
         target_population="target",
     )
     mismatched = _consume(
-        _joint_bundle({**parts, "contract": other.export(artifact_id="contract")})
+        _joint_bundle({**parts, "contract": bytes(other.export(artifact_id="contract"))})
     )
     assert _failed_stage(mismatched, "result") == "graph_or_snapshot_mismatch"
 
@@ -344,7 +349,7 @@ def test_external_mean_decision_is_exportable_as_a_point_only_attested_result() 
     builder = cb.Bundle.builder()
     builder.add_artifact("external_claim", claim, node_id="claim")
     builder.add_artifact(
-        "decision_contract", contract.export(artifact_id="contract"), node_id="contract"
+        "decision_contract", bytes(contract.export(artifact_id="contract")), node_id="contract"
     )
     builder.add_artifact("decision_result", result, node_id="result")
     bundle = builder.connect("claim", "result").connect("contract", "result").build()
@@ -368,7 +373,7 @@ def test_external_mean_decision_is_exportable_as_a_point_only_attested_result() 
         cb.Bundle.builder()
         .add_artifact("external_claim", changed, node_id="claim")
         .add_artifact(
-            "decision_contract", contract.export(artifact_id="contract"), node_id="contract"
+            "decision_contract", bytes(contract.export(artifact_id="contract")), node_id="contract"
         )
         .add_artifact("decision_result", result, node_id="result")
         .connect("claim", "result")

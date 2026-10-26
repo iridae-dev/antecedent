@@ -20,6 +20,7 @@ from antecedent.errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 NAMES = ["x", "z", "y"]
@@ -160,7 +161,7 @@ def test_complementary_studies_identify_what_no_single_study_can():
     assert graph_lines[-1].endswith("<- target") and "P(y | do(x))" in graph_lines[-1]
     for x in (0, 1):
         prepared = stage.prepare_exact(laws(CHAIN, CHAIN_STUDIES), {"x": float(x)})
-        result = json.loads(prepared.estimate())
+        result = json.loads(require_success(prepared.estimate()))
         assert result["scope"] == "mixed_source_proof_search_sound_incomplete"
         assert risk(result) == pytest.approx(truth(CHAIN, x), abs=1e-12)
         assert result["interval"] == {"available": False, "status": "point_only"}
@@ -176,7 +177,7 @@ def test_a_surrogate_trial_corrects_the_confounded_observational_conditional():
     rules = {s["rule"] for s in stage.decision()["steps"]}
     assert {"rule3_insert", "rule2_to_observation", "rule2_to_do"} <= rules
     prepared = stage.prepare_exact(laws(FRONTDOOR, FRONTDOOR_STUDIES), [{"x": 0.0}, {"x": 1.0}])
-    result = json.loads(prepared.estimate())
+    result = json.loads(require_success(prepared.estimate()))
     assert [risk(r) for r in result["requests"]] == pytest.approx(
         [truth(FRONTDOOR, 0), truth(FRONTDOOR, 1)], abs=1e-12
     )
@@ -333,8 +334,8 @@ def test_exported_result_is_recomputed_by_an_independent_consumer():
     prepared = decide(frontdoor_graph(), FRONTDOOR_STUDIES).prepare_exact(
         laws(FRONTDOOR, FRONTDOOR_STUDIES), {"x": 1.0}
     )
-    live = json.loads(prepared.estimate())
-    artifact = prepared.export()
+    live = json.loads(require_success(prepared.estimate()))
+    artifact = bytes(prepared.export())
     consumed = json.loads(transport.consume_mixed_source_artifact(artifact))
     assert consumed["probabilities"] == live["probabilities"]
     assert consumed["proof"]["rule_set"] == "mixed_source_proof_rules.v1"
@@ -348,9 +349,9 @@ def test_export_binds_names_limits_and_snapshots_into_the_verified_identity():
     builder = decide(frontdoor_graph(), FRONTDOOR_STUDIES)
     prepared = builder.prepare_exact(laws(FRONTDOOR, FRONTDOOR_STUDIES), {"x": 1.0})
     del builder
-    json.loads(prepared.estimate())
+    json.loads(require_success(prepared.estimate()))
     assert prepared.plan()["compiled_plans"] == 1
-    artifact = prepared.export()
+    artifact = bytes(prepared.export())
     # Relabelling coordinates in the frame (same byte length) is refused.
     swapped = artifact.replace(b"\x83axazay", b"\x83azaxay", 1)
     assert swapped != artifact
@@ -376,19 +377,19 @@ def test_refresh_rebinds_snapshots_and_re_executes_the_retained_plan():
     builder = decide(chain_graph(), CHAIN_STUDIES)
     prepared = builder.prepare_exact(laws(CHAIN, CHAIN_STUDIES), {"x": 1.0})
     del builder
-    before = json.loads(prepared.estimate())
+    before = json.loads(require_success(prepared.estimate()))
     plan = prepared.plan()
     shifted = {**CHAIN, "z": lambda v, e: e[2] if v["x"] else e[1]}
-    prepared.refresh(laws(shifted, CHAIN_STUDIES))
+    require_success(prepared.refresh(laws(shifted, CHAIN_STUDIES)))
     assert prepared.plan() == plan
-    after = json.loads(prepared.estimate())
+    after = json.loads(require_success(prepared.estimate()))
     assert after["probabilities"] != before["probabilities"]
     with pytest.raises(CausalUnsupportedError, match="snapshot does not match catalog binding"):
-        prepared.refresh(laws(CHAIN, CHAIN_STUDIES, snapshot_suffix="-new"))
+        require_success(prepared.refresh(laws(CHAIN, CHAIN_STUDIES, snapshot_suffix="-new")))
     # Refresh clears the last claim: nothing is exported until the plan runs again.
-    prepared.refresh(laws(CHAIN, CHAIN_STUDIES))
+    require_success(prepared.refresh(laws(CHAIN, CHAIN_STUDIES)))
     with pytest.raises(Exception, match="not_executed"):
-        prepared.export()
+        bytes(prepared.export())
 
 
 def test_prepare_exact_compiles_a_checked_plan_after_builder_disposal():
@@ -400,7 +401,7 @@ def test_prepare_exact_compiles_a_checked_plan_after_builder_disposal():
     assert (
         plan["cited_regimes"] == ["s1", "s2"] and plan["rule_set"] == "mixed_source_proof_rules.v1"
     )
-    result = json.loads(prepared.estimate())
+    result = json.loads(require_success(prepared.estimate()))
     assert [risk(r) for r in result["requests"]] == pytest.approx(
         [truth(CHAIN, 0), truth(CHAIN, 1)], abs=1e-12
     )
@@ -431,28 +432,30 @@ def test_mixed_source_identification_executes_its_plan_after_query_disposal():
     del builder
     assert program["rule_set"] == "mixed_source_proof_rules.v1" and program["steps"]
     assert prepared.plan()["cited_regimes"] == program["cited_regimes"]
-    assert risk(json.loads(prepared.estimate())) == pytest.approx(truth(CHAIN, 1), abs=1e-12)
+    assert risk(json.loads(require_success(prepared.estimate()))) == pytest.approx(
+        truth(CHAIN, 1), abs=1e-12
+    )
 
 
 def test_estimate_executes_every_request_from_the_retained_plan():
     builder = decide(chain_graph(), CHAIN_STUDIES)
     prepared = builder.prepare_exact(laws(CHAIN, CHAIN_STUDIES), [{"x": 0.0}, {"x": 1.0}])
     del builder
-    result = json.loads(prepared.estimate())
+    result = json.loads(require_success(prepared.estimate()))
     assert result["probabilities"] == result["requests"][0]["probabilities"]
     assert [r["assignment"] for r in result["requests"]] == [{"x": 0.0}, {"x": 1.0}]
     plan = prepared.plan()
     assert plan["compiled_plans"] == len(result["requests"])
-    assert json.loads(prepared.estimate())["requests"] == result["requests"]
+    assert json.loads(require_success(prepared.estimate()))["requests"] == result["requests"]
 
 
 def test_consumer_recomputes_points_after_builder_disposal():
     builder = decide(chain_graph(), CHAIN_STUDIES)
     prepared = builder.prepare_exact(laws(CHAIN, CHAIN_STUDIES), [{"x": 0.0}, {"x": 1.0}])
     del builder
-    live = json.loads(prepared.estimate())
+    live = json.loads(require_success(prepared.estimate()))
     plan = prepared.plan()
-    artifact = prepared.export()
+    artifact = bytes(prepared.export())
     del prepared
     consumed = json.loads(transport.consume_mixed_source_artifact(artifact))
     assert consumed["requests"] == live["requests"]

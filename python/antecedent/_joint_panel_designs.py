@@ -5,9 +5,16 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
+from .errors import CausalTypeError
 
 
 def _json(value: Any) -> str:
@@ -101,7 +108,7 @@ class JointDesignResult:
             self._handle.decompose_population_reference(_json(declaration), **execution)
         )
 
-    def export_reference_decomposition(
+    def _export_reference_decomposition(
         self, declaration: Mapping[str, Any], **execution: Any
     ) -> bytes:
         """Retain an explicit hybrid component recipe and the original native design."""
@@ -113,13 +120,14 @@ class JointDesignResult:
         self, artifact: bytes, declaration: Mapping[str, Any], **execution: Any
     ) -> dict[str, Any]:
         """Recheck a reference artifact against current data, bindings and scope."""
+        artifact = container_bytes(artifact)
         return json.loads(
             self._handle.consume_reference_decomposition_current(
                 artifact, _json(dict(declaration)), **execution
             )
         )
 
-    def export_population_reference(
+    def _export_population_reference(
         self, declaration: Mapping[str, Any], **execution: Any
     ) -> bytes:
         """Retain the complete design, component/population laws and transport diagram."""
@@ -131,15 +139,39 @@ class JointDesignResult:
         self, artifact: bytes, declaration: Mapping[str, Any], **execution: Any
     ) -> dict[str, Any]:
         """Compare caller-current data, components, distributions, diagram and scope."""
+        artifact = container_bytes(artifact)
         return json.loads(
             self._handle.consume_population_reference_current(
                 artifact, _json(dict(declaration)), **execution
             )
         )
 
-    def export(self) -> bytes:
-        """Retain the entire data, identifying functional and statistical execution."""
-        return bytes(self._handle.export())
+    @artifact_export
+    def export(
+        self,
+        *,
+        quantity: Literal[
+            "execution", "reference_decomposition", "population_reference"
+        ] = "execution",
+        declaration: Mapping[str, Any] | None = None,
+        **execution: Any,
+    ) -> ExportedArtifact:
+        """Retain this execution, or a named reference recipe with its actual declaration."""
+        if quantity == "execution":
+            if declaration is not None or execution:
+                raise CausalTypeError(
+                    "execution export does not accept a reference declaration or execution overrides"
+                )
+            return artifact_from_receipt(self, bytes(self._handle.export()))
+        if declaration is None:
+            raise CausalTypeError("reference export requires declaration")
+        if quantity == "reference_decomposition":
+            data = self._export_reference_decomposition(declaration, **execution)
+        elif quantity == "population_reference":
+            data = self._export_population_reference(declaration, **execution)
+        else:
+            raise CausalTypeError("unknown joint design export quantity")
+        return artifact_from_receipt(self, data)
 
     def posterior_quantities(self) -> list[dict[str, Any]]:
         """Exact quantity bindings; frequentist covariance is never called a posterior."""
@@ -163,6 +195,7 @@ class PreparedJointDesign:
 
     def consume_current(self, artifact: bytes, **execution: Any) -> JointDesignResult:
         """Match current source/design/target before consuming retained evidence."""
+        artifact = container_bytes(artifact)
         return JointDesignResult(self._handle.consume_current(artifact, **execution))
 
 
@@ -191,6 +224,7 @@ def prepare_joint_design_for_panel(
 
 def replay_joint_design(artifact: bytes, **execution: Any) -> dict[str, Any]:
     """Historical numerical replay, without caller-current scientific authority."""
+    artifact = container_bytes(artifact)
     return json.loads(_native.replay_joint_design(artifact, **execution))
 
 
@@ -243,8 +277,9 @@ class NativeJointDesignResult:
             **declaration,
         )
 
-    def export(self) -> bytes:
-        return bytes(self._handle.export())
+    @artifact_export
+    def export(self) -> ExportedArtifact:
+        return artifact_from_receipt(self, bytes(self._handle.export()))
 
 
 @dataclass(frozen=True)
@@ -263,6 +298,7 @@ class PreparedNativeJointDesign:
         return NativeJointDesignResult(self._handle.execute(_json(declaration), **execution))
 
     def consume_current(self, artifact: bytes, **execution: Any) -> NativeJointDesignResult:
+        artifact = container_bytes(artifact)
         return NativeJointDesignResult(self._handle.consume_current(artifact, **execution))
 
 
@@ -283,14 +319,17 @@ def prepare_native_joint_design(
 
 def replay_native_joint_design(artifact: bytes, **execution: Any) -> dict[str, Any]:
     """Replay frozen native proof and evidence; current use requires consume_current."""
+    artifact = container_bytes(artifact)
     return json.loads(_native.replay_native_joint_design(artifact, **execution))
 
 
 def replay_population_reference(artifact: bytes, **execution: Any) -> dict[str, Any]:
     """Independently replay historical population-reference numbers without current authority."""
+    artifact = container_bytes(artifact)
     return json.loads(_native.replay_population_reference(artifact, **execution))
 
 
 def replay_reference_decomposition(artifact: bytes, **execution: Any) -> dict[str, Any]:
     """Independently replay historical component numbers without current authority."""
+    artifact = container_bytes(artifact)
     return json.loads(_native.replay_reference_decomposition(artifact, **execution))

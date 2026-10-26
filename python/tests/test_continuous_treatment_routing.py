@@ -6,6 +6,7 @@ import antecedent as ac
 import numpy as np
 import pytest
 from antecedent.estimators import PropensityWeighting
+from antecedent.outcomes import require_success
 
 
 def _frame(t: np.ndarray, y_mask: np.ndarray | None = None) -> dict[str, np.ndarray]:
@@ -23,14 +24,16 @@ QUERY = ac.AverageEffect("t", "y")
 
 
 def _cheap(data: dict[str, np.ndarray], *, estimator=None):
-    return ac.analyze(
-        data,
-        graph=GRAPH,
-        query=QUERY,
-        estimator=estimator,
-        refute="cheap",
-        bootstrap=0,
-        seed=9,
+    return require_success(
+        ac.analyze(
+            data,
+            graph=GRAPH,
+            query=QUERY,
+            estimator=estimator,
+            refute="cheap",
+            bootstrap=0,
+            seed=9,
+        )
     )
 
 
@@ -82,8 +85,23 @@ def test_missingness_after_complete_case_uses_remaining_sample():
 
 def test_propensity_weighting_refuses_continuous_treatment():
     with pytest.raises(ac.errors.CausalError, match="treatment_level_undeclared"):
+        require_success(
+            ac.analyze(
+                _frame(np.linspace(0.0, 1.0, 80, endpoint=False)),
+                graph=GRAPH,
+                query=QUERY,
+                estimator=PropensityWeighting(),
+                refute=False,
+                bootstrap=0,
+                seed=9,
+            )
+        )
+
+
+def test_propensity_weighting_accepts_two_valued_float():
+    result = require_success(
         ac.analyze(
-            _frame(np.linspace(0.0, 1.0, 80, endpoint=False)),
+            _frame(np.tile([0.0, 1.0], 40)),
             graph=GRAPH,
             query=QUERY,
             estimator=PropensityWeighting(),
@@ -91,16 +109,5 @@ def test_propensity_weighting_refuses_continuous_treatment():
             bootstrap=0,
             seed=9,
         )
-
-
-def test_propensity_weighting_accepts_two_valued_float():
-    result = ac.analyze(
-        _frame(np.tile([0.0, 1.0], 40)),
-        graph=GRAPH,
-        query=QUERY,
-        estimator=PropensityWeighting(),
-        refute=False,
-        bootstrap=0,
-        seed=9,
     )
     assert np.isfinite(result.ate)

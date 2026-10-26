@@ -5,6 +5,7 @@ import json
 import pytest
 from antecedent import Admg, repair
 from antecedent.errors import CausalSerializationError
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 
@@ -92,8 +93,8 @@ def test_z_transport_repair_artifact_replays_and_preserves_budget_stop():
         result = repair.repair(
             failed, studies, limits=repair.RepairLimits(max_operations=operations, max_depth=1)
         )
-        exported = result.export()
-        replay = repair.consume(exported)
+        exported = bytes(result.export())
+        replay = require_success(repair.consume(exported))
         assert replay.contract_id == result.contract_id
         assert replay.obligations == result.obligations
         assert replay.table == result.table
@@ -105,4 +106,4 @@ def test_z_transport_repair_artifact_replays_and_preserves_budget_stop():
         else:
             assert replay.best.labels == ("correct",)
         with pytest.raises((repair.RepairArtifactRefusal, CausalSerializationError)):
-            repair.consume(exported[:-1])
+            require_success(repair.consume(exported[:-1]))

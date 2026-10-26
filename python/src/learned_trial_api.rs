@@ -6,8 +6,8 @@ use antecedent_core::{
 use antecedent_estimate::{TrialAipwInput, TrialAipwOptions};
 use pyo3::{prelude::*, types::PyBytes};
 use std::sync::Arc;
-fn err(e: impl std::fmt::Display) -> PyErr {
-    crate::value_err(e.to_string())
+fn err(e: impl crate::transport_common::TransportPyErr) -> PyErr {
+    crate::transport_common::error(e)
 }
 fn parse_input(data: &Bound<'_, PyAny>, names: &[String]) -> PyResult<TrialAipwInput> {
     if data.hasattr("_buffers")? {
@@ -48,6 +48,7 @@ impl PreparedLearnedTrial {
         let mut ctx = ExecutionContext::production_default(self.seed);
         ctx.set_memory_limit(self.memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
+        crate::execution_api::apply(&mut ctx);
         ctx
     }
     fn estimate_payload(
@@ -60,26 +61,6 @@ impl PreparedLearnedTrial {
         let inner = self.inner.clone().ok_or_else(|| err("loaded claims cannot execute"))?;
         let result = crate::detach_catch(py, move || inner.estimate(&ctx).map_err(err))?;
         let payload = trial_payload(&result, compact)?;
-        self.last = Some(result);
-        Ok(payload)
-    }
-    fn refresh_payload(
-        &mut self,
-        py: Python<'_>,
-        data: &Bound<'_, PyAny>,
-        cancel: Option<crate::PyCancellationToken>,
-        compact: bool,
-    ) -> PyResult<String> {
-        let input = parse_input(data, &self.names)?;
-        let ctx = self.ctx(cancel);
-        let mut candidate =
-            self.inner.clone().ok_or_else(|| err("loaded claims cannot refresh"))?;
-        let (candidate, result) = crate::detach_catch(py, move || {
-            let result = candidate.refresh(input, &ctx).map_err(err)?;
-            Ok((candidate, result))
-        })?;
-        let payload = trial_payload(&result, compact)?;
-        self.inner = Some(candidate);
         self.last = Some(result);
         Ok(payload)
     }
@@ -112,23 +93,37 @@ impl PreparedLearnedTrial {
     ) -> PyResult<String> {
         self.estimate_payload(py, cancel, true)
     }
-    #[pyo3(signature=(data,cancel=None))]
-    fn refresh(
-        &mut self,
-        py: Python<'_>,
-        data: &Bound<'_, PyAny>,
-        cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<String> {
-        self.refresh_payload(py, data, cancel, false)
+    #[pyo3(signature=(seed=None))]
+    fn fork(&self, seed: Option<u64>) -> PyResult<Self> {
+        let seed = seed.unwrap_or(self.seed);
+        let ctx = self.ctx(None);
+        let inner = self
+            .inner
+            .as_ref()
+            .ok_or_else(|| {
+                crate::refusal(
+                    "route_not_supported",
+                    "loaded trial claims do not restore raw execution",
+                )
+            })?
+            .with_seed(seed, &ctx)
+            .map_err(err)?;
+        Ok(Self { inner: Some(inner), seed, last: None, ..self.clone() })
     }
     #[pyo3(signature=(data,cancel=None))]
-    fn refresh_summary(
-        &mut self,
+    fn bind_snapshot(
+        &self,
         py: Python<'_>,
         data: &Bound<'_, PyAny>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<String> {
-        self.refresh_payload(py, data, cancel, true)
+    ) -> PyResult<Self> {
+        let input = parse_input(data, &self.names)?;
+        let ctx = self.ctx(cancel);
+        let inner = self.inner.clone().ok_or_else(|| {
+            crate::refusal("route_not_supported", "loaded trial claims do not restore preparation")
+        })?;
+        let inner = crate::detach_catch(py, move || inner.bind_snapshot(input, &ctx).map_err(err))?;
+        Ok(Self { inner: Some(inner), last: None, ..self.clone() })
     }
     fn last_result_summary(&self) -> PyResult<String> {
         trial_payload(self.last.as_ref().ok_or_else(|| err("execute before reading result"))?, true)
@@ -247,6 +242,7 @@ fn prepare_learned_trial(
     let mut ctx = ExecutionContext::production_default(seed);
     ctx.set_memory_limit(memory_bytes);
     crate::apply_cancel(&mut ctx, cancel);
+    crate::execution_api::apply(&mut ctx);
     let inner =
         antecedent::StudyBuilder::learned_trial_transport(diagram, query, input, options, &ctx)
             .map_err(err)?;

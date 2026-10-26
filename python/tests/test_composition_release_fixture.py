@@ -41,6 +41,7 @@ from antecedent.joint_distribution import (
     JointDistributionArtifact,
     ScientificQuantity,
 )
+from antecedent.outcomes import require_success
 
 import _release_boundary as rb
 from _refusal import assert_registered_refusal
@@ -183,17 +184,17 @@ def test_shared_evidence_is_counted_once_and_dependence_is_declared_or_refused()
     # The joint-law rule reads the same overlap: the shared rows carry one evidence identity.
     shared = [jl.MomentInput("study_a", a, est_a), jl.MomentInput("study_c", a, est_c)]
     error = refused(
-        lambda: jl.linear_moments(
+        lambda: require_success(jl.linear_moments(
             "weighted_sum", shared, [0.5, 0.5], [[var_a, 0.0], [0.0, var_c]],
             dependence="declared_independent",
-        ),
+        )),
         jl.JointLawPropagationRefusal,
     )  # fmt: skip
     assert_refusal(error, VARIANTS["shared_evidence_declared_independent"])
-    claim = jl.linear_moments(
+    claim = require_success(jl.linear_moments(
         "weighted_sum", shared, [0.5, 0.5], [[var_a, cov], [cov, var_c]],
         dependence="covariance", covariance_id="shared-rows-300-500",
-    )  # fmt: skip
+    ))  # fmt: skip
     assert claim.value("mean") == pytest.approx(0.15, abs=EXACT)
     # The rule's variance is the ledger's generalized-least-squares variance.
     assert claim.value("variance") == pytest.approx(pooled.variance, abs=EXACT)
@@ -207,8 +208,14 @@ def test_shared_evidence_is_counted_once_and_dependence_is_declared_or_refused()
         jl.MomentInput("study_b", "evidence-b", 0.20),
     ]
     error = refused(
-        lambda: jl.linear_moments(
-            "weighted_sum", distinct, [0.5, 0.5], [[var_a, 0.0], [0.0, var_a]], dependence="unknown"
+        lambda: require_success(
+            jl.linear_moments(
+                "weighted_sum",
+                distinct,
+                [0.5, 0.5],
+                [[var_a, 0.0], [0.0, var_a]],
+                dependence="unknown",
+            )
         ),
         jl.JointLawPropagationRefusal,
     )
@@ -242,7 +249,7 @@ def test_unpaired_marginals_are_never_paired_by_index_and_an_enumerated_joint_la
     mx = jl.PropagationDraws.from_artifact_column("prevalence", marginals, 0)
     my = jl.PropagationDraws.from_artifact_column("effect", marginals, 1)
     error = refused(
-        lambda: jl.aligned_functional("nonlinear_functional", mx, my, "minimum"),
+        lambda: require_success(jl.aligned_functional("nonlinear_functional", mx, my, "minimum")),
         jl.JointLawPropagationRefusal,
     )
     assert_refusal(error, VARIANTS["unpaired_marginals"])
@@ -253,7 +260,7 @@ def test_unpaired_marginals_are_never_paired_by_index_and_an_enumerated_joint_la
     joint = _artifact("lattice", "joint", [p for p, _ in lattice], [d for _, d in lattice])
     jx = jl.PropagationDraws.from_artifact_column("prevalence", joint, 0)
     jy = jl.PropagationDraws.from_artifact_column("effect", joint, 1)
-    claim = jl.aligned_functional("product", jx, jy, "product")
+    claim = require_success(jl.aligned_functional("product", jx, jy, "product"))
     assert claim.value("mean") == pytest.approx(VALUES["aligned_product_mean"], abs=EXACT)
     assert claim.route == "aligned_joint_law"
     assert claim.label == "point_only"
@@ -542,7 +549,7 @@ def test_a_fresh_process_consumer_recomputes_the_decision_and_every_mutation_is_
 def test_a_claim_graph_verified_at_another_ledger_state_is_refused_by_the_consumer():
     world = World.build()
     verification = rb.verify(world.graph, world.graph, world.ledger, world.pooled.result)
-    exported = verification.artifact()
+    exported = verification.export()
     consumed = cv.consume_composition_verification_artifact(
         exported.data, exported.expectation.identity
     )
@@ -564,7 +571,11 @@ def test_an_upstream_withdrawal_makes_the_downstream_decision_refuse_end_to_end(
     world = World.build()
     world.gate()
     # Consent for study A is withdrawn.
-    world.ledger.revise_source(el.SourceRevision.withdraw(world.study_a, "consent withdrawn"))
+    require_success(
+        world.ledger.revise_source(
+            require_success(el.SourceRevision.withdraw(world.study_a, "consent withdrawn"))
+        )
+    )
     pooled = world.pooled.result
     assert world.ledger.standing(pooled) == "withdrawn"
 
@@ -622,8 +633,14 @@ def test_a_dependence_gap_makes_the_downstream_decision_refuse_end_to_end():
     # The joint-law rule refuses the same gap when asked for the combination.
     inputs = [jl.MomentInput("study_a", a, 0.10), jl.MomentInput("vendor", vendor, 0.20)]
     error = refused(
-        lambda: jl.linear_moments(
-            "weighted_sum", inputs, [0.5, 0.5], [[0.0004, 0.0], [0.0, 0.0004]], dependence="unknown"
+        lambda: require_success(
+            jl.linear_moments(
+                "weighted_sum",
+                inputs,
+                [0.5, 0.5],
+                [[0.0004, 0.0], [0.0, 0.0004]],
+                dependence="unknown",
+            )
         ),
         jl.JointLawPropagationRefusal,
     )
@@ -667,7 +684,7 @@ def test_every_stage_is_point_only_and_no_interval_or_posterior_decision_ships()
             SCENARIO["measurement"]["events"], SCENARIO["measurement"]["total"]
         ),
     )
-    error = refused(prepared.estimate().interval, mm.MeasurementModelRefusal)
+    error = refused(require_success(prepared.estimate()).interval, mm.MeasurementModelRefusal)
     assert error.reason_code == VARIANTS["interval"]["code"]
     # The composition: the variance carries no measured coverage.
     error = refused(world.composition.interval)

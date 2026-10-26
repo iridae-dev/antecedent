@@ -140,7 +140,7 @@ def test_decide_reports_the_checked_plan_without_a_law() -> None:
     assert decision.plan.operations_consumed > 0
     assert any(p.startswith("response_chain:") for p in decision.plan.premises)
     with pytest.raises(RecoveryChainRefusal):
-        decision.export()
+        bytes(decision.export())
 
 
 def test_self_censoring_edge_refuses_with_a_verified_exact_witness() -> None:
@@ -164,7 +164,7 @@ def test_self_censoring_edge_refuses_with_a_verified_exact_witness() -> None:
     decision = decide_chain(graph(0, True, extra=[("x2", "r2")]), QUERY)
     assert decision.outcome == "nonrecoverable" and decision.plan is None
     assert decision.witness == witness
-    assert decision.export() == error.artifact
+    assert bytes(decision.export()) == error.artifact
 
 
 def test_head_self_censoring_with_an_independent_tail_is_also_witnessed() -> None:
@@ -259,7 +259,7 @@ def test_zero_mass_cell_and_invalid_laws_refuse() -> None:
 def test_export_consume_round_trip_recomputes_the_recovered_law() -> None:
     law, truth = scm(1, True)
     result = recover_chain(graph(1, True), QUERY, law)
-    artifact = result.export()
+    artifact = bytes(result.export())
     assert isinstance(artifact, bytes)
     fresh = consume_recovery_chain_artifact(artifact)
     np.testing.assert_allclose(fresh.law, truth, atol=1e-12)
@@ -267,7 +267,7 @@ def test_export_consume_round_trip_recomputes_the_recovered_law() -> None:
     assert fresh.plan == result.plan
     assert fresh.premises_digest == result.premises_digest
     assert fresh.data_digest == result.data_digest
-    assert fresh.export() == artifact
+    assert bytes(fresh.export()) == artifact
     # A mapping is accepted for the law.
     mapping = {
         "both": [list(row) for row in law.both],
@@ -294,7 +294,7 @@ def test_nonrecoverable_artifact_reverifies_its_witness() -> None:
 
 def test_corrupt_truncated_and_foreign_artifacts_refuse() -> None:
     law, _ = scm(0, True)
-    artifact = recover_chain(graph(0, True), QUERY, law).export()
+    artifact = bytes(recover_chain(graph(0, True), QUERY, law).export())
     with pytest.raises(CausalSerializationError):
         consume_recovery_chain_artifact(artifact[:-5])
     with pytest.raises(CausalSerializationError):

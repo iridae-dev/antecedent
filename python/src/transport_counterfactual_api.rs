@@ -347,6 +347,7 @@ impl CounterfactualTransportDecisionNative {
 
 /// An identified derivation with its catalog; evaluation never searches.
 #[pyclass(skip_from_py_object)]
+#[derive(Clone)]
 pub(crate) struct PreparedCounterfactualTransportNative {
     pub(crate) inner: PreparedCounterfactualTransport,
     pub(crate) graph: Admg,
@@ -357,6 +358,18 @@ pub(crate) struct PreparedCounterfactualTransportNative {
 
 #[pymethods]
 impl PreparedCounterfactualTransportNative {
+    #[pyo3(signature=(seed=None))]
+    fn fork(&self, seed: Option<u64>) -> PyResult<Self> {
+        let ctx = execution_context(seed.unwrap_or(0), self.memory_bytes, None);
+        antecedent_estimate::refuse_cancelled(&ctx, "counterfactual transport fork")
+            .map_err(error)?;
+        let inner = match self.inner.data() {
+            Some(data) => self.inner.refresh(data.clone(), &ctx).map_err(error)?,
+            None => self.inner.clone(),
+        };
+        Ok(Self { inner, ..self.clone() })
+    }
+
     /// The frozen derivation: canonical text, rules, cited regimes, receipt.
     fn derivation(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         to_py_json(py, &derivation_json(self.inner.derivation(), &self.graph.names))
@@ -396,7 +409,7 @@ impl PreparedCounterfactualTransportNative {
     /// A prepared value bound to `laws`; this value is untouched, and a refused
     /// refresh raises. Laws of another population or regime are refused.
     #[pyo3(signature=(laws, *, memory_bytes=None, cancel=None))]
-    fn refresh(
+    fn bind_snapshot(
         &self,
         py: Python<'_>,
         laws: &Bound<'_, PyAny>,

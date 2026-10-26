@@ -33,6 +33,7 @@ from antecedent.discovery import (
     PCMCIPlus,
     run_temporal_discovery,
 )
+from antecedent.outcomes import require_success
 from antecedent.query import PulseEffect
 
 
@@ -207,30 +208,36 @@ def test_max_cond_size_reaches_analyze_temporal_discover_path():
     query = PulseEffect(treatment="v1", outcome="v2", treatment_lag=1, horizon_steps=1)
 
     with pytest.raises(antecedent.errors.CausalIdentifyError, match="history cap"):
+        require_success(
+            antecedent.analyze(
+                data,
+                query=query,
+                discovery=PCMCIPlus(max_lag=1, alpha=0.05, max_cond_size=0),
+                seed=1,
+                threads=1,
+            )
+        )
+
+    capped_result = require_success(
         antecedent.analyze(
             data,
             query=query,
-            discovery=PCMCIPlus(max_lag=1, alpha=0.05, max_cond_size=0),
+            discovery=PCMCIPlus(max_lag=1, alpha=0.05, max_cond_size=2),
             seed=1,
             threads=1,
         )
-
-    capped_result = antecedent.analyze(
-        data,
-        query=query,
-        discovery=PCMCIPlus(max_lag=1, alpha=0.05, max_cond_size=2),
-        seed=1,
-        threads=1,
     )
     assert np.isfinite(capped_result.estimate.ate)
 
     # The library default (max_cond_size=2) must behave identically to an explicit 2 —
     # this is a plumbing fix, not a behavior change for existing callers.
-    default_result = antecedent.analyze(
-        data,
-        query=query,
-        discovery=PCMCIPlus(max_lag=1, alpha=0.05),
-        seed=1,
-        threads=1,
+    default_result = require_success(
+        antecedent.analyze(
+            data,
+            query=query,
+            discovery=PCMCIPlus(max_lag=1, alpha=0.05),
+            seed=1,
+            threads=1,
+        )
     )
     assert default_result.estimate.ate == capped_result.estimate.ate

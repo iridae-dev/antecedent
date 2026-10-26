@@ -23,6 +23,7 @@ import re
 import pytest
 from antecedent import mechanism_discrepancy as md
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from antecedent.outcomes import require_success
 
 X = [0.0, 1.0, 2.0, 3.0]
 YS = [1.0, 3.0, 2.0, 4.0]
@@ -497,16 +498,18 @@ def test_discrepancy_validates_its_arguments_as_typed_errors():
 
 def test_discrepancy_artifact_round_trips_by_recomputation():
     result = _run(YS, YT_BOTH)
-    data = result.export()
+    data = bytes(result.export())
     assert isinstance(data, bytes)
-    consumed = md.MechanismDiscrepancyResult.consume(data, expected_identity=result.identity)
+    consumed = require_success(
+        md.MechanismDiscrepancyResult.consume(data, expected_identity=result.identity)
+    )
     assert consumed.identity == result.identity
     assert consumed.statistic == result.statistic
     assert consumed.p_value == result.p_value
     assert consumed.coefficients == result.coefficients
     assert consumed.conclusion == result.conclusion
     assert consumed.non_rejection_certifies_invariance is False
-    assert consumed.export() == data
+    assert bytes(consumed.export()) == data
     assert set(result.identity) == {
         "measurement_id",
         "source_evidence_id",
@@ -516,7 +519,7 @@ def test_discrepancy_artifact_round_trips_by_recomputation():
         "digest",
     }
     # Without a retained identity the bytes are still recomputed.
-    again = md.MechanismDiscrepancyResult.consume(data)
+    again = require_success(md.MechanismDiscrepancyResult.consume(data))
     assert again.identity == result.identity
 
 
@@ -527,8 +530,10 @@ def test_discrepancy_artifact_refuses_a_resealed_mutation_and_corruption():
     # A consumer that retained the producer's identity refuses a different (even
     # consistently sealed) artifact: a changed summary statistic changes the identity.
     error = _refusal(
-        lambda: md.MechanismDiscrepancyResult.consume(
-            other.export(), expected_identity=result.identity
+        lambda: require_success(
+            md.MechanismDiscrepancyResult.consume(
+                bytes(other.export()), expected_identity=result.identity
+            )
         ),
         "route_not_supported",
         "wrong_contract",
@@ -538,16 +543,18 @@ def test_discrepancy_artifact_refuses_a_resealed_mutation_and_corruption():
     forged = dict(result.identity)
     forged["design_id"] = "0" * len(forged["design_id"])
     _refusal(
-        lambda: md.MechanismDiscrepancyResult.consume(result.export(), expected_identity=forged),
+        lambda: require_success(
+            md.MechanismDiscrepancyResult.consume(bytes(result.export()), expected_identity=forged)
+        ),
         "route_not_supported",
         "wrong_contract",
     )
     # Corruption and truncation do not decode.
-    data = result.export()
+    data = bytes(result.export())
     flipped = data[:-1] + bytes([data[-1] ^ 0xFF])
     for bad in (flipped, data[: len(data) // 2], b"not an artifact"):
         with pytest.raises(md.MechanismDiscrepancyRefusal) as caught:
-            md.MechanismDiscrepancyResult.consume(bad)
+            require_success(md.MechanismDiscrepancyResult.consume(bad))
         assert caught.value.detail.startswith("mechanism_discrepancy.")
     with pytest.raises(CausalTypeError):
-        md.MechanismDiscrepancyResult.consume("bytes")  # type: ignore[arg-type]
+        require_success(md.MechanismDiscrepancyResult.consume("bytes"))  # type: ignore[arg-type]

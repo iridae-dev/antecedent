@@ -10,6 +10,7 @@ import antecedent as ac
 import numpy as np
 import pytest
 from antecedent.estimation import PreparedAnalysis
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT
 
@@ -85,7 +86,7 @@ def test_bayesian_path_prepare_estimate():
         inference=ac.Bayesian(n_draws=64),
         refute="none",
     )
-    result = prepared.estimate(data)
+    result = require_success(prepared.estimate(data))
     assert result.estimate.estimator_id == "functional.effect"
     assert any("exec.identify.cached" in item for item in result.diagnostics)
     assert result.posterior is not None
@@ -115,7 +116,7 @@ def test_bayesian_mediation_four_axes():
         inference=ac.Bayesian(n_draws=64),
         refute="none",
     )
-    result = prepared.estimate(data)
+    result = require_success(prepared.estimate(data))
     assert result.estimate.estimator_id == "mediation.linear"
     assert result.posterior is not None
     assert result.identification
@@ -138,20 +139,24 @@ def test_bayesian_counterfactual_unit_posterior():
         control_level=kinds["control"],
         active_level=kinds["active"],
     )
-    bayes = PreparedAnalysis.prepare(
-        data,
-        graph=dag,
-        query=query,
-        inference=ac.Bayesian(n_draws=64),
-        refute="none",
-    ).estimate(data)
-    freq = PreparedAnalysis.prepare(
-        data,
-        graph=dag,
-        query=query,
-        inference=ac.Frequentist(),
-        refute="none",
-    ).estimate(data)
+    bayes = require_success(
+        PreparedAnalysis.prepare(
+            data,
+            graph=dag,
+            query=query,
+            inference=ac.Bayesian(n_draws=64),
+            refute="none",
+        ).estimate(data)
+    )
+    freq = require_success(
+        PreparedAnalysis.prepare(
+            data,
+            graph=dag,
+            query=query,
+            inference=ac.Frequentist(),
+            refute="none",
+        ).estimate(data)
+    )
     assert bayes.unit_effects is not None
     assert freq.unit_effects is not None
     assert bayes.mean_ite == pytest.approx(kinds["counterfactual_mean"], abs=0.25)
@@ -170,56 +175,62 @@ def test_bayesian_mediation_mapped_prior_is_used():
     y = 3 * a + 4 * m + 0.1 * np.sin(i * 0.31)
     data = {"a": a, "m": m, "y": y}
     dag = ac.Dag.from_edges(["a", "m", "y"], [("a", "m"), ("a", "y"), ("m", "y")])
-    source = ac.analyze(
-        data,
-        graph=dag,
-        query=ac.AverageEffect(
-            "a",
-            "y",
-            control_level=kinds["control"],
-            active_level=kinds["active"],
-        ),
-        inference=ac.Bayesian(n_draws=64, backend="conjugate"),
-        refute=False,
-        seed=int(pin["seed"]),
-        return_posterior_artifact=True,
+    source = require_success(
+        ac.analyze(
+            data,
+            graph=dag,
+            query=ac.AverageEffect(
+                "a",
+                "y",
+                control_level=kinds["control"],
+                active_level=kinds["active"],
+            ),
+            inference=ac.Bayesian(n_draws=64, backend="conjugate"),
+            refute=False,
+            seed=int(pin["seed"]),
+            return_posterior_artifact=True,
+        )
     )
     assert source.posterior is not None
     artifact = bytes(source.posterior.artifact)
-    transferred = ac.analyze(
-        data,
-        graph=dag,
-        query=ac.MediationEffect(
-            "a",
-            "y",
-            mediators=["m"],
-            contrast="natural_direct",
-            control_level=kinds["control"],
-            active_level=kinds["active"],
-        ),
-        inference=ac.Bayesian(
-            n_draws=64,
-            backend="conjugate",
-            prior_from=artifact,
-            mapping=PriorMapping.effect_functional("ate"),
-        ),
-        refute=False,
-        seed=int(pin["seed"]),
+    transferred = require_success(
+        ac.analyze(
+            data,
+            graph=dag,
+            query=ac.MediationEffect(
+                "a",
+                "y",
+                mediators=["m"],
+                contrast="natural_direct",
+                control_level=kinds["control"],
+                active_level=kinds["active"],
+            ),
+            inference=ac.Bayesian(
+                n_draws=64,
+                backend="conjugate",
+                prior_from=artifact,
+                mapping=PriorMapping.effect_functional("ate"),
+            ),
+            refute=False,
+            seed=int(pin["seed"]),
+        )
     )
-    isotropic = ac.analyze(
-        data,
-        graph=dag,
-        query=ac.MediationEffect(
-            "a",
-            "y",
-            mediators=["m"],
-            contrast="natural_direct",
-            control_level=kinds["control"],
-            active_level=kinds["active"],
-        ),
-        inference=ac.Bayesian(n_draws=64, backend="conjugate"),
-        refute=False,
-        seed=int(pin["seed"]),
+    isotropic = require_success(
+        ac.analyze(
+            data,
+            graph=dag,
+            query=ac.MediationEffect(
+                "a",
+                "y",
+                mediators=["m"],
+                contrast="natural_direct",
+                control_level=kinds["control"],
+                active_level=kinds["active"],
+            ),
+            inference=ac.Bayesian(n_draws=64, backend="conjugate"),
+            refute=False,
+            seed=int(pin["seed"]),
+        )
     )
     assert transferred.posterior is not None
     text = " ".join(str(a) for a in transferred.assumptions)
@@ -262,7 +273,7 @@ def test_bayesian_conditional_distribution_without_scalar_mean(refute, accepted)
         inference=ac.Bayesian(n_draws=64),
         refute=refute,
     )
-    result = prepared.estimate(data)
+    result = require_success(prepared.estimate(data))
     assert result.effect is None
     assert result.posterior is not None
     assert result.posterior.n_draws == 64

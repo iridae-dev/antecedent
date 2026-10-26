@@ -8,7 +8,7 @@ import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, fields, is_dataclass, replace
 from math import isfinite
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, get_args
+from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from .._artifact_protocol import ExportedArtifact
@@ -20,6 +20,8 @@ if TYPE_CHECKING:
 
 from .._api import describe_refusal
 from ..errors import CausalUnsupportedError
+from ..outcomes import ANSWER_KINDS as ANSWER_KINDS
+from ..outcomes import Answer, AnswerKind, Refused
 from ._families import canonical_from_live, canonical_from_wire
 from ._report import InspectionReport, as_inspection
 from ._slots import ReasoningSlots, SlotView
@@ -136,22 +138,7 @@ class CalibrationInfo:
         return " · ".join(bits)
 
 
-AnswerKind = Literal[
-    "point",
-    "bounds",
-    "partial",
-    "response",
-    "structured",
-    "policy_value",
-    "associational",
-    "unavailable",
-]
-
-#: The closed :attr:`Answer.kind` vocabulary, shared by live and loaded results.
-ANSWER_KINDS: tuple[AnswerKind, ...] = get_args(AnswerKind)
-
-#: Portable claim kind (``contract["claim"]["kind"]``) → :attr:`Answer.kind`.
-#: A loaded result and the live result of the same execution give one kind.
+#: Portable native claim kinds retain their distinct scientific readings.
 CLAIM_KIND_ANSWERS: dict[str, AnswerKind] = {
     "point": "point",
     "bounds": "bounds",
@@ -160,50 +147,8 @@ CLAIM_KIND_ANSWERS: dict[str, AnswerKind] = {
     "policy_value": "policy_value",
     "associational": "associational",
     "incomplete": "unavailable",
-    "refusal": "unavailable",
+    "refusal": "refused",
 }
-
-
-@dataclass(frozen=True, slots=True)
-class Answer:
-    """Safe consumption shape. ``kind`` is one of :data:`ANSWER_KINDS`:
-
-    - ``point``: a complete scalar claim; ``value`` holds it.
-    - ``bounds``: a set-identified scalar; ``bounds`` is the identified set
-      ``(lower, upper)`` over identified completions.
-    - ``partial``: identification is partial or leftover structural mass
-      remains, so there is no scalar (or, for a function-valued claim, no
-      unrestricted curve: read ``result.envelope``); ``bounds`` carries the
-      identified set whenever the execution computed one, and ``detail`` names
-      the limitation.
-    - ``response``: a function-valued claim (response curve, intervention
-      response, derivative or Jacobian); read ``result.response`` /
-      ``result.estimate``.
-    - ``structured``: an executed claim with no single scalar, such as a
-      multi-horizon temporal mediation grid; read its structured fields
-      (``result.mediation_grid``).
-    - ``associational``: a noncausal association of the observed data. Identification is
-      not claimed, so it is never an effect of an intervention and carries no ``value``
-      that reads as one; ``detail`` is ``noncausal_association``.
-    - ``unavailable``: no claim (not identified, refused, not executed,
-      non-finite, or not semantically accepted); ``detail`` names why.
-
-    This is the interface that withholds an unrestricted scalar when
-    identification is partial or leftover mass remains. Historical fields
-    such as ``effect``, ``ate``, ``posterior``, and ``response`` stay on the
-    result for existing callers. ``effect`` / ``ate`` warn when a point
-    display would misrepresent; ``ANTECEDENT_STRICT_ANSWER=1`` raises.
-    """
-
-    kind: AnswerKind
-    value: float | None = None
-    bounds: tuple[float, float] | None = None
-    detail: str | None = None
-    structured: Mapping[str, Any] | None = None
-
-    def __post_init__(self) -> None:
-        if self.kind not in ANSWER_KINDS:
-            raise ValueError(f"Answer.kind must be one of {ANSWER_KINDS}; got {self.kind!r}")
 
 
 def _posterior_row_detail(estimator: Any) -> str:
@@ -224,6 +169,11 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
     claim = claim if isinstance(claim, Mapping) else {}
     claim_kind = claim.get("kind")
     kind = CLAIM_KIND_ANSWERS.get(str(claim_kind)) if claim_kind is not None else None
+    if kind == "refused":
+        return Refused(
+            detail=str(claim.get("reason", claim.get("detail", "scientific_refusal"))),
+            structured=claim,
+        )
     # A rollout section answers for itself, beside a point claim or a posterior alike, as
     # the live result does; only an incomplete or refused claim withholds it.
     rollout = payload.get("quasi_rollout")
@@ -375,7 +325,10 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
     if kind == "unavailable":
         return Answer("unavailable", detail=limitation or str(claim_kind))
     if kind == "response":
-        # A limited function-valued claim is partial: its envelope, not a curve.
+        # A structural envelope remains an identified set even when every
+        # atom is identified or its endpoints happen to coincide.
+        if isinstance(envelope, Mapping) and limitation is None:
+            limitation = "identified_set"
         return Answer("partial" if limitation else "response", detail=limitation)
     if kind == "bounds" and bounds is not None and limitation is None:
         # A structural identified set remains a set after loading, even when
@@ -454,12 +407,6 @@ class ResultAPI:
                 ),
             )
         return refreshed
-
-    def artifact(self, **kwargs: Any) -> ExportedArtifact[LoadedResult]:
-        """Portable bytes, kind, independently retainable expectation, and export metadata."""
-        from .._artifact_protocol import exported_artifact
-
-        return exported_artifact(self, **kwargs)
 
     def refute(
         self,
@@ -999,62 +946,28 @@ class ResultAPI:
         )
 
     def _with_portable_record(self, report: ReasoningSlots) -> ReasoningSlots:
-        """Report the execution through the record its export carries.
+        """Read retained contract metadata without exporting or parsing a container.
 
-        ``contract`` becomes the portable contract section and the portable
-        evidence (identification method and adjustment set, validation verdict,
-        unit effects) is read from the exported body, so this report and
-        ``load(export()).inspect()`` agree on them. An execution that exports no
-        record (none retained, or a cancelled click) has no portable contract.
+        Execution factories retain the native contract in reasoning/_contract.
+        Portable evidence, when captured at execution/load, is retained separately;
+        inspection never invents missing evidence or silently catches export errors.
         """
-        from dataclasses import replace
-
-        from .. import artifacts
-        from ..errors import CausalError
-        from ._slots import portable_evidence, with_portable_evidence
-
-        execution = getattr(self, "_execution", None)
-        if execution is None:
-            return replace(report, contract=None)
-        try:
-            decoded = artifacts.loads(execution.export_contracted_artifact())
-        except (CausalError, ValueError):
-            return replace(report, contract=None)
-        if not isinstance(decoded.contract, Mapping):
-            return replace(report, contract=None)
-        section = dict(decoded.contract)
-        native = ReasoningSlots.from_result_section(section, decoded.payload)
-        # Availability is the executed contract's native decision, the same one
-        # `load(export()).inspect()` reports; the live report only adds payload.
-        report = replace(
-            report,
-            uncertainty=replace(
-                report.uncertainty,
-                available=native.uncertainty.available,
-                reason=native.uncertainty.reason,
-                summary=native.uncertainty.summary,
-            ),
-            assumptions=replace(
-                report.assumptions,
-                available=native.assumptions.available,
-                reason=native.assumptions.reason,
-                summary=native.assumptions.summary,
-            ),
-        )
-        return replace(
-            with_portable_evidence(report, portable_evidence(section, decoded.payload)),
-            contract=section,
-        )
+        section = getattr(self, "_contract", None)
+        if not isinstance(section, Mapping):
+            section = report.contract
+        if not isinstance(section, Mapping):
+            return report
+        return replace(report, contract=dict(section))
 
     @property
     def fitted_model(self) -> FittedEffectModel:
         """Verified portable CATE predictor for this exact retained execution."""
         from ..prediction import FittedEffectModel
 
-        return FittedEffectModel.load(self.export())
+        return FittedEffectModel.load(bytes(self.export()))
 
     @describe_refusal
-    def export(self, *, artifact_id: str = "analysis-result") -> bytes:
+    def export(self, *, artifact_id: str = "analysis-result") -> ExportedArtifact[LoadedResult]:
         """Export this exact execution, even after another estimate or refresh."""
         execution = getattr(self, "_execution", None)
         if execution is None:
@@ -1062,12 +975,16 @@ class ResultAPI:
                 "This result has no retained execution artifact.",
                 reason_code="not_executed",
             )
+        from .._artifact_protocol import artifact_from_receipt
+
         quantities = getattr(self, "quantities", None)
         if quantities is not None:
             import json
 
-            return execution.export_contracted_artifact(
+            data = execution.export_contracted_artifact(
                 artifact_id=artifact_id,
                 quantities_json=json.dumps([quantity._wire() for quantity in quantities]),
             )
-        return execution.export_contracted_artifact(artifact_id=artifact_id)
+        else:
+            data = execution.export_contracted_artifact(artifact_id=artifact_id)
+        return artifact_from_receipt(self, data)

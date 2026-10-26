@@ -31,7 +31,7 @@ def test_unmodeled_serial_dependence_refuses_the_ordinary_reading():
 
 def test_attested_independent_innovations_license_the_ordinary_reading():
     assert require_ordinary_temporal_curve_posterior("independent_innovations") is None
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="serial_error_model must be"):
         require_ordinary_temporal_curve_posterior("nonsense")  # type: ignore[arg-type]
 
 

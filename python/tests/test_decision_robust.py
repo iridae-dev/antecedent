@@ -23,6 +23,7 @@ from antecedent.joint_distribution import (
     JointDistributionArtifact,
     ScientificQuantity,
 )
+from antecedent.outcomes import require_success
 
 
 def _quantity(variable: str, regime: str) -> ScientificQuantity:
@@ -150,7 +151,7 @@ def test_admissible_identity_ignores_order_and_changes_with_rules() -> None:
 def test_admissible_contract_exports_loads_and_refuses_a_resealed_identity() -> None:
     rules = _require_supported(uncertainty="credible")
     contract = decision_robust.AdmissibleContract(_base(), rules)
-    data = contract.export()
+    data = bytes(contract.export())
     loaded = decision_robust.AdmissibleContract.load(data, expected_identity=contract.identity)
     assert loaded.identity == contract.identity
     assert loaded.rules == rules
@@ -160,7 +161,7 @@ def test_admissible_contract_exports_loads_and_refuses_a_resealed_identity() -> 
         decision_robust.AdmissibleContract.load(data, expected_identity=other.identity)
     # The plain contract path is unchanged: it carries no rules and loads as before.
     plain = _base()
-    assert decision.Contract.load(plain.export(), expected_identity=plain.identity) == plain
+    assert decision.Contract.load(bytes(plain.export()), expected_identity=plain.identity) == plain
 
 
 def test_invalid_rules_refuse_with_registered_code_and_detail() -> None:
@@ -186,8 +187,10 @@ def test_invalid_rules_refuse_with_registered_code_and_detail() -> None:
 
 def test_invariant_best_is_structurally_robust_and_graph_dependence_is_named() -> None:
     contract = _contract(rules=_require_supported())
-    robust = decision_robust.finite_scenarios(
-        contract, _claims((5.0, 3.0), (6.0, 2.0), support=(SUPPORTED, SUPPORTED))
+    robust = require_success(
+        decision_robust.finite_scenarios(
+            contract, _claims((5.0, 3.0), (6.0, 2.0), support=(SUPPORTED, SUPPORTED))
+        )
     )
     assert robust.verdict == decision_robust.RobustVerdict("structurally_robust", action="A")
     assert robust.selected == "A"
@@ -201,7 +204,7 @@ def test_invariant_best_is_structurally_robust_and_graph_dependence_is_named() -
 
     # Structures that disagree: the choice is graph dependent, never averaged.
     plain = _contract()
-    graph = decision_robust.graph_dependent(plain, _claims((5.0, 3.0), (1.0, 4.0)))
+    graph = require_success(decision_robust.graph_dependent(plain, _claims((5.0, 3.0), (1.0, 4.0))))
     assert graph.verdict.kind == "graph_dependent_choice"
     assert graph.verdict.leaders == (("s1", ("A",)), ("s2", ("B",)))
     assert graph.selected is None
@@ -216,8 +219,8 @@ def test_support_robust_support_dependent_and_unsupported_states() -> None:
     weak = decision_robust.Support("extrapolative")
     outside = decision_robust.Support("outside_empirical_support")
 
-    robust = decision_robust.robust(
-        contract, _claims((5.0, 3.0), (6.0, 2.0), support=(SUPPORTED, weak))
+    robust = require_success(
+        decision_robust.robust(contract, _claims((5.0, 3.0), (6.0, 2.0), support=(SUPPORTED, weak)))
     )
     assert robust.verdict == decision_robust.RobustVerdict("support_robust", action="A")
     assert robust.unsupported_atoms == ("s2",)
@@ -226,27 +229,31 @@ def test_support_robust_support_dependent_and_unsupported_states() -> None:
         "s2", "A", 0, "extrapolative", "supported"
     )
 
-    dependent = decision_robust.robust(
-        contract, _claims((5.0, 3.0), (1.0, 4.0), support=(SUPPORTED, outside))
+    dependent = require_success(
+        decision_robust.robust(
+            contract, _claims((5.0, 3.0), (1.0, 4.0), support=(SUPPORTED, outside))
+        )
     )
     assert dependent.verdict.kind == "support_dependent"
     assert dependent.verdict.action == "A"
     assert dependent.verdict.unrestricted_choice is None
     assert "depends on the support rules" in dependent.explain()
 
-    none = decision_robust.robust(
-        contract, _claims((5.0, 3.0), (6.0, 2.0), support=(weak, outside))
+    none = require_success(
+        decision_robust.robust(contract, _claims((5.0, 3.0), (6.0, 2.0), support=(weak, outside)))
     )
     assert none.verdict.kind == "unsupported_extrapolation"
     # Unassessed support counts as missing evidence once a rule needs it.
-    unassessed = decision_robust.robust(contract, _claims((5.0, 3.0), (6.0, 2.0)))
+    unassessed = require_success(decision_robust.robust(contract, _claims((5.0, 3.0), (6.0, 2.0))))
     assert unassessed.verdict.kind == "unsupported_extrapolation"
     assert all(s.status == "missing_evidence" for s in unassessed.shortfalls)
 
     # Per-input support removes one action in one structure only.
     per_input = decision_robust.Support("supported", {("B", 0): "extrapolative"})
-    mixed = decision_robust.robust(
-        contract, _claims((5.0, 3.0), (1.0, 4.0), support=(SUPPORTED, per_input))
+    mixed = require_success(
+        decision_robust.robust(
+            contract, _claims((5.0, 3.0), (1.0, 4.0), support=(SUPPORTED, per_input))
+        )
     )
     by_id = {a.id: a for a in mixed.actions}
     assert by_id["B"].unsupported_in == ("s2",)
@@ -258,7 +265,9 @@ def test_declared_exclusions_and_no_admissible_action_only_remove_actions() -> N
     rules = decision_robust.AdmissibilityRules(
         declared_exclusions=(decision_robust.DeclaredExclusion("A", "legal"),)
     )
-    removed = decision_robust.robust(_contract(rules=rules), _claims((5.0, 3.0), (6.0, 2.0)))
+    removed = require_success(
+        decision_robust.robust(_contract(rules=rules), _claims((5.0, 3.0), (6.0, 2.0)))
+    )
     # A has the higher payoff everywhere but is declared inadmissible; B wins and
     # A keeps its raw range rather than a penalized one.
     assert removed.verdict.action == "B"
@@ -273,7 +282,9 @@ def test_declared_exclusions_and_no_admissible_action_only_remove_actions() -> N
             decision_robust.DeclaredExclusion("B", "ethics"),
         )
     )
-    nothing = decision_robust.robust(_contract(rules=both), _claims((5.0, 3.0), (6.0, 2.0)))
+    nothing = require_success(
+        decision_robust.robust(_contract(rules=both), _claims((5.0, 3.0), (6.0, 2.0)))
+    )
     assert nothing.verdict.kind == "no_admissible_action"
     assert nothing.selected is None
 
@@ -287,20 +298,24 @@ def test_uncertainty_requirement_is_met_only_by_its_own_kind() -> None:
         ("point_only", "structural_envelope", "finite_scenarios", False),
     ]:
         contract = _contract(rules=decision_robust.AdmissibilityRules(uncertainty=required))  # type: ignore[arg-type]
-        result = decision_robust.robust(contract, claims, kind=kind)  # type: ignore[arg-type]
+        result = require_success(decision_robust.robust(contract, claims, kind=kind))  # type: ignore[arg-type]
         assert result.uncertainty_supplied == supplied
         assert result.uncertainty_required == required
         assert (result.verdict.kind != "insufficient_claims") is accepted, (required, kind)
     # A single point claim is a point, not an envelope.
-    point = decision_robust.point_claim(
-        _contract(rules=decision_robust.AdmissibilityRules(uncertainty="point_only")),
-        decision_robust.Claim.evaluated("only", _law(5.0, 3.0)),
+    point = require_success(
+        decision_robust.point_claim(
+            _contract(rules=decision_robust.AdmissibilityRules(uncertainty="point_only")),
+            decision_robust.Claim.evaluated("only", _law(5.0, 3.0)),
+        )
     )
     assert point.uncertainty_supplied == "point"
     assert point.verdict.kind != "insufficient_claims"
-    wrong = decision_robust.point_claim(
-        _contract(rules=decision_robust.AdmissibilityRules(uncertainty="structural_envelope")),
-        decision_robust.Claim.evaluated("only", _law(5.0, 3.0)),
+    wrong = require_success(
+        decision_robust.point_claim(
+            _contract(rules=decision_robust.AdmissibilityRules(uncertainty="structural_envelope")),
+            decision_robust.Claim.evaluated("only", _law(5.0, 3.0)),
+        )
     )
     assert wrong.verdict.kind == "insufficient_claims"
     assert "structural_envelope" in (wrong.verdict.reason or "")
@@ -309,8 +324,10 @@ def test_uncertainty_requirement_is_met_only_by_its_own_kind() -> None:
 def test_weighted_atoms_keep_unresolved_mass_and_completion_counts_are_not_weights() -> None:
     # A = 0.5*5 + 0.5*1 = 3.0 and B = 0.5*3 + 0.5*4 = 3.5.
     bayes = _contract("bayes_over_structures")
-    weighted = decision_robust.weighted_atoms(
-        bayes, _claims((5.0, 3.0), (1.0, 4.0), probabilities=(0.5, 0.5))
+    weighted = require_success(
+        decision_robust.weighted_atoms(
+            bayes, _claims((5.0, 3.0), (1.0, 4.0), probabilities=(0.5, 0.5))
+        )
     )
     assert weighted.verdict.kind == "bayes_choice"
     assert weighted.verdict.action == "B"
@@ -326,18 +343,20 @@ def test_weighted_atoms_keep_unresolved_mass_and_completion_counts_are_not_weigh
         decision_robust.Claim.evaluated("s2", _law(1.0, 4.0), completion_count=1),
     ]
     with pytest.raises(decision.DecisionRefusal) as refused:
-        decision_robust.weighted_atoms(bayes, counts)
+        require_success(decision_robust.weighted_atoms(bayes, counts))
     assert refused.value.detail == "decision_adapters.completion_count_not_probability"
     assert refused.value.reason_code == "decision_contract_unsatisfied"
     # Under another policy they are retained and never used as weights.
-    kept = decision_robust.weighted_atoms(_contract(), counts)
+    kept = require_success(decision_robust.weighted_atoms(_contract(), counts))
     assert kept.completion_counts == {"s1": 3, "s2": 1}
     assert kept.uncertainty_supplied == "structural_envelope"
 
     # Graph-dependent claims carry no probability.
     with pytest.raises(decision.DecisionRefusal) as graph:
-        decision_robust.graph_dependent(
-            _contract(), _claims((5.0, 3.0), (1.0, 4.0), probabilities=(0.5, 0.5))
+        require_success(
+            decision_robust.graph_dependent(
+                _contract(), _claims((5.0, 3.0), (1.0, 4.0), probabilities=(0.5, 0.5))
+            )
         )
     assert graph.value.detail == "decision_adapters.graph_claims_carry_no_probability"
 
@@ -346,7 +365,7 @@ def test_weighted_atoms_keep_unresolved_mass_and_completion_counts_are_not_weigh
         decision_robust.Claim.evaluated("s1", _law(5.0, 3.0), probability=0.8),
         decision_robust.Claim.unidentified("s2", probability=0.2),
     ]
-    held = decision_robust.weighted_atoms(bayes, partial)
+    held = require_success(decision_robust.weighted_atoms(bayes, partial))
     assert held.verdict.kind == "insufficient_claims"
     assert held.unidentified_mass == pytest.approx(0.2)
     assert held.evaluated_mass == pytest.approx(0.8)
@@ -359,21 +378,27 @@ def test_unresolved_structures_leave_invariance_unchecked() -> None:
         decision_robust.Claim.unidentified("s2"),
         decision_robust.Claim.unevaluated("s2", "budget"),
     ):
-        result = decision_robust.robust(
-            contract, [decision_robust.Claim.evaluated("s1", _law(5.0, 3.0)), unresolved]
+        result = require_success(
+            decision_robust.robust(
+                contract, [decision_robust.Claim.evaluated("s1", _law(5.0, 3.0)), unresolved]
+            )
         )
         assert result.verdict.kind == "insufficient_claims", unresolved
     with pytest.raises(decision.DecisionRefusal) as no_reason:
-        decision_robust.robust(
-            contract,
-            [
-                decision_robust.Claim.evaluated("s1", _law(5.0, 3.0)),
-                decision_robust.Claim("s2", "unevaluated"),
-            ],
+        require_success(
+            decision_robust.robust(
+                contract,
+                [
+                    decision_robust.Claim.evaluated("s1", _law(5.0, 3.0)),
+                    decision_robust.Claim("s2", "unevaluated"),
+                ],
+            )
         )
     assert no_reason.value.detail == "decision_adapters.unevaluated_needs_reason"
     with pytest.raises(decision.DecisionRefusal) as two:
-        decision_robust.robust(contract, _claims((5.0, 3.0), (6.0, 2.0)), kind="point")
+        require_success(
+            decision_robust.robust(contract, _claims((5.0, 3.0), (6.0, 2.0)), kind="point")
+        )
     assert two.value.detail == "decision_adapters.point_claim_is_single"
 
 
@@ -385,12 +410,14 @@ def test_identified_sets_partial_identification_reports_an_interval_per_action()
         b: tuple[float, float],
         under: decision_robust.AdmissibleContract = contract,
     ) -> decision_robust.IdentifiedDecision:
-        return decision_robust.identified_sets(
-            under,
-            [
-                decision_robust.IdentifiedUtility("A", *a),
-                decision_robust.IdentifiedUtility("B", *b),
-            ],
+        return require_success(
+            decision_robust.identified_sets(
+                under,
+                [
+                    decision_robust.IdentifiedUtility("A", *a),
+                    decision_robust.IdentifiedUtility("B", *b),
+                ],
+            )
         )
 
     clear = decide((4.0, 6.0), (1.0, 3.0))
@@ -424,8 +451,10 @@ def test_identified_sets_partial_identification_reports_an_interval_per_action()
         decide((5.0, 2.0), (3.0, 6.0))
     assert inverted.value.detail == "decision_adapters.invalid_interval"
     with pytest.raises(decision.DecisionRefusal) as missing:
-        decision_robust.identified_sets(
-            contract, [decision_robust.IdentifiedUtility("A", 2.0, 5.0)]
+        require_success(
+            decision_robust.identified_sets(
+                contract, [decision_robust.IdentifiedUtility("A", 2.0, 5.0)]
+            )
         )
     assert missing.value.detail == "decision_adapters.missing_action"
 
@@ -433,12 +462,14 @@ def test_identified_sets_partial_identification_reports_an_interval_per_action()
 def test_identified_sets_apply_support_hard_exclusions_and_interval_arithmetic() -> None:
     contract = _contract(rules=_require_supported())
     weak = decision_robust.Support("extrapolative")
-    result = decision_robust.identified_sets(
-        contract,
-        [
-            decision_robust.IdentifiedUtility("A", 8.0, 9.0, support=weak),
-            decision_robust.IdentifiedUtility("B", 1.0, 2.0, support=SUPPORTED),
-        ],
+    result = require_success(
+        decision_robust.identified_sets(
+            contract,
+            [
+                decision_robust.IdentifiedUtility("A", 8.0, 9.0, support=weak),
+                decision_robust.IdentifiedUtility("B", 1.0, 2.0, support=SUPPORTED),
+            ],
+        )
     )
     # A's interval is higher but its input lacks the required support, so it is
     # removed (never penalized) and B is the only eligible action.
@@ -448,12 +479,14 @@ def test_identified_sets_apply_support_hard_exclusions_and_interval_arithmetic()
     assert by_id["A"].utility == (8.0, 9.0)
     assert result.verdict.action == "B"
 
-    hard = decision_robust.identified_sets(
-        _contract(),
-        [
-            decision_robust.IdentifiedUtility("A", 8.0, 9.0, hard_exclusions=("cap",)),
-            decision_robust.IdentifiedUtility("B", 1.0, 2.0),
-        ],
+    hard = require_success(
+        decision_robust.identified_sets(
+            _contract(),
+            [
+                decision_robust.IdentifiedUtility("A", 8.0, 9.0, hard_exclusions=("cap",)),
+                decision_robust.IdentifiedUtility("B", 1.0, 2.0),
+            ],
+        )
     )
     assert hard.verdict.action == "B"
     assert hard.actions[0].hard_exclusions == ("cap",)
@@ -493,10 +526,12 @@ def test_external_callback_receipt_is_retained_and_never_labelled_native() -> No
         attested_value=4.25,
         attestor="outside-lab",
     )
-    result = decision_robust.robust(
-        contract,
-        _claims((5.0, 3.0), (6.0, 2.0), support=(SUPPORTED, SUPPORTED)),
-        receipts=[receipt],
+    result = require_success(
+        decision_robust.robust(
+            contract,
+            _claims((5.0, 3.0), (6.0, 2.0), support=(SUPPORTED, SUPPORTED)),
+            receipts=[receipt],
+        )
     )
     assert not result.native_verified
     assert result.receipts == (receipt,)
@@ -509,20 +544,24 @@ def test_external_callback_receipt_is_retained_and_never_labelled_native() -> No
     assert {"external_provider", "distribution_artifact", "decision_contract", "claim"} <= stages
     assert result.lineage[-1].id == decision_robust.RESULT_LINK_ID
     # A native-only result has no external provider behind it.
-    native = decision_robust.robust(
-        contract, _claims((5.0, 3.0), (6.0, 2.0), support=(SUPPORTED, SUPPORTED))
+    native = require_success(
+        decision_robust.robust(
+            contract, _claims((5.0, 3.0), (6.0, 2.0), support=(SUPPORTED, SUPPORTED))
+        )
     )
     assert native.native_verified and native.receipts == ()
     assert "external_provider" not in {link.stage for link in native.lineage}
     # Changing the attested value changes the derivation.
-    other = decision_robust.robust(
-        contract,
-        _claims((5.0, 3.0), (6.0, 2.0), support=(SUPPORTED, SUPPORTED)),
-        receipts=[
-            decision_robust.ExternalReceipt(
-                "s1", "lab-model", "snap-9", "ab" * 32, 4.5, attestor="outside-lab"
-            )
-        ],
+    other = require_success(
+        decision_robust.robust(
+            contract,
+            _claims((5.0, 3.0), (6.0, 2.0), support=(SUPPORTED, SUPPORTED)),
+            receipts=[
+                decision_robust.ExternalReceipt(
+                    "s1", "lab-model", "snap-9", "ab" * 32, 4.5, attestor="outside-lab"
+                )
+            ],
+        )
     )
     assert other.lineage[-1].digest != result.lineage[-1].digest
 
@@ -536,18 +575,22 @@ def test_external_callback_receipt_is_retained_and_never_labelled_native() -> No
         trust="native",  # type: ignore[arg-type]
     )
     with pytest.raises(decision.DecisionRefusal) as native_claim:
-        decision_robust.robust(contract, _claims((5.0, 3.0), (6.0, 2.0)), receipts=[forged])
+        require_success(
+            decision_robust.robust(contract, _claims((5.0, 3.0), (6.0, 2.0)), receipts=[forged])
+        )
     assert native_claim.value.detail == "decision_robust.external_trust_never_native"
     # A receipt must name a structure that has draws.
     with pytest.raises(decision.DecisionRefusal) as ghost:
-        decision_robust.robust(
-            contract,
-            _claims((5.0, 3.0), (6.0, 2.0)),
-            receipts=[
-                decision_robust.ExternalReceipt(
-                    "ghost", "lab-model", "snap-9", "ab" * 32, 4.25, attestor="outside-lab"
-                )
-            ],
+        require_success(
+            decision_robust.robust(
+                contract,
+                _claims((5.0, 3.0), (6.0, 2.0)),
+                receipts=[
+                    decision_robust.ExternalReceipt(
+                        "ghost", "lab-model", "snap-9", "ab" * 32, 4.25, attestor="outside-lab"
+                    )
+                ],
+            )
         )
     assert "receipt_atom" in ghost.value.detail or "receipt_atom" in str(ghost.value.offending)
 
@@ -555,9 +598,9 @@ def test_external_callback_receipt_is_retained_and_never_labelled_native() -> No
 def test_robust_result_exports_replays_and_refuses_changed_inputs() -> None:
     contract = _contract(rules=_require_supported())
     claims = _claims((5.0, 3.0), (6.0, 2.0), support=(SUPPORTED, SUPPORTED))
-    result = decision_robust.robust(contract, claims)
-    data = result.export()
-    replayed = decision_robust.replay(data, contract=contract, claims=claims)
+    result = require_success(decision_robust.robust(contract, claims))
+    data = bytes(result.export())
+    replayed = require_success(decision_robust.replay(data, contract=contract, claims=claims))
     assert replayed.replayed
     assert replayed.verdict == result.verdict
     assert replayed.native_verified and replayed.external_atoms == ()
@@ -565,38 +608,46 @@ def test_robust_result_exports_replays_and_refuses_changed_inputs() -> None:
 
     # Different draws, contract or support refuse.
     with pytest.raises(decision.DecisionRefusal):
-        decision_robust.replay(
-            data,
-            contract=contract,
-            claims=_claims((5.5, 3.0), (6.0, 2.0), support=(SUPPORTED, SUPPORTED)),
+        require_success(
+            decision_robust.replay(
+                data,
+                contract=contract,
+                claims=_claims((5.5, 3.0), (6.0, 2.0), support=(SUPPORTED, SUPPORTED)),
+            )
         )
     with pytest.raises(decision.DecisionRefusal):
-        decision_robust.replay(
-            data, contract=_contract("maximin", _require_supported()), claims=claims
+        require_success(
+            decision_robust.replay(
+                data, contract=_contract("maximin", _require_supported()), claims=claims
+            )
         )
     with pytest.raises(decision.DecisionRefusal) as profile:
-        decision_robust.replay(
-            data,
-            contract=contract,
-            claims=_claims(
-                (5.0, 3.0),
-                (6.0, 2.0),
-                support=(SUPPORTED, decision_robust.Support("weak_overlap")),
-            ),
+        require_success(
+            decision_robust.replay(
+                data,
+                contract=contract,
+                claims=_claims(
+                    (5.0, 3.0),
+                    (6.0, 2.0),
+                    support=(SUPPORTED, decision_robust.Support("weak_overlap")),
+                ),
+            )
         )
     assert profile.value.detail.endswith("replay_profile")
     # A changed byte refuses; it is never read as a different result.
     corrupt = bytearray(data)
     corrupt[-1] ^= 0x55
     with pytest.raises(CausalUnsupportedError):
-        decision_robust.replay(bytes(corrupt), contract=contract, claims=claims)
+        require_success(decision_robust.replay(bytes(corrupt), contract=contract, claims=claims))
 
     # An external callback leaves a receipt that survives export and replay.
     receipt = decision_robust.ExternalReceipt(
         "s1", "lab-model", "snap-9", "cd" * 32, 4.25, attestor="outside-lab"
     )
-    external = decision_robust.robust(contract, claims, receipts=[receipt])
-    stored = decision_robust.replay(external.export(), contract=contract, claims=claims)
+    external = require_success(decision_robust.robust(contract, claims, receipts=[receipt]))
+    stored = require_success(
+        decision_robust.replay(bytes(external.export()), contract=contract, claims=claims)
+    )
     assert stored.receipts == (receipt,)
     assert not stored.native_verified
     assert stored.external_atoms == ("s1",)
@@ -628,8 +679,10 @@ def test_unmapped_scalar_receipt_does_not_inherit_verified_bound_response_trust(
     assert receipt.request_fingerprint == original.identity_fields["provider_fingerprint"]
     contract = _contract(rules=_require_supported())
     claims = _claims((5.0, 3.0), (6.0, 2.0), support=(SUPPORTED, SUPPORTED))
-    result = decision_robust.robust(contract, claims, receipts=[receipt])
-    imported = decision_robust.replay(result.export(), contract=contract, claims=claims)
+    result = require_success(decision_robust.robust(contract, claims, receipts=[receipt]))
+    imported = require_success(
+        decision_robust.replay(bytes(result.export()), contract=contract, claims=claims)
+    )
     assert imported.receipts == (receipt,)
     assert not imported.native_verified
     assert imported.receipts[0].trust == "externally_attested"

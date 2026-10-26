@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 from antecedent.errors import CausalError, CausalTypeError, CausalValueError
 from antecedent.missing import ImputationSpec, MissingPolicy, coerce_missing, native_declaration
+from antecedent.outcomes import require_success
 
 TRUE_EFFECT = 1.0
 GRAPH = [("z", "t"), ("z", "y"), ("t", "y")]
@@ -25,13 +26,15 @@ def _data(n: int, seed: int):
 
 
 def _analyze(data, missing):
-    return ant.analyze(
-        data,
-        query=ant.AverageEffect("t", "y"),
-        graph=GRAPH,
-        refute="none",
-        bootstrap=0,
-        missing=missing,
+    return require_success(
+        ant.analyze(
+            data,
+            query=ant.AverageEffect("t", "y"),
+            graph=GRAPH,
+            refute="none",
+            bootstrap=0,
+            missing=missing,
+        )
     )
 
 

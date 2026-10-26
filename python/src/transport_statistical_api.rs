@@ -24,9 +24,48 @@ use crate::transport_common::{
 
 const STATISTICAL_PREFIX: &[u8] = b"ANTECEDENT-STATISTICAL-TRANSPORT\x01";
 
+#[derive(Clone)]
+enum StatisticalPreparation {
+    Deferred(antecedent::analysis::DeferredStatisticalTransport),
+    Ready(antecedent::PreparedStudy<antecedent::StatisticalPreparedState>),
+}
+
+impl StatisticalPreparation {
+    fn materialize(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> PyResult<antecedent::PreparedStudy<antecedent::StatisticalPreparedState>> {
+        match self {
+            Self::Deferred(deferred) => deferred.materialize(ctx).map_err(error),
+            Self::Ready(ready) => Ok(ready.clone()),
+        }
+    }
+    fn query(&self) -> &antecedent_identify::ClassicalTransportQuery {
+        match self {
+            Self::Deferred(deferred) => deferred.functional().derivation().query(),
+            Self::Ready(ready) => ready.query(),
+        }
+    }
+    fn rules(&self) -> Vec<&'static str> {
+        match self {
+            Self::Deferred(deferred) => deferred.functional().derivation().rules(),
+            Self::Ready(ready) => ready.rules(),
+        }
+    }
+    fn formula(&self) -> String {
+        match self {
+            Self::Deferred(deferred) => {
+                deferred.functional().arena().pretty(deferred.functional().root())
+            }
+            Self::Ready(ready) => ready.inspect().formula,
+        }
+    }
+}
+
 #[pyclass(skip_from_py_object)]
 struct PreparedStatisticalStage {
-    inner: antecedent::PreparedStudy<antecedent::StatisticalPreparedState>,
+    inner: StatisticalPreparation,
+    last_prepared: Option<antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>,
     graph: Admg,
     catalog: antecedent_core::EvidenceCatalog,
     last: Option<antecedent::StatisticalStudyResult>,
@@ -101,7 +140,7 @@ impl PreparedStatisticalStage {
                 })
                 .collect::<PyResult<Vec<_>>>()?,
             result.distribution().probabilities.to_vec(),
-            self.inner.inspect().formula,
+            self.inner.formula(),
             self.inner.rules().into_iter().map(str::to_owned).collect(),
             uncertainty.to_string(),
         ))
@@ -130,13 +169,14 @@ impl PreparedStatisticalStage {
     ) -> PyResult<StatisticalStagePayload> {
         let ctx = self.ctx(cancel);
         let inner = self.inner.clone();
-        let execution = execution.unwrap_or_else(|| inner.inspect().identities.execution);
-        // A failed execution keeps the previous claim: nothing is cleared until
-        // the replacement exists.
-        let result = crate::detach_catch(py, move || {
-            inner.estimate_checked(&execution, &ctx).map_err(error)
+        let (prepared, result) = crate::detach_catch(py, move || {
+            let prepared = inner.materialize(&ctx)?;
+            let execution = execution.unwrap_or_else(|| prepared.inspect().identities.execution);
+            let result = prepared.estimate_checked(&execution, &ctx).map_err(error)?;
+            Ok((prepared, result))
         })?;
         let payload = self.payload(&result)?;
+        self.last_prepared = Some(prepared);
         self.last = Some(result);
         Ok(payload)
     }
@@ -153,12 +193,14 @@ impl PreparedStatisticalStage {
             .collect::<PyResult<Vec<_>>>()?;
         let inner = self.inner.clone();
         let ctx = self.ctx(cancel);
-        let points =
-            crate::detach_catch(py, move || inner.estimate_grid(&requests, &ctx).map_err(error))?;
+        let points = crate::detach_catch(py, move || {
+            inner.materialize(&ctx)?.estimate_grid(&requests, &ctx).map_err(error)
+        })?;
         Ok(points
             .into_iter()
             .map(|(inner, result)| Self {
-                inner,
+                last_prepared: Some(inner.clone()),
+                inner: StatisticalPreparation::Ready(inner),
                 graph: Admg { admg: self.graph.admg.clone(), names: self.graph.names.clone() },
                 catalog: self.catalog.clone(),
                 last: Some(result),
@@ -168,49 +210,88 @@ impl PreparedStatisticalStage {
             })
             .collect())
     }
-    #[pyo3(signature=(payload,cancel=None))]
-    fn refresh(
-        &mut self,
+    #[pyo3(signature=(payload,*,cancel=None))]
+    fn bind_snapshot(
+        &self,
         py: Python<'_>,
         payload: &Bound<'_, PyAny>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<StatisticalStagePayload> {
+    ) -> PyResult<Self> {
         let input =
             parse_statistical_input(payload, &self.catalog, &self.graph, self.max_support_rows)?;
         let ctx = self.ctx(cancel);
-        let mut candidate = self.inner.clone();
-        let (candidate, result) = crate::detach_catch(py, move || {
-            let result = candidate.refresh(input, &ctx).map_err(error)?;
-            Ok((candidate, result))
+        let inner = self.inner.clone();
+        let deferred = crate::detach_catch(py, move || match inner {
+            StatisticalPreparation::Deferred(deferred) => {
+                deferred.bind_snapshot(input, &ctx).map_err(error)
+            }
+            StatisticalPreparation::Ready(ready) => {
+                ready.defer_snapshot(input, &ctx).map_err(error)
+            }
         })?;
-        self.inner = candidate;
-        self.catalog = self.inner.evidence_catalog().clone();
-        let out = self.payload(&result)?;
-        self.last = Some(result);
-        Ok(out)
+        Ok(Self {
+            catalog: deferred.functional().catalog().clone(),
+            inner: StatisticalPreparation::Deferred(deferred),
+            last_prepared: None,
+            graph: self.graph.clone(),
+            last: None,
+            memory_bytes: self.memory_bytes,
+            max_support_rows: self.max_support_rows,
+            seed: self.seed,
+        })
     }
-    #[pyo3(signature=(payload,cancel=None))]
-    fn replace_snapshot(
-        &mut self,
+
+    #[pyo3(signature=(at,*,cancel=None))]
+    fn rebind(
+        &self,
         py: Python<'_>,
-        payload: &Bound<'_, PyAny>,
+        at: BTreeMap<String, f64>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<()> {
-        let input =
-            parse_statistical_input(payload, &self.catalog, &self.graph, self.max_support_rows)?;
+    ) -> PyResult<Self> {
+        let request = assignment_from_pairs(&self.graph.names, at)?;
         let ctx = self.ctx(cancel);
-        let mut candidate = self.inner.clone();
-        let candidate = crate::detach_catch(py, move || {
-            candidate.replace_snapshot(input, &ctx).map_err(error)?;
-            Ok(candidate)
+        let inner = self.inner.clone();
+        let inner = crate::detach_catch(py, move || match inner {
+            StatisticalPreparation::Deferred(deferred) => {
+                let options = deferred.options();
+                deferred
+                    .rebind(request, options, &ctx)
+                    .map(StatisticalPreparation::Deferred)
+                    .map_err(error)
+            }
+            StatisticalPreparation::Ready(ready) => ready
+                .rebind_assignment(request, &ctx)
+                .map(StatisticalPreparation::Ready)
+                .map_err(error),
         })?;
-        self.inner = candidate;
-        self.catalog = self.inner.evidence_catalog().clone();
-        self.last = None;
-        Ok(())
+        Ok(Self {
+            inner,
+            last_prepared: None,
+            graph: self.graph.clone(),
+            catalog: self.catalog.clone(),
+            last: None,
+            memory_bytes: self.memory_bytes,
+            max_support_rows: self.max_support_rows,
+            seed: self.seed,
+        })
     }
     fn inspection_json(&self) -> String {
-        let view = self.inner.inspect();
+        let ready = match (&self.inner, &self.last_prepared) {
+            (_, Some(ready)) | (StatisticalPreparation::Ready(ready), None) => ready,
+            (StatisticalPreparation::Deferred(deferred), None) => {
+                return serde_json::json!({
+                "identification": {"available":true,"summary":"nonparametrically_identified",
+                    "payload":{"formula":self.inner.formula(),"rules":self.inner.rules()}},
+                "support":{"available":false,"summary":"execution_specific"},
+                "uncertainty":{"available":false,"reason":"not_executed","summary":"unavailable"},
+                "assumptions":{"available":true,"summary":"declared_selection_diagram_and_empirical_tables"},
+                "preparation_id":deferred.declaration_identity(),"execution_id":null,
+                "provider_preparation":"deferred","supported_operations":["estimate","bind_snapshot","rebind"],
+                "formula":self.inner.formula()
+            }).to_string();
+            }
+        };
+        let view = ready.inspect();
         let factors: Vec<_> = view.factors.iter().map(|f| serde_json::json!({
             "expression": f.expression.raw(),
             "population": f.binding.population.as_ref(),
@@ -289,7 +370,7 @@ impl PreparedStatisticalStage {
             "identification_product_id": view.identities.identification_product,
             "data_snapshot_id": view.identities.snapshot,
             "execution_id": view.identities.execution,
-            "supported_operations": ["estimate", "replace_snapshot", "refresh", "export"],
+            "supported_operations": ["estimate", "bind_snapshot", "rebind", "export"],
             "formula": view.formula,
             "limitations": [
                 "intervals_are_pointwise_not_simultaneous",
@@ -313,15 +394,46 @@ impl PreparedStatisticalStage {
     }
     fn plan_summary(&self) -> std::collections::HashMap<String, String> {
         std::collections::HashMap::from([
-            ("plan_id".into(), self.inner.inspect().identities.execution),
+            (
+                "preparation_id".into(),
+                match &self.inner {
+                    StatisticalPreparation::Deferred(deferred) => {
+                        deferred.declaration_identity().to_owned()
+                    }
+                    StatisticalPreparation::Ready(ready) => ready.inspect().identities.execution,
+                },
+            ),
             ("structure_source".into(), "explicit".into()),
             ("deterministic_reductions".into(), "true".into()),
             ("kernels".into(), "empirical_table_joint_outer_bootstrap".into()),
         ])
     }
+    #[pyo3(signature=(seed=None))]
+    fn fork(&self, seed: Option<u64>) -> PyResult<Self> {
+        let mut branch = self.freeze();
+        let ctx = self.ctx(None);
+        branch.inner = match &self.inner {
+            StatisticalPreparation::Deferred(value) => StatisticalPreparation::Deferred(
+                value.with_seed(seed.unwrap_or(self.seed), &ctx).map_err(error)?,
+            ),
+            StatisticalPreparation::Ready(value)
+                if seed.is_none_or(|seed| seed == value.seed()) =>
+            {
+                StatisticalPreparation::Ready(value.requote_execution(&ctx).map_err(error)?)
+            }
+            StatisticalPreparation::Ready(value) => StatisticalPreparation::Deferred(
+                value.defer_execution(seed.unwrap_or(self.seed), &ctx).map_err(error)?,
+            ),
+        };
+        branch.seed = seed.unwrap_or(self.seed);
+        branch.last = None;
+        branch.last_prepared = None;
+        Ok(branch)
+    }
     fn freeze(&self) -> Self {
         Self {
             inner: self.inner.clone(),
+            last_prepared: self.last_prepared.clone(),
             graph: Admg { admg: self.graph.admg.clone(), names: self.graph.names.clone() },
             catalog: self.catalog.clone(),
             last: self.last.clone(),
@@ -332,7 +444,15 @@ impl PreparedStatisticalStage {
     }
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
         let result = self.last.as_ref().ok_or_else(|| error("transport.no_execution_claim"))?;
-        let artifact = self.inner.export(result).map_err(error)?;
+        let ready = self
+            .last_prepared
+            .as_ref()
+            .or_else(|| match &self.inner {
+                StatisticalPreparation::Ready(ready) => Some(ready),
+                StatisticalPreparation::Deferred(_) => None,
+            })
+            .ok_or_else(|| error("transport.no_execution_claim"))?;
+        let artifact = ready.export(result).map_err(error)?;
         let framed = frame_named_artifact(STATISTICAL_PREFIX, &self.graph.names, artifact)?;
         Ok(pyo3::types::PyBytes::new(py, &framed).unbind())
     }
@@ -342,7 +462,20 @@ impl PreparedStatisticalStage {
     ) -> PyResult<std::collections::HashMap<String, String>> {
         let intent = crate::prepared_api::parse_transform_intent(intent)?;
         Ok(crate::prepared_api::transform_report_map(
-            &self.inner.preview_transform(intent).map_err(error)?,
+            &self
+                .last_prepared
+                .as_ref()
+                .or_else(|| match &self.inner {
+                    StatisticalPreparation::Ready(ready) => Some(ready),
+                    StatisticalPreparation::Deferred(_) => None,
+                })
+                .ok_or_else(|| {
+                    crate::CausalUnsupportedError::new_err(
+                        "Use rebind or bind_snapshot on a declared transport preparation",
+                    )
+                })?
+                .preview_transform(intent)
+                .map_err(error)?,
         ))
     }
 }
@@ -434,7 +567,7 @@ fn prepare_statistical_transport(
                 }
             },
         };
-        let inner = antecedent::StudyBuilder::statistical_transport(
+        let inner = antecedent::analysis::DeferredStatisticalTransport::compile(
             diagram,
             functional,
             input,
@@ -451,7 +584,8 @@ fn prepare_statistical_transport(
         )
         .map_err(error)?;
         Ok(PreparedStatisticalStage {
-            inner,
+            inner: StatisticalPreparation::Deferred(inner),
+            last_prepared: None,
             graph,
             catalog,
             last: None,
@@ -497,7 +631,8 @@ fn consume_statistical_transport(
         let catalog = inner.evidence_catalog().clone();
         let seed = inner.seed();
         Ok(PreparedStatisticalStage {
-            inner,
+            last_prepared: Some(inner.clone()),
+            inner: StatisticalPreparation::Ready(inner),
             graph,
             catalog,
             last: Some(result),

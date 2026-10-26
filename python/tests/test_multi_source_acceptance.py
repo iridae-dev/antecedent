@@ -75,6 +75,7 @@ from antecedent import composition_bundle as cb
 from antecedent import decision, external, program_claims
 from antecedent import inverse_query as iq
 from antecedent.extensibility import ProviderTrust
+from antecedent.outcomes import require_success
 
 import _multi_source_fixtures as fx
 from _refusal import assert_registered_refusal
@@ -150,10 +151,12 @@ def test_a_fitted_native_response_binds_to_its_program() -> None:
     treatment = rng.normal(size=400)
     outcome = 2.0 * treatment + rng.normal(scale=0.2, size=400)
     grid = [-0.5, 0.0, 0.5]
-    result = ac.analyze(
-        {"a": treatment, "y": outcome},
-        query=ac.ResponseCurve("a", "y", grid=grid),
-        graph=[("a", "y")],
+    result = require_success(
+        ac.analyze(
+            {"a": treatment, "y": outcome},
+            query=ac.ResponseCurve("a", "y", grid=grid),
+            graph=[("a", "y")],
+        )
     )
     program = program_claims.ProgramBinding.from_response(
         result, outcome_units=fx.UNITS, dose_units="mg"
@@ -548,7 +551,9 @@ def test_the_composed_bundle_is_consumed_in_process_with_the_hand_derived_values
         "ranking": "study_ranking",
     }
     assert {n.id: n.embedded for n in bundle.nodes}["program"] is False
-    consumed = cb.consume_bundle(bundle.export(), expected_identity=bundle.identity)
+    consumed = require_success(
+        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
     assert consumed.claim_label == "joint_draw"
     assert consumed.node("result_j").claim_label == "joint_draw"
     assert isinstance(consumed.node("program").status, cb.ReferenceUnresolved)
@@ -566,8 +571,10 @@ def test_the_composed_bundle_is_consumed_in_process_with_the_hand_derived_values
     with pytest.raises(cb.CallbackUnavailableRefusal):
         consumed.require_verified()
     supplied = cb.SuppliedSources().with_data(SNAPSHOT, NATIVE_DIGEST)
-    resolved = cb.consume_bundle(
-        bundle.export(), expected_identity=bundle.identity, supplied=supplied
+    resolved = require_success(
+        cb.consume_bundle(
+            bytes(bundle.export()), expected_identity=bundle.identity, supplied=supplied
+        )
     )
     resolved.require_verified()
     assert resolved.all_verified
@@ -591,7 +598,7 @@ def test_a_fresh_interpreter_consumes_the_joint_bundle_and_reads_the_values(
 ) -> None:
     bundle = _composed_builder().build()
     path = tmp_path / "composed.bin"
-    path.write_bytes(bundle.export())
+    path.write_bytes(bytes(bundle.export()))
 
     report = _consume_fresh(path, bundle.identity, JOINT_VALUES)
     assert report["label"] == "joint_draw"
@@ -627,7 +634,7 @@ def test_the_point_only_decision_is_exported_as_an_attested_result_and_consumed_
 ) -> None:
     bundle = _point_only_builder().build()
     path = tmp_path / "point_only.bin"
-    path.write_bytes(bundle.export())
+    path.write_bytes(bytes(bundle.export()))
     wanted = [["result_m", f"{action}.expected_utility"] for action in IDS]
     report = _consume_fresh(path, bundle.identity, wanted)
     assert report["label"] == "point_only_attested" and report["all_verified"] is True
@@ -642,7 +649,9 @@ def test_the_point_only_decision_is_exported_as_an_attested_result_and_consumed_
     # refusal of a joint-requiring decision over a mean-only claim ALONE is the composition-bundle verifier
     # test `unsupported_law`.)
     law_bundle = _composed_builder().connect("e2claim", "result_j").build()
-    consumed = cb.consume_bundle(law_bundle.export(), expected_identity=law_bundle.identity)
+    consumed = require_success(
+        cb.consume_bundle(bytes(law_bundle.export()), expected_identity=law_bundle.identity)
+    )
     assert consumed.node("result_j").verified
     assert consumed.node("result_j").claim_label == "point_only_attested"
     assert consumed.node("ranking").verified, "the unrelated ranking branch stays valid"
@@ -652,7 +661,7 @@ def test_the_point_only_decision_is_exported_as_an_attested_result_and_consumed_
     mixed.add_artifact("external_claim", fx.e1_claim(), node_id="claim")
     contract = fx.mean_contract()
     mixed.add_artifact(
-        "decision_contract", contract.export(artifact_id="contract"), node_id="contract_m"
+        "decision_contract", bytes(contract.export(artifact_id="contract")), node_id="contract_m"
     )
     mixed.add_artifact(
         "decision_result", cb.mean_decision(contract, fx.e1_claim()), node_id="result_m"
@@ -660,6 +669,8 @@ def test_the_point_only_decision_is_exported_as_an_attested_result_and_consumed_
     mixed.connect("claim", "result_m").connect("contract_m", "result_m")
     sealed = mixed.build()
     assert (
-        cb.consume_bundle(sealed.export(), expected_identity=sealed.identity).claim_label
+        require_success(
+            cb.consume_bundle(bytes(sealed.export()), expected_identity=sealed.identity)
+        ).claim_label
         == "point_only_attested"
     )

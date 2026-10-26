@@ -20,6 +20,7 @@ from antecedent.estimators import (
     PropensityStratification,
     PropensityWeighting,
 )
+from antecedent.outcomes import require_success
 
 STATIC_DAG = [("z", "t"), ("z", "y"), ("t", "y")]
 
@@ -41,13 +42,15 @@ def _low_overlap(n: int = 1500, seed: int = 6) -> dict[str, np.ndarray]:
 
 
 def _frequentist(estimator: Any) -> Any:
-    return ant.analyze(
-        _low_overlap(),
-        graph=STATIC_DAG,
-        query=ant.AverageEffect("t", "y"),
-        estimator=estimator,
-        refute="none",
-        bootstrap=0,
+    return require_success(
+        ant.analyze(
+            _low_overlap(),
+            graph=STATIC_DAG,
+            query=ant.AverageEffect("t", "y"),
+            estimator=estimator,
+            refute="none",
+            bootstrap=0,
+        )
     )
 
 
@@ -76,25 +79,29 @@ def test_a_non_default_overlap_never_borrows_default_calibration() -> None:
 
 
 def test_overlap_config_dict_spelling_and_validation() -> None:
-    dict_spelled = ant.analyze(
-        _low_overlap(),
-        graph=STATIC_DAG,
-        query=ant.AverageEffect("t", "y"),
-        estimator="aipw",
-        estimator_config={"bootstrap_replicates": 0, "overlap": {"clip": 0.05, "trim": None}},
-        refute="none",
+    dict_spelled = require_success(
+        ant.analyze(
+            _low_overlap(),
+            graph=STATIC_DAG,
+            query=ant.AverageEffect("t", "y"),
+            estimator="aipw",
+            estimator_config={"bootstrap_replicates": 0, "overlap": {"clip": 0.05, "trim": None}},
+            refute="none",
+        )
     )
     typed = _frequentist(Aipw(bootstrap=0, overlap=Overlap(clip=0.05)))
     assert dict_spelled.answer == typed.answer
     with pytest.raises(ValueError, match="Overlap.clip must lie in"):
         Overlap(clip=0.5)
     with pytest.raises(ValueError, match="is not valid for estimator"):
-        ant.analyze(
-            _low_overlap(),
-            graph=STATIC_DAG,
-            query=ant.AverageEffect("t", "y"),
-            estimator="linear.adjustment.ate",
-            estimator_config={"overlap": {"clip": 0.05}},
+        require_success(
+            ant.analyze(
+                _low_overlap(),
+                graph=STATIC_DAG,
+                query=ant.AverageEffect("t", "y"),
+                estimator="linear.adjustment.ate",
+                estimator_config={"overlap": {"clip": 0.05}},
+            )
         )
 
 

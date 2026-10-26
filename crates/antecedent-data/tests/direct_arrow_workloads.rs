@@ -240,7 +240,8 @@ fn wide_adjusted_effect_is_prepared_with_named_copies_and_one_identity_across_ro
     let (loaded, load_time) = best_of(3, || tabular_from_record_batch(&record_batch).unwrap());
     let (_, baseline_time) =
         best_of(3, || columns.iter().map(|(_, values)| values.clone()).collect::<Vec<Vec<f64>>>());
-    let (_, load_peak) = counting::peak_above_start(|| tabular_from_record_batch(&record_batch).unwrap());
+    let (_, load_peak) =
+        counting::peak_above_start(|| tabular_from_record_batch(&record_batch).unwrap());
     assert_eq!(loaded.bytes_borrowed, 0, "the record-batch route owns its columns");
     assert!(loaded.bytes_copied >= input_bytes, "every column is copied once");
     assert!(loaded.bytes_copied <= 2 * input_bytes, "{} bytes copied", loaded.bytes_copied);

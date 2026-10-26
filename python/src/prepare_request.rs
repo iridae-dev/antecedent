@@ -170,13 +170,24 @@ impl PrepareRequest {
 
     /// `apply_inference`, build, prepare, and wrap the handle.
     pub(super) fn finish(
-        mut self,
+        self,
         builder: antecedent::StudyBuilder,
         series: bool,
     ) -> PyResult<super::PyPreparedAnalysis> {
+        let ctx = self.opts.ctx(self.seed, self.threads);
+        self.finish_with(builder, series, &ctx)
+    }
+
+    /// Apply scientific declarations and compile on the caller's existing context.
+    pub(super) fn finish_with(
+        mut self,
+        builder: antecedent::StudyBuilder,
+        series: bool,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> PyResult<super::PyPreparedAnalysis> {
         let builder = self.opts.apply_inference(builder)?;
         let builder = self.opts.apply_selection(builder);
-        self.compile(builder, series)
+        self.compile_with(builder, series, ctx)
     }
 
     /// Write the caller's budget onto `builder`, then [`Self::finish`].
@@ -207,7 +218,7 @@ impl PrepareRequest {
         ctx: &antecedent_core::ExecutionContext,
     ) -> PyResult<super::PyPreparedAnalysis> {
         let analysis = builder.build().map_err(crate::py_err)?;
-        let prepared = analysis.prepare(ctx).map_err(crate::py_err)?;
+        let prepared = analysis.prepare_deferred(ctx).map_err(crate::py_err)?;
         let mut out = super::finished_prepared(prepared, self.names, series);
         out.borrowed_bytes = self.borrowed_bytes;
         Ok(out)
@@ -220,7 +231,7 @@ impl PrepareRequest {
 pub(super) fn one_series(input: super::FrameInput) -> PyResult<TimeSeriesData> {
     match input.materialize()? {
         super::FrameData::Series(series) => Ok(series),
-        super::FrameData::Events(events, align) => events
+        super::FrameData::Events(events, align, _retention) => events
             .align_to_grid(align)
             .map_err(|e| crate::py_msg(format!("event align_to_grid: {e}"))),
         _ => Err(crate::refusal(

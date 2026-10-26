@@ -5,6 +5,7 @@ import pytest
 from antecedent import analyze
 from antecedent.errors import CausalCompileError
 from antecedent.estimation import PreparedAnalysis
+from antecedent.outcomes import require_success
 from antecedent.quasi import (
     FuzzyRegressionDiscontinuity,
     RegressionKink,
@@ -109,7 +110,12 @@ def test_retained_local_ratio_uses_main_analyze_flow_with_calibrated_interval(ki
         if kink
         else "cubic_pilot_bias_correction_at_same_bandwidth"
     ) in fit.diagnostics
-    assert PreparedAnalysis.prepare(rows, query=query).estimate(rows).local_polynomial_ratio == fit
+    assert (
+        require_success(
+            PreparedAnalysis.prepare(rows, query=query).estimate(rows)
+        ).local_polynomial_ratio
+        == fit
+    )
 
 
 def test_local_polynomial_rd_refuses_weak_first_stage_and_sparse_side_support():

@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 from antecedent.errors import CausalValueError
 from antecedent.observation import IndependentGiven
+from antecedent.outcomes import require_success
 from antecedent.survival import CompetingRisksOutcome, KnownCensoringSurvival, SurvivalOutcome
 
 
@@ -74,7 +75,7 @@ def test_combined_entry_fixed_g_pointwise_interval_round_trip(competing: bool) -
             known_censoring=_g(),
             observation_assumption=IndependentGiven(()),
         )
-    result = ant.analyze(data, query=query, bootstrap=299, seed=297)
+    result = require_success(ant.analyze(data, query=query, bootstrap=299, seed=297))
     section = result.survival
     assert section is not None
     assert section.uncertainty == "subject_stratified_percentile_bootstrap_pointwise_95"
@@ -87,7 +88,7 @@ def test_combined_entry_fixed_g_pointwise_interval_round_trip(competing: bool) -
     else:
         assert section.rmst_difference_interval is not None
         assert section.survival_at_tau_difference_interval is not None
-    body = ant.load(result.export()).decoded_artifact.payload
+    body = require_success(ant.load(bytes(result.export()))).decoded_artifact.payload
     assert body["query"]["survival"]["delayed_entry"] is not None
     assert len(body["query"]["survival"]["censoring_columns"]) == 5
     assert body["survival"]["difference_at_tau_interval"] is not None
@@ -119,4 +120,4 @@ def test_combined_entry_fixed_g_refuses_conditional_entry_and_bad_g() -> None:
         observation_assumption=IndependentGiven(()),
     )
     with pytest.raises(Exception, match="positivity|censoring survival"):
-        ant.analyze(data, query=query, bootstrap=299, seed=297)
+        require_success(ant.analyze(data, query=query, bootstrap=299, seed=297))

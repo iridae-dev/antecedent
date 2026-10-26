@@ -5,6 +5,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_json
 
@@ -84,13 +85,17 @@ def test_temporal_class_pulse_pin(accepted: bool, class_name: str, graph_fn, dia
         assert identified.status == "NotIdentified"
         assert len(identified.certificate["cases"]) == 3
         with pytest.raises(antecedent.errors.CausalCompileError, match="no identified mass"):
-            antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0)
+            require_success(
+                antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0)
+            )
         return
     section = _PIN[class_name]
     expected = float(section["pulse"]["ate"])
     tol = float(section["pulse"]["absolute_tolerance"])
 
-    fresh = antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0, seed=1)
+    fresh = require_success(
+        antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0, seed=1)
+    )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
         graph=graph,
@@ -100,7 +105,7 @@ def test_temporal_class_pulse_pin(accepted: bool, class_name: str, graph_fn, dia
         seed=1,
         latency="interactive",
     )
-    click = prepared.estimate(data, seed=1)
+    click = require_success(prepared.estimate(data, seed=1))
 
     expected_source = "accepted" if accepted else "explicit"
     assert prepared.structure_source == expected_source
@@ -118,7 +123,9 @@ def test_temporal_class_pulse_pin(accepted: bool, class_name: str, graph_fn, dia
         for diagnostic in fresh.diagnostics
     )
 
-    cheap = antecedent.analyze(data, graph=graph, query=query, refute="cheap", bootstrap=0, seed=1)
+    cheap = require_success(
+        antecedent.analyze(data, graph=graph, query=query, refute="cheap", bootstrap=0, seed=1)
+    )
     assert cheap.validation.ran
     assert any("refute.envelope.effect_mixture" in diagnostic for diagnostic in cheap.diagnostics)
     assert cheap.ate == pytest.approx(expected, abs=tol)
@@ -131,13 +138,17 @@ def test_temporal_class_single_step_sustained_matches_pulse(class_name: str, gra
     if class_name == "pag":
         for query in (_pulse(_PIN), _sustained(_PIN)):
             with pytest.raises(antecedent.errors.CausalCompileError, match="no identified mass"):
-                antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0)
+                require_success(
+                    antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0)
+                )
         return
-    pulse = antecedent.analyze(
-        data, graph=graph, query=_pulse(_PIN), refute=False, bootstrap=0, seed=1
+    pulse = require_success(
+        antecedent.analyze(data, graph=graph, query=_pulse(_PIN), refute=False, bootstrap=0, seed=1)
     )
-    sustained = antecedent.analyze(
-        data, graph=graph, query=_sustained(_PIN), refute=False, bootstrap=0, seed=1
+    sustained = require_success(
+        antecedent.analyze(
+            data, graph=graph, query=_sustained(_PIN), refute=False, bootstrap=0, seed=1
+        )
     )
     assert pulse.ate == pytest.approx(sustained.ate, abs=1e-10)
     assert class_name in {"cpdag", "pag"}
@@ -149,24 +160,28 @@ def test_temporal_class_bayesian_builds(class_name: str, graph_fn) -> None:
     graph = graph_fn(accepted=False)
     if class_name == "pag":
         with pytest.raises(antecedent.errors.CausalCompileError, match="no identified mass"):
-            antecedent.analyze(
-                data,
-                graph=graph,
-                query=_pulse(_PIN),
-                inference=antecedent.Bayesian(n_draws=16, backend="conjugate"),
-                refute=False,
-                bootstrap=0,
-                seed=1,
+            require_success(
+                antecedent.analyze(
+                    data,
+                    graph=graph,
+                    query=_pulse(_PIN),
+                    inference=antecedent.Bayesian(n_draws=16, backend="conjugate"),
+                    refute=False,
+                    bootstrap=0,
+                    seed=1,
+                )
             )
         return
-    result = antecedent.analyze(
-        data,
-        graph=graph,
-        query=_pulse(_PIN),
-        inference=antecedent.Bayesian(n_draws=16, backend="conjugate"),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=_pulse(_PIN),
+            inference=antecedent.Bayesian(n_draws=16, backend="conjugate"),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert result.structural_weight_basis == "completion_enumeration"
     assert any(

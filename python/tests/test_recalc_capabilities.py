@@ -5,6 +5,7 @@ from importlib import import_module
 
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 from antecedent.prediction import FittedEffectModel
 from antecedent.recalc import (
     Capabilities,
@@ -93,16 +94,18 @@ def test_live_score_and_resume_adapters_execute_at_the_declared_coordinate():
         utility=Utility(1, 0),
     )
     session = CrossfitSession()
-    initial = session.execute(request, seed=3)
+    initial = require_success(session.execute(request, seed=3))
     assert initial.receipt.totals.fold_fits == 10
     assert retained_kind(session) == RetainedKind.LIVE_SCORES
     adapter = require_adapter(Family.DOUBLY_ROBUST, Operation.TARGET, session)
     assert adapter.retained == RetainedKind.LIVE_SCORES
     assert adapter.python_path == "antecedent.recalc_cell.CrossfitSession.execute"
     weights = TargetWeights(np.exp(0.2 * z), ("z",))
-    retarget = session.execute(replace(request, target=weights), seed=3)
+    retarget = require_success(session.execute(replace(request, target=weights), seed=3))
     assert retarget.receipt.totals.fold_fits == 0
-    independent = CrossfitSession().execute(replace(request, target=weights), seed=3)
+    independent = require_success(
+        CrossfitSession().execute(replace(request, target=weights), seed=3)
+    )
     assert retarget.law == independent.law
     scores = session.export_frozen_scores()
     resumed = resume_from_scores(
@@ -143,22 +146,24 @@ def test_verified_predictor_supports_point_prediction_without_becoming_score_sta
     rng = np.random.default_rng(19)
     z = np.tile(np.linspace(-1, 1, 20), 30)
     t = rng.binomial(1, 0.5, len(z)).astype(float)
-    result = ac.analyze(
-        {"z": z, "t": t, "y": 2 * t + z},
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=ac.AverageEffect(treatment="t", outcome="y"),
-        # Correctly specified unpenalized outcome/final regressions reproduce
-        # this deterministic linear SCM; default Ridge adds shrinkage bias.
-        estimator=DRLearner(outcome=Linear(), final_learner=Linear()),
-        bootstrap=0,
-        refute=False,
-        seed=3,
+    result = require_success(
+        ac.analyze(
+            {"z": z, "t": t, "y": 2 * t + z},
+            graph=[("z", "t"), ("z", "y"), ("t", "y")],
+            query=ac.AverageEffect(treatment="t", outcome="y"),
+            # Correctly specified unpenalized outcome/final regressions reproduce
+            # this deterministic linear SCM; default Ridge adds shrinkage bias.
+            estimator=DRLearner(outcome=Linear(), final_learner=Linear()),
+            bootstrap=0,
+            refute=False,
+            seed=3,
+        )
     )
-    model = FittedEffectModel.load(result.fitted_model.export())
+    model = FittedEffectModel.load(bytes(result.fitted_model.export()))
     assert retained_kind(model) == RetainedKind.PREDICTOR
     adapter = require_adapter(Family.DOUBLY_ROBUST, Operation.DATA, model)
     assert adapter.python_path == "antecedent.prediction.FittedEffectModel.predict"
-    predicted = model.predict({"z": [-0.5, 0.0, 0.5]})
+    predicted = require_success(model.predict({"z": [-0.5, 0.0, 0.5]}))
     assert predicted.values == pytest.approx([2, 2, 2], abs=1e-6)
     assert predicted.parent_claim == model.parent_claim
     assert predicted.to_dict()["uncertainty"]["status"] == "unavailable"
@@ -188,7 +193,7 @@ def test_adjusted_capabilities_require_actual_native_fit_and_refuse_provider():
         utility=Utility(1),
     )
     session = AdjustedSession()
-    first = session.execute(request, seed=3)
+    first = require_success(session.execute(request, seed=3))
     assert first.receipt.totals.model_fits == 1
     assert retained_kind(session) == RetainedKind.LIVE_FIT
     for operation in Operation:
@@ -199,6 +204,6 @@ def test_adjusted_capabilities_require_actual_native_fit_and_refuse_provider():
             adapter = require_adapter(Family.ADJUSTED, operation, session)
             assert adapter.retained == RetainedKind.LIVE_FIT
             assert callable(resolve(adapter.python_path))
-    result = session.execute(replace(request, utility=Utility(2, 0.1)), seed=3)
+    result = require_success(session.execute(replace(request, utility=Utility(2, 0.1)), seed=3))
     assert result.receipt.totals.model_fits == 0
     assert result.plan.recomputed_computations == (Stage.DECISION,)

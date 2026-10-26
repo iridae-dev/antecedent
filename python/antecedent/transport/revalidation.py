@@ -55,6 +55,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
 from .. import _native
+from .._artifact_protocol import ExportedArtifact, artifact_export, artifact_from_receipt
 from .._columns import coerce_fields
 from .._refusal import raise_refusal
 from .._scientific import ScientificResult
@@ -410,10 +411,11 @@ class TransportRevalidation(ScientificResult):
         _unwrap(self._handle.require_valid(key))
         return self.claim(key)
 
-    def export(self, *, artifact_id: str = "transport-revalidation") -> bytes:
+    @artifact_export
+    def export(self, *, artifact_id: str = "transport-revalidation") -> ExportedArtifact[Any]:
         """The claim-level verification as ``composition_verification_v1``; a fresh consumer
         replays the classification."""
-        return bytes(_unwrap(self._handle.export(artifact_id)))
+        return artifact_from_receipt(self, bytes(_unwrap(self._handle.export(artifact_id))))
 
 
 def _effects(effects: Sequence[ObservedEffect] | None) -> str | None:

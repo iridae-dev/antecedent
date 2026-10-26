@@ -9,6 +9,12 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._transport_results import _freeze as freeze
 from ._transport_results import _thaw as detached
@@ -245,8 +251,9 @@ class MeasuredInference:
     def inspect(self) -> dict[str, Any]:
         return dict(detached(self._body))
 
-    def export(self) -> bytes:
-        return bytes(self._native.export())
+    @artifact_export
+    def export(self) -> ExportedArtifact:
+        return artifact_from_receipt(self, bytes(self._native.export()))
 
     def source_report(self) -> dict[str, Any]:
         """Detached original candidate report; its calibration standing is unchanged."""
@@ -266,6 +273,7 @@ class MeasuredInference:
         memory_limit_bytes: int | None = None,
         cancel: _native.CancellationToken | None = None,
     ) -> MeasuredInference:
+        artifact = container_bytes(artifact)
         if not isinstance(artifact, bytes):
             raise CausalTypeError("artifact must be bytes")
         if not isinstance(expected, MeasuredInferenceIdentity):

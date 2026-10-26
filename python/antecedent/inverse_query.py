@@ -5,6 +5,8 @@ action grid. Target-mean, target-quantile and probability-threshold constraints 
 run through the one typed functional engine that evaluates every other decision
 functional, on a forward claim that actually supplies the law each one needs::
 
+    from antecedent import require_success
+
     contract = decision.Contract(actions=[...], utility_units="units", ...)
     query = inverse_query.InverseQuery(
         contract,
@@ -12,7 +14,8 @@ functional, on a forward claim that actually supplies the law each one needs::
         constraints=[inverse_query.target_quantile(0.5, 1.0, direction="at_least")],
         selection="first_in_grid_order",
     )
-    result = query.evaluate(point=joint_distribution)
+    outcome = query.evaluate(point=joint_distribution)
+    result = require_success(outcome)
     result.selected, result.feasible_actions, result.selection_certified
 
 What each claim can answer:
@@ -37,7 +40,7 @@ grid can find a feasible point, but one found point is never a global feasibilit
 claim. No coverage or calibration claim is made here.
 
 Rust owns the engine, the artifact and every refusal; this module builds
-declarations and raises each refusal as :class:`InverseQueryRefusal`, a
+declarations and returns scientific refusals in an Outcome retaining the original :class:`InverseQueryRefusal`, a
 :class:`~antecedent.errors.CausalUnsupportedError` with its registered
 ``reason_code`` and the engine's own ``detail``.
 """
@@ -50,15 +53,24 @@ from dataclasses import asdict, dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._native import InverseQueryArtifact as _NativeInverseQueryArtifact
 from ._native import inverse_query_baseline as _baseline
 from ._refusal import raise_refusal
+from ._scientific import ScientificResult
 from ._validate import real
 from .decision import Contract
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .external import BoundExternalClaim
 from .joint_distribution import JointDistributionArtifact
+from .outcomes import Answer, outcome_operation, require_success
 from .results.sources import MeanSource, adapt_mean_source, is_mean_producer
 
 if TYPE_CHECKING:
@@ -240,6 +252,7 @@ else:
 def _claim(claim: ForwardClaim) -> Any:
     from .program_claims import NativeClaim
 
+    claim = require_success(claim)
     if isinstance(claim, NativeClaim):
         return claim._native
     if isinstance(claim, JointDistributionArtifact):
@@ -425,8 +438,20 @@ class SourceReceipt:
     causal_contract_id: str
 
 
-class InverseResult:
+class InverseResult(ScientificResult):
     """The answer to an inverse query, with the evidence it stands on; exportable."""
+
+    @property
+    def answer(self) -> Answer:
+        return Answer(
+            "structured",
+            detail="inverse_query." + self.selection,
+            structured={
+                "selected": self.selected,
+                "feasible_actions": self.feasible_actions,
+                "selection_certified": self.selection_certified,
+            },
+        )
 
     def __init__(self, query: InverseQuery, native: _NativeInverseQueryArtifact) -> None:
         self._query = query
@@ -589,15 +614,22 @@ class InverseResult:
             "scope_note": self.scope_note,
         }
 
-    def export(self, *, artifact_id: str = "inverse-query") -> bytes:
+    @artifact_export
+    def export(self, *, artifact_id: str = "inverse-query") -> ExportedArtifact:
         """The query, its forward evidence and this result table, replayable.
 
         Embeds the finite laws and means compactly, with premises and data digests kept
         apart. A consumer re-evaluates it through the same engine.
         """
-        return bytes(self._native.export(artifact_id))
+        return artifact_from_receipt(self, bytes(self._native.export(artifact_id)))
 
     @classmethod
+    @outcome_operation
+    @artifact_consumer(
+        proof="Independent native inverse consumer rebuilds query, contract and forward claims and recomputes every feasibility slot.",
+        replayable=True,
+        input="data",
+    )
     def consume(
         cls, data: bytes, *, expected_identity: Mapping[str, str] | None = None
     ) -> InverseResult:
@@ -610,6 +642,7 @@ class InverseResult:
         feasibility claim refuses with
         ``functional_inverse_query.global_feasibility_claim``.
         """
+        data = container_bytes(data)
         if not isinstance(data, bytes):
             raise CausalTypeError("artifact must be bytes")
         native, refusal = _NativeInverseQueryArtifact.consume(
@@ -683,6 +716,7 @@ class InverseQuery:
             max_evaluations=wire["max_evaluations"],
         )
 
+    @outcome_operation
     def evaluate(
         self,
         point: ForwardClaim | None = None,
@@ -731,6 +765,7 @@ class InverseQuery:
         return InverseResult(self, native)
 
 
+@outcome_operation
 def evaluate(
     query: InverseQuery,
     point: ForwardClaim | None = None,
@@ -740,14 +775,21 @@ def evaluate(
     scenarios: Sequence[Scenario] | None = None,
 ) -> InverseResult:
     """Evaluate ``query`` on forward evidence; see :meth:`InverseQuery.evaluate`."""
-    return query.evaluate(
-        point, interval_region=interval_region, identified_set=identified_set, scenarios=scenarios
+    return require_success(
+        query.evaluate(
+            point,
+            interval_region=interval_region,
+            identified_set=identified_set,
+            scenarios=scenarios,
+        )
     )
 
 
+@outcome_operation
 def consume(data: bytes, *, expected_identity: Mapping[str, str] | None = None) -> InverseResult:
     """Consume an exported inverse query; see :meth:`InverseResult.consume`."""
-    return InverseResult.consume(data, expected_identity=expected_identity)
+    data = container_bytes(data)
+    return require_success(InverseResult.consume(data, expected_identity=expected_identity))
 
 
 # --------------------------------------------------------------------- baseline
@@ -762,6 +804,7 @@ class EnumeratedPoint:
     supported: bool = True
 
 
+@outcome_operation
 def finite_enumeration_baseline(
     points: Sequence[EnumeratedPoint],
     target: float,

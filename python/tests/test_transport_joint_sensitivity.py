@@ -5,6 +5,7 @@ import json
 import pytest
 from antecedent import Admg
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError, CausalValueError
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 P_W = {0: 0.65, 1: 0.35}
@@ -97,7 +98,7 @@ def test_joint_sensitivity_executes_the_retained_plan_after_builder_disposal():
     assert program["rules"] == ["ztr.surrogate_factorization"]
     prepared = builder.prepare_exact(catalog, laws, {"x": 1.0})
     del builder, graph_builder
-    plan = json.loads(prepared.estimate())
+    plan = json.loads(require_success(prepared.estimate()))
     assert plan["status"] == "available"
     joint = transport.joint_mechanism_sensitivity(prepared, DEVIATION)
     lower, upper = closed_form(0.2, 0.3)
@@ -125,7 +126,7 @@ def test_export_joint_sensitivity_after_builder_disposal():
     builder = None
     with pytest.raises(Exception, match="estimate before exporting"):
         transport.export_joint_mechanism_sensitivity(prepared, DEVIATION)
-    plan = json.loads(prepared.estimate())
+    plan = json.loads(require_success(prepared.estimate()))
     assert plan["status"] == "available" and builder is None
     artifact = transport.export_joint_mechanism_sensitivity(prepared, DEVIATION)
     assert isinstance(artifact, bytes) and len(artifact) > 100
@@ -137,7 +138,7 @@ def test_export_joint_sensitivity_after_builder_disposal():
 def test_consume_joint_sensitivity_artifact_replays_the_retained_plan():
     prepared = prepared_stage()
     builder = None
-    plan = json.loads(prepared.estimate())
+    plan = json.loads(require_success(prepared.estimate()))
     assert plan["status"] == "available" and builder is None
     artifact = transport.export_joint_mechanism_sensitivity(prepared, DEVIATION)
     consumed = transport.consume_joint_mechanism_sensitivity_artifact(artifact)
@@ -155,7 +156,7 @@ def test_consume_joint_sensitivity_artifact_replays_the_retained_plan():
 
 def test_prepare_estimate_joint_sensitivity_export_and_independent_consume():
     prepared = prepared_stage()
-    prepared.estimate()
+    require_success(prepared.estimate())
     artifact = transport.export_joint_mechanism_sensitivity(prepared, DEVIATION)
     del prepared
     consumed = transport.consume_joint_mechanism_sensitivity_artifact(artifact)
@@ -193,7 +194,7 @@ def counted_stage():
 
 def test_the_endpoint_bootstrap_interval_replays():
     prepared = counted_stage()
-    plan = json.loads(prepared.estimate())
+    plan = json.loads(require_success(prepared.estimate()))
     assert plan["status"] == "available"
     first = transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION, replicates=199)
     second = transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION, replicates=199)
@@ -295,7 +296,7 @@ def test_out_of_scope_requests_refuse_with_reason_codes():
 
 def test_tampered_joint_artifact_fails_with_typed_errors():
     prepared = prepared_stage()
-    prepared.estimate()
+    require_success(prepared.estimate())
     artifact = transport.export_joint_mechanism_sensitivity(prepared, DEVIATION)
     # A flipped byte inside the embedded baseline changes the data identity.
     marker = b"snapshot_z0"
@@ -315,7 +316,7 @@ def test_a_budget_or_cancellation_stop_keeps_the_exact_range_and_its_receipt():
     from antecedent.state import CancellationToken
 
     prepared = prepared_stage()
-    prepared.estimate()
+    require_success(prepared.estimate())
     full = transport.joint_mechanism_sensitivity(prepared, DEVIATION)
     tight = transport.JointDeviation(
         {"shared_parent_marginal": 0.3, "outcome_kernel": 0.2},

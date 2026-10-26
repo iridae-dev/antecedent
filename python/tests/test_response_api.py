@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 from antecedent import interference, intervention, observation
 from antecedent.errors import CausalUnsupportedError, CausalValueError
+from antecedent.outcomes import require_success
 from antecedent.results import (
     CausalResponseView,
     IdentificationView,
@@ -142,10 +143,12 @@ def test_response_curve_runs_through_public_analyze_api():
     outcome = 2.0 * treatment + confounder + rng.normal(scale=0.2, size=400)
     query = antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5])
 
-    result = antecedent.analyze(
-        {"x": confounder, "a": treatment, "y": outcome},
-        query=query,
-        graph=[("x", "a"), ("x", "y"), ("a", "y")],
+    result = require_success(
+        antecedent.analyze(
+            {"x": confounder, "a": treatment, "y": outcome},
+            query=query,
+            graph=[("x", "a"), ("x", "y"), ("a", "y")],
+        )
     )
 
     assert result.estimand is not query
@@ -167,7 +170,9 @@ def test_static_curve_labels_each_coordinate_and_scopes_its_diagnostics():
     outcome = 2.0 * treatment + rng.normal(scale=0.2, size=400)
     query = antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5])
 
-    result = antecedent.analyze({"a": treatment, "y": outcome}, query=query, graph=[("a", "y")])
+    result = require_success(
+        antecedent.analyze({"a": treatment, "y": outcome}, query=query, graph=[("a", "y")])
+    )
 
     cells = list(result.support.point_status)
     assert len(cells) == 3
@@ -188,10 +193,12 @@ def test_heavy_tailed_outcome_warns_without_demoting_license():
     treatment = 0.7 * confounder + rng.normal(size=n)
     outcome = 2.0 * treatment + confounder + rng.normal(scale=0.2, size=n)
     outcome[:3] = [1_000.0, -1_000.0, 800.0]
-    result = antecedent.analyze(
-        {"x": confounder, "a": treatment, "y": outcome},
-        query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
-        graph=[("x", "a"), ("x", "y"), ("a", "y")],
+    result = require_success(
+        antecedent.analyze(
+            {"x": confounder, "a": treatment, "y": outcome},
+            query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
+            graph=[("x", "a"), ("x", "y"), ("a", "y")],
+        )
     )
     assert result.evidence_status == "licensed"
     assert result.support.status == "supported"
@@ -220,10 +227,12 @@ def test_intervention_response_runs_through_public_analyze_api(spec):
     a = 0.7 * x + rng.normal(size=400)
     y = 1.0 + 2.0 * a + 0.8 * x + rng.normal(scale=0.1, size=400)
     query = antecedent.InterventionResponse("y", intervention=spec)
-    result = antecedent.analyze(
-        {"x": x, "a": a, "y": y},
-        query=query,
-        graph=[("x", "a"), ("x", "y"), ("a", "y")],
+    result = require_success(
+        antecedent.analyze(
+            {"x": x, "a": a, "y": y},
+            query=query,
+            graph=[("x", "a"), ("x", "y"), ("a", "y")],
+        )
     )
     assert np.isfinite(result.estimate)
     assert result.provenance["operation_id"] == "estimate.response.intervention_gcomp"
@@ -234,17 +243,19 @@ def test_response_curve_graph_posterior_retains():
     z = np.linspace(0.0, 1.0, n, dtype=np.float64)
     t = z + 0.1
     y = 1.0 + 2.0 * t + z
-    result = antecedent.analyze(
-        {"t": t, "y": y, "z": z},
-        discovery=antecedent.discovery.ExactDagPosterior(),
-        query=antecedent.ResponseCurve("t", "y", grid=[0.0, 0.5, 1.0]),
-        inference=antecedent.Bayesian(n_draws=32, prior_scale=100.0, backend="conjugate"),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            {"t": t, "y": y, "z": z},
+            discovery=antecedent.discovery.ExactDagPosterior(),
+            query=antecedent.ResponseCurve("t", "y", grid=[0.0, 0.5, 1.0]),
+            inference=antecedent.Bayesian(n_draws=32, prior_scale=100.0, backend="conjugate"),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert result.study is not None
-    loaded = antecedent.artifacts.loads(result.export())
+    loaded = antecedent.artifacts.loads(bytes(result.export()))
     assert loaded.payload_kind == "analysis_result"
 
 
@@ -252,19 +263,23 @@ def test_intervention_response_checks_strategy_and_fails_closed():
     data = {"a": np.arange(40, dtype=float), "y": np.arange(40, dtype=float)}
     query = antecedent.InterventionResponse("y", intervention=intervention.Set("a", 1.0))
     with pytest.raises(ValueError, match="requires estimator"):
-        antecedent.analyze(
-            data,
-            query=query,
-            graph=[("a", "y")],
-            estimator="response.kennedy_dr",
+        require_success(
+            antecedent.analyze(
+                data,
+                query=query,
+                graph=[("a", "y")],
+                estimator="response.kennedy_dr",
+            )
         )
     with pytest.raises(CausalUnsupportedError, match="temporal response cell"):
-        antecedent.analyze(
-            data,
-            query=antecedent.InterventionResponse(
-                "y", intervention=intervention.Soft("a", "replacement")
-            ),
-            graph=[("a", "y")],
+        require_success(
+            antecedent.analyze(
+                data,
+                query=antecedent.InterventionResponse(
+                    "y", intervention=intervention.Soft("a", "replacement")
+                ),
+                graph=[("a", "y")],
+            )
         )
 
 
@@ -275,27 +290,33 @@ def test_response_strategy_options_are_checked_not_silently_ignored():
     query = antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5])
     data = {"a": treatment, "y": outcome}
 
-    accepted = antecedent.analyze(
-        data,
-        query=query,
-        graph=[("a", "y")],
-        identifier=antecedent.Identifier.RESPONSE_BACKDOOR,
-        estimator=antecedent.Estimator.RESPONSE_KENNEDY_DR,
+    accepted = require_success(
+        antecedent.analyze(
+            data,
+            query=query,
+            graph=[("a", "y")],
+            identifier=antecedent.Identifier.RESPONSE_BACKDOOR,
+            estimator=antecedent.Estimator.RESPONSE_KENNEDY_DR,
+        )
     )
     assert accepted.response is not None
     with pytest.raises(ValueError, match="requires identifier"):
-        antecedent.analyze(
-            data,
-            query=query,
-            graph=[("a", "y")],
-            identifier=antecedent.Identifier.FRONTDOOR,
+        require_success(
+            antecedent.analyze(
+                data,
+                query=query,
+                graph=[("a", "y")],
+                identifier=antecedent.Identifier.FRONTDOOR,
+            )
         )
     with pytest.raises(ValueError, match="requires estimator"):
-        antecedent.analyze(
-            data,
-            query=query,
-            graph=[("a", "y")],
-            estimator=antecedent.Estimator.AIPW,
+        require_success(
+            antecedent.analyze(
+                data,
+                query=query,
+                graph=[("a", "y")],
+                estimator=antecedent.Estimator.AIPW,
+            )
         )
 
 
@@ -309,17 +330,19 @@ def test_accepted_discovery_dag_is_an_artifact_first_response_input():
     )
     query = antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5])
 
-    result = antecedent.analyze({"a": a, "y": y}, query=query, graph=accepted)
+    result = require_success(antecedent.analyze({"a": a, "y": y}, query=query, graph=accepted))
 
     assert result.response is not None
     assert result.identification.status == "NonparametricallyIdentified"
     assert accepted.version == 1
     with pytest.raises(CausalUnsupportedError, match="already accepted"):
-        antecedent.analyze(
-            {"a": a, "y": y},
-            query=query,
-            graph=accepted,
-            discovery=antecedent.discovery.PC(),
+        require_success(
+            antecedent.analyze(
+                {"a": a, "y": y},
+                query=query,
+                graph=accepted,
+                discovery=antecedent.discovery.PC(),
+            )
         )
 
 
@@ -335,10 +358,12 @@ def test_pag_mean_curve_is_licensed_mass_weighted_envelope():
         [("r", "a", "tail", "arrow"), ("a", "y", "tail", "arrow"), ("s", "v", "circle", "circle")],
     )
 
-    result = antecedent.analyze(
-        {"a": a, "y": y, "r": r, "s": s, "v": v},
-        query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
-        graph=pag,
+    result = require_success(
+        antecedent.analyze(
+            {"a": a, "y": y, "r": r, "s": s, "v": v},
+            query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
+            graph=pag,
+        )
     )
     assert result.response is not None
     assert np.isfinite(result.response.values).all()
@@ -351,12 +376,14 @@ def test_curve_cheap_refute_is_not_applicable():
     a = rng.normal(size=300)
     y = 1.4 * a + rng.normal(scale=0.2, size=300)
     with pytest.raises(CausalUnsupportedError, match="not_applicable:"):
-        antecedent.analyze(
-            {"a": a, "y": y},
-            query=antecedent.ResponseCurve("a", "y", grid=[-0.4, 0.0, 0.4]),
-            graph=[("a", "y")],
-            refute="cheap",
-            seed=9,
+        require_success(
+            antecedent.analyze(
+                {"a": a, "y": y},
+                query=antecedent.ResponseCurve("a", "y", grid=[-0.4, 0.0, 0.4]),
+                graph=[("a", "y")],
+                refute="cheap",
+                seed=9,
+            )
         )
 
 
@@ -368,21 +395,27 @@ def test_response_analyze_derivative_and_jacobian_shapes():
     y = 8.0 + 1.5 * a - 0.75 * b + x + rng.normal(scale=0.15, size=500)
     data = {"x": x, "a": a, "b": b, "y": y}
     graph = [("x", "a"), ("x", "b"), ("x", "y"), ("a", "y"), ("b", "y")]
-    point = antecedent.analyze(
-        data,
-        query=antecedent.PointDerivative("a", "y", at=0.5),
-        graph=graph,
-        estimator_config={"bandwidth": 0.4},
+    point = require_success(
+        antecedent.analyze(
+            data,
+            query=antecedent.PointDerivative("a", "y", at=0.5),
+            graph=graph,
+            estimator_config={"bandwidth": 0.4},
+        )
     )
-    average = antecedent.analyze(
-        data,
-        query=antecedent.AverageDerivative("a", "y"),
-        graph=graph,
+    average = require_success(
+        antecedent.analyze(
+            data,
+            query=antecedent.AverageDerivative("a", "y"),
+            graph=graph,
+        )
     )
-    jacobian = antecedent.analyze(
-        data,
-        query=antecedent.ResponseJacobian(["a", "b"], ["y"], at=[0.0, 0.0]),
-        graph=graph,
+    jacobian = require_success(
+        antecedent.analyze(
+            data,
+            query=antecedent.ResponseJacobian(["a", "b"], ["y"], at=[0.0, 0.0]),
+            graph=graph,
+        )
     )
 
     assert point.estimate is not None
@@ -394,10 +427,14 @@ def test_response_analyze_refuses_unwired_semantic_options():
     data = {"a": np.arange(20, dtype=float), "y": np.arange(20, dtype=float)}
     graph = [("a", "y")]
     with pytest.raises(ValueError, match="target_population"):
-        antecedent.analyze(
-            data,
-            query=antecedent.ResponseCurve("a", "y", grid=[1.0, 2.0], target_population="target"),
-            graph=graph,
+        require_success(
+            antecedent.analyze(
+                data,
+                query=antecedent.ResponseCurve(
+                    "a", "y", grid=[1.0, 2.0], target_population="target"
+                ),
+                graph=graph,
+            )
         )
 
 
@@ -406,10 +443,12 @@ def test_response_returns_standard_identification_view_and_adjustment_set():
     z = rng.normal(size=320)
     a = 0.5 * z + rng.normal(size=320)
     y = 2.0 * a + z + rng.normal(scale=0.1, size=320)
-    result = antecedent.analyze(
-        {"z": z, "a": a, "y": y},
-        query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
-        graph=[("z", "a"), ("z", "y"), ("a", "y")],
+    result = require_success(
+        antecedent.analyze(
+            {"z": z, "a": a, "y": y},
+            query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
+            graph=[("z", "a"), ("z", "y"), ("a", "y")],
+        )
     )
     assert isinstance(result.identification, antecedent.results.IdentificationView)
     assert result.identification.method == "response.backdoor"
@@ -423,21 +462,25 @@ def test_response_simultaneous_band_is_public_and_requires_explicit_bandwidth():
     y = 1.0 + 1.5 * a + rng.normal(scale=0.2, size=360)
     query = antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5])
     with pytest.raises(ValueError, match="explicit.*bandwidth"):
+        require_success(
+            antecedent.analyze(
+                {"a": a, "y": y},
+                query=query,
+                graph=[("a", "y")],
+                estimator_config={"simultaneous_replicates": 100},
+            )
+        )
+    result = require_success(
         antecedent.analyze(
             {"a": a, "y": y},
             query=query,
             graph=[("a", "y")],
-            estimator_config={"simultaneous_replicates": 100},
+            estimator_config={
+                "bandwidth": 0.35,
+                "simultaneous_replicates": 100,
+                "multiplier_seed": 19,
+            },
         )
-    result = antecedent.analyze(
-        {"a": a, "y": y},
-        query=query,
-        graph=[("a", "y")],
-        estimator_config={
-            "bandwidth": 0.35,
-            "simultaneous_replicates": 100,
-            "multiplier_seed": 19,
-        },
     )
     assert result.uncertainty.kind == "simultaneous"
     assert result.uncertainty.interpretation == "confidence"
@@ -455,14 +498,16 @@ def test_response_row_diagnostics_export_is_opt_in():
     grid = [-0.5, 0.0, 0.5]
     query = antecedent.ResponseCurve("a", "y", grid=grid)
 
-    plain = antecedent.analyze(data, query=query, graph=graph)
+    plain = require_success(antecedent.analyze(data, query=query, graph=graph))
     assert not any(d.id.startswith("response.row_") for d in plain.support.diagnostics)
 
-    result = antecedent.analyze(
-        data,
-        query=query,
-        graph=graph,
-        estimator_config={"bandwidth": 0.35, "export_row_diagnostics": True},
+    result = require_success(
+        antecedent.analyze(
+            data,
+            query=query,
+            graph=graph,
+            estimator_config={"bandwidth": 0.35, "export_row_diagnostics": True},
+        )
     )
     by_id = {diagnostic.id: diagnostic for diagnostic in result.support.diagnostics}
     row_index = by_id["response.row_index"]
@@ -477,13 +522,15 @@ def test_response_row_diagnostics_export_is_opt_in():
 
 
 def test_response_honors_explicit_threads():
-    result = antecedent.analyze(
-        {"a": np.arange(30.0), "y": np.arange(30.0) * 0.5},
-        query=antecedent.ResponseCurve("a", "y", grid=[1.0, 2.0]),
-        graph=[("a", "y")],
-        threads=2,
-        bootstrap=0,
-        refute="none",
+    result = require_success(
+        antecedent.analyze(
+            {"a": np.arange(30.0), "y": np.arange(30.0) * 0.5},
+            query=antecedent.ResponseCurve("a", "y", grid=[1.0, 2.0]),
+            graph=[("a", "y")],
+            threads=2,
+            bootstrap=0,
+            refute="none",
+        )
     )
     assert result.study is not None
 
@@ -506,15 +553,17 @@ def test_response_admg_intervention_cheap_runs_plugin_level():
         [tuple(edge) for edge in spec["directed_edges"]],
         bidirected=[tuple(edge) for edge in spec["bidirected_edges"]],
     )
-    result = antecedent.analyze(
-        data,
-        query=antecedent.InterventionResponse(
-            "y", intervention=antecedent.intervention.Set("t", 1.0)
-        ),
-        graph=admg,
-        refute="cheap",
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            query=antecedent.InterventionResponse(
+                "y", intervention=antecedent.intervention.Set("t", 1.0)
+            ),
+            graph=admg,
+            refute="cheap",
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert result.evidence_status == "licensed"
     assert any(
@@ -530,10 +579,12 @@ def test_response_cpdag_mean_curve_is_licensed():
     cpdag = antecedent.Cpdag.from_directed_undirected(
         ["a", "y"], directed=[("a", "y")], undirected=[]
     )
-    result = antecedent.analyze(
-        {"a": a, "y": y},
-        query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
-        graph=cpdag,
+    result = require_success(
+        antecedent.analyze(
+            {"a": a, "y": y},
+            query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
+            graph=cpdag,
+        )
     )
     assert result.response is not None
     assert np.isfinite(result.response.values).all()
@@ -546,17 +597,23 @@ def test_elasticity_and_semi_elasticity_analyze_execute():
     y = np.exp(0.5 * np.log(a) + rng.normal(scale=0.15, size=400))
     data = {"a": a, "y": y}
     graph = [("a", "y")]
-    elasticity = antecedent.analyze(
-        data,
-        query=antecedent.Elasticity("a", "y", at=float(np.median(a))),
-        graph=graph,
-        estimator_config={"bandwidth": 0.25},
+    elasticity = require_success(
+        antecedent.analyze(
+            data,
+            query=antecedent.Elasticity("a", "y", at=float(np.median(a))),
+            graph=graph,
+            estimator_config={"bandwidth": 0.25},
+        )
     )
-    semi = antecedent.analyze(
-        data,
-        query=antecedent.SemiElasticity("a", "y", at=float(np.median(a)), log_scale="treatment"),
-        graph=graph,
-        estimator_config={"bandwidth": 0.25},
+    semi = require_success(
+        antecedent.analyze(
+            data,
+            query=antecedent.SemiElasticity(
+                "a", "y", at=float(np.median(a)), log_scale="treatment"
+            ),
+            graph=graph,
+            estimator_config={"bandwidth": 0.25},
+        )
     )
 
     assert elasticity.estimate is not None
@@ -567,17 +624,21 @@ def test_response_refuses_discovery_and_runs_bayesian():
     data = {"a": np.arange(40.0), "y": np.arange(40.0)}
     query = antecedent.ResponseCurve("a", "y", grid=[1.0, 2.0])
     with pytest.raises(ValueError, match="discovery="):
+        require_success(
+            antecedent.analyze(
+                data,
+                query=query,
+                graph=[("a", "y")],
+                discovery=antecedent.discovery.PC(alpha=0.05),
+            )
+        )
+    result = require_success(
         antecedent.analyze(
             data,
             query=query,
             graph=[("a", "y")],
-            discovery=antecedent.discovery.PC(alpha=0.05),
+            inference=antecedent.Bayesian(backend="conjugate", n_draws=512),
         )
-    result = antecedent.analyze(
-        data,
-        query=query,
-        graph=[("a", "y")],
-        inference=antecedent.Bayesian(backend="conjugate", n_draws=512),
     )
     assert np.asarray(result.response.values).flatten() == pytest.approx([1, 2], abs=0.1)
     # Posterior draws publish credible bands, and the response says so.

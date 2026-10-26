@@ -7,6 +7,7 @@ import json
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _sealed_loads import assert_answer_kept
 
@@ -24,33 +25,35 @@ QUERY = ant.AverageEffect("t", "y")
 
 def test_one_call_study_and_frozen_export():
     data = sample()
-    first = ant.analyze(data, graph=GRAPH, query=QUERY, seed=19, bootstrap=0, refute="none")
+    first = require_success(
+        ant.analyze(data, graph=GRAPH, query=QUERY, seed=19, bootstrap=0, refute="none")
+    )
     assert first.study.inspect().identification.available
-    before = first.export()
+    before = bytes(first.export())
     assert ant.artifacts.accept(before)["accepts_as_verified_program"] == "true"
     assert ant.artifacts.loads(before).contract["execution"]["seed"] == 19
     old = first.inspect()
-    second = first.study.refresh({**data, "y": data["y"] + data["t"]})
+    second = require_success(first.study.refresh({**data, "y": data["y"] + data["t"]}))
     assert second.effect == pytest.approx(first.effect + 1.0)
-    assert first.export() == before
+    assert bytes(first.export()) == before
     assert first.inspect() == old
     assert second.data_snapshot_id != first.data_snapshot_id
-    assert ant.artifacts.accept(second.export())["accepts_as_verified_program"] == "true"
-    assert first.study.estimate().effect == pytest.approx(second.effect)
-    via_result = first.refresh({**data, "y": data["y"] + data["t"]})
+    assert ant.artifacts.accept(bytes(second.export()))["accepts_as_verified_program"] == "true"
+    assert require_success(first.study.estimate()).effect == pytest.approx(second.effect)
+    via_result = require_success(first.refresh({**data, "y": data["y"] + data["t"]}))
     assert via_result.effect == pytest.approx(second.effect)
 
 
 def test_estimate_other_data_does_not_rebind_study():
     data = sample()
     study = ant.prepare(data, graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
-    baseline = study.estimate()
-    other = study.estimate({**data, "y": data["y"] + data["t"]})
+    baseline = require_success(study.estimate())
+    other = require_success(study.estimate({**data, "y": data["y"] + data["t"]}))
     assert other.data_snapshot_id != baseline.data_snapshot_id
     assert study.inspect_plan().data_snapshot_id == baseline.data_snapshot_id
     assert study.inspect().data_snapshot_id == other.data_snapshot_id
-    assert ant.artifacts.accept(other.export())["accepts_as_verified_program"] == "true"
-    assert study.estimate().effect == pytest.approx(baseline.effect)
+    assert ant.artifacts.accept(bytes(other.export()))["accepts_as_verified_program"] == "true"
+    assert require_success(study.estimate()).effect == pytest.approx(baseline.effect)
 
 
 def test_missing_row_padding_does_not_upgrade_calibration():
@@ -62,12 +65,14 @@ def test_missing_row_padding_does_not_upgrade_calibration():
     ses = []
     for total in (100, 500, 1000):
         missing = np.full(total - 100, np.nan)
-        result = ant.analyze(
-            {"t": np.r_[t, missing], "y": np.r_[y, missing]},
-            graph=[("t", "y")],
-            query=ant.AverageEffect("t", "y"),
-            refute="none",
-            bootstrap=0,
+        result = require_success(
+            ant.analyze(
+                {"t": np.r_[t, missing], "y": np.r_[y, missing]},
+                graph=[("t", "y")],
+                query=ant.AverageEffect("t", "y"),
+                refute="none",
+                bootstrap=0,
+            )
         )
         labels.append(result.calibration.describe())
         effects.append(result.effect)
@@ -80,7 +85,9 @@ def test_missing_row_padding_does_not_upgrade_calibration():
 
 
 def test_report_has_json_types_and_explicit_calibration_scope():
-    result = ant.analyze(sample(), graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
+    result = require_success(
+        ant.analyze(sample(), graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
+    )
     report = result.inspect()
     assert report.answer.kind == "point"
     assert report.answer.value == result.effect
@@ -100,22 +107,24 @@ def test_response_retains_study_and_exports_own_execution():
     data = sample()
     data["t"] = np.random.default_rng(8).normal(size=128)
     data["y"] = 2 * data["t"] + data["z"]
-    result = ant.analyze(
-        data,
-        graph=GRAPH,
-        query=ant.ResponseCurve("t", "y", grid=[0.0, 0.5, 1.0]),
-        refute="none",
-        bootstrap=0,
+    result = require_success(
+        ant.analyze(
+            data,
+            graph=GRAPH,
+            query=ant.ResponseCurve("t", "y", grid=[0.0, 0.5, 1.0]),
+            refute="none",
+            bootstrap=0,
+        )
     )
     assert result.study is not None
     assert result.answer.kind == "response"
-    encoded = result.export()
-    result.study.refresh({**data, "y": data["y"] + 1.0})
-    assert result.export() == encoded
-    refreshed = result.refresh({**data, "y": data["y"] + 1.0})
+    encoded = bytes(result.export())
+    require_success(result.study.refresh({**data, "y": data["y"] + 1.0}))
+    assert bytes(result.export()) == encoded
+    refreshed = require_success(result.refresh({**data, "y": data["y"] + 1.0}))
     assert refreshed.answer.kind == "response"
-    assert result.export() == encoded
-    loaded = ant.load(encoded)
+    assert bytes(result.export()) == encoded
+    loaded = require_success(ant.load(encoded))
     assert_answer_kept(loaded)
     assert loaded.decoded_artifact.to_dict()["payload"]["response"] is not None
     assert loaded.inspect().uncertainty.available
@@ -133,9 +142,11 @@ def test_refusal_retains_description_without_changing_exception_type():
 
 
 def test_load_verified_execution_and_forward_uncontracted_body():
-    result = ant.analyze(sample(), graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
-    encoded = result.export()
-    loaded = ant.load(encoded)
+    result = require_success(
+        ant.analyze(sample(), graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
+    )
+    encoded = bytes(result.export())
+    loaded = require_success(ant.load(encoded))
     assert loaded.acceptance.verified
     assert loaded.answer.value == result.effect
     assert loaded.inspect().program_id == result.program_id == loaded.program_id
@@ -148,7 +159,7 @@ def test_load_verified_execution_and_forward_uncontracted_body():
         loaded.inspect().uncertainty.payload["components"]
         == result.inspect().uncertainty.payload["components"]
     )
-    assert loaded.export() == encoded
+    assert bytes(loaded.export()) == encoded
     json.dumps(loaded.inspect().to_dict(), allow_nan=False)
     with pytest.raises(ant.errors.CausalUnsupportedError, match="not_executed"):
         _ = loaded.study
@@ -159,20 +170,22 @@ def test_load_verified_execution_and_forward_uncontracted_body():
         variable_names=loaded.decoded_artifact.variable_names,
         artifact_id="body-only",
     )
-    unverified = ant.load(body_only)
+    unverified = require_success(ant.load(body_only))
     assert not unverified.acceptance.verified
     assert not unverified.inspect().identification.available
     assert unverified.answer.kind == "unavailable"
-    assert unverified.export() == body_only
+    assert bytes(unverified.export()) == body_only
 
 
 def test_load_in_an_independent_python_process(tmp_path):
     import subprocess
     import sys
 
-    result = ant.analyze(sample(), graph=GRAPH, query=QUERY, seed=23, bootstrap=0, refute="none")
+    result = require_success(
+        ant.analyze(sample(), graph=GRAPH, query=QUERY, seed=23, bootstrap=0, refute="none")
+    )
     path = tmp_path / "result.ant"
-    path.write_bytes(result.export())
+    path.write_bytes(bytes(result.export()))
     code = """import antecedent as ant, json, pathlib, sys
 r = ant.load(pathlib.Path(sys.argv[1]).read_bytes())
 assert r.acceptance.verified
@@ -189,8 +202,8 @@ print(json.dumps(r.inspect().to_dict(), allow_nan=False))
 @pytest.mark.parametrize("latency", [None, "interactive", "standard", "report"])
 def test_one_call_and_explicit_prepare_have_same_defaults(latency):
     kwargs = dict(graph=GRAPH, query=QUERY, seed=19, bootstrap=4, latency=latency)
-    one = ant.analyze(sample(), **kwargs)
-    two = ant.prepare(sample(), **kwargs).estimate()
+    one = require_success(ant.analyze(sample(), **kwargs))
+    two = require_success(ant.prepare(sample(), **kwargs).estimate())
     assert one.effect == two.effect
     assert one.estimate.se_bootstrap == two.estimate.se_bootstrap
     assert one.plan.validation_suite == two.plan.validation_suite
@@ -199,13 +212,13 @@ def test_one_call_and_explicit_prepare_have_same_defaults(latency):
 
 def test_failed_refresh_retains_previous_binding_and_error_context():
     study = ant.prepare(sample(), graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
-    result = study.estimate()
+    result = require_success(study.estimate())
     with pytest.raises(ant.errors.CausalEstimateError, match="rank deficient") as caught:
-        study.refresh({"t": np.zeros(2), "y": np.zeros(2), "z": np.zeros(2)})
+        require_success(study.refresh({"t": np.zeros(2), "y": np.zeros(2), "z": np.zeros(2)}))
     assert caught.value.study is study
     assert caught.value.report.operation == "refresh"
     assert study.inspect().data_snapshot_id == result.data_snapshot_id
-    assert study.estimate().effect == result.effect
+    assert require_success(study.estimate()).effect == result.effect
 
 
 def test_partial_and_missing_evidence_are_not_scalar_success():
@@ -213,7 +226,9 @@ def test_partial_and_missing_evidence_are_not_scalar_success():
 
     from antecedent.results._report import copy_model
 
-    result = ant.analyze(sample(), graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
+    result = require_success(
+        ant.analyze(sample(), graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
+    )
     ident = replace(
         result.reasoning.identification,
         payload={**result.reasoning.identification.payload, "unevaluable_mass": 0.25},
@@ -245,26 +260,28 @@ def test_partial_and_missing_evidence_are_not_scalar_success():
 
 def test_refuting_an_old_result_does_not_change_its_export():
     data = sample()
-    first = ant.analyze(data, graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
-    before = first.export()
-    first.study.refresh({**data, "y": data["y"] + data["t"]})
+    first = require_success(ant.analyze(data, graph=GRAPH, query=QUERY, bootstrap=0, refute="none"))
+    before = bytes(first.export())
+    require_success(first.study.refresh({**data, "y": data["y"] + data["t"]}))
     checked = first.refute(data, suite="cheap")
     assert checked.effect == first.effect
     assert checked.data_snapshot_id == first.data_snapshot_id
-    assert first.export() == before
-    assert ant.load(checked.export()).acceptance.verified
+    assert bytes(first.export()) == before
+    assert require_success(ant.load(bytes(checked.export()))).acceptance.verified
 
 
 def test_contracted_posterior_keeps_draws_and_native_uncertainty_target():
-    result = ant.analyze(
-        sample(),
-        graph=GRAPH,
-        query=QUERY,
-        bootstrap=0,
-        refute="none",
-        inference=ant.Bayesian(n_draws=32, backend="conjugate"),
+    result = require_success(
+        ant.analyze(
+            sample(),
+            graph=GRAPH,
+            query=QUERY,
+            bootstrap=0,
+            refute="none",
+            inference=ant.Bayesian(n_draws=32, backend="conjugate"),
+        )
     )
-    loaded = ant.load(result.export())
+    loaded = require_success(ant.load(bytes(result.export())))
     assert_answer_kept(loaded)
     assert loaded.decoded_artifact.to_dict()["payload"]["posterior_artifact"]
     assert any(
@@ -279,31 +296,37 @@ def test_retarget_exports_target_weight_identity():
 
     hex64 = re.compile(r"[0-9a-f]{64}")
     data = sample()
-    result = ant.analyze(
-        data,
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=QUERY,
-        estimator="aipw",
-        bootstrap=0,
-        refute="none",
+    result = require_success(
+        ant.analyze(
+            data,
+            graph=[("z", "t"), ("z", "y"), ("t", "y")],
+            query=QUERY,
+            estimator="aipw",
+            bootstrap=0,
+            refute="none",
+        )
     )
     retargeted = result.study.retarget(np.exp(data["z"] / 3), depends_on=["z"])
-    loaded = ant.load(retargeted.export())
+    loaded = require_success(ant.load(bytes(retargeted.export())))
     assert_answer_kept(loaded)
     weights_id = loaded.inspect().target_weights_id
     assert isinstance(weights_id, str) and hex64.fullmatch(weights_id)
     assert retargeted.inspect().target_weights_id == weights_id
     assert retargeted.inspect().claim_id == loaded.inspect().claim_id
-    original = ant.load(result.export())
+    original = require_success(ant.load(bytes(result.export())))
     assert_answer_kept(original)
     assert original.inspect().target_weights_id is None
     assert loaded.inspect().target_id != original.inspect().target_id
     assert loaded.inspect().identification_id == original.inspect().identification_id
-    other = ant.load(result.study.retarget(np.exp(data["z"] / 2), depends_on=["z"]).export())
+    other = require_success(
+        ant.load(bytes(result.study.retarget(np.exp(data["z"] / 2), depends_on=["z"]).export()))
+    )
     assert_answer_kept(other)
     assert hex64.fullmatch(other.inspect().target_weights_id)
     assert other.inspect().target_weights_id != weights_id
-    uniform = ant.load(result.study.retarget(np.ones(len(data["t"])), depends_on=[]).export())
+    uniform = require_success(
+        ant.load(bytes(result.study.retarget(np.ones(len(data["t"])), depends_on=[]).export()))
+    )
     assert_answer_kept(uniform)
     assert uniform.inspect().target_weights_id is None
     assert uniform.inspect().target_id == original.inspect().target_id
@@ -321,9 +344,11 @@ def test_prepare_entry_points_share_omitted_defaults():
 
 def test_analyze_is_prepare_then_estimate():
     data = sample()
-    analyzed = ant.analyze(data, graph=GRAPH, query=QUERY, seed=19, bootstrap=0, refute="none")
+    analyzed = require_success(
+        ant.analyze(data, graph=GRAPH, query=QUERY, seed=19, bootstrap=0, refute="none")
+    )
     prepared = ant.prepare(data, graph=GRAPH, query=QUERY, seed=19, bootstrap=0, refute="none")
-    estimated = prepared.estimate()
+    estimated = require_success(prepared.estimate())
     assert analyzed.inspect().claim_id == estimated.inspect().claim_id
 
 
@@ -340,12 +365,14 @@ def test_response_envelope_does_not_render_as_an_unrestricted_curve():
     t = np.random.default_rng(31).integers(0, 2, size=160).astype(float)
     data = {"t": t, "y": 2 * t + np.random.default_rng(32).normal(size=160)}
     graph = ant.Cpdag.from_directed_undirected(["t", "y"], directed=[], undirected=[("t", "y")])
-    result = ant.analyze(
-        data,
-        graph=graph,
-        query=ant.InterventionResponse("y", intervention=ant.intervention.Set("t", 1.0)),
-        bootstrap=0,
-        refute="none",
+    result = require_success(
+        ant.analyze(
+            data,
+            graph=graph,
+            query=ant.InterventionResponse("y", intervention=ant.intervention.Set("t", 1.0)),
+            bootstrap=0,
+            refute="none",
+        )
     )
     assert result.envelope is not None
     assert result.answer.kind == "partial"
@@ -359,12 +386,14 @@ def test_cpdag_partial_identification_with_full_mass_reports_its_identified_set(
     graph = ant.Cpdag.from_directed_undirected(
         ["t", "y", "z"], [("z", "y"), ("t", "y")], [("z", "t")]
     )
-    result = ant.analyze(
-        {"t": t, "y": 1 + 2 * t + 3 * z, "z": z},
-        graph=graph,
-        query=QUERY,
-        refute="none",
-        bootstrap=0,
+    result = require_success(
+        ant.analyze(
+            {"t": t, "y": 1 + 2 * t + 3 * z, "z": z},
+            graph=graph,
+            query=QUERY,
+            refute="none",
+            bootstrap=0,
+        )
     )
     assert result.inspect().identification.payload["identified_mass"] == 1.0
     # Completions disagree, so the answer is the set they span, never a scalar.
@@ -400,11 +429,11 @@ def test_class_posterior_bounds_answer_survives_loading(kind):
     if kind == "pag":
         data["y"] = data["y"] - data["z"]
     posterior = ant.discovery.GraphPosterior.from_graphs(names, [0.4, 0.6], [graph, graph])
-    result = ant.analyze(
-        data, discovery=posterior, query=QUERY, refute="none", bootstrap=0, seed=731
+    result = require_success(
+        ant.analyze(data, discovery=posterior, query=QUERY, refute="none", bootstrap=0, seed=731)
     )
     assert result.answer.kind == "bounds"
     assert result.answer.detail == "identified_set"
-    loaded = ant.load(result.export())
+    loaded = require_success(ant.load(bytes(result.export())))
     assert_answer_kept(loaded)
     assert loaded.answer == result.answer

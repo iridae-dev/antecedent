@@ -11,6 +11,7 @@ import math
 
 import pytest
 from antecedent.errors import CausalUnsupportedError
+from antecedent.outcomes import require_success
 from antecedent.results import (
     AnalysisResult,
     ConflictSummaryView,
@@ -375,7 +376,7 @@ def test_analysis_result_mean_ite_and_prepared_only_actions():
     with pytest.raises(AttributeError, match="counterfactual"):
         _ = result.mean_ite
     with pytest.raises(CausalUnsupportedError, match="no retained study"):
-        result.refresh({"a": [1.0]})
+        require_success(result.refresh({"a": [1.0]}))
     with pytest.raises(CausalUnsupportedError, match="no retained study"):
         result.refute({"a": [1.0]})
 

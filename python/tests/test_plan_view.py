@@ -13,6 +13,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent.estimation import ProgramPlanView
+from antecedent.outcomes import require_success
 
 
 def _table(n: int = 240) -> dict[str, np.ndarray]:
@@ -80,10 +81,10 @@ def test_plan_view_reads_every_layer_before_any_estimate() -> None:
 def test_plan_view_identity_is_the_executed_program() -> None:
     prepared = _prepared()
     view = prepared.plan_view()
-    result = prepared.estimate(_table(), seed=3)
+    result = require_success(prepared.estimate(_table(), seed=3))
     assert result.ate == pytest.approx(2.0, abs=0.2)
     assert prepared.plan_view().identity == view.identity
-    refreshed = prepared.refresh({**_table(), "y": _table()["y"] + 0.5}, seed=3)
+    refreshed = require_success(prepared.refresh({**_table(), "y": _table()["y"] + 0.5}, seed=3))
     assert refreshed.ate == pytest.approx(2.0, abs=0.2)
     assert prepared.plan_view().identity == view.identity, "a refresh keeps the program"
 

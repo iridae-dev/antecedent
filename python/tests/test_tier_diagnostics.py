@@ -13,6 +13,7 @@ import pytest
 from antecedent import tier_diagnostics as td
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
 from antecedent.graph import TieredBackground, WithinTier
+from antecedent.outcomes import require_success
 
 
 def _siblings(n: int = 800, seed: int = 214):
@@ -25,8 +26,10 @@ def _siblings(n: int = 800, seed: int = 214):
 
 
 def _analyze(graph, data):
-    return antecedent.analyze(
-        data, graph=graph, query=antecedent.AverageEffect("t", "y"), refute="none", bootstrap=0
+    return require_success(
+        antecedent.analyze(
+            data, graph=graph, query=antecedent.AverageEffect("t", "y"), refute="none", bootstrap=0
+        )
     )
 
 

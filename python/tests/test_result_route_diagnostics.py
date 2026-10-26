@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import antecedent
 import numpy as np
+from antecedent.outcomes import require_success
 
 _ORDER = ["convergence", "posterior_ess", "r_hat", "monte_carlo_error"]
 
@@ -18,13 +19,15 @@ def _confounded(n: int = 120, seed: int = 5):
 
 def _analyze(inference):
     data, edges = _confounded()
-    return antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=inference,
-        refute=False,
-        seed=1,
+    return require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=inference,
+            refute=False,
+            seed=1,
+        )
     )
 
 
@@ -56,14 +59,16 @@ def _modified(n: int = 200, seed: int = 213):
 
 def _bayesian(estimator, query):
     data, edges = _modified()
-    return antecedent.analyze(
-        data,
-        graph=edges,
-        query=query,
-        estimator=estimator,
-        inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
-        refute=False,
-        seed=19,
+    return require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=query,
+            estimator=estimator,
+            inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
+            refute=False,
+            seed=19,
+        )
     )
 
 

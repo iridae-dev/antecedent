@@ -16,6 +16,7 @@ from antecedent._defaults import OMITTED, is_temporal_query, resolve_threads
 from antecedent._native import default_user_threads, omitted_defaults
 from antecedent.estimation import PreparedAnalysis
 from antecedent.inference import Bayesian
+from antecedent.outcomes import require_success
 
 GRAPH = [("z", "t"), ("z", "y"), ("t", "y")]
 
@@ -30,7 +31,7 @@ def _data(n: int = 80, seed: int = 1) -> dict[str, np.ndarray]:
 def _analyze(**kwargs):
     kwargs.setdefault("graph", GRAPH)
     kwargs.setdefault("query", ant.AverageEffect("t", "y"))
-    return ant.analyze(_data(), **kwargs)
+    return require_success(ant.analyze(_data(), **kwargs))
 
 
 def test_omitted_threads_use_the_machine():
@@ -85,10 +86,12 @@ def test_static_responses_do_not_report_a_replicate_budget():
     rng = np.random.default_rng(4)
     z = rng.normal(size=200)
     t = z + rng.normal(scale=0.4, size=200)
-    result = ant.analyze(
-        {"t": t, "y": t + z + rng.normal(scale=0.2, size=200), "z": z},
-        graph=GRAPH,
-        query=ant.ResponseCurve("t", "y", grid=[-0.5, 0.0, 0.5]),
+    result = require_success(
+        ant.analyze(
+            {"t": t, "y": t + z + rng.normal(scale=0.2, size=200), "z": z},
+            graph=GRAPH,
+            query=ant.ResponseCurve("t", "y", grid=[-0.5, 0.0, 0.5]),
+        )
     )
     assert result.uncertainty.replicates in (None, 0)
 
@@ -110,9 +113,13 @@ def test_bayesian_omitted_n_draws_is_not_explicit():
 def test_entry_points_agree():
     data = _data()
     query = ant.AverageEffect("t", "y")
-    analyzed = ant.analyze(data, graph=GRAPH, query=query, refute="none")
-    prepared = PreparedAnalysis.prepare(data, graph=GRAPH, query=query, refute="none").estimate()
-    workflow = ant.prepare(data, graph=GRAPH, query=query, refute="none").estimate()
+    analyzed = require_success(ant.analyze(data, graph=GRAPH, query=query, refute="none"))
+    prepared = require_success(
+        PreparedAnalysis.prepare(data, graph=GRAPH, query=query, refute="none").estimate()
+    )
+    workflow = require_success(
+        ant.prepare(data, graph=GRAPH, query=query, refute="none").estimate()
+    )
     assert analyzed.performance.bootstrap_requested == prepared.performance.bootstrap_requested
     assert prepared.performance.bootstrap_requested == workflow.performance.bootstrap_requested
     assert analyzed.performance.latency_mode == prepared.performance.latency_mode

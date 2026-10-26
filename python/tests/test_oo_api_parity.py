@@ -8,6 +8,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent import _native, design
+from antecedent.outcomes import require_success
 
 
 def _ate_data(n: int = 200, seed: int = 0):
@@ -29,19 +30,23 @@ def test_dag_from_edges_parents_children():
 def test_analyze_with_dag_object_and_levels():
     data = _ate_data()
     g = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
-    r0 = antecedent.analyze(
-        data,
-        graph=g,
-        query=antecedent.AverageEffect("t", "y", control_level=0.0, active_level=1.0),
-        refute=False,
-        bootstrap=0,
+    r0 = require_success(
+        antecedent.analyze(
+            data,
+            graph=g,
+            query=antecedent.AverageEffect("t", "y", control_level=0.0, active_level=1.0),
+            refute=False,
+            bootstrap=0,
+        )
     )
-    r1 = antecedent.analyze(
-        data,
-        graph=g,
-        query=antecedent.AverageEffect("t", "y", control_level=0.0, active_level=2.0),
-        refute=False,
-        bootstrap=0,
+    r1 = require_success(
+        antecedent.analyze(
+            data,
+            graph=g,
+            query=antecedent.AverageEffect("t", "y", control_level=0.0, active_level=2.0),
+            refute=False,
+            bootstrap=0,
+        )
     )
     assert r0.ate != pytest.approx(r1.ate, abs=1e-9) or abs(r1.ate) > abs(r0.ate) * 1.2
 
@@ -55,21 +60,25 @@ def test_sustained_vs_pulse_policy_accepted():
     }
     # a@1 → b@0
     edges = [("a", 1, "b", 0)]
-    pulse = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
-        bootstrap=0,
-        refute=False,
+    pulse = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
+            bootstrap=0,
+            refute=False,
+        )
     )
     # Licensed SustainedEffect is the single-step window at -treatment_lag,
     # so it matches Pulse at the same lag under temporal linear adjustment.
-    sustained = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.SustainedEffect("a", "b", treatment_lag=1, horizon_steps=1),
-        bootstrap=0,
-        refute=False,
+    sustained = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.SustainedEffect("a", "b", treatment_lag=1, horizon_steps=1),
+            bootstrap=0,
+            refute=False,
+        )
     )
     assert np.isfinite(pulse.ate)
     assert np.isfinite(sustained.ate)
@@ -94,12 +103,14 @@ def test_temporal_refute_runs_by_default():
     y[0] = 0.0
     for t in range(1, n):
         y[t] = 0.8 * x[t - 1]
-    result = antecedent.analyze(
-        {"a": x, "b": y},
-        graph=[("a", 1, "b", 0)],
-        query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            {"a": x, "b": y},
+            graph=[("a", 1, "b", 0)],
+            query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert result.validation.ran
     assert result.validation.count >= 1
@@ -114,13 +125,15 @@ def test_refute_true_is_rejected():
     for t in range(1, n):
         y[t] = 0.8 * x[t - 1]
     with pytest.raises(TypeError, match="refute=True is ambiguous"):
-        antecedent.analyze(
-            {"a": x, "b": y},
-            graph=[("a", 1, "b", 0)],
-            query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
-            refute=True,
-            bootstrap=0,
-            seed=1,
+        require_success(
+            antecedent.analyze(
+                {"a": x, "b": y},
+                graph=[("a", 1, "b", 0)],
+                query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
+                refute=True,
+                bootstrap=0,
+                seed=1,
+            )
         )
 
 
@@ -132,14 +145,16 @@ def test_temporal_accepts_bayesian_pulse():
     y[0] = 0.0
     for t in range(1, n):
         y[t] = 0.8 * x[t - 1]
-    result = antecedent.analyze(
-        {"a": x, "b": y},
-        graph=[("a", 1, "b", 0)],
-        query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
-        inference=antecedent.Bayesian(n_draws=64),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            {"a": x, "b": y},
+            graph=[("a", 1, "b", 0)],
+            query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
+            inference=antecedent.Bayesian(n_draws=64),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert result.posterior is not None
     assert np.isfinite(result.posterior.p_below_zero)
@@ -301,7 +316,7 @@ def test_rank_designs_full_surface():
     assert ranking.explain().startswith("Basis: identification.")
     assert ranking.to_dict()["basis"] == "identification"
     with pytest.raises(antecedent.errors.CausalValueError, match="decision ranking"):
-        ranking.export()
+        bytes(ranking.export())
 
 
 def test_native_rank_designs_decision_regret_is_conjugate_normal_evsi():
@@ -462,20 +477,24 @@ def test_path_specific_and_distribution_queries():
         "y": np.asarray(y_vals, dtype=np.float64),
     }
     edges = [("t", "m"), ("m", "y")]
-    path = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
-        refute=False,
-        bootstrap=0,
+    path = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
+            refute=False,
+            bootstrap=0,
+        )
     )
     assert abs(path.ate - 0.3) < 1e-9
-    dist = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
-        refute=False,
-        bootstrap=0,
+    dist = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
+            refute=False,
+            bootstrap=0,
+        )
     )
     assert np.isfinite(dist.ate)
 

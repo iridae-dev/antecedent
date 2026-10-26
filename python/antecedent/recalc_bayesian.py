@@ -14,10 +14,12 @@ from typing import Any, Literal
 from numpy.typing import ArrayLike
 
 from . import _native
+from ._artifact_protocol import ExportedArtifact, artifact_export, artifact_from_receipt
 from ._recalc_bounds import _columns
 from ._refusal import raise_refusal
-from .errors import CausalSerializationError
+from .errors import CausalSerializationError, CausalTypeError
 from .inference import Bayesian
+from .outcomes import outcome_operation
 from .recalc import Decision, RecalcPlan, RecalcReceipt, Utility, _refusal_type, _seed
 from .recalc_static import _Session
 
@@ -110,17 +112,28 @@ class BayesianSession(_Session):
         rows = self._handle.effect_draws()
         return None if rows is None else tuple(rows)
 
-    def export_prior_source(self) -> bytes:
+    @artifact_export
+    def export(
+        self,
+        *,
+        quantity: Literal["result", "prior_source"] = "result",
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> ExportedArtifact:
         """Source-bound native posterior for independently checked prior transfer.
 
         Its raw source and original draws are reexecuted/verified by the target;
         caller posterior metadata and same-source likelihood reuse are refused.
         """
+        if quantity == "result":
+            return _Session.export(self, seed=seed, threads=threads)
+        if quantity != "prior_source":
+            raise CausalTypeError("quantity must be 'result' or 'prior_source'")
         artifact, error = self._handle.export_prior_source()
         raise_refusal(error, _refusal_type)
         if artifact is None:
             raise CausalSerializationError("native posterior source export unavailable")
-        return bytes(artifact)
+        return artifact_from_receipt(self, bytes(artifact))
 
     def plan(
         self,
@@ -151,6 +164,7 @@ class BayesianSession(_Session):
             )
         )
 
+    @outcome_operation
     def execute(
         self,
         request: BayesianRequest,

@@ -132,7 +132,12 @@ def rollout_dynamics(
     """
     if posterior_draws and bootstrap_replicates:
         raise ValueError("ask for posterior_draws or bootstrap_replicates, not both")
-    params = {"n_steps": n_steps, "n_rows": n_rows, "interventions": list(interventions), "seed": seed}
+    params = {
+        "n_steps": n_steps,
+        "n_rows": n_rows,
+        "interventions": list(interventions),
+        "seed": seed,
+    }
     raw = json.loads(
         _native.temporal_model_query(
             list(names), list(columns), [(str(a), int(b), str(c), int(d)) for a, b, c, d in lagged_edges],
@@ -158,4 +163,10 @@ def rollout_dynamics(
     )
 
 
-__all__ = ["MechanismChange", "Rollout", "RolloutUncertainty", "detect_mechanism_change", "rollout_dynamics"]
+__all__ = [
+    "MechanismChange",
+    "Rollout",
+    "RolloutUncertainty",
+    "detect_mechanism_change",
+    "rollout_dynamics",
+]

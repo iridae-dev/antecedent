@@ -24,6 +24,12 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._cyclic_typed import (
     AsymptoticNormal,
     CyclicInterventions,
@@ -61,6 +67,7 @@ from ._cyclic_typed import (
 )
 from .errors import CausalValueError, StructuredRefusal
 from .intervention import Set, Shift, Soft
+from .outcomes import outcome_operation, require_success
 
 
 class CyclicRefusal(StructuredRefusal):
@@ -175,15 +182,18 @@ class CyclicResult:
         """Request digest to retain separately from the artifact."""
         return str(self.report["identity"])
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """Return the checksummed native artifact."""
-        return self.artifact
+        return artifact_from_receipt(self, self.artifact)
 
 
+@outcome_operation
 def consume_artifact(
     artifact: bytes, *, expected_identity: str, max_bytes: int | None = None, cancel: Any = None
 ) -> CyclicResult:
     """Check identity/integrity and recompute in Rust, including any retained fit."""
+    artifact = container_bytes(artifact)
     report, facts = _native.consume_cyclic_system(
         artifact, expected_identity, max_bytes=max_bytes, cancel=cancel
     )
@@ -490,6 +500,7 @@ class PreparedCyclicSystem:
         object.__setattr__(result, "cancel", self.cancel)
         return result
 
+    @outcome_operation
     def execute(self, *, max_bytes: int | None = None, cancel: Any = None) -> CyclicResult:
         """Execute the retained native product and produce its independent replay artifact."""
         # Tiny results are cheaper to decode directly; bulk values use NumPy buffers.
@@ -515,6 +526,7 @@ class PreparedCyclicSystem:
             offset += width
         return CyclicResult(report, artifact, facts)
 
+    @outcome_operation
     def posterior(
         self,
         *,
@@ -671,7 +683,7 @@ class PreparedCyclicFamily:
             "calculus",
         ):
             raise CausalValueError("expected a graph identification preparation")
-        result = self.execute(max_bytes=max_bytes, cancel=cancel)
+        result = require_success(self.execute(max_bytes=max_bytes, cancel=cancel))
         answer = result.report["answer"]
         # Serde's tagged answer stores the operation report in `result`.
         graph = answer.get("result", answer.get("answer", answer))
@@ -721,6 +733,7 @@ class PreparedCyclicFamily:
                 ),
             )
 
+    @outcome_operation
     def execute(self, *, max_bytes: int | None = None, cancel: Any = None) -> CyclicResult:
         """Execute the retained program and encode its result, reusing compatible fits."""
         with self._lock:
@@ -766,10 +779,12 @@ def prepare_recovered_linear(
     )
 
 
+@outcome_operation
 def consume_family_artifact(
     artifact: bytes, *, expected_identity: str, max_bytes: int | None = None, cancel: Any = None
 ) -> CyclicResult:
     """Recompute a dynamic/constraint answer with independent identity checking."""
+    artifact = container_bytes(artifact)
     report, facts = _native.consume_cyclic_family(
         artifact, expected_identity, max_bytes=max_bytes, cancel=cancel
     )
@@ -1765,6 +1780,7 @@ class LocalCyclicModel:
 
     mechanisms: tuple[LocalMechanism, ...]
 
+    @outcome_operation
     def execute(
         self,
         noise: list[float],
@@ -1805,7 +1821,8 @@ class LocalCyclicModel:
             )
         )
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """Refuse to present arbitrary local callback code as a portable model."""
         raise CyclicRefusal(
             "local callback code is not portable; use serializable built-in expressions",
@@ -1831,9 +1848,12 @@ class CyclicEvidence:
         """Source/schema/world/time/selector identity for independent consumption."""
         return str(self.report["identity"])
 
-    def export(self, *, max_bytes: int | None = None, cancel: Any = None) -> bytes:
+    @artifact_export
+    def export(self, *, max_bytes: int | None = None, cancel: Any = None) -> ExportedArtifact:
         """Export original source and projection, preserving replay and uncertainty meaning."""
-        return bytes(self._handle.export(max_bytes=max_bytes, cancel=cancel))
+        return artifact_from_receipt(
+            self, bytes(self._handle.export(max_bytes=max_bytes, cancel=cancel))
+        )
 
     def joint_law(self, *, max_bytes: int | None = None, cancel: Any = None) -> Any:
         """Use the existing joint-distribution/decision API for complete aligned laws.
@@ -1861,6 +1881,7 @@ class CyclicEvidence:
         return dict(json.loads(self._handle.decide_means(json.dumps(contract._wire()))))
 
 
+@outcome_operation
 def consume_evidence(
     artifact: bytes,
     *,
@@ -1869,6 +1890,7 @@ def consume_evidence(
     cancel: Any = None,
 ) -> CyclicEvidence:
     """Independently replay a cyclic source and recheck its entire evidence projection."""
+    artifact = container_bytes(artifact)
     return CyclicEvidence(
         _native.consume_cyclic_evidence(
             artifact, expected_identity, max_bytes=max_bytes, cancel=cancel

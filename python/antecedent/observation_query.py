@@ -63,7 +63,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import _native
-from ._artifact_protocol import ExportedArtifact
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._freeze import thaw
 from ._mean_binding import bind_mean_reading
 from ._measured_inference import MeasuredInference
@@ -392,12 +398,6 @@ class ObservationClaim(ScientificResult):
     inference_basis: str
     _artifact_bytes: bytes
     _result: Mapping[str, Any] = field(repr=False, compare=False)
-
-    def artifact(self) -> ExportedArtifact[ConsumedObservationClaim]:
-        """Bytes and producer metadata; load returns the typed consumed result."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self)
 
     def to_dict(self) -> dict[str, Any]:
         from ._freeze import thaw
@@ -728,7 +728,7 @@ def condition_on_values(
             both observed and intervened on, observed values of singular covariance, or a finite
             composition (use :func:`condition_on`).
     """
-    wire = {
+    wire: dict[str, Any] = {
         "operation": "intervention" if interventions else "conditioning",
         "outcome": _name(outcome, "outcome"),
         "conditioning": [],
@@ -1039,6 +1039,10 @@ def required_observations_conjugate(
 
 
 @bind_mean_reading
+@artifact_consumer(
+    proof="observation_query.consume_observation_query_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_observation_query_artifact(
     artifact: bytes,
     expected_identity: str | None = None,
@@ -1057,6 +1061,7 @@ def consume_observation_query_artifact(
             ``observation_query.artifact_invalid`` for corrupt bytes, or the structured defects of
             premises that no longer compose.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     raw = _unwrap(
@@ -1108,9 +1113,10 @@ class CountFittedObservation(ScientificResult):
             raise CausalValueError("the native point value returned neither value nor refusal")
         return float(value)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[ConsumedObservationClaim]:
         """The retained counts and question (canonical bytes)."""
-        return self._source
+        return artifact_from_receipt(self, self._source)
 
     def interval(self, *, level: float = 0.95, cancel: Any = None) -> MeasuredInference:
         """The measured posterior interval at ``level`` (0.90 and 0.95 are measured).

@@ -6,6 +6,7 @@ import pytest
 from antecedent import analyze
 from antecedent.errors import CausalCompileError, CausalUnsupportedError, CausalValueError
 from antecedent.estimation import PreparedAnalysis
+from antecedent.outcomes import require_success
 from antecedent.quasi import SyntheticControl
 
 
@@ -85,7 +86,7 @@ def test_retained_analyze_and_prepare_match_direct_point_result():
     assert fit.uncertainty == "point_only_with_unlicensed_placebo_rank"
     assert math.isnan(result.estimate.se_analytic)
     prepared = PreparedAnalysis.prepare(rows, query=query)
-    refreshed = prepared.estimate(rows)
+    refreshed = require_success(prepared.estimate(rows))
     assert refreshed.synthetic_control == fit
 
 
@@ -96,7 +97,7 @@ def test_retained_synthetic_control_refuses_changed_design_and_bad_donors():
     changed = {key: list(value) for key, value in rows.items()}
     changed["unit"][0] = "different"
     with pytest.raises(CausalUnsupportedError, match="prepared unit and period row order"):
-        prepared.estimate(changed)
+        require_success(prepared.estimate(changed))
     short = {
         key: [value for value, unit in zip(values, rows["unit"], strict=True) if unit != "c"]
         for key, values in rows.items()
@@ -121,7 +122,12 @@ def test_uniform_unit_randomization_reports_exact_sharp_null_p_value_only():
     assert "exact_uniform_unit_randomization_sharp_null_test" in fit.diagnostics
     assert math.isnan(result.estimate.se_analytic)
     assert analyze(rows, query=query).synthetic_control == fit
-    assert PreparedAnalysis.prepare(rows, query=query).estimate(rows).synthetic_control == fit
+    assert (
+        require_success(
+            PreparedAnalysis.prepare(rows, query=query).estimate(rows)
+        ).synthetic_control
+        == fit
+    )
 
 
 def test_nonzero_constant_effect_sharp_null_is_explicit_in_public_result():
@@ -170,7 +176,12 @@ def test_augmented_synthetic_control_uses_retained_donor_model_and_refuses_inval
     assert "donor_ridge_outcome_model_transports" in fit.assumptions
     assert math.isnan(result.estimate.se_analytic)
     assert analyze(rows, query=query).synthetic_control == fit
-    assert PreparedAnalysis.prepare(rows, query=query).estimate(rows).synthetic_control == fit
+    assert (
+        require_success(
+            PreparedAnalysis.prepare(rows, query=query).estimate(rows)
+        ).synthetic_control
+        == fit
+    )
     with pytest.raises(CausalValueError, match="positive"):
         SyntheticControl("y", "unit", "period", "treated", 4, augmentation_ridge=0.0)
     exact_query = SyntheticControl(

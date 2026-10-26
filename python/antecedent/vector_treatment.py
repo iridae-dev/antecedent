@@ -54,6 +54,12 @@ from typing import Any
 
 import numpy as np
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._native import consume_vector_treatment_artifact as _consume
 from ._native import evaluate_vector_treatment as _evaluate
 from ._refusal import StructuredRefusal
@@ -262,7 +268,8 @@ class JointEffects:
     artifact: bytes | None = field(repr=False)
     _export_refusal: str | None = field(default=None, repr=False)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The checksummed ``vector_treatment_v1`` artifact.
 
         Raises :class:`VectorTreatmentRefusal` (``route_not_supported``,
@@ -272,7 +279,7 @@ class JointEffects:
         if self.artifact is None:
             assert self._export_refusal is not None
             raise VectorTreatmentRefusal(json.loads(self._export_refusal))
-        return self.artifact
+        return artifact_from_receipt(self, self.artifact)
 
     @property
     def estimates(self) -> np.ndarray:
@@ -352,6 +359,7 @@ class JointEffects:
 def _result(
     report_json: str, artifact: bytes | None, export_refusal: str | None = None
 ) -> JointEffects:
+    artifact = container_bytes(artifact) if artifact is not None else None
     report = json.loads(report_json)
     result = report["result"]
     names = tuple(report["treatments"])
@@ -518,6 +526,7 @@ def consume_joint_effects(
 
     ``memory_limit_bytes`` bounds the replay's planned working set (``*.memory_budget_exceeded``).
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     if expected_identity is None:

@@ -53,7 +53,7 @@ def test_typed_numpy_copy_and_round_trip() -> None:
     with pytest.raises(ValueError, match="bounded copy"):
         np.asarray(artifact, copy=False)
     reloaded = JointDistributionArtifact.load(
-        artifact.export("joint-python"), expected_identity=expected
+        bytes(artifact.export("joint-python")), expected_identity=expected
     )
     assert reloaded.identity == expected
     np.testing.assert_array_equal(np.asarray(reloaded), [[0.0, 0.0], [1.0, 2.0]])
@@ -74,7 +74,9 @@ def test_load_refuses_changed_identity_and_bad_shape() -> None:
         causal_contract_id=expected.causal_contract_id,
     )
     with pytest.raises(Exception, match="identity"):
-        JointDistributionArtifact.load(artifact.export("joint-python"), expected_identity=changed)
+        JointDistributionArtifact.load(
+            bytes(artifact.export("joint-python")), expected_identity=changed
+        )
     with pytest.raises(ValueError, match="two-dimensional"):
         JointDistributionArtifact(expected, np.array([0.0, 1.0]))
     with pytest.raises(Exception, match="shape"):
@@ -93,7 +95,7 @@ def test_weights_and_coordinate_mask_survive_python_export() -> None:
         supported=(True, False),
     )
     loaded = JointDistributionArtifact.load(
-        artifact.export("weighted-python"), expected_identity=expected
+        bytes(artifact.export("weighted-python")), expected_identity=expected
     )
     assert loaded.weights == (1.0, 3.0)
     assert loaded.supported == (True, False)
@@ -121,8 +123,10 @@ def test_independent_marginals_refuse_python_joint_operations() -> None:
 
 
 def test_fresh_python_process_consumes_with_independent_identity(tmp_path) -> None:
-    data = JointDistributionArtifact(identity(), np.array([[0.0, 0.0], [1.0, 2.0]])).export(
-        "joint-python"
+    data = bytes(
+        JointDistributionArtifact(identity(), np.array([[0.0, 0.0], [1.0, 2.0]])).export(
+            "joint-python"
+        )
     )
     path = tmp_path / "joint.bin"
     path.write_bytes(data)

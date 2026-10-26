@@ -21,6 +21,7 @@ from antecedent.errors import CausalUnsupportedError
 from antecedent.extensibility import ProviderTrust
 from antecedent.external import ExternalRefusal
 from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
 from antecedent.results._views import IdentificationView
 from antecedent.results.response import (
     CausalResponseView,
@@ -391,12 +392,14 @@ def _native_view(*, bayesian=False):
         if bayesian
         else {"bootstrap": 0}
     )
-    return ac.analyze(
-        {"x": x, "a": a, "y": y},
-        graph=EDGES,
-        query=ac.ResponseCurve("a", "y", grid=GRID),
-        refute="none",
-        **kwargs,
+    return require_success(
+        ac.analyze(
+            {"x": x, "a": a, "y": y},
+            graph=EDGES,
+            query=ac.ResponseCurve("a", "y", grid=GRID),
+            refute="none",
+            **kwargs,
+        )
     )
 
 

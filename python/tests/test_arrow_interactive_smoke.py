@@ -8,6 +8,7 @@ from __future__ import annotations
 import math
 
 import pytest
+from antecedent.outcomes import require_success
 
 from _scm import confounded_scm
 
@@ -35,12 +36,14 @@ def test_arrow_interactive_zero_copy_and_estimate():
     )
     assert info.bytes_borrowed >= n_rows * n_cols * 8
 
-    arrow_result = antecedent.analyze(
-        table,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        latency="interactive",
-        seed=1,
+    arrow_result = require_success(
+        antecedent.analyze(
+            table,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            latency="interactive",
+            seed=1,
+        )
     )
     assert math.isfinite(arrow_result.ate)
     assert abs(arrow_result.ate - 2.0) < 0.5
@@ -51,12 +54,14 @@ def test_arrow_interactive_zero_copy_and_estimate():
     assert arrow_result.performance.bytes_borrowed >= n_rows * n_cols * 8
 
     # Pandas / dict twin remains correct; CDI must not diverge silently.
-    dict_result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        latency="interactive",
-        seed=1,
+    dict_result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            latency="interactive",
+            seed=1,
+        )
     )
     assert abs(arrow_result.ate - dict_result.ate) < 1e-9
 
@@ -78,13 +83,15 @@ def test_arrow_interactive_on_stage_streams_payloads():
     def on_stage(stage: str, payload: dict) -> None:
         stages.append(stage)
 
-    result = antecedent.analyze(
-        table,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        latency="interactive",
-        refute=False,
-        on_stage=on_stage,
+    result = require_success(
+        antecedent.analyze(
+            table,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            latency="interactive",
+            refute=False,
+            on_stage=on_stage,
+        )
     )
     assert math.isfinite(result.ate)
     assert stages, "on_stage must fire on the Arrow path"
@@ -108,16 +115,18 @@ def test_arrow_interactive_cancel_and_progress():
             seen["bootstrap"] = True
             token.cancel()
 
-    partial = antecedent.analyze(
-        table,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        bootstrap=requested,
-        refute=False,
-        seed=3,
-        threads=1,
-        cancel=token,
-        on_progress=on_progress,
+    partial = require_success(
+        antecedent.analyze(
+            table,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            bootstrap=requested,
+            refute=False,
+            seed=3,
+            threads=1,
+            cancel=token,
+            on_progress=on_progress,
+        )
     )
     assert math.isfinite(partial.ate)
     assert partial.performance.cancelled

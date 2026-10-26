@@ -111,7 +111,9 @@ def test_the_evaluation_is_the_ranking_of_the_same_request_bound_to_the_program(
     for bound, free in zip(ranking.result.candidates, plain.candidates, strict=True):
         assert bound.evsi == pytest.approx(free.evsi, abs=1e-12)
     assert ranking.result.basis == plain.basis
-    assert ranking.result.export()  # the sealed artifact was recomputed before it was returned
+    assert bytes(
+        ranking.result.export()
+    )  # the sealed artifact was recomputed before it was returned
 
 
 def test_a_study_with_a_sampling_realization_publishes_no_posterior_and_is_refused():

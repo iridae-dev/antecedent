@@ -540,10 +540,7 @@ def _export_exact(column: Any, name: str) -> ArrowChunkColumn:
     """Exact typed chunks. A chunked column is not combined."""
     preserved = _preserve_exact(column, name)
     chunks = _arrow_chunks(preserved)
-    if chunks is None:
-        chunks = [preserved]
-    else:
-        chunks = [_preserve_exact(chunk, name) for chunk in chunks]
+    chunks = [preserved] if chunks is None else [_preserve_exact(chunk, name) for chunk in chunks]
     return ArrowChunkColumn(chunks, name)
 
 
@@ -842,17 +839,21 @@ def to_f64(
     if isinstance(arr, (list, tuple, range)):
         _note(receipt, name, "dtype_conversion", raw.nbytes)
     kind = raw.dtype.kind
-    if native_dtypes and isinstance(arr, np.ndarray) and raw.dtype != np.float64:
+    if (
+        native_dtypes
+        and isinstance(arr, np.ndarray)
+        and raw.dtype != np.float64
+        and (kind in "iub" or raw.dtype == np.float32)
+    ):
         # The dtypes the native reader widens while it copies.
-        if kind in "iub" or raw.dtype == np.float32:
-            if kind in "iu" and raw.size:
-                lowest, highest = int(raw.min()), int(raw.max())
-                if highest > _EXACT_INT_LIMIT or lowest < -_EXACT_INT_LIMIT:
-                    raise _refuse_column(
-                        f"integer column{label} spans [{lowest}, {highest}], beyond 2**53, and "
-                        "would lose precision as float64"
-                    )
-            return raw  # type: ignore[return-value]
+        if kind in "iu" and raw.size:
+            lowest, highest = int(raw.min()), int(raw.max())
+            if highest > _EXACT_INT_LIMIT or lowest < -_EXACT_INT_LIMIT:
+                raise _refuse_column(
+                    f"integer column{label} spans [{lowest}, {highest}], beyond 2**53, and "
+                    "would lose precision as float64"
+                )
+        return raw
     if kind == "O":
         return _object_column_f64(raw, name=name, label=label, receipt=receipt)
     if kind not in "fiub":

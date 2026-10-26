@@ -5,6 +5,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 
 def test_elasticity_interval_matches_retained_and_accepted_routes_and_artifact() -> None:
@@ -17,12 +18,14 @@ def test_elasticity_interval_matches_retained_and_accepted_routes_and_artifact()
     query = antecedent.Elasticity("t", "y", at=0.5)
     options = {"query": query, "estimator_config": {"bandwidth": 0.35}, "refute": False, "seed": 29}
 
-    explicit = antecedent.analyze(data, graph=dag, **options)
-    prepared = antecedent.prepare(data, graph=dag, **options).estimate(data)
-    accepted = antecedent.analyze(
-        data,
-        graph=antecedent.AcceptedGraph.from_graph(dag, algorithm_id="ges"),
-        **options,
+    explicit = require_success(antecedent.analyze(data, graph=dag, **options))
+    prepared = require_success(antecedent.prepare(data, graph=dag, **options).estimate(data))
+    accepted = require_success(
+        antecedent.analyze(
+            data,
+            graph=antecedent.AcceptedGraph.from_graph(dag, algorithm_id="ges"),
+            **options,
+        )
     )
 
     truth = 0.5 * 2.0 * np.cos(0.5) / (5.0 + 2.0 * np.sin(0.5))
@@ -35,7 +38,7 @@ def test_elasticity_interval_matches_retained_and_accepted_routes_and_artifact()
         assert any(
             "response.derivative_interval_fieller" in warning for warning in result.support.warnings
         )
-        artifact = antecedent.artifacts.loads(result.export())
+        artifact = antecedent.artifacts.loads(bytes(result.export()))
         assert artifact.payload_kind == "analysis_result"
         assert (
             artifact.to_dict()["payload"]["response"]["uncertainty"]["scalar"]["interpretation"]

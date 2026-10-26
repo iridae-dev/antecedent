@@ -9,6 +9,12 @@ from typing import Any
 
 import numpy as np
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .errors import CausalValueError
 
 
@@ -72,6 +78,7 @@ class FittedEffectModel:
         ``expected_parent_claim`` is the claim identity the consumer retained; a different
         claim refuses ``cohort_decision.wrong_parent_identity``.
         """
+        artifact = container_bytes(artifact)
         from ._native import FittedEffectModel as NativeModel
 
         model = cls(NativeModel.load(artifact))
@@ -125,9 +132,10 @@ class FittedEffectModel:
     def parent_claim(self) -> str:
         return str(self._native.parent_claim)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """Export the complete parent claim, including the bound model payload."""
-        return bytes(self._native.export())
+        return artifact_from_receipt(self, bytes(self._native.export()))
 
     def predict(self, data: Mapping[str, Any] | Any) -> EffectPrediction:
         """Predict from named columns; unrelated columns are ignored.

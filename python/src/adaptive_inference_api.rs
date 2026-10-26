@@ -17,7 +17,8 @@ use antecedent::analysis::adaptive_inference::{
     consume_adaptive_monitoring_contract_artifact, procedure_cells, procedure_status,
 };
 use antecedent_io::adaptive_monitoring_contract_artifact::{
-    DeclarationWire, contract_boundaries, declaration_from_wire, declaration_to_wire,
+    AdaptiveMonitoringContractArtifact, DeclarationWire, contract_boundaries,
+    declaration_from_wire, declaration_to_wire,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -298,10 +299,17 @@ impl AdaptiveInferenceHandle {
         py: Python<'_>,
         paradigm: &str,
         artifact_id: &str,
-    ) -> PyResult<Refused<Py<PyBytes>>> {
+    ) -> PyResult<Refused<(Py<PyBytes>, String)>> {
         let paradigm = paradigm_of(paradigm)?;
         Ok(match self.inner.export_contract(paradigm, artifact_id) {
-            Ok(bytes) => (Some(PyBytes::new(py, &bytes).unbind()), None),
+            Ok(bytes) => {
+                // These are freshly produced bytes, not an untrusted consumer input.
+                // Return the artifact's identity, which also binds the selected paradigm.
+                let identity = AdaptiveMonitoringContractArtifact::decode_unchecked(&bytes)
+                    .map_err(|error| crate::serialization_err(error.to_string()))?
+                    .identity;
+                (Some((PyBytes::new(py, &bytes).unbind(), identity)), None)
+            }
             Err(refusal) => refused(&refusal),
         })
     }
@@ -315,12 +323,19 @@ impl AdaptiveInferenceHandle {
         paradigm: &str,
         procedure: PyRef<'_, crate::adaptive_participant_api::ParticipantProcedureHandle>,
         artifact_id: &str,
-    ) -> PyResult<Refused<Py<PyBytes>>> {
+    ) -> PyResult<Refused<(Py<PyBytes>, String)>> {
         let paradigm = paradigm_of(paradigm)?;
         Ok(
             match self.inner.export_contract_with_procedure(paradigm, &procedure.inner, artifact_id)
             {
-                Ok(bytes) => (Some(PyBytes::new(py, &bytes).unbind()), None),
+                Ok(bytes) => {
+                    // These are freshly produced bytes, not an untrusted consumer input.
+                    // Return the artifact's identity, which also binds the selected paradigm.
+                    let identity = AdaptiveMonitoringContractArtifact::decode_unchecked(&bytes)
+                        .map_err(|error| crate::serialization_err(error.to_string()))?
+                        .identity;
+                    (Some((PyBytes::new(py, &bytes).unbind(), identity)), None)
+                }
                 Err(refusal) => refused(&refusal),
             },
         )
@@ -334,11 +349,17 @@ impl AdaptiveInferenceHandle {
         request_json: &str,
         artifact_id: &str,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<Refused<Py<PyBytes>>> {
+    ) -> PyResult<Refused<(Py<PyBytes>, String)>> {
         let request = parse_request(&parse(request_json, "adaptive inference request")?)?;
         let ctx = execution_context(0, None, cancel);
         Ok(match self.inner.export_result(&request, artifact_id, &ctx) {
-            Ok(bytes) => (Some(PyBytes::new(py, &bytes).unbind()), None),
+            Ok(bytes) => {
+                // The result identity also binds the request and recomputed values;
+                // the session's contract identity is not a substitute for it.
+                let identity = antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::decode_unchecked(&bytes)
+                    .map_err(|error| crate::serialization_err(error.to_string()))?.identity;
+                (Some((PyBytes::new(py, &bytes).unbind(), identity)), None)
+            }
             Err(refusal) => refused(&refusal),
         })
     }

@@ -23,6 +23,7 @@ from antecedent.inverse import (
     TargetQuantile,
     inverse_outcome,
 )
+from antecedent.outcomes import require_success
 from antecedent.query import AverageDerivative, ResponseCurve
 from antecedent.results import IdentificationView
 from antecedent.results.response import (
@@ -104,15 +105,17 @@ def test_forward_inverse_round_trip_on_a_known_structural_law_through_a_real_rou
     t = z + np.array([math.cos(i / 11.0) for i in range(n)])
     data = {"t": t, "y": 1.0 + 2.0 * t + 0.8 * z, "z": z}
     grid = [-0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0]
-    forward = ant.prepare(
-        data,
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=ant.ResponseCurve("t", "y", grid=grid),
-        estimator="response.kennedy_dr",
-        refute="none",
-        bootstrap=0,
-        seed=4,
-    ).estimate(data, seed=4)
+    forward = require_success(
+        ant.prepare(
+            data,
+            graph=[("z", "t"), ("z", "y"), ("t", "y")],
+            query=ant.ResponseCurve("t", "y", grid=grid),
+            estimator="response.kennedy_dr",
+            refute="none",
+            bootstrap=0,
+            seed=4,
+        ).estimate(data, seed=4)
+    )
     # The structural truth, computed from the generating law and the data's own mean of z.
     intercept = 1.0 + 0.8 * float(np.mean(z))
     # E[Y | do(a)] = intercept + 2a >= intercept + 0.75 exactly when a >= 0.375.

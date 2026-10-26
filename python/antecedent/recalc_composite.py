@@ -8,12 +8,22 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from . import _native
+from ._artifact_protocol import (
+    ArtifactAcceptance,
+    ArtifactExpectation,
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    container_bytes,
+)
 from ._recalc_bounds import _columns
 from ._refusal import raise_refusal
+from ._scientific import ScientificResult
 from .composition import SupportedDecision, _supported_from_wire
 from .decision import Contract
 from .design import StructuralCandidate, StructuralEntry
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from .outcomes import Answer, outcome_operation, require_success
 from .program_claims import ProgramBinding
 from .recalc import RecalcPlan, RecalcReceipt, _seed
 from .recalc_external import CallbackProvider, ExternalCallbackRefusal, ExternalCallbackRequest
@@ -137,8 +147,42 @@ class ConditionalStudyPolicy:
         return {"policy_id": self.policy_id, "branches": tables}
 
 
+def _conditional_acceptance(result: Any, bound: bool) -> ArtifactAcceptance:
+    return ArtifactAcceptance(
+        "verified" if result.source_verified else "sealed",
+        bound,
+        result.source_verified,
+        False,
+        proof=(
+            "ConditionalStudyRanking::consume: compare actual issued combined sources and rerank"
+            if result.source_verified
+            else "ConditionalStudyRanking::inspect_retained: validate identity, historical receipt and retained structural ranking"
+        ),
+        unresolved=() if result.source_verified else ("actual_executed_composite_sources",),
+    )
+
+
+def _conditional_bytes(data: Any) -> bytes:
+    raw = container_bytes(data)
+    # Keep the owning native consumer's typed artifact/limit refusals for
+    # malformed historical bytes and malformed additive envelopes alike.
+    if len(raw) > 8 * 1024 * 1024 + 1024:
+        return raw
+    try:
+        body = json.loads(raw)
+    except (ValueError, UnicodeError):
+        return raw
+    if not isinstance(body, dict) or body.get("format") != "conditional_study_ranking_v1":
+        return raw
+    if body.get("version") != 1 or not isinstance(body.get("payload"), str):
+        return raw
+    # The native owner applies the original 4 MiB limit before parsing this
+    # historical payload, including when the additive wrapper is well formed.
+    return body["payload"].encode("utf-8")
+
+
 @dataclass(frozen=True, slots=True)
-class ConditionalStudyRanking:
+class ConditionalStudyRanking(ScientificResult):
     """Source-backed conditional point ranking, with no EVSI or joint-state inference."""
 
     identity: str
@@ -147,15 +191,50 @@ class ConditionalStudyRanking:
     source: Mapping[str, object]
     policy: Mapping[str, object]
     _bytes: bytes
+    source_verified: bool = False
 
-    def export(self) -> bytes:
-        return self._bytes
+    @property
+    def answer(self) -> Answer:
+        return Answer(
+            "structured",
+            detail="conditional_structural_ranking",
+            structured={
+                "selected_action": self.selected_action,
+                "study_ids": tuple(entry.id for entry in self.entries),
+            },
+        )
+
+    @artifact_export
+    def export(self) -> ExportedArtifact[ConditionalStudyRanking]:
+        kind = "conditional_study_ranking_v1"
+        data = json.dumps(
+            {"format": kind, "version": 1, "payload": self._bytes.decode("utf-8")},
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+        return ExportedArtifact(data, kind, ArtifactExpectation(kind, self.identity))
 
     @classmethod
+    @outcome_operation
+    @artifact_consumer(
+        proof="ConditionalStudyRanking owning consumer",
+        input="data",
+        acceptance=_conditional_acceptance,
+    )
     def consume(
-        cls, data: bytes, session: CompositeSession, *, expected_identity: str | None = None
-    ):
+        cls,
+        data: bytes,
+        session: CompositeSession | None = None,
+        *,
+        expected_identity: str | None = None,
+    ) -> ConditionalStudyRanking:
         """Match a historical projection against explicitly replayed actual combined state."""
+        data = _conditional_bytes(data)
+        if session is None:
+            return _conditional_result(
+                _native.conditional_study_ranking_inspect(data, expected_identity)
+            )
+        session = require_success(session)
         if not isinstance(session, CompositeSession):
             raise CausalTypeError("consume requires an actually executed CompositeSession")
         return _conditional_result(
@@ -164,7 +243,7 @@ class ConditionalStudyRanking:
 
 
 def _conditional_result(result):
-    report, data, error = result
+    report, data, error, source_verified = result
     raise_refusal(error, ConditionalStudyRankingRefusal)
     assert report is not None and data is not None
     wire = json.loads(report)
@@ -184,6 +263,7 @@ def _conditional_result(result):
         wire["source"],
         wire["policy"],
         bytes(data),
+        bool(source_verified),
     )
 
 
@@ -218,6 +298,7 @@ class CompositeSession:
         assert wire is not None
         return RecalcPlan.from_wire(json.loads(wire))
 
+    @outcome_operation
     def execute(
         self,
         request: CompositeRequest,
@@ -249,6 +330,7 @@ class CompositeSession:
             _supported_from_wire(body["decision"]),
         )
 
+    @outcome_operation
     def rank_studies(self, policy: ConditionalStudyPolicy) -> ConditionalStudyRanking:
         """Run original structural ranking for the actual unique selected terminal action.
 

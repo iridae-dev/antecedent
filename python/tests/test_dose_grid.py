@@ -196,21 +196,21 @@ def test_observational_design_and_bad_inputs_refuse() -> None:
 
 def test_export_consume_round_trip_recomputes_the_result() -> None:
     result = run("level", noise=0.1)
-    artifact = result.export()
+    artifact = bytes(result.export())
     assert isinstance(artifact, bytes)
     fresh = consume_dose_grid_artifact(artifact)
     assert fresh.levels == result.levels
     assert fresh.support == result.support
     assert fresh.premises_digest == result.premises_digest
     assert fresh.data_digest == result.data_digest
-    assert fresh.export() == artifact
+    assert bytes(fresh.export()) == artifact
     assert fresh.calibration == "unmeasured" and fresh.simultaneous_band == "closed"
-    contrast = consume_dose_grid_artifact(run("contrast", noise=0.1).export())
+    contrast = consume_dose_grid_artifact(bytes(run("contrast", noise=0.1).export()))
     assert contrast.contrast is not None and contrast.levels == ()
 
 
 def test_consumer_limits_and_corrupt_artifacts_refuse() -> None:
-    artifact = run("level", noise=0.1).export()
+    artifact = bytes(run("level", noise=0.1).export())
     with pytest.raises(DoseGridRefusal) as info:
         consume_dose_grid_artifact(artifact, max_rows=10)
     assert info.value.detail == "dose_grid.consumer_limit_exceeded"
@@ -255,7 +255,7 @@ def test_quadratic_scope_recovers_functional_across_fixed_bandwidths(
     if result.contrast is not None:
         assert result.contrast.estimate == pytest.approx(3.0, abs=1e-6)
         assert result.contrast.smoothing_bias_included
-    fresh = consume_dose_grid_artifact(result.export())
+    fresh = consume_dose_grid_artifact(bytes(result.export()))
     assert fresh == result
     assert fresh.quadratic_mean
     assert fresh.to_dict()["quadratic_mean"] is True
@@ -319,7 +319,7 @@ def test_quadratic_scope_fresh_process_replays_attested_artifact() -> None:
                 "'calibration':r.calibration, 'premises':r.premises_digest}))"
             ),
         ],
-        input=produced.export(),
+        input=bytes(produced.export()),
         capture_output=True,
         check=True,
     )

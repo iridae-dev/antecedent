@@ -47,6 +47,13 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, NoReturn
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._digest import canonical_digest
 from ._native import CancellationToken
 from ._native import attribute_gap_to_columns as _attribute_gap_to_columns
@@ -169,15 +176,13 @@ class DescriptiveComparison(ScientificResult):
     @property
     def identity(self) -> str:
         """Content identity retained independently for artifact consumption."""
-        return str(json.loads(self.export())["digest"])
+        return str(json.loads(self._export_bytes())["digest"])
 
-    def artifact(self) -> ExportedArtifact[DescriptiveComparison]:
-        """Typed bytes envelope for shared scientific consumption."""
-        from ._artifact_protocol import exported_artifact
+    @artifact_export
+    def export(self) -> ExportedArtifact[DescriptiveComparison]:
+        return artifact_from_receipt(self, self._export_bytes())
 
-        return exported_artifact(self)
-
-    def export(self) -> bytes:
+    def _export_bytes(self) -> bytes:
         """A self-describing JSON artifact that :func:`replay_descriptive_comparison` re-derives."""
         body: dict[str, Any] = {
             "format": _FORMAT,
@@ -425,6 +430,10 @@ def _arm_stats(name: str, value: object) -> ArmSummary:
     return ArmSummary(n=value[0], mean=float(value[1]), sum_squares=float(value[2]))
 
 
+@artifact_consumer(
+    proof="descriptive.replay_descriptive_comparison: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def replay_descriptive_comparison(
     artifact: bytes | str, *, expected_identity: str | None = None
 ) -> DescriptiveComparison:
@@ -435,6 +444,11 @@ def replay_descriptive_comparison(
     with the stored values. A tampered, unknown-format, non-reproducing or differently-claimed
     artifact is refused with :class:`~antecedent.errors.CausalSerializationError`.
     """
+    artifact = (
+        container_bytes(artifact)
+        if isinstance(artifact, (bytes, bytearray, memoryview, ExportedArtifact))
+        else artifact
+    )
     try:
         body = json.loads(artifact)
     except (TypeError, ValueError) as error:

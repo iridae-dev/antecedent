@@ -51,6 +51,7 @@ from ._refusal import raise_refusal
 from ._validate import real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .joint_distribution import ScientificQuantity
+from .outcomes import require_success
 from .sensitivity_decision import SensitivityAction, SensitivityArtifact
 
 __all__ = [
@@ -499,7 +500,7 @@ class MsmResult:
         raise_refusal(refusal, MsmSensitivityRefusal)
         if data is None:  # pragma: no cover - the native contract
             raise CausalValueError("the native artifact returned neither a result nor a refusal")
-        return SensitivityArtifact.consume(data)
+        return require_success(SensitivityArtifact.consume(data))
 
 
 def _result(wire: Mapping[str, Any], request: _Request) -> MsmResult:

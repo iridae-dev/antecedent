@@ -5,7 +5,9 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal
 
+from ..._artifact_protocol import ExportedArtifact, artifact_export, artifact_from_receipt
 from ..._defaults import OMITTED
+from ..._scientific import ScientificResult
 from ...errors import CausalUnsupportedError, CausalValueError
 from ...graph import Admg
 from ...learners import LearnerSpec, Logistic, Ridge, _learner_wire
@@ -120,7 +122,7 @@ class TrialNuisanceDiagnostics:
 
 
 @dataclass(frozen=True, slots=True)
-class LearnedTrialEstimate:
+class LearnedTrialEstimate(ScientificResult):
     acceptance: Any = field(default=None, init=False, repr=False, compare=False)
 
     estimate: float
@@ -147,8 +149,9 @@ class LearnedTrialEstimate:
             "reasoning": self.inspect().to_dict(),
         }
 
-    def export(self) -> bytes:
-        return bytes(self._execution.export())
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
+        return artifact_from_receipt(self, bytes(self._execution.export()))
 
     def inspect(self) -> Any:
         import json

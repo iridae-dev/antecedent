@@ -49,12 +49,19 @@ from typing import Any
 import numpy as np
 
 from . import _native
-from ._artifact_protocol import ExportedArtifact
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError
 from .joint_distribution import JointDistributionArtifact
+from .outcomes import Answer, Outcome, outcome_operation, require_success
 
 __all__ = [
     "ComposedInterval",
@@ -155,6 +162,7 @@ class PropagationDraws(ScientificResult):
     ) -> PropagationDraws:
         """One column of ``artifact``; the evidence identity is its data snapshot."""
         _text(input_id, "input_id")
+        artifact = require_success(artifact)
         if not isinstance(artifact, JointDistributionArtifact):
             raise CausalTypeError("artifact must be a JointDistributionArtifact")
         if isinstance(column, bool) or not isinstance(column, int) or column < 0:
@@ -350,11 +358,30 @@ class PropagationClaim(ScientificResult):
     verdict: str | None
     _bytes: bytes = field(repr=False, compare=False)
 
-    def artifact(self) -> ExportedArtifact[ConsumedJointLawPropagation]:
-        """Bytes and producer metadata; load returns the typed consumed result."""
-        from ._artifact_protocol import exported_artifact
+    @property
+    def answer(self) -> Answer:
+        return Answer(
+            "partial" if self.is_envelope else "structured",
+            detail=self.label,
+            structured=self.values,
+        )
 
-        return exported_artifact(self)
+    def inspect(self) -> Any:
+        from .results._report import SlotModel
+
+        report = super().inspect()
+        return report.model_copy(
+            update={
+                "uncertainty": SlotModel(
+                    available=self.label != "point_only",
+                    reason="no_interval_claim",
+                    summary=self.label,
+                    payload={"route": self.route, "values": self.values}
+                    if self.label != "point_only"
+                    else {},
+                )
+            }
+        )
 
     @classmethod
     def _from(cls, parts: tuple[bytes, str]) -> PropagationClaim:
@@ -382,9 +409,10 @@ class PropagationClaim(ScientificResult):
                 f"no value {name!r}; this claim carries {sorted(self.values)}"
             ) from error
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[ConsumedJointLawPropagation]:
         """The sealed ``joint_law_propagation_v1`` artifact."""
-        return self._bytes
+        return artifact_from_receipt(self, self._bytes)
 
     def interval(self) -> None:
         """Always raises ``cell_not_licensed``: a component interval does not cover the composition.
@@ -400,6 +428,7 @@ class PropagationClaim(ScientificResult):
         assert coordinate is not None
         return coordinate
 
+    @outcome_operation
     def check_composed_interval(
         self, construction: str, *, evidence_rows: int, cancel: Any = None
     ) -> ComposedInterval:
@@ -460,6 +489,31 @@ class ConsumedJointLawPropagation(ScientificResult):
     values: Mapping[str, float]
     verdict: str | None = None
 
+    @property
+    def answer(self) -> Answer:
+        return Answer(
+            "partial" if self.is_envelope else "structured",
+            detail=self.label,
+            structured=self.values,
+        )
+
+    def inspect(self) -> Any:
+        from .results._report import SlotModel
+
+        report = super().inspect()
+        return report.model_copy(
+            update={
+                "uncertainty": SlotModel(
+                    available=self.label != "point_only",
+                    reason="no_interval_claim",
+                    summary=self.label,
+                    payload={"route": self.route, "values": self.values}
+                    if self.label != "point_only"
+                    else {},
+                )
+            }
+        )
+
 
 @bind_mean_reading
 def _claim(result: tuple[tuple[bytes, str] | None, str | None]) -> PropagationClaim:
@@ -469,6 +523,7 @@ def _claim(result: tuple[tuple[bytes, str] | None, str | None]) -> PropagationCl
     return PropagationClaim._from(parts)
 
 
+@outcome_operation
 def aligned_functional(
     operation: str,
     x: PropagationDraws,
@@ -497,6 +552,7 @@ def aligned_functional(
     )
 
 
+@outcome_operation
 def aligned_linear(
     operation: str,
     coefficients: tuple[float, float],
@@ -515,6 +571,7 @@ def aligned_linear(
     )
 
 
+@outcome_operation
 def linear_moments(
     operation: str,
     inputs: Sequence[MomentInput],
@@ -548,6 +605,7 @@ def linear_moments(
     )
 
 
+@outcome_operation
 def mixture(
     components: Sequence[MixtureComponent], *, weights_declared: bool = True, cancel: Any = None
 ) -> PropagationClaim:
@@ -569,6 +627,7 @@ def mixture(
     )
 
 
+@outcome_operation
 def dependence_envelope(
     operation: str,
     query: EnvelopeQuery,
@@ -597,6 +656,7 @@ def dependence_envelope(
     )
 
 
+@outcome_operation
 def correlation_range(
     operation: str,
     x: tuple[str, str],
@@ -636,6 +696,7 @@ def correlation_range(
     )
 
 
+@outcome_operation
 def spread(
     operation: str,
     x: PropagationDraws,
@@ -658,6 +719,7 @@ def spread(
     )
 
 
+@outcome_operation
 def aligned_linear_spread(
     operation: str,
     coefficients: tuple[float, float],
@@ -676,6 +738,7 @@ def aligned_linear_spread(
     )
 
 
+@outcome_operation
 def linear_moments_spread(
     operation: str,
     inputs: Sequence[MomentInput],
@@ -704,6 +767,7 @@ def linear_moments_spread(
     )
 
 
+@outcome_operation
 def composed_exceedance(
     operation: str,
     x: PropagationDraws,
@@ -744,6 +808,7 @@ def composed_exceedance(
     )
 
 
+@outcome_operation
 def mixture_exceedance(
     components: Sequence[MixtureDraws], *, threshold: float, cancel: Any = None
 ) -> PropagationClaim:
@@ -764,7 +829,7 @@ def transported_spread(
     dependence: str = "covariance",
     covariance_id: str | None = None,
     cancel: Any = None,
-) -> PropagationClaim:
+) -> Outcome[PropagationClaim]:
     """The spread of a transported claim from its pieces and their covariance.
 
     ``pieces`` carry the roles ``source_sampling``, ``target_sampling`` and
@@ -784,6 +849,7 @@ def transported_spread(
     )
 
 
+@outcome_operation
 def transported_spread_aligned(
     source_sampling: PropagationDraws,
     target_sampling: PropagationDraws,
@@ -817,7 +883,13 @@ def transported_spread_aligned(
     )
 
 
+@outcome_operation
 @bind_mean_reading
+@artifact_consumer(
+    proof="joint_law_propagation.consume_joint_law_propagation_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+    input="data",
+)
 def consume_joint_law_propagation_artifact(
     data: bytes, *, expected_identity: str | None = None, cancel: Any = None
 ) -> ConsumedJointLawPropagation:
@@ -827,6 +899,7 @@ def consume_joint_law_propagation_artifact(
         JointLawPropagationRefusal: an edited, truncated or foreign artifact, a retained
             identity that differs, or a stored declaration the rule no longer licenses.
     """
+    data = container_bytes(data)
     if not isinstance(data, (bytes, bytearray, memoryview)):
         raise CausalTypeError("data must be bytes")
     summary, refusal = _native.joint_law_consume(bytes(data), expected_identity, cancel)

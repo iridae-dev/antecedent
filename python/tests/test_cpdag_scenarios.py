@@ -234,7 +234,7 @@ def test_budget_stop_retains_explored_and_unevaluated():
     assert partial.receipt.not_enumerated == 3
     assert partial.envelope is None
     # The recorded limit replays: the consumer reproduces the identical prefix.
-    replayed = transport.consume_cpdag_scenarios_artifact(partial.export())
+    replayed = transport.consume_cpdag_scenarios_artifact(bytes(partial.export()))
     assert replayed.completions == partial.completions
     assert replayed.counts == partial.counts and replayed.receipt == partial.receipt
 
@@ -262,24 +262,24 @@ def test_cancelled_report_is_not_exportable():
     assert cancelled.counts.unevaluated == 4 and cancelled.envelope is None
     assert cancelled.receipt.stop == "search.cancelled" and not cancelled.exportable
     with pytest.raises(transport.CpdagScenarioRefusal) as refused:
-        cancelled.export()
+        bytes(cancelled.export())
     assert refused.value.reason_code == "cancelled_no_claim"
     assert refused.value.detail == "cpdag_scenarios.cancelled_not_exportable"
 
 
 def test_export_and_fresh_consume_reproduce_the_report():
     result = run()
-    artifact = result.export()
+    artifact = bytes(result.export())
     assert artifact.startswith(PREFIX)
     consumed = transport.consume_cpdag_scenarios_artifact(artifact)
     assert consumed.cpdag_identity == result.cpdag_identity
     assert consumed.completions == result.completions
     assert consumed.counts == result.counts and consumed.envelope == result.envelope
     assert consumed.premises_digest and consumed.data_digest
-    assert consumed.export() == artifact
+    assert bytes(consumed.export()) == artifact
     # Per-completion evidence with a missing completion replays as well.
     partial = run(evidence=[bind(sorted(FORWARD), "ev-forward")])
-    again = transport.consume_cpdag_scenarios_artifact(partial.export())
+    again = transport.consume_cpdag_scenarios_artifact(bytes(partial.export()))
     assert again.completions == partial.completions and again.counts == partial.counts
 
 
@@ -332,7 +332,7 @@ def _frame(names, inner):
 
 
 def test_tampered_artifacts_refuse_with_typed_details():
-    artifact = run().export()
+    artifact = bytes(run().export())
     names, inner = _unframe(artifact)
     assert names == NAMES and _frame(names, inner) == artifact
     # Evidence identity is data: the data digest refuses first.

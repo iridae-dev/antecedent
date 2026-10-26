@@ -16,10 +16,12 @@ from typing import Any
 from numpy.typing import ArrayLike
 
 from . import _native
+from ._artifact_protocol import ExportedArtifact, artifact_export, artifact_from_receipt
 from ._recalc_bounds import _columns
 from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError
 from .graph import Admg
+from .outcomes import outcome_operation
 from .recalc import (
     Capabilities,
     Decision,
@@ -200,7 +202,8 @@ class _Session:
     def capabilities(self) -> Capabilities:
         return Capabilities.from_wire(json.loads(self._handle.capabilities_json()))
 
-    def export_result(self, *, seed: int = 1, threads: int | None = None) -> bytes:
+    @artifact_export
+    def export(self, *, seed: int = 1, threads: int | None = None) -> ExportedArtifact:
         """Export the retained original engine artifact, independently consumable.
 
         This result artifact supplies no general executable-state resume and no
@@ -210,7 +213,7 @@ class _Session:
         raise_refusal(error, _refusal_type)
         if artifact is None:  # pragma: no cover - native invariant
             raise CausalSerializationError("static recalculation exported no artifact")
-        return bytes(artifact)
+        return artifact_from_receipt(self, bytes(artifact))
 
 
 class StaticResponseSession(_Session):
@@ -267,6 +270,7 @@ class StaticResponseSession(_Session):
             )
         )
 
+    @outcome_operation
     def execute(
         self,
         request: StaticResponseRequest,
@@ -319,6 +323,7 @@ class MultiSourceSession(_Session):
             )
         )
 
+    @outcome_operation
     def execute(
         self, request: MultiSourceRequest, *, seed: int = 1, threads: int | None = None
     ) -> StaticResult:

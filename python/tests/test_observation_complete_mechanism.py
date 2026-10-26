@@ -16,6 +16,7 @@ import numpy as np
 import pytest
 from antecedent import observation
 from antecedent.errors import CausalUnsupportedError, CausalValueError
+from antecedent.outcomes import require_success
 
 
 def _curve_data(seed: int = 17) -> dict[str, np.ndarray]:
@@ -32,17 +33,21 @@ _GRAPH = [("x", "a"), ("x", "y"), ("a", "y")]
 def test_complete_observation_runs_through_analyze_like_no_mechanism():
     data = _curve_data()
 
-    bare = antecedent.analyze(
-        data,
-        query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
-        graph=_GRAPH,
+    bare = require_success(
+        antecedent.analyze(
+            data,
+            query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
+            graph=_GRAPH,
+        )
     )
-    explicit_complete = antecedent.analyze(
-        data,
-        query=antecedent.ResponseCurve(
-            "a", "y", grid=[-0.5, 0.0, 0.5], observation=observation.Complete()
-        ),
-        graph=_GRAPH,
+    explicit_complete = require_success(
+        antecedent.analyze(
+            data,
+            query=antecedent.ResponseCurve(
+                "a", "y", grid=[-0.5, 0.0, 0.5], observation=observation.Complete()
+            ),
+            graph=_GRAPH,
+        )
     )
 
     assert explicit_complete.provenance["operation_id"] == bare.provenance["operation_id"]
@@ -59,12 +64,14 @@ def test_complete_observation_refuses_scalar_refute_like_no_mechanism():
     for mechanism in (None, observation.Complete()):
         query = antecedent.ResponseCurve("a", "y", grid=[-0.4, 0.0, 0.4], observation=mechanism)
         with pytest.raises(CausalUnsupportedError, match="not_applicable:"):
-            antecedent.analyze(
-                {"a": data["a"], "y": data["y"]},
-                query=query,
-                graph=[("a", "y")],
-                refute="cheap",
-                seed=9,
+            require_success(
+                antecedent.analyze(
+                    {"a": data["a"], "y": data["y"]},
+                    query=query,
+                    graph=[("a", "y")],
+                    refute="cheap",
+                    seed=9,
+                )
             )
 
 
@@ -74,11 +81,13 @@ def test_complete_observation_accepts_estimator_config_like_no_mechanism():
         "a", "y", grid=[-0.5, 0.0, 0.5], observation=observation.Complete()
     )
 
-    result = antecedent.analyze(
-        {"a": data["a"], "y": data["y"]},
-        query=query,
-        graph=[("a", "y")],
-        estimator_config={"bandwidth": 0.3},
+    result = require_success(
+        antecedent.analyze(
+            {"a": data["a"], "y": data["y"]},
+            query=query,
+            graph=[("a", "y")],
+            estimator_config={"bandwidth": 0.3},
+        )
     )
 
     assert result.response is not None
@@ -91,31 +100,35 @@ def test_complete_observation_with_assumptions_raises_same_error_as_no_mechanism
         antecedent.errors.CausalUnsupportedError,
         match="observation_assumptions require an explicit observation mechanism",
     ):
-        antecedent.analyze(
-            {"a": data["a"], "y": data["y"]},
-            query=antecedent.ResponseCurve(
-                "a",
-                "y",
-                grid=[-0.5, 0.0, 0.5],
-                observation=observation.Complete(),
-                observation_assumptions=[observation.IndependentGiven(())],
-            ),
-            graph=[("a", "y")],
+        require_success(
+            antecedent.analyze(
+                {"a": data["a"], "y": data["y"]},
+                query=antecedent.ResponseCurve(
+                    "a",
+                    "y",
+                    grid=[-0.5, 0.0, 0.5],
+                    observation=observation.Complete(),
+                    observation_assumptions=[observation.IndependentGiven(())],
+                ),
+                graph=[("a", "y")],
+            )
         )
 
     with pytest.raises(
         antecedent.errors.CausalUnsupportedError,
         match="observation_assumptions require an explicit observation mechanism",
     ):
-        antecedent.analyze(
-            {"a": data["a"], "y": data["y"]},
-            query=antecedent.ResponseCurve(
-                "a",
-                "y",
-                grid=[-0.5, 0.0, 0.5],
-                observation_assumptions=[observation.IndependentGiven(())],
-            ),
-            graph=[("a", "y")],
+        require_success(
+            antecedent.analyze(
+                {"a": data["a"], "y": data["y"]},
+                query=antecedent.ResponseCurve(
+                    "a",
+                    "y",
+                    grid=[-0.5, 0.0, 0.5],
+                    observation_assumptions=[observation.IndependentGiven(())],
+                ),
+                graph=[("a", "y")],
+            )
         )
 
 

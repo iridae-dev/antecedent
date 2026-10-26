@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 from antecedent import AverageEffect, Frequentist, ResponseCurve, analyze, prepare
+from antecedent.outcomes import require_success
 from antecedent.results import AnalysisResult, CausalResponseView, InspectionReport
 from pydantic import BaseModel
 
@@ -52,7 +53,7 @@ def test_prepared_estimate_is_the_same_pydantic_result() -> None:
         refute="none",
         bootstrap=0,
     )
-    result = prepared.estimate()
+    result = require_success(prepared.estimate())
     assert isinstance(result, AnalysisResult)
     assert result.to_dict()["program_id"] == result.program_id
 

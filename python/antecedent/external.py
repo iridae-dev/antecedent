@@ -31,6 +31,12 @@ from typing import TYPE_CHECKING, Any, cast
 import numpy as np
 from numpy.typing import NDArray
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._digest import canonical_digest
 from ._native import ExternalClaimArtifact as _NativeClaim
@@ -670,6 +676,7 @@ class ExternalSpec:
             CausalValueError: ``expected_identity`` is a string that is not an identity.
             CausalUnsupportedError: the artifact is corrupt or its identity differs.
         """
+        data = container_bytes(data)
         if isinstance(expected_identity, str):
             try:
                 fields = json.loads(expected_identity)
@@ -815,9 +822,10 @@ class BoundExternalClaim:
 
         return SourceEvidence._deferred(lambda: self._native.source_evidence)
 
-    def export(self, *, artifact_id: str = "external-claim") -> bytes:
+    @artifact_export
+    def export(self, *, artifact_id: str = "external-claim") -> ExportedArtifact:
         """Serialize the claim; reload it with :meth:`ExternalSpec.load` and ``identity``."""
-        return self._native.export(artifact_id)
+        return artifact_from_receipt(self, self._native.export(artifact_id))
 
     def explain(self) -> str:
         """What the numbers are, who supplied them, how far they are trusted and supported."""

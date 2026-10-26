@@ -55,6 +55,13 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._native import consume_categorical_treatment_artifact as _consume
 from ._native import evaluate_categorical_treatment as _evaluate
 from ._refusal import StructuredRefusal
@@ -351,13 +358,8 @@ class CategoricalEffects(ScientificResult):
     #: The Bayesian counterpart, when ``posterior=`` declared a prior.
     posterior: CategoricalPosterior | None = None
 
-    def artifact(self) -> ExportedArtifact[CategoricalEffects]:
-        """Typed bytes envelope for shared scientific consumption."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self)
-
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[CategoricalEffects]:
         """The checksummed ``categorical_treatment_v1`` artifact.
 
         Raises :class:`CategoricalTreatmentRefusal` (``route_not_supported``,
@@ -367,7 +369,7 @@ class CategoricalEffects(ScientificResult):
         if self._artifact_bytes is None:
             assert self._export_refusal is not None
             raise CategoricalTreatmentRefusal(json.loads(self._export_refusal))
-        return self._artifact_bytes
+        return artifact_from_receipt(self, self._artifact_bytes)
 
     def effect(self, level: str) -> LevelEffect:
         """The contrast of ``level`` against the reference (the reference itself is zero)."""
@@ -527,6 +529,7 @@ def _posterior(raw: Mapping[str, Any] | None) -> CategoricalPosterior | None:
 def _result(
     report_json: str, artifact: bytes | None, export_refusal: str | None = None
 ) -> CategoricalEffects:
+    artifact = container_bytes(artifact) if artifact is not None else None
     report = json.loads(report_json)
     result = report["result"]
     spec = report["spec"]
@@ -734,6 +737,10 @@ def categorical_effects(
     return _result(report, bytes(artifact))
 
 
+@artifact_consumer(
+    proof="categorical_treatment.consume_categorical_effects: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_categorical_effects(
     artifact: bytes,
     *,
@@ -752,6 +759,7 @@ def consume_categorical_effects(
 
     ``memory_limit_bytes`` bounds the replay's planned working set (``*.memory_budget_exceeded``).
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     if expected_identity is None:

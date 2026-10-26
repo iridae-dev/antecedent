@@ -13,6 +13,7 @@ from antecedent.errors import (
     CausalValueError,
 )
 from antecedent.learners import Linear
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced
 
 DESIGNS = ("nested_cohort", "independent_samples")
@@ -52,7 +53,9 @@ def options(**kwargs):
 @pytest.mark.parametrize("design", DESIGNS)
 def test_good_overlap_point_matches_the_known_truth_under_each_design(design):
     query, data = fixture(design)
-    result = advanced.prepare_learned_continuous(query, data, options=options(), seed=5).estimate()
+    result = require_success(
+        advanced.prepare_learned_continuous(query, data, options=options(), seed=5).estimate()
+    )
     assert result.estimate == pytest.approx(2.5, abs=0.3)
     assert result.interval is None
     assert result.uncertainty["status"] == "point_only"
@@ -72,7 +75,7 @@ def test_weak_overlap_refuses_rather_than_extrapolating():
     with pytest.raises(
         CausalUnsupportedError, match="learned_transport.membership_overlap"
     ) as info:
-        study.estimate()
+        require_success(study.estimate())
     assert info.value.reason_code == "transport_support_failure"
     query, data = fixture()
     low = dataclasses.replace(data, randomization=[0.01] * len(data.randomization))
@@ -101,9 +104,11 @@ def test_declared_bounds_designs_and_targets_refuse_with_their_details():
     with pytest.raises(CausalValueError):
         advanced.LearnedContinuousOptions(min_membership_probability=0.7)
     # Below the replicate floor the point is kept and the interval withheld.
-    below = advanced.prepare_learned_continuous(
-        query, data, options=options(bootstrap=50), seed=2
-    ).estimate()
+    below = require_success(
+        advanced.prepare_learned_continuous(
+            query, data, options=options(bootstrap=50), seed=2
+        ).estimate()
+    )
     assert below.uncertainty["reason"] == "estimator_inference_mismatch"
     assert below.uncertainty["detail"] == "learned_transport.bootstrap_below_floor"
     assert below.estimate == pytest.approx(2.5, abs=0.3)
@@ -162,7 +167,7 @@ def test_estimator_menu_reads_the_retained_plan_after_builder_disposal():
     plan = study.estimator_menu()
     assert plan.eligible == ("learned_trial_aipw", "trial_ipw_supplied_probabilities")
     assert plan["learned_trial_aipw"].refusal is None
-    assert study.estimate().estimate == pytest.approx(2.5, abs=0.3)
+    assert require_success(study.estimate()).estimate == pytest.approx(2.5, abs=0.3)
 
 
 def test_prepare_learned_continuous_retains_a_checked_plan_after_builder_disposal():
@@ -172,7 +177,7 @@ def test_prepare_learned_continuous_retains_a_checked_plan_after_builder_disposa
     )
     del builder_query, builder_data
     # The retained plan holds the certificate: estimating never identifies again.
-    plan = study.estimate()
+    plan = require_success(study.estimate())
     assert plan.certificate["formula"] == "standardize"
     assert plan.certificate["over"] == (0,)
     assert plan.estimate == pytest.approx(2.5, abs=0.3)
@@ -185,8 +190,8 @@ def test_estimate_executes_the_retained_plan_after_builder_disposal(design):
         builder_query, builder_data, options=options(), seed=7
     )
     del builder_query, builder_data
-    plan = study.estimate()
-    assert study.estimate().execution_id == plan.execution_id
+    plan = require_success(study.estimate())
+    assert require_success(study.estimate()).execution_id == plan.execution_id
     assert plan.sampling == design
 
 
@@ -195,11 +200,11 @@ def test_refresh_rebinds_rows_and_re_executes_the_retained_plan():
     study = advanced.prepare_learned_continuous(
         builder_query, builder_data, options=options(), seed=7
     )
-    first = study.estimate()
+    first = require_success(study.estimate())
     del builder_query, builder_data
     _, fresh = fixture(seed=9)
-    study.refresh(fresh)
-    plan = study.estimate()
+    require_success(study.refresh(fresh))
+    plan = require_success(study.estimate())
     assert plan.execution_id != first.execution_id
     assert plan.certificate == first.certificate
 
@@ -211,9 +216,9 @@ def test_prepare_once_estimate_export_and_independent_consume_after_builder_disp
         builder_query, builder_data, options=options(), seed=7
     )
     del builder_query, builder_data
-    result = study.estimate()
-    assert study.estimate().execution_id == result.execution_id
-    artifact = study.export()
+    result = require_success(study.estimate())
+    assert require_success(study.estimate()).execution_id == result.execution_id
+    artifact = bytes(study.export())
     plan = advanced.consume_learned_continuous(artifact)
     assert plan.estimate == result.estimate
     assert plan.execution_id == result.execution_id
@@ -229,8 +234,8 @@ def test_consumer_replays_the_point_after_builder_disposal():
     study = advanced.prepare_learned_continuous(
         builder_query, builder_data, options=options(), seed=7
     )
-    result = study.estimate()
-    artifact = study.export()
+    result = require_success(study.estimate())
+    artifact = bytes(study.export())
     del builder_query, builder_data, study
     # The artifact alone (certificate, rows, out-of-fold predictions) replays the plan's point.
     plan = advanced.consume_learned_continuous(artifact)
@@ -242,24 +247,28 @@ def test_export_requires_an_execution_and_refresh_keeps_the_certificate():
     query, data = fixture()
     study = advanced.prepare_learned_continuous(query, data, options=options(), seed=7)
     with pytest.raises(CausalUnsupportedError, match="estimate before exporting"):
-        study.export()
-    first = study.estimate()
+        bytes(study.export())
+    first = require_success(study.estimate())
     _, fresh = fixture(seed=9)
-    study.refresh(fresh)
+    require_success(study.refresh(fresh))
     with pytest.raises(CausalUnsupportedError, match="estimate before exporting"):
-        study.export()
-    assert study.estimate().execution_id != first.execution_id
+        bytes(study.export())
+    assert require_success(study.estimate()).execution_id != first.execution_id
     with pytest.raises((ValueError, CausalUnsupportedError), match="reprepare_required"):
-        study.refresh(dataclasses.replace(fresh, sampling="nested_cohort"))
+        require_success(study.refresh(dataclasses.replace(fresh, sampling="nested_cohort")))
     with pytest.raises(CausalUnsupportedError, match="learned_transport.treatment_overlap"):
-        study.refresh(dataclasses.replace(fresh, randomization=[0.0] * len(fresh.randomization)))
+        require_success(
+            study.refresh(
+                dataclasses.replace(fresh, randomization=[0.0] * len(fresh.randomization))
+            )
+        )
 
 
 def test_a_tampered_artifact_or_relabelled_names_fail_consumption_with_typed_errors():
     query, data = fixture()
     study = advanced.prepare_learned_continuous(query, data, options=options(), seed=7)
-    study.estimate()
-    artifact = study.export()
+    require_success(study.estimate())
+    artifact = bytes(study.export())
     with pytest.raises(CausalSerializationError):
         advanced.consume_learned_continuous(artifact[:-40])
     with pytest.raises(CausalSerializationError):
@@ -284,12 +293,12 @@ def test_the_analytic_interval_replays_and_the_legacy_bootstrap_refuses():
     ) as info:
         study.interval()
     assert info.value.reason_code == "estimator_inference_mismatch"
-    result = study.estimate()
+    result = require_success(study.estimate())
     assert result.uncertainty["status"] == "withheld"
     assert result.uncertainty["reason"] == "cell_not_licensed"
     assert result.interval is None
     assert result.estimate == pytest.approx(2.5, abs=0.3)
-    consumed = advanced.consume_learned_continuous(study.export())
+    consumed = advanced.consume_learned_continuous(bytes(study.export()))
     assert consumed.uncertainty == result.uncertainty
     assert consumed.interval is None
     plan = advanced.prepare_learned_continuous(
@@ -300,6 +309,6 @@ def test_the_analytic_interval_replays_and_the_legacy_bootstrap_refuses():
     assert interval.uncertainty["status"] == "available"
     assert interval.standard_error > 0
     assert interval.interval[0] < interval.estimate < interval.interval[1]
-    replay = advanced.consume_learned_continuous(plan.export())
+    replay = advanced.consume_learned_continuous(bytes(plan.export()))
     assert replay.interval == interval.interval
     assert replay.standard_error == interval.standard_error

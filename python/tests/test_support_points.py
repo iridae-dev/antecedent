@@ -5,6 +5,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 from antecedent import external
+from antecedent.outcomes import require_success
 
 _ORDER = (
     "supported",
@@ -26,10 +27,12 @@ def test_static_curve_summary_is_the_worst_of_its_point_labels():
     # The estimator refuses a coordinate far outside the data, so every point here is
     # inside it; the summary must still be the worst of the point labels.
     grid = [-0.5, 0.0, 0.5]
-    result = antecedent.analyze(
-        {"a": treatment, "y": outcome},
-        query=antecedent.ResponseCurve("a", "y", grid=grid),
-        graph=[("a", "y")],
+    result = require_success(
+        antecedent.analyze(
+            {"a": treatment, "y": outcome},
+            query=antecedent.ResponseCurve("a", "y", grid=grid),
+            graph=[("a", "y")],
+        )
     )
     cells = list(result.support.point_status)
     assert len(cells) == len(grid)
@@ -50,10 +53,12 @@ def test_joint_derivative_labels_every_value_component_with_one_joint_status():
     a = 0.5 * x + rng.normal(size=500)
     b = -0.2 * x + rng.normal(size=500)
     y = 8.0 + 1.5 * a - 0.75 * b + x + rng.normal(scale=0.15, size=500)
-    result = antecedent.analyze(
-        {"x": x, "a": a, "b": b, "y": y},
-        query=antecedent.ResponseJacobian(["a", "b"], ["y"], at=[0.0, 0.0]),
-        graph=[("x", "a"), ("x", "b"), ("x", "y"), ("a", "y"), ("b", "y")],
+    result = require_success(
+        antecedent.analyze(
+            {"x": x, "a": a, "b": b, "y": y},
+            query=antecedent.ResponseJacobian(["a", "b"], ["y"], at=[0.0, 0.0]),
+            graph=[("x", "a"), ("x", "b"), ("x", "y"), ("a", "y"), ("b", "y")],
+        )
     )
     cells = list(result.support.point_status)
     # One joint query point answers the whole 1 x 2 Jacobian.

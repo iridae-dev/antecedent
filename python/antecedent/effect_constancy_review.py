@@ -30,7 +30,8 @@ __all__ = [
 
 
 def _review(source: EffectConstancyResult, request: Mapping[str, Any]) -> dict[str, Any]:
-    if len(source.export()) > 64 * 1024 * 1024:
+    artifact = bytes(source.export())
+    if len(artifact) > 64 * 1024 * 1024:
         raise CausalValueError(
             "effect_constancy_consumer.invalid_request: artifact exceeds bounds",
             reason_code="invalid_argument",
@@ -43,9 +44,7 @@ def _review(source: EffectConstancyResult, request: Mapping[str, Any]) -> dict[s
         )
     return dict(
         json.loads(
-            _native.review_effect_constancy(
-                source.export(), json.dumps(source.identity._wire()), text
-            )
+            _native.review_effect_constancy(artifact, json.dumps(source.identity._wire()), text)
         )
     )
 

@@ -248,17 +248,19 @@ def test_an_exported_result_is_replayed_by_an_independent_consumer():
         (3, 1, 1, 0, 2),
         (3, 1, 1, 1, 3),
     )
-    again = replay_matched_case_control(result.export())
+    again = replay_matched_case_control(bytes(result.export()))
     assert again.log_odds_ratio == result.log_odds_ratio
     assert again.counts == result.counts
     assert again.set_types == result.set_types
-    assert replay_matched_case_control(again.export()).export() == result.export()
-    body = json.loads(result.export())
+    assert bytes(replay_matched_case_control(bytes(again.export())).export()) == bytes(
+        result.export()
+    )
+    body = json.loads(bytes(result.export()))
     assert body["claim"] == "point_only" and "interval" not in body
 
 
 def test_a_tampered_artifact_is_refused_for_the_right_reason():
-    artifact = fit(pairs(7, 3)).export()
+    artifact = bytes(fit(pairs(7, 3)).export())
     body = json.loads(artifact)
     for edit in (
         {"log_odds_ratio": body["log_odds_ratio"] + 1e-9},
@@ -285,9 +287,12 @@ def test_a_tampered_artifact_is_refused_for_the_right_reason():
 
 
 def test_a_replay_that_would_expand_past_the_row_cap_is_refused_before_work():
-    body = json.loads(fit(pairs(7, 3)).export())
+    body = json.loads(bytes(fit(pairs(7, 3)).export()))
     with pytest.raises(CausalResourceError):
         replay_matched_case_control(sealed({**body, "set_types": [[2, 1, 1, 1, 10**12]]}))
     with pytest.raises(CausalResourceError):
-        replay_matched_case_control(fit(pairs(7, 3)).export(), max_rows=19)
-    assert replay_matched_case_control(fit(pairs(7, 3)).export(), max_rows=20).counts.total == 10
+        replay_matched_case_control(bytes(fit(pairs(7, 3)).export()), max_rows=19)
+    assert (
+        replay_matched_case_control(bytes(fit(pairs(7, 3)).export()), max_rows=20).counts.total
+        == 10
+    )

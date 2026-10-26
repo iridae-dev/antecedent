@@ -19,6 +19,7 @@ from antecedent.extensibility import (
     ProviderVerificationFixture,
     UnknownProviderError,
 )
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -88,15 +89,15 @@ def test_two_datasets_that_print_alike_have_different_request_digests() -> None:
     other.loc[10_000, "y"] += 1e-6
     assert repr(frame) == repr(other), "the repr elides the row that differs"
     registry = _registry()
-    first = registry.execute("mean", {"data": frame})
-    second = registry.execute("mean", {"data": other})
-    again = registry.execute("mean", {"data": frame.copy()})
+    first = require_success(registry.execute("mean", {"data": frame}))
+    second = require_success(registry.execute("mean", {"data": other}))
+    again = require_success(registry.execute("mean", {"data": frame.copy()}))
     assert _header(first)["request_digest"] != _header(second)["request_digest"]
     assert _header(first)["request_digest"] == _header(again)["request_digest"]
     assert first.provenance["request_digest_method"] == "canonical_json_v2"
     # The same columns as a dict of arrays, a different container, are another request form.
     columns = {name: frame[name].to_numpy() for name in frame.columns}
-    assert registry.execute("mean", {"data": columns}).estimate.shape == (1,)
+    assert require_success(registry.execute("mean", {"data": columns})).estimate.shape == (1,)
 
 
 def test_array_requests_are_hashed_by_dtype_shape_and_bytes() -> None:
@@ -104,9 +105,9 @@ def test_array_requests_are_hashed_by_dtype_shape_and_bytes() -> None:
     base = np.arange(6.0).reshape(2, 3)
 
     def digest(value) -> str:
-        return _header(registry.execute("mean", {"data": {"y": [1.0]}, "x": value}))[
-            "request_digest"
-        ]
+        return _header(
+            require_success(registry.execute("mean", {"data": {"y": [1.0]}, "x": value}))
+        )["request_digest"]
 
     assert digest(base) == digest(base.copy())
     assert digest(base) == digest(base.astype(">f8")), "byte order is not identity"
@@ -126,7 +127,7 @@ def test_a_request_with_no_canonical_form_is_refused_never_hashed_by_repr() -> N
             return "Opaque()"
 
     with pytest.raises(ProviderRefusal) as caught:
-        registry.execute("mean", {"data": {"y": [1.0]}, "handle": Opaque()})
+        require_success(registry.execute("mean", {"data": {"y": [1.0]}, "handle": Opaque()}))
     error = caught.value
     assert isinstance(error, ValueError)
     assert error.detail == "provider.request_not_canonical"
@@ -135,18 +136,20 @@ def test_a_request_with_no_canonical_form_is_refused_never_hashed_by_repr() -> N
     assert_registered_refusal(error)
     # A mapping cannot pose as the digest of an array.
     with pytest.raises(ProviderRefusal, match="reserved"):
-        registry.execute(
-            "mean", {"data": {"y": [1.0]}, "x": {"__antecedent_array__": {"blake3": "0" * 64}}}
+        require_success(
+            registry.execute(
+                "mean", {"data": {"y": [1.0]}, "x": {"__antecedent_array__": {"blake3": "0" * 64}}}
+            )
         )
     # Non-finite numbers in a list are refused, not hashed.
     with pytest.raises(ProviderRefusal, match="canonical digest"):
-        registry.execute("mean", {"data": {"y": [1.0]}, "x": [float("nan")]})
+        require_success(registry.execute("mean", {"data": {"y": [1.0]}, "x": [float("nan")]}))
 
 
 def test_registry_refusals_carry_reason_codes_and_remedies_and_keep_their_classes() -> None:
     registry = _registry()
     with pytest.raises(UnknownProviderError) as unknown:
-        registry.execute("absent", {})
+        require_success(registry.execute("absent", {}))
     error = unknown.value
     assert isinstance(error, KeyError) and isinstance(error, ProviderRefusal)
     assert error.detail == "provider.not_registered" and error.remedy
@@ -175,13 +178,14 @@ def test_registry_refusals_carry_reason_codes_and_remedies_and_keep_their_classe
     assert failed.value.detail == "external_object_verification.failed_probe"
     assert failed.value.offending == "truth" and failed.value.remedy
     assert (
-        registry.execute("mean", {"data": {"y": [1.0]}}).trust is ProviderTrust.EXTERNALLY_ATTESTED
+        require_success(registry.execute("mean", {"data": {"y": [1.0]}})).trust
+        is ProviderTrust.EXTERNALLY_ATTESTED
     )
 
 
 def test_a_provider_result_loads_through_artifacts_as_its_declared_header() -> None:
     registry = _registry()
-    result = registry.execute("mean", {"data": {"y": [1.0, 3.0]}})
+    result = require_success(registry.execute("mean", {"data": {"y": [1.0, 3.0]}}))
     loaded = artifacts.loads(result.host_artifact)
     assert loaded.payload_kind == "provider_result"
     assert loaded.artifact_id == "provider-result:mean"

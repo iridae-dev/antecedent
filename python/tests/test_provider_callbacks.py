@@ -21,6 +21,7 @@ import pytest
 from antecedent import provider_callbacks as pc
 from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -79,7 +80,7 @@ def gaussian(version="1.0", mu=MU, calls=None):
             return pc.Output.mean(mu)
         if query.operation == "sample":
             rng = ctx.rng()
-            return pc.Output.sample(rng.gauss(mu, SD) for _ in range(query.draws))
+            return require_success(pc.Output.sample(rng.gauss(mu, SD) for _ in range(query.draws)))
         if query.operation == "cdf":
             return pc.Output.cdf(
                 0.5 * (1 + math.erf((t - mu) / (SD * math.sqrt(2)))) for t in query.points
@@ -99,7 +100,7 @@ def counted(provider):
 
 def refusal_of(callable_, *args, **kwargs):
     with pytest.raises(pc.CallbackRefusal) as caught:
-        callable_(*args, **kwargs)
+        require_success(callable_(*args, **kwargs))
     assert_registered_refusal(caught.value)
     return caught.value
 
@@ -111,11 +112,13 @@ def test_gaussian_callback_mean_cdf_quantile_match_closed_forms():
     provider = gaussian()
     session = pc.CallbackSession()
     decl = declaration()
-    mean = session.execute(provider, decl, pc.Request(pc.Query.mean(), seed=3))
+    mean = require_success(session.execute(provider, decl, pc.Request(pc.Query.mean(), seed=3)))
     assert mean.output.values == (MU,)
     assert mean.standing == "licensed_external"
     thresholds = [MU - 1.96 * SD, MU, MU + SD]
-    cdf = session.execute(provider, decl, pc.Request(pc.Query.cdf(thresholds), seed=3))
+    cdf = require_success(
+        session.execute(provider, decl, pc.Request(pc.Query.cdf(thresholds), seed=3))
+    )
     for t, got in zip(thresholds, cdf.output.values, strict=True):
         closed = 0.5 * (1 + math.erf((t - MU) / (SD * math.sqrt(2))))
         assert got == pytest.approx(closed, abs=1e-12)
@@ -123,13 +126,15 @@ def test_gaussian_callback_mean_cdf_quantile_match_closed_forms():
     assert cdf.output.values == pytest.approx(
         (0.0249978951482205, 0.5, 0.8413447460685429), abs=1e-9
     )
-    quantile = session.execute(
-        provider, decl, pc.Request(pc.Query.quantile([0.5, 0.9, 0.975]), seed=3)
+    quantile = require_success(
+        session.execute(provider, decl, pc.Request(pc.Query.quantile([0.5, 0.9, 0.975]), seed=3))
     )
     z = (0.0, 1.2815515655446004, 1.959963984540054)
     assert quantile.output.values == pytest.approx(tuple(MU + SD * v for v in z), abs=1e-9)
     n = 20000
-    sample = session.execute(provider, decl, pc.Request(pc.Query.sample(n), seed=3))
+    sample = require_success(
+        session.execute(provider, decl, pc.Request(require_success(pc.Query.sample(n)), seed=3))
+    )
     draws = sample.output.values
     mean_hat = sum(draws) / n
     var_hat = sum((x - mean_hat) ** 2 for x in draws) / (n - 1)
@@ -160,10 +165,12 @@ def test_conjugate_posterior_update_matches_closed_form():
     )
     session = pc.CallbackSession()
     n = 20000
-    result = session.execute(
-        pc.FunctionProvider(identity(), fn),
-        decl,
-        pc.Request(pc.Query.posterior_update(2.0, draws=n), seed=1),
+    result = require_success(
+        session.execute(
+            pc.FunctionProvider(identity(), fn),
+            decl,
+            pc.Request(pc.Query.posterior_update(2.0, draws=n), seed=1),
+        )
     )
     mean, *draws = result.output.values
     assert mean == pytest.approx(1.6, abs=1e-12)
@@ -217,10 +224,10 @@ def test_deterministic_replay_does_not_invoke_and_a_changed_dependency_recompute
     session = pc.CallbackSession()
     decl = mean_only()
     request = pc.Request(pc.Query.mean())
-    first = session.execute(provider, decl, request)
+    first = require_success(session.execute(provider, decl, request))
     assert (first.reused, first.invocations) == (False, 1)
     assert session.plan(decl, request).plan == "reuse"
-    again = session.execute(provider, decl, request)
+    again = require_success(session.execute(provider, decl, request))
     assert (again.reused, again.invocations) == (True, 0)
     assert again.output == first.output
     assert len(counted(provider)) == 1
@@ -230,7 +237,9 @@ def test_deterministic_replay_does_not_invoke_and_a_changed_dependency_recompute
     )
     plan = session.plan(changed, request)
     assert (plan.plan, plan.reason) == ("recompute", "dependency_changed:parameters")
-    recomputed = session.execute(gaussian(mu=3.0, calls=counted(provider)), changed, request)
+    recomputed = require_success(
+        session.execute(gaussian(mu=3.0, calls=counted(provider)), changed, request)
+    )
     assert recomputed.output.values == (3.0,)
     assert recomputed.recomputed_because == "dependency_changed:parameters"
     assert len(session) == 2
@@ -243,9 +252,19 @@ def test_stochastic_stream_rules():
         session = pc.CallbackSession()
         provider = gaussian()
         if warm_up:
-            session.execute(provider, declaration_, pc.Request(pc.Query.mean(), seed=99))
-            session.execute(provider, declaration_, pc.Request(pc.Query.sample(7), seed=98))
-        done = session.execute(provider, declaration_, pc.Request(pc.Query.sample(6), seed=seed))
+            require_success(
+                session.execute(provider, declaration_, pc.Request(pc.Query.mean(), seed=99))
+            )
+            require_success(
+                session.execute(
+                    provider, declaration_, pc.Request(require_success(pc.Query.sample(7)), seed=98)
+                )
+            )
+        done = require_success(
+            session.execute(
+                provider, declaration_, pc.Request(require_success(pc.Query.sample(6)), seed=seed)
+            )
+        )
         return done.output.values
 
     base = draws(11)
@@ -262,8 +281,10 @@ def test_stochastic_stream_rules():
         seen.append(ctx.stream_seed)
         return pc.Output.mean(MU)
 
-    pc.CallbackSession().execute(
-        pc.FunctionProvider(identity(), probe), mean_only(), pc.Request(pc.Query.mean())
+    require_success(
+        pc.CallbackSession().execute(
+            pc.FunctionProvider(identity(), probe), mean_only(), pc.Request(pc.Query.mean())
+        )
     )
     assert seen == [None]
 
@@ -280,11 +301,11 @@ def test_hidden_state_change_is_detected_and_unexposed_state_is_never_reused():
     decl = mean_only(replay=pc.Replay.stateful(exposes_state_identity=True))
     request = pc.Request(pc.Query.mean())
     session = pc.CallbackSession()
-    first = session.execute(provider, decl, request)
+    first = require_success(session.execute(provider, decl, request))
     assert first.output.values == (10.0,) and first.state_identity == "weights-v1"
-    assert session.execute(provider, decl, request).reused
+    assert require_success(session.execute(provider, decl, request)).reused
     version["n"] = 2
-    changed = session.execute(provider, decl, request)
+    changed = require_success(session.execute(provider, decl, request))
     assert not changed.reused
     assert changed.recomputed_because == "state_changed"
     assert changed.output.values == (20.0,)
@@ -293,8 +314,8 @@ def test_hidden_state_change_is_detected_and_unexposed_state_is_never_reused():
     # Unexposed state is never shown current.
     hidden = mean_only(replay=pc.Replay.stateful(exposes_state_identity=False))
     other = pc.CallbackSession()
-    other.execute(provider, hidden, request)
-    second = other.execute(provider, hidden, request)
+    require_success(other.execute(provider, hidden, request))
+    second = require_success(other.execute(provider, hidden, request))
     assert second.recomputed_because == "hidden_state_unobservable"
     assert len(calls) == 4
 
@@ -304,14 +325,14 @@ def test_provider_replacement_is_refused_and_is_a_new_callback():
     v1, v2 = gaussian("1.0"), gaussian("2.0", mu=4.0)
     decl = mean_only()
     request = pc.Request(pc.Query.mean())
-    session.execute(v1, decl, request)
+    require_success(session.execute(v1, decl, request))
     error = refusal_of(session.execute, v2, decl, request)
     assert error.reason_code == "external_binding_mismatch"
     assert error.detail == "callback_protocol.provider_identity_mismatch"
     assert error.invocations == 0 and counted(v2) == []
     replaced = dataclasses.replace(decl, provider=identity("2.0"))
     assert replaced.identity != decl.identity
-    done = session.execute(v2, replaced, request)
+    done = require_success(session.execute(v2, replaced, request))
     assert done.output.values == (4.0,) and not done.reused
     assert len(session) == 2
     assert session.record(0)["declaration"]["identity"]["version_id"] == "1.0"
@@ -325,7 +346,7 @@ def test_malformed_laws_are_refused_whole():
         if query.operation == "cdf":
             return pc.Output.cdf([0.9, 0.2])
         if query.operation == "sample":
-            return pc.Output.sample([float("nan")] * query.draws)
+            return require_success(pc.Output.sample([float("nan")] * query.draws))
         return pc.Output.mean(0.0)
 
     provider = pc.FunctionProvider(identity(), bad)
@@ -335,7 +356,9 @@ def test_malformed_laws_are_refused_whole():
     assert error.reason_code == "callback_output_invalid"
     assert error.detail == "callback_protocol.output_not_a_law"
     assert error.invocations == 1
-    error = refusal_of(session.execute, provider, decl, pc.Request(pc.Query.sample(3)))
+    error = refusal_of(
+        session.execute, provider, decl, pc.Request(require_success(pc.Query.sample(3)))
+    )
     assert error.detail == "callback_protocol.output_not_finite"
     error = refusal_of(session.execute, provider, decl, pc.Request(pc.Query.quantile([0.5])))
     assert error.detail == "callback_protocol.output_shape"
@@ -381,7 +404,7 @@ def test_failure_cancellation_and_limits_are_typed_and_counted():
         session.execute,
         gaussian(),
         declaration(),
-        pc.Request(pc.Query.sample(5)),
+        pc.Request(require_success(pc.Query.sample(5))),
         policy=pc.ExecutionPolicy(max_output_values=3),
     )
     assert error.detail == "callback_protocol.output_too_large"
@@ -430,9 +453,9 @@ def test_side_effect_retry_is_refused_and_never_invoked_outside_execution():
     keyed_request = pc.Request(pc.Query.mean(), idempotency_key="order-17")
     fresh = pc.CallbackSession()
     refusal_of(fresh.execute, provider, keyed, keyed_request, policy=allow)
-    done = fresh.execute(provider, keyed, keyed_request, policy=allow)
+    done = require_success(fresh.execute(provider, keyed, keyed_request, policy=allow))
     assert done.invocations == 1 and done.standing == "diagnostic"
-    assert fresh.execute(provider, keyed, keyed_request, policy=allow).reused
+    assert require_success(fresh.execute(provider, keyed, keyed_request, policy=allow)).reused
     assert calls == [1, 2]
 
 
@@ -441,8 +464,8 @@ def test_opaque_dependencies_make_reuse_ineligible_and_the_result_diagnostic():
     decl = mean_only(dependencies=pc.Dependencies.opaque())
     session = pc.CallbackSession()
     request = pc.Request(pc.Query.mean())
-    first = session.execute(provider, decl, request)
-    second = session.execute(provider, decl, request)
+    first = require_success(session.execute(provider, decl, request))
+    second = require_success(session.execute(provider, decl, request))
     assert not second.reused and second.recomputed_because == "opaque_dependencies"
     assert first.standing == "diagnostic"
     assert len(counted(provider)) == 2
@@ -473,7 +496,7 @@ def test_nested_callback_binds_inputs_and_reports_dependents_and_overlap():
         evidence=(source,),
     )
     session = pc.CallbackSession()
-    inner_done = session.execute(gaussian(), inner, pc.Request(pc.Query.mean()))
+    inner_done = require_success(session.execute(gaussian(), inner, pc.Request(pc.Query.mean())))
     outer = declaration(
         component="shifted",
         kind="nested",
@@ -490,7 +513,7 @@ def test_nested_callback_binds_inputs_and_reports_dependents_and_overlap():
         return pc.Output.mean(ctx.inputs["inner"].values[0] + 3.0)
 
     provider = pc.FunctionProvider(outer.provider, shifted)
-    done = session.execute(provider, outer, request, inputs={"inner": inner_done})
+    done = require_success(session.execute(provider, outer, request, inputs={"inner": inner_done}))
     assert done.output.values == (5.0,)
     # A tampered digest or a missing input is refused before the provider runs.
     bad = pc.Request(pc.Query.mean(), input_digests={"inner": "00"})
@@ -554,14 +577,16 @@ def test_closed_routes_refuse_with_registered_codes_and_remedies():
 def exported():
     session = pc.CallbackSession()
     decl = declaration()
-    done = session.execute(gaussian(), decl, pc.Request(pc.Query.cdf([0.5, 2.0, 3.5]), seed=9))
-    return session, decl, done, done.artifact("callback-result-1")
+    done = require_success(
+        session.execute(gaussian(), decl, pc.Request(pc.Query.cdf([0.5, 2.0, 3.5]), seed=9))
+    )
+    return session, decl, done, done.export("callback-result-1")
 
 
 def test_exported_result_round_trips_and_mutations_are_refused():
     _, decl, done, result = exported()
     assert result.data == exported()[3].data
-    consumed = pc.consume_callback_result(result.data, result.expectation.identity)
+    consumed = require_success(pc.consume_callback_result(result.data, result.expectation.identity))
     assert consumed.declaration_identity == decl.identity
     assert consumed.stage == "computed"
     assert consumed.values == pytest.approx(done.output.values, abs=0)
@@ -590,11 +615,13 @@ def test_untrusted_artifact_never_executes_code():
 
     provider = pc.FunctionProvider(identity(), boom)
     session, decl, _, result = exported()
-    pc.consume_callback_result(result.data)
+    require_success(pc.consume_callback_result(result.data))
     pc.inspect_callback_result(result.data)
     session.plan(decl, pc.Request(pc.Query.mean()))
     fresh = pc.CallbackSession()
-    resumed = fresh.resume(result.data, expected_identity=result.expectation.identity)
+    resumed = require_success(
+        fresh.resume(result.data, expected_identity=result.expectation.identity)
+    )
     assert resumed.kind == "unavailable"
     # A hostile artifact: corrupted bytes with the sentinel nearby are refused and nothing runs.
     corrupt = bytearray(result.data)
@@ -606,7 +633,9 @@ def test_untrusted_artifact_never_executes_code():
 def test_fresh_process_resume_with_and_without_a_provider():
     _, _, done, result = exported()
     fresh = pc.CallbackSession()
-    unavailable = fresh.resume(result.data, expected_identity=result.expectation.identity)
+    unavailable = require_success(
+        fresh.resume(result.data, expected_identity=result.expectation.identity)
+    )
     assert unavailable.kind == "unavailable"
     assert unavailable.refusal.reason_code == "callback_provider_unavailable"
     assert fresh.invocations == 0
@@ -615,8 +644,10 @@ def test_fresh_process_resume_with_and_without_a_provider():
     assert fresh.record(0)["stage"] == "computed"
     calls = []
     compatible = gaussian(calls=calls)
-    answered = pc.CallbackSession().resume(
-        result.data, expected_identity=result.expectation.identity, provider=compatible
+    answered = require_success(
+        pc.CallbackSession().resume(
+            result.data, expected_identity=result.expectation.identity, provider=compatible
+        )
     )
     assert answered.kind == "answered" and answered.execution.reused
     assert answered.execution.output.values == done.output.values
@@ -630,14 +661,7 @@ def test_fresh_process_resume_with_and_without_a_provider():
     assert error.reason_code == "external_binding_mismatch"
     # A truly fresh interpreter consumes and resumes the same bytes.
     script = textwrap.dedent(
-        """
-        import json, sys
-        from antecedent import provider_callbacks as pc
-        artifact = bytes.fromhex(sys.argv[1])
-        consumed = pc.consume_callback_result(artifact, sys.argv[2])
-        resumed = pc.CallbackSession().resume(artifact, expected_identity=sys.argv[2])
-        print(json.dumps([consumed.stage, resumed.kind, list(consumed.values)]))
-        """
+        "from antecedent.outcomes import require_success\nimport json, sys\nfrom antecedent import provider_callbacks as pc\nartifact = bytes.fromhex(sys.argv[1])\nconsumed = require_success(pc.consume_callback_result(artifact, sys.argv[2]))\nresumed = require_success(pc.CallbackSession().resume(artifact, expected_identity=sys.argv[2]))\nprint(json.dumps([consumed.stage, resumed.kind, list(consumed.values)]))\n"
     )
     out = subprocess.run(  # noqa: S603
         [sys.executable, "-c", script, result.data.hex(), result.expectation.identity],
@@ -652,10 +676,12 @@ def test_fresh_process_resume_with_and_without_a_provider():
 
 def test_provider_objects_need_an_identity():
     with pytest.raises(CausalTypeError):
-        pc.CallbackSession().execute(
-            object(),
-            mean_only(),
-            pc.Request(pc.Query.mean()),  # type: ignore[arg-type]
+        require_success(
+            pc.CallbackSession().execute(
+                object(),
+                mean_only(),
+                pc.Request(pc.Query.mean()),  # type: ignore[arg-type]
+            )
         )
 
 
@@ -687,11 +713,17 @@ def test_a_callback_declares_a_predictive_law_source_with_the_trust_it_earned():
 
 def test_sample_output_lifts_to_an_empirical_forecast_law_and_a_mean_does_not():
     session = pc.CallbackSession()
-    sample = session.execute(gaussian(), declaration(), pc.Request(pc.Query.sample(7), seed=5))
-    law = session.forecast_law(sample)
+    sample = require_success(
+        session.execute(
+            gaussian(), declaration(), pc.Request(require_success(pc.Query.sample(7)), seed=5)
+        )
+    )
+    law = require_success(session.forecast_law(sample))
     assert law.to_wire() == {"kind": "empirical_sample", "draws": list(sample.output.values)}
     assert len(law.draws) == 7
-    mean = session.execute(gaussian(), mean_only(), pc.Request(pc.Query.mean(), seed=5))
+    mean = require_success(
+        session.execute(gaussian(), mean_only(), pc.Request(pc.Query.mean(), seed=5))
+    )
     error = refusal_of(session.forecast_law, mean)
     assert error.detail == "callback_protocol.request_mismatch"
     # An execution of another session is not this session's result.

@@ -45,6 +45,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from . import _native
+from ._artifact_protocol import container_bytes
 from .errors import CausalValueError
 
 __all__ = [
@@ -404,6 +405,7 @@ def decode_policy_program(
     sequence. Each is verified against its record again before the program is returned
     (``policy_callback_unrecoverable`` on any difference, or when one is missing).
     """
+    data = container_bytes(data)
     from .intervention_callbacks import decode_programs
 
     if callbacks is not None:

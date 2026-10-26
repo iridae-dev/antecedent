@@ -1140,7 +1140,7 @@ def _positive_int(value: Any) -> bool:
     return (
         not isinstance(value, (bool, np.bool_))
         and isinstance(value, (int, np.integer))
-        and value > 0
+        and bool(value > 0)
     )
 
 

@@ -16,8 +16,14 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._digest import canonical_digest
-from .errors import CausalError
+from .errors import CausalError, CausalTypeError
 from .estimation import IdentifyResult
 from .extensibility import ProviderRefusal, ProviderValueRefusal
 from .extensibility import _refuse as _provider_refuse
@@ -504,7 +510,7 @@ class AdjustmentProviderAdapter:
                 "tool": tool,
                 "claim_id": receipt.claim_id,
             },
-            artifact=receipt.export(),
+            artifact=bytes(receipt.export()),
         )
 
 
@@ -552,7 +558,7 @@ class ExternalEstimate:
         """The external execution (learner, version, snapshot) that supplied the value."""
         return None if self._claim is None else self._claim.provenance_label
 
-    def export_claim(self, *, artifact_id: str = "external-claim") -> bytes:
+    def _export_claim(self, *, artifact_id: str = "external-claim") -> ExportedArtifact:
         """The bound claim as an ``external_response_claim_v1`` artifact.
 
         :meth:`export` keeps the attested-estimate receipt. Reload this one with
@@ -567,7 +573,7 @@ class ExternalEstimate:
                 offending="label",
                 remedy="attach the effect with label='ate' or label='cate'",
             )
-        return cast(bytes, self._claim.export(artifact_id=artifact_id))
+        return artifact_from_receipt(self._claim, self._claim.export(artifact_id=artifact_id))
 
     @property
     def trust(self):
@@ -643,15 +649,25 @@ class ExternalEstimate:
             ReasoningSlots.from_result_section(self._contract, calibration=self.calibration)
         )
 
-    def export(self, *, artifact_id: str = "external-estimate") -> bytes:
-        if artifact_id != "external-estimate":
+    @artifact_export
+    def export(
+        self, *, quantity: Literal["estimate", "claim"] = "estimate", artifact_id: str | None = None
+    ) -> ExportedArtifact:
+        """Export the attested receipt or its separately bound response claim."""
+        if quantity == "claim":
+            return self._export_claim(
+                artifact_id="external-claim" if artifact_id is None else artifact_id
+            )
+        if quantity != "estimate":
+            raise CausalTypeError("quantity must be 'estimate' or 'claim'")
+        if artifact_id not in (None, "external-estimate"):
             raise _refuse(
                 "handoff.artifact_id_immutable",
                 "An attested external estimate is immutable; its artifact ID cannot be rewritten.",
                 offending="artifact_id",
                 remedy="export the receipt unchanged, or attach the estimate again",
             )
-        return self._bytes
+        return artifact_from_receipt(self, self._bytes)
 
     def __repr__(self) -> str:
         return f"<ExternalEstimate claim_id={self.claim_id[:12]} calibration={self.calibration.status}>"
@@ -921,6 +937,9 @@ def _bind_claim(
     quantity (functional ``cate``) bound as a column, so a CATE of any length is a
     single claim and never one coordinate per row.
     """
+    config = container_bytes(config)
+    payload = container_bytes(payload)
+    snapshot_payload = container_bytes(snapshot_payload) if snapshot_payload is not None else None
     from dataclasses import replace
 
     from . import _native

@@ -5,7 +5,7 @@ use super::recalc_composite::CompositeSession;
 use antecedent_design::composition_boundary::SupportedVerdict;
 use antecedent_design::decision_eval::Verdict;
 use antecedent_io::recalc_receipt_artifact::{
-    CountsWire, DeclaredStageWire, RecalcReceiptArtifact, decode_parts, identities_to_wire,
+    CountsWire, DeclaredStageWire, RecalcReceiptArtifact, identities_to_wire,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -256,6 +256,23 @@ fn identity(payload: &Payload) -> Result<String, ConditionalRankingError> {
     }
     Ok(antecedent_core::blake3_hex(&bytes))
 }
+fn retained_payload(
+    bytes: &[u8],
+    expected_identity: Option<&str>,
+) -> Result<Payload, ConditionalRankingError> {
+    if bytes.len() > MAX_BYTES {
+        return Err(refuse("conditional_study_ranking.resource_limit"));
+    }
+    let payload: Payload = serde_json::from_slice(bytes)
+        .map_err(|_| refuse("conditional_study_ranking.artifact_invalid"))?;
+    if payload.version != 1
+        || payload.identity != identity(&payload)?
+        || expected_identity.is_some_and(|e| e != payload.identity)
+    {
+        return Err(refuse("conditional_study_ranking.artifact_invalid"));
+    }
+    Ok(payload)
+}
 impl ConditionalStudyRanking {
     /// Execute original structural ranking from the current actually issued terminal verdict.
     /// # Errors
@@ -318,6 +335,28 @@ impl ConditionalStudyRanking {
         }
         Ok(bytes)
     }
+    /// Inspect a sealed historical ranking without supplying executable source state.
+    ///
+    /// Checks its identity, historical receipt and the structural ranking of its
+    /// retained source. This does not attest that the source is the current
+    /// combined native/provider state; [`Self::consume`] performs that check.
+    /// # Errors
+    /// Bounds, encoding, identity, receipt or retained ranking mismatch.
+    pub fn inspect_retained(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+    ) -> Result<Self, ConditionalRankingError> {
+        let payload = retained_payload(bytes, expected_identity)?;
+        let receipt = RecalcReceiptArtifact::from_bytes(&payload.historical_receipt, None)
+            .map_err(|_| refuse("conditional_study_ranking.artifact_invalid"))?;
+        if receipt.meta().requested != payload.source.requested
+            || payload.entries != rank(&payload.policy, &payload.source)?
+        {
+            return Err(refuse("conditional_study_ranking.artifact_invalid"));
+        }
+        Ok(Self { payload })
+    }
+
     /// Independently consume against an explicitly replayed actual opaque combined session.
     /// Historical receipt inspection cannot replace the executing native/provider state.
     /// # Errors
@@ -327,21 +366,10 @@ impl ConditionalStudyRanking {
         session: &CompositeSession,
         expected_identity: Option<&str>,
     ) -> Result<Self, ConditionalRankingError> {
-        if bytes.len() > MAX_BYTES {
-            return Err(refuse("conditional_study_ranking.resource_limit"));
-        }
-        let payload: Payload = serde_json::from_slice(bytes)
+        let payload = retained_payload(bytes, expected_identity)?;
+        let receipt = RecalcReceiptArtifact::from_bytes(&payload.historical_receipt, None)
             .map_err(|_| refuse("conditional_study_ranking.artifact_invalid"))?;
-        if payload.version != 1
-            || payload.identity != identity(&payload)?
-            || expected_identity.is_some_and(|e| e != payload.identity)
-        {
-            return Err(refuse("conditional_study_ranking.artifact_invalid"));
-        }
-        let _receipt = RecalcReceiptArtifact::from_bytes(&payload.historical_receipt, None)
-            .map_err(|_| refuse("conditional_study_ranking.artifact_invalid"))?;
-        let receipt_meta = decode_parts(&payload.historical_receipt)
-            .map_err(|_| refuse("conditional_study_ranking.artifact_invalid"))?;
+        let receipt_meta = receipt.meta();
         let current = source(session)?;
         if payload.source != current || receipt_meta.requested != current.requested {
             return Err(refuse("conditional_study_ranking.source_mismatch"));

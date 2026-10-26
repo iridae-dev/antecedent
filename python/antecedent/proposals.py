@@ -50,6 +50,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from . import _native, design, repair
+from ._artifact_protocol import container_bytes
 from ._native import proposal_bundle_build as _build
 from ._native import proposal_ranked_candidates as _ranked_candidates
 from ._refusal import raise_refusal
@@ -387,6 +388,8 @@ def _bytes(name: str, value: object) -> bytes:
 
 
 def _replay(repair_artifact: bytes, ranking_artifact: bytes) -> None:
+    repair_artifact = container_bytes(repair_artifact)
+    ranking_artifact = container_bytes(ranking_artifact)
     repair.consume(repair_artifact)
     # The bundle binds the ranking by identity and digest, so the artifact is replayed on its
     # own seal here; there is no separately retained expectation to compare it with.
@@ -434,6 +437,8 @@ class ProposalBundle:
         (:class:`ProposalRefusal`). ``contract`` is the failed contract the repair
         was made for; it is needed only by :meth:`on_arrival`.
         """
+        repair_artifact = container_bytes(repair_artifact)
+        ranking_artifact = container_bytes(ranking_artifact)
         repair_artifact = _bytes("repair_artifact", repair_artifact)
         ranking_artifact = _bytes("ranking_artifact", ranking_artifact)
         if consume:
@@ -489,6 +494,8 @@ class ProposalBundle:
         ``signal_mismatch``, ``value_mismatch``, ``candidate_set_mismatch`` or
         ``bundle_identity_mismatch``).
         """
+        repair_artifact = container_bytes(repair_artifact)
+        ranking_artifact = container_bytes(ranking_artifact)
         repair_artifact = _bytes("repair_artifact", repair_artifact)
         ranking_artifact = _bytes("ranking_artifact", ranking_artifact)
         if consume:
@@ -552,6 +559,10 @@ class ProposalBundle:
         from a dictionary. Unrepresented sampling designs refuse; point uncertainty
         remains unmeasured.
         """
+        repair_artifact = container_bytes(repair_artifact) if repair_artifact is not None else None
+        ranking_artifact = (
+            container_bytes(ranking_artifact) if ranking_artifact is not None else None
+        )
         from .proposal_arrival import _estimate
 
         self.proposal(candidate_id)
@@ -573,6 +584,7 @@ class ProposalBundle:
 
 def ranked_candidate_ids(ranking_artifact: bytes) -> tuple[str, ...]:
     """The semantic ids of the candidates a ranking artifact values, sorted."""
+    ranking_artifact = container_bytes(ranking_artifact)
     return tuple(_ranked_candidates(_bytes("ranking_artifact", ranking_artifact)))
 
 

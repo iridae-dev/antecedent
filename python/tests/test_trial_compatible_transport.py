@@ -58,7 +58,7 @@ def test_a_real_trial_refines_an_ambiguous_class_and_replays_every_decision():
     assert len(refined.members) == len(proof.retained_members)
     assert len(refined.report_identity) == 64
 
-    verified = tc.verify_trial_compatible_transport_estimate(refined.export())
+    verified = tc.verify_trial_compatible_transport_estimate(bytes(refined.export()))
     assert verified.members == proof.retained_members
     assert verified.compatibility == proof
     assert verified.answer == refined.answer
@@ -66,7 +66,7 @@ def test_a_real_trial_refines_an_ambiguous_class_and_replays_every_decision():
 
 
 def test_a_forged_or_truncated_artifact_does_not_replay():
-    artifact = _estimate().export()
+    artifact = bytes(_estimate().export())
     with pytest.raises(CausalValueError):
         tc.verify_trial_compatible_transport_estimate(artifact[:-1])
     with pytest.raises(CausalValueError):

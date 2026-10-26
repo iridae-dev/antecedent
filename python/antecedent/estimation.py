@@ -127,7 +127,10 @@ from .query import (
     ResponseJacobian,
     SemiElasticity,
     SustainedEffect,
+    TemporalConditionalPulse,
+    TemporalConditionalSustained,
     TemporalMediationEffect,
+    TemporalQuery,
 )
 from .regimes import LongitudinalRegime, SequentialContrast
 from .results import (
@@ -553,7 +556,10 @@ def _prepared_columns(data: Any) -> tuple[list[str], list[Any], bool]:
 
 
 _PreparedQuery = (
-    AverageEffect
+    TemporalQuery
+    | TemporalConditionalPulse
+    | TemporalConditionalSustained
+    | AverageEffect
     | ResponseCurve
     | ConditionalEffect
     | PathSpecificEffect
@@ -650,7 +656,7 @@ def _frame_payload(
             list(data.columns),
             {
                 "kind": "events",
-                "event_times_ns": [int(t) for t in data.event_times_ns],
+                "event_times_ns": data._index,
                 "align_interval_ns": int(data.align_interval_ns),
             },
         )
@@ -2350,7 +2356,8 @@ class PreparedAnalysis(Generic[ResultT]):
         | TransportResponseGrid
     ):
         if self._kind in ("response_curve", "intervention_response"):
-            query = self._query if isinstance(self._query, _RESPONSE_FAMILY) else None
+            target = self._query.query if isinstance(self._query, TemporalQuery) else self._query
+            query = target if isinstance(target, _RESPONSE_FAMILY) else None
             return _wrap_prepared_response(raw, query=cast(Any, query), prepared=self)
         return _wrap_ate(raw, query=self._display_query, prepared=self)
 

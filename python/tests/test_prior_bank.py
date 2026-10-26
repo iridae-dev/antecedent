@@ -7,6 +7,7 @@ import math
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -80,14 +81,16 @@ def _summary_only_artifact_bytes(*, ate_mean: float = 2.0, ate_sd: float = 0.2) 
 
 def test_catalog_filter_accept_reject_partial():
     data, edges = _confounded()
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(n_draws=48),
-        refute=False,
-        seed=11,
-        return_posterior_artifact=True,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=48),
+            refute=False,
+            seed=11,
+            return_posterior_artifact=True,
+        )
     )
     assert result.posterior is not None
     artifact = bytes(result.posterior.artifact)
@@ -156,14 +159,16 @@ def test_effect_prior_transfer_shrinks_toward_source():
     data_a = {"z": z, "t": t, "y": y}
     edges_a = [("z", "t"), ("z", "y"), ("t", "y")]
 
-    source = antecedent.analyze(
-        data_a,
-        graph=edges_a,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
-        refute=False,
-        seed=3,
-        return_posterior_artifact=True,
+    source = require_success(
+        antecedent.analyze(
+            data_a,
+            graph=edges_a,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
+            refute=False,
+            seed=3,
+            return_posterior_artifact=True,
+        )
     )
     assert source.posterior is not None
     artifact = bytes(source.posterior.artifact)
@@ -177,31 +182,35 @@ def test_effect_prior_transfer_shrinks_toward_source():
     data_b = {"z": z, "w": w, "t": t_b, "y": y_b}
     edges_b = [("z", "t"), ("z", "y"), ("w", "t"), ("w", "y"), ("t", "y")]
 
-    baseline = antecedent.analyze(
-        data_b,
-        graph=edges_b,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
-        refute=False,
-        seed=5,
-        return_posterior_artifact=True,
+    baseline = require_success(
+        antecedent.analyze(
+            data_b,
+            graph=edges_b,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
+            refute=False,
+            seed=5,
+            return_posterior_artifact=True,
+        )
     )
     assert baseline.posterior is not None
     baseline_mean = float(baseline.posterior.effect_mean)
 
-    mapped = antecedent.analyze(
-        data_b,
-        graph=edges_b,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(
-            n_draws=64,
-            backend="conjugate",
-            prior_from=artifact,
-            mapping=antecedent.priors.PriorMapping.effect_functional("ate"),
-        ),
-        refute=False,
-        seed=5,
-        return_posterior_artifact=True,
+    mapped = require_success(
+        antecedent.analyze(
+            data_b,
+            graph=edges_b,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(
+                n_draws=64,
+                backend="conjugate",
+                prior_from=artifact,
+                mapping=antecedent.priors.PriorMapping.effect_functional("ate"),
+            ),
+            refute=False,
+            seed=5,
+            return_posterior_artifact=True,
+        )
     )
     assert mapped.posterior is not None
     mapped_mean = float(mapped.posterior.effect_mean)
@@ -210,37 +219,41 @@ def test_effect_prior_transfer_shrinks_toward_source():
     assert abs(mapped_mean - source_mean) < abs(baseline_mean - source_mean)
 
     # Unset mapping must auto-pick EffectFunctional (not silent coef_i→coef_i).
-    auto = antecedent.analyze(
-        data_b,
-        graph=edges_b,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(
-            n_draws=64,
-            backend="conjugate",
-            prior_from=artifact,
-        ),
-        refute=False,
-        seed=5,
-        return_posterior_artifact=True,
+    auto = require_success(
+        antecedent.analyze(
+            data_b,
+            graph=edges_b,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(
+                n_draws=64,
+                backend="conjugate",
+                prior_from=artifact,
+            ),
+            refute=False,
+            seed=5,
+            return_posterior_artifact=True,
+        )
     )
     assert auto.posterior is not None
     auto_mean = float(auto.posterior.effect_mean)
     assert abs(auto_mean - source_mean) < abs(baseline_mean - source_mean)
 
     with pytest.raises(antecedent.CausalError) as caught:
-        antecedent.analyze(
-            data_b,
-            graph=edges_b,
-            query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            inference=antecedent.Bayesian(
-                n_draws=32,
-                backend="conjugate",
-                prior_from=artifact,
-                mapping=antecedent.priors.PriorMapping.identical(),
-            ),
-            refute=False,
-            seed=5,
-            return_posterior_artifact=True,
+        require_success(
+            antecedent.analyze(
+                data_b,
+                graph=edges_b,
+                query=antecedent.AverageEffect(treatment="t", outcome="y"),
+                inference=antecedent.Bayesian(
+                    n_draws=32,
+                    backend="conjugate",
+                    prior_from=artifact,
+                    mapping=antecedent.priors.PriorMapping.identical(),
+                ),
+                refute=False,
+                seed=5,
+                return_posterior_artifact=True,
+            )
         )
     assert_registered_refusal(caught.value)
 
@@ -273,26 +286,30 @@ def test_summary_only_artifact_round_trips_and_hydrates_prior():
     data = {"z": z, "t": t, "y": y}
     edges = [("z", "t"), ("z", "y"), ("t", "y")]
 
-    baseline = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
-        refute=False,
-        seed=9,
+    baseline = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
+            refute=False,
+            seed=9,
+        )
     )
-    mapped = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(
-            n_draws=64,
-            backend="conjugate",
-            prior_from=artifact_bytes,
-            mapping=antecedent.priors.PriorMapping.effect_functional("ate"),
-        ),
-        refute=False,
-        seed=9,
+    mapped = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(
+                n_draws=64,
+                backend="conjugate",
+                prior_from=artifact_bytes,
+                mapping=antecedent.priors.PriorMapping.effect_functional("ate"),
+            ),
+            refute=False,
+            seed=9,
+        )
     )
     assert baseline.posterior is not None
     assert mapped.posterior is not None
@@ -373,18 +390,20 @@ def test_compose_weight_and_conflict():
         sources=composed2.sources,
         conflict=None,
     )
-    result = antecedent.analyze(
-        {"t": t, "y": y},
-        graph=[("t", "y")],
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(
-            n_draws=64,
-            backend="conjugate",
-            prior_from=prior_for_fit,
-        ),
-        refute=False,
-        seed=7,
-        return_posterior_artifact=True,
+    result = require_success(
+        antecedent.analyze(
+            {"t": t, "y": y},
+            graph=[("t", "y")],
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(
+                n_draws=64,
+                backend="conjugate",
+                prior_from=prior_for_fit,
+            ),
+            refute=False,
+            seed=7,
+            return_posterior_artifact=True,
+        )
     )
     assert result.posterior is not None
     assert composed2.alphas_applied[0] == 1.0
@@ -628,18 +647,20 @@ def test_alpha_prior_sensitivity_on_composed_prior():
         [src],
         baseline=([0.0, 0.0, 0.0], [100.0, 100.0, 100.0]),
     )
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(
-            n_draws=64,
-            backend="conjugate",
-            prior_from=composed,
-        ),
-        refute="full",
-        seed=31,
-        return_posterior_artifact=True,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(
+                n_draws=64,
+                backend="conjugate",
+                prior_from=composed,
+            ),
+            refute="full",
+            seed=31,
+            return_posterior_artifact=True,
+        )
     )
     assert result.posterior is not None
     sens = result.validation.prior_sensitivity
@@ -804,14 +825,16 @@ def test_gamma_from_mean_and_ess_rejects_negative_ess():
 def test_posterior_round_trip_preserves_named_schema_and_source_contrast(contrast):
     data, edges = _confounded()
     query = antecedent.AverageEffect("t", "y", control_level=0.0, active_level=contrast)
-    source = antecedent.analyze(
-        data,
-        graph=edges,
-        query=query,
-        inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
-        refute=False,
-        seed=13,
-        return_posterior_artifact=True,
+    source = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=query,
+            inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
+            refute=False,
+            seed=13,
+            return_posterior_artifact=True,
+        )
     )
     original = source.posterior.artifact
     decoded = antecedent.inference.decode_posterior_artifact(original)
@@ -827,18 +850,20 @@ def test_posterior_round_trip_preserves_named_schema_and_source_contrast(contras
     ]:
         estimates = []
         for artifact in [original, reencoded]:
-            result = antecedent.analyze(
-                data,
-                graph=edges,
-                query=antecedent.AverageEffect("t", "y"),
-                inference=antecedent.Bayesian(
-                    n_draws=64,
-                    backend="conjugate",
-                    prior_from=artifact,
-                    mapping=mapping,
-                ),
-                refute=False,
-                seed=17,
+            result = require_success(
+                antecedent.analyze(
+                    data,
+                    graph=edges,
+                    query=antecedent.AverageEffect("t", "y"),
+                    inference=antecedent.Bayesian(
+                        n_draws=64,
+                        backend="conjugate",
+                        prior_from=artifact,
+                        mapping=mapping,
+                    ),
+                    refute=False,
+                    seed=17,
+                )
             )
             estimates.append(result.effect)
         assert estimates[0] == estimates[1]

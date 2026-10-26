@@ -7,6 +7,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.errors import CausalError, CausalValueError
+from antecedent.outcomes import require_success
 from antecedent.quasi import (
     CovariateAdjustedDiD,
     DesignEffect,
@@ -35,7 +36,7 @@ def _staggered_panel(seed: int = 3, per_cohort: int = 60) -> dict[str, list[obje
 
 
 def _rollout(data: dict[str, list[object]], query: StaggeredRollout) -> QuasiRolloutEstimate:
-    result = antecedent.analyze(data, query=query).quasi_rollout
+    result = require_success(antecedent.analyze(data, query=query)).quasi_rollout
     assert isinstance(result, QuasiRolloutEstimate)
     assert result.licensed is False
     assert result.calibration == "unmeasured"
@@ -89,7 +90,7 @@ def test_sun_abraham_refuses_an_unbalanced_panel_naming_the_next_attempt():
     unbalanced = {name: [values[index] for index in keep] for name, values in data.items()}
     query = StaggeredRollout("y", "unit", "period", "cohort", estimator="sun_abraham")
     with pytest.raises(CausalError, match="(?i)next attempt"):
-        antecedent.analyze(unbalanced, query=query)
+        require_success(antecedent.analyze(unbalanced, query=query))
 
 
 def test_doubly_robust_covariate_adjusted_did_recovers_the_effect():
@@ -109,7 +110,7 @@ def test_doubly_robust_covariate_adjusted_did_recovers_the_effect():
             rows["after"].append(bool(post))
             rows["x"].append(float(x[subject]))
     query = CovariateAdjustedDiD("y", "id", "group", "after", covariates=("x",))
-    result = antecedent.analyze(rows, query=query).quasi_rollout
+    result = require_success(antecedent.analyze(rows, query=query)).quasi_rollout
     assert isinstance(result, QuasiRolloutEstimate)
     assert result.design == "covariate_adjusted_did"
     assert result.overall is not None
@@ -131,7 +132,7 @@ def test_conformal_synthetic_control_recovers_a_known_effect_with_an_interval():
         rows["unit"].append("treated")
         rows["period"].append(period)
     query = SyntheticControl("y", "unit", "period", "treated", 41, conformal=True)
-    result = antecedent.analyze(rows, query=query).quasi_rollout
+    result = require_success(antecedent.analyze(rows, query=query)).quasi_rollout
     assert isinstance(result, QuasiRolloutEstimate)
     assert result.calibration == "unmeasured"
     overall = result.overall
@@ -150,8 +151,8 @@ def test_mse_optimal_fuzzy_rd_with_a_density_test_recovers_the_effect():
     query = FuzzyRegressionDiscontinuity(
         "y", "t", "x", 0.0, 1.0, bandwidth_rule="mse_optimal", density_test=True
     )
-    result = antecedent.analyze(
-        {"y": outcome, "t": uptake.astype(float), "x": running}, query=query
+    result = require_success(
+        antecedent.analyze({"y": outcome, "t": uptake.astype(float), "x": running}, query=query)
     ).quasi_rollout
     assert isinstance(result, QuasiRolloutEstimate)
     overall = result.overall
@@ -168,7 +169,9 @@ def _bayes(n_draws: int = 400) -> object:
 
 def test_bayesian_rollout_is_a_whole_unit_bayesian_bootstrap_beside_the_posterior():
     query = StaggeredRollout("y", "unit", "period", "cohort", aggregation="dynamic")
-    result = antecedent.analyze(_staggered_panel(), query=query, inference=_bayes())
+    result = require_success(
+        antecedent.analyze(_staggered_panel(), query=query, inference=_bayes())
+    )
     assert result.posterior is not None
     rollout = result.quasi_rollout
     assert isinstance(rollout, QuasiRolloutEstimate)
@@ -185,7 +188,7 @@ def test_bayesian_rollout_is_a_whole_unit_bayesian_bootstrap_beside_the_posterio
         assert effect.interval is not None
         assert effect.band[0] <= effect.interval[0] <= effect.interval[1] <= effect.band[1]
     assert result.answer.kind == "structured"
-    loaded = antecedent.load(result.export())
+    loaded = require_success(antecedent.load(bytes(result.export())))
     assert loaded.quasi_rollout == rollout
     assert loaded.answer == result.answer
 
@@ -195,7 +198,7 @@ def test_bayesian_rollout_refuses_a_frequentist_resample_naming_the_next_attempt
         "y", "unit", "period", "cohort", resampling="cluster_bootstrap", replicates=99
     )
     with pytest.raises(CausalError, match="Next attempt"):
-        antecedent.analyze(_staggered_panel(), query=query, inference=_bayes())
+        require_success(antecedent.analyze(_staggered_panel(), query=query, inference=_bayes()))
 
 
 def test_bayesian_conformal_synthetic_control_reports_posterior_predictive_periods():
@@ -212,7 +215,7 @@ def test_bayesian_conformal_synthetic_control_reports_posterior_predictive_perio
         rows["unit"].append("treated")
         rows["period"].append(period)
     query = SyntheticControl("y", "unit", "period", "treated", 41, conformal=True)
-    result = antecedent.analyze(rows, query=query, inference=_bayes())
+    result = require_success(antecedent.analyze(rows, query=query, inference=_bayes()))
     assert result.posterior is not None
     rollout = result.quasi_rollout
     assert isinstance(rollout, QuasiRolloutEstimate)
@@ -238,8 +241,8 @@ def _ar1_running_time_rd(seed: int = 21, n: int = 600) -> dict[str, np.ndarray]:
 def test_bayesian_temporal_fuzzy_rd_widens_beyond_the_independent_row_error():
     data = _ar1_running_time_rd()
     query = FuzzyRegressionDiscontinuity("y", "t", "x", 0.0, 1.0, temporal_replicates=199)
-    frequentist = antecedent.analyze(data, query=query).quasi_rollout
-    bayesian = antecedent.analyze(data, query=query, inference=_bayes())
+    frequentist = require_success(antecedent.analyze(data, query=query)).quasi_rollout
+    bayesian = require_success(antecedent.analyze(data, query=query, inference=_bayes()))
     assert bayesian.posterior is not None
     rollout = bayesian.quasi_rollout
     assert isinstance(rollout, QuasiRolloutEstimate) and isinstance(
@@ -279,20 +282,20 @@ def _resampled_dynamic_rollout() -> object:
         resampling="cluster_multiplier",
         replicates=199,
     )
-    return antecedent.analyze(_staggered_panel(), query=query)
+    return require_success(antecedent.analyze(_staggered_panel(), query=query))
 
 
 def test_rollout_export_load_round_trip_reproduces_the_live_result():
     result = _resampled_dynamic_rollout()
-    artifact = result.export()
-    loaded = antecedent.load(artifact)
-    assert loaded.export() == artifact
+    artifact = bytes(result.export())
+    loaded = require_success(antecedent.load(artifact))
+    assert bytes(loaded.export()) == artifact
     assert loaded.quasi_rollout == result.quasi_rollout
     assert loaded.answer == result.answer
 
 
 def test_a_fresh_consumer_rederives_the_dynamic_summary_from_the_loaded_effects():
-    loaded = antecedent.load(_resampled_dynamic_rollout().export())
+    loaded = require_success(antecedent.load(bytes(_resampled_dynamic_rollout().export())))
     rollout = loaded.quasi_rollout
     assert isinstance(rollout, QuasiRolloutEstimate)
     post = [
@@ -348,7 +351,7 @@ def test_resampled_augmented_panel_publishes_its_standard_error():
         resampling="cluster_bootstrap",
         replicates=199,
     )
-    section = antecedent.analyze(data, query=query).panel_did
+    section = require_success(antecedent.analyze(data, query=query)).panel_did
     assert section.standard_error is not None and section.standard_error > 0.0
     assert section.interval_95 is not None
     half = 1.959963984540054 * section.standard_error

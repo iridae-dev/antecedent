@@ -29,6 +29,7 @@ import json
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
+from ._artifact_protocol import container_bytes
 from ._native import consume_previous_release as _consume_release
 from ._native import consume_previous_routes as _consume_routes
 from ._native import current_score_row_digest_bytes as _current_digest
@@ -139,6 +140,9 @@ def previous_release_artifact(
     receipt: bytes,
 ) -> bytes:
     """Write the previous-release object from its four parts."""
+    score_row_digest = container_bytes(score_row_digest)
+    target_digest = container_bytes(target_digest)
+    receipt = container_bytes(receipt)
     return json.dumps(
         {
             "row_ids": [int(r) for r in row_ids],
@@ -154,6 +158,7 @@ def consume_previous_release_artifact(
     artifact: bytes, *, intervention_level: float
 ) -> AdoptedRelease:
     """Adopt a previous-release artifact, or refuse it with the remedy."""
+    artifact = container_bytes(artifact)
     score, target, boundary, rows = _consume_release(bytes(artifact), float(intervention_level))
     return AdoptedRelease(
         score_row_digest=bytes(score),
@@ -177,6 +182,7 @@ def consume_previous_route_records(
     artifact: bytes, methods: Iterable[CurrentMethod]
 ) -> tuple[RouteRecordMigration, ...]:
     """Carry every record of a previous-release route artifact onto the current methods."""
+    artifact = container_bytes(artifact)
     rows = json.loads(_consume_routes(bytes(artifact), [m._row() for m in methods]))
     return tuple(
         RouteRecordMigration(

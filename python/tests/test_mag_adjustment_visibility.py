@@ -9,6 +9,7 @@ that functional. Completion counts and retained mass are checked explicitly.
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 
 def _case(mixed=False):
@@ -42,8 +43,8 @@ def test_visible_mag_known_linear_effect(mixed, accepted, bayesian, kind):
         "curve": lambda: ant.ResponseCurve("t", "y", grid=[0.25, 0.75]),
     }[kind]()
     kwargs = {"inference": ant.Bayesian(prior_scale=100.0)} if bayesian else {}
-    result = ant.analyze(
-        data, graph=graph, query=query, refute=False, bootstrap=0, seed=7, **kwargs
+    result = require_success(
+        ant.analyze(data, graph=graph, query=query, refute=False, bootstrap=0, seed=7, **kwargs)
     )
     assert result.certificate is not None
     assert len(result.certificate["cases"]) == (3 if mixed else 1)

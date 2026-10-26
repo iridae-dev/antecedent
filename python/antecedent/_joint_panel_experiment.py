@@ -10,6 +10,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .errors import CausalTypeError, CausalValueError
 
 
@@ -248,10 +254,12 @@ class PanelExperiment:
             )
         )
 
-    def export(self, ledger: Any, **execution: Any) -> bytes:
+    @artifact_export
+    def export(self, ledger: Any, **execution: Any) -> ExportedArtifact:
         """Export the complete original frozen panel and declared experiment inputs."""
-        return bytes(self._handle.export(ledger._handle, **execution))
+        return artifact_from_receipt(self, bytes(self._handle.export(ledger._handle, **execution)))
 
     def verify_current(self, artifact: bytes, ledger: Any, **execution: Any) -> None:
         """Bind replay to this update and the caller's current evidence authority."""
+        artifact = container_bytes(artifact)
         self._handle.verify_current(artifact, ledger._handle, **execution)

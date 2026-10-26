@@ -12,6 +12,7 @@ import pytest
 from antecedent import interference
 from antecedent.errors import CausalError
 from antecedent.missing import MissingPolicy
+from antecedent.outcomes import require_success
 from antecedent.results import ImputationVectorView, ImputationWaldView
 
 
@@ -79,15 +80,17 @@ def _conditional_data(n: int, seed: int) -> dict[str, np.ndarray]:
 
 
 def _conditional(data, missing, **extra):
-    return ant.analyze(
-        data,
-        graph=[("t", "y"), ("w", "y")],
-        query=ant.ConditionalEffect("t", "y", "w"),
-        refute="none",
-        bootstrap=0,
-        seed=1,
-        missing=missing,
-        **extra,
+    return require_success(
+        ant.analyze(
+            data,
+            graph=[("t", "y"), ("w", "y")],
+            query=ant.ConditionalEffect("t", "y", "w"),
+            refute="none",
+            bootstrap=0,
+            seed=1,
+            missing=missing,
+            **extra,
+        )
     )
 
 
@@ -147,14 +150,16 @@ def _response_data(n: int, seed: int) -> dict[str, np.ndarray]:
 def test_a_response_curve_pools_every_grid_point_jointly():
     data = _response_data(1_600, 31)
     grid = [-0.5, 0.0, 0.5]
-    result = ant.analyze(
-        data,
-        graph=[("w", "t"), ("w", "y"), ("t", "y")],
-        query=ant.ResponseCurve("t", "y", grid=grid),
-        refute="none",
-        bootstrap=0,
-        seed=2,
-        missing=_policy(),
+    result = require_success(
+        ant.analyze(
+            data,
+            graph=[("w", "t"), ("w", "y"), ("t", "y")],
+            query=ant.ResponseCurve("t", "y", grid=grid),
+            refute="none",
+            bootstrap=0,
+            seed=2,
+            missing=_policy(),
+        )
     )
     report = result.missing_data.imputation
     assert report.pooling == "rubin"
@@ -194,7 +199,7 @@ def test_an_interventional_distribution_pools_atoms_and_needs_a_variance_to_pool
         "refute": "none",
         "missing": _policy(),
     }
-    result = ant.analyze(data, bootstrap=60, **kwargs)
+    result = require_success(ant.analyze(data, bootstrap=60, **kwargs))
     vector = result.missing_data.imputation.vector
     assert vector is not None
     _assert_rubin_vector(vector, 6)
@@ -206,7 +211,7 @@ def test_an_interventional_distribution_pools_atoms_and_needs_a_variance_to_pool
     assert sum(atoms) == pytest.approx(1.0, abs=1e-9)
     # Without bootstrap replicates the plug-in publishes no variance to pool: refused.
     with pytest.raises(CausalError) as refused:
-        ant.analyze(data, bootstrap=0, **kwargs)
+        require_success(ant.analyze(data, bootstrap=0, **kwargs))
     assert getattr(refused.value, "reason_code", None) == "missing_policy_not_applicable"
     assert "standard error" in str(refused.value)
 
@@ -240,7 +245,9 @@ def _trial_query(arm: np.ndarray) -> ant.experiment.RandomizedEffect:
 def test_a_randomized_trial_imputes_with_its_arm_and_pools_the_design_variance():
     arm, baseline, observed = _trial(6_000, 61)
     data = {"outcome": observed, "baseline": baseline}
-    result = ant.analyze(data, query=_trial_query(arm), missing=_policy(), refute="none")
+    result = require_success(
+        ant.analyze(data, query=_trial_query(arm), missing=_policy(), refute="none")
+    )
     report = result.missing_data.imputation
     assert report is not None and report.pooling == "rubin"
     # The arm each participant was assigned is in the imputation model, complete and never drawn.
@@ -251,8 +258,8 @@ def test_a_randomized_trial_imputes_with_its_arm_and_pools_the_design_variance()
     _assert_rubin_vector(vector, 6)
     assert vector.labels == ("effect",)
     assert result.missing_data.accounting.rows_dropped == 0
-    complete = ant.analyze(
-        data, query=_trial_query(arm), missing="complete_case", refute="none"
+    complete = require_success(
+        ant.analyze(data, query=_trial_query(arm), missing="complete_case", refute="none")
     ).estimate.ate
     assert abs(complete - TRIAL_EFFECT) > 0.2
     assert result.estimate.ate == pytest.approx(TRIAL_EFFECT, abs=0.25)
@@ -280,13 +287,15 @@ def _series(seed: int, n: int = 600, share: float = 0.1) -> dict[str, np.ndarray
 def test_a_series_is_imputed_by_a_lagged_model_over_contiguous_blocks():
     data = _series(5)
     query = ant.PulseEffect("t", "y", treatment_lag=1)
-    result = ant.analyze(
-        data,
-        graph=_SERIES_DAG,
-        query=query,
-        refute="none",
-        bootstrap=60,
-        missing=_policy(),
+    result = require_success(
+        ant.analyze(
+            data,
+            graph=_SERIES_DAG,
+            query=query,
+            refute="none",
+            bootstrap=60,
+            missing=_policy(),
+        )
     )
     report = result.missing_data.imputation
     assert report is not None
@@ -297,8 +306,10 @@ def test_a_series_is_imputed_by_a_lagged_model_over_contiguous_blocks():
     _assert_rubin_vector(vector, 6)
     assert result.estimate.ate == pytest.approx(0.8, abs=0.3)
     digest = _assert_digest(result)
-    again = ant.analyze(
-        data, graph=_SERIES_DAG, query=query, refute="none", bootstrap=60, missing=_policy()
+    again = require_success(
+        ant.analyze(
+            data, graph=_SERIES_DAG, query=query, refute="none", bootstrap=60, missing=_policy()
+        )
     )
     assert _assert_digest(again) == digest
     assert again.missing_data.imputation.vector.point == vector.point
@@ -308,13 +319,15 @@ def test_the_joint_normal_model_has_no_lagged_form_on_a_series():
     data = _series(6)
     joint = MissingPolicy.multiple_imputation(model="joint_normal", imputations=4, seed=3)
     with pytest.raises(CausalError) as refused:
-        ant.analyze(
-            data,
-            graph=_SERIES_DAG,
-            query=ant.PulseEffect("t", "y", treatment_lag=1),
-            refute="none",
-            bootstrap=0,
-            missing=joint,
+        require_success(
+            ant.analyze(
+                data,
+                graph=_SERIES_DAG,
+                query=ant.PulseEffect("t", "y", treatment_lag=1),
+                refute="none",
+                bootstrap=0,
+                missing=joint,
+            )
         )
     assert getattr(refused.value, "reason_code", None) == "missing_policy_not_applicable"
     assert "chained-equations" in str(refused.value)

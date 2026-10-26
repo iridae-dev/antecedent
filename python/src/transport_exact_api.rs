@@ -168,6 +168,7 @@ impl ClassicalTransportStage {
             let mut ctx = ExecutionContext::production_default(0);
             ctx.set_memory_limit(memory_bytes);
             crate::apply_cancel(&mut ctx, cancel);
+            crate::execution_api::apply(&mut ctx);
             let result = proof
                 .search_catalog(
                     &diagram,
@@ -264,6 +265,7 @@ impl ClassicalTransportStage {
             let mut ctx = ExecutionContext::production_default(0);
             ctx.set_memory_limit(memory_bytes);
             crate::apply_cancel(&mut ctx, cancel);
+            crate::execution_api::apply(&mut ctx);
             let functional = match proof.bind_catalog_with_context(
                 &catalog,
                 antecedent_identify::SidLimits { steps: max_operations, depth: max_depth },
@@ -342,6 +344,7 @@ fn identify_classical_transport_stage(
         let mut ctx = ExecutionContext::production_default(0);
         ctx.set_memory_limit(memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
+        crate::execution_api::apply(&mut ctx);
         let result = identify_classical_transport(
             &diagram,
             &query,
@@ -407,6 +410,7 @@ fn identify_meta_transport_stage(
         let mut ctx = ExecutionContext::production_default(0);
         ctx.set_memory_limit(memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
+        crate::execution_api::apply(&mut ctx);
         let result = antecedent_identify::identify_meta_transport(
             &aligned,
             &query,
@@ -460,6 +464,7 @@ fn consume_transport_certificate(
         let mut ctx = ExecutionContext::production_default(0);
         ctx.set_memory_limit(memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
+        crate::execution_api::apply(&mut ctx);
         let limits = SidLimits { steps: max_steps, depth: max_depth };
         let certificate = antecedent_io::transport_certificate::TransportCertificateWire::consume(
             &bytes, limits, &ctx,
@@ -539,6 +544,7 @@ impl PreparedExactStage {
         let mut ctx = ExecutionContext::production_default(0);
         ctx.set_memory_limit(self.memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
+        crate::execution_api::apply(&mut ctx);
         ctx
     }
 
@@ -784,7 +790,6 @@ impl PreparedExactStage {
         let ctx = self.ctx(cancel);
         let inner = self.inner.clone();
         let execution = execution.unwrap_or_else(|| inner.inspect().identities.execution);
-        self.last = None;
         let result = crate::detach_catch(py, move || {
             inner.estimate_checked(&execution, &ctx).map_err(error)
         })?;
@@ -792,44 +797,49 @@ impl PreparedExactStage {
         self.last = Some(result);
         Ok(payload)
     }
-    #[pyo3(signature=(laws,cancel=None))]
-    fn refresh(
-        &mut self,
+    #[pyo3(signature=(laws,*,cancel=None))]
+    fn bind_snapshot(
+        &self,
         py: Python<'_>,
         laws: &Bound<'_, PyAny>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<ExactStagePayload> {
+    ) -> PyResult<Self> {
         let data = parse_exact_data(laws, &self.catalog, &self.graph, self.max_support_rows)?;
         let ctx = self.ctx(cancel);
-        let mut candidate = self.inner.clone();
-        let (candidate, result) = crate::detach_catch(py, move || {
-            let result = candidate.refresh(data, &ctx).map_err(error)?;
-            Ok((candidate, result))
-        })?;
-        self.inner = candidate;
-        self.catalog = self.inner.evidence_catalog().clone();
-        let payload = self.payload(&result)?;
-        self.last = Some(result);
-        Ok(payload)
+        let current = self.inner.clone();
+        let inner =
+            crate::detach_catch(py, move || current.bind_snapshot(data, &ctx).map_err(error))?;
+        Ok(Self {
+            catalog: inner.evidence_catalog().clone(),
+            inner,
+            graph: self.graph.clone(),
+            last: None,
+            memory_bytes: self.memory_bytes,
+            max_support_rows: self.max_support_rows,
+        })
     }
-    #[pyo3(signature=(laws,cancel=None))]
-    fn replace_snapshot(
-        &mut self,
+
+    #[pyo3(signature=(at,*,cancel=None))]
+    fn rebind(
+        &self,
         py: Python<'_>,
-        laws: &Bound<'_, PyAny>,
+        at: std::collections::BTreeMap<String, f64>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<()> {
-        let data = parse_exact_data(laws, &self.catalog, &self.graph, self.max_support_rows)?;
+    ) -> PyResult<Self> {
+        let request = crate::transport_common::assignment_from_pairs(&self.graph.names, at)?;
         let ctx = self.ctx(cancel);
-        let mut candidate = self.inner.clone();
-        let candidate = crate::detach_catch(py, move || {
-            candidate.replace_snapshot(data, &ctx).map_err(error)?;
-            Ok(candidate)
+        let current = self.inner.clone();
+        let inner = crate::detach_catch(py, move || {
+            current.rebind_assignment(request, &ctx).map_err(error)
         })?;
-        self.inner = candidate;
-        self.catalog = self.inner.evidence_catalog().clone();
-        self.last = None;
-        Ok(())
+        Ok(Self {
+            inner,
+            graph: self.graph.clone(),
+            catalog: self.catalog.clone(),
+            last: None,
+            memory_bytes: self.memory_bytes,
+            max_support_rows: self.max_support_rows,
+        })
     }
     fn inspection_json(&self) -> String {
         let view = self.inner.inspect();
@@ -872,6 +882,17 @@ impl PreparedExactStage {
             ("deterministic_reductions".into(), "true".into()),
             ("kernels".into(), "exact_discrete_memoized_elimination".into()),
         ])
+    }
+    #[pyo3(signature=(seed=None))]
+    fn fork(&self, seed: Option<u64>) -> PyResult<Self> {
+        let mut branch = self.freeze();
+        let mut ctx = self.ctx(None);
+        if let Some(seed) = seed {
+            ctx.rng = antecedent_core::RngFactory::from_seed(seed);
+        }
+        branch.inner = self.inner.requote_execution(&ctx).map_err(error)?;
+        branch.last = None;
+        Ok(branch)
     }
     fn freeze(&self) -> Self {
         Self {
@@ -924,6 +945,7 @@ fn consume_exact_transport(
         let mut ctx = ExecutionContext::production_default(0);
         ctx.set_memory_limit(memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
+        crate::execution_api::apply(&mut ctx);
         let (inner, result) = antecedent::PreparedStudy::<antecedent::ExactPreparedState>::consume(
             &artifact,
             ExactEvaluationLimits { operations: max_operations, depth: max_depth },

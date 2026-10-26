@@ -203,6 +203,7 @@ from . import transport as transport
 from ._analyze import analyze
 from ._native import (
     Admg,
+    CancellationToken,
     Cpdag,
     Dag,
     Pag,
@@ -224,6 +225,7 @@ from ._workflow import load, prepare
 from .accepted_graph import AcceptedGraph
 from .drift import staleness
 from .errors import CausalError, ReviewRequired
+from .execution import CachePolicy, Execution, ResourceLimits
 from .identify import Identification, estimate, identify
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
@@ -253,10 +255,16 @@ from .query import (
     TemporalConditionalPulse,
     TemporalConditionalSustained,
     TemporalMediationEffect,
+    TemporalQuery,
 )
 from .results import Analysis, AnalysisResult
 
 __all__ = [
+    "Execution",
+    "ResourceLimits",
+    "CachePolicy",
+    "CancellationToken",
+    "TemporalQuery",
     # Verbs
     "analyze",
     "prepare",

@@ -13,6 +13,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .errors import CausalTypeError, CausalValueError
 from .graph import Admg
 from .transport._impl import EvidenceCatalog, ExactDiscreteLaw
@@ -57,8 +63,9 @@ class ArrivalResult:
     def to_dict(self) -> dict[str, Any]:
         return dict(json.loads(self._report)["result"])
 
-    def export(self) -> bytes:
-        return self._artifact
+    @artifact_export
+    def export(self) -> ExportedArtifact:
+        return artifact_from_receipt(self, self._artifact)
 
 
 def _estimate(
@@ -69,6 +76,8 @@ def _estimate(
     expected_proposal: str,
     seed: int,
 ) -> ArrivalResult:
+    repair_artifact = container_bytes(repair_artifact)
+    ranking_artifact = container_bytes(ranking_artifact)
     if not isinstance(study, ArrivedStudy):
         raise CausalTypeError("study must be an ArrivedStudy")
     if not isinstance(study.graph, Admg) or not isinstance(study.catalog, EvidenceCatalog):
@@ -121,6 +130,7 @@ def _estimate(
 
 def consume_arrival(data: bytes, *, expected_proposal: str, seed: int = 3) -> ArrivalResult:
     """Replay original consumers and actual raw count providers in a fresh process."""
+    data = container_bytes(data)
     if not isinstance(data, bytes):
         raise CausalTypeError("data must be bytes from ArrivalResult.export()")
     if len(data) > 32 * 1024 * 1024:

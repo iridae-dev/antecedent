@@ -181,6 +181,8 @@ class StructuredRefusal(CausalUnsupportedError):
     route: it is also a :class:`CausalValueError`, so ``except CausalValueError`` catches it.
     """
 
+    execution_facts: ExecutionFacts | None = None
+
     def __new__(cls, refusal: Any = None, *args: Any, **kwargs: Any) -> StructuredRefusal:
         code = refusal.get("code") if isinstance(refusal, Mapping) else kwargs.get("reason_code")
         target = cls
@@ -189,6 +191,11 @@ class StructuredRefusal(CausalUnsupportedError):
         return super().__new__(target)
 
     def __init__(self, refusal: Mapping[str, Any], *, text: str | None = None) -> None:
+        from ._freeze import freeze
+
+        # Keep every native cause/obligation. Individual family attributes are
+        # views; rendering the headline must not discard the rest of a refusal.
+        self.fields: Mapping[str, Any] = freeze(dict(refusal))
         detail = str(refusal["detail"])
         message = refusal.get("message")
         offending = refusal.get("offending")
@@ -220,7 +227,11 @@ class StructuredRefusal(CausalUnsupportedError):
             (cls for cls, variant in _ARGUMENT_VARIANTS.items() if type(self) is variant),
             type(self),
         )
-        return _restore_structured_refusal, (original, self.args, self.__dict__)
+        from ._freeze import thaw
+
+        state = dict(self.__dict__)
+        state["fields"] = thaw(self.fields)
+        return _restore_structured_refusal, (original, self.args, state)
 
 
 def _restore_structured_refusal(
@@ -228,6 +239,10 @@ def _restore_structured_refusal(
 ) -> StructuredRefusal:
     refusal = StructuredRefusal.__new__(cls, {"code": state.get("reason_code")})
     BaseException.__init__(refusal, *args)
+    from ._freeze import freeze
+
+    if "fields" in state:
+        state = {**state, "fields": freeze(state["fields"])}
     refusal.__dict__.update(state)
     return refusal
 
@@ -463,6 +478,7 @@ _LAZY_REFUSALS: dict[str, str] = {
 }
 
 if TYPE_CHECKING:
+    from ._native import ExecutionFacts
     from .composition_bundle import (
         CallbackUnavailableRefusal,
         CompositionBundleRefusal,

@@ -106,6 +106,41 @@ pub(crate) fn analysis_to_json(
     .map(Some)
 }
 
+/// A tier declaration is a known closure or two named scenarios, never a completion mixture.
+/// Reuse the same lossless result/query codecs and named coordinate conversion.
+pub(crate) fn tiered_to_json(
+    result: &IdentificationResult,
+    query: &CausalQuery,
+    names: &[String],
+    background: &antecedent_graph::TieredBackground,
+    within_tier: &str,
+) -> PyResult<String> {
+    let tiers = background
+        .tiers
+        .iter()
+        .map(|tier| {
+            tier.iter()
+                .map(|&variable| coordinate(variable, None, names))
+                .collect::<PyResult<Vec<_>>>()
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    let payload = json!({
+        "kind": "tiered_identification",
+        "status": format!("{:?}", result.status),
+        "method": antecedent::IdentifierId::GeneralizedAdjustment.as_str(),
+        "graph_class": "tiered_background",
+        "within_tier": within_tier,
+        "tiers": tiers,
+        "scenario_scope": if background.within_tier == antecedent_graph::WithinTier::Unknown {
+            "two_declared_orientation_scenarios"
+        } else { "known_tier_closure" },
+        "names": names,
+        "cases": [record(result, None, names, None)?],
+        "witness_query": antecedent_io::causal_query_to_wire(query).map_err(error)?,
+    });
+    serde_json::to_string(&payload).map_err(error)
+}
+
 pub(crate) fn to_json(
     identification: &Identification,
     query: &CausalQuery,

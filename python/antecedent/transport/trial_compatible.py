@@ -35,7 +35,15 @@ from dataclasses import dataclass
 from typing import Any
 
 from .. import _native
+from .._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .._refusal import raise_refusal
+from .._scientific import ScientificResult
 from .._validate import count
 from ..errors import CausalTypeError, CausalValueError
 from ..selective_discovery import (
@@ -103,7 +111,7 @@ def _compatibility(wire: Mapping[str, Any]) -> TrialCompatibility:
 
 
 @dataclass(frozen=True, slots=True)
-class TrialCompatibleEstimate:
+class TrialCompatibleEstimate(ScientificResult):
     """The transported response over the experimentally compatible members of the class.
 
     ``members`` are indexed by position among ``compatibility.retained_members``. ``export()``
@@ -120,9 +128,10 @@ class TrialCompatibleEstimate:
     report: RunReport
     _artifact_bytes: bytes
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
         """The test proof and every retained member's causal and evaluation artifact."""
-        return self._artifact_bytes
+        return artifact_from_receipt(self, self._artifact_bytes)
 
 
 def _members(wire: Sequence[Mapping[str, Any]]) -> tuple[MemberEstimate, ...]:
@@ -140,7 +149,7 @@ def _members(wire: Sequence[Mapping[str, Any]]) -> tuple[MemberEstimate, ...]:
 
 
 @dataclass(frozen=True, slots=True)
-class VerifiedTrialEstimate:
+class VerifiedTrialEstimate(ScientificResult):
     """What replaying an exported trial-compatible estimate established."""
 
     answer: TransportAnswer
@@ -150,14 +159,14 @@ class VerifiedTrialEstimate:
 
 
 @dataclass(frozen=True, slots=True)
-class TrialConfidenceSet:
+class TrialConfidenceSet(ScientificResult):
     """A bounded-outcome whole-procedure set for the binary treatment mean contrast.
 
     ``kind`` is ``identified_sampling_interval`` (every retained member identifies the same
     functional and a sampling interval exists) or ``logical_support_bound`` (no point effect is
     asserted; ``logical_reason`` is ``trial_rejects_every_member``, ``class_not_identified`` or
     ``structural_range``). ``estimate`` is the retained estimate's wire, when the class could be
-    estimated; ``receipt()`` is the artifact to replay against the original inputs.
+    estimated; ``export()`` is the artifact to replay against the original inputs.
     """
 
     kind: str
@@ -176,9 +185,10 @@ class TrialConfidenceSet:
     report: RunReport | None
     _receipt: bytes
 
-    def receipt(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
         """The receipt to replay against the original report, query, columns and seed."""
-        return self._receipt
+        return artifact_from_receipt(self, self._receipt)
 
 
 def _check_alpha(alpha: float) -> float:
@@ -334,6 +344,12 @@ def estimate_trial_compatible_discovered_transport(
     )
 
 
+@artifact_consumer(
+    proof="native trial-compatible consumer verifies compatibility test and graph decisions and replays every member grid",
+    replayable=True,
+    resumable=False,
+    identity=(),
+)
 def verify_trial_compatible_transport_estimate(
     artifact: bytes, *, seed: int = 0
 ) -> VerifiedTrialEstimate:
@@ -342,6 +358,7 @@ def verify_trial_compatible_transport_estimate(
     Raises:
         CausalValueError: a malformed or forged artifact, or one above the replay budget.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray)):
         raise CausalTypeError("artifact must be bytes")
     wire = json.loads(
@@ -358,6 +375,7 @@ def verify_trial_compatible_transport_estimate(
 def _set_of(
     body: str, artifact: bytes, found: Outcome | None, report: RunReport | None
 ) -> TrialConfidenceSet:
+    artifact = container_bytes(artifact)
     wire = json.loads(body)
     support = wire["outcome_support"]
     return TrialConfidenceSet(
@@ -450,6 +468,13 @@ def estimate_trial_compatible_transport_confidence_set(
     return _set_of(body, bytes(artifact), found, report)
 
 
+@artifact_consumer(
+    proof="native confidence-set consumer independently binds contract and input columns, verifies compatibility and member proofs, and recomputes endpoints",
+    replayable=True,
+    resumable=False,
+    input="receipt",
+    identity=("contract", "source", "target"),
+)
 def verify_trial_compatible_transport_confidence_set_against(
     receipt: bytes,
     contract: StaticContract,
@@ -480,6 +505,7 @@ def verify_trial_compatible_transport_confidence_set_against(
     Raises:
         DiscoveredTransportRefusal: the receipt does not replay against the supplied inputs.
     """
+    receipt = container_bytes(receipt)
     if not isinstance(receipt, (bytes, bytearray)):
         raise CausalTypeError("receipt must be bytes")
     lower, upper = _check_support(support_lower, support_upper)

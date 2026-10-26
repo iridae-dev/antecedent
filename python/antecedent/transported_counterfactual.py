@@ -48,7 +48,13 @@ from dataclasses import asdict, dataclass, field
 from functools import partial
 from typing import Any
 
-from ._artifact_protocol import ExportedArtifact
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._mean_binding import bind_mean_reading
 from ._native import (
@@ -484,15 +490,10 @@ class TransportedPathSpecificEffect(ScientificResult):
     identity: TransportedCounterfactualIdentity
     _artifact_bytes: bytes
 
-    def artifact(self) -> ExportedArtifact[TransportedPathSpecificEffect]:
-        """Bytes and producer metadata; load returns the typed consumed result."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self)
-
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[TransportedPathSpecificEffect]:
         """The checksummed ``transported_counterfactual_v1`` artifact."""
-        return self._artifact_bytes
+        return artifact_from_receipt(self, self._artifact_bytes)
 
     def __repr__(self) -> str:
         return (
@@ -546,6 +547,7 @@ class TransportedPathSpecificEffect(ScientificResult):
         expected_identity: TransportedCounterfactualIdentity | Mapping[str, str] | None = None,
     ) -> TransportedPathSpecificEffect:
         """Replay an exported artifact; see :func:`consume_transported_counterfactual_artifact`."""
+        artifact = container_bytes(artifact)
         return consume_transported_counterfactual_artifact(
             artifact, expected_identity=expected_identity
         )
@@ -553,6 +555,7 @@ class TransportedPathSpecificEffect(ScientificResult):
 
 @bind_mean_reading
 def _effect(report_json: str, artifact: bytes) -> TransportedPathSpecificEffect:
+    artifact = container_bytes(artifact)
     report = json.loads(report_json)
     result = report["result"]
     derivation = result["derivation"]
@@ -656,6 +659,10 @@ def transported_path_specific_effect(
 
 
 @bind_mean_reading
+@artifact_consumer(
+    proof="transported_counterfactual.consume_transported_counterfactual_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_transported_counterfactual_artifact(
     artifact: bytes,
     *,
@@ -675,6 +682,7 @@ def consume_transported_counterfactual_artifact(
     ``offending`` names the changed field). A stored result that does not replay, corruption
     and unknown major versions raise :class:`~antecedent.errors.CausalSerializationError`.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     if expected_identity is None:

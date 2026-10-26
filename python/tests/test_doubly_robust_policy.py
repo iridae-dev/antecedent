@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 from antecedent import policy
 from antecedent.errors import CausalUnsupportedError, CausalValueError
+from antecedent.outcomes import require_success
 from antecedent.results._execution import answer_from_artifact
 
 
@@ -116,14 +117,14 @@ def test_retained_finite_class_regret_has_simultaneous_bound_and_artifact():
         regret_candidates=candidates,
         regret_training_subject_ids=["selection-training"],
     )
-    result = ant.analyze({"y": outcome}, query=query, refute="none")
+    result = require_success(ant.analyze({"y": outcome}, query=query, refute="none"))
     regret = result.policy_value.finite_class_regret
     assert regret is not None
     assert regret.target == "best_in_prespecified_candidate_class_minus_selected"
     assert regret.regret > 0.0
     assert regret.interval_95[0] <= regret.regret <= regret.interval_95[1]
     assert result.policy_value.support_status == "licensed"
-    loaded = ant.load(result.export(artifact_id="finite-class-regret"))
+    loaded = require_success(ant.load(bytes(result.export(artifact_id="finite-class-regret"))))
     assert loaded.answer.structured["regret"]["selected_index"] == 1
     with pytest.raises(CausalValueError, match="regret training IDs"):
         policy.PolicyValue(
@@ -155,36 +156,40 @@ def test_retained_policy_value_honors_capacity_budget_and_availability():
         policy=policy.BinaryPolicy([True] * 4 + [False] * 4, capacity=4, costs=0.25, budget=1.0),
         available=[True] * 4 + [False] * 4,
     )
-    result = ant.analyze({"y": outcome}, query=valid, refute="none")
+    result = require_success(ant.analyze({"y": outcome}, query=valid, refute="none"))
     assert result.study is not None
     assert result.policy_value.policy_value == pytest.approx(5.875)
     assert result.answer.kind == "policy_value"
-    loaded = ant.load(result.export(artifact_id="retained-policy"))
+    loaded = require_success(ant.load(bytes(result.export(artifact_id="retained-policy"))))
     assert loaded.answer.kind == "policy_value"
     assert loaded.answer.structured["policy_value"] == pytest.approx(5.875)
     with pytest.raises(CausalUnsupportedError, match="bound to the prepared evaluation rows"):
-        result.refresh({"y": outcome})
+        require_success(result.refresh({"y": outcome}))
 
     for constrained in (
         policy.BinaryPolicy([True] * 4 + [False] * 4, capacity=3),
         policy.BinaryPolicy([True] * 4 + [False] * 4, costs=0.25, budget=0.5),
     ):
         with pytest.raises(ValueError, match="capacity|budget"):
-            ant.analyze(
-                {"y": outcome},
-                query=ant.policy.PolicyValue(**common, policy=constrained),
-                refute="none",
+            require_success(
+                ant.analyze(
+                    {"y": outcome},
+                    query=ant.policy.PolicyValue(**common, policy=constrained),
+                    refute="none",
+                )
             )
 
     with pytest.raises(ValueError, match="unavailable"):
-        ant.analyze(
-            {"y": outcome},
-            query=ant.policy.PolicyValue(
-                **common,
-                policy=policy.BinaryPolicy([True] * 4 + [False] * 4),
-                available=[False] + [True] * 7,
-            ),
-            refute="none",
+        require_success(
+            ant.analyze(
+                {"y": outcome},
+                query=ant.policy.PolicyValue(
+                    **common,
+                    policy=policy.BinaryPolicy([True] * 4 + [False] * 4),
+                    available=[False] + [True] * 7,
+                ),
+                refute="none",
+            )
         )
 
 
@@ -196,7 +201,7 @@ def test_retained_randomized_ipw_policy_needs_no_nuisance_predictions():
         policy=policy.BinaryPolicy([False, True, False, True]),
         evaluation_subject_ids=["a", "b", "c", "d"],
     )
-    result = ant.analyze({"y": [1.0, 3.0, 1.0, 3.0]}, query=query, refute="none")
+    result = require_success(ant.analyze({"y": [1.0, 3.0, 1.0, 3.0]}, query=query, refute="none"))
     assert result.policy_value.policy_value == pytest.approx(4.0)
     assert result.policy_value.reference_value == pytest.approx(1.0)
     assert result.policy_value.incremental_value == pytest.approx(3.0)
@@ -212,7 +217,7 @@ def test_retained_randomized_ipw_policy_needs_no_nuisance_predictions():
     )
     assert result.policy_value.policy_value == pytest.approx(direct.policy_value)
     assert result.policy_value.incremental_value == pytest.approx(direct.incremental_value)
-    artifact = ant.load(result.export(artifact_id="policy-ipw"))
+    artifact = require_success(ant.load(bytes(result.export(artifact_id="policy-ipw"))))
     assert artifact.answer.structured["uncertainty"] == result.policy_value.uncertainty
 
     with pytest.raises(CausalValueError, match="supplied together"):
@@ -243,9 +248,9 @@ def test_unlicensed_policy_value_answer_round_trips_through_load():
         policy=policy.BinaryPolicy([False, True, False, True]),
         evaluation_subject_ids=["a", "b", "c", "d"],
     )
-    result = ant.analyze({"y": [1.0, 3.0, 1.0, 3.0]}, query=query, refute="none")
+    result = require_success(ant.analyze({"y": [1.0, 3.0, 1.0, 3.0]}, query=query, refute="none"))
     assert result.policy_value.support_status == "unlicensed_point_utility"
-    loaded = ant.load(result.export(artifact_id="policy-unlicensed"))
+    loaded = require_success(ant.load(bytes(result.export(artifact_id="policy-unlicensed"))))
     assert loaded.answer == result.answer
     assert loaded.answer.structured["graphless_support_status"] == "unlicensed_point_utility"
 
@@ -264,7 +269,7 @@ def test_policy_value_without_predictions_survives_dataclasses_replace():
     changed = dataclasses.replace(query, propensity=0.4)
     assert changed.mu0 is None and changed.mu1 is None
     assert changed.propensity == 0.4
-    result = ant.analyze({"y": [1.0, 3.0, 1.0, 3.0]}, query=changed, refute="none")
+    result = require_success(ant.analyze({"y": [1.0, 3.0, 1.0, 3.0]}, query=changed, refute="none"))
     assert result.policy_value.prediction_ownership == "no_outcome_nuisance_predictions"
 
 
@@ -280,16 +285,18 @@ def test_retained_policy_reports_held_out_ranked_uplift_bins():
         uplift_bin_count=2,
         uplift_training_subject_ids=["rank-train"],
     )
-    result = ant.analyze({"y": [9, 5, 9, 5, 5, 5, 5, 5]}, query=query, refute="none")
+    result = require_success(
+        ant.analyze({"y": [9, 5, 9, 5, 5, 5, 5, 5]}, query=query, refute="none")
+    )
     bins = result.policy_value.uplift_bins
     assert len(bins) == 2
     assert [bin.effect for bin in bins] == pytest.approx([4.0, 0.0])
     assert [bin.evaluation_rows for bin in bins] == [4, 4]
     assert all(bin.standard_error >= 0 for bin in bins)
     assert result.policy_value.support_status == "unlicensed_point_utility"
-    assert ant.load(result.export(artifact_id="ranked-policy")).answer.structured["uplift_bins"][0][
-        "effect"
-    ] == pytest.approx(4.0)
+    assert require_success(
+        ant.load(bytes(result.export(artifact_id="ranked-policy")))
+    ).answer.structured["uplift_bins"][0]["effect"] == pytest.approx(4.0)
 
     with pytest.raises(CausalValueError, match="disjoint"):
         policy.PolicyValue(
@@ -316,12 +323,14 @@ def test_top_k_policy_uses_retained_native_value_and_frozen_ranking():
         uplift_bins=2,
     )
     assert query.policy.actions == (True, True, True, True, False, False, False, False)
-    result = ant.analyze({"y": [9, 5, 9, 5, 5, 5, 5, 5]}, query=query, refute="none")
+    result = require_success(
+        ant.analyze({"y": [9, 5, 9, 5, 5, 5, 5, 5]}, query=query, refute="none")
+    )
     assert result.policy_value.policy_value == pytest.approx(7.0)
     assert result.policy_value.incremental_value == pytest.approx(2.0)
     assert result.policy_value.treatment_rate == pytest.approx(0.5)
     assert [bin.effect for bin in result.policy_value.uplift_bins] == pytest.approx([4.0, 0.0])
-    loaded = ant.load(result.export(artifact_id="top-k-policy"))
+    loaded = require_success(ant.load(bytes(result.export(artifact_id="top-k-policy"))))
     assert loaded.answer.structured["policy_value"] == pytest.approx(7.0)
 
     with pytest.raises(CausalValueError, match="disjoint"):
@@ -352,7 +361,7 @@ def test_retained_top_k_uplift_intervals_require_held_out_bin_support():
         ranking_training_subject_ids=["rank-train"],
         uplift_bins=2,
     )
-    result = ant.analyze({"y": outcome}, query=query, refute="none")
+    result = require_success(ant.analyze({"y": outcome}, query=query, refute="none"))
     assert result.policy_value.support_status == "off_axis_pointwise_95"
     assert result.policy_value.policy_value_interval_95 is None
     assert result.policy_value.incremental_value_interval_95 is None
@@ -371,11 +380,11 @@ def test_retained_top_k_uplift_intervals_require_held_out_bin_support():
         uplift_bin_count=2,
         uplift_training_subject_ids=["fixed-rank-train"],
     )
-    fixed_result = ant.analyze({"y": outcome}, query=fixed_query, refute="none")
+    fixed_result = require_success(ant.analyze({"y": outcome}, query=fixed_query, refute="none"))
     assert fixed_result.policy_value.support_status == "licensed"
     assert fixed_result.policy_value.policy_value_interval_95 is not None
     assert all(point.interval_95 is not None for point in fixed_result.policy_value.uplift_bins)
-    loaded = ant.load(result.export(artifact_id="top-k-uplift-interval"))
+    loaded = require_success(ant.load(bytes(result.export(artifact_id="top-k-uplift-interval"))))
     assert loaded.answer.structured["uplift_bins"][0]["interval_95"] == pytest.approx(
         bins[0].interval_95
     )
@@ -391,7 +400,7 @@ def test_retained_top_k_uplift_intervals_require_held_out_bin_support():
         ranking_training_subject_ids=["rank-train"],
         uplift_bins=2,
     )
-    thin = ant.analyze({"y": outcome[:thin_rows]}, query=thin_query, refute="none")
+    thin = require_success(ant.analyze({"y": outcome[:thin_rows]}, query=thin_query, refute="none"))
     assert all(point.interval_95 is None for point in thin.policy_value.uplift_bins)
     direct = policy.uplift_by_score(
         {"y": outcome},
@@ -417,7 +426,7 @@ def test_retained_multi_action_policy_matches_direct_native_value_and_artifact()
         policy=fixed,
         evaluation_subject_ids=[f"s{i}" for i in range(9)],
     )
-    result = ant.analyze({"y": outcomes}, query=query, refute="none")
+    result = require_success(ant.analyze({"y": outcomes}, query=query, refute="none"))
     direct = policy.evaluate_multi_action_policy(
         {"y": outcomes},
         outcome="y",
@@ -437,7 +446,7 @@ def test_retained_multi_action_policy_matches_direct_native_value_and_artifact()
     assert any(
         "action probabilities" in assumption for assumption in result.policy_value.assumptions
     )
-    loaded = ant.load(result.export(artifact_id="retained-multi-policy"))
+    loaded = require_success(ant.load(bytes(result.export(artifact_id="retained-multi-policy"))))
     assert loaded.answer.structured["policy_value"] == pytest.approx(7.0 / 3.0)
     assert loaded.answer.structured["uncertainty"] == result.policy_value.uncertainty
     grouped = policy.MultiActionPolicyValue(
@@ -448,7 +457,7 @@ def test_retained_multi_action_policy_matches_direct_native_value_and_artifact()
         evaluation_subject_ids=query.evaluation_subject_ids,
         baseline_groups=["x"] * 3 + ["y"] * 3 + ["z"] * 3,
     )
-    grouped_result = ant.analyze({"y": outcomes}, query=grouped, refute="none")
+    grouped_result = require_success(ant.analyze({"y": outcomes}, query=grouped, refute="none"))
     points = grouped_result.policy_value.multi_action_cate
     assert [(point.group, point.action, point.effect) for point in points] == [
         (group, action, effect)
@@ -456,7 +465,9 @@ def test_retained_multi_action_policy_matches_direct_native_value_and_artifact()
         for action, effect in (("A", 1.0), ("B", 3.0))
     ]
     assert all(point.uncertainty == "point_only" for point in points)
-    grouped_artifact = ant.load(grouped_result.export(artifact_id="grouped-multi-policy"))
+    grouped_artifact = require_success(
+        ant.load(bytes(grouped_result.export(artifact_id="grouped-multi-policy")))
+    )
     assert grouped_artifact.answer.structured["multi_action_cate"][0]["effect"] == pytest.approx(
         1.0
     )
@@ -470,7 +481,7 @@ def test_retained_multi_action_policy_matches_direct_native_value_and_artifact()
             baseline_groups=["x"],
         )
     with pytest.raises(CausalUnsupportedError, match="bound to the prepared evaluation rows"):
-        result.refresh({"y": outcomes})
+        require_success(result.refresh({"y": outcomes}))
 
     with pytest.raises(CausalValueError, match="probability"):
         policy.MultiActionPolicyValue(
@@ -482,16 +493,18 @@ def test_retained_multi_action_policy_matches_direct_native_value_and_artifact()
         )
     over_capacity = policy.MultiActionPolicy(labels, recommendations, capacities=[9, 2, 3])
     with pytest.raises(ValueError, match="capacity"):
-        ant.analyze(
-            {"y": outcomes},
-            query=policy.MultiActionPolicyValue(
-                outcome="y",
-                assignment=assigned,
-                propensities=query.propensities,
-                policy=over_capacity,
-                evaluation_subject_ids=[f"s{i}" for i in range(9)],
-            ),
-            refute="none",
+        require_success(
+            ant.analyze(
+                {"y": outcomes},
+                query=policy.MultiActionPolicyValue(
+                    outcome="y",
+                    assignment=assigned,
+                    propensities=query.propensities,
+                    policy=over_capacity,
+                    evaluation_subject_ids=[f"s{i}" for i in range(9)],
+                ),
+                refute="none",
+            )
         )
 
 
@@ -509,7 +522,7 @@ def test_retained_multi_action_cate_interval_and_sparse_refusal():
         evaluation_subject_ids=[f"cate-{i}" for i in range(n)],
         baseline_groups=["g0"] * n,
     )
-    result = ant.analyze({"y": outcomes}, query=query, refute="none")
+    result = require_success(ant.analyze({"y": outcomes}, query=query, refute="none"))
     assert result.policy_value.support_status == "licensed"
     points = result.policy_value.multi_action_cate
     assert len(points) == 2
@@ -517,7 +530,7 @@ def test_retained_multi_action_cate_interval_and_sparse_refusal():
         assert point.uncertainty == "pointwise_95"
         assert point.standard_error > 0.0
         assert point.interval_95[0] < truth < point.interval_95[1]
-    loaded = ant.load(result.export(artifact_id="multi-cate-interval"))
+    loaded = require_success(ant.load(bytes(result.export(artifact_id="multi-cate-interval"))))
     assert loaded.answer.structured["multi_action_cate"][0]["interval_95"] == pytest.approx(
         points[0].interval_95
     )
@@ -531,7 +544,7 @@ def test_retained_multi_action_cate_interval_and_sparse_refusal():
         evaluation_subject_ids=[f"thin-cate-{i}" for i in range(299)],
         baseline_groups=["g0"] * 299,
     )
-    thin_result = ant.analyze({"y": outcomes[:299]}, query=thin, refute="none")
+    thin_result = require_success(ant.analyze({"y": outcomes[:299]}, query=thin, refute="none"))
     assert all(
         point.interval_95 is None and point.uncertainty == "point_only"
         for point in thin_result.policy_value.multi_action_cate
@@ -553,7 +566,7 @@ def test_retained_held_out_and_crossfit_policy_intervals_and_constraint_refusal(
         mu1=[3.0] * n,
     )
     held_out = policy.PolicyValue(**common, training_subject_ids=["train-1", "train-2"])
-    result = ant.analyze({"y": y}, query=held_out, refute="none")
+    result = require_success(ant.analyze({"y": y}, query=held_out, refute="none"))
     answer = result.policy_value
     assert answer.policy_value_interval_95 is not None
     assert answer.incremental_value_interval_95 is not None
@@ -568,7 +581,7 @@ def test_retained_held_out_and_crossfit_policy_intervals_and_constraint_refusal(
         < answer.incremental_value_interval_95[1]
     )
     assert answer.support_status == "licensed"
-    artifact = ant.load(result.export(artifact_id="policy-interval"))
+    artifact = require_success(ant.load(bytes(result.export(artifact_id="policy-interval"))))
     assert artifact.answer.structured["policy_interval_95"] == pytest.approx(
         answer.policy_value_interval_95
     )
@@ -581,7 +594,9 @@ def test_retained_held_out_and_crossfit_policy_intervals_and_constraint_refusal(
         fold_ids=[i % 2 for i in range(n)],
         prediction_excluded_fold_ids=[i % 2 for i in range(n)],
     )
-    crossfit_result = ant.analyze({"y": y}, query=crossfit, refute="none").policy_value
+    crossfit_result = require_success(
+        ant.analyze({"y": y}, query=crossfit, refute="none")
+    ).policy_value
     assert crossfit_result.policy_value_interval_95 is not None
     assert crossfit_result.incremental_value_interval_95 is not None
     assert (
@@ -595,7 +610,9 @@ def test_retained_held_out_and_crossfit_policy_intervals_and_constraint_refusal(
         **dict(common, policy=policy.BinaryPolicy(actions, costs=0.1, capacity=sum(actions))),
         training_subject_ids=["train-1", "train-2"],
     )
-    constrained_result = ant.analyze({"y": y}, query=constrained, refute="none").policy_value
+    constrained_result = require_success(
+        ant.analyze({"y": y}, query=constrained, refute="none")
+    ).policy_value
     assert constrained_result.policy_value_interval_95 is None
     assert constrained_result.incremental_value_interval_95 is None
 
@@ -617,10 +634,10 @@ def test_retained_multi_action_policy_interval_and_global_constraint_refusal():
             labels, assigned, costs=[0, 0.1, 0.2], capacities=[n] * 3, budget=n * 0.2
         ),
     )
-    result = ant.analyze({"y": y}, query=independent, refute="none")
+    result = require_success(ant.analyze({"y": y}, query=independent, refute="none"))
     assert result.policy_value.policy_value_interval_95 is not None
     assert result.policy_value.incremental_value_interval_95 is not None
-    artifact = ant.load(result.export(artifact_id="multi-policy-interval"))
+    artifact = require_success(ant.load(bytes(result.export(artifact_id="multi-policy-interval"))))
     assert artifact.answer.structured["policy_interval_95"] == pytest.approx(
         result.policy_value.policy_value_interval_95
     )
@@ -631,5 +648,7 @@ def test_retained_multi_action_policy_interval_and_global_constraint_refusal():
             labels, assigned, costs=[0, 0.1, 0.2], capacities=[n] * 3, budget=40.0
         ),
     )
-    point_only = ant.analyze({"y": y}, query=constrained, refute="none").policy_value
+    point_only = require_success(
+        ant.analyze({"y": y}, query=constrained, refute="none")
+    ).policy_value
     assert point_only.policy_value_interval_95 is None

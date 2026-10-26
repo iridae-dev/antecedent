@@ -198,6 +198,7 @@ def coerce_query(value: Any) -> Any:
         TemporalConditionalPulse,
         TemporalConditionalSustained,
         TemporalMediationEffect,
+        TemporalQuery,
     )
     from .regimes import LongitudinalRegime, SequentialContrast
     from .survival import CompetingRisksOutcome, SurvivalOutcome
@@ -219,6 +220,7 @@ def coerce_query(value: Any) -> Any:
         TemporalConditionalPulse,
         TemporalConditionalSustained,
         TemporalMediationEffect,
+        TemporalQuery,
         ResponseCurve,
         AverageDerivative,
         PointDerivative,

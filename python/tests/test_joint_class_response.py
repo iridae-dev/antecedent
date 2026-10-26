@@ -3,6 +3,7 @@
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_json
 
@@ -47,12 +48,12 @@ def test_joint_response_identify_prepare_and_estimate(kind, accepted, bayesian):
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data, graph=graph, query=query, **kwargs
     )
-    result = prepared.estimate(data, seed=7)
+    result = require_success(prepared.estimate(data, seed=7))
     tolerance = _PIN["bayesian_tolerance"] if bayesian else _PIN["tolerance"]
     assert float(np.asarray(result.response.values).reshape(-1)[0]) == pytest.approx(
         _PIN["mean"], abs=tolerance
     )
-    fresh = antecedent.analyze(data, graph=graph, query=query, **kwargs)
+    fresh = require_success(antecedent.analyze(data, graph=graph, query=query, **kwargs))
     assert float(np.asarray(fresh.response.values).reshape(-1)[0]) == pytest.approx(
         _PIN["mean"], abs=tolerance
     )
@@ -79,14 +80,16 @@ def test_bayesian_joint_policy_mean(kind, policy):
     query = antecedent.InterventionResponse(
         "y", intervention=[policy, antecedent.intervention.Set("z", 1)]
     )
-    result = antecedent.analyze(
-        _data(),
-        graph=_graph(kind, False),
-        query=query,
-        inference=antecedent.Bayesian(),
-        refute=False,
-        bootstrap=0,
-        seed=7,
+    result = require_success(
+        antecedent.analyze(
+            _data(),
+            graph=_graph(kind, False),
+            query=query,
+            inference=antecedent.Bayesian(),
+            refute=False,
+            bootstrap=0,
+            seed=7,
+        )
     )
     assert float(np.asarray(result.response.values).reshape(-1)[0]) == pytest.approx(
         7.0, abs=_PIN["bayesian_tolerance"]

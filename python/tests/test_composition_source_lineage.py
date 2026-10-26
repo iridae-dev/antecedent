@@ -14,6 +14,7 @@ from antecedent import design as dr
 from antecedent import sensitivity_decision as sd
 from antecedent.extensibility import ProviderTrust
 from antecedent.functional_source import LawFunctionalArtifact
+from antecedent.outcomes import require_success
 from antecedent.source_projection import consume_source_projection
 from antecedent.transport import advanced as transport
 
@@ -43,7 +44,9 @@ def test_native_functional_keeps_original_semantic_diagnostics_and_typed_lineage
     )
     assert claim.stages_behind() == frozenset({"causal_contract", "data", "evidence", "claim"})
     artifact = value.source_artifact
-    loaded = consume_source_projection(artifact.export(), expected_identity=artifact.identity)
+    loaded = consume_source_projection(
+        bytes(artifact.export()), expected_identity=artifact.identity
+    )
     assert loaded.report["unresolved"] == ["dependencies.checked_response_grid_operation"]
     assert loaded.report["output"]["action_id"] == "B"
     assert loaded.report["output"]["actions"] == [
@@ -79,7 +82,7 @@ def test_law_functional_full_original_request_replays_truth_without_trust_upgrad
     result = comp.evaluate_functional(declaration, "treat", functional, source)
     assert result.value == pytest.approx(truth)
     original = result.source_artifact
-    loaded = LawFunctionalArtifact.consume(original.export())
+    loaded = require_success(LawFunctionalArtifact.consume(bytes(original.export())))
     report = loaded.report
     assert report["value"] == pytest.approx(truth)
     assert report["standard_error"] is None
@@ -129,7 +132,7 @@ def test_sensitivity_full_original_v3_source_replays_surface_and_preserves_withh
         "sensitivity_input",
         "claim",
     } <= loaded.stages_behind()
-    historical = sd.SensitivityArtifact.consume(artifact.export())
+    historical = require_success(sd.SensitivityArtifact.consume(bytes(artifact.export())))
     assert historical.source_evidence is None
     with pytest.raises(ValueError, match="sensitivity_source.source_unavailable") as missing:
         historical.export_with_source()
@@ -138,7 +141,7 @@ def test_sensitivity_full_original_v3_source_replays_surface_and_preserves_withh
 
 def test_rollout_ranking_handoff_consumes_original_source_and_retains_named_state_standing():
     source, ranked, rollout = rollout_fixture()
-    loaded = dr.consume_rollout(rollout.export(), expected_identity=rollout.expectation())
+    loaded = dr.consume_rollout(bytes(rollout.export()), expected_identity=rollout.expectation())
     assert loaded.source_evidence["source_verified"] is True
     assert loaded.source_evidence["unresolved_source_digests"] == []
     assert source.trust == "externally_attested"
@@ -179,7 +182,7 @@ def test_full_sensitivity_and_law_sources_replay_in_fresh_process(tmp_path):
     sensitivity_path = tmp_path / "sensitivity.art"
     law_path = tmp_path / "law.art"
     sensitivity_path.write_bytes(sensitivity.export_with_source())
-    law_path.write_bytes(result.source_artifact.export())
+    law_path.write_bytes(bytes(result.source_artifact.export()))
     script = """
 import json,sys
 from antecedent.sensitivity_decision import SensitivityArtifact
@@ -219,10 +222,14 @@ def test_law_functional_changed_complete_request_identity_and_invalid_artifact_r
     with pytest.raises(
         ValueError, match="functional_source.expected_identity_mismatch"
     ) as mismatch:
-        LawFunctionalArtifact.consume(changed.export(), expected_identity=original.identity)
+        require_success(
+            LawFunctionalArtifact.consume(
+                bytes(changed.export()), expected_identity=original.identity
+            )
+        )
     assert mismatch.value.reason_code == "invalid_argument"
     with pytest.raises(ValueError, match="functional_source.invalid_artifact") as corrupt:
-        LawFunctionalArtifact.consume(b"not a source artifact")
+        require_success(LawFunctionalArtifact.consume(b"not a source artifact"))
     assert corrupt.value.reason_code == "invalid_argument"
 
 
@@ -254,7 +261,7 @@ def test_issued_native_law_alias_retains_diagnostics_but_import_does_not_issue_a
     assert value.value == pytest.approx(law.joint_product_expectation(0, 1))
     assert value.source_evidence[0].diagnostics == claim.source_evidence.diagnostics
     imported = JointDistributionArtifact.load(
-        law.export("native-law-alias"), expected_identity=law.identity
+        bytes(law.export("native-law-alias")), expected_identity=law.identity
     )
     assert imported.source_evidence is None
     with pytest.raises(comp.UnverifiedTrustRefusal):
@@ -267,7 +274,9 @@ def test_native_law_functional_portable_diagnostics_require_actual_row_origin_re
     original = comp.evaluate_functional(
         declaration, "product", comp.Functional.expectation(), source
     ).source_artifact
-    loaded = LawFunctionalArtifact.consume(original.export(), expected_identity=original.identity)
+    loaded = require_success(
+        LawFunctionalArtifact.consume(bytes(original.export()), expected_identity=original.identity)
+    )
     assert (
         loaded.report["source_evidence"]["diagnostics"]
         == original.report["source_evidence"]["diagnostics"]
@@ -278,7 +287,9 @@ def test_native_law_functional_portable_diagnostics_require_actual_row_origin_re
     assert resolved.report["native_authority_issued"] is False
     assert resolved.report["calibration_license_issued"] is False
     assert (
-        LawFunctionalArtifact.consume(resolved.export()).report["native_row_origin_verified"]
+        require_success(LawFunctionalArtifact.consume(bytes(resolved.export()))).report[
+            "native_row_origin_verified"
+        ]
         is False
     )
     with pytest.raises(TypeError, match="issued native claim"):
@@ -290,7 +301,7 @@ def test_native_law_functional_fresh_process_resolves_only_actual_reissued_sourc
     source = comp.DecisionInput.from_distribution("issued", law, requirement="native")
     value = comp.evaluate_functional(declaration, "product", comp.Functional.expectation(), source)
     path = tmp_path / "native-law-functional.art"
-    path.write_bytes(value.source_artifact.export())
+    path.write_bytes(bytes(value.source_artifact.export()))
     child = subprocess.run(
         [
             sys.executable,
@@ -340,8 +351,10 @@ def test_native_rollout_retains_original_semantic_diagnostics_in_independent_ran
         source_digests=(decision.source_digest(law),),
         rng_seed=3,
     )
-    rollout = problem.export_rollout(law, state, ranked, interpretation="posterior_state")
-    loaded = dr.consume_rollout(rollout.export(), expected_identity=rollout.expectation())
+    rollout = require_success(
+        problem.derive_rollout(law, state, ranked, interpretation="posterior_state")
+    )
+    loaded = dr.consume_rollout(bytes(rollout.export()), expected_identity=rollout.expectation())
     assert (
         loaded.source_evidence["original_diagnostics"]["diagnostics"]
         == rollout.source_evidence["original_diagnostics"]["diagnostics"]
@@ -393,12 +406,14 @@ def test_inverse_all_original_native_evidence_slots_retain_distinct_source_diagn
     first, declaration, first_law = _issued_joint()
     treatment = np.tile(np.array([0.0, 1.0, 2.0, 3.0]), 80)
     covariate = np.repeat(np.linspace(-1.0, 1.0, 80), 4)
-    view = ac.analyze(
-        {"x": covariate, "a": treatment, "y": 2.0 + 2.0 * treatment + 0.2 * covariate},
-        graph=[("x", "a"), ("x", "y"), ("a", "y")],
-        query=ac.ResponseCurve("a", "y", grid=[1.0, 2.0]),
-        inference=ac.Bayesian(backend="conjugate", n_draws=256),
-        refute="none",
+    view = require_success(
+        ac.analyze(
+            {"x": covariate, "a": treatment, "y": 2.0 + 2.0 * treatment + 0.2 * covariate},
+            graph=[("x", "a"), ("x", "y"), ("a", "y")],
+            query=ac.ResponseCurve("a", "y", grid=[1.0, 2.0]),
+            inference=ac.Bayesian(backend="conjugate", n_draws=256),
+            refute="none",
+        )
     )
     second = program_claims.native_claim(view, _native_program(view))
     second_law = second.as_decision_source(declaration).source
@@ -421,7 +436,7 @@ def test_inverse_all_original_native_evidence_slots_retain_distinct_source_diagn
     }
     assert len(expected) == 2
     assert {source.source_artifact_digest for source in result.source_evidence} == expected
-    loaded = iq.InverseResult.consume(result.export())
+    loaded = require_success(iq.InverseResult.consume(bytes(result.export())))
     assert {source.source_artifact_digest for source in loaded.source_evidence} == expected
     assert all(source.resolution is None for source in loaded.source_evidence)
     assert all(
@@ -462,11 +477,13 @@ def test_issued_native_aligned_law_functionals_and_evsi_match_independent_finite
         probability.standard_error is quantile.standard_error is expectation.standard_error is None
     )
     imported = JointDistributionArtifact.load(
-        law.export("issued-law-consumer"), expected_identity=law.identity
+        bytes(law.export("issued-law-consumer")), expected_identity=law.identity
     )
     assert np.array_equal(np.asarray(imported), rows)
     assert imported.source_evidence is None
-    replayed = LawFunctionalArtifact.consume(probability.source_artifact.export())
+    replayed = require_success(
+        LawFunctionalArtifact.consume(bytes(probability.source_artifact.export()))
+    )
     assert replayed.report["value"] == probability.value
     assert replayed.resolve_with(claim).report["native_row_origin_verified"] is True
 
@@ -522,10 +539,10 @@ def test_issued_native_aligned_law_functionals_and_evsi_match_independent_finite
     assert candidate.evsi == pytest.approx(oracle, abs=5.0 * candidate.integration.stderr + 2e-4)
     evpi = float(np.maximum(0.0, standardized).mean()) - max(0.0, float(standardized.mean()))
     assert ranked.evpi == pytest.approx(evpi, abs=1e-11)
-    rollout = problem.export_rollout(
-        law, claim.coordinates[0], ranked, interpretation="posterior_state"
+    rollout = require_success(
+        problem.derive_rollout(law, claim.coordinates[0], ranked, interpretation="posterior_state")
     )
-    consumed = dr.consume_rollout(rollout.export(), expected_identity=rollout.expectation())
+    consumed = dr.consume_rollout(bytes(rollout.export()), expected_identity=rollout.expectation())
     assert consumed.ranking.entries[0].evsi == pytest.approx(
         oracle, abs=5.0 * candidate.integration.stderr + 2e-4
     )
@@ -560,7 +577,7 @@ def test_external_original_source_survives_functional_supported_decision_and_inv
     )
     assert evidence._summary["point_status"] == ["supported", "weak_overlap"]
     assert evidence._summary["trust"] == "externally_attested"
-    imported = SourceEvidence.consume(evidence.export())
+    imported = require_success(SourceEvidence.consume(bytes(evidence.export())))
     assert imported.identities == claim.identity_fields
     assert imported.lineage == evidence.lineage
     assert imported._summary["native_authority_issued"] is False
@@ -572,7 +589,7 @@ def test_external_original_source_survives_functional_supported_decision_and_inv
     assert unsupported.value.reason_code == "decision_contract_unsatisfied"
     assert value.source_evidence[0].action_contributors == {"A": (claim.quantities[0],)}
     original = consume_source_projection(
-        value.source_artifact.export(), expected_identity=value.source_artifact.identity
+        bytes(value.source_artifact.export()), expected_identity=value.source_artifact.identity
     )
     assert original.report["trust"] == "externally_attested"
     result = comp.evaluate_with_support(declaration, [source])
@@ -586,7 +603,9 @@ def test_external_original_source_survives_functional_supported_decision_and_inv
     point = claim if forward == "bound" else iq.MeanClaim.from_external(claim)
     inverse = query.evaluate(point=point)
     assert inverse.selected == "A"
-    loaded = iq.InverseResult.consume(inverse.export(), expected_identity=inverse.identity)
+    loaded = require_success(
+        iq.InverseResult.consume(bytes(inverse.export()), expected_identity=inverse.identity)
+    )
     assert loaded.source_evidence[0].identities == claim.identity_fields
     assert loaded.source_evidence[0].diagnostics == ()
     assert loaded.source_evidence[0]._summary["native_authority_issued"] is False
@@ -595,8 +614,8 @@ def test_external_original_source_survives_functional_supported_decision_and_inv
             query.evaluate(point=replace(point, means=(30.0, 50.0)))
     decision_result = declaration.evaluate(claim)
     assert decision_result.source_evidence[0].identities == claim.identity_fields
-    (tmp_path / "external_evidence").write_bytes(value.source_evidence[0].export())
-    (tmp_path / "inverse").write_bytes(inverse.export())
+    (tmp_path / "external_evidence").write_bytes(bytes(value.source_evidence[0].export()))
+    (tmp_path / "inverse").write_bytes(bytes(inverse.export()))
     script = """
 import json,sys
 from pathlib import Path
@@ -641,13 +660,15 @@ def test_named_native_mean_adapters_preserve_original_source_and_remain_mean_onl
     query = iq.InverseQuery(declaration, ("A", "B"), (iq.target_mean(3.25),))
     inverse = query.evaluate(point=mean)
     assert inverse.selected == "B"
-    imported = iq.InverseResult.consume(inverse.export(), expected_identity=inverse.identity)
+    imported = require_success(
+        iq.InverseResult.consume(bytes(inverse.export()), expected_identity=inverse.identity)
+    )
     assert imported.source_evidence[0].diagnostics == claim.source_evidence.diagnostics
     assert imported.source_evidence[0].resolution is None
     assert imported.source_evidence[0].original_acceptance["unresolved_dependencies"] == [
         "dependencies.checked_response_grid_operation"
     ]
-    (tmp_path / "native_mean_inverse").write_bytes(inverse.export())
+    (tmp_path / "native_mean_inverse").write_bytes(bytes(inverse.export()))
     script = """
 import json,sys
 from pathlib import Path

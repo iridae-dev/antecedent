@@ -31,6 +31,7 @@ from antecedent.estimators import (
     PropensityWeighting,
 )
 from antecedent.ids import Estimator
+from antecedent.outcomes import require_success
 
 from _scm import public_scm as _public_scm
 
@@ -75,26 +76,30 @@ def test_linear_adjustment_wire_round_trips_through_public_analyze():
     cluster_ids = [i % 20 for i in range(len(data["z"]))]
 
     cfg = LinearAdjustment(bootstrap=64, se="cluster", cluster_ids=cluster_ids)
-    via_dataclass = antecedent.analyze(
-        data,
-        graph=graph,
-        query=query,
-        seed=1,
-        estimator=cfg.estimator_id,
-        estimator_config=cfg._wire(),
+    via_dataclass = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            seed=1,
+            estimator=cfg.estimator_id,
+            estimator_config=cfg._wire(),
+        )
     )
     # Hand-written equivalent: `bootstrap_replicates` omitted from the dict on purpose —
     # Rust falls back to the ambient `bootstrap=` kwarg whenever it's absent, so passing
     # bootstrap=64 at the top level is exactly equivalent to cfg.bootstrap=64.
     hand_dict = {"se_kind": "cluster", "cluster_ids": cluster_ids}
-    via_hand_dict = antecedent.analyze(
-        data,
-        graph=graph,
-        query=query,
-        seed=1,
-        bootstrap=64,
-        estimator="linear.adjustment.ate",
-        estimator_config=hand_dict,
+    via_hand_dict = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            seed=1,
+            bootstrap=64,
+            estimator="linear.adjustment.ate",
+            estimator_config=hand_dict,
+        )
     )
 
     assert via_dataclass.estimate.ate == pytest.approx(via_hand_dict.estimate.ate)
@@ -372,14 +377,16 @@ def test_matching_refuses_clustered_multiway_and_hac_se(cls, se):
         kwargs["panel_times"] = [i // 20 for i in range(n)]
     cfg = cls(**kwargs)
     with pytest.raises(CausalUnsupportedError) as refused:
-        antecedent.analyze(
-            data,
-            graph=graph,
-            query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            seed=1,
-            refute=False,
-            estimator=cfg.estimator_id,
-            estimator_config=cfg._wire(),
+        require_success(
+            antecedent.analyze(
+                data,
+                graph=graph,
+                query=antecedent.AverageEffect(treatment="t", outcome="y"),
+                seed=1,
+                refute=False,
+                estimator=cfg.estimator_id,
+                estimator_config=cfg._wire(),
+            )
         )
     assert refused.value.reason_code == "estimator_inference_mismatch"
     assert "matching has no valid cluster, multiway or HAC standard error" in str(refused.value)

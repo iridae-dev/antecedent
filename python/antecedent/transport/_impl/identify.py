@@ -6,6 +6,7 @@ from typing import Any, Literal, TypedDict
 
 import numpy as np
 
+from ..._artifact_protocol import artifact_consumer, container_bytes
 from ..._columns import coerce_fields
 from ..._native import (
     consume_z_transport_artifact as _consume_z_transport_artifact,
@@ -39,13 +40,13 @@ from ...query import (
     ResponseJacobian,
     SemiElasticity,
 )
+from .._consumption import TransportConsumption
 from .._status import identification_status as _canonical_status
 from .catalog import (
     EvidenceCatalog,
     SelectionDiagram,
     ZTransportCandidate,
     ZTransportQuery,
-    ZTransportSensitivityResult,
 )
 from .limits import _non_negative, _optional_non_negative
 
@@ -435,6 +436,11 @@ def _consume_limits(
     }
 
 
+@artifact_consumer(
+    proof="ZTransportArtifactWire consumer: checks proof and provider bindings then replays the retained point",
+    replayable=True,
+    identity=(),
+)
 def consume_z_transport_artifact(
     artifact: bytes,
     *,
@@ -445,7 +451,7 @@ def consume_z_transport_artifact(
     max_law_cells: int | None = None,
     memory_bytes: int | None = None,
     cancel: Any = None,
-) -> str:
+) -> TransportConsumption:
     """Independently verify and recompute an exported point-only zTR result.
 
     The replay runs under the consumer's own limits (``max_operations``,
@@ -453,14 +459,18 @@ def consume_z_transport_artifact(
     nothing the artifact recorded raises them, and an artifact whose stored
     laws or recorded limits exceed them is refused.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    return _consume_z_transport_artifact(
-        artifact,
-        **_consume_limits(
-            max_operations, max_depth, max_support_rows, max_laws, max_law_cells, memory_bytes
+    return TransportConsumption.from_checked_json(
+        "consume_z_transport_artifact",
+        _consume_z_transport_artifact(
+            artifact,
+            **_consume_limits(
+                max_operations, max_depth, max_support_rows, max_laws, max_law_cells, memory_bytes
+            ),
+            cancel=cancel,
         ),
-        cancel=cancel,
     )
 
 
@@ -499,6 +509,12 @@ def plan_z_transport_evidence(
     return json.loads(report), tuple(proposals)
 
 
+@artifact_consumer(
+    proof="native sensitivity consumer replays the independently checked baseline and recomputes the discrete contamination assumption range",
+    replayable=True,
+    resumable=False,
+    identity=(),
+)
 def consume_z_transport_sensitivity_artifact(
     artifact: bytes,
     *,
@@ -509,23 +525,36 @@ def consume_z_transport_sensitivity_artifact(
     max_law_cells: int | None = None,
     memory_bytes: int | None = None,
     cancel: Any = None,
-) -> ZTransportSensitivityResult:
+) -> TransportConsumption:
     """Independently verify and recompute a portable zTR sensitivity range.
 
     The embedded baseline replays under the consumer's own limits, as in
     :func:`consume_z_transport_artifact`.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    return _consume_z_transport_sensitivity_artifact(
-        artifact,
-        **_consume_limits(
-            max_operations, max_depth, max_support_rows, max_laws, max_law_cells, memory_bytes
+    return TransportConsumption.from_checked_mapping(
+        "z_transport_sensitivity",
+        _consume_z_transport_sensitivity_artifact(
+            artifact,
+            **_consume_limits(
+                max_operations, max_depth, max_support_rows, max_laws, max_law_cells, memory_bytes
+            ),
+            cancel=cancel,
         ),
-        cancel=cancel,
     )
 
 
+@artifact_consumer(
+    proof="native Z proposal replay re-derives the original failure and verifies the hypothetical proof/catalog binding",
+    replayable=True,
+    resumable=False,
+    identity=(),
+    unresolved=(
+        "hypothetical proof replay establishes no numerical effect or arriving-data acceptance",
+    ),
+)
 def replay_z_transport_proposal(
     artifact: bytes,
     *,
@@ -533,12 +562,13 @@ def replay_z_transport_proposal(
     max_depth: int = 256,
     memory_bytes: int | None = None,
     cancel: Any = None,
-) -> None:
+) -> TransportConsumption:
     """Independently replay a portable hypothetical zTR study proposal.
 
     The frozen failure is re-derived under the caller's identification limits
     before the hypothetical proof is rebound.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("proposal artifact must be bytes")
     _replay_z_transport_proposal(
@@ -548,6 +578,7 @@ def replay_z_transport_proposal(
         memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
         cancel=cancel,
     )
+    return TransportConsumption.from_checked_mapping("z_transport_proposal", {})
 
 
 def reload_lowered_expression(

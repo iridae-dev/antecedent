@@ -25,6 +25,7 @@ import numpy as np
 import pytest
 from antecedent import selective_discovery as sd
 from antecedent.errors import CausalDiscoveryError, CausalError, CausalTypeError, CausalValueError
+from antecedent.outcomes import require_success
 from antecedent.state import CancellationToken
 
 from _refusal import assert_registered_refusal
@@ -373,8 +374,8 @@ def test_export_consume_inspect_and_resume() -> None:
     assert meta["result_identity"] == outcome.result_identity
     assert len(meta["receipts"]) == adapter.retained_statistics
 
-    resumed, report = sd.SelectiveDiscovery.resume(
-        contract(), DATA, exported.artifact, exported.identity
+    resumed, report = require_success(
+        sd.SelectiveDiscovery.resume(contract(), DATA, exported.artifact, exported.identity)
     )
     assert report.work.ci_tests_attempted == 0 and report.work.ci_tests_reused > 0
     assert (
@@ -387,14 +388,16 @@ def test_resume_refusals_and_artifact_tampering() -> None:
     adapter, _, _ = run_full(contract(), DATA)
     exported = adapter.export_state()
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
-        sd.SelectiveDiscovery.resume(contract(), None, exported.artifact)
+        require_success(sd.SelectiveDiscovery.resume(contract(), None, exported.artifact))
     assert refused.value.detail == "selective_discovery.raw_data_missing"
     assert refused.value.reason_code == "discovery_statistics_invalid"
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
-        sd.SelectiveDiscovery.resume(contract(), sample(6000, 12), exported.artifact)
+        require_success(
+            sd.SelectiveDiscovery.resume(contract(), sample(6000, 12), exported.artifact)
+        )
     assert refused.value.detail == "selective_discovery.data_mismatch"
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
-        sd.SelectiveDiscovery.resume(contract(alpha=0.2), DATA, exported.artifact)
+        require_success(sd.SelectiveDiscovery.resume(contract(alpha=0.2), DATA, exported.artifact))
     assert refused.value.detail == "selective_discovery.contract_mismatch"
     with pytest.raises(sd.SelectiveDiscoveryRefusal):
         sd.consume_selective_discovery_artifact(exported.artifact, "0" * 64)
@@ -403,7 +406,7 @@ def test_resume_refusals_and_artifact_tampering() -> None:
     with pytest.raises(sd.SelectiveDiscoveryRefusal):
         sd.consume_selective_discovery_artifact(bytes(flipped))
     with pytest.raises(sd.SelectiveDiscoveryRefusal):
-        sd.SelectiveDiscovery.resume(contract(), DATA, bytes(flipped))
+        require_success(sd.SelectiveDiscovery.resume(contract(), DATA, bytes(flipped)))
 
 
 _CHILD = """
@@ -510,15 +513,17 @@ def test_temporal_resume_and_new_data() -> None:
     data = series(300, 31)
     adapter, _, outcome = run_full(temporal(), data, "temporal")
     exported = adapter.export_state()
-    resumed, report = sd.SelectiveDiscovery.resume(
-        temporal(), data, exported.artifact, exported.identity
+    resumed, report = require_success(
+        sd.SelectiveDiscovery.resume(temporal(), data, exported.artifact, exported.identity)
     )
     assert report.work.ci_tests_attempted == 0
     assert (
         resumed.outcome is not None and resumed.outcome.result_identity == outcome.result_identity
     )
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
-        sd.SelectiveDiscovery.resume(temporal(), series(300, 32), exported.artifact)
+        require_success(
+            sd.SelectiveDiscovery.resume(temporal(), series(300, 32), exported.artifact)
+        )
     assert refused.value.detail == "selective_discovery.data_mismatch"
     other = series(300, 32)
     step = adapter.run(temporal(), other)

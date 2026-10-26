@@ -7,6 +7,7 @@ import json
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT
 
@@ -37,15 +38,15 @@ def test_path_specific_program_refreshes_and_replays_independently() -> None:
         refute="none",
         bootstrap=0,
     )
-    first = prepared.estimate(data)
+    first = require_success(prepared.estimate(data))
     assert np.isfinite(first.effect)
-    first_replay = ant.artifacts.accept(first.export())
+    first_replay = ant.artifacts.accept(bytes(first.export()))
     assert first_replay["accepts_as_verified_program"] == "true"
 
     changed = {**data, "y": 1.0 - data["y"]}
-    refreshed = prepared.refresh(changed)
+    refreshed = require_success(prepared.refresh(changed))
     assert refreshed.effect == pytest.approx(-first.effect, abs=1e-12)
-    replay = ant.artifacts.accept(refreshed.export())
+    replay = ant.artifacts.accept(bytes(refreshed.export()))
     assert replay["accepts_as_verified_program"] == "true"
     assert replay["program"] == first_replay["program"]
     assert refreshed.data_snapshot_id != first.data_snapshot_id
@@ -77,12 +78,12 @@ def test_admg_response_grid_replays_each_member_after_refresh() -> None:
         refute="none",
         bootstrap=0,
     )
-    result = prepared.estimate(data)
+    result = require_success(prepared.estimate(data))
     assert np.asarray(result.response.values).flatten() == pytest.approx([0.314, 0.596], abs=1e-12)
-    refreshed = prepared.refresh(data)
+    refreshed = require_success(prepared.refresh(data))
     assert np.asarray(refreshed.response.values).flatten() == pytest.approx(
         [0.314, 0.596], abs=1e-12
     )
-    receipt = ant.artifacts.accept(refreshed.export())
+    receipt = ant.artifacts.accept(bytes(refreshed.export()))
     assert receipt["accepts_as_verified_program"] == "true"
     assert receipt["unresolved"] == ""

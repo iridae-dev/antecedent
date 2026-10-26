@@ -947,7 +947,7 @@ def _inference_wire(
     else:
         raise CausalValueError("coefficient prior must be FlatCoefficients or NormalCoefficients")
     if isinstance(prior.disturbance, KnownDisturbance):
-        disturbance = {
+        disturbance: dict[str, Any] = {
             "kind": "known",
             "variances": _by_unit(prior.disturbance.variances, retained, "variances"),
         }

@@ -8,6 +8,7 @@ import pytest
 from antecedent.errors import CausalUnsupportedError
 from antecedent.estimation import PreparedAnalysis
 from antecedent.intervention import Sequence, Set
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_json
 
@@ -81,7 +82,7 @@ def _source_artifact(query, data: dict[str, np.ndarray]) -> bytes:
         refute=False,
         seed=_SEED,
     )
-    result = prepared.estimate(data, seed=_SEED)
+    result = require_success(prepared.estimate(data, seed=_SEED))
     assert result.posterior is not None
     return bytes(prepared.export_artifact())
 
@@ -139,7 +140,7 @@ def test_same_design_transfer_on_staged_path(pin, source_query, target_query, qu
         refute=False,
         seed=_SEED,
     )
-    result = prepared.estimate(data, seed=_SEED)
+    result = require_success(prepared.estimate(data, seed=_SEED))
     assert result.posterior is not None
     assert abs(result.posterior.effect_mean - _TRUTH) < _ATOL
 
@@ -169,7 +170,7 @@ def test_same_design_response_curve_uses_declared_identical_mapping():
         refute=False,
         seed=_SEED,
     )
-    result = prepared.estimate(data, seed=_SEED)
+    result = require_success(prepared.estimate(data, seed=_SEED))
     assert result.response is not None
     values = np.asarray([row[0] for row in result.response.values], dtype=float)
     assert np.isfinite(values).all()
@@ -210,7 +211,7 @@ def test_mapped_effect_transfer_on_staged_path(pin, target_query, edges):
         refute=False,
         seed=_SEED,
     )
-    result = prepared.estimate(data, seed=_SEED)
+    result = require_success(prepared.estimate(data, seed=_SEED))
     if hasattr(result, "posterior") and result.posterior is not None:
         assert np.isfinite(result.posterior.effect_mean)
     else:
@@ -247,11 +248,15 @@ def test_sequence_refuses_transfer_without_new_filter():
         CausalUnsupportedError,
         match=_PIN["sequence_refuses"]["message_contains"],
     ):
-        PreparedAnalysis.prepare(
-            _series(),
-            graph=_EDGES,
-            query=query,
-            inference=antecedent.Bayesian(n_draws=_DRAWS, backend="conjugate", prior_from=artifact),
-            refute=False,
-            seed=_SEED,
-        ).estimate(_series(), seed=_SEED)
+        require_success(
+            PreparedAnalysis.prepare(
+                _series(),
+                graph=_EDGES,
+                query=query,
+                inference=antecedent.Bayesian(
+                    n_draws=_DRAWS, backend="conjugate", prior_from=artifact
+                ),
+                refute=False,
+                seed=_SEED,
+            ).estimate(_series(), seed=_SEED)
+        )

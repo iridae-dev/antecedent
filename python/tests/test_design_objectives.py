@@ -32,7 +32,7 @@ def test_structural_declarations_use_shared_result_without_a_fake_score() -> Non
     assert "caller-declared" in result.explain()
     assert "score=" not in repr(result)
     with pytest.raises(CausalValueError, match="structural_sufficiency_cost"):
-        result.export()
+        bytes(result.export())
     with pytest.raises(CausalValueError, match="structural"):
         design.rank_designs(candidates, prior=design.StructurePrior.uniform([True]))
     with pytest.raises(CausalTypeError, match="mixed"):
@@ -187,7 +187,7 @@ def test_callable_regret_reaches_native_exact_preposterior_without_affine_restri
     assert result.violations[0].constraint == "unlicensed_candidate"
     assert "decision_regret" in result.explain()
     with pytest.raises(CausalValueError, match="decision_regret"):
-        result.export()
+        bytes(result.export())
     with pytest.raises(CausalValueError, match="do not apply"):
         design.rank_designs(
             [design.Sampling(1)], objective=objective, cost_map=design.CostMap("a", "a", 1.0)

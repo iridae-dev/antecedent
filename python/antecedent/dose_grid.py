@@ -57,6 +57,12 @@ from typing import Any, Literal
 
 import numpy as np
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._native import consume_dose_grid_artifact as _consume
 from ._native import consume_dose_grid_posterior_artifact as _consume_posterior
 from ._native import dose_support_labels as _support_labels
@@ -273,9 +279,10 @@ class DoseFunctionalResult:
     #: Bias-aware intervals and band under a declared curvature bound, when one was declared.
     bias_aware: DoseBiasAware | None = None
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The artifact: premises, compact dose/outcome table, result and both digests."""
-        return self.artifact
+        return artifact_from_receipt(self, self.artifact)
 
     @property
     def support_table(self) -> tuple[DoseSupport, ...]:
@@ -406,6 +413,7 @@ def _point(item: Mapping[str, Any]) -> DosePoint:
 
 
 def _result(report_json: str, artifact: bytes) -> DoseFunctionalResult:
+    artifact = container_bytes(artifact)
     report = json.loads(report_json)
     request = report["request"]
     result = report["result"]
@@ -709,6 +717,7 @@ def consume_dose_grid_artifact(
     :class:`~antecedent.errors.CausalSerializationError`; a stored table above ``max_rows`` or
     ``max_grid`` refuses (``dose_grid.consumer_limit_exceeded``).
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     data = bytes(artifact)
@@ -750,12 +759,16 @@ class DoseGridPosteriorResult:
     artifact: bytes = field(repr=False, compare=False)
     execution_facts: Any = field(default=None, repr=False, compare=False)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The artifact: premises, compact dose/outcome table, posterior and both digests."""
-        return self.artifact
+        return artifact_from_receipt(self, self.artifact)
 
 
-def _posterior_result(report_json: str, artifact: bytes, execution_facts: Any = None) -> DoseGridPosteriorResult:
+def _posterior_result(
+    report_json: str, artifact: bytes, execution_facts: Any = None
+) -> DoseGridPosteriorResult:
+    artifact = container_bytes(artifact)
     report = json.loads(report_json)
     request = report["request"]["dose_grid"]
     return DoseGridPosteriorResult(
@@ -895,12 +908,17 @@ def consume_dose_grid_posterior_artifact(
     :class:`~antecedent.errors.CausalSerializationError`.
     ``threads``, ``max_bytes`` and ``cancel`` apply to the independent replay.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     data = bytes(artifact)
     report, refusal, facts = _consume_posterior(
-        data, max_rows=max_rows, max_grid=max_grid,
-        threads=threads, max_bytes=max_bytes, cancel=cancel,
+        data,
+        max_rows=max_rows,
+        max_grid=max_grid,
+        threads=threads,
+        max_bytes=max_bytes,
+        cancel=cancel,
     )
     try:
         raise_refusal(refusal, DoseGridRefusal)

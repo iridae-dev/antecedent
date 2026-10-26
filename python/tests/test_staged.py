@@ -7,6 +7,7 @@ from antecedent import artifacts
 from antecedent.errors import CausalUnsupportedError
 from antecedent.estimation import PreparedAnalysis
 from antecedent.identify import identify
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 from _repo_text import REPO_ROOT, load_json
@@ -67,10 +68,10 @@ def test_mediation_stages_and_artifacts(contrast, key, accepted):
     assert identified
     prepared = PreparedAnalysis.prepare(data, graph=graph, query=q, refute="full", bootstrap=0)
     assert prepared.structure_source == ("accepted" if accepted else "explicit")
-    result = prepared.estimate(data)
+    result = require_success(prepared.estimate(data))
     assert result.effect == pytest.approx(pin[key], abs=pin["tolerance"])
     assert result.estimate.estimator_id == "mediation.linear"
-    fresh = ac.analyze(data, graph=graph, query=q, refute="full", bootstrap=0)
+    fresh = require_success(ac.analyze(data, graph=graph, query=q, refute="full", bootstrap=0))
     assert fresh.effect == pytest.approx(result.effect)
     assert result.validation.count == 3
     assert any("reused" in d for d in result.diagnostics)
@@ -96,7 +97,7 @@ def test_counterfactual_stages_and_artifact():
     q = ac.Counterfactual("a", "y", control_level=pin["control"], active_level=pin["active"])
     assert identify(graph=dag, query=q)
     prepared = PreparedAnalysis.prepare(data, graph=dag, query=q, refute="none")
-    result = prepared.estimate(data)
+    result = require_success(prepared.estimate(data))
     assert result.effect == pytest.approx(pin["counterfactual_mean"], abs=pin["tolerance"])
     assert result.estimate.estimator_id == "gcm.fit"
     assert len(result.unit_effects) == len(data["a"])
@@ -104,16 +105,18 @@ def test_counterfactual_stages_and_artifact():
     assert "mean_ite=" in text
     assert "±nan" not in text
     assert result.mean_ite == pytest.approx(result.effect)
-    assert ac.analyze(data, query=q, graph=dag, refute="none").effect == pytest.approx(
-        result.effect
-    )
+    assert require_success(
+        ac.analyze(data, query=q, graph=dag, refute="none")
+    ).effect == pytest.approx(result.effect)
     wire = artifacts.loads(prepared.export_artifact())
     assert wire.payload["control_level"] == pin["control"]
     assert wire.payload["standard_error"] is None
     assert tuple(wire.payload["unit_effects"]) == result.unit_effects
     assert wire.payload["support"]
     # An accepted DAG runs the same GCM path as the explicit one.
-    accepted = PreparedAnalysis.prepare(data, graph=ac.AcceptedGraph(dag), query=q).estimate(data)
+    accepted = require_success(
+        PreparedAnalysis.prepare(data, graph=ac.AcceptedGraph(dag), query=q).estimate(data)
+    )
     assert accepted.estimate.estimator_id == "gcm.fit"
     assert accepted.effect == pytest.approx(result.effect, abs=1e-12)
     assert accepted.unit_effects == pytest.approx(result.unit_effects, abs=1e-12)
@@ -131,7 +134,7 @@ def test_nested_counterfactual_stages_shared_draws_artifact_and_refresh():
     assert identified.identifier == "path_specific.natural"
 
     prepared = PreparedAnalysis.prepare(data, graph=dag, query=query, refute="none")
-    result = prepared.estimate(data)
+    result = require_success(prepared.estimate(data))
     assert result.effect == pytest.approx(5.1, abs=1e-3)
     assert result.estimate.estimator_id == "mediation.linear"
     assert any("counterfactual.nested.shared_exogenous" in d for d in result.diagnostics)
@@ -143,14 +146,14 @@ def test_nested_counterfactual_stages_shared_draws_artifact_and_refresh():
     result_artifact = artifacts.loads(prepared.export_artifact(payload="result"))
     assert result_artifact.payload["estimate"] == pytest.approx(result.effect)
     assert prepared.evidence_status == "licensed"
-    checked_receipt = artifacts.accept(result.export())
+    checked_receipt = artifacts.accept(bytes(result.export()))
     assert checked_receipt["accepts_as_verified_program"] == "true"
     assert checked_receipt["unresolved"] == ""
 
     refreshed_data = {"x": x, "m": m + 0.2, "y": y + 0.7}
-    refreshed = prepared.refresh(refreshed_data)
+    refreshed = require_success(prepared.refresh(refreshed_data))
     assert refreshed.effect == pytest.approx(result.effect, abs=1e-8)
-    refreshed_receipt = artifacts.accept(refreshed.export())
+    refreshed_receipt = artifacts.accept(bytes(refreshed.export()))
     assert refreshed_receipt["accepts_as_verified_program"] == "true"
     assert refreshed_receipt["program"] == checked_receipt["program"]
 
@@ -193,17 +196,21 @@ def test_derivative_stages_and_artifacts(kind, pin_key, accepted):
     )
     prepared = PreparedAnalysis.prepare(data, graph=graph, query=query, estimator_config=config)
     assert prepared.structure_source == ("accepted" if accepted else "explicit")
-    result = prepared.estimate(data)
+    result = require_success(prepared.estimate(data))
     wire = artifacts.loads(prepared.export_artifact())
     assert wire.payload_kind == "response_result"
     assert result.identification
     got = np.asarray(result.estimate, dtype=float).ravel()
     want = np.asarray(pin[pin_key], dtype=float).ravel()
     assert got == pytest.approx(want, abs=pin["tolerance"])
-    fresh = ac.analyze(data, graph=graph, query=query, estimator_config=config, refute="none")
+    fresh = require_success(
+        ac.analyze(data, graph=graph, query=query, estimator_config=config, refute="none")
+    )
     np.testing.assert_array_equal(np.asarray(fresh.estimate, dtype=float).ravel(), got)
     # cheap/full run the derivative refuter state, which is unlicensed.
-    refuted = ac.analyze(data, graph=graph, query=query, estimator_config=config, refute="cheap")
+    refuted = require_success(
+        ac.analyze(data, graph=graph, query=query, estimator_config=config, refute="cheap")
+    )
     assert refuted.evidence_status != "licensed"
     assert refuted.validation is not None
     checks = [check.id for check in refuted.validation.checks]
@@ -243,7 +250,7 @@ def test_frequentist_plugin_gradient_is_point_only_and_says_why(kind):
             ["a", "b"], ["y", "v"], at=[0.5, 0.0], direction=[1, 2]
         ),
     }[kind]
-    result = ac.analyze(data, graph=graph, query=query, refute="none", seed=3)
+    result = require_success(ac.analyze(data, graph=graph, query=query, refute="none", seed=3))
     assert np.all(np.isfinite(np.asarray(result.estimate, dtype=float)))
     assert result.uncertainty.kind == "none"
     assert result.uncertainty.lower is None and result.uncertainty.upper is None
@@ -291,8 +298,8 @@ def test_observation_pair_fixture(kind, accepted):
     graph = ac.AcceptedGraph(graph) if accepted else graph
     prepared = PreparedAnalysis.prepare(data, graph=graph, query=query)
     assert prepared.structure_source == ("accepted" if accepted else "explicit")
-    result = prepared.estimate(data)
-    fresh = ac.analyze(data, graph=graph, query=query, refute="none")
+    result = require_success(prepared.estimate(data))
+    fresh = require_success(ac.analyze(data, graph=graph, query=query, refute="none"))
     assert fresh.response.values == result.response.values
     assert np.asarray(result.response.values).ravel() == pytest.approx(
         np.array(pin["mean"]) * sign, abs=pin["atol"]
@@ -310,7 +317,7 @@ def test_static_mediation_refuter_pin():
         "a", "y", mediators=["m"], contrast="natural_indirect", control_level=0.2, active_level=0.8
     )
     prepared = PreparedAnalysis.prepare(data, graph=graph, query=query, refute="full", bootstrap=0)
-    result = prepared.estimate(data, seed=pin["seed"])
+    result = require_success(prepared.estimate(data, seed=pin["seed"]))
     for report, expected in zip(result.validation.reports, pin["reports"], strict=True):
         actual = report.to_dict()
         for key in ("original_ate", "refuted_ate", "comparison"):
@@ -353,7 +360,7 @@ def test_new_derivative_boundaries():
             prepared = PreparedAnalysis.prepare(
                 data, graph=graph, query=query, estimator_config=config
             )
-            prepared.estimate(data)
+            require_success(prepared.estimate(data))
 
 
 @pytest.mark.parametrize("kind,pin_key", [("point", "point"), ("average", "average")])
@@ -370,9 +377,11 @@ def test_confounded_derivatives_are_not_the_observational_slope(kind, pin_key):
         "average": ac.AverageDerivative("a", "y"),
     }[kind]
     config = {"bandwidth": 0.35} if kind == "point" else None
-    result = PreparedAnalysis.prepare(
-        data, graph=graph, query=query, estimator_config=config
-    ).estimate(data)
+    result = require_success(
+        PreparedAnalysis.prepare(data, graph=graph, query=query, estimator_config=config).estimate(
+            data
+        )
+    )
     got = float(np.asarray(result.estimate, dtype=float).ravel()[0])
     assert got == pytest.approx(pin[pin_key], abs=pin["tolerance"])
     assert abs(got - structural) * 4 < abs(naive - structural)
@@ -406,7 +415,9 @@ def test_confounded_mediation_is_not_the_unadjusted_association(contrast, key):
         control_level=pin["control"],
         active_level=pin["active"],
     )
-    result = PreparedAnalysis.prepare(data, graph=graph, query=q, bootstrap=0).estimate(data)
+    result = require_success(
+        PreparedAnalysis.prepare(data, graph=graph, query=q, bootstrap=0).estimate(data)
+    )
     assert result.effect == pytest.approx(pin[key], abs=pin["tolerance"])
     assert result.estimate.estimator_id == "mediation.linear"
 
@@ -418,7 +429,9 @@ def test_confounded_counterfactual_is_not_the_observational_slope():
     )[0][1] * (pin["active"] - pin["control"])
     assert abs(naive - pin["counterfactual_mean"]) > pin["tolerance"]
     q = ac.Counterfactual("a", "y", control_level=pin["control"], active_level=pin["active"])
-    result = PreparedAnalysis.prepare(data, graph=graph, query=q, refute="none").estimate(data)
+    result = require_success(
+        PreparedAnalysis.prepare(data, graph=graph, query=q, refute="none").estimate(data)
+    )
     assert result.effect == pytest.approx(pin["counterfactual_mean"], abs=pin["tolerance"])
     assert result.estimate.estimator_id == ac.Estimator.GCM_FIT
     assert abs(result.mean_ite - naive) > pin["tolerance"]
@@ -427,7 +440,7 @@ def test_confounded_counterfactual_is_not_the_observational_slope():
 def test_static_artifact_rejects_wrong_family_payload():
     data, graph = fixture()
     prepared = PreparedAnalysis.prepare(data, graph=graph, query=ac.Counterfactual("a", "y"))
-    prepared.estimate(data)
+    require_success(prepared.estimate(data))
     wire = artifacts.loads(prepared.export_artifact())
     payload = dict(wire.payload)
     payload["unit_effects"] = None
@@ -472,10 +485,10 @@ def test_counterfactual_prepared_refits_supplied_data():
     data, graph = fixture()
     query = ac.Counterfactual("a", "y", control_level=0.2, active_level=0.8)
     prepared = PreparedAnalysis.prepare(data, graph=graph, query=query)
-    original = prepared.estimate(data)
+    original = require_success(prepared.estimate(data))
     changed = {**data, "y": 2 * data["y"]}
-    refitted = prepared.estimate(changed)
-    fresh = ac.analyze(changed, graph=graph, query=query, refute="none")
+    refitted = require_success(prepared.estimate(changed))
+    fresh = require_success(ac.analyze(changed, graph=graph, query=query, refute="none"))
     assert refitted.effect == pytest.approx(2 * original.effect)
     assert refitted.unit_effects == pytest.approx(fresh.unit_effects)
     assert refitted.identification and refitted.assumptions and refitted.support
@@ -488,7 +501,7 @@ def test_static_mediation_bootstrap_is_labelled_as_sampling_uncertainty():
     data, graph = fixture()
     query = ac.MediationEffect("a", "y", mediators=["m"], contrast="natural_direct")
     prepared = PreparedAnalysis.prepare(data, graph=graph, query=query, bootstrap=20)
-    result = prepared.estimate(data)
+    result = require_success(prepared.estimate(data))
     assert np.isnan(result.estimate.se_analytic)
     assert result.estimate.se_bootstrap > 0
     wire = artifacts.loads(prepared.export_artifact())
@@ -531,58 +544,71 @@ def test_v13_named_refusals():
     data, dag = fixture()
     cf = ac.Counterfactual("a", "y", control_level=0.2, active_level=0.8)
     med = ac.MediationEffect("a", "y", mediators=["m"], contrast="natural_direct")
-    accepted_cf = ac.analyze(data, graph=ac.AcceptedGraph.from_graph(dag), query=cf, refute="none")
+    accepted_cf = require_success(
+        ac.analyze(data, graph=ac.AcceptedGraph.from_graph(dag), query=cf, refute="none")
+    )
     assert accepted_cf.effect == pytest.approx(
-        ac.analyze(data, graph=dag, query=cf, refute="none").effect
+        require_success(ac.analyze(data, graph=dag, query=cf, refute="none")).effect
     )
     # Cheap validation of a counterfactual on a supplied Dag runs the functional refuter state
     # and stays unlicensed (no evidence row or coverage record names the cell).
-    validated_cf = ac.analyze(data, graph=dag, query=cf, refute="cheap")
+    validated_cf = require_success(ac.analyze(data, graph=dag, query=cf, refute="cheap"))
     assert validated_cf.evidence_status != "licensed"
-    med_bayes = ac.analyze(
-        data, graph=dag, query=med, inference=ac.Bayesian(n_draws=64), refute="none"
+    med_bayes = require_success(
+        ac.analyze(data, graph=dag, query=med, inference=ac.Bayesian(n_draws=64), refute="none")
     )
     assert med_bayes.posterior is not None
-    cf_bayes = ac.analyze(
-        data, graph=dag, query=cf, inference=ac.Bayesian(n_draws=32), refute="none"
+    cf_bayes = require_success(
+        ac.analyze(data, graph=dag, query=cf, inference=ac.Bayesian(n_draws=32), refute="none")
     )
     assert cf_bayes.posterior is not None
-    deriv = ac.analyze(
-        data,
-        graph=dag,
-        query=ac.PointDerivative("a", "y", at=0.5),
-        inference=ac.Bayesian(n_draws=64),
-        estimator_config={"bandwidth": 0.35},
-        refute="none",
+    deriv = require_success(
+        ac.analyze(
+            data,
+            graph=dag,
+            query=ac.PointDerivative("a", "y", at=0.5),
+            inference=ac.Bayesian(n_draws=64),
+            estimator_config={"bandwidth": 0.35},
+            refute="none",
+        )
     )
     assert deriv.response is not None or deriv.ate is not None
     # A counterfactual has no graph-posterior mixture in the facade; a mediation does: every
     # atom of the posterior decomposes it with the executor of its own structure and the
     # atoms are mixed by posterior probability.
     with pytest.raises(CausalUnsupportedError, match="no graph-posterior mixture"):
+        require_success(
+            ac.analyze(
+                data,
+                query=cf,
+                discovery=ac.discovery.ExactDagPosterior(),
+                inference=ac.Bayesian(),
+                refute="none",
+            )
+        )
+    mixed = require_success(
         ac.analyze(
             data,
-            query=cf,
+            query=med,
             discovery=ac.discovery.ExactDagPosterior(),
-            inference=ac.Bayesian(),
+            inference=ac.Bayesian(n_draws=64),
             refute="none",
         )
-    mixed = ac.analyze(
-        data,
-        query=med,
-        discovery=ac.discovery.ExactDagPosterior(),
-        inference=ac.Bayesian(n_draws=64),
-        refute="none",
     )
     assert np.isfinite(mixed.effect)
     assert mixed.evidence_status != "licensed"
     # Full validation and a prepared cheap suite run the same functional refuter state.
-    assert ac.analyze(data, graph=dag, query=cf, refute="full").evidence_status != "licensed"
+    assert (
+        require_success(ac.analyze(data, graph=dag, query=cf, refute="full")).evidence_status
+        != "licensed"
+    )
     prepared_cf = PreparedAnalysis.prepare(data, graph=dag, query=cf, refute="cheap")
-    assert prepared_cf.estimate().evidence_status != "licensed"
+    assert require_success(prepared_cf.estimate()).evidence_status != "licensed"
     # A Frequentist replicate count runs the mechanism-refit row bootstrap, which is
     # unlicensed; the Bayesian cell keeps its posterior and refuses bootstrap=.
-    bootstrapped = ac.analyze(data, graph=dag, query=cf, refute="none", bootstrap=10)
+    bootstrapped = require_success(
+        ac.analyze(data, graph=dag, query=cf, refute="none", bootstrap=10)
+    )
     assert bootstrapped.evidence_status != "licensed"
     assert any("gcm.frequentist_bootstrap" in d for d in bootstrapped.diagnostics)
     with pytest.raises(CausalUnsupportedError, match="Bayesian-bootstrap|mechanism-refit"):
@@ -594,5 +620,7 @@ def test_v13_named_refusals():
 def test_counterfactual_reports_extrapolative_support():
     data, graph = fixture()
     query = ac.Counterfactual("a", "y", control_level=-4.0, active_level=4.0)
-    result = PreparedAnalysis.prepare(data, graph=graph, query=query, refute="none").estimate(data)
+    result = require_success(
+        PreparedAnalysis.prepare(data, graph=graph, query=query, refute="none").estimate(data)
+    )
     assert any("extrapolative=true" in item for item in result.support)

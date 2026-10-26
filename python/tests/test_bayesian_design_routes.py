@@ -10,6 +10,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.errors import CausalError
+from antecedent.outcomes import require_success
 from antecedent.quasi import FuzzyRegressionDiscontinuity, PanelDifferenceInDifferences
 
 
@@ -52,12 +53,14 @@ def test_bayesian_estimator_ids_are_public():
 
 def test_bayesian_panel_did_matches_the_closed_form_and_stays_unlicensed():
     data, changes, groups = _panel()
-    result = antecedent.analyze(
-        data,
-        query=PanelDifferenceInDifferences("y", "id", "group", "after"),
-        inference=antecedent.Bayesian(backend="conjugate", n_draws=20000, prior_scale=100.0),
-        seed=11,
-        return_posterior_artifact=True,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            query=PanelDifferenceInDifferences("y", "id", "group", "after"),
+            inference=antecedent.Bayesian(backend="conjugate", n_draws=20000, prior_scale=100.0),
+            seed=11,
+            return_posterior_artifact=True,
+        )
     )
     mean, sd = _nig_reference(changes, groups)
     assert result.estimate.estimator_id == "bayesian.panel_did"
@@ -76,14 +79,18 @@ def test_bayesian_panel_did_refuses_a_foreign_backend_and_shared_clusters():
     data, _, _ = _panel()
     query = PanelDifferenceInDifferences("y", "id", "group", "after")
     with pytest.raises(CausalError, match="conjugate"):
-        antecedent.analyze(data, query=query, inference=antecedent.Bayesian(backend="laplace"))
+        require_success(
+            antecedent.analyze(data, query=query, inference=antecedent.Bayesian(backend="laplace"))
+        )
     shared = dict(data)
     shared["cluster"] = [f"c{(i // 2) % 4}" for i in range(len(data["y"]))]
     with pytest.raises(CausalError, match="Next attempt"):
-        antecedent.analyze(
-            shared,
-            query=PanelDifferenceInDifferences("y", "id", "group", "after", cluster="cluster"),
-            inference=antecedent.Bayesian(backend="conjugate", n_draws=2000),
+        require_success(
+            antecedent.analyze(
+                shared,
+                query=PanelDifferenceInDifferences("y", "id", "group", "after", cluster="cluster"),
+                inference=antecedent.Bayesian(backend="conjugate", n_draws=2000),
+            )
         )
 
 
@@ -101,9 +108,9 @@ def _ratio(strong: bool):
 def test_bayesian_local_ratio_recovers_truth_and_withholds_a_weak_interval():
     query = FuzzyRegressionDiscontinuity("y", "t", "x", 0.0, 0.8)
     bayes = antecedent.Bayesian(backend="conjugate", n_draws=8000, prior_scale=10.0)
-    strong = antecedent.analyze(_ratio(True), query=query, inference=bayes, seed=5)
+    strong = require_success(antecedent.analyze(_ratio(True), query=query, inference=bayes, seed=5))
     assert strong.estimate.estimator_id == "bayesian.local_ratio"
     assert strong.posterior.q025 < 2.0 < strong.posterior.q975
-    weak = antecedent.analyze(_ratio(False), query=query, inference=bayes, seed=5)
+    weak = require_success(antecedent.analyze(_ratio(False), query=query, inference=bayes, seed=5))
     assert weak.posterior.q025 is None and weak.posterior.q975 is None
     assert any("weak_first_stage" in d for d in weak.diagnostics)

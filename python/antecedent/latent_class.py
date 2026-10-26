@@ -49,6 +49,12 @@ from typing import Any, Literal
 
 import numpy as np
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._native import consume_latent_class_artifact as _consume
 from ._native import evaluate_latent_class_effects as _evaluate
 from ._refusal import raise_refusal
@@ -203,7 +209,8 @@ class LatentClassEffects:
     artifact: bytes | None
     _export_refusal: str | None = field(default=None, repr=False, compare=False)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The checksummed ``latent_class_effects_v1`` artifact.
 
         Raises :class:`LatentClassRefusal` (``route_not_supported``,
@@ -213,7 +220,7 @@ class LatentClassEffects:
         if self.artifact is None:
             raise_refusal(self._export_refusal, LatentClassRefusal)
         assert self.artifact is not None
-        return self.artifact
+        return artifact_from_receipt(self, self.artifact)
 
     @property
     def separation(self) -> float:
@@ -275,6 +282,7 @@ def _optional(value: float | None) -> float | None:
 def _result(
     report_json: str, artifact: bytes | None, export_refusal: str | None = None
 ) -> LatentClassEffects:
+    artifact = container_bytes(artifact) if artifact is not None else None
     report = json.loads(report_json)
     meta = report["meta"]
     names = meta["covariate_names"]
@@ -525,6 +533,7 @@ def consume_latent_class_artifact(
     (the dataset it was fitted on); any other dataset is refused (``IdentityMismatch``, ``data``)
     and omitting it refuses with ``latent_class.data_required``.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     if expected_identity is None:

@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 from antecedent.estimators import DML
 from antecedent.learners import Logistic, NeuralNet
+from antecedent.outcomes import require_success
 
 ACCELERATOR = os.environ.get("ANTECEDENT_EXPECT_ACCELERATOR") == "1"
 
@@ -24,18 +25,20 @@ def data_fixture():
 
 
 def analyze(device):
-    return ac.analyze(
-        data_fixture(),
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=ac.AverageEffect(treatment="t", outcome="y"),
-        estimator=DML(
-            outcome=NeuralNet(hidden=4, epochs=3, learning_rate=0.01, device=device),
-            treatment=Logistic(),
-            folds=2,
-        ),
-        bootstrap=0,
-        refute=False,
-        seed=3,
+    return require_success(
+        ac.analyze(
+            data_fixture(),
+            graph=[("z", "t"), ("z", "y"), ("t", "y")],
+            query=ac.AverageEffect(treatment="t", outcome="y"),
+            estimator=DML(
+                outcome=NeuralNet(hidden=4, epochs=3, learning_rate=0.01, device=device),
+                treatment=Logistic(),
+                folds=2,
+            ),
+            bootstrap=0,
+            refute=False,
+            seed=3,
+        )
     )
 
 

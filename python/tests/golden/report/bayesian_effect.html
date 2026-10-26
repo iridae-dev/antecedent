@@ -274,14 +274,14 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <dt>backend.quotes[3].cost</dt><dd>2160</dd>
 <dt>backend.quotes[3].resident_bytes</dt><dd>5760</dd>
 <dt>backend.quotes[3].work_cells</dt><dd>1440</dd>
-<dt>backend.rejected[0].alternative</dt><dd>direct_prepared_numeric_views</dd>
-<dt>backend.rejected[0].reason</dt><dd>missing operator capability prepared_numeric_view</dd>
-<dt>backend.rejected[1].alternative</dt><dd>streamed_reduction</dd>
-<dt>backend.rejected[1].reason</dt><dd>missing operator capability streamed_reduction</dd>
+<dt>backend.rejected[0].alternative</dt><dd>streamed_reduction</dd>
+<dt>backend.rejected[0].reason</dt><dd>missing operator capability streamed_reduction</dd>
+<dt>backend.rejected[1].alternative</dt><dd>materialized_design</dd>
+<dt>backend.rejected[1].reason</dt><dd>cost 3600 is not lower than selected cost 2160</dd>
 <dt>backend.rejected[2].alternative</dt><dd>optional_lazy_preparation</dd>
 <dt>backend.rejected[2].reason</dt><dd>missing operator capability lazy_preparation</dd>
-<dt>backend.selected</dt><dd>materialized_design</dd>
-<dt>backend.selected_cost</dt><dd>3600</dd>
+<dt>backend.selected</dt><dd>direct_prepared_numeric_views</dd>
+<dt>backend.selected_cost</dt><dd>2160</dd>
 <dt>design.columns</dt><dd>3</dd>
 <dt>design.direct</dt><dd>yes</dd>
 <dt>design.rows</dt><dd>240</dd>
@@ -296,14 +296,14 @@ th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: lef
 <dt>memory.components[3].component</dt><dd>learner_fold_copies</dd>
 <dt>memory.components[4].bytes</dt><dd>7776</dd>
 <dt>memory.components[4].component</dt><dd>solver_scratch</dd>
-<dt>memory.components[5].bytes</dt><dd>0</dd>
+<dt>memory.components[5].bytes</dt><dd>1536</dd>
 <dt>memory.components[5].component</dt><dd>retained_scores_draws</dd>
-<dt>memory.components[6].bytes</dt><dd>1944</dd>
+<dt>memory.components[6].bytes</dt><dd>2456</dd>
 <dt>memory.components[6].component</dt><dd>output</dd>
 <dt>memory.components[7].bytes</dt><dd>69984</dd>
 <dt>memory.components[7].component</dt><dd>concurrent_workers</dd>
 <dt>memory.learner_fold_copies</dt><dd>0</dd>
-<dt>memory.total</dt><dd>85554</dd>
+<dt>memory.total</dt><dd>87602</dd>
 <dt>memory.workers</dt><dd>10</dd>
 <dt>operators[0].capability</dt><dd>cpu</dd>
 <dt>operators[0].designs</dt><dd>1</dd>

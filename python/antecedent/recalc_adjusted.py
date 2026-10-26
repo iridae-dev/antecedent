@@ -23,6 +23,7 @@ from . import _native
 from ._recalc_bounds import _admit, _check_resources, _columns
 from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
+from .outcomes import outcome_operation
 from .recalc import (
     Capabilities,
     Decision,
@@ -231,6 +232,7 @@ class AdjustedSession:
         columns = self._handle.prediction_columns()
         return None if columns is None else tuple(columns)
 
+    @outcome_operation
     def predict(
         self,
         rows: Sequence[Sequence[float]],
@@ -284,6 +286,7 @@ class AdjustedSession:
         )
         return RecalcPlan.from_wire(json.loads(wire))
 
+    @outcome_operation
     def execute(
         self,
         request: AdjustedRequest,

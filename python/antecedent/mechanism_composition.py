@@ -76,13 +76,21 @@ from typing import Any
 import numpy as np
 
 from . import _native
-from ._artifact_protocol import ExportedArtifact, bytes_export
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._freeze import thaw
 from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count as _count
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution
+from .outcomes import Answer, outcome_operation
 
 __all__ = [
     "Admission",
@@ -730,6 +738,24 @@ class JointGaussianLaw(ScientificResult):
     mean: np.ndarray
     covariance: np.ndarray
 
+    @property
+    def answer(self) -> Answer:
+        return Answer("distribution", detail="joint_gaussian_law")
+
+    def inspect(self) -> Any:
+        from .results._report import SlotModel
+
+        return ScientificResult.inspect(self).model_copy(
+            update={
+                "uncertainty": SlotModel(
+                    available=True,
+                    reason="conditional_on_declared_composition",
+                    summary="joint Gaussian mean and covariance",
+                    payload={"variables": len(self.variables)},
+                )
+            }
+        )
+
     def _index(self, variable: str) -> int:
         try:
             return self.variables.index(variable)
@@ -766,6 +792,34 @@ class FunctionalUncertainty(ScientificResult):
     dependence: str
     method: str
 
+    @property
+    def answer(self) -> Answer:
+        return Answer("point", value=self.point, detail="first_order_parameter_uncertainty")
+
+    def inspect(self) -> Any:
+        from .results._report import SlotModel
+
+        payload = {
+            "variance": self.variance,
+            "standard_error": self.standard_error,
+            "meaning": self.meaning,
+            "dependence": self.dependence,
+            "method": self.method,
+        }
+        scope = getattr(self, "scope", None)
+        if scope is not None:
+            payload["scope"] = scope
+        return ScientificResult.inspect(self).model_copy(
+            update={
+                "uncertainty": SlotModel(
+                    available=True,
+                    reason="uncalibrated_no_interval_claim",
+                    summary=self.method,
+                    payload=payload,
+                )
+            }
+        )
+
 
 @dataclass(repr=False, frozen=True, slots=True, eq=False)
 class FiniteLaw(ScientificResult):
@@ -777,6 +831,10 @@ class FiniteLaw(ScientificResult):
     variables: tuple[str, ...]
     levels: tuple[tuple[str, ...], ...]
     probabilities: np.ndarray
+
+    @property
+    def answer(self) -> Answer:
+        return Answer("distribution", detail="finite_joint_law")
 
     def probability(self, event: Mapping[str, str]) -> float:
         """Probability that every named variable takes its named level."""
@@ -891,22 +949,11 @@ class PreparedMechanismComposition(ScientificResult):
     _handle: Any = field(repr=False, compare=False)
     _scope: Mapping[str, Any] | None = field(default=None, repr=False, compare=False)
 
-    def artifact(
-        self,
-        query: MeanContrast | Mapping[str, Any],
-        *,
-        outcome: str | None = None,
-        cancel: Any = None,
-    ) -> ExportedArtifact[ConsumedComposition]:
-        """Bytes and producer metadata; load returns the typed consumed result."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self, query, outcome=outcome, cancel=cancel)
-
     def interval(self) -> None:
         """Always raises ``cell_not_licensed``: the variance carries no measured coverage."""
         raise_refusal(self._handle.interval(), MechanismCompositionRefusal)
 
+    @outcome_operation
     def intervention_law(
         self, interventions: Mapping[str, float] | None = None
     ) -> JointGaussianLaw:
@@ -924,10 +971,12 @@ class PreparedMechanismComposition(ScientificResult):
             covariance=np.asarray(law["covariance"], dtype=np.float64).reshape(n, n),
         )
 
+    @outcome_operation
     def mean_contrast(self, contrast: MeanContrast) -> float:
         """``sum_k weight_k * E[outcome | do(arm_k)]``, exact given the declared mechanisms."""
         return float(_unwrap(self._handle.mean_contrast(_dumps(contrast.to_wire()))))
 
+    @outcome_operation
     def mean_contrast_uncertainty(self, contrast: MeanContrast) -> FunctionalUncertainty:
         """The first-order delta-method variance of a contrast, from the declared parameter law.
 
@@ -956,6 +1005,7 @@ class PreparedMechanismComposition(ScientificResult):
             method=str(wire["method"]),
         )
 
+    @outcome_operation
     def sample(
         self,
         interventions: Mapping[str, float] | None = None,
@@ -987,6 +1037,7 @@ class PreparedMechanismComposition(ScientificResult):
             for name, column in zip(variables, columns, strict=True)
         }
 
+    @outcome_operation
     def finite_law(
         self, interventions: Mapping[str, str] | None = None, *, cancel: Any = None
     ) -> FiniteLaw:
@@ -1046,6 +1097,7 @@ class PreparedMechanismComposition(ScientificResult):
         )
         return _transported(handle, receipt, self._scope)
 
+    @outcome_operation
     def verify_transport(
         self, transport: MechanismTransport, *, expected_identity: str
     ) -> MechanismTransportReceipt:
@@ -1063,26 +1115,26 @@ class PreparedMechanismComposition(ScientificResult):
         )
         return _receipt_of(json.loads(text))
 
-    def inverse_forward_source(
+    def derive_inverse_source(
         self,
         actions: Sequence[Any],
         *,
         transport: Any = None,
         accepts_transported: bool = False,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> Any:
         """The composition as a forward source of an inverse query, one replayed query per action.
 
-        See :func:`antecedent.inverse_sources.composed_forward_source`.
+        See :func:`antecedent.inverse_sources.derive_composed_source`.
         """
-        from .inverse_sources import composed_forward_source
+        from .inverse_sources import derive_composed_source
 
-        return composed_forward_source(
+        return derive_composed_source(
             self,
             actions,
             transport=transport,
             accepts_transported=accepts_transported,
-            cancel=cancel,
+            execution=execution,
         )
 
     def discretize(
@@ -1100,14 +1152,14 @@ class PreparedMechanismComposition(ScientificResult):
 
         return discretize(self, levels, method=method, cancel=cancel)
 
-    @bytes_export
+    @artifact_export
     def export(
         self,
         query: MeanContrast | Mapping[str, Any],
         *,
         outcome: str | None = None,
         cancel: Any = None,
-    ) -> CompositionExport:
+    ) -> ExportedArtifact[ConsumedComposition]:
         """Seal the premises and one query into a ``mechanism_composition_v1`` artifact.
 
         ``query`` is a :class:`MeanContrast` (a contrast of interventional means with parameter
@@ -1117,10 +1169,13 @@ class PreparedMechanismComposition(ScientificResult):
         """
         wire = _query_wire(self.family, query, outcome)
         artifact, digest, result = _unwrap(self._handle.export(_dumps(wire), cancel=cancel))
-        return CompositionExport(
-            artifact=bytes(artifact),
-            premises_digest=digest,
-            result=_result(json.loads(result)),
+        return artifact_from_receipt(
+            self,
+            CompositionExport(
+                artifact=bytes(artifact),
+                premises_digest=digest,
+                result=_result(json.loads(result)),
+            ),
         )
 
 
@@ -1219,7 +1274,12 @@ def compose_mechanisms(
     )
 
 
+@outcome_operation
 @bind_mean_reading
+@artifact_consumer(
+    proof="mechanism_composition.consume_mechanism_composition_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_mechanism_composition_artifact(
     artifact: bytes,
     expected_identity: str | None = None,
@@ -1239,6 +1299,7 @@ def consume_mechanism_composition_artifact(
             compose, and ``mechanism_composition.artifact_invalid`` for corrupt or unsupported
             bytes.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     wire = json.loads(
@@ -1468,10 +1529,12 @@ class TransportedMechanismComposition(ScientificResult):
     def transported_variables(self) -> tuple[str, ...]:
         return self.receipt.transported_variables
 
+    @outcome_operation
     def mean_contrast(self, contrast: MeanContrast) -> float:
         """``sum_k weight_k * E[outcome | do(arm_k)]`` in the target composition."""
         return float(_unwrap(self._handle.mean_contrast(_dumps(contrast.to_wire()))))
 
+    @outcome_operation
     def mean_contrast_uncertainty(self, contrast: MeanContrast) -> TransportedFunctionalUncertainty:
         """The first-order parameter variance of a contrast, scoped by the transport receipt.
 
@@ -1505,13 +1568,14 @@ class TransportedMechanismComposition(ScientificResult):
         """Always raises ``cell_not_licensed``: no coverage includes the transport assumption."""
         raise_refusal(self._handle.interval(), MechanismCompositionRefusal)
 
-    def export(  # type: ignore[override]  # a sealed export carries its query and receipt, not bare bytes
+    @artifact_export
+    def export(
         self,
         query: MeanContrast | Mapping[str, Any],
         *,
         outcome: str | None = None,
         cancel: Any = None,
-    ) -> CompositionExport:
+    ) -> ExportedArtifact[ConsumedComposition]:
         """Seal the transported premises (with the diagram and invariances) and one query.
 
         The artifact is the existing ``mechanism_composition_v1`` one;
@@ -1519,10 +1583,13 @@ class TransportedMechanismComposition(ScientificResult):
         """
         wire = _query_wire("linear_gaussian", query, outcome)
         artifact, digest, result = _unwrap(self._handle.export(_dumps(wire), cancel=cancel))
-        return CompositionExport(
-            artifact=bytes(artifact),
-            premises_digest=digest,
-            result=_result(json.loads(result)),
+        return artifact_from_receipt(
+            self,
+            CompositionExport(
+                artifact=bytes(artifact),
+                premises_digest=digest,
+                result=_result(json.loads(result)),
+            ),
         )
 
 

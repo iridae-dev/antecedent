@@ -6,7 +6,15 @@ import json
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
+from .._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .._columns import coerce_fields
+from .._scientific import ScientificResult
 from ..errors import CausalTypeError, CausalUnsupportedError
 
 Matrix3 = tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]
@@ -14,7 +22,7 @@ Intervals3 = tuple[tuple[float, float], tuple[float, float], tuple[float, float]
 
 
 @dataclass(frozen=True, slots=True, init=False)
-class NestedFisherCandidate:
+class NestedFisherCandidate(ScientificResult):
     """Original checked-ID Fisher/delta approximation, available in internal builds.
 
     Coordinates are the two intervention means and their difference. The full
@@ -65,17 +73,25 @@ class NestedFisherCandidate:
         coerce_fields(result, **values)
         return result
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
         """Export original graph, counts, fit settings, covariance and standing."""
-        return bytes(self._native.export())
+        return artifact_from_receipt(self, bytes(self._native.export()))
 
     def to_dict(self) -> dict[str, Any]:
         """Inspect complete premises, eleven-parameter covariance and fit receipt."""
         return cast(dict[str, Any], json.loads(self._native.payload()))
 
     @classmethod
+    @artifact_consumer(
+        proof="native Fisher candidate consumer rechecks identification and refits all retained means, covariance and candidates under the independent identity",
+        replayable=True,
+        resumable=False,
+        identity=("expected_identity",),
+    )
     def load(cls, artifact: bytes, *, expected_identity: str) -> NestedFisherCandidate:
         """Fresh consumer rechecks licensed ID and refits every original output."""
+        artifact = container_bytes(artifact)
         from .. import _native
 
         if not isinstance(artifact, bytes) or not isinstance(expected_identity, str):

@@ -25,6 +25,7 @@ from antecedent.discovery import PC, RPCMCI
 from antecedent.errors import CausalCancelled, ReviewRequired
 from antecedent.estimation import PreparedAnalysis
 from antecedent.inference import Bayesian, Frequentist
+from antecedent.outcomes import require_success
 from antecedent.population import CustomDistribution, PopulationRegistry, Treated
 
 from _repo_text import REPO_ROOT
@@ -53,11 +54,11 @@ def _analyze(**kwargs: Any):
     data = kwargs.pop("data", None)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        return ant.analyze(_data() if data is None else data, **kwargs)
+        return require_success(ant.analyze(_data() if data is None else data, **kwargs))
 
 
 def _contract(result: Any) -> dict[str, Any]:
-    loaded = ant.load(result.export())
+    loaded = require_success(ant.load(bytes(result.export())))
     assert_answer_kept(loaded)
     return loaded.decoded_artifact.to_dict()["contract"]
 
@@ -237,14 +238,16 @@ def _temporal_class(**kwargs: Any):
     kwargs.setdefault("inference", Bayesian(n_draws=32, backend="conjugate"))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        return ant.analyze(
-            _series(_PIN),
-            graph=_cpdag(),
-            query=_pulse(_PIN),
-            refute=False,
-            bootstrap=0,
-            seed=7,
-            **kwargs,
+        return require_success(
+            ant.analyze(
+                _series(_PIN),
+                graph=_cpdag(),
+                query=_pulse(_PIN),
+                refute=False,
+                bootstrap=0,
+                seed=7,
+                **kwargs,
+            )
         )
 
 
@@ -424,14 +427,20 @@ def test_on_refusal_reaches_workflow():
 
     data, bow = _bow_fixture()
     with pytest.raises(EffectNotIdentified):
-        ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y"))
+        require_success(ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y")))
     with pytest.raises(EffectNotIdentified):
-        ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y"), on_refusal="raise")
-    outcome = ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y"), on_refusal="describe")
+        require_success(
+            ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y"), on_refusal="raise")
+        )
+    outcome = require_success(
+        ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y"), on_refusal="describe")
+    )
     assert isinstance(outcome, AnalysisWithFallback)
     assert isinstance(outcome.refusal, EffectNotIdentified)
     with pytest.raises(ValueError, match="on_refusal"):
-        ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y"), on_refusal="substitute")
+        require_success(
+            ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y"), on_refusal="substitute")
+        )
 
 
 def test_evidence_candidates_reach_the_plan():
@@ -453,18 +462,24 @@ def test_evidence_candidates_reach_the_plan():
         sample_budget=100,
         feasible=True,
     )
-    outcome = ant.analyze(
-        data,
-        graph=bow,
-        query=ant.AverageEffect("t", "y"),
-        on_refusal="describe",
-        evidence_candidates=[trial],
+    outcome = require_success(
+        ant.analyze(
+            data,
+            graph=bow,
+            query=ant.AverageEffect("t", "y"),
+            on_refusal="describe",
+            evidence_candidates=[trial],
+        )
     )
     plan = outcome.evidence_plan.plan
     assert plan is not None and plan.best is not None
     assert plan.best.labels == ("randomized trial",)
     with pytest.raises(CausalUnsupportedError):
-        ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y"), evidence_candidates=[trial])
+        require_success(
+            ant.analyze(
+                data, graph=bow, query=ant.AverageEffect("t", "y"), evidence_candidates=[trial]
+            )
+        )
 
 
 def _transport_query():
@@ -505,8 +520,10 @@ def test_provider_reaches_plan():
     from antecedent import transport
 
     graph, data, query = _transport_query()
-    default = ant.analyze(data, query=query, graph=graph)
-    learned = ant.analyze(data, query=query, graph=graph, provider=transport.LearnedCategorical())
+    default = require_success(ant.analyze(data, query=query, graph=graph))
+    learned = require_success(
+        ant.analyze(data, query=query, graph=graph, provider=transport.LearnedCategorical())
+    )
     assert default.transport.provider == "empirical_table"
     assert learned.transport.provider == "learned_categorical"
     assert default.estimate.estimator_id != learned.estimate.estimator_id
@@ -521,8 +538,10 @@ def test_controls_reaches_plan():
     token = CancellationToken()
     token.cancel()
     with pytest.raises(ant.errors.CausalCancelledError, match="cancelled"):
-        ant.analyze(
-            data, query=query, graph=graph, controls=transport.TransportControls(cancel=token)
+        require_success(
+            ant.analyze(
+                data, query=query, graph=graph, controls=transport.TransportControls(cancel=token)
+            )
         )
 
 
@@ -530,13 +549,15 @@ def _response_with_coordinates(**metadata):
     rng = np.random.default_rng(411)
     a = rng.normal(size=160)
     data = {"a": a, "y": 2.0 * a + rng.normal(scale=0.1, size=160)}
-    return ant.analyze(
-        data,
-        query=ant.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
-        graph=[("a", "y")],
-        bootstrap=0,
-        refute="none",
-        **metadata,
+    return require_success(
+        ant.analyze(
+            data,
+            query=ant.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
+            graph=[("a", "y")],
+            bootstrap=0,
+            refute="none",
+            **metadata,
+        )
     )
 
 
@@ -593,8 +614,8 @@ def test_retain_joint_horizons_reaches_plan():
             **kwargs,
         )
 
-    kept = prepared(retain_joint_horizons=True).estimate(data, seed=21)
-    dropped = prepared().estimate(data, seed=21)
+    kept = require_success(prepared(retain_joint_horizons=True).estimate(data, seed=21))
+    dropped = require_success(prepared().estimate(data, seed=21))
     assert isinstance(kept.horizon_draws(0), JointHorizonDraws)
     with pytest.raises(ExternalRefusal):
         dropped.horizon_draws(0)
@@ -636,6 +657,6 @@ def test_loaded_scalar_result_has_no_implicit_empirical_msm_authority():
     from antecedent.errors import CausalTypeError
 
     live = _analyze()
-    loaded = ant.load(live.export())
+    loaded = require_success(ant.load(bytes(live.export())))
     with pytest.raises(CausalTypeError, match="AverageEffect analysis result"):
         loaded.msm_sensitivity(data=_data(), lambda_max=2.0)

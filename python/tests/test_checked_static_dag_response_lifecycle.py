@@ -7,6 +7,7 @@ import math
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 
 def _table(n: int = 240) -> dict[str, np.ndarray]:
@@ -64,7 +65,7 @@ def test_checked_static_dag_response_python_lifecycle(accepted: bool, kind: str)
     assert info["validation"] == "none"
     assert info["grid_members"] == ([-0.5, 0.0, 0.5] if kind == "curve" else [])
 
-    first = prepared.estimate(data, seed=4)
+    first = require_success(prepared.estimate(data, seed=4))
     if kind == "curve":
         assert first.response is not None
         observed = np.asarray([row[0] for row in first.response.values])
@@ -75,7 +76,7 @@ def test_checked_static_dag_response_python_lifecycle(accepted: bool, kind: str)
     np.testing.assert_allclose(observed, expected, atol=0.03, rtol=0)
 
     shifted = {**data, "y": data["y"] + 0.3}
-    refreshed = prepared.refresh(shifted, seed=4)
+    refreshed = require_success(prepared.refresh(shifted, seed=4))
     if kind == "curve":
         assert refreshed.response is not None
         refreshed_values = np.asarray([row[0] for row in refreshed.response.values])
@@ -83,6 +84,6 @@ def test_checked_static_dag_response_python_lifecycle(accepted: bool, kind: str)
         refreshed_values = np.asarray([refreshed.effect])
     np.testing.assert_allclose(refreshed_values, observed + 0.3, atol=1e-9, rtol=0)
 
-    consumed = ant.artifacts.accept(refreshed.export())
+    consumed = ant.artifacts.accept(bytes(refreshed.export()))
     assert consumed["accepts_as_verified_program"] == "false"
     assert dependency in consumed["unresolved"]

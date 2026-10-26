@@ -6,6 +6,7 @@ import pytest
 from antecedent.errors import CausalEstimateError, CausalTypeError
 from antecedent.estimators import DML, CausalForest, DRLearner
 from antecedent.learners import ElasticNet, GradientBoostedTrees, Linear, Logistic, NeuralNet, Ridge
+from antecedent.outcomes import require_success
 from antecedent.prediction import FittedEffectModel
 
 
@@ -18,14 +19,16 @@ def data_fixture():
 
 
 def analyze(estimator):
-    return ac.analyze(
-        data_fixture(),
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=ac.AverageEffect(treatment="t", outcome="y"),
-        estimator=estimator,
-        bootstrap=0,
-        refute=False,
-        seed=3,
+    return require_success(
+        ac.analyze(
+            data_fixture(),
+            graph=[("z", "t"), ("z", "y"), ("t", "y")],
+            query=ac.AverageEffect(treatment="t", outcome="y"),
+            estimator=estimator,
+            bootstrap=0,
+            refute=False,
+            seed=3,
+        )
     )
 
 
@@ -48,7 +51,7 @@ def test_structured_learner_parameters_change_identity():
     b = analyze(DML(outcome=Ridge(20.0), treatment=Logistic()))
     from antecedent.artifacts import loads
 
-    assert loads(a.export()).contract != loads(b.export()).contract
+    assert loads(bytes(a.export())).contract != loads(bytes(b.export())).contract
 
 
 @pytest.mark.parametrize(
@@ -63,16 +66,16 @@ def test_fitted_effect_predicts_after_verified_reload(estimator):
     result = analyze(estimator)
     model = result.fitted_model
     x = {"z": np.array([-1.0, 0.0, 1.0])}
-    expected = model.predict(x)
-    loaded = FittedEffectModel.load(model.export())
-    assert loaded.predict(x) == expected
+    expected = require_success(model.predict(x))
+    loaded = FittedEffectModel.load(bytes(model.export()))
+    assert require_success(loaded.predict(x)) == expected
     assert len(expected.values) == 3
     assert expected.parent_claim == model.parent_claim
     assert expected.to_dict()["uncertainty"]["status"] == "unavailable"
     with pytest.raises(ValueError, match="missing prediction features"):
-        loaded.predict({"wrong": [1.0]})
+        require_success(loaded.predict({"wrong": [1.0]}))
     with pytest.raises(ValueError, match="must be finite one-dimensional columns"):
-        loaded.predict({"z": [float("nan")]})
+        require_success(loaded.predict({"z": [float("nan")]}))
 
 
 def test_fitted_effect_prediction_warns_on_digit_strings():
@@ -80,17 +83,17 @@ def test_fitted_effect_prediction_warns_on_digit_strings():
     # but says so, naming the column.
     model = analyze(DRLearner(final_learner=Linear())).fitted_model
     with pytest.warns(FutureWarning, match="column 'z'"):
-        parsed = model.predict({"z": np.array(["1", "2"])})
-    assert parsed == model.predict({"z": np.array([1.0, 2.0])})
+        parsed = require_success(model.predict({"z": np.array(["1", "2"])}))
+    assert parsed == require_success(model.predict({"z": np.array([1.0, 2.0])}))
     with pytest.raises(CausalTypeError, match="'z'"):
-        model.predict({"z": np.array(["one", "two"])})
+        require_success(model.predict({"z": np.array(["one", "two"])}))
 
 
 def test_model_payload_mutation_cannot_reuse_parent_claim():
     from antecedent.artifacts import dumps, loads
 
     result = analyze(DRLearner(final_learner=Linear()))
-    artifact = loads(result.export())
+    artifact = loads(bytes(result.export()))
     payload = artifact.to_dict()["payload"]
     payload["fitted_effect"]["predictor"]["model"]["coefficients"][0] += 1
     forged = dumps(

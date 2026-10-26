@@ -86,7 +86,7 @@ def test_an_unchanged_scene_is_still_valid_and_its_classification_replays_from_b
     assert report.removed == ()
 
     # The same graphs sealed as `composition_verification_v1`: a fresh consumer replays.
-    data = report.export(artifact_id="transport-revalidation")
+    data = bytes(report.export(artifact_id="transport-revalidation"))
     consumed = cv.consume_composition_verification_artifact(
         data, expected_identity=report.verification_identity
     )

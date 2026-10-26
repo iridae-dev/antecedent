@@ -18,6 +18,7 @@ import numpy as np
 import pytest
 from antecedent import population as P
 from antecedent.errors import CausalUnsupportedError
+from antecedent.outcomes import require_success
 
 from _sealed_loads import assert_answer_kept
 
@@ -222,13 +223,15 @@ def test_an_unlicensed_population_refuses_by_code(make, graph, query, options, p
     registry.insert_predicate("upper", list(range(n // 2, n)))
     registry.insert_distribution(7, [1.0] * n)
     with pytest.raises(CausalUnsupportedError) as caught:
-        ant.analyze(
-            data,
-            graph=graph,
-            query=query(population),
-            population_registry=registry,
-            refute=False,
-            **options,
+        require_success(
+            ant.analyze(
+                data,
+                graph=graph,
+                query=query(population),
+                population_registry=registry,
+                refute=False,
+                **options,
+            )
         )
     assert caught.value.reason_code == "population_not_estimable", str(caught.value)
 
@@ -241,11 +244,15 @@ def test_the_all_observed_population_is_the_default_and_survives_export(
     make, graph, query, options
 ) -> None:
     data = make()
-    default = ant.analyze(data, graph=graph, query=query(None), refute=False, **options)
-    declared = ant.analyze(data, graph=graph, query=query(P.AllRows()), refute=False, **options)
+    default = require_success(
+        ant.analyze(data, graph=graph, query=query(None), refute=False, **options)
+    )
+    declared = require_success(
+        ant.analyze(data, graph=graph, query=query(P.AllRows()), refute=False, **options)
+    )
     assert declared.program_id == default.program_id
     assert declared.inspect().target_id == default.inspect().target_id
-    loaded = ant.load(declared.export())
+    loaded = require_success(ant.load(bytes(declared.export())))
     assert_answer_kept(loaded)
     assert loaded.inspect().target_id == declared.inspect().target_id
     assert loaded.answer == declared.answer
@@ -255,12 +262,14 @@ def test_average_effect_population_changes_the_answer_and_the_target() -> None:
     data = _static()
 
     def run(population: object) -> Any:
-        return ant.analyze(
-            data,
-            graph=STATIC_DAG,
-            query=ant.AverageEffect("t", "y", target_population=population),
-            estimator="aipw",
-            refute=False,
+        return require_success(
+            ant.analyze(
+                data,
+                graph=STATIC_DAG,
+                query=ant.AverageEffect("t", "y", target_population=population),
+                estimator="aipw",
+                refute=False,
+            )
         )
 
     ate, att = run(None), run(P.Treated())
@@ -268,7 +277,7 @@ def test_average_effect_population_changes_the_answer_and_the_target() -> None:
     assert att.ate > ate.ate + 0.3
     assert att.inspect().target_id != ate.inspect().target_id
     assert att.program_id != ate.program_id
-    loaded = ant.load(att.export())
+    loaded = require_success(ant.load(bytes(att.export())))
     assert_answer_kept(loaded)
     assert loaded.inspect().target_id == att.inspect().target_id
     assert loaded.inspect().to_dict()["target"]["query"]["target_population"] == "treated"
@@ -279,13 +288,15 @@ def test_linear_adjustment_refuses_a_population_on_a_class_graph() -> None:
         ["z", "t", "y"], [("z", "y"), ("t", "y")], [("z", "t")]
     )
     data = {k: v for k, v in _static().items() if k in ("z", "t", "y")}
-    ant.analyze(data, graph=cpdag, query=ant.AverageEffect("t", "y"), refute=False)
+    require_success(ant.analyze(data, graph=cpdag, query=ant.AverageEffect("t", "y"), refute=False))
     with pytest.raises(CausalUnsupportedError) as caught:
-        ant.analyze(
-            data,
-            graph=cpdag,
-            query=ant.AverageEffect("t", "y", target_population=P.Treated()),
-            refute=False,
+        require_success(
+            ant.analyze(
+                data,
+                graph=cpdag,
+                query=ant.AverageEffect("t", "y", target_population=P.Treated()),
+                refute=False,
+            )
         )
     assert caught.value.reason_code == "population_not_estimable"
 
@@ -300,5 +311,7 @@ def test_analyze_many_estimates_each_query_population() -> None:
         data, graph=STATIC_DAG, queries=queries, estimator="aipw", refute=False
     )
     assert att.ate > ate.ate + 0.3
-    single = ant.analyze(data, graph=STATIC_DAG, query=queries[1], estimator="aipw", refute=False)
+    single = require_success(
+        ant.analyze(data, graph=STATIC_DAG, query=queries[1], estimator="aipw", refute=False)
+    )
     assert att.ate == pytest.approx(single.ate, rel=1e-6)

@@ -10,6 +10,7 @@ from dataclasses import replace
 import pytest
 from antecedent import decision, program_claims
 from antecedent.composition_bundle import Bundle, Failed, consume_bundle
+from antecedent.outcomes import require_success
 from antecedent.source_projection import SourceProjectionArtifact, consume_source_projection
 
 from _repo_text import REPO_ROOT
@@ -53,7 +54,7 @@ def _bundle(source, quantities, *, external_source=False):
             projection,
             contract=_contract(quantities) if projection == "transformation" else None,
         )
-        builder.add_artifact(artifact.kind, artifact.export(), node_id=name)
+        builder.add_artifact(artifact.kind, bytes(artifact.export()), node_id=name)
     builder.connect("source", "coordinates").connect("coordinates", "utility")
     return builder.build()
 
@@ -64,7 +65,7 @@ def test_source_projection_native_original_engine_affine_truth_and_unresolved_im
         claim.source_evidence, "transformation", contract=_contract(claim.coordinates)
     )
     report = consume_source_projection(
-        artifact.export(), expected_identity=artifact.identity
+        bytes(artifact.export()), expected_identity=artifact.identity
     ).report
     assert [action["expected_utility"] for action in report["output"]["actions"]] == pytest.approx(
         [5, 2.5], abs=_truth()["native_tolerance"] * 2
@@ -73,14 +74,18 @@ def test_source_projection_native_original_engine_affine_truth_and_unresolved_im
     assert report["output"]["calibration"] == _truth()["calibration"]
     assert report["unresolved"] == ["dependencies.checked_response_grid_operation"]
     bundle = _bundle(claim.source_evidence, claim.coordinates)
-    imported = consume_bundle(bundle.export(), expected_identity=bundle.identity)
+    imported = require_success(
+        consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
     assert not imported.all_verified
     assert isinstance(imported.node("source").status, Failed)
     assert imported.node("source").status.reason == "composition_bundle.callback_unavailable"
-    resolved = consume_bundle(
-        bundle.export(),
-        expected_identity=bundle.identity,
-        actual_claims={claim.source_evidence.source_artifact_digest: claim},
+    resolved = require_success(
+        consume_bundle(
+            bytes(bundle.export()),
+            expected_identity=bundle.identity,
+            actual_claims={claim.source_evidence.source_artifact_digest: claim},
+        )
     )
     resolved.require_verified()
     assert resolved.value("utility", "A.expected_utility") == pytest.approx(
@@ -94,8 +99,10 @@ def test_source_projection_native_original_engine_affine_truth_and_unresolved_im
 
 def test_source_projection_external_attestation_coordinates_and_affine_point_only_truth():
     claim = _spec().bind(replace(_response(), support=("supported", "supported")))
-    bundle = _bundle(claim.export(), claim.quantities, external_source=True)
-    consumed = consume_bundle(bundle.export(), expected_identity=bundle.identity)
+    bundle = _bundle(bytes(claim.export()), claim.quantities, external_source=True)
+    consumed = require_success(
+        consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
     consumed.require_verified()
     assert consumed.value("utility", "A.expected_utility") == _truth()["utilities"]["A"]
     assert consumed.value("utility", "B.expected_utility") == _truth()["utilities"]["B"]
@@ -107,30 +114,36 @@ def test_source_projection_refuses_false_resolution_units_nonlinear_and_wrong_id
     claim = _claim()
     bundle = _bundle(claim.source_evidence, claim.coordinates)
     with pytest.raises(TypeError, match="issued NativeClaim"):
-        consume_bundle(
-            bundle.export(),
-            expected_identity=bundle.identity,
-            actual_claims={claim.source_evidence.source_artifact_digest: {"verified": True}},
+        require_success(
+            consume_bundle(
+                bytes(bundle.export()),
+                expected_identity=bundle.identity,
+                actual_claims={claim.source_evidence.source_artifact_digest: {"verified": True}},
+            )
         )
     with pytest.raises(ValueError, match="source_projection.source_binding_mismatch") as failure:
-        consume_bundle(
-            bundle.export(),
-            expected_identity=bundle.identity,
-            actual_claims={"changed-source": claim},
+        require_success(
+            consume_bundle(
+                bytes(bundle.export()),
+                expected_identity=bundle.identity,
+                actual_claims={"changed-source": claim},
+            )
         )
     assert failure.value.reason_code == "invalid_argument"
     changed_view = _native_view(bayesian=True)
     changed_claim = program_claims.native_claim(changed_view, _native_program(changed_view))
     with pytest.raises(ValueError, match="source_projection.source_binding_mismatch"):
-        consume_bundle(
-            bundle.export(),
-            expected_identity=bundle.identity,
-            actual_claims={claim.source_evidence.source_artifact_digest: changed_claim},
+        require_success(
+            consume_bundle(
+                bytes(bundle.export()),
+                expected_identity=bundle.identity,
+                actual_claims={claim.source_evidence.source_artifact_digest: changed_claim},
+            )
         )
     missing_support = _spec().bind(_response())
     with pytest.raises(ValueError, match="source_projection.unsupported_coordinate"):
         SourceProjectionArtifact.produce(
-            missing_support.export(),
+            bytes(missing_support.export()),
             "transformation",
             contract=_contract(missing_support.quantities),
         )
@@ -159,14 +172,14 @@ def test_source_projection_refuses_false_resolution_units_nonlinear_and_wrong_id
         )
     artifact = SourceProjectionArtifact.produce(claim.source_evidence, "quantity_coordinates")
     with pytest.raises(ValueError, match="source_projection.identity_mismatch"):
-        consume_source_projection(artifact.export(), expected_identity="changed-identity")
+        consume_source_projection(bytes(artifact.export()), expected_identity="changed-identity")
 
 
 def test_source_projection_fresh_process_requires_actual_original_raw_data_execution(tmp_path):
     claim = _claim()
     bundle = _bundle(claim.source_evidence, claim.coordinates)
     path = tmp_path / "source-projection.art"
-    path.write_bytes(bundle.export())
+    path.write_bytes(bytes(bundle.export()))
     script = """
 import json,sys
 from pathlib import Path
@@ -206,10 +219,12 @@ def test_source_projection_bounds_refuse_before_copy_or_actual_source_execution(
     claim = _claim()
     bundle = _bundle(claim.source_evidence, claim.coordinates)
     with pytest.raises(ValueError, match="source resolver count exceeds"):
-        consume_bundle(
-            bundle.export(),
-            expected_identity=bundle.identity,
-            actual_claims={str(index): claim for index in range(65)},
+        require_success(
+            consume_bundle(
+                bytes(bundle.export()),
+                expected_identity=bundle.identity,
+                actual_claims={str(index): claim for index in range(65)},
+            )
         )
     with pytest.raises(ValueError, match="source_projection.limits_exceeded") as failure:
         consume_source_projection(b"x" * (18 * 1024 * 1024 + 1), expected_identity="oversized")

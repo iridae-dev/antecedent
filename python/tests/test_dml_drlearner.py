@@ -6,6 +6,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.estimators import DML, DRLearner
+from antecedent.outcomes import require_success
 
 
 def _linear_scm(n: int = 240, seed: int = 3):
@@ -18,14 +19,16 @@ def _linear_scm(n: int = 240, seed: int = 3):
 
 def test_dml_auto_recovers_ate():
     data, graph = _linear_scm()
-    result = antecedent.analyze(
-        data,
-        graph=graph,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        estimator=DML(learner="auto", folds=4),
-        bootstrap=0,
-        refute=False,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            estimator=DML(learner="auto", folds=4),
+            bootstrap=0,
+            refute=False,
+            seed=1,
+        )
     )
     assert result.estimate.estimator_id == "dml"
     assert abs(result.ate - 2.0) < 0.45
@@ -45,14 +48,16 @@ def test_drlearner_returns_cate():
     y = (1.0 + z) * t + 0.3 * z + rng.normal(size=n) * 0.35
     data = {"t": t, "y": y, "z": z}
     graph = [("z", "t"), ("z", "y"), ("t", "y")]
-    result = antecedent.analyze(
-        data,
-        graph=graph,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        estimator=DRLearner(learner="ridge", folds=4),
-        bootstrap=0,
-        refute=False,
-        seed=2,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            estimator=DRLearner(learner="ridge", folds=4),
+            bootstrap=0,
+            refute=False,
+            seed=2,
+        )
     )
     assert result.estimate.estimator_id == "dr.learner"
     assert result.estimate.cate is not None
@@ -73,8 +78,8 @@ def test_staged_learner_artifact_roundtrip(estimator):
         bootstrap=0,
         refute="none",
     )
-    result = prepared.estimate(data)
-    restored = antecedent.load(result.export())
+    result = require_success(prepared.estimate(data))
+    restored = require_success(antecedent.load(bytes(result.export())))
     payload = restored.decoded_artifact.payload
     assert (
         tuple(tuple(p) for p in payload["learner_provenance"]) == result.estimate.learner_provenance

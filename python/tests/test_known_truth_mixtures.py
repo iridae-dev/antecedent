@@ -11,6 +11,7 @@ import math
 
 import antecedent
 import pytest
+from antecedent.outcomes import require_success
 
 from known_truth import (  # noqa: E402
     BAYES,
@@ -85,14 +86,16 @@ def test_static_known_truth_mixture(validation, validation_suite: str | None) ->
     data = static_data(int(STATIC["n"]))
     posterior = static_posterior()
     query = antecedent.AverageEffect(treatment="t", outcome="y")
-    fresh = antecedent.analyze(
-        data,
-        discovery=posterior,
-        query=query,
-        inference=BAYES,
-        refute=validation,
-        bootstrap=0,
-        seed=1,
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            discovery=posterior,
+            query=query,
+            inference=BAYES,
+            refute=validation,
+            bootstrap=0,
+            seed=1,
+        )
     )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
@@ -103,7 +106,7 @@ def test_static_known_truth_mixture(validation, validation_suite: str | None) ->
         seed=1,
         latency="interactive",
     )
-    click = prepared.estimate(data, seed=1)
+    click = require_success(prepared.estimate(data, seed=1))
     _assert_mixture_contract(
         fresh,
         click,
@@ -150,14 +153,16 @@ def test_static_known_truth_mixture_frequentist(validation, validation_suite: st
     data = static_data(int(STATIC["n"]))
     posterior = static_posterior()
     query = antecedent.AverageEffect(treatment="t", outcome="y")
-    fresh = antecedent.analyze(
-        data,
-        discovery=posterior,
-        query=query,
-        inference=FREQ,
-        refute=validation,
-        bootstrap=0,
-        seed=1,
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            discovery=posterior,
+            query=query,
+            inference=FREQ,
+            refute=validation,
+            bootstrap=0,
+            seed=1,
+        )
     )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
@@ -168,7 +173,7 @@ def test_static_known_truth_mixture_frequentist(validation, validation_suite: st
         seed=1,
         latency="interactive",
     )
-    click = prepared.estimate(data, seed=1)
+    click = require_success(prepared.estimate(data, seed=1))
     _assert_frequentist_mixture_contract(
         fresh,
         click,
@@ -192,8 +197,8 @@ def test_static_known_truth_mixture_refresh_reuses_identification() -> None:
         seed=1,
         latency="interactive",
     )
-    click = prepared.estimate(data, seed=1)
-    refreshed = prepared.refresh(data, seed=1)
+    click = require_success(prepared.estimate(data, seed=1))
+    refreshed = require_success(prepared.refresh(data, seed=1))
     expected = float(STATIC["expected_effect_given_identified"])
     tolerance = float(STATIC["effect_abs_tolerance"])
     assert click.ate is None and refreshed.ate is None
@@ -229,14 +234,16 @@ def test_static_known_truth_mixture_refresh_reuses_identification() -> None:
 def test_temporal_known_truth_mixture(query) -> None:
     data = white_noise_pulse_series(int(TEMPORAL["n"]), int(TEMPORAL["seed"]))
     posterior = temporal_posterior()
-    fresh = antecedent.analyze(
-        data,
-        discovery=posterior,
-        query=query,
-        inference=BAYES,
-        refute=False,
-        bootstrap=0,
-        seed=11,
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            discovery=posterior,
+            query=query,
+            inference=BAYES,
+            refute=False,
+            bootstrap=0,
+            seed=11,
+        )
     )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
@@ -247,7 +254,7 @@ def test_temporal_known_truth_mixture(query) -> None:
         seed=11,
         latency="interactive",
     )
-    click = prepared.estimate(data, seed=11)
+    click = require_success(prepared.estimate(data, seed=11))
     _assert_mixture_contract(
         fresh,
         click,
@@ -270,14 +277,16 @@ def test_temporal_multistep_sustained_known_truth_mixture() -> None:
         horizon_steps=1,
         active_level=1.0,
     )
-    fresh = antecedent.analyze(
-        data,
-        discovery=posterior,
-        query=query,
-        inference=BAYES,
-        refute=False,
-        bootstrap=0,
-        seed=11,
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            discovery=posterior,
+            query=query,
+            inference=BAYES,
+            refute=False,
+            bootstrap=0,
+            seed=11,
+        )
     )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
@@ -288,7 +297,7 @@ def test_temporal_multistep_sustained_known_truth_mixture() -> None:
         seed=11,
         latency="interactive",
     )
-    click = prepared.estimate(data, seed=11)
+    click = require_success(prepared.estimate(data, seed=11))
     _assert_mixture_contract(
         fresh,
         click,
@@ -316,9 +325,9 @@ def test_temporal_multistep_sustained_validation(validation, validation_suite) -
         bootstrap=0,
         seed=11,
     )
-    fresh = antecedent.analyze(data, **options)
+    fresh = require_success(antecedent.analyze(data, **options))
     prepared = antecedent.estimation.PreparedAnalysis.prepare(data, **options)
-    click = prepared.estimate(data, seed=11)
+    click = require_success(prepared.estimate(data, seed=11))
     _assert_mixture_contract(
         fresh,
         click,
@@ -354,14 +363,16 @@ def test_temporal_mediation_known_truth_mixture(validation, validation_suite: st
     data = temporal_mediation_series(int(TEMPORAL_MEDIATION["n"]))
     posterior = temporal_mediation_posterior()
     query = antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated")
-    fresh = antecedent.analyze(
-        data,
-        discovery=posterior,
-        query=query,
-        inference=BAYES,
-        refute=validation,
-        bootstrap=0,
-        seed=int(TEMPORAL_MEDIATION["seed"]),
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            discovery=posterior,
+            query=query,
+            inference=BAYES,
+            refute=validation,
+            bootstrap=0,
+            seed=int(TEMPORAL_MEDIATION["seed"]),
+        )
     )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
@@ -372,7 +383,7 @@ def test_temporal_mediation_known_truth_mixture(validation, validation_suite: st
         seed=int(TEMPORAL_MEDIATION["seed"]),
         latency="interactive",
     )
-    click = prepared.estimate(data, seed=int(TEMPORAL_MEDIATION["seed"]))
+    click = require_success(prepared.estimate(data, seed=int(TEMPORAL_MEDIATION["seed"])))
     _assert_mixture_contract(
         fresh,
         click,
@@ -393,20 +404,22 @@ def test_temporal_mediation_known_truth_mixture(validation, validation_suite: st
 
 def test_dbn_posterior_response_curve_runs() -> None:
     data = white_noise_pulse_series(64, 1)
-    result = antecedent.analyze(
-        data,
-        discovery=temporal_posterior(),
-        query=antecedent.ResponseCurve(
-            treatment="pressure",
-            outcome="defect",
-            grid=[0.0, 1.0],
-            horizons=[1],
-            policy="pulse",
-        ),
-        inference=BAYES,
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            discovery=temporal_posterior(),
+            query=antecedent.ResponseCurve(
+                treatment="pressure",
+                outcome="defect",
+                grid=[0.0, 1.0],
+                horizons=[1],
+                policy="pulse",
+            ),
+            inference=BAYES,
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert result.evidence_status == "licensed"
     assert result.response is not None
@@ -427,23 +440,29 @@ def test_frequentist_dbn_mediation_mixture_follows_the_latency_tier() -> None:
     tolerance = float(TEMPORAL_MEDIATION["effect_abs_tolerance"])
     shared_block = "estimate.dbn_posterior.mediation.shared_block"
 
-    interactive = antecedent.estimation.PreparedAnalysis.prepare(
-        data, discovery=posterior, query=query, inference=FREQ, seed=seed, latency="interactive"
-    ).estimate(data, seed=seed)
+    interactive = require_success(
+        antecedent.estimation.PreparedAnalysis.prepare(
+            data, discovery=posterior, query=query, inference=FREQ, seed=seed, latency="interactive"
+        ).estimate(data, seed=seed)
+    )
     assert interactive.ate == pytest.approx(expected, abs=tolerance)
     assert interactive.estimate.se_bootstrap is None
     assert not any(d.startswith(shared_block) for d in interactive.diagnostics)
 
-    standard = antecedent.estimation.PreparedAnalysis.prepare(
-        data, discovery=posterior, query=query, inference=FREQ, seed=seed, latency="standard"
-    ).estimate(data, seed=seed)
+    standard = require_success(
+        antecedent.estimation.PreparedAnalysis.prepare(
+            data, discovery=posterior, query=query, inference=FREQ, seed=seed, latency="standard"
+        ).estimate(data, seed=seed)
+    )
     assert standard.ate == pytest.approx(interactive.ate, abs=1e-12)
     assert standard.estimate.se_bootstrap is not None
     assert math.isfinite(standard.estimate.se_bootstrap) and standard.estimate.se_bootstrap > 0
     assert any(d.startswith(shared_block) for d in standard.diagnostics)
 
-    fresh = antecedent.analyze(
-        data, discovery=posterior, query=query, inference=FREQ, refute=False, seed=seed
+    fresh = require_success(
+        antecedent.analyze(
+            data, discovery=posterior, query=query, inference=FREQ, refute=False, seed=seed
+        )
     )
     assert fresh.ate == pytest.approx(interactive.ate, abs=1e-12)
     assert fresh.estimate.se_bootstrap is not None
@@ -479,28 +498,32 @@ def test_frequentist_dbn_pulse_sustained_mixture_follows_the_latency_tier(kind) 
         assert result.structural_unevaluable_mass == 0.0
         assert result.identification.status == "GraphDependent"
 
-    interactive = antecedent.estimation.PreparedAnalysis.prepare(
-        data,
-        discovery=posterior,
-        query=query,
-        inference=FREQ,
-        refute=False,
-        seed=11,
-        latency="interactive",
-    ).estimate(data, seed=11)
+    interactive = require_success(
+        antecedent.estimation.PreparedAnalysis.prepare(
+            data,
+            discovery=posterior,
+            query=query,
+            inference=FREQ,
+            refute=False,
+            seed=11,
+            latency="interactive",
+        ).estimate(data, seed=11)
+    )
     assert interactive.ate == pytest.approx(expected, abs=tolerance)
     assert interactive.estimate.se_bootstrap is None
     assert_structural(interactive)
 
-    standard = antecedent.estimation.PreparedAnalysis.prepare(
-        data,
-        discovery=posterior,
-        query=query,
-        inference=FREQ,
-        refute=False,
-        seed=11,
-        latency="standard",
-    ).estimate(data, seed=11)
+    standard = require_success(
+        antecedent.estimation.PreparedAnalysis.prepare(
+            data,
+            discovery=posterior,
+            query=query,
+            inference=FREQ,
+            refute=False,
+            seed=11,
+            latency="standard",
+        ).estimate(data, seed=11)
+    )
     assert standard.ate == pytest.approx(interactive.ate, abs=1e-12)
     assert standard.estimate.se_bootstrap is not None
     assert math.isfinite(standard.estimate.se_bootstrap) and standard.estimate.se_bootstrap > 0
@@ -510,8 +533,10 @@ def test_frequentist_dbn_pulse_sustained_mixture_follows_the_latency_tier(kind) 
     )
     assert_structural(standard)
 
-    fresh = antecedent.analyze(
-        data, discovery=posterior, query=query, inference=FREQ, refute=False, seed=11
+    fresh = require_success(
+        antecedent.analyze(
+            data, discovery=posterior, query=query, inference=FREQ, refute=False, seed=11
+        )
     )
     assert fresh.ate == pytest.approx(interactive.ate, abs=1e-12)
     assert fresh.estimate.se_bootstrap is not None
@@ -524,14 +549,16 @@ def test_frequentist_discovered_dbn_posterior_pulse_is_routed() -> None:
     query = antecedent.PulseEffect(
         treatment="pressure", outcome="defect", treatment_lag=1, horizon_steps=1
     )
-    result = antecedent.analyze(
-        data,
-        discovery=antecedent.discovery.DbnPosterior(max_lag=1),
-        query=query,
-        inference=FREQ,
-        refute=False,
-        bootstrap=24,
-        seed=11,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            discovery=antecedent.discovery.DbnPosterior(max_lag=1),
+            query=query,
+            inference=FREQ,
+            refute=False,
+            bootstrap=24,
+            seed=11,
+        )
     )
     assert math.isfinite(result.ate)
     assert result.estimate.se_bootstrap is not None and result.estimate.se_bootstrap > 0

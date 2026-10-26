@@ -120,7 +120,7 @@ def test_normal_public_measured_joint_scalar_and_original_source_fresh_replay(
     assert scope["sampling_assumptions_authenticated_from_rows"] is False
     assert scope["reported_scalar"] == "target_effect"
     artifact = tmp_path / "measured-joint.cbor"
-    artifact.write_bytes(measured.export())
+    artifact.write_bytes(bytes(measured.export()))
     loaded = MeasuredInference.load(artifact.read_bytes(), expected=measured.expected_identity)
     assert loaded.inspect() == measured.inspect()
     assert loaded.source_artifact() == measured.source_artifact()
@@ -157,24 +157,24 @@ print(json.dumps(r.inspect(),sort_keys=True))
         replace(measured.expected_identity, scalars=("unmeasured_coefficient",)),
     ]:
         with pytest.raises(CausalError):
-            MeasuredInference.load(measured.export(), expected=expected)
+            MeasuredInference.load(bytes(measured.export()), expected=expected)
     with pytest.raises(CausalError):
         MeasuredInference.load(measured.source_artifact(), expected=measured.expected_identity)
     with pytest.raises(CausalError):
         MeasuredInference.load(
-            measured.export(), expected=measured.expected_identity, memory_limit_bytes=0
+            bytes(measured.export()), expected=measured.expected_identity, memory_limit_bytes=0
         )
     with pytest.raises(CausalError):
         MeasuredInference.load(
-            measured.export(),
+            bytes(measured.export()),
             expected=measured.expected_identity,
-            max_bytes=len(measured.export()) - 1,
+            max_bytes=len(bytes(measured.export())) - 1,
         )
     cancelled = _native.CancellationToken()
     cancelled.cancel()
     with pytest.raises(CausalCancelledError):
         MeasuredInference.load(
-            measured.export(), expected=measured.expected_identity, cancel=cancelled
+            bytes(measured.export()), expected=measured.expected_identity, cancel=cancelled
         )
 
 

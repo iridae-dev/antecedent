@@ -47,6 +47,12 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._refusal import raise_refusal
 from .errors import (
     CausalSerializationError,
@@ -54,6 +60,7 @@ from .errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from .outcomes import outcome_operation
 from .recalc import (
     Decision,
     Law,
@@ -163,7 +170,8 @@ class ResumeReceipt(RecalcReceipt):
     resumed run reuses the portable score artifact, so no artifact is sealed.
     """
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """Always refuses: a resumed receipt is a record, not a ``recalc_receipt_v1`` artifact."""
         raise CausalUnsupportedError(
             "a resumed retarget receipt reuses the portable score artifact in a fresh process "
@@ -185,6 +193,7 @@ def _frame(data: Mapping[str, ArrayLike]) -> tuple[list[str], list[NDArray[np.fl
 
 
 def _result(result: str | None, artifact: bytes | None, refusal: str | None) -> RecalcResult:
+    artifact = container_bytes(artifact) if artifact is not None else None
     raise_refusal(refusal, _cell_refusal_type)
     if result is None or artifact is None:  # pragma: no cover - one of the two is set
         raise CausalSerializationError("recalc execution returned no result")
@@ -216,9 +225,10 @@ class FrozenScores:
     identity: str
     _bytes: bytes
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The artifact bytes."""
-        return self._bytes
+        return artifact_from_receipt(self, self._bytes)
 
     @classmethod
     def load(cls, data: bytes, *, expected_identity: str | None = None) -> FrozenScores:
@@ -229,6 +239,11 @@ class FrozenScores:
             CausalSerializationError: the bytes are corrupt, oversized, malformed or of an
                 unsupported version.
         """
+        data = (
+            container_bytes(data)
+            if isinstance(data, (bytes, bytearray, memoryview, ExportedArtifact))
+            else data
+        )
         handle = _resume_handle(bytes(data), expected_identity)
         return cls(identity=handle.artifact_identity(), _bytes=bytes(data))
 
@@ -339,6 +354,7 @@ class CellSession:
         positional, keywords = self._call(request, seed, threads)
         return RecalcPlan.from_wire(json.loads(self._handle.plan(*positional, **keywords)))
 
+    @outcome_operation
     def execute(
         self, request: CellRequest, *, seed: int = 1, threads: int | None = None
     ) -> RecalcResult:
@@ -384,6 +400,7 @@ class CrossfitSession:
         """Whether the session holds a live prepared study."""
         return self._handle.is_live()
 
+    @outcome_operation
     def execute(
         self, request: RecalcRequest, *, seed: int = 1, threads: int | None = None
     ) -> RecalcResult:
@@ -417,6 +434,11 @@ class CrossfitSession:
 
 
 def _resume_handle(data: bytes, expected_identity: str | None) -> _native.ScoreResumeHandle:
+    data = (
+        container_bytes(data)
+        if isinstance(data, (bytes, bytearray, memoryview, ExportedArtifact))
+        else data
+    )
     handle, refusal = _native.ScoreResumeHandle.from_bytes(bytes(data), expected_identity)
     raise_refusal(refusal, _resume_refusal_type)
     if handle is None:  # pragma: no cover - one of the two is set
@@ -603,6 +625,7 @@ class ScoreResumeSession:
             decision=Decision(**wire["decision"]),
         )
 
+    @outcome_operation
     def execute(self, request: CellRequest | RecalcRequest, *, seed: int = 1) -> RecalcResult:
         """Refused: a resumed session holds no data, so it cannot run a request over data.
 
@@ -645,8 +668,13 @@ def resume_from_scores(
         ScoreResumeRefusal: ``frozen_scores.identity_mismatch`` for another identity.
         CausalSerializationError: corrupt, oversized, malformed or unsupported-version bytes.
     """
+    data = (
+        container_bytes(data)
+        if isinstance(data, (bytes, bytearray, memoryview, ExportedArtifact))
+        else data
+    )
     if isinstance(data, FrozenScores):
-        raw = data.export()
+        raw = bytes(data.export())
     elif isinstance(data, (bytes, bytearray, memoryview)):
         raw = bytes(data)
     else:

@@ -16,9 +16,16 @@ from typing import Any
 from numpy.typing import ArrayLike
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._recalc_bounds import _columns
 from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError
+from .outcomes import outcome_operation
 from .recalc import (
     Decision,
     Law,
@@ -154,6 +161,7 @@ class DesignSession(_Session):
         )
         return RecalcPlan.from_wire(json.loads(wire))
 
+    @outcome_operation
     def execute(
         self,
         request: DesignRequest,
@@ -187,7 +195,8 @@ class DesignSession(_Session):
             Decision(**wire["decision"]),
         )
 
-    def export_result(self, *, seed: int = 1, threads: int | None = None) -> bytes:
+    @artifact_export
+    def export(self, *, seed: int = 1, threads: int | None = None) -> ExportedArtifact:
         """Original result artifact; neither new inference nor resumed state.
 
         IV and front-door consumers verify their existing scientific program.
@@ -199,7 +208,7 @@ class DesignSession(_Session):
         _raise_design(error)
         if artifact is None:  # pragma: no cover - native invariant
             raise CausalSerializationError("design recalculation exported no artifact")
-        return bytes(artifact)
+        return artifact_from_receipt(self, bytes(artifact))
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,6 +220,7 @@ class DesignReplay:
     artifact_digest: str
 
 
+@outcome_operation
 def consume_design_result(
     artifact: bytes,
     request: DesignRequest | None = None,
@@ -227,6 +237,7 @@ def consume_design_result(
     through real execution, while preserving existing reader behavior. Missing
     or mismatched data refuse rather than becoming portable fitted state.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes", reason_code="invalid_argument")
     names, columns = (

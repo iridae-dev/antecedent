@@ -5,6 +5,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 
 def _lag1_unit(n: int = 100, seed: int = 3):
@@ -27,37 +28,10 @@ def test_panel_pooled_pcmci_smoke():
     names the ``temporal.parent_adjustment`` derivation.
     """
     panel = antecedent.data.panel([_lag1_unit(seed=3), _lag1_unit(seed=4), _lag1_unit(seed=5)])
-    result = antecedent.analyze(
-        panel,
-        discovery=antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False),
-        query=antecedent.PulseEffect(
-            treatment="x",
-            outcome="y",
-            treatment_lag=1,
-            horizon_steps=1,
-            active_level=1.0,
-        ),
-        bootstrap=0,
-        seed=1,
-        refute=False,
-    )
-    assert result.answer.kind == "point"
-    assert result.answer.value == pytest.approx(0.55, abs=0.05)
-    assert result.identification.adjustment_set == tuple(["x"])
-    product = (
-        antecedent.load(result.export()).inspect().to_dict()["contract"]["identification_product"]
-    )
-    assert product["derivation_rules"][0] == "temporal.parent_adjustment"
-
-
-def test_panel_pooled_rejects_rpcmci():
-    panel = antecedent.data.panel([_lag1_unit(seed=3), _lag1_unit(seed=4)])
-    with pytest.raises(
-        antecedent.errors.CausalUnsupportedError, match="single observation sequence"
-    ):
+    result = require_success(
         antecedent.analyze(
             panel,
-            discovery=antecedent.discovery.RPCMCI(max_lag=1, alpha=0.2, fdr=False),
+            discovery=antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False),
             query=antecedent.PulseEffect(
                 treatment="x",
                 outcome="y",
@@ -68,6 +42,39 @@ def test_panel_pooled_rejects_rpcmci():
             bootstrap=0,
             seed=1,
             refute=False,
+        )
+    )
+    assert result.answer.kind == "point"
+    assert result.answer.value == pytest.approx(0.55, abs=0.05)
+    assert result.identification.adjustment_set == tuple(["x"])
+    product = (
+        require_success(antecedent.load(bytes(result.export())))
+        .inspect()
+        .to_dict()["contract"]["identification_product"]
+    )
+    assert product["derivation_rules"][0] == "temporal.parent_adjustment"
+
+
+def test_panel_pooled_rejects_rpcmci():
+    panel = antecedent.data.panel([_lag1_unit(seed=3), _lag1_unit(seed=4)])
+    with pytest.raises(
+        antecedent.errors.CausalUnsupportedError, match="single observation sequence"
+    ):
+        require_success(
+            antecedent.analyze(
+                panel,
+                discovery=antecedent.discovery.RPCMCI(max_lag=1, alpha=0.2, fdr=False),
+                query=antecedent.PulseEffect(
+                    treatment="x",
+                    outcome="y",
+                    treatment_lag=1,
+                    horizon_steps=1,
+                    active_level=1.0,
+                ),
+                bootstrap=0,
+                seed=1,
+                refute=False,
+            )
         )
 
 

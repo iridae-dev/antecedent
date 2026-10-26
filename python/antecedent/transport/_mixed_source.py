@@ -21,11 +21,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from .._artifact_protocol import artifact_consumer, container_bytes
 from .._columns import coerce_fields
 from .._native import consume_mixed_source_artifact as _consume_mixed_source_artifact
 from .._native import identify_mixed_source_transport_stage as _identify_mixed_source_stage
 from ..errors import CausalTypeError, CausalValueError
 from ..graph import Admg
+from ._consumption import TransportConsumption
 from ._impl import EvidenceCatalog, _non_negative, _optional_non_negative
 from ._multi_source import ZTransportSource, _names
 
@@ -122,6 +124,11 @@ def identify_mixed_source_transport(
     )
 
 
+@artifact_consumer(
+    proof="MixedSourceArtifactWire::consume_with_limits: proof, catalog, bound identities and point replay",
+    replayable=True,
+    identity=(),
+)
 def consume_mixed_source_artifact(
     artifact: bytes,
     *,
@@ -134,7 +141,7 @@ def consume_mixed_source_artifact(
     max_law_cells: int | None = None,
     memory_bytes: int | None = None,
     cancel: Any = None,
-) -> str:
+) -> TransportConsumption:
     """Independently verify an exported mixed-source result and recompute its point.
 
     The consumer re-runs the bounded decision on the stored graph, query and
@@ -146,19 +153,23 @@ def consume_mixed_source_artifact(
     snapshot ids by the data-identity digest; relabelled names or any other edit
     is refused. Nothing the artifact recorded raises the consumer's limits.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    return _consume_mixed_source_artifact(
-        artifact,
-        max_search_operations=_non_negative("max_search_operations", max_search_operations),
-        max_search_depth=_non_negative("max_search_depth", max_search_depth),
-        max_operations=_non_negative("max_operations", max_operations),
-        max_depth=_non_negative("max_depth", max_depth),
-        max_support_rows=_optional_non_negative("max_support_rows", max_support_rows),
-        max_laws=_optional_non_negative("max_laws", max_laws),
-        max_law_cells=_optional_non_negative("max_law_cells", max_law_cells),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+    return TransportConsumption.from_checked_json(
+        "consume_mixed_source_artifact",
+        _consume_mixed_source_artifact(
+            artifact,
+            max_search_operations=_non_negative("max_search_operations", max_search_operations),
+            max_search_depth=_non_negative("max_search_depth", max_search_depth),
+            max_operations=_non_negative("max_operations", max_operations),
+            max_depth=_non_negative("max_depth", max_depth),
+            max_support_rows=_optional_non_negative("max_support_rows", max_support_rows),
+            max_laws=_optional_non_negative("max_laws", max_laws),
+            max_law_cells=_optional_non_negative("max_law_cells", max_law_cells),
+            memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
+            cancel=cancel,
+        ),
     )
 
 

@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 from antecedent import Admg, ResponseCurve, analyze, intervention, transport
 from antecedent.external import ExternalRefusal
+from antecedent.outcomes import require_success
 from antecedent.results.coordinates import response_coordinates
 
 GRID = [-0.5, 0.0, 0.5]
@@ -68,10 +69,12 @@ def _policy_result(spec):
     x = rng.normal(size=400)
     a = 0.7 * x + rng.normal(size=400)
     y = 1.0 + 2.0 * a + 0.8 * x + rng.normal(scale=0.1, size=400)
-    return antecedent.analyze(
-        {"x": x, "a": a, "y": y},
-        query=antecedent.InterventionResponse("y", intervention=spec),
-        graph=[("x", "a"), ("x", "y"), ("a", "y")],
+    return require_success(
+        antecedent.analyze(
+            {"x": x, "a": a, "y": y},
+            query=antecedent.InterventionResponse("y", intervention=spec),
+            graph=[("x", "a"), ("x", "y"), ("a", "y")],
+        )
     )
 
 
@@ -103,10 +106,12 @@ def test_a_jacobian_refuses_with_a_typed_coordinate_support_detail():
     a = 0.5 * x + rng.normal(size=500)
     b = -0.2 * x + rng.normal(size=500)
     y = 8.0 + 1.5 * a - 0.75 * b + x + rng.normal(scale=0.15, size=500)
-    result = antecedent.analyze(
-        {"x": x, "a": a, "b": b, "y": y},
-        query=antecedent.ResponseJacobian(["a", "b"], ["y"], at=[0.0, 0.0]),
-        graph=[("x", "a"), ("x", "b"), ("x", "y"), ("a", "y"), ("b", "y")],
+    result = require_success(
+        antecedent.analyze(
+            {"x": x, "a": a, "b": b, "y": y},
+            query=antecedent.ResponseJacobian(["a", "b"], ["y"], at=[0.0, 0.0]),
+            graph=[("x", "a"), ("x", "b"), ("x", "y"), ("a", "y"), ("b", "y")],
+        )
     )
     with pytest.raises(ExternalRefusal) as refusal:
         result.response_coordinates(outcome_units="mmHg")
@@ -208,7 +213,7 @@ def test_declared_response_coordinates_survive_a_fresh_checked_artifact_consumer
         outcome_units="mmHg",
         quantity_population="clinic",
     )
-    encoded = result.export()
+    encoded = bytes(result.export())
     decoded = artifacts.loads(encoded)
     assert decoded.to_dict()["payload"]["response"]["coordinates"] == json.loads(
         json.dumps([quantity._wire() for quantity in result.quantities])
@@ -289,7 +294,7 @@ def test_response_export_refuses_semantic_relabeling_of_the_executed_response():
         update={"quantities": (replace(result.quantities[0], horizon=1), *result.quantities[1:])}
     )
     with pytest.raises(CausalValueError, match="executed native response"):
-        changed.export()
+        bytes(changed.export())
 
 
 @pytest.mark.parametrize(

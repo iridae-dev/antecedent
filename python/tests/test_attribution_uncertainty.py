@@ -98,7 +98,9 @@ def test_every_other_attribution_carries_the_requested_uncertainty(draws):
 
 
 def test_the_options_exclude_each_other_and_mechanism_change_has_no_posterior():
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError, match="ask for posterior_draws or bootstrap_replicates, not both"
+    ):
         attribute_distribution_change(*_change_args(), posterior_draws=8, bootstrap_replicates=8)
     names, cols = _data()
     with pytest.raises(ValueError, match="mechanism-change"):

@@ -44,6 +44,7 @@ from antecedent.intervention_programs import (
     transform,
     var,
 )
+from antecedent.outcomes import require_success
 
 from _pricing_chain import (
     LINEAR_EDGES,
@@ -78,7 +79,9 @@ def test_the_fitted_handle_reaches_expression_policies_selection_influence_and_n
     floor = transform("b", maximum(0, generated()))
     one_shot = sample_policy(fitted, [floor], 2000, seed=3)
     prepared = prepare_policy(fitted, [floor])
-    np.testing.assert_array_equal(_bits(one_shot.draws), _bits(prepared.sample(2000, seed=3).draws))
+    np.testing.assert_array_equal(
+        _bits(one_shot.draws), _bits(require_success(prepared.sample(2000, seed=3)).draws)
+    )
     assert one_shot.draws[fitted.names.index("b")].min() >= 0.0
     # A hard level has the closed-form answer: do(a = 1) puts c at 1.5 * 2 = 3.
     level = fitted.sample_do({"a": 1.0}, 4000, seed=2)
@@ -147,7 +150,7 @@ def test_a_prepared_policy_reuses_one_licence_and_equals_the_one_shot_results():
 
     for seed in (1, 2):
         np.testing.assert_array_equal(
-            _bits(handle.sample(1500, seed=seed).draws),
+            _bits(require_success(handle.sample(1500, seed=seed)).draws),
             _bits(sample_policy(fitted, policy, 1500, seed=seed).draws),
         )
     outcomes = handle.counterfactual(["demand", "revenue"], seed=1)
@@ -370,9 +373,9 @@ def test_prepare_reruns_the_policy_workflow_without_recompiling_and_equals_the_o
     # The program is compiled once, at prepare; every rerun reuses it.
     before = handle.preparation
     assert (before.program_compilations, before.model_bindings, before.runs) == (1, 1, 0)
-    first = handle.estimate()
-    other_seed = handle.estimate(seed=9)
-    third = handle.estimate(seed=2)
+    first = require_success(handle.estimate())
+    other_seed = require_success(handle.estimate(seed=9))
+    third = require_success(handle.estimate(seed=2))
     receipt = handle.preparation
     assert (receipt.program_compilations, receipt.model_bindings, receipt.runs) == (1, 1, 3)
     assert first.preparation.runs == 1 and third.preparation.runs == 3
@@ -411,21 +414,21 @@ def test_prepare_reruns_the_policy_workflow_without_recompiling_and_equals_the_o
         query=PolicyProgramValue([assign("price", 20.0)], "demand", n_draws=500),
         graph=PRICING_EDGES,
     )
-    assert level.estimate(seed=1).support.identification.licensed
+    assert require_success(level.estimate(seed=1)).support.identification.licensed
 
     # Refreshed data refits the model and rebinds the program: still one compilation, and the
     # result is the one-shot result on the refit model, which the handle keeps.
     fresh = pricing_chain(5000, 777)
-    refreshed = handle.refresh(fresh, seed=5)
+    refreshed = require_success(handle.refresh(fresh, seed=5))
     assert refreshed.preparation.program_compilations == 1
     assert refreshed.preparation.model_bindings == 2
     assert refreshed.value == policy_value(
         fit(fresh, PRICING_EDGES), policy, "demand", n=4000, seed=5
     )
-    assert handle.estimate(seed=5).value == refreshed.value
+    assert require_success(handle.estimate(seed=5)).value == refreshed.value
     # A transient estimate on other data leaves the retained model alone.
-    handle.estimate(pricing_chain(5000, 778), seed=5)
-    assert handle.estimate(seed=5).value == refreshed.value
+    require_success(handle.estimate(pricing_chain(5000, 778), seed=5))
+    assert require_success(handle.estimate(seed=5)).value == refreshed.value
 
     # Operations that need an identified estimand are refused, as are options it does not take.
     for operation in (handle.refute, handle.export, lambda: handle.identification):
@@ -435,7 +438,7 @@ def test_prepare_reruns_the_policy_workflow_without_recompiling_and_equals_the_o
     with pytest.raises(CausalUnsupportedError):
         antecedent.prepare(data, query=query, graph=PRICING_EDGES, estimator="linear")
     with pytest.raises(CausalUnsupportedError):
-        antecedent.analyze(data, query=query, graph=PRICING_EDGES)
+        require_success(antecedent.analyze(data, query=query, graph=PRICING_EDGES))
     with pytest.raises(CausalError):
         antecedent.prepare(
             data, query=PolicyProgramValue(policy, "missing", n_draws=100), graph=PRICING_EDGES

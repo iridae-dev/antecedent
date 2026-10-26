@@ -56,7 +56,13 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 from . import _native
-from ._artifact_protocol import ExportedArtifact, bytes_export
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._freeze import thaw
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
@@ -660,14 +666,6 @@ class CompositionVerification(ScientificResult):
     shared_data: tuple[SharedData, ...]
     _handle: Any = field(repr=False, compare=False)
 
-    def artifact(
-        self, artifact_id: str = _DEFAULT_ARTIFACT_ID
-    ) -> ExportedArtifact[CompositionVerification]:
-        """Bytes and producer metadata; load returns the typed consumed result."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self, artifact_id)
-
     def classify(self, key: str) -> ClaimClassification:
         """The classification of one claim."""
         try:
@@ -702,11 +700,15 @@ class CompositionVerification(ScientificResult):
         raise_refusal(self._handle.require_valid(_name(key, "key")), CompositionVerificationRefusal)
         return self.classify(key)
 
-    @bytes_export
-    def export(self, artifact_id: str = _DEFAULT_ARTIFACT_ID) -> VerificationExport:
+    @artifact_export
+    def export(
+        self, artifact_id: str = _DEFAULT_ARTIFACT_ID
+    ) -> ExportedArtifact[CompositionVerification]:
         """Write ``composition_verification_v1``."""
         pair = _unwrap(self._handle.export(_name(artifact_id, "artifact_id")))
-        return VerificationExport(artifact=bytes(pair[0]), identity=str(pair[1]))
+        return artifact_from_receipt(
+            self, VerificationExport(artifact=bytes(pair[0]), identity=str(pair[1]))
+        )
 
     def verify_ledger(self, graph: CompositionGraph, ledger: Any) -> None:
         """Check the declared shared-data relations and ledger state against a ledger.
@@ -844,6 +846,10 @@ def verify_composition(
     return _wrap(_unwrap(_native.composition_verification_verify(_dumps(request))))
 
 
+@artifact_consumer(
+    proof="composition_verification.consume_composition_verification_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_composition_verification_artifact(
     artifact: bytes, expected_identity: str | None = None
 ) -> CompositionVerification:
@@ -857,6 +863,7 @@ def consume_composition_verification_artifact(
             ``invalid_argument`` for corrupt or foreign bytes, a graph the library refuses, or a
             stored classification or lineage identity that does not replay.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     if expected_identity is not None:

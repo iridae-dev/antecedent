@@ -5,6 +5,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 from antecedent.estimators import CausalForest
+from antecedent.outcomes import require_success
 
 
 def test_causal_forest_returns_cate():
@@ -15,14 +16,16 @@ def test_causal_forest_returns_cate():
     y = (1.0 + z) * t + 0.3 * z + rng.normal(size=n) * 0.35
     data = {"t": t, "y": y, "z": z}
     graph = [("z", "t"), ("z", "y"), ("t", "y")]
-    result = antecedent.analyze(
-        data,
-        graph=graph,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        estimator=CausalForest(n_trees=80, min_leaf=8, max_depth=4),
-        bootstrap=0,
-        refute=False,
-        seed=3,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            estimator=CausalForest(n_trees=80, min_leaf=8, max_depth=4),
+            bootstrap=0,
+            refute=False,
+            seed=3,
+        )
     )
     assert result.estimate.estimator_id == "causal.forest"
     assert result.estimate.cate is not None

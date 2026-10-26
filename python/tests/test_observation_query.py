@@ -25,6 +25,7 @@ from antecedent import mechanism_composition as mc
 from antecedent import observation_query as oq
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.observation_query import ObservationQueryRefusal
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -410,7 +411,7 @@ def test_interval_and_calibrated_probability_are_closed():
 
 def test_the_artifact_round_trips_and_replays_against_the_retained_identity():
     claim = oq.condition_versus_intervene(confounded(), "Y", {"S": "1"})
-    consumed = oq.consume_observation_query_artifact(claim.export(), claim.identity)
+    consumed = oq.consume_observation_query_artifact(bytes(claim.export()), claim.identity)
     assert consumed.identity == claim.identity
     assert consumed.operation == "conditioning_and_intervention"
     assert consumed.claim.paired.conditioning["1"] == pytest.approx(0.78, abs=TOL)
@@ -420,16 +421,16 @@ def test_the_artifact_round_trips_and_replays_against_the_retained_identity():
 def test_semantic_mutation_and_another_history_are_refused():
     claim = oq.condition_versus_intervene(confounded(), "Y", {"S": "1"})
     with pytest.raises(ObservationQueryRefusal) as wrong:
-        oq.consume_observation_query_artifact(claim.export(), "f" * 64)
+        oq.consume_observation_query_artifact(bytes(claim.export()), "f" * 64)
     assert wrong.value.detail == "observation_query.artifact_refused"
     # A consistent artifact of another model fails the identity the consumer retained.
     other = oq.condition_versus_intervene(
         confounded(p_s1_given_z={"0": 0.3, "1": 0.7}), "Y", {"S": "1"}
     )
     assert other.identity != claim.identity
-    assert oq.consume_observation_query_artifact(other.export()).identity == other.identity
+    assert oq.consume_observation_query_artifact(bytes(other.export())).identity == other.identity
     with pytest.raises(ObservationQueryRefusal):
-        oq.consume_observation_query_artifact(other.export(), claim.identity)
+        oq.consume_observation_query_artifact(bytes(other.export()), claim.identity)
     # Every sampled single-byte change is refused: corruption, identity or replay.
     data = bytes(claim.export())
     for position in range(0, len(data), max(1, len(data) // 25)):
@@ -447,7 +448,7 @@ def test_semantic_mutation_and_another_history_are_refused():
 def test_a_fresh_process_consumes_the_artifact_against_the_retained_identity(tmp_path):
     claim = oq.condition_versus_intervene(confounded(), "Y", {"S": "1"})
     path = tmp_path / "claim.bin"
-    path.write_bytes(claim.export())
+    path.write_bytes(bytes(claim.export()))
     script = (
         "import json, sys\n"
         "from antecedent import observation_query as oq\n"
@@ -628,7 +629,7 @@ def test_continuous_evidence_is_conditioned_by_the_schur_complement():
     assert mixed.operation == "conditional_intervention"
     assert mixed.gaussian.mean == pytest.approx(15.0, abs=1e-10)
     assert mixed.gaussian.variance == pytest.approx(0.25, abs=1e-10)
-    consumed = oq.consume_observation_query_artifact(mixed.export(), mixed.identity)
+    consumed = oq.consume_observation_query_artifact(bytes(mixed.export()), mixed.identity)
     assert consumed.claim.gaussian == mixed.gaussian
 
 
@@ -723,7 +724,7 @@ def test_dirichlet_redraw_returns_aligned_draws_around_the_posterior_mean():
         w = pz[z] * ps[z]["1"]
         den += w
         num += w * py[("1", z)]["1"]
-    mean, spread = aligned.spread("probability:1")
+    mean, spread = require_success(aligned.spread("probability:1"))
     assert abs(mean - num / den) < 0.01
     assert 0.0 < spread < 0.1
     # Determinism: the same seed gives the same draws and identity.
@@ -766,7 +767,7 @@ def test_a_regression_redraw_spreads_around_the_declared_structural_equation():
     aligned = claim.parameter_draws
     assert aligned.quantities == ("conditional_mean", "conditional_variance")
     assert aligned.point == pytest.approx((9.0, 0.25), abs=1e-10)
-    mean, spread = aligned.spread("conditional_mean")
+    mean, spread = require_success(aligned.spread("conditional_mean"))
     assert spread > 0.0
     assert abs(mean - 9.0) < 0.5
     with pytest.raises(ObservationQueryRefusal):

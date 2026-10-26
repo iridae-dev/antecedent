@@ -9,6 +9,7 @@ from antecedent import observation as obs
 from antecedent.errors import CausalError
 from antecedent.estimation import PreparedAnalysis
 from antecedent.intervention import Set
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_json
 
@@ -71,18 +72,22 @@ def test_temporal_observation_pair_consumes_fixture(kind):
         observation_assumptions=[assumption],
     )
     prepared = PreparedAnalysis.prepare(data, graph=_EDGES, query=query, refute=False, bootstrap=0)
-    result = prepared.estimate(data)
-    fresh = antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=0)
+    result = require_success(prepared.estimate(data))
+    fresh = require_success(
+        antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=0)
+    )
     np.testing.assert_allclose(_means(fresh), _means(result), atol=1e-10)
     np.testing.assert_allclose(_means(result), _TRUTH, atol=_ATOL)
     # Zero replicates publish no band (see the band test below for the default).
     assert result.uncertainty.kind == "none"
-    naive = antecedent.analyze(
-        data,
-        graph=_EDGES,
-        query=antecedent.ResponseCurve("t", "y", grid=_PIN["grid"], horizons=_PIN["horizons"]),
-        refute=False,
-        bootstrap=0,
+    naive = require_success(
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=antecedent.ResponseCurve("t", "y", grid=_PIN["grid"], horizons=_PIN["horizons"]),
+            refute=False,
+            bootstrap=0,
+        )
     )
     naive_err = np.max(np.abs(_means(naive) - _TRUTH))
     corr_err = np.max(np.abs(_means(result) - _TRUTH))
@@ -105,7 +110,9 @@ def test_temporal_right_censor_intervention_path():
         observation=obs.RightCensored("y", "y", "c", "event"),
         observation_assumptions=[obs.IndependentGiven(["t"])],
     )
-    result = antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=0)
+    result = require_success(
+        antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=0)
+    )
     np.testing.assert_allclose(_means(result), _PIN["intervention_set_0_5"], atol=_ATOL)
 
 
@@ -122,7 +129,7 @@ def test_temporal_observation_default_bootstrap_publishes_band():
         observation=obs.Selected("y", "y", "r"),
         observation_assumptions=[obs.OutcomeIndependentGiven(["t"])],
     )
-    result = antecedent.analyze(data, graph=_EDGES, query=query, refute=False)
+    result = require_success(antecedent.analyze(data, graph=_EDGES, query=query, refute=False))
     assert result.uncertainty.kind == "pointwise"
     assert result.uncertainty.lower is not None and result.uncertainty.upper is not None
     means = _means(result)
@@ -143,4 +150,4 @@ def test_unlicensed_temporal_observation_refuses():
         observation_assumptions=[obs.IndependentGiven([])],
     )
     with pytest.raises(CausalError, match="temporal response observation pair is not licensed"):
-        antecedent.analyze(data, graph=_EDGES, query=query, refute=False)
+        require_success(antecedent.analyze(data, graph=_EDGES, query=query, refute=False))

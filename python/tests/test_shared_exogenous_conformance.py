@@ -12,6 +12,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent import cross_world_execution as cw
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT
 
@@ -41,15 +42,17 @@ def test_the_public_example_executes_and_its_artifact_replays_the_values():
     # The example asserts its own numbers, seals its execution and replays it.
     runpy.run_path(str(EXAMPLE), run_name="__main__")
 
-    first = cw.seal(_request())
+    first = require_success(cw.seal(_request()))
     assert first.value == pytest.approx(1.0, abs=1e-12)
     for _ in range(2):
-        replayed = cw.consume_cross_world_execution_artifact(
-            first.to_bytes(), expected_identity=first.identity
+        replayed = require_success(
+            cw.consume_cross_world_execution_artifact(
+                first.to_bytes(), expected_identity=first.identity
+            )
         )
         assert np.float64(replayed.result.value).tobytes() == np.float64(first.value).tobytes()
     # A fresh execution seals to the same identity and bytes.
-    again = cw.seal(_request())
+    again = require_success(cw.seal(_request()))
     assert again.identity == first.identity and again.to_bytes() == first.to_bytes()
 
 
@@ -59,7 +62,7 @@ def test_observational_nonidentification_is_not_reported_as_unsupported_executio
     rng = np.random.default_rng(2003140)
     data = {"t": rng.normal(size=300), "y": rng.normal(size=300)}
     with pytest.raises(ant.errors.EffectNotIdentified) as not_identified:
-        ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y"))
+        require_success(ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y")))
     assert not_identified.value.reason_code == "effect_not_identified"
     assert not_identified.value.identification_status == "not_identified"
 
@@ -74,12 +77,14 @@ def test_observational_nonidentification_is_not_reported_as_unsupported_executio
         ),
     )
     with pytest.raises(R) as unsupported:
-        cw.CrossWorldExecutor().execute(
-            cw.CrossWorldRequest(
-                scm=oversized,
-                units=(cw.FactualUnit("u"),),
-                worlds=(cw.World("w", {"v0": 0}),),
-                quantity=cw.probability("w", "v1", 1),
+        require_success(
+            cw.CrossWorldExecutor().execute(
+                cw.CrossWorldRequest(
+                    scm=oversized,
+                    units=(cw.FactualUnit("u"),),
+                    worlds=(cw.World("w", {"v0": 0}),),
+                    quantity=cw.probability("w", "v1", 1),
+                )
             )
         )
     assert unsupported.value.reason_code == "route_not_supported"

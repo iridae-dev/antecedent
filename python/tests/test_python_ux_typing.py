@@ -26,7 +26,7 @@ def checked(session: ai.AdaptiveInferenceSession, claim: sb.BridgedClaim) -> Non
     sequential = session.analyze(ant.adaptive_inference.GroupSequential(2))
     assert_type(sequential, ai.AdaptiveResult[ai.SequentialSummary])
     assert_type(sequential.payload.stopped_at, int | None)
-    artifact = claim.artifact()
+    artifact = claim.export()
     assert_type(artifact, ExportedArtifact[sb.ConsumedBridge])
     assert_type(ant.load(artifact, expected=artifact.expectation), sb.ConsumedBridge)
     assert_type(claim.as_mean_source(), MeanSource)

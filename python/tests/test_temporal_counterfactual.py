@@ -261,14 +261,14 @@ def test_non_finite_inputs_refuse_and_bad_types_raise() -> None:
 
 def test_artifact_round_trip_replays_both_worlds() -> None:
     result = run()
-    artifact = result.export()
+    artifact = bytes(result.export())
     assert isinstance(artifact, bytes)
     fresh = consume_temporal_counterfactual_artifact(artifact, expected_identity=result.identity)
     assert fresh.units == result.units
     assert fresh.contrast == result.contrast
     assert fresh.receipt == result.receipt
     assert fresh.identity == result.identity
-    assert fresh.export() == artifact
+    assert bytes(fresh.export()) == artifact
     assert consume_temporal_counterfactual_artifact(artifact).identity == result.identity
     assert consume_temporal_counterfactual_artifact(
         artifact, expected_identity=result.identity._wire()
@@ -280,11 +280,13 @@ def test_resealed_mutations_are_refused_against_the_retained_identity() -> None:
 
     def refused(mutated, field: str) -> None:
         # Alone the mutated artifact is internally consistent and replays ...
-        assert consume_temporal_counterfactual_artifact(mutated.export()).units == mutated.units
+        assert (
+            consume_temporal_counterfactual_artifact(bytes(mutated.export())).units == mutated.units
+        )
         # ... but against the identity the consumer retained it is refused.
         with pytest.raises(TemporalRefusal) as raised:
             consume_temporal_counterfactual_artifact(
-                mutated.export(), expected_identity=original.identity
+                bytes(mutated.export()), expected_identity=original.identity
             )
         assert raised.value.reason_code == "route_not_supported"
         assert raised.value.detail == "temporal_counterfactual.artifact_changed"
@@ -310,7 +312,7 @@ def test_resealed_mutations_are_refused_against_the_retained_identity() -> None:
 
 
 def test_corrupt_truncated_and_foreign_artifacts_refuse() -> None:
-    artifact = run().export()
+    artifact = bytes(run().export())
     corrupt = bytearray(artifact)
     corrupt[len(corrupt) // 2] ^= 0xFF
     with pytest.raises(CausalSerializationError):

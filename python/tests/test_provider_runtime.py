@@ -13,6 +13,7 @@ from antecedent.extensibility import (
     ProviderTrust,
     providers,
 )
+from antecedent.outcomes import require_success
 
 
 def _spec(shape=(2,)):
@@ -53,9 +54,9 @@ class _Provider:
 def test_registry_requires_explicit_registration_and_validates_output():
     registry = ProviderRegistry()
     with pytest.raises(KeyError, match="not explicitly registered"):
-        registry.execute("x", {})
+        require_success(registry.execute("x", {}))
     registry.register("x", _Provider())
-    result = registry.execute("x", {"query": "effect"})
+    result = require_success(registry.execute("x", {"query": "effect"}))
     np.testing.assert_array_equal(result.estimate, [1.0, 2.0])
     assert not result.estimate.flags.writeable
     assert result.trust is ProviderTrust.EXTERNALLY_ATTESTED
@@ -74,7 +75,7 @@ def test_registry_rejects_native_self_promotion_and_wrong_shape():
 
     registry.register("y", WrongShape())
     with pytest.raises(ValueError, match="does not match declared"):
-        registry.execute("y", {})
+        require_success(registry.execute("y", {}))
 
 
 def test_point_only_provider_cannot_return_uncertainty_at_execution():
@@ -87,7 +88,7 @@ def test_point_only_provider_cannot_return_uncertainty_at_execution():
     registry = ProviderRegistry()
     registry.register("point-only", FalseUncertainty())
     with pytest.raises(ValueError, match="point-only provider returned uncertainty"):
-        registry.execute("point-only", {})
+        require_success(registry.execute("point-only", {}))
 
 
 def test_provider_reported_support_cannot_become_the_host_trust_status():
@@ -104,7 +105,7 @@ def test_provider_reported_support_cannot_become_the_host_trust_status():
     result = ProviderAnalysisResult(
         provider_name="self-promoting",
         query_family="effect",
-        provider_result=registry.execute("self-promoting", {}),
+        provider_result=require_success(registry.execute("self-promoting", {})),
     )
     assert result.support == ("externally_attested",)
     assert result.inspect().support.summary == "externally_attested"
@@ -116,9 +117,11 @@ def test_provider_reported_support_cannot_become_the_host_trust_status():
 def test_analyze_dispatches_explicit_provider_query_to_shared_result_envelope():
     name = "runtime-test-analyze-provider"
     providers.register(name, _Provider())
-    result = antecedent.analyze(
-        {"x": [1.0, 2.0]},
-        query=ProviderQuery(name, {"query": "effect"}),
+    result = require_success(
+        antecedent.analyze(
+            {"x": [1.0, 2.0]},
+            query=ProviderQuery(name, {"query": "effect"}),
+        )
     )
     assert result.answer.kind == "structured"
     assert result.query_family == "effect"
@@ -166,7 +169,7 @@ def test_installed_entry_point_load_is_explicit_and_preserves_artifact(monkeypat
     assert calls == []  # No plugin import or execution during registry construction.
     registry.load_entry_point("external")
     assert calls == ["load"]
-    result = registry.execute("external", {"query": "effect"})
+    result = require_success(registry.execute("external", {"query": "effect"}))
     assert result.artifact == b"external portable receipt"
     assert result.provenance["entry_point"] == EntryPoint.value
     assert result.provenance["trust_boundary"] == "externally_attested"
@@ -257,7 +260,7 @@ def create_provider():
 
     registry = ProviderRegistry()
     registry.load_entry_point("external-fixture")
-    result = registry.execute("external-fixture", {"value": 3.0})
+    result = require_success(registry.execute("external-fixture", {"value": 3.0}))
     assert result.estimate.tolist() == [3.0]
     assert result.artifact == b"external-receipt"
     assert result.trust is ProviderTrust.EXTERNALLY_ATTESTED
@@ -338,7 +341,7 @@ def create_provider():
     install("0.1", multiplier=1, with_uncertainty=False)
     first_registry = ProviderRegistry()
     first_registry.load_entry_point("upgrade-fixture")
-    first = first_registry.execute("upgrade-fixture", {"effect": 3.0})
+    first = require_success(first_registry.execute("upgrade-fixture", {"effect": 3.0}))
     assert first.estimate.tolist() == [3.0]
     assert first.uncertainty is None
     assert first.provenance["version"] == "0.1"
@@ -354,7 +357,7 @@ def create_provider():
     install("0.2", multiplier=2, with_uncertainty=True)
     second_registry = ProviderRegistry()
     second_registry.load_entry_point("upgrade-fixture")
-    second = second_registry.execute("upgrade-fixture", {"effect": 3.0})
+    second = require_success(second_registry.execute("upgrade-fixture", {"effect": 3.0}))
     assert second.estimate.tolist() == [6.0]
     assert second.uncertainty is not None
     assert second.uncertainty_semantics == "subject_score_standard_error"
@@ -393,7 +396,7 @@ def test_provider_supplied_host_provenance_keys_are_dropped():
             )
 
     registry.register("forging", Forging())
-    result = registry.execute("forging", {})
+    result = require_success(registry.execute("forging", {}))
     assert result.provenance["registry_name"] == "forging"
     assert result.provenance["trust_boundary"] == result.trust.value
     assert result.provenance["version"] == "x"

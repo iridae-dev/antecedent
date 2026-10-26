@@ -425,6 +425,7 @@ impl AdmgConditionalTransportStage {
 
 /// A prepared conditional formula; estimation evaluates the frozen plans.
 #[pyclass(skip_from_py_object)]
+#[derive(Clone)]
 struct PreparedAdmgConditionalTransportStage {
     inner: antecedent::PreparedAdmgConditionalTransport,
     graph: Admg,
@@ -437,6 +438,14 @@ struct PreparedAdmgConditionalTransportStage {
 
 #[pymethods]
 impl PreparedAdmgConditionalTransportStage {
+    #[pyo3(signature=(seed=None))]
+    fn fork(&self, seed: Option<u64>) -> PyResult<Self> {
+        let mut branch = Self { seed: seed.unwrap_or(self.seed), last: None, ..self.clone() };
+        let ctx = execution_context(branch.seed, branch.memory_bytes, None);
+        branch.inner = self.inner.requote_execution(&ctx).map_err(io_error)?;
+        Ok(branch)
+    }
+
     /// Evaluate every prepared request. Exact laws are point-only:
     /// `interval["available"]` is always false.
     #[pyo3(signature=(*, memory_bytes=None, cancel=None, seed=None))]
@@ -463,13 +472,13 @@ impl PreparedAdmgConditionalTransportStage {
     /// Replace laws for the snapshots the frozen catalog binds; the proof is
     /// unchanged and the last result is cleared.
     #[pyo3(signature=(laws, *, memory_bytes=None, cancel=None))]
-    fn refresh(
-        &mut self,
+    fn bind_snapshot(
+        &self,
         py: Python<'_>,
         laws: &Bound<'_, PyAny>,
         memory_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<()> {
+    ) -> PyResult<Self> {
         let data = parse_laws(
             laws,
             &self.catalog,
@@ -479,9 +488,8 @@ impl PreparedAdmgConditionalTransportStage {
         )?;
         let ctx = execution_context(self.seed, memory_bytes.or(self.memory_bytes), cancel);
         let inner = self.inner.clone();
-        self.inner = crate::detach_catch(py, move || inner.refresh(data, &ctx).map_err(io_error))?;
-        self.last = None;
-        Ok(())
+        let inner = crate::detach_catch(py, move || inner.refresh(data, &ctx).map_err(io_error))?;
+        Ok(Self { inner, last: None, ..self.clone() })
     }
 
     /// The last execution as a framed artifact a consumer re-derives and replays.

@@ -27,6 +27,7 @@ from antecedent.joint_distribution import (
     JointDistributionArtifact,
     ScientificQuantity,
 )
+from antecedent.outcomes import require_success
 
 REGIMES = ("do(a=0)", "do(a=1)", "do(a=2)")
 IDS = ("a0", "a1", "a2")
@@ -106,14 +107,14 @@ def _values(result: iq.InverseResult) -> list[float | None]:
 def test_forward_inverse_round_trip():
     law = _law()
     # Forward: by hand a1 realizes 1,1,0,0 with weight 1/4 each, so E[Y] = 2/4 = 1/2.
-    forward = _contract().evaluate(law)
+    forward = require_success(_contract().evaluate(law))
     assert forward.actions[1].expected_utility == pytest.approx(0.5)
     # Inverse: the only action whose mean is exactly the forward value.
     both = (
         iq.target_mean(forward.actions[1].expected_utility, direction="at_least"),
         iq.target_mean(forward.actions[1].expected_utility, direction="at_most"),
     )
-    result = _query(*both, selection="require_unique").evaluate(law)
+    result = require_success(_query(*both, selection="require_unique").evaluate(law))
     assert result.feasible_actions == ("a1",)
     assert result.selected == "a1"
     assert result.selection == "selected"
@@ -130,47 +131,53 @@ def test_forward_inverse_round_trip():
 
 def test_target_mean_target_quantile_and_probability_threshold_share_one_engine():
     law = _law()
-    mean = _query(iq.target_mean(0.5)).evaluate(law)
+    mean = require_success(_query(iq.target_mean(0.5)).evaluate(law))
     # Means by hand: 1/4, 2/4, 3/4.
     assert _values(mean) == pytest.approx([0.25, 0.5, 0.75])
     assert _points(mean) == ["infeasible", "feasible", "feasible"]
     assert mean.selected == "a1", "least action reaching the mean"
 
     # Medians by hand: F_a0(0) = 3/4, F_a1(0) = 1/2, F_a2(0) = 1/4 against level 1/2.
-    quantile = _query(iq.target_quantile(0.5, 1.0)).evaluate(law)
+    quantile = require_success(_query(iq.target_quantile(0.5, 1.0)).evaluate(law))
     assert _values(quantile) == [0.0, 0.0, 1.0]
     assert quantile.feasible_actions == ("a2",)
     assert quantile.selected == "a2"
-    at_most = _query(iq.target_quantile(0.5, 0.0, direction="at_most")).evaluate(law)
+    at_most = require_success(
+        _query(iq.target_quantile(0.5, 0.0, direction="at_most")).evaluate(law)
+    )
     assert _points(at_most) == ["feasible", "feasible", "infeasible"]
     # A level that falls exactly on an atom boundary selects that atom: F_a0(0) = 3/4.
-    boundary = _query(iq.target_quantile(0.75, 1.0)).evaluate(law)
+    boundary = require_success(_query(iq.target_quantile(0.75, 1.0)).evaluate(law))
     assert _points(boundary) == ["infeasible", "feasible", "feasible"]
 
     # P(Y >= 1) >= 1/2 by hand: 1/4, 2/4, 3/4; the atom at the threshold is included.
-    upper = _query(iq.probability_threshold(1.0, 0.5, tail="upper")).evaluate(law)
+    upper = require_success(_query(iq.probability_threshold(1.0, 0.5, tail="upper")).evaluate(law))
     assert _values(upper) == pytest.approx([0.25, 0.5, 0.75])
     assert _points(upper) == ["infeasible", "feasible", "feasible"]
     # P(Y <= 0) >= 1/2: 3/4, 2/4, 1/4.
-    lower = _query(iq.probability_threshold(0.0, 0.5, tail="lower")).evaluate(law)
+    lower = require_success(_query(iq.probability_threshold(0.0, 0.5, tail="lower")).evaluate(law))
     assert _values(lower) == pytest.approx([0.75, 0.5, 0.25])
     assert _points(lower) == ["feasible", "feasible", "infeasible"]
 
     # Constraints are a conjunction: mean >= 1/2 and median >= 1 leaves only a2.
-    both = _query(iq.target_mean(0.5), iq.target_quantile(0.5, 1.0)).evaluate(law)
+    both = require_success(_query(iq.target_mean(0.5), iq.target_quantile(0.5, 1.0)).evaluate(law))
     assert both.feasible_actions == ("a2",)
     assert [v.constraint for v in both.actions[1].point_values] == [0, 1]
     assert [v.status for v in both.actions[1].point_values] == ["feasible", "infeasible"]
 
     # The multiple-action rule is explicit and uses the declared grid order.
-    last = _query(iq.target_mean(0.5), selection="last_in_grid_order").evaluate(law)
+    last = require_success(
+        _query(iq.target_mean(0.5), selection="last_in_grid_order").evaluate(law)
+    )
     assert last.selected == "a2"
-    unique = _query(iq.target_mean(0.5), selection="require_unique").evaluate(law)
+    unique = require_success(_query(iq.target_mean(0.5), selection="require_unique").evaluate(law))
     assert unique.selected is None
     assert unique.selection == "multiple_feasible"
     assert unique.feasible_actions == ("a1", "a2")
     reversed_grid = iq.InverseQuery(_contract(), ("a2", "a1", "a0"), (iq.target_mean(0.5),))
-    assert reversed_grid.evaluate(law).selected == "a2", "grid order, not an id sort"
+    assert require_success(reversed_grid.evaluate(law)).selected == "a2", (
+        "grid order, not an id sort"
+    )
 
 
 def test_a_mean_never_answers_a_probability_or_quantile():
@@ -182,7 +189,9 @@ def test_a_mean_never_answers_a_probability_or_quantile():
         causal_contract_id="checked-contract",
     )
     # A target mean on an affine utility is answerable from means, with no sampling error.
-    answered = iq.InverseQuery(_contract("mean"), IDS, (iq.target_mean(0.5),)).evaluate(means)
+    answered = require_success(
+        iq.InverseQuery(_contract("mean"), IDS, (iq.target_mean(0.5),)).evaluate(means)
+    )
     assert _points(answered) == ["infeasible", "feasible", "feasible"]
     assert answered.actions[1].point_values[0].standard_error is None
     assert answered.point_source is not None
@@ -194,7 +203,7 @@ def test_a_mean_never_answers_a_probability_or_quantile():
     ):
         query = iq.InverseQuery(_contract("mean"), IDS, (constraint,))
         with pytest.raises(iq.InverseQueryRefusal) as refused:
-            query.evaluate(means)
+            require_success(query.evaluate(means))
         assert isinstance(refused.value, CausalUnsupportedError)
         assert refused.value.reason_code == "decision_contract_unsatisfied"
         assert refused.value.detail == "decision_evaluation.mean_source_insufficient"
@@ -218,7 +227,7 @@ def test_nonlinear_utility_inverts_on_a_joint_law_and_refuses_independent_margin
         (safe, [3.0, 3.0, 3.0, 3.0]),
     ]
     query = iq.InverseQuery(contract, ("risky", "safe"), (iq.target_mean(2.5),))
-    result = query.evaluate(_joint(columns))
+    result = require_success(query.evaluate(_joint(columns)))
     # E[P * Q] = (4 + 0 + 4 + 0) / 4 = 2 < 2.5, while the safe action is exactly 3.
     assert result.actions[0].point_values[0].value == pytest.approx(2.0)
     assert result.actions[0].point == "infeasible"
@@ -226,7 +235,7 @@ def test_nonlinear_utility_inverts_on_a_joint_law_and_refuses_independent_margin
     assert result.selection_certified
 
     with pytest.raises(iq.InverseQueryRefusal) as marginals:
-        query.evaluate(_joint(columns, alignment="independent_marginals"))
+        require_success(query.evaluate(_joint(columns, alignment="independent_marginals")))
     assert marginals.value.reason_code == "joint_law_required"
     assert marginals.value.detail == "decision_evaluation.joint_law_required"
     assert marginals.value.supplied == "independent_marginals"
@@ -234,7 +243,9 @@ def test_nonlinear_utility_inverts_on_a_joint_law_and_refuses_independent_margin
 
 
 def test_unsupported_and_absent_coordinates_are_per_action_statuses():
-    masked = _query(iq.target_mean(0.5)).evaluate(_law(supported=(True, True, False)))
+    masked = require_success(
+        _query(iq.target_mean(0.5)).evaluate(_law(supported=(True, True, False)))
+    )
     assert _points(masked) == ["infeasible", "feasible", "unsupported"]
     assert masked.selected == "a1"
     assert masked.actions[2].point_values == (), (
@@ -245,7 +256,7 @@ def test_unsupported_and_absent_coordinates_are_per_action_statuses():
 
     # a2 has no column in the law: unevaluated, never interpolated from its neighbours.
     two_columns = _joint([(_q(REGIMES[0]), A0), (_q(REGIMES[1]), A1)])
-    absent = _query(iq.target_mean(0.9)).evaluate(two_columns)
+    absent = require_success(_query(iq.target_mean(0.9)).evaluate(two_columns))
     assert _points(absent) == ["infeasible", "infeasible", "unevaluated"]
     assert absent.existence == "undetermined"
     assert absent.selected is None
@@ -260,7 +271,7 @@ def test_conflicting_scenarios_are_structurally_ambiguous_and_fields_stay_distin
         iq.Scenario.evaluated("high", high, 0.5),
         iq.Scenario.evaluated("low", low, 0.5),
     )
-    result = _query(iq.target_mean(0.5)).evaluate(_law(), scenarios=scenarios)
+    result = require_success(_query(iq.target_mean(0.5)).evaluate(_law(), scenarios=scenarios))
     a1 = result.action("a1")
     assert a1.point == "feasible", "the point field answers on its own"
     assert a1.all_scenario == "structurally_ambiguous"
@@ -274,7 +285,7 @@ def test_conflicting_scenarios_are_structurally_ambiguous_and_fields_stay_distin
         iq.Scenario.evaluated("high", high, 0.5),
         iq.Scenario.unidentified("none", 0.5),
     )
-    blocked = _query(iq.target_mean(0.5)).evaluate(scenarios=unidentified)
+    blocked = require_success(_query(iq.target_mean(0.5)).evaluate(scenarios=unidentified))
     assert blocked.action("a1").all_scenario == "unidentified"
     assert blocked.action("a1").posterior_probability == iq.PosteriorFeasibility(0.5, 0.0, 0.5)
     # No point claim: nothing is selected.
@@ -283,47 +294,53 @@ def test_conflicting_scenarios_are_structurally_ambiguous_and_fields_stay_distin
 
     # Without genuine probabilities there is no posterior field.
     plain = (iq.Scenario.evaluated("high", high), iq.Scenario.evaluated("low", low))
-    no_posterior = _query(iq.target_mean(0.5)).evaluate(scenarios=plain)
+    no_posterior = require_success(_query(iq.target_mean(0.5)).evaluate(scenarios=plain))
     assert no_posterior.action("a1").posterior_probability is None
 
     # An identified set and an interval region are their own fields; a uniform answer over a
     # set not declared exhaustive stays unevaluated.
     members = iq.IdentifiedSet((iq.Scenario.evaluated("high", high),), exhaustive=False)
-    undeclared = _query(iq.target_mean(0.5)).evaluate(identified_set=members)
+    undeclared = require_success(_query(iq.target_mean(0.5)).evaluate(identified_set=members))
     assert undeclared.action("a1").identified_set == "unevaluated"
     declared = iq.IdentifiedSet((iq.Scenario.evaluated("high", high),), exhaustive=True)
     assert (
-        _query(iq.target_mean(0.5)).evaluate(identified_set=declared).action("a1").identified_set
+        require_success(_query(iq.target_mean(0.5)).evaluate(identified_set=declared))
+        .action("a1")
+        .identified_set
         == "feasible"
     )
     region = iq.IntervalRegion(high, low, endpoints_bound_functional=True)
     assert (
-        _query(iq.target_mean(0.5)).evaluate(interval_region=region).action("a1").interval_region
+        require_success(_query(iq.target_mean(0.5)).evaluate(interval_region=region))
+        .action("a1")
+        .interval_region
         == "structurally_ambiguous"
     )
 
 
 def test_one_found_continuous_point_is_not_global_feasibility():
     law = _law()
-    sampled = _query(iq.target_mean(0.5), scope="continuous_sample").evaluate(law)
+    sampled = require_success(_query(iq.target_mean(0.5), scope="continuous_sample").evaluate(law))
     assert sampled.existence == "found_feasible_action", "a witness point"
     assert sampled.grid_fully_decided
     assert not sampled.exhaustive, "never a global claim over a continuum"
     assert "not a global feasibility claim" in sampled.explain()
 
     # No feasible sampled point does not show the continuum has none.
-    none_found = _query(iq.target_mean(0.9), scope="continuous_sample").evaluate(law)
+    none_found = require_success(
+        _query(iq.target_mean(0.9), scope="continuous_sample").evaluate(law)
+    )
     assert none_found.existence == "undetermined"
     assert not none_found.exhaustive
 
     # A finite enumeration that decides every action can say none is feasible.
-    finite = _query(iq.target_mean(0.9)).evaluate(law)
+    finite = require_success(_query(iq.target_mean(0.9)).evaluate(law))
     assert finite.existence == "no_feasible_action_in_declared_set"
     assert finite.exhaustive
 
 
 def test_evaluation_budget_leaves_candidates_unevaluated():
-    limited = _query(iq.target_mean(0.5), max_evaluations=2).evaluate(_law())
+    limited = require_success(_query(iq.target_mean(0.5), max_evaluations=2).evaluate(_law()))
     assert limited.budget_exhausted
     assert limited.evaluations_used == 2
     assert _points(limited) == ["infeasible", "feasible", "unevaluated"]
@@ -333,29 +350,29 @@ def test_evaluation_budget_leaves_candidates_unevaluated():
 
 def test_malformed_queries_refuse_with_inverse_query_details():
     with pytest.raises(iq.InverseQueryRefusal) as no_evidence:
-        _query(iq.target_mean(0.5)).evaluate()
+        require_success(_query(iq.target_mean(0.5)).evaluate())
     assert no_evidence.value.detail == "inverse_query.no_forward_evidence"
     assert no_evidence.value.reason_code == "invalid_argument"
 
     repeated = iq.InverseQuery(_contract(), ("a0", "a0"), (iq.target_mean(0.5),))
     with pytest.raises(iq.InverseQueryRefusal) as grid:
-        repeated.evaluate(_law())
+        require_success(repeated.evaluate(_law()))
     assert grid.value.detail == "inverse_query.invalid_grid"
 
     undeclared = iq.InverseQuery(_contract(), ("a0", "zz"), (iq.target_mean(0.5),))
     with pytest.raises(iq.InverseQueryRefusal):
-        undeclared.evaluate(_law())
+        require_success(undeclared.evaluate(_law()))
 
     with pytest.raises(iq.InverseQueryRefusal) as empty:
-        iq.InverseQuery(_contract(), IDS, ()).evaluate(_law())
+        require_success(iq.InverseQuery(_contract(), IDS, ()).evaluate(_law()))
     assert empty.value.detail == "inverse_query.no_constraints"
 
     with pytest.raises(iq.InverseQueryRefusal) as level:
-        _query(iq.target_quantile(1.5, 1.0)).evaluate(_law())
+        require_success(_query(iq.target_quantile(1.5, 1.0)).evaluate(_law()))
     assert level.value.detail == "inverse_query.invalid_parameter"
 
     with pytest.raises(CausalTypeError):
-        _query(iq.target_mean(0.5)).evaluate("not a claim")  # type: ignore[arg-type]
+        require_success(_query(iq.target_mean(0.5)).evaluate("not a claim"))  # type: ignore[arg-type]
     with pytest.raises(CausalTypeError):
         iq.InverseQuery(_contract(), IDS, ("mean >= 0.5",))  # type: ignore[arg-type]
 
@@ -367,7 +384,7 @@ def test_finite_enumeration_baseline_agrees_with_the_engine():
         iq.EnumeratedPoint("a2", None),
         iq.EnumeratedPoint("a3", 0.9, supported=False),
     ]
-    baseline = iq.finite_enumeration_baseline(points, 0.5, tolerance=1e-12)
+    baseline = require_success(iq.finite_enumeration_baseline(points, 0.5, tolerance=1e-12))
     assert baseline == {
         "a0": "infeasible",
         "a1": "feasible",
@@ -376,7 +393,7 @@ def test_finite_enumeration_baseline_agrees_with_the_engine():
     }
     # The generalized query agrees with the baseline on the target-mean cases.
     two_columns = _joint([(_q(REGIMES[0]), A0), (_q(REGIMES[1]), A1)])
-    engine = _query(iq.target_mean(0.5)).evaluate(two_columns)
+    engine = require_success(_query(iq.target_mean(0.5)).evaluate(two_columns))
     assert dict(zip(IDS, _points(engine), strict=True)) == {
         "a0": baseline["a0"],
         "a1": baseline["a1"],
@@ -385,9 +402,9 @@ def test_finite_enumeration_baseline_agrees_with_the_engine():
 
 
 def test_result_is_exported_replayed_and_refuses_a_resealed_mutation():
-    result = _query(iq.target_quantile(0.5, 1.0)).evaluate(_law())
-    data = result.export()
-    consumed = iq.consume(data, expected_identity=result.identity)
+    result = require_success(_query(iq.target_quantile(0.5, 1.0)).evaluate(_law()))
+    data = bytes(result.export())
+    consumed = require_success(iq.consume(data, expected_identity=result.identity))
     # Premises and data digests are kept apart and survive the round trip.
     assert set(result.identity) == {"premises_digest", "data_digest", "digest"}
     assert consumed.identity == result.identity
@@ -401,11 +418,11 @@ def test_result_is_exported_replayed_and_refuses_a_resealed_mutation():
 
     # A different target is a self-consistent artifact, but not under the identity the
     # consumer retained: the resealed change is refused.
-    other = _query(iq.target_quantile(0.5, 0.0)).evaluate(_law())
-    resealed = other.export()
-    iq.consume(resealed)
+    other = require_success(_query(iq.target_quantile(0.5, 0.0)).evaluate(_law()))
+    resealed = bytes(other.export())
+    require_success(iq.consume(resealed))
     with pytest.raises(iq.InverseQueryRefusal) as changed:
-        iq.consume(resealed, expected_identity=result.identity)
+        require_success(iq.consume(resealed, expected_identity=result.identity))
     assert changed.value.reason_code == "inverse_functional_unsupported"
     assert changed.value.detail == "functional_inverse_query.wrong_contract"
     assert "retained identity" in str(changed.value)
@@ -416,14 +433,18 @@ def test_result_is_exported_replayed_and_refuses_a_resealed_mutation():
     corrupted = bytearray(data)
     corrupted[len(corrupted) // 2] ^= 0xFF
     with pytest.raises(iq.InverseQueryRefusal):
-        iq.consume(bytes(corrupted))
+        require_success(iq.consume(bytes(corrupted)))
     with pytest.raises(CausalTypeError):
-        iq.consume("not bytes")  # type: ignore[arg-type]
+        require_success(iq.consume("not bytes"))  # type: ignore[arg-type]
 
 
 def test_a_continuous_sample_artifact_stays_a_witness_not_a_global_claim():
-    sampled = _query(iq.target_mean(0.9), scope="continuous_sample").evaluate(_law())
-    consumed = iq.consume(sampled.export(), expected_identity=sampled.identity)
+    sampled = require_success(
+        _query(iq.target_mean(0.9), scope="continuous_sample").evaluate(_law())
+    )
+    consumed = require_success(
+        iq.consume(bytes(sampled.export()), expected_identity=sampled.identity)
+    )
     assert consumed.query.scope == "continuous_sample"
     assert consumed.existence == "undetermined"
     assert not consumed.exhaustive

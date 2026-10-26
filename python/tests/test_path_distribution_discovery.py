@@ -12,6 +12,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 
 def _discrete_chain():
@@ -64,13 +65,15 @@ def test_path_specific_lingam_discovery_smoke():
     identification and estimate without any manual DAG construction.
     """
     data = _discrete_chain()
-    result = antecedent.analyze(
-        data,
-        discovery=antecedent.discovery.LiNGAM(),
-        query=antecedent.PathSpecificEffect("t", "m", path_nodes=["y"]),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            discovery=antecedent.discovery.LiNGAM(),
+            query=antecedent.PathSpecificEffect("t", "m", path_nodes=["y"]),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert result.study is not None
     assert np.isfinite(result.estimate.ate)
@@ -82,26 +85,30 @@ def test_interventional_lingam_discovery_smoke():
     # y=1.0 deterministically, so the interventional mean has known ground truth —
     # a wildly wrong finite value must not pass.
     data = _discrete_chain()
-    result = antecedent.analyze(
-        data,
-        discovery=antecedent.discovery.LiNGAM(),
-        query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            discovery=antecedent.discovery.LiNGAM(),
+            query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert result.study is not None
 
 
 def test_path_specific_exact_dag_posterior_map():
     data = _binary_pair()
-    result = antecedent.analyze(
-        data,
-        discovery=antecedent.discovery.ExactDagPosterior(),
-        query=antecedent.PathSpecificEffect("x", "y"),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            discovery=antecedent.discovery.ExactDagPosterior(),
+            query=antecedent.PathSpecificEffect("x", "y"),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert np.isfinite(result.estimate.ate)
     assert result.evidence_status != "licensed"
@@ -109,13 +116,15 @@ def test_path_specific_exact_dag_posterior_map():
 
 def test_interventional_distribution_exact_dag_posterior_mixes_the_atoms():
     data = _discrete_chain()
-    result = antecedent.analyze(
-        data,
-        discovery=antecedent.discovery.ExactDagPosterior(),
-        query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            discovery=antecedent.discovery.ExactDagPosterior(),
+            query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert np.isfinite(result.estimate.ate)
     assert 0.0 <= result.estimate.ate <= 1.0
@@ -130,14 +139,16 @@ def test_path_specific_fci_rejected():
     data = {"z": z, "t": t, "y": y}
     # FCI accepts as a PAG; PathSpecific reads an oriented DAG and says so.
     with pytest.raises(ValueError, match="fully oriented|orient"):
-        antecedent.analyze(
-            data,
-            discovery=antecedent.discovery.FCI(alpha=0.2, fdr=False),
-            query=antecedent.PathSpecificEffect("t", "y"),
-            accept_discovered=True,
-            refute=False,
-            bootstrap=0,
-            seed=1,
+        require_success(
+            antecedent.analyze(
+                data,
+                discovery=antecedent.discovery.FCI(alpha=0.2, fdr=False),
+                query=antecedent.PathSpecificEffect("t", "y"),
+                accept_discovered=True,
+                refute=False,
+                bootstrap=0,
+                seed=1,
+            )
         )
 
 
@@ -149,14 +160,16 @@ def test_path_specific_incomplete_pc_rejected():
     y = t + z + rng.normal(size=n) * 0.3
     data = {"z": z, "t": t, "y": y}
     with pytest.raises(ValueError, match="undirected|orient"):
-        antecedent.analyze(
-            data,
-            discovery=antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0),
-            query=antecedent.PathSpecificEffect("t", "y"),
-            accept_discovered=True,
-            refute=False,
-            bootstrap=0,
-            seed=1,
+        require_success(
+            antecedent.analyze(
+                data,
+                discovery=antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0),
+                query=antecedent.PathSpecificEffect("t", "y"),
+                accept_discovered=True,
+                refute=False,
+                bootstrap=0,
+                seed=1,
+            )
         )
 
 
@@ -167,14 +180,16 @@ def test_path_specific_accept_discovered_false_review_attrs():
     t = z + rng.normal(size=n) * 0.3
     y = 1.2 * t + z + rng.normal(size=n) * 0.3
     with pytest.raises(antecedent.errors.ReviewRequired) as raised:
-        antecedent.analyze(
-            {"t": t, "y": y, "z": z},
-            discovery=antecedent.discovery.FCI(alpha=0.5, fdr=False, max_cond_size=0),
-            query=antecedent.PathSpecificEffect("t", "y"),
-            accept_discovered=False,
-            refute=False,
-            bootstrap=0,
-            seed=1,
+        require_success(
+            antecedent.analyze(
+                {"t": t, "y": y, "z": z},
+                discovery=antecedent.discovery.FCI(alpha=0.5, fdr=False, max_cond_size=0),
+                query=antecedent.PathSpecificEffect("t", "y"),
+                accept_discovered=False,
+                refute=False,
+                bootstrap=0,
+                seed=1,
+            )
         )
     assert getattr(raised.value, "algorithm", None) == "fci"
     assert isinstance(getattr(raised.value, "pending_edge_count", None), int)
@@ -187,12 +202,14 @@ def test_analyze_path_specific_graph_cpdag_fully_oriented():
         directed=[("t", "m"), ("m", "y")],
         undirected=[],
     )
-    result = antecedent.analyze(
-        data,
-        graph=cpdag,
-        query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
-        refute=False,
-        bootstrap=0,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=cpdag,
+            query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
+            refute=False,
+            bootstrap=0,
+        )
     )
     assert abs(result.ate - 0.3) < 0.1
 
@@ -205,10 +222,12 @@ def test_analyze_path_specific_graph_cpdag_incomplete():
         undirected=[("m", "y")],
     )
     with pytest.raises(ValueError, match="undirected|orient|not fully oriented"):
-        antecedent.analyze(
-            data,
-            graph=cpdag,
-            query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
-            refute=False,
-            bootstrap=0,
+        require_success(
+            antecedent.analyze(
+                data,
+                graph=cpdag,
+                query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
+                refute=False,
+                bootstrap=0,
+            )
         )

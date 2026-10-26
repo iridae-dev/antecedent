@@ -21,6 +21,7 @@ from antecedent import design, repair
 from antecedent.errors import CausalUnsupportedError, EffectNotIdentified
 from antecedent.estimation import PreparedAnalysis
 from antecedent.fallback import AnalysisWithFallback, EvidenceNeeds, FallbackUnavailable
+from antecedent.outcomes import require_success
 
 _QUERY = ant.AverageEffect("t", "y")
 
@@ -76,7 +77,9 @@ def _declared(label, measured, cost, *, kind="observation", interventions=()):
 
 
 def _described(data, graph, **kwargs) -> EvidenceNeeds:
-    outcome = ant.analyze(data, graph=graph, query=_QUERY, on_refusal="describe", **kwargs)
+    outcome = require_success(
+        ant.analyze(data, graph=graph, query=_QUERY, on_refusal="describe", **kwargs)
+    )
     assert isinstance(outcome, AnalysisWithFallback)
     needs = outcome.evidence_plan
     assert isinstance(needs, EvidenceNeeds), needs
@@ -89,12 +92,12 @@ def _actions(needs: EvidenceNeeds) -> set[str]:
 
 def _assert_refusal_unchanged(data, graph) -> None:
     with pytest.raises(EffectNotIdentified) as analyzed:
-        ant.analyze(data, graph=graph, query=_QUERY)
+        require_success(ant.analyze(data, graph=graph, query=_QUERY))
     with pytest.raises(EffectNotIdentified) as prepared:
         PreparedAnalysis.prepare(data, query=_QUERY, graph=graph)
     assert prepared.value.reason_code == analyzed.value.reason_code == "effect_not_identified"
     assert str(prepared.value) == str(analyzed.value)
-    outcome = ant.analyze(data, graph=graph, query=_QUERY, on_refusal="describe")
+    outcome = require_success(ant.analyze(data, graph=graph, query=_QUERY, on_refusal="describe"))
     assert isinstance(outcome, AnalysisWithFallback)
     assert str(outcome.refusal) == str(analyzed.value)
     assert outcome.refusal.reason_code == "effect_not_identified"
@@ -110,7 +113,7 @@ def _assert_gate_then_cost(plan) -> None:
 
 
 def _assert_replays(plan) -> None:
-    replayed = design.consume_plan(plan.export())
+    replayed = design.consume_plan(bytes(plan.export()))
     assert replayed.identity == plan.identity
     assert [o.labels for o in replayed.options] == [o.labels for o in plan.options]
     assert replayed.outcome == plan.outcome
@@ -237,9 +240,14 @@ def test_an_identified_study_returns_the_ordinary_result_and_owes_no_evidence():
     t = (rng.normal(size=200) > 0).astype(float)
     data = {"t": t, "y": 1.0 + 2.0 * t + rng.normal(scale=0.3, size=200)}
     graph = ant.Admg.from_edges(["t", "y"], [("t", "y")], [])
-    outcome = ant.analyze(data, graph=graph, query=_QUERY, on_refusal="describe", seed=5)
+    outcome = require_success(
+        ant.analyze(data, graph=graph, query=_QUERY, on_refusal="describe", seed=5)
+    )
     assert not isinstance(outcome, AnalysisWithFallback)
-    assert outcome.answer.kind == ant.analyze(data, graph=graph, query=_QUERY, seed=5).answer.kind
+    assert (
+        outcome.answer.kind
+        == require_success(ant.analyze(data, graph=graph, query=_QUERY, seed=5)).answer.kind
+    )
 
     # The evidence routes of a graph that identifies the effect refuse by name.
     with pytest.raises(CausalUnsupportedError) as caught:

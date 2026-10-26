@@ -45,9 +45,9 @@ What it decides, and what it does not:
   labelled fields. Borrowing is frozen before recruitment (:meth:`ParticipantProcedure.amend_borrowing`
   refuses a change after the first look), and a history is replayed look by look
   (:meth:`ParticipantProcedure.read_history`) and exported with its procedure section
-  (:meth:`AdaptiveInferenceSession.export_contract_with_procedure`).
-* **Artifacts.** :meth:`AdaptiveInferenceSession.export_contract` writes
-  ``adaptive_monitoring_contract_v1``; :meth:`AdaptiveInferenceSession.export_result` writes
+  (:meth:`AdaptiveInferenceSession.export`).
+* **Artifacts.** :meth:`AdaptiveInferenceSession.export` writes
+  ``adaptive_monitoring_contract_v1``; :meth:`AdaptiveInferenceSession.export` writes
   ``adaptive_inference_result_v1``. The consumers replay the contract and recompute the values, and
   the consumed object names the procedure, the stopping rule and the paradigm.
 
@@ -66,11 +66,20 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, overload
 
 from . import _native
+from ._artifact_protocol import (
+    ArtifactExpectation,
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._freeze import thaw
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count as _count
 from .errors import CausalTypeError, CausalValueError
+from .outcomes import Answer, Outcome, outcome_operation, require_success
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
@@ -643,26 +652,16 @@ class AdaptiveResult(ScientificResult, Generic[PayloadT]):
     _export_session: Any = field(default=None, repr=False, compare=False)
     _export_request: Request | None = field(default=None, repr=False, compare=False)
 
-    def export(self, artifact_id: str = "adaptive-result", *, cancel: Any = None) -> bytes:
+    @artifact_export
+    def export(
+        self, artifact_id: str = "adaptive-result", *, cancel: Any = None
+    ) -> ExportedArtifact[ConsumedAdaptiveResult]:
         """Export this request under the immutable prepared adaptive contract."""
         if self._export_session is None or self._export_request is None:
             raise CausalValueError(
                 "this detached adaptive reading has no retained request to export"
             )
-        return bytes(
-            self._export_session.export_result(self._export_request, artifact_id, cancel=cancel)
-        )
-
-    def artifact(
-        self, artifact_id: str = "adaptive-result", *, cancel: Any = None
-    ) -> ExportedArtifact[ConsumedAdaptiveResult]:
-        from ._artifact_protocol import ExportedArtifact
-
-        return ExportedArtifact(
-            self.export(artifact_id, cancel=cancel),
-            "adaptive_inference_result_v1",
-            metadata={"contract_identity": self.contract_identity, "method": self.method},
-        )
+        return self._export_session._export_result(self._export_request, artifact_id, cancel=cancel)
 
     def to_rows(self) -> list[dict[str, Any]]:
         return [
@@ -833,28 +832,29 @@ class AdaptiveInferenceSession:
     @overload
     def analyze(
         self, request: BayesianPosterior, *, cancel: Any = None
-    ) -> AdaptiveResult[PosteriorSummary]: ...
+    ) -> Outcome[AdaptiveResult[PosteriorSummary]]: ...
 
     @overload
     def analyze(
         self, request: PosteriorStopping, *, cancel: Any = None
-    ) -> AdaptiveResult[StoppingSummary]: ...
+    ) -> Outcome[AdaptiveResult[StoppingSummary]]: ...
 
     @overload
     def analyze(
         self, request: AdaptiveWeighting, *, cancel: Any = None
-    ) -> AdaptiveResult[WeightingSummary]: ...
+    ) -> Outcome[AdaptiveResult[WeightingSummary]]: ...
 
     @overload
     def analyze(
         self, request: ConfidenceSequence, *, cancel: Any = None
-    ) -> AdaptiveResult[SequenceSummary]: ...
+    ) -> Outcome[AdaptiveResult[SequenceSummary]]: ...
 
     @overload
     def analyze(
         self, request: GroupSequential, *, cancel: Any = None
-    ) -> AdaptiveResult[SequentialSummary]: ...
+    ) -> Outcome[AdaptiveResult[SequentialSummary]]: ...
 
+    @outcome_operation
     def analyze(self, request: Request, *, cancel: Any = None) -> AdaptiveResult:
         """Run the paradigm a request names.
 
@@ -871,7 +871,7 @@ class AdaptiveInferenceSession:
         object.__setattr__(result, "_export_request", freeze(request))
         return result
 
-    def analyse(self, request: Request, *, cancel: Any = None) -> AdaptiveResult[Any]:
+    def analyse(self, request: Request, *, cancel: Any = None) -> Outcome[AdaptiveResult[Any]]:
         """British spelling of :meth:`analyze`."""
         return self.analyze(request, cancel=cancel)
 
@@ -932,47 +932,49 @@ class AdaptiveInferenceSession:
             else (str(pooling["code"]), str(pooling["detail"])),
         )
 
+    @artifact_export
     def export(
-        self, request: Request, artifact_id: str = "adaptive-result", *, cancel: Any = None
-    ) -> bytes:
-        """Export a selected adaptive request with its whole-procedure declarations."""
-        return self.export_result(request, artifact_id, cancel=cancel)
+        self,
+        request: Request | None = None,
+        artifact_id: str = "adaptive-result",
+        *,
+        paradigm: str | None = None,
+        procedure: ParticipantProcedure | None = None,
+        cancel: Any = None,
+    ) -> ExportedArtifact[ConsumedAdaptiveResult | ConsumedMonitoringContract]:
+        """Export one declared result or monitoring contract with its producer identity.
 
-    def artifact(
-        self, request: Request, artifact_id: str = "adaptive-result", *, cancel: Any = None
-    ) -> ExportedArtifact[ConsumedAdaptiveResult]:
-        from ._artifact_protocol import ExportedArtifact
+        Supply a request for a result, or ``paradigm=`` for a monitoring contract.
+        ``procedure=`` carries the participant-level procedure with a contract.
+        """
+        if (request is None) == (paradigm is None):
+            raise CausalTypeError("supply exactly one of request or paradigm")
+        if request is not None:
+            if procedure is not None:
+                raise CausalTypeError("procedure is only valid for a monitoring contract")
+            return self._export_result(request, artifact_id, cancel=cancel)
+        if paradigm is None:
+            raise CausalTypeError("paradigm is required for a monitoring contract")
+        if procedure is not None:
+            return self._export_contract_with_procedure(paradigm, procedure, artifact_id)
+        return self._export_contract(paradigm, artifact_id)
 
-        return ExportedArtifact(
-            self.export_result(request, artifact_id, cancel=cancel),
-            "adaptive_inference_result_v1",
-            metadata={
-                "contract_identity": self.contract_identity,
-                "request": json.loads(_request_json(request)),
-            },
-        )
-
-    def artifact_contract(
+    @artifact_export
+    def _export_contract(
         self, paradigm: str, artifact_id: str = "adaptive-monitoring"
     ) -> ExportedArtifact[ConsumedMonitoringContract]:
-        from ._artifact_protocol import ExportedArtifact
-
-        return ExportedArtifact(
-            self.export_contract(paradigm, artifact_id),
-            "adaptive_monitoring_contract_v1",
-            metadata={"contract_identity": self.contract_identity, "paradigm": paradigm},
-        )
-
-    def export_contract(self, paradigm: str, artifact_id: str = "adaptive-monitoring") -> bytes:
         """Write ``adaptive_monitoring_contract_v1`` for a paradigm."""
-        return bytes(_unwrap(self._handle.export_contract(paradigm, artifact_id)))
+        data, identity = _unwrap(self._handle.export_contract(paradigm, artifact_id))
+        kind = "adaptive_monitoring_contract_v1"
+        return ExportedArtifact(bytes(data), kind, ArtifactExpectation(kind, identity))
 
-    def export_contract_with_procedure(
+    @artifact_export
+    def _export_contract_with_procedure(
         self,
         paradigm: str,
         procedure: ParticipantProcedure,
         artifact_id: str = "adaptive-monitoring",
-    ) -> bytes:
+    ) -> ExportedArtifact[ConsumedMonitoringContract]:
         """Write ``adaptive_monitoring_contract_v1`` with the participant-level procedure section.
 
         The section holds the arms' priors with every historical source, discount and effective
@@ -987,21 +989,22 @@ class AdaptiveInferenceSession:
         """
         if not isinstance(procedure, ParticipantProcedure):
             raise CausalTypeError("procedure must be a ParticipantProcedure")
-        return bytes(
-            _unwrap(
-                self._handle.export_contract_with_procedure(
-                    paradigm, procedure._handle, artifact_id
-                )
-            )
+        data, identity = _unwrap(
+            self._handle.export_contract_with_procedure(paradigm, procedure._handle, artifact_id)
         )
+        kind = "adaptive_monitoring_contract_v1"
+        return ExportedArtifact(bytes(data), kind, ArtifactExpectation(kind, identity))
 
-    def export_result(
+    @artifact_export
+    def _export_result(
         self, request: Request, artifact_id: str = "adaptive-result", *, cancel: Any = None
-    ) -> bytes:
+    ) -> ExportedArtifact[ConsumedAdaptiveResult]:
         """Write ``adaptive_inference_result_v1`` for a request."""
-        return bytes(
-            _unwrap(self._handle.export_result(_request_json(request), artifact_id, cancel=cancel))
+        data, identity = _unwrap(
+            self._handle.export_result(_request_json(request), artifact_id, cancel=cancel)
         )
+        kind = "adaptive_inference_result_v1"
+        return ExportedArtifact(bytes(data), kind, ArtifactExpectation(kind, identity))
 
 
 # --------------------------------------------------------------------------- consumers
@@ -1040,6 +1043,11 @@ class ConsumedAdaptiveResult(ScientificResult):
     closed_guarantee: str
 
 
+@outcome_operation
+@artifact_consumer(
+    proof="adaptive_inference.consume_adaptive_monitoring_contract_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_adaptive_monitoring_contract_artifact(
     artifact: bytes, expected_identity: str | None = None
 ) -> ConsumedMonitoringContract:
@@ -1055,6 +1063,7 @@ def consume_adaptive_monitoring_contract_artifact(
             ``adaptive_design_ignored`` or ``cell_not_licensed`` for a paradigm the design may not
             use.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     handle = _unwrap(
@@ -1079,6 +1088,11 @@ def consume_adaptive_monitoring_contract_artifact(
     )
 
 
+@outcome_operation
+@artifact_consumer(
+    proof="adaptive_inference.consume_adaptive_inference_result_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_adaptive_inference_result_artifact(
     artifact: bytes, expected_identity: str | None = None, *, cancel: Any = None
 ) -> ConsumedAdaptiveResult:
@@ -1089,6 +1103,7 @@ def consume_adaptive_inference_result_artifact(
             ``adaptive_inference.report_replay_mismatch`` for a stored value that does not
             recompute.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     handle = _unwrap(
@@ -1990,6 +2005,59 @@ class RepeatedMeasuresPosterior(ScientificResult):
     """
 
     report: dict[str, Any]
+    _export_procedure: Any = field(default=None, repr=False, compare=False)
+
+    @property
+    def answer(self) -> Answer:
+        return Answer("distribution", detail=self.estimator_id)
+
+    @property
+    def identities(self) -> dict[str, str]:
+        return {"procedure_identity": str(self.report["procedure_identity"])}
+
+    @property
+    def provenance(self) -> dict[str, Any]:
+        return {
+            "estimator_id": self.estimator_id,
+            "route": self.report["route"],
+            "calibration": self.calibration,
+        }
+
+    def inspect(self) -> Any:
+        from .results._report import SlotModel
+
+        return (
+            super()
+            .inspect()
+            .model_copy(
+                update={
+                    "uncertainty": SlotModel(
+                        available=True,
+                        reason="uncalibrated_posterior",
+                        summary=str(self.report["uncertainty"]),
+                        payload={
+                            "credible_level": self.report["credible_level"],
+                            "contrast": self.report["contrast"],
+                            "calibration": self.calibration,
+                        },
+                    ),
+                    "support": SlotModel(
+                        available=self.licensed, reason="unlicensed_estimator", summary="unlicensed"
+                    ),
+                    "assumptions": SlotModel(
+                        available=True,
+                        summary="declared posterior assumptions",
+                        payload={"assumptions": self.report["assumptions"]},
+                    ),
+                }
+            )
+        )
+
+    @artifact_export
+    def export(self) -> ExportedArtifact[RepeatedMeasuresPosterior]:
+        if self._export_procedure is None:
+            return artifact_from_receipt(self, getattr(self, "_artifact_bytes", None))
+        return self._export_procedure.export(self)
 
     @property
     def estimator_id(self) -> str:
@@ -2069,6 +2137,7 @@ class RepeatedMeasuresProcedure:
         wire = {"kind": "closed_form", "arm_means": [float(m) for m in arm_means]}
         return self._report(wire, cancel)
 
+    @outcome_operation
     def derive(
         self,
         arm_means: Sequence[float],
@@ -2121,6 +2190,7 @@ class RepeatedMeasuresProcedure:
         wire = {"kind": "cell_transfer", "cell_id": str(cell_id), "paradigm": str(paradigm)}
         return self._report(wire, cancel)
 
+    @outcome_operation
     def posterior(
         self,
         *,
@@ -2158,23 +2228,59 @@ class RepeatedMeasuresProcedure:
             "credible_level": float(credible_level),
         }
         text = _unwrap(self._handle.posterior(_procedure_json(wire)))
-        return RepeatedMeasuresPosterior(report=json.loads(text))
+        return RepeatedMeasuresPosterior(report=json.loads(text), _export_procedure=self)
 
-    def export_posterior(self, posterior: RepeatedMeasuresPosterior) -> str:
-        """The retained artifact text of a posterior, recomputed under this procedure first."""
-        return str(
-            _unwrap(self._handle.posterior_artifact(_procedure_json(thaw(posterior.report))))
+    @artifact_export
+    def export(
+        self, posterior: RepeatedMeasuresPosterior
+    ) -> ExportedArtifact[RepeatedMeasuresPosterior]:
+        """Export the posterior with the exact procedure required to recompute it."""
+        posterior = require_success(posterior)
+        text, identity = _unwrap(
+            self._handle.export_posterior(_procedure_json(thaw(posterior.report)))
         )
+        kind = "antecedent.repeated_measures_posterior_bundle"
+        return ExportedArtifact(text.encode("utf-8"), kind, ArtifactExpectation(kind, identity))
 
-    def load_posterior(self, artifact: str) -> RepeatedMeasuresPosterior:
+    def load_posterior(
+        self, artifact: str | bytes | ExportedArtifact[RepeatedMeasuresPosterior]
+    ) -> RepeatedMeasuresPosterior:
         """Load a retained posterior artifact, recomputing every number from its retained units.
 
         Raises:
             AdaptiveInferenceRefusal: for an edited artifact, a claimed license, another declared
                 procedure, or numbers the retained units do not reproduce.
         """
-        text = _unwrap(self._handle.load_posterior_artifact(str(artifact)))
-        return RepeatedMeasuresPosterior(report=json.loads(text))
+        source = (
+            artifact if isinstance(artifact, str) else container_bytes(artifact).decode("utf-8")
+        )
+        envelope = json.loads(source)
+        if envelope.get("format") == "antecedent.repeated_measures_posterior_bundle":
+            # Validate the outer identity before enforcing this specific procedure.
+            _unwrap(_native.repeated_measures_posterior_consume(source, None))
+            source = envelope["posterior"]
+        text = _unwrap(self._handle.load_posterior_artifact(source))
+        return RepeatedMeasuresPosterior(report=json.loads(text), _export_procedure=self)
+
+
+@outcome_operation
+@artifact_consumer(
+    proof="RepeatedMeasuresProcedure::declare and load_repeated_measures_posterior_report: validate carried procedure and recompute every posterior number from retained units",
+    replayable=True,
+)
+def consume_repeated_measures_posterior_artifact(
+    artifact: bytes | ExportedArtifact[RepeatedMeasuresPosterior],
+    expected_identity: str | None = None,
+) -> RepeatedMeasuresPosterior:
+    """Independently recompute a self-contained posterior without a live procedure."""
+    data = container_bytes(artifact)
+    text, _identity = _unwrap(
+        _native.repeated_measures_posterior_consume(
+            data.decode("utf-8"),
+            expected_identity,
+        )
+    )
+    return RepeatedMeasuresPosterior(report=json.loads(text))
 
 
 # ---------------------------------------------------------------------- participant-level family
@@ -2429,7 +2535,7 @@ class ParticipantProcedure:
     (:meth:`simulate_history`), recompute a retained history look by look
     (:meth:`read_history`), and seal it with its retained contract
     (:meth:`prepare_session` then
-    :meth:`AdaptiveInferenceSession.export_contract_with_procedure`).
+    :meth:`AdaptiveInferenceSession.export`).
     """
 
     def __init__(self, handle: Any) -> None:

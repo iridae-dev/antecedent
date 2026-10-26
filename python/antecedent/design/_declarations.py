@@ -48,6 +48,12 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
+from .._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .._columns import coerce_fields
 from .._native import composition_lineage as _composition_lineage
 from .._native import consume_design_ranking as _consume
@@ -56,6 +62,7 @@ from ..decision import Contract
 from ..errors import CausalTypeError, CausalValueError, StructuredRefusal
 from ..external import LineageLink
 from ..joint_distribution import JointDistributionArtifact, ScientificQuantity
+from ..outcomes import outcome_operation, require_success
 from .plans import PLAN_TYPES, DesignPlan
 
 if TYPE_CHECKING:
@@ -382,7 +389,8 @@ class DesignDecision:
             "prior": self.prior._wire(),
         }
 
-    def export_rollout(
+    @outcome_operation
+    def derive_rollout(
         self,
         source: JointDistributionArtifact,
         state: ScientificQuantity,
@@ -400,6 +408,8 @@ class DesignDecision:
         from .._native import export_rollout as _export_rollout
         from ..decision import source_digest
 
+        source = require_success(source)
+        ranking = require_success(ranking)
         if not isinstance(source, JointDistributionArtifact) or not isinstance(
             state, ScientificQuantity
         ):
@@ -444,11 +454,11 @@ class DesignDecision:
             "ranking_identity": ranking.identity,
         }
         report, data = _export_rollout(
-            source.export("rollout-source"),
-            ranking.export(),
+            bytes(source.export("rollout-source")),
+            bytes(ranking.export()),
             json.dumps(binding, allow_nan=False),
             artifact_id,
-            source.source_evidence.export() if source.source_evidence is not None else None,
+            bytes(source.source_evidence.export()) if source.source_evidence is not None else None,
         )
         return _rollout_result(report, bytes(data))
 
@@ -500,9 +510,10 @@ class RolloutResult:
         """Historical numerical replay does not issue native producing authority."""
         return False
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The bounded ``rollout_state_v1`` artifact."""
-        return self._bytes
+        return artifact_from_receipt(self, self._bytes)
 
     def expectation(self) -> dict[str, Any]:
         """Copy of the full scientific and terminal inputs to retain independently."""
@@ -510,6 +521,7 @@ class RolloutResult:
 
 
 def _rollout_result(report: str, data: bytes) -> RolloutResult:
+    data = container_bytes(data)
     value = json.loads(report)
     binding = value["expectation"]
     return RolloutResult(
@@ -527,6 +539,7 @@ def _rollout_result(report: str, data: bytes) -> RolloutResult:
 
 def consume_rollout(data: bytes, *, expected_identity: Mapping[str, Any]) -> RolloutResult:
     """Replay the original source/ranking under independently retained full inputs."""
+    data = container_bytes(data)
     from .._native import consume_rollout as _consume_rollout
 
     if len(data) > 32 * 1024 * 1024:
@@ -1045,6 +1058,7 @@ def consume(
     pass ``skip_expectation_check=True`` to say that is intended. Supplying neither, or both,
     raises :class:`~antecedent.errors.CausalValueError`.
     """
+    data = container_bytes(data)
     if expected_identity is None and not skip_expectation_check:
         raise CausalValueError(
             "consume needs expected_identity=<design.Expectation> (e.g. result.expectation()) "

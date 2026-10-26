@@ -31,6 +31,7 @@ from antecedent.joint_distribution import (
     JointDistributionArtifact,
     ScientificQuantity,
 )
+from antecedent.outcomes import require_success
 from antecedent.scientific_bridge import ScientificBridgeRefusal
 
 from _refusal import assert_registered_refusal
@@ -55,9 +56,7 @@ def grid(mean, sd, rows=ROWS):
     return np.array([mean + sd * _NORMAL.inv_cdf((i + 0.5) / rows) for i in range(rows)])
 
 
-def table(
-    rows=ROWS, *, semantic="causal_functional_posterior", alignment="joint", source_mean=1.0
-):
+def table(rows=ROWS, *, semantic="causal_functional_posterior", alignment="joint", source_mean=1.0):
     source = grid(source_mean, 0.3, rows)
     partner = grid(0.2, 0.3, rows)[(np.arange(rows) * 12_487) % rows]
     identity = DistributionIdentity(
@@ -134,7 +133,7 @@ def test_a_bridge_of_draws_keeps_the_alignment_and_the_declared_uncertainty():
     draws = table()
     source = np.asarray(draws)[:, 0]
     bridge = sb.prepare_distribution_bridge(contract(uncertain=False))
-    exact = bridge.derive(draws, seed=3)
+    exact = require_success(bridge.derive(draws, seed=3))
     out = np.asarray(exact.distribution())
     # Draws in, draws out: the same rows, the sibling column untouched, an exact map exact.
     assert out.shape == (ROWS, 2)
@@ -152,7 +151,7 @@ def test_a_bridge_of_draws_keeps_the_alignment_and_the_declared_uncertainty():
     np.testing.assert_array_equal(np.asarray(exact.source_distribution()), np.asarray(draws))
 
     # An uncertain slope and intercept: the delta method and its dependence.
-    independent = sb.prepare_distribution_bridge(contract()).derive(draws, seed=3)
+    independent = require_success(sb.prepare_distribution_bridge(contract()).derive(draws, seed=3))
     mapped = np.asarray(independent.distribution())[:, 0]
     mean, variance = delta(source)
     assert mapped.mean() == pytest.approx(mean, abs=0.02)
@@ -160,8 +159,8 @@ def test_a_bridge_of_draws_keeps_the_alignment_and_the_declared_uncertainty():
     assert independent.variance == pytest.approx(mapped.var(), rel=1e-9)
 
     covariance = 0.02
-    dependent = sb.prepare_distribution_bridge(contract(covariance=covariance)).derive(
-        draws, seed=3
+    dependent = require_success(
+        sb.prepare_distribution_bridge(contract(covariance=covariance)).derive(draws, seed=3)
     )
     shifted = np.asarray(dependent.distribution())[:, 0]
     mean_c, variance_c = delta(source, covariance)
@@ -175,8 +174,8 @@ def test_a_bridge_of_draws_keeps_the_alignment_and_the_declared_uncertainty():
     )
     assert dependent.mapping_uncertainty == contract().mapping_uncertainty
     # Another seed is another realization of the mapping's coefficients; the same seed replays.
-    again = sb.prepare_distribution_bridge(contract()).derive(draws, seed=3)
-    other = sb.prepare_distribution_bridge(contract()).derive(draws, seed=4)
+    again = require_success(sb.prepare_distribution_bridge(contract()).derive(draws, seed=3))
+    other = require_success(sb.prepare_distribution_bridge(contract()).derive(draws, seed=4))
     assert again.draws_digest == independent.draws_digest
     assert other.draws_digest != independent.draws_digest
     assert other.claim_id != independent.claim_id
@@ -187,19 +186,21 @@ def test_the_refusals_of_a_bridge_of_draws_name_what_would_license_them():
     bridge = sb.prepare_distribution_bridge(contract())
     # An associational claim is never a bridge source.
     refused(
-        lambda: bridge.derive(draws, seed=1, source_kind="associational"),
+        lambda: require_success(bridge.derive(draws, seed=1, source_kind="associational")),
         "cell_not_licensed",
         "scientific_bridge.source_not_draws",
     )
     # A bootstrap is neither a posterior nor a predictive law.
     refused(
-        lambda: bridge.derive(table(2_000, semantic="bootstrap"), seed=1),
+        lambda: require_success(bridge.derive(table(2_000, semantic="bootstrap"), seed=1)),
         "distribution_meaning_mismatch",
         "scientific_bridge.draws_meaning_mismatch",
     )
     # Independent marginals have no row pairing to keep.
     refused(
-        lambda: bridge.derive(table(2_000, alignment="independent_marginals"), seed=1),
+        lambda: require_success(
+            bridge.derive(table(2_000, alignment="independent_marginals"), seed=1)
+        ),
         "joint_law_required",
         "scientific_bridge.draws_not_aligned",
     )
@@ -210,7 +211,7 @@ def test_the_refusals_of_a_bridge_of_draws_name_what_would_license_them():
         "scientific_bridge.source_dependence_missing",
     )
     # A bridged mean is the point route's; a distribution is a posterior, never a mean.
-    result = bridge.derive(draws, seed=1)
+    result = require_success(bridge.derive(draws, seed=1))
     refused(
         lambda: result.require_value_kind("mean"),
         "bridge_substitution_refused",
@@ -218,24 +219,26 @@ def test_the_refusals_of_a_bridge_of_draws_name_what_would_license_them():
     )
     result.require_value_kind("posterior")
     refused(
-        result.interval,
+        lambda: require_success(result.interval()),
         "cell_not_licensed",
         "scientific_bridge.interval_not_licensed",
     )
     # An interval needs a measured record; an uncertain map has none.
     refused(
-        lambda: result.interval(0.95),
+        lambda: require_success(result.interval(0.95)),
         "cell_not_licensed",
         "scientific_bridge.interval_scope_outside_measured",
     )
     with pytest.raises(CausalTypeError):
-        bridge.derive(np.zeros((3, 2)), seed=1)
+        require_success(bridge.derive(np.zeros((3, 2)), seed=1))
 
 
 def test_an_exact_map_publishes_its_interval_as_an_exact_transform():
     draws = table(4_000)
-    exact = sb.prepare_distribution_bridge(contract(uncertain=False)).derive(draws, seed=2)
-    interval = exact.interval(0.95)
+    exact = require_success(
+        sb.prepare_distribution_bridge(contract(uncertain=False)).derive(draws, seed=2)
+    )
+    interval = require_success(exact.interval(0.95))
     sd = np.asarray(draws)[:, 0].std()
     assert interval.licensed_by == "exact_transform_of_declared_source_interval"
     assert interval.source_standard_error == pytest.approx(sd, rel=1e-9)
@@ -245,7 +248,9 @@ def test_an_exact_map_publishes_its_interval_as_an_exact_transform():
 
 def test_a_bridge_is_a_stage_of_a_chain_that_propagates_the_mapping_and_the_source_jointly():
     draws = table(4_001)
-    bridged = sb.prepare_distribution_bridge(contract(covariance=0.02)).derive(draws, seed=9)
+    bridged = require_success(
+        sb.prepare_distribution_bridge(contract(covariance=0.02)).derive(draws, seed=9)
+    )
     parts = bridged.chain_stage("terminal")
     assert [source.id for source in parts.sources] == [
         "terminal.source",
@@ -255,20 +260,22 @@ def test_a_bridge_is_a_stage_of_a_chain_that_propagates_the_mapping_and_the_sour
     assert parts.stage.kind == "measurement_mapping"
     assert parts.stage.op["scale"] == {"kind": "input", "position": 1}
     assert parts.stage.op["shift"] == {"kind": "input", "position": 2}
-    chain = pc.propagate(
-        list(parts.sources),
-        [
-            parts.stage,
-            pc.affine("transported", "transport", ["terminal"], scale=0.9, shift=0.0),
-            pc.unary(
-                "utility",
-                "decision_utility",
-                ["transported"],
-                "exponential_utility",
-                risk_aversion=0.5,
-            ),
-        ],
-        output="utility",
+    chain = require_success(
+        pc.propagate(
+            list(parts.sources),
+            [
+                parts.stage,
+                pc.affine("transported", "transport", ["terminal"], scale=0.9, shift=0.0),
+                pc.unary(
+                    "utility",
+                    "decision_utility",
+                    ["transported"],
+                    "exponential_utility",
+                    risk_aversion=0.5,
+                ),
+            ],
+            output="utility",
+        )
     )
     mapped = np.asarray(bridged.distribution())[:, 0]
     assert chain.stage("terminal").value("mean") == pytest.approx(mapped.mean(), abs=1e-9)
@@ -279,9 +286,13 @@ def test_a_bridge_is_a_stage_of_a_chain_that_propagates_the_mapping_and_the_sour
 
 def test_the_artifact_carries_the_draws_and_a_fresh_consumer_replays_them_bit_for_bit():
     draws = table(3_000)
-    bridged = sb.prepare_distribution_bridge(contract(covariance=0.02)).derive(draws, seed=5)
-    exported = bridged.artifact("draws-bridge")
-    consumed = sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
+    bridged = require_success(
+        sb.prepare_distribution_bridge(contract(covariance=0.02)).derive(draws, seed=5)
+    )
+    exported = bridged.export("draws-bridge")
+    consumed = require_success(
+        sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
+    )
     assert isinstance(consumed, sb.ConsumedBridgeDistribution)
     assert consumed.claim.draws_digest == bridged.draws_digest
     assert consumed.claim.claim_id == bridged.claim_id
@@ -289,12 +300,12 @@ def test_the_artifact_carries_the_draws_and_a_fresh_consumer_replays_them_bit_fo
         np.asarray(consumed.claim.distribution()), np.asarray(bridged.distribution())
     )
     # Another identity retained by the consumer, or a flipped byte, is refused.
-    with pytest.raises(Exception):  # noqa: B017 - a typed refusal or a serialization error
-        sb.consume_scientific_bridge_artifact(exported.data, "0" * 64)
+    with pytest.raises(ScientificBridgeRefusal):
+        require_success(sb.consume_scientific_bridge_artifact(exported.data, "0" * 64))
     flipped = bytearray(exported.data)
     flipped[len(flipped) // 2] ^= 0xFF
-    with pytest.raises(Exception):  # noqa: B017
-        sb.consume_scientific_bridge_artifact(bytes(flipped))
+    with pytest.raises(ScientificBridgeRefusal):
+        require_success(sb.consume_scientific_bridge_artifact(bytes(flipped)))
 
 
 def test_the_extended_declarations_ride_the_point_artifact_and_a_plain_one_is_unchanged():
@@ -315,26 +326,30 @@ def test_the_extended_declarations_ride_the_point_artifact_and_a_plain_one_is_un
         mapping=sb.AffineMapping(intercept=0.06, slope=0.92),
     )
     bridge = sb.prepare_scientific_bridge(declared)
-    claim = bridge.derive(sb.SourceClaim.declared("biomarker-effect", 0.8, SOURCE))
+    claim = require_success(bridge.derive(sb.SourceClaim.declared("biomarker-effect", 0.8, SOURCE)))
     assert claim.value == pytest.approx(0.06 + 0.92 * 0.8, abs=1e-12)
     assert claim.mapping_uncertainty == declared.mapping_uncertainty
     assert claim.source_dependence == declared.source_dependence
     assert claim.estimand_bridge == estimand
-    exported = claim.artifact("uncertain-bridge")
-    again = sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
+    exported = claim.export("uncertain-bridge")
+    again = require_success(
+        sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
+    )
     assert isinstance(again, sb.ConsumedBridge)
     assert again.claim.contract_identity == claim.contract_identity
     assert again.claim.mapping_uncertainty == declared.mapping_uncertainty
     assert again.claim.source_dependence == declared.source_dependence
     assert again.claim.estimand_bridge == estimand
 
-    plain = sb.prepare_scientific_bridge(
-        contract(uncertain=False, value_kind="mean", mapping=sb.AffineMapping(0.06, 0.92))
-    ).derive(sb.SourceClaim.declared("biomarker-effect", 0.8, SOURCE))
+    plain = require_success(
+        sb.prepare_scientific_bridge(
+            contract(uncertain=False, value_kind="mean", mapping=sb.AffineMapping(0.06, 0.92))
+        ).derive(sb.SourceClaim.declared("biomarker-effect", 0.8, SOURCE))
+    )
     assert plain.mapping_uncertainty is None
     assert plain.source_dependence is None
     assert plain.estimand_bridge is None
-    again = sb.consume_scientific_bridge_artifact(plain.export())
+    again = require_success(sb.consume_scientific_bridge_artifact(bytes(plain.export())))
     assert isinstance(again, sb.ConsumedBridge)
 
 
@@ -351,7 +366,7 @@ def test_a_predictive_line_is_a_stage_whose_residual_variance_is_added_once():
     # Every source draw must lie inside the validated surrogate range of the trial-level line
     # (0 to 4): the draws are centered so their tails stay inside it.
     draws = table(4_001, semantic="posterior_predictive", source_mean=1.5)
-    bridged = sb.prepare_distribution_bridge(bridge).derive(draws, seed=5)
+    bridged = require_success(sb.prepare_distribution_bridge(bridge).derive(draws, seed=5))
     parts = bridged.chain_stage("line")
     assert [source.id for source in parts.sources] == [
         "line.source",
@@ -363,23 +378,25 @@ def test_a_predictive_line_is_a_stage_whose_residual_variance_is_added_once():
     # The residual declares a disturbance of its own and no other input does.
     assert any(kind == "disturbance" for kind, _ in parts.sources[3].factors)
     assert all(kind != "disturbance" for source in parts.sources[:3] for kind, _ in source.factors)
-    chain = pc.propagate(list(parts.sources), [parts.stage], output="line")
+    chain = require_success(pc.propagate(list(parts.sources), [parts.stage], output="line"))
     mapped = np.asarray(bridged.distribution())[:, 0]
     assert chain.stage("line").value("mean") == pytest.approx(mapped.mean(), abs=1e-12)
     assert chain.stage("line").value("variance") == pytest.approx(mapped.var(ddof=1), rel=1e-12)
     # The mean line of the same coefficients, without the residual column.
-    mean_line = pc.propagate(
-        list(parts.sources[:3]),
-        [
-            pc.affine(
-                "mean_line",
-                "measurement_mapping",
-                ["line.source", "line.slope", "line.intercept"],
-                scale=pc.input_coefficient(1),
-                shift=pc.input_coefficient(2),
-            )
-        ],
-        output="mean_line",
+    mean_line = require_success(
+        pc.propagate(
+            list(parts.sources[:3]),
+            [
+                pc.affine(
+                    "mean_line",
+                    "measurement_mapping",
+                    ["line.source", "line.slope", "line.intercept"],
+                    scale=pc.input_coefficient(1),
+                    shift=pc.input_coefficient(2),
+                )
+            ],
+            output="mean_line",
+        )
     )
     residual = np.asarray(parts.sources[3].values)
     line = np.asarray(parts.sources[0].values) * np.asarray(parts.sources[1].values) + np.asarray(
@@ -392,7 +409,9 @@ def test_a_predictive_line_is_a_stage_whose_residual_variance_is_added_once():
     assert chain.stage("line").value("variance") == pytest.approx(expected, rel=1e-9)
     assert residual.var(ddof=1) > 0.0
     # The consumer replays the stage to the stored bits.
-    consumed = pc.consume_propagation_chain(chain.export(), expected_identity=chain.identity)
+    consumed = require_success(
+        pc.consume_propagation_chain(bytes(chain.export()), expected_identity=chain.identity)
+    )
     assert dict(consumed.stage("line").values) == dict(chain.stage("line").values)
 
 
@@ -454,7 +473,7 @@ def _clinic_correction():
 
 def test_a_measurement_correction_is_a_ratio_stage_and_a_zero_denominator_is_refused():
     bridge, draws = _clinic_correction()
-    bridged = sb.prepare_distribution_bridge(bridge).derive(draws, seed=13)
+    bridged = require_success(sb.prepare_distribution_bridge(bridge).derive(draws, seed=13))
     parts = bridged.chain_stage("correction")
     assert [source.id for source in parts.sources] == [
         "correction.source",
@@ -462,7 +481,7 @@ def test_a_measurement_correction_is_a_ratio_stage_and_a_zero_denominator_is_ref
         "correction.specificity",
     ]
     assert parts.stage.op["op"] == "expression"
-    chain = pc.propagate(list(parts.sources), [parts.stage], output="correction")
+    chain = require_success(pc.propagate(list(parts.sources), [parts.stage], output="correction"))
     corrected = np.asarray(bridged.distribution())[:, 0]
     # The same inputs give the same rows: the stage is the bridged draws, to the last bit.
     assert chain.stage("correction").value("mean") == pytest.approx(corrected.mean(), rel=1e-12)
@@ -489,7 +508,7 @@ def test_a_measurement_correction_is_a_ratio_stage_and_a_zero_denominator_is_ref
         parts.sources[2],
     ]
     with pytest.raises(R) as caught:
-        pc.propagate(sources, [parts.stage], output="correction")
+        require_success(pc.propagate(sources, [parts.stage], output="correction"))
     assert caught.value.detail == "propagation_chain.denominator_not_bounded"
     assert caught.value.reason_code == "invalid_argument"
 
@@ -498,29 +517,37 @@ def test_a_guarded_division_refuses_a_denominator_that_reaches_zero_and_replays(
     alignment = "ratio-table"
     numerator = pc.draws("a", grid(2.0, 0.1), meaning="posterior", alignment=alignment)
     positive = pc.draws("b", grid(4.0, 0.1), meaning="posterior", alignment=alignment)
-    chain = pc.propagate(
-        [numerator, positive],
-        [pc.divide("ratio", "derived_quantity", ["a", "b"])],
-        output="ratio",
+    chain = require_success(
+        pc.propagate(
+            [numerator, positive],
+            [pc.divide("ratio", "derived_quantity", ["a", "b"])],
+            output="ratio",
+        )
     )
     expected = grid(2.0, 0.1) / grid(4.0, 0.1)
     assert chain.stage("ratio").value("mean") == pytest.approx(expected.mean(), rel=1e-12)
-    replayed = pc.consume_propagation_chain(chain.export(), expected_identity=chain.identity)
+    replayed = require_success(
+        pc.consume_propagation_chain(bytes(chain.export()), expected_identity=chain.identity)
+    )
     assert dict(replayed.answer.values) == dict(chain.answer.values)
     # A denominator whose draws cross zero is refused, never a silent ratio.
     crossing = pc.draws("b", grid(0.0, 1.0), meaning="posterior", alignment=alignment)
     with pytest.raises(R) as caught:
-        pc.propagate(
-            [numerator, crossing],
-            [pc.divide("ratio", "derived_quantity", ["a", "b"])],
-            output="ratio",
+        require_success(
+            pc.propagate(
+                [numerator, crossing],
+                [pc.divide("ratio", "derived_quantity", ["a", "b"])],
+                output="ratio",
+            )
         )
     assert caught.value.detail == "propagation_chain.denominator_not_bounded"
     # A declared bound refuses a denominator that comes closer to zero than the model licenses.
     near_zero = pc.draws("b", grid(0.5, 0.05), meaning="posterior", alignment=alignment)
     with pytest.raises(R):
-        pc.propagate(
-            [numerator, near_zero],
-            [pc.divide("ratio", "derived_quantity", ["a", "b"], min_magnitude=0.6)],
-            output="ratio",
+        require_success(
+            pc.propagate(
+                [numerator, near_zero],
+                [pc.divide("ratio", "derived_quantity", ["a", "b"], min_magnitude=0.6)],
+                output="ratio",
+            )
         )

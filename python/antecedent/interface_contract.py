@@ -48,7 +48,13 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from . import _native
-from ._artifact_protocol import bytes_export
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._freeze import thaw
 from ._refusal import StructuredRefusal
 from ._scientific import ScientificResult
@@ -418,22 +424,11 @@ class InterfaceContract:
     produces: Sequence[ProducedPort] = ()
     consumes: Sequence[ConsumedPort] = ()
 
-    def export(self, artifact_id: str = "interface-contract") -> bytes:
-        return export_interface_contract(self, artifact_id=artifact_id)
-
-    def artifact(
+    @artifact_export
+    def export(
         self, artifact_id: str = "interface-contract"
     ) -> ExportedArtifact[ConsumedInterfaceContract]:
-        from ._artifact_protocol import ArtifactExpectation, ExportedArtifact
-
-        original_export = getattr(export_interface_contract, "__wrapped__")  # noqa: B009
-        receipt = original_export(self, artifact_id=artifact_id)
-        return ExportedArtifact(
-            receipt.artifact,
-            "interface_contract_v1",
-            ArtifactExpectation("interface_contract_v1", receipt.identity),
-            {"identity": receipt.identity, "contract_identity": receipt.contract_identity},
-        )
+        return artifact_from_receipt(self, export_interface_contract(self, artifact_id=artifact_id))
 
     def _wire(self) -> dict[str, Any]:
         produced = sorted((p._wire() for p in self.produces), key=lambda w: w["name"])
@@ -698,7 +693,7 @@ class InterfaceContractExport:
     contract_identity: str
 
 
-@bytes_export
+@artifact_export
 def export_interface_contract(
     contract: InterfaceContract, artifact_id: str
 ) -> InterfaceContractExport:
@@ -721,6 +716,10 @@ class ConsumedInterfaceContract(ScientificResult):
     identity: str
 
 
+@artifact_consumer(
+    proof="interface_contract.consume_interface_contract_artifact: independent semantic consumer checks declarations, identities and stored result",
+    replayable=False,
+)
 def consume_interface_contract_artifact(
     artifact: bytes, expected_identity: str | None = None
 ) -> ConsumedInterfaceContract:
@@ -728,6 +727,7 @@ def consume_interface_contract_artifact(
 
     ``expected_identity`` is an artifact identity retained independently of the bytes.
     """
+    artifact = container_bytes(artifact)
     wire, refusal = _native.interface_contract_consume(bytes(artifact), expected_identity)
     _raise(refusal)
     assert wire is not None
@@ -741,6 +741,7 @@ def consume_interface_contract_artifact(
 
 def inspect_interface_contract_artifact(artifact: bytes) -> dict[str, Any]:
     """The stored metadata of an artifact, without replaying or checking identities."""
+    artifact = container_bytes(artifact)
     wire, refusal = _native.interface_contract_inspect(bytes(artifact))
     _raise(refusal)
     assert wire is not None

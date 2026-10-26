@@ -25,6 +25,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from .._artifact_protocol import artifact_consumer, container_bytes
 from .._columns import coerce_fields
 from .._native import (
     consume_transport_scenarios_artifact as _consume_transport_scenarios_artifact,
@@ -32,6 +33,7 @@ from .._native import (
 from .._native import prepare_transport_scenarios_stage as _prepare_transport_scenarios_stage
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from ..graph import Admg, Cpdag, Pag
+from ._consumption import TransportConsumption
 from ._impl import EvidenceCatalog, VariableCoordinate, _non_negative, _optional_non_negative
 from ._temporal import _wire
 
@@ -234,6 +236,11 @@ def prepare_transport_scenarios(
     )
 
 
+@artifact_consumer(
+    proof="TransportScenarioArtifactWire::consume_with_limits: redecides every scenario and compares the complete retained report",
+    replayable=True,
+    identity=(),
+)
 def consume_transport_scenarios_artifact(
     artifact: bytes,
     *,
@@ -245,7 +252,7 @@ def consume_transport_scenarios_artifact(
     max_laws: int = 256,
     memory_bytes: int | None = None,
     cancel: Any = None,
-) -> str:
+) -> TransportConsumption:
     """Independently replay an exported scenario report.
 
     Every scenario is re-decided under the producer's recorded limits (refused if
@@ -256,18 +263,22 @@ def consume_transport_scenarios_artifact(
     data-identity digest, so a changed snapshot label is refused as a data
     identity mismatch.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    return _consume_transport_scenarios_artifact(
-        artifact,
-        max_steps=_non_negative("max_steps", max_steps),
-        max_depth=_non_negative("max_depth", max_depth),
-        max_operations=_non_negative("max_operations", max_operations),
-        max_evaluation_depth=_non_negative("max_evaluation_depth", max_evaluation_depth),
-        max_support_rows=_non_negative("max_support_rows", max_support_rows),
-        max_laws=_non_negative("max_laws", max_laws),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+    return TransportConsumption.from_checked_json(
+        "consume_transport_scenarios_artifact",
+        _consume_transport_scenarios_artifact(
+            artifact,
+            max_steps=_non_negative("max_steps", max_steps),
+            max_depth=_non_negative("max_depth", max_depth),
+            max_operations=_non_negative("max_operations", max_operations),
+            max_evaluation_depth=_non_negative("max_evaluation_depth", max_evaluation_depth),
+            max_support_rows=_non_negative("max_support_rows", max_support_rows),
+            max_laws=_non_negative("max_laws", max_laws),
+            memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
+            cancel=cancel,
+        ),
     )
 
 

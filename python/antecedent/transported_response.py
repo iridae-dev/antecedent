@@ -63,6 +63,7 @@ from ._scientific import ScientificResult
 from ._validate import choice, real, text
 from .errors import CausalTypeError, StructuredRefusal
 from .joint_distribution import JointDistributionArtifact, ScientificQuantity
+from .outcomes import outcome_operation, require_success
 
 __all__ = [
     "TransportDeclaration",
@@ -317,6 +318,7 @@ class TransportedResponse(ScientificResult):
         A law labelled native, exact or measured is refused: a transport never raises a
         calibration or trust label.
         """
+        law = require_success(law)
         if not isinstance(law, JointDistributionArtifact):
             raise CausalTypeError("law must be a JointDistributionArtifact")
         _declaration(declaration)
@@ -335,10 +337,13 @@ class TransportedResponse(ScientificResult):
         """
         from .cohort_decision import CohortDecisionSource
 
+        source = require_success(source)
         if not isinstance(source, CohortDecisionSource):
             raise CausalTypeError("source must be a cohort_decision.CohortDecisionSource")
         handle = _unwrap(
-            _native.transported_response_from_shifted_cohort(source.export(), source.identity),
+            _native.transported_response_from_shifted_cohort(
+                bytes(source.export()), source.identity
+            ),
             TransportedResponseRefusal,
         )
         return cls._of(handle)
@@ -424,6 +429,7 @@ def _prepared_native(analysis: Any) -> Any:
     return native
 
 
+@outcome_operation
 def evaluate_transported(
     contract: Any,
     response: TransportedResponse,
@@ -455,6 +461,8 @@ def evaluate_transported(
     from .composition import SupportPolicy
     from .decision import Contract, DecisionRefusal
 
+    contract = require_success(contract)
+    response = require_success(response)
     if isinstance(contract, Contract):
         admissible = decision_robust.admissible_contract(contract)
     elif isinstance(contract, decision_robust.AdmissibleContract):

@@ -16,6 +16,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.errors import CausalError, CausalUnsupportedError, CausalValueError
+from antecedent.outcomes import require_success
 from antecedent.temporal_designs import (
     DoseExcursion,
     FactorialExcursion,
@@ -62,7 +63,9 @@ def _same(left: tuple[float, ...], right: tuple[float, ...]) -> bool:
 def test_analyze_equals_the_standalone_module(bayesian: bool) -> None:
     table = _two_arm_table()
     inference = antecedent.Bayesian(n_draws=200) if bayesian else None
-    result = antecedent.analyze(table, query=_two_arm_query(), inference=inference, seed=5)
+    result = require_success(
+        antecedent.analyze(table, query=_two_arm_query(), inference=inference, seed=5)
+    )
     design = result.temporal_design
     assert isinstance(design, TemporalDesignEstimate)
     standalone = estimate_temporal_design(
@@ -90,7 +93,7 @@ def test_analyze_equals_the_standalone_module(bayesian: bool) -> None:
 
 
 def test_the_answer_is_structured_and_reads_back_equal() -> None:
-    result = antecedent.analyze(_two_arm_table(), query=_two_arm_query())
+    result = require_success(antecedent.analyze(_two_arm_table(), query=_two_arm_query()))
     answer = result.answer
     assert answer.kind == "structured"
     assert answer.detail is not None and answer.detail.startswith("unlicensed_temporal_design_")
@@ -100,18 +103,18 @@ def test_the_answer_is_structured_and_reads_back_equal() -> None:
     assert structured["licensed"] is False and structured["calibration"] == "unmeasured"
     assert structured["estimate"][0] == result.temporal_design.estimate[0]
     assert "two_arm temporal design" in result.claim()
-    artifact = result.export()
-    loaded = antecedent.load(artifact)
-    assert loaded.export() == artifact
+    artifact = bytes(result.export())
+    loaded = require_success(antecedent.load(artifact))
+    assert bytes(loaded.export()) == artifact
     assert loaded.temporal_design == result.temporal_design
     assert loaded.answer == result.answer
 
 
 def test_prepare_and_estimate_on_the_same_table_reproduce_analyze() -> None:
     table = _two_arm_table()
-    direct = antecedent.analyze(table, query=_two_arm_query(), seed=7)
+    direct = require_success(antecedent.analyze(table, query=_two_arm_query(), seed=7))
     prepared = antecedent.prepare(table, query=_two_arm_query(), seed=7)
-    clicked = prepared.estimate(table)
+    clicked = require_success(prepared.estimate(table))
     assert clicked.temporal_design == direct.temporal_design
 
 
@@ -160,7 +163,9 @@ def _survival_query() -> RegimeSurvivalContrast:
 
 
 def test_regime_survival_reports_its_bootstrap_standard_error() -> None:
-    result = antecedent.analyze(_survival_table(), query=_survival_query(), bootstrap=99)
+    result = require_success(
+        antecedent.analyze(_survival_table(), query=_survival_query(), bootstrap=99)
+    )
     design = result.temporal_design
     assert design.design == "regime_survival"
     assert design.replicates is not None and design.replicates[0] >= 90
@@ -168,12 +173,14 @@ def test_regime_survival_reports_its_bootstrap_standard_error() -> None:
     assert all(value > 0.0 for value in design.bootstrap_standard_error)
     assert design.posterior_standard_deviation is None
     assert "whole-procedure bootstrap standard error" in result.claim()
-    assert antecedent.load(result.export()).temporal_design == design
+    assert require_success(antecedent.load(bytes(result.export()))).temporal_design == design
 
 
 def test_bayesian_regime_survival_reports_its_posterior_standard_deviation() -> None:
-    result = antecedent.analyze(
-        _survival_table(), query=_survival_query(), inference=antecedent.Bayesian(n_draws=200)
+    result = require_success(
+        antecedent.analyze(
+            _survival_table(), query=_survival_query(), inference=antecedent.Bayesian(n_draws=200)
+        )
     )
     design = result.temporal_design
     assert design.draws == 200
@@ -232,7 +239,7 @@ def test_every_design_query_compiles_to_its_design() -> None:
         ),
     }
     for name, query in queries.items():
-        design = antecedent.analyze(table, query=query).temporal_design
+        design = require_success(antecedent.analyze(table, query=query)).temporal_design
         assert design is not None and design.design == name, name
         assert not design.licensed
 
@@ -251,12 +258,14 @@ def test_query_options_validate_and_misclassification_needs_a_binary_outcome() -
         misclassification=OutcomeMisclassification(90, 10, 85, 15),
     )
     with pytest.raises(CausalError):
-        antecedent.analyze(_two_arm_table(units=40), query=query)
+        require_success(antecedent.analyze(_two_arm_table(units=40), query=query))
 
 
 def test_a_graph_or_refutation_is_not_applicable() -> None:
     with pytest.raises(CausalUnsupportedError):
-        antecedent.analyze(_two_arm_table(units=40), query=_two_arm_query(), refute="cheap")
+        require_success(
+            antecedent.analyze(_two_arm_table(units=40), query=_two_arm_query(), refute="cheap")
+        )
 
 
 def _observational_table(units: int = 300, periods: int = 4, seed: int = 21) -> dict[str, list]:
@@ -276,7 +285,7 @@ def _observational_table(units: int = 300, periods: int = 4, seed: int = 21) -> 
 def test_observational_excursion_removes_decision_time_confounding() -> None:
     table = _observational_table()
     query = ObservationalExcursion("y", "unit", "period", treatment="a", history=("x",))
-    result = antecedent.analyze(table, query=query, bootstrap=99)
+    result = require_success(antecedent.analyze(table, query=query, bootstrap=99))
     design = result.temporal_design
     assert design.design == "observational_excursion"
     assert design.replicates is not None and design.replicates[0] >= 90
@@ -284,9 +293,9 @@ def test_observational_excursion_removes_decision_time_confounding() -> None:
     naive = raw[0][raw[1] == 1].mean() - raw[0][raw[1] == 0].mean()
     assert naive > 1.6
     assert abs(design.estimate[0] - 1.0) < 4.0 * design.standard_error[0] + 0.05
-    assert antecedent.load(result.export()).temporal_design == design
-    posterior = antecedent.analyze(
-        table, query=query, inference=antecedent.Bayesian(n_draws=200), seed=5
+    assert require_success(antecedent.load(bytes(result.export()))).temporal_design == design
+    posterior = require_success(
+        antecedent.analyze(table, query=query, inference=antecedent.Bayesian(n_draws=200), seed=5)
     ).temporal_design
     assert posterior.draws == 200
     assert abs(posterior.estimate[0] - 1.0) < 4.0 * posterior.standard_error[0] + 0.05
@@ -297,7 +306,7 @@ def test_observational_excursion_needs_history_and_replicates() -> None:
         ObservationalExcursion("y", "unit", "period", treatment="a", history=())
     query = ObservationalExcursion("y", "unit", "period", treatment="a", history=("x",))
     with pytest.raises(CausalError):
-        antecedent.analyze(_observational_table(units=40), query=query)
+        require_success(antecedent.analyze(_observational_table(units=40), query=query))
 
 
 def _regime_table(units: int = 1500, seed: int = 31) -> dict[str, list]:
@@ -336,7 +345,7 @@ def _regime_query(method: str = "doubly_robust") -> ObservationalRegimeContrast:
 
 def test_observational_regime_recovers_the_whole_path_contrast_under_feedback() -> None:
     table = _regime_table()
-    result = antecedent.analyze(table, query=_regime_query(), bootstrap=99)
+    result = require_success(antecedent.analyze(table, query=_regime_query(), bootstrap=99))
     design = result.temporal_design
     assert design.design == "observational_regime"
     assert design.replicates is not None and design.replicates[0] >= 90
@@ -348,24 +357,34 @@ def test_observational_regime_recovers_the_whole_path_contrast_under_feedback() 
     assert abs(naive - 4.2) > 0.5
     assert abs(design.estimate[0] - 4.2) < 4.0 * design.standard_error[0] + 0.1
     assert abs(design.estimate[1] - 4.7) < 4.0 * design.standard_error[1] + 0.2
-    assert antecedent.load(result.export()).temporal_design == design
+    assert require_success(antecedent.load(bytes(result.export()))).temporal_design == design
 
 
 def test_observational_regime_estimators_agree_and_posterior_is_seeded() -> None:
     table = _regime_table(units=800)
     estimates = {
-        method: antecedent.analyze(
-            table, query=_regime_query(method), bootstrap=99
+        method: require_success(
+            antecedent.analyze(table, query=_regime_query(method), bootstrap=99)
         ).temporal_design.estimate[0]
         for method in ("g_formula", "doubly_robust")
     }
     assert abs(estimates["g_formula"] - 4.2) < 0.6
     assert abs(estimates["doubly_robust"] - 4.2) < 0.8
-    first = antecedent.analyze(
-        table, query=_regime_query("g_formula"), inference=antecedent.Bayesian(n_draws=100), seed=4
+    first = require_success(
+        antecedent.analyze(
+            table,
+            query=_regime_query("g_formula"),
+            inference=antecedent.Bayesian(n_draws=100),
+            seed=4,
+        )
     ).temporal_design
-    second = antecedent.analyze(
-        table, query=_regime_query("g_formula"), inference=antecedent.Bayesian(n_draws=100), seed=4
+    second = require_success(
+        antecedent.analyze(
+            table,
+            query=_regime_query("g_formula"),
+            inference=antecedent.Bayesian(n_draws=100),
+            seed=4,
+        )
     ).temporal_design
     assert first == second
     assert first.draws == 100
@@ -399,9 +418,9 @@ def test_observational_regime_refuses_what_it_cannot_identify() -> None:
             method="matching",
         )
     with pytest.raises(CausalError):
-        antecedent.analyze(_regime_table(units=60), query=_regime_query())
+        require_success(antecedent.analyze(_regime_table(units=60), query=_regime_query()))
     ragged = _regime_table(units=60)
     for key in ragged:
         ragged[key] = ragged[key][:-1]
     with pytest.raises(CausalError):
-        antecedent.analyze(ragged, query=_regime_query(), bootstrap=99)
+        require_success(antecedent.analyze(ragged, query=_regime_query(), bootstrap=99))

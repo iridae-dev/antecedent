@@ -42,6 +42,12 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._native import consume_recovery_chain_artifact as _consume
 from ._native import recover_recovery_chain as _recover
@@ -218,6 +224,7 @@ class RecoveryChainRefusal(StructuredRefusal):
         witness: ChainWitness | None = None,
         artifact: bytes | None = None,
     ) -> None:
+        artifact = container_bytes(artifact) if artifact is not None else None
         detail = str(refusal["detail"])
         message = refusal.get("message")
         super().__init__(refusal, text=f"{detail}: {message}" if message else detail)
@@ -262,6 +269,7 @@ def _plan(plan: Mapping[str, Any]) -> ChainPlan:
 
 
 def _witness_refusal(report: Mapping[str, Any], artifact: bytes | None) -> RecoveryChainRefusal:
+    artifact = container_bytes(artifact) if artifact is not None else None
     witness = _witness(report)
     edge = witness.self_censoring_edge
     return RecoveryChainRefusal(
@@ -288,7 +296,8 @@ class ChainDecision:
     witness: ChainWitness | None
     artifact: bytes | None = field(default=None, repr=False, compare=False)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The artifact of a nonrecoverable decision (a recovered one has none until evaluated)."""
         if self.artifact is None:
             raise _refusal_of(
@@ -296,7 +305,7 @@ class ChainDecision:
                 "recovery_chain.not_evaluated",
                 "evaluate the recovered decision on an observed pattern law before exporting",
             )
-        return self.artifact
+        return artifact_from_receipt(self, self.artifact)
 
 
 @dataclass(frozen=True, slots=True)
@@ -317,9 +326,10 @@ class RecoveredChain:
         """The recovered law as a ``2 x 2`` array, axes in declaration order."""
         return np.asarray(self.cells, dtype=np.float64)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The artifact: graph, query, plan, observed law, recovered law and both digests."""
-        return self.artifact
+        return artifact_from_receipt(self, self.artifact)
 
     def to_dict(self) -> dict[str, Any]:
         """A JSON-ready mapping of the result."""
@@ -403,6 +413,7 @@ def _call(
 
 
 def _recovered(report: Mapping[str, Any], artifact: bytes) -> RecoveredChain:
+    artifact = container_bytes(artifact)
     observed = report["observed"]
     recovered = report["recovered"]
     cells = recovered["cells"]
@@ -494,6 +505,7 @@ def consume_recovery_chain_artifact(
     ``.decision_replay_mismatch`` / ``.recovered_replay_mismatch``). Corruption and unknown
     versions raise :class:`~antecedent.errors.CausalSerializationError`.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     data = bytes(artifact)

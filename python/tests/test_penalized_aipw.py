@@ -19,6 +19,7 @@ import numpy as np
 import pytest
 from antecedent.errors import CausalError, CausalValueError
 from antecedent.estimators import Aipw, Overlap, PropensityPenalty
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -92,7 +93,9 @@ def test_the_dataclass_wires_the_declared_penalty_and_validates_it():
 def test_a_penalized_aipw_reports_a_point_the_scores_and_the_influence_interval():
     data = moderate()
     cfg = Aipw(bootstrap=0, propensity_penalty=PropensityPenalty(lambdas=[0.5, 5.0, 50.0]))
-    result = ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=7)
+    result = require_success(
+        ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=7)
+    )
     assert result.effect == pytest.approx(2.0, abs=0.3)
     estimate = result.estimate
     # The cross-fitted influence-function SE and the iid joint covariance are published.
@@ -103,7 +106,9 @@ def test_a_penalized_aipw_reports_a_point_the_scores_and_the_influence_interval(
     assert estimate.crossfit_folds == 5 and len(estimate.learner_provenance) == 5
     assert estimate.penalized_fallback is None and estimate.penalized_bootstrap is None
     # Replay: the same seed gives the same point bit for bit.
-    again = ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=7)
+    again = require_success(
+        ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=7)
+    )
     assert again.effect == result.effect
     assert again.estimate.se_analytic == estimate.se_analytic
 
@@ -121,7 +126,9 @@ def test_the_refit_bootstrap_publishes_its_se_and_the_penalties_of_every_replica
         propensity_penalty=PropensityPenalty(lambdas=grid, inner_folds=3),
     )
     data = moderate(n=200)
-    result = ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=3)
+    result = require_success(
+        ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=3)
+    )
     estimate = result.estimate
     report = estimate.penalized_bootstrap
     assert report is not None
@@ -134,7 +141,9 @@ def test_the_refit_bootstrap_publishes_its_se_and_the_penalties_of_every_replica
         assert len(replicate.lambdas) == 5 and all(v in grid for v in replicate.lambdas)
     assert report.influence_se == pytest.approx(estimate.se_analytic, rel=1e-9)
     assert "refit_bootstrap" in report.uncertainty_kind
-    again = ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=3)
+    again = require_success(
+        ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=3)
+    )
     assert again.estimate.se_bootstrap == estimate.se_bootstrap
     assert again.estimate.penalized_bootstrap == report
 
@@ -142,15 +151,19 @@ def test_the_refit_bootstrap_publishes_its_se_and_the_penalties_of_every_replica
 def test_high_dimensional_separation_is_recovered_by_the_penalty_not_by_the_plain_fit():
     data = separated()
     with pytest.raises(Exception, match="(?i)separation|converge|saturat|extreme"):
-        ant.analyze(
-            data, graph=GRAPH, query=QUERY, estimator=Aipw(bootstrap=0), refute=False, seed=2
+        require_success(
+            ant.analyze(
+                data, graph=GRAPH, query=QUERY, estimator=Aipw(bootstrap=0), refute=False, seed=2
+            )
         )
     for penalty in (
         PropensityPenalty(lambdas=[1.0, 10.0, 100.0]),
         PropensityPenalty(kind="lasso", lambdas=[5.0, 20.0, 80.0]),
     ):
         cfg = Aipw(bootstrap=0, propensity_penalty=penalty)
-        result = ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=2)
+        result = require_success(
+            ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=2)
+        )
         assert result.effect == pytest.approx(2.0, abs=0.5)
 
 
@@ -159,8 +172,8 @@ def test_a_lasso_propensity_records_its_selected_support_per_fold():
         bootstrap=0,
         propensity_penalty=PropensityPenalty(kind="lasso", lambdas=[1.0, 5.0, 20.0]),
     )
-    result = ant.analyze(
-        moderate(n=500), graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=5
+    result = require_success(
+        ant.analyze(moderate(n=500), graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=5)
     )
     assert result.effect == pytest.approx(2.0, abs=0.35)
     support = result.estimate.penalized_support
@@ -180,7 +193,9 @@ def test_a_lasso_outside_the_cross_fit_is_refused_with_a_typed_refusal():
         overlap=Overlap(trim=0.05),
     )
     with pytest.raises(CausalError) as error:
-        ant.analyze(moderate(), graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=1)
+        require_success(
+            ant.analyze(moderate(), graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=1)
+        )
     assert "selection_inference_not_licensed" in refusal_text(error.value)
     assert_registered_refusal(error.value)
 
@@ -188,7 +203,9 @@ def test_a_lasso_outside_the_cross_fit_is_refused_with_a_typed_refusal():
 def test_a_ridge_penalty_outside_the_cross_fit_is_route_not_supported():
     cfg = Aipw(bootstrap=0, propensity_penalty=PropensityPenalty(), overlap=Overlap(trim=0.05))
     with pytest.raises(CausalError) as error:
-        ant.analyze(moderate(), graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=1)
+        require_success(
+            ant.analyze(moderate(), graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=1)
+        )
     assert "route_not_supported" in refusal_text(error.value)
     assert_registered_refusal(error.value)
 
@@ -196,12 +213,16 @@ def test_a_ridge_penalty_outside_the_cross_fit_is_route_not_supported():
 def test_a_failed_glm_fit_runs_the_declared_fallback_and_records_both():
     data = separated()
     with pytest.raises(Exception, match="(?i)separation|converge|saturat|extreme"):
-        ant.analyze(
-            data, graph=GRAPH, query=QUERY, estimator=Aipw(bootstrap=0), refute=False, seed=2
+        require_success(
+            ant.analyze(
+                data, graph=GRAPH, query=QUERY, estimator=Aipw(bootstrap=0), refute=False, seed=2
+            )
         )
     destination = PropensityPenalty(lambdas=[1.0, 10.0, 100.0], inner_folds=3)
     cfg = Aipw(bootstrap=0, nuisance_fallback=destination)
-    result = ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=2)
+    result = require_success(
+        ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=2)
+    )
     assert result.effect == pytest.approx(2.0, abs=0.5)
     fallback = result.estimate.penalized_fallback
     assert fallback is not None
@@ -210,21 +231,27 @@ def test_a_failed_glm_fit_runs_the_declared_fallback_and_records_both():
     assert fallback.message
     assert fallback.destination.startswith("ridge_logistic.cv(")
     # The result is the destination's: the same point as declaring that route directly.
-    direct = ant.analyze(
-        data,
-        graph=GRAPH,
-        query=QUERY,
-        estimator=Aipw(bootstrap=0, propensity_penalty=destination),
-        refute=False,
-        seed=2,
+    direct = require_success(
+        ant.analyze(
+            data,
+            graph=GRAPH,
+            query=QUERY,
+            estimator=Aipw(bootstrap=0, propensity_penalty=destination),
+            refute=False,
+            seed=2,
+        )
     )
     assert result.effect == direct.effect
     # A healthy fit under the same declaration is the plain GLM result and records nothing.
     healthy = moderate()
-    plain = ant.analyze(
-        healthy, graph=GRAPH, query=QUERY, estimator=Aipw(bootstrap=0), refute=False, seed=2
+    plain = require_success(
+        ant.analyze(
+            healthy, graph=GRAPH, query=QUERY, estimator=Aipw(bootstrap=0), refute=False, seed=2
+        )
     )
-    armed = ant.analyze(healthy, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=2)
+    armed = require_success(
+        ant.analyze(healthy, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=2)
+    )
     assert armed.effect == plain.effect
     assert armed.estimate.penalized_fallback is None
 
@@ -232,17 +259,23 @@ def test_a_failed_glm_fit_runs_the_declared_fallback_and_records_both():
 def test_a_machine_learning_fallback_is_refused_with_the_failed_fit_recorded():
     cfg = Aipw(bootstrap=0, nuisance_fallback="ml")
     with pytest.raises(CausalError) as error:
-        ant.analyze(separated(), graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=2)
+        require_success(
+            ant.analyze(separated(), graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=2)
+        )
     text = refusal_text(error.value)
     assert "nuisance_fallback_not_licensed" in text
     assert "primary nuisance fit failed" in text
     assert_registered_refusal(error.value)
     # A fit that succeeds is the plain GLM result: the fallback never silently switches.
     data = moderate()
-    plain = ant.analyze(
-        data, graph=GRAPH, query=QUERY, estimator=Aipw(bootstrap=0), refute=False, seed=2
+    plain = require_success(
+        ant.analyze(
+            data, graph=GRAPH, query=QUERY, estimator=Aipw(bootstrap=0), refute=False, seed=2
+        )
     )
-    armed = ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=2)
+    armed = require_success(
+        ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=2)
+    )
     assert armed.effect == plain.effect
 
 
@@ -259,12 +292,14 @@ def test_a_machine_learning_fallback_is_refused_with_the_failed_fit_recorded():
 )
 def test_an_invalid_penalty_is_refused_before_any_fit(penalty):
     with pytest.raises(ValueError, match="penalty|propensity_penalty"):
-        ant.analyze(
-            moderate(),
-            graph=GRAPH,
-            query=QUERY,
-            estimator="aipw",
-            estimator_config={"propensity_penalty": penalty, "bootstrap_replicates": 0},
-            refute=False,
-            seed=1,
+        require_success(
+            ant.analyze(
+                moderate(),
+                graph=GRAPH,
+                query=QUERY,
+                estimator="aipw",
+                estimator_config={"propensity_penalty": penalty, "bootstrap_replicates": 0},
+                refute=False,
+                seed=1,
+            )
         )

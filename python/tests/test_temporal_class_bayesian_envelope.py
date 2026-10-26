@@ -7,6 +7,7 @@ import json
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_json
 
@@ -53,14 +54,16 @@ def _cpdag():
 
 def test_temporal_class_bayesian_pulse_without_prior_is_identified_set() -> None:
     data = _series(_PIN)
-    result = antecedent.analyze(
-        data,
-        graph=_cpdag(),
-        query=_pulse(_PIN),
-        inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
-        refute=False,
-        bootstrap=0,
-        seed=7,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=_cpdag(),
+            query=_pulse(_PIN),
+            inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
+            refute=False,
+            bootstrap=0,
+            seed=7,
+        )
     )
     assert result.posterior is None or result.posterior.n_draws is None
     assert result.ate is None or not np.isfinite(result.ate)
@@ -78,15 +81,17 @@ def test_temporal_class_bayesian_pulse_without_prior_is_identified_set() -> None
 def test_temporal_class_bayesian_pulse_with_class_prior_mixes() -> None:
     data = _series(_PIN)
     prior = antecedent.ClassPrior(ordered=tuple(_PIN["class_prior_ordered"]))
-    result = antecedent.analyze(
-        data,
-        graph=_cpdag(),
-        query=_pulse(_PIN),
-        inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
-        class_prior=prior,
-        refute=False,
-        bootstrap=0,
-        seed=7,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=_cpdag(),
+            query=_pulse(_PIN),
+            inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
+            class_prior=prior,
+            refute=False,
+            bootstrap=0,
+            seed=7,
+        )
     )
     assert result.ate is not None and np.isfinite(result.ate)
     assert result.structural_weight_basis == "caller_supplied_class_prior"
@@ -102,7 +107,7 @@ def test_temporal_class_bayesian_pulse_with_class_prior_mixes() -> None:
         seed=7,
         latency="interactive",
     )
-    click = prepared.estimate(data, seed=7)
+    click = require_success(prepared.estimate(data, seed=7))
     assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in click.diagnostics)
 
 
@@ -158,7 +163,7 @@ def test_class_curve_executes_without_collapsing_graph(inference) -> None:
         bootstrap=0,
         seed=17,
     )
-    result = prepared.estimate(_series(_PIN), seed=17)
+    result = require_success(prepared.estimate(_series(_PIN), seed=17))
     assert result.envelope.weight_basis == "completion_enumeration"
     assert len(result.envelope.atom_keys) == 4
     decoded = artifacts.loads(prepared.export_artifact())
@@ -205,7 +210,7 @@ def test_class_curve_prior_withholds_conditional_when_unidentified_mass() -> Non
         bootstrap=0,
         seed=19,
     )
-    result = prepared.estimate(data, seed=19)
+    result = require_success(prepared.estimate(data, seed=19))
     assert result.envelope.weight_basis == "caller_supplied_class_prior"
     assert result.envelope.unidentified_mass > 0.0
     structural = artifacts.loads(prepared.export_artifact()).payload["structural_response"]
@@ -227,7 +232,7 @@ def test_class_curve_prior_survives_artifact_roundtrip() -> None:
         bootstrap=0,
         seed=17,
     )
-    result = prepared.estimate(_series(_PIN), seed=17)
+    result = require_success(prepared.estimate(_series(_PIN), seed=17))
     assert result.envelope.weight_basis == "caller_supplied_class_prior"
     payload = artifacts.loads(prepared.export_artifact()).payload
     structural = payload["structural_response"]
@@ -267,7 +272,7 @@ def test_prepared_scalar_keeps_atom_posterior_artifacts() -> None:
         refute=False,
         bootstrap=0,
     )
-    prepared.estimate(_series(_PIN))
+    require_success(prepared.estimate(_series(_PIN)))
     payload = artifacts.loads(prepared.export_artifact()).payload
     assert payload["posterior_artifact"] is None
     assert all(atom["posterior_artifact"] for atom in payload["structural_response"]["atoms"])
@@ -318,7 +323,7 @@ def test_class_mediation_preserves_functional_and_atom_posterior() -> None:
         refute=False,
         bootstrap=0,
     )
-    result = prepared.estimate(data)
+    result = require_success(prepared.estimate(data))
     # With a single completion the shared-design condition holds trivially, so the
     # canonical shared-design contrast is a real BayesianPointwise summary (not NaN).
     # The 64-draw value below is a deterministic function of the hashed per-(horizon,
@@ -339,7 +344,7 @@ def test_class_mediation_preserves_functional_and_atom_posterior() -> None:
         refute=False,
         bootstrap=0,
     )
-    assert large.estimate(data).ate == pytest.approx(0.43875, abs=1e-3)
+    assert require_success(large.estimate(data)).ate == pytest.approx(0.43875, abs=1e-3)
     payload = artifacts.loads(prepared.export_artifact()).payload
     atom = payload["structural_response"]["atoms"][0]
     assert atom["posterior_artifact"]
@@ -348,16 +353,18 @@ def test_class_mediation_preserves_functional_and_atom_posterior() -> None:
 
 def test_capped_audit_does_not_publish_a_full_class_mixture() -> None:
     data = _series(_PIN)
-    result = antecedent.analyze(
-        data,
-        graph=_cpdag(),
-        query=_pulse(_PIN),
-        inference=antecedent.Bayesian(n_draws=32, backend="conjugate"),
-        class_prior=antecedent.ClassPrior.from_ordered([1.0]),
-        max_completions=1,
-        refute=False,
-        bootstrap=0,
-        seed=7,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=_cpdag(),
+            query=_pulse(_PIN),
+            inference=antecedent.Bayesian(n_draws=32, backend="conjugate"),
+            class_prior=antecedent.ClassPrior.from_ordered([1.0]),
+            max_completions=1,
+            refute=False,
+            bootstrap=0,
+            seed=7,
+        )
     )
     assert result.posterior is None or result.posterior.n_draws is None
     assert result.identification.status != "NonparametricallyIdentified"
@@ -399,13 +406,15 @@ def test_two_completion_sequence_and_soft_match_fixtures() -> None:
         policy="pulse",
         treatment_lag=1,
     )
-    result = antecedent.analyze(
-        {"t": t, "y": y, "z": z},
-        graph=graph,
-        query=query,
-        refute=False,
-        bootstrap=0,
-        seed=22,
+    result = require_success(
+        antecedent.analyze(
+            {"t": t, "y": y, "z": z},
+            graph=graph,
+            query=query,
+            refute=False,
+            bootstrap=0,
+            seed=22,
+        )
     )
     expected = np.asarray(
         dose["contract"]["intervention_paths"]["sequence_two_step_set_1"], dtype=float
@@ -440,19 +449,21 @@ def test_two_completion_sequence_and_soft_match_fixtures() -> None:
         ("multiplicative", [2.0], soft["cases"][0]),
         ("truncated_shift", [3.0, 0.0, 2.0], soft["cases"][1]),
     ):
-        result = antecedent.analyze(
-            {"t": t, "z": z, "y": y, "w": w},
-            graph=soft_graph,
-            query=antecedent.InterventionResponse(
-                "y",
-                intervention=Soft("t", family, parameters=params),
-                horizons=[1],
-                policy="pulse",
-                treatment_lag=1,
-            ),
-            refute=False,
-            bootstrap=0,
-            seed=22,
+        result = require_success(
+            antecedent.analyze(
+                {"t": t, "z": z, "y": y, "w": w},
+                graph=soft_graph,
+                query=antecedent.InterventionResponse(
+                    "y",
+                    intervention=Soft("t", family, parameters=params),
+                    horizons=[1],
+                    policy="pulse",
+                    treatment_lag=1,
+                ),
+                refute=False,
+                bootstrap=0,
+                seed=22,
+            )
         )
         if result.response is not None:
             got = result.response.values[0][0]

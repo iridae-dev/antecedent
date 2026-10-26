@@ -4,20 +4,28 @@
 
 use std::sync::Arc;
 
-use antecedent::{PreparedStudy, Study};
+use antecedent::Study;
 use antecedent_core::CausalSchema;
 use antecedent_data::{TableView, TabularData, TimeSeriesData};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
-use crate::{py_err, py_msg, series_from_tabular, tabular_from_py_columns};
+use crate::{py_err, series_from_tabular, tabular_from_py_columns};
 
 /// Data partitions of a panel, multi-environment, or event frame, ingested under the GIL.
 pub(super) enum FrameInput {
     Series(TabularData),
-    Panel { units: Vec<TabularData>, unit_ids: Vec<u32> },
+    Panel {
+        units: Vec<TabularData>,
+        unit_ids: Vec<u32>,
+    },
     MultiEnv(Vec<TabularData>),
-    Events { data: TabularData, event_times_ns: Vec<i64>, align_interval_ns: u64 },
+    Events {
+        data: TabularData,
+        event_times_ns: Arc<[i64]>,
+        align_interval_ns: u64,
+        retention: Option<Arc<antecedent_core::execution::AdmissionLease>>,
+    },
 }
 
 /// Materialized frame data, built without the GIL.
@@ -25,7 +33,11 @@ pub(super) enum FrameData {
     Series(TimeSeriesData),
     Panel(antecedent_data::PanelData),
     MultiEnv(antecedent_data::MultiEnvironmentData),
-    Events(antecedent_data::EventData, u64),
+    Events(
+        antecedent_data::EventData,
+        u64,
+        Option<Arc<antecedent_core::execution::AdmissionLease>>,
+    ),
 }
 
 impl FrameInput {
@@ -74,16 +86,22 @@ impl FrameInput {
                 Ok(Self::MultiEnv(envs))
             }
             "events" => {
-                let event_times_ns: Vec<i64> = frame
+                let times = frame
                     .get_item("event_times_ns")?
-                    .ok_or_else(|| crate::value_err("events frame requires event_times_ns"))?
-                    .extract()?;
+                    .ok_or_else(|| crate::value_err("events frame requires event_times_ns"))?;
+                let (event_times_ns, retention) = if let Ok(index) =
+                    times.extract::<PyRef<'_, crate::data_snapshot::IndexSnapshot>>()
+                {
+                    (Arc::clone(&index.values), Some(Arc::clone(&index.retention)))
+                } else {
+                    (Arc::from(times.extract::<Vec<i64>>()?), None)
+                };
                 let align_interval_ns: u64 = frame
                     .get_item("align_interval_ns")?
                     .ok_or_else(|| crate::value_err("events frame requires align_interval_ns"))?
                     .extract()?;
                 let (data, _) = tabular_from_py_columns(names.to_vec(), columns)?;
-                Ok(Self::Events { data, event_times_ns, align_interval_ns })
+                Ok(Self::Events { data, event_times_ns, align_interval_ns, retention })
             }
             other => Err(crate::value_err(format!(
                 "unknown frame kind {other:?}; use panel|multi_env|events"
@@ -117,13 +135,11 @@ impl FrameInput {
                         .map_err(py_err)?,
                 ))
             }
-            Self::Events { data, event_times_ns, align_interval_ns } => {
-                let events = antecedent_data::EventData::try_new(
-                    data.storage().clone(),
-                    Arc::from(event_times_ns),
-                )
-                .map_err(py_err)?;
-                Ok(FrameData::Events(events, align_interval_ns))
+            Self::Events { data, event_times_ns, align_interval_ns, retention } => {
+                let events =
+                    antecedent_data::EventData::try_new(data.storage().clone(), event_times_ns)
+                        .map_err(py_err)?;
+                Ok(FrameData::Events(events, align_interval_ns, retention))
             }
         }
     }
@@ -135,7 +151,7 @@ impl FrameData {
             Self::Series(data) => data.schema(),
             Self::Panel(data) => data.schema(),
             Self::MultiEnv(data) => data.schema(),
-            Self::Events(data, _) => data.schema(),
+            Self::Events(data, _, _) => data.schema(),
         }
     }
 
@@ -144,27 +160,7 @@ impl FrameData {
             Self::Series(data) => Study::series(data),
             Self::Panel(data) => Study::panel(data),
             Self::MultiEnv(data) => Study::series_multi(data),
-            Self::Events(data, align) => Study::events(&data, align).map_err(py_err)?,
+            Self::Events(data, align, _retention) => Study::events(&data, align).map_err(py_err)?,
         })
-    }
-
-    /// Bind this frame to `study` (same modality, schema and regularity) and execute.
-    pub(super) fn bind_and_run(
-        self,
-        study: &mut PreparedStudy,
-        ctx: &antecedent_core::ExecutionContext,
-    ) -> PyResult<antecedent::StudyResult> {
-        let result = match self {
-            Self::Series(data) => study.refresh_series(data, ctx),
-            Self::Panel(data) => study.refresh_panel(data, ctx),
-            Self::MultiEnv(data) => study.refresh_multi_env(data, ctx),
-            Self::Events(data, align) => {
-                let aligned = data
-                    .align_to_grid(align)
-                    .map_err(|e| py_msg(format!("event align_to_grid: {e}")))?;
-                study.refresh_series(aligned, ctx)
-            }
-        };
-        result.map_err(py_err)
     }
 }

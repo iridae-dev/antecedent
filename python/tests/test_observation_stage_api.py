@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 from antecedent import observation
 from antecedent.errors import CausalEstimateError, CausalValueError
+from antecedent.outcomes import require_success
 from antecedent.query import DirectionalDerivative, ResponseCurve
 
 
@@ -98,10 +99,12 @@ def test_public_analyze_composes_selected_outcome_into_point_only_curve() -> Non
 
     result = cast(
         Any,
-        antecedent.analyze(
-            {"a": treatment, "z": confounder, "observed_y": observed, "r": selected},
-            query=query,
-            graph=[("z", "a"), ("z", "latent_y"), ("a", "latent_y")],
+        require_success(
+            antecedent.analyze(
+                {"a": treatment, "z": confounder, "observed_y": observed, "r": selected},
+                query=query,
+                graph=[("z", "a"), ("z", "latent_y"), ("a", "latent_y")],
+            )
         ),
     )
 
@@ -137,10 +140,12 @@ def test_public_analyze_composes_marginal_censoring_into_point_only_curve(
 
     result = cast(
         Any,
-        antecedent.analyze(
-            {"a": treatment, "observed_y": observed, "c": censoring, "event": event},
-            query=query,
-            graph=[("a", "latent_y")],
+        require_success(
+            antecedent.analyze(
+                {"a": treatment, "observed_y": observed, "c": censoring, "event": event},
+                query=query,
+                graph=[("a", "latent_y")],
+            )
         ),
     )
 
@@ -159,14 +164,16 @@ def test_public_analyze_keeps_interval_censoring_on_likelihood_only_path() -> No
         observation_assumptions=[observation.Structural("gaussian_observation_likelihood")],
     )
     with pytest.raises(CausalEstimateError, match="opt-in Gaussian likelihood"):
-        antecedent.analyze(
-            {
-                "a": treatment,
-                "lower": treatment,
-                "upper": treatment + 0.2,
-            },
-            query=query,
-            graph=[("a", "latent_y")],
+        require_success(
+            antecedent.analyze(
+                {
+                    "a": treatment,
+                    "lower": treatment,
+                    "upper": treatment + 0.2,
+                },
+                query=query,
+                graph=[("a", "latent_y")],
+            )
         )
 
 
@@ -180,13 +187,15 @@ def test_public_analyze_keeps_truncation_on_likelihood_only_path() -> None:
         observation_assumptions=[observation.Structural("gaussian_observation_likelihood")],
     )
     with pytest.raises(CausalEstimateError, match="opt-in Gaussian likelihood"):
-        antecedent.analyze(
-            {
-                "a": treatment,
-                "observed_y": treatment + 0.1,
-                "lower": np.full(40, -1.0),
-                "upper": np.full(40, 2.0),
-            },
-            query=query,
-            graph=[("a", "latent_y")],
+        require_success(
+            antecedent.analyze(
+                {
+                    "a": treatment,
+                    "observed_y": treatment + 0.1,
+                    "lower": np.full(40, -1.0),
+                    "upper": np.full(40, 2.0),
+                },
+                query=query,
+                graph=[("a", "latent_y")],
+            )
         )

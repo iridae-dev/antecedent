@@ -75,6 +75,13 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import encode_identifier
 from ._freeze import freeze
 from ._refusal import StructuredRefusal, raise_refusal
@@ -618,21 +625,11 @@ class SelectiveDiscovery(ScientificResult):
             for e in wire["stages"]
         )
 
-    def export(self, artifact_id: str = "selective_discovery") -> bytes:
-        return self.export_state(artifact_id).artifact
-
-    def artifact(
+    @artifact_export
+    def export(
         self, artifact_id: str = "selective_discovery"
     ) -> ExportedArtifact[ConsumedSelectiveDiscovery]:
-        from ._artifact_protocol import ArtifactExpectation, ExportedArtifact
-
-        receipt = self.export_state(artifact_id)
-        return ExportedArtifact(
-            receipt.artifact,
-            "selective_discovery_v1",
-            ArtifactExpectation("selective_discovery_v1", receipt.identity),
-            receipt.summary,
-        )
+        return artifact_from_receipt(self, self.export_state(artifact_id).artifact)
 
     def export_state(self, artifact_id: str = "selective_discovery") -> ExportedState:
         """Export the retained run as a ``selective_discovery_v1`` artifact (no raw data).
@@ -678,6 +675,7 @@ class SelectiveDiscovery(ScientificResult):
                 data, another contract, an unusable receipt or a replay that diverges;
                 ``route_not_supported`` for a retained-identity mismatch.
         """
+        artifact = container_bytes(artifact)
         kind = _kind_of(contract)
         if not isinstance(artifact, (bytes, bytearray, memoryview)):
             raise CausalTypeError("artifact must be bytes")
@@ -778,6 +776,7 @@ def inspect_selective_discovery_artifact(artifact: bytes) -> Mapping[str, Any]:
     Raises:
         SelectiveDiscoveryRefusal: for corrupt or foreign bytes.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     text, refusal = _native.selective_discovery_inspect(bytes(artifact))
@@ -808,6 +807,10 @@ class ConsumedSelectiveDiscovery(ScientificResult, Mapping[str, Any]):
         return thaw(self.summary)
 
 
+@artifact_consumer(
+    proof="selective_discovery.consume_selective_discovery_artifact: independent semantic consumer checks declarations, identities and stored result",
+    replayable=False,
+)
 def consume_selective_discovery_artifact(
     artifact: bytes, expected_identity: str | None = None
 ) -> ConsumedSelectiveDiscovery:
@@ -820,6 +823,7 @@ def consume_selective_discovery_artifact(
         SelectiveDiscoveryRefusal: ``discovery_statistics_invalid`` for an unusable receipt or an
             inconsistent identity, ``invalid_argument`` for corrupt bytes.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     text, refusal = _native.selective_discovery_consume(bytes(artifact), expected_identity)
@@ -1293,6 +1297,7 @@ class SampleSplit(ScientificResult):
         Raises:
             SelectiveDiscoveryRefusal: the receipt no longer verifies.
         """
+        snapshot_id = container_bytes(snapshot_id)
         text, refusal = self._handle.evidence_sources(_snapshot(snapshot_id))
         _raise(refusal)
         assert text is not None
@@ -1834,6 +1839,7 @@ def discovery_data_source(label: str, snapshot_id: bytes, rows: range) -> Source
 
     ``rows`` is a ``range`` with step 1.
     """
+    snapshot_id = container_bytes(snapshot_id)
     if not isinstance(rows, range) or rows.step != 1:
         raise CausalTypeError("rows must be a range with step 1")
     stop = max(rows.start, rows.stop)
@@ -1850,6 +1856,7 @@ def discovery_rows_source(label: str, snapshot_id: bytes, rows: Sequence[int]) -
 
     As :func:`discovery_data_source`, for a row set such as one part of a sample split.
     """
+    snapshot_id = container_bytes(snapshot_id)
     items = [_count(row, "row", minimum=0) for row in rows]
     text = _native.selective_discovery_rows_source(
         _name(label, "label"), _snapshot(snapshot_id), items

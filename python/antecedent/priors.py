@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
+from ._artifact_protocol import container_bytes
 from ._native import (
     beta_from_mean_and_ess as _beta_from_mean_and_ess,
 )
@@ -747,6 +748,7 @@ class PriorSourceMeta:
 
     @classmethod
     def from_cbor(cls, raw: bytes) -> PriorSourceMeta:
+        raw = container_bytes(raw)
         return cls.from_dict(_decode_meta(bytes(raw)))
 
 

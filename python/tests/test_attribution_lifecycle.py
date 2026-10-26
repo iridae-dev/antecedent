@@ -22,6 +22,7 @@ import numpy as np
 import pytest
 from antecedent.errors import CausalUnsupportedError
 from antecedent.estimation import PreparedAnalysis
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, read_text
 from _sealed_loads import assert_answer_kept
@@ -73,11 +74,11 @@ def _change_query() -> ant.ChangeAttribution:
 def _golden(data, graph, query, new_data):
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        result = ant.analyze(data, graph=graph, query=query)
+        result = require_success(ant.analyze(data, graph=graph, query=query))
         study = result.study
-        updated = study.refresh(new_data)
+        updated = require_success(study.refresh(new_data))
         report = result.inspect().to_dict()
-        loaded = ant.load(result.export())
+        loaded = require_success(ant.load(bytes(result.export())))
     return result, study, updated, report, loaded
 
 
@@ -86,7 +87,7 @@ def _assert_identities(result, study, updated, report, loaded, *, fresh, coordin
     assert updated.program_id == result.program_id
     assert updated.data_snapshot_id != result.data_snapshot_id
     assert updated.data_snapshot_id == fresh.data_snapshot_id
-    again = study.estimate()
+    again = require_success(study.estimate())
     assert again.answer == updated.answer
     assert again.claim_id == updated.claim_id
 
@@ -103,13 +104,13 @@ def _assert_identities(result, study, updated, report, loaded, *, fresh, coordin
     assert loaded.claim_id == result.claim_id
     for name in ("status", "reason", "record_id", "observed_coverage"):
         assert getattr(loaded.calibration, name) == getattr(result.calibration, name), name
-    assert loaded.export() == result.export()
+    assert bytes(loaded.export()) == bytes(result.export())
 
 
 def test_route_anomaly_tabular_explicit():
     data, new_data = _outlier_chain(), _outlier_chain(outlier_at=0)
     result, study, updated, report, loaded = _golden(data, _dag(), _anomaly_query(), new_data)
-    fresh = ant.analyze(new_data, graph=_dag(), query=_anomaly_query())
+    fresh = require_success(ant.analyze(new_data, graph=_dag(), query=_anomaly_query()))
     _assert_identities(
         result,
         study,
@@ -133,7 +134,7 @@ def test_route_anomaly_tabular_explicit():
 def test_route_change_tabular_explicit():
     data, new_data = _two_period_chain(), _two_period_chain(comparison_intercept=10.0)
     result, study, updated, report, loaded = _golden(data, _dag(), _change_query(), new_data)
-    fresh = ant.analyze(new_data, graph=_dag(), query=_change_query())
+    fresh = require_success(ant.analyze(new_data, graph=_dag(), query=_change_query()))
     _assert_identities(
         result,
         study,
@@ -156,28 +157,30 @@ def test_route_change_tabular_explicit():
 
 
 def test_anomaly_analyze_reproduces_the_conformance_pin():
-    result = ant.analyze(_outlier_chain(), graph=_dag(), query=_anomaly_query())
+    result = require_success(ant.analyze(_outlier_chain(), graph=_dag(), query=_anomaly_query()))
     scores = result.anomaly[0]
     assert scores.top_row == PIN["anomaly"]["top_row"]
     assert max(scores.scores) >= PIN["anomaly"]["score_min"]
 
 
 def test_change_analyze_reproduces_the_conformance_pin():
-    result = ant.analyze(_two_period_chain(), graph=_dag(), query=_change_query())
+    result = require_success(ant.analyze(_two_period_chain(), graph=_dag(), query=_change_query()))
     change = result.change_attribution
     assert abs(change.total_change - PIN["change"]["total_change"]) <= PIN["change"]["tolerance"]
     assert change.total_change >= PIN["change"]["total_change_min"]
 
 
 def test_edge_list_graph_is_accepted():
-    result = ant.analyze(_outlier_chain(), graph=[("x", "y")], query=_anomaly_query())
+    result = require_success(
+        ant.analyze(_outlier_chain(), graph=[("x", "y")], query=_anomaly_query())
+    )
     assert result.anomaly[0].top_row == PIN["anomaly"]["top_row"]
 
 
 @pytest.mark.parametrize("query", [_anomaly_query(), _change_query()], ids=["anomaly", "change"])
 def test_second_click_refuter_suite_refuses(query):
     data = _outlier_chain() if isinstance(query, ant.AnomalyAttribution) else _two_period_chain()
-    result = ant.analyze(data, graph=_dag(), query=query)
+    result = require_success(ant.analyze(data, graph=_dag(), query=query))
     with pytest.raises(CausalUnsupportedError) as raised:
         result.study.refute({"x": [0.0], "y": [0.0]}, suite="placebo")
     assert raised.value.reason_code == "option_not_applicable"
@@ -188,48 +191,56 @@ def test_bootstrap_runs_unlicensed_and_cheap_full_refuse(query):
     data = _outlier_chain() if isinstance(query, ant.AnomalyAttribution) else _two_period_chain()
     # A Frequentist replicate count runs the mechanism-refit row bootstrap: it publishes
     # a bootstrap standard error and the result is unlicensed.
-    bootstrapped = ant.analyze(data, graph=_dag(), query=query, bootstrap=50)
+    bootstrapped = require_success(ant.analyze(data, graph=_dag(), query=query, bootstrap=50))
     assert bootstrapped.evidence_status != "licensed"
     assert any("gcm.frequentist_bootstrap" in note for note in bootstrapped.diagnostics)
     # The Bayesian cell keeps its Bayesian-bootstrap posterior and refuses bootstrap=.
     with pytest.raises(CausalUnsupportedError) as raised:
-        ant.analyze(data, graph=_dag(), query=query, bootstrap=50, inference=ant.Bayesian())
+        require_success(
+            ant.analyze(data, graph=_dag(), query=query, bootstrap=50, inference=ant.Bayesian())
+        )
     assert raised.value.reason_code == "option_not_applicable"
     # Cheap and full validation refit the whole contribution vector on perturbed data: the
     # table needs noise for the refits to vary, and the result stays unlicensed.
     noisy = {name: values + _NOISE[: len(values)] for name, values in data.items()}
     for suite in ("cheap", "full"):
-        validated = ant.analyze(noisy, graph=_dag(), query=query, refute=suite)
+        validated = require_success(ant.analyze(noisy, graph=_dag(), query=query, refute=suite))
         assert validated.evidence_status != "licensed"
 
 
 def test_retarget_refuses():
-    result = ant.analyze(_outlier_chain(), graph=_dag(), query=_anomaly_query())
+    result = require_success(ant.analyze(_outlier_chain(), graph=_dag(), query=_anomaly_query()))
     with pytest.raises(CausalUnsupportedError) as raised:
         result.study.retarget(np.ones(len(result.study._native.names)), [])
     assert raised.value.reason_code == "population_not_estimable"
 
 
 def test_bayesian_anomaly_and_unlicensed_axes_on_analyze():
-    bayesian = ant.analyze(
-        _outlier_chain(),
-        graph=_dag(),
-        query=_anomaly_query(),
-        inference=ant.Bayesian(n_draws=32),
+    bayesian = require_success(
+        ant.analyze(
+            _outlier_chain(),
+            graph=_dag(),
+            query=_anomaly_query(),
+            inference=ant.Bayesian(n_draws=32),
+        )
     )
     assert bayesian.posterior is not None
     assert bayesian.posterior.backend == "gcm.attribution.shared_dirichlet_row_weights"
-    accepted = ant.analyze(
-        _two_period_chain(),
-        graph=ant.AcceptedGraph(_dag()),
-        query=_change_query(),
+    accepted = require_success(
+        ant.analyze(
+            _two_period_chain(),
+            graph=ant.AcceptedGraph(_dag()),
+            query=_change_query(),
+        )
     )
     assert accepted.evidence_status != "licensed"
     with pytest.raises(ant.errors.CausalTypeError, match="requires graph=Dag"):
-        ant.analyze(
-            _outlier_chain(),
-            graph=ant.Admg.from_edges(["x", "y"], [("x", "y")]),
-            query=_anomaly_query(),
+        require_success(
+            ant.analyze(
+                _outlier_chain(),
+                graph=ant.Admg.from_edges(["x", "y"], [("x", "y")]),
+                query=_anomaly_query(),
+            )
         )
 
 
@@ -238,24 +249,26 @@ def test_fixed_anomaly_reference_runs_through_analyze_and_artifact():
     query = ant.AnomalyAttribution(
         ["y"], max_units=100, reference=ant.AnomalyReference(center=0.0, scale=10.0)
     )
-    result = ant.analyze(
-        data,
-        graph=_dag(),
-        query=query,
-        inference=ant.Bayesian(n_draws=32),
-        return_posterior_artifact=True,
+    result = require_success(
+        ant.analyze(
+            data,
+            graph=_dag(),
+            query=query,
+            inference=ant.Bayesian(n_draws=32),
+            return_posterior_artifact=True,
+        )
     )
-    empirical = ant.analyze(
-        data, graph=_dag(), query=_anomaly_query(), inference=ant.Bayesian(n_draws=32)
+    empirical = require_success(
+        ant.analyze(data, graph=_dag(), query=_anomaly_query(), inference=ant.Bayesian(n_draws=32))
     )
     assert result.anomaly[0].scores != empirical.anomaly[0].scores
     assert result.posterior is not None
     posterior = ant.inference.decode_posterior_artifact(result.posterior.artifact)
     assert posterior.quantity_names == ["mean_anomaly_score[1]"]
     assert posterior.q025[0] < posterior.q975[0]
-    loaded = ant.load(result.export())
+    loaded = require_success(ant.load(bytes(result.export())))
     assert loaded.answer == result.answer
-    assert loaded.export() == result.export()
+    assert bytes(loaded.export()) == bytes(result.export())
 
 
 @pytest.mark.parametrize("scale", [0.0, -1.0, float("nan")])

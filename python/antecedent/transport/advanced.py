@@ -160,6 +160,15 @@ from ._multi_source import (
     consume_multi_source_z_transport_artifact,
     identify_multi_source_z_transport,
 )
+from ._period_refresh import (
+    ConsumedPeriodRefresh,
+    PeriodPrior,
+    PeriodRefresh,
+    PeriodRefreshOutcome,
+    PeriodRefreshSummary,
+    PeriodWindow,
+    consume_period_refresh_artifact,
+)
 from ._recovery import (
     ObservationRecoveryQuery,
     PartiallyObservedVariable,
@@ -200,15 +209,6 @@ from ._temporal import (
     consume_temporal_transport_artifact,
     prepare_temporal_transport_sequence,
     unroll_two_slice,
-)
-from ._period_refresh import (
-    ConsumedPeriodRefresh,
-    PeriodPrior,
-    PeriodRefresh,
-    PeriodRefreshOutcome,
-    PeriodRefreshSummary,
-    PeriodWindow,
-    consume_period_refresh_artifact,
 )
 from ._temporal_extensions import (
     InitialStateLaw,

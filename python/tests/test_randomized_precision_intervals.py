@@ -3,6 +3,7 @@ from __future__ import annotations
 import antecedent as ant
 import numpy as np
 from antecedent import interference
+from antecedent.outcomes import require_success
 
 
 def _data(n: int) -> tuple[dict[str, np.ndarray], ant.experiment.ExperimentDesign]:
@@ -35,7 +36,7 @@ def test_precision_adjusted_intervals_use_retained_public_flow():
             "outcome", design, cuped=ant.experiment.FixedCUPED("baseline_a", 1.2)
         ),
     ):
-        result = ant.analyze(data, query=query, refute="none")
+        result = require_success(ant.analyze(data, query=query, refute="none"))
         fit = result.randomized_effect
         assert fit is not None
         assert fit.interval_95 is not None
@@ -44,9 +45,9 @@ def test_precision_adjusted_intervals_use_retained_public_flow():
         assert fit.support_status == "licensed"
         assert result.evidence_status == "licensed"
         assert (
-            ant.prepare(data, query=query, refute="none")
-            .estimate(data)
-            .randomized_effect.interval_95
+            require_success(
+                ant.prepare(data, query=query, refute="none").estimate(data)
+            ).randomized_effect.interval_95
             == fit.interval_95
         )
 
@@ -61,7 +62,7 @@ def test_sparse_precision_adjustment_reports_point_only():
             "outcome", design, cuped=ant.experiment.FixedCUPED("baseline_a", 1.2)
         ),
     ):
-        result = ant.analyze(data, query=query, refute="none")
+        result = require_success(ant.analyze(data, query=query, refute="none"))
         assert result.randomized_effect.interval_95 is None
         assert result.randomized_effect.standard_error is None
         assert result.evidence_status == "off_axis"
@@ -78,7 +79,7 @@ def test_three_hundred_balanced_rows_publish_each_bernoulli_interval():
             "outcome", design, cuped=ant.experiment.FixedCUPED("baseline_a", 1.2)
         ),
     ):
-        result = ant.analyze(data, query=query, refute="none")
+        result = require_success(ant.analyze(data, query=query, refute="none"))
         fit = result.randomized_effect
         assert fit.interval_95 is not None
         assert fit.interval_95[0] < fit.effect < fit.interval_95[1]
@@ -95,8 +96,8 @@ def test_weak_arm_support_reports_point_only_and_names_the_arm_rule():
         [f"unit-{i}" for i in range(n)],
         [f"row-{i}" for i in range(n)],
     )
-    result = ant.analyze(
-        data, query=ant.experiment.RandomizedEffect("outcome", design), refute="none"
+    result = require_success(
+        ant.analyze(data, query=ant.experiment.RandomizedEffect("outcome", design), refute="none")
     )
     assert result.randomized_effect.interval_95 is None
     assert result.evidence_status == "off_axis"

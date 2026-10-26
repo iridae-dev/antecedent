@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 from antecedent.errors import CausalError, CausalUnsupportedError
 from antecedent.identify import binary_iv_bounds
+from antecedent.outcomes import require_success
 from antecedent.quasi import IvBounds
 
 from _repo_text import REPO_ROOT, load_json
@@ -40,7 +41,9 @@ def _counts_sample(cells: list[list[float]], n_per_arm: int = 10_000) -> dict[st
 
 
 def test_the_compiled_study_reproduces_the_frozen_balke_pearl_bounds() -> None:
-    result = ant.analyze(_counts_sample(TABLE1["cells"]), query=QUERY, refute="none", seed=3)
+    result = require_success(
+        ant.analyze(_counts_sample(TABLE1["cells"]), query=QUERY, refute="none", seed=3)
+    )
     section = result.iv_bounds
     assert section is not None
     expected = TABLE1["expected"]
@@ -52,7 +55,9 @@ def test_the_compiled_study_reproduces_the_frozen_balke_pearl_bounds() -> None:
 
 
 def test_the_answer_is_an_identified_set_never_a_point() -> None:
-    result = ant.analyze(_counts_sample(TABLE1["cells"]), query=QUERY, refute="none", seed=3)
+    result = require_success(
+        ant.analyze(_counts_sample(TABLE1["cells"]), query=QUERY, refute="none", seed=3)
+    )
     answer = result.answer
     assert answer.kind == "bounds"
     assert answer.bounds is not None
@@ -64,7 +69,7 @@ def test_the_answer_is_an_identified_set_never_a_point() -> None:
 
 def test_perfect_compliance_point_identifies_the_effect() -> None:
     cells = [[0.7, 0.3, 0.0, 0.0], [0.0, 0.0, 0.4, 0.6]]
-    result = ant.analyze(_counts_sample(cells), query=QUERY, refute="none")
+    result = require_success(ant.analyze(_counts_sample(cells), query=QUERY, refute="none"))
     section = result.iv_bounds
     assert section is not None
     assert section.lower == pytest.approx(0.3, abs=1e-9)
@@ -77,8 +82,8 @@ def test_the_bootstrap_interval_covers_the_identified_set() -> None:
     z = rng.integers(0, 2, n).astype(float)
     d = (rng.random(n) < 0.2 + 0.6 * z).astype(float)
     y = (rng.random(n) < 0.3 + 0.2 * d).astype(float)
-    result = ant.analyze(
-        {"z": z, "d": d, "y": y}, query=QUERY, refute="none", bootstrap=200, seed=5
+    result = require_success(
+        ant.analyze({"z": z, "d": d, "y": y}, query=QUERY, refute="none", bootstrap=200, seed=5)
     )
     section = result.iv_bounds
     assert section is not None and section.interval is not None
@@ -90,12 +95,14 @@ def test_the_bootstrap_interval_covers_the_identified_set() -> None:
 
 
 def test_bayesian_inference_reports_the_endpoint_posterior() -> None:
-    result = ant.analyze(
-        _counts_sample(TABLE1["cells"], 2_000),
-        query=QUERY,
-        inference=ant.Bayesian(backend="conjugate", n_draws=400),
-        refute="none",
-        seed=7,
+    result = require_success(
+        ant.analyze(
+            _counts_sample(TABLE1["cells"], 2_000),
+            query=QUERY,
+            inference=ant.Bayesian(backend="conjugate", n_draws=400),
+            refute="none",
+            seed=7,
+        )
     )
     section = result.iv_bounds
     assert section is not None and section.posterior is not None
@@ -106,7 +113,9 @@ def test_bayesian_inference_reports_the_endpoint_posterior() -> None:
 
 def test_a_weighted_law_is_the_same_as_the_sample_it_describes() -> None:
     cells = TABLE1["cells"]
-    sample = ant.analyze(_counts_sample(cells), query=QUERY, refute="none").iv_bounds
+    sample = require_success(
+        ant.analyze(_counts_sample(cells), query=QUERY, refute="none")
+    ).iv_bounds
     weighted = binary_iv_bounds(cells)
     assert sample is not None
     assert weighted.lower == pytest.approx(sample.lower, abs=1e-9)
@@ -116,12 +125,14 @@ def test_a_weighted_law_is_the_same_as_the_sample_it_describes() -> None:
 def test_a_declared_dependent_design_refuses_the_row_level_draw() -> None:
     data = _counts_sample(TABLE1["cells"], 1_000)
     with pytest.raises(CausalError) as refusal:
-        ant.analyze(
-            data,
-            query=QUERY,
-            refute="none",
-            bootstrap=50,
-            sampling_design="dependent_time_series",
+        require_success(
+            ant.analyze(
+                data,
+                query=QUERY,
+                refute="none",
+                bootstrap=50,
+                sampling_design="dependent_time_series",
+            )
         )
     assert "design" in str(refusal.value).lower()
 
@@ -130,30 +141,36 @@ def test_a_column_that_is_not_coded_zero_one_is_refused() -> None:
     data = _counts_sample(TABLE1["cells"], 1_000)
     data["d"] = data["d"] * 2.0
     with pytest.raises(CausalError):
-        ant.analyze(data, query=QUERY, refute="none")
+        require_success(ant.analyze(data, query=QUERY, refute="none"))
 
 
 def test_graph_and_refutation_options_do_not_apply() -> None:
     data = _counts_sample(TABLE1["cells"], 1_000)
     with pytest.raises(CausalUnsupportedError) as graph:
-        ant.analyze(data, query=QUERY, graph=[("z", "d"), ("d", "y")], refute="none")
+        require_success(
+            ant.analyze(data, query=QUERY, graph=[("z", "d"), ("d", "y")], refute="none")
+        )
     assert graph.value.reason_code == "option_not_applicable"
     with pytest.raises(CausalUnsupportedError) as refute:
-        ant.analyze(data, query=QUERY, refute="full")
+        require_success(ant.analyze(data, query=QUERY, refute="full"))
     assert refute.value.reason_code == "option_not_applicable"
 
 
 def test_the_estimator_follows_the_inference_mode() -> None:
     data = _counts_sample(TABLE1["cells"], 1_000)
     with pytest.raises(CausalError):
-        ant.analyze(
-            data, query=QUERY, estimator="bayesian.iv_bounds.endpoint_bootstrap", refute="none"
+        require_success(
+            ant.analyze(
+                data, query=QUERY, estimator="bayesian.iv_bounds.endpoint_bootstrap", refute="none"
+            )
         )
 
 
 def test_an_exported_result_loads_with_the_same_identified_set() -> None:
-    result = ant.analyze(_counts_sample(TABLE1["cells"]), query=QUERY, refute="none", seed=3)
-    loaded = ant.load(result.export())
+    result = require_success(
+        ant.analyze(_counts_sample(TABLE1["cells"]), query=QUERY, refute="none", seed=3)
+    )
+    loaded = require_success(ant.load(bytes(result.export())))
     assert_answer_kept(loaded)
     assert loaded.answer == result.answer
     assert loaded.answer.kind == "bounds"

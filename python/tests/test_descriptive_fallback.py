@@ -31,6 +31,7 @@ from antecedent.fallback import (
     fallback_roles,
     is_identification_refusal,
 )
+from antecedent.outcomes import require_success
 from antecedent.state import CancellationToken
 
 
@@ -103,8 +104,8 @@ def test_an_unmeasured_confounder_returns_the_refusal_the_description_and_the_ev
     data, graph = _confounded_data(), _confounded_graph()
     query = ant.AverageEffect("t", "y")
     with pytest.raises(EffectNotIdentified) as raised:
-        ant.analyze(data, graph=graph, query=query)
-    outcome = ant.analyze(data, graph=graph, query=query, on_refusal="describe")
+        require_success(ant.analyze(data, graph=graph, query=query))
+    outcome = require_success(ant.analyze(data, graph=graph, query=query, on_refusal="describe"))
     assert isinstance(outcome, AnalysisWithFallback)
 
     # The refusal object is the one analyze raises: same class, code, remedy and report.
@@ -154,12 +155,14 @@ def test_an_unmeasured_confounder_returns_the_refusal_the_description_and_the_ev
 
 
 def test_a_hedge_returns_the_refusal_the_description_and_a_ranked_plan():
-    outcome = ant.analyze(
-        _hedge_data(),
-        graph=_hedge_graph(),
-        query=ant.AverageEffect("t", "y"),
-        on_refusal="describe",
-        evidence_candidates=[_trial(), _survey(["t", "w", "y"])],
+    outcome = require_success(
+        ant.analyze(
+            _hedge_data(),
+            graph=_hedge_graph(),
+            query=ant.AverageEffect("t", "y"),
+            on_refusal="describe",
+            evidence_candidates=[_trial(), _survey(["t", "w", "y"])],
+        )
     )
     assert isinstance(outcome, AnalysisWithFallback)
     assert outcome.refusal.reason_code == "effect_not_identified"
@@ -183,8 +186,10 @@ def test_a_conditional_effect_holds_its_modifier_fixed():
     rng = np.random.default_rng(13)
     data = {name: rng.normal(size=200) for name in ("t", "y", "w")}
     bow = ant.Admg.from_edges(["t", "y", "w"], [("t", "y")], [("t", "y")])
-    outcome = ant.analyze(
-        data, graph=bow, query=ant.ConditionalEffect("t", "y", "w"), on_refusal="describe"
+    outcome = require_success(
+        ant.analyze(
+            data, graph=bow, query=ant.ConditionalEffect("t", "y", "w"), on_refusal="describe"
+        )
     )
     assert isinstance(outcome, AnalysisWithFallback)
     assert outcome.roles is not None and outcome.roles.adjustment == ("w",)
@@ -195,9 +200,13 @@ def test_a_successful_causal_query_returns_the_ordinary_result_never_a_fallback(
     t = (rng.normal(size=200) > 0).astype(float)
     data = {"t": t, "y": 1.0 + 2.0 * t + rng.normal(scale=0.3, size=200)}
     graph = ant.Dag.from_edges(["t", "y"], [("t", "y")])
-    ordinary = ant.analyze(data, graph=graph, query=ant.AverageEffect("t", "y"), seed=3)
-    optional = ant.analyze(
-        data, graph=graph, query=ant.AverageEffect("t", "y"), seed=3, on_refusal="describe"
+    ordinary = require_success(
+        ant.analyze(data, graph=graph, query=ant.AverageEffect("t", "y"), seed=3)
+    )
+    optional = require_success(
+        ant.analyze(
+            data, graph=graph, query=ant.AverageEffect("t", "y"), seed=3, on_refusal="describe"
+        )
     )
     assert not isinstance(optional, AnalysisWithFallback)
     assert optional.answer.kind == ordinary.answer.kind
@@ -208,7 +217,9 @@ def test_the_default_still_raises_and_the_refusal_points_at_the_opt_in():
     data, graph = _confounded_data(), _confounded_graph()
     for kwargs in ({}, {"on_refusal": "raise"}):
         with pytest.raises(EffectNotIdentified) as caught:
-            ant.analyze(data, graph=graph, query=ant.AverageEffect("t", "y"), **kwargs)
+            require_success(
+                ant.analyze(data, graph=graph, query=ant.AverageEffect("t", "y"), **kwargs)
+            )
         assert "on_refusal='describe'" in caught.value.report.next
         assert "not an answer to the causal question" in caught.value.report.next
     # A capped search is not converted, so its text does not offer the option.
@@ -234,20 +245,24 @@ def test_only_identification_class_refusals_are_converted():
     token = CancellationToken()
     token.cancel()
     with pytest.raises(CausalCancelled):
-        ant.analyze(
-            _confounded_data(),
-            graph=_confounded_graph(),
-            query=ant.AverageEffect("t", "y"),
-            on_refusal="describe",
-            cancel=token,
+        require_success(
+            ant.analyze(
+                _confounded_data(),
+                graph=_confounded_graph(),
+                query=ant.AverageEffect("t", "y"),
+                on_refusal="describe",
+                cancel=token,
+            )
         )
     # An unknown column is an invalid argument, not an identification gap.
     with pytest.raises(CausalError) as invalid:
-        ant.analyze(
-            _confounded_data(),
-            graph=_confounded_graph(),
-            query=ant.AverageEffect("t", "nope"),
-            on_refusal="describe",
+        require_success(
+            ant.analyze(
+                _confounded_data(),
+                graph=_confounded_graph(),
+                query=ant.AverageEffect("t", "nope"),
+                on_refusal="describe",
+            )
         )
     assert not isinstance(invalid.value, EffectNotIdentified)
 
@@ -275,11 +290,13 @@ def test_a_query_with_no_association_form_or_an_unmeasured_variable_says_so():
 
 
 def test_the_returned_object_states_plainly_that_it_is_not_a_causal_answer():
-    outcome = ant.analyze(
-        _confounded_data(),
-        graph=_confounded_graph(),
-        query=ant.AverageEffect("t", "y"),
-        on_refusal="describe",
+    outcome = require_success(
+        ant.analyze(
+            _confounded_data(),
+            graph=_confounded_graph(),
+            query=ant.AverageEffect("t", "y"),
+            on_refusal="describe",
+        )
     )
     assert isinstance(outcome, AnalysisWithFallback)
     assert NONCAUSAL_NOTICE.startswith("The associational result describes the observed law")
@@ -290,11 +307,13 @@ def test_the_returned_object_states_plainly_that_it_is_not_a_causal_answer():
 
 
 def test_the_host_record_shows_both_statuses_and_satisfies_the_schema():
-    outcome = ant.analyze(
-        _confounded_data(),
-        graph=_confounded_graph(),
-        query=ant.AverageEffect("t", "y"),
-        on_refusal="describe",
+    outcome = require_success(
+        ant.analyze(
+            _confounded_data(),
+            graph=_confounded_graph(),
+            query=ant.AverageEffect("t", "y"),
+            on_refusal="describe",
+        )
     )
     record = host.fallback_response(outcome)
     assert outcome.to_dict() == record
@@ -309,12 +328,14 @@ def test_the_host_record_shows_both_statuses_and_satisfies_the_schema():
 
 
 def test_a_bayesian_study_is_described_with_its_posterior():
-    outcome = ant.analyze(
-        _confounded_data(),
-        graph=_confounded_graph(),
-        query=ant.AverageEffect("t", "y"),
-        inference=ant.Bayesian(backend="conjugate", n_draws=200),
-        on_refusal="describe",
+    outcome = require_success(
+        ant.analyze(
+            _confounded_data(),
+            graph=_confounded_graph(),
+            query=ant.AverageEffect("t", "y"),
+            inference=ant.Bayesian(backend="conjugate", n_draws=200),
+            on_refusal="describe",
+        )
     )
     assert isinstance(outcome, AnalysisWithFallback)
     assert outcome.refusal.reason_code == "effect_not_identified"

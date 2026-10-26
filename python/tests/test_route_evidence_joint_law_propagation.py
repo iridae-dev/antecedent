@@ -21,6 +21,7 @@ from antecedent.joint_distribution import (
     JointDistributionArtifact,
     ScientificQuantity,
 )
+from antecedent.outcomes import require_success
 
 R = jl.JointLawPropagationRefusal
 
@@ -79,14 +80,14 @@ def _marginals() -> tuple[jl.PropagationDraws, jl.PropagationDraws]:
 
 def test_aligned_functional_is_the_row_mean_of_a_maximum_under_the_joint_law() -> None:
     _, dx, dy = _columns("snap-max")
-    claim = jl.aligned_functional("nonlinear_functional", dx, dy, "maximum")
+    claim = require_success(jl.aligned_functional("nonlinear_functional", dx, dy, "maximum"))
     assert claim.value("mean") == pytest.approx(1.5, abs=1e-12)
     assert claim.route == "aligned_joint_law"
     assert claim.n_rows == 10
     # Rows of different joint laws are never paired.
     _, _, other_y = _columns("snap-max-other")
     with pytest.raises(R) as error:
-        jl.aligned_functional("nonlinear_functional", dx, other_y, "maximum")
+        require_success(jl.aligned_functional("nonlinear_functional", dx, other_y, "maximum"))
     assert error.value.detail == "joint_law_propagation.alignment_mismatch"
 
 
@@ -105,7 +106,7 @@ def test_the_native_aligned_functional_entry_returns_a_sealed_claim_of_the_row_m
 
 def test_aligned_linear_takes_the_covariance_from_the_rows() -> None:
     _, dx, dy = _columns("snap-linear")
-    claim = jl.aligned_linear("weighted_sum", (2.0, 3.0), dx, dy)
+    claim = require_success(jl.aligned_linear("weighted_sum", (2.0, 3.0), dx, dy))
     # mean 2 * 0.5 + 3 * 1.2 = 4.6; variance 4 * 0.25 + 9 * 0.96 + 12 * (-0.2) = 7.24.
     assert claim.value("mean") == pytest.approx(4.6, abs=1e-12)
     assert claim.value("variance") == pytest.approx(7.24, abs=1e-12)
@@ -156,16 +157,24 @@ def test_linear_moments_of_three_independent_inputs_add_scaled_variances() -> No
         jl.MomentInput("c", "s3", 2.0),
     ]
     covariance = [[1.0, 0.0, 0.0], [0.0, 4.0, 0.0], [0.0, 0.0, 9.0]]
-    claim = jl.linear_moments(
-        "weighted_sum", inputs, [1.0, 2.0, -1.0], covariance, dependence="declared_independent"
+    claim = require_success(
+        jl.linear_moments(
+            "weighted_sum", inputs, [1.0, 2.0, -1.0], covariance, dependence="declared_independent"
+        )
     )
     # mean 1 + 0 - 2 = -1; variance 1 + 4 * 4 + 9 = 26.
     assert claim.value("mean") == pytest.approx(-1.0, abs=1e-12)
     assert claim.value("variance") == pytest.approx(26.0, abs=1e-12)
     shared = [jl.MomentInput("a", "s1", 1.0), jl.MomentInput("b", "s1", 0.0), inputs[2]]
     with pytest.raises(R) as error:
-        jl.linear_moments(
-            "weighted_sum", shared, [1.0, 2.0, -1.0], covariance, dependence="declared_independent"
+        require_success(
+            jl.linear_moments(
+                "weighted_sum",
+                shared,
+                [1.0, 2.0, -1.0],
+                covariance,
+                dependence="declared_independent",
+            )
         )
     assert error.value.reason_code == "evidence_double_counted"
 
@@ -197,7 +206,7 @@ def test_a_known_weight_mixture_splits_variance_into_within_and_between() -> Non
         jl.MixtureComponent("a", "s1", 0.5, 1.0, 2.0),
         jl.MixtureComponent("b", "s2", 0.5, 3.0, 2.0),
     ]
-    claim = jl.mixture(parts)
+    claim = require_success(jl.mixture(parts))
     # mean 2, within 2, between 1, variance 3.
     assert claim.value("mean") == pytest.approx(2.0, abs=1e-12)
     assert claim.value("within") == pytest.approx(2.0, abs=1e-12)
@@ -222,11 +231,11 @@ def test_the_native_mixture_entry_applies_the_law_of_total_variance() -> None:
 
 def test_the_dependence_envelope_is_the_makarov_range_of_the_deciding_cell() -> None:
     x, y = _marginals()
-    at0 = jl.dependence_envelope("sum", jl.EnvelopeQuery.sum_cdf(0.0), x, y)
+    at0 = require_success(jl.dependence_envelope("sum", jl.EnvelopeQuery.sum_cdf(0.0), x, y))
     # P(X + Y <= 0) = P(0, 0) = c - 0.1 in [0, 0.3].
     assert at0.value("sum_cdf_lower") == pytest.approx(0.0, abs=1e-12)
     assert at0.value("sum_cdf_upper") == pytest.approx(0.3, abs=1e-12)
-    at1 = jl.dependence_envelope("sum", jl.EnvelopeQuery.sum_cdf(1.0), x, y)
+    at1 = require_success(jl.dependence_envelope("sum", jl.EnvelopeQuery.sum_cdf(1.0), x, y))
     # P(X + Y <= 1) = 1 - c in [0.6, 0.9].
     assert at1.value("sum_cdf_lower") == pytest.approx(0.6, abs=1e-12)
     assert at1.value("sum_cdf_upper") == pytest.approx(0.9, abs=1e-12)
@@ -254,18 +263,20 @@ def test_the_native_envelope_entry_returns_the_product_moment_range() -> None:
 
 
 def test_a_declared_correlation_range_is_linear_in_the_correlation() -> None:
-    claim = jl.correlation_range(
-        "weighted_sum",
-        ("x", "s1"),
-        ("y", "s2"),
-        x_mean=0.0,
-        x_sd=1.0,
-        y_mean=2.0,
-        y_sd=3.0,
-        a=1.0,
-        b=2.0,
-        rho_lo=-0.2,
-        rho_hi=0.6,
+    claim = require_success(
+        jl.correlation_range(
+            "weighted_sum",
+            ("x", "s1"),
+            ("y", "s2"),
+            x_mean=0.0,
+            x_sd=1.0,
+            y_mean=2.0,
+            y_sd=3.0,
+            a=1.0,
+            b=2.0,
+            rho_lo=-0.2,
+            rho_hi=0.6,
+        )
     )
     # s_x s_y = 3: E[XY] in [-0.6, 1.8]; Var = 1 + 36 + 12 rho in [34.6, 44.2].
     assert claim.label == "assumption_range"
@@ -297,22 +308,30 @@ def test_consume_replays_a_sealed_claim_against_the_retained_identity() -> None:
         jl.MixtureComponent("a", "s1", 0.5, 1.0, 2.0),
         jl.MixtureComponent("b", "s2", 0.5, 3.0, 2.0),
     ]
-    claim = jl.mixture(parts)
-    consumed = jl.consume_joint_law_propagation_artifact(
-        claim.export(), expected_identity=claim.identity
+    claim = require_success(jl.mixture(parts))
+    consumed = require_success(
+        jl.consume_joint_law_propagation_artifact(
+            bytes(claim.export()), expected_identity=claim.identity
+        )
     )
     assert consumed.identity == claim.identity
     assert consumed.values["variance"] == pytest.approx(3.0, abs=1e-12)
     assert consumed.route == "known_weight_mixture"
     with pytest.raises(R) as error:
-        jl.consume_joint_law_propagation_artifact(claim.export(), expected_identity="0" * 64)
+        require_success(
+            jl.consume_joint_law_propagation_artifact(
+                bytes(claim.export()), expected_identity="0" * 64
+            )
+        )
     assert error.value.detail == "joint_law_propagation.artifact_refused"
 
 
 def test_the_native_consume_entry_returns_a_summary_or_a_refusal_payload() -> None:
     x, y = _marginals()
-    claim = jl.dependence_envelope("product", jl.EnvelopeQuery.product_moment(), x, y)
-    data = claim.export()
+    claim = require_success(
+        jl.dependence_envelope("product", jl.EnvelopeQuery.product_moment(), x, y)
+    )
+    data = bytes(claim.export())
     summary, refusal = _native.joint_law_consume(data, claim.identity, None)
     assert refusal is None and summary is not None
     info = json.loads(summary)

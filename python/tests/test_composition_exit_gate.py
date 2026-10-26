@@ -25,6 +25,7 @@ from antecedent.cross_world import (
 )
 from antecedent.errors import CausalUnsupportedError
 from antecedent.learners import Linear
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 
@@ -196,28 +197,28 @@ def s1_producer():
     requests = [{"x": 0.0}, {"x": 1.0}]
     prepared = stage.prepare_exact(s1_laws(S1_P), requests)
     del stage
-    live = json.loads(prepared.estimate())
+    live = json.loads(require_success(prepared.estimate()))
     assert [risk(r) for r in live["requests"]] == pytest.approx(
         [s1_truth(S1_P, 0), s1_truth(S1_P, 1)], abs=1e-12
     )
     (contrast,) = live["contrasts"]
     assert contrast["estimate"] == pytest.approx(s1_truth(S1_P, 1) - s1_truth(S1_P, 0), abs=1e-12)
     assert live["interval"]["status"] == "point_only"
-    before = (prepared.export(), live)
+    before = (bytes(prepared.export()), live)
 
-    prepared.refresh(s1_laws(S1_P_REFRESHED))
-    moved = json.loads(prepared.estimate())
+    require_success(prepared.refresh(s1_laws(S1_P_REFRESHED)))
+    moved = json.loads(require_success(prepared.estimate()))
     assert [risk(r) for r in moved["requests"]] == pytest.approx(
         [s1_truth(S1_P_REFRESHED, 0), s1_truth(S1_P_REFRESHED, 1)], abs=1e-12
     )
     assert moved["contrasts"] != live["contrasts"]
-    after = (prepared.export(), moved)
+    after = (bytes(prepared.export()), moved)
 
     # Counted laws: the point is returned, the unmeasured interval route stays closed.
     counted = transport.identify_multi_source_z_transport(
         graph=s1_graph(), query=s1_query(source_a, source_b), catalog=s1_catalog()
     ).prepare_empirical(s1_laws(S1_P, sample_size=40_000), {"x": 1.0}, seed=3)
-    counted_live = json.loads(counted.estimate())
+    counted_live = json.loads(require_success(counted.estimate()))
     assert risk(counted_live) == pytest.approx(s1_truth(S1_P, 1), abs=1e-2)
     interval = counted_live["interval"]
     assert (interval["available"], interval["status"], interval["reason"]) == (
@@ -226,7 +227,7 @@ def s1_producer():
         "cell_not_licensed",
     )
     assert interval["mean_intervals"] == [] and interval["seed"] is None
-    return before, after, (counted.export(), counted_live)
+    return before, after, (bytes(counted.export()), counted_live)
 
 
 def test_story_1_multi_source_limited_experiment_effect_requiring_complementary_sources():
@@ -334,7 +335,9 @@ def s2_producer():
     def statuses(steps):
         return {
             s["name"]: s["status"]
-            for s in json.loads(s2_prepare(max_steps=steps).estimate())["scenarios"]
+            for s in json.loads(require_success(s2_prepare(max_steps=steps).estimate()))[
+                "scenarios"
+            ]
         }
 
     budget = next(
@@ -344,7 +347,7 @@ def s2_producer():
         and statuses(steps)["outcome_shift"] != "unevaluated"
     )
     prepared = s2_prepare(max_steps=budget)
-    report = json.loads(prepared.estimate())
+    report = json.loads(require_success(prepared.estimate()))
     by = s2_by_name(report)
     assert by["direct"]["status"] == "identified"
     assert by["outcome_shift"]["status"] == "structurally_unidentified"
@@ -371,13 +374,13 @@ def s2_producer():
     with pytest.raises(CausalUnsupportedError, match="scenarios.shared_data_aggregate") as refused:
         prepared.aggregate_interval()
     assert refused.value.reason_code == "scenario_aggregate_not_licensed"
-    prepared.refresh(s2_laws(source=(0.1, 0.3, 0.3, 0.3)))
-    moved = json.loads(prepared.estimate())
+    require_success(prepared.refresh(s2_laws(source=(0.1, 0.3, 0.3, 0.3))))
+    moved = json.loads(require_success(prepared.estimate()))
     assert [s["status"] for s in moved["scenarios"]] == [s["status"] for s in report["scenarios"]]
     assert s2_by_name(moved)["direct"]["point"]["means"]["y"] == pytest.approx(0.6)
-    prepared.refresh(s2_laws())
-    final = json.loads(prepared.estimate())
-    return prepared.export(), final
+    require_success(prepared.refresh(s2_laws()))
+    final = json.loads(require_success(prepared.estimate()))
+    return bytes(prepared.export()), final
 
 
 def test_story_2_finite_scenario_set_retains_identified_unidentified_and_unevaluated_members():
@@ -394,7 +397,7 @@ def test_story_2_finite_scenario_set_retains_identified_unidentified_and_unevalu
         "unevaluated",
     }
     # With a sufficient budget the same set is fully evaluated and standardize is exact.
-    full = json.loads(s2_prepare().estimate())
+    full = json.loads(require_success(s2_prepare().estimate()))
     assert full["receipt"] is None
     assert s2_by_name(full)["standardize"]["point"]["means"]["y"] == pytest.approx(
         S2_STANDARDIZED, abs=1e-12
@@ -440,7 +443,7 @@ def s3_producer(design):
     query, data = s3_fixture(design)
     study = transport.prepare_learned_continuous(query, data, options=s3_options(), seed=11)
     del query, data
-    result = study.estimate()
+    result = require_success(study.estimate())
     assert result.estimate == pytest.approx(1.2, abs=0.3)
     assert result.interval is None and result.uncertainty["status"] == "point_only"
     assert result.overlap["selection"]["probability_min"] > 0.05
@@ -452,11 +455,11 @@ def s3_producer(design):
     assert interval.interval[0] < interval.estimate < interval.interval[1]
     # Refresh keeps the certificate and moves the point.
     _, fresh = s3_fixture(design, seed=9)
-    study.refresh(fresh)
-    moved = study.estimate()
+    require_success(study.refresh(fresh))
+    moved = require_success(study.estimate())
     assert moved.execution_id != result.execution_id and moved.certificate == result.certificate
     assert moved.estimate == pytest.approx(1.2, abs=0.3)
-    return study.export(), moved
+    return bytes(study.export()), moved
 
 
 @pytest.mark.parametrize("design", ["nested_cohort", "independent_samples"])
@@ -476,7 +479,7 @@ def test_story_3_learned_continuous_transport_estimate_with_overlap_refusal(desi
         weak_query, weak_data, options=s3_options(), seed=11
     )
     with pytest.raises(CausalUnsupportedError, match="learned_transport.membership_overlap") as e:
-        weak.estimate()
+        require_success(weak.estimate())
     assert e.value.reason_code == "transport_support_failure"
     query, data = s3_fixture(design, seed=6)
     import dataclasses
@@ -619,17 +622,17 @@ def s4_producer():
     artifacts = []
     for sequence in ((1.0, 0.0), (0.0, 1.0)):
         prepared = s4_prepare(sequence, s4_laws(S4_SOURCE_P, S4_TARGET_P))
-        live = json.loads(prepared.estimate())
+        live = json.loads(require_success(prepared.estimate()))
         assert live["mean"] == pytest.approx(s4_truth(S4_TARGET_P, sequence), abs=1e-12)
         assert live["inference_claim"] == "point_only" and live["horizon"] == 2
         assert live["time_varying_confounders"] == ["l2"]
         assert {r["status"] for r in live["support"]["rows"]} == {"supported"}
-        artifacts.append((prepared.export(), live, S4_TARGET_P, sequence))
-        prepared.refresh(s4_laws(moved_source, moved_target))
-        moved = json.loads(prepared.estimate())
+        artifacts.append((bytes(prepared.export()), live, S4_TARGET_P, sequence))
+        require_success(prepared.refresh(s4_laws(moved_source, moved_target)))
+        moved = json.loads(require_success(prepared.estimate()))
         assert moved["mean"] == pytest.approx(s4_truth(moved_target, sequence), abs=1e-12)
         assert abs(moved["mean"] - live["mean"]) > 1e-4
-        artifacts.append((prepared.export(), moved, moved_target, sequence))
+        artifacts.append((bytes(prepared.export()), moved, moved_target, sequence))
     # History-support refusal: typed, and local to the offending history.
     messages = []
     for skip in ((1, 0, 1), (0, 1, 0)):
@@ -842,19 +845,19 @@ def s6_producer():
     assert leaves == {"obs": "observational", "trial": "trial"}
     prepared = stage.prepare_exact(s6_laws(S6_P), [{"x": 0.0}, {"x": 1.0}])
     del stage
-    live = json.loads(prepared.estimate())
+    live = json.loads(require_success(prepared.estimate()))
     assert [risk(r) for r in live["requests"]] == pytest.approx(
         [s6_truth(S6_P, 0), s6_truth(S6_P, 1)], abs=1e-12
     )
     joint = enumerate_law(S6_FRONTDOOR, S6_NAMES, S6_P, {}, ["x", "y"])
     assert abs(joint[3] / (joint[2] + joint[3]) - s6_truth(S6_P, 1)) > 1e-2
-    before = (prepared.export(), live, S6_P)
-    prepared.refresh(s6_laws(S6_P_REFRESHED))
-    moved = json.loads(prepared.estimate())
+    before = (bytes(prepared.export()), live, S6_P)
+    require_success(prepared.refresh(s6_laws(S6_P_REFRESHED)))
+    moved = json.loads(require_success(prepared.estimate()))
     assert [risk(r) for r in moved["requests"]] == pytest.approx(
         [s6_truth(S6_P_REFRESHED, 0), s6_truth(S6_P_REFRESHED, 1)], abs=1e-12
     )
-    after = (prepared.export(), moved, S6_P_REFRESHED)
+    after = (bytes(prepared.export()), moved, S6_P_REFRESHED)
 
     # Incomplete side 1: the bow arc is not identifiable; the search only reports what it
     # explored and never claims non-identification.
@@ -935,7 +938,7 @@ def test_story_7_release_boundary_corrected_measurement_pooled_evidence_decision
     plan_before = world.plan_identity
 
     # Consumer scope: files only, in another process.
-    outcome = consume(tmp_path / "base")
+    outcome = require_success(consume(tmp_path / "base"))
     assert outcome["ok"], outcome
     report = outcome["report"]
     assert report["act"] == _pytest.approx(values["act"], abs=rb.DECISION)
@@ -963,7 +966,7 @@ def test_story_7_release_boundary_corrected_measurement_pooled_evidence_decision
     assert new.plan_identity != plan_before
     assert new.gate().classify("decision").klass == "still_valid"
     new.write_bundle(tmp_path / "revised", studies=rb.revised_studies())
-    outcome = consume(tmp_path / "revised")
+    outcome = require_success(consume(tmp_path / "revised"))
     assert outcome["ok"], outcome
     assert outcome["report"]["act"] == _pytest.approx(revised["act"], abs=rb.DECISION)
     assert outcome["report"]["selected"] == revised["selected"]

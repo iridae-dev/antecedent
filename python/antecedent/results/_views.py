@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING, Any
 from pydantic import Field, PrivateAttr
 
 from .._columns import coerce_fields
+from .._posterior_row import PosteriorRowEstimate
 from ..policy import DoublyRobustPolicyEvaluation
 from ..survival import CumulativeIncidenceEstimate, SurvivalEstimate
-from .._posterior_row import PosteriorRowEstimate
 
 if TYPE_CHECKING:
     from .._native import (

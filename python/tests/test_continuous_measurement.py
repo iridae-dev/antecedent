@@ -85,7 +85,7 @@ def test_linear_calibration_and_simex_recover_the_slope():
     assert sx.functional_id == "linear_coefficient.simex"
     assert sx.simex_lambdas == (0.0, 0.5, 1.0, 1.5, 2.0)
     slopes = [row[1] for row in sx.simex_means]
-    assert all(b < a for a, b in zip(slopes, slopes[1:]))
+    assert all(b < a for a, b in zip(slopes, slopes[1:], strict=False))
     assert sx.bootstrap_replicates + sx.failed_bootstrap_replicates == 50
     assert sx.standard_error > 0.0
 

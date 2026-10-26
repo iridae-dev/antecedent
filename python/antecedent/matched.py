@@ -33,6 +33,13 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._digest import canonical_digest
 from ._native import CancellationToken
 from ._native import matched_case_control_odds_ratio as _matched_case_control_odds_ratio
@@ -88,15 +95,13 @@ class MatchedCaseControlResult(ScientificResult):
     @property
     def identity(self) -> str:
         """Content identity retained independently for artifact consumption."""
-        return str(json.loads(self.export())["digest"])
+        return str(json.loads(self._export_bytes())["digest"])
 
-    def artifact(self) -> ExportedArtifact[MatchedCaseControlResult]:
-        """Typed bytes envelope for shared scientific consumption."""
-        from ._artifact_protocol import exported_artifact
+    @artifact_export
+    def export(self) -> ExportedArtifact[MatchedCaseControlResult]:
+        return artifact_from_receipt(self, self._export_bytes())
 
-        return exported_artifact(self)
-
-    def export(self) -> bytes:
+    def _export_bytes(self) -> bytes:
         """A self-describing JSON artifact that :func:`replay_matched_case_control` re-derives."""
         body: dict[str, Any] = {
             "format": _FORMAT,
@@ -229,6 +234,10 @@ def _expanded_rows(set_types: object, max_rows: int) -> tuple[list[str], list[fl
     return stratum, case, exposed
 
 
+@artifact_consumer(
+    proof="matched.replay_matched_case_control: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def replay_matched_case_control(
     artifact: bytes | str,
     *,
@@ -244,6 +253,11 @@ def replay_matched_case_control(
     :class:`~antecedent.errors.CausalSerializationError`; one that would expand past
     ``max_rows`` rows is refused with ``CausalResourceError`` before any work.
     """
+    artifact = (
+        container_bytes(artifact)
+        if isinstance(artifact, (bytes, bytearray, memoryview, ExportedArtifact))
+        else artifact
+    )
     try:
         body = json.loads(artifact)
     except (TypeError, ValueError) as error:

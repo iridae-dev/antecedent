@@ -14,6 +14,7 @@ from antecedent.extensibility import (
     ProviderVerificationFixture,
     ProviderVerificationReceipt,
 )
+from antecedent.outcomes import require_success
 from antecedent.results.provider import ProviderAnalysisResult
 
 
@@ -77,10 +78,10 @@ def test_verified_provider_promotion_records_evidence_and_shared_result():
     assert len(report.evidence_digest) == 64
     assert report.deterministic_replay_checked
     assert registry.verification_report("external") == report
-    result = registry.execute("external", {"known_effect": 2.0})
+    result = require_success(registry.execute("external", {"known_effect": 2.0}))
     assert result.trust is ProviderTrust.VERIFIED_EXTENSION
     assert result.provenance["verification_evidence_digest"] == report.evidence_digest
-    unseen = registry.execute("external", {"known_effect": 4.0})
+    unseen = require_success(registry.execute("external", {"known_effect": 4.0}))
     assert unseen.trust is ProviderTrust.EXTERNALLY_ATTESTED
     assert unseen.provenance["trust_boundary"] == "externally_attested"
     assert "verification_evidence_digest" not in unseen.provenance
@@ -117,7 +118,7 @@ def test_mismatched_fixture_refuses_promotion(change, match):
             "external", [replace(_fixture(), **change)], evidence_origin="independent/v1"
         )
     assert (
-        registry.execute("external", {"known_effect": 2.0}).trust
+        require_success(registry.execute("external", {"known_effect": 2.0})).trust
         is ProviderTrust.EXTERNALLY_ATTESTED
     )
     with pytest.raises(KeyError, match="no verification report"):
@@ -132,7 +133,7 @@ def test_deterministic_replay_and_spec_tampering_are_refused():
 
         def execute(self, request):
             self.calls += 1
-            raw = super().execute(request)
+            raw = require_success(super().execute(request))
             return ProviderExecution(
                 raw.estimate,
                 raw.uncertainty,
@@ -151,7 +152,7 @@ def test_deterministic_replay_and_spec_tampering_are_refused():
             evidence_origin="independent/v1",
         )
     assert (
-        registry.execute("drifting", {"known_effect": 2.0}).trust
+        require_success(registry.execute("drifting", {"known_effect": 2.0})).trust
         is ProviderTrust.EXTERNALLY_ATTESTED
     )
 
@@ -160,7 +161,7 @@ def test_deterministic_replay_and_spec_tampering_are_refused():
     registry.verify("stable", [_fixture()], evidence_origin="independent/v1")
     provider.spec = _spec(shape=(2,))
     with pytest.raises(ValueError, match="spec changed"):
-        registry.execute("stable", {"known_effect": 2.0})
+        require_success(registry.execute("stable", {"known_effect": 2.0}))
 
 
 def test_native_registration_and_unverified_artifact_refused():
@@ -185,7 +186,7 @@ def test_point_only_uncertainty_and_non_deterministic_contract():
 
     class IncorrectUncertainty(Provider):
         def execute(self, request):
-            raw = super().execute(request)
+            raw = require_success(super().execute(request))
             return ProviderExecution(
                 raw.estimate,
                 [0.1],
@@ -245,7 +246,7 @@ def test_fixture_verification_is_one_typed_rust_receipt():
 
 def test_receipt_exports_and_loads_only_under_the_retained_digest():
     _, receipt = _verified_registry()
-    exported = receipt.export()
+    exported = bytes(receipt.export())
     loaded = ProviderVerificationReceipt.load(exported, expected_digest=receipt.digest)
     assert loaded == receipt
     assert loaded.to_dict() == receipt.to_dict()

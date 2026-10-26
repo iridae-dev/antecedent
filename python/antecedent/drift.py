@@ -27,6 +27,7 @@ from dataclasses import asdict, dataclass, fields
 from typing import Any, Literal
 
 from . import _native
+from ._artifact_protocol import ExportedArtifact, container_bytes
 from ._data import ingest_columns
 from .errors import CausalTypeError
 
@@ -235,6 +236,11 @@ class StalenessBaseline:
     @classmethod
     def from_bytes(cls, artifact: bytes) -> StalenessBaseline:
         """Wrap artifact bytes; they are verified when assessed."""
+        artifact = (
+            container_bytes(artifact)
+            if isinstance(artifact, (bytes, bytearray, memoryview, ExportedArtifact))
+            else artifact
+        )
         return cls(bytes(artifact))
 
 
@@ -252,6 +258,11 @@ def staleness(
     data is the baseline). Only the artifact and the new data are read: the producer and its
     rows are not needed.
     """
+    artifact = (
+        container_bytes(artifact)
+        if isinstance(artifact, (bytes, bytearray, memoryview, ExportedArtifact))
+        else artifact
+    )
     if hasattr(artifact, "staleness") and not isinstance(artifact, bytes | bytearray):
         report: StalenessReport = artifact.staleness(new_data, policy=policy, threads=threads)
         return report

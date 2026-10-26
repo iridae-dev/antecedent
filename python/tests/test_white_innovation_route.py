@@ -15,6 +15,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.errors import CausalUnsupportedError
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -55,18 +56,20 @@ def ljung_box_p(residuals, lags: int) -> float:
 
 
 def run(x, y, **bayes):
-    return antecedent.analyze(
-        {"x": x, "y": y},
-        graph=[("x", 1, "y", 0)],
-        query=antecedent.PulseEffect(
-            treatment="x", outcome="y", treatment_lag=1, horizon_steps=1, active_level=1.0
-        ),
-        inference=antecedent.Bayesian(
-            n_draws=DRAWS, prior_scale=1.0e3, backend="conjugate", **bayes
-        ),
-        refute=False,
-        bootstrap=0,
-        seed=11,
+    return require_success(
+        antecedent.analyze(
+            {"x": x, "y": y},
+            graph=[("x", 1, "y", 0)],
+            query=antecedent.PulseEffect(
+                treatment="x", outcome="y", treatment_lag=1, horizon_steps=1, active_level=1.0
+            ),
+            inference=antecedent.Bayesian(
+                n_draws=DRAWS, prior_scale=1.0e3, backend="conjugate", **bayes
+            ),
+            refute=False,
+            bootstrap=0,
+            seed=11,
+        )
     )
 
 
@@ -107,13 +110,15 @@ def test_a_route_that_does_not_read_the_premise_refuses_it() -> None:
     t = rng.integers(0, 2, 200).astype(float)
     y = 1.0 + 2.0 * t + rng.standard_normal(200)
     with pytest.raises(CausalUnsupportedError) as info:
-        antecedent.analyze(
-            {"t": t, "y": y},
-            graph=[("t", "y")],
-            query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            inference=antecedent.Bayesian(white_innovation=(6, 0.01)),
-            refute=False,
-            bootstrap=0,
+        require_success(
+            antecedent.analyze(
+                {"t": t, "y": y},
+                graph=[("t", "y")],
+                query=antecedent.AverageEffect(treatment="t", outcome="y"),
+                inference=antecedent.Bayesian(white_innovation=(6, 0.01)),
+                refute=False,
+                bootstrap=0,
+            )
         )
     assert info.value.reason_code == "option_not_applicable"
     assert "Next attempt" in str(info.value)
@@ -127,18 +132,25 @@ def test_the_declaration_is_validated() -> None:
 
 
 def run_curve(x, y, horizons=(1,), **bayes):
-    return antecedent.analyze(
-        {"x": x, "y": y},
-        graph=[("x", 1, "y", 0)],
-        query=antecedent.ResponseCurve(
-            "x", "y", grid=[0.0, 1.0, 2.0], horizons=list(horizons), policy="pulse", treatment_lag=1
-        ),
-        inference=antecedent.Bayesian(
-            n_draws=DRAWS, prior_scale=1.0e3, backend="conjugate", **bayes
-        ),
-        refute=False,
-        bootstrap=0,
-        seed=12,
+    return require_success(
+        antecedent.analyze(
+            {"x": x, "y": y},
+            graph=[("x", 1, "y", 0)],
+            query=antecedent.ResponseCurve(
+                "x",
+                "y",
+                grid=[0.0, 1.0, 2.0],
+                horizons=list(horizons),
+                policy="pulse",
+                treatment_lag=1,
+            ),
+            inference=antecedent.Bayesian(
+                n_draws=DRAWS, prior_scale=1.0e3, backend="conjugate", **bayes
+            ),
+            refute=False,
+            bootstrap=0,
+            seed=12,
+        )
     )
 
 

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import antecedent
 import numpy as np
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_toml
 
@@ -53,14 +54,22 @@ def test_admg_intervention_cheap_is_not_a_closed_rule():
 
 def test_accepted_graph_analyze_response_curve_threads_accepted():
     """The retained contract preserves reviewed versus explicit structure."""
-    result = _ACCEPTED.analyze(_DATA, query=_CURVE, refute=False, seed=1)
+    result = require_success(_ACCEPTED.analyze(_DATA, query=_CURVE, refute=False, seed=1))
     assert result.response is not None
     assert np.isfinite(result.response.values).all()
-    assert antecedent.artifacts.loads(result.export()).contract["structure_source"] == "accepted"
+    assert (
+        antecedent.artifacts.loads(bytes(result.export())).contract["structure_source"]
+        == "accepted"
+    )
 
-    result = antecedent.analyze(_DATA, graph=_DAG, query=_CURVE, refute=False, seed=1)
+    result = require_success(
+        antecedent.analyze(_DATA, graph=_DAG, query=_CURVE, refute=False, seed=1)
+    )
     assert result.response is not None
-    assert antecedent.artifacts.loads(result.export()).contract["structure_source"] == "explicit"
+    assert (
+        antecedent.artifacts.loads(bytes(result.export())).contract["structure_source"]
+        == "explicit"
+    )
 
 
 def test_path_distribution_graph_posterior_rule_executes_and_the_prepare_gate_is_gone():
@@ -112,23 +121,27 @@ def _handle_response_kwargs(**overrides):
 
 def test_handle_response_bayesian_curve_uses_staged_path():
     """analyze is prepare().estimate(); Bayesian ResponseCurve stays licensed."""
-    result = antecedent.analyze(
-        _DATA,
-        query=_CURVE,
-        graph=_DAG,
-        inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
-        refute=False,
+    result = require_success(
+        antecedent.analyze(
+            _DATA,
+            query=_CURVE,
+            graph=_DAG,
+            inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
+            refute=False,
+        )
     )
     assert result.response is not None
     assert np.isfinite(result.response.values).all()
 
 
 def test_handle_response_bayesian_derivative_is_licensed():
-    result = antecedent.analyze(
-        _DATA,
-        query=antecedent.AverageDerivative("t", "y"),
-        graph=_DAG,
-        inference=antecedent.Bayesian(backend="conjugate", n_draws=32),
-        refute=False,
+    result = require_success(
+        antecedent.analyze(
+            _DATA,
+            query=antecedent.AverageDerivative("t", "y"),
+            graph=_DAG,
+            inference=antecedent.Bayesian(backend="conjugate", n_draws=32),
+            refute=False,
+        )
     )
     assert result is not None

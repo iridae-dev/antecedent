@@ -302,7 +302,7 @@ def test_inputs_are_typed_before_native_code():
 
 def test_export_and_fresh_consume_reproduce_the_matrix():
     result = bootstrap(family("a", "b"), replicates=300)
-    artifact = result.export()
+    artifact = bytes(result.export())
     assert artifact.startswith(PREFIX)
     consumed = transport.consume_scenario_covariance_artifact(artifact)
     assert consumed.covariance == result.covariance and consumed.means == result.means
@@ -311,18 +311,18 @@ def test_export_and_fresh_consume_reproduce_the_matrix():
     assert consumed.row_identity_digest == result.row_identity_digest
     assert consumed.snapshot_digest == result.snapshot_digest and consumed.seed == result.seed
     assert consumed.claim == "point_only" and consumed.premises_digest and consumed.data_digest
-    assert consumed.export() == artifact
+    assert bytes(consumed.export()) == artifact
     exact_result = exact(family("a", "b", "c"))
-    assert transport.consume_scenario_covariance_artifact(exact_result.export()).covariance == (
-        exact_result.covariance
-    )
+    assert transport.consume_scenario_covariance_artifact(
+        bytes(exact_result.export())
+    ).covariance == (exact_result.covariance)
     # A fresh consumer needs only the bytes: the rows travel inside the artifact.
     assert b"u5" in artifact
 
 
 def test_tampered_covariance_artifacts_refuse_with_typed_details():
     result = exact(family("a", "b"))
-    artifact = result.export()
+    artifact = bytes(result.export())
     # A changed unit id is part of the stored row snapshot: the data digest refuses.
     unit = b"\x62u0"
     assert unit in artifact
@@ -352,7 +352,7 @@ def test_tampered_covariance_artifacts_refuse_with_typed_details():
             transport.consume_scenario_covariance_artifact(artifact, **limits)
         assert refused.value.reason_code == "cell_not_licensed"
         assert refused.value.detail == "scenario_covariance.consumer_limit_exceeded"
-    boot = bootstrap(family("a", "b"), replicates=300).export()
+    boot = bytes(bootstrap(family("a", "b"), replicates=300).export())
     with pytest.raises(transport.ScenarioCovarianceRefusal) as refused:
         transport.consume_scenario_covariance_artifact(boot, max_replicates=299)
     assert refused.value.detail == "scenario_covariance.consumer_limit_exceeded"

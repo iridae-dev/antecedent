@@ -28,6 +28,7 @@ import pytest
 from antecedent import _native
 from antecedent import adaptive_inference as ai
 from antecedent.adaptive_inference import AdaptiveInferenceRefusal
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -529,8 +530,8 @@ def test_the_retained_contract_is_sealed_with_its_procedure_and_replayed(procedu
     assert session.procedure == (
         "thompson_beta_bernoulli/repeated_measures/fixed_interim_looks/decision_theoretic"
     )
-    artifact = session.export_contract_with_procedure("bayesian_posterior", procedure)
-    consumed = ai.consume_adaptive_monitoring_contract_artifact(artifact)
+    artifact = bytes(session.export(paradigm="bayesian_posterior", procedure=procedure))
+    consumed = require_success(ai.consume_adaptive_monitoring_contract_artifact(artifact))
     section = consumed.participant_procedure
     assert section is not None
     assert section["procedure_identity"] == procedure.identity
@@ -545,19 +546,21 @@ def test_the_retained_contract_is_sealed_with_its_procedure_and_replayed(procedu
             replayed["frequentist"]["best_treatment"] == produced["frequentist"]["best_treatment"]
         )
     # A contract sealed without the section replays without one.
-    plain = ai.consume_adaptive_monitoring_contract_artifact(
-        session.export_contract("bayesian_posterior")
+    plain = require_success(
+        ai.consume_adaptive_monitoring_contract_artifact(
+            bytes(session.export(paradigm="bayesian_posterior"))
+        )
     )
     assert plain.participant_procedure is None
     # Fixed-sample inference of an adaptive design is refused.
     refused(
-        lambda: session.export_contract_with_procedure("frequentist_fixed_sample", procedure),
+        lambda: bytes(session.export(paradigm="frequentist_fixed_sample", procedure=procedure)),
         code="adaptive_design_ignored",
     )
     # Sealing a history under other borrowing: the allocation does not replay.
     other = procedure.amend_borrowing(borrowing(1.0), looks_performed=0)
     refused(
-        lambda: session.export_contract_with_procedure("bayesian_posterior", other),
+        lambda: bytes(session.export(paradigm="bayesian_posterior", procedure=other)),
         detail="adaptive_inference.assignment_not_replayed",
     )
 

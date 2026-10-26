@@ -34,9 +34,9 @@ the extra assumptions under which the source answers the downstream question::
     )
     bridge = sb.prepare_scientific_bridge(contract)
     claim = bridge.derive(sb.SourceClaim.declared("effect-on-biomarker", 0.8, surrogate))
-    claim.value                      # 0.796: 0.06 + 0.92 * 0.8 from the trial-level line
+    claim.answer.value               # 0.796: 0.06 + 0.92 * 0.8 from the trial-level line
     exported = claim.export("surrogate-bridge")
-    again = sb.consume_scientific_bridge_artifact(exported.artifact, exported.identity)
+    again = antecedent.load(exported, expected=exported.expectation)
 
 A bridge produces a *new* claim with its own identity (binding the contract, every declared
 assumption and the source claim), its own provenance, and a receipt of what it did not establish.
@@ -102,7 +102,13 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from . import _native
-from ._artifact_protocol import ExportedArtifact, bytes_export
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._freeze import thaw
 from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
@@ -110,6 +116,7 @@ from ._scientific import ScientificResult
 from ._validate import count as _count
 from .errors import CausalTypeError, CausalValueError
 from .measurement_models import MeasurementModel
+from .outcomes import Answer, Outcome, outcome_operation
 
 __all__ = [
     "ASSUMPTION_KINDS",
@@ -1111,6 +1118,52 @@ class BridgedClaim(ScientificResult):
     components: tuple[Mapping[str, Any], ...] = ()
 
     @property
+    def answer(self) -> Answer:
+        return Answer("point", value=self.value, detail=self.value_kind)
+
+    @property
+    def identities(self) -> dict[str, str]:
+        return {
+            "claim_id": self.claim_id,
+            "source_claim_id": self.source_claim_id,
+            "contract_identity": self.contract_identity,
+        }
+
+    def inspect(self) -> Any:
+        from .results._report import SlotModel
+
+        propagation = self.propagation
+        return ScientificResult.inspect(self).model_copy(
+            update={
+                "identification": SlotModel(
+                    available=self.identification_available,
+                    summary="bridge identification standing",
+                ),
+                "support": SlotModel(
+                    available=self.support_available, summary="bridge support standing"
+                ),
+                "uncertainty": SlotModel(
+                    available=self.uncertainty_available,
+                    reason="no_calibrated_interval" if not self.uncertainty_available else None,
+                    summary="point_only" if propagation is None else propagation.reading,
+                    payload={}
+                    if propagation is None
+                    else {
+                        "variance": propagation.variance,
+                        "propagated_mean": propagation.propagated_mean,
+                        "calibration": propagation.calibration,
+                        "construction": propagation.construction,
+                    },
+                ),
+                "assumptions": SlotModel(
+                    available=True,
+                    summary="declared bridge assumptions",
+                    payload={"count": len(self.assumptions), "unresolved": self.unresolved},
+                ),
+            }
+        )
+
+    @property
     def propagated_variance(self) -> float | None:
         """The propagated variance of the bridged value, or ``None`` when none was carried."""
         return None if self.propagation is None else self.propagation.variance
@@ -1120,6 +1173,7 @@ class BridgedClaim(ScientificResult):
         """The propagated mean (bias-corrected for a nonlinear map), or ``None``."""
         return None if self.propagation is None else self.propagation.propagated_mean
 
+    @outcome_operation
     def propagated_uncertainty(self) -> PropagatedUncertainty:
         """The propagated variance and mean of the bridged value.
 
@@ -1138,12 +1192,6 @@ class BridgedClaim(ScientificResult):
             raise CausalValueError("the bridge carries no propagated uncertainty")
         return found
 
-    def artifact(self, artifact_id: str = "scientific_bridge") -> ExportedArtifact[ConsumedBridge]:
-        """Bytes and producer metadata; load returns the typed consumed result."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self, artifact_id)
-
     def require_value_kind(self, requested: str) -> None:
         """Raise the refusal when a consumer requires another kind of object than a mean.
 
@@ -1154,6 +1202,7 @@ class BridgedClaim(ScientificResult):
         _choice(requested, "requested", VALUE_KINDS)
         raise_refusal(self._handle.require_value_kind(requested), ScientificBridgeRefusal)
 
+    @outcome_operation
     def interval(self, level: float | None = None) -> BridgedClaimInterval:
         """The interval of the bridged value at ``level``.
 
@@ -1178,6 +1227,7 @@ class BridgedClaim(ScientificResult):
         payload = _unwrap(scoped(_number(level, "level")))
         return BridgedClaimInterval(**json.loads(payload))
 
+    @outcome_operation
     def freshness(
         self, *, source_withdrawn: bool = False, source_superseded: bool = False
     ) -> Freshness:
@@ -1191,8 +1241,8 @@ class BridgedClaim(ScientificResult):
         """The source claim as the derivation saw it."""
         return dict(json.loads(self._handle.source_json()))
 
-    @bytes_export
-    def export(self, artifact_id: str = "scientific_bridge") -> BridgeExport:
+    @artifact_export
+    def export(self, artifact_id: str = "scientific_bridge") -> ExportedArtifact[ConsumedBridge]:
         """Write the ``scientific_bridge_v1`` artifact.
 
         Raises:
@@ -1205,7 +1255,7 @@ class BridgedClaim(ScientificResult):
             )
         done = _unwrap(export(_name(artifact_id, "artifact_id")))
         data, identity = done
-        return BridgeExport(bytes(data), identity)
+        return artifact_from_receipt(self, BridgeExport(bytes(data), identity))
 
 
 def _fit(wire: Mapping[str, Any] | None) -> TrialFit | None:
@@ -1275,6 +1325,7 @@ class PreparedBridge:
     transported: bool
     _handle: Any = field(repr=False, compare=False)
 
+    @outcome_operation
     def derive(self, source: SourceClaim) -> BridgedClaim:
         """Derive the claim for ``source``.
 
@@ -1357,6 +1408,14 @@ class ConsumedBridge(ScientificResult):
     identity: str
     _handle: Any = field(repr=False, compare=False)
 
+    @property
+    def answer(self) -> Answer:
+        return self.claim.answer
+
+    def inspect(self) -> Any:
+        return self.claim.inspect().model_copy(update={"stage": "consumed"})
+
+    @outcome_operation
     def interval(self) -> None:
         """Always raises: a consumed bridge carries no interval license.
 
@@ -1366,6 +1425,11 @@ class ConsumedBridge(ScientificResult):
         raise_refusal(self._handle.interval(), ScientificBridgeRefusal)
 
 
+@outcome_operation
+@artifact_consumer(
+    proof="scientific_bridge.consume_scientific_bridge_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_scientific_bridge_artifact(
     artifact: bytes, expected_identity: str | None = None
 ) -> ConsumedBridge | ConsumedBridgeDistribution:
@@ -1374,6 +1438,7 @@ def consume_scientific_bridge_artifact(
     A bridge of one mean returns a :class:`ConsumedBridge`; a bridge of draws maps its stored draws
     again and returns a :class:`ConsumedBridgeDistribution`. The artifact's container tells which.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     shape, refusal = _native.scientific_bridge_shape(bytes(artifact))
@@ -1397,6 +1462,7 @@ def _consume_point(artifact: bytes, expected_identity: str | None = None) -> Con
             ``invalid_argument`` for corrupt or foreign bytes or a value that does not replay, or
             the library's own refusal of a stored declaration that no longer licenses.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     if expected_identity is not None:
@@ -1480,6 +1546,44 @@ class BridgedDistribution(ScientificResult):
     source_dependence: SourceDependence | None = None
     estimand_bridge: EstimandBridge | None = None
 
+    @property
+    def answer(self) -> Answer:
+        return Answer("distribution", detail=self.value_kind)
+
+    @property
+    def identities(self) -> dict[str, str]:
+        return {
+            "claim_id": self.claim_id,
+            "source_claim_id": self.source_claim_id,
+            "contract_identity": self.contract_identity,
+            "draws_digest": self.draws_digest,
+            "alignment_identity": self.alignment_identity,
+        }
+
+    def inspect(self) -> Any:
+        from .results._report import SlotModel
+
+        return ScientificResult.inspect(self).model_copy(
+            update={
+                "uncertainty": SlotModel(
+                    available=True,
+                    reason="no_calibrated_interval",
+                    summary=self.reading,
+                    payload={
+                        "mean": self.mean,
+                        "variance": self.variance,
+                        "calibration": self.calibration,
+                        "n_draws": self.n_draws,
+                    },
+                ),
+                "assumptions": SlotModel(
+                    available=True,
+                    summary="declared bridge assumptions",
+                    payload={"count": len(self.assumptions), "unresolved": self.unresolved},
+                ),
+            }
+        )
+
     def distribution(self) -> Any:
         """The bridged draw table as a :class:`~antecedent.joint_distribution.JointDistributionArtifact`."""
         from .joint_distribution import JointDistributionArtifact
@@ -1502,6 +1606,7 @@ class BridgedDistribution(ScientificResult):
         _choice(requested, "requested", VALUE_KINDS)
         raise_refusal(self._handle.require_value_kind(requested), ScientificBridgeRefusal)
 
+    @outcome_operation
     def interval(self, level: float | None = None) -> BridgedClaimInterval:
         """The interval of the bridged value at ``level``, through the measured-coverage gate.
 
@@ -1566,6 +1671,7 @@ class BridgedDistribution(ScientificResult):
         )
         return ChainStageParts(sources, stage)
 
+    @outcome_operation
     def freshness(
         self, *, source_withdrawn: bool = False, source_superseded: bool = False
     ) -> Freshness:
@@ -1575,16 +1681,10 @@ class BridgedDistribution(ScientificResult):
         )
         return Freshness(wire["historically_valid"], wire["currently_applicable"])
 
-    def artifact(
+    @artifact_export
+    def export(
         self, artifact_id: str = "scientific_bridge"
     ) -> ExportedArtifact[ConsumedBridgeDistribution]:
-        """Bytes and producer metadata; load returns the typed consumed result."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self, artifact_id)
-
-    @bytes_export
-    def export(self, artifact_id: str = "scientific_bridge") -> BridgeExport:
         """Write the extended ``scientific_bridge_v1`` artifact: the contract, the source draw
         table, the seed and the summary of the mapped table.
 
@@ -1593,7 +1693,7 @@ class BridgedDistribution(ScientificResult):
         """
         done = _unwrap(self._handle.export(_name(artifact_id, "artifact_id")))
         data, identity = done
-        return BridgeExport(bytes(data), identity)
+        return artifact_from_receipt(self, BridgeExport(bytes(data), identity))
 
 
 def _distribution(summary: Mapping[str, Any], handle: Any) -> BridgedDistribution:
@@ -1647,7 +1747,10 @@ class PreparedDistributionBridge:
     transported: bool
     _handle: Any = field(repr=False, compare=False)
 
-    def derive(self, draws: Any, *, seed: int, source_kind: str | None = None) -> BridgedDistribution:
+    @outcome_operation
+    def derive(
+        self, draws: Any, *, seed: int, source_kind: str | None = None
+    ) -> BridgedDistribution:
         """Bridge the draws of ``draws``, a :class:`~antecedent.joint_distribution.JointDistributionArtifact`.
 
         ``draws`` is an aligned table with a column about the contract's source quantity, of a
@@ -1663,7 +1766,9 @@ class PreparedDistributionBridge:
                 dependence no joint law has, or a mapped draw that is not finite.
         """
         from .joint_distribution import JointDistributionArtifact
+        from .outcomes import require_success
 
+        draws = require_success(draws)
         if not isinstance(draws, JointDistributionArtifact):
             raise CausalTypeError("draws must be a JointDistributionArtifact")
         if source_kind is not None:
@@ -1719,12 +1824,22 @@ class ConsumedBridgeDistribution(ScientificResult):
     identity: str
     _handle: Any = field(repr=False, compare=False)
 
-    def interval(self, level: float | None = None) -> BridgedClaimInterval:
+    @property
+    def answer(self) -> Answer:
+        return self.claim.answer
+
+    def inspect(self) -> Any:
+        return self.claim.inspect().model_copy(update={"stage": "consumed"})
+
+    def interval(self, level: float | None = None) -> Outcome[BridgedClaimInterval]:
         """As :meth:`BridgedDistribution.interval`."""
         return self.claim.interval(level)
 
 
-def _consume_distribution(artifact: bytes, expected_identity: str | None) -> ConsumedBridgeDistribution:
+def _consume_distribution(
+    artifact: bytes, expected_identity: str | None
+) -> ConsumedBridgeDistribution:
+    artifact = container_bytes(artifact)
     if expected_identity is not None:
         _name(expected_identity, "expected_identity")
     handle = _unwrap(_native.scientific_bridge_distribution_consume(artifact, expected_identity))

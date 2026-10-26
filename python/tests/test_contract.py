@@ -5,6 +5,7 @@ from __future__ import annotations
 import antecedent as ant
 import numpy as np
 from antecedent.estimation import PreparedAnalysis
+from antecedent.outcomes import require_success
 from antecedent.query import AverageEffect
 
 
@@ -53,7 +54,7 @@ def test_same_shape_refresh_changes_only_data_identity() -> None:
     before = prepared.inspect_plan().contract
     preview = prepared.preview_transform("compatible_data_replace")
     assert preview["input_data_snapshot"] == before["data_snapshot"]
-    prepared.refresh({**data, "y": data["y"] + data["t"]})
+    require_success(prepared.refresh({**data, "y": data["y"] + data["t"]}))
     after = prepared.inspect_plan().contract
     for layer in (
         "target",
@@ -80,9 +81,9 @@ def test_contracted_linear_adjustment_replays_from_fit_statistics() -> None:
         refute="none",
         bootstrap=0,
     )
-    prepared.estimate(data)
+    require_success(prepared.estimate(data))
     contract = prepared.inspect_plan().contract
-    encoded = prepared.export()
+    encoded = bytes(prepared.export())
     loaded = artifacts.loads(encoded)
     assert loaded.payload_kind == "analysis_result"
     assert loaded.contract is not None
@@ -125,9 +126,9 @@ def test_conditional_effect_contracted_artifact_names_missing_checked_operation(
         refute="none",
         bootstrap=0,
     )
-    result = prepared.estimate(data)
+    result = require_success(prepared.estimate(data))
     contract = prepared.inspect_plan().contract
-    accepted = artifacts.accept(prepared.export())
+    accepted = artifacts.accept(bytes(prepared.export()))
     assert accepted["accepts_as_verified_program"] == "false"
     assert "dependencies.checked_conditional_effect_operation" in accepted["unresolved"]
     assert accepted["program"] == contract["program"]
@@ -157,9 +158,9 @@ def test_mediation_contracted_artifact_names_missing_checked_operation() -> None
         refute="none",
         bootstrap=0,
     )
-    result = prepared.estimate(data)
+    result = require_success(prepared.estimate(data))
     contract = prepared.inspect_plan().contract
-    accepted = artifacts.accept(prepared.export())
+    accepted = artifacts.accept(bytes(prepared.export()))
     assert accepted["accepts_as_verified_program"] == "false"
     assert "dependencies.checked_mediation_operation" in accepted["unresolved"]
     assert accepted["program"] == contract["program"]
@@ -187,9 +188,9 @@ def test_response_curve_contracted_artifact_names_missing_checked_grid() -> None
         refute="none",
         bootstrap=0,
     )
-    prepared.estimate(data)
+    require_success(prepared.estimate(data))
     contract = prepared.inspect_plan().contract
-    accepted = artifacts.accept(prepared.export())
+    accepted = artifacts.accept(bytes(prepared.export()))
     assert accepted["accepts_as_verified_program"] == "false"
     assert "dependencies.checked_response_grid_operation" in accepted["unresolved"]
     assert accepted["program"] == contract["program"]
@@ -215,9 +216,9 @@ def test_intervention_response_contracted_artifact_names_missing_checked_operati
         refute="none",
         bootstrap=0,
     )
-    result = prepared.estimate(data)
+    result = require_success(prepared.estimate(data))
     contract = prepared.inspect_plan().contract
-    accepted = artifacts.accept(prepared.export())
+    accepted = artifacts.accept(bytes(prepared.export()))
     assert accepted["accepts_as_verified_program"] == "false"
     assert "dependencies.checked_intervention_response_operation" in accepted["unresolved"]
     assert accepted["program"] == contract["program"]
@@ -251,7 +252,7 @@ def test_four_slots_agree_between_inspect_and_prepared_contract() -> None:
     assert report["contract"] == contract
     assert report["calibration"]["status"] == "unavailable"
     assert report["calibration"]["reason"] == "not_executed"
-    result = prepared.estimate(_data())
+    result = require_success(prepared.estimate(_data()))
     assert result.reasoning is not None
     assert result.program_id == contract["program"]
     assert result.claim_id is not None
@@ -325,7 +326,7 @@ def test_calibration_reads_from_contract() -> None:
         refute="none",
         bootstrap=0,
     )
-    result = prepared.estimate()
+    result = require_success(prepared.estimate())
     slot = result.calibration
     assert slot.status in {"calibrated", "scope_not_assessed", "unavailable"}
     if slot.status == "unavailable":
@@ -353,19 +354,28 @@ def test_custom_validator_is_attested_and_covered_by_claim_id() -> None:
         return {"passed": False, "refuted_ate": ate, "comparison": 1.0}
 
     def run(validators):
-        return PreparedAnalysis.prepare(
-            _data(),
-            graph=[("z", "t"), ("z", "y"), ("t", "y")],
-            query=AverageEffect("t", "y"),
-            refute="none",
-            bootstrap=0,
-            validators=validators,
-        ).estimate()
+        return require_success(
+            PreparedAnalysis.prepare(
+                _data(),
+                graph=[("z", "t"), ("z", "y"), ("t", "y")],
+                query=AverageEffect("t", "y"),
+                refute="none",
+                bootstrap=0,
+                validators=validators,
+            ).estimate()
+        )
 
     passing, failing, unchecked = run([always_pass]), run([always_fail]), run(None)
-    attested = ant.load(passing.export()).decoded_artifact.contract["claim"]["attested"]
+    attested = require_success(ant.load(bytes(passing.export()))).decoded_artifact.contract[
+        "claim"
+    ]["attested"]
     assert attested, "a custom validator result must be attested in the claim"
-    assert ant.load(failing.export()).decoded_artifact.contract["claim"]["attested"] != attested
+    assert (
+        require_success(ant.load(bytes(failing.export()))).decoded_artifact.contract["claim"][
+            "attested"
+        ]
+        != attested
+    )
     assert len({passing.claim_id, failing.claim_id, unchecked.claim_id}) == 3
 
 
@@ -381,10 +391,10 @@ def test_retarget_export_reload_and_reexecute_on_snapshot() -> None:
         refute="none",
         bootstrap=0,
     )
-    prepared.estimate(data)
+    require_success(prepared.estimate(data))
     weights = np.exp(data["z"] / 3)
     retargeted = prepared.retarget(weights, depends_on=["z"])
-    encoded = retargeted.export()
+    encoded = bytes(retargeted.export())
     loaded = artifacts.loads(encoded)
     assert loaded.payload_kind == "analysis_result"
     acceptance = artifacts.accept(encoded)
@@ -410,13 +420,13 @@ def test_constant_retarget_keeps_the_prepared_target() -> None:
         refute="none",
         bootstrap=0,
     )
-    estimated = prepared.estimate(data)
+    estimated = require_success(prepared.estimate(data))
     constant = prepared.retarget(np.full(len(data["t"]), 7.0), depends_on=[])
     assert constant.inspect().target_weights_id is None
     assert constant.inspect().target_id == estimated.inspect().target_id
     from antecedent import artifacts
 
-    assert artifacts.accept(constant.export())["accepts_as_verified_program"] == "true"
+    assert artifacts.accept(bytes(constant.export()))["accepts_as_verified_program"] == "true"
 
 
 def test_retarget_uses_the_scores_of_the_execution_it_follows() -> None:
@@ -439,18 +449,18 @@ def test_retarget_uses_the_scores_of_the_execution_it_follows() -> None:
     )
     weights = np.exp(d2["z"])
     prepared = PreparedAnalysis.prepare(d1, **kwargs)
-    prepared.estimate(d2)
+    require_success(prepared.estimate(d2))
     after_estimate = prepared.retarget(weights, depends_on=["z"])
     fresh = PreparedAnalysis.prepare(d2, **kwargs)
-    fresh.estimate(d2)
+    require_success(fresh.estimate(d2))
     on_d2 = fresh.retarget(weights, depends_on=["z"])
     stale = PreparedAnalysis.prepare(d1, **kwargs)
-    stale.estimate(d1)
+    require_success(stale.estimate(d1))
     on_d1 = stale.retarget(weights, depends_on=["z"])
     assert abs(on_d2.ate - on_d1.ate) > 0.5, "fixture must separate the two snapshots"
     assert after_estimate.ate == on_d2.ate
-    exported = artifacts.loads(after_estimate.export()).contract
-    reference = artifacts.loads(on_d2.export()).contract
+    exported = artifacts.loads(bytes(after_estimate.export())).contract
+    reference = artifacts.loads(bytes(on_d2.export())).contract
     assert exported["identities"]["data_snapshot"] == reference["identities"]["data_snapshot"]
     assert exported["identities"]["target_weights"] == reference["identities"]["target_weights"]
 
@@ -473,25 +483,28 @@ def test_retarget_refuses_new_data_with_code() -> None:
         bootstrap=0,
     )
     prepared = PreparedAnalysis.prepare(data, **kwargs)
-    prepared.estimate(data)
+    require_success(prepared.estimate(data))
     weights = np.exp(data["z"] / 3)
     retargeted = prepared.retarget(weights, depends_on=["z"])
-    carried = retargeted.export()
+    carried = bytes(retargeted.export())
 
     # The plan itself is not bound: a plain estimate on new data still works.
     moved = {**data, "y": data["y"] + 1.0}
-    assert prepared.estimate(moved).ate == prepared.estimate(moved).ate
+    assert (
+        require_success(prepared.estimate(moved)).ate
+        == require_success(prepared.estimate(moved)).ate
+    )
 
     # Re-executing the carried weights on their own snapshot reproduces them.
     same = PreparedAnalysis.prepare(data, **kwargs)
-    same.estimate(data)
+    require_success(same.estimate(data))
     again = same.reexecute_retarget(carried)
     assert again.ate == retargeted.ate
     assert again.inspect().target_weights_id == retargeted.inspect().target_weights_id
 
     # On a different snapshot of the same shape it refuses with the code.
     other = PreparedAnalysis.prepare(moved, **kwargs)
-    other.estimate(moved)
+    require_success(other.estimate(moved))
     try:
         other.reexecute_retarget(carried)
     except CausalUnsupportedError as err:

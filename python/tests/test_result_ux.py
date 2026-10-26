@@ -14,6 +14,7 @@ from antecedent.errors import (
     next_action,
     resolve_display_name,
 )
+from antecedent.outcomes import require_success
 from antecedent.results import IdentificationView, ResponseView
 
 from _repo_text import REPO_ROOT, load_json
@@ -24,13 +25,15 @@ def _ate_result():
     z = rng.normal(size=80)
     t = (z + rng.normal(size=80) > 0).astype(float)
     y = 1.5 * t + 0.4 * z + rng.normal(size=80) * 0.2
-    return antecedent.analyze(
-        {"t": t, "y": y, "z": z},
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=antecedent.AverageEffect("t", "y"),
-        bootstrap=0,
-        refute=False,
-        seed=1,
+    return require_success(
+        antecedent.analyze(
+            {"t": t, "y": y, "z": z},
+            graph=[("z", "t"), ("z", "y"), ("t", "y")],
+            query=antecedent.AverageEffect("t", "y"),
+            bootstrap=0,
+            refute=False,
+            seed=1,
+        )
     )
 
 
@@ -59,13 +62,15 @@ def _cpdag_envelope_result():
         [tuple(edge) for edge in pin["graph"]["directed_edges"]],
         [tuple(edge) for edge in pin["graph"]["undirected_edges"]],
     )
-    return antecedent.analyze(
-        {name: np.asarray(values) for name, values in columns.items()},
-        graph=graph,
-        query=antecedent.AverageEffect("t", "y"),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    return require_success(
+        antecedent.analyze(
+            {name: np.asarray(values) for name, values in columns.items()},
+            graph=graph,
+            query=antecedent.AverageEffect("t", "y"),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
 
 
@@ -146,14 +151,16 @@ def test_analyze_refusal_report_next():
     t = z + rng.normal(size=80) * 0.3
     y = 1.2 * t + z + rng.normal(size=80) * 0.3
     with pytest.raises(antecedent.ReviewRequired) as ei:
-        antecedent.analyze(
-            {"t": t, "y": y, "z": z},
-            discovery=antecedent.discovery.FCI(alpha=0.2, fdr=False, max_cond_size=2),
-            query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            accept_discovered=False,
-            refute=False,
-            bootstrap=0,
-            seed=1,
+        require_success(
+            antecedent.analyze(
+                {"t": t, "y": y, "z": z},
+                discovery=antecedent.discovery.FCI(alpha=0.2, fdr=False, max_cond_size=2),
+                query=antecedent.AverageEffect(treatment="t", outcome="y"),
+                accept_discovered=False,
+                refute=False,
+                bootstrap=0,
+                seed=1,
+            )
         )
     report = ei.value.report
     assert report.next

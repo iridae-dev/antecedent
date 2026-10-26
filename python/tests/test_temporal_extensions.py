@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import pytest
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced
 from antecedent.transport._temporal_extensions import _temporal_dependent_interval_candidate
 from antecedent.transport.advanced import (
@@ -18,11 +19,11 @@ from antecedent.transport.advanced import (
     PeriodPrior,
     PeriodRefresh,
     PeriodWindow,
-    consume_period_refresh_artifact,
     TemporalExtensionRefusal,
     TemporalPremises,
     TemporalUnitPanel,
     TemporalWindow,
+    consume_period_refresh_artifact,
     consume_temporal_initial_state_artifact,
     consume_temporal_refresh_artifact,
     temporal_dependent_interval,
@@ -145,7 +146,7 @@ def test_initial_state_fixed_and_marginalized_are_never_relabeled():
     alone = held(fixed_state=None)
     assert alone.fixed is None
     assert alone.value == pytest.approx(result.value, abs=0.0)
-    consumed = consume_temporal_initial_state_artifact(result.export())
+    consumed = consume_temporal_initial_state_artifact(bytes(result.export()))
     assert consumed.label == "marginalized_initial_state"
     assert consumed.fixed.label == "fixed_initial_state"
     assert consumed.value != consumed.fixed.value
@@ -171,7 +172,7 @@ def test_initial_state_follows_the_law_and_its_snapshot():
 
 def test_initial_state_export_consumes_independently():
     result = held()
-    blob = result.export()
+    blob = bytes(result.export())
     assert isinstance(blob, bytes)
     consumed = consume_temporal_initial_state_artifact(blob)
     assert consumed.value == pytest.approx(0.421, abs=1e-12)
@@ -190,7 +191,7 @@ def test_initial_state_export_consumes_independently():
 
 
 def test_initial_state_consumer_refuses_tampered_or_foreign_bytes():
-    blob = bytearray(held().export())
+    blob = bytearray(bytes(held().export()))
     blob[-3] ^= 0x55
     with pytest.raises(CausalSerializationError):
         consume_temporal_initial_state_artifact(bytes(blob))
@@ -198,7 +199,7 @@ def test_initial_state_consumer_refuses_tampered_or_foreign_bytes():
         consume_temporal_initial_state_artifact(b"not an artifact")
     refreshed = temporal_new_period_refresh(held(), new_panel(), window=window((1000, 2000)))
     with pytest.raises(CausalSerializationError):
-        consume_temporal_initial_state_artifact(refreshed.export())
+        consume_temporal_initial_state_artifact(bytes(refreshed.export()))
 
 
 def test_source_state_only_refuses_a_source_law_and_a_point_state():
@@ -294,7 +295,7 @@ def test_period_replace_chains_and_exports_an_independent_artifact():
     )
     assert second.previous_value == pytest.approx(first.value, abs=0.0)
     assert second.value == pytest.approx(0.621, abs=1e-12)
-    blob = first.export()
+    blob = bytes(first.export())
     consumed = consume_temporal_refresh_artifact(blob)
     assert consumed.decision == "reusable"
     assert consumed.invalidation is None
@@ -377,13 +378,15 @@ def test_third_period_invalid_replacements_and_missing_windows_refuse():
 
 def test_period_reseal_consumer_refuses_tampered_refresh_bytes():
     blob = bytearray(
-        temporal_new_period_refresh(held(), new_panel(), window=window((1000, 2000))).export()
+        bytes(
+            temporal_new_period_refresh(held(), new_panel(), window=window((1000, 2000))).export()
+        )
     )
     blob[-3] ^= 0x55
     with pytest.raises(CausalSerializationError):
         consume_temporal_refresh_artifact(bytes(blob))
     with pytest.raises(CausalSerializationError):
-        consume_temporal_refresh_artifact(held().export())
+        consume_temporal_refresh_artifact(bytes(held().export()))
 
 
 # --- closed dependent interval -----------------------------------------------------------
@@ -581,7 +584,7 @@ def test_period_refresh_first_period_matches_the_reference_fit():
 
 def test_period_refresh_extends_a_declared_invariant_mechanism_like_one_fit():
     refresh = started(invariant=True)
-    outcome = refresh.refresh(SERIES[6:12], period_window(6, 12, "snap_2"))
+    outcome = require_success(refresh.refresh(SERIES[6:12], period_window(6, 12, "snap_2")))
     assert (outcome.outcome, outcome.contiguous, outcome.invalidated) == ("extended", True, ())
     assert_fit(
         refresh,
@@ -598,7 +601,7 @@ def test_period_refresh_extends_a_declared_invariant_mechanism_like_one_fit():
 
 def test_period_refresh_gap_forms_no_spanning_rows():
     refresh = started(invariant=True)
-    outcome = refresh.refresh(SERIES[8:14], period_window(8, 14, "snap_later"))
+    outcome = require_success(refresh.refresh(SERIES[8:14], period_window(8, 14, "snap_later")))
     assert (outcome.outcome, outcome.contiguous) == ("extended", False)
     assert_fit(
         refresh,
@@ -612,7 +615,7 @@ def test_period_refresh_gap_forms_no_spanning_rows():
 
 def test_period_refresh_restarts_an_undeclared_mechanism_under_the_stated_prior():
     refresh = started(invariant=False)
-    outcome = refresh.refresh(SERIES[6:12], period_window(6, 12, "snap_2"))
+    outcome = require_success(refresh.refresh(SERIES[6:12], period_window(6, 12, "snap_2")))
     assert outcome.outcome == "restarted"
     assert {"model", "design", "evidence"} <= set(outcome.invalidated)
     assert "identification" not in outcome.invalidated
@@ -628,7 +631,9 @@ def test_period_refresh_restarts_an_undeclared_mechanism_under_the_stated_prior(
 
 def test_period_refresh_population_drift_restarts_even_when_declared_invariant():
     refresh = started(invariant=True)
-    outcome = refresh.refresh(SERIES[12:18], period_window(12, 18, "snap_drift", ("u1", "u3")))
+    outcome = require_success(
+        refresh.refresh(SERIES[12:18], period_window(12, 18, "snap_drift", ("u1", "u3")))
+    )
     assert outcome.outcome == "restarted"
     assert "model" in outcome.invalidated
     assert refresh.least_squares.n == 4
@@ -637,11 +642,15 @@ def test_period_refresh_population_drift_restarts_even_when_declared_invariant()
 def test_period_refresh_overlap_reuse_and_prior_change_are_typed_refusals():
     refresh = started(invariant=True)
     before = refresh.posterior
-    error = refusal_of(lambda: refresh.refresh(SERIES[4:10], period_window(4, 10, "snap_overlap")))
+    error = refusal_of(
+        lambda: require_success(refresh.refresh(SERIES[4:10], period_window(4, 10, "snap_overlap")))
+    )
     assert error.reason_code == "invalid_argument"
     assert error.detail == "period_refresh.overlap"
     assert "supply a later period of a new snapshot" in str(error)
-    error = refusal_of(lambda: refresh.refresh(SERIES[6:12], period_window(6, 12, "snap_1")))
+    error = refusal_of(
+        lambda: require_success(refresh.refresh(SERIES[6:12], period_window(6, 12, "snap_1")))
+    )
     assert error.detail == "period_refresh.overlap"
     assert refresh.posterior == before  # a refused period changes nothing
 
@@ -683,8 +692,8 @@ def test_period_refresh_eviction_rebuilds_both_summaries():
 
 def test_period_refresh_ledger_is_recomputed_by_an_independent_consumer():
     refresh = started(invariant=True)
-    refresh.refresh(SERIES[6:12], period_window(6, 12, "snap_2"))
-    consumed = consume_period_refresh_artifact(refresh.export())
+    require_success(refresh.refresh(SERIES[6:12], period_window(6, 12, "snap_2")))
+    consumed = consume_period_refresh_artifact(bytes(refresh.export()))
     assert consumed.standing == "declared_invariant"
     assert consumed.rows_used == 10
     assert consumed.live_snapshots == ("snap_1", "snap_2")
@@ -700,8 +709,8 @@ def test_period_refresh_ledger_is_recomputed_by_an_independent_consumer():
     assert consumed.prior_digest == refresh.prior_digest
 
     restarted = started(invariant=False)
-    restarted.refresh(SERIES[6:12], period_window(6, 12, "snap_2"))
-    consumed = consume_period_refresh_artifact(restarted.export())
+    require_success(restarted.refresh(SERIES[6:12], period_window(6, 12, "snap_2")))
+    consumed = consume_period_refresh_artifact(bytes(restarted.export()))
     assert [e.outcome for e in consumed.events] == ["start", "restarted"]
     assert consumed.live_snapshots == ("snap_2",)
     assert consumed.rows_used == 4
@@ -709,8 +718,8 @@ def test_period_refresh_ledger_is_recomputed_by_an_independent_consumer():
 
 def test_period_refresh_tampered_ledger_is_refused_by_the_consumer():
     refresh = started(invariant=True)
-    refresh.refresh(SERIES[6:12], period_window(6, 12, "snap_2"))
-    blob = refresh.export()
+    require_success(refresh.refresh(SERIES[6:12], period_window(6, 12, "snap_2")))
+    blob = bytes(refresh.export())
     for fraction in (0.4, 0.6, 0.8):
         index = int(len(blob) * fraction)
         forged = blob[:index] + bytes([blob[index] ^ 0x01]) + blob[index + 1 :]

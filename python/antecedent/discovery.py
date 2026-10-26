@@ -1213,9 +1213,9 @@ class OrderMcmc:
             n_draws=self.n_draws,
             thin=self.thin,
             require_diagnostics_gate=self.require_diagnostics_gate,
-            **({} if self.max_parents is None else {"max_parents": self.max_parents}),
             seed=seed,
             threads=threads,
+            max_parents=self.max_parents,
         )
 
 
@@ -1258,9 +1258,9 @@ class StructureMcmc:
             n_warmup=self.n_warmup,
             n_draws=self.n_draws,
             thin=self.thin,
-            **({} if self.max_parents is None else {"max_parents": self.max_parents}),
             seed=seed,
             threads=threads,
+            max_parents=self.max_parents,
         )
 
 

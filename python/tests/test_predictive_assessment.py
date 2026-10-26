@@ -757,7 +757,7 @@ def artifact_assessment(seed: int = 21, shift: float = 0.0) -> pa.PredictiveAsse
 
 def test_a_consumer_rescores_every_case_and_reproduces_the_report() -> None:
     result = artifact_assessment()
-    artifact = result.export("assessment-test")
+    artifact = bytes(result.export("assessment-test"))
     consumed = pa.consume_predictive_assessment_artifact(artifact, result.identity)
     assert consumed.report == result.report
     assert consumed.identity == result.identity
@@ -767,7 +767,7 @@ def test_a_consumer_rescores_every_case_and_reproduces_the_report() -> None:
             == result.report.predictor(name).score("crps").mean
         )
     # Same inputs, same bytes: the artifact is deterministic.
-    assert artifact_assessment().export("assessment-test") == artifact
+    assert bytes(artifact_assessment().export("assessment-test")) == artifact
 
 
 def test_an_assessment_of_other_laws_fails_the_retained_identity() -> None:
@@ -775,19 +775,21 @@ def test_an_assessment_of_other_laws_fails_the_retained_identity() -> None:
     other = artifact_assessment(shift=0.25)
     assert other.identity != original.identity
     error = refused(
-        lambda: pa.consume_predictive_assessment_artifact(other.export(), original.identity)
+        lambda: pa.consume_predictive_assessment_artifact(bytes(other.export()), original.identity)
     )
     expect(error, "route_not_supported", "predictive_assessment.wrong_contract")
     # An identity edited in transit is refused the same way.
     wire = dict(original.identity.wire)
     wire["configuration"] = "0" * 64
-    error = refused(lambda: pa.consume_predictive_assessment_artifact(original.export(), wire))
+    error = refused(
+        lambda: pa.consume_predictive_assessment_artifact(bytes(original.export()), wire)
+    )
     expect(error, "route_not_supported", "predictive_assessment.wrong_contract")
 
 
 def test_a_damaged_artifact_is_refused_and_never_consumed() -> None:
     original = artifact_assessment()
-    artifact = original.export()
+    artifact = bytes(original.export())
     for position in (len(artifact) // 2, len(artifact) // 3, len(artifact) - 5):
         flipped = bytearray(artifact)
         flipped[position] ^= 0xFF
@@ -844,7 +846,7 @@ def test_listing_the_cases_in_another_order_gives_the_same_assessment() -> None:
 def test_a_fresh_process_rescores_the_artifact_against_the_retained_identity(tmp_path) -> None:
     result = artifact_assessment()
     path = tmp_path / "assessment.bin"
-    path.write_bytes(result.export("fresh"))
+    path.write_bytes(bytes(result.export("fresh")))
     script = (
         "import json, sys\n"
         "from antecedent import predictive_assessment as pa\n"

@@ -7,6 +7,7 @@ import random
 
 import antecedent
 import numpy as np
+from antecedent.outcomes import require_success
 
 
 def _confounded(n: int = 400, seed: int = 11):
@@ -36,7 +37,7 @@ def test_prepared_refute_second_click():
         bootstrap=0,
         seed=5,
     )
-    first = prepared.estimate(data, seed=5)
+    first = require_success(prepared.estimate(data, seed=5))
     assert not first.validation.ran
     ate = first.ate
 

@@ -20,6 +20,7 @@ import pytest
 from antecedent.design_models import DosePolynomial, PiecewiseHazards, QuantileGrid
 from antecedent.errors import CausalError
 from antecedent.observation import IndependentGiven
+from antecedent.outcomes import require_success
 from antecedent.policy import ConditionalDoseResponse
 from antecedent.query import Quantile
 from antecedent.survival import CompetingRisksOutcome, SurvivalOutcome
@@ -57,8 +58,10 @@ def test_estimator_ids_are_public() -> None:
 
 
 def test_survival_posterior_matches_the_gamma_hazard_reference() -> None:
-    result = antecedent.analyze(
-        _small_survival(), query=_survival_query(), inference=_hazards(), seed=11
+    result = require_success(
+        antecedent.analyze(
+            _small_survival(), query=_survival_query(), inference=_hazards(), seed=11
+        )
     )
     row = result.posterior_row
     assert row is not None and result.survival is None
@@ -103,7 +106,7 @@ def test_flat_prior_survival_posterior_tracks_the_frequentist_product_limit() ->
             event.append(float(time <= 3.0))
             treatment.append(arm)
     data = {"duration": duration, "event": event, "treatment": treatment}
-    frequentist = antecedent.analyze(data, query=_survival_query()).survival
+    frequentist = require_success(antecedent.analyze(data, query=_survival_query())).survival
     assert frequentist is not None
     flat = antecedent.Bayesian(
         backend="conjugate",
@@ -112,7 +115,9 @@ def test_flat_prior_survival_posterior_tracks_the_frequentist_product_limit() ->
             cuts=(0.5, 1.0, 1.5, 2.0, 2.5, 3.0), prior_shape=1e-3, prior_rate=1e-3
         ),
     )
-    row = antecedent.analyze(data, query=_survival_query(), inference=flat, seed=3).posterior_row
+    row = require_success(
+        antecedent.analyze(data, query=_survival_query(), inference=flat, seed=3)
+    ).posterior_row
     assert row is not None
     survival_difference = frequentist.treated_survival[-1] - frequentist.control_survival[-1]
     assert row.posterior_mean("survival_difference") == pytest.approx(survival_difference, abs=0.02)
@@ -123,11 +128,11 @@ def test_flat_prior_survival_posterior_tracks_the_frequentist_product_limit() ->
 
 
 def test_survival_posterior_round_trips_in_this_process_and_a_fresh_one(tmp_path) -> None:
-    result = antecedent.analyze(
-        _small_survival(), query=_survival_query(), inference=_hazards(), seed=5
+    result = require_success(
+        antecedent.analyze(_small_survival(), query=_survival_query(), inference=_hazards(), seed=5)
     )
-    artifact = result.export(artifact_id="bayesian-survival")
-    loaded = antecedent.load(artifact)
+    artifact = bytes(result.export(artifact_id="bayesian-survival"))
+    loaded = require_success(antecedent.load(artifact))
     assert loaded.answer == result.answer
     structured = loaded.answer.structured
     assert structured["estimator"] == "bayesian.piecewise_survival"
@@ -155,34 +160,42 @@ def test_survival_posterior_refusals_name_the_next_attempt() -> None:
     data = _small_survival()
     # Competing causes.
     with pytest.raises(CausalError, match="competing_causes_unsupported") as caught:
-        antecedent.analyze(
-            {**data, "cause": [2.0] + data["event"][1:]},
-            query=CompetingRisksOutcome(
-                "duration",
-                "cause",
-                "treatment",
-                1,
-                3.0,
-                randomized=True,
-                observation_assumption=IndependentGiven(()),
-            ),
-            inference=_hazards(),
+        require_success(
+            antecedent.analyze(
+                {**data, "cause": [2.0] + data["event"][1:]},
+                query=CompetingRisksOutcome(
+                    "duration",
+                    "cause",
+                    "treatment",
+                    1,
+                    3.0,
+                    randomized=True,
+                    observation_assumption=IndependentGiven(()),
+                ),
+                inference=_hazards(),
+            )
         )
     assert "Next attempt" in str(caught.value)
     # Undeclared partition and prior.
     with pytest.raises(CausalError, match="model_not_declared") as caught:
-        antecedent.analyze(
-            data,
-            query=_survival_query(),
-            inference=antecedent.Bayesian(backend="conjugate", n_draws=1_000),
+        require_success(
+            antecedent.analyze(
+                data,
+                query=_survival_query(),
+                inference=antecedent.Bayesian(backend="conjugate", n_draws=1_000),
+            )
         )
     assert "Next attempt" in str(caught.value)
     # The last cut is the horizon.
     with pytest.raises(CausalError, match="horizon_mismatch"):
-        antecedent.analyze(data, query=_survival_query(), inference=_hazards(cuts=(1.0, 2.0)))
+        require_success(
+            antecedent.analyze(data, query=_survival_query(), inference=_hazards(cuts=(1.0, 2.0)))
+        )
     # A bootstrap has no meaning for a posterior.
     with pytest.raises(CausalError, match="bootstrap_not_applicable"):
-        antecedent.analyze(data, query=_survival_query(), inference=_hazards(), bootstrap=300)
+        require_success(
+            antecedent.analyze(data, query=_survival_query(), inference=_hazards(), bootstrap=300)
+        )
 
 
 def _dose_rows(rows: int = 800) -> dict[str, np.ndarray]:
@@ -231,8 +244,12 @@ def _polynomial() -> antecedent.Bayesian:
 def test_dose_policy_posterior_tracks_the_frequentist_kernel_row() -> None:
     data = _dose_rows()
     query = _dose_query()
-    frequentist = antecedent.analyze(data, query=query, refute="none").continuous_dose_response
-    result = antecedent.analyze(data, query=query, inference=_polynomial(), refute="none", seed=7)
+    frequentist = require_success(
+        antecedent.analyze(data, query=query, refute="none")
+    ).continuous_dose_response
+    result = require_success(
+        antecedent.analyze(data, query=query, inference=_polynomial(), refute="none", seed=7)
+    )
     row = result.posterior_row
     assert row is not None and result.continuous_dose_response is None
     assert row.estimator == "bayesian.continuous_dose_policy"
@@ -255,7 +272,10 @@ def test_dose_policy_posterior_tracks_the_frequentist_kernel_row() -> None:
     )
     assert result.answer.detail == "unlicensed_posterior_bayesian_continuous_dose_policy"
     assert (
-        antecedent.load(result.export(artifact_id="bayesian-dose-policy")).answer == result.answer
+        require_success(
+            antecedent.load(bytes(result.export(artifact_id="bayesian-dose-policy")))
+        ).answer
+        == result.answer
     )
 
 
@@ -281,8 +301,8 @@ def test_dose_policy_posterior_matches_the_per_group_conjugate_reference() -> No
             support=(0.0, 4.0), coefficient_scales=(3.0, 2.0, 1.0), residual_variance=0.25
         ),
     )
-    row = antecedent.analyze(
-        data, query=query, inference=inference, refute="none", seed=5
+    row = require_success(
+        antecedent.analyze(data, query=query, inference=inference, refute="none", seed=5)
     ).posterior_row
     # numpy ridge posteriors per group, scipy adaptive quadrature of the window average.
     assert row.exact_mean == pytest.approx((1.91559566, 1.43144023, 0.48415543), abs=1e-7)
@@ -297,26 +317,32 @@ def test_dose_policy_posterior_matches_the_per_group_conjugate_reference() -> No
 def test_dose_policy_refusals_name_the_next_attempt() -> None:
     data = _dose_rows()
     with pytest.raises(CausalError, match="model_not_declared") as caught:
-        antecedent.analyze(
-            data,
-            query=_dose_query(),
-            inference=antecedent.Bayesian(backend="conjugate", n_draws=1_000),
-            refute="none",
+        require_success(
+            antecedent.analyze(
+                data,
+                query=_dose_query(),
+                inference=antecedent.Bayesian(backend="conjugate", n_draws=1_000),
+                refute="none",
+            )
         )
     assert "Next attempt" in str(caught.value)
     with pytest.raises(CausalError, match="grid_not_read"):
-        antecedent.analyze(
-            data,
-            query=_dose_query(target_doses=(0.5,)),
-            inference=_polynomial(),
-            refute="none",
+        require_success(
+            antecedent.analyze(
+                data,
+                query=_dose_query(target_doses=(0.5,)),
+                inference=_polynomial(),
+                refute="none",
+            )
         )
     with pytest.raises(CausalError, match="policy_required"):
-        antecedent.analyze(
-            data,
-            query=_dose_query(policy_doses=None, reference_doses=None, target_doses=(0.5,)),
-            inference=_polynomial(),
-            refute="none",
+        require_success(
+            antecedent.analyze(
+                data,
+                query=_dose_query(policy_doses=None, reference_doses=None, target_doses=(0.5,)),
+                inference=_polynomial(),
+                refute="none",
+            )
         )
 
 
@@ -337,16 +363,18 @@ def _quantile(concentration: float = 0.5, model: bool = True, **kwargs):
         else None,
     )
     graph = kwargs.pop("graph", antecedent.Dag.from_edges(["t", "y"], [("t", "y")]))
-    return antecedent.analyze(
-        kwargs.pop("data", _quantile_data()),
-        graph=graph,
-        query=antecedent.AverageEffect(
-            "t", "y", outcome_functional=Quantile(kwargs.pop("tau", 0.5))
-        ),
-        estimator=antecedent.Estimator.BAYESIAN_RANDOMIZED_QUANTILE,
-        inference=inference,
-        refute="none",
-        seed=kwargs.pop("seed", 9),
+    return require_success(
+        antecedent.analyze(
+            kwargs.pop("data", _quantile_data()),
+            graph=graph,
+            query=antecedent.AverageEffect(
+                "t", "y", outcome_functional=Quantile(kwargs.pop("tau", 0.5))
+            ),
+            estimator=antecedent.Estimator.BAYESIAN_RANDOMIZED_QUANTILE,
+            inference=inference,
+            refute="none",
+            seed=kwargs.pop("seed", 9),
+        )
     )
 
 
@@ -371,7 +399,12 @@ def test_quantile_posterior_matches_the_dirichlet_reference() -> None:
     joint = row.covariance_matrix()
     assert joint is not None and joint.shape == (3, 3)
     assert abs(joint[0, 1]) < 0.05 * np.sqrt(joint[0, 0] * joint[1, 1])
-    assert antecedent.load(result.export(artifact_id="bayesian-quantile")).answer == result.answer
+    assert (
+        require_success(
+            antecedent.load(bytes(result.export(artifact_id="bayesian-quantile")))
+        ).answer
+        == result.answer
+    )
 
 
 def test_vague_prior_quantile_posterior_tracks_the_empirical_inversion() -> None:

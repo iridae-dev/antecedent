@@ -198,14 +198,14 @@ def main() -> None:
     assert result.selected == ("safe",)
 
     files: dict[str, bytes] = {
-        "py_external_claim.bin": claim.export(artifact_id="claim"),
+        "py_external_claim.bin": bytes(claim.export(artifact_id="claim")),
         "py_external_claim.identity.json": (
             json.dumps(claim.identity_fields, sort_keys=True, indent=2) + "\n"
         ).encode(),
-        "py_decision_contract.bin": contract.export(artifact_id="decision-contract"),
-        "py_decision_result.bin": result.export(artifact_id="decision-result"),
-        "py_decision_source.bin": source.export("source"),
-        "py_joint_law.bin": joint_law().export("joint-law"),
+        "py_decision_contract.bin": bytes(contract.export(artifact_id="decision-contract")),
+        "py_decision_result.bin": bytes(result.export(artifact_id="decision-result")),
+        "py_decision_source.bin": bytes(source.export("source")),
+        "py_joint_law.bin": bytes(joint_law().export("joint-law")),
         "py_decision.identities.json": (
             json.dumps(
                 {

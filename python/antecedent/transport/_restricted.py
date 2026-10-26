@@ -14,10 +14,22 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any, cast
 
+from .._artifact_protocol import (
+    ArtifactAcceptance,
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .._columns import coerce_fields
+from .._scientific import ScientificResult
 from .._study_lifecycle import replay_declaration, retain
 from .._transport_results import TransportGridPoint, TransportUncertainty
-from ..errors import CausalCancelledError, CausalUnsupportedError, CausalValueError
+from ..errors import (
+    CausalSerializationError,
+    CausalUnsupportedError,
+    CausalValueError,
+)
 from ..graph import Admg
 from ._impl import (
     EmpiricalTable,
@@ -116,12 +128,21 @@ class RestrictedTransportIdentification:
         coerce_fields(self, components=tuple(self.components))
 
 
-class RestrictedTransportExecution:
+@dataclass(frozen=True, slots=True, init=False, repr=False)
+class RestrictedTransportExecution(ScientificResult):
     """Point results from the z-transport stage, one target assignment at a time.
 
     ``artifacts`` holds one independently consumable z-transport artifact per
     target assignment, in ``points`` order.
     """
+
+    scope: str
+    formula: str
+    rules: tuple[str, ...]
+    points: tuple[TransportGridPoint, ...]
+    _artifacts: tuple[bytes, ...]
+    uncertainty: Any
+    outcomes: tuple[str, ...]
 
     def __init__(
         self,
@@ -130,33 +151,41 @@ class RestrictedTransportExecution:
         rules: tuple[str, ...],
         artifacts: tuple[bytes, ...] = (),
     ) -> None:
-        self.scope = SCOPE
-        self.formula = SCOPE
-        self.rules = rules
-        self.points = points
-        self.artifacts = artifacts
+        object.__setattr__(self, "scope", SCOPE)
+        object.__setattr__(self, "formula", SCOPE)
+        object.__setattr__(self, "rules", tuple(rules))
+        object.__setattr__(self, "points", tuple(points))
+        object.__setattr__(self, "_artifacts", tuple(artifacts))
         first = points[0] if points else None
-        self.uncertainty = None if first is None else first.uncertainty
-        self.outcomes = () if first is None else tuple(first.means)
+        object.__setattr__(self, "uncertainty", None if first is None else first.uncertainty)
+        object.__setattr__(self, "outcomes", () if first is None else tuple(first.means))
 
     def mean(self, outcome: str) -> float:
         if not self.points:
             raise CausalValueError("z-transport execution has no target assignment")
         return float(self.points[0].means[outcome])
 
-    def export(self) -> bytes:
-        """The single-assignment artifact; a grid exports per point via ``artifacts``."""
-        if not self.artifacts:
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
+        """Export every ordered native point artifact as one complete transport view."""
+        if not self._artifacts:
             raise CausalUnsupportedError(
-                "estimate before exporting a z-transport artifact", reason_code="not_executed"
+                "estimate before exporting transport", reason_code="not_executed"
             )
-        if len(self.artifacts) != 1:
-            raise CausalUnsupportedError(
-                "a z-transport grid execution carries one artifact per target assignment; "
-                "read .artifacts, or export the whole result with result.export()",
-                reason_code="option_not_applicable",
+        captured = getattr(self, "_artifact_bytes", None)
+        if captured is None:
+            from ._wrap import encode_envelope
+
+            captured = encode_envelope(
+                query=None,
+                provider=None,
+                bindings=(),
+                unavailable=None,
+                identification_bytes=None,
+                identification_snapshot=None,
+                specialist_artifacts=self._artifacts,
             )
-        return self.artifacts[0]
+        return artifact_from_receipt(self, captured)
 
     def inspect(self) -> Any:
         from ..results._report import InspectionReport, SlotModel
@@ -203,15 +232,47 @@ def consume_restricted_artifacts(
     if worlds and len(worlds) != len(artifacts):
         raise CausalValueError("one z-transport artifact per target assignment is required")
     points = []
+    receipts = []
     rules: tuple[str, ...] = ()
     for index, artifact in enumerate(artifacts):
-        payload = json.loads(consume_z_transport_artifact(bytes(artifact)))
+        consumed = consume_z_transport_artifact(container_bytes(artifact))
+        payload = consumed.to_dict()
+        receipt: object = getattr(consumed, "acceptance", None)
+        if not isinstance(receipt, ArtifactAcceptance):
+            raise CausalSerializationError(
+                "checked Z transport consumer returned no acceptance receipt"
+            )
+        receipts.append(receipt)
         rules = tuple(payload.get("proof", {}).get("rules") or rules)
-        world = worlds[index] if worlds else {}
+        world = payload.get("at")
+        if not isinstance(world, Mapping):
+            raise CausalSerializationError(
+                "checked Z transport consumer returned no request coordinates"
+            )
+        if worlds and dict(worlds[index]) != dict(world):
+            raise CausalSerializationError(
+                "transport envelope coordinates differ from the verified native point"
+            )
         points.append(_point(world, payload))
-    return RestrictedTransportExecution(
-        points=tuple(points), rules=rules, artifacts=tuple(bytes(a) for a in artifacts)
+    result = RestrictedTransportExecution(
+        points=tuple(points), rules=rules, artifacts=tuple(container_bytes(a) for a in artifacts)
     )
+    object.__setattr__(
+        result,
+        "acceptance",
+        ArtifactAcceptance(
+            "verified",
+            False,
+            True,
+            False,
+            proof="each ordered member passed the native Z transport proof/catalog/law and point replay consumer",
+            unresolved=(
+                "loaded restricted execution is point-only; no interval replay or provider session is restored",
+            ),
+        ),
+    )
+    object.__setattr__(result, "member_acceptance", tuple(receipts))
+    return result
 
 
 def identification_from_snapshot(snapshot: bytes) -> RestrictedTransportIdentification:
@@ -241,7 +302,7 @@ def identification_from_snapshot(snapshot: bytes) -> RestrictedTransportIdentifi
     )
 
 
-class _RestrictedNative:
+class _RestrictedNative(ScientificResult):
     """PreparedAnalysis native adapter over one prepared z-transport handle per world.
 
     Every target assignment keeps its own ``PreparedZTransportStage``. A
@@ -255,6 +316,7 @@ class _RestrictedNative:
         self,
         *,
         stage: Any,
+        query: Any,
         catalog: EvidenceCatalog,
         laws: tuple[ExactDiscreteLaw, ...],
         worlds: Sequence[Mapping[str, float]],
@@ -265,6 +327,7 @@ class _RestrictedNative:
         rebuild: Callable[[Any], tuple[tuple[ExactDiscreteLaw, ...], EvidenceCatalog]],
     ) -> None:
         self.stage = stage
+        self.query = query
         self.catalog = catalog
         self.laws = laws
         self.worlds = [dict(world) for world in worlds]
@@ -292,28 +355,23 @@ class _RestrictedNative:
         prepare = self.stage.prepare_empirical if self.empirical else self.stage.prepare_exact
         return [prepare(catalog, laws, world, **kwargs) for world in self.worlds]
 
-    def replace_snapshot(self, data: Any, cancel: Any = None) -> None:
+    def bind_snapshot(self, data: Any, cancel: Any = None) -> _RestrictedNative:
         cancel = self.limits.cancel if cancel is None else cancel
         laws, catalog = self.rebuild(data)
-        if catalog == self.catalog:
-            from .._rollback import refresh_all_or_restore
-
-            previous = self.laws
-            # A cancellation is a BaseException. except Exception would leave the
-            # worlds already rebound on ``laws`` and the rest on ``previous``.
-            refresh_all_or_restore(
-                self._prepared,
-                lambda prepared: prepared.refresh(laws, cancel=cancel),
-                lambda prepared: prepared.refresh(previous, cancel=cancel),
-            )
-        else:
-            self._prepared = self._prepare_all(catalog, laws, cancel=cancel)
-        self.laws = laws
-        self.catalog = catalog
-        self.last = None
-        if self.stage_snapshot is not None:
-            self.stage_snapshot["catalog"] = catalog
-            self.stage_snapshot["bound"] = data
+        candidate = self.fork()
+        candidate._prepared = (
+            [prepared.bind_snapshot(laws, cancel=cancel) for prepared in self._prepared]
+            if catalog == self.catalog
+            else self._prepare_all(catalog, laws, cancel=cancel)
+        )
+        candidate.laws = laws
+        candidate.catalog = catalog
+        candidate.stage_snapshot = (
+            None if self.stage_snapshot is None else dict(self.stage_snapshot)
+        )
+        if candidate.stage_snapshot is not None:
+            candidate.stage_snapshot.update(catalog=catalog, bound=data)
+        return candidate
 
     def estimate(self, cancel: Any = None) -> RestrictedTransportExecution:
         cancel = self.limits.cancel if cancel is None else cancel
@@ -326,42 +384,32 @@ class _RestrictedNative:
         self.last = RestrictedTransportExecution(
             points=tuple(points), rules=self.rules, artifacts=tuple(artifacts)
         )
+        object.__setattr__(self.last, "_artifact_bytes", self.envelope(self.last))
         return self.last
 
-    def refresh(self, data: Any, cancel: Any = None) -> RestrictedTransportExecution:
-        from .._native import CancellationToken
-
-        cancel = self.limits.cancel if cancel is None else cancel
-        if isinstance(cancel, CancellationToken) and cancel.is_cancelled():
-            raise CausalCancelledError("cancelled before restricted transport refresh")
-        laws, catalog = self.rebuild(data)
-        candidate = self.freeze()
-        candidate.laws = laws
-        candidate.catalog = catalog
-        candidate.stage_snapshot = None
-        # Reuse the retained Rust stage/certificate and settings, preparing replacement
-        # handles separately so refusals or cancellation cannot invalidate the old claim.
-        candidate._prepared = self._prepare_all(catalog, laws, cancel=cancel)
-        result = candidate.estimate(cancel=cancel)
-        self._prepared = candidate._prepared
-        self.laws = laws
-        self.catalog = catalog
-        self.last = result
-        if self.stage_snapshot is not None:
-            self.stage_snapshot["catalog"] = catalog
-            self.stage_snapshot["bound"] = data
-        return result
-
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
         """The last execution's artifacts, framed as one loadable transport view."""
         if self.last is None:
             raise CausalUnsupportedError(
                 "estimate before exporting the z-transport study", reason_code="not_executed"
             )
-        return self.envelope(self.last)
+        return artifact_from_receipt(self, self.envelope(self.last))
 
-    #: Set by :func:`prepare_restricted`: encodes an execution as the loadable view.
-    envelope: Callable[[RestrictedTransportExecution], bytes]
+    def envelope(self, execution: RestrictedTransportExecution) -> bytes:
+        from ._wrap import encode_envelope
+
+        return encode_envelope(
+            query=self.query,
+            provider="empirical_table" if self.empirical else "exact_law",
+            bindings=tuple(
+                f"{binding.regime}:{binding.snapshot_identity}" for binding in self.catalog.bindings
+            ),
+            unavailable=None,
+            identification_bytes=None,
+            identification_snapshot=None,
+            specialist_artifacts=execution._artifacts,
+        )
 
     def plan_summary(self) -> dict[str, str]:
         bindings = ",".join(f"{law.regime}:{law.snapshot_identity}" for law in self.laws)
@@ -395,6 +443,14 @@ class _RestrictedNative:
     def inspection_json(self) -> str:
         execution = self.last or RestrictedTransportExecution(points=(), rules=self.rules)
         return json.dumps(execution.inspect().to_dict())
+
+    def fork(self, seed: int | None = None) -> _RestrictedNative:
+        branch = self.freeze()
+        branch.seed = self.seed if seed is None else seed
+        branch._prepared = [prepared.fork(seed=branch.seed) for prepared in self._prepared]
+        branch.last = None
+        branch.stage_snapshot = None if self.stage_snapshot is None else dict(self.stage_snapshot)
+        return branch
 
     def freeze(self) -> _RestrictedNative:
         frozen = _RestrictedNative.__new__(_RestrictedNative)
@@ -551,7 +607,6 @@ def prepare_restricted(
 
     from ..estimation import PreparedAnalysis
     from ._day1 import lower_question, transport_stage
-    from ._wrap import encode_restricted_execution
 
     if isinstance(provider, (LearnedCategorical, TrialAipw)) or isinstance(data, TrialAipwData):
         raise CausalUnsupportedError(
@@ -577,6 +632,7 @@ def prepare_restricted(
         return study
     native = _RestrictedNative(
         stage=identified.stage,
+        query=replay_declaration(retain(query)),
         catalog=catalog,
         laws=identified.laws,
         worlds=worlds,
@@ -591,7 +647,6 @@ def prepare_restricted(
     prepared: PreparedAnalysis[Any] = PreparedAnalysis(native, kind="z_transport", query=query)
     prepared._transport_stage = stage_snapshot
     native.stage_snapshot = stage_snapshot
-    native.envelope = functools.partial(encode_restricted_execution, prepared)
     return prepared
 
 

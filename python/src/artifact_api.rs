@@ -195,6 +195,21 @@ fn inspect_container_metadata(bytes: &[u8], depth: usize) -> PyResult<String> {
     if depth > 8 {
         return Err(serialization_error("artifact framing exceeds the inspection depth limit"));
     }
+    if bytes.starts_with(antecedent_io::bayesian_prior_recalc_artifact::BOUND_PRIOR_MAGIC) {
+        let source =
+            antecedent_io::bayesian_prior_recalc_artifact::BoundBayesianPriorWire::decode(bytes)
+                .map_err(serialization_error)?;
+        // Framing and retained metadata only. Posterior authority requires the
+        // scientific source replay performed by the Bayesian prior consumer.
+        return json(&serde_json::json!({
+            "manifest": {"artifact_kind": {"other": "bound_bayesian_prior_source_v1"}},
+            "metadata": {
+                "source_snapshot": blake3::Hash::from(source.source_snapshot).to_hex().to_string(),
+                "columns": source.columns.len(), "draws": source.draws,
+                "seed": source.seed, "posterior_bytes": source.posterior.len(),
+            },
+        }));
+    }
     if bytes.starts_with(b"ANTECEDENT-") {
         let delimiter = bytes
             .iter()

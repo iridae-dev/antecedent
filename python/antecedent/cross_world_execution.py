@@ -48,9 +48,17 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError
+from .outcomes import Answer, outcome_operation, require_success
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
@@ -396,6 +404,10 @@ class ExecutionResult(ScientificResult):
     work: Mapping[str, int]
     receipt: Mapping[str, str]
 
+    @property
+    def answer(self) -> Answer:
+        return Answer("point", value=self.value, detail=self.label)
+
     @classmethod
     def _from(cls, info: Mapping[str, Any]) -> ExecutionResult:
         return cls(
@@ -421,6 +433,7 @@ class CrossWorldExecutor:
             _native_executor if _native_executor is not None else _native.CrossWorldExecutor()
         )
 
+    @outcome_operation
     def execute(self, request: CrossWorldRequest, *, cancel: Any = None) -> ExecutionResult:
         """Execute a request, reusing matching retained abductions."""
         if not isinstance(request, CrossWorldRequest):
@@ -447,6 +460,7 @@ class CrossWorldExecutor:
         cls, data: bytes, *, expected_identity: Mapping[str, str] | None = None, cancel: Any = None
     ) -> CrossWorldExecutor:
         """An executor warmed by an artifact's verified abductions (a licensed resume)."""
+        data = container_bytes(data)
         if not isinstance(data, (bytes, bytearray, memoryview)):
             raise CausalTypeError("data must be bytes")
         identity = None if expected_identity is None else json.dumps(dict(expected_identity))
@@ -466,6 +480,10 @@ class ConsumedCrossWorldExecution(ScientificResult):
     inference_claim: str
     shared_draws: tuple[Mapping[str, Any], ...]
 
+    @property
+    def answer(self) -> Answer:
+        return self.result.answer
+
 
 def _consumed(summary: str) -> ConsumedCrossWorldExecution:
     info = json.loads(summary)
@@ -482,8 +500,13 @@ class CrossWorldExecution(ScientificResult):
     """A sealed execution: the answer, its identities and the exportable artifact."""
 
     def __init__(self, data: bytes, consumed: ConsumedCrossWorldExecution) -> None:
+        data = container_bytes(data)
         self._data = data
         self._consumed = consumed
+
+    @property
+    def answer(self) -> Answer:
+        return self.result.answer
 
     def to_dict(self) -> dict[str, Any]:
         return self._consumed.to_dict()
@@ -508,15 +531,10 @@ class CrossWorldExecution(ScientificResult):
         """Each unit's shared exogenous states."""
         return self._consumed.shared_draws
 
-    def artifact(self) -> ExportedArtifact[ConsumedCrossWorldExecution]:
-        """Typed bytes envelope for shared scientific consumption."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self)
-
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[ConsumedCrossWorldExecution]:
         """The sealed execution container, suitable for shared artifact dispatch."""
-        return self._data
+        return artifact_from_receipt(self, self._data)
 
     def to_bytes(self) -> bytes:
         """The ``cross_world_execution_v1`` artifact bytes."""
@@ -530,6 +548,7 @@ class CrossWorldExecution(ScientificResult):
         """Always raises ``cell_not_licensed``: no whole-path calibration record exists."""
         _refuse(_native.cross_world_closed_reading("posterior"))
 
+    @outcome_operation
     def whole_path_uncertainty(
         self,
         unit_sampling: Literal["fixed_units", "independent_sample"],
@@ -553,6 +572,7 @@ class CrossWorldExecution(ScientificResult):
         """
         return _whole_path(self, unit_sampling, cancel)
 
+    @outcome_operation
     def measured_interval(
         self,
         unit_sampling: Literal["fixed_units", "independent_sample"],
@@ -609,6 +629,7 @@ class MeasuredCrossWorldInterval(ScientificResult):
     label: str
 
 
+@outcome_operation
 def seal(
     request: CrossWorldRequest, *, artifact_id: str = "cross-world-execution", cancel: Any = None
 ) -> CrossWorldExecution:
@@ -631,6 +652,12 @@ def seal(
     return CrossWorldExecution(bytes(data), _consumed(summary))
 
 
+@outcome_operation
+@artifact_consumer(
+    proof="cross_world_execution.consume_cross_world_execution_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+    input="data",
+)
 def consume_cross_world_execution_artifact(
     data: bytes, *, expected_identity: Mapping[str, str] | None = None, cancel: Any = None
 ) -> ConsumedCrossWorldExecution:
@@ -641,6 +668,7 @@ def consume_cross_world_execution_artifact(
             identity that differs, or a declaration the matrix or the joint-law rule no longer
             licenses.
     """
+    data = container_bytes(data)
     if not isinstance(data, (bytes, bytearray, memoryview)):
         raise CausalTypeError("data must be bytes")
     identity = None if expected_identity is None else json.dumps(dict(expected_identity))
@@ -714,6 +742,7 @@ class WholePathAccount(ScientificResult):
         A stored account of other units, mechanisms, quantity or unit sampling is refused
         (``cross_world_uncertainty.account_mismatch``), never annotated.
         """
+        execution = require_success(execution)
         if not isinstance(execution, CrossWorldExecution):
             raise CausalTypeError("execution must be a CrossWorldExecution")
         _refuse(

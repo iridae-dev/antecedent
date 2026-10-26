@@ -57,7 +57,7 @@ def test_normal_nested_all_three_measured_scalars_replay_original_source(bayesia
         assert scalar.record_id and len(scalar.calibration_sha) == 40
         assert scalar.basis["scope"]["row_count"] == 4000
     path = tmp_path / "measured-nested.cbor"
-    path.write_bytes(measured.export())
+    path.write_bytes(bytes(measured.export()))
     loaded = MeasuredInference.load(path.read_bytes(), expected=measured.expected_identity)
     assert loaded.inspect() == measured.inspect()
     assert loaded.source_artifact() == measured.source_artifact()
@@ -76,7 +76,8 @@ print(json.dumps(r.inspect(),sort_keys=True))
     assert observed == measured.inspect()
     with pytest.raises(CausalError):
         MeasuredInference.load(
-            measured.export(), expected=replace(measured.expected_identity, scalars=("contrast",))
+            bytes(measured.export()),
+            expected=replace(measured.expected_identity, scalars=("contrast",)),
         )
     with pytest.raises(CausalError):
         MeasuredInference.load(measured.source_artifact(), expected=measured.expected_identity)
@@ -84,7 +85,7 @@ print(json.dumps(r.inspect(),sort_keys=True))
     cancelled.cancel()
     with pytest.raises(CausalCancelledError):
         MeasuredInference.load(
-            measured.export(), expected=measured.expected_identity, cancel=cancelled
+            bytes(measured.export()), expected=measured.expected_identity, cancel=cancelled
         )
 
 
@@ -110,7 +111,7 @@ def test_normal_nested_unmeasured_protocol_refusals_are_not_candidate_successes(
 @pytest.mark.parametrize("bayesian", [False, True])
 def test_normal_nested_measured_artifact_preserves_retained_source_expectations(bayesian, tmp_path):
     measured = produce(bayesian)
-    artifact = measured.export()
+    artifact = bytes(measured.export())
     loaded = MeasuredInference.load(artifact, expected=measured.expected_identity)
     assert loaded.source_artifact() == measured.source_artifact()
     assert loaded.source_report() == measured.source_report()

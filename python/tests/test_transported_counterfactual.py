@@ -22,6 +22,7 @@ from antecedent.errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.outcomes import require_success
 from antecedent.temporal_counterfactual import transported_path_specific
 from antecedent.transported_counterfactual import (
     AdditiveNoiseScm,
@@ -245,7 +246,7 @@ def test_x8t_malformed_inputs_are_refused_or_rejected():
 
 def test_x8t_artifact_round_trips_and_replays():
     original = effect(nie())
-    data = original.export()
+    data = bytes(original.export())
     assert isinstance(data, bytes)
     replayed = consume_transported_counterfactual_artifact(
         data, expected_identity=original.identity
@@ -255,7 +256,7 @@ def test_x8t_artifact_round_trips_and_replays():
     assert replayed.unit_contrasts == original.unit_contrasts
     assert replayed.derivation == original.derivation
     assert replayed.identity == original.identity
-    again = TransportedPathSpecificEffect.consume(data)
+    again = require_success(TransportedPathSpecificEffect.consume(data))
     assert again.target_contrast == pytest.approx(9.75, abs=1e-12)
     # The identity is a function of the request: the same request gives the same digests.
     assert effect(nie()).identity == original.identity
@@ -278,10 +279,12 @@ def test_x8t_resealed_changes_are_refused_against_the_retained_identity():
     }
     for field, forged in changed.items():
         # A forger who reseals consistently is accepted without a retained identity ...
-        assert consume_transported_counterfactual_artifact(forged.export()) is not None
+        assert consume_transported_counterfactual_artifact(bytes(forged.export())) is not None
         # ... and refused with one.
         with pytest.raises(TransportedCounterfactualRefusal) as raised:
-            consume_transported_counterfactual_artifact(forged.export(), expected_identity=retained)
+            consume_transported_counterfactual_artifact(
+                bytes(forged.export()), expected_identity=retained
+            )
         assert raised.value.detail == "transported_counterfactual.artifact_changed"
         assert raised.value.reason_code == "route_not_supported"
         assert raised.value.offending == field
@@ -289,7 +292,7 @@ def test_x8t_resealed_changes_are_refused_against_the_retained_identity():
 
 
 def test_x8t_corrupt_artifacts_are_serialization_errors():
-    data = effect().export()
+    data = bytes(effect().export())
     with pytest.raises(CausalSerializationError):
         consume_transported_counterfactual_artifact(data[: len(data) // 2])
     flipped = bytearray(data)

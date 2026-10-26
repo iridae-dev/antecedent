@@ -73,14 +73,14 @@ def test_latent_fit_has_no_row_ceiling_and_replays_beyond_the_former_one() -> No
     assert p.effect == pytest.approx(1.0, abs=1e-6)
     assert result.mixture_effect == pytest.approx(-0.2, abs=1e-6)
     assert result.responsibilities.shape == (30_000, 2)
-    again = consume_latent_class_artifact(result.export(), expected_identity=result.identity)
+    again = consume_latent_class_artifact(bytes(result.export()), expected_identity=result.identity)
     assert again.identity == result.identity
 
 
 def test_latent_digest_bound_artifact_needs_the_dataset_and_respects_the_memory_limit() -> None:
     d = build()
     result = fit(d, data_binding="digest")
-    bound = result.export()
+    bound = bytes(result.export())
     columns = {"outcome": d["y"], "treatment": d["a"], "covariates": {"x": d["x"]}}
     again = consume_latent_class_artifact(bound, expected_identity=result.identity, **columns)
     assert again.identity == result.identity
@@ -92,7 +92,7 @@ def test_latent_digest_bound_artifact_needs_the_dataset_and_respects_the_memory_
         consume_latent_class_artifact(bound, **other)
     assert refused.value.detail == "latent_class.wrong_contract"
     with pytest.raises(LatentClassRefusal) as refused:
-        consume_latent_class_artifact(fit(d).export(), memory_limit_bytes=1_000)
+        consume_latent_class_artifact(bytes(fit(d).export()), memory_limit_bytes=1_000)
     assert refused.value.detail == "latent_class.memory_budget_exceeded"
 
 
@@ -264,14 +264,14 @@ def test_latent_premise_and_configuration_refusals() -> None:
 
 def test_latent_artifact_round_trips_with_a_bit_for_bit_refit() -> None:
     result = fit(seed=7, bootstrap_replicates=10)
-    again = consume_latent_class_artifact(result.export(), expected_identity=result.identity)
+    again = consume_latent_class_artifact(bytes(result.export()), expected_identity=result.identity)
     assert again.to_dict() == result.to_dict()
     np.testing.assert_array_equal(again.responsibilities, result.responsibilities)
     assert again.identity == result.identity
     assert again.log_likelihood_trace_head == result.log_likelihood_trace_head
     assert result.responsibilities_summary.digest == again.responsibilities_summary.digest
     from_mapping = consume_latent_class_artifact(
-        result.export(), expected_identity=result.identity._wire()
+        bytes(result.export()), expected_identity=result.identity._wire()
     )
     assert from_mapping.identity == result.identity
 
@@ -282,9 +282,9 @@ def test_latent_artifact_refuses_a_resealed_change_against_retained_identity() -
     d["y"] = d["y"].copy()
     d["y"][0] += 0.125
     resealed = fit(d)
-    assert consume_latent_class_artifact(resealed.export()).identity == resealed.identity
+    assert consume_latent_class_artifact(bytes(resealed.export())).identity == resealed.identity
     with pytest.raises(LatentClassRefusal) as caught:
-        consume_latent_class_artifact(resealed.export(), expected_identity=original.identity)
+        consume_latent_class_artifact(bytes(resealed.export()), expected_identity=original.identity)
     assert caught.value.detail == "latent_class.wrong_contract"
     assert caught.value.offending == "data"
     assert caught.value.reason_code == "route_not_supported"
@@ -293,7 +293,7 @@ def test_latent_artifact_refuses_a_resealed_change_against_retained_identity() -
 
 def test_latent_artifact_corruption_and_type_errors() -> None:
     result = fit()
-    corrupt = bytearray(result.export())
+    corrupt = bytearray(bytes(result.export()))
     corrupt[len(corrupt) // 2] ^= 0xFF
     with pytest.raises(CausalSerializationError):
         consume_latent_class_artifact(bytes(corrupt))

@@ -16,6 +16,7 @@ from antecedent.errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.outcomes import require_success
 
 
 def _three_treatment_data():
@@ -31,10 +32,12 @@ def _three_treatment_data():
 def test_jacobian_over_two_treatments_names_a_remedy():
     data, graph = _three_treatment_data()
     with pytest.raises(CausalEstimateError) as raised:
-        antecedent.analyze(
-            data,
-            query=antecedent.ResponseJacobian(["a", "b", "c"], ["y"], at=[0.0, 0.0, 0.0]),
-            graph=graph,
+        require_success(
+            antecedent.analyze(
+                data,
+                query=antecedent.ResponseJacobian(["a", "b", "c"], ["y"], at=[0.0, 0.0, 0.0]),
+                graph=graph,
+            )
         )
     err = raised.value
     # The message and (absent) reason code are unchanged; the remedy is separate.
@@ -49,12 +52,14 @@ def test_jacobian_over_two_treatments_names_a_remedy():
 def test_directional_derivative_over_two_treatments_names_a_remedy():
     data, graph = _three_treatment_data()
     with pytest.raises(CausalEstimateError) as raised:
-        antecedent.analyze(
-            data,
-            query=antecedent.DirectionalDerivative(
-                ["a", "b", "c"], ["y"], at=[0.0, 0.0, 0.0], direction=[1.0, 0.0, 0.0]
-            ),
-            graph=graph,
+        require_success(
+            antecedent.analyze(
+                data,
+                query=antecedent.DirectionalDerivative(
+                    ["a", "b", "c"], ["y"], at=[0.0, 0.0, 0.0], direction=[1.0, 0.0, 0.0]
+                ),
+                graph=graph,
+            )
         )
     err = raised.value
     assert str(err) == "plug-in directional derivative supports at most two treatments"
@@ -75,12 +80,14 @@ def test_remedy_defaults_to_none_on_every_error():
 def test_a_native_refusal_without_a_remedy_reads_none():
     data = {"a": np.arange(40, dtype=float), "y": np.arange(40, dtype=float)}
     with pytest.raises(CausalUnsupportedError, match="temporal response cell") as raised:
-        antecedent.analyze(
-            data,
-            query=antecedent.InterventionResponse(
-                "y", intervention=intervention.Soft("a", "replacement")
-            ),
-            graph=[("a", "y")],
+        require_success(
+            antecedent.analyze(
+                data,
+                query=antecedent.InterventionResponse(
+                    "y", intervention=intervention.Soft("a", "replacement")
+                ),
+                graph=[("a", "y")],
+            )
         )
     assert raised.value.remedy is None
 

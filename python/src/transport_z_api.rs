@@ -645,6 +645,7 @@ impl ZTransportStage {
 }
 
 #[pyclass(skip_from_py_object)]
+#[derive(Clone)]
 pub(crate) struct PreparedZTransportStage {
     inner: antecedent::PreparedZTransport,
     graph: Admg,
@@ -828,6 +829,14 @@ impl PreparedZTransportStage {
 
 #[pymethods]
 impl PreparedZTransportStage {
+    #[pyo3(signature=(seed=None))]
+    fn fork(&self, seed: Option<u64>) -> PyResult<Self> {
+        let mut branch = Self { seed: seed.unwrap_or(self.seed), last: None, ..self.clone() };
+        let ctx = branch.ctx(None, None);
+        branch.inner = self.inner.refresh(self.inner.data().clone(), &ctx).map_err(error)?;
+        Ok(branch)
+    }
+
     /// Exact outcome-kernel contamination range for the registered surrogate formula.
     /// Other in-bound graphs refuse with `IncompatibleFormula`; call after `estimate`.
     #[pyo3(signature=(max_fraction, decision_threshold=None, *, memory_bytes=None, cancel=None))]
@@ -943,13 +952,13 @@ impl PreparedZTransportStage {
     /// Rebind fresh laws under the retained catalog and proof; the previous
     /// prepared state survives a failed rebind and the last claim is cleared.
     #[pyo3(signature=(laws, *, memory_bytes=None, cancel=None))]
-    fn refresh(
-        &mut self,
+    fn bind_snapshot(
+        &self,
         py: Python<'_>,
         laws: &Bound<'_, PyAny>,
         memory_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<()> {
+    ) -> PyResult<Self> {
         let data = parse_laws(
             laws,
             &self.catalog,
@@ -959,9 +968,8 @@ impl PreparedZTransportStage {
         )?;
         let inner = self.inner.clone();
         let ctx = self.ctx(memory_bytes, cancel);
-        self.inner = crate::detach_catch(py, move || inner.refresh(data, &ctx).map_err(error))?;
-        self.last = None;
-        Ok(())
+        let inner = crate::detach_catch(py, move || inner.refresh(data, &ctx).map_err(error))?;
+        Ok(Self { inner, last: None, ..self.clone() })
     }
 
     /// The last execution as a framed, independently consumable artifact.
@@ -1059,6 +1067,7 @@ fn consume_z_transport_artifact(
             "scope":"single_source_z_transport_cited_joints_sound_incomplete",
             "proof": consumed.functional.derivation().to_record(),
             "premises_digest": consumed.wire.premises_digest,
+            "at":consumed.request.entries().iter().map(|(v,x)|(name(v),x.as_f64())).collect::<BTreeMap<_,_>>(),
             "outcomes":distribution.outcomes.iter().map(name).collect::<Vec<_>>(),
             "atoms":distribution.atoms.iter().map(|a|a.iter().map(Value::as_f64).collect::<Vec<_>>()).collect::<Vec<_>>(),
             "probabilities":distribution.probabilities.to_vec(),

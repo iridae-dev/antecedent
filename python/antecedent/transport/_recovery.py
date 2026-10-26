@@ -31,6 +31,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from .._artifact_protocol import artifact_consumer, container_bytes
 from .._columns import coerce_fields
 from .._native import (
     consume_observation_recovery_artifact as _consume_observation_recovery_artifact,
@@ -38,6 +39,7 @@ from .._native import (
 from .._native import identify_observation_recovery_stage as _identify_observation_recovery
 from ..errors import CausalTypeError, CausalValueError
 from ..graph import Admg
+from ._consumption import TransportConsumption
 from ._impl import EvidenceCatalog, _non_negative, _optional_non_negative
 
 
@@ -132,6 +134,11 @@ def identify_observation_recovery(
     )
 
 
+@artifact_consumer(
+    proof="RecoveryArtifactWire::consume_with_limits: rechecks recovery formula, identities and recovered law",
+    replayable=True,
+    identity=(),
+)
 def consume_observation_recovery_artifact(
     artifact: bytes,
     *,
@@ -142,24 +149,28 @@ def consume_observation_recovery_artifact(
     max_requests: int = 64,
     memory_bytes: int | None = None,
     cancel: Any = None,
-) -> str:
+) -> TransportConsumption:
     """Independently verify an exported recovery and recompute it bit for bit.
 
     The consumer re-decides under the producer's stored limits (refusing limits
     above its own maxima), re-checks the formula, recomputes the recovered law
     and every effect point, and refuses relabelled names or any edited premise.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    return _consume_observation_recovery_artifact(
-        artifact,
-        max_search_operations=_non_negative("max_search_operations", max_search_operations),
-        max_search_depth=_non_negative("max_search_depth", max_search_depth),
-        max_operations=_non_negative("max_operations", max_operations),
-        max_depth=_non_negative("max_depth", max_depth),
-        max_requests=_non_negative("max_requests", max_requests),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+    return TransportConsumption.from_checked_json(
+        "consume_observation_recovery_artifact",
+        _consume_observation_recovery_artifact(
+            artifact,
+            max_search_operations=_non_negative("max_search_operations", max_search_operations),
+            max_search_depth=_non_negative("max_search_depth", max_search_depth),
+            max_operations=_non_negative("max_operations", max_operations),
+            max_depth=_non_negative("max_depth", max_depth),
+            max_requests=_non_negative("max_requests", max_requests),
+            memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
+            cancel=cancel,
+        ),
     )
 
 

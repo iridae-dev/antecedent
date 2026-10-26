@@ -5,8 +5,17 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
+from ..._artifact_protocol import (
+    ArtifactAcceptance,
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ..._columns import coerce_fields
 from ..._defaults import OMITTED
+from ..._scientific import ScientificResult
 from ..._transport_results import TransportContrast, TransportGridPoint
 
 if TYPE_CHECKING:
@@ -35,7 +44,7 @@ class TransportResponseGridQuery:
 
 
 @dataclass(frozen=True, slots=True)
-class TransportResponseGrid:
+class TransportResponseGrid(ScientificResult):
     """Native-authorized response family with explicit point-local failures."""
 
     acceptance: Any = field(default=None, init=False, repr=False, compare=False)
@@ -72,8 +81,9 @@ class TransportResponseGrid:
 
         return InspectionReport(**json.loads(self._execution.inspection_json()))
 
-    def export(self) -> bytes:
-        return bytes(self._execution.export())
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
+        return artifact_from_receipt(self, bytes(self._execution.export()))
 
 
 def _response_grid(native: Any, payload: str) -> TransportResponseGrid:
@@ -128,6 +138,37 @@ def prepare_response_grid(
     return PreparedAnalysis(native, kind="transport_grid", controls=_Controls(cancel=cancel))
 
 
+def _grid_acceptance(result: Any, bound: bool) -> ArtifactAcceptance:
+    import json
+
+    # Read the actual native consumer's retained provider capability and ordered outcomes.
+    view = json.loads(result._native.inspection_json())
+    resumable = bool(view["capabilities"]["estimator_replay"])
+    carried = view["support"]["payload"].get("points") or {}
+    unresolved = tuple(
+        f"{point['at']}: {point['status']}"
+        for point in carried.get("points", ())
+        if point["status"] != "available"
+    )
+    if not resumable:
+        unresolved += (
+            "raw statistical samples are not embedded; bind_snapshot before re-estimation",
+        )
+    return ArtifactAcceptance(
+        "verified",
+        bound,
+        True,
+        resumable,
+        proof="native grid proof/identity and per-point consumption; recorded failures remain unresolved",
+        unresolved=unresolved,
+    )
+
+
+@artifact_consumer(
+    proof="PreparedStudy<TransportGridState>::consume verifies ordered local outcomes and every embedded point",
+    acceptance=_grid_acceptance,
+    identity=(),
+)
 def consume_response_grid(
     artifact: bytes,
     *,
@@ -137,6 +178,7 @@ def consume_response_grid(
     cancel: Any = None,
 ) -> PreparedAnalysis[TransportResponseGrid]:
     """Verify a grid without fetching, fitting, or rebuilding raw samples."""
+    artifact = container_bytes(artifact)
     from ... import _native
     from ...estimation import PreparedAnalysis, _Controls
 

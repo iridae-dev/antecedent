@@ -69,7 +69,7 @@ def test_a_declared_bound_widens_intervals_and_carries_a_replayable_band() -> No
     assert "calibration unmeasured" in result.explain()
     assert result.to_dict()["bias_aware"]["band_replicates"] == 500
 
-    fresh = consume_dose_grid_artifact(result.export())
+    fresh = consume_dose_grid_artifact(bytes(result.export()))
     assert fresh.bias_aware == section
     assert fresh.simultaneous_band == "bias_aware"
 

@@ -1055,7 +1055,9 @@ class _Trajectories:
     censoring_weight: list[float]
     minimum_probability: float
 
-    def args(self) -> tuple:
+    def args(
+        self,
+    ) -> tuple[int, int, list[bool], list[bool], list[bool], list[float], list[float], float]:
         return (
             self.subjects,
             self.periods,
@@ -1077,7 +1079,9 @@ def _trajectories(
     minimum_probability: float,
 ) -> _Trajectories:
     flags = [np.asarray(value, dtype=bool) for value in (treatment, event, at_risk)]
-    numbers = [np.asarray(value, dtype=float) for value in (treatment_probability, censoring_weight)]
+    numbers = [
+        np.asarray(value, dtype=float) for value in (treatment_probability, censoring_weight)
+    ]
     shapes = {array.shape for array in (*flags, *numbers)}
     if len(shapes) != 1 or len(next(iter(shapes))) != 2:
         raise CausalValueError(
@@ -1121,7 +1125,11 @@ def trajectory_survival_bootstrap(
         treatment, event, at_risk, treatment_probability, censoring_weight, minimum_probability
     )
     low, high, rmst_low, rmst_high, requested, ok = _native.trajectory_bootstrap_native(
-        *data.args(), [bool(a) for a in active], [bool(c) for c in control], int(replicates), int(seed)
+        *data.args(),
+        [bool(a) for a in active],
+        [bool(c) for c in control],
+        int(replicates),
+        int(seed),
     )
     return TrajectorySurvivalIntervals((low, high), (rmst_low, rmst_high), requested, ok)
 

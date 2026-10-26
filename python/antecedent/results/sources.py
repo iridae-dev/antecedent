@@ -85,6 +85,9 @@ class MeanSource(ScientificResult):
 
     @classmethod
     def from_external(cls, claim: Any) -> MeanSource:
+        from ..outcomes import require_success
+
+        claim = require_success(claim)
         identity = claim.identity_fields
         return cls(
             tuple(claim.quantities),
@@ -187,6 +190,12 @@ _MEAN_PRODUCERS = {
 
 
 def is_mean_producer(source: Any) -> bool:
+    from ..outcomes import Outcome
+
+    if isinstance(source, Outcome):
+        if not source.accepted:
+            return False
+        source = source.value
     return isinstance(source, ScientificResult) and type(source).__name__ in _MEAN_PRODUCERS
 
 
@@ -202,6 +211,9 @@ def adapt_mean_source(
     Missing units, population, regime or functional semantics must be declared by the caller.
     The adapter does not turn a declaration into native authority or carry an interval.
     """
+    from ..outcomes import require_success
+
+    source = require_success(source)
     if not is_mean_producer(source):
         raise CausalTypeError("this object has no supported mean-source adapter")
     from .._mean_binding import check_mean_reading

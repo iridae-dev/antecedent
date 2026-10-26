@@ -8,6 +8,7 @@ import antecedent as ant
 import numpy as np
 from antecedent._native import identification_status_names
 from antecedent._verdict import VERDICTS, verdict_for
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_json
 
@@ -48,28 +49,36 @@ def test_certificate_matches_schema():
     y = t + z + rng.normal(scale=0.2, size=96)
     data = {"t": t, "y": y, "z": z}
 
-    dag = ant.analyze(
-        data,
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=ant.AverageEffect("t", "y"),
-        bootstrap=0,
-        refute="none",
+    dag = require_success(
+        ant.analyze(
+            data,
+            graph=[("z", "t"), ("z", "y"), ("t", "y")],
+            query=ant.AverageEffect("t", "y"),
+            bootstrap=0,
+            refute="none",
+        )
     )
-    admg = ant.analyze(
-        data,
-        graph=ant.Admg.from_edges(["t", "y", "z"], directed=[("t", "y"), ("z", "t"), ("z", "y")]),
-        query=ant.AverageEffect("t", "y"),
-        bootstrap=0,
-        refute="none",
+    admg = require_success(
+        ant.analyze(
+            data,
+            graph=ant.Admg.from_edges(
+                ["t", "y", "z"], directed=[("t", "y"), ("z", "t"), ("z", "y")]
+            ),
+            query=ant.AverageEffect("t", "y"),
+            bootstrap=0,
+            refute="none",
+        )
     )
-    cpdag = ant.analyze(
-        data,
-        graph=ant.Cpdag.from_directed_undirected(
-            ["t", "y", "z"], directed=[("z", "t"), ("z", "y"), ("t", "y")], undirected=[]
-        ),
-        query=ant.AverageEffect("t", "y"),
-        bootstrap=0,
-        refute="none",
+    cpdag = require_success(
+        ant.analyze(
+            data,
+            graph=ant.Cpdag.from_directed_undirected(
+                ["t", "y", "z"], directed=[("z", "t"), ("z", "y"), ("t", "y")], undirected=[]
+            ),
+            query=ant.AverageEffect("t", "y"),
+            bootstrap=0,
+            refute="none",
+        )
     )
     pin = load_json(
         REPO_ROOT / "conformance" / "estimate" / "temporal_class_envelope" / "identified_pag.json"
@@ -82,14 +91,16 @@ def test_certificate_matches_schema():
     m = 0.7 * z + 0.6 * np.cos(0.29 * i + 0.2)
     series_y = np.zeros(n)
     series_y[1:] = 1.0 + 2.0 * series_t[:-1] + 1.5 * m[:-1] + 0.3 * np.sin(0.53 * i[1:])
-    pag = ant.analyze(
-        {"t": series_t, "y": series_y, "z": z, "m": m, "v": v},
-        graph=ant.graph.TemporalPag.from_marked_lagged_edges(
-            pin["columns"], [tuple(edge) for edge in pin["marked_edges"]]
-        ),
-        query=ant.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1),
-        bootstrap=0,
-        refute="none",
+    pag = require_success(
+        ant.analyze(
+            {"t": series_t, "y": series_y, "z": z, "m": m, "v": v},
+            graph=ant.graph.TemporalPag.from_marked_lagged_edges(
+                pin["columns"], [tuple(edge) for edge in pin["marked_edges"]]
+            ),
+            query=ant.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1),
+            bootstrap=0,
+            refute="none",
+        )
     )
     for result in (dag, admg, cpdag, pag):
         certificate = result.to_dict()["certificate"]

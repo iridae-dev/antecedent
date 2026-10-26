@@ -16,11 +16,18 @@ from typing import Any, Literal, cast
 import numpy as np
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._measured_inference import MeasuredInference
 from ._recalc_bounds import _admit, _check_resources
 from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
+from .outcomes import outcome_operation
 from .recalc import Decision, Law, RecalcPlan, RecalcReceipt, Utility, _refusal_type, _seed
 from .recalc_static import _Session
 from .transport._candidate_data import detached, freeze
@@ -188,6 +195,7 @@ class TemporalSession(_Session):
             )
         )
 
+    @outcome_operation
     def execute(
         self,
         request: TemporalRequest,
@@ -270,10 +278,12 @@ class TemporalReplay:
     result: TemporalResult
 
 
+@outcome_operation
 def consume_temporal_result(
     artifact: bytes, *, seed: int = 1, threads: int | None = None
 ) -> TemporalReplay:
     """Fresh actual checked execution from full source-bound histories, not a receipt."""
+    artifact = container_bytes(artifact)
     native, result, receipt, error = _native.TemporalSessionHandle.consume(
         artifact, seed=_seed(seed), threads=threads
     )
@@ -548,8 +558,9 @@ class CheckedTemporalIntervalCandidate:
         """Detached original source identities and complete interval draw/SE/pivot receipt."""
         return cast(dict[str, Any], detached(self._body))
 
-    def export(self) -> bytes:
-        return bytes(self._native.export())
+    @artifact_export
+    def export(self) -> ExportedArtifact:
+        return artifact_from_receipt(self, bytes(self._native.export()))
 
     @classmethod
     def load(
@@ -564,6 +575,7 @@ class CheckedTemporalIntervalCandidate:
         cancel: _native.CancellationToken | None = None,
     ) -> CheckedTemporalIntervalCandidate:
         """Fresh original proof/mechanism reconstruction and paired whole-unit replay."""
+        artifact = container_bytes(artifact)
         if not isinstance(artifact, bytes):
             raise CausalTypeError("artifact must be bytes")
         if len(artifact) > 24 * 1024 * 1024:

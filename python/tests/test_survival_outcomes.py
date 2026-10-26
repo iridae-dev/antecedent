@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 from antecedent.errors import CausalUnsupportedError, CausalValueError
 from antecedent.observation import IndependentGiven
+from antecedent.outcomes import require_success
 
 
 def _fixture() -> pd.DataFrame:
@@ -29,7 +30,7 @@ def test_randomized_survival_known_truth_with_right_censoring():
         randomized=True,
         observation_assumption=IndependentGiven(()),
     )
-    result = antecedent.analyze(_fixture(), query=query).survival
+    result = require_success(antecedent.analyze(_fixture(), query=query)).survival
 
     assert result.rmst_control == pytest.approx(2.875)
     assert result.rmst_treated == pytest.approx(3.5)
@@ -50,7 +51,7 @@ def test_survival_refuses_nonrandomized_and_invalid_inputs():
     with pytest.raises(
         CausalUnsupportedError, match="randomized survival requires randomized=True"
     ):
-        antecedent.analyze(data, query=query)
+        require_success(antecedent.analyze(data, query=query))
 
     query = antecedent.survival.SurvivalOutcome(
         "duration",
@@ -63,11 +64,11 @@ def test_survival_refuses_nonrandomized_and_invalid_inputs():
     invalid_event = data.copy()
     invalid_event["event"] = np.full(len(data), 2)
     with pytest.raises(CausalUnsupportedError, match="survival events must be encoded"):
-        antecedent.analyze(invalid_event, query=query)
+        require_success(antecedent.analyze(invalid_event, query=query))
 
     one_arm = data.assign(treated=0)
     with pytest.raises(CausalUnsupportedError, match="both randomized arms require observed units"):
-        antecedent.analyze(one_arm, query=query)
+        require_success(antecedent.analyze(one_arm, query=query))
 
 
 def test_survival_rejects_invalid_horizon_and_duration():
@@ -87,7 +88,7 @@ def test_survival_rejects_invalid_horizon_and_duration():
         observation_assumption=IndependentGiven(()),
     )
     with pytest.raises(CausalUnsupportedError, match="durations must be finite and nonnegative"):
-        antecedent.analyze(data, query=query)
+        require_success(antecedent.analyze(data, query=query))
 
     data = _fixture()
     data.loc[data["treated"] == 0, "duration"] = 2
@@ -100,7 +101,7 @@ def test_survival_rejects_invalid_horizon_and_duration():
         observation_assumption=IndependentGiven(()),
     )
     with pytest.raises(CausalUnsupportedError, match="tau exceeds observed follow-up"):
-        antecedent.analyze(data, query=query)
+        require_success(antecedent.analyze(data, query=query))
 
 
 def _competing_fixture() -> pd.DataFrame:
@@ -126,7 +127,7 @@ def test_cause_specific_cumulative_incidence_known_truth():
         randomized=True,
         observation_assumption=IndependentGiven(()),
     )
-    result = antecedent.analyze(_competing_fixture(), query=query).survival
+    result = require_success(antecedent.analyze(_competing_fixture(), query=query)).survival
 
     assert result.target_cause == 1
     assert result.times == (0.0, 1.0, 2.0, 3.0)
@@ -151,7 +152,7 @@ def test_cumulative_incidence_refuses_unrandomized_or_invalid_cause_codes():
     with pytest.raises(
         CausalUnsupportedError, match="randomized survival requires randomized=True"
     ):
-        antecedent.analyze(data, query=query)
+        require_success(antecedent.analyze(data, query=query))
 
     query = antecedent.survival.CompetingRisksOutcome(
         "duration",
@@ -167,7 +168,7 @@ def test_cumulative_incidence_refuses_unrandomized_or_invalid_cause_codes():
     with pytest.raises(
         CausalUnsupportedError, match="survival event codes must be finite nonnegative integers"
     ):
-        antecedent.analyze(invalid, query=query)
+        require_success(antecedent.analyze(invalid, query=query))
 
     fractional = data.copy()
     fractional["cause"] = fractional["cause"].astype(float)
@@ -175,11 +176,11 @@ def test_cumulative_incidence_refuses_unrandomized_or_invalid_cause_codes():
     with pytest.raises(
         CausalUnsupportedError, match="survival event codes must be finite nonnegative integers"
     ):
-        antecedent.analyze(fractional, query=query)
+        require_success(antecedent.analyze(fractional, query=query))
 
     single_cause = data.assign(cause=1)
     with pytest.raises(CausalUnsupportedError, match="two observed causes including the target"):
-        antecedent.analyze(single_cause, query=query)
+        require_success(antecedent.analyze(single_cause, query=query))
 
     with pytest.raises(CausalUnsupportedError, match="two observed causes including the target"):
         absent_target = antecedent.survival.CompetingRisksOutcome(
@@ -191,7 +192,7 @@ def test_cumulative_incidence_refuses_unrandomized_or_invalid_cause_codes():
             randomized=True,
             observation_assumption=IndependentGiven(()),
         )
-        antecedent.analyze(data, query=absent_target)
+        require_success(antecedent.analyze(data, query=absent_target))
 
     with pytest.raises(CausalValueError, match="positive integer event code"):
         antecedent.survival.CompetingRisksOutcome(

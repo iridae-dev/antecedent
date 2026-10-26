@@ -15,6 +15,7 @@ from __future__ import annotations
 import pytest
 from antecedent import Admg, Dag, repair
 from antecedent.errors import CausalSerializationError, CausalTypeError, CausalUnsupportedError
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 from _refusal import assert_registered_refusal
@@ -390,8 +391,8 @@ def test_export_consume_round_trip_replays_the_report():
         (transport_contract(), [trial("source_trial", "source", 3)]),
     ):
         result = repair.repair(contract, studies)
-        data = result.export()
-        replayed = repair.consume(data)
+        data = bytes(result.export())
+        replayed = require_success(repair.consume(data))
         assert replayed.outcome == result.outcome == "repaired"
         assert replayed.table == result.table
         assert replayed.obligations == result.obligations
@@ -404,7 +405,7 @@ def test_truncated_search_survives_the_artifact_as_unevaluated():
     result = repair.repair(
         backdoor(), many, limits=repair.RepairLimits(max_operations=2, max_depth=2)
     )
-    replayed = repair.consume(result.export())
+    replayed = require_success(repair.consume(bytes(result.export())))
     assert replayed.outcome == "exhausted"
     assert replayed.receipt.unevaluated_total == result.receipt.unevaluated_total > 0
     assert sum(r.classification == "unevaluated" for r in replayed.table) == len(
@@ -413,17 +414,17 @@ def test_truncated_search_survives_the_artifact_as_unevaluated():
 
 
 def test_consumer_refuses_oversized_limits_and_malformed_bytes():
-    data = repair.repair(backdoor(), candidates()).export()
+    data = bytes(repair.repair(backdoor(), candidates()).export())
     with pytest.raises(repair.RepairArtifactRefusal) as caught:
-        repair.consume(data, max_operations=1)
+        require_success(repair.consume(data, max_operations=1))
     assert caught.value.detail == "repair_artifact.bounds_exceeded"
     assert_registered_refusal(caught.value)
     with pytest.raises(CausalTypeError):
-        repair.consume("not bytes")  # type: ignore[arg-type]
+        require_success(repair.consume("not bytes"))  # type: ignore[arg-type]
     with pytest.raises(CausalSerializationError):
-        repair.consume(b"not an artifact")
+        require_success(repair.consume(b"not an artifact"))
     with pytest.raises((CausalSerializationError, repair.RepairArtifactRefusal)):
-        repair.consume(data[: len(data) // 2])
+        require_success(repair.consume(data[: len(data) // 2]))
 
 
 def test_evidence_obligations_carry_complete_native_scientific_coordinates():
@@ -539,7 +540,7 @@ def test_front_door_contract_owes_the_mediator_set_as_one_joint_law():
     assert result.best is not None and result.best.labels == ("mediator_survey",)
     assert result.best.derivation is not None
     assert result.best.derivation.checker == "frontdoor.adjustment"
-    assert repair.consume(result.export()).best == result.best
+    assert require_success(repair.consume(bytes(result.export()))).best == result.best
 
 
 def test_front_door_contract_that_already_identifies_refuses():
@@ -635,7 +636,7 @@ def test_sensitivity_finding_owes_the_confounder_it_names():
     )
     assert result.outcome == "repaired"
     assert result.best is not None and result.best.labels == ("assay",)
-    assert repair.consume(result.export()).best == result.best
+    assert require_success(repair.consume(bytes(result.export()))).best == result.best
     with pytest.raises(repair.RepairRefusal) as caught:
         sensitivity_contract(robust=True)
     assert caught.value.detail == "identification_repair.not_a_failure"

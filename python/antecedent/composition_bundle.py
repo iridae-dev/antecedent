@@ -61,10 +61,19 @@ from inspect import signature as _signature
 from typing import Any, Literal, TypeAlias
 
 from . import _native
+from ._artifact_protocol import (
+    ArtifactAcceptance,
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._refusal import raise_refusal
 from ._scientific import ScientificResult
 from .decision import Contract
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from .outcomes import outcome_operation
 
 _UNSET: Any = object()
 
@@ -377,6 +386,9 @@ class SuppliedSources:
 
 
 def _bytes(data: object) -> bytes:
+    from .outcomes import require_success
+
+    data = require_success(data)
     from ._artifact_protocol import ExportedArtifact, container_bytes
 
     if isinstance(data, (bytes, bytearray, memoryview, ExportedArtifact)):
@@ -634,7 +646,10 @@ class Bundle:
         wire = json.loads(self._native.edges_json)
         return tuple(Edge(e["from"], e["to"], e["upstream_digest"]) for e in wire)
 
-    def export(self, *, artifact_id: str = "composition-bundle") -> bytes:
+    @artifact_export
+    def export(
+        self, *, artifact_id: str = "composition-bundle"
+    ) -> ExportedArtifact[ConsumedBundle]:
         """Serialize through the checksummed container (one section per embedded node).
 
         Raises:
@@ -644,7 +659,7 @@ class Bundle:
         raise_refusal(refusal, _refusal_type)
         if data is None:  # pragma: no cover - the native contract
             raise CausalValueError("the native export returned neither a result nor a refusal")
-        return data
+        return artifact_from_receipt(self, data)
 
     def __repr__(self) -> str:
         return (
@@ -719,6 +734,7 @@ class ConsumedNode(ScientificResult):
     values: Mapping[str, float] = field(default_factory=dict)
     inspected: Mapping[str, float] = field(default_factory=dict)
     claim_label: ClaimLabel | None = None
+    replayed: bool = False
 
     @property
     def verified(self) -> bool:
@@ -762,6 +778,8 @@ class ConsumedBundle(ScientificResult):
 
     def __init__(self, wire: Mapping[str, Any]) -> None:
         self._identity: str = wire["identity"]
+        self._all_verified: bool = wire["all_verified"]
+        self._all_replayed: bool = wire["all_replayed"]
         self._nodes: tuple[ConsumedNode, ...] = tuple(
             ConsumedNode(
                 n["id"],
@@ -773,6 +791,7 @@ class ConsumedBundle(ScientificResult):
                 {key: float(value) for key, value in n["values"]},
                 {key: float(value) for key, value in n["inspected"]},
                 _label(n["claim_label"]),
+                replayed=n["replayed"],
             )
             for n in wire["nodes"]
         )
@@ -861,6 +880,7 @@ class ConsumedBundle(ScientificResult):
             "identity": self._identity,
             "claim_label": self.claim_label,
             "all_verified": self.all_verified,
+            "all_replayed": self._all_replayed,
             "nodes": [
                 {
                     "id": node.id,
@@ -868,6 +888,7 @@ class ConsumedBundle(ScientificResult):
                     "identity": node.identity,
                     "chain_digest": node.chain_digest,
                     "status": _status_dict(node.status),
+                    "replayed": node.replayed,
                     "facts": dict(node.facts),
                     "values": dict(node.values),
                     "inspected": dict(node.inspected),
@@ -880,6 +901,11 @@ class ConsumedBundle(ScientificResult):
                 for e in self._edges
             ],
         }
+
+    @property
+    def all_replayed(self) -> bool:
+        """Native receipt: every node passed its embedded artifact consumer."""
+        return self._all_replayed
 
     def require_verified(self) -> None:
         """Require every node to have verified.
@@ -912,6 +938,30 @@ class ConsumedBundle(ScientificResult):
                 )
 
 
+def _bundle_acceptance(result: ConsumedBundle, identity_bound: bool) -> ArtifactAcceptance:
+    unresolved = tuple(
+        node.id
+        + ":"
+        + (node.status.stage if isinstance(node.status, Failed) else "reference_unresolved")
+        for node in result.nodes
+        if not node.verified
+    )
+    return ArtifactAcceptance(
+        "verified" if result._all_verified else "unavailable",
+        identity_bound,
+        result._all_replayed,
+        False,
+        proof="BundleConsumer::consume runtime node replay receipts",
+        unresolved=unresolved,
+    )
+
+
+@outcome_operation
+@artifact_consumer(
+    proof="BundleConsumer::consume runtime node replay receipts",
+    acceptance=_bundle_acceptance,
+    input="data",
+)
 def consume_bundle(
     data: bytes,
     *,
@@ -940,6 +990,7 @@ def consume_bundle(
         CompositionBundleRefusal: the container does not verify (see the stage-specific
             subclasses, for example :class:`ExpectedIdentityMismatchRefusal`).
     """
+    data = container_bytes(data)
     if not isinstance(data, (bytes, bytearray, memoryview)):
         raise CausalTypeError(
             f"consume_bundle expects the exported bundle bytes, not {type(data).__name__}; "

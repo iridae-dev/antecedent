@@ -5,6 +5,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 
 def _lag1_series(n: int = 120, seed: int = 3):
@@ -24,14 +25,16 @@ def test_fci_review_required_attrs():
     t = z + rng.normal(size=n) * 0.3
     y = 1.2 * t + z + rng.normal(size=n) * 0.3
     with pytest.raises(antecedent.errors.CausalReviewError) as ei:
-        antecedent.analyze(
-            {"t": t, "y": y, "z": z},
-            discovery=antecedent.discovery.FCI(alpha=0.2, fdr=False, max_cond_size=2),
-            query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            accept_discovered=False,
-            refute=False,
-            bootstrap=0,
-            seed=1,
+        require_success(
+            antecedent.analyze(
+                {"t": t, "y": y, "z": z},
+                discovery=antecedent.discovery.FCI(alpha=0.2, fdr=False, max_cond_size=2),
+                query=antecedent.AverageEffect(treatment="t", outcome="y"),
+                accept_discovered=False,
+                refute=False,
+                bootstrap=0,
+                seed=1,
+            )
         )
     err = ei.value
     assert getattr(err, "kind", None) == "static_pag"
@@ -57,7 +60,9 @@ def test_temporal_pag_does_not_bypass_mag_visibility(endpoint):
     assert identified.status == "NotIdentified"
     assert identified.certificate["graph_class"] == "TemporalPag"
     with pytest.raises(antecedent.errors.CausalCompileError, match="no identified mass"):
-        antecedent.analyze(data, graph=pag, query=query, bootstrap=0, seed=1, refute=False)
+        require_success(
+            antecedent.analyze(data, graph=pag, query=query, bootstrap=0, seed=1, refute=False)
+        )
 
 
 def test_review_required_is_still_a_causal_review_error():

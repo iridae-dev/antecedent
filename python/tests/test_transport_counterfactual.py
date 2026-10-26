@@ -47,6 +47,7 @@ import numpy as np
 import pytest
 from antecedent import Admg
 from antecedent.errors import CausalError, CausalUnsupportedError, CausalValueError
+from antecedent.outcomes import require_success
 from antecedent.state import CancellationToken
 from antecedent.transport import advanced as transport
 
@@ -677,31 +678,37 @@ def test_refresh_rebuilds_the_numbers_and_leaves_the_decided_value_untouched():
     derivation = decision.derivation
     before = float(MEDIATION_TRUTH[(0, 0)])
     with pytest.raises(CausalUnsupportedError) as raised:
-        derivation.estimate()
+        require_success(derivation.estimate())
     assert raised.value.reason_code == "transport_missing_provider"
 
-    first = derivation.refresh(case.laws())
+    first = require_success(derivation.refresh(case.laws()))
     assert first.bound and not derivation.bound
-    assert abs(first.estimate().probability - before) <= EXACT_TOLERANCE
+    assert abs(require_success(first.estimate()).probability - before) <= EXACT_TOLERANCE
 
     # Same shape, changed numbers: the covariate law of the target moves.
     shifted_case = mediation_case(F(1, 2))
     shifted_truth = shifted_case.models["target"].probability(nested_truth(0, 0))
     assert abs(float(shifted_truth) - before) > 1e-3
-    second = first.refresh(shifted_case.laws())
-    assert abs(second.estimate().probability - float(shifted_truth)) <= EXACT_TOLERANCE
+    second = require_success(first.refresh(shifted_case.laws()))
+    assert (
+        abs(require_success(second.estimate()).probability - float(shifted_truth))
+        <= EXACT_TOLERANCE
+    )
     # Nothing was searched again: the frozen derivation is the one decided once.
     assert second.derivation["canonical_text"] == derivation.derivation["canonical_text"]
     assert second.derivation["search_receipt"] == derivation.derivation["search_receipt"]
     # The earlier prepared value keeps its numbers.
-    assert abs(first.estimate().probability - before) <= EXACT_TOLERANCE
+    assert abs(require_success(first.estimate()).probability - before) <= EXACT_TOLERANCE
 
     # A refused refresh (a counted law) leaves the bound state alone.
     counted = [_counted(law) for law in case.laws()]
     with pytest.raises(CausalUnsupportedError) as refused:
-        second.refresh(counted)
+        require_success(second.refresh(counted))
     assert refused.value.reason_code == "cell_not_licensed"
-    assert abs(second.estimate().probability - float(shifted_truth)) <= EXACT_TOLERANCE
+    assert (
+        abs(require_success(second.estimate()).probability - float(shifted_truth))
+        <= EXACT_TOLERANCE
+    )
 
 
 def test_evaluation_is_deterministic_and_invariant_to_law_and_regime_order():
@@ -713,7 +720,7 @@ def test_evaluation_is_deterministic_and_invariant_to_law_and_regime_order():
     again = derivation.evaluate(evidence=laws)
     reversed_ = derivation.evaluate(evidence=list(reversed(laws)))
     assert first.probability == again.probability == reversed_.probability
-    assert first.export() == reversed_.export(), "exports are canonical in law order"
+    assert bytes(first.export()) == bytes(reversed_.export()), "exports are canonical in law order"
     # Declaration order of the catalog's regimes does not change the decision.
     flipped = transport.EvidenceCatalog(regimes=tuple(reversed(case.catalog().regimes)))
     other = transport.identify_counterfactual(
@@ -803,7 +810,7 @@ def test_a_recanting_witness_is_a_proven_obstruction_and_replays_from_bytes():
     assert raised.value.reason_code == "transport_proven_non_transportable"
     assert "counterfactual_transport.checked_obstruction" in str(raised.value)
 
-    artifact = decision.export()
+    artifact = bytes(decision.export())
     consumed = transport.consume_counterfactual_transport_artifact(
         artifact,
         expected_premises_digest=decision.premises_digest,
@@ -1044,13 +1051,13 @@ def test_absent_mislabelled_counted_and_malformed_evidence_is_refused_before_a_n
 def _exported(label="Y_x0_Mx1"):
     target = next(t for t in TARGETS if t.label == label)
     result = _identified(target).derivation.evaluate(evidence=target.case.laws())
-    return target, result, result.export()
+    return target, result, bytes(result.export())
 
 
 def test_exported_result_is_recomputed_by_an_independent_consumer():
     for target in TARGETS:
         result = _identified(target).derivation.evaluate(evidence=target.case.laws())
-        artifact = result.export()
+        artifact = bytes(result.export())
         consumed = transport.consume_counterfactual_transport_artifact(
             artifact,
             expected_premises_digest=result.premises_digest,
@@ -1200,7 +1207,7 @@ def test_identify_counterfactual_keeps_its_plan_after_the_builder_is_disposed():
     plan = derivation.derivation
     assert plan["canonical_text"] == program["derivation"]["canonical_text"]
     assert plan["rules"] and plan["cited"]
-    result = derivation.refresh(target.case.laws()).estimate()
+    result = require_success(require_success(derivation.refresh(target.case.laws())).estimate())
     assert abs(result.probability - float(target.expected)) <= EXACT_TOLERANCE
 
 
@@ -1212,7 +1219,7 @@ def test_evaluate_runs_the_retained_plan_without_searching_again_after_builder_d
     receipt = derivation.derivation["search_receipt"]
     del builder
     result = derivation.evaluate(evidence=laws)
-    state = derivation.refresh(laws).estimate()
+    state = require_success(require_success(derivation.refresh(laws)).estimate())
     assert result.probability == state.probability
     assert abs(result.probability - float(target.expected)) <= EXACT_TOLERANCE
     plan = derivation.derivation
@@ -1223,15 +1230,15 @@ def test_estimate_returns_the_bound_state_of_the_retained_plan_after_builder_dis
     target = _label("effect_on_treated")
     builder = target.case.decide(target.worlds, target.event, target.given)
     derivation = builder.derivation
-    bound = derivation.refresh(target.case.laws())
+    bound = require_success(derivation.refresh(target.case.laws()))
     del builder
-    state = bound.estimate()
+    state = require_success(bound.estimate())
     assert bound.bound and not derivation.bound
     assert abs(state.probability - float(target.expected)) <= EXACT_TOLERANCE
     plan = bound.derivation
     assert plan["canonical_text"] == derivation.derivation["canonical_text"]
     with pytest.raises(CausalUnsupportedError) as raised:
-        derivation.estimate()
+        require_success(derivation.estimate())
     assert raised.value.reason_code == "transport_missing_provider"
 
 
@@ -1240,15 +1247,18 @@ def test_refresh_rebinds_laws_to_the_retained_plan_after_builder_disposal():
     worlds, event = nested(0, 0)
     builder = case.decide(worlds, event)
     derivation = builder.derivation
-    first = derivation.refresh(case.laws())
+    first = require_success(derivation.refresh(case.laws()))
     del builder
     shifted = mediation_case(F(1, 2))
-    second = first.refresh(shifted.laws())
+    second = require_success(first.refresh(shifted.laws()))
     plan = second.derivation
     assert plan["canonical_text"] == derivation.derivation["canonical_text"]
     truth = float(shifted.models["target"].probability(nested_truth(0, 0)))
-    assert abs(second.estimate().probability - truth) <= EXACT_TOLERANCE
-    assert abs(first.estimate().probability - float(MEDIATION_TRUTH[(0, 0)])) <= EXACT_TOLERANCE
+    assert abs(require_success(second.estimate()).probability - truth) <= EXACT_TOLERANCE
+    assert (
+        abs(require_success(first.estimate()).probability - float(MEDIATION_TRUTH[(0, 0)]))
+        <= EXACT_TOLERANCE
+    )
 
 
 def test_result_export_binds_the_plan_and_the_laws_into_the_verified_identity():
@@ -1258,16 +1268,18 @@ def test_result_export_binds_the_plan_and_the_laws_into_the_verified_identity():
     del builder
     laws = target.case.laws()
     result = derivation.evaluate(evidence=laws)
-    artifact = result.export()
+    artifact = bytes(result.export())
     plan = result.derivation
     assert plan["canonical_text"] == derivation.derivation["canonical_text"]
     # The identity moves with the laws and not with the plan.
     shifted = mediation_case()  # a different model class: another premises digest
     other = _label("Y_x0_Mx0")
-    other_result = shifted.decide(*nested(0, 0)).derivation.refresh(shifted.laws()).estimate()
+    other_result = require_success(
+        require_success(shifted.decide(*nested(0, 0)).derivation.refresh(shifted.laws())).estimate()
+    )
     assert other_result.premises_digest != result.premises_digest
-    again = derivation.refresh(laws).estimate()
-    assert again.export() == artifact
+    again = require_success(require_success(derivation.refresh(laws)).estimate())
+    assert bytes(again.export()) == artifact
     assert other.expected == MEDIATION_TRUTH[(0, 0)]
 
 
@@ -1276,7 +1288,7 @@ def test_consumer_recomputes_the_point_and_the_plan_after_builder_disposal():
     builder = target.case.decide(target.worlds, target.event, target.given)
     derivation = builder.derivation
     result = derivation.evaluate(evidence=target.case.laws())
-    artifact = result.export()
+    artifact = bytes(result.export())
     del builder
     consumed = transport.consume_counterfactual_transport_artifact(
         artifact,
@@ -1285,7 +1297,12 @@ def test_consumer_recomputes_the_point_and_the_plan_after_builder_disposal():
     )
     plan = consumed.derivation
     assert plan["canonical_text"] == derivation.derivation["canonical_text"]
-    assert consumed.probability == derivation.refresh(target.case.laws()).estimate().probability
+    assert (
+        consumed.probability
+        == require_success(
+            require_success(derivation.refresh(target.case.laws())).estimate()
+        ).probability
+    )
     assert consumed.independently_verified
 
 
@@ -1632,7 +1649,7 @@ def test_sampled_estimate_zero_support_is_a_typed_refusal():
 def test_sampled_artifact_round_trips_and_a_fresh_consumer_recomputes_from_the_counts(tmp_path):
     derivation, tables = _joint_tables(seed=21, n=10_000)
     result = _estimate(derivation, tables)
-    artifact = result.export()
+    artifact = bytes(result.export())
     consumed = transport.consume_sampled_counterfactual_transport_artifact(
         artifact,
         expected_premises_digest=result.premises_digest,
@@ -1699,7 +1716,7 @@ def test_an_exact_artifact_is_not_a_sampled_artifact():
     with pytest.raises(CausalError):
         transport.consume_sampled_counterfactual_transport_artifact(exact)
     derivation, tables = _joint_tables(seed=3, n=2_000)
-    sampled = _estimate(derivation, tables).export()
+    sampled = bytes(_estimate(derivation, tables).export())
     with pytest.raises(CausalError):
         transport.consume_counterfactual_transport_artifact(sampled)
 
@@ -1750,11 +1767,11 @@ def test_sampled_export_binds_the_counts_and_the_plan_after_builder_disposal():
     del builder
     independent = transport.SamplingOverlap.all_independent()
     result = derivation.estimate_sampled(cited, overlap=independent)
-    artifact = result.export()
+    artifact = bytes(result.export())
     plan = derivation.derivation
     assert plan["canonical_text"]
     again = derivation.estimate_sampled(list(reversed(cited)), overlap=independent)
-    assert again.export() == artifact, "the artifact is canonical in table order"
+    assert bytes(again.export()) == artifact, "the artifact is canonical in table order"
     assert again.premises_digest == result.premises_digest
     assert again.data_digest == result.data_digest
 
@@ -1764,7 +1781,7 @@ def test_sampled_consumer_recomputes_from_the_counts_after_builder_disposal():
     derivation = builder.derivation
     cited = cited_only(derivation, tables)
     result = derivation.estimate_sampled(cited, overlap=transport.SamplingOverlap.all_independent())
-    artifact = result.export()
+    artifact = bytes(result.export())
     del builder
     consumed = transport.consume_sampled_counterfactual_transport_artifact(
         artifact,

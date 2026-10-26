@@ -30,7 +30,7 @@ from ._verdict import describe_status, verdict_for
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .estimation import IdentifyResult
 from .estimation import identify as _identify_native
-from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
+from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, Frequentist
 from .query import (
@@ -147,6 +147,7 @@ class Identification:
         | TemporalDag
         | TemporalCpdag
         | TemporalPag
+        | TieredBackground
         | Sequence[tuple[str, str]]
     )
     query: (
@@ -230,6 +231,15 @@ class Identification:
             }
             if design
             else None,
+        )
+
+    @property
+    def scenario_adjustment_sets(self) -> tuple[tuple[str, ...], ...]:
+        """Named retained adjustment scenarios; these are not exhaustive graph-class bounds."""
+        return tuple(
+            tuple(coordinate["name"] for coordinate in coordinates)
+            for case in _certificate_cases(self.certificate)
+            for coordinates in case.get("adjustment_coordinates", ())
         )
 
     @property
@@ -517,13 +527,14 @@ class Identification:
         from ._analyze import analyze
         from .transport import Transport
 
+        resolved_identifier = None if isinstance(self.graph, TieredBackground) else self.identifier
         if isinstance(self.query, Transport):
             return analyze(
                 data,
                 query=self.query,
                 graph=self.graph,
                 inference=inference,
-                identifier=self.identifier,
+                identifier=resolved_identifier,
                 provider=provider,
                 controls=controls,
             )
@@ -532,7 +543,7 @@ class Identification:
             query=self.query,
             graph=self.graph,
             inference=inference,
-            identifier=self.identifier,
+            identifier=resolved_identifier,
             estimator=estimator,
             estimator_config=estimator_config,
             refute=refute,
@@ -583,6 +594,7 @@ def _identify_typed_graph(
     | TemporalDag
     | TemporalCpdag
     | TemporalPag
+    | TieredBackground
     | Sequence[tuple[str, str]],
     supplied: object,
     query: object,
@@ -731,6 +743,99 @@ def _identify_typed_graph(
     )
 
 
+def _identify_tiered(
+    graph: TieredBackground,
+    query: object,
+    names: Sequence[str] | None,
+    identifier: str | None,
+) -> Identification:
+    from ._native import _identify_tiered_structure
+    from .intervention import Set
+    from .observation import Complete, _assumption_kwargs
+    from .population import coerce_target_population
+    from .query import coerce_outcome_functional
+
+    if identifier is not None:
+        raise CausalUnsupportedError(
+            "TieredBackground selects its own identifier; omit identifier",
+            reason_code="option_not_applicable",
+        )
+    resolved_names = (
+        list(names) if names is not None else [name for tier in graph.tiers for name in tier]
+    )
+    spec: dict[str, Any] = {
+        "outcome": getattr(query, "outcome", None),
+        "target_population": coerce_target_population(getattr(query, "target_population", None)),
+        "outcome_functional": coerce_outcome_functional(getattr(query, "outcome_functional", None)),
+    }
+    if isinstance(query, AverageEffect):
+        spec.update(
+            kind="average",
+            treatment=query.treatment,
+            control_level=query.control_level,
+            active_level=query.active_level,
+        )
+    elif isinstance(query, InterventionResponse):
+        if query.is_temporal or query.feedback is not None:
+            raise CausalUnsupportedError(
+                "tiered identification requires a static joint hard intervention",
+                reason_code="option_not_applicable",
+            )
+        if query.observation is not None and not isinstance(query.observation, Complete):
+            raise CausalUnsupportedError(
+                "tiered joint identification requires complete observation",
+                reason_code="option_not_applicable",
+            )
+        interventions = query.intervention
+        interventions = (
+            list(interventions) if isinstance(interventions, Sequence) else [interventions]
+        )
+        hard_interventions: list[tuple[str, float]] = []
+        for item in interventions:
+            if not isinstance(item, Set):
+                raise CausalUnsupportedError(
+                    "tiered joint identification requires hard Set interventions",
+                    reason_code="option_not_applicable",
+                )
+            hard_interventions.append((item.variable, item.value))
+        spec.update(
+            kind="joint",
+            interventions=hard_interventions,
+            observation_assumptions=[
+                _assumption_kwargs(item) for item in query.observation_assumptions
+            ],
+        )
+    else:
+        raise CausalUnsupportedError(
+            "TieredBackground identification supports AverageEffect or joint InterventionResponse",
+            reason_code="option_not_applicable",
+        )
+    certificate = json.loads(
+        _identify_tiered_structure(
+            resolved_names,
+            [list(tier) for tier in graph.tiers],
+            str(graph.within_tier),
+            spec,
+        )
+    )
+    sets = [
+        coordinates
+        for case in certificate["cases"]
+        for coordinates in case["adjustment_coordinates"]
+    ]
+    shared = sets[0] if sets and all(item == sets[0] for item in sets) else []
+    return Identification(
+        status=certificate["status"],
+        method=certificate["method"],
+        adjustment_set=[item["name"] for item in shared],
+        graph=graph,
+        query=query,
+        names=resolved_names,
+        identifier=certificate["method"],
+        certificate=certificate,
+    )
+
+
 def identify(
     *,
     graph: Dag
@@ -740,6 +845,7 @@ def identify(
     | TemporalDag
     | TemporalCpdag
     | TemporalPag
+    | TieredBackground
     | Sequence[tuple[str, str]],
     query: AverageEffect
     | ResponseCurve
@@ -763,8 +869,10 @@ def identify(
 ) -> Identification:
     """Identify without estimating; returns a stageable :class:`Identification`.
 
-    ``TieredBackground`` is Rust-only (``identify_tiered`` /
-    ``identify_tiered_joint``). This Python entry does not accept a tier rule.
+    ``TieredBackground`` identifies without data. Co-determined tiers return
+    their checked closure; unknown tiers retain two declared orientation
+    scenarios, rather than bounds over every possible graph. Joint hard
+    interventions use the co-determined treatment-set closure.
 
     Same parameters as the one-shot identify-only call
     (:func:`antecedent.estimation.identify`, still available unchanged for
@@ -805,6 +913,8 @@ def identify(
     from .accepted_graph import AcceptedGraph as _AcceptedGraph
 
     supplied = graph.graph if isinstance(graph, _AcceptedGraph) else graph
+    if isinstance(supplied, TieredBackground):
+        return _identify_tiered(supplied, query, names, identifier_s)
     if _uses_structure_identify(supplied, query):
         return _identify_typed_graph(
             graph=graph,
@@ -910,7 +1020,7 @@ def identify(
     # pairwise backdoor search is identical, but its ATE strategy id must not be
     # confused with the response strategy retained by this staged object.
     native_identifier = "backdoor.adjustment" if isinstance(query, ResponseCurve) else identifier
-    if isinstance(graph, (Cpdag, Pag, TemporalDag, TemporalCpdag, TemporalPag)):
+    if isinstance(graph, (Cpdag, Pag, TemporalDag, TemporalCpdag, TemporalPag, TieredBackground)):
         raise TypeError("this query is not supported on the supplied graph class")
     result = _identify_native(
         graph=graph,
@@ -984,6 +1094,7 @@ def binary_iv_bounds(cells: Sequence[Sequence[float]]) -> BinaryIvBounds:
     from ._analyze import analyze
     from .errors import CausalEstimateError, CausalIdentifyError
     from .quasi import IvBounds
+    from .results import AnalysisResult
 
     arms = [[float(cell) for cell in arm] for arm in cells]
     if len(arms) != 2 or any(len(arm) != 4 for arm in arms):
@@ -1013,6 +1124,8 @@ def binary_iv_bounds(cells: Sequence[Sequence[float]]) -> BinaryIvBounds:
         if "instrumental inequality" in str(error):
             raise CausalIdentifyError(str(error)) from error
         raise
+    if not isinstance(result, AnalysisResult):
+        raise CausalIdentifyError("the compiled IV bounds study returned no identified set")
     section = result.iv_bounds
     if section is None:
         raise CausalIdentifyError("the compiled IV bounds study returned no identified set")

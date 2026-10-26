@@ -25,6 +25,7 @@ from antecedent.estimators import (
     LinearAdjustment,
 )
 from antecedent.graph import Admg
+from antecedent.outcomes import require_success
 
 EDGES = [("z", "t"), ("z", "y"), ("t", "y")]
 QUERY = ant.AverageEffect(treatment="t", outcome="y")
@@ -40,7 +41,9 @@ def _numeric(n: int = 120, seed: int = 3) -> dict[str, np.ndarray]:
 
 
 def _run(data, graph=EDGES, estimator=None, **options):
-    return ant.analyze(data, graph=graph, query=QUERY, estimator=estimator, **ONE_SHOT, **options)
+    return require_success(
+        ant.analyze(data, graph=graph, query=QUERY, estimator=estimator, **ONE_SHOT, **options)
+    )
 
 
 def _same(left, right) -> None:
@@ -97,13 +100,13 @@ def test_a_typed_graph_binds_columns_by_name_and_graph_order(kind):
 def test_refresh_accepts_reordered_and_extra_columns():
     numeric = _numeric()
     study = ant.prepare(numeric, graph=EDGES, query=QUERY, **ONE_SHOT)
-    study.estimate()
+    require_success(study.estimate())
     changed = _numeric(seed=4)
-    plain = study.refresh(changed)
+    plain = require_success(study.refresh(changed))
     shuffled = {"note": ["x"] * 120, "y": changed["y"], "z": changed["z"], "t": changed["t"]}
-    _same(study.refresh(shuffled), plain)
-    _same(study.refresh(pd.DataFrame(shuffled)), plain)
-    _same(study.refresh(pa.table(shuffled)), plain)
+    _same(require_success(study.refresh(shuffled)), plain)
+    _same(require_success(study.refresh(pd.DataFrame(shuffled))), plain)
+    _same(require_success(study.refresh(pa.table(shuffled))), plain)
 
 
 # --- filtered frames and indexes -------------------------------------------------------
@@ -230,9 +233,9 @@ def test_one_shot_and_prepared_agree_on_a_named_cluster():
     estimator = LinearAdjustment(se="cluster", cluster="site")
     one_shot = _run(data, estimator=estimator)
     study = ant.prepare(data, graph=EDGES, query=QUERY, estimator=estimator, **ONE_SHOT)
-    _same(study.estimate(), one_shot)
+    _same(require_success(study.estimate()), one_shot)
     # Replay against the same table rebuilds the same identifiers.
-    _same(study.reprepare(data).estimate(), one_shot)
+    _same(require_success(study.reprepare(data).estimate()), one_shot)
 
 
 def test_refresh_with_changed_identifiers_is_refused_and_leaves_the_study_unchanged():
@@ -244,23 +247,23 @@ def test_refresh_with_changed_identifiers_is_refused_and_leaves_the_study_unchan
         estimator=LinearAdjustment(se="cluster", cluster="site"),
         **ONE_SHOT,
     )
-    first = study.estimate()
+    first = require_success(study.estimate())
 
     swapped = {**data, "site": list(data["site"])}
     swapped["site"][0], swapped["site"][1] = data["site"][1], data["site"][0]
     assert swapped["site"] != data["site"]
     with pytest.raises(CausalValueError, match="frozen identifier column 'site'"):
-        study.refresh(swapped)
+        require_success(study.refresh(swapped))
     renamed = {**data, "site": [label.upper() for label in data["site"]]}
     with pytest.raises(CausalValueError, match="frozen identifier column 'site'"):
-        study.refresh(renamed)
+        require_success(study.refresh(renamed))
     assert study.last_result is first
-    _same(study.estimate(), first)
+    _same(require_success(study.estimate()), first)
 
     # Unchanged identifiers, changed outcomes, extra and reordered columns: accepted.
     updated = _clustered(seed=12)
     updated["site"] = data["site"]
-    refreshed = study.refresh({"note": ["x"] * 72, **updated})
+    refreshed = require_success(study.refresh({"note": ["x"] * 72, **updated}))
     assert refreshed.estimate.ate != pytest.approx(first.estimate.ate)
     _, expected_se = _cluster_robust_se(updated)
     assert refreshed.estimate.se_analytic == pytest.approx(expected_se, rel=1e-9)
@@ -351,16 +354,16 @@ def test_refresh_without_the_cluster_column_keeps_the_frozen_labels():
         estimator=LinearAdjustment(se="cluster", cluster="site"),
         **ONE_SHOT,
     )
-    study.estimate()
+    require_success(study.estimate())
     updated = _clustered(seed=12)
     without = {name: updated[name] for name in ("z", "t", "y")}
     _, expected_se = _cluster_robust_se({**updated, "site": data["site"]})
-    refreshed = study.refresh(without)
+    refreshed = require_success(study.refresh(without))
     assert refreshed.estimate.se_analytic == pytest.approx(expected_se, rel=1e-9)
     # A table with another number of rows cannot carry the frozen labels.
     shorter = {name: values[:-1] for name, values in without.items()}
     with pytest.raises(CausalValueError, match="frozen identifier column 'site' labels 72 rows"):
-        study.refresh(shorter)
+        require_success(study.refresh(shorter))
 
 
 def test_participant_labels_are_preserved_and_identity_checked():
@@ -368,18 +371,18 @@ def test_participant_labels_are_preserved_and_identity_checked():
     data["pid"] = [f"P{i // 2:03d}" for i in range(72)]
     baseline = _run({name: data[name] for name in ("z", "t", "y")})
     study = ant.prepare(data, graph=EDGES, query=QUERY, participant="pid", **ONE_SHOT)
-    _same(study.estimate(), baseline)
+    _same(require_success(study.estimate()), baseline)
     assert study.participants == tuple(data["pid"])
     assert ant.prepare(data, graph=EDGES, query=QUERY, **ONE_SHOT).participants is None
 
     first = study.last_result
     moved = {**data, "pid": ["P999", *data["pid"][1:]]}
     with pytest.raises(CausalValueError, match="frozen identifier column 'pid'"):
-        study.refresh(moved)
+        require_success(study.refresh(moved))
     with pytest.raises(CausalValueError, match="frozen identifier column 'pid'"):
-        study.refresh({name: values[:-1] for name, values in data.items()})
+        require_success(study.refresh({name: values[:-1] for name, values in data.items()}))
     assert study.last_result is first
-    study.refresh({name: data[name] for name in ("z", "t", "y")})
+    require_success(study.refresh({name: data[name] for name in ("z", "t", "y")}))
     assert study.reprepare(moved).participants == tuple(moved["pid"])
     with pytest.raises(CausalValueError, match="identifier column .pid. is missing"):
         ant.prepare(

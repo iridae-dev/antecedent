@@ -13,6 +13,7 @@ import random
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _scm import confounded_scm
 
@@ -43,14 +44,16 @@ def _assert_full(result, requested: int) -> None:
 def test_static_ate_evaluates_requested_bootstrap(estimator):
     data, edges = confounded_scm(n=500, seed=19)
     kwargs = {} if estimator is None else {"estimator": estimator}
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        bootstrap=199,
-        refute=False,
-        seed=5,
-        **kwargs,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            bootstrap=199,
+            refute=False,
+            seed=5,
+            **kwargs,
+        )
     )
     _assert_full(result, 199)
 
@@ -58,13 +61,15 @@ def test_static_ate_evaluates_requested_bootstrap(estimator):
 @pytest.mark.parametrize("contrast", ["total", "mediated"])
 def test_static_mediation_evaluates_requested_bootstrap(contrast):
     data, edges = _mediation_scm()
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.MediationEffect("a", "y", mediators=["m"], contrast=contrast),
-        bootstrap=199,
-        refute=False,
-        seed=5,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.MediationEffect("a", "y", mediators=["m"], contrast=contrast),
+            bootstrap=199,
+            refute=False,
+            seed=5,
+        )
     )
     _assert_full(result, 199)
 
@@ -72,13 +77,15 @@ def test_static_mediation_evaluates_requested_bootstrap(contrast):
 def test_bayesian_laplace_materializes_requested_draws():
     data, edges = confounded_scm(n=500, seed=19)
     max_draws = 256
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(backend="laplace", n_draws=max_draws),
-        refute=False,
-        seed=9,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(backend="laplace", n_draws=max_draws),
+            refute=False,
+            seed=9,
+        )
     )
     assert result.performance.n_draws == max_draws
     assert not result.performance.early_stopped

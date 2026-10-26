@@ -209,7 +209,12 @@ def estimate_temporal_design(
         min_probability=float(min_probability),
         misclassification=None
         if misclassification is None
-        else tuple(int(count) for count in misclassification),
+        else (
+            int(misclassification[0]),
+            int(misclassification[1]),
+            int(misclassification[2]),
+            int(misclassification[3]),
+        ),
         seed=seed,
         threads=threads,
         options=options,

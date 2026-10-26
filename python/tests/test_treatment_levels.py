@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 from antecedent.errors import CausalError
 from antecedent.estimators import Aipw, PropensityMatching, PropensityWeighting
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -31,14 +32,16 @@ def _binary(n: int = 1200, seed: int = 4) -> dict[str, np.ndarray]:
 
 
 def _estimate(data: dict[str, np.ndarray], estimator: Any, *, control: float, active: float) -> Any:
-    return ant.analyze(
-        data,
-        graph=STATIC_DAG,
-        query=ant.AverageEffect("t", "y", control_level=control, active_level=active),
-        estimator=estimator,
-        refute="none",
-        bootstrap=0,
-        seed=3,
+    return require_success(
+        ant.analyze(
+            data,
+            graph=STATIC_DAG,
+            query=ant.AverageEffect("t", "y", control_level=control, active_level=active),
+            estimator=estimator,
+            refute="none",
+            bootstrap=0,
+            seed=3,
+        )
     )
 
 

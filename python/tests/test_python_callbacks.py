@@ -9,6 +9,7 @@ from antecedent._native import (
     discover_pcmci,
     sample_do,
 )
+from antecedent.outcomes import require_success
 
 from _native_ate import native_ate
 
@@ -234,7 +235,9 @@ def test_execution_observers_print_ordinary_errors_but_preserve_interrupts(
         raise original
 
     def estimate():
-        return prepared.estimate(names, columns, threads=4, **{sink: failing_observer})
+        return require_success(
+            prepared.estimate(names, columns, threads=4, **{sink: failing_observer})
+        )
 
     if exception_type is RuntimeError:
         result = estimate()

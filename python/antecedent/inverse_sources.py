@@ -4,17 +4,19 @@ An inverse query (:mod:`antecedent.inverse_query`) asks which declared actions m
 forward claim. The claim is only as good as the route that produced it, so each source is adapted
 with its own refusals and its identity travels into the result and the sealed artifact::
 
+    from antecedent import require_success
+
     from antecedent import inverse_query as iq
     from antecedent import inverse_sources as sources
 
-    source = sources.composed_forward_source(
+    source = require_success(sources.derive_composed_source(
         composition,
         [sources.ComposedAction("x1", coordinate, {"X": 1.0}, outcome="Y")],
-    )
-    result = source.evaluate(query)
+    ))
+    result = require_success(source.evaluate(query))
     result.selected, result.origin.kind, result.origin.assumed_mechanisms
 
-* **Composed mechanisms.** :func:`composed_forward_source` exports each action's composition
+* **Composed mechanisms.** :func:`derive_composed_source` exports each action's composition
   query, consumes the artifact again (premises digest recomputed, premises recompiled, query
   replayed to identical bits) and reads the replayed results. A linear-Gaussian composition
   supplies a point per action; a finite-table composition the exact law of each action under the
@@ -65,6 +67,7 @@ from ._refusal import raise_refusal
 from ._scientific import ScientificResult
 from ._validate import choice, real, text
 from .errors import CausalTypeError
+from .execution import Execution
 from .inverse_query import (
     ActionReport,
     InverseQuery,
@@ -73,6 +76,7 @@ from .inverse_query import (
 )
 from .joint_distribution import JointDistributionArtifact, ScientificQuantity
 from .mechanism_composition import MeanContrast, _query_wire
+from .outcomes import outcome_operation, require_success
 from .transported_response import TransportedResponse, TransportReceipt
 
 __all__ = [
@@ -84,7 +88,7 @@ __all__ = [
     "ScenarioCondition",
     "SourcedInverseResult",
     "cohort_forward_source",
-    "composed_forward_source",
+    "derive_composed_source",
     "observational_scenarios",
     "transported_forward_source",
 ]
@@ -257,6 +261,7 @@ class ForwardSource(ScientificResult):
             _handle=handle,
         )
 
+    @outcome_operation
     def evaluate(
         self, query: InverseQuery, *, interval_region: bool = False
     ) -> SourcedInverseResult:
@@ -295,6 +300,7 @@ class ForwardSource(ScientificResult):
             per_action=bool(body["source"]["per_action"]),
         )
 
+    @outcome_operation
     def seal(self, query: InverseQuery, *, interval_region: bool = False) -> InverseResult:
         """Evaluate and seal ``query`` on a source with one claim for every action.
 
@@ -313,6 +319,7 @@ class ForwardSource(ScientificResult):
         )
         return InverseResult(query, native)
 
+    @outcome_operation
     def seal_per_action(
         self, query: InverseQuery, *, interval_region: bool = False
     ) -> dict[str, InverseResult]:
@@ -350,13 +357,14 @@ def _contract(query: InverseQuery) -> Any:
     return query.contract
 
 
-def composed_forward_source(
+@outcome_operation
+def derive_composed_source(
     composition: Any,
     actions: Sequence[ComposedAction],
     *,
     transport: TransportReceipt | None = None,
     accepts_transported: bool = False,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ForwardSource:
     """A composition's replayed forward source: one query per declared action.
 
@@ -376,6 +384,7 @@ def composed_forward_source(
     """
     from .mechanism_composition import PreparedMechanismComposition
 
+    composition = require_success(composition)
     if not isinstance(composition, PreparedMechanismComposition):
         raise CausalTypeError("composition must be a PreparedMechanismComposition")
     declared = list(actions)
@@ -392,13 +401,17 @@ def composed_forward_source(
         }
         for a in declared
     ]
+    policy = Execution() if execution is None else execution
+    if not isinstance(policy, Execution):
+        raise CausalTypeError("execution must be an Execution policy")
     handle = _unwrap(
-        _native.forward_source_composed(
+        policy._call(
+            _native.forward_source_composed,
             composition._handle,
             json.dumps(wire),
             None if transport is None else json.dumps(transport._wire()),
             bool(accepts_transported),
-            cancel=cancel,
+            cancel=policy.cancel,
         )
     )
     return ForwardSource._of(handle)
@@ -413,10 +426,13 @@ def cohort_forward_source(source: Any, *, accepts_transported: bool = False) -> 
     """
     from .cohort_decision import CohortDecisionSource
 
+    source = require_success(source)
     if not isinstance(source, CohortDecisionSource):
         raise CausalTypeError("source must be a cohort_decision.CohortDecisionSource")
     handle = _unwrap(
-        _native.forward_source_cohort(source.export(), source.identity, bool(accepts_transported))
+        _native.forward_source_cohort(
+            bytes(source.export()), source.identity, bool(accepts_transported)
+        )
     )
     return ForwardSource._of(handle)
 
@@ -430,6 +446,7 @@ def transported_forward_source(
     only refuses it. The origin carries the whole receipt, so another transport at the same
     values is another sealed artifact.
     """
+    response = require_success(response)
     if not isinstance(response, TransportedResponse):
         raise CausalTypeError("response must be a TransportedResponse")
     handle = _unwrap(
@@ -538,6 +555,7 @@ class ObservationalScenarioResult(ScientificResult):
         raise_refusal(self._handle.verify(law._native), InverseQueryRefusal)
 
 
+@outcome_operation
 def observational_scenarios(
     law: JointDistributionArtifact,
     outcome: ScientificQuantity,
@@ -560,6 +578,7 @@ def observational_scenarios(
             coordinate, non-joint alignment, a law that is not observational
             (``distribution_meaning_mismatch``), a non-finite draw and an event with no mass.
     """
+    law = require_success(law)
     if not isinstance(law, JointDistributionArtifact):
         raise CausalTypeError("law must be a JointDistributionArtifact")
     choice(event, "event", ("at_least", "at_most"))

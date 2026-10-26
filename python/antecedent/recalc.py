@@ -54,8 +54,15 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._refusal import StructuredRefusal, raise_refusal
 from .errors import CausalSerializationError, CausalValueError
+from .outcomes import outcome_operation, require_success
 
 ARTIFACT_KIND = "recalc_receipt_v1"
 MAX_EXTERNAL_BRANCHES = 8
@@ -626,6 +633,7 @@ class RecalcReceipt:
     def _from_wire(
         cls, meta: Mapping[str, Any], plan: Mapping[str, Any], artifact: bytes, *, loaded: bool
     ) -> RecalcReceipt:
+        artifact = container_bytes(artifact)
         return cls(
             entries=tuple(
                 ReceiptEntry(
@@ -683,11 +691,13 @@ class RecalcReceipt:
         """Whether any derived stage is stored as reused (never true in a fresh process)."""
         return any(e.status.reused and not e.stage.is_input for e in self.entries)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The portable ``recalc_receipt_v1`` artifact bytes."""
-        return self._artifact
+        return artifact_from_receipt(self, self._artifact)
 
     @classmethod
+    @outcome_operation
     def consume(cls, data: bytes, *, expected_identity: str | None = None) -> RecalcReceipt:
         """Consume an artifact by recomputing its plan from the stored declarations.
 
@@ -697,6 +707,7 @@ class RecalcReceipt:
         and, when ``expected_identity`` was retained independently, a consistently resealed
         receipt of another run is refused too. Corruption raises ``CausalSerializationError``.
         """
+        data = container_bytes(data)
         report, refusal = _native.consume_recalc_receipt(bytes(data), expected_identity)
         raise_refusal(refusal, _refusal_type)
         if report is None:  # pragma: no cover - the native call returns one or the other
@@ -1012,6 +1023,7 @@ class RecalcSession:
         """
         return self.plan(request, seed=seed, threads=threads)
 
+    @outcome_operation
     def execute(
         self,
         request: RecalcRequest,
@@ -1062,9 +1074,11 @@ class RecalcSession:
         )
 
 
+@outcome_operation
 def consume(data: bytes, *, expected_identity: str | None = None) -> RecalcReceipt:
     """Consume a ``recalc_receipt_v1`` artifact; see :meth:`RecalcReceipt.consume`."""
-    return RecalcReceipt.consume(data, expected_identity=expected_identity)
+    data = container_bytes(data)
+    return require_success(RecalcReceipt.consume(data, expected_identity=expected_identity))
 
 
 __all__ = [

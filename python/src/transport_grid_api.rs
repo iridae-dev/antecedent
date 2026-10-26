@@ -13,10 +13,44 @@ use antecedent_estimate::EmpiricalTableOptions;
 use antecedent_expr::{Assignment, ExactEvaluationLimits};
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
+#[derive(Clone)]
+enum GridPreparation {
+    Deferred(antecedent::analysis::DeferredTransportGrid),
+    Ready(antecedent::PreparedStudy<TransportGridState>),
+}
+impl GridPreparation {
+    fn query(&self) -> &TransportGridQuery {
+        match self {
+            Self::Deferred(value) => value.query(),
+            Self::Ready(value) => value.query(),
+        }
+    }
+    fn materialize(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> PyResult<antecedent::PreparedStudy<TransportGridState>> {
+        match self {
+            Self::Deferred(value) => value.materialize(ctx).map_err(error),
+            Self::Ready(value) => Ok(value.clone()),
+        }
+    }
+    fn inspect(&self) -> antecedent_contract::ReasoningView {
+        match self {
+            Self::Deferred(value) => value.inspect(),
+            Self::Ready(value) => value.inspect(),
+        }
+    }
+    fn can_reestimate(&self) -> bool {
+        match self {
+            Self::Deferred(_) => true,
+            Self::Ready(value) => value.can_reestimate(),
+        }
+    }
+}
 #[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct PreparedTransportGridStage {
-    inner: antecedent::PreparedStudy<TransportGridState>,
+    inner: GridPreparation,
     names: Vec<String>,
     last: Option<TransportGridResult>,
     options: Option<EmpiricalTableOptions>,
@@ -31,6 +65,7 @@ impl PreparedTransportGridStage {
         let mut ctx = ExecutionContext::production_default(self.seed);
         ctx.set_memory_limit(self.memory);
         crate::apply_cancel(&mut ctx, cancel);
+        crate::execution_api::apply(&mut ctx);
         ctx
     }
     fn data(&self, data: &Bound<'_, PyAny>) -> PyResult<TransportGridData> {
@@ -89,6 +124,25 @@ impl PreparedTransportGridStage {
     fn freeze(&self) -> Self {
         self.clone()
     }
+    #[pyo3(signature=(seed=None))]
+    fn fork(&self, seed: Option<u64>) -> PyResult<Self> {
+        let mut branch = self.clone();
+        let ctx = self.ctx(None);
+        branch.inner = GridPreparation::Deferred(
+            match &self.inner {
+                GridPreparation::Deferred(value) => {
+                    value.with_seed(seed.unwrap_or(self.seed), &ctx)
+                }
+                GridPreparation::Ready(value) => {
+                    value.defer_execution(seed.unwrap_or(self.seed), &ctx)
+                }
+            }
+            .map_err(error)?,
+        );
+        branch.seed = seed.unwrap_or(self.seed);
+        branch.last = None;
+        Ok(branch)
+    }
     #[pyo3(signature=(cancel=None))]
     fn estimate(
         &mut self,
@@ -97,47 +151,61 @@ impl PreparedTransportGridStage {
     ) -> PyResult<String> {
         let inner = self.inner.clone();
         let ctx = self.ctx(cancel);
-        let result = crate::detach_catch(py, move || inner.estimate(&ctx).map_err(error))?;
-        let payload = self.payload(&result)?;
-        self.last = Some(result);
-        Ok(payload)
-    }
-    #[pyo3(signature=(data,cancel=None))]
-    fn refresh(
-        &mut self,
-        py: Python<'_>,
-        data: &Bound<'_, PyAny>,
-        cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<String> {
-        let data = self.data(data)?;
-        let mut candidate = self.inner.clone();
-        let ctx = self.ctx(cancel);
-        let (candidate, result) = crate::detach_catch(py, move || {
-            let result = candidate.refresh(data, &ctx).map_err(error)?;
-            Ok((candidate, result))
+        let result = crate::detach_catch(py, move || {
+            inner.materialize(&ctx)?.estimate(&ctx).map_err(error)
         })?;
-        self.inner = candidate;
         let payload = self.payload(&result)?;
         self.last = Some(result);
         Ok(payload)
     }
     #[pyo3(signature=(data,cancel=None))]
-    fn replace_snapshot(
-        &mut self,
+    fn bind_snapshot(
+        &self,
         py: Python<'_>,
         data: &Bound<'_, PyAny>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<()> {
+    ) -> PyResult<Self> {
         let input = self.data(data)?;
-        let mut candidate = self.inner.clone();
+        let inner = self.inner.clone();
         let ctx = self.ctx(cancel);
-        let candidate = crate::detach_catch(py, move || {
-            candidate.replace_snapshot(input, &ctx).map_err(error)?;
-            Ok(candidate)
+        let inner = crate::detach_catch(py, move || {
+            match inner {
+                GridPreparation::Deferred(value) => value.bind_snapshot(input, &ctx),
+                GridPreparation::Ready(value) => value.deferred_snapshot(input, &ctx),
+            }
+            .map(GridPreparation::Deferred)
+            .map_err(error)
         })?;
-        self.inner = candidate;
-        self.last = None;
-        Ok(())
+        Ok(Self { inner, last: None, ..self.clone() })
+    }
+    #[pyo3(signature=(at,cancel=None))]
+    fn rebind(
+        &self,
+        py: Python<'_>,
+        at: Vec<BTreeMap<String, f64>>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<Self> {
+        let at = at
+            .into_iter()
+            .map(|point| {
+                point
+                    .into_iter()
+                    .map(|(name, value)| Ok((resolve(&self.names, &name)?, Value::f64(value))))
+                    .collect::<PyResult<Vec<_>>>()
+                    .map(Assignment::from_pairs)
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let inner = self.inner.clone();
+        let ctx = self.ctx(cancel);
+        let inner = crate::detach_catch(py, move || match inner {
+            GridPreparation::Deferred(value) => {
+                value.rebind(at, &ctx).map(GridPreparation::Deferred).map_err(error)
+            }
+            GridPreparation::Ready(value) => {
+                value.rebind_assignments(at, &ctx).map(GridPreparation::Ready).map_err(error)
+            }
+        })?;
+        Ok(Self { inner, last: None, ..self.clone() })
     }
     fn last_result(&self) -> PyResult<String> {
         self.payload(self.last.as_ref().ok_or_else(|| error("transport.no_execution_claim"))?)
@@ -190,7 +258,7 @@ impl PreparedTransportGridStage {
             "support":{"available":reasoning.support.is_available(),"summary":"grid_local_support","payload":{"points":points,"population_positivity":"assumed_not_empirically_proven","slot":crate::transport_common::support_slot_json(&reasoning.support)}},
             "uncertainty":{"available":uncertainty_available,"summary":if uncertainty_available{"pointwise_bootstrap"}else{"unavailable"},"payload":{"calibration_status":"not_bound_to_this_execution","simultaneous_bands":false}},
             "assumptions":{"available":reasoning.assumptions.is_available(),"summary":"declared_population_selections_and_provider_contract","payload":{"empirically_verified":false,"target":proof.query().target.as_ref(),"sources":proof.sources(),"obligations":crate::transport_common::obligation_ids(&reasoning.assumptions)}},
-            "execution_id":self.last.as_ref().map(TransportGridResult::identity),"capabilities":{"storage":true,"proof_verification":true,"numerical_verification":true,"estimator_replay":self.inner.can_reestimate()},"evidence_contract":antecedent_io::transport_catalog_wire::EvidenceCatalogWire::from_catalog(query.functional.catalog()),"supported_operations":["estimate","replace_snapshot","refresh","export","mean","contrast","scalar_projection"],"formula":query.functional.arena().pretty(query.functional.root()).replace(":=NaN", "")
+            "execution_id":self.last.as_ref().map(TransportGridResult::identity),"capabilities":{"storage":true,"proof_verification":true,"numerical_verification":true,"estimator_replay":self.inner.can_reestimate()},"evidence_contract":antecedent_io::transport_catalog_wire::EvidenceCatalogWire::from_catalog(query.functional.catalog()),"supported_operations":["estimate","bind_snapshot","rebind","export","mean","contrast","scalar_projection"],"formula":query.functional.arena().pretty(query.functional.root()).replace(":=NaN", "")
         }).to_string())
     }
     fn plan_summary(&self) -> BTreeMap<String, String> {
@@ -201,8 +269,13 @@ impl PreparedTransportGridStage {
     }
     fn preview_transform(&self, intent: &str) -> PyResult<BTreeMap<String, String>> {
         let intent = crate::prepared_api::parse_transform_intent(intent)?;
+        let GridPreparation::Ready(value) = &self.inner else {
+            return Err(crate::unsupported_message(
+                "deferred transport grid: use rebind or bind_snapshot",
+            ));
+        };
         Ok(crate::prepared_api::transform_report_map(
-            &self.inner.preview_transform(intent).map_err(error)?,
+            &value.preview_transform(intent).map_err(error)?,
         )
         .into_iter()
         .collect())
@@ -270,6 +343,7 @@ fn prepare_transport_grid(
         let mut ctx = ExecutionContext::production_default(seed);
         ctx.set_memory_limit(memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
+        crate::execution_api::apply(&mut ctx);
         let functional = match proof.bind_catalog_with_context(
             &catalog,
             antecedent_identify::SidLimits { steps: max_operations, depth: max_depth },
@@ -291,7 +365,7 @@ fn prepare_transport_grid(
                 }
             },
         };
-        let inner = antecedent::StudyBuilder::transport_grid(
+        let inner = antecedent::analysis::DeferredTransportGrid::compile(
             TransportGridQuery {
                 diagram,
                 functional,
@@ -303,7 +377,7 @@ fn prepare_transport_grid(
         )
         .map_err(error)?;
         Ok(PreparedTransportGridStage {
-            inner,
+            inner: GridPreparation::Deferred(inner),
             names,
             last: None,
             options,
@@ -334,6 +408,7 @@ fn consume_transport_grid(
         let mut ctx = ExecutionContext::production_default(0);
         ctx.set_memory_limit(memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
+        crate::execution_api::apply(&mut ctx);
         let (inner, result) = antecedent::PreparedStudy::<TransportGridState>::consume(
             &bytes,
             ExactEvaluationLimits { operations: max_operations, depth: max_depth },
@@ -351,7 +426,7 @@ fn consume_transport_grid(
         )?;
         let options = inner.statistical_options();
         Ok(PreparedTransportGridStage {
-            inner,
+            inner: GridPreparation::Ready(inner),
             names,
             last: Some(result),
             options,

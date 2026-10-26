@@ -14,9 +14,17 @@ from typing import Any, Literal
 import numpy as np
 
 from .. import _native
+from .._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .._columns import coerce_fields
 from .._data import to_f64
 from .._measured_inference import MeasuredInference, _level, _production_limits
+from .._scientific import ScientificResult
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from ._candidate_data import detached, freeze
 from ._impl import TransportIdentification
@@ -115,7 +123,7 @@ class JointTransportTarget:
 
 
 @dataclass(frozen=True, slots=True, init=False)
-class JointTransportPosterior:
+class JointTransportPosterior(ScientificResult):
     """Numerically replayable candidate posterior; calibration is unmeasured.
 
     All rows are aligned across the original complete joint parameter/effect law.
@@ -134,6 +142,7 @@ class JointTransportPosterior:
     def _from_native(
         cls, kind: Literal["gaussian", "learned_gaussian"], payload: str, artifact: bytes
     ) -> JointTransportPosterior:
+        artifact = container_bytes(artifact)
         result = object.__new__(cls)
 
         coerce_fields(result, kind=kind)
@@ -194,14 +203,21 @@ class JointTransportPosterior:
 
         return dict(detached(self._body))
 
-    def export(self) -> bytes:
-        return self._bytes
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
+        return artifact_from_receipt(self, self._bytes)
 
     def expectation(self) -> dict[str, str]:
         body = self._body
         return {"premises_digest": body["premises_digest"], "data_digest": body["data_digest"]}
 
 
+@artifact_consumer(
+    proof="native joint posterior consumer refits the retained model/data under independent identities",
+    replayable=True,
+    resumable=False,
+    input="data",
+)
 def consume_joint_transport_posterior(
     data: bytes,
     *,
@@ -209,6 +225,7 @@ def consume_joint_transport_posterior(
     expected_identity: Mapping[str, str],
 ) -> JointTransportPosterior:
     """Fresh native re-fit under retained independent model/data identity expectations."""
+    data = container_bytes(data)
     consumer = getattr(_native, "consume_joint_transport_candidate", None)
     if consumer is None:
         raise CausalUnsupportedError(

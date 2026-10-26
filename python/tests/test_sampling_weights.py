@@ -30,6 +30,7 @@ from antecedent.estimators import (
     PropensityStratification,
     PropensityWeighting,
 )
+from antecedent.outcomes import require_success
 
 EDGES = [("z", "t"), ("z", "y"), ("t", "y")]
 QUERY = ant.AverageEffect(treatment="t", outcome="y")
@@ -47,8 +48,8 @@ def _survey(n: int = 160, seed: int = 7) -> dict[str, np.ndarray]:
 
 
 def _run(data, estimator, **options):
-    return ant.analyze(
-        data, graph=EDGES, query=QUERY, estimator=estimator, **{**ONE_SHOT, **options}
+    return require_success(
+        ant.analyze(data, graph=EDGES, query=QUERY, estimator=estimator, **{**ONE_SHOT, **options})
     )
 
 
@@ -213,7 +214,7 @@ def test_a_refreshed_table_with_other_weights_is_refused():
     )
     other = {**data, "w": data["w"] * np.linspace(0.5, 1.5, len(data["w"]))}
     with pytest.raises(CausalValueError, match="weights column 'w' changed"):
-        study.refresh(other)
+        require_success(study.refresh(other))
 
 
 def test_clusters_on_propensity_weighting_and_stratification_are_valid():
@@ -288,10 +289,12 @@ def _trial_query(data, **extra):
 def test_a_weighted_randomized_trial_is_the_hajek_contrast_and_reports_its_record():
     data = _trial()
     effect, se = _trial_hajek(data)
-    result = ant.analyze(
-        {"y": data["y"], "w": data["w"]},
-        query=_trial_query(data, weights="w"),
-        refute="none",
+    result = require_success(
+        ant.analyze(
+            {"y": data["y"], "w": data["w"]},
+            query=_trial_query(data, weights="w"),
+            refute="none",
+        )
     )
     fit = result.randomized_effect
     assert fit.effect == pytest.approx(effect, rel=1e-9)
@@ -300,10 +303,12 @@ def test_a_weighted_randomized_trial_is_the_hajek_contrast_and_reports_its_recor
     assert fit.uncertainty == "sampling_weighted_hajek_linearized_variance_no_interval"
     record = result.estimate.sampling_weights
     assert record.rows_used == 200 and record.zero_weight_rows == 0
-    scaled = ant.analyze(
-        {"y": data["y"], "w": data["w"] * 1e4},
-        query=_trial_query(data, weights="w"),
-        refute="none",
+    scaled = require_success(
+        ant.analyze(
+            {"y": data["y"], "w": data["w"] * 1e4},
+            query=_trial_query(data, weights="w"),
+            refute="none",
+        )
     )
     assert scaled.randomized_effect.effect == pytest.approx(fit.effect, rel=1e-9)
 
@@ -321,8 +326,10 @@ def test_a_randomized_trial_refuses_weights_it_cannot_read():
     with pytest.raises(CausalValueError, match="source row 3"):
         weights = data["w"].copy()
         weights[3] = -1.0
-        ant.analyze(
-            {"y": data["y"], "w": weights}, query=_trial_query(data, weights="w"), refute="none"
+        require_success(
+            ant.analyze(
+                {"y": data["y"], "w": weights}, query=_trial_query(data, weights="w"), refute="none"
+            )
         )
 
 
@@ -370,12 +377,14 @@ def _did_oracle(data) -> tuple[float, float]:
 def test_a_weighted_panel_did_is_the_weighted_change_contrast_with_a_cluster_sandwich():
     data = _panel()
     effect, se = _did_oracle(data)
-    result = ant.analyze(
-        data,
-        query=ant.quasi.PanelDifferenceInDifferences(
-            "y", "id", "group", "after", cluster="site", weights="w"
-        ),
-        refute="none",
+    result = require_success(
+        ant.analyze(
+            data,
+            query=ant.quasi.PanelDifferenceInDifferences(
+                "y", "id", "group", "after", cluster="site", weights="w"
+            ),
+            refute="none",
+        )
     )
     fit = result.panel_did
     assert fit.estimate == pytest.approx(effect, rel=1e-9)
@@ -399,8 +408,10 @@ def test_a_weighted_temporal_pulse_reads_one_weight_per_time_step():
     w = 0.3 + 3.0 * rng.uniform(size=n)
     graph = [("t", 1, "y", 0), ("t", 2, "y", 0)]
     kwargs = {"graph": graph, "refute": False, "bootstrap": 0, "seed": 1}
-    weighted = ant.analyze(
-        {"t": t, "y": y, "w": w}, query=ant.PulseEffect("t", "y", weights="w"), **kwargs
+    weighted = require_success(
+        ant.analyze(
+            {"t": t, "y": y, "w": w}, query=ant.PulseEffect("t", "y", weights="w"), **kwargs
+        )
     )
     # The pulse at lag 1 adjusts for no other lag (the lag-2 treatment is independent of it),
     # so the windows are y_t on [1, t_{t-1}] for t = 1..n-1, each weighted by w_t.
@@ -411,12 +422,14 @@ def test_a_weighted_temporal_pulse_reads_one_weight_per_time_step():
     assert weighted.estimate.ate == pytest.approx(beta[1], rel=1e-8)
     assert weighted.estimate.sampling_weights.rows_used == n - 1
     with pytest.raises(CausalUnsupportedError, match="sampling_weights.route_unsupported|refuters"):
-        ant.analyze(
-            {"t": t, "y": y, "w": w},
-            query=ant.PulseEffect("t", "y", weights="w"),
-            graph=graph,
-            refute="cheap",
-            bootstrap=0,
+        require_success(
+            ant.analyze(
+                {"t": t, "y": y, "w": w},
+                query=ant.PulseEffect("t", "y", weights="w"),
+                graph=graph,
+                refute="cheap",
+                bootstrap=0,
+            )
         )
 
 

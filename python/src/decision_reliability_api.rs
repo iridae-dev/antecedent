@@ -31,6 +31,36 @@ type Refused<T> = (Option<T>, Option<String>);
 /// Exported bytes, report JSON and inspection JSON.
 type AssessParts = (Py<PyBytes>, String, String);
 
+/// Execute numerical work off the GIL and preserve the operational meaning of
+/// the lower owner's typed refusal fields across the historical JSON boundary.
+fn run_worker<T: Send>(
+    py: Python<'_>,
+    ctx: antecedent_core::ExecutionContext,
+    work: impl FnOnce(&antecedent_core::ExecutionContext) -> Refused<T> + Send,
+) -> PyResult<Refused<T>> {
+    crate::detach_catch(py, move || {
+        let outcome = work(&ctx);
+        if ctx.cancellation.is_cancelled() {
+            return Err(crate::py_err(antecedent::CausalError::Cancelled {
+                stage: "decision_reliability",
+            }));
+        }
+        if let Some(refusal) = &outcome.1 {
+            let fields: Json = serde_json::from_str(refusal)
+                .map_err(|error| crate::serialization_err(error.to_string()))?;
+            if fields["code"] == "cancelled_no_claim" {
+                return Err(crate::py_err(antecedent::CausalError::Cancelled {
+                    stage: "decision_reliability",
+                }));
+            }
+            if fields["detail"] == "decision_reliability.memory_budget_exceeded" {
+                return Err(crate::CausalResourceError::new_err(refusal.clone()));
+            }
+        }
+        Ok(outcome)
+    })
+}
+
 fn refusal_json(refusal: &DecisionReliabilityRefusal) -> String {
     json!({
         "code": refusal.code,
@@ -117,85 +147,100 @@ fn decision_reliability_assess(
     artifact_id: &str,
     seed: u64,
     cancel: Option<PyCancellationToken>,
-) -> Refused<AssessParts> {
-    let draws: DecisionDraws = match parse(draws_json, "draws") {
-        Ok(value) => value,
-        Err(refusal) => return (None, Some(refusal)),
-    };
-    let validation: Option<DecisionDraws> = match validation_json.map(|t| parse(t, "validation")) {
-        Some(Ok(value)) => Some(value),
-        Some(Err(refusal)) => return (None, Some(refusal)),
-        None => None,
-    };
-    let request: ReliabilityRequest = match parse(request_json, "request") {
-        Ok(value) => value,
-        Err(refusal) => return (None, Some(refusal)),
-    };
+) -> PyResult<Refused<AssessParts>> {
     let ctx = execution_context(seed, None, cancel);
-    let prepared = match PreparedDecisionReliability::assess(draws, validation, request, &ctx) {
-        Ok(value) => value,
-        Err(refusal) => return (None, Some(refusal_json(&refusal))),
-    };
-    let bytes = match prepared.export(artifact_id, &ctx) {
-        Ok(value) => value,
-        Err(refusal) => return (None, Some(refusal_json(&refusal))),
-    };
-    let report = match serde_json::to_string(prepared.report()) {
-        Ok(value) => value,
-        Err(error) => return (None, Some(invalid_json(error.to_string()))),
-    };
-    (Some((PyBytes::new(py, &bytes).unbind(), report, inspection_json(&prepared.inspect()))), None)
+    let outcome = run_worker(py, ctx, move |ctx| {
+        let draws: DecisionDraws = match parse(draws_json, "draws") {
+            Ok(value) => value,
+            Err(refusal) => return (None, Some(refusal)),
+        };
+        let validation: Option<DecisionDraws> =
+            match validation_json.map(|t| parse(t, "validation")) {
+                Some(Ok(value)) => Some(value),
+                Some(Err(refusal)) => return (None, Some(refusal)),
+                None => None,
+            };
+        let request: ReliabilityRequest = match parse(request_json, "request") {
+            Ok(value) => value,
+            Err(refusal) => return (None, Some(refusal)),
+        };
+        let prepared = match PreparedDecisionReliability::assess(draws, validation, request, ctx) {
+            Ok(value) => value,
+            Err(refusal) => return (None, Some(refusal_json(&refusal))),
+        };
+        let bytes = match prepared.export(artifact_id, ctx) {
+            Ok(value) => value,
+            Err(refusal) => return (None, Some(refusal_json(&refusal))),
+        };
+        let report = match serde_json::to_string(prepared.report()) {
+            Ok(value) => value,
+            Err(error) => return (None, Some(invalid_json(error.to_string()))),
+        };
+        (Some((bytes, report, inspection_json(&prepared.inspect()))), None)
+    })?;
+    Ok((
+        outcome.0.map(|(bytes, report, inspection)| {
+            (PyBytes::new(py, &bytes).unbind(), report, inspection)
+        }),
+        outcome.1,
+    ))
 }
 
 /// Independently consume `decision_reliability_v1` bytes by recomputation.
 #[pyfunction]
 #[pyo3(signature = (artifact, expected_json=None, seed=0, cancel=None))]
 fn decision_reliability_consume(
+    py: Python<'_>,
     artifact: &[u8],
     expected_json: Option<&str>,
     seed: u64,
     cancel: Option<PyCancellationToken>,
-) -> Refused<(String, String)> {
-    let expected = match expected_json.map(parse_expectation) {
-        Some(Ok(value)) => value,
-        Some(Err(refusal)) => return (None, Some(refusal)),
-        None => DecisionReliabilityExpectation::default(),
-    };
+) -> PyResult<Refused<(String, String)>> {
     let ctx = execution_context(seed, None, cancel);
-    match consume_decision_reliability_artifact(artifact, &expected, &ctx) {
-        Ok(prepared) => match serde_json::to_string(prepared.report()) {
-            Ok(report) => (Some((report, inspection_json(&prepared.inspect()))), None),
-            Err(error) => (None, Some(invalid_json(error.to_string()))),
-        },
-        Err(refusal) => (None, Some(refusal_json(&refusal))),
-    }
+    run_worker(py, ctx, move |ctx| {
+        let expected = match expected_json.map(parse_expectation) {
+            Some(Ok(value)) => value,
+            Some(Err(refusal)) => return (None, Some(refusal)),
+            None => DecisionReliabilityExpectation::default(),
+        };
+        match consume_decision_reliability_artifact(artifact, &expected, ctx) {
+            Ok(prepared) => match serde_json::to_string(prepared.report()) {
+                Ok(report) => (Some((report, inspection_json(&prepared.inspect()))), None),
+                Err(error) => (None, Some(invalid_json(error.to_string()))),
+            },
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        }
+    })
 }
 
 /// Ranking statements over a finite candidate set.
 #[pyfunction]
 #[pyo3(signature = (draws_json, request_json, seed=0, cancel=None))]
 fn decision_reliability_rank(
+    py: Python<'_>,
     draws_json: &str,
     request_json: &str,
     seed: u64,
     cancel: Option<PyCancellationToken>,
-) -> Refused<String> {
-    let draws: DecisionDraws = match parse(draws_json, "draws") {
-        Ok(value) => value,
-        Err(refusal) => return (None, Some(refusal)),
-    };
-    let request: RankingRequest = match parse(request_json, "ranking request") {
-        Ok(value) => value,
-        Err(refusal) => return (None, Some(refusal)),
-    };
+) -> PyResult<Refused<String>> {
     let ctx = execution_context(seed, None, cancel);
-    match rank(&draws, &request, &ctx) {
-        Ok(report) => match serde_json::to_string(&report) {
-            Ok(text) => (Some(text), None),
-            Err(error) => (None, Some(invalid_json(error.to_string()))),
-        },
-        Err(error) => (None, Some(error_json(&error))),
-    }
+    run_worker(py, ctx, move |ctx| {
+        let draws: DecisionDraws = match parse(draws_json, "draws") {
+            Ok(value) => value,
+            Err(refusal) => return (None, Some(refusal)),
+        };
+        let request: RankingRequest = match parse(request_json, "ranking request") {
+            Ok(value) => value,
+            Err(refusal) => return (None, Some(refusal)),
+        };
+        match rank(&draws, &request, ctx) {
+            Ok(report) => match serde_json::to_string(&report) {
+                Ok(text) => (Some(text), None),
+                Err(error) => (None, Some(invalid_json(error.to_string()))),
+            },
+            Err(error) => (None, Some(error_json(&error))),
+        }
+    })
 }
 
 /// Digests of a carrier (draws and candidate set), after validating its declarations.
@@ -231,35 +276,39 @@ fn decision_reliability_publish(route: &str, coordinate_json: &str) -> Option<St
 #[pyfunction]
 #[pyo3(signature = (draws_json, validation_json, request_json, interval_json, seed=0, cancel=None))]
 fn decision_reliability_derive(
+    py: Python<'_>,
     draws_json: &str,
     validation_json: Option<&str>,
     request_json: &str,
     interval_json: &str,
     seed: u64,
     cancel: Option<PyCancellationToken>,
-) -> Refused<String> {
-    let draws: DecisionDraws = match parse(draws_json, "draws") {
-        Ok(value) => value,
-        Err(refusal) => return (None, Some(refusal)),
-    };
-    let validation: Option<DecisionDraws> = match validation_json.map(|t| parse(t, "validation")) {
-        Some(Ok(value)) => Some(value),
-        Some(Err(refusal)) => return (None, Some(refusal)),
-        None => None,
-    };
-    let request: ReliabilityRequest = match parse(request_json, "request") {
-        Ok(value) => value,
-        Err(refusal) => return (None, Some(refusal)),
-    };
-    let interval: IntervalRequest = match parse(interval_json, "interval request") {
-        Ok(value) => value,
-        Err(refusal) => return (None, Some(refusal)),
-    };
+) -> PyResult<Refused<String>> {
     let ctx = execution_context(seed, None, cancel);
-    match derive_decision_uncertainty(&draws, validation.as_ref(), &request, &interval, &ctx) {
-        Ok(derived) => derived_json(&derived),
-        Err(refusal) => (None, Some(refusal_json(&refusal))),
-    }
+    run_worker(py, ctx, move |ctx| {
+        let draws: DecisionDraws = match parse(draws_json, "draws") {
+            Ok(value) => value,
+            Err(refusal) => return (None, Some(refusal)),
+        };
+        let validation: Option<DecisionDraws> =
+            match validation_json.map(|t| parse(t, "validation")) {
+                Some(Ok(value)) => Some(value),
+                Some(Err(refusal)) => return (None, Some(refusal)),
+                None => None,
+            };
+        let request: ReliabilityRequest = match parse(request_json, "request") {
+            Ok(value) => value,
+            Err(refusal) => return (None, Some(refusal)),
+        };
+        let interval: IntervalRequest = match parse(interval_json, "interval request") {
+            Ok(value) => value,
+            Err(refusal) => return (None, Some(refusal)),
+        };
+        match derive_decision_uncertainty(&draws, validation.as_ref(), &request, &interval, ctx) {
+            Ok(derived) => derived_json(&derived),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        }
+    })
 }
 
 fn derived_json(derived: &DerivedUncertainty) -> Refused<String> {
@@ -274,53 +323,63 @@ fn derived_json(derived: &DerivedUncertainty) -> Refused<String> {
 #[pyfunction]
 #[pyo3(signature = (artifact, expected_json, interval_json, seed=0, cancel=None))]
 fn decision_reliability_consume_derived(
+    py: Python<'_>,
     artifact: &[u8],
     expected_json: Option<&str>,
     interval_json: &str,
     seed: u64,
     cancel: Option<PyCancellationToken>,
-) -> Refused<String> {
-    let expected = match expected_json.map(parse_expectation) {
-        Some(Ok(value)) => value,
-        Some(Err(refusal)) => return (None, Some(refusal)),
-        None => DecisionReliabilityExpectation::default(),
-    };
-    let interval: IntervalRequest = match parse(interval_json, "interval request") {
-        Ok(value) => value,
-        Err(refusal) => return (None, Some(refusal)),
-    };
+) -> PyResult<Refused<String>> {
     let ctx = execution_context(seed, None, cancel);
-    match consume_derived_uncertainty(artifact, &expected, &interval, &ctx) {
-        Ok(derived) => derived_json(&derived),
-        Err(refusal) => (None, Some(refusal_json(&refusal))),
-    }
+    run_worker(py, ctx, move |ctx| {
+        let expected = match expected_json.map(parse_expectation) {
+            Some(Ok(value)) => value,
+            Some(Err(refusal)) => return (None, Some(refusal)),
+            None => DecisionReliabilityExpectation::default(),
+        };
+        let interval: IntervalRequest = match parse(interval_json, "interval request") {
+            Ok(value) => value,
+            Err(refusal) => return (None, Some(refusal)),
+        };
+        match consume_derived_uncertainty(artifact, &expected, &interval, ctx) {
+            Ok(derived) => derived_json(&derived),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        }
+    })
 }
 
 /// Re-derive a stored derivation from an artifact's carried draws and compare.
 #[pyfunction]
 #[pyo3(signature = (artifact, derived_json, expected_json, seed=0, cancel=None))]
 fn decision_reliability_verify_derived(
+    py: Python<'_>,
     artifact: &[u8],
     derived_json: &str,
     expected_json: Option<&str>,
     seed: u64,
     cancel: Option<PyCancellationToken>,
-) -> Option<String> {
-    let expected = match expected_json.map(parse_expectation) {
-        Some(Ok(value)) => value,
-        Some(Err(refusal)) => return Some(refusal),
-        None => DecisionReliabilityExpectation::default(),
-    };
-    let derived: DerivedUncertainty = match parse(derived_json, "derived uncertainty") {
-        Ok(value) => value,
-        Err(refusal) => return Some(refusal),
-    };
+) -> PyResult<Option<String>> {
     let ctx = execution_context(seed, None, cancel);
-    let prepared = match consume_decision_reliability_artifact(artifact, &expected, &ctx) {
-        Ok(value) => value,
-        Err(refusal) => return Some(refusal_json(&refusal)),
-    };
-    prepared.verify_derived(&derived, &ctx).err().map(|refusal| refusal_json(&refusal))
+    let outcome = run_worker(py, ctx, move |ctx| {
+        let expected = match expected_json.map(parse_expectation) {
+            Some(Ok(value)) => value,
+            Some(Err(refusal)) => return (None, Some(refusal)),
+            None => DecisionReliabilityExpectation::default(),
+        };
+        let derived: DerivedUncertainty = match parse(derived_json, "derived uncertainty") {
+            Ok(value) => value,
+            Err(refusal) => return (None, Some(refusal)),
+        };
+        let prepared = match consume_decision_reliability_artifact(artifact, &expected, ctx) {
+            Ok(value) => value,
+            Err(refusal) => return (None, Some(refusal_json(&refusal))),
+        };
+        (
+            Some(()),
+            prepared.verify_derived(&derived, ctx).err().map(|refusal| refusal_json(&refusal)),
+        )
+    })?;
+    Ok(outcome.1)
 }
 
 /// Ask to publish a route from a derivation: refuses `cell_not_licensed`.
@@ -499,70 +558,84 @@ fn decision_reliability_assess_producer(
     artifact_id: &str,
     seed: u64,
     cancel: Option<PyCancellationToken>,
-) -> Refused<AssessParts> {
-    let carrier = match carrier_from(output_json) {
-        Ok(value) => value,
-        Err(refusal) => return (None, Some(refusal)),
-    };
-    let validation: Option<DecisionDraws> = match validation_json.map(|t| parse(t, "validation")) {
-        Some(Ok(value)) => Some(value),
-        Some(Err(refusal)) => return (None, Some(refusal)),
-        None => None,
-    };
-    let request: ReliabilityRequest = match parse(request_json, "request") {
-        Ok(value) => value,
-        Err(refusal) => return (None, Some(refusal)),
-    };
+) -> PyResult<Refused<AssessParts>> {
     let ctx = execution_context(seed, None, cancel);
-    let prepared =
-        match PreparedDecisionReliability::assess_producer(&carrier, validation, request, &ctx) {
+    let outcome = run_worker(py, ctx, move |ctx| {
+        let carrier = match carrier_from(output_json) {
+            Ok(value) => value,
+            Err(refusal) => return (None, Some(refusal)),
+        };
+        let validation: Option<DecisionDraws> =
+            match validation_json.map(|t| parse(t, "validation")) {
+                Some(Ok(value)) => Some(value),
+                Some(Err(refusal)) => return (None, Some(refusal)),
+                None => None,
+            };
+        let request: ReliabilityRequest = match parse(request_json, "request") {
+            Ok(value) => value,
+            Err(refusal) => return (None, Some(refusal)),
+        };
+        let prepared = match PreparedDecisionReliability::assess_producer(
+            &carrier, validation, request, ctx,
+        ) {
             Ok(value) => value,
             Err(refusal) => return (None, Some(refusal_json(&refusal))),
         };
-    let bytes = match prepared.export(artifact_id, &ctx) {
-        Ok(value) => value,
-        Err(refusal) => return (None, Some(refusal_json(&refusal))),
-    };
-    let report = match serde_json::to_string(prepared.report()) {
-        Ok(value) => value,
-        Err(error) => return (None, Some(invalid_json(error.to_string()))),
-    };
-    (Some((PyBytes::new(py, &bytes).unbind(), report, inspection_json(&prepared.inspect()))), None)
+        let bytes = match prepared.export(artifact_id, ctx) {
+            Ok(value) => value,
+            Err(refusal) => return (None, Some(refusal_json(&refusal))),
+        };
+        let report = match serde_json::to_string(prepared.report()) {
+            Ok(value) => value,
+            Err(error) => return (None, Some(invalid_json(error.to_string()))),
+        };
+        (Some((bytes, report, inspection_json(&prepared.inspect()))), None)
+    })?;
+    Ok((
+        outcome.0.map(|(bytes, report, inspection)| {
+            (PyBytes::new(py, &bytes).unbind(), report, inspection)
+        }),
+        outcome.1,
+    ))
 }
 
 /// Derive the three components for a producer output (carrier standing honoured).
 #[pyfunction]
 #[pyo3(signature = (output_json, validation_json, request_json, interval_json, seed=0, cancel=None))]
 fn decision_reliability_derive_producer(
+    py: Python<'_>,
     output_json: &str,
     validation_json: Option<&str>,
     request_json: &str,
     interval_json: &str,
     seed: u64,
     cancel: Option<PyCancellationToken>,
-) -> Refused<String> {
-    let carrier = match carrier_from(output_json) {
-        Ok(value) => value,
-        Err(refusal) => return (None, Some(refusal)),
-    };
-    let validation: Option<DecisionDraws> = match validation_json.map(|t| parse(t, "validation")) {
-        Some(Ok(value)) => Some(value),
-        Some(Err(refusal)) => return (None, Some(refusal)),
-        None => None,
-    };
-    let request: ReliabilityRequest = match parse(request_json, "request") {
-        Ok(value) => value,
-        Err(refusal) => return (None, Some(refusal)),
-    };
-    let interval: IntervalRequest = match parse(interval_json, "interval request") {
-        Ok(value) => value,
-        Err(refusal) => return (None, Some(refusal)),
-    };
+) -> PyResult<Refused<String>> {
     let ctx = execution_context(seed, None, cancel);
-    match derive_producer_uncertainty(&carrier, validation.as_ref(), &request, &interval, &ctx) {
-        Ok(derived) => derived_json(&derived),
-        Err(refusal) => (None, Some(refusal_json(&refusal))),
-    }
+    run_worker(py, ctx, move |ctx| {
+        let carrier = match carrier_from(output_json) {
+            Ok(value) => value,
+            Err(refusal) => return (None, Some(refusal)),
+        };
+        let validation: Option<DecisionDraws> =
+            match validation_json.map(|t| parse(t, "validation")) {
+                Some(Ok(value)) => Some(value),
+                Some(Err(refusal)) => return (None, Some(refusal)),
+                None => None,
+            };
+        let request: ReliabilityRequest = match parse(request_json, "request") {
+            Ok(value) => value,
+            Err(refusal) => return (None, Some(refusal)),
+        };
+        let interval: IntervalRequest = match parse(interval_json, "interval request") {
+            Ok(value) => value,
+            Err(refusal) => return (None, Some(refusal)),
+        };
+        match derive_producer_uncertainty(&carrier, validation.as_ref(), &request, &interval, ctx) {
+            Ok(derived) => derived_json(&derived),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        }
+    })
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

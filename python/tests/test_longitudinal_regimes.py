@@ -4,6 +4,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.errors import CausalUnsupportedError, CausalValueError
+from antecedent.outcomes import require_success
 from antecedent.regimes import LongitudinalRegime, evaluate_regime_value
 
 
@@ -112,7 +113,7 @@ def test_stabilized_msm_recovers_known_additive_period_effects_and_clustered_se(
         subject_ids=[f"s{i}" for i in range(16)],
         fold_ids=[i % 4 for i in range(16)],
     )
-    result = antecedent.analyze({"y": y}, query=query).longitudinal_regime
+    result = require_success(antecedent.analyze({"y": y}, query=query)).longitudinal_regime
     assert result.value == pytest.approx(10.0)
     assert result.period_effects == pytest.approx((2.0, 3.0))
     assert len(result.standard_errors) == 2
@@ -142,7 +143,9 @@ def test_msm_direct_accepts_strided_numpy_inputs():
         censoring_probabilities=padded_p[:, :, 0] * 0.0 + 1.0,
         subject_ids=[f"s{i}" for i in range(16)],
     )
-    result = antecedent.analyze({"y": padded_y[:, 0]}, query=query).longitudinal_regime
+    result = require_success(
+        antecedent.analyze({"y": padded_y[:, 0]}, query=query)
+    ).longitudinal_regime
     assert result.period_effects == pytest.approx((2.0, 3.0))
 
 
@@ -161,15 +164,17 @@ def test_msm_refuses_bad_weights_rank_deficiency_and_duplicate_subjects():
         )
 
     with pytest.raises(CausalValueError, match="positivity fails"):
-        antecedent.analyze({"y": y}, query=msm_query(np.full((8, 2), 0.001)))
+        require_success(antecedent.analyze({"y": y}, query=msm_query(np.full((8, 2), 0.001))))
     with pytest.raises(CausalUnsupportedError, match="rank-deficient"):
-        antecedent.analyze({"y": y}, query=msm_query(probabilities))
+        require_success(antecedent.analyze({"y": y}, query=msm_query(probabilities)))
     with pytest.raises(CausalValueError, match="distinct"):
-        antecedent.analyze(
-            {"y": y},
-            query=msm_query(
-                probabilities,
-                treatment_history=np.column_stack((np.arange(8) % 2, (np.arange(8) // 2) % 2)),
-                subject_ids=["duplicate"] * 8,
-            ),
+        require_success(
+            antecedent.analyze(
+                {"y": y},
+                query=msm_query(
+                    probabilities,
+                    treatment_history=np.column_stack((np.arange(8) % 2, (np.arange(8) // 2) % 2)),
+                    subject_ids=["duplicate"] * 8,
+                ),
+            )
         )

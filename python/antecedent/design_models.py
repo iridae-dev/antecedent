@@ -188,5 +188,10 @@ class QuantileGrid:
 
 
 DesignModel = (
-    BernoulliArms | GaussianArms | SwitchbackModel | PiecewiseHazards | DosePolynomial | QuantileGrid
+    BernoulliArms
+    | GaussianArms
+    | SwitchbackModel
+    | PiecewiseHazards
+    | DosePolynomial
+    | QuantileGrid
 )

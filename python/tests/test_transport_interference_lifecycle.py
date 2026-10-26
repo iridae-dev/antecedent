@@ -31,6 +31,7 @@ import pytest
 from antecedent import interference
 from antecedent.errors import CausalUnsupportedError
 from antecedent.estimation import PreparedAnalysis
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 from antecedent.transport.advanced import TransportQuery
 
@@ -114,11 +115,11 @@ def _golden(data, graph, query, new_data):
     """The five golden lines, under an error filter for every warning."""
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        result = ant.analyze(data, graph=graph, query=query)
+        result = require_success(ant.analyze(data, graph=graph, query=query))
         study = result.study
-        updated = study.refresh(new_data)
+        updated = require_success(study.refresh(new_data))
         report = result.inspect().to_dict()
-        loaded = ant.load(result.export())
+        loaded = require_success(ant.load(bytes(result.export())))
     return result, study, updated, report, loaded
 
 
@@ -135,7 +136,7 @@ def _assert_lifecycle(
     assert updated.data_snapshot_id == fresh.data_snapshot_id
     assert updated.estimate.ate != result.estimate.ate
     # ...and the refreshed study keeps executing the refreshed data.
-    again = study.estimate()
+    again = require_success(study.estimate())
     assert again.answer == updated.answer
     assert again.claim_id == updated.claim_id
 
@@ -161,7 +162,7 @@ def _assert_lifecycle(
     assert loaded.claim_id == result.claim_id
     for name in ("status", "reason", "record_id", "observed_coverage"):
         assert getattr(loaded.calibration, name) == getattr(result.calibration, name), name
-    assert loaded.export() == result.export()
+    assert bytes(loaded.export()) == bytes(result.export())
 
     # The calibration slot carries the key a harness-measured record binds under.
     basis = loaded.decoded_artifact.contract["claim"]["calibration"]["basis"]["key"]
@@ -175,7 +176,9 @@ def test_route_transport_tabular_explicit():
     result, study, updated, report, loaded = _golden(
         data, _transport_graph(), _transport_query(), new_data
     )
-    fresh = ant.analyze(new_data, graph=_transport_graph(), query=_transport_query())
+    fresh = require_success(
+        ant.analyze(new_data, graph=_transport_graph(), query=_transport_query())
+    )
     _assert_lifecycle(
         result,
         study,
@@ -213,7 +216,7 @@ def test_route_interference_tabular_explicit():
     new_data = {"y": data["y"] + np.linspace(0.0, 1.0, UNITS)}
     query = _interference_query(assignment)
     result, study, updated, report, loaded = _golden(data, [], query, new_data)
-    fresh = ant.analyze(new_data, graph=[], query=query)
+    fresh = require_success(ant.analyze(new_data, graph=[], query=query))
     _assert_lifecycle(
         result,
         study,
@@ -262,7 +265,7 @@ def test_cluster_partial_interference_retains_study_and_refuses_cross_cluster_ed
         partial_interference=interference.PartialInterference(clusters),
     )
     data = {"y": [1.0] * 4 + [3.0] * 4}
-    result = ant.analyze(data, graph=[], query=query)
+    result = require_success(ant.analyze(data, graph=[], query=query))
     assert result.estimate.ate == pytest.approx(2.0)
     assert result.interference.contrast.hajek == pytest.approx(2.0)
     assert result.estimate.se_analytic == pytest.approx(0.0)
@@ -270,8 +273,10 @@ def test_cluster_partial_interference_retains_study_and_refuses_cross_cluster_ed
     assert result.evidence_status == "off_axis"
     assert result.inspect().to_dict()["calibration"]["status"] == "unavailable"
     assert "partial_interference" in " ".join(result.assumptions or [])
-    assert result.study.refresh({"y": [2.0] * 4 + [5.0] * 4}).estimate.ate == pytest.approx(3.0)
-    loaded = ant.load(result.export())
+    assert require_success(
+        result.study.refresh({"y": [2.0] * 4 + [5.0] * 4})
+    ).estimate.ate == pytest.approx(3.0)
+    loaded = require_success(ant.load(bytes(result.export())))
     assert loaded.decoded_artifact.to_dict()["payload"]["estimate"] == pytest.approx(2.0)
 
     crossed = ant.InterferenceQuery(
@@ -283,7 +288,7 @@ def test_cluster_partial_interference_retains_study_and_refuses_cross_cluster_ed
         partial_interference=query.partial_interference,
     )
     with pytest.raises(ValueError, match="crosses cluster boundary"):
-        ant.analyze(data, graph=[], query=crossed)
+        require_success(ant.analyze(data, graph=[], query=crossed))
 
 
 def test_transport_analyze_reproduces_the_conformance_pin():
@@ -295,17 +300,19 @@ def test_transport_analyze_reproduces_the_conformance_pin():
         "s": [0.5] * 4,
         "e": [0.5] * 4,
     }
-    result = ant.analyze(
-        data,
-        graph=ant.Admg.from_edges(names, [("a", "y")]),
-        query=TransportQuery(
-            ant.ResponseCurve("a", "y", grid=[0.0, 1.0]),
-            transport.SelectionDiagram("trial", "target", []),
-            source_experiments=["a"],
-            trial="trial",
-            selection_probability="s",
-            treatment_probability="e",
-        ),
+    result = require_success(
+        ant.analyze(
+            data,
+            graph=ant.Admg.from_edges(names, [("a", "y")]),
+            query=TransportQuery(
+                ant.ResponseCurve("a", "y", grid=[0.0, 1.0]),
+                transport.SelectionDiagram("trial", "target", []),
+                source_experiments=["a"],
+                trial="trial",
+                selection_probability="s",
+                treatment_probability="e",
+            ),
+        )
     )
     assert abs(result.estimate.ate - TRANSPORT_PIN["ipw"]) <= TRANSPORT_PIN["tolerance"]
 
@@ -323,7 +330,7 @@ def test_interference_analyze_reproduces_the_conformance_pin():
         network=[tuple(edge) for edge in pin["directed_edges"]],
         realized_assignment=pin["assignment"],
     )
-    result = ant.analyze({"y": pin["outcomes"]}, graph=[], query=query)
+    result = require_success(ant.analyze({"y": pin["outcomes"]}, graph=[], query=query))
     expected, atol = pin["expected"], pin["tolerance"]["atol"]
     contrast = result.interference.contrast
     assert abs(contrast.horvitz_thompson - expected["horvitz_thompson_contrast"]) <= atol
@@ -349,7 +356,9 @@ def test_trial_effect_utility_and_analysis_share_the_estimator():
         data["s"],
         data["e"],
     )
-    analysis = ant.analyze(data, graph=_transport_graph(), query=_transport_query())
+    analysis = require_success(
+        ant.analyze(data, graph=_transport_graph(), query=_transport_query())
+    )
     assert utility.ipw == analysis.estimate.ate
     assert utility.overlap == analysis.transport_overlap
     assert utility.rule == identification.certificate.rule
@@ -365,22 +374,26 @@ def test_interference_utility_and_analysis_share_the_estimator():
         interference.ExposureLevel(pin["to"]["own"], pin["to"]["neighbors"]),
     )
     edges = [tuple(edge) for edge in pin["directed_edges"]]
-    utility = interference.estimate(
-        {"y": pin["outcomes"]},
-        assignment=pin["assignment"],
-        edges=edges,
-        query=ant.InterferenceQuery(design, interference.NeighborCount(), contrast),
+    utility = require_success(
+        interference.estimate(
+            {"y": pin["outcomes"]},
+            assignment=pin["assignment"],
+            edges=edges,
+            query=ant.InterferenceQuery(design, interference.NeighborCount(), contrast),
+        )
     )
-    analysis = ant.analyze(
-        {"y": pin["outcomes"]},
-        graph=[],
-        query=ant.InterferenceQuery(
-            design,
-            interference.NeighborCount(),
-            contrast,
-            network=edges,
-            realized_assignment=pin["assignment"],
-        ),
+    analysis = require_success(
+        ant.analyze(
+            {"y": pin["outcomes"]},
+            graph=[],
+            query=ant.InterferenceQuery(
+                design,
+                interference.NeighborCount(),
+                contrast,
+                network=edges,
+                realized_assignment=pin["assignment"],
+            ),
+        )
     )
     assert utility.contrast == analysis.interference.contrast
     assert utility.from_probability_method == analysis.interference.from_probability_method
@@ -390,12 +403,14 @@ def test_interference_utility_and_analysis_share_the_estimator():
 
 
 def _transport_result():
-    return ant.analyze(_transport_data(200, 7), graph=_transport_graph(), query=_transport_query())
+    return require_success(
+        ant.analyze(_transport_data(200, 7), graph=_transport_graph(), query=_transport_query())
+    )
 
 
 def _interference_result():
     assignment, data = _interference_design()
-    return ant.analyze(data, graph=[], query=_interference_query(assignment))
+    return require_success(ant.analyze(data, graph=[], query=_interference_query(assignment)))
 
 
 @pytest.mark.parametrize(
@@ -407,7 +422,7 @@ def test_retarget_refuses_a_design_defined_population(run):
         result.study.retarget(np.ones(len(result.study._native.names)), [])
     assert raised.value.reason_code == "population_not_estimable"
     with pytest.raises(CausalUnsupportedError) as raised:
-        result.study.reexecute_retarget(result.export())
+        result.study.reexecute_retarget(bytes(result.export()))
     assert raised.value.reason_code == "population_not_estimable"
 
 
@@ -423,16 +438,20 @@ def test_second_click_refuter_suite_refuses(run):
 
 def test_bootstrap_refuses_on_the_design_cells():
     with pytest.raises(CausalUnsupportedError) as raised:
-        ant.analyze(
-            _transport_data(200, 7),
-            graph=_transport_graph(),
-            query=_transport_query(),
-            bootstrap=50,
+        require_success(
+            ant.analyze(
+                _transport_data(200, 7),
+                graph=_transport_graph(),
+                query=_transport_query(),
+                bootstrap=50,
+            )
         )
     assert raised.value.reason_code == "option_not_applicable"
     assignment, data = _interference_design()
     with pytest.raises(CausalUnsupportedError) as raised:
-        ant.analyze(data, graph=[], query=_interference_query(assignment), bootstrap=50)
+        require_success(
+            ant.analyze(data, graph=[], query=_interference_query(assignment), bootstrap=50)
+        )
     assert raised.value.reason_code == "option_not_applicable"
 
 
@@ -448,7 +467,7 @@ def test_constructions_outside_the_licensed_cells_refuse():
         realized_assignment=assignment,
     )
     with pytest.raises(CausalUnsupportedError) as raised:
-        ant.analyze(data, graph=[], query=complete)
+        require_success(ant.analyze(data, graph=[], query=complete))
     assert raised.value.reason_code == "construction_not_licensed"
 
     derivative = TransportQuery(
@@ -460,16 +479,20 @@ def test_constructions_outside_the_licensed_cells_refuse():
         treatment_probability="e",
     )
     with pytest.raises(CausalUnsupportedError) as raised:
-        ant.analyze(_transport_data(200, 7), graph=_transport_graph(), query=derivative)
+        require_success(
+            ant.analyze(_transport_data(200, 7), graph=_transport_graph(), query=derivative)
+        )
     assert raised.value.reason_code == "construction_not_licensed"
 
 
 def test_bayesian_trial_transport_and_unlicensed_axes_on_analyze():
-    bayesian = ant.analyze(
-        _transport_data(200, 7),
-        graph=_transport_graph(),
-        query=_transport_query(),
-        inference=ant.Bayesian(n_draws=32),
+    bayesian = require_success(
+        ant.analyze(
+            _transport_data(200, 7),
+            graph=_transport_graph(),
+            query=_transport_query(),
+            inference=ant.Bayesian(n_draws=32),
+        )
     )
     assert bayesian.evidence_status == "licensed"
     assert bayesian.posterior is not None
@@ -477,33 +500,39 @@ def test_bayesian_trial_transport_and_unlicensed_axes_on_analyze():
     # Full validation runs the interference-native suite and an accepted structure runs the
     # same known-assignment contrast as the explicit one; neither has an evidence row or a
     # coverage record, so both execute unlicensed.
-    validated = ant.analyze(
-        data, graph=[], query=_interference_query(assignment), refute="full"
+    validated = require_success(
+        ant.analyze(data, graph=[], query=_interference_query(assignment), refute="full")
     )
     assert validated.evidence_status != "licensed"
-    accepted = ant.analyze(
-        data,
-        graph=ant.AcceptedGraph(ant.Dag.from_edges(["y"], [])),
-        query=_interference_query(assignment),
+    accepted = require_success(
+        ant.analyze(
+            data,
+            graph=ant.AcceptedGraph(ant.Dag.from_edges(["y"], [])),
+            query=_interference_query(assignment),
+        )
     )
     assert accepted.evidence_status != "licensed"
 
 
 def test_analyze_requires_the_design_facts():
     with pytest.raises(ant.errors.CausalValueError, match="trial columns"):
-        ant.analyze(
-            _transport_data(50, 1),
-            graph=_transport_graph(),
-            query=_transport_query(
-                trial=None, selection_probability=None, treatment_probability=None
-            ),
+        require_success(
+            ant.analyze(
+                _transport_data(50, 1),
+                graph=_transport_graph(),
+                query=_transport_query(
+                    trial=None, selection_probability=None, treatment_probability=None
+                ),
+            )
         )
     assignment, data = _interference_design()
     with pytest.raises(ant.errors.CausalValueError, match="network"):
-        ant.analyze(
-            data,
-            graph=[],
-            query=_interference_query(assignment, network=None, realized_assignment=None),
+        require_success(
+            ant.analyze(
+                data,
+                graph=[],
+                query=_interference_query(assignment, network=None, realized_assignment=None),
+            )
         )
     with pytest.raises(ant.errors.CausalValueError, match="supply all three"):
         _transport_query(treatment_probability=None)
@@ -533,14 +562,16 @@ def test_transport_catalog_survives_prepared_execution_and_export() -> None:
         ],
         target_sampling="representative_sample",
     )
-    result = ant.analyze(
-        data,
-        graph=_transport_graph(),
-        query=_transport_query(catalog=catalog),
-        bootstrap=0,
-        refute="none",
+    result = require_success(
+        ant.analyze(
+            data,
+            graph=_transport_graph(),
+            query=_transport_query(catalog=catalog),
+            bootstrap=0,
+            refute="none",
+        )
     )
-    loaded = ant.load(result.export())
+    loaded = require_success(ant.load(bytes(result.export())))
     restored_catalog = loaded.decoded_artifact.to_dict()["payload"]["query"]["transport"]["catalog"]
     assert [r["label"] for r in restored_catalog["regimes"]] == ["randomized-a", "target-x"]
     assert restored_catalog["target_sampling"] == "representative_sample"

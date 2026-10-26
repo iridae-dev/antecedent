@@ -11,6 +11,7 @@ from antecedent.errors import CausalUnsupportedError, CausalValueError
 from antecedent.estimation import PreparedAnalysis
 from antecedent.external import ExternalRefusal
 from antecedent.horizon_composition import JointHorizonDraws
+from antecedent.outcomes import require_success
 
 _EDGES = [("x", 1, "y", 0), ("x", 2, "y", 0)]
 _HORIZONS = [1, 2]
@@ -50,7 +51,9 @@ def _column(rows: Any) -> np.ndarray:
 
 def test_frequentist_horizon_draws_are_the_joint_bootstrap_replicates_of_the_surface():
     data = _series()
-    result = _prepare(data, bootstrap=60, retain_joint_horizons=True).estimate(data, seed=21)
+    result = require_success(
+        _prepare(data, bootstrap=60, retain_joint_horizons=True).estimate(data, seed=21)
+    )
     cells = _cells(result)
     assert cells.shape == (len(_GRID) * len(_HORIZONS),)
     lower = _column(result.uncertainty.lower)
@@ -97,13 +100,15 @@ def test_frequentist_horizon_draws_are_the_joint_bootstrap_replicates_of_the_sur
 
 def test_horizon_draws_are_off_by_default_and_refuse_a_dose_outside_the_grid():
     data = _series()
-    plain = _prepare(data, bootstrap=60).estimate(data, seed=21)
+    plain = require_success(_prepare(data, bootstrap=60).estimate(data, seed=21))
     with pytest.raises(ExternalRefusal) as plain_refusal:
         plain.horizon_draws(0)
     assert plain_refusal.value.reason_code == "joint_law_required"
     assert "horizon_draws_not_joint" in str(plain_refusal.value)
 
-    kept = _prepare(data, bootstrap=60, retain_joint_horizons=True).estimate(data, seed=21)
+    kept = require_success(
+        _prepare(data, bootstrap=60, retain_joint_horizons=True).estimate(data, seed=21)
+    )
     with pytest.raises(ExternalRefusal) as outside:
         kept.horizon_draws(len(_GRID))
     assert "horizon_draws_dose" in str(outside.value)
@@ -129,11 +134,13 @@ def test_retaining_joint_horizons_needs_a_temporal_response_and_a_bootstrap():
 
 def test_bayesian_horizon_draws_are_the_block_weight_posterior_draws():
     data = _series()
-    result = _prepare(
-        data,
-        inference=antecedent.Bayesian(n_draws=60, backend="conjugate"),
-        retain_joint_horizons=True,
-    ).estimate(data, seed=21)
+    result = require_success(
+        _prepare(
+            data,
+            inference=antecedent.Bayesian(n_draws=60, backend="conjugate"),
+            retain_joint_horizons=True,
+        ).estimate(data, seed=21)
+    )
     cells = _cells(result)
     draws = result.horizon_draws(1)
     assert draws.horizons == tuple(_HORIZONS)
@@ -146,8 +153,10 @@ def test_bayesian_horizon_draws_are_the_block_weight_posterior_draws():
         assert draws.center[k] == pytest.approx(cells[cell])
         assert abs(column.mean() - cells[cell]) < 0.5 * spread
     # The per-horizon conjugate fits are independent marginals and keep no joint draws.
-    marginal = _prepare(
-        data, inference=antecedent.Bayesian(n_draws=60, backend="conjugate")
-    ).estimate(data, seed=21)
+    marginal = require_success(
+        _prepare(data, inference=antecedent.Bayesian(n_draws=60, backend="conjugate")).estimate(
+            data, seed=21
+        )
+    )
     with pytest.raises(ExternalRefusal):
         marginal.horizon_draws(1)

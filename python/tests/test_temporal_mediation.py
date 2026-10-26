@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import antecedent
 import numpy as np
+from antecedent.outcomes import require_success
 
 
 def test_temporal_mediation_decomposition():
@@ -21,13 +22,15 @@ def test_temporal_mediation_decomposition():
         ("t", 1, "m", 0),
         ("m", 0, "y", 0),
     ]
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated"),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated"),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert result.mediation is not None
     assert result.mediation.mediated is not None and result.mediation.mediated > 0.1
@@ -56,15 +59,17 @@ def test_handle_temporal_mediation_bayesian_uses_staged_estimator():
         ["t", "m", "y"],
         [("t", 1, "m", 0), ("m", 0, "y", 0)],
     )
-    result = antecedent.analyze(
-        data,
-        query=antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated"),
-        graph=graph,
-        inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
-        refute=False,
-        seed=1,
-        bootstrap=0,
-        threads=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            query=antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated"),
+            graph=graph,
+            inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
+            refute=False,
+            seed=1,
+            bootstrap=0,
+            threads=1,
+        )
     )
     assert result.estimate.estimator_id == "temporal.mediation.bayesian"
     assert result.posterior is not None

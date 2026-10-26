@@ -53,11 +53,19 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._refusal import raise_refusal
 from ._scientific import ScientificResult
 from ._validate import choice, count, real, text
 from .errors import CausalTypeError, StructuredRefusal
 from .mechanism_composition import PreparedMechanismComposition
+from .outcomes import outcome_operation
 
 __all__ = [
     "ArmDiagnostic",
@@ -229,6 +237,7 @@ class PreparedDiscretizedComposition(ScientificResult):
                 return item
         raise CausalTypeError(f"no variable {name!r} in this discretization")
 
+    @outcome_operation
     def mean_contrast(
         self, contrast: DiscreteContrast, *, cancel: Any = None
     ) -> DiscretizedContrast:
@@ -291,10 +300,11 @@ class PreparedDiscretizedComposition(ScientificResult):
         handle = _unwrap(self._handle.refresh(refit._handle, cancel=cancel))
         return PreparedDiscretizedComposition._of(handle)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The source premises, the plan and the claimed numbers, for
         :func:`consume_discretized_composition`."""
-        return bytes(_unwrap(self._handle.export()))
+        return artifact_from_receipt(self, bytes(_unwrap(self._handle.export())))
 
 
 def discretize(
@@ -335,6 +345,11 @@ def discretize(
     return PreparedDiscretizedComposition._of(handle)
 
 
+@outcome_operation
+@artifact_consumer(
+    proof="antecedent_model::discretized_scm_artifact::consume_discretized_scm: rebuild carried composition and rederive every claimed number",
+    replayable=True,
+)
 def consume_discretized_composition(
     artifact: bytes, expected_identity: str | None = None, *, cancel: Any = None
 ) -> PreparedDiscretizedComposition:
@@ -351,6 +366,7 @@ def consume_discretized_composition(
             (``discretized_scm_artifact.identity_mismatch``) or a claimed number that differs from the
             re-derived one.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     handle = _unwrap(

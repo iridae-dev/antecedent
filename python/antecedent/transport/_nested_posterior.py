@@ -12,7 +12,15 @@ from typing import Any, ClassVar, Literal, cast
 import numpy as np
 from numpy.typing import NDArray
 
+from .._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .._columns import coerce_fields
+from .._scientific import ScientificResult
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 
 BetaKernel = tuple[float, float]
@@ -97,7 +105,7 @@ class _PosteriorDiagnostics:
 
 
 @dataclass(frozen=True, slots=True, eq=False, init=False)
-class NestedMarkovPosteriorCandidate:
+class NestedMarkovPosteriorCandidate(ScientificResult):
     """Full continuous raw-parameter/effect posterior, available in internal builds.
 
     Four aligned chains, 2048 warmup and 4096 retained draws each, 5M proposal
@@ -179,17 +187,25 @@ class NestedMarkovPosteriorCandidate:
         coerce_fields(instance, **fields)
         return instance
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
         """Export original graph, counts, raw prior, method/RNG and entire joint receipt."""
-        return bytes(self._native.export())
+        return artifact_from_receipt(self, bytes(self._native.export()))
 
     def to_dict(self) -> dict[str, Any]:
         """Inspect full original premises and aligned posterior receipt."""
         return cast(dict[str, Any], json.loads(self._native.payload()))
 
     @classmethod
+    @artifact_consumer(
+        proof="native posterior candidate consumer recomputes identification and aligned joint posterior under the independent identity",
+        replayable=True,
+        resumable=False,
+        identity=("expected_identity",),
+    )
     def load(cls, artifact: bytes, *, expected_identity: str) -> NestedMarkovPosteriorCandidate:
         """Fresh bounded consumer independently recomputes original ID and posterior."""
+        artifact = container_bytes(artifact)
         from .. import _native
 
         if not isinstance(artifact, bytes) or not isinstance(expected_identity, str):

@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 from antecedent import transport as tr
 from antecedent.cyclic import PreparedCyclicSystem, consume_artifact
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced
 
 
@@ -55,7 +56,7 @@ def test_typed_transport_matches_json_and_owns_input(route):
             return advanced.prepare_smoothed_dose(query, value, options=options(), seed=5)
 
     reference = prepare(legacy_data(data))
-    expected = reference.estimate()
+    expected = require_success(reference.estimate())
     columns = {
         field.name: strided(getattr(data, field.name))
         for field in dataclasses.fields(data)
@@ -72,11 +73,11 @@ def test_typed_transport_matches_json_and_owns_input(route):
                 values[:] = 0
     del owned, columns
     gc.collect()
-    actual = prepared.estimate()
+    actual = require_success(prepared.estimate())
     if route == "trial":
-        assert actual.export() == expected.export()
+        assert bytes(actual.export()) == bytes(expected.export())
     else:
-        assert prepared.export() == reference.export()
+        assert bytes(prepared.export()) == bytes(reference.export())
 
 
 def test_cyclic_buffers_match_legacy_report_artifact_and_request():
@@ -92,17 +93,20 @@ def test_cyclic_buffers_match_legacy_report_artifact_and_request():
     noise[:] = 100.0
     del noise
     gc.collect()
-    actual, expected = prepared.execute(), legacy.execute()
+    actual, expected = require_success(prepared.execute()), require_success(legacy.execute())
     assert actual.report == expected.report
-    assert actual.export() == expected.export()
+    assert bytes(actual.export()) == bytes(expected.export())
     assert (
-        consume_artifact(actual.export(), expected_identity=actual.identity).report == actual.report
+        require_success(
+            consume_artifact(bytes(actual.export()), expected_identity=actual.identity)
+        ).report
+        == actual.report
     )
     assert json.loads(request) == json.loads(prepared.request_json)
     retargeted = prepared.retarget([[]], [[0.2, 0.1]])
     assert (
-        retargeted.execute().report
-        == PreparedCyclicSystem(retargeted.request_json).execute().report
+        require_success(retargeted.execute()).report
+        == require_success(PreparedCyclicSystem(retargeted.request_json).execute()).report
     )
 
 
@@ -130,10 +134,13 @@ def test_dose_parallel_and_memory_limited_replay(functional):
     serial = dose_functional(dose, outcome, threads=1, **kwargs)
     parallel = dose_functional(dose, outcome, threads=4, **kwargs)
     assert parallel.to_dict() == serial.to_dict()
-    assert parallel.export() == serial.export()
+    assert bytes(parallel.export()) == bytes(serial.export())
     limited = dose_functional(dose, outcome, threads=4, max_bytes=len(dose) * 128 + 8192, **kwargs)
     assert limited.to_dict() == serial.to_dict()
-    assert consume_dose_grid_artifact(parallel.export(), threads=4).to_dict() == serial.to_dict()
+    assert (
+        consume_dose_grid_artifact(bytes(parallel.export()), threads=4).to_dict()
+        == serial.to_dict()
+    )
     with pytest.raises(CausalResourceError, match="memory|resource|budget"):
         dose_functional(dose, outcome, threads=4, max_bytes=1, **kwargs)
     token = _native.CancellationToken()
@@ -162,20 +169,22 @@ def test_cyclic_refresh_buffers_match_json_refit_and_own_rows():
     replacement = [
         {**row, "values": strided([row["values"][0], row["values"][1] / 2])} for row in rows
     ]
-    refreshed = prepared.refresh(replacement)
+    refreshed = require_success(prepared.refresh(replacement))
     assert refreshed.inspect()["fits_performed"] == 0
     legacy_request = json.loads(prepared.request_json)
     legacy_request["fit"]["rows"] = [
         {**row, "values": row["values"].tolist()} for row in replacement
     ]
-    expected = PreparedCyclicSystem(json.dumps(legacy_request)).execute()
+    expected = require_success(PreparedCyclicSystem(json.dumps(legacy_request)).execute())
     for row in replacement:
         row["values"][:] = 0.0
-    actual = refreshed.execute()
+    actual = require_success(refreshed.execute())
     assert refreshed.inspect()["fits_performed"] == 1
     assert actual.report == expected.report
-    assert actual.export() == expected.export()
-    assert prepared.execute().report["worlds"][0][0]["values"][1] == pytest.approx(1.4, abs=1e-4)
+    assert bytes(actual.export()) == bytes(expected.export())
+    assert require_success(prepared.execute()).report["worlds"][0][0]["values"][1] == pytest.approx(
+        1.4, abs=1e-4
+    )
     assert actual.report["worlds"][0][0]["values"][1] == pytest.approx(0.7, abs=1e-4)
 
 
@@ -189,14 +198,14 @@ def test_trial_compact_output_preserves_full_native_compatibility_and_artifact()
     native = study._native
     compact = native.estimate_summary()
     compact_result = _learned_trial(native, compact)
-    full = native.estimate()
+    full = require_success(native.estimate())
     full_result = _learned_trial(native, full)
     assert compact_result.to_dict() == full_result.to_dict()
-    assert compact_result.export() == full_result.export()
+    assert bytes(compact_result.export()) == bytes(full_result.export())
     assert len(full_result.replicates) == 5
     assert native.last_result_summary() == compact
     full_data = json.loads(full)
     assert {"membership", "mu0", "mu1", "scores"} <= full_data.keys()
     assert not ({"membership", "mu0", "mu1", "scores"} & json.loads(compact).keys())
     refreshed = native.refresh_summary(data)
-    assert _learned_trial(native, refreshed).export() == full_result.export()
+    assert bytes(_learned_trial(native, refreshed).export()) == bytes(full_result.export())

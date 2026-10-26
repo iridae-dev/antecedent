@@ -67,7 +67,7 @@ def test_level_posterior_matches_the_conjugate_reference_and_keeps_the_covarianc
     assert np.all(np.abs(joint - exact) < 0.05 * scale)
     assert joint[0, 1] > 0.01 and joint[1, 2] > 0.01  # independent draws would leave ~0
     assert row.vectors["points"] == (0.5, 2.0, 3.5)
-    assert result.export()
+    assert bytes(result.export())
 
 
 def test_derivative_and_contrast_use_the_same_joint_draws():
@@ -90,7 +90,7 @@ def test_derivative_and_contrast_use_the_same_joint_draws():
 
 def test_artifact_replays_in_a_fresh_process_and_refuses_corruption(tmp_path):
     result = _run(draws=2_000)
-    artifact = result.export()
+    artifact = bytes(result.export())
     consumed = consume_dose_grid_posterior_artifact(artifact)
     assert consumed.posterior == result.posterior
     assert consumed.premises_digest == result.premises_digest
@@ -130,7 +130,7 @@ def test_caller_policy_bounds_evaluation_and_independent_consumption():
 
     serial = _run(draws=200, threads=1)
     assert _run(draws=200, threads=2).posterior == serial.posterior
-    artifact = serial.export()
+    artifact = bytes(serial.export())
     assert consume_dose_grid_posterior_artifact(artifact, threads=2).posterior == serial.posterior
 
     with pytest.raises(CausalResourceError):

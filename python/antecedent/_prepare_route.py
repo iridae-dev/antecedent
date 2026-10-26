@@ -16,6 +16,7 @@ import numpy as np
 from ._columns import resolved, resolved_opt, resolved_scalar
 from ._native import PreparedAnalysis as _NativePreparedAnalysis
 from ._temporal_design import TEMPORAL_DESIGN_QUERIES, temporal_design_keywords
+from .descriptive import Association
 from .discovery import DbnPosterior, ExactDagPosterior, GraphPosterior
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .estimation import _RESPONSE_FAMILY, _not_applicable, _static_edges
@@ -61,7 +62,6 @@ from .policy import (
     evaluate_multi_action_policy,
     evaluate_policy,
 )
-from .descriptive import Association
 from .quasi import (
     AugmentedPanelDiD,
     CovariateAdjustedDiD,
@@ -100,6 +100,7 @@ from .query import (
     TemporalConditionalPulse,
     TemporalConditionalSustained,
     TemporalMediationEffect,
+    TemporalQuery,
 )
 from .regimes import LongitudinalRegime, SequentialContrast
 from .survival import CompetingRisksOutcome, SurvivalOutcome
@@ -305,6 +306,7 @@ def _encode_interventions(
 #: family is added by appending one row in its phase, never by editing the
 #: compound arms that stay inline.
 _COMPILE_ROUTES: tuple[tuple[tuple[type, ...], str, str], ...] = (
+    ((TemporalQuery,), "_temporal_query", "pre"),
     ((PolicyValue, MultiActionPolicyValue), "_policy_value", "pre"),
     ((ConditionalDoseResponse,), "_continuous_dose_response", "pre"),
     ((RandomizedEffect,), "_randomized_effect", "pre"),
@@ -489,6 +491,115 @@ class _PrepareRoute:
             )
             return native, "average"
         raise CausalTypeError(f"unsupported query type: {type(query)!r}")
+
+    def _temporal_query(self) -> tuple[Any, Any]:
+        """Bind the original typed target to its existing native temporal family."""
+        attachment = self.query
+        query = attachment.query
+        self._refuse_estimator_config("TemporalQuery (native unfolded temporal estimator)")
+        derivative = isinstance(
+            query,
+            (
+                AverageDerivative,
+                PointDerivative,
+                Elasticity,
+                SemiElasticity,
+                DirectionalDerivative,
+                ResponseJacobian,
+            ),
+        )
+        if derivative:
+            from .observation import Complete
+
+            if query.observation is not None and not isinstance(query.observation, Complete):
+                raise CausalUnsupportedError(
+                    "temporal derivatives require complete observations",
+                    reason_code="option_not_applicable",
+                )
+            if query.observation_assumptions:
+                raise CausalUnsupportedError(
+                    "temporal derivatives require the observed population",
+                    reason_code="option_not_applicable",
+                )
+            target = _derivative_target_spec(query)
+        else:
+            target = {
+                "kind": query.kind,
+                "treatments": [getattr(query, "treatment", "")],
+                "outcomes": [query.outcome],
+                "at": None,
+                "direction": None,
+                "order": 1,
+                "scale": "identity",
+                "weighting": "observed",
+            }
+        target |= {
+            "control_level": getattr(query, "control_level", 0.0),
+            "active_level": getattr(query, "active_level", 1.0),
+            "mediators": [query.mediator] if isinstance(query, NestedCounterfactual) else [],
+            "path_nodes": list(query.path_nodes)
+            if getattr(query, "path_nodes", None) is not None
+            else None,
+            "max_paths": getattr(query, "max_paths", 64),
+            "max_len": getattr(query, "max_len", 16),
+            "interventions": list(getattr(query, "interventions", {}).items()),
+            "conditioning": list(getattr(query, "conditioning", ())),
+        }
+        discovery = self.discovery
+        if discovery is not None and not isinstance(discovery, (DbnPosterior, GraphPosterior)):
+            raise CausalUnsupportedError(
+                "TemporalQuery graph uncertainty requires a temporal graph posterior",
+                reason_code="option_not_applicable",
+            )
+        native_graph = self.graph
+        if native_graph is not None and not isinstance(
+            native_graph, (TemporalDag, TemporalCpdag, TemporalPag, TemporalAdmg)
+        ):
+            native_graph = TemporalDag.from_lagged_edges(self.names, _lagged_edges(native_graph))
+        dbn = (
+            None
+            if not isinstance(discovery, DbnPosterior)
+            else {
+                "max_lag": discovery.max_lag,
+                "force_mcmc": discovery.force_mcmc,
+                "n_chains": discovery.n_chains,
+                "n_warmup": discovery.n_warmup,
+                "n_draws": discovery.n_draws,
+            }
+        )
+        spec = {
+            "target": target,
+            "temporal": {
+                "horizons": list(attachment.horizons),
+                "policy": attachment.policy,
+                "treatment_lag": attachment.treatment_lag,
+                "max_history_lag": attachment.max_history_lag,
+                "window": attachment.window,
+            },
+            "discovery": dbn,
+            "posterior": discovery if isinstance(discovery, GraphPosterior) else None,
+            "response_options": None,
+            **_class_prior_kwargs(self.class_prior),
+            **_max_completions_kwargs(self.max_completions),
+        }
+        from .population import coerce_target_population
+
+        options = dict(self.options)
+        population = coerce_target_population(getattr(query, "target_population", None))
+        if population is not None:
+            options["target_population"] = population
+        native = _NativePreparedAnalysis.prepare_temporal_query(
+            self.names,
+            self.columns,
+            native_graph,
+            spec,
+            options=options,
+            seed=self.seed,
+            threads=self.threads,
+            frame=self.frame,
+            accepted=self.accepted,
+        )
+        return native, "response_curve" if derivative else "average"
 
     # -- graph posterior ------------------------------------------------------
     def _graph_posterior(self) -> tuple[Any, Any]:
@@ -2730,48 +2841,59 @@ class _PrepareRoute:
             raise CausalUnsupportedError("derivatives require complete observations")
         if query.observation_assumptions:
             raise CausalUnsupportedError("derivatives require the unweighted observed population")
-        if isinstance(query, (DirectionalDerivative, ResponseJacobian)):
-            treatments = list(query.treatments)
-            outcomes = list(query.outcomes)
-        else:
-            treatments = [query.treatment]
-            outcomes = [query.outcome]
-        at = getattr(query, "at", None)
-        if isinstance(query, (DirectionalDerivative, ResponseJacobian)):
-            at = [at[t] for t in treatments] if isinstance(at, Mapping) else list(query.at)
-        elif at is not None:
-            at = [at]
-        direction = getattr(query, "direction", None)
-        if direction is not None:
-            direction = (
-                [direction[t] for t in treatments]
-                if isinstance(direction, Mapping)
-                else list(direction)
-            )
-        scale = (
-            "log_log"
-            if isinstance(query, Elasticity)
-            else "log_" + query.log_scale
-            if isinstance(query, SemiElasticity)
-            else "identity"
-        )
+        target = _derivative_target_spec(query)
         native = _NativePreparedAnalysis.prepare_derivative(
             self.names,
             self.columns,
             edges,
-            query.kind,
-            treatments,
-            outcomes,
-            at=at,
-            direction=direction,
-            order=getattr(query, "order", 1),
-            scale=scale,
-            weighting=getattr(query, "weighting", None) or "observed",
+            target.pop("kind"),
+            target.pop("treatments"),
+            target.pop("outcomes"),
+            **target,
             response_options=dict(response_options),
             accepted=self.accepted,
             **self._common(),
         )
         return native, "response_curve"
+
+
+def _derivative_target_spec(query: Any) -> dict[str, Any]:
+    """Resolve scalar/vector coordinates once for static and temporal native targets."""
+    if isinstance(query, (DirectionalDerivative, ResponseJacobian)):
+        treatments = list(query.treatments)
+        outcomes = list(query.outcomes)
+    else:
+        treatments = [query.treatment]
+        outcomes = [query.outcome]
+    at = getattr(query, "at", None)
+    if isinstance(query, (DirectionalDerivative, ResponseJacobian)):
+        at = [at[t] for t in treatments] if isinstance(at, Mapping) else list(query.at)
+    elif at is not None:
+        at = [at]
+    direction = getattr(query, "direction", None)
+    if direction is not None:
+        direction = (
+            [direction[t] for t in treatments]
+            if isinstance(direction, Mapping)
+            else list(direction)
+        )
+    scale = (
+        "log_log"
+        if isinstance(query, Elasticity)
+        else "log_" + query.log_scale
+        if isinstance(query, SemiElasticity)
+        else "identity"
+    )
+    return {
+        "kind": query.kind,
+        "treatments": treatments,
+        "outcomes": outcomes,
+        "at": at,
+        "direction": direction,
+        "order": getattr(query, "order", 1),
+        "scale": scale,
+        "weighting": getattr(query, "weighting", None) or "observed",
+    }
 
 
 def _check_quantile_functional(

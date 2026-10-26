@@ -40,6 +40,7 @@ from antecedent import inverse_query as iq
 from antecedent import sensitivity_decision as sd
 from antecedent.errors import CausalUnsupportedError
 from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
 
 import test_inverse_query as inverse_fixtures
 from _refusal import assert_registered_refusal
@@ -124,11 +125,13 @@ def _study_candidates() -> list[dr.Candidate]:
                 "v1",
                 "snap",
                 "lab-qa",
-                dr.ExternalLaw.posterior(
-                    states=[0.0, 1.0],
-                    statistics=[0.0, 1.0],
-                    predictive=[0.5, 0.5],
-                    posterior=[[accuracy, 1.0 - accuracy], [1.0 - accuracy, accuracy]],
+                require_success(
+                    dr.ExternalLaw.posterior(
+                        states=[0.0, 1.0],
+                        statistics=[0.0, 1.0],
+                        predictive=[0.5, 0.5],
+                        posterior=[[accuracy, 1.0 - accuracy], [1.0 - accuracy, accuracy]],
+                    )
                 ),
             ),
             cost=0.1,
@@ -144,7 +147,7 @@ def test_lifecycle_identify_bind_inspect_decide_and_rank_a_study(tmp_path: Path)
     inspection = claim.inspect()
     assert inspection.native is False
     assert [link.id for link in inspection.lineage][-1] == "claim"
-    claim_bytes = claim.export()
+    claim_bytes = bytes(claim.export())
 
     # decide on the bound claim: 2 * 1 - 1 = 1 and 2 * 5 - 1 = 9.
     contract = _contract(claim)
@@ -208,7 +211,7 @@ def test_lifecycle_identify_bind_inspect_decide_and_rank_a_study(tmp_path: Path)
 
     # A fresh process holds only the bytes and constants: it loads the claim under the
     # retained identity and consumes the ranking by recomputation under its own expectation.
-    ranking_bytes = ranked.export()
+    ranking_bytes = bytes(ranked.export())
     script = textwrap.dedent(
         """
         import json, sys
@@ -267,9 +270,11 @@ def test_lifecycle_identify_bind_inspect_decide_and_rank_a_study(tmp_path: Path)
 
     # A different retained contract identity does not consume the same ranking.
     with pytest.raises(dr.DesignRankingRefusal):
-        dr.consume(
-            ranking_bytes,
-            expected_identity=dr.Expectation(decision_contract_identity="another-contract"),
+        require_success(
+            dr.consume(
+                ranking_bytes,
+                expected_identity=dr.Expectation(decision_contract_identity="another-contract"),
+            )
         )
 
 
@@ -299,11 +304,13 @@ def _guess_ranking(
                 "v1",
                 snapshot if cid == "cand-1" else "snap",
                 "lab-qa",
-                dr.ExternalLaw.posterior(
-                    states=[0.0, 1.0],
-                    statistics=[0.0, 1.0],
-                    predictive=[0.5, 0.5],
-                    posterior=[[a, 1.0 - a], [1.0 - a, a]],
+                require_success(
+                    dr.ExternalLaw.posterior(
+                        states=[0.0, 1.0],
+                        statistics=[0.0, 1.0],
+                        predictive=[0.5, 0.5],
+                        posterior=[[a, 1.0 - a], [1.0 - a, a]],
+                    )
                 ),
             ),
             cost=0.1,
@@ -471,8 +478,10 @@ def test_sensitivity_lineage_links_contract_snapshot_input_and_claim():
         assert len(link.digest) == 64
         assert [by_id[p].digest for p in link.parents] == list(link.parent_digests)
     # The same artifact bytes give the same lineage in a consumer.
-    consumed = sd.SensitivityArtifact.consume(
-        artifact.export(), expected_identity=artifact.identity
+    consumed = require_success(
+        sd.SensitivityArtifact.consume(
+            bytes(artifact.export()), expected_identity=artifact.identity
+        )
     )
     assert [(link.id, link.digest) for link in consumed.lineage] == [
         (link.id, link.digest) for link in links
@@ -552,11 +561,13 @@ def test_refusal_families_keep_their_own_details_across_the_bridge():
                     "v1",
                     "snap",
                     "lab-qa",
-                    dr.ExternalLaw.posterior(
-                        states=[0.0, 1.0],
-                        statistics=[0.0, 1.0],
-                        predictive=[0.5, 0.5],
-                        posterior=[[0.75, 0.25], [0.25, 0.75]],
+                    require_success(
+                        dr.ExternalLaw.posterior(
+                            states=[0.0, 1.0],
+                            statistics=[0.0, 1.0],
+                            predictive=[0.5, 0.5],
+                            posterior=[[0.75, 0.25], [0.25, 0.75]],
+                        )
                     ),
                     attested_sample_size=3,
                 ),
@@ -594,9 +605,11 @@ def test_refusal_families_keep_their_own_details_across_the_bridge():
         dr.SourceOverlapRefusal,
     )
     ranking_cost_map = _raised(
-        lambda: dr.consume(
-            _guess_ranking().export(),
-            expected_identity=dr.Expectation(cost_map=dr.CostMap("utility", "utility", 2.0)),
+        lambda: require_success(
+            dr.consume(
+                bytes(_guess_ranking().export()),
+                expected_identity=dr.Expectation(cost_map=dr.CostMap("utility", "utility", 2.0)),
+            )
         ),
         dr.CostUnitsRefusal,
     )
@@ -710,7 +723,7 @@ def test_regenerate_python_fixtures():
     if os.environ.get("ANTECEDENT_WRITE_FIXTURES") != "1":
         pytest.skip(f"fixture writer; run {REGENERATE_PY}")
     FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
-    (FIXTURE_DIR / "py_design_ranking.bin").write_bytes(_guess_ranking().export())
+    (FIXTURE_DIR / "py_design_ranking.bin").write_bytes(bytes(_guess_ranking().export()))
     (FIXTURE_DIR / "py_coordinate_obligation.identity.json").write_text(_obligation_fixture_text())
 
 
@@ -722,13 +735,15 @@ def _fixture(name: str) -> bytes:
 
 
 def test_rust_built_design_ranking_and_obligation_are_consumed_by_python():
-    ranked = dr.consume(
-        _fixture("rust_design_ranking.bin"),
-        expected_identity=dr.Expectation(
-            decision_contract_identity="contract-1",
-            source_digests=("digest-a", "digest-b"),
-            cost_map=UTILITY_MAP,
-        ),
+    ranked = require_success(
+        dr.consume(
+            _fixture("rust_design_ranking.bin"),
+            expected_identity=dr.Expectation(
+                decision_contract_identity="contract-1",
+                source_digests=("digest-a", "digest-b"),
+                cost_map=UTILITY_MAP,
+            ),
+        )
     )
     assert [e.id for e in ranked.entries] == ["cand-1", "cand-2"]
     assert ranked.entries[0].net_value == pytest.approx(0.15, abs=1e-12)

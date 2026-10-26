@@ -36,6 +36,12 @@ from dataclasses import dataclass, field, fields, is_dataclass
 from typing import Any, Literal
 
 from .. import _native
+from .._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .._native import consume_design_ranking as _consume_native
 from .._native import evaluate_design_ranking as _evaluate
 from .._refusal import raise_refusal
@@ -346,11 +352,12 @@ class DesignRankingResult:
     def ranking_identity(self) -> str:
         return self._need_value("ranking_identity").ranking_identity
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The versioned ``design_ranking_v1`` artifact (value rankings only)."""
         self._need_value("export")
         assert self._bytes is not None
-        return self._bytes
+        return artifact_from_receipt(self, self._bytes)
 
     @property
     def lineage(self) -> tuple[LineageLink, ...]:
@@ -429,6 +436,7 @@ class DesignRankingResult:
         skip_expectation_check: bool = False,
     ) -> ConsumedRanking:
         """Consume an exported artifact by recomputation; see :func:`antecedent.design.consume`."""
+        data = container_bytes(data)
         return consume(
             data,
             expected_identity=expected_identity,

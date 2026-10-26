@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 from antecedent import decision_reliability as dr
 from antecedent.errors import CausalValueError
+from antecedent.outcomes import require_success
 
 DR = dr.DecisionReliabilityRefusal
 Z_975 = 1.959963984540054
@@ -64,7 +65,9 @@ def _utility(derived: dr.DerivedUncertainty, candidate: str) -> dict[str, float]
 
 
 def test_three_components_match_the_enumerated_law() -> None:
-    derived = dr.derive_uncertainty(_law(), _request(), dr.IntervalRequest(level=0.95))
+    derived = require_success(
+        dr.derive_uncertainty(_law(), _request(), dr.IntervalRequest(level=0.95))
+    )
     assert derived.standing == "derived_unmeasured"
     assert derived.decided_id == "A"
     assert derived.source == "known_law"
@@ -87,7 +90,9 @@ def test_three_components_match_the_enumerated_law() -> None:
 
 
 def test_selection_component_is_a_confidence_set_and_a_corrected_interval() -> None:
-    derived = dr.derive_uncertainty(_law(), _request(), dr.IntervalRequest(level=0.95))
+    derived = require_success(
+        dr.derive_uncertainty(_law(), _request(), dr.IntervalRequest(level=0.95))
+    )
     cset = derived.confidence_set
     assert cset["basis"] == "paired_comparisons_with_best"
     assert list(cset["members"]) == ["A"]
@@ -107,14 +112,14 @@ def test_selection_component_is_a_confidence_set_and_a_corrected_interval() -> N
 
 def test_a_prespecified_decision_has_no_selection_correction() -> None:
     request = dr.ReliabilityRequest(decision="B")
-    derived = dr.derive_uncertainty(_law(), request, dr.IntervalRequest(level=0.9))
+    derived = require_success(dr.derive_uncertainty(_law(), request, dr.IntervalRequest(level=0.9)))
     assert derived.corrected_interval is None
     assert derived.decided_id == "B"
 
 
 def test_derived_uncertainty_is_never_published() -> None:
-    result = dr.assess(_law(), _request())
-    derived = result.derive_uncertainty(dr.IntervalRequest(level=0.9))
+    result = require_success(dr.assess(_law(), _request()))
+    derived = require_success(result.derive_uncertainty(dr.IntervalRequest(level=0.9)))
     for route in (
         "ranking_probability",
         "optimality_confidence_set",
@@ -122,33 +127,41 @@ def test_derived_uncertainty_is_never_published() -> None:
         "selection_corrected_interval",
     ):
         with pytest.raises(DR) as raised:
-            derived.publish(route)
+            require_success(derived.publish(route))
         assert raised.value.reason_code == "cell_not_licensed"
         assert raised.value.detail == "decision_reliability.cell_not_licensed"
     with pytest.raises(DR) as raised:
-        result.combined_uncertainty()
+        require_success(result.combined_uncertainty())
     assert raised.value.reason_code == "uncertainty_components_not_combined"
 
 
 def test_refusals_for_small_samples_levels_and_undeclared_dependence() -> None:
     with pytest.raises(DR) as raised:
-        dr.derive_uncertainty(_law(times=1), _request(), dr.IntervalRequest(level=0.95))
+        require_success(
+            dr.derive_uncertainty(_law(times=1), _request(), dr.IntervalRequest(level=0.95))
+        )
     assert raised.value.detail == "decision_reliability.effective_sample_size_too_small"
     assert raised.value.reason_code == "route_not_supported"
     with pytest.raises(DR) as raised:
-        dr.derive_uncertainty(_law(), _request(), dr.IntervalRequest(level=0.3))
+        require_success(dr.derive_uncertainty(_law(), _request(), dr.IntervalRequest(level=0.3)))
     assert raised.value.reason_code == "invalid_argument"
     with pytest.raises(DR) as raised:
-        dr.derive_uncertainty(
-            _law(within_stream="unknown"), _request(), dr.IntervalRequest(level=0.95)
+        require_success(
+            dr.derive_uncertainty(
+                _law(within_stream="unknown"), _request(), dr.IntervalRequest(level=0.95)
+            )
         )
     assert raised.value.reason_code == "sampling_dependence_unknown"
 
 
 def test_simultaneous_multiplicity_widens_every_interval() -> None:
-    marginal = dr.derive_uncertainty(_law(), _request(), dr.IntervalRequest(level=0.95))
-    simultaneous = dr.derive_uncertainty(
-        _law(), _request(), dr.IntervalRequest(level=0.95, multiplicity="simultaneous")
+    marginal = require_success(
+        dr.derive_uncertainty(_law(), _request(), dr.IntervalRequest(level=0.95))
+    )
+    simultaneous = require_success(
+        dr.derive_uncertainty(
+            _law(), _request(), dr.IntervalRequest(level=0.95, multiplicity="simultaneous")
+        )
     )
     narrow, wide = _utility(marginal, "A"), _utility(simultaneous, "A")
     assert wide["upper"] - wide["lower"] > narrow["upper"] - narrow["lower"]
@@ -156,20 +169,22 @@ def test_simultaneous_multiplicity_widens_every_interval() -> None:
 
 
 def test_a_fresh_consumer_rederives_and_refuses_an_edited_derivation() -> None:
-    result = dr.assess(_law(), _request())
-    derived = result.derive_uncertainty(dr.IntervalRequest(level=0.95))
-    artifact = result.export()
-    consumed = dr.consume_derived_uncertainty(
-        artifact, dr.IntervalRequest(level=0.95), draws_digest=_law().digests()[0]
+    result = require_success(dr.assess(_law(), _request()))
+    derived = require_success(result.derive_uncertainty(dr.IntervalRequest(level=0.95)))
+    artifact = bytes(result.export())
+    consumed = require_success(
+        dr.consume_derived_uncertainty(
+            artifact, dr.IntervalRequest(level=0.95), draws_digest=_law().digests()[0]
+        )
     )
     assert consumed.to_dict() == derived.to_dict()
-    derived.verify(artifact)
+    require_success(derived.verify(artifact))
     edited = derived.to_dict()
     edited["selection"]["corrected"]["lower"] -= 0.25
     with pytest.raises(DR):
-        dr.DerivedUncertainty(edited).verify(artifact)
+        require_success(dr.DerivedUncertainty(edited).verify(artifact))
     with pytest.raises(DR):
-        dr.consume_derived_uncertainty(artifact, decided_id="B")
+        require_success(dr.consume_derived_uncertainty(artifact, decided_id="B"))
 
 
 def _cohort(**kwargs: object) -> dr.CohortUtilityDraws:
@@ -192,12 +207,14 @@ def test_cohort_utilities_reach_the_carrier_and_derive() -> None:
     wire = carrier.draws.to_wire()
     labels = {c["segment"]["stream"]["label"] for c in wire["candidates"]}
     assert labels == {"cohort_decision/cohort-source/posterior"}
-    derived = carrier.derive_uncertainty(_request(), dr.IntervalRequest(level=0.95))
+    derived = require_success(
+        carrier.derive_uncertainty(_request(), dr.IntervalRequest(level=0.95))
+    )
     assert derived.decided_id == "treat"
     wait = next(d for d in derived.numerical["differences_vs_decision"] if d["id"] == "wait")
     assert wait["interval"]["estimate"] == pytest.approx(1.0)
     assert wait["interval"]["standard_error"] == pytest.approx(math.sqrt(0.5 / 39.0), rel=1e-9)
-    assessed = carrier.assess(_request())
+    assessed = require_success(carrier.assess(_request()))
     assert assessed.report.decided_id == "treat"
 
 
@@ -232,16 +249,20 @@ def _rollout(noise: str) -> dr.RolloutUtilityDraws:
 def test_rollout_noise_decides_whether_ranking_is_licensed() -> None:
     keyed = dr.reach_carrier(_rollout("implementation_keyed"))
     assert keyed.joint_law["standing"] == "marginal_only"
-    derived = keyed.derive_uncertainty(dr.ReliabilityRequest(), dr.IntervalRequest(level=0.95))
+    derived = require_success(
+        keyed.derive_uncertainty(dr.ReliabilityRequest(), dr.IntervalRequest(level=0.95))
+    )
     assert list(derived.numerical["probabilities"]) == []
     with pytest.raises(DR) as raised:
-        keyed.derive_uncertainty(_request(), dr.IntervalRequest(level=0.95))
+        require_success(keyed.derive_uncertainty(_request(), dr.IntervalRequest(level=0.95)))
     assert raised.value.reason_code == "joint_law_required"
     with pytest.raises(DR) as raised:
-        keyed.assess(_request())
+        require_success(keyed.assess(_request()))
     assert raised.value.reason_code == "joint_law_required"
     structural = dr.reach_carrier(_rollout("structural_exogenous"))
-    ranked = structural.derive_uncertainty(_request(), dr.IntervalRequest(level=0.95))
+    ranked = require_success(
+        structural.derive_uncertainty(_request(), dr.IntervalRequest(level=0.95))
+    )
     assert list(ranked.numerical["probabilities"])
 
 
@@ -257,7 +278,7 @@ def test_off_policy_returns_carry_the_expected_utility_only() -> None:
     assert carrier.producer == "sequential_off_policy"
     request = dr.ReliabilityRequest(functional=dr.Functional.cvar(0.5))
     with pytest.raises(DR) as raised:
-        carrier.derive_uncertainty(request, dr.IntervalRequest(level=0.95))
+        require_success(carrier.derive_uncertainty(request, dr.IntervalRequest(level=0.95)))
     assert raised.value.reason_code == "route_not_supported"
 
 

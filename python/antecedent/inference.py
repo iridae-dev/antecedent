@@ -27,6 +27,13 @@ class Frequentist:
     """
 
     kind: Literal["frequentist"] = "frequentist"
+    bootstrap: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.bootstrap is not None:
+            from .execution import _integer
+
+            _integer(self.bootstrap, "bootstrap")
 
 
 @dataclass(frozen=True, slots=True)

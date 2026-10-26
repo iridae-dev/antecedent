@@ -24,6 +24,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from ._artifact_protocol import container_bytes
 from ._columns import coerce_fields
 from ._data import as_columns
 from ._native import (
@@ -218,6 +219,7 @@ def consume_cross_world_artifact(artifact: bytes, *, seed: int = 1) -> CrossWorl
     edits that change the derivation or the point; it does not detect a producer
     that seals a wrong table or query on purpose.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     return _effect(_consume(bytes(artifact), seed=seed))

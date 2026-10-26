@@ -5,6 +5,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 
 def _confounded(n: int = 160, seed: int = 3):
@@ -20,33 +21,39 @@ def test_sequential_prior_from_artifact():
     data_b, _ = _confounded(seed=2)
     query = antecedent.AverageEffect(treatment="t", outcome="y")
 
-    a = antecedent.analyze(
-        data_a,
-        graph=edges,
-        query=query,
-        inference=antecedent.Bayesian(n_draws=128, backend="conjugate"),
-        refute=False,
-        seed=1,
-        return_posterior_artifact=True,
+    a = require_success(
+        antecedent.analyze(
+            data_a,
+            graph=edges,
+            query=query,
+            inference=antecedent.Bayesian(n_draws=128, backend="conjugate"),
+            refute=False,
+            seed=1,
+            return_posterior_artifact=True,
+        )
     )
     assert a.posterior is not None
     artifact = bytes(a.posterior.artifact)
 
-    flat_b = antecedent.analyze(
-        data_b,
-        graph=edges,
-        query=query,
-        inference=antecedent.Bayesian(n_draws=128, backend="conjugate", prior_scale=1e4),
-        refute=False,
-        seed=2,
+    flat_b = require_success(
+        antecedent.analyze(
+            data_b,
+            graph=edges,
+            query=query,
+            inference=antecedent.Bayesian(n_draws=128, backend="conjugate", prior_scale=1e4),
+            refute=False,
+            seed=2,
+        )
     )
-    b = antecedent.analyze(
-        data_b,
-        graph=edges,
-        query=query,
-        inference=antecedent.Bayesian(n_draws=128, backend="conjugate", prior_from=artifact),
-        refute=False,
-        seed=2,
+    b = require_success(
+        antecedent.analyze(
+            data_b,
+            graph=edges,
+            query=query,
+            inference=antecedent.Bayesian(n_draws=128, backend="conjugate", prior_from=artifact),
+            refute=False,
+            seed=2,
+        )
     )
     assert b.posterior is not None
     assert np.isfinite(b.posterior.effect_mean)
@@ -69,21 +76,25 @@ def test_prior_and_data_both_influence_posterior():
     data, edges = _confounded(n=200, seed=11)
     query = antecedent.AverageEffect(treatment="t", outcome="y")
 
-    flat = antecedent.analyze(
-        data,
-        graph=edges,
-        query=query,
-        inference=antecedent.Bayesian(n_draws=200, backend="conjugate", prior_scale=1e4),
-        refute=False,
-        seed=7,
+    flat = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=query,
+            inference=antecedent.Bayesian(n_draws=200, backend="conjugate", prior_scale=1e4),
+            refute=False,
+            seed=7,
+        )
     )
-    strong = antecedent.analyze(
-        data,
-        graph=edges,
-        query=query,
-        inference=antecedent.Bayesian(n_draws=200, backend="conjugate", prior_scale=0.05),
-        refute=False,
-        seed=7,
+    strong = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=query,
+            inference=antecedent.Bayesian(n_draws=200, backend="conjugate", prior_scale=0.05),
+            refute=False,
+            seed=7,
+        )
     )
     assert flat.posterior is not None and strong.posterior is not None
     m_flat = flat.posterior.effect_mean
@@ -98,14 +109,16 @@ def test_prior_and_data_both_influence_posterior():
 def test_sequential_prior_named_subset_when_design_shrinks():
     """Named coefficient priors apply to the overlapping subspace when Z is dropped."""
     data, edges = _confounded()
-    a = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(n_draws=48, backend="conjugate"),
-        refute=False,
-        seed=3,
-        return_posterior_artifact=True,
+    a = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=48, backend="conjugate"),
+            refute=False,
+            seed=3,
+            return_posterior_artifact=True,
+        )
     )
     assert a.posterior is not None
     artifact = bytes(a.posterior.artifact)
@@ -113,13 +126,15 @@ def test_sequential_prior_named_subset_when_design_shrinks():
     assert "coef_z" in names
 
     data2 = {"t": data["t"], "y": data["y"]}
-    b = antecedent.analyze(
-        data2,
-        graph=[("t", "y")],
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(n_draws=48, backend="conjugate", prior_from=artifact),
-        refute=False,
-        seed=4,
+    b = require_success(
+        antecedent.analyze(
+            data2,
+            graph=[("t", "y")],
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=48, backend="conjugate", prior_from=artifact),
+            refute=False,
+            seed=4,
+        )
     )
     assert b.posterior is not None
     assert np.isfinite(b.posterior.effect_mean)
@@ -128,11 +143,13 @@ def test_sequential_prior_named_subset_when_design_shrinks():
 def test_sequential_prior_rejects_corrupt_artifact():
     data, edges = _confounded()
     with pytest.raises(Exception, match="(?i)artifact|posterior|cbor|format|magic"):
-        antecedent.analyze(
-            data,
-            graph=edges,
-            query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            inference=antecedent.Bayesian(n_draws=48, prior_from=b"not-a-posterior"),
-            refute=False,
-            seed=4,
+        require_success(
+            antecedent.analyze(
+                data,
+                graph=edges,
+                query=antecedent.AverageEffect(treatment="t", outcome="y"),
+                inference=antecedent.Bayesian(n_draws=48, prior_from=b"not-a-posterior"),
+                refute=False,
+                seed=4,
+            )
         )

@@ -272,7 +272,7 @@ def test_a_missing_shared_estimand_is_never_assumed() -> None:
 
 def test_artifact_round_trip_retains_identities_covariance_and_calibration() -> None:
     result = run([("a", 1.0, 0.5), ("b", 2.0, 0.5)], covariance=[[0.25, 0.125], [0.125, 0.25]])
-    artifact = result.export()
+    artifact = bytes(result.export())
     assert isinstance(artifact, bytes)
     fresh = consume_effect_constancy_artifact(artifact, expected_identity=result.identity)
     assert fresh.statistic == result.statistic
@@ -283,7 +283,7 @@ def test_artifact_round_trip_retains_identities_covariance_and_calibration() -> 
     assert fresh.calibration == "unmeasured"
     assert fresh.dependence == "covariance"
     assert fresh.estimand == EFFECT
-    assert fresh.export() == artifact
+    assert bytes(fresh.export()) == artifact
     # The identity may also be given as the plain mapping a consumer stored out-of-band.
     assert consume_effect_constancy_artifact(artifact, expected_identity=result.identity._wire())
     assert consume_effect_constancy_artifact(artifact).identity == result.identity
@@ -296,10 +296,14 @@ def test_resealed_mutations_are_refused_against_the_retained_identity() -> None:
 
     def refused(mutated, field: str) -> None:
         # Alone the mutated artifact is internally consistent ...
-        assert consume_effect_constancy_artifact(mutated.export()).identity == mutated.identity
+        assert (
+            consume_effect_constancy_artifact(bytes(mutated.export())).identity == mutated.identity
+        )
         # ... but against the identity the consumer retained it is refused.
         with pytest.raises(TemporalRefusal) as raised:
-            consume_effect_constancy_artifact(mutated.export(), expected_identity=original.identity)
+            consume_effect_constancy_artifact(
+                bytes(mutated.export()), expected_identity=original.identity
+            )
         assert raised.value.reason_code == "route_not_supported"
         assert raised.value.detail == "effect_constancy.wrong_contract"
         assert raised.value.offending == field, field
@@ -329,7 +333,7 @@ def test_resealed_mutations_are_refused_against_the_retained_identity() -> None:
 
 
 def test_corrupt_truncated_and_foreign_artifacts_refuse() -> None:
-    artifact = run([("a", 1.0, 0.5), ("b", 2.0, 0.5)]).export()
+    artifact = bytes(run([("a", 1.0, 0.5), ("b", 2.0, 0.5)]).export())
     corrupt = bytearray(artifact)
     corrupt[len(corrupt) // 2] ^= 0xFF
     with pytest.raises(CausalSerializationError):

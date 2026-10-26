@@ -80,6 +80,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .. import _native
+from .._artifact_protocol import artifact_consumer, container_bytes
 from .._refusal import raise_refusal
 from .._scientific import ScientificResult
 from .._validate import count
@@ -494,7 +495,7 @@ class DiscoveredTransportEstimate(ScientificResult):
 
 
 @dataclass(frozen=True, slots=True)
-class VerifiedEstimate:
+class VerifiedEstimate(ScientificResult):
     """What replaying an exported estimate established."""
 
     answer: TransportAnswer
@@ -590,6 +591,7 @@ def estimate_discovered_transport(
 def _estimate_of(
     wire: Mapping[str, Any], artifact: bytes, found: Outcome, report: RunReport
 ) -> DiscoveredTransportEstimate:
+    artifact = container_bytes(artifact)
     members = tuple(
         MemberEstimate(
             member=int(m["member"]),
@@ -613,6 +615,12 @@ def _estimate_of(
     )
 
 
+@artifact_consumer(
+    proof="native discovered-transport consumer verifies member proofs and tables and recomputes ordered grid means and answer identity",
+    replayable=True,
+    resumable=False,
+    identity=(),
+)
 def verify_discovered_transport_estimate(artifact: bytes, *, seed: int = 0) -> VerifiedEstimate:
     """Replay an exported estimate and return the answer it recomputes.
 
@@ -622,6 +630,7 @@ def verify_discovered_transport_estimate(artifact: bytes, *, seed: int = 0) -> V
     Raises:
         CausalValueError: a malformed or forged artifact.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray)):
         raise CausalTypeError("artifact must be bytes")
     wire = json.loads(

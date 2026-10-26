@@ -35,6 +35,7 @@ from antecedent import mechanism_composition as mc
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.mechanism_composition import MechanismCompositionRefusal
 from antecedent.model import fit_gcm
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -98,7 +99,7 @@ def compose(
 
 def refusal_of(call) -> MechanismCompositionRefusal:
     with pytest.raises(MechanismCompositionRefusal) as caught:
-        call()
+        require_success(call())
     error = caught.value
     assert isinstance(error, CausalUnsupportedError)
     assert_registered_refusal(error)
@@ -225,7 +226,7 @@ def test_declared_mechanisms_compose_into_the_hand_computed_scm():
     assert composition.variables == ("M", "X", "Y")
     assert composition.declared_mechanisms == ("M", "X", "Y")  # numbers the analyst wrote down
 
-    observational = composition.intervention_law()
+    observational = require_success(composition.intervention_law())
     assert observational.mean_of("X") == pytest.approx(1.0, abs=TOL)
     assert observational.mean_of("M") == pytest.approx(2.5, abs=TOL)
     assert observational.mean_of("Y") == pytest.approx(7.0, abs=TOL)
@@ -236,23 +237,23 @@ def test_declared_mechanisms_compose_into_the_hand_computed_scm():
     assert observational.covariance_of("X", "Y") == pytest.approx(26.0, abs=TOL)
     assert observational.covariance_of("M", "Y") == pytest.approx(55.0, abs=TOL)
 
-    do_x = composition.intervention_law({"X": 2.0})
+    do_x = require_success(composition.intervention_law({"X": 2.0}))
     assert do_x.mean_of("M") == pytest.approx(4.5, abs=TOL)
     assert do_x.mean_of("Y") == pytest.approx(13.5, abs=TOL)
     assert do_x.variance_of("M") == pytest.approx(1.0, abs=TOL)
     assert do_x.variance_of("Y") == pytest.approx(9.25, abs=TOL)
     assert do_x.covariance_of("M", "Y") == pytest.approx(3.0, abs=TOL)
-    do_m = composition.intervention_law({"M": 1.0})
+    do_m = require_success(composition.intervention_law({"M": 1.0}))
     assert do_m.mean_of("Y") == pytest.approx(2.5, abs=TOL)
     assert do_m.variance_of("Y") == pytest.approx(1.25, abs=TOL)
-    assert composition.mean_contrast(mc.MeanContrast.ate("Y", "X", 1.0, 0.0)) == pytest.approx(
-        6.5, abs=TOL
-    )
+    assert require_success(
+        composition.mean_contrast(mc.MeanContrast.ate("Y", "X", 1.0, 0.0))
+    ) == pytest.approx(6.5, abs=TOL)
 
     # The same numbers from the independent path-algebra oracle, for every regime.
     for do in ({}, {"X": 2.0}, {"M": 1.0}, {"X": -3.0, "M": 0.5}):
         names, mean, cov = scm_law(CHAIN_SPEC, do)
-        law = composition.intervention_law(do)
+        law = require_success(composition.intervention_law(do))
         assert law.variables == tuple(names)
         assert law.mean == pytest.approx(mean, abs=1e-10)
         assert law.covariance == pytest.approx(cov, abs=1e-10)
@@ -264,28 +265,28 @@ def test_listing_order_does_not_change_the_plan_or_the_law_and_sampling_is_deter
     edges = [("X", "M"), ("X", "Y"), ("M", "Y")][::-1]
     backward = compose(reversed_list, edges=edges)
     assert forward.plan_identity == backward.plan_identity
-    assert forward.intervention_law({"X": 2.0}).mean == pytest.approx(
-        backward.intervention_law({"X": 2.0}).mean, abs=0
+    assert require_success(forward.intervention_law({"X": 2.0})).mean == pytest.approx(
+        require_success(backward.intervention_law({"X": 2.0})).mean, abs=0
     )
     assert np.array_equal(
-        forward.intervention_law({"X": 2.0}).covariance,
-        backward.intervention_law({"X": 2.0}).covariance,
+        require_success(forward.intervention_law({"X": 2.0})).covariance,
+        require_success(backward.intervention_law({"X": 2.0})).covariance,
     )
 
     n = 200_000
-    table = forward.sample({"X": 2.0}, n_rows=n, seed=20_260_101)
+    table = require_success(forward.sample({"X": 2.0}, n_rows=n, seed=20_260_101))
     y = table["Y"]
     # SE of the mean sqrt(9.25 / 200000) = 0.0068: six SE; relative SE of the variance sqrt(2/n).
     assert abs(y.mean() - 13.5) < 0.05
     assert abs(y.var() / 9.25 - 1.0) < 0.02
-    again = forward.sample({"X": 2.0}, n_rows=n, seed=20_260_101)
+    again = require_success(forward.sample({"X": 2.0}, n_rows=n, seed=20_260_101))
     assert all(np.array_equal(table[v], again[v]) for v in table)
-    other = forward.sample({"X": 2.0}, n_rows=1_000, seed=20_260_102)
+    other = require_success(forward.sample({"X": 2.0}, n_rows=1_000, seed=20_260_102))
     assert not np.array_equal(table["Y"][:1_000], other["Y"])
 
     # The noise of a variable is keyed by its name: its draws do not depend on the others.
-    alone = compose([linear("X", 1.0, 2.0)]).sample({}, n_rows=500, seed=7)["X"]
-    within = forward.sample({}, n_rows=500, seed=7)["X"]
+    alone = require_success(compose([linear("X", 1.0, 2.0)]).sample({}, n_rows=500, seed=7))["X"]
+    within = require_success(forward.sample({}, n_rows=500, seed=7))["X"]
     assert np.array_equal(alone, within)
 
 
@@ -323,12 +324,12 @@ def test_a_fitted_model_composes_and_matches_the_least_squares_oracle():
     }
     for do in ({}, {"X": 2.0}):
         _names, mean, cov = scm_law(spec, do)
-        law = composition.intervention_law(do)
+        law = require_success(composition.intervention_law(do))
         assert law.mean == pytest.approx(mean, abs=1e-6)
         # sigma is the residual standard deviation up to the (n - p) / n divisor convention.
         assert law.covariance == pytest.approx(cov, rel=2e-3, abs=1e-3)
     # Truth: the DGP's own interventional mean is 13.5; sampling error is far below 0.2.
-    assert abs(composition.intervention_law({"X": 2.0}).mean_of("Y") - 13.5) < 0.2
+    assert abs(require_success(composition.intervention_law({"X": 2.0})).mean_of("Y") - 13.5) < 0.2
     # The source numbers are the OLS coefficients, from the independent fit.
     source = dict(mechanisms[2].source)
     assert source["kind"] == "fitted_linear"
@@ -364,7 +365,9 @@ def test_declared_mechanisms_are_labelled_and_need_acknowledgement():
     }
     prepared = compose(mechanisms, admit=True)
     assert prepared.declared_mechanisms == ("M", "X", "Y")
-    assert prepared.intervention_law({"X": 2.0}).mean_of("Y") == pytest.approx(13.5, abs=TOL)
+    assert require_success(prepared.intervention_law({"X": 2.0})).mean_of("Y") == pytest.approx(
+        13.5, abs=TOL
+    )
 
 
 # --------------------------------------------------------------------------- refusals
@@ -489,7 +492,9 @@ def test_a_mechanism_from_another_population_needs_a_declared_admission():
 
     # A selection diagram with no arrow into M admits it ...
     ok = compose(from_source(), admissions=[admission(selection_targets=("X",))])
-    assert ok.intervention_law({"X": 2.0}).mean_of("Y") == pytest.approx(13.5, abs=TOL)
+    assert require_success(ok.intervention_law({"X": 2.0})).mean_of("Y") == pytest.approx(
+        13.5, abs=TOL
+    )
     # ... one that points into M does not ...
     error = refusal_of(
         lambda: compose(from_source(), admissions=[admission(selection_targets=("M",))])
@@ -524,7 +529,7 @@ def test_shared_latents_are_exact_and_a_dropped_latent_is_refused():
         return mechanisms
 
     # A = e + 2U, B = 1 + e' + 3U: Var A = 5, Var B = 10, Cov = 6.
-    law = compose(build(True)).intervention_law()
+    law = require_success(compose(build(True)).intervention_law())
     assert law.variance_of("A") == pytest.approx(5.0, abs=TOL)
     assert law.variance_of("B") == pytest.approx(10.0, abs=TOL)
     assert law.covariance_of("A", "B") == pytest.approx(6.0, abs=TOL)
@@ -542,12 +547,14 @@ def test_shared_latents_are_exact_and_a_dropped_latent_is_refused():
 def test_unknown_dependence_stays_unknown_and_refuses_the_uncertainty_claim():
     composition = compose(uncertain_chain())
     # Point execution is unaffected ...
-    assert composition.mean_contrast(mc.MeanContrast.mean_at("Y", {"X": 2.0})) == pytest.approx(
-        13.5, abs=TOL
-    )
+    assert require_success(
+        composition.mean_contrast(mc.MeanContrast.mean_at("Y", {"X": 2.0}))
+    ) == pytest.approx(13.5, abs=TOL)
     # ... but the uncertainty claim is a joint-law refusal, not independence.
     error = refusal_of(
-        lambda: composition.mean_contrast_uncertainty(mc.MeanContrast.mean_at("Y", {"X": 2.0}))
+        lambda: require_success(
+            composition.mean_contrast_uncertainty(mc.MeanContrast.mean_at("Y", {"X": 2.0}))
+        )
     )
     assert error.reason_code == "joint_law_required"
     assert error.details == ("mechanism_composition.posterior_dependence_unknown",)
@@ -590,7 +597,9 @@ def test_independence_and_a_declared_covariance_give_different_checked_variances
     # A product of path coefficients is nonlinear in the parameters: a declared
     # independence is not a joint law for it, whatever its justification.
     independent_prepared = compose(uncertain_chain(), dependence=independent())
-    error = refusal_of(lambda: independent_prepared.mean_contrast_uncertainty(contrast))
+    error = refusal_of(
+        lambda: require_success(independent_prepared.mean_contrast_uncertainty(contrast))
+    )
     assert error.reason_code == "joint_law_required"
     assert error.details == ("joint_law_propagation.nonlinear_needs_aligned_joint_law",)
 
@@ -599,9 +608,11 @@ def test_independence_and_a_declared_covariance_give_different_checked_variances
     sigma[1, 5] = sigma[5, 1] = 0.002
     variance_declared = float(grad @ sigma @ grad)
     assert variance_declared == pytest.approx(0.648625, abs=1e-12)
-    declared = compose(
-        uncertain_chain(), dependence=mc.Dependence.cross_covariance(cross_blocks())
-    ).mean_contrast_uncertainty(contrast)
+    declared = require_success(
+        compose(
+            uncertain_chain(), dependence=mc.Dependence.cross_covariance(cross_blocks())
+        ).mean_contrast_uncertainty(contrast)
+    )
     assert declared.variance == pytest.approx(variance_declared, abs=1e-10)
     assert declared.dependence == "declared_cross_covariance"
     assert declared.variance - variance_independent == pytest.approx(0.108, abs=1e-10)
@@ -636,7 +647,9 @@ def test_independence_and_a_declared_covariance_give_different_checked_variances
         [mc.ParameterId(m, t) for m, t in order],
         full.reshape(-1).tolist(),
     )
-    aligned = compose(uncertain_chain(), dependence=joint).mean_contrast_uncertainty(contrast)
+    aligned = require_success(
+        compose(uncertain_chain(), dependence=joint).mean_contrast_uncertainty(contrast)
+    )
     assert aligned.variance == pytest.approx(variance_declared, abs=1e-10)
     assert aligned.dependence == "joint_gaussian_covariance"
 
@@ -646,7 +659,9 @@ def test_a_missing_cross_covariance_pair_is_unknown_for_that_pair():
         uncertain_chain(), dependence=mc.Dependence.cross_covariance(cross_blocks()[:1])
     )
     error = refusal_of(
-        lambda: prepared.mean_contrast_uncertainty(mc.MeanContrast.mean_at("Y", {"X": 2.0}))
+        lambda: require_success(
+            prepared.mean_contrast_uncertainty(mc.MeanContrast.mean_at("Y", {"X": 2.0}))
+        )
     )
     assert error.reason_code == "joint_law_required"
     assert len(error.details) == 2
@@ -731,24 +746,34 @@ def test_finite_tables_match_the_enumerated_scm():
 
     for do in ({}, {"X": "1"}, {"X": "0"}, {"M": "1"}):
         oracle = finite_joint(do)
-        law = prepared.finite_law(do)
+        law = require_success(prepared.finite_law(do))
         assert law.variables == ("M", "X", "Y")
         assert law.probability({"Y": "1"}) == pytest.approx(prob(oracle, {"Y": "1"}), abs=TOL)
         assert law.probability({"X": "1"}) == pytest.approx(prob(oracle, {"X": "1"}), abs=TOL)
         assert float(law.probabilities.sum()) == pytest.approx(1.0, abs=TOL)
     # And the literal numbers of the hand calculation.
-    assert prepared.finite_law().probability({"Y": "1"}) == pytest.approx(0.396, abs=TOL)
-    assert prepared.finite_law({"X": "1"}).probability({"Y": "1"}) == pytest.approx(0.72, abs=TOL)
-    assert prepared.finite_law({"X": "0"}).probability({"Y": "1"}) == pytest.approx(0.18, abs=TOL)
-    assert prepared.finite_law({"M": "1"}).probability({"Y": "1"}) == pytest.approx(0.66, abs=TOL)
-    assert prepared.finite_law().probability({"X": "1", "M": "1", "Y": "1"}) == pytest.approx(
-        0.252, abs=TOL
+    assert require_success(prepared.finite_law()).probability({"Y": "1"}) == pytest.approx(
+        0.396, abs=TOL
     )
-    assert prepared.finite_law().marginal("Y") == pytest.approx({"0": 0.604, "1": 0.396}, abs=TOL)
+    assert require_success(prepared.finite_law({"X": "1"})).probability(
+        {"Y": "1"}
+    ) == pytest.approx(0.72, abs=TOL)
+    assert require_success(prepared.finite_law({"X": "0"})).probability(
+        {"Y": "1"}
+    ) == pytest.approx(0.18, abs=TOL)
+    assert require_success(prepared.finite_law({"M": "1"})).probability(
+        {"Y": "1"}
+    ) == pytest.approx(0.66, abs=TOL)
+    assert require_success(prepared.finite_law()).probability(
+        {"X": "1", "M": "1", "Y": "1"}
+    ) == pytest.approx(0.252, abs=TOL)
+    assert require_success(prepared.finite_law()).marginal("Y") == pytest.approx(
+        {"0": 0.604, "1": 0.396}, abs=TOL
+    )
 
     # A linear-Gaussian query of the other family is refused as well.
     gaussian = compose(chain())
-    error = refusal_of(lambda: gaussian.finite_law({"X": "1"}))
+    error = refusal_of(lambda: require_success(gaussian.finite_law({"X": "1"})))
     assert error.reason_code == "route_not_supported"
 
     # A table with a missing parent configuration is refused.
@@ -771,8 +796,10 @@ def contrast_query() -> mc.MeanContrast:
 
 def test_the_artifact_replays_and_refuses_semantic_mutation():
     prepared = compose(uncertain_chain(), dependence=independent())
-    export = prepared.artifact(contrast_query())
-    consumed = mc.consume_mechanism_composition_artifact(export.data, export.expectation.identity)
+    export = prepared.export(contrast_query())
+    consumed = require_success(
+        mc.consume_mechanism_composition_artifact(export.data, export.expectation.identity)
+    )
     assert consumed.family == "linear_gaussian"
     assert consumed.premises_digest == export.expectation.identity
     result = consumed.result
@@ -784,15 +811,17 @@ def test_the_artifact_replays_and_refuses_semantic_mutation():
     assert result == export.metadata["result"]
 
     # A retained identity that is not the artifact's is refused, typed.
-    error = refusal_of(lambda: mc.consume_mechanism_composition_artifact(export.data, "0" * 64))
+    error = refusal_of(
+        lambda: require_success(mc.consume_mechanism_composition_artifact(export.data, "0" * 64))
+    )
     assert error.details == ("mechanism_composition.premises_mismatch",)
     # Damaged and truncated bytes are refused.
     damaged = bytearray(export.data)
     damaged[len(damaged) // 2] ^= 0xFF
-    refusal_of(lambda: mc.consume_mechanism_composition_artifact(bytes(damaged)))
-    refusal_of(lambda: mc.consume_mechanism_composition_artifact(export.data[:40]))
+    refusal_of(lambda: require_success(mc.consume_mechanism_composition_artifact(bytes(damaged))))
+    refusal_of(lambda: require_success(mc.consume_mechanism_composition_artifact(export.data[:40])))
     with pytest.raises(CausalTypeError):
-        mc.consume_mechanism_composition_artifact("not bytes")  # type: ignore[arg-type]
+        require_success(mc.consume_mechanism_composition_artifact("not bytes"))  # type: ignore[arg-type]
 
     # Semantic mutations are different premises: each is self-consistent and consumable on its
     # own, and refused by a consumer that retained the original digest.
@@ -804,20 +833,24 @@ def test_the_artifact_replays_and_refuses_semantic_mutation():
         [("X", 2.0)],
         uncertainty=marginal([INTERCEPT, coef("X")], [0.04, -0.01, -0.01, 0.01]),
     )
-    mutated = compose(mutated_numbers, dependence=independent()).artifact(contrast_query())
-    own = mc.consume_mechanism_composition_artifact(mutated.data, mutated.expectation.identity)
+    mutated = compose(mutated_numbers, dependence=independent()).export(contrast_query())
+    own = require_success(
+        mc.consume_mechanism_composition_artifact(mutated.data, mutated.expectation.identity)
+    )
     assert own.result.point == pytest.approx(13.8, abs=TOL)  # -1 + 1 + 3 * (0.6 + 4)
     assert mutated.expectation.identity != export.expectation.identity
     error = refusal_of(
-        lambda: mc.consume_mechanism_composition_artifact(mutated.data, export.expectation.identity)
+        lambda: require_success(
+            mc.consume_mechanism_composition_artifact(mutated.data, export.expectation.identity)
+        )
     )
     assert error.details == ("mechanism_composition.premises_mismatch",)
 
-    other_query = prepared.artifact(mc.MeanContrast.mean_at("Y", {"X": 3.0}))
+    other_query = prepared.export(mc.MeanContrast.mean_at("Y", {"X": 3.0}))
     assert other_query.expectation.identity != export.expectation.identity
     refusal_of(
-        lambda: mc.consume_mechanism_composition_artifact(
-            other_query.data, export.expectation.identity
+        lambda: require_success(
+            mc.consume_mechanism_composition_artifact(other_query.data, export.expectation.identity)
         )
     )
     assert other_query.metadata["result"].point == pytest.approx(
@@ -826,14 +859,14 @@ def test_the_artifact_replays_and_refuses_semantic_mutation():
 
     # An uncertainty claim without a declared joint law is not exported.
     unknown = compose(uncertain_chain())
-    error = refusal_of(lambda: unknown.export(contrast_query()))
+    error = refusal_of(lambda: bytes(unknown.export(contrast_query())))
     assert error.reason_code == "joint_law_required"
 
 
 def test_a_finite_artifact_matches_the_enumerated_truth_and_a_law_artifact_replays():
     prepared = compose(finite_chain())
-    export = prepared.artifact({"X": "1"}, outcome="Y")
-    consumed = mc.consume_mechanism_composition_artifact(export.data)
+    export = prepared.export({"X": "1"}, outcome="Y")
+    consumed = require_success(mc.consume_mechanism_composition_artifact(export.data))
     assert consumed.family == "tabular"
     oracle = finite_joint({"X": "1"})
     expected = {level: prob(oracle, {"Y": level}) for level in "01"}
@@ -843,24 +876,20 @@ def test_a_finite_artifact_matches_the_enumerated_truth_and_a_law_artifact_repla
     assert levels["1"] == pytest.approx(0.72, abs=TOL)
 
     gaussian = compose(chain())
-    law = gaussian.artifact({"X": 2.0}, outcome="Y")
-    replayed = mc.consume_mechanism_composition_artifact(law.data, law.metadata["premises_digest"])
+    law = gaussian.export({"X": 2.0}, outcome="Y")
+    replayed = require_success(
+        mc.consume_mechanism_composition_artifact(law.data, law.metadata["premises_digest"])
+    )
     assert isinstance(replayed.result, mc.GaussianLawResult)
     assert replayed.result.mean == pytest.approx(13.5, abs=TOL)
     assert replayed.result.variance == pytest.approx(9.25, abs=TOL)
 
 
 def test_a_fresh_process_consumes_the_artifact_against_the_retained_digest(tmp_path):
-    export = compose(chain()).artifact({"X": 2.0}, outcome="Y")
+    export = compose(chain()).export({"X": 2.0}, outcome="Y")
     path = tmp_path / "artifact.bin"
     path.write_bytes(export.data)
-    script = (
-        "import json, sys\n"
-        "from antecedent import mechanism_composition as mc\n"
-        "c = mc.consume_mechanism_composition_artifact(open(sys.argv[1], 'rb').read(), sys.argv[2])\n"
-        "print(json.dumps({'mean': c.result.mean, 'variance': c.result.variance, "
-        "'family': c.family}))\n"
-    )
+    script = "from antecedent.outcomes import require_success\nimport json, sys\nfrom antecedent import mechanism_composition as mc\nc = require_success(mc.consume_mechanism_composition_artifact(open(sys.argv[1], 'rb').read(), sys.argv[2]))\nprint(json.dumps({'mean': c.result.mean, 'variance': c.result.variance, 'family': c.family}))\n"
     done = subprocess.run(
         [sys.executable, "-c", script, str(path), export.expectation.identity],
         capture_output=True,
@@ -887,7 +916,7 @@ def test_a_fresh_process_consumes_the_artifact_against_the_retained_digest(tmp_p
 
 def test_refresh_keeps_the_plan_recomputes_the_numbers_and_refuses_other_mechanisms():
     prepared = compose(chain())
-    before = prepared.intervention_law({"X": 2.0})
+    before = require_success(prepared.intervention_law({"X": 2.0}))
     # M refitted on new data: intercept 1, coefficient 3. E[M | do(X=2)] = 7 and
     # E[Y | do(X=2)] = -1 + 0.5 * 2 + 3 * 7 = 21.
     refit = mc.MechanismRefit.declared_linear(
@@ -899,7 +928,7 @@ def test_refresh_keeps_the_plan_recomputes_the_numbers_and_refuses_other_mechani
         evidence_id="data:M:2",
     )
     refreshed = prepared.refresh_mechanisms([refit])
-    after = refreshed.intervention_law({"X": 2.0})
+    after = require_success(refreshed.intervention_law({"X": 2.0}))
     assert after.mean_of("M") == pytest.approx(7.0, abs=TOL)
     assert after.mean_of("Y") == pytest.approx(21.0, abs=TOL)
     # Oracle for the refit chain.
@@ -911,7 +940,7 @@ def test_refresh_keeps_the_plan_recomputes_the_numbers_and_refuses_other_mechani
     assert refreshed.variables == prepared.variables
     assert refreshed.plan_identity != prepared.plan_identity
     # The prepared composition it was called on is unchanged.
-    assert np.array_equal(prepared.intervention_law({"X": 2.0}).mean, before.mean)
+    assert np.array_equal(require_success(prepared.intervention_law({"X": 2.0})).mean, before.mean)
     assert before.mean_of("Y") == pytest.approx(13.5, abs=TOL)
 
     # Refused: another mechanism family, other parents, an unknown variable.
@@ -945,7 +974,7 @@ def test_refresh_keeps_the_plan_recomputes_the_numbers_and_refuses_other_mechani
     assert error.reason_code == "quantity_semantics_mismatch"
     assert error.details == ("mechanism_composition.identity_declaration_unknown_variable",)
     # Still unchanged after three refusals.
-    assert np.array_equal(prepared.intervention_law({"X": 2.0}).mean, before.mean)
+    assert np.array_equal(require_success(prepared.intervention_law({"X": 2.0})).mean, before.mean)
 
 
 def test_a_dependence_declared_for_the_earlier_fit_is_unknown_again_after_a_refit():
@@ -967,7 +996,9 @@ def test_a_dependence_declared_for_the_earlier_fit_is_unknown_again_after_a_refi
         [refit],
         mc.Dependence.independent_by_design("refit on a new, disjoint trial"),
     )
-    error = refusal_of(lambda: refreshed.mean_contrast_uncertainty(contrast_query()))
+    error = refusal_of(
+        lambda: require_success(refreshed.mean_contrast_uncertainty(contrast_query()))
+    )
     assert error.reason_code == "joint_law_required"
     assert error.details == ("joint_law_propagation.nonlinear_needs_aligned_joint_law",)
 
@@ -982,9 +1013,9 @@ def test_cancellation_stops_before_a_composed_result_and_a_bad_declaration_is_ty
     )
     assert error.reason_code == "cancelled_no_claim"
     prepared = compose(chain())
-    error = refusal_of(lambda: prepared.sample({}, n_rows=100, cancel=token))
+    error = refusal_of(lambda: require_success(prepared.sample({}, n_rows=100, cancel=token)))
     assert error.reason_code == "cancelled_no_claim"
-    error = refusal_of(lambda: prepared.export(contrast_query(), cancel=token))
+    error = refusal_of(lambda: bytes(prepared.export(contrast_query(), cancel=token)))
     assert error.reason_code == "cancelled_no_claim"
 
     with pytest.raises(CausalTypeError):
@@ -993,3 +1024,25 @@ def test_cancellation_stops_before_a_composed_result_and_a_bad_declaration_is_ty
         mc.Quantity("X", units="u", population_id="pop", role="not-a-role")
     with pytest.raises(CausalValueError):
         linear("X", float("nan"), 1.0)
+
+
+def test_executed_mechanism_answers_share_typed_outcomes_and_cheap_native_projections(monkeypatch):
+    from antecedent.outcomes import Outcome
+
+    prepared = compose(chain())
+    point = prepared.mean_contrast(mc.MeanContrast.ate("Y", "X", 1.0, 0.0))
+    law = prepared.intervention_law({"X": 2.0})
+    assert isinstance(point, Outcome) and point.accepted
+    assert point.answer.kind == "point"
+    assert point.answer.value == pytest.approx(6.5, abs=TOL)
+    assert isinstance(law, Outcome) and law.answer.kind == "distribution"
+    native_law = require_success(law)
+    assert law.distribution is native_law
+    # Inspection reads the retained law's dimensions, not its arrays or an export.
+    monkeypatch.setattr(
+        type(native_law), "to_dict", lambda self: pytest.fail("inspection serialized law")
+    )
+    assert law.inspect().uncertainty.available
+    assert law.inspect().uncertainty.reason == "conditional_on_declared_composition"
+    assert law.inspect().uncertainty.payload["variables"] == 3
+    assert "Outcome" in repr(law)

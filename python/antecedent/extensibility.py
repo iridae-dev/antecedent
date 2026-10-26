@@ -21,6 +21,12 @@ from typing import TYPE_CHECKING, Any, Protocol, cast, get_args, runtime_checkab
 import numpy as np
 from numpy.typing import NDArray
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._digest import canonical_digest
 from .errors import CausalValueError, StructuredRefusal
@@ -593,13 +599,15 @@ class ProviderVerificationReceipt:
             for item in self._requests
         )
 
-    def export(self, *, artifact_id: str = "provider-verification") -> bytes:
+    @artifact_export
+    def export(self, *, artifact_id: str = "provider-verification") -> ExportedArtifact:
         """Serialize through the shared container; reload with :meth:`load` and :attr:`digest`."""
-        return bytes(self._native_value.export(artifact_id))
+        return artifact_from_receipt(self, bytes(self._native_value.export(artifact_id)))
 
     @classmethod
     def load(cls, data: bytes, *, expected_digest: str) -> ProviderVerificationReceipt:
         """Load an export under the digest the consumer retained independently."""
+        data = container_bytes(data)
         from . import _native
 
         return cls(_native.ProviderVerificationReceipt.load(data, expected_digest))

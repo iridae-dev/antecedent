@@ -4,6 +4,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent import interference
+from antecedent.outcomes import require_success
 
 
 def _fixture():
@@ -99,7 +100,7 @@ def _query(*, edges=None, assume_network_exchangeability=True):
 
 def test_observational_network_analyze_matches_native_utility_and_reports_support():
     data, _, _, _ = _fixture()
-    result = ant.analyze(data, graph=[], query=_query())
+    result = require_success(ant.analyze(data, graph=[], query=_query()))
     utility = _estimate()
     assert result.estimate.ate == pytest.approx(utility.horvitz_thompson)
     assert result.interference.contrast.hajek == pytest.approx(utility.hajek)
@@ -124,7 +125,7 @@ def test_observational_network_analyze_refuses_unsupported_design():
     with pytest.raises(ValueError, match="assume_network_exchangeability"):
         _query(assume_network_exchangeability=False)
     with pytest.raises(ValueError, match="crosses cluster boundary"):
-        ant.analyze(data, graph=[], query=_query(edges=[*edges, (0, 2)]))
+        require_success(ant.analyze(data, graph=[], query=_query(edges=[*edges, (0, 2)])))
 
 
 def test_known_exposure_probabilities_publish_retained_cluster_interval():
@@ -153,7 +154,7 @@ def test_known_exposure_probabilities_publish_retained_cluster_interval():
         realized_assignment=assignment,
         partial_interference=interference.PartialInterference(clusters),
     )
-    result = ant.analyze({"y": outcomes}, graph=[], query=query)
+    result = require_success(ant.analyze({"y": outcomes}, graph=[], query=query))
     interval = result.interference.pointwise_interval
     assert interval is not None
     assert interval.lower < 2.0 < interval.upper

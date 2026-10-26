@@ -269,7 +269,7 @@ def test_mediation_has_no_row_ceiling_and_replays_beyond_the_former_one() -> Non
     assert result.natural_direct == pytest.approx(nde, abs=1e-8)
     assert result.natural_indirect == pytest.approx(nie, abs=1e-8)
     assert result.total == pytest.approx(te, abs=1e-8)
-    again = consume_mediation_artifact(result.export(), expected_identity=result.identity)
+    again = consume_mediation_artifact(bytes(result.export()), expected_identity=result.identity)
     assert again.to_dict() == result.to_dict()
 
 
@@ -280,7 +280,7 @@ def test_mediation_estimate_survives_an_export_over_the_byte_budget() -> None:
     assert result.n_rows == 800_000
     assert result.natural_direct == pytest.approx(nde, abs=1e-8)
     with pytest.raises(MediationRefusal) as refused:
-        result.export()
+        bytes(result.export())
     assert refused.value.reason_code == "route_not_supported"
     assert refused.value.detail == "nonlinear_mediation.export_budget_exceeded"
     assert_registered_refusal(refused.value)
@@ -289,7 +289,7 @@ def test_mediation_estimate_survives_an_export_over_the_byte_budget() -> None:
 def test_mediation_digest_bound_artifact_needs_the_dataset_and_respects_the_memory_limit() -> None:
     g = grid(scm())
     result = run(g, data_binding="digest")
-    bound = result.export()
+    bound = bytes(result.export())
     columns = {
         "treatment": g["treatment"],
         "mediator": g["mediator"],
@@ -305,17 +305,17 @@ def test_mediation_digest_bound_artifact_needs_the_dataset_and_respects_the_memo
         consume_mediation_artifact(bound, **{**columns, "outcome": g["outcome"] + 1e-9})
     assert refused.value.detail == "nonlinear_mediation.wrong_contract"
     with pytest.raises(MediationRefusal) as refused:
-        consume_mediation_artifact(run(g).export(), memory_limit_bytes=1_000)
+        consume_mediation_artifact(bytes(run(g).export()), memory_limit_bytes=1_000)
     assert refused.value.detail == "nonlinear_mediation.memory_budget_exceeded"
 
 
 def test_mediation_artifact_round_trips_and_checks_the_retained_identity() -> None:
     result = run(grid(scm()), bootstrap_replicates=8, seed=3)
-    again = consume_mediation_artifact(result.export(), expected_identity=result.identity)
+    again = consume_mediation_artifact(bytes(result.export()), expected_identity=result.identity)
     assert again.to_dict() == result.to_dict()
     assert again.identity == result.identity
     from_mapping = consume_mediation_artifact(
-        result.export(), expected_identity=result.identity._wire()
+        bytes(result.export()), expected_identity=result.identity._wire()
     )
     assert from_mapping.identity == result.identity
 
@@ -327,10 +327,10 @@ def test_mediation_artifact_refuses_a_resealed_change_against_retained_identity(
     g["outcome"][0] += 1.0
     resealed = run(g)
     # The changed artifact is internally consistent ...
-    assert consume_mediation_artifact(resealed.export()).identity == resealed.identity
+    assert consume_mediation_artifact(bytes(resealed.export())).identity == resealed.identity
     # ... and refused by the identity the consumer retained independently.
     with pytest.raises(MediationRefusal) as caught:
-        consume_mediation_artifact(resealed.export(), expected_identity=original.identity)
+        consume_mediation_artifact(bytes(resealed.export()), expected_identity=original.identity)
     assert caught.value.detail == "nonlinear_mediation.wrong_contract"
     assert caught.value.offending == "data"
     assert caught.value.reason_code == "route_not_supported"
@@ -339,14 +339,14 @@ def test_mediation_artifact_refuses_a_resealed_change_against_retained_identity(
 
 def test_mediation_artifact_corruption_and_type_errors() -> None:
     result = run(grid(scm()))
-    corrupt = bytearray(result.export())
+    corrupt = bytearray(bytes(result.export()))
     corrupt[len(corrupt) // 2] ^= 0xFF
     with pytest.raises(CausalSerializationError):
         consume_mediation_artifact(bytes(corrupt))
     with pytest.raises(CausalTypeError):
         consume_mediation_artifact("not bytes")  # type: ignore[arg-type]
     with pytest.raises(CausalTypeError):
-        consume_mediation_artifact(result.export(), expected_identity=3)  # type: ignore[arg-type]
+        consume_mediation_artifact(bytes(result.export()), expected_identity=3)  # type: ignore[arg-type]
     g = grid(scm())
     with pytest.raises(CausalTypeError):
         mediation_effects(

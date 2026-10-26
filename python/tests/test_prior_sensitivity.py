@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import antecedent
 import numpy as np
+from antecedent.outcomes import require_success
 
 
 def _confounded(n: int = 140, seed: int = 11):
@@ -16,13 +17,15 @@ def _confounded(n: int = 140, seed: int = 11):
 
 def test_prior_sensitivity_on_refute_full():
     data, edges = _confounded()
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(n_draws=48, backend="conjugate"),
-        refute="full",
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=48, backend="conjugate"),
+            refute="full",
+            seed=1,
+        )
     )
     sens = result.validation.prior_sensitivity
     assert sens is not None
@@ -35,14 +38,16 @@ def test_prior_sensitivity_on_refute_full():
 
 def test_prior_sensitivity_skipped_on_default_refute():
     data, edges = _confounded()
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(n_draws=32),
-        # "default refute" is spelled by leaving it unset; an explicit
-        # refute=True is a TypeError because it never said which suite.
-        seed=2,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=32),
+            # "default refute" is spelled by leaving it unset; an explicit
+            # refute=True is a TypeError because it never said which suite.
+            seed=2,
+        )
     )
     assert result.validation.prior_predictive is not None
     assert result.validation.prior_sensitivity is None

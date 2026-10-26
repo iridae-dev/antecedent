@@ -13223,6 +13223,7 @@ pub fn <antecedent::analysis::conditional_study_ranking::ConditionalStudyRanking
 pub fn <antecedent::analysis::conditional_study_ranking::ConditionalStudyRanking>::fn entries(&self) -> &[antecedent::analysis::conditional_study_ranking::ConditionalRankingEntry]
 pub fn <antecedent::analysis::conditional_study_ranking::ConditionalStudyRanking>::fn execute(session: &antecedent::analysis::recalc_composite::CompositeSession, policy: antecedent::analysis::conditional_study_ranking::ConditionalStudyPolicy) -> core::result::Result<Self, antecedent::analysis::conditional_study_ranking::ConditionalRankingError>
 pub fn <antecedent::analysis::conditional_study_ranking::ConditionalStudyRanking>::fn identity(&self) -> &str
+pub fn <antecedent::analysis::conditional_study_ranking::ConditionalStudyRanking>::fn inspect_retained(bytes: &[u8], expected_identity: core::option::Option<&str>) -> core::result::Result<Self, antecedent::analysis::conditional_study_ranking::ConditionalRankingError>
 pub fn <antecedent::analysis::conditional_study_ranking::ConditionalStudyRanking>::fn selected_action(&self) -> &str
 pub fn <antecedent::analysis::conditional_study_ranking::ConditionalStudyRanking>::fn to_bytes(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::analysis::conditional_study_ranking::ConditionalRankingError>
 pub fn <antecedent::analysis::count_fitted_observation::CountFittedObservation>::const fn source(&self) -> &antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire

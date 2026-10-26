@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 from antecedent.errors import CausalValueError
 from antecedent.interference import BernoulliAssignment
+from antecedent.outcomes import require_success
 
 
 def _bernoulli(seed: int = 0, n: int = 400):
@@ -25,20 +26,24 @@ def _bernoulli(seed: int = 0, n: int = 400):
 
 def test_randomized_effect_column_names_match_inline_arrays():
     assign, outcome, ids = _bernoulli()
-    inline = ant.analyze(
-        {"y": outcome},
-        query=ant.experiment.RandomizedEffect(
-            "y",
-            ant.experiment.ExperimentDesign(
-                BernoulliAssignment(0.5), [bool(v) for v in assign], list(ids), list(ids)
+    inline = require_success(
+        ant.analyze(
+            {"y": outcome},
+            query=ant.experiment.RandomizedEffect(
+                "y",
+                ant.experiment.ExperimentDesign(
+                    BernoulliAssignment(0.5), [bool(v) for v in assign], list(ids), list(ids)
+                ),
             ),
-        ),
+        )
     )
-    named = ant.analyze(
-        {"y": outcome, "arm": assign, "id": ids},
-        query=ant.experiment.RandomizedEffect(
-            "y", ant.experiment.ExperimentDesign(BernoulliAssignment(0.5), "arm", "id", "id")
-        ),
+    named = require_success(
+        ant.analyze(
+            {"y": outcome, "arm": assign, "id": ids},
+            query=ant.experiment.RandomizedEffect(
+                "y", ant.experiment.ExperimentDesign(BernoulliAssignment(0.5), "arm", "id", "id")
+            ),
+        )
     )
     assert named.answer.value == pytest.approx(inline.answer.value)
     # The string unit column is dropped before the numeric ingest, not rejected.
@@ -51,7 +56,7 @@ def test_column_name_that_is_absent_is_a_typed_error():
         "y", ant.experiment.ExperimentDesign(BernoulliAssignment(0.5), "missing", "id", "id")
     )
     with pytest.raises(CausalValueError, match="not in the data"):
-        ant.analyze({"y": outcome, "id": ids}, query=query)
+        require_success(ant.analyze({"y": outcome, "id": ids}, query=query))
 
 
 def _randomized_named_query():
@@ -72,19 +77,27 @@ def _randomized_named_query():
 def test_bool_column_accepts_only_bool_or_exact_zero_one(encode):
     assign, outcome, ids = _bernoulli()
     with pytest.raises(CausalValueError, match="'arm'.*bool or encoded as 0/1"):
-        ant.analyze(
-            {"y": outcome, "arm": encode(assign), "id": ids}, query=_randomized_named_query()
+        require_success(
+            ant.analyze(
+                {"y": outcome, "arm": encode(assign), "id": ids}, query=_randomized_named_query()
+            )
         )
 
 
 def test_bool_column_encoded_as_zero_one_matches_bool_column():
     assign, outcome, ids = _bernoulli()
-    as_bool = ant.analyze({"y": outcome, "arm": assign, "id": ids}, query=_randomized_named_query())
-    as_int = ant.analyze(
-        {"y": outcome, "arm": assign.astype(int), "id": ids}, query=_randomized_named_query()
+    as_bool = require_success(
+        ant.analyze({"y": outcome, "arm": assign, "id": ids}, query=_randomized_named_query())
     )
-    as_float = ant.analyze(
-        {"y": outcome, "arm": assign.astype(float), "id": ids}, query=_randomized_named_query()
+    as_int = require_success(
+        ant.analyze(
+            {"y": outcome, "arm": assign.astype(int), "id": ids}, query=_randomized_named_query()
+        )
+    )
+    as_float = require_success(
+        ant.analyze(
+            {"y": outcome, "arm": assign.astype(float), "id": ids}, query=_randomized_named_query()
+        )
     )
     assert as_int.answer.value == pytest.approx(as_bool.answer.value)
     assert as_float.answer.value == pytest.approx(as_bool.answer.value)
@@ -116,14 +129,18 @@ def test_int_column_requires_finite_integral_values(folds, match):
 
 def test_refresh_reuses_the_frozen_design_with_outcome_only_data():
     assign, outcome, ids = _bernoulli()
-    result = ant.analyze(
-        {"y": outcome, "arm": assign, "id": ids},
-        query=ant.experiment.RandomizedEffect(
-            "y", ant.experiment.ExperimentDesign(BernoulliAssignment(0.5), "arm", "id", "id")
-        ),
+    result = require_success(
+        ant.analyze(
+            {"y": outcome, "arm": assign, "id": ids},
+            query=ant.experiment.RandomizedEffect(
+                "y", ant.experiment.ExperimentDesign(BernoulliAssignment(0.5), "arm", "id", "id")
+            ),
+        )
     )
     rng = np.random.default_rng(1)
-    updated = result.study.refresh({"y": assign.astype(float) + rng.normal(size=len(assign))})
+    updated = require_success(
+        result.study.refresh({"y": assign.astype(float) + rng.normal(size=len(assign))})
+    )
     assert updated.answer.kind == "point"
     assert updated.program_id == result.program_id
 
@@ -134,22 +151,26 @@ def test_refresh_accepts_the_table_used_at_analyze():
     assign, outcome, ids = _bernoulli()
     table = {"y": outcome, "arm": assign, "id": ids}
     for data in (table, pd.DataFrame(table)):
-        result = ant.analyze(data, query=_randomized_named_query())
-        refreshed = result.study.refresh(data)
+        result = require_success(ant.analyze(data, query=_randomized_named_query()))
+        refreshed = require_success(result.study.refresh(data))
         assert refreshed.answer.value == pytest.approx(result.answer.value)
-        outcome_only = result.study.refresh({"y": outcome})
+        outcome_only = require_success(result.study.refresh({"y": outcome}))
         assert outcome_only.answer.value == pytest.approx(result.answer.value)
 
 
 def test_refresh_checks_named_design_columns_without_rebinding_them():
     assign, outcome, ids = _bernoulli()
-    result = ant.analyze({"y": outcome, "arm": assign, "id": ids}, query=_randomized_named_query())
+    result = require_success(
+        ant.analyze({"y": outcome, "arm": assign, "id": ids}, query=_randomized_named_query())
+    )
     shifted = outcome + 5.0
-    frozen = result.study.refresh({"y": shifted})
+    frozen = require_success(result.study.refresh({"y": shifted}))
     with pytest.raises(ant.errors.CausalValueError, match="frozen design column.*arm"):
-        result.study.refresh({"y": shifted, "arm": ~assign, "id": ids})
+        require_success(result.study.refresh({"y": shifted, "arm": ~assign, "id": ids}))
     assert result.study.last_result is frozen
-    rebound = result.study.reprepare({"y": shifted, "arm": ~assign, "id": ids}).estimate()
+    rebound = require_success(
+        result.study.reprepare({"y": shifted, "arm": ~assign, "id": ids}).estimate()
+    )
     assert rebound.answer.value == pytest.approx(-frozen.answer.value)
 
 
@@ -160,8 +181,10 @@ def test_named_design_columns_are_dropped_from_an_arrow_table():
     assign, outcome, ids = _bernoulli()
     table = pa.table({"y": outcome, "arm": assign, "id": ids})
     assert drop_columns(table, {"arm", "id"}).column_names == ["y"]
-    named = ant.analyze(table, query=_randomized_named_query())
-    inline = ant.analyze({"y": outcome, "arm": assign, "id": ids}, query=_randomized_named_query())
+    named = require_success(ant.analyze(table, query=_randomized_named_query()))
+    inline = require_success(
+        ant.analyze({"y": outcome, "arm": assign, "id": ids}, query=_randomized_named_query())
+    )
     assert named.answer.value == pytest.approx(inline.answer.value)
 
 
@@ -178,17 +201,21 @@ def test_policy_value_column_names_match_inline_arrays():
     outcome = 5.0 + 2.0 * np.asarray(assignment, dtype=float)
     actions = [True] * 4 + [False] * 4
     ids = [f"e{i}" for i in range(n)]
-    inline = ant.analyze(
-        {"y": outcome},
-        query=_policy.PolicyValue("y", assignment, 0.5, _policy.BinaryPolicy(actions), ids),
-        refute="none",
+    inline = require_success(
+        ant.analyze(
+            {"y": outcome},
+            query=_policy.PolicyValue("y", assignment, 0.5, _policy.BinaryPolicy(actions), ids),
+            refute="none",
+        )
     )
     # assignment, propensity (per-row), evaluation ids, and the nested BinaryPolicy
     # actions all named by data column; string ids ride in the data and are dropped.
-    named = ant.analyze(
-        {"y": outcome, "asg": assignment, "prop": [0.5] * n, "act": actions, "sid": ids},
-        query=_policy.PolicyValue("y", "asg", "prop", _policy.BinaryPolicy("act"), "sid"),
-        refute="none",
+    named = require_success(
+        ant.analyze(
+            {"y": outcome, "asg": assignment, "prop": [0.5] * n, "act": actions, "sid": ids},
+            query=_policy.PolicyValue("y", "asg", "prop", _policy.BinaryPolicy("act"), "sid"),
+            refute="none",
+        )
     )
     assert named.policy_value.policy_value == pytest.approx(inline.policy_value.policy_value)
     assert named.policy_value.incremental_value == pytest.approx(
@@ -203,28 +230,32 @@ def test_multi_action_policy_value_column_names_match_inline_arrays():
     recommendations = ["control"] * 3 + ["A"] * 3 + ["B"] * 3
     ids = [f"s{i}" for i in range(9)]
     props = [[1 / 3] * 3 for _ in assigned]
-    inline = ant.analyze(
-        {"y": outcomes},
-        query=_policy.MultiActionPolicyValue(
-            outcome="y",
-            assignment=assigned,
-            propensities=props,
-            policy=_policy.MultiActionPolicy(labels, recommendations, capacities=[9, 3, 3]),
-            evaluation_subject_ids=ids,
-        ),
-        refute="none",
+    inline = require_success(
+        ant.analyze(
+            {"y": outcomes},
+            query=_policy.MultiActionPolicyValue(
+                outcome="y",
+                assignment=assigned,
+                propensities=props,
+                policy=_policy.MultiActionPolicy(labels, recommendations, capacities=[9, 3, 3]),
+                evaluation_subject_ids=ids,
+            ),
+            refute="none",
+        )
     )
     # assignment and evaluation ids, plus the nested MultiActionPolicy recommendations.
-    named = ant.analyze(
-        {"y": outcomes, "asg": assigned, "rec": recommendations, "sid": ids},
-        query=_policy.MultiActionPolicyValue(
-            outcome="y",
-            assignment="asg",
-            propensities=props,
-            policy=_policy.MultiActionPolicy(labels, "rec", capacities=[9, 3, 3]),
-            evaluation_subject_ids="sid",
-        ),
-        refute="none",
+    named = require_success(
+        ant.analyze(
+            {"y": outcomes, "asg": assigned, "rec": recommendations, "sid": ids},
+            query=_policy.MultiActionPolicyValue(
+                outcome="y",
+                assignment="asg",
+                propensities=props,
+                policy=_policy.MultiActionPolicy(labels, "rec", capacities=[9, 3, 3]),
+                evaluation_subject_ids="sid",
+            ),
+            refute="none",
+        )
     )
     assert named.policy_value.policy_value == pytest.approx(inline.policy_value.policy_value)
 
@@ -235,23 +266,27 @@ def test_complier_effect_column_names_match_inline_arrays():
     outcome = 4.0 * np.asarray(receipt, dtype=float)
     units = [f"u{i}" for i in range(16)]
     rows = [f"r{i}" for i in range(16)]
-    inline = ant.analyze(
-        {"outcome": outcome},
-        query=ant.experiment.ComplierEffect(
-            "outcome",
-            ant.experiment.ExperimentDesign(BernoulliAssignment(0.5), assignment, units, rows),
-            receipt,
-        ),
-        refute="none",
+    inline = require_success(
+        ant.analyze(
+            {"outcome": outcome},
+            query=ant.experiment.ComplierEffect(
+                "outcome",
+                ant.experiment.ExperimentDesign(BernoulliAssignment(0.5), assignment, units, rows),
+                receipt,
+            ),
+            refute="none",
+        )
     )
-    named = ant.analyze(
-        {"outcome": outcome, "asg": assignment, "au": units, "ou": rows, "rcv": receipt},
-        query=ant.experiment.ComplierEffect(
-            "outcome",
-            ant.experiment.ExperimentDesign(BernoulliAssignment(0.5), "asg", "au", "ou"),
-            "rcv",
-        ),
-        refute="none",
+    named = require_success(
+        ant.analyze(
+            {"outcome": outcome, "asg": assignment, "au": units, "ou": rows, "rcv": receipt},
+            query=ant.experiment.ComplierEffect(
+                "outcome",
+                ant.experiment.ExperimentDesign(BernoulliAssignment(0.5), "asg", "au", "ou"),
+                "rcv",
+            ),
+            refute="none",
+        )
     )
     assert named.randomized_effect.effect == pytest.approx(inline.randomized_effect.effect)
     assert named.randomized_effect.intention_to_treat_effect == pytest.approx(
@@ -266,23 +301,27 @@ def test_switchback_column_names_match_inline_arrays():
     outcomes = [
         10.0 * s + (2.0 if t else 0.0) for s in range(4) for t in (True, False, False, True)
     ]
-    inline = ant.analyze(
-        {"y": outcomes},
-        query=ant.experiment.SwitchbackEffect(
-            "y",
-            ant.experiment.SwitchbackDesign(
-                assignment, sequences, periods, [0.5] * 16, ("off", "on")
+    inline = require_success(
+        ant.analyze(
+            {"y": outcomes},
+            query=ant.experiment.SwitchbackEffect(
+                "y",
+                ant.experiment.SwitchbackDesign(
+                    assignment, sequences, periods, [0.5] * 16, ("off", "on")
+                ),
             ),
-        ),
-        refute="none",
+            refute="none",
+        )
     )
-    named = ant.analyze(
-        {"y": outcomes, "a": assignment, "s": sequences, "p": periods, "pr": [0.5] * 16},
-        query=ant.experiment.SwitchbackEffect(
-            "y",
-            ant.experiment.SwitchbackDesign("a", "s", "p", "pr", ("off", "on")),
-        ),
-        refute="none",
+    named = require_success(
+        ant.analyze(
+            {"y": outcomes, "a": assignment, "s": sequences, "p": periods, "pr": [0.5] * 16},
+            query=ant.experiment.SwitchbackEffect(
+                "y",
+                ant.experiment.SwitchbackDesign("a", "s", "p", "pr", ("off", "on")),
+            ),
+            refute="none",
+        )
     )
     assert named.answer.value == pytest.approx(inline.answer.value)
 
@@ -293,23 +332,29 @@ def test_multi_arm_design_column_names_match_inline_arrays():
     units = [f"u{i}" for i in range(6)]
     rows = [f"r{i}" for i in range(6)]
     data = {"outcome": [0.0, 2.0, 5.0, 0.0, 2.0, 5.0]}
-    inline = ant.analyze(
-        data,
-        query=ant.experiment.RandomizedEffect(
-            "outcome",
-            ant.experiment.MultiArmExperimentDesign(
-                assignment, labels, [[1 / 3] * 3] * 6, units, rows
+    inline = require_success(
+        ant.analyze(
+            data,
+            query=ant.experiment.RandomizedEffect(
+                "outcome",
+                ant.experiment.MultiArmExperimentDesign(
+                    assignment, labels, [[1 / 3] * 3] * 6, units, rows
+                ),
             ),
-        ),
-        refute="none",
+            refute="none",
+        )
     )
-    named = ant.analyze(
-        {**data, "asg": assignment, "au": units, "ou": rows},
-        query=ant.experiment.RandomizedEffect(
-            "outcome",
-            ant.experiment.MultiArmExperimentDesign("asg", labels, [[1 / 3] * 3] * 6, "au", "ou"),
-        ),
-        refute="none",
+    named = require_success(
+        ant.analyze(
+            {**data, "asg": assignment, "au": units, "ou": rows},
+            query=ant.experiment.RandomizedEffect(
+                "outcome",
+                ant.experiment.MultiArmExperimentDesign(
+                    "asg", labels, [[1 / 3] * 3] * 6, "au", "ou"
+                ),
+            ),
+            refute="none",
+        )
     )
     assert named.answer.value == pytest.approx(inline.answer.value)
 
@@ -323,33 +368,37 @@ def test_factorial_second_factor_column_name_matches_inline_array():
     units = [f"u{i}" for i in range(8)]
     rows = [f"r{i}" for i in range(8)]
     outcome = 2.0 * np.asarray(primary, dtype=float) + np.asarray(second, dtype=float)
-    inline = ant.analyze(
-        {"y": outcome},
-        query=ant.experiment.RandomizedEffect(
-            "y",
-            ant.experiment.ExperimentDesign(
-                ant.experiment.FactorialRandomization(second, tuple(counts)),
-                primary,
-                units,
-                rows,
+    inline = require_success(
+        ant.analyze(
+            {"y": outcome},
+            query=ant.experiment.RandomizedEffect(
+                "y",
+                ant.experiment.ExperimentDesign(
+                    ant.experiment.FactorialRandomization(second, tuple(counts)),
+                    primary,
+                    units,
+                    rows,
+                ),
             ),
-        ),
-        refute="none",
+            refute="none",
+        )
     )
     # The FactorialRandomization second-factor arm names a data column; it resolves
     # through ExperimentDesign's nested-assignment recursion.
-    named = ant.analyze(
-        {"y": outcome, "sf": second},
-        query=ant.experiment.RandomizedEffect(
-            "y",
-            ant.experiment.ExperimentDesign(
-                ant.experiment.FactorialRandomization("sf", tuple(counts)),
-                primary,
-                units,
-                rows,
+    named = require_success(
+        ant.analyze(
+            {"y": outcome, "sf": second},
+            query=ant.experiment.RandomizedEffect(
+                "y",
+                ant.experiment.ExperimentDesign(
+                    ant.experiment.FactorialRandomization("sf", tuple(counts)),
+                    primary,
+                    units,
+                    rows,
+                ),
             ),
-        ),
-        refute="none",
+            refute="none",
+        )
     )
     assert named.answer.value == pytest.approx(inline.answer.value)
 
@@ -369,27 +418,31 @@ def test_interference_query_column_name_matches_inline_array():
     contrast = _interference.ExposureContrast(
         "y", _interference.ExposureLevel(0.0, 0.0), _interference.ExposureLevel(1.0, 0.0)
     )
-    inline = ant.analyze(
-        {"y": outcome},
-        graph=[],
-        query=_interference.InterferenceQuery(
-            _interference.BernoulliAssignment(0.5),
-            _interference.NeighborCount(),
-            contrast,
-            network=edges,
-            realized_assignment=assignment,
-        ),
+    inline = require_success(
+        ant.analyze(
+            {"y": outcome},
+            graph=[],
+            query=_interference.InterferenceQuery(
+                _interference.BernoulliAssignment(0.5),
+                _interference.NeighborCount(),
+                contrast,
+                network=edges,
+                realized_assignment=assignment,
+            ),
+        )
     )
-    named = ant.analyze(
-        {"y": outcome, "asg": assignment},
-        graph=[],
-        query=_interference.InterferenceQuery(
-            _interference.BernoulliAssignment(0.5),
-            _interference.NeighborCount(),
-            contrast,
-            network=edges,
-            realized_assignment="asg",
-        ),
+    named = require_success(
+        ant.analyze(
+            {"y": outcome, "asg": assignment},
+            graph=[],
+            query=_interference.InterferenceQuery(
+                _interference.BernoulliAssignment(0.5),
+                _interference.NeighborCount(),
+                contrast,
+                network=edges,
+                realized_assignment="asg",
+            ),
+        )
     )
     assert named.interference.contrast.horvitz_thompson == pytest.approx(
         inline.interference.contrast.horvitz_thompson
@@ -400,24 +453,28 @@ def test_longitudinal_regime_column_names_match_inline_arrays():
     history = [[True, True], [True, False], [False, True], [False, False]]
     outcome = [4.0, 0.0, 0.0, 0.0]
     ids = ["a", "b", "c", "d"]
-    inline = ant.analyze(
-        {"y": outcome},
-        query=LongitudinalRegime(
-            outcome="y",
-            treatment_history=history,
-            actions=[True, True],
-            treatment_probabilities=[[0.5, 0.5]] * 4,
-            subject_ids=ids,
-        ),
+    inline = require_success(
+        ant.analyze(
+            {"y": outcome},
+            query=LongitudinalRegime(
+                outcome="y",
+                treatment_history=history,
+                actions=[True, True],
+                treatment_probabilities=[[0.5, 0.5]] * 4,
+                subject_ids=ids,
+            ),
+        )
     )
-    named = ant.analyze(
-        {"y": outcome, "id": ids},
-        query=LongitudinalRegime(
-            outcome="y",
-            treatment_history=history,
-            actions=[True, True],
-            treatment_probabilities=[[0.5, 0.5]] * 4,
-            subject_ids="id",
-        ),
+    named = require_success(
+        ant.analyze(
+            {"y": outcome, "id": ids},
+            query=LongitudinalRegime(
+                outcome="y",
+                treatment_history=history,
+                actions=[True, True],
+                treatment_probabilities=[[0.5, 0.5]] * 4,
+                subject_ids="id",
+            ),
+        )
     )
     assert named.longitudinal_regime.value == pytest.approx(inline.longitudinal_regime.value)

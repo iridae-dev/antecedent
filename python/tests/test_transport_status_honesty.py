@@ -16,6 +16,7 @@ import math
 import pytest
 from antecedent import Admg, AverageEffect, analyze, identify, prepare, transport
 from antecedent.errors import CausalResourceError
+from antecedent.outcomes import require_success
 from antecedent.results import AnalysisResult
 from antecedent.transport import advanced
 from antecedent.transport._wrap import _RehydratedStudy, wrap_transport_result
@@ -170,7 +171,7 @@ def _statistical_specialist():
             identified, catalog, {"x": 1.0}, bootstrap=39, seed=7
         ),
     )
-    return identified, study.estimate()
+    return identified, require_success(study.estimate())
 
 
 def test_exact_scalar_never_reports_a_fabricated_analytic_se():
@@ -282,7 +283,7 @@ def test_transport_export_is_verified_natively_not_a_bare_json_blob():
     # (unlike ``PointDerivative``, which those helpers do not reconstruct);
     # its contrast shape exercises the ``TransportResponseGrid`` export path.
     result = analyze(_exact(), graph=_graph(), query=_ate())
-    blob = result.export()
+    blob = bytes(result.export())
     assert blob.startswith(b"ANTECEDENT-TRANSPORT-VIEW\x01")
     prefix = b"ANTECEDENT-TRANSPORT-VIEW\x01"
     payload = json.loads(blob[len(prefix) :])
@@ -296,7 +297,7 @@ def test_transport_export_is_verified_natively_not_a_bare_json_blob():
 
     # Hand-editing the lineage metadata (never a scientific claim) is fine.
     payload["provider"] = "tampered_but_harmless"
-    loaded = load(prefix + json.dumps(payload).encode())
+    loaded = require_success(load(prefix + json.dumps(payload).encode()))
     assert loaded.answer.value == pytest.approx(result.answer.value)
     assert loaded.identification.status == result.identification.status
 
@@ -305,11 +306,11 @@ def test_transport_export_is_verified_natively_not_a_bare_json_blob():
     corrupt = dict(payload)
     corrupt["identification_artifact"] = base64.b64encode(b"not a real certificate").decode("ascii")
     with pytest.raises(ValueError, match="invalid certificate framing"):
-        load(prefix + json.dumps(corrupt).encode())
+        require_success(load(prefix + json.dumps(corrupt).encode()))
 
     # Dropping the certificate entirely must fail closed (unidentified),
     # never keep reporting the original identified status.
     dropped = dict(payload)
     del dropped["identification_artifact"]
-    reloaded = load(prefix + json.dumps(dropped).encode())
+    reloaded = require_success(load(prefix + json.dumps(dropped).encode()))
     assert reloaded.identification.status == "NotIdentified"

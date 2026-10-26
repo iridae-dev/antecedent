@@ -13,6 +13,7 @@ import pytest
 from antecedent import _native
 from antecedent.errors import CausalCancelledError, CausalError, CausalTypeError
 from antecedent.inference import MeasuredInference
+from antecedent.outcomes import require_success
 from antecedent.recalc import RecalcRefusal
 from antecedent.recalc_temporal import (
     CheckedTemporalIntervalConfig,
@@ -28,7 +29,7 @@ from test_temporal_interval_activation import independent_replicates, panel
 
 def replay(result, tmp_path):
     path = tmp_path / "measured-temporal.cbor"
-    path.write_bytes(result.export())
+    path.write_bytes(bytes(result.export()))
     loaded = MeasuredInference.load(path.read_bytes(), expected=result.expected_identity)
     assert loaded.inspect() == result.inspect()
     assert loaded.source_report() == result.source_report()
@@ -46,7 +47,7 @@ print(json.dumps(r.inspect(),sort_keys=True))
     assert json.loads(child.stdout) == result.inspect()
     with pytest.raises(CausalError):
         MeasuredInference.load(
-            result.export(), expected=replace(result.expected_identity, data_digest="f" * 64)
+            bytes(result.export()), expected=replace(result.expected_identity, data_digest="f" * 64)
         )
 
 
@@ -84,7 +85,7 @@ def test_normal_checked_source_measured_scalar_independent_math_and_fresh_consum
 ):
     req = request(functional)
     session = TemporalSession()
-    session.execute(req, seed=41)
+    require_success(session.execute(req, seed=41))
     if method == "percentile":
         # Its record is a named boundary (measured below the level) over 128 to 512
         # units, so no calibrated claim is reported at this size or any other.
@@ -163,7 +164,7 @@ def test_normal_direct_whole_unit_measured_response_independent_math_and_fresh_c
 
 def test_normal_checked_and_direct_neighboring_protocols_cannot_borrow_evidence():
     session = TemporalSession()
-    session.execute(request(TemporalResponse((0, 0))), seed=41)
+    require_success(session.execute(request(TemporalResponse((0, 0))), seed=41))
     for config in [
         CheckedTemporalIntervalConfig(method="percentile"),
         CheckedTemporalIntervalConfig(method="basic"),
@@ -209,7 +210,7 @@ def test_normal_temporal_measured_artifact_requires_original_source_expectations
             ),
         )
         session = TemporalSession()
-        session.execute(req, seed=41)
+        require_success(session.execute(req, seed=41))
         measured = session.dependent_interval(config=CheckedTemporalIntervalConfig(method="basic"))
         assert measured.source_report()["source"]["request"]["units"] == json.loads(
             json.dumps(req._wire()["units"])
@@ -222,12 +223,12 @@ def test_normal_temporal_measured_artifact_requires_original_source_expectations
             seed=901,
         )
     replay(measured, tmp_path)
-    loaded = MeasuredInference.load(measured.export(), expected=measured.expected_identity)
+    loaded = MeasuredInference.load(bytes(measured.export()), expected=measured.expected_identity)
     assert loaded.source_artifact() == measured.source_artifact()
     assert loaded.source_report() == measured.source_report()
     for artifact, identity in (
-        (measured.export(), replace(measured.expected_identity, candidate_digest="0" * 64)),
-        (measured.export()[:-1], measured.expected_identity),
+        (bytes(measured.export()), replace(measured.expected_identity, candidate_digest="0" * 64)),
+        (bytes(measured.export())[:-1], measured.expected_identity),
         (measured.source_artifact(), measured.expected_identity),
     ):
         with pytest.raises(CausalError):
@@ -242,6 +243,6 @@ def test_checked_duplicate_history_cells_cannot_borrow_measured_protocol(method)
     histories[1] = replace(histories[0], time_id=histories[1].time_id)
     changed = replace(req, units=(replace(unit, histories=tuple(histories)), *req.units[1:]))
     session = TemporalSession()
-    session.execute(changed, seed=41)
+    require_success(session.execute(changed, seed=41))
     with pytest.raises(CausalError):
         session.dependent_interval(config=CheckedTemporalIntervalConfig(method=method))

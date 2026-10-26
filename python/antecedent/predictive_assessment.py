@@ -56,7 +56,13 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import _native
-from ._artifact_protocol import ExportedArtifact
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._freeze import thaw
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
@@ -169,6 +175,11 @@ def observation_key(domain: str, key: int | str | bytes) -> str:
     To share observations with an evidence ledger use :func:`keys`, which is the ledger's own
     observation identity.
     """
+    key = (
+        container_bytes(key)
+        if isinstance(key, (bytes, bytearray, memoryview, ExportedArtifact))
+        else key
+    )
     from . import evidence_ledger as el  # noqa: PLC0415
 
     return str(
@@ -954,14 +965,6 @@ class PredictiveAssessment(ScientificResult):
 
     __slots__ = ("_handle", "_report")
 
-    def artifact(
-        self, artifact_id: str = _DEFAULT_ARTIFACT_ID
-    ) -> ExportedArtifact[PredictiveAssessment]:
-        """Bytes and producer metadata; load returns the typed consumed result."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self, artifact_id)
-
     def __init__(self, handle: Any) -> None:
         self._handle = handle
         self._report = _report(json.loads(handle.report_json()))
@@ -979,13 +982,18 @@ class PredictiveAssessment(ScientificResult):
         """The identity digests of the inputs."""
         return self._report.identity
 
-    def export(self, artifact_id: str = _DEFAULT_ARTIFACT_ID) -> bytes:
+    @artifact_export
+    def export(
+        self, artifact_id: str = _DEFAULT_ARTIFACT_ID
+    ) -> ExportedArtifact[PredictiveAssessment]:
         """The portable ``predictive_assessment_v1`` artifact.
 
         It stores the laws, the observations, the declarations and the results; a consumer
         re-scores every case from them.
         """
-        return bytes(_unwrap(self._handle.export(_name(artifact_id, "artifact_id"))))
+        return artifact_from_receipt(
+            self, bytes(_unwrap(self._handle.export(_name(artifact_id, "artifact_id"))))
+        )
 
     def _closed(self, payload: str) -> None:
         raise_refusal(payload, PredictiveAssessmentRefusal)
@@ -1115,6 +1123,10 @@ def assess(
     return PredictiveAssessment(handle)
 
 
+@artifact_consumer(
+    proof="predictive_assessment.consume_predictive_assessment_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_predictive_assessment_artifact(
     artifact: bytes,
     expected_identity: Identity | Mapping[str, Any] | str | None = None,
@@ -1131,6 +1143,7 @@ def consume_predictive_assessment_artifact(
             identity, ``predictive_assessment.report_replay_mismatch`` for a stored value that
             does not recompute, and the contract's own refusal for stored declarations it refuses.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     expected: str | None

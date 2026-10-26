@@ -13,6 +13,7 @@ import math
 
 import antecedent as ant
 import pytest
+from antecedent.outcomes import require_success
 
 from _scm import confounded_scm
 
@@ -39,14 +40,16 @@ def _run(estimator: str, interval: dict | None, **config: object):
     settings: dict[str, object] = {"bootstrap_replicates": CAP, **config}
     if interval is not None:
         settings["bootstrap_interval"] = interval
-    return ant.analyze(
-        data,
-        graph=edges,
-        query=ant.AverageEffect(treatment="t", outcome="y"),
-        estimator=estimator,
-        estimator_config=settings,
-        refute="none",
-        seed=3,
+    return require_success(
+        ant.analyze(
+            data,
+            graph=edges,
+            query=ant.AverageEffect(treatment="t", outcome="y"),
+            estimator=estimator,
+            estimator_config=settings,
+            refute="none",
+            seed=3,
+        )
     )
 
 

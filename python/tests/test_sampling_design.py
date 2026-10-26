@@ -6,6 +6,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent.errors import CausalError, CausalValueError
+from antecedent.outcomes import require_success
 
 EDGES = [("z", "t"), ("z", "y"), ("t", "y")]
 QUERY = ant.AverageEffect(treatment="t", outcome="y")
@@ -20,9 +21,9 @@ def _rows(n: int = 120, seed: int = 3) -> dict[str, np.ndarray]:
 
 
 def _run(**options):
-    return ant.prepare(
-        _rows(), graph=EDGES, query=QUERY, refute=False, seed=1, **options
-    ).estimate()
+    return require_success(
+        ant.prepare(_rows(), graph=EDGES, query=QUERY, refute=False, seed=1, **options).estimate()
+    )
 
 
 def test_an_unknown_design_name_is_a_value_error():

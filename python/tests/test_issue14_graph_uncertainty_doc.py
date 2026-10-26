@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 
 def test_vignette_unidentified_mass_matches_live_analyze():
@@ -28,17 +29,19 @@ def test_vignette_unidentified_mass_matches_live_analyze():
         "qualified_pipeline_kgbp": qualified_pipeline_kgbp,
     }
 
-    result = antecedent.analyze(
-        data=data,
-        discovery=antecedent.discovery.ExactDagPosterior(),
-        query=antecedent.AverageEffect(
-            treatment="paid_search_spend_kgbp",
-            outcome="qualified_pipeline_kgbp",
-        ),
-        inference=antecedent.Bayesian(n_draws=80, backend="conjugate"),
-        refute=False,
-        bootstrap=0,
-        seed=seed,
+    result = require_success(
+        antecedent.analyze(
+            data=data,
+            discovery=antecedent.discovery.ExactDagPosterior(),
+            query=antecedent.AverageEffect(
+                treatment="paid_search_spend_kgbp",
+                outcome="qualified_pipeline_kgbp",
+            ),
+            inference=antecedent.Bayesian(n_draws=80, backend="conjugate"),
+            refute=False,
+            bootstrap=0,
+            seed=seed,
+        )
     )
     assert result.posterior is not None
     mass = float(result.posterior.unidentified_mass)

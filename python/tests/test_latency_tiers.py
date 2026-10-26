@@ -7,18 +7,21 @@ import math
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _scm import confounded_scm
 
 
 def test_interactive_vs_standard_effort():
     data, edges = confounded_scm(n=600, seed=7)
-    interactive = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        latency="interactive",
-        seed=1,
+    interactive = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            latency="interactive",
+            seed=1,
+        )
     )
     assert math.isfinite(interactive.ate)
     assert abs(interactive.ate - 2.0) < 0.5
@@ -26,13 +29,15 @@ def test_interactive_vs_standard_effort():
     assert interactive.performance.bootstrap_replicates_requested == 0
     assert interactive.identification.status
 
-    standard = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        latency="standard",
-        refute=False,
-        seed=1,
+    standard = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            latency="standard",
+            refute=False,
+            seed=1,
+        )
     )
     assert math.isfinite(standard.ate)
     assert standard.performance.latency_mode == "standard"
@@ -45,13 +50,15 @@ def test_interactive_vs_standard_effort():
 def test_cancel_mid_bootstrap_partial():
     data, edges = confounded_scm(n=400, seed=11)
     requested = 80
-    full = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        bootstrap=requested,
-        refute=False,
-        seed=3,
+    full = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            bootstrap=requested,
+            refute=False,
+            seed=3,
+        )
     )
     full_ok = full.performance.bootstrap_replicates_ok or 0
     # Production contexts evaluate the full request; there is no early-stop budget.
@@ -66,16 +73,18 @@ def test_cancel_mid_bootstrap_partial():
             seen["bootstrap"] = True
             token.cancel()
 
-    partial = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        bootstrap=requested,
-        refute=False,
-        seed=3,
-        threads=1,
-        cancel=token,
-        on_progress=on_progress,
+    partial = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            bootstrap=requested,
+            refute=False,
+            seed=3,
+            threads=1,
+            cancel=token,
+            on_progress=on_progress,
+        )
     )
     assert math.isfinite(partial.ate)
     assert partial.performance.cancelled
@@ -97,14 +106,16 @@ def test_progressive_stages_callback_order():
         if stage == "uncertainty":
             assert payload.get("se_bootstrap") is not None
 
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        bootstrap=40,
-        refute=False,
-        seed=11,
-        on_stage=on_stage,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            bootstrap=40,
+            refute=False,
+            seed=11,
+            on_stage=on_stage,
+        )
     )
     assert stages == ["identify", "estimate_point", "uncertainty", "validate"]
     assert point_ate and math.isfinite(point_ate[0])
@@ -132,15 +143,17 @@ def test_interactive_class_envelope_reports_subsampled_out_mass_separately():
     data, graph = _star_cpdag_study()
 
     def run(latency: str):
-        return antecedent.analyze(
-            data,
-            graph=graph,
-            query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
-            latency=latency,
-            refute=False,
-            bootstrap=0,
-            seed=5,
+        return require_success(
+            antecedent.analyze(
+                data,
+                graph=graph,
+                query=antecedent.AverageEffect(treatment="t", outcome="y"),
+                inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
+                latency=latency,
+                refute=False,
+                bootstrap=0,
+                seed=5,
+            )
         )
 
     standard = run("standard")

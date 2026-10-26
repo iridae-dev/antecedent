@@ -9,6 +9,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.errors import CausalUnsupportedError
+from antecedent.outcomes import require_success
 
 
 def _two_treatment_scm(n: int = 500, seed: int = 9):
@@ -45,8 +46,12 @@ def test_analyze_many_matches_solo():
         seed=3,
     )
     assert len(batch) == 2
-    solo1 = antecedent.analyze(data, graph=edges, query=q1, refute=False, bootstrap=0, seed=3)
-    solo2 = antecedent.analyze(data, graph=edges, query=q2, refute=False, bootstrap=0, seed=3)
+    solo1 = require_success(
+        antecedent.analyze(data, graph=edges, query=q1, refute=False, bootstrap=0, seed=3)
+    )
+    solo2 = require_success(
+        antecedent.analyze(data, graph=edges, query=q2, refute=False, bootstrap=0, seed=3)
+    )
     assert abs(batch[0].ate - solo1.ate) < 1e-12
     assert abs(batch[1].ate - solo2.ate) < 1e-12
     assert abs(batch[0].ate - 2.0) < 0.45
@@ -73,7 +78,7 @@ def test_analyze_many_shares_identical_nuisance_fits_bit_for_bit():
     common = dict(estimator="aipw", refute=False, bootstrap=0, seed=5)
     batch = antecedent.estimation.analyze_many(data, graph=edges, queries=queries, **common)
     for result, query in zip(batch, queries, strict=True):
-        solo = antecedent.analyze(data, graph=edges, query=query, **common)
+        solo = require_success(antecedent.analyze(data, graph=edges, query=query, **common))
         assert result.ate == solo.ate
     assert "propensity shared" in _shared_design_note(batch[0])
     assert "propensity shared" in _shared_design_note(batch[1])

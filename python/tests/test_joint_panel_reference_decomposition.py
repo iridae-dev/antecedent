@@ -9,13 +9,16 @@ from pathlib import Path
 import pytest
 from antecedent import joint_panel
 from antecedent.errors import CausalResourceError, CausalValueError
+from antecedent.outcomes import require_success
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 def fixture():
     return json.loads(
-        (ROOT / "conformance/response/joint_panel/population_reference.json").read_text(encoding="utf-8")
+        (ROOT / "conformance/response/joint_panel/population_reference.json").read_text(
+            encoding="utf-8"
+        )
     )
 
 
@@ -44,7 +47,7 @@ def truth():
 def test_parameter_and_population_reference_decomposition_with_actual_source_and_replay(bayesian):
     data = fixture()
     prepared = joint_panel.prepare_joint_design(data["target"], data["proof"])
-    result = prepared.execute(data["bayesian"] if bayesian else "frequentist")
+    result = require_success(prepared.execute(data["bayesian"] if bayesian else "frequentist"))
     declaration = data["population_reference"]
     report = result.decompose_population_reference(**declaration)
     expected_worlds, expected_contributions = truth()
@@ -73,7 +76,9 @@ def test_parameter_and_population_reference_decomposition_with_actual_source_and
         "require_identified": True,
     }
     component_report = result.decompose_reference_components(**components)
-    component_artifact = result.export_reference_decomposition(components)
+    component_artifact = bytes(
+        result.export(quantity="reference_decomposition", declaration=components)
+    )
     component_history = joint_panel.replay_reference_decomposition(component_artifact)
     component_current = result.consume_reference_decomposition_current(
         component_artifact, components
@@ -84,7 +89,7 @@ def test_parameter_and_population_reference_decomposition_with_actual_source_and
         == component_history["decomposition"]
         == component_current["decomposition"]
     )
-    artifact = result.export_population_reference(declaration)
+    artifact = bytes(result.export(quantity="population_reference", declaration=declaration))
     historical = joint_panel.replay_population_reference(artifact)
     current = result.consume_population_reference_current(artifact, declaration)
     assert historical["current_authorization"] is False
@@ -93,7 +98,9 @@ def test_parameter_and_population_reference_decomposition_with_actual_source_and
     changed["after_weights"] = [0.4, 0.6]
     with pytest.raises(CausalValueError, match="caller-current"):
         result.consume_population_reference_current(artifact, changed)
-    other_execution = prepared.execute("frequentist" if bayesian else data["bayesian"])
+    other_execution = require_success(
+        prepared.execute("frequentist" if bayesian else data["bayesian"])
+    )
     with pytest.raises(CausalValueError, match="statistical execution"):
         other_execution.consume_reference_decomposition_current(component_artifact, components)
     with pytest.raises(CausalValueError, match="statistical execution"):
@@ -102,7 +109,9 @@ def test_parameter_and_population_reference_decomposition_with_actual_source_and
 
 def test_population_only_change_and_missing_transport_premises():
     data = fixture()
-    result = joint_panel.prepare_joint_design(data["target"], data["proof"]).execute("frequentist")
+    result = require_success(
+        joint_panel.prepare_joint_design(data["target"], data["proof"]).execute("frequentist")
+    )
     isolated = copy.deepcopy(data["population_reference"])
     isolated["stratum_worlds"] = [[0] * 16, [8] * 16]
     report = result.decompose_population_reference(**isolated)

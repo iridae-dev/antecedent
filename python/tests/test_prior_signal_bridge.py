@@ -8,6 +8,7 @@ import pytest
 from antecedent import design as dr
 from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
 from antecedent.priors import (
     DesignVariable,
     EstimandFingerprint,
@@ -115,7 +116,7 @@ def test_original_checked_prior_reaches_canonical_ranker_and_replays():
     assert diagnostics["pooled_mean"] == 0.5
     assert diagnostics["source_digest"] in result.source_digests
     assert (
-        dr.consume(result.export(), expected_identity=result.expectation())
+        require_success(dr.consume(bytes(result.export()), expected_identity=result.expectation()))
         .entries[0]
         .natively_replayed
     )
@@ -189,14 +190,16 @@ def test_actual_native_bayesian_producer_catalog_adapter_ranking_handoff():
     t = np.tile([0.0, 1.0], 40)
     y = 0.25 * t + rng.normal(0.0, 0.7, len(t))
     query = ac.AverageEffect("t", "y")
-    result = ac.analyze(
-        {"t": t, "y": y},
-        graph=[("t", "y")],
-        query=query,
-        inference=ac.Bayesian(n_draws=32),
-        return_posterior_artifact=True,
-        refute=False,
-        seed=19,
+    result = require_success(
+        ac.analyze(
+            {"t": t, "y": y},
+            graph=[("t", "y")],
+            query=query,
+            inference=ac.Bayesian(n_draws=32),
+            return_posterior_artifact=True,
+            refute=False,
+            seed=19,
+        )
     )
     assert result.posterior is not None and result.posterior.artifact is not None
     source = PriorSource(
@@ -235,13 +238,16 @@ def test_actual_native_bayesian_producer_catalog_adapter_ranking_handoff():
     )
     assert ranked.calibration == "unmeasured"
     retained = ranked.expectation()
-    consumed = dr.consume(ranked.export(), expected_identity=retained)
+    consumed = require_success(dr.consume(bytes(ranked.export()), expected_identity=retained))
     assert not consumed.entries[0].natively_replayed
     assert ranked.candidates[0].claim == "monte_carlo_estimate"
     assert consumed.source_digests == ranked.source_digests
     with pytest.raises(dr.DesignRankingRefusal):
-        dr.consume(
-            ranked.export(), expected_identity=replace(retained, source_digests=("altered-source",))
+        require_success(
+            dr.consume(
+                bytes(ranked.export()),
+                expected_identity=replace(retained, source_digests=("altered-source",)),
+            )
         )
     with pytest.raises(dr.SourceOverlapRefusal):
         rank(checked, reuse=("training:0",))
@@ -263,7 +269,9 @@ def test_source_draw_mutation_changes_retained_source_expectations():
     assert original.candidates[0].evsi == pytest.approx(0.0625)
     assert original.source_digests != changed.source_digests
     with pytest.raises(dr.DesignRankingRefusal):
-        dr.consume(changed.export(), expected_identity=original.expectation())
+        require_success(
+            dr.consume(bytes(changed.export()), expected_identity=original.expectation())
+        )
 
 
 def test_catalog_metadata_cannot_upgrade_original_unidentified_posterior():

@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 from antecedent.descriptive import Association, AssociationEstimate
 from antecedent.errors import CausalError, CausalUnsupportedError, CausalValueError
+from antecedent.outcomes import require_success
 
 from _sealed_loads import assert_answer_kept
 
@@ -52,7 +53,7 @@ def _association(result: ant.AnalysisResult) -> AssociationEstimate:
 
 def test_the_compiled_study_reports_the_least_squares_line_and_is_noncausal() -> None:
     data = _line()
-    result = ant.analyze(data, query=Association("y", "x"), refute="none", seed=1)
+    result = require_success(ant.analyze(data, query=Association("y", "x"), refute="none", seed=1))
     section = _association(result)
     x, y = data["x"], data["y"]
     slope = np.cov(x, y, bias=True)[0, 1] / np.var(x)
@@ -72,14 +73,16 @@ def test_the_compiled_study_reports_the_least_squares_line_and_is_noncausal() ->
 
 def test_conditional_laws_match_the_group_statistics_and_the_two_by_two_table() -> None:
     data = _table({0.0: 100, 1.0: 100}, {0.0: 20, 1.0: 60})
-    conditional = ant.analyze(
-        data, query=Association("y", "x", functional="conditional"), refute="none"
+    conditional = require_success(
+        ant.analyze(data, query=Association("y", "x", functional="conditional"), refute="none")
     )
     section = _association(conditional)
     assert section.analysis == "stratified_probability"
     assert [term.estimate for term in section.terms] == pytest.approx([0.2, 0.6])
     assert section.terms[0].standard_error == pytest.approx(np.sqrt(0.2 * 0.8 / 99), abs=1e-12)
-    logistic = _association(ant.analyze(data, query=Association("y", "x"), refute="none"))
+    logistic = _association(
+        require_success(ant.analyze(data, query=Association("y", "x"), refute="none"))
+    )
     assert logistic.analysis == "logistic_regression"
     assert logistic.outcome_kind == "binary"
     expected = np.log(0.6 / 0.4) - np.log(0.2 / 0.8)
@@ -89,19 +92,27 @@ def test_conditional_laws_match_the_group_statistics_and_the_two_by_two_table() 
 
 def test_the_selection_rule_is_deterministic_and_a_declared_scale_wins() -> None:
     data = _line()
-    first = _association(ant.analyze(data, query=Association("y", "x"), refute="none", seed=1))
-    again = _association(ant.analyze(data, query=Association("y", "x"), refute="none", seed=99))
+    first = _association(
+        require_success(ant.analyze(data, query=Association("y", "x"), refute="none", seed=1))
+    )
+    again = _association(
+        require_success(ant.analyze(data, query=Association("y", "x"), refute="none", seed=99))
+    )
     assert first == again
     assert first.rule == "association_selection_rule"
     counted = _association(
-        ant.analyze(
-            {"x": data["x"], "y": np.round(np.abs(data["y"]))},
-            query=Association("y", "x", outcome_scale="count"),
-            refute="none",
+        require_success(
+            ant.analyze(
+                {"x": data["x"], "y": np.round(np.abs(data["y"]))},
+                query=Association("y", "x", outcome_scale="count"),
+                refute="none",
+            )
         )
     )
     assert counted.analysis == "poisson_regression" and counted.outcome_kind == "count"
-    marginal = _association(ant.analyze(data, query=Association("y"), refute="none"))
+    marginal = _association(
+        require_success(ant.analyze(data, query=Association("y"), refute="none"))
+    )
     assert marginal.analysis == "stratified_mean" and len(marginal.terms) == 1
 
 
@@ -109,23 +120,29 @@ def test_correlations_and_a_scored_predictive_model() -> None:
     x = np.linspace(-3.95, 3.95, 80)
     data = {"x": x, "y": x * x}
     pearson = _association(
-        ant.analyze(
-            data, query=Association("y", "x", functional="pearson_correlation"), refute="none"
+        require_success(
+            ant.analyze(
+                data, query=Association("y", "x", functional="pearson_correlation"), refute="none"
+            )
         )
     )
     assert pearson.terms[0].estimate == pytest.approx(0.0, abs=1e-9)
     distance = _association(
-        ant.analyze(
-            data, query=Association("y", "x", functional="distance_correlation"), refute="none"
+        require_success(
+            ant.analyze(
+                data, query=Association("y", "x", functional="distance_correlation"), refute="none"
+            )
         )
     )
     assert distance.terms[0].estimate > 0.4
     scored = _association(
-        ant.analyze(
-            _line(),
-            query=Association("y", "x", functional="predictive", folds=5),
-            refute="none",
-            seed=2,
+        require_success(
+            ant.analyze(
+                _line(),
+                query=Association("y", "x", functional="predictive", folds=5),
+                refute="none",
+                seed=2,
+            )
         )
     )
     assert scored.prediction is not None
@@ -134,13 +151,15 @@ def test_correlations_and_a_scored_predictive_model() -> None:
 
 
 def test_a_series_resamples_blocks_under_the_declared_dependent_design() -> None:
-    result = ant.analyze(
-        _series(),
-        query=Association("y", "x", temporal=True),
-        refute="none",
-        bootstrap=60,
-        sampling_design="dependent_time_series",
-        seed=4,
+    result = require_success(
+        ant.analyze(
+            _series(),
+            query=Association("y", "x", temporal=True),
+            refute="none",
+            bootstrap=60,
+            sampling_design="dependent_time_series",
+            seed=4,
+        )
     )
     section = _association(result)
     assert section.modality == "series"
@@ -150,24 +169,28 @@ def test_a_series_resamples_blocks_under_the_declared_dependent_design() -> None
     assert section.resampling.block_length is not None and section.resampling.block_length > 1
     assert section.terms[1].standard_error_method == "bootstrap_circular_block"
     with pytest.raises(CausalError) as refusal:
-        ant.analyze(
-            _series(),
-            query=Association("y", "x", temporal=True),
-            refute="none",
-            bootstrap=60,
-            sampling_design="independent_subject_trajectories",
+        require_success(
+            ant.analyze(
+                _series(),
+                query=Association("y", "x", temporal=True),
+                refute="none",
+                bootstrap=60,
+                sampling_design="independent_subject_trajectories",
+            )
         )
     assert "Next attempt" in str(refusal.value)
 
 
 def test_bayesian_readings_are_conjugate_for_gaussian_outcomes_and_a_bootstrap_otherwise() -> None:
     gaussian = _association(
-        ant.analyze(
-            _line(),
-            query=Association("y", "x"),
-            inference=ant.Bayesian(backend="conjugate", n_draws=400),
-            refute="none",
-            seed=6,
+        require_success(
+            ant.analyze(
+                _line(),
+                query=Association("y", "x"),
+                inference=ant.Bayesian(backend="conjugate", n_draws=400),
+                refute="none",
+                seed=6,
+            )
         )
     )
     assert gaussian.posterior is not None
@@ -177,32 +200,38 @@ def test_bayesian_readings_are_conjugate_for_gaussian_outcomes_and_a_bootstrap_o
     assert slope.posterior_lower is not None and slope.posterior_upper is not None
     assert slope.posterior_lower < slope.posterior_mean < slope.posterior_upper
     binary = _association(
-        ant.analyze(
-            _table({0.0: 100, 1.0: 100}, {0.0: 25, 1.0: 55}),
-            query=Association("y", "x"),
-            inference=ant.Bayesian(backend="conjugate", n_draws=400),
-            refute="none",
-            seed=6,
+        require_success(
+            ant.analyze(
+                _table({0.0: 100, 1.0: 100}, {0.0: 25, 1.0: 55}),
+                query=Association("y", "x"),
+                inference=ant.Bayesian(backend="conjugate", n_draws=400),
+                refute="none",
+                seed=6,
+            )
         )
     )
     assert binary.posterior is not None and binary.posterior.method == "bayesian_bootstrap"
     series = _association(
-        ant.analyze(
-            _series(120),
-            query=Association("y", "x", temporal=True),
-            inference=ant.Bayesian(backend="conjugate", n_draws=200),
-            refute="none",
-            seed=6,
+        require_success(
+            ant.analyze(
+                _series(120),
+                query=Association("y", "x", temporal=True),
+                inference=ant.Bayesian(backend="conjugate", n_draws=200),
+                refute="none",
+                seed=6,
+            )
         )
     )
     assert series.posterior is not None and series.posterior.method == "bayesian_bootstrap"
 
 
 def test_the_refusal_of_a_causal_query_stays_beside_the_description() -> None:
-    result = ant.analyze(
-        _line(),
-        query=Association("y", "x", refused_after="effect_not_identified"),
-        refute="none",
+    result = require_success(
+        ant.analyze(
+            _line(),
+            query=Association("y", "x", refused_after="effect_not_identified"),
+            refute="none",
+        )
     )
     section = _association(result)
     assert section.refused_after == "effect_not_identified"
@@ -219,23 +248,29 @@ def test_declarations_that_do_not_fit_are_refused_with_the_next_attempt() -> Non
         Association("y", "x", functional="predictive", folds=1)
     data = _line()
     with pytest.raises(CausalUnsupportedError) as graph:
-        ant.analyze(data, query=Association("y", "x"), graph=[("x", "y")], refute="none")
+        require_success(
+            ant.analyze(data, query=Association("y", "x"), graph=[("x", "y")], refute="none")
+        )
     assert graph.value.reason_code == "option_not_applicable"
     with pytest.raises(CausalUnsupportedError) as refute:
-        ant.analyze(data, query=Association("y", "x"), refute="full")
+        require_success(ant.analyze(data, query=Association("y", "x"), refute="full"))
     assert refute.value.reason_code == "option_not_applicable"
     with pytest.raises(CausalError):
-        ant.analyze(
-            data,
-            query=Association("y", "x"),
-            refute="none",
-            sampling_design="dependent_time_series",
+        require_success(
+            ant.analyze(
+                data,
+                query=Association("y", "x"),
+                refute="none",
+                sampling_design="dependent_time_series",
+            )
         )
 
 
 def test_an_exported_result_loads_with_the_same_associational_answer() -> None:
-    result = ant.analyze(_line(), query=Association("y", "x"), refute="none", seed=3)
-    loaded = ant.load(result.export())
+    result = require_success(
+        ant.analyze(_line(), query=Association("y", "x"), refute="none", seed=3)
+    )
+    loaded = require_success(ant.load(bytes(result.export())))
     assert_answer_kept(loaded)
     assert loaded.answer == result.answer
     assert loaded.answer.kind == "associational"

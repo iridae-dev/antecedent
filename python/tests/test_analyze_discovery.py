@@ -5,6 +5,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 
 def _two_regime_lag1_series(n: int = 120, seed: int = 3):
@@ -38,19 +39,21 @@ def _lag1_series(n: int = 120, seed: int = 3):
 
 def test_analyze_discovery_pcmci_smoke():
     data = _lag1_series()
-    result = antecedent.analyze(
-        data,
-        discovery=antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False),
-        query=antecedent.PulseEffect(
-            treatment="x",
-            outcome="y",
-            treatment_lag=1,
-            horizon_steps=1,
-            active_level=1.0,
-        ),
-        bootstrap=0,
-        seed=1,
-        refute=False,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            discovery=antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False),
+            query=antecedent.PulseEffect(
+                treatment="x",
+                outcome="y",
+                treatment_lag=1,
+                horizon_steps=1,
+                active_level=1.0,
+            ),
+            bootstrap=0,
+            seed=1,
+            refute=False,
+        )
     )
     # y_t = 0.6 x_{t-1} + 0.2 noise, so a unit pulse of x at lag 1 moves y one step later
     # by 0.6. The OLS SE at n = 120 is about 0.02, so 0.1 is five SEs: the discovered
@@ -80,19 +83,21 @@ def test_analyze_discovery_jpcmci_plus_two_env():
         antecedent.errors.CausalUnsupportedError,
         match="multi-environment TemporalEffect on a TemporalDag",
     ) as caught:
-        antecedent.analyze(
-            envs,
-            discovery=antecedent.discovery.JPCMCIPlus(max_lag=1, alpha=0.2, fdr=False),
-            query=antecedent.PulseEffect(
-                treatment="x",
-                outcome="y",
-                treatment_lag=1,
-                horizon_steps=1,
-                active_level=1.0,
-            ),
-            bootstrap=0,
-            seed=1,
-            refute=False,
+        require_success(
+            antecedent.analyze(
+                envs,
+                discovery=antecedent.discovery.JPCMCIPlus(max_lag=1, alpha=0.2, fdr=False),
+                query=antecedent.PulseEffect(
+                    treatment="x",
+                    outcome="y",
+                    treatment_lag=1,
+                    horizon_steps=1,
+                    active_level=1.0,
+                ),
+                bootstrap=0,
+                seed=1,
+                refute=False,
+            )
         )
     assert caught.value.reason_code == "data_modality_not_licensed"
 
@@ -114,20 +119,22 @@ def test_analyze_discovery_rpcmci_regimes():
         antecedent.errors.ReviewRequired,
         match="a single accepted graph requires exactly one|not certified",
     ):
-        antecedent.analyze(
-            data,
-            discovery=antecedent.discovery.RPCMCI(max_lag=1, alpha=0.2, fdr=False),
-            regimes=regimes,
-            query=antecedent.PulseEffect(
-                treatment="x",
-                outcome="y",
-                treatment_lag=1,
-                horizon_steps=1,
-                active_level=1.0,
-            ),
-            bootstrap=0,
-            seed=1,
-            refute=False,
+        require_success(
+            antecedent.analyze(
+                data,
+                discovery=antecedent.discovery.RPCMCI(max_lag=1, alpha=0.2, fdr=False),
+                regimes=regimes,
+                query=antecedent.PulseEffect(
+                    treatment="x",
+                    outcome="y",
+                    treatment_lag=1,
+                    horizon_steps=1,
+                    active_level=1.0,
+                ),
+                bootstrap=0,
+                seed=1,
+                refute=False,
+            )
         )
 
 
@@ -147,13 +154,15 @@ def _v_structure_data(n: int = 1000, seed: int = 7):
 
 def test_analyze_discovery_pc_orients_v_structure_and_recovers_effect():
     data = _v_structure_data()
-    result = antecedent.analyze(
-        data,
-        discovery=antecedent.discovery.PC(alpha=0.001, fdr=False, max_cond_size=2),
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            discovery=antecedent.discovery.PC(alpha=0.001, fdr=False, max_cond_size=2),
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     # `w` is a second cause of `y`, not a confounder, so the adjustment set is empty and
     # the OLS SE of the t coefficient is sqrt(1.0**2 + 0.3**2) / sqrt(n) = 0.033. The
@@ -183,13 +192,15 @@ def test_analyze_discovery_pc_refuses_unorientable_triangle():
     # So this must not refuse: it must return a graph-dependent envelope that
     # mixes the identified and unidentified completions of the triangle's MEC,
     # never a single confident number.
-    result = antecedent.analyze(
-        {"t": t, "y": y, "z": z},
-        discovery=antecedent.discovery.PC(alpha=0.2, fdr=False, max_cond_size=2),
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            {"t": t, "y": y, "z": z},
+            discovery=antecedent.discovery.PC(alpha=0.2, fdr=False, max_cond_size=2),
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert result.answer.kind == "bounds"
     assert result.answer.value is None
@@ -205,13 +216,15 @@ def test_analyze_ate_enriched_fields():
     z = rng.normal(size=n)
     t = (z + rng.normal(size=n) > 0).astype(np.float64)
     y = 2.0 * t + z + rng.normal(size=n) * 0.3
-    result = antecedent.analyze(
-        {"t": t, "y": y, "z": z},
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            {"t": t, "y": y, "z": z},
+            graph=[("z", "t"), ("z", "y"), ("t", "y")],
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert result.performance.modality
     assert result.performance.plan_id

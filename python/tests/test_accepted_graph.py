@@ -8,6 +8,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.graph import TemporalCpdag, TemporalPag
+from antecedent.outcomes import require_success
 
 from _scm import confounded_scm
 
@@ -57,8 +58,8 @@ def test_from_discovery_estimates_without_rediscover(monkeypatch):
         version=accepted.version,
     )
     q = antecedent.AverageEffect(treatment="t", outcome="y")
-    first = estimate_handle.analyze(data, query=q, seed=1)
-    second = estimate_handle.analyze(data, query=q, seed=1, bootstrap=0)
+    first = require_success(estimate_handle.analyze(data, query=q, seed=1))
+    second = require_success(estimate_handle.analyze(data, query=q, seed=1, bootstrap=0))
     assert calls["n"] == 1, "estimate clicks must not re-enter discovery"
     assert estimate_handle.version == 1
     assert math.isfinite(first.ate)
@@ -80,8 +81,8 @@ def test_bootstrap_tweak_does_not_bump_version_or_rediscover(monkeypatch):
     _patch_discovery(monkeypatch, "run_static_discovery", boom)
 
     q = antecedent.AverageEffect(treatment="t", outcome="y")
-    a = accepted.analyze(data, query=q, seed=1, bootstrap=0)
-    b = accepted.analyze(data, query=q, seed=1, bootstrap=10, refute=False)
+    a = require_success(accepted.analyze(data, query=q, seed=1, bootstrap=0))
+    b = require_success(accepted.analyze(data, query=q, seed=1, bootstrap=10, refute=False))
     assert calls["n"] == 0
     assert accepted.version == 1
     assert math.isfinite(a.ate) and math.isfinite(b.ate)
@@ -94,7 +95,7 @@ def test_accepted_graph_prepare_records_accepted_structure():
     q = antecedent.AverageEffect(treatment="t", outcome="y")
     prepared = accepted.prepare(data, query=q, refute=False, seed=1)
     assert prepared.structure_source == "accepted"
-    click = prepared.estimate(data, seed=1)
+    click = require_success(prepared.estimate(data, seed=1))
     assert math.isfinite(click.ate)
     edges_prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data, query=q, graph=[("z", "t"), ("z", "y"), ("t", "y")], refute=False, seed=1
@@ -131,10 +132,12 @@ def test_analyze_rejects_discovery_kwarg():
         [("z", "t"), ("z", "y"), ("t", "y")], algorithm_id=None
     )
     with pytest.raises(antecedent.errors.CausalUnsupportedError, match="rejects discovery="):
-        accepted.analyze(
-            data,
-            query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            discovery=antecedent.discovery.PC(),
+        require_success(
+            accepted.analyze(
+                data,
+                query=antecedent.AverageEffect(treatment="t", outcome="y"),
+                discovery=antecedent.discovery.PC(),
+            )
         )
 
 
@@ -220,8 +223,8 @@ def test_prepare_on_accepted_graph():
         data, query=antecedent.AverageEffect(treatment="t", outcome="y"), seed=1
     )
     assert prepared is not None
-    first = prepared.estimate(data, seed=1)
-    second = prepared.refresh(data, seed=1)
+    first = require_success(prepared.estimate(data, seed=1))
+    second = require_success(prepared.refresh(data, seed=1))
     assert accepted.version == 1
     assert abs(first.ate - second.ate) < 1e-12
     assert abs(first.ate - 2.0) < 0.6
@@ -264,8 +267,12 @@ def test_temporal_accepted_graph_estimates_without_rediscover(monkeypatch):
         version=accepted.version,
     )
     q = antecedent.PulseEffect(treatment="x", outcome="y", treatment_lag=1, horizon_steps=1)
-    first = estimate_handle.analyze(data, query=q, seed=1, bootstrap=0, refute=False)
-    second = estimate_handle.analyze(data, query=q, seed=1, bootstrap=10, refute=False)
+    first = require_success(
+        estimate_handle.analyze(data, query=q, seed=1, bootstrap=0, refute=False)
+    )
+    second = require_success(
+        estimate_handle.analyze(data, query=q, seed=1, bootstrap=10, refute=False)
+    )
     assert calls["n"] == 1, "temporal estimate clicks must not re-enter discovery"
     assert estimate_handle.version == 1
     assert math.isfinite(first.ate)

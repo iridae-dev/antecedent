@@ -7,6 +7,7 @@ import numpy as np
 from antecedent import PulseEffect
 from antecedent.data import event, multi_env, panel
 from antecedent.estimation import PreparedAnalysis
+from antecedent.outcomes import require_success
 
 
 def _series(n: int = 40, seed: int = 8) -> dict[str, np.ndarray]:
@@ -28,8 +29,8 @@ def test_panel_frame_prepares_through_pyo3():
         bootstrap=0,
         refute="none",
     )
-    result = prepared.estimate()
-    encoded = result.export()
+    result = require_success(prepared.estimate())
+    encoded = bytes(result.export())
     loaded = ant.artifacts.loads(encoded)
     assert loaded.payload_kind == "analysis_result"
 
@@ -46,8 +47,8 @@ def test_event_frame_prepares_through_pyo3():
         bootstrap=0,
         refute="none",
     )
-    result = prepared.estimate()
-    assert result.export()
+    result = require_success(prepared.estimate())
+    assert bytes(result.export())
 
 
 def test_multi_env_frame_prepares_through_pyo3():
@@ -60,7 +61,7 @@ def test_multi_env_frame_prepares_through_pyo3():
         bootstrap=0,
         refute="none",
     )
-    result = prepared.estimate()
-    encoded = result.export()
+    result = require_success(prepared.estimate())
+    encoded = bytes(result.export())
     loaded = ant.artifacts.loads(encoded)
     assert loaded.payload_kind == "analysis_result"

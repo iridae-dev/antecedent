@@ -4,6 +4,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent import interference
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 
@@ -128,12 +129,14 @@ def test_randomized_interference_matches_empty_network_difference() -> None:
         ),
     )
 
-    result = interference.estimate(
-        {"y": np.array([1.0, 3.0, 2.0, 4.0])},
-        assignment=[False, True, False, True],
-        edges=[],
-        query=query,
-        seed=9,
+    result = require_success(
+        interference.estimate(
+            {"y": np.array([1.0, 3.0, 2.0, 4.0])},
+            assignment=[False, True, False, True],
+            edges=[],
+            query=query,
+            seed=9,
+        )
     )
 
     assert result.contrast.hajek == pytest.approx(2.0)
@@ -156,11 +159,13 @@ def test_randomized_interference_uses_directed_network_edges() -> None:
         interference.NetworkEdge(1, 0),
     ]
 
-    result = interference.estimate(
-        {"y": np.array([1.0, 4.0])},
-        assignment=[True, False],
-        edges=edges,
-        query=query,
+    result = require_success(
+        interference.estimate(
+            {"y": np.array([1.0, 4.0])},
+            assignment=[True, False],
+            edges=edges,
+            query=query,
+        )
     )
 
     assert result.contrast.hajek == pytest.approx(-3.0)
@@ -178,11 +183,13 @@ def test_cluster_randomization_partial_interference_reports_support_and_bound() 
         ),
         partial_interference=interference.PartialInterference(clusters),
     )
-    result = interference.estimate(
-        {"y": np.array([1.0, 2.0, 3.0, 4.0])},
-        assignment=[False, False, True, True],
-        edges=[(0, 1), (1, 0), (2, 3), (3, 2)],
-        query=query,
+    result = require_success(
+        interference.estimate(
+            {"y": np.array([1.0, 2.0, 3.0, 4.0])},
+            assignment=[False, False, True, True],
+            edges=[(0, 1), (1, 0), (2, 3), (3, 2)],
+            query=query,
+        )
     )
 
     assert result.contrast.hajek == pytest.approx(2.0)
@@ -208,7 +215,9 @@ def test_partial_interference_rejects_cross_cluster_edges_and_partition_mismatch
     args = {"y": np.array([0.0, 1.0, 2.0, 3.0])}
     assignment = [False, False, True, True]
     with pytest.raises(ValueError, match="crosses cluster boundary"):
-        interference.estimate(args, assignment=assignment, edges=[(0, 2)], query=query)
+        require_success(
+            interference.estimate(args, assignment=assignment, edges=[(0, 2)], query=query)
+        )
 
     mismatched = interference.InterferenceQuery(
         interference.ClusterRandomization(clusters, 1),
@@ -217,7 +226,9 @@ def test_partial_interference_rejects_cross_cluster_edges_and_partition_mismatch
         partial_interference=interference.PartialInterference([0, 1, 0, 1]),
     )
     with pytest.raises(ValueError, match="partition"):
-        interference.estimate(args, assignment=assignment, edges=[], query=mismatched)
+        require_success(
+            interference.estimate(args, assignment=assignment, edges=[], query=mismatched)
+        )
 
 
 def test_partial_interference_requires_explicit_cluster_assignment() -> None:
@@ -230,6 +241,8 @@ def test_partial_interference_requires_explicit_cluster_assignment() -> None:
         partial_interference=interference.PartialInterference([0, 0]),
     )
     with pytest.raises(ValueError, match="requires ClusterRandomization"):
-        interference.estimate(
-            {"y": np.array([0.0, 1.0])}, assignment=[False, True], edges=[], query=query
+        require_success(
+            interference.estimate(
+                {"y": np.array([0.0, 1.0])}, assignment=[False, True], edges=[], query=query
+            )
         )

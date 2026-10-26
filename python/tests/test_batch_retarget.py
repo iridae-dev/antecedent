@@ -22,6 +22,7 @@ from antecedent.estimation import (
     analyze_many,
 )
 from antecedent.estimators import Aipw, PropensityPenalty
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -76,20 +77,24 @@ def test_batch_entry_points_accept_typed_configurations_and_strings_alike():
         Aipw(bootstrap=0, propensity_penalty=PropensityPenalty(lambdas=[0.5, 5.0, 50.0])),
     ):
         solo = [
-            ant.analyze(data, graph=GRAPH, query=q, estimator=cfg, refute=False, seed=11)
+            require_success(
+                ant.analyze(data, graph=GRAPH, query=q, estimator=cfg, refute=False, seed=11)
+            )
             for q in (Q_T1_Y1, Q_T2_Y1)
         ]
         many = analyze_many(
             data, graph=GRAPH, queries=[Q_T1_Y1, Q_T2_Y1], estimator=cfg, refute=False, seed=11
         )
-        prepared = PreparedBatch.prepare(
-            data,
-            graph=GRAPH,
-            queries=[Q_T1_Y1, Q_T2_Y1],
-            estimator=cfg,
-            refute=False,
-            seed=11,
-        ).estimate(data, seed=11)
+        prepared = require_success(
+            PreparedBatch.prepare(
+                data,
+                graph=GRAPH,
+                queries=[Q_T1_Y1, Q_T2_Y1],
+                estimator=cfg,
+                refute=False,
+                seed=11,
+            ).estimate(data, seed=11)
+        )
         for alone, batch_result, again in zip(solo, many, prepared, strict=True):
             assert batch_result.effect == alone.effect
             assert again.effect == alone.effect
@@ -260,7 +265,7 @@ def test_a_retarget_after_estimate_reads_that_estimates_rows():
     assert prepared_rows is not None and len(prepared_rows) == 500
     assert batch.retarget_snapshot() is not None
     fresh = frame(n=430, seed=12)
-    batch.estimate(fresh, seed=11)
+    require_success(batch.estimate(fresh, seed=11))
     rows = batch.retarget_rows()
     assert rows is not None and len(rows) == 430
     assert (
@@ -325,7 +330,7 @@ def test_a_plan_without_scores_refuses_its_members_after_an_estimate():
     claim = RetargetClaim("a", 0, np.ones(500), depends_on=[])
     before = batch.retarget([claim])
     assert before.claims[0].refusal_code == "score_table_unavailable"
-    batch.estimate(data, seed=11)
+    require_success(batch.estimate(data, seed=11))
     after = batch.retarget([claim])
     assert after.claims[0].refusal_code == "score_table_unavailable"
     assert after.claims[0].status == "failed" and not after.complete

@@ -233,8 +233,8 @@ _WRAPPED_PRIVATE_NATIVES = {
 
 
 def test_wrapped_private_natives_exist_and_are_stubbed():
-    assert _WRAPPED_PRIVATE_NATIVES <= set(dir(_native))
-    assert _WRAPPED_PRIVATE_NATIVES <= _stub_toplevel_names()
+    assert set(dir(_native)) >= _WRAPPED_PRIVATE_NATIVES
+    assert _stub_toplevel_names() >= _WRAPPED_PRIVATE_NATIVES
 
 
 _MUST_BE_CHECKED = (
@@ -268,9 +268,13 @@ def _stub_param_specs(fn: ast.FunctionDef) -> list[tuple[str, bool, Any]]:
     for arg, default_node in zip(positional, pos_defaults, strict=True):
         default = _MISSING if default_node is None else ast.literal_eval(default_node)
         out.append((arg.arg, False, default))
+    if args.vararg is not None:
+        out.append(("*" + args.vararg.arg, False, _MISSING))
     for arg, default_node in zip(args.kwonlyargs, args.kw_defaults, strict=True):
         default = _MISSING if default_node is None else ast.literal_eval(default_node)
         out.append((arg.arg, True, default))
+    if args.kwarg is not None:
+        out.append(("**" + args.kwarg.arg, False, _MISSING))
     return out
 
 
@@ -303,8 +307,29 @@ def _native_param_specs(sig: inspect.Signature) -> list[tuple[str, bool, Any]]:
     for p in sig.parameters.values():
         keyword_only = p.kind == inspect.Parameter.KEYWORD_ONLY
         default = _MISSING if p.default is inspect.Parameter.empty else p.default
-        out.append((p.name, keyword_only, default))
+        prefix = (
+            "*"
+            if p.kind == inspect.Parameter.VAR_POSITIONAL
+            else "**"
+            if p.kind == inspect.Parameter.VAR_KEYWORD
+            else ""
+        )
+        out.append((prefix + p.name, keyword_only, default))
     return out
+
+
+def test_variadic_signature_comparison_keeps_parameter_kinds():
+    stub = ast.parse("def f(value, /, *args, mode=False, **kwargs): ...").body[0]
+    assert isinstance(stub, ast.FunctionDef)
+
+    def variadic(value, /, *args, mode=False, **kwargs):
+        pass
+
+    def positional(value, args, mode=False, kwargs=None):
+        pass
+
+    assert _stub_param_specs(stub) == _native_param_specs(inspect.signature(variadic))
+    assert _stub_param_specs(stub) != _native_param_specs(inspect.signature(positional))
 
 
 def test_stub_signatures_match_the_extension():

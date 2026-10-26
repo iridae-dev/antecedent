@@ -16,6 +16,13 @@ from typing import TYPE_CHECKING, Any, Literal, get_args
 import numpy as np
 from numpy.typing import NDArray
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._native import JointDistributionArtifact as _NativeJointDistributionArtifact
 from ._scientific import ScientificResult
 from ._validate import count as _count
@@ -199,6 +206,9 @@ class ScientificQuantity:
         native producer supplies the actual variable, intervention levels and
         ``mean_difference`` semantics. Aggregate results supply no outcome law.
         """
+        from .outcomes import require_success
+
+        result = require_success(result)
         from .errors import CausalUnsupportedError
         from .external import ExternalRefusal
         from .results import AnalysisResult
@@ -446,15 +456,27 @@ class JointDistributionArtifact(ScientificResult):
         return obj
 
     @classmethod
+    @artifact_consumer(
+        proof="joint_distribution.JointDistributionArtifact.load: independent semantic consumer checks declarations, identities and stored result",
+        replayable=False,
+        input="data",
+    )
     def load(
         cls, data: bytes, *, expected_identity: DistributionIdentity
     ) -> JointDistributionArtifact:
         """Load only under the consumer's independently retained identity."""
+        data = container_bytes(data)
         native = _NativeJointDistributionArtifact.load(data, json.dumps(expected_identity._wire()))
         obj = cls.__new__(cls)
         obj._native = native
         obj._identity = expected_identity
         return obj
+
+    @property
+    def answer(self) -> Any:
+        from .outcomes import Answer
+
+        return Answer("distribution", detail=str(self.semantic))
 
     @property
     def semantic(self) -> DistributionMeaning:
@@ -515,13 +537,9 @@ class JointDistributionArtifact(ScientificResult):
             "n_draws": self.n_draws,
         }
 
-    def artifact(self, artifact_id: str) -> ExportedArtifact[JointDistributionArtifact]:
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self, artifact_id)
-
-    def export(self, artifact_id: str) -> bytes:
-        return self._native.export(artifact_id)
+    @artifact_export
+    def export(self, artifact_id: str) -> ExportedArtifact[JointDistributionArtifact]:
+        return artifact_from_receipt(self, self._native.export(artifact_id))
 
     def mean(self, coordinate: int) -> float:
         return self._native.mean(coordinate)

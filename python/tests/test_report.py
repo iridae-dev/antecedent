@@ -23,6 +23,7 @@ import numpy as np
 import pytest
 from antecedent.errors import CausalValueError
 from antecedent.estimation import PreparedAnalysis
+from antecedent.outcomes import require_success
 from antecedent.policy import ConditionalDoseResponse
 
 GOLDEN = Path(__file__).parent / "golden" / "report"
@@ -61,7 +62,7 @@ def _licensed():
         bootstrap=0,
         seed=3,
     )
-    prepared.estimate(_table(), seed=3)
+    require_success(prepared.estimate(_table(), seed=3))
     return prepared
 
 
@@ -75,7 +76,7 @@ def _bayesian():
         bootstrap=0,
         seed=3,
     )
-    prepared.estimate(_table(), seed=3)
+    require_success(prepared.estimate(_table(), seed=3))
     return prepared
 
 
@@ -108,7 +109,7 @@ def _unlicensed():
             density_provenance="known",
         ),
     )
-    prepared.estimate()
+    require_success(prepared.estimate())
     return prepared
 
 
@@ -133,7 +134,7 @@ def _temporal():
         refute=False,
         seed=7,
     )
-    prepared.estimate(data, seed=7)
+    require_success(prepared.estimate(data, seed=7))
     return prepared
 
 
@@ -215,7 +216,7 @@ def test_report_before_an_estimate_reads_the_contract_and_executes_nothing() -> 
         section for section in _SECTIONS if section != "Claim"
     ]
     assert prepared.report("markdown") == markdown, "reading it twice changes nothing"
-    prepared.estimate(_table(), seed=3)
+    require_success(prepared.estimate(_table(), seed=3))
     assert "## Claim" in prepared.report("markdown")
 
 
@@ -235,7 +236,7 @@ def test_the_unlicensed_route_states_that_no_licence_applies() -> None:
 
 def test_a_refused_cell_raises_at_prepare_so_no_handle_reports_on_it() -> None:
     data = _table()
-    with pytest.raises(Exception):  # noqa: B017 - the refusal's type is pinned by its own suites
+    with pytest.raises(CausalValueError, match="a temporal query needs lagged edges"):
         ant.prepare(
             data,
             graph=_EDGES,
@@ -261,7 +262,7 @@ def test_html_is_inert_and_escapes_every_value() -> None:
         bootstrap=0,
         seed=3,
     )
-    prepared.estimate(_table(names=hostile), seed=3)
+    require_success(prepared.estimate(_table(names=hostile), seed=3))
 
     html = prepared.report("html")
     assert "<script" not in html

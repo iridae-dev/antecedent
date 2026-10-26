@@ -38,7 +38,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal
 
 from . import _native
 from .errors import (
@@ -57,7 +57,7 @@ if TYPE_CHECKING:
         FailureContract,
         StudyCandidate,
     )
-    from .results import Analysis
+    from .results import AnalysisResult
 
 __all__ = [
     "IDENTIFICATION_REFUSAL_CODES",
@@ -338,7 +338,7 @@ class AnalysisWithFallback:
     """
 
     refusal: CausalError
-    associational: Analysis | FallbackUnavailable
+    associational: AnalysisResult | FallbackUnavailable
     evidence_plan: EvidenceNeeds | FallbackUnavailable
     roles: FallbackRoles | None = None
 
@@ -516,7 +516,7 @@ def _associational(
     roles: FallbackRoles,
     data: Any,
     options: Mapping[str, Any],
-) -> Analysis | FallbackUnavailable:
+) -> AnalysisResult | FallbackUnavailable:
     from .descriptive import Association
     from .estimation import PreparedAnalysis
 
@@ -542,7 +542,12 @@ def _associational(
             "fallback.association_refused",
             str(error),
         )
-    return cast("Analysis", result)
+    from .errors import CausalStateError
+    from .results import AnalysisResult
+
+    if not isinstance(result, AnalysisResult):
+        raise CausalStateError("associational execution returned an unexpected result type")
+    return result
 
 
 def _evidence(
@@ -643,7 +648,7 @@ def describe(
     options = {} if options is None else options
     columns = table_names(data)
     roles = fallback_roles(query, graph, columns)
-    associational: Analysis | FallbackUnavailable
+    associational: AnalysisResult | FallbackUnavailable
     if isinstance(roles, FallbackUnavailable):
         associational, kept = roles, None
     else:

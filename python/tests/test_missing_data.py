@@ -8,6 +8,7 @@ import pytest
 from antecedent import interference
 from antecedent.errors import CausalError, CausalValueError
 from antecedent.missing import MissingPolicy, coerce_missing
+from antecedent.outcomes import require_success
 from antecedent.quasi import PanelDifferenceInDifferences
 
 TRUE_EFFECT = 0.3
@@ -53,7 +54,7 @@ def test_randomized_trial_refuses_missing_outcomes_without_a_policy():
     first = int(np.flatnonzero(~responded)[0])
     data = {"outcome": observed, "baseline": baseline}
     with pytest.raises(CausalError) as raised:
-        ant.analyze(data, query=_query(arm), refute="none")
+        require_success(ant.analyze(data, query=_query(arm), refute="none"))
     assert getattr(raised.value, "reason_code", None) == "missing_policy_required"
     assert f"column `outcome` at row {first}" in str(raised.value)
     assert "complete_case, inverse_probability" in str(raised.value)
@@ -62,11 +63,13 @@ def test_randomized_trial_refuses_missing_outcomes_without_a_policy():
 def test_inverse_probability_recovers_the_effect_and_reports_accounting():
     arm, baseline, _, responded, observed = _trial(30_000, seed=3)
     data = {"outcome": observed, "baseline": baseline}
-    weighted = ant.analyze(
-        data,
-        query=_query(arm),
-        missing=MissingPolicy.inverse_probability(["baseline"]),
-        refute="none",
+    weighted = require_success(
+        ant.analyze(
+            data,
+            query=_query(arm),
+            missing=MissingPolicy.inverse_probability(["baseline"]),
+            refute="none",
+        )
     )
     fit = weighted.randomized_effect
     se = fit.variance_upper_bound**0.5
@@ -86,7 +89,9 @@ def test_inverse_probability_recovers_the_effect_and_reports_accounting():
     assert sum(group.total for group in accounting.groups) == 30_000
     assert fit.control_units + fit.treatment_units == 30_000
 
-    naive = ant.analyze(data, query=_query(arm), missing="complete_case", refute="none")
+    naive = require_success(
+        ant.analyze(data, query=_query(arm), missing="complete_case", refute="none")
+    )
     assert abs(naive.randomized_effect.effect - TRUE_EFFECT) > 0.2
     assert naive.missing_data.accounting.rows_in_denominator == int(responded.sum())
 
@@ -95,8 +100,10 @@ def test_dropped_rows_are_named_by_participant_label_with_a_digest():
     arm, baseline, _, responded, observed = _trial(600, seed=5)
     labels = [f"P{i:04d}" for i in range(600)]
     data = {"outcome": observed, "baseline": baseline, "pid": labels}
-    result = ant.analyze(
-        data, query=_query(arm), missing="complete_case", participant="pid", refute="none"
+    result = require_success(
+        ant.analyze(
+            data, query=_query(arm), missing="complete_case", participant="pid", refute="none"
+        )
     )
     accounting = result.missing_data.accounting
     expected = tuple(labels[i] for i in np.flatnonzero(~responded))
@@ -108,11 +115,13 @@ def test_dropped_rows_are_named_by_participant_label_with_a_digest():
 def test_foreign_policy_is_refused_when_the_study_is_built():
     arm, baseline, _, _, observed = _trial(200)
     with pytest.raises(CausalError) as raised:
-        ant.analyze(
-            {"outcome": observed, "baseline": baseline},
-            query=_query(arm),
-            missing="balanced_panel",
-            refute="none",
+        require_success(
+            ant.analyze(
+                {"outcome": observed, "baseline": baseline},
+                query=_query(arm),
+                missing="balanced_panel",
+                refute="none",
+            )
         )
     assert getattr(raised.value, "reason_code", None) == "missing_policy_not_applicable"
 
@@ -135,13 +144,15 @@ def test_panel_did_balances_by_whole_units_and_never_by_single_cells():
     query = PanelDifferenceInDifferences("y", "id", "group", "after")
     data = _panel([(5, True), (8, False), (31, True)])
     with pytest.raises(CausalError) as raised:
-        ant.analyze(data, query=query, refute="none")
+        require_success(ant.analyze(data, query=query, refute="none"))
     assert getattr(raised.value, "reason_code", None) == "missing_policy_required"
     with pytest.raises(CausalError) as foreign:
-        ant.analyze(data, query=query, missing="complete_case", refute="none")
+        require_success(ant.analyze(data, query=query, missing="complete_case", refute="none"))
     assert getattr(foreign.value, "reason_code", None) == "missing_policy_not_applicable"
 
-    result = ant.analyze(data, query=query, missing="balanced_panel", refute="none")
+    result = require_success(
+        ant.analyze(data, query=query, missing="balanced_panel", refute="none")
+    )
     assert result.panel_did.estimate == pytest.approx(0.5)
     accounting = result.missing_data.accounting
     assert (accounting.units_total, accounting.units_dropped) == (60, 3)
@@ -192,17 +203,23 @@ def test_temporal_gaps_refuse_then_drop_only_the_windows_that_read_them():
         graph=[("x", 1, "y", 0)], query=ant.PulseEffect("x", "y", treatment_lag=1, horizon_steps=1)
     )
     with pytest.raises(CausalError, match="IncompleteSeries|incomplete series"):
-        ant.analyze(data, bootstrap=0, refute="none", **kwargs)
+        require_success(ant.analyze(data, bootstrap=0, refute="none", **kwargs))
     with pytest.raises(CausalError) as raised:
-        ant.analyze(data, missing="error", bootstrap=0, refute="none", **kwargs)
+        require_success(ant.analyze(data, missing="error", bootstrap=0, refute="none", **kwargs))
     assert getattr(raised.value, "reason_code", None) == "missing_policy_required"
     assert "column `x` at row 100" in str(raised.value)
-    refuted = ant.analyze(data, missing="complete_case", bootstrap=0, refute="cheap", **kwargs)
+    refuted = require_success(
+        ant.analyze(data, missing="complete_case", bootstrap=0, refute="cheap", **kwargs)
+    )
     assert refuted.validation.ran
-    boot = ant.analyze(data, missing="complete_case", bootstrap=150, refute="none", **kwargs)
+    boot = require_success(
+        ant.analyze(data, missing="complete_case", bootstrap=150, refute="none", **kwargs)
+    )
     assert boot.estimate.se_bootstrap and boot.estimate.se_bootstrap > 0
 
-    result = ant.analyze(data, missing="complete_case", bootstrap=0, refute="none", **kwargs)
+    result = require_success(
+        ant.analyze(data, missing="complete_case", bootstrap=0, refute="none", **kwargs)
+    )
     kept = [i for i in range(1, n) if (i - 1) not in gaps]
     xs = x[[i - 1 for i in kept]]
     ys = y[kept]
@@ -225,9 +242,13 @@ def test_average_effect_reports_dropped_rows_and_error_is_a_declared_refusal():
     data = {"t": t, "y": y, "z": z_obs}
     graph = [("z", "t"), ("z", "y"), ("t", "y")]
     query = ant.AverageEffect("t", "y")
-    default = ant.analyze(data, query=query, graph=graph, refute="none", bootstrap=0)
-    explicit = ant.analyze(
-        data, query=query, graph=graph, refute="none", bootstrap=0, missing="complete_case"
+    default = require_success(
+        ant.analyze(data, query=query, graph=graph, refute="none", bootstrap=0)
+    )
+    explicit = require_success(
+        ant.analyze(
+            data, query=query, graph=graph, refute="none", bootstrap=0, missing="complete_case"
+        )
     )
     assert default.estimate.ate == explicit.estimate.ate
     assert default.missing_data.declared is False and explicit.missing_data.declared is True
@@ -236,5 +257,7 @@ def test_average_effect_reports_dropped_rows_and_error_is_a_declared_refusal():
     assert accounting.dropped_by_variable["z"] == len(holes)
     assert accounting.dropped_by_reason == {"missing_value": len(holes)}
     with pytest.raises(CausalError) as raised:
-        ant.analyze(data, query=query, graph=graph, refute="none", bootstrap=0, missing="error")
+        require_success(
+            ant.analyze(data, query=query, graph=graph, refute="none", bootstrap=0, missing="error")
+        )
     assert getattr(raised.value, "reason_code", None) == "missing_policy_required"

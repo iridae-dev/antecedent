@@ -9,7 +9,7 @@ Python exception inside the callback surfaces with its own message under
 ``reason_code="policy_callback_failed"``; it is never replaced by a default or a ``nan``.
 
 A callback is a **runtime binding**: it runs in this process and is not portable.
-:meth:`InterventionCallback.recovery_record` and :func:`export_records` therefore refuse
+:meth:`InterventionCallback.recovery_record` and :func:`callback_records` therefore refuse
 (``policy_callback_not_portable``) unless the callback was declared from self-contained source
 with :meth:`InterventionCallback.from_source`. That declaration fixes its behaviour to the
 SHA-256 of the exact source text, an entry point and pinned dependency versions; the record that
@@ -46,6 +46,7 @@ from typing import Any, Final, Literal, cast
 
 import numpy as np
 
+from ._artifact_protocol import container_bytes
 from ._native import (
     BatchCallbackHandle,
     callback_export_refusal,
@@ -65,7 +66,7 @@ __all__ = [
     "InterventionCallback",
     "decode_programs",
     "encode_programs",
-    "export_records",
+    "callback_records",
     "recover_callback",
     "required_callbacks",
     "sample_do",
@@ -538,7 +539,7 @@ def sample_do(
     )
 
 
-def export_records(
+def callback_records(
     programs: Sequence[CallbackProgram | InterventionCallback],
 ) -> tuple[CallbackRecord, ...]:
     """Recovery records for every callback in ``programs``.
@@ -616,6 +617,7 @@ def required_callbacks(data: bytes) -> tuple[CallbackRecord, ...]:
     A consumer rebuilds one callback per record with :func:`recover_callback` and passes them to
     :func:`decode_programs`. The artifact's version, identity and validity are checked first.
     """
+    data = container_bytes(data)
     return tuple(CallbackRecord.from_dict(r) for r in policy_program_callback_records(bytes(data)))
 
 
@@ -631,6 +633,7 @@ def decode_programs(
     signature or other dependency pins is refused, as is a record with no implementation
     (``policy_callback_unrecoverable``). Programs come back in their encoded order.
     """
+    data = container_bytes(data)
     supplied = list(callbacks.values() if isinstance(callbacks, Mapping) else callbacks)
     if any(not isinstance(c, InterventionCallback) for c in supplied):
         raise CausalValueError("callbacks must be InterventionCallback instances")

@@ -38,6 +38,7 @@ from antecedent.intervention_programs import (
     sample_policy,
     transform,
 )
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_toml, read_text
 
@@ -420,7 +421,7 @@ def test_mechanism_selection_recovers_the_same_conditional_means_as_dowhy():
 
     def dowhy_mean(node, parent_value):
         model = scm.causal_mechanism(node).prediction_model
-        return float(np.ravel(model.predict(np.array([[parent_value]])))[0])
+        return float(np.ravel(require_success(model.predict(np.array([[parent_value]]))))[0])
 
     def our_mean(parent, child, value):
         column = {"x": 0, "y": 1, "z": 2}[child]

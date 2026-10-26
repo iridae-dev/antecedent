@@ -134,7 +134,7 @@ def test_nested_fisher_actual_public_candidate_has_independent_full_covariance_a
         rtol=1e-8,
     )
     artifact = tmp_path / "nested-fisher.cbor"
-    artifact.write_bytes(result.export())
+    artifact.write_bytes(bytes(result.export()))
     code = """
 import json,sys
 from pathlib import Path
@@ -157,7 +157,7 @@ def test_nested_fisher_candidate_retains_original_identity_and_scope_refusals():
     changed = produce(n=32000)
     assert original.identity != changed.identity
     with pytest.raises(CausalValueError) as caught:
-        NestedFisherCandidate.load(changed.export(), expected_identity=original.identity)
+        NestedFisherCandidate.load(bytes(changed.export()), expected_identity=original.identity)
     assert caught.value.reason_code == "invalid_argument"
     assert "identity_mismatch" in str(caught.value)
     fractional = cells()

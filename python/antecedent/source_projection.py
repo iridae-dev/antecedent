@@ -6,6 +6,12 @@ import json
 from typing import Any, Literal
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .decision import Contract
 from .source_evidence import SourceEvidence
 
@@ -22,6 +28,7 @@ class SourceProjectionArtifact:
     __slots__ = ("_bytes", "_summary")
 
     def __init__(self, data: bytes, summary: str):
+        data = container_bytes(data)
         self._bytes = bytes(data)
         self._summary: dict[str, Any] = json.loads(summary)
 
@@ -35,6 +42,11 @@ class SourceProjectionArtifact:
         action_id: str | None = None,
     ) -> SourceProjectionArtifact:
         """Replay a native source or original external claim; bind the operation."""
+        source = (
+            container_bytes(source)
+            if isinstance(source, (bytes, bytearray, memoryview, ExportedArtifact))
+            else source
+        )
         if projection == "transformation":
             if contract is None:
                 raise TypeError("affine transformation requires a decision Contract")
@@ -75,12 +87,14 @@ class SourceProjectionArtifact:
         """Recomputed descriptive report; no execution or calibration license."""
         return dict(json.loads(json.dumps(self._summary["report"])))
 
-    def export(self) -> bytes:
-        return self._bytes
+    @artifact_export
+    def export(self) -> ExportedArtifact:
+        return artifact_from_receipt(self, self._bytes)
 
 
 def consume_source_projection(data: bytes, *, expected_identity: str) -> SourceProjectionArtifact:
     """Replay the original consumer under an independently retained identity."""
+    data = container_bytes(data)
     if not isinstance(data, bytes):
         raise TypeError("source projection artifact must be bytes")
     return SourceProjectionArtifact(

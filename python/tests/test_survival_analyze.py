@@ -6,6 +6,7 @@ import antecedent
 import pytest
 from antecedent.errors import CausalUnsupportedError
 from antecedent.observation import IndependentGiven
+from antecedent.outcomes import require_success
 from antecedent.survival import CompetingRisksOutcome, KnownCensoringSurvival, SurvivalOutcome
 
 
@@ -24,7 +25,7 @@ def test_survival_analyze_retains_rmst_curve_and_artifact() -> None:
         observation_assumption=IndependentGiven(()),
     )
     prepared = antecedent.prepare(data, query=query)
-    result = prepared.estimate()
+    result = require_success(prepared.estimate())
     assert result.survival is not None
     assert result.survival.times == (0.0, 1.0, 2.0)
     assert result.survival.control_survival == (1.0, 0.5, 0.5)
@@ -34,9 +35,9 @@ def test_survival_analyze_retains_rmst_curve_and_artifact() -> None:
     assert result.survival.uncertainty == "point_only_no_interval"
     assert result.survival.censoring_survival_provenance is None
     assert result.estimate.ate is None
-    assert prepared.refresh(data).survival == result.survival
-    assert antecedent.analyze(data, query=query).survival == result.survival
-    loaded = antecedent.load(prepared.export(artifact_id="survival-study"))
+    assert require_success(prepared.refresh(data)).survival == result.survival
+    assert require_success(antecedent.analyze(data, query=query)).survival == result.survival
+    loaded = require_success(antecedent.load(bytes(prepared.export(artifact_id="survival-study"))))
     assert loaded.answer.kind == "structured"
     assert loaded.answer.structured["rmst_treated"] == pytest.approx(2.0)
 
@@ -56,7 +57,7 @@ def test_competing_risks_analyze_and_missing_observation_claim_refusal() -> None
         randomized=True,
         observation_assumption=IndependentGiven(()),
     )
-    result = antecedent.analyze(data, query=query)
+    result = require_success(antecedent.analyze(data, query=query))
     assert result.survival is not None
     assert result.survival.control_incidence == (0.0, 0.5, 0.5)
     assert result.survival.treated_incidence == (0.0, 0.5, 1.0)
@@ -65,7 +66,7 @@ def test_competing_risks_analyze_and_missing_observation_claim_refusal() -> None
 
     no_claim = SurvivalOutcome("duration", "cause", "treatment", 2.0, randomized=True)
     with pytest.raises(CausalUnsupportedError, match="IndependentGiven"):
-        antecedent.analyze(data, query=no_claim)
+        require_success(antecedent.analyze(data, query=no_claim))
 
 
 def test_known_censoring_survival_analyze_matches_native_ipcw_and_artifact() -> None:
@@ -88,7 +89,7 @@ def test_known_censoring_survival_analyze_matches_native_ipcw_and_artifact() -> 
         known_censoring=KnownCensoringSurvival((0.0, 1.0, 3.0), ("g0", "g1", "g3")),
     )
     prepared = antecedent.prepare(data, query=query)
-    result = prepared.estimate()
+    result = require_success(prepared.estimate())
     assert result.survival.control_survival == pytest.approx((1.0, 2 / 3, 2 / 3))
     assert result.survival.treated_survival == pytest.approx((1.0, 0.5, 0.5))
     assert result.survival.rmst_difference == pytest.approx(-1 / 3)
@@ -100,8 +101,10 @@ def test_known_censoring_survival_analyze_matches_native_ipcw_and_artifact() -> 
     assert "correct_caller_supplied_conditional_censoring_survival" in result.survival.assumptions
     assert "independent_right_censoring_within_arm" not in result.survival.assumptions
     assert result.estimate.ate is None
-    assert prepared.refresh(data).survival == result.survival
-    loaded = antecedent.load(prepared.export(artifact_id="ipcw-survival-study"))
+    assert require_success(prepared.refresh(data)).survival == result.survival
+    loaded = require_success(
+        antecedent.load(bytes(prepared.export(artifact_id="ipcw-survival-study")))
+    )
     assert loaded.answer.structured["rmst_treated"] == pytest.approx(2.0)
 
 
@@ -134,7 +137,7 @@ def test_known_censoring_survival_refuses_bad_grid_and_probability() -> None:
         known_censoring=KnownCensoringSurvival((0.0, 1.0, 3.0), ("g0", "g1", "g3")),
     )
     with pytest.raises(Exception, match="positivity"):
-        antecedent.analyze(data, query=query)
+        require_success(antecedent.analyze(data, query=query))
 
 
 def test_known_censoring_competing_risk_retained_incidence() -> None:
@@ -156,7 +159,7 @@ def test_known_censoring_competing_risk_retained_incidence() -> None:
         observation_assumption=IndependentGiven(()),
         known_censoring=KnownCensoringSurvival((0.0, 1.0, 2.0), ("g0", "g1", "g2")),
     )
-    result = antecedent.analyze(data, query=query)
+    result = require_success(antecedent.analyze(data, query=query))
     assert result.survival.control_incidence[-1] == pytest.approx(1 / 7)
     assert result.survival.treated_incidence[-1] == pytest.approx(1 / 4)
     assert result.survival.uncertainty == "point_only_no_interval"
@@ -178,7 +181,7 @@ def test_retained_survival_pointwise_intervals_round_trip_and_refuse_thin_draws(
         observation_assumption=IndependentGiven(()),
     )
     prepared = antecedent.prepare(data, query=query, bootstrap=399, seed=17)
-    result = prepared.estimate()
+    result = require_success(prepared.estimate())
     section = result.survival
     assert section is not None
     assert section.uncertainty == "subject_stratified_percentile_bootstrap_pointwise_95"
@@ -197,15 +200,17 @@ def test_retained_survival_pointwise_intervals_round_trip_and_refuse_thin_draws(
     )
     assert result.answer.detail == "randomized_survival_pointwise_bootstrap"
     assert "Pointwise 95% subject-bootstrap interval" in result.claim()
-    assert prepared.refresh(data).survival == section
-    loaded = antecedent.load(prepared.export(artifact_id="survival-pointwise-interval"))
+    assert require_success(prepared.refresh(data)).survival == section
+    loaded = require_success(
+        antecedent.load(bytes(prepared.export(artifact_id="survival-pointwise-interval")))
+    )
     assert loaded.answer.structured["rmst_difference_interval"] == list(
         section.rmst_difference_interval
     )
     assert loaded.answer.structured["bootstrap_replicates_ok"] == 399
     assert loaded.answer.detail == "randomized_survival_pointwise_bootstrap"
     with pytest.raises(Exception, match="199"):
-        antecedent.analyze(data, query=query, bootstrap=198)
+        require_success(antecedent.analyze(data, query=query, bootstrap=198))
 
 
 def test_graphless_survival_scalar_license_at_support_boundary() -> None:
@@ -223,13 +228,13 @@ def test_graphless_survival_scalar_license_at_support_boundary() -> None:
         randomized=True,
         observation_assumption=IndependentGiven(()),
     )
-    result = antecedent.analyze(data, query=query, bootstrap=299, seed=7729)
+    result = require_success(antecedent.analyze(data, query=query, bootstrap=299, seed=7729))
     assert result.evidence_status == "licensed"
     assert result.survival.support_status == "licensed"
     assert result.survival.rmst_difference_interval is not None
     assert result.survival.survival_at_tau_difference_interval is not None
     assert result.survival.difference_band is None
-    loaded = antecedent.load(result.export())
+    loaded = require_success(antecedent.load(bytes(result.export())))
     assert (
         loaded.decoded_artifact.to_dict()["payload"]["survival"]["graphless_support_status"]
         == "licensed"
@@ -239,7 +244,7 @@ def test_graphless_survival_scalar_license_at_support_boundary() -> None:
         120,
     ]
     thin = {key: value[1:120] + value[121:] for key, value in data.items()}
-    off_axis = antecedent.analyze(thin, query=query, bootstrap=299, seed=7729)
+    off_axis = require_success(antecedent.analyze(thin, query=query, bootstrap=299, seed=7729))
     assert off_axis.survival.support_status == "unlicensed_pointwise_interval"
 
 
@@ -265,7 +270,9 @@ def test_retained_competing_risk_known_g_pointwise_interval() -> None:
         observation_assumption=IndependentGiven(()),
         known_censoring=KnownCensoringSurvival((0.0, 1.0, 3.0), ("g0", "g1", "g3")),
     )
-    section = antecedent.analyze(data, query=query, bootstrap=399, seed=19).survival
+    section = require_success(
+        antecedent.analyze(data, query=query, bootstrap=399, seed=19)
+    ).survival
     assert section is not None
     assert (
         section.incidence_difference_interval[0] <= 0.0 <= section.incidence_difference_interval[1]

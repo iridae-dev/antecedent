@@ -231,9 +231,7 @@ class FeedbackMechanism:
     initial_state: float = 0.0
 
     def __post_init__(self) -> None:
-        object.__setattr__(
-            self, "delay", _count(self.delay, "delay", minimum=1, maximum=2**32 - 1)
-        )
+        object.__setattr__(self, "delay", _count(self.delay, "delay", minimum=1, maximum=2**32 - 1))
         numbers = {
             "level": self.level,
             "autoregression": self.autoregression,
@@ -985,7 +983,78 @@ class InterventionResponse:
         return self.horizons is not None
 
 
+@dataclass(frozen=True, slots=True)
+class TemporalQuery:
+    """Attach temporal geometry to a typed derivative or unfolded cross-world target.
+
+    Derivatives retain the requested horizon and policy on the core response query.
+    Cross-world/distribution families use their existing one-lag unfolded mechanism;
+    unsupported geometry is refused rather than changing that target. This does not
+    denote the separately supplied two-slice SCM in temporal_counterfactual.
+    """
+
+    query: (
+        AverageDerivative
+        | PointDerivative
+        | Elasticity
+        | SemiElasticity
+        | DirectionalDerivative
+        | ResponseJacobian
+        | Counterfactual
+        | NestedCounterfactual
+        | InterventionalDistribution
+        | PathSpecificEffect
+    )
+    _: KW_ONLY
+    horizons: Sequence[int] = (1,)
+    policy: str = temporal_response_spec.default_policy
+    treatment_lag: int = temporal_response_spec.default_treatment_lag
+    max_history_lag: int | None = None
+    window: tuple[int, int] | None = None
+    kind: Literal["temporal_query"] = field(default="temporal_query", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        from ._study_lifecycle import retain
+
+        supported = (
+            AverageDerivative,
+            PointDerivative,
+            Elasticity,
+            SemiElasticity,
+            DirectionalDerivative,
+            ResponseJacobian,
+            Counterfactual,
+            NestedCounterfactual,
+            InterventionalDistribution,
+            PathSpecificEffect,
+        )
+        if not isinstance(self.query, supported):
+            raise CausalValueError(
+                "TemporalQuery requires a derivative or unfolded cross-world query"
+            )
+        horizons = tuple(self.horizons)
+        _validate_horizons(horizons)
+        _validate_max_history_lag(self.max_history_lag)
+        if self.policy not in temporal_response_spec.allowed_policies:
+            raise CausalValueError(f"unsupported temporal policy {self.policy!r}")
+        lag = _count(self.treatment_lag, "treatment_lag", minimum=0, maximum=2**31 - 1)
+        if self.window is not None:
+            if len(self.window) != 2 or any(type(value) is not int for value in self.window):
+                raise CausalValueError("window must hold two integer offsets")
+            if self.window[0] > self.window[1]:
+                raise CausalValueError("window start must not exceed its end")
+            object.__setattr__(self, "window", tuple(self.window))
+        object.__setattr__(self, "query", retain(self.query))
+        object.__setattr__(self, "horizons", horizons)
+        object.__setattr__(self, "treatment_lag", lag)
+
+    @property
+    def is_temporal(self) -> bool:
+        return True
+
+
 __all__ = [
+    "TemporalQuery",
     "AnomalyAttribution",
     "AnomalyReference",
     "AverageDerivative",

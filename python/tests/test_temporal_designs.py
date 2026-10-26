@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-
 from antecedent.errors import CausalError
 from antecedent.temporal_designs import estimate_temporal_design
 

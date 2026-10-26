@@ -16,6 +16,82 @@ use crate::{AteAnalysisResult, py_err, py_execution_context_ext};
 
 #[pymethods]
 impl PyPreparedAnalysis {
+    /// Independent execution header sharing immutable native prepared storage.
+    fn fork(&self) -> Self {
+        Self {
+            inner: Arc::clone(&self.inner),
+            names: self.names.clone(),
+            last: None,
+            last_study: None,
+            last_seed: self.last_seed,
+            last_threads: self.last_threads,
+            borrowed_bytes: self.borrowed_bytes,
+            series: self.series,
+        }
+    }
+
+    /// Requote the same native snapshot under explicit execution controls, without fitting.
+    #[pyo3(signature = (*, seed=1, threads=None))]
+    fn reconfigure_execution(
+        &self,
+        py: Python<'_>,
+        seed: u64,
+        threads: Option<u32>,
+    ) -> PyResult<Self> {
+        let inner = Arc::clone(&self.inner);
+        let names = self.names.clone();
+        let series = self.series;
+        crate::detach_catch(py, move || {
+            let ctx = py_execution_context_ext(
+                seed,
+                crate::resolve_user_threads(threads),
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let prepared = inner.reconfigure_execution(&ctx).map_err(py_err)?;
+            Ok(super::finished_prepared(prepared, names, series))
+        })
+    }
+
+    /// Branch onto a new owned snapshot; never execute the resulting study.
+    #[pyo3(signature = (columns, *, frame=None, seed=1, threads=None))]
+    fn bind_snapshot(
+        &self,
+        py: Python<'_>,
+        columns: Vec<Bound<'_, PyAny>>,
+        frame: Option<&Bound<'_, PyDict>>,
+        seed: u64,
+        threads: Option<u32>,
+    ) -> PyResult<Self> {
+        let data = FrameInput::ingest(py, &self.names, columns, frame)?;
+        let inner = Arc::clone(&self.inner);
+        let names = self.names.clone();
+        let series = self.series;
+        crate::detach_catch(py, move || {
+            let ctx = py_execution_context_ext(
+                seed,
+                crate::resolve_user_threads(threads),
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let rebound = match data {
+                FrameInput::Series(data) if !series => inner.rebind_data(data, &ctx),
+                input => match input.materialize()? {
+                    super::FrameData::Series(data) => inner.rebind_series(data, &ctx),
+                    super::FrameData::Panel(data) => inner.rebind_panel(data, &ctx),
+                    super::FrameData::MultiEnv(data) => inner.rebind_multi_env(data, &ctx),
+                    super::FrameData::Events(data, interval, _retention) => {
+                        inner.rebind_series(data.align_to_grid(interval).map_err(py_err)?, &ctx)
+                    }
+                },
+            }
+            .map_err(py_err)?;
+            Ok(super::finished_prepared(rebound, names, series))
+        })
+    }
+
     /// Cached identification product; never identifies or fits again.
     fn identification_json(&self) -> PyResult<String> {
         let mut details = self.inner.identification_details().map_err(crate::py_err)?;

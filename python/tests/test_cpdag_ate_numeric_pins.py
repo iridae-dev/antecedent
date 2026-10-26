@@ -7,6 +7,7 @@ from typing import Any
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_json
 
@@ -124,14 +125,16 @@ def test_cpdag_ate_envelope_numeric_pin(
         inference = None
         seed = 1
 
-    fresh = antecedent.analyze(
-        data,
-        graph=graph,
-        query=query,
-        inference=inference,
-        refute=validation,
-        bootstrap=0,
-        seed=seed,
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            inference=inference,
+            refute=validation,
+            bootstrap=0,
+            seed=seed,
+        )
     )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
@@ -143,7 +146,7 @@ def test_cpdag_ate_envelope_numeric_pin(
         seed=seed,
         latency="interactive",
     )
-    click = prepared.estimate(data, seed=seed)
+    click = require_success(prepared.estimate(data, seed=seed))
 
     _assert_common_cell_contract(
         fresh,
@@ -191,8 +194,8 @@ def test_cpdag_same_schema_refresh_reuses_identification() -> None:
         seed=1,
         latency="interactive",
     )
-    click = prepared.estimate(data, seed=1)
-    refreshed = prepared.refresh(data, seed=1)
+    click = require_success(prepared.estimate(data, seed=1))
+    refreshed = require_success(prepared.refresh(data, seed=1))
     expected = float(_PIN["frequentist"]["expected_ate"])
     tolerance = float(_PIN["frequentist"]["absolute_tolerance"])
     assert click.ate == pytest.approx(expected, abs=tolerance)

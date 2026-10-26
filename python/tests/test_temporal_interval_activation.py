@@ -149,7 +149,7 @@ def test_temporal_actual_public_candidate_matches_independent_unit_scm_and_fresh
     np.testing.assert_allclose(receipt["pivots"], pivots, atol=1e-11, rtol=0)
     assert (result.lower, result.upper) == pytest.approx(bounds, abs=1e-12)
     artifact = tmp_path / "whole-unit.cbor"
-    artifact.write_bytes(result.export())
+    artifact.write_bytes(bytes(result.export()))
     code = """
 import json,sys
 from pathlib import Path
@@ -181,7 +181,7 @@ def test_temporal_changed_panel_refuses_retained_identity(change):
     changed = produce(**change)
     assert changed.identity != original.identity
     with pytest.raises(CausalUnsupportedError) as caught:
-        TemporalIntervalCandidate.load(changed.export(), expected_identity=original.identity)
+        TemporalIntervalCandidate.load(bytes(changed.export()), expected_identity=original.identity)
     assert caught.value.reason_code == "invalid_argument"
     assert caught.value.detail == "temporal_interval_artifact.expected_identity_mismatch"
 

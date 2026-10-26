@@ -9,6 +9,7 @@ from antecedent import evidence_ledger as el
 from antecedent import mechanism_composition as mc
 from antecedent import observation_query as oq
 from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
 from antecedent.results import MeanSource
 
 
@@ -26,7 +27,7 @@ def quantity(variable="Y", units="u", population="pop", regime="declared_model",
 def test_measurement_adapter_retains_data_binding_and_refuses_scope_changes():
     from test_measurement_models import prepare_classical, simulate
 
-    estimate = prepare_classical(0.6, 0.0, simulate(150, 34)).estimate()
+    estimate = require_success(prepare_classical(0.6, 0.0, simulate(150, 34)).estimate())
     q = quantity("outcome", "unit", "cohort", "observational")
     source = estimate.as_mean_source(quantity=q)
     assert source.means == (estimate.point,)
@@ -36,16 +37,16 @@ def test_measurement_adapter_retains_data_binding_and_refuses_scope_changes():
     assert source.lineage[0]["identity"] == estimate.model_identity
     with pytest.raises(ant.errors.CausalValueError, match="population"):
         estimate.as_mean_source(quantity=replace(q, population_id="other"))
-    envelope = estimate.artifact()
+    envelope = estimate.export()
     assert envelope.expectation.identity == estimate.model_identity
     with pytest.raises(ant.errors.CausalValueError, match="requires expected"):
-        ant.load(envelope)
-    consumed = ant.load(envelope, expected=envelope.expectation)
+        require_success(ant.load(envelope))
+    consumed = require_success(ant.load(envelope, expected=envelope.expectation))
     assert consumed.point == estimate.point
-    assert consumed.export() == estimate.export()
+    assert bytes(consumed.export()) == bytes(estimate.export())
     assert consumed.as_mean_source(quantity=q).snapshot_id == source.snapshot_id
     with pytest.raises(ant.CausalError):
-        ant.load(envelope, expected="0" * 64)
+        require_success(ant.load(envelope, expected="0" * 64))
 
 
 def test_composed_mean_and_consumed_mean_handoffs_require_declarations():
@@ -60,11 +61,11 @@ def test_composed_mean_and_consumed_mean_handoffs_require_declarations():
         model.as_mean_source(quantity=q)
     source = model.as_mean_source(quantity=q, contrast=contrast)
     assert source.means == pytest.approx((6.5,))
-    artifact = model.artifact({"X": 2.0}, outcome="Y")
-    consumed = ant.load(artifact, expected=artifact.expectation)
+    artifact = model.export({"X": 2.0}, outcome="Y")
+    consumed = require_success(ant.load(artifact, expected=artifact.expectation))
     assert consumed.result.mean == pytest.approx(13.5)
     assert consumed.as_mean_source(quantity=q).means == pytest.approx((13.5,))
-    assert consumed.export() == artifact.data
+    assert bytes(consumed.export()) == artifact.data
 
 
 def test_ledger_mean_keeps_evidence_and_remains_point_only():
@@ -73,15 +74,17 @@ def test_ledger_mean_keeps_evidence_and_remains_point_only():
     ledger = el.EvidenceLedger()
     first = ledger.add_source(data("first", 0, 10))
     second = ledger.add_source(data("second", 10, 20))
-    outcome = ledger.pool_summaries("pooled", [summary(first, 1.0, 1.0), summary(second, 3.0, 4.0)])
+    outcome = require_success(
+        ledger.pool_summaries("pooled", [summary(first, 1.0, 1.0), summary(second, 3.0, 4.0)])
+    )
     source = outcome.as_mean_source(quantity=quantity())
     assert source.means == pytest.approx((1.4,))
     assert set(source.evidence) == {first, second}
     assert source.provider_id == outcome.source_identity
     assert source.lineage[0]["evidence"] == source.evidence
-    artifact = ledger.artifact(outcome.result)
-    consumed = ant.load(artifact, expected=artifact.expectation)
-    assert consumed.export() == artifact.data
+    artifact = ledger.export(outcome.result)
+    consumed = require_success(ant.load(artifact, expected=artifact.expectation))
+    assert bytes(consumed.export()) == artifact.data
     assert consumed.acceptance.identity_bound
     with pytest.raises(el.EvidenceLedgerRefusal):
         ledger.pooled_interval(outcome.result)
@@ -94,12 +97,12 @@ def test_transported_counterfactual_identity_and_point_only_reading_survive_disp
     source = claim.as_mean_source(quantity=quantity("y"))
     assert source.means == (claim.target_contrast,)
     assert source.lineage
-    artifact = claim.artifact()
-    consumed = ant.load(artifact, expected=artifact.expectation)
+    artifact = claim.export()
+    consumed = require_success(ant.load(artifact, expected=artifact.expectation))
     assert consumed.identity == claim.identity
     assert consumed.inference_claim == "point_only"
     assert consumed.target_contrast == claim.target_contrast
-    assert consumed.export() == artifact.data
+    assert bytes(consumed.export()) == artifact.data
 
 
 def test_observation_probability_preserves_its_functional_semantics():
@@ -115,11 +118,11 @@ def test_observation_probability_preserves_its_functional_semantics():
         claim.as_mean_source(
             quantity=replace(q, functional_id="mean"), field="crossing_probability"
         )
-    artifact = claim.artifact()
-    consumed = ant.load(artifact, expected=artifact.expectation)
+    artifact = claim.export()
+    consumed = require_success(ant.load(artifact, expected=artifact.expectation))
     assert consumed.claim.crossing_probability == claim.crossing_probability
     assert consumed.as_mean_source(quantity=q, field="crossing_probability").means == source.means
-    assert consumed.export() == artifact.data
+    assert bytes(consumed.export()) == artifact.data
 
 
 def test_mean_adapter_does_not_license_nonlinear_expected_utilities():
@@ -148,21 +151,21 @@ def test_compact_and_cohort_artifacts_have_independent_frozen_metadata():
     from test_cohort_decision import cohort, compact_model
 
     model = compact_model()
-    envelope = model.artifact()
-    consumed = ant.load(envelope, expected=envelope.expectation)
+    envelope = model.export()
+    consumed = require_success(ant.load(envelope, expected=envelope.expectation))
     assert consumed.identity == model.identity
-    assert consumed.export() == envelope.data
+    assert bytes(consumed.export()) == envelope.data
     with pytest.raises(TypeError, match="does not support item assignment"):
         consumed.body["scope"] = "relabelled"
     editable = consumed.to_dict()
     editable["body"]["coefficients"][0] = 999
     assert consumed.to_dict()["body"]["coefficients"][0] != 999
     source = cd.decision_source_from_compact_export(model, cohort=cohort(), outcome_units="mmHg")
-    artifact = source.artifact()
-    loaded = ant.load(artifact, expected=artifact.expectation)
+    artifact = source.export()
+    loaded = require_success(ant.load(artifact, expected=artifact.expectation))
     assert loaded.mean_contrast == source.mean_contrast
     assert not loaded.is_native
-    assert loaded.export() == artifact.data
+    assert bytes(loaded.export()) == artifact.data
     with pytest.raises(TypeError, match="does not support item assignment"):
         loaded.summary["mean_contrast"] = 999
 
@@ -174,11 +177,11 @@ def test_constancy_dispatch_preserves_uncalibrated_boundary():
         [("a", 1.0, 0.5), ("b", 2.0, 0.5)],
         estimand=temporal.EffectEstimand("ate_difference", "u", "treated-control", "h2"),
     )
-    envelope = claim.artifact()
-    loaded = ant.load(envelope, expected=envelope.expectation)
+    envelope = claim.export()
+    loaded = require_success(ant.load(envelope, expected=envelope.expectation))
     assert loaded.statistic == claim.statistic
     assert loaded.calibration == "unmeasured"
-    assert loaded.export() == envelope.data
+    assert bytes(loaded.export()) == envelope.data
 
 
 def _cbor_length(major, length):
@@ -194,17 +197,17 @@ def _cbor_length(major, length):
 def test_unknown_framed_format_is_checked_and_forwardable_without_consumption():
     from test_cohort_decision import compact_model
 
-    inner = compact_model().export()
+    inner = bytes(compact_model().export())
     # Rust's named artifact framing is a CBOR pair (schema names, inner bytes).
     frame = b"ANTECEDENT-FUTURE\x01\x82\x80" + _cbor_length(4, len(inner))
     frame += b"".join(_cbor_length(0, byte) for byte in inner)
     reading = ant.artifacts.inspect(frame)
     assert reading.kind == "ANTECEDENT-FUTURE"
     assert not reading.acceptance.replayable
-    assert reading.export() == frame
-    loaded = ant.load(frame)
+    assert bytes(reading.export()) == frame
+    loaded = require_success(ant.load(frame))
     assert isinstance(loaded, ant.artifacts.ArtifactInspection)
-    assert loaded.export() == frame
+    assert bytes(loaded.export()) == frame
     assert loaded.acceptance.status == "unavailable"
     with pytest.raises(ant.errors.CausalSerializationError):
         ant.artifacts.inspect(frame[:-1])
@@ -219,20 +222,20 @@ def test_malformed_frames_are_errors_even_without_scientific_consumption(data):
     with pytest.raises(ant.errors.CausalSerializationError):
         ant.artifacts.inspect(data)
     with pytest.raises(ant.errors.CausalSerializationError):
-        ant.load(data)
+        require_success(ant.load(data))
 
 
 def test_temporal_counterfactual_shared_dispatch_keeps_shared_abduction():
     from test_temporal_counterfactual import run
 
     original = run()
-    artifact = original.artifact()
-    loaded = ant.load(artifact, expected=artifact.expectation)
+    artifact = original.export()
+    loaded = require_success(ant.load(artifact, expected=artifact.expectation))
     assert type(loaded) is type(original)
     assert loaded.contrast == original.contrast
     assert loaded.receipt == original.receipt
     assert loaded.identity == original.identity
-    assert loaded.export() == artifact.data
+    assert bytes(loaded.export()) == artifact.data
 
 
 def test_cross_world_execution_bytes_first_export_dispatch():
@@ -240,13 +243,13 @@ def test_cross_world_execution_bytes_first_export_dispatch():
 
     from test_cross_world_execution import _joint_request
 
-    original = cw.seal(_joint_request())
-    artifact = original.artifact()
-    assert original.export() == original.to_bytes() == artifact.data
-    loaded = ant.load(artifact, expected=artifact.expectation)
+    original = require_success(cw.seal(_joint_request()))
+    artifact = original.export()
+    assert bytes(original.export()) == original.to_bytes() == artifact.data
+    loaded = require_success(ant.load(artifact, expected=artifact.expectation))
     assert loaded.result.value == original.value
     assert loaded.shared_draws == original.shared_draws
-    assert loaded.export() == artifact.data
+    assert bytes(loaded.export()) == artifact.data
 
 
 def test_adapter_bindings_are_checked_before_decision_and_keep_lineage():
@@ -272,7 +275,7 @@ def test_adapter_bindings_are_checked_before_decision_and_keep_lineage():
 
 
 @pytest.mark.parametrize("producer", ["matched", "descriptive"])
-def test_existing_json_families_are_bytes_first_and_independently_bound(producer):
+def test_existing_json_families_export_typed_artifacts_and_bind_independently(producer):
     import inspect
     import json
 
@@ -284,16 +287,17 @@ def test_existing_json_families_are_bytes_first_and_independently_bound(producer
         from test_descriptive_comparison import compare
 
         original = compare()
-    assert isinstance(original.export(), bytes)
-    assert inspect.signature(original.export).return_annotation in (bytes, "bytes")
-    envelope = original.artifact()
+    assert isinstance(bytes(original.export()), bytes)
+    assert isinstance(original.export(), ant.ExportedArtifact)
+    assert inspect.signature(original.export).return_annotation is ant.ExportedArtifact
+    envelope = original.export()
     assert envelope.expectation.identity == original.identity
     assert ant.artifacts.inspect(envelope).kind == envelope.kind
-    loaded = ant.load(envelope, expected=envelope.expectation)
+    loaded = require_success(ant.load(envelope, expected=envelope.expectation))
     assert type(loaded) is type(original)
-    assert loaded.export() == original.export()
+    assert bytes(loaded.export()) == bytes(original.export())
     with pytest.raises(ant.errors.CausalSerializationError, match="retained expected_identity"):
-        ant.load(envelope, expected="0" * 64)
+        require_success(ant.load(envelope, expected="0" * 64))
     damaged = json.loads(envelope.data)
     damaged["claim"] = "licensed_interval"
     with pytest.raises(ant.errors.CausalSerializationError, match="digest"):
@@ -306,7 +310,9 @@ def test_inverse_query_accepts_complete_bridge_and_retains_mean_boundaries():
 
     from test_scientific_bridge import surrogate_contract, surrogate_source
 
-    claim = sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
+    claim = require_success(
+        sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
+    )
     q = claim.quantity
     contract = decision.Contract(
         actions=[
@@ -332,17 +338,17 @@ def test_callback_owner_token_refuses_pointer_rebinding_with_colliding_identitie
 
     owner, declaration, execution, _ = exported()
     other = pc.CallbackSession()
-    collision = other.execute(
-        gaussian(), declaration, pc.Request(pc.Query.cdf([0.5, 2.0, 3.5]), seed=9)
+    collision = require_success(
+        other.execute(gaussian(), declaration, pc.Request(pc.Query.cdf([0.5, 2.0, 3.5]), seed=9))
     )
     assert collision.history_index == execution.history_index
     assert collision.declaration_identity == execution.declaration_identity
     assert collision.request_identity == execution.request_identity
     assert collision.output_digest == execution.output_digest
     with pytest.raises(pc.CallbackRefusal) as refused:
-        other.export(replace(execution, _session=other), "foreign-pointer")
+        bytes(other.export(replace(execution, _session=other), "foreign-pointer"))
     assert refused.value.detail == "provider_callbacks.foreign_execution"
-    assert owner.export(execution, "original")
+    assert bytes(owner.export(execution, "original"))
 
 
 def test_registered_legacy_transport_prefixes_keep_their_specialized_consumers():
@@ -352,16 +358,16 @@ def test_registered_legacy_transport_prefixes_keep_their_specialized_consumers()
 
     identified, catalog, data = fixture()
     exact = transport.prepare_exact(identified, catalog, data, at={"x": 1.0})
-    result = exact.estimate()
-    loaded = ant.load(exact.export())
+    result = require_success(exact.estimate())
+    loaded = require_success(ant.load(bytes(exact.export())))
     assert loaded.probabilities == result.probabilities
     assert loaded.mean("y") == result.mean("y")
-    reading = ant.artifacts.inspect(exact.export())
+    reading = ant.artifacts.inspect(bytes(exact.export()))
     assert reading.kind == "ANTECEDENT-EXACT-TRANSPORT"
-    assert reading.export() == exact.export()
-    certificate = identified.export()
+    assert bytes(reading.export()) == bytes(exact.export())
+    certificate = bytes(identified.export())
     assert ant.artifacts.inspect(certificate).kind == "ANTECEDENT-TRANSPORT-CERTIFICATE"
-    assert ant.load(certificate).outcome == identified.outcome
+    assert require_success(ant.load(certificate)).outcome == identified.outcome
 
 
 def test_native_and_portable_mean_adapters_refuse_relabelled_values_and_evidence():
@@ -370,8 +376,10 @@ def test_native_and_portable_mean_adapters_refuse_relabelled_values_and_evidence
     from test_measurement_models import prepare_classical, simulate
     from test_scientific_bridge import surrogate_contract, surrogate_source
 
-    bridge = sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
-    measured = prepare_classical(0.6, 0.0, simulate(120, 37)).estimate()
+    bridge = require_success(
+        sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
+    )
+    measured = require_success(prepare_classical(0.6, 0.0, simulate(120, 37)).estimate())
     q = quantity("outcome", "unit", "cohort", "observational")
     for altered, declarations in (
         (replace(bridge, value=99.0), {}),
@@ -417,19 +425,23 @@ def test_legacy_transport_load_checks_explicit_native_execution_bindings():
 
     identified, catalog, data = fixture()
     exact = transport.prepare_exact(identified, catalog, data, at={"x": 1.0})
-    original = exact.estimate()
+    original = require_success(exact.estimate())
     expectation = ArtifactExpectation(
         "ANTECEDENT-EXACT-TRANSPORT", {"execution_id": original.inspect().execution_id}
     )
-    loaded = ant.load(exact.export(), expected=expectation)
+    loaded = require_success(ant.load(bytes(exact.export()), expected=expectation))
     assert loaded.acceptance.identity_bound and loaded.acceptance.replayable
     assert not loaded.acceptance.resumable
     with pytest.raises(ant.errors.CausalSerializationError, match="execution_id"):
-        ant.load(exact.export(), expected={"execution_id": "0" * 64})
+        require_success(ant.load(bytes(exact.export()), expected={"execution_id": "0" * 64}))
     with pytest.raises(ant.errors.CausalSerializationError, match="kind"):
-        ant.load(exact.export(), expected=ArtifactExpectation("wrong", expectation.identity))
+        require_success(
+            ant.load(
+                bytes(exact.export()), expected=ArtifactExpectation("wrong", expectation.identity)
+            )
+        )
     with pytest.raises(ant.errors.CausalValueError, match="context"):
-        ant.load(exact.export(), context=LoadContext())
+        require_success(ant.load(bytes(exact.export()), context=LoadContext()))
 
 
 @pytest.mark.parametrize("trust", ["native_licensed", "verified_extension"])

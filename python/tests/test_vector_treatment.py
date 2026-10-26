@@ -199,7 +199,7 @@ def test_vector_input_validation_is_typed() -> None:
 
 def test_vector_artifact_round_trip_recomputes_everything() -> None:
     result = fit(contrasts=[DIFF, SUM], adjust={"w": W})
-    again = consume_joint_effects(result.export(), expected_identity=result.identity)
+    again = consume_joint_effects(bytes(result.export()), expected_identity=result.identity)
     assert again.names == result.names
     assert again.coefficients == result.coefficients
     assert again.contrasts == result.contrasts
@@ -207,7 +207,9 @@ def test_vector_artifact_round_trip_recomputes_everything() -> None:
     assert np.array_equal(again.covariance, result.covariance)
     assert again.identity == result.identity
     # A mapping form of the retained identity is accepted too.
-    mapped = consume_joint_effects(result.export(), expected_identity=result.to_dict()["identity"])
+    mapped = consume_joint_effects(
+        bytes(result.export()), expected_identity=result.to_dict()["identity"]
+    )
     assert mapped.identity == result.identity
 
 
@@ -218,7 +220,7 @@ def test_vector_robust_covariance_embeds_a_summary_and_replays() -> None:
     assert robust.covariance_kind == "hc1"
     assert not np.allclose(robust.covariance, model.covariance)
     assert robust.estimates == pytest.approx(model.estimates, abs=1e-12)
-    again = consume_joint_effects(robust.export(), expected_identity=robust.identity)
+    again = consume_joint_effects(bytes(robust.export()), expected_identity=robust.identity)
     assert np.array_equal(again.covariance, robust.covariance)
 
 
@@ -251,18 +253,18 @@ def test_vector_robust_fit_has_no_row_ceiling_and_matches_an_independent_sandwic
     expected = sandwich(design, outcome, kind)[1:, 1:]
     assert result.covariance == pytest.approx(expected, rel=1e-8, abs=1e-14)
     # The artifact is a summary of fixed size, and a fresh consumer replays it bit for bit.
-    assert len(result.export()) < 64 * 1024
-    again = consume_joint_effects(result.export(), expected_identity=result.identity)
+    assert len(bytes(result.export())) < 64 * 1024
+    again = consume_joint_effects(bytes(result.export()), expected_identity=result.identity)
     assert np.array_equal(again.covariance, result.covariance)
 
 
 def test_vector_consume_respects_the_memory_limit() -> None:
     result = fit(covariance="hc1")
-    assert consume_joint_effects(result.export(), memory_limit_bytes=10_000_000).identity == (
-        result.identity
-    )
+    assert consume_joint_effects(
+        bytes(result.export()), memory_limit_bytes=10_000_000
+    ).identity == (result.identity)
     with pytest.raises(VectorTreatmentRefusal) as refused:
-        consume_joint_effects(result.export(), memory_limit_bytes=1)
+        consume_joint_effects(bytes(result.export()), memory_limit_bytes=1)
     assert refused.value.detail == "vector_treatment.memory_budget_exceeded"
 
 
@@ -272,22 +274,22 @@ def test_vector_resealed_change_is_refused_against_the_retained_identity() -> No
     original = fit(contrasts=[DIFF], snapshot="snap")
     changed = joint_effects([3.5, *Y[1:]], {"t1": X1, "t2": X2}, contrasts=[DIFF], snapshot="snap")
     # Alone the changed artifact is internally consistent ...
-    assert consume_joint_effects(changed.export()).identity == changed.identity
+    assert consume_joint_effects(bytes(changed.export())).identity == changed.identity
     # ... but against the identity the consumer retained it is refused.
     with pytest.raises(VectorTreatmentRefusal) as refused:
-        consume_joint_effects(changed.export(), expected_identity=original.identity)
+        consume_joint_effects(bytes(changed.export()), expected_identity=original.identity)
     assert refused.value.reason_code == "route_not_supported"
     assert refused.value.detail == "vector_treatment.wrong_contract"
     assert refused.value.offending == "design"
     assert_registered_refusal(refused.value)
     dropped = fit(snapshot="snap")
     with pytest.raises(VectorTreatmentRefusal) as contracts:
-        consume_joint_effects(dropped.export(), expected_identity=original.identity)
+        consume_joint_effects(bytes(dropped.export()), expected_identity=original.identity)
     assert contracts.value.offending == "contrasts"
 
 
 def test_vector_corrupt_artifact_raises_a_serialization_error() -> None:
-    data = bytearray(fit().export())
+    data = bytearray(bytes(fit().export()))
     data[len(data) // 2] ^= 0xFF
     with pytest.raises(CausalSerializationError):
         consume_joint_effects(bytes(data))

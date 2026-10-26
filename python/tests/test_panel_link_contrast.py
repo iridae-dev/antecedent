@@ -14,6 +14,7 @@ import numpy as np
 import pytest
 from antecedent.data import panel
 from antecedent.errors import CausalUnsupportedError
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -71,16 +72,18 @@ def delta_se(rows, beta, information):
 
 
 def run(units, **kwargs):
-    return antecedent.analyze(
-        panel(units),
-        graph=GRAPH,
-        query=antecedent.PulseEffect(
-            treatment="x", outcome="y", treatment_lag=1, horizon_steps=1, active_level=1.0
-        ),
-        refute=False,
-        bootstrap=0,
-        seed=4,
-        **kwargs,
+    return require_success(
+        antecedent.analyze(
+            panel(units),
+            graph=GRAPH,
+            query=antecedent.PulseEffect(
+                treatment="x", outcome="y", treatment_lag=1, horizon_steps=1, active_level=1.0
+            ),
+            refute=False,
+            bootstrap=0,
+            seed=4,
+            **kwargs,
+        )
     )
 
 
@@ -125,15 +128,17 @@ def test_a_single_dependent_series_is_refused_with_its_next_attempt() -> None:
         "y": (rng.random(60) < 0.5).astype(float),
     }
     with pytest.raises(CausalUnsupportedError) as info:
-        antecedent.analyze(
-            series,
-            graph=GRAPH,
-            query=antecedent.PulseEffect(
-                treatment="x", outcome="y", treatment_lag=1, horizon_steps=1, active_level=1.0
-            ),
-            estimator=antecedent.Estimator.TEMPORAL_GLM_LINK_CONTRAST,
-            refute=False,
-            bootstrap=0,
+        require_success(
+            antecedent.analyze(
+                series,
+                graph=GRAPH,
+                query=antecedent.PulseEffect(
+                    treatment="x", outcome="y", treatment_lag=1, horizon_steps=1, active_level=1.0
+                ),
+                estimator=antecedent.Estimator.TEMPORAL_GLM_LINK_CONTRAST,
+                refute=False,
+                bootstrap=0,
+            )
         )
     text = str(info.value)
     assert info.value.reason_code == "route_not_supported"

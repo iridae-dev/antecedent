@@ -5,6 +5,7 @@ import pytest
 from antecedent import analyze
 from antecedent.errors import CausalCompileError, CausalValueError
 from antecedent.estimation import PreparedAnalysis
+from antecedent.outcomes import require_success
 from antecedent.quasi import (
     AugmentedPanelDiD,
     SyntheticDifferenceInDifferences,
@@ -56,7 +57,7 @@ def test_retained_synthetic_did_matches_direct_and_preserves_point_only_weights(
     assert fit.uncertainty == "point_only"
     assert np.isnan(result.estimate.se_analytic)
     prepared = PreparedAnalysis.prepare(rows, query=query)
-    assert prepared.estimate(rows).synthetic_did == fit
+    assert require_success(prepared.estimate(rows)).synthetic_did == fit
 
 
 def test_synthetic_did_exact_uniform_unit_assignment_uses_retained_analysis():
@@ -73,7 +74,7 @@ def test_synthetic_did_exact_uniform_unit_assignment_uses_retained_analysis():
     )
     direct = analyze(rows, query=query).synthetic_did
     prepared = antecedent.prepare(rows, query=query)
-    result = prepared.estimate()
+    result = require_success(prepared.estimate())
     fit = result.synthetic_did
     assert fit is not None
     assert fit == direct
@@ -85,8 +86,8 @@ def test_synthetic_did_exact_uniform_unit_assignment_uses_retained_analysis():
     assert fit.uncertainty == "point_only_with_exact_unit_randomization_p_value_no_interval"
     assert "uniform_single_treated_unit_assignment" in fit.assumptions
     assert np.isnan(result.estimate.se_analytic)
-    artifact = result.export()
-    assert antecedent.load(artifact).export() == artifact
+    artifact = bytes(result.export())
+    assert bytes(require_success(antecedent.load(artifact)).export()) == artifact
     with pytest.raises(CausalValueError, match="uniform_unit_randomization"):
         SyntheticDifferenceInDifferences("y", "unit", "period", "treated", 4, 1)
 
@@ -158,23 +159,25 @@ def test_augmented_panel_did_uses_retained_prepare_analyze_and_artifact():
         "p": [0.5] * 6,
         "m0": [2.0] * 6,
     }
-    direct = antecedent.analyze(data, query=query).panel_did
+    direct = require_success(antecedent.analyze(data, query=query)).panel_did
     prepared = antecedent.prepare(data, query=query)
-    result = prepared.estimate()
+    result = require_success(prepared.estimate())
     assert result.panel_did.estimate == pytest.approx(3.0)
     assert result.panel_did.effective_control_sample_size == pytest.approx(3.0)
     assert result.panel_did.uncertainty == "point_only_no_standard_error"
     assert result.panel_did.estimate == direct.estimate
-    assert antecedent.analyze(data, query=query).panel_did == result.panel_did
+    assert require_success(antecedent.analyze(data, query=query)).panel_did == result.panel_did
     assert (
-        prepared.estimate({**data, "post": [x + 1 for x in data["post"]]}).panel_did
+        require_success(
+            prepared.estimate({**data, "post": [x + 1 for x in data["post"]]})
+        ).panel_did
         == result.panel_did
     )
-    artifact = result.export()
-    loaded = antecedent.load(artifact)
-    assert loaded.export() == artifact
+    artifact = bytes(result.export())
+    loaded = require_success(antecedent.load(artifact))
+    assert bytes(loaded.export()) == artifact
     section = antecedent.artifacts.loads(artifact).payload["panel_did"]
     assert "standard_error" not in section
     assert section["uncertainty"] == "point_only_no_standard_error"
     with pytest.raises(CausalCompileError, match="overlap|strictly between"):
-        antecedent.analyze({**data, "p": [0.0] + [0.5] * 5}, query=query)
+        require_success(antecedent.analyze({**data, "p": [0.0] + [0.5] * 5}, query=query))

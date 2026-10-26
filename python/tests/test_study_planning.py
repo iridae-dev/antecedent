@@ -14,6 +14,7 @@ import json
 import pytest
 from antecedent import Admg
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 from _refusal import assert_registered_refusal
@@ -150,7 +151,7 @@ def execute_arrival(deliver):
     assert builder.outcome == "identified", builder.decision()
     prepared = builder.prepare_exact(laws(BASE[:1] + delivered), [{"x": 0.0}, {"x": 1.0}])
     del builder
-    result = json.loads(prepared.estimate())
+    result = json.loads(require_success(prepared.estimate()))
     program = prepared.plan()
     assert [s["source"]["regime"] for s in program["steps"] if s["source"]] == [
         "obs",
@@ -204,7 +205,7 @@ def test_arrival_of_another_shape_is_refused_and_the_right_shape_executes():
 
 def test_export_binds_the_plan_and_a_consumer_refuses_what_it_cannot_afford():
     stage = plan()
-    artifact = stage.export()
+    artifact = bytes(stage.export())
     assert artifact.startswith(b"ANTECEDENT-STUDY-PLAN\x01")
     with pytest.raises(CausalUnsupportedError, match="study_plan.bounds_exceeded") as refused:
         transport.replay_study_plan(artifact, max_operations=1_000, max_depth=16)
@@ -221,7 +222,7 @@ def test_export_binds_the_plan_and_a_consumer_refuses_what_it_cannot_afford():
 def test_an_exported_study_plan_is_replayed_by_an_independent_consumer():
     stage = plan()
     live = stage.plan()
-    artifact = stage.export()
+    artifact = bytes(stage.export())
     del stage
     replayed = json.loads(transport.replay_study_plan(artifact))
     for key in ("failure", "subsets", "proposals", "minimal", "operations_consumed", "limits"):
@@ -396,7 +397,7 @@ def test_a_multi_level_mz_plan_receives_by_level_labels_and_replays():
     with pytest.raises(CausalUnsupportedError, match="study_plan.arrival_mismatch"):
         stage.receive(0, mz_catalog(deliver, "hypothetical:1"), "hypothetical:1")
     # Export and an independent replay reproduce the plan.
-    artifact = stage.export()
+    artifact = bytes(stage.export())
     del stage
     replayed = json.loads(transport.replay_study_plan(artifact))
     for key in ("route", "failure", "subsets", "proposals", "minimal", "operations_consumed"):

@@ -239,7 +239,7 @@ def test_substrate_native_cpdag_report_is_consumed_in_a_fresh_process(
 ) -> None:
     produced = _chain_completions()
     artifact = tmp_path / "cpdag.bin"
-    artifact.write_bytes(produced.export())
+    artifact.write_bytes(bytes(produced.export()))
     report = fresh(CPDAG_SCRIPT, str(artifact))
     # By hand: a->b->c and a<-b->c give P(c=1 | b=1) = 0.8 (c is independent of a given b);
     # a<-b<-c gives P(c=1) = P(b=0) * 0.1 + P(b=1) * 0.8 = 0.6 * 0.1 + 0.4 * 0.8 = 0.38, with

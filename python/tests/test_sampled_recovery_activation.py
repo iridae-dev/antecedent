@@ -140,7 +140,7 @@ def test_public_sampled_recovery_whole_method_matches_independent_oracle(tmp_pat
         np.cov(np.array(replicate_laws).T, ddof=1).ravel(), abs=1e-12
     )
     artifact = tmp_path / "recovery.cbor"
-    artifact.write_bytes(result.export())
+    artifact.write_bytes(bytes(result.export()))
     identity = result.expected_identity
     script = """
 import json, pathlib, sys
@@ -170,7 +170,7 @@ def test_changed_seed_or_rows_cannot_replace_retained_artifact_identity():
     for changed in (produce(seed=8), produce(sample=sample)):
         with pytest.raises(CausalValueError, match="identity"):
             transport.SampledRecoveryCandidate.load(
-                changed.export(), expected=original.expected_identity
+                bytes(changed.export()), expected=original.expected_identity
             )
 
 
@@ -193,7 +193,7 @@ def test_reordered_query_roles_and_bits_preserve_original_canonical_authority():
     declaration = query(partially=list(reversed(query().partially_observed)))
     reordered = produce(sample=swapped, declaration=declaration)
     assert reordered.expected_identity == original.expected_identity
-    assert reordered.export() == original.export()
+    assert bytes(reordered.export()) == bytes(original.export())
     assert reordered.inspect() == original.inspect()
 
 
@@ -267,22 +267,28 @@ def test_original_recovery_consumer_enforces_identity_bytes_and_work_budgets():
     expected = result.expected_identity
     with pytest.raises(CausalValueError, match="identity"):
         transport.SampledRecoveryCandidate.load(
-            result.export(),
+            bytes(result.export()),
             expected=transport.SampledRecoveryIdentity("0" * 64, "0" * 64),
         )
     with pytest.raises(CausalSerializationError):
         transport.SampledRecoveryCandidate.load(b"not-cbor", expected=expected)
     for limits in ({"max_rows": 1999}, {"max_replicates": 499}):
         with pytest.raises(CausalValueError, match="count") as caught:
-            transport.SampledRecoveryCandidate.load(result.export(), expected=expected, **limits)
+            transport.SampledRecoveryCandidate.load(
+                bytes(result.export()), expected=expected, **limits
+            )
         assert caught.value.reason_code == "invalid_argument"
     with pytest.raises(CausalError, match="budget") as caught:
-        transport.SampledRecoveryCandidate.load(result.export(), expected=expected, memory_bytes=1)
+        transport.SampledRecoveryCandidate.load(
+            bytes(result.export()), expected=expected, memory_bytes=1
+        )
     assert caught.value.reason_code == "transport_budget_cancel"
     token = _native.CancellationToken()
     token.cancel()
     with pytest.raises(CausalError, match="budget") as caught:
-        transport.SampledRecoveryCandidate.load(result.export(), expected=expected, cancel=token)
+        transport.SampledRecoveryCandidate.load(
+            bytes(result.export()), expected=expected, cancel=token
+        )
     assert caught.value.reason_code == "transport_budget_cancel"
     for limits in (
         {"max_rows": True},
@@ -292,14 +298,16 @@ def test_original_recovery_consumer_enforces_identity_bytes_and_work_budgets():
         {"memory_bytes": 2**64},
     ):
         with pytest.raises(CausalValueError):
-            transport.SampledRecoveryCandidate.load(result.export(), expected=expected, **limits)
+            transport.SampledRecoveryCandidate.load(
+                bytes(result.export()), expected=expected, **limits
+            )
 
 
 def test_candidate_scalar_reads_reuse_immutable_original_report(monkeypatch):
     import antecedent.transport._sampled_candidate as candidate_module
 
     result = produce()
-    artifact = result.export()
+    artifact = bytes(result.export())
     expected = (
         result.effect,
         result.effect_standard_error,
@@ -326,7 +334,7 @@ def test_candidate_scalar_reads_reuse_immutable_original_report(monkeypatch):
             result.expected_identity,
         ) == expected
         assert result.inspect()["result"]["effect"] == expected[0]
-    assert result.export() == artifact
+    assert bytes(result.export()) == artifact
 
 
 def test_sampled_bca_candidate_independent_jackknife_and_normal_transform(tmp_path):
@@ -378,7 +386,7 @@ def test_sampled_bca_candidate_independent_jackknife_and_normal_transform(tmp_pa
     assert bca["adjusted_probabilities"] == pytest.approx(adjusted, abs=1e-7)
     assert candidate.interval == pytest.approx(np.quantile(effects, adjusted), abs=1e-7)
     artifact = tmp_path / "bca.cbor"
-    artifact.write_bytes(candidate.export())
+    artifact.write_bytes(bytes(candidate.export()))
     identity = candidate.expected_identity
     replayed = subprocess.check_output(
         [

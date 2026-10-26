@@ -15,6 +15,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent._verdict import describe_status
+from antecedent.outcomes import require_success
 from antecedent.results import Answer, CalibrationInfo
 from antecedent.results._execution import ANSWER_KINDS, CLAIM_KIND_ANSWERS
 
@@ -43,13 +44,15 @@ def _run(graph, *, bayesian: bool):
     inference = ant.Bayesian(n_draws=64, backend="conjugate") if bayesian else ant.Frequentist()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        return ant.analyze(
-            _continuous(),
-            graph=graph,
-            query=ant.AverageEffect("t", "y"),
-            inference=inference,
-            refute="none",
-            bootstrap=0 if bayesian else 20,
+        return require_success(
+            ant.analyze(
+                _continuous(),
+                graph=graph,
+                query=ant.AverageEffect("t", "y"),
+                inference=inference,
+                refute="none",
+                bootstrap=0 if bayesian else 20,
+            )
         )
 
 
@@ -78,12 +81,14 @@ def graph_dependent():
 def identified():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        return ant.analyze(
-            _continuous(),
-            graph=GRAPH,
-            query=ant.AverageEffect("t", "y"),
-            refute="none",
-            bootstrap=0,
+        return require_success(
+            ant.analyze(
+                _continuous(),
+                graph=GRAPH,
+                query=ant.AverageEffect("t", "y"),
+                refute="none",
+                bootstrap=0,
+            )
         )
 
 
@@ -148,12 +153,14 @@ def test_parametric_identification_keeps_its_qualifier():
     y = t + z + rng.normal(scale=0.2, size=300)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        result = ant.analyze(
-            {"t": t, "y": y, "z": z},
-            graph=GRAPH,
-            query=ant.Counterfactual("t", "y"),
-            refute="none",
-            bootstrap=0,
+        result = require_success(
+            ant.analyze(
+                {"t": t, "y": y, "z": z},
+                graph=GRAPH,
+                query=ant.Counterfactual("t", "y"),
+                refute="none",
+                bootstrap=0,
+            )
         )
     assert result.identification.status == "IdentifiedUnderParametricRestrictions"
     assert repr(result).startswith("<AnalysisResult identified under parametric restrictions ")
@@ -174,11 +181,13 @@ def test_licensed_design_routes_are_nonparametric():
         _transport_query,
     )
 
-    transport_result = ant.analyze(
-        _transport_data(80, 1), graph=_transport_graph(), query=_transport_query()
+    transport_result = require_success(
+        ant.analyze(_transport_data(80, 1), graph=_transport_graph(), query=_transport_query())
     )
     assignment, data = _interference_design()
-    interference_result = ant.analyze(data, graph=[], query=_interference_query(assignment))
+    interference_result = require_success(
+        ant.analyze(data, graph=[], query=_interference_query(assignment))
+    )
     for result, method_prefix in (
         (transport_result, "transport.sid"),
         (interference_result, "interference.design"),
@@ -247,7 +256,7 @@ def test_answer_kind_is_closed():
 )
 def test_live_and_loaded_answers_agree(fixture, kind, detail, request):
     result = request.getfixturevalue(fixture)
-    loaded = ant.load(result.export())
+    loaded = require_success(ant.load(bytes(result.export())))
     assert_answer_kept(loaded)
     assert result.answer.kind == kind
     assert loaded.answer.kind == kind
@@ -262,16 +271,18 @@ def test_bounds_answer_carries_the_identified_set_live_and_loaded():
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        result = ant.analyze(
-            _series(_PIN),
-            graph=_cpdag(),
-            query=_pulse(_PIN),
-            inference=ant.Bayesian(n_draws=64, backend="conjugate"),
-            refute=False,
-            bootstrap=0,
-            seed=7,
+        result = require_success(
+            ant.analyze(
+                _series(_PIN),
+                graph=_cpdag(),
+                query=_pulse(_PIN),
+                inference=ant.Bayesian(n_draws=64, backend="conjugate"),
+                refute=False,
+                bootstrap=0,
+                seed=7,
+            )
         )
-    loaded = ant.load(result.export())
+    loaded = require_success(ant.load(bytes(result.export())))
     assert result.answer.kind == loaded.answer.kind == "bounds"
     assert result.answer.bounds is not None
     assert loaded.answer.bounds == result.answer.bounds
@@ -286,29 +297,33 @@ def test_function_valued_answers_agree_live_and_loaded():
     y = t + z + rng.normal(scale=0.2, size=200)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        result = ant.analyze(
-            {"t": t, "y": y, "z": z},
-            graph=GRAPH,
-            query=ant.ResponseJacobian(["t"], ["y"], at={"t": 0.5}),
-            estimator_config={"bandwidth": 0.45},
-            refute="none",
-            bootstrap=0,
+        result = require_success(
+            ant.analyze(
+                {"t": t, "y": y, "z": z},
+                graph=GRAPH,
+                query=ant.ResponseJacobian(["t"], ["y"], at={"t": 0.5}),
+                estimator_config={"bandwidth": 0.45},
+                refute="none",
+                bootstrap=0,
+            )
         )
     assert result.answer.kind == "response"
-    assert ant.load(result.export()).answer.kind == "response"
+    assert require_success(ant.load(bytes(result.export()))).answer.kind == "response"
 
 
 def test_limited_function_valued_answer_is_partial_live_and_loaded():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        result = ant.analyze(
-            _continuous(n=300),
-            graph=PARTIAL,
-            query=ant.ResponseCurve("t", "y", grid=[0.0, 0.5, 1.0]),
-            bootstrap=0,
-            refute="none",
+        result = require_success(
+            ant.analyze(
+                _continuous(n=300),
+                graph=PARTIAL,
+                query=ant.ResponseCurve("t", "y", grid=[0.0, 0.5, 1.0]),
+                bootstrap=0,
+                refute="none",
+            )
         )
-    loaded = ant.load(result.export())
+    loaded = require_success(ant.load(bytes(result.export())))
     assert result.answer.kind == loaded.answer.kind == "partial"
     assert result.answer.detail == loaded.answer.detail
     assert result.answer.detail is not None
@@ -323,7 +338,7 @@ def test_limited_function_valued_answer_is_partial_live_and_loaded():
 def test_report_target_query_uses_variable_names_live_and_loaded(identified):
     for report in (
         identified.inspect().to_dict(),
-        ant.load(identified.export()).inspect().to_dict(),
+        require_success(ant.load(bytes(identified.export()))).inspect().to_dict(),
     ):
         query = report["target"]["query"]
         assert query["kind"] == "average_effect"

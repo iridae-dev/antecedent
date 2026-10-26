@@ -21,6 +21,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from .._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .._columns import coerce_fields
 from .._native import (
     consume_z_transport_joint_sensitivity_artifact as _consume_joint_artifact,
@@ -28,6 +35,7 @@ from .._native import (
 from .._native import export_z_transport_joint_sensitivity as _export_joint
 from .._native import z_transport_joint_sensitivity as _joint
 from ..errors import CausalTypeError, CausalValueError
+from ._consumption import TransportConsumption
 from ._impl import _non_negative, _optional_non_negative
 
 
@@ -122,30 +130,40 @@ def joint_mechanism_sensitivity(
     )
 
 
+@artifact_export
 def export_joint_mechanism_sensitivity(
     stage: Any,
     deviation: JointDeviation,
     *,
     memory_bytes: int | None = None,
     cancel: Any = None,
-) -> bytes:
+) -> ExportedArtifact[Any]:
     """Export the stage's last execution with a checked joint analysis (artifact v3).
 
     Call ``stage.estimate()`` first: the artifact embeds that execution's point
     artifact as its baseline.
     """
     deviation = _deviation(deviation)
-    return bytes(
-        _export_joint(
-            _stage(stage),
-            list(deviation._pairs),
-            **deviation._kwargs(),
-            memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-            cancel=cancel,
-        )
+    return artifact_from_receipt(
+        stage,
+        bytes(
+            _export_joint(
+                _stage(stage),
+                list(deviation._pairs),
+                **deviation._kwargs(),
+                memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
+                cancel=cancel,
+            )
+        ),
     )
 
 
+@artifact_consumer(
+    proof="JointSensitivityArtifactWire::consume_with_limits replays the checked baseline and recomputes the joint contamination range under consumer limits",
+    replayable=True,
+    resumable=False,
+    identity=(),
+)
 def consume_joint_mechanism_sensitivity_artifact(
     artifact: bytes,
     *,
@@ -159,24 +177,28 @@ def consume_joint_mechanism_sensitivity_artifact(
     max_memory_bytes: int = 64 * 1024 * 1024,
     memory_bytes: int | None = None,
     cancel: Any = None,
-) -> dict[str, Any]:
+) -> TransportConsumption:
     """Independently verify a joint sensitivity artifact under the consumer's limits.
 
     Stored search limits above ``max_search_operations`` / ``max_search_depth`` /
     ``max_memory_bytes`` refuse before any replay (``joint_sensitivity.consumer_limits``).
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    return _consume_joint_artifact(
-        artifact,
-        max_operations=_non_negative("max_operations", max_operations),
-        max_depth=_non_negative("max_depth", max_depth),
-        max_support_rows=_optional_non_negative("max_support_rows", max_support_rows),
-        max_laws=_optional_non_negative("max_laws", max_laws),
-        max_law_cells=_optional_non_negative("max_law_cells", max_law_cells),
-        max_search_operations=_non_negative("max_search_operations", max_search_operations),
-        max_search_depth=_non_negative("max_search_depth", max_search_depth),
-        max_memory_bytes=_non_negative("max_memory_bytes", max_memory_bytes),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+    return TransportConsumption.from_checked_mapping(
+        "joint_mechanism_sensitivity",
+        _consume_joint_artifact(
+            artifact,
+            max_operations=_non_negative("max_operations", max_operations),
+            max_depth=_non_negative("max_depth", max_depth),
+            max_support_rows=_optional_non_negative("max_support_rows", max_support_rows),
+            max_laws=_optional_non_negative("max_laws", max_laws),
+            max_law_cells=_optional_non_negative("max_law_cells", max_law_cells),
+            max_search_operations=_non_negative("max_search_operations", max_search_operations),
+            max_search_depth=_non_negative("max_search_depth", max_search_depth),
+            max_memory_bytes=_non_negative("max_memory_bytes", max_memory_bytes),
+            memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
+            cancel=cancel,
+        ),
     )

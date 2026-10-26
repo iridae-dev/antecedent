@@ -29,6 +29,9 @@ use crate::{
     tabular_from_batch,
 };
 
+#[path = "bayesian_temporal_atoms.rs"]
+mod temporal_atoms;
+
 /// The posterior a compiled structure-posterior search returned.
 fn posterior_of(structure: DiscoveredStructure) -> Option<RustGraphPosterior> {
     match structure {
@@ -65,6 +68,9 @@ pub struct PyGraphPosterior {
     max_lag: Option<u32>,
     #[pyo3(get)]
     lag_masks: Option<Vec<u64>>,
+    /// Per-atom lagged latent-confounder masks for temporal ADMGs.
+    #[pyo3(get)]
+    lag_bidirected_masks: Option<Vec<u64>>,
     /// Structure-learning algorithm that produced the atoms (`None` if untagged).
     #[pyo3(get)]
     algorithm: Option<String>,
@@ -128,6 +134,7 @@ struct AtomInputs {
     orientation_marginals: Option<Vec<f64>>,
     lagged_edge_marginals: Option<Vec<f64>>,
     lag_masks: Option<Vec<u64>>,
+    lag_bidirected_masks: Option<Vec<u64>>,
     max_lag: Option<u32>,
     ess: Option<f64>,
     atom_kind: GraphPosteriorAtomKind,
@@ -150,6 +157,7 @@ impl PyGraphPosterior {
             lagged_edge_marginals: post.lagged_edge_marginals.as_ref().map(|v| v.as_ref().to_vec()),
             max_lag: post.max_lag,
             lag_masks: post.lag_masks.as_ref().map(|v| v.as_ref().to_vec()),
+            lag_bidirected_masks: post.lag_bidirected_masks.as_ref().map(|v| v.as_ref().to_vec()),
             algorithm: post.algorithm.as_deref().map(str::to_owned),
             atom_kind: post.atom_kind.as_str().to_owned(),
             mark_masks: post.mark_atoms.as_ref().map(|v| v.as_ref().to_vec()),
@@ -190,6 +198,9 @@ impl PyGraphPosterior {
             post = post.with_lag_masks(lag_masks.clone()).map_err(py_msg)?;
         }
         post = post.with_atom_kind(parse_atom_kind(&self.atom_kind)?);
+        if let Some(masks) = &self.lag_bidirected_masks {
+            post = post.with_lag_bidirected_masks(masks.clone()).map_err(py_msg)?;
+        }
         if let Some(mark_masks) = &self.mark_masks {
             post = post.with_mark_atoms(mark_masks.clone()).map_err(py_msg)?;
         }
@@ -344,6 +355,7 @@ impl PyGraphPosterior {
             orientation_marginals,
             lagged_edge_marginals,
             lag_masks,
+            lag_bidirected_masks: None,
             max_lag,
             ess,
             atom_kind: parse_atom_kind(atom_kind)?,
@@ -367,6 +379,9 @@ impl PyGraphPosterior {
         if graphs.is_empty() {
             return Err(crate::value_err("from_graphs requires at least one atom"));
         }
+        if let Some(temporal) = temporal_atoms::from_graphs(&names, &weights, &graphs, ess) {
+            return temporal;
+        }
         let (atom_kind, adjacency, mark_masks) = pack_static_atoms(&names, &graphs)?;
         Self::from_atom_inputs(AtomInputs {
             names,
@@ -376,6 +391,7 @@ impl PyGraphPosterior {
             orientation_marginals: None,
             lagged_edge_marginals: None,
             lag_masks: None,
+            lag_bidirected_masks: None,
             max_lag: None,
             ess,
             atom_kind,
@@ -395,6 +411,7 @@ impl PyGraphPosterior {
             orientation_marginals,
             lagged_edge_marginals,
             lag_masks,
+            lag_bidirected_masks,
             max_lag,
             ess,
             atom_kind: kind,
@@ -437,10 +454,8 @@ impl PyGraphPosterior {
         }
         if let (Some(masks), Some(lag)) = (&lag_masks, max_lag) {
             let lag_bits = usize::try_from(lag).map_err(py_msg)?.saturating_mul(cell);
-            if lag == 0 || lag_bits > MASK_BITS {
-                return Err(crate::value_err(
-                    "lag_masks require 1 <= max_lag and max_lag * n_vars^2 <= 64 bits",
-                ));
+            if lag_bits > MASK_BITS {
+                return Err(crate::value_err("lag_masks require max_lag * n_vars^2 <= 64 bits"));
             }
             for (index, mask) in masks.iter().enumerate() {
                 if lag_bits < MASK_BITS && (mask >> lag_bits) != 0 {
@@ -493,6 +508,9 @@ impl PyGraphPosterior {
             post = post.with_lag_masks(lag_masks).map_err(py_msg)?;
         }
         post = post.with_atom_kind(kind);
+        if let Some(masks) = lag_bidirected_masks {
+            post = post.with_lag_bidirected_masks(masks).map_err(py_msg)?;
+        }
         if let Some(mark_masks) = mark_masks {
             post = post.with_mark_atoms(mark_masks).map_err(py_msg)?;
         }
@@ -568,7 +586,7 @@ fn pack_static_atoms(
         return Ok((GraphPosteriorAtomKind::Admg, adjacency, None));
     }
     Err(crate::value_err(
-        "from_graphs accepts Dag, Cpdag, Pag, or Admg atoms; temporal class atoms use from_atoms",
+        "from_graphs accepts Dag, Cpdag, Pag, Admg, TemporalDag, TemporalCpdag, TemporalPag, or TemporalAdmg atoms",
     ))
 }
 

@@ -6,19 +6,22 @@ import math
 
 import antecedent
 import numpy as np
+from antecedent.outcomes import require_success
 
 from _scm import confounded_scm
 
 
 def test_bayesian_default_omits_posterior_artifact():
     data, edges = confounded_scm(n=400, seed=11)
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(n_draws=128),
-        seed=3,
-        refute=False,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=128),
+            seed=3,
+            refute=False,
+        )
     )
     assert result.posterior is not None
     assert result.posterior.artifact is None
@@ -29,14 +32,16 @@ def test_bayesian_default_omits_posterior_artifact():
 
 def test_posterior_artifact_round_trip_opt_in():
     data, edges = confounded_scm(n=400, seed=11)
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(n_draws=128),
-        seed=3,
-        refute=False,
-        return_posterior_artifact=True,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=128),
+            seed=3,
+            refute=False,
+            return_posterior_artifact=True,
+        )
     )
     assert result.posterior is not None
     assert result.posterior.artifact is not None
@@ -60,22 +65,26 @@ def test_posterior_artifact_round_trip_opt_in():
 
 def test_posterior_artifact_payload_size_vs_summaries():
     data, edges = confounded_scm(n=200, seed=5)
-    summary = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(n_draws=2000),
-        seed=5,
-        refute=False,
+    summary = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=2000),
+            seed=5,
+            refute=False,
+        )
     )
-    full = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(n_draws=2000),
-        seed=5,
-        refute=False,
-        return_posterior_artifact=True,
+    full = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=2000),
+            seed=5,
+            refute=False,
+            return_posterior_artifact=True,
+        )
     )
     assert summary.posterior.artifact is None
     assert full.posterior.artifact is not None

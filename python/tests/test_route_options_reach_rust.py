@@ -14,6 +14,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent.discovery import DbnPosterior, ExactDagPosterior
+from antecedent.outcomes import require_success
 
 
 def _series(n: int = 600, seed: int = 11) -> dict[str, np.ndarray]:
@@ -56,7 +57,9 @@ def test_temporal_control_level_sets_the_contrast(query_type: Any, options: dict
 
     def effect(control: float) -> float:
         query = query_type("x", "y", treatment_lag=1, control_level=control, active_level=1.0)
-        return float(ant.analyze(data, query=query, refute=False, seed=3, **options).ate)
+        return float(
+            require_success(ant.analyze(data, query=query, refute=False, seed=3, **options)).ate
+        )
 
     full, half = effect(0.0), effect(0.5)
     assert full == pytest.approx(0.9, abs=0.1)
@@ -67,16 +70,18 @@ def test_response_nuisance_options_reach_the_static_curve() -> None:
     data = _continuous()
     graph = [("z", "t"), ("z", "y"), ("t", "y")]
     query = ant.ResponseCurve("t", "y", grid=[-1.0, 0.0, 1.0])
-    base = ant.analyze(data, graph=graph, query=query, refute=False)
-    default_folds = ant.analyze(
-        data, graph=graph, query=query, refute=False, estimator_config={"folds": 5}
+    base = require_success(ant.analyze(data, graph=graph, query=query, refute=False))
+    default_folds = require_success(
+        ant.analyze(data, graph=graph, query=query, refute=False, estimator_config={"folds": 5})
     )
-    other = ant.analyze(
-        data,
-        graph=graph,
-        query=query,
-        refute=False,
-        estimator_config={"folds": 3, "nuisance_basis": 8},
+    other = require_success(
+        ant.analyze(
+            data,
+            graph=graph,
+            query=query,
+            refute=False,
+            estimator_config={"folds": 3, "nuisance_basis": 8},
+        )
     )
     assert _curve(default_folds) == _curve(base)
     assert _curve(other) != _curve(base)
@@ -89,27 +94,35 @@ def test_response_options_reach_a_class_envelope_and_a_graph_posterior() -> None
         ["z", "t", "y"], [("z", "y"), ("t", "y")], [("z", "t")]
     )
     for route in ({"graph": cpdag}, {"discovery": ExactDagPosterior()}):
-        base = ant.analyze(data, query=query, refute=False, **route)
-        other = ant.analyze(data, query=query, refute=False, estimator_config={"folds": 3}, **route)
+        base = require_success(ant.analyze(data, query=query, refute=False, **route))
+        other = require_success(
+            ant.analyze(data, query=query, refute=False, estimator_config={"folds": 3}, **route)
+        )
         assert _curve(other) != _curve(base), route
         with pytest.raises(ValueError, match="unknown response estimator_config keys"):
-            ant.analyze(data, query=query, refute=False, estimator_config={"nope": 1}, **route)
+            require_success(
+                ant.analyze(data, query=query, refute=False, estimator_config={"nope": 1}, **route)
+            )
 
 
 def test_derivatives_take_the_nuisance_options() -> None:
     data = _continuous()
     graph = [("z", "t"), ("z", "y"), ("t", "y")]
     query = ant.AverageDerivative("t", "y")
-    base = ant.analyze(data, graph=graph, query=query, refute=False)
-    other = ant.analyze(data, graph=graph, query=query, refute=False, estimator_config={"folds": 3})
+    base = require_success(ant.analyze(data, graph=graph, query=query, refute=False))
+    other = require_success(
+        ant.analyze(data, graph=graph, query=query, refute=False, estimator_config={"folds": 3})
+    )
     assert float(other.estimate) != float(base.estimate)
     with pytest.raises(ValueError, match="prepared derivatives accept only"):
-        ant.analyze(
-            data,
-            graph=graph,
-            query=query,
-            refute=False,
-            estimator_config={"export_row_diagnostics": True},
+        require_success(
+            ant.analyze(
+                data,
+                graph=graph,
+                query=query,
+                refute=False,
+                estimator_config={"export_row_diagnostics": True},
+            )
         )
 
 
@@ -127,13 +140,15 @@ def test_intervention_response_identifier_reaches_the_plan() -> None:
     )
 
     def run(identifier: str | None) -> Any:
-        return ant.analyze(
-            data,
-            graph=graph,
-            query=query,
-            estimator="cell.aipw",
-            identifier=identifier,
-            refute=False,
+        return require_success(
+            ant.analyze(
+                data,
+                graph=graph,
+                query=query,
+                estimator="cell.aipw",
+                identifier=identifier,
+                refute=False,
+            )
         )
 
     omitted, named = run(None), run("response.backdoor")

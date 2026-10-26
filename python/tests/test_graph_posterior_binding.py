@@ -6,6 +6,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.errors import CausalUnsupportedError
+from antecedent.outcomes import require_success
 
 from known_truth import (
     BAYES,
@@ -35,8 +36,10 @@ def _reordered(data: dict[str, np.ndarray], order: list[str]) -> dict[str, np.nd
 def test_supplied_static_posterior_refuses_column_order_mismatch():
     data = _reordered(static_data(int(STATIC["n"])), ["z", "t", "y"])
     with pytest.raises(ValueError, match="names must match data column names and order"):
-        antecedent.analyze(
-            data, discovery=static_posterior(), query=_ATE, inference=BAYES, refute=False
+        require_success(
+            antecedent.analyze(
+                data, discovery=static_posterior(), query=_ATE, inference=BAYES, refute=False
+            )
         )
     with pytest.raises(ValueError, match="names must match data column names and order"):
         # lgtm[py/call/wrong-named-argument]
@@ -49,8 +52,10 @@ def test_supplied_dbn_posterior_refuses_column_order_mismatch():
     series = white_noise_pulse_series(int(TEMPORAL["n"]), int(TEMPORAL["seed"]))
     data = _reordered(series, ["defect", "pressure"])
     with pytest.raises(ValueError, match="names must match data column names and order"):
-        antecedent.analyze(
-            data, discovery=temporal_posterior(), query=_PULSE, inference=BAYES, refute=False
+        require_success(
+            antecedent.analyze(
+                data, discovery=temporal_posterior(), query=_PULSE, inference=BAYES, refute=False
+            )
         )
     with pytest.raises(ValueError, match="names must match data column names and order"):
         # lgtm[py/call/wrong-named-argument]
@@ -65,7 +70,11 @@ def test_supplied_posterior_refuses_variable_count_mismatch():
         ["t", "y"], [1.0], [set_edge(0, 2, 0, 1)]
     )
     with pytest.raises(ValueError, match="names must match data column names and order"):
-        antecedent.analyze(data, discovery=two_variable, query=_ATE, inference=BAYES, refute=False)
+        require_success(
+            antecedent.analyze(
+                data, discovery=two_variable, query=_ATE, inference=BAYES, refute=False
+            )
+        )
 
 
 def test_from_atoms_validates_atoms_and_weights():
@@ -107,12 +116,14 @@ def test_supplied_dbn_posterior_refuses_a_static_query():
     series = white_noise_pulse_series(int(TEMPORAL["n"]), int(TEMPORAL["seed"]))
     static_query = antecedent.AverageEffect(treatment="pressure", outcome="defect")
     with pytest.raises(CausalUnsupportedError, match="DBN lag structure"):
-        antecedent.analyze(
-            series,
-            discovery=temporal_posterior(),
-            query=static_query,
-            inference=BAYES,
-            refute=False,
+        require_success(
+            antecedent.analyze(
+                series,
+                discovery=temporal_posterior(),
+                query=static_query,
+                inference=BAYES,
+                refute=False,
+            )
         )
     with pytest.raises(CausalUnsupportedError, match="DBN lag structure"):
         # lgtm[py/call/wrong-named-argument]
@@ -137,13 +148,15 @@ def test_supplied_posterior_refuses_options_it_cannot_honour(option, value):
     """Per-atom identification and per-atom draws are not caller-selectable."""
     data = static_data(int(STATIC["n"]))
     with pytest.raises(CausalUnsupportedError, match=option.split("_")[0]):
-        antecedent.analyze(
-            data,
-            discovery=static_posterior(),
-            query=_ATE,
-            inference=BAYES,
-            refute=False,
-            **{option: value},
+        require_success(
+            antecedent.analyze(
+                data,
+                discovery=static_posterior(),
+                query=_ATE,
+                inference=BAYES,
+                refute=False,
+                **{option: value},
+            )
         )
 
 
@@ -155,15 +168,19 @@ def test_supplied_posterior_attests_custom_validators():
         calls.append(ate)
         return {"passed": True, "refuted_ate": ate, "comparison": 0.0}
 
-    result = antecedent.analyze(
-        static_data(int(STATIC["n"])),
-        discovery=static_posterior(),
-        query=_ATE,
-        inference=antecedent.Frequentist(),
-        refute=False,
-        validators={"posterior.finite": records},
+    result = require_success(
+        antecedent.analyze(
+            static_data(int(STATIC["n"])),
+            discovery=static_posterior(),
+            query=_ATE,
+            inference=antecedent.Frequentist(),
+            refute=False,
+            validators={"posterior.finite": records},
+        )
     )
-    attested = antecedent.load(result.export()).decoded_artifact.contract["claim"]["attested"]
+    attested = require_success(antecedent.load(bytes(result.export()))).decoded_artifact.contract[
+        "claim"
+    ]["attested"]
     assert {item["name"] for item in attested} == {"posterior.finite"}
     assert attested
     assert calls
@@ -176,13 +193,15 @@ def test_live_discovery_honours_cancellation(route):
     token = antecedent.state.CancellationToken()
     token.cancel()
     with pytest.raises(antecedent.errors.CausalCancelledError, match="cancelled before discovery"):
-        antecedent.analyze(
-            data,
-            discovery=discovery,
-            query=query,
-            inference=antecedent.Frequentist(),
-            refute=False,
-            cancel=token,
+        require_success(
+            antecedent.analyze(
+                data,
+                discovery=discovery,
+                query=query,
+                inference=antecedent.Frequentist(),
+                refute=False,
+                cancel=token,
+            )
         )
 
 
@@ -191,13 +210,15 @@ def test_live_discovery_forwards_progress(route):
     """Progress reports through discovery and on into identification."""
     data, discovery, query = _live_route(route)
     seen: list[tuple[float, str]] = []
-    antecedent.analyze(
-        data,
-        discovery=discovery,
-        query=query,
-        inference=antecedent.Frequentist(),
-        refute=False,
-        on_progress=lambda fraction, stage: seen.append((fraction, stage)),
+    require_success(
+        antecedent.analyze(
+            data,
+            discovery=discovery,
+            query=query,
+            inference=antecedent.Frequentist(),
+            refute=False,
+            on_progress=lambda fraction, stage: seen.append((fraction, stage)),
+        )
     )
     assert any(stage == "discovery" for _, stage in seen)
 
@@ -206,13 +227,15 @@ def test_live_discovery_refuses_stage_streaming_where_there_are_no_stages():
     """A temporal route fits point and uncertainty together, so it has no stages."""
     data, discovery, query = _live_route("temporal")
     with pytest.raises(CausalUnsupportedError, match="stage") as raised:
-        antecedent.analyze(
-            data,
-            discovery=discovery,
-            query=query,
-            inference=antecedent.Frequentist(),
-            refute=False,
-            on_stage=lambda *_args: None,
+        require_success(
+            antecedent.analyze(
+                data,
+                discovery=discovery,
+                query=query,
+                inference=antecedent.Frequentist(),
+                refute=False,
+                on_stage=lambda *_args: None,
+            )
         )
     assert raised.value.reason_code == "stage_stream_unavailable"
 
@@ -230,13 +253,15 @@ def _live_route(route: str):
 
 def test_supplied_posterior_refuses_stage_callback():
     with pytest.raises(CausalUnsupportedError, match="on_stage"):
-        antecedent.analyze(
-            static_data(int(STATIC["n"])),
-            discovery=static_posterior(),
-            query=_ATE,
-            inference=BAYES,
-            refute=False,
-            on_stage=lambda *_args: None,
+        require_success(
+            antecedent.analyze(
+                static_data(int(STATIC["n"])),
+                discovery=static_posterior(),
+                query=_ATE,
+                inference=BAYES,
+                refute=False,
+                on_stage=lambda *_args: None,
+            )
         )
 
 
@@ -254,13 +279,15 @@ def test_supplied_posterior_honours_cancellation(temporal):
         query = _ATE
 
     with pytest.raises(antecedent.errors.CausalCancelledError, match="cancelled during compile"):
-        antecedent.analyze(
-            data,
-            discovery=posterior,
-            query=query,
-            inference=BAYES,
-            refute=False,
-            cancel=token,
+        require_success(
+            antecedent.analyze(
+                data,
+                discovery=posterior,
+                query=query,
+                inference=BAYES,
+                refute=False,
+                cancel=token,
+            )
         )
 
 
@@ -280,13 +307,15 @@ def test_supplied_posterior_forwards_progress_callback(temporal):
         posterior = static_posterior()
         query = _ATE
 
-    result = antecedent.analyze(
-        data,
-        discovery=posterior,
-        query=query,
-        inference=BAYES,
-        refute=False,
-        on_progress=on_progress,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            discovery=posterior,
+            query=query,
+            inference=BAYES,
+            refute=False,
+            on_progress=on_progress,
+        )
     )
 
     assert result.ate is None or np.isfinite(result.ate)
@@ -298,8 +327,10 @@ def test_supplied_posterior_refuses_prior_transfer():
     data = static_data(int(STATIC["n"]))
     transfer = antecedent.Bayesian(backend="conjugate", n_draws=32, prior_from=b"\x00")
     with pytest.raises(CausalUnsupportedError, match="prior_artifact"):
-        antecedent.analyze(
-            data, discovery=static_posterior(), query=_ATE, inference=transfer, refute=False
+        require_success(
+            antecedent.analyze(
+                data, discovery=static_posterior(), query=_ATE, inference=transfer, refute=False
+            )
         )
 
 
@@ -311,14 +342,16 @@ def test_supplied_posterior_keeps_discovery_provenance():
     data = {"t": t, "y": y, "z": z}
     posterior = antecedent.discovery.ExactDagPosterior().run(data, seed=7)
     assert posterior.algorithm == "exact_dag_posterior"
-    result = antecedent.analyze(
-        data,
-        discovery=posterior,
-        query=_ATE,
-        inference=antecedent.Bayesian(n_draws=48, prior_scale=100.0, backend="conjugate"),
-        refute=False,
-        bootstrap=0,
-        seed=7,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            discovery=posterior,
+            query=_ATE,
+            inference=antecedent.Bayesian(n_draws=48, prior_scale=100.0, backend="conjugate"),
+            refute=False,
+            bootstrap=0,
+            seed=7,
+        )
     )
     assert result.plan.discovery_algorithm == "exact_dag_posterior"
     assert result.evidence_status == "licensed"

@@ -11,6 +11,7 @@ import pytest
 from antecedent.errors import CausalValueError
 from antecedent.estimators import DML, DRLearner
 from antecedent.learners import Auto, Linear, Logistic, Ridge
+from antecedent.outcomes import require_success
 from antecedent.recalc import (
     RecalcReceipt,
     RecalcRefusal,
@@ -50,7 +51,7 @@ def request(cate=False):
 
 
 def full(request, actual, seed=3):
-    expected = DrSession().execute(request, seed=seed)
+    expected = require_success(DrSession().execute(request, seed=seed))
     assert actual.law.ate == pytest.approx(expected.law.ate, abs=1e-11)
     assert actual.law.std_error == pytest.approx(expected.law.std_error, abs=1e-11)
     assert actual.decision == expected.decision
@@ -68,20 +69,22 @@ def refusal(call, code, detail, stage):
 def test_dr_native_dml_cate_counts_and_full_rerun(cate):
     r = request(cate)
     session = DrSession()
-    result = session.execute(r, seed=3)
+    result = require_success(session.execute(r, seed=3))
     truth = 2 + 0.4 * r.data["z"] - 0.2 * r.data["w"]
     assert session.score_contrast() == pytest.approx(truth, abs=1e-10)
     assert result.law.ate == pytest.approx(np.mean(truth), abs=1e-10)
     assert result.receipt.totals.fold_fits == 9
     assert result.receipt.totals.model_fits == int(cate)
     assert result.receipt.totals.score_computations == 2
-    existing = ac.analyze(
-        r.data,
-        graph=r.edges,
-        query=ac.AverageEffect(treatment="t", outcome="y"),
-        estimator=r.estimator,
-        refute=False,
-        seed=3,
+    existing = require_success(
+        ac.analyze(
+            r.data,
+            graph=r.edges,
+            query=ac.AverageEffect(treatment="t", outcome="y"),
+            estimator=r.estimator,
+            refute=False,
+            seed=3,
+        )
     )
     assert result.law.ate == pytest.approx(existing.effect, abs=1e-10)
     assert result.law.std_error == pytest.approx(existing.estimate.se_analytic, abs=1e-10)
@@ -92,14 +95,14 @@ def test_dr_native_dml_cate_counts_and_full_rerun(cate):
 def test_dr_utility_and_same_row_target_reuse_scores(cate):
     r = request(cate)
     session = DrSession()
-    session.execute(r, seed=3)
+    require_success(session.execute(r, seed=3))
     changed = replace(r, utility=Utility(3, 0.2))
-    result = session.execute(changed, seed=3)
+    result = require_success(session.execute(changed, seed=3))
     assert result.receipt.totals.total == 1
     full(changed, result)
     weights = np.exp(0.3 * r.data["z"])
     changed = replace(changed, target=TargetWeights(weights, ("z",)))
-    result = session.execute(changed, seed=3)
+    result = require_success(session.execute(changed, seed=3))
     phi = np.asarray(session.score_contrast())
     mean = np.average(phi, weights=weights)
     se = np.sqrt(len(phi) / (len(phi) - 1) * np.sum((weights / sum(weights) * (phi - mean)) ** 2))
@@ -113,7 +116,7 @@ def test_dr_utility_and_same_row_target_reuse_scores(cate):
 def test_dr_changed_snapshot_graph_folds_rng_learner_refit(mutation):
     r = request(True)
     session = DrSession()
-    session.execute(r, seed=3)
+    require_success(session.execute(r, seed=3))
     seed = 3
     if mutation == "data":
         r = replace(r, data={**r.data, "y": r.data["y"] + 0.2 * r.data["t"]})
@@ -125,7 +128,7 @@ def test_dr_changed_snapshot_graph_folds_rng_learner_refit(mutation):
         seed = 7
     else:
         r = replace(r, estimator=replace(r.estimator, outcome=Ridge(penalty=0.05)))
-    result = session.execute(r, seed=seed)
+    result = require_success(session.execute(r, seed=seed))
     assert result.receipt.totals.fold_fits == 3 * r.estimator.folds
     assert result.receipt.totals.model_fits == 1
     full(r, result, seed)
@@ -138,11 +141,11 @@ def test_dr_complete_case_rows_and_fold_identity():
     data["z"][7] = np.nan
     r = replace(r, data=data)
     session = DrSession()
-    first = session.execute(r, seed=3)
+    first = require_success(session.execute(r, seed=3))
     assert session.row_ids == tuple(i for i in range(840) if i not in (1, 7))
     assert len(session.score_contrast()) == 838
     changed = replace(r, target=TargetWeights(np.ones(838), ("z",)))
-    second = session.execute(changed, seed=3)
+    second = require_success(session.execute(changed, seed=3))
     assert second.receipt.totals.fold_fits == 0
     assert (
         first.receipt.requested[Stage.LEARNER_FOLDS_RNG]
@@ -154,23 +157,25 @@ def test_dr_complete_case_rows_and_fold_identity():
 def test_dr_cate_predict_named_schema_zero_fits_independent_truth():
     r = request(True)
     session = DrSession()
-    session.execute(r, seed=3)
+    require_success(session.execute(r, seed=3))
     rows = [[-1, -0.5], [0, 0], [1, 0.5]]
     assert session.prediction_columns == ("z", "w")
-    result = session.predict(rows, columns=("z", "w"))
+    result = require_success(session.predict(rows, columns=("z", "w")))
     assert result.values == pytest.approx([1.7, 2, 2.3], abs=1e-10)
     assert result.model_fits == 0
     assert result.to_dict()["uncertainty"]["status"] == "unavailable"
     fresh = DrSession()
-    fresh.execute(r, seed=3)
-    assert result.values == pytest.approx(fresh.predict(rows, columns=("z", "w")).values)
+    require_success(fresh.execute(r, seed=3))
+    assert result.values == pytest.approx(
+        require_success(fresh.predict(rows, columns=("z", "w"))).values
+    )
 
 
 @pytest.mark.parametrize("cate", [False, True])
 def test_dr_portable_scores_and_predictor_fresh_process(tmp_path, cate):
     r = request(cate)
     session = DrSession()
-    session.execute(r, seed=3)
+    require_success(session.execute(r, seed=3))
     scores = session.export_scores()
     model = session.export_predictor() if cate else None
     if model is not None:
@@ -182,23 +187,10 @@ def test_dr_portable_scores_and_predictor_fresh_process(tmp_path, cate):
             "recalc.dr_predictor_unavailable",
             "score_artifact",
         )
-    (tmp_path / "scores").write_bytes(scores.export())
+    (tmp_path / "scores").write_bytes(bytes(scores.export()))
     if model is not None:
-        (tmp_path / "model").write_bytes(model.export())
-    script = """import json,sys
-from antecedent.recalc_cell import FrozenScores
-from antecedent.prediction import FittedEffectModel
-from antecedent.recalc import Utility
-from pathlib import Path
-p=Path(sys.argv[1])
-f=FrozenScores.load((p/'scores').read_bytes(),expected_identity=sys.argv[2])
-s=f.resume(variables=['z','w','t','y'],edges=[('z','t'),('w','t'),('z','y'),('w','y'),('t','y')],utility=Utility(1),quantity='average_effect',expected_identity=sys.argv[2])
-r=s.retarget()
-values=None
-if (p/'model').exists():
- m=FittedEffectModel.load((p/'model').read_bytes())
- values=m.predict({'z':[-1,0,1],'w':[-.5,0,.5]}).values
-print(json.dumps({'ate':r.law.ate,'fits':r.receipt.totals.fold_fits,'values':values}))"""
+        (tmp_path / "model").write_bytes(bytes(model.export()))
+    script = "from antecedent.outcomes import require_success\nimport json, sys\nfrom antecedent.recalc_cell import FrozenScores\nfrom antecedent.prediction import FittedEffectModel\nfrom antecedent.recalc import Utility\nfrom pathlib import Path\np = Path(sys.argv[1])\nf = FrozenScores.load((p / 'scores').read_bytes(), expected_identity=sys.argv[2])\ns = require_success(f.resume(variables=['z', 'w', 't', 'y'], edges=[('z', 't'), ('w', 't'), ('z', 'y'), ('w', 'y'), ('t', 'y')], utility=Utility(1), quantity='average_effect', expected_identity=sys.argv[2]))\nr = s.retarget()\nvalues = None\nif (p / 'model').exists():\n    m = FittedEffectModel.load((p / 'model').read_bytes())\n    values = require_success(m.predict({'z': [-1, 0, 1], 'w': [-0.5, 0, 0.5]})).values\nprint(json.dumps({'ate': r.law.ate, 'fits': r.receipt.totals.fold_fits, 'values': values}))\n"
     ran = subprocess.run(
         [sys.executable, "-c", script, str(tmp_path), scores.identity],
         check=True,
@@ -216,54 +208,37 @@ print(json.dumps({'ate':r.law.ate,'fits':r.receipt.totals.fold_fits,'values':val
 
 def test_dr_receipt_only_resume_refuses_and_supplied_data_refits(tmp_path):
     r = request(True)
-    result = DrSession().execute(r, seed=3)
-    receipt = RecalcReceipt.consume(
-        result.receipt.export(), expected_identity=result.receipt.identity
+    result = require_success(DrSession().execute(r, seed=3))
+    receipt = require_success(
+        RecalcReceipt.consume(
+            bytes(result.receipt.export()), expected_identity=result.receipt.identity
+        )
     )
-    resumed = DrSession.resume(
-        receipt,
-        ResumeContext(
-            portable_fit=True,
-            portable_scores=True,
-            supplied_provider=True,
-            scores_snapshot_bound=True,
-        ),
+    resumed = require_success(
+        DrSession.resume(
+            receipt,
+            ResumeContext(
+                portable_fit=True,
+                portable_scores=True,
+                supplied_provider=True,
+                scores_snapshot_bound=True,
+            ),
+        )
     )
     assert not resumed.is_live
     refusal(
-        lambda: resumed.execute(r, seed=3),
+        lambda: require_success(resumed.execute(r, seed=3)),
         "score_table_unavailable",
         "recalc.unavailable_data",
         "data_snapshot",
     )
-    resumed = DrSession.resume(receipt, ResumeContext(supplied_data=True))
-    rerun = resumed.execute(r, seed=3)
+    resumed = require_success(DrSession.resume(receipt, ResumeContext(supplied_data=True)))
+    rerun = require_success(resumed.execute(r, seed=3))
     assert rerun.receipt.totals.fold_fits == 9
     assert rerun.receipt.totals.model_fits == 1
     full(r, rerun)
-    (tmp_path / "receipt").write_bytes(receipt.export())
-    script = """import json,sys,numpy as np
-from pathlib import Path
-from antecedent.recalc import RecalcReceipt,ResumeContext,RecalcRefusal,Utility
-from antecedent.recalc_dr import DrRequest,DrSession
-from antecedent.estimators import DRLearner
-from antecedent.learners import Linear,Logistic
-rng=np.random.default_rng(61);n=840
-z=np.tile([-1.,0.,1.],n//3);w=np.tile(np.linspace(-1,1,20),n//20)
-t=(rng.random(n)<1/(1+np.exp(-.4*z+.2*w))).astype(float)
-y=z-.5*w+t*(2+.4*z-.2*w)
-r=DrRequest({'z':z,'w':w,'t':t,'y':y},[('z','t'),('w','t'),('z','y'),('w','y'),('t','y')],'t','y',Utility(1),DRLearner(outcome=Linear(),treatment=Logistic(),final_learner=Linear(),folds=3))
-a=RecalcReceipt.consume(Path(sys.argv[1]).read_bytes())
-s=DrSession.resume(a,ResumeContext(portable_fit=True,portable_scores=True,supplied_provider=True,scores_snapshot_bound=True))
-try:s.execute(r,seed=3)
-except RecalcRefusal as e:detail=e.detail
-else:raise AssertionError('historical receipt recreated executable state')
-s=DrSession.resume(a,ResumeContext(supplied_data=True));ran=s.execute(r,seed=3)
-checked=RecalcReceipt.consume(ran.receipt.export(),expected_identity=ran.receipt.identity)
-assert checked.loaded and checked.totals==ran.receipt.totals
-assert not ran.receipt.loaded
-print(json.dumps({'detail':detail,'folds':ran.receipt.totals.fold_fits,'models':ran.receipt.totals.model_fits,'ate':ran.law.ate}))
-"""
+    (tmp_path / "receipt").write_bytes(bytes(receipt.export()))
+    script = "from antecedent.outcomes import require_success\nimport json, sys, numpy as np\nfrom pathlib import Path\nfrom antecedent.recalc import RecalcReceipt, ResumeContext, RecalcRefusal, Utility\nfrom antecedent.recalc_dr import DrRequest, DrSession\nfrom antecedent.estimators import DRLearner\nfrom antecedent.learners import Linear, Logistic\nrng = np.random.default_rng(61)\nn = 840\nz = np.tile([-1.0, 0.0, 1.0], n // 3)\nw = np.tile(np.linspace(-1, 1, 20), n // 20)\nt = (rng.random(n) < 1 / (1 + np.exp(-0.4 * z + 0.2 * w))).astype(float)\ny = z - 0.5 * w + t * (2 + 0.4 * z - 0.2 * w)\nr = DrRequest({'z': z, 'w': w, 't': t, 'y': y}, [('z', 't'), ('w', 't'), ('z', 'y'), ('w', 'y'), ('t', 'y')], 't', 'y', Utility(1), DRLearner(outcome=Linear(), treatment=Logistic(), final_learner=Linear(), folds=3))\na = require_success(RecalcReceipt.consume(Path(sys.argv[1]).read_bytes()))\ns = require_success(DrSession.resume(a, ResumeContext(portable_fit=True, portable_scores=True, supplied_provider=True, scores_snapshot_bound=True)))\ntry:\n    require_success(s.execute(r, seed=3))\nexcept RecalcRefusal as e:\n    detail = e.detail\nelse:\n    raise AssertionError('historical receipt recreated executable state')\ns = require_success(DrSession.resume(a, ResumeContext(supplied_data=True)))\nran = require_success(s.execute(r, seed=3))\nchecked = require_success(RecalcReceipt.consume(ran.receipt.export(), expected_identity=ran.receipt.identity))\nassert checked.loaded and checked.totals == ran.receipt.totals\nassert not ran.receipt.loaded\nprint(json.dumps({'detail': detail, 'folds': ran.receipt.totals.fold_fits, 'models': ran.receipt.totals.model_fits, 'ate': ran.law.ate}))\n"
     ran = subprocess.run(
         [sys.executable, "-c", script, str(tmp_path / "receipt")],
         check=True,
@@ -282,80 +257,80 @@ print(json.dumps({'detail':detail,'folds':ran.receipt.totals.fold_fits,'models':
 def test_dr_unsupported_score_target_and_prediction_preserve_state():
     r = request(True)
     session = DrSession()
-    session.execute(r, seed=3)
+    require_success(session.execute(r, seed=3))
     before = session.identities
     unsupported = request()
     unsupported = replace(
         unsupported, estimator=replace(unsupported.estimator, score="partially_linear")
     )
     refusal(
-        lambda: session.execute(unsupported, seed=3),
+        lambda: require_success(session.execute(unsupported, seed=3)),
         "route_not_supported",
         "recalc.unsupported_request",
         "treatment_grid",
     )
     for rows, names in [([[0, 0]], ["w", "z"]), ([[0]], ["z", "w"]), ([[np.nan, 0]], ["z", "w"])]:
         refusal(
-            lambda rows=rows, names=names: session.predict(rows, columns=names),
+            lambda rows=rows, names=names: require_success(session.predict(rows, columns=names)),
             "invalid_argument",
             "recalc.dr_prediction_schema_mismatch",
             "score_artifact",
         )
     unsupported = replace(r, estimator=replace(r.estimator, outcome=Auto()))
     refusal(
-        lambda: session.execute(unsupported, seed=3),
+        lambda: require_success(session.execute(unsupported, seed=3)),
         "route_not_supported",
         "recalc.unsupported_request",
         "treatment_grid",
     )
     assert session.identities == before
     marginal = DrSession()
-    marginal.execute(request(), seed=3)
+    require_success(marginal.execute(request(), seed=3))
     refusal(
-        lambda: marginal.predict([[0, 0]], columns=["z", "w"]),
+        lambda: require_success(marginal.predict([[0, 0]], columns=["z", "w"])),
         "route_not_supported",
         "recalc.dr_predictor_unavailable",
         "score_artifact",
     )
     invalid = replace(r, target=TargetWeights(np.ones(1), ("z",)))
     refusal(
-        lambda: session.execute(invalid, seed=3),
+        lambda: require_success(session.execute(invalid, seed=3)),
         "invalid_argument",
         "recalc.invalid_target_weights",
         "target_population",
     )
     refusal(
-        lambda: session.predict([[5, 0]], columns=["z", "w"]),
+        lambda: require_success(session.predict([[5, 0]], columns=["z", "w"])),
         "route_not_supported",
         "recalc.dr_prediction_out_of_support",
         "score_artifact",
     )
     no_arm = replace(r, data={**r.data, "t": np.zeros(840)})
     refusal(
-        lambda: session.execute(no_arm, seed=3),
+        lambda: require_success(session.execute(no_arm, seed=3)),
         "arm_not_populated",
         "recalc.dr_arm_not_populated",
         "score_artifact",
     )
     malformed = replace(r, edges=[*r.edges, ("y", "t")])
     refusal(
-        lambda: session.execute(malformed, seed=3),
+        lambda: require_success(session.execute(malformed, seed=3)),
         "invalid_argument",
         "recalc.invalid_graph",
         "graph",
     )
     invalid_query = replace(r, treatment="y")
     refusal(
-        lambda: session.execute(invalid_query, seed=3),
+        lambda: require_success(session.execute(invalid_query, seed=3)),
         "invalid_argument",
         "recalc.invalid_query",
         "query",
     )
     assert session.identities == before
-    prediction = session.predict([[0, 0]], columns=["z", "w"])
+    prediction = require_success(session.predict([[0, 0]], columns=["z", "w"]))
     assert prediction.values == pytest.approx([2])
     assert prediction.model_fits == 0
-    assert session.execute(r, seed=3).receipt.totals.total == 0
+    assert require_success(session.execute(r, seed=3)).receipt.totals.total == 0
 
 
 def test_dr_bounded_native_input_and_learner_configs():
@@ -363,38 +338,44 @@ def test_dr_bounded_native_input_and_learner_configs():
     session = DrSession()
     spec = json.dumps(_spec(r))
     with pytest.raises(CausalValueError) as caught:
-        session._handle.execute(
-            ["z", "w", "t", "y"],
-            [np.zeros(1), np.zeros(100001), np.zeros(1), np.zeros(1)],
-            spec,
-            memory_limit_bytes=800_000,
+        require_success(
+            session._handle.execute(
+                ["z", "w", "t", "y"],
+                [np.zeros(1), np.zeros(100001), np.zeros(1), np.zeros(1)],
+                spec,
+                memory_limit_bytes=800_000,
+            )
         )
     assert caught.value.reason_code == "invalid_argument"
     assert "recalc.memory_budget_exceeded" in str(caught.value)
     with pytest.raises(CausalValueError) as caught:
-        session.execute(replace(r, estimator=replace(r.estimator, folds=21)))
+        require_success(session.execute(replace(r, estimator=replace(r.estimator, folds=21))))
     assert caught.value.reason_code == "invalid_argument"
     assert "recalc.dr_invalid_folds" in str(caught.value)
     cate = DrSession()
-    cate.execute(request(True), seed=3)
+    require_success(cate.execute(request(True), seed=3))
 
     class NonIterable(list):
         def __iter__(self):
             raise AssertionError("native bounds must use actual list items")
 
-    report, error = cate._handle.predict(NonIterable([NonIterable([0, 0])]), ["z", "w"])
+    report, error = require_success(
+        cate._handle.predict(NonIterable([NonIterable([0, 0])]), ["z", "w"])
+    )
     assert error is None
     assert json.loads(report)["model_fits"] == 0
     with pytest.raises(CausalValueError) as caught:
-        session._handle.predict([[0]] * 100001, ["z"], memory_limit_bytes=800_000)
+        require_success(session._handle.predict([[0]] * 100001, ["z"], memory_limit_bytes=800_000))
     assert caught.value.reason_code == "invalid_argument"
     assert "recalc.memory_budget_exceeded" in str(caught.value)
 
 
 def test_dr_artifact_receipt_count_replay():
-    result = DrSession().execute(request(True), seed=3)
-    loaded = RecalcReceipt.consume(
-        result.receipt.export(), expected_identity=result.receipt.identity
+    result = require_success(DrSession().execute(request(True), seed=3))
+    loaded = require_success(
+        RecalcReceipt.consume(
+            bytes(result.receipt.export()), expected_identity=result.receipt.identity
+        )
     )
     assert loaded.totals == result.receipt.totals
     assert loaded.totals.fold_fits == 9
@@ -405,14 +386,14 @@ def test_dr_capabilities_inspect_native_score_and_predictor_states():
     empty = DrSession()
     assert retained_kind(empty) == RetainedKind.READABLE
     refusal(
-        lambda: empty.predict([[0, 0]], columns=["z", "w"]),
+        lambda: require_success(empty.predict([[0, 0]], columns=["z", "w"])),
         "score_table_unavailable",
         "recalc.no_live_state",
         "score_artifact",
     )
     for cate in [False, True]:
         session = DrSession()
-        session.execute(request(cate), seed=3)
+        require_success(session.execute(request(cate), seed=3))
         assert retained_kind(session) == RetainedKind.LIVE_SCORES
         adapter = require_adapter(Family.DOUBLY_ROBUST, Operation.DATA, session)
         assert adapter.python_path == "antecedent.recalc_dr.DrSession.execute"
@@ -426,29 +407,32 @@ def test_dr_composition_bundle_fresh_process_preserves_receipt_and_resumes_score
 
     original = request(cate=True)
     session = DrSession()
-    result = session.execute(original, seed=3)
+    result = require_success(session.execute(original, seed=3))
     scores = session.export_scores()
     builder = Bundle.builder()
-    builder.add_artifact("recalculation_receipt", result.receipt.export(), node_id="receipt")
-    builder.add_artifact("frozen_scores", scores.export(), node_id="scores")
+    builder.add_artifact("recalculation_receipt", bytes(result.receipt.export()), node_id="receipt")
+    builder.add_artifact("frozen_scores", bytes(scores.export()), node_id="scores")
     builder.connect("receipt", "scores")
     bundle = builder.build()
-    checked = consume_bundle(bundle.export(), expected_identity=bundle.identity)
+    checked = require_success(
+        consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
     checked.require_verified()
     assert checked.node("receipt").facts["execution_status"] == "historical_receipt"
     assert "reusable_state" not in checked.node("receipt").facts
     assert checked.node("scores").facts["reusable_state"] == "frozen_same_row_scores"
     assert "law" not in checked.node("scores").facts
-    (tmp_path / "bundle.bin").write_bytes(bundle.export())
-    (tmp_path / "scores.bin").write_bytes(scores.export())
+    (tmp_path / "bundle.bin").write_bytes(bytes(bundle.export()))
+    (tmp_path / "scores.bin").write_bytes(bytes(scores.export()))
     script = """
 import json,sys
 from pathlib import Path
 from antecedent.composition_bundle import consume_bundle
+from antecedent.outcomes import require_success
 from antecedent.recalc_cell import resume_from_scores
 from antecedent.recalc import Utility,Stage
 p=Path(sys.argv[1])
-checked=consume_bundle((p/'bundle.bin').read_bytes(),expected_identity=sys.argv[2])
+checked=require_success(consume_bundle((p/'bundle.bin').read_bytes(),expected_identity=sys.argv[2]))
 checked.require_verified()
 resumed=resume_from_scores((p/'scores.bin').read_bytes(), variables=['z','w','t','y'],
     edges=[('z','t'),('w','t'),('z','y'),('w','y'),('t','y')],
@@ -486,19 +470,21 @@ def test_dr_bundle_refuses_semantically_changed_resume_state(mutation):
     from antecedent.composition_bundle import Bundle, Failed, consume_bundle
 
     original = request(cate=True)
-    first = DrSession().execute(original, seed=3)
+    first = require_success(DrSession().execute(original, seed=3))
     if mutation == "model":
         changed = replace(original, estimator=replace(original.estimator, folds=4))
     else:
         changed = replace(original, data={**original.data, "y": original.data["y"] + 0.5})
     other = DrSession()
-    other.execute(changed, seed=3)
+    require_success(other.execute(changed, seed=3))
     builder = Bundle.builder()
-    builder.add_artifact("recalculation_receipt", first.receipt.export(), node_id="receipt")
-    builder.add_artifact("frozen_scores", other.export_scores().export(), node_id="scores")
+    builder.add_artifact("recalculation_receipt", bytes(first.receipt.export()), node_id="receipt")
+    builder.add_artifact("frozen_scores", bytes(other.export_scores().export()), node_id="scores")
     builder.connect("receipt", "scores")
     bundle = builder.build()
-    checked = consume_bundle(bundle.export(), expected_identity=bundle.identity)
+    checked = require_success(
+        consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
     status = checked.node("scores").status
     assert isinstance(status, Failed)
     assert status.stage == "swapped_evidence"

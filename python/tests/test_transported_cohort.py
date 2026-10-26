@@ -19,6 +19,7 @@ from antecedent import cohort_decision as cd
 from antecedent import decision
 from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.estimators import DRLearner
+from antecedent.outcomes import require_success
 from antecedent.prediction import FittedEffectModel
 
 Z = [-0.8, 0.0, 0.5]
@@ -30,14 +31,16 @@ def fitted_result(effect: float = 2.0):
     rng = np.random.default_rng(19)
     z = np.tile(np.linspace(-1.0, 1.0, 21), 80)
     treatment = rng.binomial(1, 0.5, len(z)).astype(float)
-    return ac.analyze(
-        {"z": z, "t": treatment, "y": treatment * (effect + 0.4 * z) + z},
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=ac.AverageEffect(treatment="t", outcome="y"),
-        estimator=DRLearner(),
-        bootstrap=0,
-        refute=False,
-        seed=3,
+    return require_success(
+        ac.analyze(
+            {"z": z, "t": treatment, "y": treatment * (effect + 0.4 * z) + z},
+            graph=[("z", "t"), ("z", "y"), ("t", "y")],
+            query=ac.AverageEffect(treatment="t", outcome="y"),
+            estimator=DRLearner(),
+            bootstrap=0,
+            refute=False,
+            seed=3,
+        )
     )
 
 
@@ -97,7 +100,7 @@ def affine_contract(source: cd.CohortDecisionSource, slope: float, offset: float
 
 def test_transported_mean_matches_the_models_own_cate_points_with_a_typed_receipt(model) -> None:
     effect = transport(model)
-    points = np.asarray(model.predict({"z": Z}).values)
+    points = np.asarray(require_success(model.predict({"z": Z})).values)
     expected = float(np.dot(W, points))
     assert effect.mean_contrast == pytest.approx(expected, abs=TOLERANCE)
     assert effect.row_contrasts == pytest.approx(tuple(points), abs=TOLERANCE)
@@ -145,7 +148,9 @@ def test_the_decision_source_is_the_existing_surface_with_the_same_mean(model) -
         5.0 * effect.mean_contrast - 2.0, abs=1e-8
     )
     # The source replays under its own identity in a fresh consumer.
-    again = cd.CohortDecisionSource.consume(source.export(), expected_identity=source.identity)
+    again = require_success(
+        cd.CohortDecisionSource.consume(bytes(source.export()), expected_identity=source.identity)
+    )
     assert again.mean_contrast == source.mean_contrast
 
 
@@ -154,7 +159,9 @@ def test_changed_inputs_at_an_unchanged_shape_move_the_value_and_identity(
 ) -> None:
     base = transport(model)
     reweighted = transport(model, cohort_=cohort(w=[0.5, 0.25, 0.25]))
-    expected = float(np.dot([0.5, 0.25, 0.25], np.asarray(model.predict({"z": Z}).values)))
+    expected = float(
+        np.dot([0.5, 0.25, 0.25], np.asarray(require_success(model.predict({"z": Z})).values))
+    )
     assert reweighted.mean_contrast == pytest.approx(expected, abs=TOLERANCE)
     assert reweighted.identity != base.identity
     moved = transport(model, cohort_=cohort(z=[-0.8, 0.0, 0.6]))

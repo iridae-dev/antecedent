@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import antecedent
 import numpy as np
+from antecedent.outcomes import require_success
 
 
 def _lag1_unit(n: int = 200, seed: int = 3, coef: float = 0.9):
@@ -24,20 +25,22 @@ def test_panel_bayesian_pulse_smoke():
             _lag1_unit(seed=5),
         ]
     )
-    result = antecedent.analyze(
-        panel,
-        graph=[("x", 1, "y", 0)],
-        query=antecedent.PulseEffect(
-            treatment="x",
-            outcome="y",
-            treatment_lag=1,
-            horizon_steps=1,
-            active_level=1.0,
-        ),
-        inference=antecedent.Bayesian(n_draws=128),
-        refute=False,
-        bootstrap=0,
-        seed=42,
+    result = require_success(
+        antecedent.analyze(
+            panel,
+            graph=[("x", 1, "y", 0)],
+            query=antecedent.PulseEffect(
+                treatment="x",
+                outcome="y",
+                treatment_lag=1,
+                horizon_steps=1,
+                active_level=1.0,
+            ),
+            inference=antecedent.Bayesian(n_draws=128),
+            refute=False,
+            bootstrap=0,
+            seed=42,
+        )
     )
     assert result.posterior is not None
     assert np.isfinite(result.posterior.effect_mean)
@@ -49,19 +52,21 @@ def test_panel_bayesian_pulse_smoke():
 
 def test_panel_frequentist_pulse_baseline():
     panel = antecedent.data.panel([_lag1_unit(seed=3), _lag1_unit(seed=4)])
-    result = antecedent.analyze(
-        panel,
-        graph=[("x", 1, "y", 0)],
-        query=antecedent.PulseEffect(
-            treatment="x",
-            outcome="y",
-            treatment_lag=1,
-            horizon_steps=1,
-            active_level=1.0,
-        ),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            panel,
+            graph=[("x", 1, "y", 0)],
+            query=antecedent.PulseEffect(
+                treatment="x",
+                outcome="y",
+                treatment_lag=1,
+                horizon_steps=1,
+                active_level=1.0,
+            ),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert np.isfinite(result.ate)
     assert result.posterior is None

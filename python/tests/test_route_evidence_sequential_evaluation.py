@@ -14,6 +14,7 @@ import pytest
 from antecedent import measurement_models as mm
 from antecedent import sequential_evaluation as se
 from antecedent.errors import CausalTypeError, CausalValueError
+from antecedent.outcomes import require_success
 
 WAIT, INSPECT, SHIP, REPAIR = range(4)
 NEGATIVE, ALARM = 0, 1
@@ -73,33 +74,35 @@ def _inspect_then_choose() -> se.Policy:
 
 
 def test_seal_evaluates_and_binds_the_policy_value_to_its_identities() -> None:
-    artifact = se.seal(_problem(), _policy("repair_now_v1", {(): REPAIR}))
+    artifact = require_success(se.seal(_problem(), _policy("repair_now_v1", {(): REPAIR})))
     assert artifact.value == pytest.approx(1.0, abs=TOL)
     assert artifact.summary["policy_version"] == "repair_now_v1"
     # A policy-only artifact carries neither estimate.
     assert artifact.summary["off_policy"] is None and artifact.summary["rollout"] is None
     assert set(artifact.identities) >= {"model", "policy", "evaluation"}
     # Another policy on the same model is another policy and evaluation identity.
-    shipped = se.seal(_problem(), _policy("ship_now_v1", {(): SHIP}))
+    shipped = require_success(se.seal(_problem(), _policy("ship_now_v1", {(): SHIP})))
     assert shipped.value == pytest.approx(0.0, abs=TOL)
     assert shipped.identities["model"] == artifact.identities["model"]
     assert shipped.identities["policy"] != artifact.identities["policy"]
     assert shipped.identities["evaluation"] != artifact.identities["evaluation"]
     # Logged trajectories need the logging policy that generated them.
     with pytest.raises(CausalValueError):
-        se.seal(_problem(), _policy("v", {(): SHIP}), trajectories=[object()])  # type: ignore[list-item]
+        require_success(se.seal(_problem(), _policy("v", {(): SHIP}), trajectories=[object()]))  # type: ignore[list-item]
 
 
 def test_consume_replays_the_stored_value_bit_for_bit_and_enforces_retained_identities() -> None:
-    artifact = se.seal(_problem(), _inspect_then_choose())
+    artifact = require_success(se.seal(_problem(), _inspect_then_choose()))
     assert artifact.value == pytest.approx(1.5, abs=TOL)
-    data = artifact.export("inspect-then-choose")
+    data = bytes(artifact.export("inspect-then-choose"))
     identities = artifact.identities
-    consumed = se.consume_artifact(
-        data,
-        model=identities["model"],
-        policy=identities["policy"],
-        evaluation=identities["evaluation"],
+    consumed = require_success(
+        se.consume_artifact(
+            data,
+            model=identities["model"],
+            policy=identities["policy"],
+            evaluation=identities["evaluation"],
+        )
     )
     assert consumed.value == artifact.value
     assert consumed.identities == identities
@@ -107,15 +110,15 @@ def test_consume_replays_the_stored_value_bit_for_bit_and_enforces_retained_iden
     assert consumed.policy.version == "inspect_then_choose_v1"
     # A retained identity that is not the artifact's is refused.
     with pytest.raises(se.SequentialEvaluationRefusal) as wrong:
-        se.consume_artifact(data, model="0" * 64)
+        require_success(se.consume_artifact(data, model="0" * 64))
     assert wrong.value.reason_code == "route_not_supported"
     assert wrong.value.detail == "sequential_evaluation.identity_mismatch"
     # Damaged and truncated bytes are refused, and bytes only.
     damaged = bytearray(data)
     damaged[len(damaged) // 2] ^= 0x55
     with pytest.raises(se.SequentialEvaluationRefusal):
-        se.consume_artifact(bytes(damaged))
+        require_success(se.consume_artifact(bytes(damaged)))
     with pytest.raises(se.SequentialEvaluationRefusal):
-        se.consume_artifact(data[:30])
+        require_success(se.consume_artifact(data[:30]))
     with pytest.raises(CausalTypeError):
-        se.consume_artifact("not bytes")  # type: ignore[arg-type]
+        require_success(se.consume_artifact("not bytes"))  # type: ignore[arg-type]

@@ -7,6 +7,7 @@ from typing import Any
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_json
 
@@ -86,11 +87,15 @@ def test_class_aware_intervention_pins(accepted: bool, class_name: str) -> None:
         assert identified.certificate["identified_weight"] == 0.0
         return
     section = _PIN[class_name]
-    high = antecedent.analyze(
-        data, graph=graph, query=_intervention(1.0), refute=False, bootstrap=0, seed=1
+    high = require_success(
+        antecedent.analyze(
+            data, graph=graph, query=_intervention(1.0), refute=False, bootstrap=0, seed=1
+        )
     )
-    low = antecedent.analyze(
-        data, graph=graph, query=_intervention(0.0), refute=False, bootstrap=0, seed=1
+    low = require_success(
+        antecedent.analyze(
+            data, graph=graph, query=_intervention(0.0), refute=False, bootstrap=0, seed=1
+        )
     )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
@@ -101,7 +106,7 @@ def test_class_aware_intervention_pins(accepted: bool, class_name: str) -> None:
         seed=1,
         latency="interactive",
     )
-    click = prepared.estimate(data, seed=1)
+    click = require_success(prepared.estimate(data, seed=1))
     assert prepared.structure_source == ("accepted" if accepted else "explicit")
     assert prepared.evidence_status == "licensed"
     tol = section["intervention"]["absolute_tolerance"]
@@ -127,17 +132,21 @@ def test_class_aware_curve_pins(accepted: bool, class_name: str) -> None:
         return
     section = _PIN[class_name]
     query = _curve()
-    fresh = antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0, seed=1)
-    ate = antecedent.analyze(
-        data,
-        graph=graph,
-        query=antecedent.AverageEffect(
-            _PIN["query"]["treatment"],
-            _PIN["query"]["outcome"],
-        ),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    fresh = require_success(
+        antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0, seed=1)
+    )
+    ate = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.AverageEffect(
+                _PIN["query"]["treatment"],
+                _PIN["query"]["outcome"],
+            ),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
@@ -148,7 +157,7 @@ def test_class_aware_curve_pins(accepted: bool, class_name: str) -> None:
         seed=1,
         latency="interactive",
     )
-    click = prepared.estimate(data, seed=1)
+    click = require_success(prepared.estimate(data, seed=1))
     assert prepared.structure_source == ("accepted" if accepted else "explicit")
     expected = np.asarray(section["curve"]["mean"], dtype=np.float64)
     for result in (fresh, click):
@@ -177,23 +186,27 @@ def test_class_aware_bayesian_intervention_pins(accepted: bool, class_name: str)
         n_draws=int(bayes["n_draws"]),
         prior_scale=float(bayes["prior_scale"]),
     )
-    high = antecedent.analyze(
-        data,
-        graph=graph,
-        query=_intervention(1.0),
-        inference=inference,
-        refute=False,
-        bootstrap=0,
-        seed=int(bayes["seed"]),
+    high = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=_intervention(1.0),
+            inference=inference,
+            refute=False,
+            bootstrap=0,
+            seed=int(bayes["seed"]),
+        )
     )
-    low = antecedent.analyze(
-        data,
-        graph=graph,
-        query=_intervention(0.0),
-        inference=inference,
-        refute=False,
-        bootstrap=0,
-        seed=int(bayes["seed"]),
+    low = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=_intervention(0.0),
+            inference=inference,
+            refute=False,
+            bootstrap=0,
+            seed=int(bayes["seed"]),
+        )
     )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
@@ -205,7 +218,7 @@ def test_class_aware_bayesian_intervention_pins(accepted: bool, class_name: str)
         seed=int(bayes["seed"]),
         latency="interactive",
     )
-    click = prepared.estimate(data, seed=int(bayes["seed"]))
+    click = require_success(prepared.estimate(data, seed=int(bayes["seed"])))
     assert high.evidence_status == click.evidence_status == "licensed"
     assert any(str(d).startswith(bayes["diagnostic"]) for d in high.diagnostics)
     expected = bayes["cpdag_ate_contrast" if class_name == "cpdag" else "pag_ate_contrast"]

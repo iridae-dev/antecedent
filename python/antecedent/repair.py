@@ -54,6 +54,12 @@ from functools import partial
 from typing import Any, Literal, Protocol, cast
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._validate import count, names, text
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
@@ -1578,9 +1584,10 @@ class RepairResult:
                 return row.classification
         raise CausalValueError(f"no outcome for the subset {sorted(wanted)}")
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """A portable ``repair_search_receipt_v1`` artifact; see :func:`consume`."""
-        return bytes(_call(self._stage.export))
+        return artifact_from_receipt(self, bytes(_call(self._stage.export)))
 
     def explain(self) -> str:
         """What the search found, what it did not, and why it is not an estimate."""
@@ -1721,6 +1728,7 @@ def consume(
     honestly, nor does it check that arriving studies will deliver their declared
     evidence.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
     stage = _call(

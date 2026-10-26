@@ -32,6 +32,8 @@ mod prepare_response;
 mod prepare_temporal_design;
 mod prepare_unlicensed_design;
 mod routing;
+#[path = "../temporal_query_api.rs"]
+mod temporal_query_api;
 mod treatment_score;
 
 #[path = "../prepare_request.rs"]
@@ -112,13 +114,34 @@ impl PyPreparedAnalysis {
         let series = self.series;
         let (mapped, result, bound) = detach_catch(py, move || {
             let ctx = controls.ctx(seed, threads);
-            let result = match data {
-                // Both estimate and refresh bind the click's data to the executed
-                // copy, so its snapshot re-executes on exactly that data.
-                FrameInput::Series(data) if !series => study.refresh(data, &ctx).map_err(py_err)?,
-                frame => frame.materialize()?.bind_and_run(&mut study, &ctx)?,
+            // Bind before materializing: a deferred handle has no row-bound
+            // statistical operation to refresh. The retained snapshot must be
+            // the ready operation that actually produces the result, not the
+            // deferred declaration whose temporary materialization executed it.
+            let mut frame_retention = None;
+            study = match data {
+                FrameInput::Series(data) if !series => {
+                    study.rebind_data(data, &ctx).map_err(py_err)?
+                }
+                frame => match frame.materialize()? {
+                    FrameData::Series(data) => study.rebind_series(data, &ctx).map_err(py_err)?,
+                    FrameData::Panel(data) => study.rebind_panel(data, &ctx).map_err(py_err)?,
+                    FrameData::MultiEnv(data) => {
+                        study.rebind_multi_env(data, &ctx).map_err(py_err)?
+                    }
+                    FrameData::Events(data, align, retention) => {
+                        frame_retention = retention;
+                        let aligned = data.align_to_grid(align).map_err(|error| {
+                            crate::py_msg(format!("event align_to_grid: {error}"))
+                        })?;
+                        study.rebind_series(aligned, &ctx).map_err(py_err)?
+                    }
+                },
             };
+            study = study.materialize(&ctx).map_err(py_err)?;
+            let result = study.estimate_retained(&ctx).map_err(py_err)?;
             let mapped = map(&out_names, &result, &study, &ctx)?;
+            drop(frame_retention);
             Ok((mapped, result, Arc::new(unstaged(study))))
         })?;
         if refresh {
@@ -149,14 +172,26 @@ impl PyPreparedAnalysis {
         let borrowed_bytes = self.borrowed_bytes;
         let study = controls.study(&self.inner)?;
         let names = self.names.clone();
-        let (mapped, result) = detach_catch(py, move || {
+        let (mapped, result, bound) = detach_catch(py, move || {
             let ctx = controls.ctx(seed, threads);
-            let mut result = study.estimate_retained(&ctx).map_err(py_err)?;
+            let cache = ctx.cache_policy.enabled.then(|| {
+                antecedent_estimate::CrossfitNuisanceCache::bounded(
+                    Some(&ctx),
+                    usize::MAX,
+                    ctx.cache_policy.max_bytes.unwrap_or(u64::MAX),
+                )
+            });
+            let (study, mut result) =
+                antecedent_estimate::CrossfitNuisanceCache::run_in(cache.as_ref(), || {
+                    let study = study.materialize(&ctx).map_err(py_err)?;
+                    let result = study.estimate_retained(&ctx).map_err(py_err)?;
+                    Ok::<_, PyErr>((study, result))
+                })?;
             result.performance.bytes_borrowed = borrowed_bytes;
             let mapped = map(&names, &result, &study, &ctx)?;
-            Ok((mapped, result))
+            Ok((mapped, result, Arc::new(unstaged(study))))
         })?;
-        self.last_study = Some(Arc::clone(&self.inner));
+        self.last_study = Some(bound);
         self.last = Some(Arc::new(result));
         self.last_seed = seed;
         self.last_threads = crate::resolve_user_threads(threads);

@@ -27,6 +27,7 @@ from antecedent import composition_verification as cv
 from antecedent import evidence_ledger as el
 from antecedent.composition_verification import CompositionVerificationRefusal
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -346,19 +347,25 @@ def _ledger_world():
         )
 
     s1, s2, s3 = study("s1", 0, 10), study("s2", 10, 20), study("s3", 20, 30)
-    r12 = ledger.pool_summaries(
-        "s1_s2", [el.StudySummary(s1, 1.0, 1.0), el.StudySummary(s2, 3.0, 4.0)]
+    r12 = require_success(
+        ledger.pool_summaries(
+            "s1_s2", [el.StudySummary(s1, 1.0, 1.0), el.StudySummary(s2, 3.0, 4.0)]
+        )
     ).result
-    r23 = ledger.pool_summaries(
-        "s2_s3", [el.StudySummary(s2, 1.0, 1.0), el.StudySummary(s3, 3.0, 4.0)]
+    r23 = require_success(
+        ledger.pool_summaries(
+            "s2_s3", [el.StudySummary(s2, 1.0, 1.0), el.StudySummary(s3, 3.0, 4.0)]
+        )
     ).result
-    rall = ledger.pool_summaries(
-        "all",
-        [
-            el.StudySummary(s1, 1.0, 1.0),
-            el.StudySummary(s2, 3.0, 4.0),
-            el.StudySummary(s3, 2.0, 2.0),
-        ],
+    rall = require_success(
+        ledger.pool_summaries(
+            "all",
+            [
+                el.StudySummary(s1, 1.0, 1.0),
+                el.StudySummary(s2, 3.0, 4.0),
+                el.StudySummary(s3, 2.0, 2.0),
+            ],
+        )
     ).result
     return ledger, (s1, s2, s3), (r12, r23, rall)
 
@@ -378,7 +385,9 @@ def test_ledger_standings_drive_the_classification_and_agree_with_the_ledger():
     )  # fmt: skip
     bindings = {"p12": r12, "p23": r23, "pall": rall}
     assert cv.ledger_effects(ledger, bindings) == ()
-    ledger.revise_source(el.SourceRevision.withdraw(s1, "consent withdrawn"))
+    require_success(
+        ledger.revise_source(require_success(el.SourceRevision.withdraw(s1, "consent withdrawn")))
+    )
     effects = cv.ledger_effects(ledger, bindings)
     result = cv.verify_composition(graph, previous=graph, effects=effects)
     # pooling two studies loses one member of two; three minus one recompute; one is untouched
@@ -427,7 +436,9 @@ def test_shared_data_comes_from_the_ledger_and_unknown_is_never_independent():
     assert result.view("pooled").shared_data == relations
     result.verify_ledger(graph, ledger)
     # the ledger moves on: the verification was read from another state
-    ledger.revise_source(el.SourceRevision.withdraw(a, "consent withdrawn"))
+    require_success(
+        ledger.revise_source(require_success(el.SourceRevision.withdraw(a, "consent withdrawn")))
+    )
     error = refused(lambda: result.verify_ledger(graph, ledger))
     assert error.detail == "composition_verification.ledger_mismatch"
 
@@ -437,7 +448,7 @@ def test_shared_data_comes_from_the_ledger_and_unknown_is_never_independent():
 
 def test_a_fresh_process_consumes_the_export_and_refuses_tampering(tmp_path):
     result = cv.verify_composition(build(cohort="v2"), previous=build())
-    exported = result.artifact("composition-python")
+    exported = result.export("composition-python")
     consumed = cv.consume_composition_verification_artifact(
         exported.data, exported.expectation.identity
     )
@@ -475,7 +486,7 @@ def test_a_fresh_process_consumes_the_export_and_refuses_tampering(tmp_path):
 
 
 def test_a_mutated_artifact_is_refused():
-    exported = cv.verify_composition(build(cohort="v2"), previous=build()).artifact()
+    exported = cv.verify_composition(build(cohort="v2"), previous=build()).export()
     data = exported.data
     for position in range(0, len(data), max(1, len(data) // 25)):
         mutated = bytearray(data)
@@ -488,7 +499,7 @@ def test_a_mutated_artifact_is_refused():
         assert error.reason_code in {"invalid_argument", "route_not_supported"}
     error = refused(lambda: cv.consume_composition_verification_artifact(data[: len(data) // 2]))
     assert error.reason_code == "invalid_argument"
-    other = cv.verify_composition(build(cohort="v3"), previous=build()).artifact()
+    other = cv.verify_composition(build(cohort="v3"), previous=build()).export()
     error = refused(
         lambda: cv.consume_composition_verification_artifact(
             other.data, exported.expectation.identity
@@ -552,7 +563,7 @@ def _shipped_record_id() -> str:
     summaries = [
         el.StudySummary(sources[i], 0.5 + 0.01 * (i - 2), 0.01 + 0.002 * i) for i in range(5)
     ]
-    pooled = ledger.pool_summaries("fixed", summaries).result
+    pooled = require_success(ledger.pool_summaries("fixed", summaries)).result
     record_id = ledger.pooled_interval(pooled)["calibration"]["record_id"]
     assert record_id
     return str(record_id)

@@ -45,6 +45,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from ._artifact_protocol import container_bytes
 from ._native import CpdagScenarioRun as _NativeCpdagRun
 from ._native import PreparedTransportScenariosStage as _NativeScenarioStage
 from ._native import decide_scenario_claims as _decide
@@ -366,6 +367,7 @@ def _binding(
 
 
 def _digest(data: bytes) -> str:
+    data = container_bytes(data)
     return hashlib.sha256(bytes(data)).hexdigest()
 
 
@@ -437,7 +439,7 @@ def decide_from_scenarios(
         )
     exported = ""
     if not (premises_digest and data_digest):
-        exported = _digest(scenario_result.export())
+        exported = _digest(bytes(scenario_result.export()))
     binding = _binding(
         outcomes,
         calibration=calibration,
@@ -506,7 +508,7 @@ def decide_from_cpdag_completions(
     retained_data = data_digest or getattr(completions, "data_digest", None)
     exported = ""
     if not (retained_premises and retained_data):
-        exported = _digest(completions.export())
+        exported = _digest(bytes(completions.export()))
     binding = _binding(
         outcomes,
         calibration=calibration,
@@ -628,7 +630,7 @@ def identified_utilities_from_scenarios(
         )
     exported = ""
     if not (premises_digest and data_digest):
-        exported = _digest(scenario_result.export())
+        exported = _digest(bytes(scenario_result.export()))
     binding = _binding(
         outcomes,
         calibration=calibration,
@@ -680,7 +682,7 @@ def identified_utilities_from_cpdag_completions(
     retained_data = data_digest or getattr(completions, "data_digest", None)
     exported = ""
     if not (retained_premises and retained_data):
-        exported = _digest(completions.export())
+        exported = _digest(bytes(completions.export()))
     binding = _binding(
         outcomes,
         calibration=calibration,

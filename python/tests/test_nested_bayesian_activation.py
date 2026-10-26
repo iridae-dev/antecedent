@@ -141,7 +141,7 @@ def test_nested_bayesian_public_original_posterior_matches_conjugate_reference_a
         "credible_mass": 0.95,
     }
     artifact = tmp_path / "continuous-verma.cbor"
-    artifact.write_bytes(result.export())
+    artifact.write_bytes(bytes(result.export()))
     code = """
 import json,sys
 from pathlib import Path
@@ -166,7 +166,9 @@ def test_nested_bayesian_prior_changes_actual_posterior_and_bound_identity():
     assert baseline.values[0] - changed.values[0] > 0.04
     assert baseline.identity != changed.identity
     with pytest.raises(CausalValueError) as caught:
-        NestedMarkovPosteriorCandidate.load(changed.export(), expected_identity=baseline.identity)
+        NestedMarkovPosteriorCandidate.load(
+            bytes(changed.export()), expected_identity=baseline.identity
+        )
     assert caught.value.reason_code == "invalid_argument"
     assert "bayesian_identity_mismatch" in str(caught.value)
     fractional = [1.0] * 16

@@ -427,7 +427,7 @@ def test_structure_flags_are_derived_from_the_identifier_not_declared():
 
 def test_the_plan_exports_and_replays_independently():
     plan = _valued(0.01)
-    data = plan.export()
+    data = bytes(plan.export())
     replayed = design.consume_plan(data)
     assert replayed.identity == plan.identity
     assert [o.labels for o in replayed.options] == [o.labels for o in plan.options]

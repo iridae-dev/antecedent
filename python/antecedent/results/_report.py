@@ -20,7 +20,9 @@ from pydantic.config import ExtraValues
 from .._columns import coerce_fields
 from .._freeze import freeze, thaw
 
-InspectionStage = Literal["prepared", "executed", "declared", "consumed", "exported", "unavailable"]
+InspectionStage = Literal[
+    "prepared", "executed", "declared", "consumed", "exported", "unavailable", "refused"
+]
 
 _HANDLE_ATTRS = ("_raw", "_prepared", "_execution")
 
@@ -151,21 +153,19 @@ class InspectionReport(BaseModel):
                 ("Assumptions", self.assumptions),
             )
         )
-        import json
-
+        # Notebook display is a bounded summary, not a hidden JSON serialization
+        # of an entire posterior or retained artifact.
         values = self.answer
-        if values is None:
-            values = self.details
-        if hasattr(values, "to_dict"):
-            values = values.to_dict()
-        reading = (
-            json.dumps(thaw(values), ensure_ascii=False, default=str, indent=2)
-            if values is not None
-            else ""
-        )
-        # Keep notebook summaries small; detailed inspection retains the complete record.
-        if len(reading) > 1200:
-            reading = reading[:1200] + "… (full details in inspect().to_dict())"
+        if values is not None:
+            reading = f"answer={getattr(values, 'kind', 'structured')}"
+            for name in ("value", "bounds", "detail"):
+                value = getattr(values, name, None)
+                if type(value) in (str, int, float, bool) or (
+                    name == "bounds" and isinstance(value, tuple) and len(value) == 2
+                ):
+                    reading += f" {name}={str(value)[:160]}"
+        else:
+            reading = ""
         detail = f"<pre>{escape(reading)}</pre>" if reading else ""
         limitation = self.rendering_limitation()
         warning = f"<p>{escape(limitation.replace('_', ' '))}</p>" if limitation else ""
@@ -365,7 +365,9 @@ def as_inspection(slots: Any) -> InspectionReport:
     if isinstance(slots, InspectionReport):
         return slots
     if hasattr(slots, "identification") and hasattr(slots, "to_dict"):
-        dumped = slots.to_dict()
+        from ._slots import _target_query
+
+        contract = slots.contract if isinstance(slots.contract, Mapping) else {}
         return InspectionReport(
             identification=_slot(slots.identification),
             support=_slot(slots.support),
@@ -390,7 +392,7 @@ def as_inspection(slots: Any) -> InspectionReport:
             neighbors=getattr(slots, "neighbors", ()),
             unmet_obligations=getattr(slots, "unmet_obligations", ()),
             evidence_obligations=getattr(slots, "evidence_obligations", ()),
-            target=dumped.get("target"),
-            inference_binding=dumped.get("inference_binding"),
+            target={"query": _target_query(contract)},
+            inference_binding=contract.get("inference_binding") or slots.inference_binding_id,
         )
     return InspectionReport.model_validate(dict(slots))

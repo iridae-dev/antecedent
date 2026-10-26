@@ -51,6 +51,7 @@ from antecedent import composition_bundle as cb
 from antecedent import decision, external, program_claims, recalc
 from antecedent import design as dr
 from antecedent.joint_distribution import JointDistributionArtifact
+from antecedent.outcomes import require_success
 from antecedent.recalc import (
     Capabilities,
     RecalcPlan,
@@ -163,7 +164,7 @@ def session_request(effect: float = 2.0) -> RecalcRequest:
 
 def _rerun(request: RecalcRequest) -> recalc.RecalcResult:
     """An independent rerun in a brand-new session: nothing frozen or fitted is shared."""
-    out = RecalcSession().execute(request, seed=SEED)
+    out = require_success(RecalcSession().execute(request, seed=SEED))
     assert out.receipt.totals.fold_fits == FIRST_RUN_FOLD_FITS
     return out
 
@@ -258,8 +259,10 @@ def test_mutation_tampered_quantity_in_a_bundle_fails_the_dependent_decision() -
     )
     swapped = fx.composed_builder(embedded_law=fx.law(columns=renamed)).build()
     supplied = cb.SuppliedSources().with_data(SNAPSHOT, NATIVE_DIGEST)
-    consumed = cb.consume_bundle(
-        swapped.export(), expected_identity=swapped.identity, supplied=supplied
+    consumed = require_success(
+        cb.consume_bundle(
+            bytes(swapped.export()), expected_identity=swapped.identity, supplied=supplied
+        )
     )
     assert consumed.node("e2law").verified
     status = consumed.node("result_j").status
@@ -327,7 +330,9 @@ def test_mutation_law_a_mean_a_marginal_or_another_meaning_never_stands_in() -> 
     # point-only one and the unrelated ranking branch stays verified. (A joint-requiring decision
     # over a mean-only claim ALONE fails as `unsupported_law`: the composition-bundle verifier test.)
     unsupported = fx.composed_builder().connect("e2claim", "result_j").build()
-    consumed = cb.consume_bundle(unsupported.export(), expected_identity=unsupported.identity)
+    consumed = require_success(
+        cb.consume_bundle(bytes(unsupported.export()), expected_identity=unsupported.identity)
+    )
     assert consumed.node("result_j").verified
     assert consumed.node("result_j").claim_label == "point_only_attested"
     assert consumed.node("ranking").verified
@@ -495,25 +500,27 @@ def test_mutation_snapshot_recomputes_dependents_and_keeps_the_external_branches
     # inspected decision unchanged.
     bundle = fx.composed_builder().build()
     changed = cb.SuppliedSources().with_data(SNAPSHOT, "another-digest")
-    consumed = cb.consume_bundle(
-        bundle.export(), expected_identity=bundle.identity, supplied=changed
+    consumed = require_success(
+        cb.consume_bundle(
+            bytes(bundle.export()), expected_identity=bundle.identity, supplied=changed
+        )
     )
     status = consumed.node("program").status
     assert isinstance(status, cb.Failed) and status.stage == "graph_or_snapshot_mismatch"
     assert consumed.value("result_j", "treat.expected_utility") == pytest.approx(2.5, abs=1e-12)
     exact = cb.SuppliedSources().with_data(SNAPSHOT, NATIVE_DIGEST)
-    cb.consume_bundle(
-        bundle.export(), expected_identity=bundle.identity, supplied=exact
+    require_success(
+        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity, supplied=exact)
     ).require_verified()
 
 
 def test_mutation_snapshot_refits_once_and_matches_an_independent_rerun() -> None:
     session = RecalcSession()
-    first = session.execute(session_request(), seed=SEED)
+    first = require_success(session.execute(session_request(), seed=SEED))
     assert first.receipt.totals.as_tuple() == (1, FIRST_RUN_FOLD_FITS, 1, 1, 1)
 
     fresh = session_request(1.5)
-    second = session.execute(fresh, seed=SEED)
+    second = require_success(session.execute(fresh, seed=SEED))
     assert {s.value for s in second.plan.recomputed} == {
         "data_snapshot",
         "score_artifact",
@@ -548,18 +555,22 @@ def test_mutation_provider_operation_unknown_changed_or_unavailable() -> None:
         facts={"law": "mean_only"},
     )
     bundle = builder.build()
-    unresolved = cb.consume_bundle(bundle.export(), expected_identity=bundle.identity)
+    unresolved = require_success(
+        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
     assert isinstance(unresolved.node("provider").status, cb.ReferenceUnresolved)
     with pytest.raises(cb.CallbackUnavailableRefusal) as unavailable:
         unresolved.require_verified()
     assert unavailable.value.reason_code == "external_capability_missing"
     exact = cb.SuppliedSources().with_provider("lab-1", "snap-e1", "req-e1")
-    cb.consume_bundle(
-        bundle.export(), expected_identity=bundle.identity, supplied=exact
+    require_success(
+        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity, supplied=exact)
     ).require_verified()
     changed = cb.SuppliedSources().with_provider("lab-1", "snap-e1", "req-CHANGED")
-    refused = cb.consume_bundle(
-        bundle.export(), expected_identity=bundle.identity, supplied=changed
+    refused = require_success(
+        cb.consume_bundle(
+            bytes(bundle.export()), expected_identity=bundle.identity, supplied=changed
+        )
     )
     status = refused.node("provider").status
     assert isinstance(status, cb.Failed) and status.stage == "provider_request_changed"
@@ -580,11 +591,13 @@ def test_mutation_provider_operation_unknown_changed_or_unavailable() -> None:
         fx.rank(candidate_list=[dr.Candidate("external-trial", 2, mismatched, cost=0.05)])
     assert candidate.value.detail == "signal_provider.candidate_mismatch"
     assert candidate.value.reason_code == "design_signal_invalid"
-    incoherent = dr.ExternalLaw.posterior(
-        states=[0.25, 0.75],
-        statistics=[0.0, 1.0, 2.0],
-        predictive=[0.3125, 0.375, 0.3125],
-        posterior=[[0.9, 0.1], [0.9, 0.1], [0.9, 0.1]],
+    incoherent = require_success(
+        dr.ExternalLaw.posterior(
+            states=[0.25, 0.75],
+            statistics=[0.0, 1.0, 2.0],
+            predictive=[0.3125, 0.375, 0.3125],
+            posterior=[[0.9, 0.1], [0.9, 0.1], [0.9, 0.1]],
+        )
     )
     with pytest.raises(dr.SignalProviderRefusal) as coherence:
         fx.rank(candidate_list=fx.candidates(law_of_signal=incoherent))
@@ -679,8 +692,10 @@ def test_mutation_overlap_is_never_pooled_or_counted_twice() -> None:
     # The bundle's declared independence is checked against the studies' own evidence.
     overlapping = fx.composed_builder(e2_evidence="study:e1").build()
     supplied = cb.SuppliedSources().with_data(SNAPSHOT, NATIVE_DIGEST)
-    consumed = cb.consume_bundle(
-        overlapping.export(), expected_identity=overlapping.identity, supplied=supplied
+    consumed = require_success(
+        cb.consume_bundle(
+            bytes(overlapping.export()), expected_identity=overlapping.identity, supplied=supplied
+        )
     )
     status = consumed.node(RELATION).status
     assert isinstance(status, cb.Failed) and status.stage == "swapped_evidence"
@@ -730,8 +745,10 @@ def test_mutation_utility_recomputes_only_the_decision_with_no_fit_work() -> Non
     # The real session counts it: no identification, no fold fit, no score, no reweight.
     request = session_request()
     session = RecalcSession()
-    first = session.execute(request, seed=SEED)
-    second = session.execute(replace(request, utility=Utility(3.0, 0.1)), seed=SEED)
+    first = require_success(session.execute(request, seed=SEED))
+    second = require_success(
+        session.execute(replace(request, utility=Utility(3.0, 0.1)), seed=SEED)
+    )
     assert second.receipt.totals.as_tuple() == (0, 0, 0, 0, 1)
     assert second.plan.recomputed_computations == (Stage.DECISION,)
     assert second.law == first.law
@@ -741,10 +758,10 @@ def test_mutation_utility_recomputes_only_the_decision_with_no_fit_work() -> Non
 def test_mutation_target_weights_reuse_frozen_scores_and_the_dose_grid_refuses_off_grid() -> None:
     request = session_request()
     session = RecalcSession()
-    first = session.execute(request, seed=SEED)
+    first = require_success(session.execute(request, seed=SEED))
     z = np.asarray(request.data["z"])
     changed = replace(request, target=TargetWeights(np.exp(0.4 * z), ("z",)))
-    retargeted = session.execute(changed, seed=SEED)
+    retargeted = require_success(session.execute(changed, seed=SEED))
     assert retargeted.receipt.totals.as_tuple() == (0, 0, 0, 1, 1)
     assert {s.value for s in retargeted.plan.recomputed} == {"target_population", "law", "decision"}
     assert abs(retargeted.law.ate - first.law.ate) > 0.05
@@ -753,7 +770,7 @@ def test_mutation_target_weights_reuse_frozen_scores_and_the_dose_grid_refuses_o
     cold = RecalcSession()
     cold.set_request_support("off_grid", "transport.smoothed_dose")
     with pytest.raises(recalc.RecalcRefusal) as off_grid:
-        cold.execute(request, seed=SEED)
+        require_success(cold.execute(request, seed=SEED))
     assert (off_grid.value.stage, off_grid.value.detail) == (
         "treatment_grid",
         "recalc.off_grid_request",

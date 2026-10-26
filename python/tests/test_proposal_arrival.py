@@ -41,7 +41,9 @@ def fixture(family="transport"):
     candidate = experiment()
     repaired = repair.repair(contract, [candidate])
     ranked = rank(repaired, [candidate], {candidate.label: 0.75})
-    bundle = proposals.ProposalBundle.build(repaired.export(), ranked.export(), contract=contract)
+    bundle = proposals.ProposalBundle.build(
+        bytes(repaired.export()), bytes(ranked.export()), contract=contract
+    )
     identifier = semantic_ids(repaired)[candidate.label]
     catalog = tr.EvidenceCatalog(
         environments=base.catalog.environments,
@@ -89,7 +91,7 @@ def test_arrival_public_actual_count_truth_and_original_artifact_replay(family):
     assert result.to_dict()["calibration"] == "unmeasured"
     assert result.to_dict()["work"]["program_compilations"] > 0
     assert result.to_dict()["work"]["provider_calls"] > 0
-    replay = consume_arrival(result.export(), expected_proposal=bundle.identity, seed=77)
+    replay = consume_arrival(bytes(result.export()), expected_proposal=bundle.identity, seed=77)
     assert replay.to_dict() == result.to_dict()
     control = bundle.estimate_arrival(identifier, replace(study, assignment={"x": 0.0}))
     assert control.mean == pytest.approx(EXPECTED["control_mean"])
@@ -100,7 +102,7 @@ def test_arrival_fresh_process_replays_original_artifacts_and_complete_raw_provi
     bundle, identifier, study = fixture()
     result = bundle.estimate_arrival(identifier, study)
     artifact = tmp_path / "arrival.bin"
-    artifact.write_bytes(result.export())
+    artifact.write_bytes(bytes(result.export()))
     script = """
 import json, sys
 from pathlib import Path
@@ -160,8 +162,8 @@ def test_arrival_loaded_bundle_requires_original_artifacts_and_expected_identity
         loaded.estimate_arrival(identifier, study)
     result = bundle.estimate_arrival(identifier, study)
     with pytest.raises(CausalValueError, match="expected_proposal_mismatch"):
-        consume_arrival(result.export(), expected_proposal="other-proposal")
+        consume_arrival(bytes(result.export()), expected_proposal="other-proposal")
     with pytest.raises(CausalSerializationError):
-        consume_arrival(result.export()[:-1], expected_proposal=bundle.identity)
+        consume_arrival(bytes(result.export())[:-1], expected_proposal=bundle.identity)
     with pytest.raises(CausalValueError, match="bounds_exceeded"):
         consume_arrival(b"x" * (32 * 1024 * 1024 + 1), expected_proposal=bundle.identity)

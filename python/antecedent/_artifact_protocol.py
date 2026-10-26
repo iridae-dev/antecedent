@@ -1,4 +1,4 @@
-"""Bytes-first persistence dispatch. Family consumers retain their scientific authority."""
+"""Typed artifact dispatch. Family consumers retain their scientific authority."""
 
 from __future__ import annotations
 
@@ -8,14 +8,21 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, fields
 from functools import wraps
 from importlib import import_module
-from typing import Any, Generic, ParamSpec, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, ParamSpec, TypeVar, overload
 
 from ._freeze import freeze, thaw
 from ._scientific import ScientificResult
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
+from .execution import Execution
 
 T = TypeVar("T")
+# The result type is a read-only label: no result value is accepted or mutated.
+ArtifactT_co = TypeVar("ArtifactT_co", covariant=True)
 P = ParamSpec("P")
+
+
+if TYPE_CHECKING:
+    from .recalc_composite import CompositeSession
 
 
 @dataclass(repr=False, frozen=True, slots=True)
@@ -38,6 +45,8 @@ class ArtifactAcceptance(ScientificResult):
     replayable: bool
     resumable: bool
     recognized: bool = True
+    proof: str | None = None
+    unresolved: tuple[str, ...] = ()
 
     @property
     def verified(self) -> bool:
@@ -51,7 +60,7 @@ class ArtifactAcceptance(ScientificResult):
 
 
 @dataclass(repr=False, frozen=True, slots=True)
-class ExportedArtifact(ScientificResult, Generic[T]):
+class ExportedArtifact(ScientificResult, Generic[ArtifactT_co]):
     """Container bytes and an independently retainable producer-side expectation."""
 
     data: bytes
@@ -76,8 +85,8 @@ class ExportedArtifact(ScientificResult, Generic[T]):
     def __bytes__(self) -> bytes:
         return self.data
 
-    def export(self) -> bytes:
-        return self.data
+    def export(self) -> ExportedArtifact[ArtifactT_co]:
+        return self
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,12 +95,38 @@ class LoadContext:
 
     supplied_sources: Any = None
     actual_claims: Mapping[str, Any] | None = None
+    execution: Execution | None = None
+    composite_source: CompositeSession | None = None
 
     def __post_init__(self) -> None:
+        from .execution import Execution
+
+        if self.composite_source is not None:
+            from .recalc_composite import CompositeSession
+
+            if not isinstance(self.composite_source, CompositeSession):
+                raise CausalTypeError(
+                    "LoadContext.composite_source must be a CompositeSession or None"
+                )
+        if self.execution is not None and not isinstance(self.execution, Execution):
+            raise CausalTypeError("LoadContext.execution must be an Execution or None")
         if self.actual_claims is not None and not isinstance(self.actual_claims, Mapping):
             raise CausalTypeError("LoadContext.actual_claims must be a mapping or None")
         object.__setattr__(self, "supplied_sources", freeze(self.supplied_sources))
         object.__setattr__(self, "actual_claims", freeze(self.actual_claims))
+
+
+def _load_execution(context: LoadContext | None, execution: Execution | None) -> Execution | None:
+    if context is not None and not isinstance(context, LoadContext):
+        raise CausalTypeError("context must be a LoadContext or None")
+    if execution is not None and not isinstance(execution, Execution):
+        raise CausalTypeError("execution must be an Execution or None")
+    retained = None if context is None else context.execution
+    if execution is not None and retained is not None and execution is not retained:
+        raise CausalTypeError(
+            "supply one Execution policy, or the same object in context and execution"
+        )
+    return execution if execution is not None else retained
 
 
 @dataclass(repr=False, frozen=True, slots=True)
@@ -102,11 +137,14 @@ class ArtifactInspection(ScientificResult):
     acceptance: ArtifactAcceptance
     _data: bytes = field(repr=False)
 
-    def export(self) -> bytes:
-        return self._data
+    def export(self) -> ExportedArtifact[Any]:
+        return ExportedArtifact(self._data, self.kind, metadata={"manifest": self.manifest})
 
 
 def container_bytes(value: Any) -> bytes:
+    from .outcomes import require_success
+
+    value = require_success(value)
     if isinstance(value, ExportedArtifact):
         return value.data
     if isinstance(value, (bytes, bytearray, memoryview)):
@@ -116,19 +154,76 @@ def container_bytes(value: Any) -> bytes:
     )
 
 
-def bytes_export(fn: Callable[P, Any]) -> Callable[P, bytes]:
-    """Retain an export receipt internally while presenting bytes as the public result."""
+@overload
+def artifact_export(fn: Callable[P, ExportedArtifact[T]]) -> Callable[P, ExportedArtifact[T]]: ...
+
+
+@overload
+def artifact_export(fn: Callable[P, Any]) -> Callable[P, ExportedArtifact[Any]]: ...
+
+
+def artifact_export(fn: Callable[P, Any]) -> Callable[P, ExportedArtifact[Any]]:
+    """Canonical typed export adapter for family receipts.
+
+    The public return is an ExportedArtifact. Raw bytes require explicit bytes(...).
+    """
 
     @wraps(fn)
-    def call(*args: P.args, **kwargs: P.kwargs) -> bytes:
-        result = fn(*args, **kwargs)
-        if isinstance(result, bytes):
-            return result
-        return container_bytes(result.artifact)
+    def call(*args: P.args, **kwargs: P.kwargs) -> ExportedArtifact[Any]:
+        receipt = fn(*args, **kwargs)
+        return artifact_from_receipt(args[0] if args else None, receipt)
 
-    setattr(call, "__signature__", inspect.signature(fn).replace(return_annotation=bytes))  # noqa: B010
-    call.__annotations__ = {**fn.__annotations__, "return": bytes}
+    call.__dict__["__signature__"] = inspect.signature(fn).replace(
+        return_annotation=ExportedArtifact
+    )
+    call.__annotations__ = {**fn.__annotations__, "return": ExportedArtifact}
     return call
+
+
+def artifact_consumer(
+    *,
+    proof: str,
+    replayable: bool = False,
+    resumable: bool = False,
+    status: str = "verified",
+    identity: tuple[str, ...] = ("expected_identity",),
+    input: str = "artifact",
+    unresolved: tuple[str, ...] = (),
+    acceptance: Callable[[Any, bool], ArtifactAcceptance] | None = None,
+) -> Callable[[Callable[P, T]], Callable[P, T]]:
+    """Record the proof of one explicitly audited semantic consumer.
+
+    Apply only to a consumer that already verifies the stated contract on every
+    successful return. A format discriminator or successful parsing is not proof.
+    This adapter executes no extra parse and retains the exact native-backed value.
+    """
+    if not proof:
+        raise ValueError("a semantic consumer must name its actual verification proof")
+
+    def decorate(fn: Callable[P, T]) -> Callable[P, T]:
+        signature = inspect.signature(fn)
+
+        @wraps(fn)
+        def call(*args: P.args, **kwargs: P.kwargs) -> T:
+            arguments = signature.bind(*args, **kwargs).arguments
+            result = fn(*args, **kwargs)
+            bound = any(arguments.get(name) is not None for name in identity)
+            receipt = (
+                acceptance(result, bound)
+                if acceptance is not None
+                else ArtifactAcceptance(
+                    status, bound, replayable, resumable, proof=proof, unresolved=unresolved
+                )
+            )
+            raw = arguments.get(input)
+            data = raw.encode("utf-8") if isinstance(raw, str) else container_bytes(raw)
+            object.__setattr__(result, "acceptance", receipt)
+            object.__setattr__(result, "_artifact_bytes", data)
+            return result
+
+        return call
+
+    return decorate
 
 
 def inspect_artifact(value: Any) -> ArtifactInspection:
@@ -150,7 +245,9 @@ def inspect_artifact(value: Any) -> ArtifactInspection:
             ArtifactAcceptance("unavailable", False, False, False),
             data,
         )
-    if data.startswith((b"CAUSAL\0\0", b"ANTECEDENT-")) or (data and data[0] >> 5 == 5):
+    if data.startswith((b"CAUSAL\0\0", b"ANTECEDENT-", b"ANTBOUNDPRIOR1")) or (
+        data and data[0] >> 5 == 5
+    ):
         raw = json.loads(_native.inspect_artifact_container(data))
         manifest = raw["manifest"]
         kind = manifest["artifact_kind"]
@@ -159,6 +256,26 @@ def inspect_artifact(value: Any) -> ArtifactInspection:
             kind,
             manifest,
             raw["metadata"],
+            ArtifactAcceptance("unavailable", False, False, False),
+            data,
+        )
+    # The discretized model owner uses its own bounded binary format: an
+    # exact length-prefixed tag followed by a layout version. This is only a
+    # discriminator; the selected native consumer re-derives every number.
+    discretized_tag = b"antecedent.model.discretized_scm_artifact"
+    discretized_prefix = len(discretized_tag).to_bytes(8, "little") + discretized_tag
+    if data.startswith(discretized_prefix):
+        start = len(discretized_prefix)
+        if len(data) < start + 4:
+            raise CausalSerializationError("truncated discretized composition version")
+        kind = discretized_tag.decode("ascii")
+        return ArtifactInspection(
+            kind,
+            {
+                "artifact_kind": kind,
+                "format_version": int.from_bytes(data[start : start + 4], "little"),
+            },
+            {},
             ArtifactAcceptance("unavailable", False, False, False),
             data,
         )
@@ -180,11 +297,23 @@ def inspect_artifact(value: Any) -> ArtifactInspection:
                 raise CausalSerializationError("JSON artifact has invalid digest inputs") from error
             if body.get("digest") != actual:
                 raise CausalSerializationError("JSON artifact digest does not match its content")
+        acceptance = ArtifactAcceptance("unavailable", False, False, False)
+        if kind == "antecedent.repeated_measures_posterior":
+            # The historical envelope omits the variance/correlation/assignment
+            # declaration needed by the scientific replay owner. Recognition
+            # alone cannot verify even a correctly framed retained posterior.
+            acceptance = ArtifactAcceptance(
+                "unavailable",
+                False,
+                False,
+                False,
+                unresolved=("declared_repeated_measures_procedure",),
+            )
         return ArtifactInspection(
             kind,
             {"artifact_kind": kind},
             body,
-            ArtifactAcceptance("unavailable", False, False, False),
+            acceptance,
             data,
         )
     from . import artifacts
@@ -200,14 +329,21 @@ def inspect_artifact(value: Any) -> ArtifactInspection:
 
 
 def exported_artifact(source: Any, *args: Any, **kwargs: Any) -> ExportedArtifact[Any]:
-    export = source.export
-    original = getattr(export, "__wrapped__", None)
-    receipt = original(source, *args, **kwargs) if original is not None else export(*args, **kwargs)
-    data = receipt if isinstance(receipt, bytes) else receipt.artifact
+    """Export once, preserving an already typed artifact and family receipt."""
+    return artifact_from_receipt(source, source.export(*args, **kwargs))
+
+
+def artifact_from_receipt(source: Any, receipt: Any) -> ExportedArtifact[Any]:
+    """Adapt native bytes or a family receipt at the actual export boundary."""
+    if isinstance(receipt, ExportedArtifact):
+        return receipt
+    data = container_bytes(
+        receipt if isinstance(receipt, (bytes, bytearray, memoryview)) else receipt.artifact
+    )
     view = inspect_artifact(data)
     metadata = (
         {}
-        if isinstance(receipt, bytes)
+        if isinstance(receipt, (bytes, bytearray, memoryview))
         else {f.name: getattr(receipt, f.name) for f in fields(receipt)}
     )
     metadata.pop("artifact", None)
@@ -246,6 +382,16 @@ def exported_artifact(source: Any, *args: Any, **kwargs: Any) -> ExportedArtifac
 
 # No consumer is selected by trying families until one accepts. The native manifest is the discriminator.
 _CONSUMERS: dict[str, tuple[str, str]] = {
+    "scientific_refusal_v1": ("outcomes", "_consume_refusal"),
+    "conditional_study_ranking_v1": ("recalc_composite", "ConditionalStudyRanking.consume"),
+    "antecedent.model.discretized_scm_artifact": (
+        "discretized_composition",
+        "consume_discretized_composition",
+    ),
+    "antecedent.repeated_measures_posterior_bundle": (
+        "adaptive_inference",
+        "consume_repeated_measures_posterior_artifact",
+    ),
     "matched_case_control_v1": ("matched", "replay_matched_case_control"),
     "descriptive_comparison_v1": ("descriptive", "replay_descriptive_comparison"),
     "temporal_counterfactual_v1": (
@@ -292,7 +438,52 @@ _CONSUMERS: dict[str, tuple[str, str]] = {
 }
 
 
-def load_scientific(value: Any, *, expected: Any = None, context: LoadContext | None = None) -> Any:
+def acceptance_from_consumer(result: Any, *, identity_bound: bool = False) -> ArtifactAcceptance:
+    """Read explicit semantic acceptance; parsing or a family name proves no replay."""
+    receipt = getattr(result, "acceptance", None)
+    if receipt is None:
+        receipt = getattr(result, "receipt", None)
+    if isinstance(receipt, ArtifactAcceptance):
+        return ArtifactAcceptance(
+            receipt.status,
+            identity_bound or receipt.identity_bound,
+            receipt.replayable,
+            receipt.resumable,
+            receipt.recognized,
+            receipt.proof,
+            receipt.unresolved,
+        )
+
+    def read(name: str, default: Any = None) -> Any:
+        return (
+            receipt.get(name, default)
+            if isinstance(receipt, Mapping)
+            else getattr(receipt, name, default)
+        )
+
+    verified = read("verified", read("accepts_as_verified_program"))
+    replayed_program = read("accepts_as_verified_program") in (True, "true")
+    replayable = read("replayable") is True or replayed_program
+    verified = verified in (True, "true") or read("status") == "verified"
+    sealed = read("sealed") is True or read("status") == "sealed"
+    recognized = read("recognized")
+    return ArtifactAcceptance(
+        "verified" if verified or replayed_program else "sealed" if sealed else "unavailable",
+        identity_bound,
+        replayable,
+        read("resumable") is True,
+        recognized is True or recognized == "true",
+    )
+
+
+def load_scientific(
+    value: Any,
+    *,
+    expected: Any = None,
+    context: LoadContext | None = None,
+    execution: Execution | None = None,
+) -> Any:
+    policy = _load_execution(context, execution)
     data = container_bytes(value)
     view = inspect_artifact(data)
     if isinstance(expected, ArtifactExpectation):
@@ -326,22 +517,25 @@ def load_scientific(value: Any, *, expected: Any = None, context: LoadContext | 
             raise CausalValueError(f"unknown expectation fields: {sorted(unknown)}")
         kwargs.update(expected)
     if context is not None:
+        if context.composite_source is not None:
+            if view.kind != "conditional_study_ranking_v1":
+                raise CausalValueError(f"{view.kind} does not consume composite source context")
+            kwargs["session"] = context.composite_source
         if "supplied" not in parameters and (
             context.supplied_sources is not None or context.actual_claims
         ):
             raise CausalValueError(f"{view.kind} does not consume bundle source context")
         if "supplied" in parameters:
             kwargs.update(supplied=context.supplied_sources, actual_claims=context.actual_claims)
-    result = consumer(data, **kwargs)
-    replayable = view.kind != "callback_result_v1"
-    if hasattr(result, "nodes") and view.kind.startswith("composition_bundle"):
-        replayable = all(node.verified for node in result.nodes)
-    acceptance = ArtifactAcceptance(
-        "verified" if replayable else "sealed",
-        expected is not None,
-        replayable,
-        view.kind in ("callback_result_v1", "selective_discovery_v1"),
+    from .outcomes import Outcome, require_success
+
+    consumed = (
+        consumer(data, **kwargs) if policy is None else policy._call(consumer, data, **kwargs)
     )
+    if isinstance(consumed, Outcome) and consumed.refusal is not None:
+        return consumed
+    result = require_success(consumed)
+    acceptance = acceptance_from_consumer(result, identity_bound=expected is not None)
     # Python read models own their forwarding bytes, never a restored callable or live study.
     if isinstance(result, ScientificResult) or not isinstance(result, Mapping):
         object.__setattr__(result, "_artifact_bytes", data)

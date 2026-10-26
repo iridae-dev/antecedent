@@ -3,6 +3,7 @@
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _sealed_loads import assert_answer_kept
 
@@ -63,17 +64,19 @@ def test_cpdag_derivatives_normalize_only_fully_oriented_graphs(query, accepted)
     ],
 )
 def test_bayesian_response_band_has_portable_uncertainty_source(query):
-    result = ant.analyze(
-        data(),
-        graph=[("t", "y")],
-        query=query,
-        inference=ant.Bayesian(n_draws=128),
-        refute="none",
-        bootstrap=0,
-        seed=19019,
-        estimator_config={"bandwidth": 0.3},
+    result = require_success(
+        ant.analyze(
+            data(),
+            graph=[("t", "y")],
+            query=query,
+            inference=ant.Bayesian(n_draws=128),
+            refute="none",
+            bootstrap=0,
+            seed=19019,
+            estimator_config={"bandwidth": 0.3},
+        )
     )
-    loaded = ant.load(result.export())
+    loaded = require_success(ant.load(bytes(result.export())))
     for item in (result, loaded):
         uncertainty = item.inspect().uncertainty
         assert uncertainty.available

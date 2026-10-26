@@ -27,6 +27,7 @@ import random
 
 import antecedent
 import numpy as np
+from antecedent.outcomes import require_success
 
 from _scm import confounded_scm
 
@@ -61,13 +62,15 @@ _PULSE_QUERY_KWARGS = dict(
 
 def test_static_nested_sections_mirror_flat_fields():
     data, edges = confounded_scm(n=300, seed=7)
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        refute="placebo",
-        bootstrap=20,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            refute="placebo",
+            bootstrap=20,
+            seed=1,
+        )
     )
     raw = result._raw
 
@@ -116,14 +119,16 @@ def test_static_nested_sections_mirror_flat_fields():
 
 def test_static_posterior_section_mirrors_flat_fields_when_bayesian():
     data, edges = confounded_scm(n=300, seed=7)
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(n_draws=256),
-        refute=False,
-        bootstrap=0,
-        seed=2,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=256),
+            refute=False,
+            bootstrap=0,
+            seed=2,
+        )
     )
     raw = result._raw
 
@@ -141,13 +146,15 @@ def test_static_posterior_section_mirrors_flat_fields_when_bayesian():
 
 def test_static_validation_nothing_ran_is_false_not_true():
     data, edges = confounded_scm(n=300, seed=7)
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        refute=False,
-        bootstrap=0,
-        seed=3,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            refute=False,
+            bootstrap=0,
+            seed=3,
+        )
     )
     raw = result._raw
     assert raw.validation.ran is False
@@ -165,13 +172,15 @@ def test_static_validation_nothing_ran_is_false_not_true():
 
 def test_temporal_nested_sections_mirror_flat_fields():
     data = _pulse_series()
-    result = antecedent.analyze(
-        data,
-        graph=[("pressure", 1, "defect", 0)],
-        query=antecedent.PulseEffect(**_PULSE_QUERY_KWARGS),
-        refute="placebo",
-        bootstrap=10,
-        seed=4,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=[("pressure", 1, "defect", 0)],
+            query=antecedent.PulseEffect(**_PULSE_QUERY_KWARGS),
+            refute="placebo",
+            bootstrap=10,
+            seed=4,
+        )
     )
     raw = result._raw
 
@@ -226,13 +235,15 @@ def test_temporal_nested_sections_mirror_flat_fields():
 
 def test_temporal_validation_nothing_ran_is_false_not_true():
     data = _pulse_series()
-    result = antecedent.analyze(
-        data,
-        graph=[("pressure", 1, "defect", 0)],
-        query=antecedent.PulseEffect(**_PULSE_QUERY_KWARGS),
-        refute=False,
-        bootstrap=0,
-        seed=5,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=[("pressure", 1, "defect", 0)],
+            query=antecedent.PulseEffect(**_PULSE_QUERY_KWARGS),
+            refute=False,
+            bootstrap=0,
+            seed=5,
+        )
     )
     raw = result._raw
     assert raw.validation.ran is False
@@ -242,14 +253,16 @@ def test_temporal_validation_nothing_ran_is_false_not_true():
 
 def test_temporal_posterior_section_mirrors_flat_fields_when_bayesian():
     data = _pulse_series()
-    result = antecedent.analyze(
-        data,
-        graph=[("pressure", 1, "defect", 0)],
-        query=antecedent.PulseEffect(**_PULSE_QUERY_KWARGS),
-        inference=antecedent.Bayesian(n_draws=256),
-        refute=False,
-        bootstrap=0,
-        seed=6,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=[("pressure", 1, "defect", 0)],
+            query=antecedent.PulseEffect(**_PULSE_QUERY_KWARGS),
+            inference=antecedent.Bayesian(n_draws=256),
+            refute=False,
+            bootstrap=0,
+            seed=6,
+        )
     )
     raw = result._raw
 

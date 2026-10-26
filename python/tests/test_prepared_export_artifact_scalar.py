@@ -22,6 +22,7 @@ import antecedent
 import numpy as np
 from antecedent import artifacts
 from antecedent.estimation import PreparedAnalysis
+from antecedent.outcomes import require_success
 
 
 def test_export_artifact_matches_contracted_artifact_for_dag_posterior_response():
@@ -39,13 +40,13 @@ def test_export_artifact_matches_contracted_artifact_for_dag_posterior_response(
         bootstrap=0,
         seed=1,
     )
-    result = prepared.estimate(data, seed=1)
+    result = require_success(prepared.estimate(data, seed=1))
     assert result.response is not None
 
     # This used to raise `CausalSerializationError` from the binding's own
     # duplicated wire construction; it must now encode like any other export.
     uncontracted = artifacts.loads(prepared.export_artifact(payload="result"))
-    contracted = artifacts.loads(prepared.export())
+    contracted = artifacts.loads(bytes(prepared.export()))
     assert uncontracted.payload_kind == "analysis_result"
     assert contracted.payload_kind == "analysis_result"
 

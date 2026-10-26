@@ -34,10 +34,20 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from .. import _native
+from .._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .._posterior_row import PosteriorRowEstimate
-from ..errors import CausalTypeError, CausalValueError
+from .._scientific import ScientificResult
+from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ..execution import Execution
 from ..graph import Admg
 from ..learners import Linear, Logistic, _learner_wire
+from ..outcomes import Outcome, capture_outcome
 from ._impl import SelectionDiagram
 from ._learned_continuous import EstimatorMenu, _frozen, _menu, _thaw
 
@@ -223,7 +233,7 @@ class SmoothedDoseGridPoint:
 
 
 @dataclass(frozen=True, slots=True)
-class SmoothedDoseEstimate:
+class SmoothedDoseEstimate(ScientificResult):
     """The grid with provenance, diagnostics and the interval status.
 
     ``uncertainty`` is ``point_only`` when no interval was requested and ``withheld``
@@ -245,6 +255,7 @@ class SmoothedDoseEstimate:
     evidence_digest: str
     execution_id: str
     variable_names: tuple[str, ...]
+    _artifact_bytes: bytes | None = field(default=None, init=False, repr=False, compare=False)
 
     @property
     def interval(self) -> None:
@@ -255,6 +266,13 @@ class SmoothedDoseEstimate:
             if point.dose == dose:
                 return point
         raise KeyError(dose)
+
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
+        """Export the artifact captured from this completed native execution."""
+        if self._artifact_bytes is None:
+            raise CausalUnsupportedError("no completed native execution artifact is bound")
+        return artifact_from_receipt(self, self._artifact_bytes)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -364,9 +382,8 @@ class SmoothedDosePosteriorModel:
     residual_scale: float | None = None
     min_local_rows: int = 30
     draws: int = 4_000
-    seed: int = 0
 
-    def _json(self) -> str:
+    def _json(self, *, seed: int) -> str:
         if self.residual_variance is not None and (
             self.residual_shape is None and self.residual_scale is None
         ):
@@ -394,14 +411,14 @@ class SmoothedDosePosteriorModel:
                 "residual": residual,
                 "min_local_rows": int(self.min_local_rows),
                 "draws": int(self.draws),
-                "seed": int(self.seed),
+                "seed": int(seed),
             },
             allow_nan=False,
         )
 
 
 @dataclass(frozen=True, slots=True)
-class SmoothedDosePosterior:
+class SmoothedDosePosterior(ScientificResult):
     """The joint posterior of ``psi_h`` over the grid under the declared outcome model.
 
     ``posterior`` holds the posterior mean and equal-tailed 95% credible interval at every grid
@@ -416,14 +433,16 @@ class SmoothedDosePosterior:
     premises_digest: str
     data_digest: str
     variable_names: tuple[str, ...]
-    artifact: bytes = field(repr=False, compare=False)
+    _artifact_bytes: bytes = field(repr=False, compare=False)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
         """The posterior as an independently consumable artifact."""
-        return self.artifact
+        return artifact_from_receipt(self, self._artifact_bytes)
 
 
 def _posterior(payload: str, artifact: bytes) -> SmoothedDosePosterior:
+    artifact = container_bytes(artifact)
     raw = json.loads(payload)
     return SmoothedDosePosterior(
         posterior=PosteriorRowEstimate._from_mapping(raw["result"]),
@@ -432,39 +451,50 @@ def _posterior(payload: str, artifact: bytes) -> SmoothedDosePosterior:
         premises_digest=raw["premises_digest"],
         data_digest=raw["data_digest"],
         variable_names=tuple(raw["variable_names"]),
-        artifact=artifact,
+        _artifact_bytes=artifact,
     )
 
 
-class PreparedSmoothedDose:
+@dataclass(frozen=True, slots=True, repr=False)
+class PreparedSmoothedDose(ScientificResult):
     """A prepared smoothed dose transport.
 
     The certificate is derived once at preparation; ``estimate`` cross-fits the
     nuisances on the retained rows under the frozen seed and never identifies again.
     """
 
-    __slots__ = ("_last", "_native")
+    _native: Any = field(repr=False, compare=False)
+    _execution: Execution = field(repr=False, compare=False)
 
-    def __init__(self, native: Any) -> None:
-        self._native = native
-        self._last: SmoothedDoseEstimate | None = None
+    def __init__(self, native: Any, execution: Execution) -> None:
+        object.__setattr__(self, "_native", native)
+        object.__setattr__(self, "_execution", execution)
 
-    def estimate(self, *, cancel: Any = None) -> SmoothedDoseEstimate:
-        """Cross-fit, integrate and report the grid; the interval is withheld."""
-        self._last = _estimate(self._native.estimate(cancel))
-        return self._last
+    def _run(self, operation: str) -> SmoothedDoseEstimate:
+        native = self._execution._call(self._native.fork, seed=self._execution.seed)
+        result = _estimate(self._execution._call(getattr(native, operation)))
+        object.__setattr__(result, "_artifact_bytes", bytes(native.export()))
+        return result
 
-    def refresh(self, data: SmoothedDoseData, *, cancel: Any = None) -> None:
-        """Replace the rows with a compatible snapshot; the certificate is kept.
+    def estimate(self) -> Outcome[SmoothedDoseEstimate]:
+        """Execute an independent run, preserving this preparation and earlier answers."""
+        return capture_outcome(lambda: self._run("estimate"))
 
-        A changed feature schema or sampling design needs a new preparation.
-        """
+    def reconfigure(self, *, execution: Execution) -> PreparedSmoothedDose:
+        """Branch physical policy and stream without fitting or copying raw observations."""
+        if not isinstance(execution, Execution):
+            raise CausalTypeError("execution must be an Execution declaration")
+        native = execution._call(self._native.fork, seed=execution.seed)
+        return PreparedSmoothedDose(native, execution)
+
+    def bind_snapshot(self, data: SmoothedDoseData) -> PreparedSmoothedDose:
+        """Compile a compatible immutable data branch without fitting its learners."""
         if not isinstance(data, SmoothedDoseData):
-            raise CausalTypeError("refresh requires SmoothedDoseData")
-        self._native.refresh(data, cancel)
-        self._last = None
+            raise CausalTypeError("bind_snapshot requires SmoothedDoseData")
+        native = self._execution._call(self._native.bind_snapshot, data)
+        return PreparedSmoothedDose(native, self._execution)
 
-    def posterior(self, model: SmoothedDosePosteriorModel) -> SmoothedDosePosterior:
+    def posterior(self, model: SmoothedDosePosteriorModel) -> Outcome[SmoothedDosePosterior]:
         """The unlicensed Bayesian posterior of the same smoothed dose response.
 
         Runs on the retained rows and the certificate derived at preparation; the model is
@@ -472,20 +502,22 @@ class PreparedSmoothedDose:
         """
         if not isinstance(model, SmoothedDosePosteriorModel):
             raise CausalTypeError("posterior requires a SmoothedDosePosteriorModel")
-        payload, artifact = self._native.posterior(model._json())
-        return _posterior(payload, bytes(artifact))
 
-    def interval(self, *, cancel: Any = None) -> None:
-        """The closed interval route: always refuses with ``cell_not_licensed``."""
-        self._native.interval(cancel)
+        def execute() -> SmoothedDosePosterior:
+            payload, artifact = self._execution._call(
+                self._native.posterior, model._json(seed=self._execution.seed)
+            )
+            return _posterior(payload, bytes(artifact))
+
+        return capture_outcome(execute)
+
+    def interval(self) -> Outcome[None]:
+        """Return the registered closed interval route as a scientific refusal."""
+        return capture_outcome(self._execution._call, self._native.interval)
 
     def estimator_menu(self) -> EstimatorMenu:
         """The estimator menu for this prepared graph, query and options."""
         return _menu(self._native.estimator_menu())
-
-    def export(self) -> bytes:
-        """The last estimate as an independently consumable artifact."""
-        return bytes(self._native.export())
 
 
 def prepare_smoothed_dose(
@@ -494,9 +526,7 @@ def prepare_smoothed_dose(
     *,
     options: SmoothedDoseOptions | None = None,
     target: str = TARGET,
-    seed: int = 1,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PreparedSmoothedDose:
     """Prepare the certified smoothed dose-response transport grid.
 
@@ -511,24 +541,30 @@ def prepare_smoothed_dose(
             "prepare_smoothed_dose requires SmoothedDoseQuery and SmoothedDoseData"
         )
     options = options or SmoothedDoseOptions()
-    if not isinstance(seed, int) or isinstance(seed, bool) or seed < 0:
-        raise CausalValueError("seed must be a non-negative integer")
-    if memory_bytes is not None and (not isinstance(memory_bytes, int) or memory_bytes < 0):
-        raise CausalValueError("memory_bytes must be a non-negative integer or None")
-    native = _native.prepare_smoothed_dose(
+    execution = Execution() if execution is None else execution
+    if not isinstance(execution, Execution):
+        raise CausalTypeError("execution must be an Execution declaration")
+    native = execution._call(
+        _native.prepare_smoothed_dose,
         query.graph,
         list(query.diagram.selections),
         query._json(),
         data,
         options._json(),
         target,
-        seed=seed,
-        memory_bytes=memory_bytes,
-        cancel=cancel,
+        seed=execution.seed,
+        memory_bytes=execution.limits.memory_bytes,
+        cancel=execution.cancel,
     )
-    return PreparedSmoothedDose(native)
+    return PreparedSmoothedDose(native, execution)
 
 
+@artifact_consumer(
+    proof="PreparedSmoothedDose::consume verifies portable fold predictions and replays every quadrature point without fitting",
+    replayable=True,
+    resumable=False,
+    identity=(),
+)
 def consume_smoothed_dose(
     artifact: bytes,
     *,
@@ -551,6 +587,7 @@ def consume_smoothed_dose(
     ``CausalResourceError`` before any replay work); ``cancel`` is polled before every
     quadrature chunk of the replay.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
     for label, value in (
@@ -573,6 +610,12 @@ def consume_smoothed_dose(
     )
 
 
+@artifact_consumer(
+    proof="SmoothedDosePosterior::consume re-derives the certificate and recomputes the posterior from retained rows and seed",
+    replayable=True,
+    resumable=False,
+    identity=(),
+)
 def consume_smoothed_dose_posterior(
     artifact: bytes, *, max_rows: int = 100_000, max_points: int = 1_024
 ) -> SmoothedDosePosterior:
@@ -583,6 +626,7 @@ def consume_smoothed_dose_posterior(
     accepted, so a changed row, premise, certificate or stored value is refused even when the
     digests were resealed.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
     return _posterior(

@@ -7,6 +7,7 @@ from collections.abc import Mapping
 
 import antecedent as ant
 import numpy as np
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_toml
 
@@ -80,10 +81,10 @@ def test_prepared_and_loaded_availability():
         bootstrap=0,
     )
     slots = prepared.inspect()
-    executed = prepared.estimate()
+    executed = require_success(prepared.estimate())
     retargeted = prepared.retarget(np.exp(data["z"] / 3), depends_on=["z"])
-    exported = retargeted.export()
-    loaded_slots = ant.load(exported).inspect()
+    exported = bytes(retargeted.export())
+    loaded_slots = require_success(ant.load(exported)).inspect()
     section = ant.artifacts.loads(exported).contract
     for row in IDENTITY["identity"]:
         if not row["python"].startswith("inspect()."):

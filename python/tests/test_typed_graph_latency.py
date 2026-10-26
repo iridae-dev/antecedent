@@ -13,6 +13,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.graph import Admg, Cpdag
+from antecedent.outcomes import require_success
 
 
 def _binary_treatment_scm(seed: int = 5, n: int = 300):
@@ -30,12 +31,14 @@ _EDGES = [("z", "t"), ("z", "y"), ("t", "y")]
 def test_cpdag_analyze_honours_every_latency_tier(mode):
     data = _binary_treatment_scm()
     cpdag = Cpdag.from_directed_undirected(["z", "t", "y"], _EDGES, [])
-    result = antecedent.analyze(
-        data,
-        graph=cpdag,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        latency=mode,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=cpdag,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            latency=mode,
+            seed=1,
+        )
     )
     assert result.performance.latency_mode == mode
 
@@ -43,12 +46,14 @@ def test_cpdag_analyze_honours_every_latency_tier(mode):
 def test_admg_analyze_honours_latency():
     data = _binary_treatment_scm()
     admg = Admg.from_edges(["z", "t", "y"], _EDGES, [])
-    result = antecedent.analyze(
-        data,
-        graph=admg,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        latency="report",
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=admg,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            latency="report",
+            seed=1,
+        )
     )
     assert result.performance.latency_mode == "report"
 
@@ -58,8 +63,8 @@ def test_accepted_graph_analyze_on_cpdag_runs():
     data = _binary_treatment_scm()
     cpdag = Cpdag.from_directed_undirected(["z", "t", "y"], _EDGES, [])
     accepted = antecedent.AcceptedGraph.from_graph(cpdag, algorithm_id="pc")
-    result = accepted.analyze(
-        data, query=antecedent.AverageEffect(treatment="t", outcome="y"), seed=1
+    result = require_success(
+        accepted.analyze(data, query=antecedent.AverageEffect(treatment="t", outcome="y"), seed=1)
     )
     assert result.performance.latency_mode == "interactive"
     assert abs(result.ate - 2.0) < 0.5

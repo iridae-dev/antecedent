@@ -13,7 +13,6 @@ from __future__ import annotations
 import antecedent as ant
 import numpy as np
 import pytest
-from _repo_text import REPO_ROOT, read_text
 from antecedent import _native
 from antecedent.artifacts import loads
 from antecedent.discovery import (
@@ -25,6 +24,9 @@ from antecedent.discovery import (
     graph_posterior_map_dag,
 )
 from antecedent.errors import CausalUnsupportedError
+from antecedent.outcomes import require_success
+
+from _repo_text import REPO_ROOT, read_text
 
 GUIDE = REPO_ROOT / "docs/graph_uncertainty.md"
 
@@ -308,17 +310,19 @@ def test_eight_variable_artifacts_are_still_consumed_and_wider_ones_carry_wide_e
             expected[source, target] += weight
     assert np.allclose(matrix, expected)
     # Consumed by the analysis, and the artifact it exports decodes.
-    result = ant.analyze(
-        data,
-        discovery=post,
-        query=ant.AverageEffect("t", "y"),
-        inference=ant.Bayesian(backend="conjugate", n_draws=64, prior_scale=100.0),
-        refute=False,
-        bootstrap=0,
-        seed=3,
+    result = require_success(
+        ant.analyze(
+            data,
+            discovery=post,
+            query=ant.AverageEffect("t", "y"),
+            inference=ant.Bayesian(backend="conjugate", n_draws=64, prior_scale=100.0),
+            refute=False,
+            bootstrap=0,
+            seed=3,
+        )
     )
     assert result.evidence_status == "licensed"
-    artifact = loads(result.export())
+    artifact = loads(bytes(result.export()))
     assert artifact is not None
     # Rebuilding the posterior from its own export is the same posterior.
     rebuilt = GraphPosterior.from_atoms(names, list(post.weights), list(post.adjacency))

@@ -7,22 +7,24 @@ the uncertainty representation the claims must carry), claim adapters (point
 claims, graph-dependent claims, weighted graph-posterior atoms, finite scenarios
 and identified sets) and a robustness verdict::
 
+    from antecedent import require_success
+
     rules = decision_robust.AdmissibilityRules(
         default_weakest_support="supported", uncertainty="structural_envelope"
     )
     contract = decision_robust.admissible_contract(base_contract, rules)
-    result = decision_robust.robust(
+    result = require_success(decision_robust.robust(
         contract,
         [
             decision_robust.Claim.evaluated("graph-1", draws_1),
             decision_robust.Claim.evaluated("graph-2", draws_2),
         ],
         kind="graph_dependent",
-    )
+    ))
     print(result.verdict.kind, result.explain())
 
 Rust owns identity, validation, evaluation, artifacts and refusals; this module
-builds declarations and raises each refusal as
+builds declarations and returns scientific refusals in an Outcome retaining the original
 :class:`~antecedent.decision.DecisionRefusal` (a
 :class:`~antecedent.errors.CausalUnsupportedError`) with its registered
 ``reason_code``, ``detail`` and ``offending`` intact.
@@ -42,6 +44,13 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._native import admissible_contract_normalize as _normalize
 from ._native import evaluate_identified_set_decision as _evaluate_sets
@@ -52,11 +61,13 @@ from ._native import identified_utility_interval as _interval
 from ._native import load_admissible_contract as _load_contract
 from ._native import replay_robust_decision as _replay_robust
 from ._refusal import raise_refusal
+from ._scientific import ScientificResult
 from ._validate import choice
 from .decision import Contract, DecisionRefusal
 from .errors import CausalValueError
 from .external import BoundExternalClaim, LineageLink
 from .joint_distribution import JointDistributionArtifact
+from .outcomes import Answer, outcome_operation, require_success
 
 SupportLabel = Literal[
     "supported", "weak_overlap", "extrapolative", "outside_empirical_support", "missing_evidence"
@@ -214,6 +225,7 @@ class AdmissibleContract:
         """The same decision under different rules."""
         return AdmissibleContract(self.contract, rules)
 
+    @outcome_operation
     def evaluate_transported(
         self,
         response: Any,
@@ -231,20 +243,28 @@ class AdmissibleContract:
         from .transported_response import evaluate_transported
 
         return evaluate_transported(
-            self, response, analysis=analysis, demand=demand, support_policy=support_policy
+            self,
+            require_success(response),
+            analysis=require_success(analysis),
+            demand=demand,
+            support_policy=support_policy,
         )
 
-    def export(self, *, artifact_id: str = "admissible-decision-contract") -> bytes:
+    @artifact_export
+    def export(self, *, artifact_id: str = "admissible-decision-contract") -> ExportedArtifact:
         """The contract and its rules as a portable artifact.
 
         A contract without rules is better exported with
         :meth:`antecedent.decision.Contract.export`, whose bytes are unchanged.
         """
-        return bytes(_export_contract(self._declaration(), artifact_id))
+        return artifact_from_receipt(
+            self, bytes(_export_contract(self._declaration(), artifact_id))
+        )
 
     @classmethod
     def load(cls, data: bytes, *, expected_identity: str) -> AdmissibleContract:
         """Load only under the identity the consumer retained independently."""
+        data = container_bytes(data)
         wire = json.loads(_load_contract(data, expected_identity))
         return cls(
             Contract._from_wire(wire["contract"]), AdmissibilityRules._from_wire(wire["rules"])
@@ -309,6 +329,10 @@ class Claim:
     completion_count: int | None = None
     reason: str | None = None
     support: Support | None = None
+
+    def __post_init__(self) -> None:
+        if self.source is not None:
+            object.__setattr__(self, "source", require_success(self.source))
 
     @classmethod
     def evaluated(
@@ -506,8 +530,19 @@ def _range_list(value: tuple[float, float] | None) -> list[float] | None:
     return None if value is None else [value[0], value[1]]
 
 
-class RobustDecision:
+class RobustDecision(ScientificResult):
     """A robustness assessment with the evidence behind it; exportable and replayable."""
+
+    @property
+    def answer(self) -> Answer:
+        return Answer(
+            "structured",
+            detail="robust_decision." + self.verdict.kind,
+            structured={
+                "selected": self.verdict.action,
+                "contract_identity": self.contract_identity,
+            },
+        )
 
     def __init__(
         self,
@@ -706,7 +741,8 @@ class RobustDecision:
             )
         return text + "".join(f"; {note}" for note in notes) + "."
 
-    def export(self, *, artifact_id: str = "robust-decision-result") -> bytes:
+    @artifact_export
+    def export(self, *, artifact_id: str = "robust-decision-result") -> ExportedArtifact:
         """The result bound to its contract, structures, profile and receipts, replayable."""
         payload, sources = _claims_payload(self._claims, self._kind)
         data, refusal = _export_robust(
@@ -719,7 +755,7 @@ class RobustDecision:
         )
         raise_refusal(refusal, DecisionRefusal)
         assert data is not None
-        return bytes(data)
+        return artifact_from_receipt(self, bytes(data))
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-safe form: verdict, per-action ranges, retained masses and external receipts."""
@@ -809,6 +845,7 @@ def _explain_verdict(verdict: RobustVerdict, result: RobustDecision) -> str:
     return "per-structure answers only; no action is chosen"
 
 
+@outcome_operation
 def robust(
     contract: AdmissibleContract,
     claims: Sequence[Claim],
@@ -839,32 +876,43 @@ def robust(
     return RobustDecision(contract, claims, kind, json.loads(result), receipts=receipts)
 
 
+@outcome_operation
 def point_claim(contract: AdmissibleContract, claim: Claim, **kwargs: Any) -> RobustDecision:
     """Adapt one point claim (a single exact law or answer)."""
-    return robust(contract, [claim], kind="point", **kwargs)
+    return require_success(robust(contract, [claim], kind="point", **kwargs))
 
 
+@outcome_operation
 def graph_dependent(
     contract: AdmissibleContract, claims: Sequence[Claim], **kwargs: Any
 ) -> RobustDecision:
     """Adapt graph-dependent claims: one answer per graph, no probability."""
-    return robust(contract, claims, kind="graph_dependent", **kwargs)
+    return require_success(robust(contract, claims, kind="graph_dependent", **kwargs))
 
 
+@outcome_operation
 def weighted_atoms(
     contract: AdmissibleContract, claims: Sequence[Claim], **kwargs: Any
 ) -> RobustDecision:
     """Adapt weighted graph-posterior atoms (genuine probabilities make them credible)."""
-    return robust(contract, claims, kind="weighted_graph_posterior", **kwargs)
+    return require_success(robust(contract, claims, kind="weighted_graph_posterior", **kwargs))
 
 
+@outcome_operation
 def finite_scenarios(
     contract: AdmissibleContract, claims: Sequence[Claim], **kwargs: Any
 ) -> RobustDecision:
     """Adapt a finite set of supplied scenarios (always a structural envelope)."""
-    return robust(contract, claims, kind="finite_scenarios", **kwargs)
+    return require_success(robust(contract, claims, kind="finite_scenarios", **kwargs))
 
 
+@outcome_operation
+@artifact_consumer(
+    proof="Independent native decision replay rebuilds declared inputs and compares stored identity, numbers and standing.",
+    replayable=True,
+    identity=("contract", "claims"),
+    input="data",
+)
 def replay(
     data: bytes,
     *,
@@ -881,6 +929,7 @@ def replay(
     not re-run: such a result stays ``native_verified == False`` and
     :attr:`RobustDecision.external_atoms` lists the structures.
     """
+    data = container_bytes(data)
     payload, sources = _claims_payload(claims, kind)
     result, refusal = _replay_robust(data, contract._declaration(), kind, payload, sources)
     raise_refusal(refusal, DecisionRefusal)
@@ -990,8 +1039,16 @@ class IdentifiedVerdict:
 
 
 @dataclass(frozen=True, slots=True)
-class IdentifiedDecision:
+class IdentifiedDecision(ScientificResult):
     """A decision over per-action identified sets."""
+
+    @property
+    def answer(self) -> Answer:
+        return Answer(
+            "structured",
+            detail="identified_decision." + self.verdict.kind,
+            structured={"selected": self.selected, "contract_identity": self.contract_identity},
+        )
 
     contract_identity: str
     policy: str
@@ -1067,6 +1124,7 @@ class IdentifiedDecision:
         return f"<IdentifiedDecision {self.verdict.kind} {self.selected!r}>"
 
 
+@outcome_operation
 def identified_sets(
     contract: AdmissibleContract, utilities: Sequence[IdentifiedUtility]
 ) -> IdentifiedDecision:

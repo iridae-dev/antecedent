@@ -239,7 +239,7 @@ def sealed(body):
 
 def test_an_exported_comparison_is_replayed_by_an_independent_consumer():
     result = compare(adjusted_standard_error=0.4)
-    artifact = result.export()
+    artifact = bytes(result.export())
     body = json.loads(artifact)
     assert body["format"] == "descriptive_comparison_v1"
     assert body["claim"] == "point_only"
@@ -248,7 +248,7 @@ def test_an_exported_comparison_is_replayed_by_an_independent_consumer():
 
 
 def test_a_tampered_artifact_is_refused_for_the_right_reason():
-    body = json.loads(compare().export())
+    body = json.loads(bytes(compare().export()))
     for edit in (
         {"gap": body["gap"] + 1e-9},
         {"raw_difference": 4.5},

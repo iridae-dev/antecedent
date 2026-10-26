@@ -22,6 +22,7 @@ import math
 import pytest
 from antecedent import scientific_bridge as sb
 from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
 from antecedent.scientific_bridge import ScientificBridgeRefusal
 
 from _refusal import assert_registered_refusal
@@ -80,7 +81,7 @@ def derive(dependence, *, standard_error=0.05, nonlinear=None, value=0.5):
     source = sb.SourceClaim.declared(
         "intent", value, STATED, standard_error=standard_error, nonlinear=nonlinear
     )
-    return bridge.derive(source)
+    return require_success(bridge.derive(source))
 
 
 def delta_variance(x, se, covariance=0.0):
@@ -107,7 +108,7 @@ def refused(call, code, detail):
 
 def test_an_affine_map_carries_the_hand_delta_variance_beside_the_plug_in_value():
     claim = derive(independent())
-    propagation = claim.propagated_uncertainty()
+    propagation = require_success(claim.propagated_uncertainty())
     assert propagation.variance == pytest.approx(delta_variance(0.5, 0.05), rel=1e-12)
     assert claim.propagated_variance == propagation.variance
     assert claim.value == pytest.approx(INTERCEPT + SLOPE * 0.5)
@@ -151,7 +152,7 @@ def test_the_sign_of_the_declared_covariance_moves_the_variance_and_the_mean():
 
 def test_a_square_reports_the_second_moment_expectation():
     claim = derive(independent(), nonlinear="square")
-    propagation = claim.propagated_uncertainty()
+    propagation = require_success(claim.propagated_uncertainty())
     assert propagation.nonlinear["map"] == "square"
     assert propagation.nonlinear["map_of_mean"] == pytest.approx(propagation.mean**2)
     assert propagation.nonlinear["expectation"] == pytest.approx(
@@ -180,10 +181,12 @@ def test_an_undeclared_dependence_is_refused_not_assumed_independent():
 
 def test_the_artifact_replays_the_propagation_in_a_fresh_consumption():
     claim = derive(sb.SourceDependence.slope_covariance(0.0004, "shared-rows"), nonlinear="square")
-    exported = claim.artifact("propagated-bridge")
-    consumed = sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
-    replayed = consumed.claim.propagated_uncertainty()
-    held = claim.propagated_uncertainty()
+    exported = claim.export("propagated-bridge")
+    consumed = require_success(
+        sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
+    )
+    replayed = require_success(consumed.claim.propagated_uncertainty())
+    held = require_success(claim.propagated_uncertainty())
     assert replayed.variance == held.variance
     assert replayed.mean == held.mean
     assert replayed.nonlinear == held.nonlinear
@@ -194,6 +197,4 @@ def test_the_artifact_replays_the_propagation_in_a_fresh_consumption():
         nonlinear="square",
     )
     assert other.claim_id != claim.claim_id
-    assert (
-        other.artifact("propagated-bridge").expectation.identity != exported.expectation.identity
-    )
+    assert other.export("propagated-bridge").expectation.identity != exported.expectation.identity

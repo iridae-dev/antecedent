@@ -6,7 +6,15 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
+from ..._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ..._columns import coerce_fields
+from ..._scientific import ScientificResult
 from ...errors import CausalValueError
 from ...graph import Admg
 from .._status import identification_status as _canonical_status
@@ -63,7 +71,7 @@ class ExactTransportData:
 
 
 @dataclass(frozen=True, slots=True)
-class ExactTransportDistribution:
+class ExactTransportDistribution(ScientificResult):
     """Complete target distribution with no sampling uncertainty claim."""
 
     acceptance: Any = field(default=None, init=False, repr=False, compare=False)
@@ -103,11 +111,12 @@ class ExactTransportDistribution:
             "reasoning": self.inspect().to_dict(),
         }
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
         """Export the immutable native execution, independent of edited display fields."""
         if self._execution is None:
             raise _no_native_authority()
-        return bytes(self._execution.export())
+        return artifact_from_receipt(self, bytes(self._execution.export()))
 
     def contrast(self, reference: ExactTransportDistribution, outcome: str) -> float:
         """Difference of means from two complete target laws; no sampling interval."""
@@ -124,7 +133,7 @@ class ExactTransportDistribution:
 
 
 @dataclass(frozen=True, slots=True)
-class ClassicalTransportIdentification:
+class ClassicalTransportIdentification(ScientificResult):
     """Theorem-stage result under all source experiments and target observation.
 
     Display fields cannot authorize execution. The retained native derivation
@@ -146,9 +155,10 @@ class ClassicalTransportIdentification:
         its earlier spelling."""
         return _canonical_status(self.outcome)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
         """Export the retained checked proof or conservative/negative certificate."""
-        return bytes(self._native.export())
+        return artifact_from_receipt(self, bytes(self._native.export()))
 
     def inspect(self) -> Any:
         """Structural certificate and all four reasoning slots; no provider access."""
@@ -184,8 +194,13 @@ class ClassicalTransportIdentification:
         )
 
 
+@artifact_consumer(
+    proof="TransportCertificateWire checked consumer: proof or conservative negative certificate",
+    identity=(),
+)
 def consume_identification(artifact: bytes, **limits: Any) -> ClassicalTransportIdentification:
     """Independently verify a structural certificate, without rerunning identification."""
+    artifact = container_bytes(artifact)
     from ..._native import consume_transport_certificate
 
     native = consume_transport_certificate(artifact, **limits)
@@ -339,6 +354,12 @@ def prepare_exact(
     return PreparedAnalysis(native, kind="exact_transport", controls=_Controls(cancel=cancel))
 
 
+@artifact_consumer(
+    proof="PreparedStudy<ExactPreparedState>::consume verifies proof, identities and exact-law target replay",
+    replayable=True,
+    resumable=True,
+    identity=(),
+)
 def consume_exact(
     artifact: bytes,
     *,
@@ -351,6 +372,7 @@ def consume_exact(
 
     Uses embedded immutable laws; never fits models or fetches providers.
     """
+    artifact = container_bytes(artifact)
     from ... import _native
     from ...estimation import PreparedAnalysis, _Controls
 

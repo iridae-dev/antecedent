@@ -6,6 +6,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.errors import CausalUnsupportedError
+from antecedent.outcomes import require_success
 from antecedent.quasi import SharpRegressionDiscontinuity
 
 from _repo_text import REPO_ROOT, load_json
@@ -19,10 +20,12 @@ def test_rd_sharp_via_query():
     y = 1.0 + 2.0 * t + 0.3 * r + rng.normal(scale=0.2, size=n)
     data = {"t": t, "y": y, "r": r}
     # No graph, no estimator, no kwargs: the fixed sharp-RD design is synthesized.
-    result = antecedent.analyze(
-        data,
-        query=SharpRegressionDiscontinuity("y", "t", "r", 0.0, 1.5),
-        seed=26,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            query=SharpRegressionDiscontinuity("y", "t", "r", 0.0, 1.5),
+            seed=26,
+        )
     )
     assert abs(result.answer.value - 2.0) < 0.35
     assert result.estimate.estimator_id in ("rd.sharp", "rd.sharp.local_linear", "")
@@ -41,10 +44,12 @@ def test_rd_sharp_refuses_a_treatment_column_that_breaks_the_rule():
     t = (rng.uniform(size=n) < np.where(r >= 0.0, 0.75, 0.25)).astype(np.float64)
     y = 1.0 + 3.0 * t + 0.3 * r + rng.normal(scale=0.2, size=n)
     with pytest.raises(Exception, match="not the threshold rule"):
-        antecedent.analyze(
-            {"t": t, "y": y, "r": r},
-            query=SharpRegressionDiscontinuity("y", "t", "r", 0.0, 1.5),
-            seed=28,
+        require_success(
+            antecedent.analyze(
+                {"t": t, "y": y, "r": r},
+                query=SharpRegressionDiscontinuity("y", "t", "r", 0.0, 1.5),
+                seed=28,
+            )
         )
 
 
@@ -57,8 +62,10 @@ def test_sharp_rd_se_kind_reaches_the_estimator():
     data = {"t": t, "y": y, "r": r}
 
     def fit(se):
-        return antecedent.analyze(
-            data, query=SharpRegressionDiscontinuity("y", "t", "r", 0.0, 1.5, se=se), seed=26
+        return require_success(
+            antecedent.analyze(
+                data, query=SharpRegressionDiscontinuity("y", "t", "r", 0.0, 1.5, se=se), seed=26
+            )
         ).estimate
 
     default, hc1, homoskedastic = fit(None), fit("hc1"), fit("homoskedastic")
@@ -72,11 +79,13 @@ def test_sharp_rd_se_kind_reaches_the_estimator():
 def test_sharp_rd_estimator_spelling_points_to_the_query():
     data = {"t": np.array([0.0, 1.0]), "y": np.array([0.0, 1.0]), "r": np.array([-1.0, 1.0])}
     with pytest.raises(CausalUnsupportedError, match="SharpRegressionDiscontinuity"):
-        antecedent.analyze(
-            data,
-            graph=[("r", "t"), ("t", "y"), ("r", "y")],
-            query=antecedent.AverageEffect("t", "y"),
-            estimator="rd.sharp",
+        require_success(
+            antecedent.analyze(
+                data,
+                graph=[("r", "t"), ("t", "y"), ("r", "y")],
+                query=antecedent.AverageEffect("t", "y"),
+                estimator="rd.sharp",
+            )
         )
 
 
@@ -97,11 +106,13 @@ def test_sharp_rd_analytic_se_matches_the_rust_reference_pin(se, key):
         "y": block["outcome"],
         "r": running,
     }
-    result = antecedent.analyze(
-        data,
-        query=SharpRegressionDiscontinuity("y", "t", "r", cutoff, block["bandwidth"], se=se),
-        seed=3,
-        bootstrap=0,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            query=SharpRegressionDiscontinuity("y", "t", "r", cutoff, block["bandwidth"], se=se),
+            seed=3,
+            bootstrap=0,
+        )
     )
     expected = block["expected"]
     rel = block["relative_tolerance"]

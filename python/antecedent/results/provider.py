@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
+from .._artifact_protocol import ExportedArtifact, artifact_export, artifact_from_receipt
 from ._execution import Answer, CalibrationInfo, ResultAPI
 from ._report import InspectionReport, ResultModel, SlotModel
 
@@ -127,7 +128,19 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
             },
         )
 
-    def export(self, *, artifact_id: str = "analysis-result") -> bytes:
+    @artifact_export
+    def export(
+        self,
+        *,
+        quantity: Literal["provider", "host"] = "provider",
+        artifact_id: str = "analysis-result",
+    ) -> ExportedArtifact:
+        if quantity == "host":
+            return artifact_from_receipt(self, self._host_bytes())
+        if quantity != "provider":
+            from ..errors import CausalTypeError
+
+            raise CausalTypeError("quantity must be 'provider' or 'host'")
         # A provider result carries a single opaque artifact; artifact_id is
         # accepted for API parity with the analysis result but does not select.
         if self.provider_artifact is None:
@@ -137,9 +150,9 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
                 "provider result has no portable artifact; the provider returned none",
                 reason_code="not_executed",
             )
-        return self.provider_artifact
+        return artifact_from_receipt(self, self.provider_artifact)
 
-    def export_host(self) -> bytes:
+    def _host_bytes(self) -> bytes:
         """Export the native-validated host envelope and opaque provider receipt."""
         if self.host_artifact is None:
             from ..errors import CausalUnsupportedError

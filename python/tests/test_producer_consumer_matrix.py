@@ -98,6 +98,7 @@ from antecedent.joint_distribution import (
 )
 from antecedent.measurement_models import MeasurementModelRefusal
 from antecedent.mechanism_composition import MechanismCompositionRefusal
+from antecedent.outcomes import require_success
 from antecedent.recalc import RecalcRequest, RecalcSession, Stage, TargetWeights, Utility
 from antecedent.results.response import (
     CausalResponseView,
@@ -194,18 +195,20 @@ def _executed_native_view() -> CausalResponseView:
     levels = np.linspace(1.0, 2.0, 101)
     treatment = np.repeat(levels, 21)
     covariate = np.tile(np.linspace(-1.0, 1.0, 21), len(levels))
-    return ac.analyze(
-        {"x": covariate, "a": treatment, "y": 1 + 2 * treatment + covariate / 2},
-        graph=gen.EDGES,
-        query=ac.ResponseCurve("a", "y", grid=[1.0, 2.0]),
-        estimator_config={
-            "bandwidth": 2.1,
-            "nuisance_lambda": 0.0,
-            "nuisance_basis": 4,
-            "folds": 2,
-        },
-        bootstrap=0,
-        refute="none",
+    return require_success(
+        ac.analyze(
+            {"x": covariate, "a": treatment, "y": 1 + 2 * treatment + covariate / 2},
+            graph=gen.EDGES,
+            query=ac.ResponseCurve("a", "y", grid=[1.0, 2.0]),
+            estimator_config={
+                "bandwidth": 2.1,
+                "nuisance_lambda": 0.0,
+                "nuisance_basis": 4,
+                "folds": 2,
+            },
+            bootstrap=0,
+            refute="none",
+        )
     )
 
 
@@ -260,10 +263,14 @@ def _mean_contract(claim: Any) -> decision.Contract:
 
 def _joint_bundle(contract: decision.Contract, law: JointDistributionArtifact) -> cb.Bundle:
     builder = cb.Bundle.builder()
-    builder.add_artifact("decision_contract", contract.export(artifact_id="contract"), node_id="c")
-    builder.add_artifact("distribution", law.export("law"), node_id="law")
     builder.add_artifact(
-        "decision_result", contract.evaluate(law).export(artifact_id="result"), node_id="result"
+        "decision_contract", bytes(contract.export(artifact_id="contract")), node_id="c"
+    )
+    builder.add_artifact("distribution", bytes(law.export("law")), node_id="law")
+    builder.add_artifact(
+        "decision_result",
+        bytes(contract.evaluate(law).export(artifact_id="result")),
+        node_id="result",
     )
     return builder.connect("law", "result").connect("c", "result").build()
 
@@ -308,11 +315,13 @@ def _guess() -> dr.DesignDecision:
 
 
 def _guess_candidate(cid: str, accuracy: float) -> dr.Candidate:
-    law = dr.ExternalLaw.posterior(
-        states=[0.0, 1.0],
-        statistics=[0.0, 1.0],
-        predictive=[0.5, 0.5],
-        posterior=[[accuracy, 1.0 - accuracy], [1.0 - accuracy, accuracy]],
+    law = require_success(
+        dr.ExternalLaw.posterior(
+            states=[0.0, 1.0],
+            statistics=[0.0, 1.0],
+            predictive=[0.5, 0.5],
+            posterior=[[accuracy, 1.0 - accuracy], [1.0 - accuracy, accuracy]],
+        )
     )
     provider = dr.ExternalSignal("lab", "signal-object", "v1", "snap", "lab-qa", law)
     return dr.Candidate(cid, 1, provider, cost=0.1, cost_unit="utility")
@@ -419,7 +428,7 @@ def _scenario_stage() -> Any:
         laws=laws,
         at={"x": 1.0},
     )
-    stage.estimate()
+    require_success(stage.estimate())
     return stage
 
 
@@ -715,16 +724,20 @@ def _ledgered() -> Ledgered:
     second = ledger.add_source(
         el.SourceDeclaration("s2", "observation_set", observations=el.rows("cohort", range(10, 20)))
     )
-    pooled = ledger.pool_summaries(
-        "pooled", [el.StudySummary(first, 1.0, 1.0), el.StudySummary(second, 3.0, 4.0)]
+    pooled = require_success(
+        ledger.pool_summaries(
+            "pooled", [el.StudySummary(first, 1.0, 1.0), el.StudySummary(second, 3.0, 4.0)]
+        )
     )
-    envelope = ledger.dependence_range(
-        "range",
-        [el.StudyEstimate(first, 1.0, 1.0), el.StudyEstimate(second, 3.0, 2.0)],
-        rho_lo=0.0,
-        rho_hi=0.9,
+    envelope = require_success(
+        ledger.dependence_range(
+            "range",
+            [el.StudyEstimate(first, 1.0, 1.0), el.StudyEstimate(second, 3.0, 2.0)],
+            rho_lo=0.0,
+            rho_hi=0.9,
+        )
     )
-    return Ledgered(ledger, pooled, envelope, ledger.artifact())
+    return Ledgered(ledger, pooled, envelope, ledger.export())
 
 
 @dataclass(frozen=True)
@@ -765,15 +778,15 @@ def _adaptive() -> Adaptive:
         look=1, plus_arm=1, minus_arm=None, scheme="uniform", prior_mean=0.5, prior_strength=1.0
     )
     contract_bytes = session.export_contract("frequentist_adaptive_weighting")
-    result_bytes = session.export_result(request)
+    result_bytes = bytes(session.export(request))
     return Adaptive(
         session,
         contract_bytes,
-        ai.consume_adaptive_monitoring_contract_artifact(contract_bytes),
+        require_success(ai.consume_adaptive_monitoring_contract_artifact(contract_bytes)),
         request,
-        session.analyse(request),
+        require_success(session.analyse(request)),
         result_bytes,
-        ai.consume_adaptive_inference_result_artifact(result_bytes),
+        require_success(ai.consume_adaptive_inference_result_artifact(result_bytes)),
     )
 
 
@@ -909,9 +922,9 @@ def _build_objects() -> Objs:
         ranking=_ranking(),
         failed=_failed_contract(),
         measurement_prepared=prepared,
-        measurement=prepared.estimate(),
+        measurement=require_success(prepared.estimate()),
         composition=composition,
-        composition_export=composition.artifact({"X": 1.0}, outcome="Y"),
+        composition_export=composition.export({"X": 1.0}, outcome="Y"),
         ledgered=_ledgered(),
         adaptive=_adaptive(),
         transported=_transported(),
@@ -992,7 +1005,9 @@ def _sequential() -> Sequential:
         {(): "inspect", ((0, 1),): "repair", ((0, 0),): "ship"},
         model,
     )
-    return Sequential(model, policy, seqeval.evaluate(model, policy), seqeval.seal(model, policy))
+    return Sequential(
+        model, policy, seqeval.evaluate(model, policy), require_success(seqeval.seal(model, policy))
+    )
 
 
 def _object(producer: str, o: Objs) -> object:
@@ -1068,13 +1083,13 @@ def _companions(producer: str, o: Objs) -> tuple[object, ...]:
 def _bundle_payload(producer: str, o: Objs) -> object:
     """What a caller would hand ``add_artifact``: bytes where the producer has an export."""
     if producer == "fitted_effect_model":
-        return o.compact.export()
+        return bytes(o.compact.export())
     if producer == "bayesian_prior":
         return bytes(encode_posterior_artifact(o.posterior))
     if producer == "identified_scenarios":
         return bytes(o.stage.export())
     if producer == "measurement_result":
-        return o.measurement.export()
+        return bytes(o.measurement.export())
     if producer == "composed_model":
         return o.composition_export.data
     if producer == "evidence_ledger":
@@ -1086,25 +1101,25 @@ def _bundle_payload(producer: str, o: Objs) -> object:
     if producer == "composition_verification_result":
         return _verified().exported.data
     if producer == "counterfactual_transport_result":
-        return o.transported.treated.export()
+        return bytes(o.transported.treated.export())
     if producer == "cohort_decision_source":
-        return o.cohort.export()
+        return bytes(o.cohort.export())
     if producer == "decision_reliability_report":
-        return o.reliability.export()
+        return bytes(o.reliability.export())
     if producer == "observation_query_claim":
-        return o.observation.export()
+        return bytes(o.observation.export())
     if producer == "adaptive_monitoring_contract":
         return o.adaptive.contract_bytes
     if producer == "adaptive_inference_result":
         return o.adaptive.result_bytes
     if producer == "predictive_assessment":
-        return _assessed().export()
+        return bytes(_assessed().export())
     if producer == "sequential_policy_evaluation":
-        return _sequential().artifact.export()
+        return bytes(_sequential().artifact.export())
     if producer == "propagated_claim":
-        return _propagated().export()
+        return bytes(_propagated().export())
     if producer == "dependence_envelope":
-        return _envelope().export()
+        return bytes(_envelope().export())
     if producer == "selective_discovery_result":
         return _discovered().exported.data
     if producer == "cross_world_execution_result":
@@ -1341,7 +1356,7 @@ def _check_claim_decision(o: Objs) -> None:
     assert decided.selected == ("treat",)
     assert decided.evpi is None, "regret needs state-aligned draws; a mean grid has none"
     with pytest.raises(decision.DecisionRefusal) as export:
-        decided.export()
+        bytes(decided.export())
     assert export.value.detail == "decision_evaluation.mean_source_not_replayable"
     assert export.value.reason_code == "route_not_supported"
 
@@ -1386,11 +1401,13 @@ def _check_claim_bundle(o: Objs) -> None:
     builder = cb.Bundle.builder()
     builder.add_artifact("external_claim", o.claim, node_id="claim")
     builder.add_artifact(
-        "decision_contract", contract.export(artifact_id="contract"), node_id="contract"
+        "decision_contract", bytes(contract.export(artifact_id="contract")), node_id="contract"
     )
     builder.add_artifact("decision_result", result, node_id="result")
     bundle = builder.connect("claim", "result").connect("contract", "result").build()
-    consumed = cb.consume_bundle(bundle.export(), expected_identity=bundle.identity)
+    consumed = require_success(
+        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
     consumed.require_verified()
     assert consumed.value("result", "wait.expected_utility") == pytest.approx(1.0, abs=1e-9)
     assert consumed.value("result", "treat.expected_utility") == pytest.approx(9.0, abs=1e-9)
@@ -1420,7 +1437,7 @@ def _check_law_decision(o: Objs) -> None:
     assert by_id["safe"].expected_utility == pytest.approx(3.0, abs=1e-12)
     assert decided.evpi == pytest.approx(0.5, abs=1e-12)
     assert decided.selected == ("safe",)
-    assert len(decided.export(artifact_id="result")) > 0, "a joint-draw result replays"
+    assert len(bytes(decided.export(artifact_id="result"))) > 0, "a joint-draw result replays"
 
     law_input = comp.DecisionInput.from_distribution("law", o.law)
     assert law_input.source == "joint_law"
@@ -1445,7 +1462,9 @@ def _check_law_inverse(o: Objs) -> None:
 
 def _check_law_bundle(o: Objs) -> None:
     bundle = _joint_bundle(gen.decision_contract(), o.law)
-    consumed = cb.consume_bundle(bundle.export(), expected_identity=bundle.identity)
+    consumed = require_success(
+        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
     consumed.require_verified()
     assert consumed.value("result", "risky.expected_utility") == pytest.approx(2.0, abs=1e-9)
     assert consumed.value("result", "safe.expected_utility") == pytest.approx(3.0, abs=1e-9)
@@ -1584,14 +1603,16 @@ def _check_sensitivity_decision(o: Objs) -> None:
 
 
 def _check_sensitivity_bundle(o: Objs) -> None:
-    data = o.sensitivity.export()
+    data = bytes(o.sensitivity.export())
     assert cb.detect_kind(data) == "sensitivity"
     described = cb.describe_artifact("sensitivity", data)
     assert described.identity == o.sensitivity.identity["digest"]
     assert described.values["grid_points"] == pytest.approx(3.0)
     builder = cb.Bundle.builder().add_artifact("sensitivity", data, node_id="sensitivity")
     bundle = builder.build()
-    consumed = cb.consume_bundle(bundle.export(), expected_identity=bundle.identity)
+    consumed = require_success(
+        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
     consumed.require_verified()
     assert consumed.value("sensitivity", "grid_points") == pytest.approx(3.0)
 
@@ -1645,23 +1666,29 @@ def _check_decision_design(o: Objs) -> None:
 
 def _check_decision_bundle(o: Objs) -> None:
     # A joint-draw result exports and replays; it is a bundle node beneath its law and contract.
-    exported = o.result.export(artifact_id="result")
+    exported = bytes(o.result.export(artifact_id="result"))
     assert cb.detect_kind(exported) == "decision_result"
     bundle = _joint_bundle(gen.decision_contract(), gen.decision_source())
-    consumed = cb.consume_bundle(bundle.export(), expected_identity=bundle.identity)
+    consumed = require_success(
+        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
     consumed.require_verified()
     assert consumed.node("result").verified
     assert consumed.value("result", "risky.expected_utility") == pytest.approx(2.0, abs=1e-9)
     assert consumed.value("result", "safe.expected_utility") == pytest.approx(3.0, abs=1e-9)
     # Without its source the same result stands on nothing and is refused as a tampered quantity.
     alone = cb.Bundle.builder().add_artifact("decision_result", exported, node_id="result").build()
-    orphan = cb.consume_bundle(alone.export(), expected_identity=alone.identity)
+    orphan = require_success(
+        cb.consume_bundle(bytes(alone.export()), expected_identity=alone.identity)
+    )
     assert isinstance(orphan.node("result").status, cb.Failed)
     assert orphan.value("result", "safe.expected_utility") is None
 
 
 def _check_ranking_design(o: Objs) -> None:
-    consumed = dr.consume(o.ranking.export(), expected_identity=o.ranking.expectation())
+    consumed = require_success(
+        dr.consume(bytes(o.ranking.export()), expected_identity=o.ranking.expectation())
+    )
     by_id = {e.id: e for e in consumed.entries}
     assert by_id["cand-1"].evsi == pytest.approx(0.25, abs=1e-12)
     assert by_id["cand-2"].evsi == pytest.approx(0.125, abs=1e-12)
@@ -1672,16 +1699,18 @@ def _check_ranking_design(o: Objs) -> None:
     assert consumed.identity == o.ranking.identity
     # A changed cost map is refused even though the bytes are untouched.
     with pytest.raises(dr.CostUnitsRefusal) as refused:
-        dr.consume(
-            o.ranking.export(),
-            expected_identity=dr.Expectation(cost_map=dr.CostMap("utility", "utility", 2.0)),
+        require_success(
+            dr.consume(
+                bytes(o.ranking.export()),
+                expected_identity=dr.Expectation(cost_map=dr.CostMap("utility", "utility", 2.0)),
+            )
         )
     assert refused.value.reason_code == "design_cost_units_mismatch"
     assert refused.value.detail == "design_ranking.cost_units_mismatch"
 
 
 def _check_ranking_bundle(o: Objs) -> None:
-    data = o.ranking.export()
+    data = bytes(o.ranking.export())
     assert cb.detect_kind(data) == "study_ranking"
     builder = cb.Bundle.builder().add_artifact("study_ranking", data)
     assert builder.last_node_id.startswith("study_ranking:")
@@ -1778,10 +1807,12 @@ def _check_retargeted_recalc(o: Objs) -> None:
     """The recalculation executor is itself the retargeting producer: reweight, no refit."""
     base = _recalc_request()
     session = RecalcSession()
-    first = session.execute(base, seed=RECALC_SEED)
+    first = require_success(session.execute(base, seed=RECALC_SEED))
     z = np.asarray(base.data["z"])
     weights = np.exp(0.4 * z)
-    second = session.execute(replace(base, target=TargetWeights(weights, ("z",))), seed=RECALC_SEED)
+    second = require_success(
+        session.execute(replace(base, target=TargetWeights(weights, ("z",))), seed=RECALC_SEED)
+    )
     assert second.plan.status(Stage.TARGET_POPULATION).recomputed
     assert second.plan.status(Stage.SCORE_ARTIFACT).reused
     assert second.receipt.totals.fold_fits == 0
@@ -1875,7 +1906,7 @@ def _check_declared_decision(declared: Declared, *, act: float, hold: float, sel
     assert by_id["act"].standard_error is None and decided.evpi is None
     assert any("means only" in line for line in decided.assumptions)
     with pytest.raises(decision.DecisionRefusal) as export:
-        decided.export()
+        bytes(decided.export())
     assert export.value.detail == "decision_evaluation.mean_source_not_replayable"
     assert export.value.reason_code == "route_not_supported"
 
@@ -1944,7 +1975,9 @@ _INVERSE_FEEDERS = (_feed_inverse,)
 
 def _declared_measurement(o: Objs) -> Declared:
     estimate = o.measurement
-    consumed = mm.consume_measurement_model_artifact(estimate.export(), estimate.model_identity)
+    consumed = require_success(
+        mm.consume_measurement_model_artifact(bytes(estimate.export()), estimate.model_identity)
+    )
     # Oracle: pi = (p* + Sp - 1) / (Se + Sp - 1) with p* = 410 / 1000, Se = 9/10, Sp = 4/5.
     assert estimate.point == pytest.approx(0.3, abs=1e-12)
     assert estimate.naive_point == pytest.approx(0.41, abs=1e-15)
@@ -1990,18 +2023,20 @@ def _check_measurement_inverse(o: Objs) -> None:
 
 def _declared_composition(o: Objs) -> Declared:
     composition = o.composition
-    treated = composition.intervention_law({"X": 1.0})
-    control = composition.intervention_law({"X": 0.0})
+    treated = require_success(composition.intervention_law({"X": 1.0}))
+    control = require_success(composition.intervention_law({"X": 0.0}))
     # Oracle by hand: M = 1/2 + 2 X, Y = -1 + X/2 + 3 M, so E[Y | do(X)] = 1/2 + 13/2 X and
     # Var(Y | do(X)) = 9 * 1 + 1/4.
     assert treated.mean_of("Y") == pytest.approx(7.0, abs=1e-12)
     assert control.mean_of("Y") == pytest.approx(0.5, abs=1e-12)
     assert treated.variance_of("Y") == pytest.approx(9.25, abs=1e-12)
-    contrast = composition.mean_contrast(mc.MeanContrast.ate("Y", "X", 1.0, 0.0))
+    contrast = require_success(composition.mean_contrast(mc.MeanContrast.ate("Y", "X", 1.0, 0.0)))
     assert contrast == pytest.approx(6.5, abs=1e-12)
     # The independent consumer replays the premises and the stored query to the same law.
-    replayed = mc.consume_mechanism_composition_artifact(
-        o.composition_export.data, o.composition_export.metadata["premises_digest"]
+    replayed = require_success(
+        mc.consume_mechanism_composition_artifact(
+            o.composition_export.data, o.composition_export.metadata["premises_digest"]
+        )
     )
     assert isinstance(replayed.result, mc.GaussianLawResult)
     assert replayed.result.mean == pytest.approx(7.0, abs=1e-12)
@@ -2048,8 +2083,10 @@ def _declared_ledger(o: Objs) -> Declared:
     assert value.variance == pytest.approx(4.0 / 5.0, abs=1e-12)
     # An independent consumer replays the operations and recomputes the pooled values.
     assert pooled.result in ledgered.export.metadata["carried"]
-    replayed = el.consume_evidence_ledger_artifact(
-        ledgered.export.data, ledgered.export.expectation.identity
+    replayed = require_success(
+        el.consume_evidence_ledger_artifact(
+            ledgered.export.data, ledgered.export.expectation.identity
+        )
     )
     replay = replayed.synthesis_of(pooled.result)
     assert replay is not None
@@ -2112,7 +2149,7 @@ def _declared_transport(o: Objs, *, sampled: bool) -> Declared:
     assert t.treated.uncertainty is None and t.treated.scope.endswith("point_only")
     assert t.treated.premises_digest is not None and t.treated.data_digest is not None
     consumed = transport.consume_counterfactual_transport_artifact(
-        t.treated.export(),
+        bytes(t.treated.export()),
         expected_premises_digest=t.treated.premises_digest,
         expected_data_digest=t.treated.data_digest,
     )
@@ -2249,7 +2286,9 @@ def _check_cohort_decision(o: Objs) -> None:
         _feed_support(source)
     # An independent consumer replays every number under the retained identity.
     replayed = cd.consume_cohort_decision_source(
-        source.export(), expected_identity=source.identity, cohort_digest=source.cohort_digest
+        bytes(source.export()),
+        expected_identity=source.identity,
+        cohort_digest=source.cohort_digest,
     )
     assert replayed.mean_contrast == source.mean_contrast
 
@@ -2294,7 +2333,9 @@ def _check_bridge_bundle(o: Objs) -> None:
     builder = cb.Bundle.builder()
     builder.add_artifact("auto", payload, node_id="bridge")
     bundle = builder.build()
-    consumed = cb.consume_bundle(bundle.export(), expected_identity=bundle.identity)
+    consumed = require_success(
+        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
     consumed.require_verified()
     node = consumed.node("bridge")
     assert node.facts["law"] == "mean_only"
@@ -2305,12 +2346,14 @@ def _check_bridge_bundle(o: Objs) -> None:
 
 def _check_observation_bundle(o: Objs) -> None:
     """An observation query is a bundle node: its own consumer replays it."""
-    payload = o.observation.export()
+    payload = bytes(o.observation.export())
     assert cb.detect_kind(payload) == "observation_query"
     builder = cb.Bundle.builder()
     builder.add_artifact("auto", payload, node_id="query")
     bundle = builder.build()
-    consumed = cb.consume_bundle(bundle.export(), expected_identity=bundle.identity)
+    consumed = require_success(
+        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
     consumed.require_verified()
     assert consumed.node("query").facts["trust"] == "unverified"
     assert consumed.node("query").facts["observation_operation"] == o.observation.operation
@@ -2327,7 +2370,7 @@ def _declared_reliability(o: Objs) -> Declared:
     assert report.monte_carlo_error["decision"]["value"] == pytest.approx(2.5, abs=1e-12)
     assert report.label["calibration"] == "uncalibrated"
     consumed = dreliab.consume_decision_reliability_artifact(
-        result.export(), draws_digest=result.digests()[0], decided_id="A"
+        bytes(result.export()), draws_digest=result.digests()[0], decided_id="A"
     )
     assert consumed.report.raw == report.raw
     with pytest.raises(dreliab.DecisionReliabilityRefusal) as closed:
@@ -2485,7 +2528,7 @@ def _declared_observation(o: Objs) -> Declared:
     assert claim.identity != pair.identity
     assert claim.inference_basis == "exact_given_declared_model"
     # The independent consumer replays the premises and the stored query to the same law.
-    replayed = oq.consume_observation_query_artifact(claim.export(), claim.identity)
+    replayed = oq.consume_observation_query_artifact(bytes(claim.export()), claim.identity)
     assert replayed.claim.distribution["1"] == pytest.approx(0.78, abs=1e-12)
     with pytest.raises(oq.ObservationQueryRefusal) as closed:
         claim.interval()
@@ -2550,7 +2593,7 @@ def _contracted() -> Any:
             )
         ],
     )
-    exported = contract.artifact("matrix-interface-contract")
+    exported = contract.export("matrix-interface-contract")
     consumed = ic.consume_interface_contract_artifact(exported.data, exported.expectation.identity)
     return SimpleNamespace(contract=contract, exported=exported, consumed=consumed)
 
@@ -2587,9 +2630,13 @@ def _callbacked() -> Any:
     )
     provider = pcb.FunctionProvider(declaration.provider, lambda query, ctx: pcb.Output.mean(2.0))
     session = pcb.CallbackSession()
-    execution = session.execute(provider, declaration, pcb.Request(pcb.Query.mean()))
-    exported = execution.artifact("matrix-callback-result")
-    consumed = pcb.consume_callback_result(exported.data, exported.expectation.identity)
+    execution = require_success(
+        session.execute(provider, declaration, pcb.Request(pcb.Query.mean()))
+    )
+    exported = execution.export("matrix-callback-result")
+    consumed = require_success(
+        pcb.consume_callback_result(exported.data, exported.expectation.identity)
+    )
     return SimpleNamespace(execution=execution, exported=exported, consumed=consumed)
 
 
@@ -2617,7 +2664,7 @@ def _discovered() -> Any:
     return SimpleNamespace(
         adapter=adapter,
         outcome=outcome,
-        exported=adapter.artifact("matrix-selective-discovery"),
+        exported=adapter.export("matrix-selective-discovery"),
     )
 
 
@@ -2648,7 +2695,7 @@ def _verified() -> Any:
         )
 
     result = cv.verify_composition(graph("v2"), previous=graph("v1"))
-    exported = result.artifact("matrix-composition-verification")
+    exported = result.export("matrix-composition-verification")
     consumed = cv.consume_composition_verification_artifact(
         exported.data, exported.expectation.identity
     )
@@ -2700,9 +2747,13 @@ def _bridged() -> Any:
         ),
     )
     prepared = sb.prepare_scientific_bridge(contract)
-    claim = prepared.derive(sb.SourceClaim.declared("biomarker-effect", 0.8, surrogate))
-    exported = claim.artifact("matrix-bridge")
-    consumed = sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
+    claim = require_success(
+        prepared.derive(sb.SourceClaim.declared("biomarker-effect", 0.8, surrogate))
+    )
+    exported = claim.export("matrix-bridge")
+    consumed = require_success(
+        sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
+    )
     return SimpleNamespace(
         sb=sb, prepared=prepared, claim=claim, exported=exported, consumed=consumed
     )
@@ -2781,11 +2832,13 @@ def _declared_sequential(o: Objs) -> Declared:
     assert sequential.artifact.value == evaluation.value
     # An independent consumer re-evaluates and finds the stored value bit for bit.
     identities = sequential.artifact.identities
-    consumed = seqeval.consume_artifact(
-        sequential.artifact.export(),
-        model=identities["model"],
-        policy=identities["policy"],
-        evaluation=identities["evaluation"],
+    consumed = require_success(
+        seqeval.consume_artifact(
+            bytes(sequential.artifact.export()),
+            model=identities["model"],
+            policy=identities["policy"],
+            evaluation=identities["evaluation"],
+        )
     )
     assert consumed.value == evaluation.value
     # The interval and a static score table are typed refusals.
@@ -2838,7 +2891,7 @@ def _propagated() -> jlp.PropagationClaim:
     law = gen.decision_source()
     p = jlp.PropagationDraws.from_artifact_column("p", law, 0)
     q = jlp.PropagationDraws.from_artifact_column("q", law, 1)
-    return jlp.aligned_functional("product", p, q, "product")
+    return require_success(jlp.aligned_functional("product", p, q, "product"))
 
 
 @lru_cache(maxsize=1)
@@ -2846,7 +2899,9 @@ def _envelope() -> jlp.PropagationClaim:
     """Bernoulli(1/4) and Bernoulli(1/2) marginals as four equal-mass draws each."""
     x = jlp.PropagationDraws.independent_marginal("x", [1.0, 0.0, 0.0, 0.0], evidence_id="s1")
     y = jlp.PropagationDraws.independent_marginal("y", [1.0, 1.0, 0.0, 0.0], evidence_id="s2")
-    return jlp.dependence_envelope("product", jlp.EnvelopeQuery.product_moment(), x, y)
+    return require_success(
+        jlp.dependence_envelope("product", jlp.EnvelopeQuery.product_moment(), x, y)
+    )
 
 
 def _declared_propagated(o: Objs) -> Declared:
@@ -2854,8 +2909,10 @@ def _declared_propagated(o: Objs) -> Declared:
     # Oracle by hand: E[P Q] = (4 + 0 + 4 + 0) / 4 = 2 under the aligned joint law.
     assert claim.value("mean") == pytest.approx(2.0, abs=1e-12)
     assert claim.label == "point_only" and not claim.is_envelope
-    consumed = jlp.consume_joint_law_propagation_artifact(
-        claim.export(), expected_identity=claim.identity
+    consumed = require_success(
+        jlp.consume_joint_law_propagation_artifact(
+            bytes(claim.export()), expected_identity=claim.identity
+        )
     )
     assert consumed.values["mean"] == claim.value("mean")
     for closed in (claim.interval, claim.posterior):
@@ -2930,9 +2987,9 @@ def _crossed() -> cwx.CrossWorldExecution:
             cwx.World("x1_m_of_x0", {"x": 1}, (cwx.WorldRoute("m", "y", "x0"),)),
             cwx.World("x0", {"x": 0}),
         ),
-        quantity=cwx.mean_contrast(("x1_m_of_x0", "y"), ("x0", "y")),
+        quantity=require_success(cwx.mean_contrast(("x1_m_of_x0", "y"), ("x0", "y"))),
     )
-    return cwx.seal(request)
+    return require_success(cwx.seal(request))
 
 
 def _declared_crossed(o: Objs) -> Declared:
@@ -2940,8 +2997,10 @@ def _declared_crossed(o: Objs) -> Declared:
     # Oracle by hand: 0.75 * 0.3 + 0.25 - 0.75 * 0.3 = 0.25 from coupled worlds.
     assert claim.value == pytest.approx(0.25, abs=1e-12)
     assert claim.result.label == "point_only"
-    consumed = cwx.consume_cross_world_execution_artifact(
-        claim.to_bytes(), expected_identity=claim.identity
+    consumed = require_success(
+        cwx.consume_cross_world_execution_artifact(
+            claim.to_bytes(), expected_identity=claim.identity
+        )
     )
     assert consumed.result.value == claim.value
     for closed in (claim.interval, claim.posterior):
@@ -3131,7 +3190,9 @@ def _discretized() -> dcomp.PreparedDiscretizedComposition:
 def _check_discretized_is_a_point(o: Objs) -> None:
     discretized = _discretized()
     values = discretized.variable("X").level_values
-    result = discretized.mean_contrast(dcomp.DiscreteContrast.ate("Y", "X", high=3, low=0))
+    result = require_success(
+        discretized.mean_contrast(dcomp.DiscreteContrast.ate("Y", "X", high=3, low=0))
+    )
     # E[Y | do(X = v)] = 0.5 + 6.5 v, so the top-minus-bottom contrast is 6.5 (v3 - v0).
     assert result.closed_form == pytest.approx(6.5 * (values[3] - values[0]), abs=1e-9)
     assert result.absolute_error <= result.error_bound + 1e-9
@@ -3168,7 +3229,9 @@ def _whole_path() -> cwx.WholePathAccount:
         worlds=(cwx.World("x0", {"x": 0}), cwx.World("x1", {"x": 1})),
         quantity=cwx.probability("x0", "y", 0),
     )
-    return cwx.seal(request).whole_path_uncertainty("independent_sample")
+    return require_success(
+        require_success(cwx.seal(request)).whole_path_uncertainty("independent_sample")
+    )
 
 
 def _check_account_is_a_spread(o: Objs) -> None:
@@ -3507,7 +3570,7 @@ def test_producer_consumer_matrix_a_good_score_is_not_a_decision_source() -> Non
     assert result.report.predictor("wide").score("crps").mean > standard
     assert result.report.inference_claim == "point_only"
     assert result.report.causal_validity == "not_established"
-    replayed = pa.consume_predictive_assessment_artifact(result.export(), result.identity)
+    replayed = pa.consume_predictive_assessment_artifact(bytes(result.export()), result.identity)
     assert replayed.report == result.report
     for detail, call in (
         ("predictive_assessment.interval_not_licensed", result.score_interval),

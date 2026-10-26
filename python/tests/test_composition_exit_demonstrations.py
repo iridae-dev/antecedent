@@ -179,7 +179,7 @@ def test_demo_graph_selection_family_has_scenario_evidence_and_honest_mass() -> 
     assert status == {FORWARD: "identified", FORK: "identified", BACKWARD: "missing_evidence"}
     assert (partial.counts.identified, partial.counts.unidentified) == (2, 1)
     assert partial.envelope.mean_range("c") == pytest.approx((0.8, 0.8), abs=1e-12)
-    consumed = transport.consume_cpdag_scenarios_artifact(partial.export())
+    consumed = transport.consume_cpdag_scenarios_artifact(bytes(partial.export()))
     assert consumed.counts == partial.counts and consumed.completions == partial.completions
 
     # Honest structural mass: a stopped enumeration counts what it never read as unevaluated and
@@ -236,7 +236,7 @@ def test_demo_calibrated_bayesian_scalars_and_independent_replay() -> None:
         assert result.source_report()["calibration"] == "unmeasured"
         assert all(scalar.calibration == "calibrated" for scalar in result.scalars)
         assert all(scalar.record_id in collected for scalar in result.scalars)
-        loaded = MeasuredInference.load(result.export(), expected=result.expected_identity)
+        loaded = MeasuredInference.load(bytes(result.export()), expected=result.expected_identity)
         assert loaded.inspect() == result.inspect()
         assert loaded.source_artifact() == result.source_artifact()
 
@@ -400,7 +400,7 @@ def test_demo_temporal_initial_state_refresh_invalidation_and_constancy() -> Non
     )
     assert interval.scalar("response").point == pytest.approx(0.49, abs=1e-12)
     assert interval.scalar("response").calibration == "calibrated"
-    restored = MeasuredInference.load(interval.export(), expected=interval.expected_identity)
+    restored = MeasuredInference.load(bytes(interval.export()), expected=interval.expected_identity)
     assert restored.inspect() == interval.inspect()
 
     # Partition constancy at its declared coordinate. Q = (e2 - e1)^2 / (se1^2 + se2^2).

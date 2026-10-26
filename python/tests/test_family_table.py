@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 from antecedent import propagation_chain as pc
 from antecedent.errors import CausalValueError
+from antecedent.outcomes import require_success
 
 ROWS = 1597
 
@@ -61,11 +62,13 @@ def test_the_table_flows_into_a_chain_as_ordinary_sources():
         dependence="covariance",
         covariance=[[0.01, 0.01], [0.01, 0.04]],
     )
-    chain = pc.propagate(
-        table.sources,
-        [pc.binary("gap", "derived_quantity", ["b", "a"], "difference")],
-        output="gap",
-        reading="spread",
+    chain = require_success(
+        pc.propagate(
+            table.sources,
+            [pc.binary("gap", "derived_quantity", ["b", "a"], "difference")],
+            output="gap",
+            reading="spread",
+        )
     )
     # Var(b - a) = 0.04 + 0.01 - 2 * 0.01 = 0.03, with the shared evidence counted once.
     gap = np.asarray(table.sources[1].values) - np.asarray(table.sources[0].values)

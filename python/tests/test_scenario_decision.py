@@ -26,6 +26,7 @@ from antecedent import scenario_decision as sd
 from antecedent.decision_robust import Support, admissible_contract
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 from _refusal import assert_registered_refusal
@@ -120,7 +121,7 @@ def prepare(sets, **limits):
 
 def estimated(sets, **limits):
     stage = prepare(sets, **limits)
-    report = json.loads(stage.estimate())
+    report = json.loads(require_success(stage.estimate()))
     return stage, {s["name"]: s for s in report["scenarios"]}
 
 
@@ -128,7 +129,10 @@ def operations_for_three():
     """The fewest shared operations that decide direct, outcome_shift and standardize."""
     sets = scenario_set(late=False)
     for steps in range(1, 10_000):
-        if json.loads(prepare(sets, max_steps=steps).estimate())["receipt"] is None:
+        if (
+            json.loads(require_success(prepare(sets, max_steps=steps).estimate()))["receipt"]
+            is None
+        ):
             return steps
     raise AssertionError("small graphs decide within 10k operations")
 

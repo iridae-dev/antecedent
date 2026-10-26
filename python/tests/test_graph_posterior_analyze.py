@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import antecedent
 import numpy as np
+from antecedent.outcomes import require_success
 
 
 def test_exact_dag_posterior_bayesian_ate_mixture():
@@ -12,14 +13,16 @@ def test_exact_dag_posterior_bayesian_ate_mixture():
     t = (z > 0.5).astype(np.float64)
     y = 1.0 + 2.0 * t + 3.0 * z
 
-    result = antecedent.analyze(
-        {"t": t, "y": y, "z": z},
-        discovery=antecedent.discovery.ExactDagPosterior(),
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(n_draws=80, prior_scale=100.0, backend="conjugate"),
-        refute=False,
-        bootstrap=0,
-        seed=7,
+    result = require_success(
+        antecedent.analyze(
+            {"t": t, "y": y, "z": z},
+            discovery=antecedent.discovery.ExactDagPosterior(),
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=80, prior_scale=100.0, backend="conjugate"),
+            refute=False,
+            bootstrap=0,
+            seed=7,
+        )
     )
     assert result.posterior is not None
     mass = result.posterior.unidentified_mass
@@ -38,14 +41,16 @@ def test_exact_dag_posterior_frequentist_ate_mixture():
     z = np.linspace(0.0, 1.0, n, dtype=np.float64)
     t = (z > 0.5).astype(np.float64)
     y = 1.0 + 2.0 * t + 3.0 * z
-    result = antecedent.analyze(
-        {"t": t, "y": y, "z": z},
-        discovery=antecedent.discovery.ExactDagPosterior(),
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Frequentist(),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            {"t": t, "y": y, "z": z},
+            discovery=antecedent.discovery.ExactDagPosterior(),
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Frequentist(),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert result.posterior is None
     assert result.ate is None or np.isfinite(result.ate)
@@ -63,20 +68,22 @@ def test_dbn_posterior_bayesian_pulse_mixture():
     for t in range(1, n):
         defect[t] = 0.9 * pressure[t - 1]
 
-    result = antecedent.analyze(
-        {"pressure": pressure, "defect": defect},
-        discovery=antecedent.discovery.DbnPosterior(max_lag=1),
-        query=antecedent.PulseEffect(
-            treatment="pressure",
-            outcome="defect",
-            treatment_lag=1,
-            horizon_steps=1,
-            active_level=1.0,
-        ),
-        inference=antecedent.Bayesian(n_draws=64, prior_scale=100.0, backend="conjugate"),
-        refute=False,
-        bootstrap=0,
-        seed=11,
+    result = require_success(
+        antecedent.analyze(
+            {"pressure": pressure, "defect": defect},
+            discovery=antecedent.discovery.DbnPosterior(max_lag=1),
+            query=antecedent.PulseEffect(
+                treatment="pressure",
+                outcome="defect",
+                treatment_lag=1,
+                horizon_steps=1,
+                active_level=1.0,
+            ),
+            inference=antecedent.Bayesian(n_draws=64, prior_scale=100.0, backend="conjugate"),
+            refute=False,
+            bootstrap=0,
+            seed=11,
+        )
     )
     assert result.posterior is not None
     mass = result.posterior.unidentified_mass
@@ -95,20 +102,22 @@ def test_dbn_posterior_bayesian_sustained_mixture():
     for t in range(1, n):
         defect[t] = 0.9 * pressure[t - 1]
 
-    result = antecedent.analyze(
-        {"pressure": pressure, "defect": defect},
-        discovery=antecedent.discovery.DbnPosterior(max_lag=1),
-        query=antecedent.SustainedEffect(
-            treatment="pressure",
-            outcome="defect",
-            treatment_lag=1,
-            horizon_steps=1,
-            active_level=1.0,
-        ),
-        inference=antecedent.Bayesian(n_draws=64, prior_scale=100.0, backend="conjugate"),
-        refute=False,
-        bootstrap=0,
-        seed=11,
+    result = require_success(
+        antecedent.analyze(
+            {"pressure": pressure, "defect": defect},
+            discovery=antecedent.discovery.DbnPosterior(max_lag=1),
+            query=antecedent.SustainedEffect(
+                treatment="pressure",
+                outcome="defect",
+                treatment_lag=1,
+                horizon_steps=1,
+                active_level=1.0,
+            ),
+            inference=antecedent.Bayesian(n_draws=64, prior_scale=100.0, backend="conjugate"),
+            refute=False,
+            bootstrap=0,
+            seed=11,
+        )
     )
     assert result.posterior is not None
     mass = result.posterior.unidentified_mass
@@ -127,14 +136,18 @@ def test_cpdag_graph_posterior_ate_from_graphs():
     cpdag = antecedent.Cpdag.from_directed_undirected(
         ["t", "y", "z"], [("t", "y"), ("z", "t"), ("z", "y")], []
     )
-    result = antecedent.analyze(
-        {"t": t, "y": y, "z": z},
-        discovery=antecedent.discovery.GraphPosterior.from_graphs(["t", "y", "z"], [1.0], [cpdag]),
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Frequentist(),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            {"t": t, "y": y, "z": z},
+            discovery=antecedent.discovery.GraphPosterior.from_graphs(
+                ["t", "y", "z"], [1.0], [cpdag]
+            ),
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Frequentist(),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert result.evidence_status == "licensed"
     assert result.ate is None or np.isfinite(result.ate)
@@ -147,26 +160,30 @@ def test_admg_graph_posterior_ate_and_intervention_response():
     y = 1.0 + 2.0 * t
     admg = antecedent.Admg.from_edges(["t", "y"], directed=[("t", "y")], bidirected=[])
     discovery = antecedent.discovery.GraphPosterior.from_graphs(["t", "y"], [1.0], [admg])
-    ate = antecedent.analyze(
-        {"t": t, "y": y},
-        discovery=discovery,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Frequentist(),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    ate = require_success(
+        antecedent.analyze(
+            {"t": t, "y": y},
+            discovery=discovery,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Frequentist(),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert ate.evidence_status == "licensed"
-    response = antecedent.analyze(
-        {"t": t, "y": y},
-        discovery=discovery,
-        query=antecedent.InterventionResponse(
-            "y", intervention=antecedent.intervention.Set("t", 1.0)
-        ),
-        inference=antecedent.Frequentist(),
-        refute="cheap",
-        bootstrap=0,
-        seed=1,
+    response = require_success(
+        antecedent.analyze(
+            {"t": t, "y": y},
+            discovery=discovery,
+            query=antecedent.InterventionResponse(
+                "y", intervention=antecedent.intervention.Set("t", 1.0)
+            ),
+            inference=antecedent.Frequentist(),
+            refute="cheap",
+            bootstrap=0,
+            seed=1,
+        )
     )
     assert response.evidence_status == "licensed"
     assert response.response is not None
@@ -180,30 +197,34 @@ def test_dbn_posterior_temporal_response_curve_and_intervention():
     for t in range(1, n):
         defect[t] = 0.9 * pressure[t - 1]
     data = {"pressure": pressure, "defect": defect}
-    curve = antecedent.analyze(
-        data,
-        discovery=antecedent.discovery.DbnPosterior(max_lag=1),
-        query=antecedent.ResponseCurve("pressure", "defect", grid=[0.0, 1.0], horizons=[1]),
-        inference=antecedent.Frequentist(),
-        refute=False,
-        bootstrap=0,
-        seed=11,
+    curve = require_success(
+        antecedent.analyze(
+            data,
+            discovery=antecedent.discovery.DbnPosterior(max_lag=1),
+            query=antecedent.ResponseCurve("pressure", "defect", grid=[0.0, 1.0], horizons=[1]),
+            inference=antecedent.Frequentist(),
+            refute=False,
+            bootstrap=0,
+            seed=11,
+        )
     )
     assert curve.evidence_status == "licensed"
     assert curve.response is not None
     assert curve.study is not None
-    ir = antecedent.analyze(
-        data,
-        discovery=antecedent.discovery.DbnPosterior(max_lag=1),
-        query=antecedent.InterventionResponse(
-            "defect",
-            intervention=antecedent.intervention.Set("pressure", 1.0),
-            horizons=[1],
-        ),
-        inference=antecedent.Frequentist(),
-        refute=False,
-        bootstrap=0,
-        seed=11,
+    ir = require_success(
+        antecedent.analyze(
+            data,
+            discovery=antecedent.discovery.DbnPosterior(max_lag=1),
+            query=antecedent.InterventionResponse(
+                "defect",
+                intervention=antecedent.intervention.Set("pressure", 1.0),
+                horizons=[1],
+            ),
+            inference=antecedent.Frequentist(),
+            refute=False,
+            bootstrap=0,
+            seed=11,
+        )
     )
     assert ir.evidence_status == "licensed"
     assert ir.response is not None
@@ -226,19 +247,21 @@ def test_temporal_cpdag_graph_posterior_pulse():
         max_lag=1,
         lagged_edge_marginals=[0.0, 1.0, 0.0, 0.0],
     )
-    result = antecedent.analyze(
-        {"t": treatment, "y": outcome},
-        discovery=discovery,
-        query=antecedent.PulseEffect(
-            treatment="t",
-            outcome="y",
-            treatment_lag=1,
-            horizon_steps=1,
-            active_level=1.0,
-        ),
-        inference=antecedent.Frequentist(),
-        refute=False,
-        bootstrap=0,
-        seed=3,
+    result = require_success(
+        antecedent.analyze(
+            {"t": treatment, "y": outcome},
+            discovery=discovery,
+            query=antecedent.PulseEffect(
+                treatment="t",
+                outcome="y",
+                treatment_lag=1,
+                horizon_steps=1,
+                active_level=1.0,
+            ),
+            inference=antecedent.Frequentist(),
+            refute=False,
+            bootstrap=0,
+            seed=3,
+        )
     )
     assert result.evidence_status == "licensed"

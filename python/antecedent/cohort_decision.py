@@ -49,6 +49,13 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._freeze import thaw
 from ._measured_inference import MeasuredInference
@@ -507,15 +514,10 @@ class CohortDecisionSource(ScientificResult):
             rng_id=wire["rng_id"],
         )
 
-    def artifact(self) -> ExportedArtifact[CohortDecisionSource]:
-        """Typed bytes envelope for shared scientific consumption."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self)
-
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[CohortDecisionSource]:
         """The checksummed ``cohort_decision_source_v1`` artifact."""
-        return self._artifact_bytes
+        return artifact_from_receipt(self, self._artifact_bytes)
 
     @classmethod
     def consume(
@@ -536,6 +538,7 @@ class CohortDecisionSource(ScientificResult):
         coefficient, unit, population or parent (even when the container was resealed) and for
         any retained expectation that differs.
         """
+        artifact = container_bytes(artifact)
         return consume_cohort_decision_source(
             artifact,
             expected_identity=expected_identity,
@@ -551,6 +554,7 @@ class CohortDecisionSource(ScientificResult):
 
 
 def _source_of(summary: str, artifact: bytes) -> CohortDecisionSource:
+    artifact = container_bytes(artifact)
     parsed = json.loads(summary)
     return CohortDecisionSource(
         identity=str(parsed["identity"]), summary=parsed, _artifact_bytes=bytes(artifact)
@@ -567,6 +571,7 @@ def _build_source(
     expected_contrast: str | None,
     artifact_id: str,
 ) -> CohortDecisionSource:
+    model_bytes = container_bytes(model_bytes)
     if not isinstance(cohort, CohortBinding):
         raise CausalTypeError("cohort= must be a CohortBinding")
     if not isinstance(outcome_units, str) or not outcome_units.strip():
@@ -603,7 +608,7 @@ def decision_source_from_model(
     """
     return _build_source(
         "analysis_result",
-        model.export(),
+        bytes(model.export()),
         model.parent_claim,
         cohort,
         outcome_units,
@@ -633,9 +638,10 @@ class NativeEffectFit:
     _export: bytes = field(repr=False)
     _fit_json: str = field(repr=False)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The compact export of the fit."""
-        return self._export
+        return artifact_from_receipt(self, self._export)
 
 
 def fit_native_cohort_effect(
@@ -730,7 +736,7 @@ def decision_source_from_compact_export(
     """
     return _build_source(
         "compact_export",
-        export.export(),
+        bytes(export.export()),
         export.identity,
         cohort,
         outcome_units,
@@ -740,6 +746,10 @@ def decision_source_from_compact_export(
     )
 
 
+@artifact_consumer(
+    proof="cohort_decision.consume_cohort_decision_source: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_cohort_decision_source(
     artifact: bytes,
     *,
@@ -752,6 +762,7 @@ def consume_cohort_decision_source(
 ) -> CohortDecisionSource:
     """Replay an exported cohort decision source under the retained identity (see
     :meth:`CohortDecisionSource.consume`)."""
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     data = bytes(artifact)

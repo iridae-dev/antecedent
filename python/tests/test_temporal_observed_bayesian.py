@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 from antecedent.estimation import PreparedAnalysis
 from antecedent.observation import IndependentGiven, RightCensored
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_json
 
@@ -45,7 +46,7 @@ def test_observed_temporal_posterior_and_response_roundtrip_together():
         bootstrap=0,
         seed=pin["posterior_seed"],
     )
-    result = plan.estimate(data, seed=pin["posterior_seed"])
+    result = require_success(plan.estimate(data, seed=pin["posterior_seed"]))
     assert result.response is not None
     # The response projection exposes bands; the composite artifact retains draws.
     decoded = antecedent.artifacts.loads(plan.export_artifact())

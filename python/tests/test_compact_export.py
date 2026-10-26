@@ -28,6 +28,7 @@ from antecedent.compact_export import (
     Quantity,
 )
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -165,7 +166,9 @@ def test_compact_evaluate_many_returns_refusals_without_raising() -> None:
 
 def test_compact_verifier_round_trip_matches_the_producer() -> None:
     export = one_hot()
-    consumed = CompactExport.consume(export.export(), expected_identity=export.identity)
+    consumed = require_success(
+        CompactExport.consume(bytes(export.export()), expected_identity=export.identity)
+    )
     assert consumed.identity == export.identity
     assert consumed.body == export.body
     for query in ({"x": 1.0, "g": "a"}, {"x": 3.0, "g": "b"}, {"x": 7.5, "g": "c"}):
@@ -177,7 +180,7 @@ def test_compact_verifier_round_trip_matches_the_producer() -> None:
 def test_compact_wrong_expected_identity_is_refused() -> None:
     export = quadratic()
     with pytest.raises(CompactExportRefusal) as wrong:
-        CompactExport.consume(export.export(), expected_identity="deadbeef")
+        require_success(CompactExport.consume(bytes(export.export()), expected_identity="deadbeef"))
     assert wrong.value.reason_code == "invalid_argument"
     assert wrong.value.detail == "compact_export.identity_unexpected"
     assert wrong.value.offending == "deadbeef"
@@ -191,12 +194,14 @@ def test_compact_wrong_expected_identity_is_refused() -> None:
     )
     assert other.identity != export.identity
     with pytest.raises(CompactExportRefusal) as swapped:
-        CompactExport.consume(other.export(), expected_identity=export.identity)
+        require_success(
+            CompactExport.consume(bytes(other.export()), expected_identity=export.identity)
+        )
     assert swapped.value.detail == "compact_export.identity_unexpected"
     # An export that evaluates under a swapped artifact keeps refusing: the retained identity
     # binds every evaluation.
     forged = CompactExport(
-        identity=export.identity, body=other.body, _artifact_bytes=other.export()
+        identity=export.identity, body=other.body, _artifact_bytes=bytes(other.export())
     )
     with pytest.raises(CompactExportRefusal) as evaluated:
         forged.evaluate({"x": 2.0})
@@ -205,18 +210,22 @@ def test_compact_wrong_expected_identity_is_refused() -> None:
 
 def test_compact_corrupt_or_truncated_artifact_is_refused() -> None:
     export = quadratic()
-    data = bytearray(export.export())
+    data = bytearray(bytes(export.export()))
     data[len(data) // 2] ^= 0xFF
     with pytest.raises(CompactExportRefusal) as corrupt:
-        CompactExport.consume(bytes(data), expected_identity=export.identity)
+        require_success(CompactExport.consume(bytes(data), expected_identity=export.identity))
     assert corrupt.value.detail.startswith("compact_export.")
     assert corrupt.value.reason_code == "invalid_argument"
     with pytest.raises(CompactExportRefusal):
-        CompactExport.consume(export.export()[:-5], expected_identity=export.identity)
+        require_success(
+            CompactExport.consume(bytes(export.export())[:-5], expected_identity=export.identity)
+        )
     # The untouched artifact still verifies.
-    assert CompactExport.consume(export.export(), expected_identity=export.identity)
+    assert require_success(
+        CompactExport.consume(bytes(export.export()), expected_identity=export.identity)
+    )
     with pytest.raises(CausalTypeError):
-        CompactExport.consume("not bytes", expected_identity="x")  # type: ignore[arg-type]
+        require_success(CompactExport.consume("not bytes", expected_identity="x"))  # type: ignore[arg-type]
 
 
 def test_compact_malformed_specs_refuse_at_build() -> None:

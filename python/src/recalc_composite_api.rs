@@ -145,19 +145,22 @@ fn error(error: &CompositeError) -> PyResult<String> {
         }
     }
 }
+type ConditionalPayload = (Option<String>, Option<Vec<u8>>, Option<String>, bool);
+
 fn conditional_payload(
     result: Result<
         antecedent::analysis::conditional_study_ranking::ConditionalStudyRanking,
         antecedent::analysis::conditional_study_ranking::ConditionalRankingError,
     >,
-) -> PyResult<crate::recalc_api::RunPayload> {
+    source_verified: bool,
+) -> PyResult<ConditionalPayload> {
     match result {
         Ok(result) => {
             let bytes = result.to_bytes().map_err(|e| crate::py_msg(format!("{e:?}")))?;
             let report = String::from_utf8(bytes.clone()).map_err(crate::py_msg)?;
-            Ok((Some(report), Some(bytes), None))
+            Ok((Some(report), Some(bytes), None, source_verified))
         }
-        Err(cause) => Ok((None, None, Some(serde_json::json!({"code":cause.code,"detail":cause.detail,"stage":"conditional_study_ranking","message":format!("{cause:?}")}).to_string()))),
+        Err(cause) => Ok((None, None, Some(serde_json::json!({"code":cause.code,"detail":cause.detail,"stage":"conditional_study_ranking","message":format!("{cause:?}")}).to_string()), false)),
     }
 }
 #[pyclass(name = "CompositeSessionHandle", skip_from_py_object)]
@@ -247,10 +250,7 @@ impl PyCompositeSession {
             ),
         }
     }
-    fn rank_conditional_studies(
-        &self,
-        policy_json: &str,
-    ) -> PyResult<crate::recalc_api::RunPayload> {
+    fn rank_conditional_studies(&self, policy_json: &str) -> PyResult<ConditionalPayload> {
         use antecedent::analysis::conditional_study_ranking::{
             ConditionalStudyPolicy, ConditionalStudyRanking,
         };
@@ -263,20 +263,19 @@ impl PyCompositeSession {
         let policy: ConditionalStudyPolicy = serde_json::from_str(policy_json).map_err(|_| {
             invalid("conditional_study_ranking.invalid_policy", "invalid policy schema")
         })?;
-        conditional_payload(ConditionalStudyRanking::execute(&self.inner, policy))
+        conditional_payload(ConditionalStudyRanking::execute(&self.inner, policy), true)
     }
     #[pyo3(signature=(artifact,expected_identity=None))]
     fn consume_conditional_studies(
         &self,
         artifact: &Bound<'_, pyo3::types::PyBytes>,
         expected_identity: Option<&str>,
-    ) -> PyResult<crate::recalc_api::RunPayload> {
+    ) -> PyResult<ConditionalPayload> {
         use antecedent::analysis::conditional_study_ranking::ConditionalStudyRanking;
-        conditional_payload(ConditionalStudyRanking::consume(
-            artifact.as_bytes(),
-            &self.inner,
-            expected_identity,
-        ))
+        conditional_payload(
+            ConditionalStudyRanking::consume(artifact.as_bytes(), &self.inner, expected_identity),
+            true,
+        )
     }
     fn native_response(&self) -> PyResult<Option<crate::response_api::ResponseAnalysisResult>> {
         let native = self.inner.native();
@@ -304,6 +303,23 @@ impl PyCompositeSession {
             .map_err(|cause| invalid("external_recalc.artifact_invalid", cause.to_string()))
     }
 }
+/// Validate a sealed historical ranking without accepting current source state.
+#[pyfunction]
+#[pyo3(signature=(artifact,expected_identity=None))]
+fn conditional_study_ranking_inspect(
+    artifact: &[u8],
+    expected_identity: Option<&str>,
+) -> PyResult<ConditionalPayload> {
+    conditional_payload(
+        antecedent::analysis::conditional_study_ranking::ConditionalStudyRanking::inspect_retained(
+            artifact,
+            expected_identity,
+        ),
+        false,
+    )
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_class::<PyCompositeSession>()
+    module.add_class::<PyCompositeSession>()?;
+    module.add_function(wrap_pyfunction!(conditional_study_ranking_inspect, module)?)
 }

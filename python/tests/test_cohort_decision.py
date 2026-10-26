@@ -23,6 +23,7 @@ from antecedent import inverse_query as iq
 from antecedent.compact_export import CompactExport, Intercept, Linear, Numeric, Quantity
 from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.estimators import DRLearner
+from antecedent.outcomes import require_success
 from antecedent.prediction import FittedEffectModel
 
 Z = [-0.8, 0.0, 0.5]
@@ -34,14 +35,16 @@ def fitted_result(effect: float = 2.0):
     rng = np.random.default_rng(19)
     z = np.tile(np.linspace(-1.0, 1.0, 21), 80)
     treatment = rng.binomial(1, 0.5, len(z)).astype(float)
-    return ac.analyze(
-        {"z": z, "t": treatment, "y": treatment * (effect + 0.4 * z) + z},
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=ac.AverageEffect(treatment="t", outcome="y"),
-        estimator=DRLearner(),
-        bootstrap=0,
-        refute=False,
-        seed=3,
+    return require_success(
+        ac.analyze(
+            {"z": z, "t": treatment, "y": treatment * (effect + 0.4 * z) + z},
+            graph=[("z", "t"), ("z", "y"), ("t", "y")],
+            query=ac.AverageEffect(treatment="t", outcome="y"),
+            estimator=DRLearner(),
+            bootstrap=0,
+            refute=False,
+            seed=3,
+        )
     )
 
 
@@ -99,7 +102,7 @@ def test_producer_to_cohort_to_affine_contract_matches_the_hand_calculation(mode
     assert source.is_native
     assert source.parent_claim == model.parent_claim
     # Hand calculation from the model's own CATE points.
-    points = np.asarray(model.predict({"z": Z}).values)
+    points = np.asarray(require_success(model.predict({"z": Z})).values)
     expected_mean = float(np.dot(W, points))
     assert source.mean_contrast == pytest.approx(expected_mean, abs=ROW_TOLERANCE)
     assert source.row_contrasts == pytest.approx(tuple(points), abs=ROW_TOLERANCE)
@@ -185,7 +188,7 @@ def test_probability_quantile_nonlinear_and_joint_law_requests_are_refused(model
 def test_the_source_replays_in_a_fresh_process_under_the_retained_identity(model, tmp_path) -> None:
     source = model.decision_source(cohort=cohort(), outcome_units="mmHg")
     artifact = tmp_path / "cohort.ant"
-    artifact.write_bytes(source.export())
+    artifact.write_bytes(bytes(source.export()))
     code = """
 import json, sys
 from pathlib import Path
@@ -343,7 +346,7 @@ def test_changed_rows_weights_cohort_wrong_parent_and_resealed_artifacts_are_ref
     model, other_model
 ) -> None:
     base = model.decision_source(cohort=cohort(), outcome_units="mmHg")
-    artifact = base.export()
+    artifact = bytes(base.export())
     retained = base.identity
     # A changed weight and a changed row are different cohorts and different identities.
     for changed in (cohort(w=[0.5, 0.25, 0.25]), cohort(z=[-0.8, 0.0, 0.4])):
@@ -352,23 +355,27 @@ def test_changed_rows_weights_cohort_wrong_parent_and_resealed_artifacts_are_ref
         assert other.cohort_digest != base.cohort_digest
         with pytest.raises(cd.CohortDecisionRefusal) as swapped:
             cd.consume_cohort_decision_source(
-                other.export(), expected_identity=retained, cohort_digest=base.cohort_digest
+                bytes(other.export()), expected_identity=retained, cohort_digest=base.cohort_digest
             )
         assert swapped.value.detail == "cohort_decision.cohort_changed"
         # Without the cohort expectation the consistently resealed artifact is another identity.
         with pytest.raises(cd.CohortDecisionRefusal) as resealed:
-            cd.consume_cohort_decision_source(other.export(), expected_identity=retained)
+            cd.consume_cohort_decision_source(bytes(other.export()), expected_identity=retained)
         assert resealed.value.detail == "cohort_decision.identity_unexpected"
     # A different parent claim.
     foreign = other_model.decision_source(cohort=cohort(), outcome_units="mmHg")
     assert foreign.parent_claim != base.parent_claim
     with pytest.raises(cd.CohortDecisionRefusal) as parent:
         cd.consume_cohort_decision_source(
-            foreign.export(), expected_identity=foreign.identity, parent_claim=base.parent_claim
+            bytes(foreign.export()),
+            expected_identity=foreign.identity,
+            parent_claim=base.parent_claim,
         )
     assert parent.value.detail == "cohort_decision.wrong_parent_identity"
     with pytest.raises(cd.CohortDecisionRefusal) as load:
-        FittedEffectModel.load(other_model.export(), expected_parent_claim=model.parent_claim)
+        FittedEffectModel.load(
+            bytes(other_model.export()), expected_parent_claim=model.parent_claim
+        )
     assert load.value.detail == "cohort_decision.wrong_parent_identity"
     # Other retained expectations are typed gates.
     for field, detail in (
@@ -502,7 +509,7 @@ def test_a_declared_compact_export_is_point_only_with_its_own_detail() -> None:
     )
     source = cd.decision_source_from_native_fit(fit, cohort=binding, outcome_units="mmHg")
     plain = cd.consume_cohort_decision_source(
-        source.export(), expected_identity=source.identity, outcome_units="mmHg"
+        bytes(source.export()), expected_identity=source.identity, outcome_units="mmHg"
     )
     with pytest.raises(cd.CohortDecisionRefusal) as refused:
         plain.interval()

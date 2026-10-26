@@ -893,6 +893,7 @@ fn repeated_measures_report_json(report: &RepeatedMeasuresReport) -> Json {
 #[pyclass(name = "RepeatedMeasuresProcedureHandle", skip_from_py_object)]
 pub(crate) struct RepeatedMeasuresProcedureHandle {
     inner: RepeatedMeasuresProcedure,
+    declaration: Json,
 }
 
 #[pymethods]
@@ -976,6 +977,30 @@ impl RepeatedMeasuresProcedureHandle {
         )
     }
 
+    /// Export a self-contained envelope without altering the historical posterior bytes.
+    fn export_posterior(&self, report_json: &str) -> PyResult<Refused<(String, String)>> {
+        let (posterior, refusal) = self.posterior_artifact(report_json)?;
+        let Some(posterior) = posterior else {
+            return Ok((None, refusal));
+        };
+        let identity = posterior_bundle_identity(&self.declaration, &posterior)?;
+        let bundle = PosteriorBundle {
+            format: POSTERIOR_BUNDLE_FORMAT.to_owned(),
+            version: 1,
+            declaration: self.declaration.clone(),
+            posterior,
+            identity: identity.clone(),
+        };
+        let text = serde_json::to_string(&bundle)
+            .map_err(|error| crate::serialization_err(error.to_string()))?;
+        crate::bridge::check_declared_size(
+            &text,
+            crate::bridge::MAX_DECLARED_ARTIFACT_BYTES,
+            "repeated-measures posterior bundle",
+        )?;
+        Ok((Some((text, identity)), None))
+    }
+
     /// Load a retained posterior artifact, recomputing it under this procedure; returns the
     /// report's JSON.
     fn load_posterior_artifact(&self, artifact: &str) -> PyResult<Refused<String>> {
@@ -996,17 +1021,80 @@ impl RepeatedMeasuresProcedureHandle {
     }
 }
 
+// This additive envelope retains the exact historical posterior text unchanged.
+// Its identity binds the declaration needed by the existing scientific replay owner.
+const POSTERIOR_BUNDLE_FORMAT: &str = "antecedent.repeated_measures_posterior_bundle";
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PosteriorBundle {
+    format: String,
+    version: u32,
+    declaration: Json,
+    posterior: String,
+    identity: String,
+}
+
+fn posterior_bundle_identity(declaration: &Json, posterior: &str) -> PyResult<String> {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(b"antecedent.repeated_measures_posterior_bundle.v1\0");
+    let premises = serde_json::to_vec(declaration)
+        .map_err(|error| crate::serialization_err(error.to_string()))?;
+    hasher.update(
+        &u64::try_from(premises.len())
+            .map_err(|error| crate::serialization_err(error.to_string()))?
+            .to_le_bytes(),
+    );
+    hasher.update(&premises);
+    hasher.update(posterior.as_bytes());
+    Ok(hasher.finalize().to_hex().to_string())
+}
+
+/// Independently replay a self-contained posterior and its declared procedure.
+#[pyfunction]
+#[pyo3(signature = (artifact, expected_identity=None))]
+fn repeated_measures_posterior_consume(
+    artifact: &str,
+    expected_identity: Option<&str>,
+) -> PyResult<Refused<(String, String)>> {
+    crate::bridge::check_declared_size(
+        artifact,
+        crate::bridge::MAX_DECLARED_ARTIFACT_BYTES,
+        "repeated-measures posterior bundle",
+    )?;
+    let bundle: PosteriorBundle = serde_json::from_str(artifact)
+        .map_err(|error| crate::serialization_err(error.to_string()))?;
+    if bundle.format != POSTERIOR_BUNDLE_FORMAT || bundle.version != 1 {
+        return Err(crate::serialization_err("unsupported repeated-measures posterior bundle"));
+    }
+    let identity = posterior_bundle_identity(&bundle.declaration, &bundle.posterior)?;
+    if identity != bundle.identity || expected_identity.is_some_and(|value| value != identity) {
+        return Err(crate::serialization_err(
+            "repeated-measures posterior bundle identity mismatch",
+        ));
+    }
+    let declaration = repeated_measures_declaration_of(&bundle.declaration)?;
+    let procedure = match RepeatedMeasuresProcedure::declare(declaration) {
+        Ok(procedure) => procedure,
+        Err(refusals) => return Ok(refused_all(&refusals)),
+    };
+    Ok(match antecedent::analysis::repeated_measures_posterior_report::load_repeated_measures_posterior_report(
+        &bundle.posterior, &procedure,
+    ) {
+        Ok(report) => (Some((serde_json::to_string(&report).map_err(|error| crate::serialization_err(error.to_string()))?, identity)), None),
+        Err(refusal) => refused(&refusal),
+    })
+}
+
 /// Declare a repeated-measures or clustered adaptive procedure.
 #[pyfunction]
 fn repeated_measures_procedure_declare(
     declaration_json: &str,
 ) -> PyResult<Refused<RepeatedMeasuresProcedureHandle>> {
-    let declaration = repeated_measures_declaration_of(&parse(
-        declaration_json,
-        "repeated-measures declaration",
-    )?)?;
+    let retained = parse(declaration_json, "repeated-measures declaration")?;
+    let declaration = repeated_measures_declaration_of(&retained)?;
     Ok(match RepeatedMeasuresProcedure::declare(declaration) {
-        Ok(inner) => (Some(RepeatedMeasuresProcedureHandle { inner }), None),
+        Ok(inner) => (Some(RepeatedMeasuresProcedureHandle { inner, declaration: retained }), None),
         Err(refusals) => refused_all(&refusals),
     })
 }
@@ -1017,5 +1105,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(adaptive_procedure_from_contract, module)?)?;
     module.add_class::<RepeatedMeasuresProcedureHandle>()?;
     module.add_function(wrap_pyfunction!(repeated_measures_procedure_declare, module)?)?;
+    module.add_function(wrap_pyfunction!(repeated_measures_posterior_consume, module)?)?;
     Ok(())
 }

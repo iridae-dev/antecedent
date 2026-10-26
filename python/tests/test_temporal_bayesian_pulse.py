@@ -7,6 +7,7 @@ import math
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 
 def test_manufacturing_bayesian_pulse_recovers_effect():
@@ -16,20 +17,22 @@ def test_manufacturing_bayesian_pulse_recovers_effect():
     for t in range(1, n):
         defect[t] = 0.9 * pressure[t - 1]
 
-    result = antecedent.analyze(
-        {"pressure": pressure, "defect": defect},
-        graph=[("pressure", 1, "defect", 0)],
-        query=antecedent.PulseEffect(
-            treatment="pressure",
-            outcome="defect",
-            treatment_lag=1,
-            horizon_steps=1,
-            active_level=1.0,
-        ),
-        inference=antecedent.Bayesian(n_draws=256),
-        refute=False,
-        bootstrap=0,
-        seed=42,
+    result = require_success(
+        antecedent.analyze(
+            {"pressure": pressure, "defect": defect},
+            graph=[("pressure", 1, "defect", 0)],
+            query=antecedent.PulseEffect(
+                treatment="pressure",
+                outcome="defect",
+                treatment_lag=1,
+                horizon_steps=1,
+                active_level=1.0,
+            ),
+            inference=antecedent.Bayesian(n_draws=256),
+            refute=False,
+            bootstrap=0,
+            seed=42,
+        )
     )
     assert result.posterior is not None
     assert abs(result.posterior.effect_mean - 0.9) < 0.05
@@ -49,20 +52,22 @@ def test_manufacturing_bayesian_sustained_recovers_effect():
     for t in range(1, n):
         defect[t] = 0.9 * pressure[t - 1]
 
-    result = antecedent.analyze(
-        {"pressure": pressure, "defect": defect},
-        graph=[("pressure", 1, "defect", 0)],
-        query=antecedent.SustainedEffect(
-            treatment="pressure",
-            outcome="defect",
-            treatment_lag=1,
-            horizon_steps=1,
-            active_level=1.0,
-        ),
-        inference=antecedent.Bayesian(n_draws=256),
-        refute=False,
-        bootstrap=0,
-        seed=42,
+    result = require_success(
+        antecedent.analyze(
+            {"pressure": pressure, "defect": defect},
+            graph=[("pressure", 1, "defect", 0)],
+            query=antecedent.SustainedEffect(
+                treatment="pressure",
+                outcome="defect",
+                treatment_lag=1,
+                horizon_steps=1,
+                active_level=1.0,
+            ),
+            inference=antecedent.Bayesian(n_draws=256),
+            refute=False,
+            bootstrap=0,
+            seed=42,
+        )
     )
     assert result.posterior is not None
     assert abs(result.posterior.effect_mean - 0.9) < 0.05
@@ -106,14 +111,16 @@ def test_temporal_pulse_bayesian_composed_prior_is_hydrated():
     )
 
     def run(inference):
-        return antecedent.analyze(
-            data,
-            graph=graph,
-            query=query,
-            inference=inference,
-            refute=False,
-            bootstrap=0,
-            seed=42,
+        return require_success(
+            antecedent.analyze(
+                data,
+                graph=graph,
+                query=query,
+                inference=inference,
+                refute=False,
+                bootstrap=0,
+                seed=42,
+            )
         )
 
     flat = run(antecedent.Bayesian(n_draws=64))
@@ -121,8 +128,8 @@ def test_temporal_pulse_bayesian_composed_prior_is_hydrated():
     assert flat.posterior is not None and informed.posterior is not None
     assert abs(flat.posterior.effect_mean - 0.9) < 0.05
     assert informed.posterior.effect_mean > 1.5, informed.posterior.effect_mean
-    contract = antecedent.artifacts.loads(informed.export()).contract
-    flat_contract = antecedent.artifacts.loads(flat.export()).contract
+    contract = antecedent.artifacts.loads(bytes(informed.export())).contract
+    flat_contract = antecedent.artifacts.loads(bytes(flat.export())).contract
     assert (
         contract["identities"]["inference_binding"]
         != flat_contract["identities"]["inference_binding"]
@@ -136,50 +143,56 @@ def test_temporal_pulse_bayesian_prior_artifact_and_mapping_are_hydrated():
     estimand of an artifact to use and has nothing to map on its own.
     """
     data, graph, query = _pulse_query_and_data()
-    source = antecedent.analyze(
-        data,
-        graph=graph,
-        query=query,
-        inference=antecedent.Bayesian(n_draws=64),
-        refute=False,
-        bootstrap=0,
-        seed=42,
-        return_posterior_artifact=True,
+    source = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            inference=antecedent.Bayesian(n_draws=64),
+            refute=False,
+            bootstrap=0,
+            seed=42,
+            return_posterior_artifact=True,
+        )
     )
     assert source.posterior is not None and source.posterior.artifact is not None
     artifact = bytes(source.posterior.artifact)
 
-    transferred = antecedent.analyze(
-        data,
-        graph=graph,
-        query=query,
-        inference=antecedent.Bayesian(
-            n_draws=64,
-            prior_from=artifact,
-            mapping=antecedent.priors.PriorMapping.effect_functional("ate"),
-        ),
-        refute=False,
-        bootstrap=0,
-        seed=42,
-    )
-    assert transferred.posterior is not None
-    assert math.isfinite(transferred.posterior.effect_mean)
-    flat = antecedent.artifacts.loads(source.export()).contract
-    bound = antecedent.artifacts.loads(transferred.export()).contract
-    assert bound["identities"]["inference_binding"] != flat["identities"]["inference_binding"]
-
-    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="prior_mapping"):
+    transferred = require_success(
         antecedent.analyze(
             data,
             graph=graph,
             query=query,
             inference=antecedent.Bayesian(
                 n_draws=64,
+                prior_from=artifact,
                 mapping=antecedent.priors.PriorMapping.effect_functional("ate"),
             ),
             refute=False,
             bootstrap=0,
             seed=42,
+        )
+    )
+    assert transferred.posterior is not None
+    assert math.isfinite(transferred.posterior.effect_mean)
+    flat = antecedent.artifacts.loads(bytes(source.export())).contract
+    bound = antecedent.artifacts.loads(bytes(transferred.export())).contract
+    assert bound["identities"]["inference_binding"] != flat["identities"]["inference_binding"]
+
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="prior_mapping"):
+        require_success(
+            antecedent.analyze(
+                data,
+                graph=graph,
+                query=query,
+                inference=antecedent.Bayesian(
+                    n_draws=64,
+                    mapping=antecedent.priors.PriorMapping.effect_functional("ate"),
+                ),
+                refute=False,
+                bootstrap=0,
+                seed=42,
+            )
         )
 
 
@@ -189,13 +202,15 @@ def test_temporal_pulse_bayesian_without_composed_prior_still_works():
     """
     data, graph, query = _pulse_query_and_data()
 
-    result = antecedent.analyze(
-        data,
-        graph=graph,
-        query=query,
-        inference=antecedent.Bayesian(n_draws=64),
-        refute=False,
-        bootstrap=0,
-        seed=42,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            inference=antecedent.Bayesian(n_draws=64),
+            refute=False,
+            bootstrap=0,
+            seed=42,
+        )
     )
     assert result.posterior is not None

@@ -29,6 +29,7 @@ import pytest
 from antecedent import _native
 from antecedent import adaptive_inference as ai
 from antecedent.adaptive_inference import AdaptiveInferenceRefusal
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 from _repo_text import load_toml
@@ -292,7 +293,7 @@ def replace(design: ai.AdaptiveDesign, **changes) -> ai.AdaptiveDesign:
 def test_the_posterior_is_the_conjugate_closed_form_of_the_counts():
     design = thompson_design()
     session = prepare(design)
-    result = session.analyse(ai.BayesianPosterior(look=1))
+    result = require_success(session.analyse(ai.BayesianPosterior(look=1)))
     assert result.paradigm == "bayesian_posterior"
     assert result.claim == "point_only"
     n = len(design.assigned_arm)
@@ -312,7 +313,7 @@ def test_the_posterior_is_the_conjugate_closed_form_of_the_counts():
     assert v[5] == pytest.approx(expected_loss(shapes[0], shapes[1]), abs=1e-7)
     assert result.closed_guarantee == "adaptive_inference.posterior_interval_closed"
     # The first look saw half the data.
-    early = session.analyse(ai.BayesianPosterior(look=0))
+    early = require_success(session.analyse(ai.BayesianPosterior(look=0)))
     first = counts_of(
         list(design.assigned_arm), [list(o) for o in design.outcomes], list(range(30))
     )
@@ -362,7 +363,7 @@ def test_an_enumerated_thompson_tree_has_a_martingale_posterior():
             probability = 0.5 * (0.5 if y1 else 0.5) * arm2_prob[arm2] * p_y2
             # P(arm1) = 1/2; P(y1) is 1/2 under the uniform prior.
             session = prepare(two_step_design(((arm1, y1), (arm2, y2))))
-            v = session.analyse(ai.BayesianPosterior(look=1))._wire_values
+            v = require_success(session.analyse(ai.BayesianPosterior(look=1)))._wire_values
             total += probability
             mean_zero += probability * v[2]
             mean_one += probability * v[8]
@@ -405,7 +406,7 @@ def test_fixed_sample_inference_of_adaptive_data_is_refused_but_the_posterior_ru
     error = refused(session.fixed_sample)
     assert error.reason_code == "adaptive_design_ignored"
     assert error.detail == "adaptive_inference.fixed_sample_on_adaptive_data"
-    assert session.analyse(ai.BayesianPosterior(look=1))._wire_values
+    assert require_success(session.analyse(ai.BayesianPosterior(look=1)))._wire_values
 
 
 def test_no_interval_is_licensed_for_any_route():
@@ -419,17 +420,21 @@ def test_a_measured_interval_refuses_a_procedure_outside_the_measured_cells():
     # The fixture's look schedule, prior and stopping threshold are not a measured cell.
     session = prepare(thompson_design())
     request = ai.BayesianPosterior(look=1, prior_alpha=2.0, prior_beta=3.0)
-    error = refused(lambda: session.measured_interval(request))
+    error = refused(lambda: require_success(session.measured_interval(request)))
     assert error.reason_code == "cell_not_licensed"
     assert error.detail == "measured_interval.protocol_not_measured"
 
 
 def test_a_paradigm_the_cell_is_not_licensed_for_is_refused():
     session = prepare(thompson_design())
-    error = refused(lambda: session.analyse(ai.AdaptiveWeighting(look=1, plus_arm=1, minus_arm=0)))
+    error = refused(
+        lambda: require_success(
+            session.analyse(ai.AdaptiveWeighting(look=1, plus_arm=1, minus_arm=0))
+        )
+    )
     assert error.reason_code == "cell_not_licensed"
     assert error.detail == "adaptive_inference.paradigm_not_licensed_for_cell"
-    error = refused(lambda: session.analyse(ai.GroupSequential(look=1)))
+    error = refused(lambda: require_success(session.analyse(ai.GroupSequential(look=1))))
     assert error.detail == "adaptive_inference.paradigm_not_licensed_for_cell"
 
 
@@ -438,7 +443,7 @@ def test_noncompliance_and_outcome_dependent_delay_are_refused_before_any_number
     exposure = list(design.exposure)
     exposure[3] = 1 - exposure[3]
     session = prepare(replace(design, exposure=exposure))
-    error = refused(lambda: session.analyse(ai.BayesianPosterior(look=1)))
+    error = refused(lambda: require_success(session.analyse(ai.BayesianPosterior(look=1))))
     assert error.reason_code == "adaptive_assumption_violated"
     assert error.detail == "adaptive_inference.exposure_differs_from_assignment"
     delayed = replace(
@@ -447,7 +452,7 @@ def test_noncompliance_and_outcome_dependent_delay_are_refused_before_any_number
             list(design.availability.available_at_look), "outcome_dependent"
         ),
     )
-    error = refused(lambda: prepare(delayed).analyse(ai.BayesianPosterior(look=1)))
+    error = refused(lambda: require_success(prepare(delayed).analyse(ai.BayesianPosterior(look=1))))
     assert error.detail == "adaptive_inference.delay_not_ignorable"
 
 
@@ -455,7 +460,9 @@ def test_cancellation_is_a_refusal_not_a_verdict():
     session = prepare(thompson_design())
     token = _native.CancellationToken()
     token.cancel()
-    error = refused(lambda: session.analyse(ai.BayesianPosterior(look=1), cancel=token))
+    error = refused(
+        lambda: require_success(session.analyse(ai.BayesianPosterior(look=1), cancel=token))
+    )
     assert error.reason_code == "cancelled_no_claim"
 
 
@@ -467,8 +474,8 @@ def test_adaptive_weighting_matches_an_independent_calculation(scheme):
     design = epsilon_greedy_design()
     session = prepare(design)
     look = 1
-    result = session.analyse(
-        ai.AdaptiveWeighting(look=look, plus_arm=1, minus_arm=0, scheme=scheme)
+    result = require_success(
+        session.analyse(ai.AdaptiveWeighting(look=look, plus_arm=1, minus_arm=0, scheme=scheme))
     )
     assert result.paradigm == "frequentist_adaptive_weighting"
     y = [o[0] for o in design.outcomes]
@@ -488,7 +495,9 @@ def test_adaptive_weighting_matches_an_independent_calculation(scheme):
 def test_a_probability_below_the_floor_is_refused_not_clipped():
     design = replace(epsilon_greedy_design(), probability_floor=0.4)
     error = refused(
-        lambda: prepare(design).analyse(ai.AdaptiveWeighting(look=1, plus_arm=1, minus_arm=0))
+        lambda: require_success(
+            prepare(design).analyse(ai.AdaptiveWeighting(look=1, plus_arm=1, minus_arm=0))
+        )
     )
     assert error.reason_code == "adaptive_assumption_violated"
     assert error.detail == "adaptive_inference.positivity_floor"
@@ -498,9 +507,16 @@ def test_repeated_measures_use_the_subject_mean_as_the_unit():
     design = epsilon_greedy_design(measurements=3, sizes=(80,))
     session = prepare(design)
     assert session.procedure == "epsilon_greedy/repeated_measures/final_analysis_only/no_stopping"
-    result = session.analyse(
-        ai.AdaptiveWeighting(
-            look=0, plus_arm=1, minus_arm=0, scheme="uniform", prior_mean=0.5, prior_strength=1.0
+    result = require_success(
+        session.analyse(
+            ai.AdaptiveWeighting(
+                look=0,
+                plus_arm=1,
+                minus_arm=0,
+                scheme="uniform",
+                prior_mean=0.5,
+                prior_strength=1.0,
+            )
         )
     )
     means = [sum(o) / len(o) for o in design.outcomes]
@@ -517,8 +533,10 @@ def test_repeated_measures_use_the_subject_mean_as_the_unit():
     reversed_design = replace(design, outcomes=[list(reversed(o)) for o in design.outcomes])
     other = prepare(reversed_design)
     assert other.contract_identity != session.contract_identity
-    again = other.analyse(
-        ai.AdaptiveWeighting(look=0, plus_arm=1, minus_arm=0, scheme="uniform", prior_mean=0.5)
+    again = require_success(
+        other.analyse(
+            ai.AdaptiveWeighting(look=0, plus_arm=1, minus_arm=0, scheme="uniform", prior_mean=0.5)
+        )
     )
     assert again._wire_values[0] == pytest.approx(result._wire_values[0], abs=1e-12)
 
@@ -528,7 +546,9 @@ def test_the_hierarchical_cluster_cell_is_carried_forward():
         epsilon_greedy_design(measurements=3, sizes=(40,)), outcome="hierarchical_clustered"
     )
     error = refused(
-        lambda: prepare(design).analyse(ai.AdaptiveWeighting(look=0, plus_arm=1, minus_arm=0))
+        lambda: require_success(
+            prepare(design).analyse(ai.AdaptiveWeighting(look=0, plus_arm=1, minus_arm=0))
+        )
     )
     assert error.reason_code == "cell_not_licensed"
     assert error.detail == "adaptive_inference.cell_carried_forward"
@@ -540,8 +560,10 @@ def test_the_hierarchical_cluster_cell_is_carried_forward():
 def test_the_confidence_sequence_matches_the_closed_form_and_union_bounds_a_contrast():
     design = epsilon_greedy_design(sizes=(100, 200))
     session = prepare(design)
-    result = session.analyse(
-        ai.ConfidenceSequence(look=1, alpha=0.05, tuning_samples=50.0, contrast=(1, 0))
+    result = require_success(
+        session.analyse(
+            ai.ConfidenceSequence(look=1, alpha=0.05, tuning_samples=50.0, contrast=(1, 0))
+        )
     )
     by_arm = [
         [o[0] for o, a in zip(design.outcomes, design.assigned_arm, strict=True) if a == arm]
@@ -566,7 +588,7 @@ def test_group_sequential_boundaries_and_decisions_match_published_values():
     design = group_sequential_design()
     session = prepare(design)
     assert session.status["class"] == "licensed"
-    result = session.analyse(ai.GroupSequential(look=2))
+    result = require_success(session.analyse(ai.GroupSequential(look=2)))
     v = result._wire_values
     published = (3.7103, 2.5114, 1.9930)
     sizes = (40, 80, 120)
@@ -592,7 +614,7 @@ def test_group_sequential_with_adaptive_assignment_is_a_closed_pairing():
         monitoring="group_sequential",
         stopping_rule=ai.StoppingRule.alpha_spending("pocock_type", 0.05, "two_sided_symmetric"),
     )
-    error = refused(lambda: prepare(design).analyse(ai.BayesianPosterior(look=1)))
+    error = refused(lambda: require_success(prepare(design).analyse(ai.BayesianPosterior(look=1))))
     assert error.detail == "adaptive_inference.pairing_not_licensed"
 
 
@@ -669,8 +691,8 @@ def test_the_procedure_matrix_lists_every_cell_once_and_agrees_with_the_registry
 def test_the_monitoring_contract_round_trips_and_a_fresh_reader_sees_rule_and_paradigm():
     design = group_sequential_design()
     session = prepare(design)
-    artifact = session.export_contract("frequentist_group_sequential")
-    consumed = ai.consume_adaptive_monitoring_contract_artifact(artifact)
+    artifact = bytes(session.export(paradigm="frequentist_group_sequential"))
+    consumed = require_success(ai.consume_adaptive_monitoring_contract_artifact(artifact))
     assert consumed.paradigm == "frequentist_group_sequential"
     assert consumed.procedure == "fixed_randomization/single_outcome/group_sequential/efficacy"
     assert consumed.stopping_rule["spec"] == "alpha_spending"
@@ -680,25 +702,27 @@ def test_the_monitoring_contract_round_trips_and_a_fresh_reader_sees_rule_and_pa
     for got, want in zip(consumed.boundaries["critical"], (3.7103, 2.5114, 1.9930), strict=True):
         assert got == pytest.approx(want, abs=2e-4)
     # Deterministic, and accepted against its own retained identity.
-    assert session.export_contract("frequentist_group_sequential") == artifact
-    again = ai.consume_adaptive_monitoring_contract_artifact(artifact, consumed.identity)
+    assert bytes(session.export(paradigm="frequentist_group_sequential")) == artifact
+    again = require_success(
+        ai.consume_adaptive_monitoring_contract_artifact(artifact, consumed.identity)
+    )
     assert again.identity == consumed.identity
 
 
 def test_a_paradigm_the_design_may_not_use_cannot_be_exported():
     session = prepare(group_sequential_design())
-    error = refused(lambda: session.export_contract("frequentist_fixed_sample"))
+    error = refused(lambda: bytes(session.export(paradigm="frequentist_fixed_sample")))
     assert error.reason_code == "adaptive_design_ignored"
-    error = refused(lambda: session.export_contract("bayesian_posterior"))
+    error = refused(lambda: bytes(session.export(paradigm="bayesian_posterior")))
     assert error.reason_code == "cell_not_licensed"
 
 
 def test_the_result_artifact_is_recomputed_by_the_consumer_and_refuses_other_experiments():
     session = prepare(thompson_design())
     request = ai.BayesianPosterior(look=1)
-    artifact = session.export_result(request)
-    produced = session.analyse(request)
-    consumed = ai.consume_adaptive_inference_result_artifact(artifact)
+    artifact = bytes(session.export(request))
+    produced = require_success(session.analyse(request))
+    consumed = require_success(ai.consume_adaptive_inference_result_artifact(artifact))
     assert consumed.paradigm == "bayesian_posterior"
     assert consumed.procedure == produced.procedure
     assert consumed.stopping_rule["spec"] == "posterior_probability_best"
@@ -711,37 +735,35 @@ def test_the_result_artifact_is_recomputed_by_the_consumer_and_refuses_other_exp
     outcomes = [list(o) for o in design.outcomes]
     outcomes[0] = [1.0 - outcomes[0][0]]
     other = prepare(replace(design, outcomes=outcomes))
-    other_artifact = other.export_result(request)
+    other_artifact = bytes(other.export(request))
     assert other_artifact != artifact
     error = refused(
-        lambda: ai.consume_adaptive_inference_result_artifact(other_artifact, consumed.identity)
+        lambda: require_success(
+            ai.consume_adaptive_inference_result_artifact(other_artifact, consumed.identity)
+        )
     )
     assert error.reason_code == "route_not_supported"
     assert error.detail == "adaptive_inference.wrong_contract"
     # A corrupted container is refused, not partially read.
     damaged = bytearray(artifact)
     damaged[len(damaged) // 2] ^= 0xFF
-    refused(lambda: ai.consume_adaptive_inference_result_artifact(bytes(damaged)))
-    refused(lambda: ai.consume_adaptive_inference_result_artifact(artifact[: len(artifact) // 2]))
+    refused(lambda: require_success(ai.consume_adaptive_inference_result_artifact(bytes(damaged))))
+    refused(
+        lambda: require_success(
+            ai.consume_adaptive_inference_result_artifact(artifact[: len(artifact) // 2])
+        )
+    )
 
 
 def test_a_fresh_process_consumes_both_artifacts_against_the_retained_identity(tmp_path):
     session = prepare(group_sequential_design())
     request = ai.GroupSequential(look=2)
-    contract = session.export_contract("frequentist_group_sequential")
-    result = session.export_result(request)
-    retained = ai.consume_adaptive_inference_result_artifact(result).identity
+    contract = bytes(session.export(paradigm="frequentist_group_sequential"))
+    result = bytes(session.export(request))
+    retained = require_success(ai.consume_adaptive_inference_result_artifact(result)).identity
     (tmp_path / "contract.bin").write_bytes(contract)
     (tmp_path / "result.bin").write_bytes(result)
-    script = (
-        "import json, sys\n"
-        "from antecedent import adaptive_inference as ai\n"
-        "c = ai.consume_adaptive_monitoring_contract_artifact(open(sys.argv[1], 'rb').read())\n"
-        "r = ai.consume_adaptive_inference_result_artifact(open(sys.argv[2], 'rb').read(), sys.argv[3])\n"
-        "print(json.dumps({'procedure': c.procedure, 'paradigm': c.paradigm, "
-        "'rule': c.stopping_rule['spec'], 'critical': list(c.boundaries['critical']), "
-        "'identity': r.identity, 'values': list(r._wire_values)}))\n"
-    )
+    script = "from antecedent.outcomes import require_success\nimport json, sys\nfrom antecedent import adaptive_inference as ai\nc = require_success(ai.consume_adaptive_monitoring_contract_artifact(open(sys.argv[1], 'rb').read()))\nr = require_success(ai.consume_adaptive_inference_result_artifact(open(sys.argv[2], 'rb').read(), sys.argv[3]))\nprint(json.dumps({'procedure': c.procedure, 'paradigm': c.paradigm, 'rule': c.stopping_rule['spec'], 'critical': list(c.boundaries['critical']), 'identity': r.identity, 'values': list(r._wire_values)}))\n"
     done = subprocess.run(
         [
             sys.executable,
@@ -762,7 +784,7 @@ def test_a_fresh_process_consumes_both_artifacts_against_the_retained_identity(t
     assert wire["rule"] == "alpha_spending"
     assert wire["identity"] == retained
     assert wire["critical"][0] == pytest.approx(3.7103, abs=2e-4)
-    produced = session.analyse(request)._wire_values
+    produced = require_success(session.analyse(request))._wire_values
     assert wire["values"] == pytest.approx(list(produced), abs=1e-9)
     refusal = subprocess.run(
         [
@@ -779,3 +801,32 @@ def test_a_fresh_process_consumes_both_artifacts_against_the_retained_identity(t
     )
     assert refusal.returncode != 0
     assert "wrong_contract" in refusal.stderr
+
+
+def test_canonical_adaptive_export_retains_the_selected_artifact_identity():
+    from antecedent._artifact_protocol import ExportedArtifact, load_scientific
+
+    session = prepare(group_sequential_design())
+    contract = session.export(paradigm="frequentist_group_sequential")
+    result = session.export(ai.GroupSequential(look=2))
+    assert isinstance(contract, ExportedArtifact)
+    assert isinstance(result, ExportedArtifact)
+    consumed_contract = require_success(
+        ai.consume_adaptive_monitoring_contract_artifact(
+            contract,
+            contract.expectation.identity,
+        )
+    )
+    consumed_result = require_success(
+        ai.consume_adaptive_inference_result_artifact(
+            result,
+            result.expectation.identity,
+        )
+    )
+    assert contract.expectation.identity == consumed_contract.identity
+    assert result.expectation.identity == consumed_result.identity
+    assert contract.expectation.identity != session.contract_identity
+    assert result.expectation.identity != session.contract_identity
+    assert result.expectation.identity != contract.expectation.identity
+    assert load_scientific(contract, expected=contract.expectation).acceptance.identity_bound
+    assert load_scientific(result, expected=result.expectation).acceptance.replayable

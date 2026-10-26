@@ -28,10 +28,18 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, cast
 
+from .._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .._columns import coerce_fields
 from .._native import NativePeriodRefresh as _NativePeriodRefresh
 from .._native import NativePeriodRefreshSummary as _NativeSummary
 from .._native import consume_period_refresh_artifact as _consume_ledger
+from .._scientific import ScientificResult
 from ..errors import CausalTypeError, CausalValueError
 from ._temporal_extensions import _consumed, _index
 
@@ -214,7 +222,7 @@ def _outcome(payload: str | None, refusal: str | None) -> dict[str, Any]:
     return _consumed(payload, refusal)
 
 
-class PeriodRefresh:
+class PeriodRefresh(ScientificResult):
     """An autoregressive mechanism kept across observation periods."""
 
     __slots__ = ("_native",)
@@ -248,7 +256,9 @@ class PeriodRefresh:
         if refusal is not None:
             _consumed(None, refusal)
         if native is None:
-            raise CausalValueError("the native fit returned nothing", reason_code="invalid_argument")
+            raise CausalValueError(
+                "the native fit returned nothing", reason_code="invalid_argument"
+            )
         return cls(native)
 
     def refresh(self, values: Sequence[float], window: PeriodWindow) -> PeriodRefreshOutcome:
@@ -319,16 +329,18 @@ class PeriodRefresh:
             _consumed(None, refusal)
         return bool(ok)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
         """The retained delta ledger, framed."""
         data, refusal = self._native.export_ledger()
         if refusal is not None:
             _consumed(None, refusal)
         if data is None:
             raise CausalValueError("the native export returned nothing")
-        return bytes(data)
+        return artifact_from_receipt(self, bytes(data))
 
-    def export_summary_only(self) -> bytes:
+    @artifact_export
+    def export_summary_only(self) -> ExportedArtifact[Any]:
         """The summary-only artifact of the least-squares fit, framed. This fit keeps its rows.
 
         :meth:`PeriodRefreshSummary.consume` reads it back; it is not a ledger and
@@ -339,10 +351,10 @@ class PeriodRefresh:
             _consumed(None, refusal)
         if data is None:
             raise CausalValueError("the native export returned nothing")
-        return bytes(data)
+        return artifact_from_receipt(self, bytes(data))
 
 
-class PeriodRefreshSummary:
+class PeriodRefreshSummary(ScientificResult):
     """The least-squares summary of a period refresh read from its summary-only artifact.
 
     It serves the retained summary (observation count, coefficients, residual variance, source
@@ -356,8 +368,16 @@ class PeriodRefreshSummary:
         self._native = native
 
     @classmethod
+    @artifact_consumer(
+        proof="native summary consumer validates its retained least-squares summary and seal; raw rows are absent",
+        replayable=False,
+        resumable=False,
+        identity=(),
+        unresolved=("summary-only retention cannot replay or refit rows",),
+    )
     def consume(cls, artifact: bytes) -> PeriodRefreshSummary:
         """Decode and verify a summary-only artifact; any change to it is refused."""
+        artifact = container_bytes(artifact)
         if not isinstance(artifact, bytes):
             raise CausalTypeError("artifact must be bytes")
         native, refusal = _NativeSummary.consume(artifact)
@@ -427,7 +447,7 @@ class PeriodRefreshSummary:
 
 
 @dataclass(frozen=True, slots=True)
-class ConsumedPeriodRefresh:
+class ConsumedPeriodRefresh(ScientificResult):
     """What an independent consumer recomputed from a retained ledger."""
 
     series_id: str
@@ -441,6 +461,12 @@ class ConsumedPeriodRefresh:
     least_squares: PeriodLeastSquares
 
 
+@artifact_consumer(
+    proof="native retained-ledger consumer recomputes posterior and least squares from blocks and verifies event/snapshot uniqueness",
+    replayable=True,
+    resumable=False,
+    identity=(),
+)
 def consume_period_refresh_artifact(artifact: bytes) -> ConsumedPeriodRefresh:
     """Recompute a retained ledger from its blocks and refuse any change to it.
 
@@ -448,6 +474,7 @@ def consume_period_refresh_artifact(artifact: bytes) -> ConsumedPeriodRefresh:
     changed seal, prior, block or stored result, a period that overlaps an earlier one or
     reuses a snapshot, and a row or block used twice are refused.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
     payload, refusal = _consume_ledger(artifact)

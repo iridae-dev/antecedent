@@ -13,18 +13,21 @@ import random
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _scm import confounded_scm
 
 
 def test_analyze_default_pair_schema_and_fields():
     data, edges = confounded_scm(n=800, seed=5)
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        bootstrap=10,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            bootstrap=10,
+            seed=1,
+        )
     )
     assert result.identification.method == "backdoor.adjustment"
     assert result.estimate.estimator_id in ("", "linear.adjustment.ate")
@@ -35,14 +38,16 @@ def test_analyze_default_pair_schema_and_fields():
 def test_analyze_propensity_weighting_recovers_ate_and_overlap():
     # Shared dual band with Rust IPW ATE≈2 (see module docstring).
     data, edges = confounded_scm(n=800, seed=5)
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        identifier="backdoor.adjustment",
-        estimator="propensity.weighting",
-        bootstrap=10,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            identifier="backdoor.adjustment",
+            estimator="propensity.weighting",
+            bootstrap=10,
+            seed=1,
+        )
     )
     assert abs(result.ate - 2.0) < 0.4, result.ate
     assert result.estimate.estimator_id == "propensity.weighting"
@@ -62,14 +67,16 @@ def test_analyze_propensity_weighting_recovers_ate_and_overlap():
 )
 def test_analyze_estimate_estimators_smoke(estimator):
     data, edges = confounded_scm(n=1000, seed=9)
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        estimator=estimator,
-        bootstrap=5,
-        seed=1,
-        refute=False,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            estimator=estimator,
+            bootstrap=5,
+            seed=1,
+            refute=False,
+        )
     )
     assert np.isfinite(result.ate)
 
@@ -81,15 +88,17 @@ def test_analyze_iv_2sls_smoke():
     u = np.array([rng.gauss(0, 1) for _ in range(n)], dtype=np.float64)
     t = (0.8 * z + 0.5 * u + np.array([rng.gauss(0, 0.3) for _ in range(n)]) > 0).astype(np.float64)
     y = 1.5 * t + u + np.array([rng.gauss(0, 0.3) for _ in range(n)], dtype=np.float64)
-    result = antecedent.analyze(
-        {"t": t, "y": y, "z": z},
-        graph=[("z", "t"), ("t", "y")],
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        identifier="iv",
-        estimator="iv.2sls",
-        bootstrap=5,
-        seed=1,
-        refute=False,
+    result = require_success(
+        antecedent.analyze(
+            {"t": t, "y": y, "z": z},
+            graph=[("z", "t"), ("t", "y")],
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            identifier="iv",
+            estimator="iv.2sls",
+            bootstrap=5,
+            seed=1,
+            refute=False,
+        )
     )
     assert np.isfinite(result.ate)
 
@@ -113,15 +122,17 @@ def _frontdoor_interaction_table() -> dict[str, np.ndarray]:
 
 
 def _analyze_frontdoor(estimator: str):
-    return antecedent.analyze(
-        _frontdoor_interaction_table(),
-        graph=[("t", "m"), ("m", "y")],
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        identifier="frontdoor",
-        estimator=estimator,
-        bootstrap=0,
-        seed=1,
-        refute=False,
+    return require_success(
+        antecedent.analyze(
+            _frontdoor_interaction_table(),
+            graph=[("t", "m"), ("m", "y")],
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            identifier="frontdoor",
+            estimator=estimator,
+            bootstrap=0,
+            seed=1,
+            refute=False,
+        )
     )
 
 

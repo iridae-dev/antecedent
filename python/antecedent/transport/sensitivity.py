@@ -19,7 +19,8 @@ transported quantity and keeping a reference value::
     )
     result.lower, result.upper          # the range at each declared grid point
     result.reference_reached_at         # the smallest shift that reaches the reference
-    result.artifact                     # decide / export / consume through sensitivity_decision
+    result.decision_source              # decide through sensitivity_decision
+    result.export()                     # typed independent artifact
 
 What the range is: an assumption range at the declared grid points only. The bound is the
 caller's declaration of how far the premise may fail; nothing in the data licenses it. It is never
@@ -52,10 +53,11 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from .. import _native
+from .._artifact_protocol import ExportedArtifact, artifact_from_receipt
 from .._refusal import raise_refusal
 from .._scientific import ScientificResult
 from .._validate import choice, count, real
-from ..errors import CausalTypeError
+from ..errors import CausalTypeError, CausalValueError
 from ..joint_distribution import ScientificQuantity
 from ..transported_response import TransportedResponse, TransportedResponseRefusal
 
@@ -92,10 +94,16 @@ class TransportSensitivity(ScientificResult):
     _artifact: Any = field(repr=False, compare=False, default=None)
 
     @property
-    def artifact(self) -> Any:
+    def decision_source(self) -> Any:
         """The sealed :class:`~antecedent.sensitivity_decision.SensitivityArtifact`: decide,
         export and consume it through :mod:`antecedent.sensitivity_decision`."""
         return self._artifact
+
+    def export(self) -> ExportedArtifact[Any]:
+        """Export the sealed sensitivity decision source, without recomputation."""
+        if self._artifact is None:
+            raise CausalValueError("This range has no sealed decision source")
+        return artifact_from_receipt(self, self._artifact.export())
 
     @property
     def label(self) -> str:

@@ -12,6 +12,7 @@ from .errors import CausalError
 from .experiment import ComplierEffect, RandomizedEffect, SwitchbackEffect, TreatmentOnTreated
 from .extensibility import ProviderQuery
 from .extensibility import providers as _providers
+from .fallback import AnalysisWithFallback
 from .graph import (
     Admg,
     Cpdag,
@@ -68,12 +69,11 @@ from .query import (
     TemporalMediationEffect,
 )
 from .regimes import LongitudinalRegime, SequentialContrast
+from .repair import StudyCandidate
 from .results import Analysis, ProviderAnalysisResult
 from .survival import CompetingRisksOutcome, SurvivalOutcome
 from .transport import Transport, TransportControls, TransportInference
 from .transport.advanced import TransportQuery
-from .fallback import AnalysisWithFallback
-from .repair import StudyCandidate
 
 
 class EstimatorConfigLike(Protocol):

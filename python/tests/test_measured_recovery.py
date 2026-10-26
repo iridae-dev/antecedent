@@ -78,7 +78,7 @@ def test_normal_recovered_effect_bca_original_source_and_fresh_measured_replay(t
     assert bca["bias_correction"] == pytest.approx(z0, abs=1e-7)
     assert scalar.interval == pytest.approx(np.quantile(effects, adjusted), abs=1e-7)
     path = tmp_path / "measured-recovery.cbor"
-    path.write_bytes(measured.export())
+    path.write_bytes(bytes(measured.export()))
     loaded = MeasuredInference.load(path.read_bytes(), expected=measured.expected_identity)
     assert loaded.inspect() == measured.inspect()
     assert loaded.source_artifact() == measured.source_artifact()
@@ -103,7 +103,7 @@ print(json.dumps(r.inspect(),sort_keys=True))
     assert actual == measured.inspect()
     for artifact, identity in [
         (measured.source_artifact(), measured.expected_identity),
-        (measured.export(), replace(measured.expected_identity, data_digest="0" * 64)),
+        (bytes(measured.export()), replace(measured.expected_identity, data_digest="0" * 64)),
     ]:
         with pytest.raises(CausalError):
             MeasuredInference.load(artifact, expected=identity)
@@ -164,11 +164,11 @@ def test_normal_recovery_legacy_scope_fake_authority_and_resource_refusals():
 
 def test_normal_sampled_recovery_measured_artifact_requires_original_expected_identity(tmp_path):
     measured = tr.sampled_observation_recovery(**options())
-    loaded = MeasuredInference.load(measured.export(), expected=measured.expected_identity)
+    loaded = MeasuredInference.load(bytes(measured.export()), expected=measured.expected_identity)
     assert loaded.source_report() == measured.source_report()
     assert loaded.source_artifact() == measured.source_artifact()
     path = tmp_path / "recovery-original.cbor"
-    path.write_bytes(measured.export())
+    path.write_bytes(bytes(measured.export()))
     script = """import json,pathlib,sys
 from antecedent.inference import MeasuredInference as M,MeasuredInferenceIdentity as I
 r=M.load(pathlib.Path(sys.argv[1]).read_bytes(),expected=I._from_wire(json.loads(sys.argv[2])))
@@ -180,8 +180,8 @@ print(json.dumps(r.source_report(),sort_keys=True))
     )
     assert json.loads(receipt) == measured.source_report()
     for artifact, identity in (
-        (measured.export(), replace(measured.expected_identity, premises_digest="0" * 64)),
-        (measured.export()[:-1], measured.expected_identity),
+        (bytes(measured.export()), replace(measured.expected_identity, premises_digest="0" * 64)),
+        (bytes(measured.export())[:-1], measured.expected_identity),
         (measured.source_artifact(), measured.expected_identity),
     ):
         with pytest.raises(CausalError):

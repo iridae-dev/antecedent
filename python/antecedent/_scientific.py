@@ -34,11 +34,49 @@ class ScientificResult:
             return report.to_dict() if hasattr(report, "to_dict") else thaw(report)
         return {name: thaw(value) for name, value in vars(self).items() if not name.startswith("_")}
 
+    def _summary_fields(self) -> dict[str, Any]:
+        """Read a bounded number of scalar fields; never serialize nested payloads."""
+        names = (
+            "kind",
+            "method",
+            "procedure",
+            "label",
+            "claim",
+            "claim_label",
+            "standing",
+            "status",
+            "point",
+            "value",
+            "estimate",
+            "mean",
+        )
+        if is_dataclass(self):
+            declared = {field.name for field in fields(cast(Any, self))}
+            values = {name: getattr(self, name) for name in names if name in declared}
+        else:
+            state = vars(self)
+            retained = state.get("_report")
+            if not isinstance(retained, dict):
+                from collections.abc import Mapping
+
+                retained = retained if isinstance(retained, Mapping) else {}
+            values = {
+                name: state.get(name, retained.get(name))
+                for name in names
+                if name in state or name in retained
+            }
+        return {
+            name: value
+            for name, value in values.items()
+            if type(value) in (str, int, float, bool, type(None))
+        }
+
     def inspect(self) -> Any:
         from .results._report import InspectionReport, InspectionStage, SlotModel
         from .results.sources import is_mean_producer
 
-        data = self.to_dict()
+        # Inspection reads retained presentation metadata. Full payload conversion is
+        # explicit through to_dict(), and portable validation happens at export/load.
         family = type(self).__name__
         stage = getattr(self, "_inspection_stage", None)
         if stage is None:
@@ -59,30 +97,26 @@ class ScientificResult:
                 if family.endswith(("Law", "Contract", "Quantity", "Source"))
                 else "executed"
             )
-        label = data.get("claim", data.get("label", data.get("claim_label", "unavailable")))
+        data = self._summary_fields()
         unavailable = SlotModel(
             available=False, reason="not_established_by_this_object", summary="unavailable"
         )
-        declared_assumptions = bool(data.get("assumptions") or data.get("unresolved"))
         return InspectionReport(
             identification=unavailable,
             support=unavailable,
-            uncertainty=SlotModel(available=False, reason="no_interval_claim", summary=str(label)),
-            assumptions=SlotModel(
-                available=declared_assumptions,
-                reason=None if declared_assumptions else "not_recorded",
-                summary="declared" if declared_assumptions else "unavailable",
-                payload={
-                    "assumptions": data.get("assumptions", ()),
-                    "unresolved": data.get("unresolved", ()),
-                },
+            uncertainty=SlotModel(
+                available=False,
+                reason="no_interval_claim",
+                summary=str(data.get("claim", data.get("claim_label", "unavailable"))),
             ),
+            assumptions=unavailable,
             family=family,
             details=data,
             stage=cast(InspectionStage, stage),
+            answer=getattr(self, "answer", None),
             operations=("inspect", "to_dict")
             + (
-                ("export", "artifact")
+                ("export",)
                 if type(self).export is not ScientificResult.export
                 or getattr(self, "_artifact_bytes", None) is not None
                 else ()
@@ -113,34 +147,19 @@ class ScientificResult:
         return [data]
 
     def __repr__(self) -> str:
-        data = self.to_dict()
-        keys = (
-            "kind",
-            "method",
-            "procedure",
-            "label",
-            "claim",
-            "standing",
-            "status",
-            "point",
-            "value",
-            "estimate",
-            "mean",
-            "means",
-            "values",
-            "quantity",
-            "quantities",
-        )
-        summary = {key: data[key] for key in keys if key in data}
-        reading = repr(summary)
-        if len(reading) > 320:
-            reading = reading[:320] + "…; full details in inspect()"
-        return f"{type(self).__name__}({reading})"
+        # reprlib bounds each scalar string before building the display; do not
+        # render an entire posterior/array only to truncate its final string.
+        from reprlib import Repr
+
+        renderer = Repr()
+        renderer.maxstring = 96
+        renderer.maxdict = 8
+        return f"{type(self).__name__}({renderer.repr(self._summary_fields())})"
 
     def _repr_html_(self) -> str:
         return self.inspect()._repr_html_()
 
-    def export(self, *args: Any, **kwargs: Any) -> bytes:
+    def export(self, *args: Any, **kwargs: Any) -> Any:
         """Forward a consumed artifact unchanged, without restoring a live execution."""
         from .errors import CausalUnsupportedError
 
@@ -149,12 +168,9 @@ class ScientificResult:
             raise CausalUnsupportedError(
                 "this object has no portable artifact", reason_code="route_not_supported"
             )
-        return data
+        from ._artifact_protocol import artifact_from_receipt
 
-    def artifact(self, *args: Any, **kwargs: Any) -> Any:
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self, *args, **kwargs)
+        return artifact_from_receipt(self, data)
 
     def as_mean_source(
         self,

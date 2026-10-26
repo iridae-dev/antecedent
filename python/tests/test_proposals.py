@@ -21,6 +21,7 @@ from antecedent import design as dr
 from antecedent import proposals as px
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
 from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 from _refusal import assert_registered_refusal
@@ -136,11 +137,13 @@ def semantic_ids(result):
 
 
 def accuracy_signal(label, accuracy):
-    law = dr.ExternalLaw.posterior(
-        states=[0.0, 1.0],
-        statistics=[0.0, 1.0],
-        predictive=[0.5, 0.5],
-        posterior=[[accuracy, 1.0 - accuracy], [1.0 - accuracy, accuracy]],
+    law = require_success(
+        dr.ExternalLaw.posterior(
+            states=[0.0, 1.0],
+            statistics=[0.0, 1.0],
+            predictive=[0.5, 0.5],
+            posterior=[[accuracy, 1.0 - accuracy], [1.0 - accuracy, accuracy]],
+        )
     )
     return dr.ExternalSignal("lab", f"signal-{label}", "v1", "snap", "lab-qa", law)
 
@@ -176,8 +179,8 @@ class Fixture:
         self.repaired = repair.repair(self.contract, self.studies)
         self.ids = semantic_ids(self.repaired)
         self.ranked = rank(self.repaired, self.studies, {"narrow": 0.625, "cohort": 0.75})
-        self.repair_bytes = self.repaired.export()
-        self.ranking_bytes = self.ranked.export()
+        self.repair_bytes = bytes(self.repaired.export())
+        self.ranking_bytes = bytes(self.ranked.export())
         self.bundle = px.ProposalBundle.build(
             self.repair_bytes, self.ranking_bytes, contract=self.contract
         )
@@ -285,7 +288,7 @@ def test_receipt_bundle_identity_does_not_depend_on_candidate_order(fx):
         fx.repaired, list(reversed(fx.studies)), {"narrow": 0.625, "cohort": 0.75}
     )
     assert reversed_ranking.identity == fx.ranked.identity
-    rebuilt = px.ProposalBundle.build(fx.repair_bytes, reversed_ranking.export())
+    rebuilt = px.ProposalBundle.build(fx.repair_bytes, bytes(reversed_ranking.export()))
     assert rebuilt.identity == fx.bundle.identity
     assert rebuilt.to_dict() == fx.bundle.to_dict()
     # A stored reorder does not move the identity; the verifier refuses it instead.
@@ -424,7 +427,7 @@ def test_receipt_a_different_ranking_is_not_the_one_the_bundle_binds(fx):
     other = rank(fx.repaired, fx.studies, {"narrow": 0.625, "cohort": 0.875})
     assert other.identity != fx.ranked.identity
     refused(
-        lambda: fx.bundle.verify(fx.repair_bytes, other.export()),
+        lambda: fx.bundle.verify(fx.repair_bytes, bytes(other.export())),
         "proposal_receipt.ranking_digest_mismatch",
     )
 
@@ -434,10 +437,10 @@ def test_receipt_candidate_in_repair_but_not_in_ranking_is_refused(fx):
     # The repair evaluated both candidates; a ranking of one values one, so a bundle of both
     # does not cover it.
     refused(
-        lambda: fx.bundle.verify(fx.repair_bytes, only_cheap.export()),
+        lambda: fx.bundle.verify(fx.repair_bytes, bytes(only_cheap.export())),
         "proposal_receipt.candidate_not_in_ranking",
     )
-    single = px.ProposalBundle.build(fx.repair_bytes, only_cheap.export())
+    single = px.ProposalBundle.build(fx.repair_bytes, bytes(only_cheap.export()))
     assert single.candidate_ids == (fx.narrow_id,)
 
 
@@ -445,7 +448,7 @@ def test_receipt_candidate_in_ranking_but_not_in_repair_is_refused(fx):
     ids = {**fx.ids, "cohort": "sc1:never-repaired"}
     stranger = rank(fx.repaired, fx.studies, {"narrow": 0.625, "cohort": 0.75}, ids=ids)
     refused(
-        lambda: px.ProposalBundle.build(fx.repair_bytes, stranger.export()),
+        lambda: px.ProposalBundle.build(fx.repair_bytes, bytes(stranger.export())),
         "proposal_receipt.candidate_not_in_repair",
     )
 
@@ -458,7 +461,7 @@ def test_receipt_a_ranking_that_costs_a_candidate_differently_is_refused(fx):
         cost_of=lambda s: s.cost + 1 if s.label == "narrow" else s.cost,
     )
     refused(
-        lambda: px.ProposalBundle.build(fx.repair_bytes, dearer.export()),
+        lambda: px.ProposalBundle.build(fx.repair_bytes, bytes(dearer.export())),
         "proposal_receipt.cost_mismatch",
     )
 
@@ -469,7 +472,7 @@ def test_receipt_a_foreign_repair_artifact_is_refused(fx):
     )
     # Neither ranked candidate is declared in the other repair report.
     refused(
-        lambda: px.ProposalBundle.build(other.export(), fx.ranking_bytes),
+        lambda: px.ProposalBundle.build(bytes(other.export()), fx.ranking_bytes),
         "proposal_receipt.candidate_not_in_repair",
     )
 
@@ -577,7 +580,7 @@ class TransportFixture:
         self.repaired = repair.repair(self.contract, self.studies)
         self.ranked = rank(self.repaired, self.studies, {"trial": 0.75, "obs": 0.625})
         self.bundle = px.ProposalBundle.build(
-            self.repaired.export(), self.ranked.export(), contract=self.contract
+            bytes(self.repaired.export()), bytes(self.ranked.export()), contract=self.contract
         )
 
 

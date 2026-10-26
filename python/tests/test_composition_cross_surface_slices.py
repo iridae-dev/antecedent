@@ -27,6 +27,7 @@ from antecedent import (
 from antecedent import evidence_ledger as ledger_api
 from antecedent._artifact_protocol import exported_artifact
 from antecedent.inference import MeasuredInference
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 from antecedent.transport._temporal_extensions import (
     MARGINALIZED_LABEL,
@@ -98,9 +99,9 @@ def _gaussian_cell(horizon: bool, bayesian: bool):
         assert result.posterior is None
         tolerance = 1e-8 if horizon else 1e-12
     assert result.estimate.ate == pytest.approx(gaussian["effect"], abs=tolerance)
-    artifact = result.export(artifact_id=label)
+    artifact = bytes(result.export(artifact_id=label))
     del result
-    loaded = load(artifact)
+    loaded = require_success(load(artifact))
     assert loaded.acceptance.recognized
     assert loaded.acceptance.unresolved == _UNRESOLVED[(horizon, bayesian)], label
     assert loaded.acceptance.verified == (not loaded.acceptance.unresolved)
@@ -175,7 +176,7 @@ def _discrete_arm(counts, level, estimator):
     study = transport.prepare_statistical(
         identified, catalog, data, at={"t": float(level)}, bootstrap=0, estimator=estimator
     )
-    return load(study.estimate().export())
+    return require_success(load(bytes(require_success(study.estimate()).export())))
 
 
 def _draw_means(loaded):
@@ -270,7 +271,7 @@ def _sources(session):
 def test_mixed_evidence_pools_and_reloads_from_the_ledger():
     mixed = CASES["mixed_evidence"]
     session = ledger_api.EvidenceLedger()
-    pooled = session.pool_summaries("pool", _sources(session))
+    pooled = require_success(session.pool_summaries("pool", _sources(session)))
     assert isinstance(pooled.value, ledger_api.FixedEffect)
     assert pooled.value.estimate == pytest.approx(mixed["pooled"])
     assert pooled.value.variance == pytest.approx(mixed["pooled_variance"])
@@ -278,8 +279,8 @@ def test_mixed_evidence_pools_and_reloads_from_the_ledger():
     assert pooled.mass.distinct_observations == declared
     exported = exported_artifact(session, "mixed-evidence")
     del session
-    consumed = ledger_api.consume_evidence_ledger_artifact(
-        exported.data, exported.expectation.identity
+    consumed = require_success(
+        ledger_api.consume_evidence_ledger_artifact(exported.data, exported.expectation.identity)
     )
     replay = consumed.synthesis_of(pooled.result)
     assert replay.values[0] == pytest.approx(mixed["pooled"])
@@ -288,7 +289,7 @@ def test_mixed_evidence_pools_and_reloads_from_the_ledger():
 
 def test_reused_evidence_keeps_one_observation_count():
     session = ledger_api.EvidenceLedger()
-    pooled = session.pool_summaries("pool", _sources(session))
+    pooled = require_success(session.pool_summaries("pool", _sources(session)))
     first = session.reuse_result("cited_once", pooled.result)
     second = session.reuse_result("cited_again", pooled.result)
     assert first != second
@@ -297,8 +298,8 @@ def test_reused_evidence_keeps_one_observation_count():
         assert session.result(result_id).mass.distinct_observations == counted
     exported = exported_artifact(session, "reused-evidence")
     del session
-    consumed = ledger_api.consume_evidence_ledger_artifact(
-        exported.data, exported.expectation.identity
+    consumed = require_success(
+        ledger_api.consume_evidence_ledger_artifact(exported.data, exported.expectation.identity)
     )
     labels = {record.label: record.mass.distinct_observations for record in consumed.results}
     assert labels["pool"] == counted
@@ -311,16 +312,18 @@ def test_overlapping_studies_pool_under_a_declared_covariance_and_replace_the_di
     overlap = mixed["overlap"]
     session = ledger_api.EvidenceLedger()
     summaries = _sources(session)
-    disjoint = session.pool_summaries("pool", summaries)
+    disjoint = require_success(session.pool_summaries("pool", summaries))
     first_source = summaries[0].source
-    report = session.revise_source(
-        ledger_api.SourceRevision.update(
-            summaries[1].source,
-            ledger_api.SourceDeclaration(
-                "study_1_grown",
-                "observation_set",
-                observations=ledger_api.rows("cohort", range(*overlap["grown_range"])),
-            ),
+    report = require_success(
+        session.revise_source(
+            ledger_api.SourceRevision.update(
+                summaries[1].source,
+                ledger_api.SourceDeclaration(
+                    "study_1_grown",
+                    "observation_set",
+                    observations=ledger_api.rows("cohort", range(*overlap["grown_range"])),
+                ),
+            )
         )
     )
     grown = report.created_source
@@ -336,15 +339,19 @@ def test_overlapping_studies_pool_under_a_declared_covariance_and_replace_the_di
         )
     ]
     with pytest.raises(ledger_api.EvidenceLedgerRefusal) as refusal:
-        session.pool_summaries("overlap_pool", overlapping, replaces=disjoint.result)
+        require_success(
+            session.pool_summaries("overlap_pool", overlapping, replaces=disjoint.result)
+        )
     assert refusal.value.reason_code == "evidence_double_counted"
     assert refusal.value.detail == "evidence_ledger.shared_observations"
 
-    replacing = session.pool_summaries(
-        "overlap_pool",
-        overlapping,
-        covariance=overlap["covariance"],
-        replaces=disjoint.result,
+    replacing = require_success(
+        session.pool_summaries(
+            "overlap_pool",
+            overlapping,
+            covariance=overlap["covariance"],
+            replaces=disjoint.result,
+        )
     )
     assert replacing.value.estimate == pytest.approx(overlap["pooled"])
     assert replacing.value.variance == pytest.approx(overlap["pooled_variance"])
@@ -358,8 +365,8 @@ def test_overlapping_studies_pool_under_a_declared_covariance_and_replace_the_di
 
     exported = exported_artifact(session, "overlapping-evidence")
     del session
-    consumed = ledger_api.consume_evidence_ledger_artifact(
-        exported.data, exported.expectation.identity
+    consumed = require_success(
+        ledger_api.consume_evidence_ledger_artifact(exported.data, exported.expectation.identity)
     )
     replay = consumed.synthesis_of(replacing.result)
     assert replay.values[0] == pytest.approx(overlap["pooled"])
@@ -410,7 +417,7 @@ def _reload_candidate(panel, point):
         pytest.skip(f"the candidate route is closed in this build: {refusal}")
     assert candidate.point == pytest.approx(point, abs=1e-12)
     assert candidate.calibration == "unmeasured"
-    artifact = candidate.export()
+    artifact = bytes(candidate.export())
     identity = candidate.identity
     del candidate
     return TemporalIntervalCandidate.load(artifact, expected_identity=identity)
@@ -429,7 +436,7 @@ def test_temporal_dependence_reloads_from_the_measured_artifact():
     except TemporalExtensionRefusal as refusal:
         assert "coverage_record_not_attesting" in str(refusal), refusal
         return
-    artifact = result.export()
+    artifact = bytes(result.export())
     expected = result.expected_identity
     del result
     measured = MeasuredInference.load(artifact, expected=expected)
@@ -476,8 +483,8 @@ def test_recovered_feedback_reloads_the_observation_law():
     builder = decide()
     prepared = builder.prepare_exact(law, REQUESTS)
     del builder
-    live = json.loads(prepared.estimate())
-    artifact = prepared.export()
+    live = json.loads(require_success(prepared.estimate()))
+    artifact = bytes(prepared.export())
     del prepared
     consumed = json.loads(transport.consume_observation_recovery_artifact(artifact))
     assert consumed["recovered"]["probabilities"] == pytest.approx(
@@ -494,6 +501,7 @@ def _operation_message(name: str) -> str:
 def test_reduced_retention_serves_only_the_summary():
     from antecedent import _native
     from antecedent.errors import CausalSerializationError, CausalStateError
+
     from test_temporal_extensions import started
 
     retention = CASES["retention"]
@@ -506,10 +514,10 @@ def test_reduced_retention_serves_only_the_summary():
     # Export the summary-only form of a live fit, drop the producer, and load it independently.
     producer = started(invariant=True)
     live = producer.least_squares
-    full_ledger = producer.export()
+    full_ledger = bytes(producer.export())
     artifact = producer.export_summary_only()
     del producer
-    consumer = transport.PeriodRefreshSummary.consume(artifact)
+    consumer = require_success(transport.PeriodRefreshSummary.consume(artifact))
     assert consumer.retention == retention["reduced"]
     assert consumer.n == live.n
     assert consumer.beta == pytest.approx(live.beta, abs=1e-9)
@@ -542,7 +550,7 @@ def test_reduced_retention_serves_only_the_summary():
         changed = bytearray(artifact)
         changed[position] ^= 0x01
         try:
-            other = transport.PeriodRefreshSummary.consume(bytes(changed))
+            other = require_success(transport.PeriodRefreshSummary.consume(bytes(changed)))
         except (TemporalExtensionRefusal, CausalSerializationError):
             continue
         assert other.beta == consumer.beta
@@ -550,4 +558,4 @@ def test_reduced_retention_serves_only_the_summary():
     with pytest.raises((TemporalExtensionRefusal, CausalSerializationError)):
         transport.consume_period_refresh_artifact(artifact)
     with pytest.raises(TemporalExtensionRefusal, match="summary_only"):
-        transport.PeriodRefreshSummary.consume(full_ledger)
+        require_success(transport.PeriodRefreshSummary.consume(full_ledger))

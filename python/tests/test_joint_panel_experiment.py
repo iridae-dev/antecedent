@@ -11,6 +11,7 @@ from antecedent import joint_panel as jp
 from antecedent import scientific_bridge as sb
 from antecedent.evidence_ledger import EvidenceLedger, SourceDeclaration, SourceRevision
 from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
 
 
 @pytest.mark.parametrize("local", [False, True])
@@ -38,17 +39,19 @@ def test_native_target_experiment_update_decision_next_study_and_current_replay(
             "units": units,
         }
     )
-    result = prepared.execute(
-        {
-            "inference": "randomized_gaussian",
-            "prior": {
-                "mean": [0.0, 0.0],
-                "variance": [4.0, 4.0],
-                "outcome_variance": [1.0] * len(units),
-                "draws": 512,
-                "seed": 91,
-            },
-        }
+    result = require_success(
+        prepared.execute(
+            {
+                "inference": "randomized_gaussian",
+                "prior": {
+                    "mean": [0.0, 0.0],
+                    "variance": [4.0, 4.0],
+                    "outcome_variance": [1.0] * len(units),
+                    "draws": 512,
+                    "seed": 91,
+                },
+            }
+        )
     )
     regularization = None
     coefficients = [-1.0, 1.0]
@@ -76,8 +79,8 @@ def test_native_target_experiment_update_decision_next_study_and_current_replay(
                 ],
             }
         )
-        result = prepared.execute(
-            {"inference": "local_complier_bayesian", "draws": 512, "seed": 92}
+        result = require_success(
+            prepared.execute({"inference": "local_complier_bayesian", "draws": 512, "seed": 92})
         )
         coefficients = [1.0]
         target_kind = "encouragement_specific_complier_average_effect"
@@ -240,10 +243,14 @@ def test_native_target_experiment_update_decision_next_study_and_current_replay(
         )
         == 3
     )
-    artifact = updated.export(ledger)
+    artifact = bytes(updated.export(ledger))
     updated.verify_current(artifact, ledger)
-    prepared.consume_current(result.export())
-    ledger.revise_source(SourceRevision.withdraw(experiment, "withdrawn experiment"))
+    prepared.consume_current(bytes(result.export()))
+    require_success(
+        ledger.revise_source(
+            require_success(SourceRevision.withdraw(experiment, "withdrawn experiment"))
+        )
+    )
     with pytest.raises(ValueError, match="withdrawn|missing|superseded"):
         updated.verify_current(artifact, ledger)
 

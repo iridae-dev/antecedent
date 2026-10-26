@@ -24,6 +24,7 @@ from antecedent.joint_distribution import (
     JointDistributionArtifact,
     ScientificQuantity,
 )
+from antecedent.outcomes import require_success
 
 P = [1.0, 3.0, 2.0, 0.0]
 Q = [4.0, 0.0, 2.0, 6.0]
@@ -88,7 +89,7 @@ def _contract(criterion: decision.Criterion | None = None, **kwargs: object) -> 
 
 
 def test_joint_rows_choose_the_safe_action_and_explain_why():
-    result = _contract().evaluate(_source())
+    result = require_success(_contract().evaluate(_source()))
     assert result.source_evidence == ()
     risky, safe = result.actions
     assert risky.expected_utility == pytest.approx(2.0)
@@ -103,7 +104,7 @@ def test_joint_rows_choose_the_safe_action_and_explain_why():
     assert result.contract_identity == _contract().identity
 
     # The same marginals paired differently flip the choice.
-    flipped = _contract().evaluate(_source(q=[0.0, 6.0, 2.0, 4.0]))
+    flipped = require_success(_contract().evaluate(_source(q=[0.0, 6.0, 2.0, 4.0])))
     assert flipped.actions[0].expected_utility == pytest.approx(5.5)
     assert flipped.selected == ("risky",)
 
@@ -120,7 +121,7 @@ def test_expressions_use_ordinary_operators_and_refuse_nonsense():
 
 def test_independent_marginals_and_wrong_meanings_refuse_with_registered_codes():
     with pytest.raises(CausalUnsupportedError) as marginals:
-        _contract().evaluate(_source(alignment="independent_marginals"))
+        require_success(_contract().evaluate(_source(alignment="independent_marginals")))
     assert marginals.value.reason_code == "joint_law_required"
     assert isinstance(marginals.value, decision.DecisionRefusal)
     assert marginals.value.detail == "decision_evaluation.joint_law_required"
@@ -128,7 +129,7 @@ def test_independent_marginals_and_wrong_meanings_refuse_with_registered_codes()
     assert marginals.value.expected == "joint"
 
     with pytest.raises(decision.DecisionRefusal) as meaning:
-        _contract().evaluate(_source(semantic="causal_functional_posterior"))
+        require_success(_contract().evaluate(_source(semantic="causal_functional_posterior")))
     assert meaning.value.reason_code == "distribution_meaning_mismatch"
     assert meaning.value.offending == "risky[0]"
 
@@ -140,17 +141,17 @@ def test_independent_marginals_and_wrong_meanings_refuse_with_registered_codes()
         )
     )
     with pytest.raises(decision.DecisionRefusal) as missing:
-        other.evaluate(_source())
+        require_success(other.evaluate(_source()))
     assert missing.value.reason_code == "quantity_semantics_mismatch"
     assert missing.value.detail == "decision_evaluation.quantity_not_found"
     assert missing.value.stage == "evaluate"
 
     with pytest.raises(decision.DecisionRefusal) as structure:
-        _contract(decision.Criterion.maximin_over_structures()).evaluate(_source())
+        require_success(_contract(decision.Criterion.maximin_over_structures()).evaluate(_source()))
     assert structure.value.reason_code == "route_not_supported"
 
     with pytest.raises(decision.DecisionRefusal) as invalid:
-        _contract(actions=_contract().actions[:1]).evaluate(_source())
+        require_success(_contract(actions=_contract().actions[:1]).evaluate(_source()))
     # The Python bridge keeps the typed Rust refusal, not a generic declaration error.
     assert invalid.value.reason_code == "invalid_argument"
     assert invalid.value.detail == "decision_contract.invalid_declaration"
@@ -161,7 +162,7 @@ def test_hard_constraints_exclude_and_never_penalize():
     cap = decision.Constraint(
         "q-cap", decision.x(1), bound=5.0, units="units", applies_to=("risky",)
     )
-    result = _contract(constraints=(cap,)).evaluate(_source())
+    result = require_success(_contract(constraints=(cap,)).evaluate(_source()))
     risky = result.actions[0]
     assert not risky.admissible
     assert risky.exclusions[0].probability == pytest.approx(0.75)
@@ -172,7 +173,7 @@ def test_hard_constraints_exclude_and_never_penalize():
     assert "excluded by a hard constraint: 'risky'" in result.explain()
 
     everything = decision.Constraint("none", decision.x(0), bound=-1.0, units="units")
-    nothing = _contract(constraints=(everything,)).evaluate(_source())
+    nothing = require_success(_contract(constraints=(everything,)).evaluate(_source()))
     assert nothing.verdict.kind == "no_admissible_action"
     assert nothing.evpi is None
     assert "No action satisfies every hard constraint" in nothing.explain()
@@ -180,20 +181,24 @@ def test_hard_constraints_exclude_and_never_penalize():
 
 def test_each_criterion_has_its_own_route_and_sampling_noise_is_not_hidden():
     source = _source()
-    threshold = _contract(decision.Criterion.threshold_probability(3.0)).evaluate(source)
+    threshold = require_success(
+        _contract(decision.Criterion.threshold_probability(3.0)).evaluate(source)
+    )
     assert threshold.actions[0].value == pytest.approx(0.5)
     assert threshold.actions[1].value == pytest.approx(1.0)
-    quantile = _contract(decision.Criterion.quantile(0.25)).evaluate(source)
+    quantile = require_success(_contract(decision.Criterion.quantile(0.25)).evaluate(source))
     assert quantile.actions[0].value == pytest.approx(0.0)
-    assert _contract(decision.Criterion.expected_loss()).evaluate(source).selected == ("risky",)
-    assert _contract(decision.Criterion.regret()).evaluate(source).actions[0].value == (
-        pytest.approx(3.0)
-    )
-    assert _contract(decision.Criterion.expected_regret()).evaluate(source).actions[
-        1
-    ].value == pytest.approx(0.5)
+    assert require_success(
+        _contract(decision.Criterion.expected_loss()).evaluate(source)
+    ).selected == ("risky",)
+    assert require_success(_contract(decision.Criterion.regret()).evaluate(source)).actions[
+        0
+    ].value == (pytest.approx(3.0))
+    assert require_success(
+        _contract(decision.Criterion.expected_regret()).evaluate(source)
+    ).actions[1].value == pytest.approx(0.5)
     # Sampled rows give a point ranking, without a certified Monte Carlo error.
-    sampled = _contract().evaluate(_source(calibration="unmeasured"))
+    sampled = require_success(_contract().evaluate(_source(calibration="unmeasured")))
     assert sampled.verdict.kind == "uniquely_optimal"
     assert sampled.selected == ("safe",)
     assert "point ranking only" in sampled.explain()
@@ -233,29 +238,32 @@ def test_contract_and_result_round_trip_and_replay_in_a_fresh_process(tmp_path: 
         )
     )
     source = _source()
-    result = contract.evaluate(source)
-    contract_bytes = contract.export()
-    result_bytes = result.export()
+    result = require_success(contract.evaluate(source))
+    contract_bytes = bytes(contract.export())
+    result_bytes = bytes(result.export())
 
     loaded = decision.Contract.load(contract_bytes, expected_identity=contract.identity)
     assert loaded == contract
     with pytest.raises(Exception, match="differs"):
         decision.Contract.load(contract_bytes, expected_identity="0" * 64)
-    replayed = decision.replay(result_bytes, contract=contract, source=source)
+    replayed = require_success(decision.replay(result_bytes, contract=contract, source=source))
     assert replayed.selected == result.selected
     assert replayed.evpi == result.evpi
 
     other = dataclasses.replace(contract, criterion=decision.Criterion.expected_loss())
     with pytest.raises(decision.DecisionRefusal) as wrong_contract:
-        decision.replay(result_bytes, contract=other, source=source)
+        require_success(decision.replay(result_bytes, contract=other, source=source))
     assert wrong_contract.value.reason_code == "decision_contract_unsatisfied"
     with pytest.raises(decision.DecisionRefusal):
-        decision.replay(result_bytes, contract=contract, source=_source(q=[0.0, 6.0, 2.0, 4.0]))
+        require_success(
+            decision.replay(result_bytes, contract=contract, source=_source(q=[0.0, 6.0, 2.0, 4.0]))
+        )
 
     script = textwrap.dedent(
         """
         import sys
         from antecedent import decision
+        from antecedent.outcomes import require_success
         from antecedent.joint_distribution import (
             DistributionIdentity, JointDistributionArtifact, ScientificQuantity,
         )
@@ -291,7 +299,7 @@ def test_contract_and_result_round_trip_and_replay_in_a_fresh_process(tmp_path: 
         retained = sys.argv[3]
         stored = decision.Contract.load(open(sys.argv[1], "rb").read(), expected_identity=retained)
         assert stored == contract
-        result = decision.replay(open(sys.argv[2], "rb").read(), contract=contract, source=source)
+        result = require_success(decision.replay(open(sys.argv[2], "rb").read(), contract=contract, source=source))
         assert result.selected == ("safe",)
         assert abs(result.evpi - 0.5) < 1e-12
         """
@@ -311,7 +319,7 @@ def test_contract_and_result_round_trip_and_replay_in_a_fresh_process(tmp_path: 
 
 
 def test_decision_names_the_stages_and_identities_behind_it():
-    result = _contract().evaluate(_source())
+    result = require_success(_contract().evaluate(_source()))
     links = result.lineage
     assert [link.id for link in links] == [
         "contract:checked-contract",
@@ -344,7 +352,7 @@ def test_decision_names_the_stages_and_identities_behind_it():
     with pytest.raises(CausalValueError, match="unknown lineage link"):
         result.stages_behind("nope")
 
-    other = _contract().evaluate(_source(q=[0.0, 6.0, 2.0, 4.0]))
+    other = require_success(_contract().evaluate(_source(q=[0.0, 6.0, 2.0, 4.0])))
     assert other.lineage[2].id != links[2].id
     assert other.lineage[3].id == links[3].id
     assert other.lineage[3].digest == links[3].digest
@@ -352,5 +360,7 @@ def test_decision_names_the_stages_and_identities_behind_it():
     assert other.lineage[4].digest != links[4].digest
 
     # A replayed result re-derives the same lineage from the same inputs.
-    replayed = decision.replay(result.export(), contract=_contract(), source=_source())
+    replayed = require_success(
+        decision.replay(bytes(result.export()), contract=_contract(), source=_source())
+    )
     assert replayed.lineage == links

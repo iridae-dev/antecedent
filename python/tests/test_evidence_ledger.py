@@ -29,6 +29,7 @@ from antecedent import _native
 from antecedent import evidence_ledger as el
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.evidence_ledger import EvidenceLedgerRefusal
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -119,15 +120,21 @@ class Scenario:
         self.s1 = ledger.add_source(data("s1", 0, 10))
         self.s2 = ledger.add_source(data("s2", 10, 20))
         self.s3 = ledger.add_source(data("s3", 20, 30))
-        self.r_s1_s2 = ledger.pool_summaries(
-            "s1_s2", [summary(self.s1, 1.0, 1.0), summary(self.s2, 3.0, 4.0)]
+        self.r_s1_s2 = require_success(
+            ledger.pool_summaries("s1_s2", [summary(self.s1, 1.0, 1.0), summary(self.s2, 3.0, 4.0)])
         ).result
-        self.r_s2_s3 = ledger.pool_summaries(
-            "s2_s3", [summary(self.s2, 3.0, 4.0), summary(self.s3, 2.0, 1.0)]
+        self.r_s2_s3 = require_success(
+            ledger.pool_summaries("s2_s3", [summary(self.s2, 3.0, 4.0), summary(self.s3, 2.0, 1.0)])
         ).result
-        self.r_all = ledger.pool_summaries(
-            "all",
-            [summary(self.s1, 0.0, 1.0), summary(self.s2, 2.0, 2.0), summary(self.s3, 6.0, 4.0)],
+        self.r_all = require_success(
+            ledger.pool_summaries(
+                "all",
+                [
+                    summary(self.s1, 0.0, 1.0),
+                    summary(self.s2, 2.0, 2.0),
+                    summary(self.s3, 6.0, 4.0),
+                ],
+            )
         ).result
         self.r_cite = ledger.reuse_result("cite_s1_s2", self.r_s1_s2)
         self.model = ledger.add_source(
@@ -137,8 +144,10 @@ class Scenario:
                 lineage=el.Lineage.derived_from_used_data([self.s1]),
             )
         )
-        self.r_model = ledger.pool_summaries(
-            "model_s3", [summary(self.model, 0.5, 1.0), summary(self.s3, 2.0, 1.0)]
+        self.r_model = require_success(
+            ledger.pool_summaries(
+                "model_s3", [summary(self.model, 0.5, 1.0), summary(self.s3, 2.0, 1.0)]
+            )
         ).result
 
 
@@ -149,7 +158,9 @@ def test_a_pooled_value_matches_the_hand_calculation_and_mass_counts_each_observ
     ledger = el.EvidenceLedger()
     s1 = ledger.add_source(data("study_1", 0, 40))
     s2 = ledger.add_source(data("study_2", 40, 90))
-    outcome = ledger.pool_summaries("pool", [summary(s1, 1.0, 1.0), summary(s2, 3.0, 4.0)])
+    outcome = require_success(
+        ledger.pool_summaries("pool", [summary(s1, 1.0, 1.0), summary(s2, 3.0, 4.0)])
+    )
     estimate, variance, q, weights = inverse_variance([1.0, 3.0], [1.0, 4.0])
     assert estimate == pytest.approx(1.4, abs=TOL)
     assert isinstance(outcome.value, el.FixedEffect)
@@ -193,24 +204,32 @@ def test_overlap_refusals_precede_the_numbers_and_leave_the_session_unchanged():
     # Shared rows declared independent: the numbers are not even looked at (these variances
     # would be refused).
     error = refused(
-        lambda: ledger.pool_summaries("p", [summary(s3, 1.0, -1.0), summary(s4, 3.0, -1.0)])
+        lambda: require_success(
+            ledger.pool_summaries("p", [summary(s3, 1.0, -1.0), summary(s4, 3.0, -1.0)])
+        )
     )
     expect(error, "evidence_double_counted", "evidence_ledger.shared_observations")
     # Undeclared observations are unknown, never independent.
     error = refused(
-        lambda: ledger.pool_summaries("p", [summary(s3, 1.0, 1.0), summary(claim, 3.0, 4.0)])
+        lambda: require_success(
+            ledger.pool_summaries("p", [summary(s3, 1.0, 1.0), summary(claim, 3.0, 4.0)])
+        )
     )
     expect(error, "evidence_overlap_unknown", "evidence_ledger.overlap_unknown")
     # A diagonal covariance over shared rows is the same double count.
     error = refused(
-        lambda: ledger.pool_summaries(
-            "p", [summary(s3, 1.0, 1.0), summary(s4, 3.0, 4.0)], covariance=[1.0, 0.0, 0.0, 4.0]
+        lambda: require_success(
+            ledger.pool_summaries(
+                "p", [summary(s3, 1.0, 1.0), summary(s4, 3.0, 4.0)], covariance=[1.0, 0.0, 0.0, 4.0]
+            )
         )
     )
     expect(error, "evidence_double_counted", "evidence_ledger.diagonal_covariance_shared_rows")
     # One source listed twice.
     error = refused(
-        lambda: ledger.pool_summaries("p", [summary(s3, 1.0, 1.0), summary(s3, 2.0, 1.0)])
+        lambda: require_success(
+            ledger.pool_summaries("p", [summary(s3, 1.0, 1.0), summary(s3, 2.0, 1.0)])
+        )
     )
     expect(error, "evidence_double_counted", "evidence_ledger.repeated_source")
     # None of the refusals changed the session.
@@ -222,7 +241,9 @@ def test_overlap_refusals_precede_the_numbers_and_leave_the_session_unchanged():
         el.SourceDeclaration("s3_again", "observation_set", lineage=el.Lineage.duplicate(s3))
     )
     error = refused(
-        lambda: ledger.pool_summaries("p", [summary(s3, 1.0, 1.0), summary(copy, 1.0, 1.0)])
+        lambda: require_success(
+            ledger.pool_summaries("p", [summary(s3, 1.0, 1.0), summary(copy, 1.0, 1.0)])
+        )
     )
     expect(error, "evidence_double_counted", "evidence_ledger.reentry_duplicate")
 
@@ -231,7 +252,9 @@ def test_overlap_refusals_precede_the_numbers_and_leave_the_session_unchanged():
     s5 = ledger.add_source(data("s5", 500, 520))
     before, before_head = ledger.state_digest, ledger.head
     error = refused(
-        lambda: ledger.pool_summaries("p", [summary(s3, 1.0, 1.0), summary(s5, 3.0, -4.0)])
+        lambda: require_success(
+            ledger.pool_summaries("p", [summary(s3, 1.0, 1.0), summary(s5, 3.0, -4.0)])
+        )
     )
     expect(error, "invalid_argument", "evidence_ledger.invalid_declaration")
     assert isinstance(error, ValueError)
@@ -245,10 +268,12 @@ def test_a_declared_covariance_with_cross_terms_licenses_the_shared_pair():
     s3 = ledger.add_source(data("s3", 90, 120))
     s4 = ledger.add_source(data("s4", 110, 150))
     covariance = np.array([[1.0, 1.0], [1.0, 4.0]])
-    outcome = ledger.pool_summaries(
-        "shared",
-        [summary(s3, 1.0, 1.0), summary(s4, 3.0, 4.0)],
-        covariance=covariance.reshape(-1).tolist(),
+    outcome = require_success(
+        ledger.pool_summaries(
+            "shared",
+            [summary(s3, 1.0, 1.0), summary(s4, 3.0, 4.0)],
+            covariance=covariance.reshape(-1).tolist(),
+        )
     )
     # Oracle: generalized least squares 1' S^-1 y / 1' S^-1 1, variance 1 / 1' S^-1 1.
     ones = np.ones(2)
@@ -272,14 +297,20 @@ def test_a_declared_covariance_with_cross_terms_licenses_the_shared_pair():
     s5 = ledger.add_source(data("s5", 500, 520))
     s6 = ledger.add_source(data("s6", 600, 620))
     error = refused(
-        lambda: ledger.pool_summaries(
-            "bad", [summary(s5, 1.0, 1.0), summary(s6, 2.0, 1.0)], covariance=[1.0, 2.0, 2.0, 1.0]
+        lambda: require_success(
+            ledger.pool_summaries(
+                "bad",
+                [summary(s5, 1.0, 1.0), summary(s6, 2.0, 1.0)],
+                covariance=[1.0, 2.0, 2.0, 1.0],
+            )
         )
     )
     expect(error, "invalid_argument", "evidence_ledger.invalid_declaration")
     error = refused(
-        lambda: ledger.pool_summaries(
-            "short", [summary(s5, 1.0, 1.0), summary(s6, 2.0, 1.0)], covariance=[1.0, 0.0, 4.0]
+        lambda: require_success(
+            ledger.pool_summaries(
+                "short", [summary(s5, 1.0, 1.0), summary(s6, 2.0, 1.0)], covariance=[1.0, 0.0, 4.0]
+            )
         )
     )
     expect(error, "invalid_argument", "evidence_ledger.invalid_declaration")
@@ -296,7 +327,9 @@ def test_pooling_is_invariant_to_the_order_of_the_studies():
             ledger.add_source(data("b", 10, 20)),
             ledger.add_source(data("c", 20, 30)),
         ]
-        return ledger.pool_summaries("p", [summary(ids[i], y[i], v[i]) for i in order])
+        return require_success(
+            ledger.pool_summaries("p", [summary(ids[i], y[i], v[i]) for i in order])
+        )
 
     a, b = build([0, 1, 2]), build([2, 0, 1])
     # The result identity is a function of the source set, not its order.
@@ -321,7 +354,7 @@ def test_random_effects_match_the_dersimonian_laird_derivation_and_the_reml_orac
     ledger = el.EvidenceLedger()
     studies = three_studies(ledger)
     y, v = [0.0, 2.0, 6.0], [1.0, 2.0, 4.0]
-    outcome = ledger.random_effects("re", studies, method="dersimonian_laird")
+    outcome = require_success(ledger.random_effects("re", studies, method="dersimonian_laird"))
     fit = outcome.value
     assert isinstance(fit, el.RandomEffects)
     mean, variance, tau2, q, i2 = dersimonian_laird(y, v)
@@ -340,7 +373,7 @@ def test_random_effects_match_the_dersimonian_laird_derivation_and_the_reml_orac
 
     # REML is a different, registered estimator of the same quantity; its oracle is the
     # maximizer of the restricted likelihood.
-    reml = ledger.random_effects("re_reml", studies, method="reml").value
+    reml = require_success(ledger.random_effects("re_reml", studies, method="reml")).value
     t2 = reml_tau2(y, v)
     assert reml.tau_squared == pytest.approx(t2, abs=1e-6)
     weights = 1.0 / (np.array(v) + t2)
@@ -352,13 +385,13 @@ def test_random_effects_match_the_dersimonian_laird_derivation_and_the_reml_orac
     # Fewer than two studies cannot estimate between-study variance.
     lonely = ledger.add_source(data("lonely", 100, 110))
     error = refused(
-        lambda: ledger.random_effects(
-            "one", [summary(lonely, 1.0, 1.0)], method="dersimonian_laird"
+        lambda: require_success(
+            ledger.random_effects("one", [summary(lonely, 1.0, 1.0)], method="dersimonian_laird")
         )
     )
     assert error.reason_code == "invalid_argument"
     with pytest.raises(CausalValueError):
-        ledger.random_effects("x", studies, method="moments")
+        require_success(ledger.random_effects("x", studies, method="moments"))
 
 
 def hierarchical_oracle(y, v, tau_support, tau_prob, mean_prior=None):
@@ -408,8 +441,10 @@ def test_hierarchical_borrowing_matches_the_closed_form_and_the_finite_mixture()
     studies = three_studies(ledger)
     y, v = [0.0, 2.0, 6.0], [1.0, 2.0, 4.0]
     single = el.TauPrior((1.0,), (1.0,))
-    flat = ledger.hierarchical_borrowing(
-        "flat", studies, mean_prior=el.MeanPrior.flat(), tau_prior=single
+    flat = require_success(
+        ledger.hierarchical_borrowing(
+            "flat", studies, mean_prior=el.MeanPrior.flat(), tau_prior=single
+        )
     )
     assert isinstance(flat.value, el.HierarchicalPosterior)
     assert flat.value.mean == pytest.approx(56.0 / 31.0, abs=TOL)
@@ -419,18 +454,22 @@ def test_hierarchical_borrowing_matches_the_closed_form_and_the_finite_mixture()
     assert flat.value.variance == pytest.approx(variance, abs=1e-10)
     assert flat.claim_label == "point_only"
 
-    normal = ledger.hierarchical_borrowing(
-        "normal", studies, mean_prior=el.MeanPrior.normal(0.0, 1.0), tau_prior=single
+    normal = require_success(
+        ledger.hierarchical_borrowing(
+            "normal", studies, mean_prior=el.MeanPrior.normal(0.0, 1.0), tau_prior=single
+        )
     ).value
     assert normal.mean == pytest.approx(56.0 / 61.0, abs=TOL)
     assert normal.variance == pytest.approx(30.0 / 61.0, abs=TOL)
 
     # A two-point prior on tau: the posterior is the exact finite mixture of the closed forms.
-    mixture = ledger.hierarchical_borrowing(
-        "mixture",
-        studies,
-        mean_prior=el.MeanPrior.normal(0.0, 1.0),
-        tau_prior=el.TauPrior((0.5, 1.0), (0.5, 0.5)),
+    mixture = require_success(
+        ledger.hierarchical_borrowing(
+            "mixture",
+            studies,
+            mean_prior=el.MeanPrior.normal(0.0, 1.0),
+            tau_prior=el.TauPrior((0.5, 1.0), (0.5, 0.5)),
+        )
     ).value
     mean, variance, post = hierarchical_oracle(y, v, [0.5, 1.0], [0.5, 0.5], (0.0, 1.0))
     assert mixture.mean == pytest.approx(mean, abs=1e-10)
@@ -448,12 +487,14 @@ def test_a_prior_built_from_the_likelihoods_data_is_double_counting():
     )
 
     def borrow(priors):
-        return ledger.hierarchical_borrowing(
-            "borrow",
-            studies,
-            mean_prior=el.MeanPrior.normal(0.0, 1.0),
-            tau_prior=el.TauPrior((0.5, 1.0), (0.5, 0.5)),
-            priors=priors,
+        return require_success(
+            ledger.hierarchical_borrowing(
+                "borrow",
+                studies,
+                mean_prior=el.MeanPrior.normal(0.0, 1.0),
+                tau_prior=el.TauPrior((0.5, 1.0), (0.5, 0.5)),
+                priors=priors,
+            )
         )
 
     error = refused(lambda: borrow([power]))
@@ -466,7 +507,7 @@ def test_a_prior_built_from_the_likelihoods_data_is_double_counting():
     assert sum(outcome.value.tau_posterior) == pytest.approx(1.0, abs=TOL)
     # The numbers are the session's; the artifact format carries one summary per source, so this
     # result's numbers are listed as not carried rather than dropped silently.
-    export = ledger.artifact("borrowing")
+    export = ledger.export("borrowing")
     assert export.metadata["carried"] == ()
     assert list(export.metadata["not_carried"]) == [outcome.result]
     assert "prior" in export.metadata["not_carried"][outcome.result]
@@ -493,7 +534,7 @@ def test_the_dependence_range_is_an_exact_labelled_envelope():
     s3 = ledger.add_source(data("s3", 0, 30))
     claim = ledger.add_source(vendor())
     studies = [el.StudyEstimate(s3, 1.0, 1.0), el.StudyEstimate(claim, 3.0, 2.0)]
-    outcome = ledger.dependence_range("range", studies, rho_lo=0.0, rho_hi=0.9)
+    outcome = require_success(ledger.dependence_range("range", studies, rho_lo=0.0, rho_hi=0.9))
     assert outcome.claim_class == "assumption_range"
     assert outcome.claim_label == "assumption_range"
     env = outcome.value
@@ -529,7 +570,9 @@ def test_the_dependence_range_is_an_exact_labelled_envelope():
     # A range that is not strictly inside the definite interval refuses.
     for lo, hi in [(0.3, 0.3), (0.0, 1.0), (-1.5, 0.2)]:
         error = refused(
-            lambda lo=lo, hi=hi: ledger.dependence_range("bad", studies, rho_lo=lo, rho_hi=hi)
+            lambda lo=lo, hi=hi: require_success(
+                ledger.dependence_range("bad", studies, rho_lo=lo, rho_hi=hi)
+            )
         )
         assert error.reason_code == "invalid_argument", (lo, hi)
 
@@ -592,8 +635,10 @@ def test_citing_a_result_counts_its_observations_once_and_refuses_a_stale_one():
     a = ledger.add_source(data("a", 0, 30))
     b = ledger.add_source(data("b", 30, 50))
     c = ledger.add_source(data("c", 50, 60))
-    pooled = ledger.pool_summaries(
-        "pooled", [summary(a, 1.0, 1.0), summary(b, 2.0, 1.0), summary(c, 3.0, 1.0)]
+    pooled = require_success(
+        ledger.pool_summaries(
+            "pooled", [summary(a, 1.0, 1.0), summary(b, 2.0, 1.0), summary(c, 3.0, 1.0)]
+        )
     )
     assert pooled.mass.distinct_observations == 60
     first = ledger.reuse_result("second_analysis", pooled.result)
@@ -604,7 +649,7 @@ def test_citing_a_result_counts_its_observations_once_and_refuses_a_stale_one():
         # Each citation reports the once-counted mass, not a multiple of it.
         assert record is not None and record.mass == pooled.mass
     # A stale result is recomputed before it is cited.
-    ledger.revise_source(el.SourceRevision.update(c, data("c_more", 50, 70)))
+    require_success(ledger.revise_source(el.SourceRevision.update(c, data("c_more", 50, 70))))
     assert ledger.standing(pooled.result) == "recompute"
     error = refused(lambda: ledger.reuse_result("cite", pooled.result))
     expect(error, "evidence_source_withdrawn", "evidence_ledger.result_not_valid")
@@ -636,10 +681,10 @@ def test_a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record():
     def summaries(shift: float, count: int = 5):
         return [summary(sources[i], 0.5 + shift * (i - 2), 0.01 + 0.002 * i) for i in range(count)]
 
-    fixed = ledger.pool_summaries("fixed", summaries(0.01)).result
-    random = ledger.random_effects("random", summaries(0.05, 20)).result
-    gaussian = ledger.random_effects(
-        "gaussian", summaries(0.05), method="equal_study_gaussian"
+    fixed = require_success(ledger.pool_summaries("fixed", summaries(0.01))).result
+    random = require_success(ledger.random_effects("random", summaries(0.05, 20))).result
+    gaussian = require_success(
+        ledger.random_effects("gaussian", summaries(0.05), method="equal_study_gaussian")
     ).result
     for result, method in (
         (fixed, "wald_z"),
@@ -654,12 +699,14 @@ def test_a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record():
         assert interval["calibration"]["record_id"]
     for count in (5, 10, 15):
         for method in ("dersimonian_laird", "reml"):
-            legacy = ledger.random_effects(
-                f"legacy-{count}-{method}", summaries(0.05, count), method=method
+            legacy = require_success(
+                ledger.random_effects(
+                    f"legacy-{count}-{method}", summaries(0.05, count), method=method
+                )
             ).result
             error = refused(lambda legacy=legacy: ledger.pooled_interval(legacy))
             expect(error, "cell_not_licensed", "evidence_ledger.hksj_study_count_not_measured")
-    three = ledger.pool_summaries("three", summaries(0.01, 3)).result
+    three = require_success(ledger.pool_summaries("three", summaries(0.01, 3))).result
     error = refused(lambda: ledger.pooled_interval(three))
     expect(error, "cell_not_licensed", "evidence_ledger.interval_not_measured")
 
@@ -683,7 +730,11 @@ def test_a_pooled_interval_refuses_without_a_measured_record():
 
 def test_withdrawing_a_source_classifies_dependents_and_refuses_their_use():
     s = Scenario()
-    report = s.ledger.revise_source(el.SourceRevision.withdraw(s.s1, "consent withdrawn"))
+    report = require_success(
+        s.ledger.revise_source(
+            require_success(el.SourceRevision.withdraw(s.s1, "consent withdrawn"))
+        )
+    )
     assert report.revalidation[s.r_s1_s2] == "withdrawn"
     assert report.revalidation[s.r_cite] == "withdrawn"
     assert report.revalidation[s.r_s2_s3] == "still_valid"
@@ -703,8 +754,8 @@ def test_withdrawing_a_source_classifies_dependents_and_refuses_their_use():
     # New work cannot rest on the withdrawn source, directly or by lineage.
     expect(
         refused(
-            lambda: s.ledger.pool_summaries(
-                "again", [summary(s.s1, 1.0, 1.0), summary(s.s3, 2.0, 1.0)]
+            lambda: require_success(
+                s.ledger.pool_summaries("again", [summary(s.s1, 1.0, 1.0), summary(s.s3, 2.0, 1.0)])
             )
         ),
         "evidence_source_withdrawn",
@@ -712,8 +763,10 @@ def test_withdrawing_a_source_classifies_dependents_and_refuses_their_use():
     )
     expect(
         refused(
-            lambda: s.ledger.pool_summaries(
-                "via_model", [summary(s.model, 0.5, 1.0), summary(s.s2, 3.0, 4.0)]
+            lambda: require_success(
+                s.ledger.pool_summaries(
+                    "via_model", [summary(s.model, 0.5, 1.0), summary(s.s2, 3.0, 4.0)]
+                )
             )
         ),
         "evidence_source_withdrawn",
@@ -727,8 +780,10 @@ def test_withdrawing_a_source_classifies_dependents_and_refuses_their_use():
 
     # The recompute on the remaining studies names the result it replaces and the original is
     # preserved but unusable.
-    recomputed = s.ledger.pool_summaries(
-        "all_minus_s1", [summary(s.s2, 2.0, 2.0), summary(s.s3, 6.0, 4.0)], replaces=s.r_all
+    recomputed = require_success(
+        s.ledger.pool_summaries(
+            "all_minus_s1", [summary(s.s2, 2.0, 2.0), summary(s.s3, 6.0, 4.0)], replaces=s.r_all
+        )
     )
     assert s.ledger.standing(recomputed.result) == "still_valid"
     assert s.ledger.standing(s.r_all) == "withdrawn"
@@ -748,7 +803,9 @@ def test_superseding_a_model_marks_dependents_for_recompute():
     successor = el.SourceDeclaration(
         "model_v2_on_s1", "fitted_model", lineage=el.Lineage.derived_from_used_data([s.s1])
     )
-    report = s.ledger.revise_source(el.SourceRevision.supersede(s.model, successor))
+    report = require_success(
+        s.ledger.revise_source(el.SourceRevision.supersede(s.model, successor))
+    )
     successor_id = report.created_source
     assert successor_id is not None
     assert report.revalidation[s.r_model] == "recompute"
@@ -761,17 +818,19 @@ def test_superseding_a_model_marks_dependents_for_recompute():
     )
     # The superseded model cannot enter new results, and the refusal names its successor.
     error = refused(
-        lambda: s.ledger.pool_summaries(
-            "stale", [summary(s.model, 0.5, 1.0), summary(s.s2, 3.0, 4.0)]
+        lambda: require_success(
+            s.ledger.pool_summaries("stale", [summary(s.model, 0.5, 1.0), summary(s.s2, 3.0, 4.0)])
         )
     )
     expect(error, "evidence_source_withdrawn", "evidence_ledger.source_superseded")
     assert successor_id in error.message
     # Recompute on the successor.
-    recomputed = s.ledger.pool_summaries(
-        "model_s3",
-        [summary(successor_id, 0.7, 1.0), summary(s.s3, 2.0, 1.0)],
-        replaces=s.r_model,
+    recomputed = require_success(
+        s.ledger.pool_summaries(
+            "model_s3",
+            [summary(successor_id, 0.7, 1.0), summary(s.s3, 2.0, 1.0)],
+            replaces=s.r_model,
+        )
     )
     assert s.ledger.standing(recomputed.result) == "still_valid"
     assert s.ledger.synthesis(recomputed.result) is not None
@@ -784,13 +843,17 @@ def test_a_result_derived_from_a_valid_result_is_reached_by_a_later_withdrawal()
     assert declaration.lineage.wire["kind"] == "derived_from_used_data"
     assert set(declaration.lineage.wire["inputs"]) == {s.s1, s.s2, s.s3}
     claim = s.ledger.add_source(declaration)
-    report = s.ledger.revise_source(el.SourceRevision.withdraw(s.s3, "retracted"))
+    report = require_success(
+        s.ledger.revise_source(require_success(el.SourceRevision.withdraw(s.s3, "retracted")))
+    )
     assert report.revalidation  # classified
     # The derived claim is lost through lineage: it cannot enter new results.
     other = s.ledger.add_source(data("fresh", 700, 710))
     error = refused(
-        lambda: s.ledger.pool_summaries(
-            "via_claim", [summary(claim, 1.0, 1.0), summary(other, 2.0, 1.0)]
+        lambda: require_success(
+            s.ledger.pool_summaries(
+                "via_claim", [summary(claim, 1.0, 1.0), summary(other, 2.0, 1.0)]
+            )
         )
     )
     assert error.detail == "evidence_ledger.source_withdrawn"
@@ -804,11 +867,15 @@ def test_refresh_is_all_or_nothing_and_keeps_untouched_results():
     head, state = s.ledger.head, s.ledger.state_digest
     result_count = len(s.ledger.results)
 
-    refreshed = s.ledger.refresh(
-        [
-            el.SourceChange.add(data("s4", 200, 230)),
-            el.SourceChange.revise(el.SourceRevision.withdraw(s.s1, "consent withdrawn")),
-        ]
+    refreshed = require_success(
+        s.ledger.refresh(
+            [
+                el.SourceChange.add(data("s4", 200, 230)),
+                el.SourceChange.revise(
+                    require_success(el.SourceRevision.withdraw(s.s1, "consent withdrawn"))
+                ),
+            ]
+        )
     )
     assert len(refreshed.reports) == 2
     # Kept: results whose sources are untouched, with their numbers.
@@ -827,11 +894,15 @@ def test_refresh_is_all_or_nothing_and_keeps_untouched_results():
     # One refused change refuses the batch: the valid addition is not kept.
     unknown = "cd" * 32
     error = refused(
-        lambda: s.ledger.refresh(
-            [
-                el.SourceChange.add(data("s5", 300, 320)),
-                el.SourceChange.revise(el.SourceRevision.withdraw(unknown, "x")),
-            ]
+        lambda: require_success(
+            s.ledger.refresh(
+                [
+                    el.SourceChange.add(data("s5", 300, 320)),
+                    el.SourceChange.revise(
+                        require_success(el.SourceRevision.withdraw(unknown, "x"))
+                    ),
+                ]
+            )
         )
     )
     expect(error, "invalid_argument", "evidence_ledger.unknown_source")
@@ -844,10 +915,12 @@ def test_refresh_is_all_or_nothing_and_keeps_untouched_results():
 
 def test_the_artifact_replays_and_a_consumer_refuses_another_history():
     s = Scenario()
-    export = s.ledger.artifact("ledger-1")
+    export = s.ledger.export("ledger-1")
     assert len(export.metadata["carried"]) == 4
     assert export.metadata["not_carried"] == {}
-    consumed = el.consume_evidence_ledger_artifact(export.data, export.expectation.identity)
+    consumed = require_success(
+        el.consume_evidence_ledger_artifact(export.data, export.expectation.identity)
+    )
     assert consumed.identity == export.expectation.identity
     assert consumed.head == s.ledger.head
     assert consumed.state_digest == s.ledger.state_digest
@@ -864,20 +937,22 @@ def test_the_artifact_replays_and_a_consumer_refuses_another_history():
     assert all_studies.values[:3] == pytest.approx((10 / 7, 4 / 7, 52 / 7), abs=TOL)
 
     # A consumer that retained another identity refuses these bytes.
-    other = s.ledger.refresh([el.SourceChange.add(data("extra", 900, 910))])
-    other_export = other.session.artifact("ledger-2")
+    other = require_success(s.ledger.refresh([el.SourceChange.add(data("extra", 900, 910))]))
+    other_export = other.session.export("ledger-2")
     assert other_export.expectation.identity != export.expectation.identity
     error = refused(
-        lambda: el.consume_evidence_ledger_artifact(export.data, other_export.expectation.identity)
+        lambda: require_success(
+            el.consume_evidence_ledger_artifact(export.data, other_export.expectation.identity)
+        )
     )
     assert error.detail == "evidence_ledger.identity_mismatch"
     # One that holds none still refuses a damaged container, and truncated bytes.
     damaged = bytearray(export.data)
     damaged[len(damaged) // 2] ^= 0x55
-    refused(lambda: el.consume_evidence_ledger_artifact(bytes(damaged)))
-    refused(lambda: el.consume_evidence_ledger_artifact(export.data[:30]))
+    refused(lambda: require_success(el.consume_evidence_ledger_artifact(bytes(damaged))))
+    refused(lambda: require_success(el.consume_evidence_ledger_artifact(export.data[:30])))
     with pytest.raises(CausalTypeError):
-        el.consume_evidence_ledger_artifact("not bytes")  # type: ignore[arg-type]
+        require_success(el.consume_evidence_ledger_artifact("not bytes"))  # type: ignore[arg-type]
 
 
 def test_a_stored_value_that_differs_is_a_different_history():
@@ -885,30 +960,34 @@ def test_a_stored_value_that_differs_is_a_different_history():
     retained the original refuses it, and it replays only against its own."""
     original = el.EvidenceLedger()
     studies = three_studies(original, y=(0.0, 2.0, 6.0))
-    original.pool_summaries("p", studies)
-    export = original.artifact("ledger")
+    require_success(original.pool_summaries("p", studies))
+    export = original.export("ledger")
 
     edited = el.EvidenceLedger()
     studies = three_studies(edited, y=(0.0, 2.0, 7.0))  # same sources, another stored number
-    edited.pool_summaries("p", studies)
-    forged = edited.artifact("ledger")
+    require_success(edited.pool_summaries("p", studies))
+    forged = edited.export("ledger")
     assert forged.expectation.identity != export.expectation.identity
     expect(
         refused(
-            lambda: el.consume_evidence_ledger_artifact(forged.data, export.expectation.identity)
+            lambda: require_success(
+                el.consume_evidence_ledger_artifact(forged.data, export.expectation.identity)
+            )
         ),
         "route_not_supported",
         "evidence_ledger.identity_mismatch",
     )
-    own = el.consume_evidence_ledger_artifact(forged.data, forged.expectation.identity)
+    own = require_success(
+        el.consume_evidence_ledger_artifact(forged.data, forged.expectation.identity)
+    )
     values = own.syntheses[0].values
     assert values[0] == pytest.approx(
         inverse_variance([0.0, 2.0, 7.0], [1.0, 2.0, 4.0])[0], abs=TOL
     )
     # The same history and numbers give the same identity, bit for bit.
     again = el.EvidenceLedger()
-    again.pool_summaries("p", three_studies(again, y=(0.0, 2.0, 6.0)))
-    assert again.artifact("ledger").expectation.identity == export.expectation.identity
+    require_success(again.pool_summaries("p", three_studies(again, y=(0.0, 2.0, 6.0))))
+    assert again.export("ledger").expectation.identity == export.expectation.identity
     assert again.head == original.head
 
 
@@ -917,7 +996,7 @@ def range_ledger(rho_hi: float = 0.9) -> tuple[el.EvidenceLedger, str, str]:
     s3 = ledger.add_source(data("s3", 0, 30))
     claim = ledger.add_source(vendor())
     studies = [el.StudyEstimate(s3, 1.0, 1.0), el.StudyEstimate(claim, 3.0, 2.0)]
-    outcome = ledger.dependence_range("range", studies, rho_lo=0.0, rho_hi=rho_hi)
+    outcome = require_success(ledger.dependence_range("range", studies, rho_lo=0.0, rho_hi=rho_hi))
     return ledger, outcome.result, claim
 
 
@@ -936,8 +1015,8 @@ def test_a_range_outside_the_definite_interval_or_non_finite_is_refused_and_regi
     for lo, hi, se in cases:
         studies = [el.StudyEstimate(s3, 1.0, 1.0), el.StudyEstimate(claim, 3.0, se)]
         error = refused(
-            lambda studies=studies, lo=lo, hi=hi: ledger.dependence_range(
-                "bad", studies, rho_lo=lo, rho_hi=hi
+            lambda studies=studies, lo=lo, hi=hi: require_success(
+                ledger.dependence_range("bad", studies, rho_lo=lo, rho_hi=hi)
             )
         )
         assert error.reason_code == "invalid_argument", (lo, hi, se)
@@ -945,16 +1024,18 @@ def test_a_range_outside_the_definite_interval_or_non_finite_is_refused_and_regi
     pair = [el.StudyEstimate(s3, 1.0, 1.0), el.StudyEstimate(claim, 3.0, 2.0)]
     for lo, hi in [(float("nan"), 0.2), (0.0, float("inf"))]:
         with pytest.raises(CausalValueError):
-            ledger.dependence_range("bad", pair, rho_lo=lo, rho_hi=hi)
+            require_success(ledger.dependence_range("bad", pair, rho_lo=lo, rho_hi=hi))
     assert (ledger.head, ledger.state_digest, len(ledger.results)) == (head, state, count)
 
 
 def test_an_exported_dependence_range_is_replayed_as_an_assumption_range():
     ledger, result, claim = range_ledger()
-    export = ledger.artifact("range-ledger")
+    export = ledger.export("range-ledger")
     assert export.metadata["carried"] == (result,)
     assert export.metadata["not_carried"] == {}
-    consumed = el.consume_evidence_ledger_artifact(export.data, export.expectation.identity)
+    consumed = require_success(
+        el.consume_evidence_ledger_artifact(export.data, export.expectation.identity)
+    )
     # The consumer recomputed the envelope in the method's fixed order: estimate min, rho at
     # min, estimate max, rho at max, variance min, rho at min, variance max, rho at max.
     # Hand values: -1/7 at 0.9, 7/5 at 0, 19/35 at 0.9, and the interior maximum 1 at 1/2.
@@ -977,20 +1058,23 @@ def test_an_exported_dependence_range_is_replayed_as_an_assumption_range():
     # The same history gives the same identity; another range is another artifact, so a
     # consumer that retained the original refuses it.
     assert (
-        range_ledger()[0].artifact("range-ledger").expectation.identity
-        == export.expectation.identity
+        range_ledger()[0].export("range-ledger").expectation.identity == export.expectation.identity
     )
     widened, _, _ = range_ledger(rho_hi=0.95)
-    forged = widened.artifact("range-ledger")
+    forged = widened.export("range-ledger")
     assert forged.expectation.identity != export.expectation.identity
     expect(
         refused(
-            lambda: el.consume_evidence_ledger_artifact(forged.data, export.expectation.identity)
+            lambda: require_success(
+                el.consume_evidence_ledger_artifact(forged.data, export.expectation.identity)
+            )
         ),
         "route_not_supported",
         "evidence_ledger.identity_mismatch",
     )
-    own = el.consume_evidence_ledger_artifact(forged.data, forged.expectation.identity)
+    own = require_success(
+        el.consume_evidence_ledger_artifact(forged.data, forged.expectation.identity)
+    )
     widened_replay = own.syntheses[0]
     assert widened_replay.method == "dependence_envelope"
     assert widened_replay.values[0] == pytest.approx((7 - 8 * 0.95) / (5 - 4 * 0.95), abs=TOL)
@@ -998,7 +1082,7 @@ def test_an_exported_dependence_range_is_replayed_as_an_assumption_range():
 
 def test_a_fresh_process_consumes_the_artifact_against_the_retained_identity(tmp_path):
     s = Scenario()
-    export = s.ledger.artifact("fresh")
+    export = s.ledger.export("fresh")
     path = tmp_path / "artifact.bin"
     path.write_bytes(export.data)
     script = (
@@ -1042,15 +1126,17 @@ def test_cancellation_stops_before_a_synthesis_and_leaves_the_session_unchanged(
     token = _native.CancellationToken()
     token.cancel()
     error = refused(
-        lambda: ledger.pool_summaries(
-            "p", [summary(s1, 1.0, 1.0), summary(s2, 3.0, 4.0)], cancel=token
+        lambda: require_success(
+            ledger.pool_summaries("p", [summary(s1, 1.0, 1.0), summary(s2, 3.0, 4.0)], cancel=token)
         )
     )
     assert error.reason_code == "cancelled_no_claim"
     assert ledger.state_digest == state
     assert ledger.results == ()
     # The same request under a live context succeeds.
-    assert ledger.pool_summaries("p", [summary(s1, 1.0, 1.0), summary(s2, 3.0, 4.0)]).value
+    assert require_success(
+        ledger.pool_summaries("p", [summary(s1, 1.0, 1.0), summary(s2, 3.0, 4.0)])
+    ).value
 
 
 def test_identities_are_deterministic():
@@ -1094,7 +1180,9 @@ def test_rows_declare_row_level_observations_by_domain_and_key():
 def test_equal_study_gaussian_method_uses_study_noise_and_replays_without_borrowing_old_intervals():
     ledger = el.EvidenceLedger()
     studies = three_studies(ledger, v=(0.01, 100.0, 0.2))
-    outcome = ledger.random_effects("equal-study", studies, method="equal_study_gaussian")
+    outcome = require_success(
+        ledger.random_effects("equal-study", studies, method="equal_study_gaussian")
+    )
     assert isinstance(outcome.value, el.EqualStudyGaussian)
     # Independent numpy formula; changing estimated study variances does not change weights.
     ys = np.array([0.0, 2.0, 6.0])
@@ -1102,8 +1190,10 @@ def test_equal_study_gaussian_method_uses_study_noise_and_replays_without_borrow
     assert outcome.value.variance == pytest.approx(ys.var(ddof=1) / len(ys), abs=TOL)
     assert outcome.value.weights == pytest.approx((1 / 3, 1 / 3, 1 / 3), abs=TOL)
     assert outcome.value.degrees_of_freedom == 2
-    export = ledger.artifact("equal-study")
-    consumed = el.consume_evidence_ledger_artifact(export.data, export.expectation.identity)
+    export = ledger.export("equal-study")
+    consumed = require_success(
+        el.consume_evidence_ledger_artifact(export.data, export.expectation.identity)
+    )
     replay = consumed.synthesis_of(outcome.result)
     assert replay.method == "equal_study_gaussian"
     assert replay.values == pytest.approx((ys.mean(), ys.var(ddof=1) / len(ys)), abs=TOL)

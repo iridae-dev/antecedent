@@ -393,6 +393,7 @@ impl MultiSourceZTransportStage {
 
 /// A prepared mz formula; estimation evaluates the frozen plan without searching.
 #[pyclass(skip_from_py_object)]
+#[derive(Clone)]
 struct PreparedMultiSourceZTransportStage {
     inner: antecedent::PreparedMzTransport,
     graph: Admg,
@@ -405,6 +406,14 @@ struct PreparedMultiSourceZTransportStage {
 
 #[pymethods]
 impl PreparedMultiSourceZTransportStage {
+    #[pyo3(signature=(seed=None))]
+    fn fork(&self, seed: Option<u64>) -> PyResult<Self> {
+        let mut branch = Self { seed: seed.unwrap_or(self.seed), last: None, ..self.clone() };
+        let ctx = execution_context(branch.seed, branch.memory_bytes, None);
+        branch.inner = self.inner.refresh(self.inner.data().clone(), &ctx).map_err(error)?;
+        Ok(branch)
+    }
+
     /// Evaluate the frozen formula for every prepared request, with point
     /// contrasts against request 0. Exact laws are point-only; counted laws
     /// return the point with the interval withheld as `cell_not_licensed`
@@ -437,13 +446,13 @@ impl PreparedMultiSourceZTransportStage {
     /// Replace laws for the snapshots the frozen catalog binds; the proof is
     /// unchanged and the last claim is cleared. Other evidence identity refuses.
     #[pyo3(signature=(laws, *, memory_bytes=None, cancel=None))]
-    fn refresh(
-        &mut self,
+    fn bind_snapshot(
+        &self,
         py: Python<'_>,
         laws: &Bound<'_, PyAny>,
         memory_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<()> {
+    ) -> PyResult<Self> {
         let data = parse_laws(
             laws,
             &self.catalog,
@@ -453,9 +462,8 @@ impl PreparedMultiSourceZTransportStage {
         )?;
         let ctx = execution_context(self.seed, memory_bytes.or(self.memory_bytes), cancel);
         let inner = self.inner.clone();
-        self.inner = crate::detach_catch(py, move || inner.refresh(data, &ctx).map_err(error))?;
-        self.last = None;
-        Ok(())
+        let inner = crate::detach_catch(py, move || inner.refresh(data, &ctx).map_err(error))?;
+        Ok(Self { inner, last: None, ..self.clone() })
     }
 
     /// The last execution as a framed, independently consumable artifact.

@@ -14,6 +14,7 @@ import numpy as np
 import pytest
 from antecedent import _native
 from antecedent.errors import CausalCancelledError, CausalError, CausalTypeError, CausalValueError
+from antecedent.outcomes import require_success
 from antecedent.recalc import RecalcRefusal, Utility
 from antecedent.recalc_temporal import (
     CheckedTemporalIntervalCandidate as Candidate,
@@ -196,7 +197,7 @@ def test_original_checked_source_score_draws_intervals_and_fresh_consumer(
 ):
     req = request(functional)
     session = TemporalSession()
-    point = session.execute(req, seed=41)
+    point = require_success(session.execute(req, seed=41))
     config = Config(method=method, replicates=500, bootstrap_seed=9171, max_failed_fraction=0)
     candidate = session.interval_candidate(config=config)
     payload = candidate.inspect()
@@ -242,7 +243,7 @@ def test_original_checked_source_score_draws_intervals_and_fresh_consumer(
         assert candidate.standard_error is None and candidate.unit_scores is None
     assert candidate.interval == pytest.approx(expected, abs=1e-12)
     artifact = tmp_path / "original-checked-interval.cbor"
-    artifact.write_bytes(candidate.export())
+    artifact.write_bytes(bytes(candidate.export()))
     replayed = Candidate.load(artifact.read_bytes(), expected=candidate.expected_identity)
     assert replayed.inspect() == candidate.inspect()
     script = """
@@ -277,7 +278,7 @@ print(json.dumps(r.inspect(),sort_keys=True))
         replace(candidate.expected_identity, functional=TemporalResponse((1, 0))),
     ]:
         with pytest.raises(CausalError):
-            Candidate.load(candidate.export(), expected=changed)
+            Candidate.load(bytes(candidate.export()), expected=changed)
     for bounds in [
         {"max_units": 79},
         {"max_histories": 1279},
@@ -285,11 +286,15 @@ print(json.dumps(r.inspect(),sort_keys=True))
         {"memory_limit_bytes": 0},
     ]:
         with pytest.raises(CausalError):
-            Candidate.load(candidate.export(), expected=candidate.expected_identity, **bounds)
+            Candidate.load(
+                bytes(candidate.export()), expected=candidate.expected_identity, **bounds
+            )
     cancelled = _native.CancellationToken()
     cancelled.cancel()
     with pytest.raises(CausalCancelledError):
-        Candidate.load(candidate.export(), expected=candidate.expected_identity, cancel=cancelled)
+        Candidate.load(
+            bytes(candidate.export()), expected=candidate.expected_identity, cancel=cancelled
+        )
     with pytest.raises(CausalError):
         Candidate.load(b"invalid", expected=candidate.expected_identity)
 
@@ -317,7 +322,7 @@ def test_live_original_source_without_optional_hook_keeps_exact_frozen_refusal(m
 
     req = request(TemporalEffect((1, 1), (0, 0)))
     session = TemporalSession()
-    session.execute(req, seed=41)
+    require_success(session.execute(req, seed=41))
     identities = session.identities
 
     def without_optional(obj, name, default=None):
@@ -332,7 +337,7 @@ def test_live_original_source_without_optional_hook_keeps_exact_frozen_refusal(m
         "inference",
     )
     assert session.identities == identities
-    assert session.execute(req, seed=41).receipt.totals.total == 0
+    assert require_success(session.execute(req, seed=41)).receipt.totals.total == 0
 
 
 @pytest.mark.skipif(
@@ -351,7 +356,7 @@ def test_original_checked_source_reversed_nonconsecutive_ids_fresh_replay(tmp_pa
         [unit.unit_id for unit in req.units], reverse=True
     )
     session = TemporalSession()
-    point = session.execute(req, seed=41)
+    point = require_success(session.execute(req, seed=41))
     config = Config(
         method="studentized", replicates=500, bootstrap_seed=9171, max_failed_fraction=0
     )
@@ -369,7 +374,7 @@ def test_original_checked_source_reversed_nonconsecutive_ids_fresh_replay(tmp_pa
         selected.mean(axis=1), abs=1e-12
     )
     artifact = tmp_path / "reversed-source-checked-interval.cbor"
-    artifact.write_bytes(candidate.export())
+    artifact.write_bytes(bytes(candidate.export()))
     replayed = Candidate.load(artifact.read_bytes(), expected=candidate.expected_identity)
     assert replayed.inspect() == payload
     script = """

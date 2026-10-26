@@ -13,7 +13,7 @@ from antecedent.intervention_callbacks import (
     CallbackProgram,
     CallbackRecord,
     InterventionCallback,
-    export_records,
+    callback_records,
     recover_callback,
     sample_do,
 )
@@ -172,7 +172,7 @@ def test_a_runtime_binding_is_not_exportable_and_says_why():
     callback = InterventionCallback(lambda x: x, inputs=["x"], name="closure")
     assert not callback.recoverable
     program = CallbackProgram("y", callback)
-    for target in (callback.recovery_record, lambda: export_records([program])):
+    for target in (callback.recovery_record, lambda: callback_records([program])):
         with pytest.raises(CausalUnsupportedError) as raised:
             target()
         assert raised.value.reason_code == "policy_callback_not_portable"
@@ -182,7 +182,7 @@ def test_a_runtime_binding_is_not_exportable_and_says_why():
     )
     mixed = [CallbackProgram("y", recoverable), program]
     with pytest.raises(CausalUnsupportedError, match="closure"):
-        export_records(mixed)
+        callback_records(mixed)
 
 
 def test_a_source_declared_callback_round_trips_through_a_verified_record(gcm):
@@ -190,7 +190,7 @@ def test_a_source_declared_callback_round_trips_through_a_verified_record(gcm):
         SOURCE, entry_point="scaled", inputs=["x"], name="scaled", lower=-3.0, upper=3.0
     )
     assert original.recoverable
-    (record,) = export_records([CallbackProgram("y", original)])
+    (record,) = callback_records([CallbackProgram("y", original)])
     assert len(record.source_sha256) == 64
     assert dict(record.dependencies)["numpy"] == np.__version__
     restored_record = CallbackRecord.from_dict(record.to_dict())

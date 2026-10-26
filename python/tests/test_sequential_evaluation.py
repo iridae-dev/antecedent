@@ -38,6 +38,7 @@ from antecedent import _native
 from antecedent import measurement_models as mm
 from antecedent import sequential_evaluation as se
 from antecedent.errors import CausalTypeError, CausalValueError
+from antecedent.outcomes import require_success
 
 WAIT, INSPECT, SHIP, REPAIR, PILOT = range(5)
 NEGATIVE, ALARM = 0, 1
@@ -793,25 +794,29 @@ def test_off_policy_refusals_positivity_duplicates_and_inconsistent_logs():
 def sealed():
     problem = small_problem()
     log = [t for t in enumerated_log() if t.steps[0].action == INSPECT][::7]
-    return problem, se.seal(
-        problem,
-        det("inspect_then_act_v1", POLICIES["inspect_then_act"][0]),
-        behaviour=logging_policy(),
-        trajectories=log,
-        rollouts=(9, 300),
+    return problem, require_success(
+        se.seal(
+            problem,
+            det("inspect_then_act_v1", POLICIES["inspect_then_act"][0]),
+            behaviour=logging_policy(),
+            trajectories=log,
+            rollouts=(9, 300),
+        )
     )
 
 
 def test_the_artifact_replays_bit_for_bit_and_carries_receipts():
     _problem, artifact = sealed()
     assert artifact.value == pytest.approx(1.5, abs=TOL)
-    data = artifact.export("sequential-evaluation-1")
+    data = bytes(artifact.export("sequential-evaluation-1"))
     identities = artifact.identities
-    consumed = se.consume_artifact(
-        data,
-        model=identities["model"],
-        policy=identities["policy"],
-        evaluation=identities["evaluation"],
+    consumed = require_success(
+        se.consume_artifact(
+            data,
+            model=identities["model"],
+            policy=identities["policy"],
+            evaluation=identities["evaluation"],
+        )
     )
     assert consumed.value == artifact.value
     assert consumed.identities == identities
@@ -823,48 +828,50 @@ def test_the_artifact_replays_bit_for_bit_and_carries_receipts():
     assert consumed.policy.version == "inspect_then_act_v1"
     assert se.evaluate(consumed.model, consumed.policy).value == pytest.approx(1.5, abs=TOL)
     # a policy-only artifact carries neither estimate
-    plain = se.seal(small_problem(), det("ship_v1", {(): SHIP}))
+    plain = require_success(se.seal(small_problem(), det("ship_v1", {(): SHIP})))
     assert plain.summary["off_policy"] is None and plain.summary["rollout"] is None
 
 
 def test_a_resealed_other_evaluation_corruption_and_wrong_kinds_are_refused():
     problem, artifact = sealed()
-    data = artifact.export("one")
-    other = se.seal(problem, det("ship_v1", {(): SHIP}))
-    forged = other.export("two")
+    data = bytes(artifact.export("one"))
+    other = require_success(se.seal(problem, det("ship_v1", {(): SHIP})))
+    forged = bytes(other.export("two"))
     # internally consistent, but not the evaluation the consumer retained
-    se.consume_artifact(forged)
+    require_success(se.consume_artifact(forged))
     for wanted in (
         {"policy": artifact.identities["policy"]},
         {"evaluation": artifact.identities["evaluation"]},
         {"model": "0" * 64},
     ):
         refused(
-            lambda wanted=wanted: se.consume_artifact(forged, **wanted),
+            lambda wanted=wanted: require_success(se.consume_artifact(forged, **wanted)),
             "route_not_supported",
             "sequential_evaluation.identity_mismatch",
         )
     # a different law is a different model identity
-    changed = se.seal(replace(problem, terminal_utility=(0.0, 1.0)), det("ship_v1", {(): SHIP}))
+    changed = require_success(
+        se.seal(replace(problem, terminal_utility=(0.0, 1.0)), det("ship_v1", {(): SHIP}))
+    )
     assert changed.identities["model"] != other.identities["model"]
     # damaged and truncated bytes, and bytes that are not an artifact
     damaged = bytearray(data)
     damaged[len(damaged) // 2] ^= 0x55
     with pytest.raises(se.SequentialEvaluationRefusal):
-        se.consume_artifact(bytes(damaged))
+        require_success(se.consume_artifact(bytes(damaged)))
     with pytest.raises(se.SequentialEvaluationRefusal):
-        se.consume_artifact(data[:30])
+        require_success(se.consume_artifact(data[:30]))
     with pytest.raises(CausalTypeError):
-        se.consume_artifact("not bytes")  # type: ignore[arg-type]
+        require_success(se.consume_artifact("not bytes"))  # type: ignore[arg-type]
     # logged trajectories need the logging policy that generated them
     with pytest.raises(CausalValueError):
-        se.seal(problem, det("v", {(): SHIP}), trajectories=enumerated_log()[:1])
+        require_success(se.seal(problem, det("v", {(): SHIP}), trajectories=enumerated_log()[:1]))
 
 
 def test_a_fresh_process_consumes_the_artifact_against_the_retained_identity(tmp_path):
     _problem, artifact = sealed()
     path = tmp_path / "artifact.bin"
-    path.write_bytes(artifact.export("fresh"))
+    path.write_bytes(bytes(artifact.export("fresh")))
     script = (
         "import json, sys\n"
         "from antecedent import sequential_evaluation as se\n"

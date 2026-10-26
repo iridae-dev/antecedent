@@ -8,7 +8,6 @@ narrows it; a single source is refused.
 from __future__ import annotations
 
 import pytest
-
 from antecedent.errors import CausalError
 from antecedent.measurement_models import (
     PopulationValidationCounts,

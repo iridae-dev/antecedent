@@ -43,6 +43,12 @@ from dataclasses import dataclass
 from typing import Any, Literal, cast
 
 from .. import _native
+from .._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .._columns import coerce_fields
 from .._refusal import raise_refusal
 from ..errors import CausalTypeError, CausalValueError
@@ -524,9 +530,10 @@ class EvidencePlan:
             raise CausalValueError("a consumed plan holds no declared studies to derive unlocks")
         return {int(query_id): self.unlocks.ids} if self.unlocks.ids else {}
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """A portable ``evidence_plan_v1`` artifact; see :func:`consume`."""
-        return bytes(_call(self._stage.export))
+        return artifact_from_receipt(self, bytes(_call(self._stage.export)))
 
     def explain(self) -> str:
         """What the plan found, what it did not, and why it is not an estimate."""
@@ -655,6 +662,7 @@ def consume_plan(
     candidate universe and re-seals honestly, nor does it check that arriving studies will
     deliver their declared evidence.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
     stage = _call(

@@ -27,6 +27,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._native import consume_array_fit_artifact as _consume
 
 __all__ = ["NuisanceScoreProduct", "load_artifact"]
@@ -66,9 +72,10 @@ class NuisanceScoreProduct:
     def __getitem__(self, name: str) -> float:
         return self.values[name]
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The retained artifact."""
-        return self.artifact
+        return artifact_from_receipt(self, self.artifact)
 
     def explain(self) -> str:
         """What the product is, and what it is not."""
@@ -79,6 +86,7 @@ class NuisanceScoreProduct:
 
 
 def _product(report_json: str, artifact: bytes) -> NuisanceScoreProduct:
+    artifact = container_bytes(artifact)
     report: Mapping[str, Any] = json.loads(report_json)
     result = report["result"]
     return NuisanceScoreProduct(
@@ -101,5 +109,6 @@ def load_artifact(artifact: bytes) -> NuisanceScoreProduct:
         CausalUnsupportedError: an edited, swapped, license-claiming or resealed artifact, or a
             stored result that does not replay from the retained arrays.
     """
+    artifact = container_bytes(artifact)
     report_json, _ = _consume(bytes(artifact))
     return _product(report_json, bytes(artifact))

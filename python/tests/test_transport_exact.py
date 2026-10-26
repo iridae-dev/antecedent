@@ -5,6 +5,7 @@ from dataclasses import replace
 import pytest
 from antecedent import Admg
 from antecedent.errors import CausalCancelledError, CausalResourceError, CausalUnsupportedError
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 
@@ -288,12 +289,12 @@ def test_checked_exact_transport_execution_survives_builder_disposal():
     del identification
     retained_plan = prepared.inspect()
     assert retained_plan.identification.available
-    result = prepared.estimate()
+    result = require_success(prepared.estimate())
     # Independent conditional-probability calculation: .35 / (.15 + .35) = .7.
     assert result.probabilities == pytest.approx((0.3, 0.7))
-    consumer = transport.consume_exact(prepared.export())
+    consumer = transport.consume_exact(bytes(prepared.export()))
     assert consumer.inspect().program_id == retained_plan.program_id
-    assert consumer.estimate().probabilities == pytest.approx((0.3, 0.7))
+    assert require_success(consumer.estimate()).probabilities == pytest.approx((0.3, 0.7))
 
 
 def test_inspect_does_not_evaluate_or_fit(monkeypatch):
@@ -366,18 +367,18 @@ def test_common_prepared_lifecycle_export_consume_atomic_refresh():
     before = prepared.inspect()
     assert before.identification.available
     assert not before.support.available
-    result = prepared.estimate()
+    result = require_success(prepared.estimate())
     assert result.mean("y") == pytest.approx(0.7)
     assert not prepared.inspect().uncertainty.available
-    assert load(prepared.export()).probabilities == result.probabilities
-    restored = transport.consume_exact(prepared.export())
+    assert require_success(load(bytes(prepared.export()))).probabilities == result.probabilities
+    restored = transport.consume_exact(bytes(prepared.export()))
     assert restored.inspect().program_id == before.program_id
-    assert restored.estimate() == result
+    assert require_success(restored.estimate()) == result
     unsupported = transport.ExactTransportData(
         (replace(data.laws[0], probabilities=(0.8, 0.2, 0.0, 0.0)),)
     )
     with pytest.raises(ValueError, match="zero denominator"):
-        prepared.refresh(unsupported)
+        require_success(prepared.refresh(unsupported))
     assert prepared.inspect().execution_id == before.execution_id
     updated = transport.ExactTransportData(
         (replace(data.laws[0], probabilities=(0.1, 0.4, 0.4, 0.1), snapshot_identity="two"),)
@@ -386,10 +387,10 @@ def test_common_prepared_lifecycle_export_consume_atomic_refresh():
     assert prepared.inspect().program_id == before.program_id
     assert prepared.inspect().execution_id != before.execution_id
     with pytest.raises(CausalUnsupportedError, match="no_execution_claim"):
-        prepared.export()
+        bytes(prepared.export())
     with pytest.raises(CausalUnsupportedError, match="stale_request"):
-        prepared._native.estimate(execution=before.execution_id)
-    assert prepared.refresh(data) == result
+        require_success(prepared._native.estimate(execution=before.execution_id))
+    assert require_success(prepared.refresh(data)) == result
 
 
 def test_consume_exact_estimates_from_the_embedded_law_after_builder_disposal():
@@ -402,19 +403,19 @@ def test_consume_exact_estimates_from_the_embedded_law_after_builder_disposal():
     )
     plan = producer_builder.inspect()
     assert plan.identification.available
-    result = producer_builder.estimate()
-    wire = producer_builder.export()
+    result = require_success(producer_builder.estimate())
+    wire = bytes(producer_builder.export())
     del producer_builder, identified, catalog, data
     consumed = transport.consume_exact(wire)
     assert consumed.inspect().program_id == plan.program_id
     assert consumed.inspect().identification.available
     assert not consumed.inspect().uncertainty.available
-    replay = consumed.estimate()
+    replay = require_success(consumed.estimate())
     # Independent conditional-probability calculation: .35 / (.15 + .35) = .7.
     assert replay.probabilities == pytest.approx((0.3, 0.7))
     assert replay == result
-    assert consumed.export() == wire
-    assert load(wire).probabilities == result.probabilities
+    assert bytes(consumed.export()) == wire
+    assert require_success(load(wire)).probabilities == result.probabilities
 
 
 def test_changed_evidence_contract_cannot_use_stale_preparation():
@@ -422,7 +423,7 @@ def test_changed_evidence_contract_cannot_use_stale_preparation():
 
     identified, catalog, data = fixture()
     prepared = prepare(data, query=transport.ExactTransportQuery(identified, catalog, {"x": 1.0}))
-    result = prepared.estimate()
+    result = require_success(prepared.estimate())
     before = prepared.inspect()
     # The same regime name now denotes an experiment on x; its law is a different object.
     experimental = replace(
@@ -446,9 +447,9 @@ def test_changed_evidence_contract_cannot_use_stale_preparation():
         )
     )
     with pytest.raises(ValueError, match="evidence regime"):
-        prepared.refresh(world)
+        require_success(prepared.refresh(world))
     assert prepared.inspect().execution_id == before.execution_id
-    assert prepared.refresh(data) == result
+    assert require_success(prepared.refresh(data)) == result
     # The old identification does not bind under the changed contract either.
     with pytest.raises(CausalUnsupportedError, match="missing_evidence"):
         prepare(world, query=transport.ExactTransportQuery(identified, experimental, {"x": 1.0}))
@@ -487,22 +488,26 @@ def test_catalog_standardization_uses_only_supplied_target_covariate_marginal():
         )
     )
     prepared = transport.prepare_exact(identified, catalog, data, at={"x": 1.0})
-    result = prepared.estimate()
+    result = require_success(prepared.estimate())
     assert result.mean("y") == pytest.approx(0.35)
     assert "transport.pretreatment_standardize" in result.rules
-    assert transport.consume_exact(prepared.export()).estimate() == result
+    assert require_success(transport.consume_exact(bytes(prepared.export())).estimate()) == result
 
 
 def test_common_prepare_entry_and_exact_contrast():
     from antecedent import prepare
 
     identified, catalog, data = fixture()
-    a = prepare(
-        data, query=transport.ExactTransportQuery(identified, catalog, {"x": 1.0})
-    ).estimate()
-    b = prepare(
-        data, query=transport.ExactTransportQuery(identified, catalog, {"x": 0.0})
-    ).estimate()
+    a = require_success(
+        prepare(
+            data, query=transport.ExactTransportQuery(identified, catalog, {"x": 1.0})
+        ).estimate()
+    )
+    b = require_success(
+        prepare(
+            data, query=transport.ExactTransportQuery(identified, catalog, {"x": 0.0})
+        ).estimate()
+    )
     assert a.contrast(b, "y") == pytest.approx(0.5)
 
 
@@ -536,12 +541,14 @@ def test_checked_irrelevant_zero_in_standardization_and_relevant_zero_failure():
     prepared = transport.prepare_exact(
         identified, catalog, transport.ExactTransportData((source, target)), at={"x": 1.0}
     )
-    result = prepared.estimate()
+    result = require_success(prepared.estimate())
     assert result.mean("y") == pytest.approx(0.3)
-    assert transport.consume_exact(prepared.export()).estimate() == result
+    assert require_success(transport.consume_exact(bytes(prepared.export())).estimate()) == result
     with pytest.raises(ValueError, match="zero_conditioning_mass"):
-        prepared.refresh(
-            transport.ExactTransportData((source, replace(target, probabilities=(0.5, 0.5))))
+        require_success(
+            prepared.refresh(
+                transport.ExactTransportData((source, replace(target, probabilities=(0.5, 0.5))))
+            )
         )
 
 
@@ -561,7 +568,10 @@ def test_result_reasoning_and_export_retain_native_authority_after_display_edits
         "assumptions",
     }
     edited = replace(result, probabilities=(0.99, 0.01), formula="edited")
-    assert transport.consume_exact(edited.export()).estimate().probabilities == result.probabilities
+    assert (
+        require_success(transport.consume_exact(bytes(edited.export())).estimate()).probabilities
+        == result.probabilities
+    )
 
 
 def test_snapshot_axis_permutation_and_shared_transform_contract():
@@ -576,7 +586,7 @@ def test_snapshot_axis_permutation_and_shared_transform_contract():
     )
     prepared.replace_snapshot(transport.ExactTransportData((permuted,)))
     assert prepared.inspect().program_id == before.program_id
-    assert prepared.estimate().mean("y") == pytest.approx(0.7)
+    assert require_success(prepared.estimate()).mean("y") == pytest.approx(0.7)
     preview = prepared.preview_transform("compatible_data_replace")
     assert preview["refused"] == "false"
     assert preview["input_identification"] == before.identification_id
@@ -591,22 +601,22 @@ def test_cancelled_exact_click_and_prepare_publish_no_claim():
     prepared = transport.prepare_exact(identified, catalog, data, at={"x": 1.0})
     token = CancellationToken()
     retained = transport.prepare_exact(identified, catalog, data, at={"x": 1.0}, cancel=token)
-    prepared.estimate()
-    artifact = prepared.export()
+    require_success(prepared.estimate())
+    artifact = bytes(prepared.export())
     identity = prepared.inspect().data_snapshot_id
     token.cancel()
     with pytest.raises(CausalCancelledError, match="cancel"):
-        retained.estimate()
+        require_success(retained.estimate())
     with pytest.raises(CausalCancelledError, match="cancel"):
         prepared.replace_snapshot(data, cancel=token)
     assert prepared.inspect().data_snapshot_id == identity
-    assert prepared.export() == artifact
+    assert bytes(prepared.export()) == artifact
     with pytest.raises(CausalCancelledError, match="cancel"):
         transport.consume_exact(artifact, cancel=token)
     with pytest.raises(CausalCancelledError, match="cancel"):
-        prepared.estimate(cancel=token)
+        require_success(prepared.estimate(cancel=token))
     with pytest.raises(CausalUnsupportedError, match="no_execution_claim"):
-        prepared.export()
+        bytes(prepared.export())
     with pytest.raises(CausalCancelledError, match="cancel"):
         prepare(
             data, query=transport.ExactTransportQuery(identified, catalog, {"x": 1.0}), cancel=token
@@ -677,7 +687,7 @@ def test_inspect_catalog_diagnoses_the_retained_proof_after_builder_disposal():
     del identified
     assert plan.inspect().identification.available
     # Independent conditional-probability calculation: .35 / (.15 + .35) = .7.
-    assert plan.estimate().probabilities == pytest.approx((0.3, 0.7))
+    assert require_success(plan.estimate()).probabilities == pytest.approx((0.3, 0.7))
 
 
 def test_checked_proof_graph_names_factor_binding_failure():
@@ -732,10 +742,10 @@ def test_classical_checked_program_and_catalog_proof_survive_graph_builder_dispo
     )
     prepared = transport.prepare_exact(builder, catalog, data, at={"x": 1.0})
     del builder, identified
-    assert prepared.estimate().probabilities == pytest.approx((0.3, 0.7))
-    assert transport.consume_exact(prepared.export()).estimate().probabilities == pytest.approx(
-        (0.3, 0.7)
-    )
+    assert require_success(prepared.estimate()).probabilities == pytest.approx((0.3, 0.7))
+    assert require_success(
+        transport.consume_exact(bytes(prepared.export())).estimate()
+    ).probabilities == pytest.approx((0.3, 0.7))
 
 
 def test_hypothetical_catalog_delta_does_not_change_supplied_evidence():

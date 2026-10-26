@@ -15,6 +15,7 @@ import pytest
 from antecedent import sensitivity_decision as sd
 from antecedent import transported_response as tr
 from antecedent.errors import CausalTypeError
+from antecedent.outcomes import require_success
 from antecedent.transport import sensitivity as ts
 
 from _refusal import assert_registered_refusal
@@ -75,8 +76,10 @@ def test_the_sealed_artifact_exports_and_a_consumer_recomputes_it() -> None:
     assert artifact.outcome is not None
     assert artifact.outcome.kind == "invariant_action"
 
-    data = artifact.export(artifact_id="transport-sensitivity")
-    consumed = sd.SensitivityArtifact.consume(data, expected_identity=artifact.identity)
+    data = bytes(artifact.export(artifact_id="transport-sensitivity"))
+    consumed = require_success(
+        sd.SensitivityArtifact.consume(data, expected_identity=artifact.identity)
+    )
     assert consumed.identity == artifact.identity
 
     # The same family on a response about another target is another range with another identity:

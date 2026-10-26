@@ -6,8 +6,16 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
+from ..._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ..._columns import coerce_fields
 from ..._defaults import OMITTED
+from ..._scientific import ScientificResult
 from ..._transport_results import TransportContrast, TransportUncertainty
 from ...errors import CausalValueError
 from ...learners import LearnerSpec, Logistic, _learner_wire
@@ -61,7 +69,7 @@ class StatisticalTransportData:
 
 
 @dataclass(frozen=True, slots=True)
-class StatisticalTransportDistribution:
+class StatisticalTransportDistribution(ScientificResult):
     """Plug-in target law with licensed or withheld sampling uncertainty."""
 
     acceptance: Any = field(default=None, init=False, repr=False, compare=False)
@@ -121,10 +129,11 @@ class StatisticalTransportDistribution:
             result["interval"] = tuple(result["interval"])
         return TransportContrast(result)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
         if self._execution is None:
             raise _no_native_authority()
-        return bytes(self._execution.export())
+        return artifact_from_receipt(self, bytes(self._execution.export()))
 
 
 @dataclass(frozen=True, slots=True)
@@ -224,6 +233,14 @@ def evaluate_statistical_grid(
     return tuple(_statistical_distribution(point, point.last_result()) for point in points)
 
 
+@artifact_consumer(
+    proof="PreparedStudy<StatisticalPreparedState>::consume checks proof, fitted joints and recorded point without re-bootstrap",
+    replayable=True,
+    identity=(),
+    unresolved=(
+        "raw source samples are not embedded; bind_snapshot before a new estimator execution",
+    ),
+)
 def consume_statistical(
     artifact: bytes,
     *,
@@ -238,6 +255,7 @@ def consume_statistical(
     ``max_support_rows`` bounds the samples a later ``refresh`` or
     ``replace_snapshot`` may bind to the consumed handle.
     """
+    artifact = container_bytes(artifact)
     from ... import _native
     from ...estimation import PreparedAnalysis, _Controls
 

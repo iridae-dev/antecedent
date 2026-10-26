@@ -17,6 +17,7 @@ import json
 import pytest
 from antecedent import _native
 from antecedent import cross_world_execution as cw
+from antecedent.outcomes import require_success
 
 R = cw.CrossWorldExecutionRefusal
 Q = (0.2, 0.5, 0.1, 0.2)
@@ -53,7 +54,7 @@ def _case() -> cw.CrossWorldRequest:
 
 
 def test_execute_answers_a_counterfactual_for_the_units_matching_the_evidence() -> None:
-    result = cw.CrossWorldExecutor().execute(_case())
+    result = require_success(cw.CrossWorldExecutor().execute(_case()))
     assert result.value == pytest.approx(1.0 / 3.0, abs=1e-12)
     assert result.units[0].evidence_probability == pytest.approx(0.12, abs=1e-12)
     assert result.label == "point_only"
@@ -64,7 +65,7 @@ def test_seal_binds_a_coupled_joint_event_to_its_declarations() -> None:
     request = _request(
         (cw.FactualUnit("u"),), cw.joint_probability([("x1", "y", 0), ("x0", "y", 1)])
     )
-    sealed = cw.seal(request, artifact_id="defier-event")
+    sealed = require_success(cw.seal(request, artifact_id="defier-event"))
     assert sealed.value == pytest.approx(0.1, abs=1e-12)
     assert sealed.result.label == "point_only"
     # The product of the marginals, 0.3 * 0.3, is not the coupled event.
@@ -76,22 +77,30 @@ def test_seal_binds_a_coupled_joint_event_to_its_declarations() -> None:
 
 
 def test_consume_replays_with_a_fresh_executor_and_enforces_the_retained_identity() -> None:
-    sealed = cw.seal(_case())
+    sealed = require_success(cw.seal(_case()))
     data = sealed.to_bytes()
-    consumed = cw.consume_cross_world_execution_artifact(data, expected_identity=sealed.identity)
+    consumed = require_success(
+        cw.consume_cross_world_execution_artifact(data, expected_identity=sealed.identity)
+    )
     assert consumed.result.value == pytest.approx(1.0 / 3.0, abs=1e-12)
     assert consumed.inference_claim == "point_only"
     assert dict(consumed.identity) == dict(sealed.identity)
-    other = cw.seal(
-        _request((cw.FactualUnit("u"),), cw.joint_probability([("x1", "y", 0), ("x0", "y", 1)]))
+    other = require_success(
+        cw.seal(
+            _request((cw.FactualUnit("u"),), cw.joint_probability([("x1", "y", 0), ("x0", "y", 1)]))
+        )
     )
     with pytest.raises(R) as error:
-        cw.consume_cross_world_execution_artifact(data, expected_identity=other.identity)
+        require_success(
+            cw.consume_cross_world_execution_artifact(data, expected_identity=other.identity)
+        )
     assert error.value.detail == "cross_world_execution.artifact_changed"
 
 
 def test_the_native_seal_entry_returns_the_sealed_bytes_and_a_replayable_summary() -> None:
-    request = _request((cw.FactualUnit("u"),), cw.mean_contrast(("x1", "y"), ("x0", "y")))
+    request = _request(
+        (cw.FactualUnit("u"),), require_success(cw.mean_contrast(("x1", "y"), ("x0", "y")))
+    )
     parts, refusal = _native.cross_world_seal(request.to_json(), "native-artifact", None)
     assert refusal is None and parts is not None
     data, summary = parts
@@ -99,5 +108,5 @@ def test_the_native_seal_entry_returns_the_sealed_bytes_and_a_replayable_summary
     assert info["result"]["value"] == pytest.approx(0.4, abs=1e-12)
     assert info["inference_claim"] == "point_only"
     # The bytes replay through the consumer to the same value.
-    consumed = cw.consume_cross_world_execution_artifact(bytes(data))
+    consumed = require_success(cw.consume_cross_world_execution_artifact(bytes(data)))
     assert consumed.result.value == pytest.approx(0.4, abs=1e-12)

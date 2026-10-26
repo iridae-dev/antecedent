@@ -16,7 +16,8 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent import nuisance_scores
-from antecedent.errors import CausalUnsupportedError
+from antecedent.errors import CausalSerializationError, CausalUnsupportedError
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -83,7 +84,7 @@ def test_the_product_matches_newton_and_a_laplace_sample() -> None:
 
 def test_the_artifact_is_refit_on_load_here_and_in_a_fresh_process() -> None:
     product = prepared().treatment_score_posterior(summary_rows=[0, 150], draws=500)
-    loaded = nuisance_scores.load_artifact(product.export())
+    loaded = nuisance_scores.load_artifact(bytes(product.export()))
     assert dict(loaded.values) == dict(product.values)
     assert loaded.request_digest == product.request_digest
     code = (
@@ -94,7 +95,7 @@ def test_the_artifact_is_refit_on_load_here_and_in_a_fresh_process() -> None:
     )
     done = subprocess.run(
         [sys.executable, "-c", code],
-        input=product.export(),
+        input=bytes(product.export()),
         capture_output=True,
         check=True,
     )
@@ -105,24 +106,26 @@ def test_the_artifact_is_refit_on_load_here_and_in_a_fresh_process() -> None:
 
 def test_an_edited_or_truncated_artifact_is_refused() -> None:
     product = prepared().treatment_score_posterior(summary_rows=[0], draws=500)
-    artifact = bytearray(product.export())
+    artifact = bytearray(bytes(product.export()))
     artifact[len(artifact) // 2] ^= 0x01
-    with pytest.raises(Exception):  # noqa: B017 - any typed decode or replay refusal
+    with pytest.raises(CausalUnsupportedError):
         nuisance_scores.load_artifact(bytes(artifact))
-    with pytest.raises(Exception):  # noqa: B017
-        nuisance_scores.load_artifact(product.export()[:-5])
+    with pytest.raises(CausalUnsupportedError):
+        nuisance_scores.load_artifact(bytes(product.export())[:-5])
 
 
 def test_a_bayesian_weighting_estimator_is_the_typed_boundary() -> None:
     with pytest.raises(CausalUnsupportedError) as info:
-        antecedent.analyze(
-            study_data(),
-            graph=GRAPH,
-            query=antecedent.AverageEffect("t", "y"),
-            estimator=antecedent.Estimator.PROPENSITY_WEIGHTING,
-            inference=antecedent.Bayesian(backend="conjugate", n_draws=2000),
-            refute=False,
-            bootstrap=0,
+        require_success(
+            antecedent.analyze(
+                study_data(),
+                graph=GRAPH,
+                query=antecedent.AverageEffect("t", "y"),
+                estimator=antecedent.Estimator.PROPENSITY_WEIGHTING,
+                inference=antecedent.Bayesian(backend="conjugate", n_draws=2000),
+                refute=False,
+                bootstrap=0,
+            )
         )
     error = info.value
     assert error.reason_code == "route_not_supported"
@@ -140,16 +143,16 @@ def test_the_product_is_never_read_as_an_effect_score_artifact() -> None:
 
     product = prepared().treatment_score_posterior(summary_rows=[0, 150], draws=500)
     names = ["z", "t", "y"]
-    with pytest.raises(Exception) as retarget:  # noqa: B017 - any typed decode refusal
+    with pytest.raises(CausalSerializationError) as retarget:
         recalc_cell.resume_from_scores(
-            product.export(),
+            bytes(product.export()),
             variables=names,
             edges=GRAPH,
             utility=Utility(benefit_per_unit=1.0),
         )
     assert not isinstance(retarget.value, AttributeError)
-    with pytest.raises(Exception):  # noqa: B017 - the causal artifact loader is not this family
-        artifacts.loads(product.export())
+    with pytest.raises(CausalSerializationError):
+        artifacts.loads(bytes(product.export()))
 
 
 # ----- temporal treatment score on the independent-subject rows of a panel --------------------
@@ -213,7 +216,7 @@ def test_the_temporal_penalized_score_is_the_ridge_mode_and_the_posterior_is_a_l
         float(sigmoid(sample[:, 0] + 1.5 * sample[:, 1]).mean()), abs=0.01
     )
     assert posterior.estimator_id == "bayesian.temporal.propensity_posterior"
-    loaded = nuisance_scores.load_artifact(posterior.export())
+    loaded = nuisance_scores.load_artifact(bytes(posterior.export()))
     assert dict(loaded.values) == dict(posterior.values)
 
 

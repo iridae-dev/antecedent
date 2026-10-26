@@ -26,6 +26,7 @@ from ._recalc_bounds import _admit, _check_resources, _columns
 from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
 from .estimators import DML, DRLearner
+from .outcomes import outcome_operation
 from .prediction import FittedEffectModel
 from .recalc import (
     Capabilities,
@@ -177,6 +178,7 @@ class DrSession:
         )
         return RecalcPlan.from_wire(json.loads(wire))
 
+    @outcome_operation
     def execute(
         self,
         request: DrRequest,
@@ -214,6 +216,7 @@ class DrSession:
             Decision(**wire["decision"]),
         )
 
+    @outcome_operation
     def predict(
         self,
         rows: Sequence[Sequence[float]],

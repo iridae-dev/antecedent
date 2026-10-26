@@ -163,6 +163,7 @@ mod registry;
 mod release_migration_api;
 mod sequential_evaluation_api;
 mod temporal_design_api;
+mod tiered_identify_api;
 mod unlicensed_design_api;
 pub(crate) use registry::transport_defaults;
 mod interface_contract_api;
@@ -3308,6 +3309,7 @@ impl PyCancellationToken {
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     data_snapshot::register(m)?;
     execution_api::register(m)?;
+    tiered_identify_api::register(m)?;
     contract_refusals_api::register(m)?;
     inspect_receipt_api::register(m)?;
     release_migration_api::register(m)?;

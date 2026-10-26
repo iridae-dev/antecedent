@@ -7,6 +7,7 @@ import math
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_json
 
@@ -337,14 +338,16 @@ _MED = antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated")
     ],
 )
 def test_licensed_cell_prepare_matches_analyze(data, graph, query, refute, inference):
-    fresh = antecedent.analyze(
-        data,
-        graph=graph,
-        query=query,
-        refute=refute,
-        bootstrap=0,
-        seed=1,
-        inference=inference,
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            refute=refute,
+            bootstrap=0,
+            seed=1,
+            inference=inference,
+        )
     )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
@@ -359,7 +362,7 @@ def test_licensed_cell_prepare_matches_analyze(data, graph, query, refute, infer
         assert prepared.structure_source == "accepted"
     if hasattr(prepared, "evidence_status"):
         assert prepared.evidence_status == "licensed"
-    click = prepared.estimate(data, seed=1)
+    click = require_success(prepared.estimate(data, seed=1))
     assert getattr(click, "evidence_status", None) == "licensed"
     if isinstance(query, antecedent.ResponseCurve):
         assert click.response is not None and fresh.response is not None
@@ -469,8 +472,10 @@ def test_temporal_dag_full_refute_completes_with_data_subset_refuter(graph, quer
         assert subset.passed
         assert subset.replicates == 20
 
-    result = antecedent.analyze(
-        _PULSE_DATA, graph=graph, query=query, refute="full", bootstrap=0, seed=1
+    result = require_success(
+        antecedent.analyze(
+            _PULSE_DATA, graph=graph, query=query, refute="full", bootstrap=0, seed=1
+        )
     )
     assert result.evidence_status == "licensed"
     assert result.ate == pytest.approx(_PULSE_TRUE_ATE, abs=1e-6)
@@ -480,7 +485,7 @@ def test_temporal_dag_full_refute_completes_with_data_subset_refuter(graph, quer
         _PULSE_DATA, graph=graph, query=query, refute="full", seed=1, latency="interactive"
     )
     assert prepared.evidence_status == "licensed"
-    estimated = prepared.estimate(_PULSE_DATA, seed=1)
+    estimated = require_success(prepared.estimate(_PULSE_DATA, seed=1))
     assert estimated.ate == pytest.approx(_PULSE_TRUE_ATE, abs=1e-6)
     _assert_data_subset_refuter(estimated)
 
@@ -488,8 +493,8 @@ def test_temporal_dag_full_refute_completes_with_data_subset_refuter(graph, quer
 def _outcome(data, graph, query):
     """Estimate, or the refusal type and message when the cell refuses."""
     try:
-        result = antecedent.analyze(
-            data, graph=graph, query=query, refute=False, bootstrap=0, seed=1
+        result = require_success(
+            antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0, seed=1)
         )
     except Exception as error:  # noqa: BLE001 - the refusal itself is compared
         return type(error), str(error)
@@ -525,14 +530,16 @@ def test_licensed_graph_posterior_prepare_matches_analyze():
     data = static_data(int(STATIC["n"]))
     posterior = static_posterior()
     query = antecedent.AverageEffect(treatment="t", outcome="y")
-    fresh = antecedent.analyze(
-        data,
-        discovery=posterior,
-        query=query,
-        inference=BAYES,
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            discovery=posterior,
+            query=query,
+            inference=BAYES,
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     # CodeQL resolves this facade call to the PyO3 class with the same name even
     # though the Python wrapper's signature explicitly accepts discovery=.
@@ -546,7 +553,7 @@ def test_licensed_graph_posterior_prepare_matches_analyze():
         seed=1,
         latency="interactive",
     )
-    click = prepared.estimate(data, seed=1)
+    click = require_success(prepared.estimate(data, seed=1))
     expected = float(STATIC["expected_effect_given_identified"])
     tolerance = float(STATIC["effect_abs_tolerance"])
     assert prepared.evidence_status == "licensed"
@@ -569,14 +576,16 @@ def test_licensed_graph_posterior_frequentist_prepare_matches_analyze():
     data = static_data(int(STATIC["n"]))
     posterior = static_posterior()
     query = antecedent.AverageEffect(treatment="t", outcome="y")
-    fresh = antecedent.analyze(
-        data,
-        discovery=posterior,
-        query=query,
-        inference=FREQ,
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            discovery=posterior,
+            query=query,
+            inference=FREQ,
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
     )
     # lgtm[py/call/wrong-named-argument]
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
@@ -588,7 +597,7 @@ def test_licensed_graph_posterior_frequentist_prepare_matches_analyze():
         seed=1,
         latency="interactive",
     )
-    click = prepared.estimate(data, seed=1)
+    click = require_success(prepared.estimate(data, seed=1))
     plan = prepared.plan_view().operation
     assert plan is not None
     assert plan["kind"] == "graph_posterior_effect"
@@ -605,7 +614,7 @@ def test_licensed_graph_posterior_frequentist_prepare_matches_analyze():
     assert any("unidentified_mass=0.2" in diagnostic for diagnostic in fresh.diagnostics)
     assert any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
     assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
-    consumed = antecedent.artifacts.accept(click.export())
+    consumed = antecedent.artifacts.accept(bytes(click.export()))
     assert consumed["accepts_as_verified_program"] == "false"
     assert "dependencies.checked_graph_posterior_effect_operation" in consumed["unresolved"]
 
@@ -632,12 +641,12 @@ def test_checked_static_mediation_retains_contrast_and_refresh(accepted: bool):
     assert plan["estimator"] == "mediation.linear"
     assert plan["validation"] == "none"
     assert len(plan["graph_edges"]) == 3
-    result = prepared.estimate(data, seed=11)
+    result = require_success(prepared.estimate(data, seed=11))
     assert result.ate == pytest.approx(0.3, abs=1e-9)
     changed = {**data, "y": y + 0.1 * a}
-    refreshed = prepared.refresh(changed, seed=11)
+    refreshed = require_success(prepared.refresh(changed, seed=11))
     assert refreshed.ate == pytest.approx(0.4, abs=1e-9)
-    consumed = antecedent.artifacts.accept(refreshed.export())
+    consumed = antecedent.artifacts.accept(bytes(refreshed.export()))
     assert consumed["accepts_as_verified_program"] == "false"
     assert "dependencies.checked_mediation_operation" in consumed["unresolved"]
 
@@ -672,13 +681,13 @@ def test_checked_bayesian_dag_ate_retains_prior_and_refresh(accepted: bool):
     assert plan["transferred_prior"] is False
     assert plan["validation"] == "none"
     assert plan["adjustment_set"] == ["z"]
-    result = prepared.estimate(data, seed=12)
+    result = require_success(prepared.estimate(data, seed=12))
     assert result.ate == pytest.approx(2.0, abs=0.2)
     assert result.posterior is not None
     changed = {**data, "y": data["y"] + 0.4 * data["t"]}
-    refreshed = prepared.refresh(changed, seed=12)
+    refreshed = require_success(prepared.refresh(changed, seed=12))
     assert refreshed.ate == pytest.approx(2.4, abs=0.2)
-    consumed = antecedent.artifacts.accept(refreshed.export())
+    consumed = antecedent.artifacts.accept(bytes(refreshed.export()))
     assert consumed["accepts_as_verified_program"] == "false"
     assert "dependencies.checked_bayesian_dag_ate_operation" in consumed["unresolved"]
 
@@ -715,15 +724,15 @@ def test_checked_conditional_effect_retains_interaction_target_and_refresh(
     assert len(plan["source_rows"]) == len(data["t"])
     assert prepared.structure_source == ("accepted" if accepted else "explicit")
 
-    result = prepared.estimate(data, seed=7)
+    result = require_success(prepared.estimate(data, seed=7))
     # The data generator is the exact SCM y = 1 + 2t + 0.5tw. Averaging its
     # conditional contrast 2 + 0.5w over the balanced w=0..4 gives 3.
     assert result.ate == pytest.approx(3.0, abs=1e-8)
     changed = {**data, "y": data["y"] + 0.4 * data["t"]}
-    refreshed = prepared.refresh(changed, seed=7)
+    refreshed = require_success(prepared.refresh(changed, seed=7))
     assert refreshed.ate == pytest.approx(3.4, abs=1e-8)
     assert prepared.plan_view().operation["source_rows"] == plan["source_rows"]
-    consumed = antecedent.artifacts.accept(refreshed.export())
+    consumed = antecedent.artifacts.accept(bytes(refreshed.export()))
     assert consumed["accepts_as_verified_program"] == "false"
     assert "dependencies.checked_conditional_effect_operation" in consumed["unresolved"]
 
@@ -757,12 +766,12 @@ def test_checked_temporal_effect_retains_policy_and_refresh(accepted, query, pol
     assert plan["validation"] == "none"
     assert plan["graph_signature"]
 
-    result = prepared.estimate(data, seed=9)
+    result = require_success(prepared.estimate(data, seed=9))
     assert result.ate == pytest.approx(0.5, abs=1e-6)
     changed = {**data, "y": data["y"] * 1.2}
-    refreshed = prepared.refresh(changed, seed=9)
+    refreshed = require_success(prepared.refresh(changed, seed=9))
     assert refreshed.ate == pytest.approx(0.6, abs=1e-6)
-    consumed = antecedent.artifacts.accept(refreshed.export())
+    consumed = antecedent.artifacts.accept(bytes(refreshed.export()))
     assert consumed["accepts_as_verified_program"] == "false"
     assert "dependencies.checked_temporal_dag_effect_operation" in consumed["unresolved"]
 
@@ -790,20 +799,20 @@ def test_checked_temporal_response_grid_survives_preparation_and_refresh(accepte
     assert plan["horizons"] == [1]
     assert plan["estimator"] == "temporal.response.gcomp"
 
-    result = prepared.estimate(data, seed=8)
+    result = require_success(prepared.estimate(data, seed=8))
     assert result.response is not None
     np.testing.assert_allclose(
         np.asarray(result.response.values).flatten(), [-0.25, 0.0, 0.25], atol=0.03
     )
     changed = {**data, "y": data["y"] + 0.3}
-    refreshed = prepared.refresh(changed, seed=8)
+    refreshed = require_success(prepared.refresh(changed, seed=8))
     assert refreshed.response is not None
     np.testing.assert_allclose(
         np.asarray(refreshed.response.values).flatten(),
         np.asarray(result.response.values).flatten() + 0.3,
         atol=1e-9,
     )
-    consumed = antecedent.artifacts.accept(refreshed.export())
+    consumed = antecedent.artifacts.accept(bytes(refreshed.export()))
     assert consumed["accepts_as_verified_program"] == "false"
     assert "dependencies.checked_temporal_response_operation" in consumed["unresolved"]
 
@@ -820,14 +829,16 @@ def test_licensed_dbn_posterior_prepare_matches_analyze():
         horizon_steps=1,
         active_level=1.0,
     )
-    fresh = antecedent.analyze(
-        data,
-        discovery=posterior,
-        query=query,
-        inference=BAYES,
-        refute=False,
-        bootstrap=0,
-        seed=11,
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            discovery=posterior,
+            query=query,
+            inference=BAYES,
+            refute=False,
+            bootstrap=0,
+            seed=11,
+        )
     )
     # CodeQL resolves this facade call to the PyO3 class with the same name even
     # though the Python wrapper's signature explicitly accepts discovery=.
@@ -841,7 +852,7 @@ def test_licensed_dbn_posterior_prepare_matches_analyze():
         seed=11,
         latency="interactive",
     )
-    click = prepared.estimate(data, seed=11)
+    click = require_success(prepared.estimate(data, seed=11))
     expected = float(TEMPORAL["expected_effect_given_identified"])
     tolerance = float(TEMPORAL["effect_abs_tolerance"])
     assert prepared.evidence_status == "licensed"
@@ -861,14 +872,16 @@ def test_prepared_exact_dag_posterior_discovery_reuses_identification():
     # Real-discovery arm of the prepared graph-posterior handle: discovery runs
     # once at prepare, identification is frozen per atom, and only the click
     # reports cache reuse.
-    fresh = antecedent.analyze(
-        _ATE_DATA,
-        discovery=antecedent.discovery.ExactDagPosterior(),
-        query=_ATE,
-        inference=_BAYES,
-        refute=False,
-        bootstrap=0,
-        seed=7,
+    fresh = require_success(
+        antecedent.analyze(
+            _ATE_DATA,
+            discovery=antecedent.discovery.ExactDagPosterior(),
+            query=_ATE,
+            inference=_BAYES,
+            refute=False,
+            bootstrap=0,
+            seed=7,
+        )
     )
     # lgtm[py/call/wrong-named-argument]
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
@@ -880,7 +893,7 @@ def test_prepared_exact_dag_posterior_discovery_reuses_identification():
         seed=7,
         latency="interactive",
     )
-    click = prepared.estimate(_ATE_DATA, seed=7)
+    click = require_success(prepared.estimate(_ATE_DATA, seed=7))
     assert prepared.evidence_status == "licensed"
     assert click.evidence_status == "licensed"
     assert click.ate is None and fresh.ate is None
@@ -909,14 +922,16 @@ def test_prepared_dbn_posterior_discovery_reuses_identification():
     )
     discovery = antecedent.discovery.DbnPosterior(max_lag=1)
     inference = antecedent.Bayesian(n_draws=64, prior_scale=100.0, backend="conjugate")
-    fresh = antecedent.analyze(
-        data,
-        discovery=discovery,
-        query=query,
-        inference=inference,
-        refute=False,
-        bootstrap=0,
-        seed=11,
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            discovery=discovery,
+            query=query,
+            inference=inference,
+            refute=False,
+            bootstrap=0,
+            seed=11,
+        )
     )
     # lgtm[py/call/wrong-named-argument]
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
@@ -928,7 +943,7 @@ def test_prepared_dbn_posterior_discovery_reuses_identification():
         seed=11,
         latency="interactive",
     )
-    click = prepared.estimate(data, seed=11)
+    click = require_success(prepared.estimate(data, seed=11))
     assert prepared.evidence_status == "licensed"
     assert click.evidence_status == "licensed"
     assert abs(click.ate - fresh.ate) < 1e-12
@@ -943,8 +958,10 @@ def test_prepared_dbn_posterior_discovery_reuses_identification():
 
 def test_distribution_publishes_bounded_probability_intervals():
     """Frequentist distribution atoms carry logit intervals inside [0, 1]."""
-    result = antecedent.analyze(
-        _DISTRIBUTION_DATA, graph=_DISTRIBUTION_DAG, query=_DISTRIBUTION, refute=False, seed=3
+    result = require_success(
+        antecedent.analyze(
+            _DISTRIBUTION_DATA, graph=_DISTRIBUTION_DAG, query=_DISTRIBUTION, refute=False, seed=3
+        )
     )
     atoms = result.estimate.distribution
     assert atoms is not None and len(atoms) == 2
@@ -968,8 +985,8 @@ def test_distribution_boundary_probability_reports_unavailable_interval():
     """P(y = 1 | do(t = 1)) = 0 has no interval, only a named reason and a diagnostic."""
     data = {key: value.copy() for key, value in _DISTRIBUTION_DATA.items()}
     data["y"][data["t"] == 1.0] = 0.0
-    result = antecedent.analyze(
-        data, graph=_DISTRIBUTION_DAG, query=_DISTRIBUTION, refute=False, seed=3
+    result = require_success(
+        antecedent.analyze(data, graph=_DISTRIBUTION_DAG, query=_DISTRIBUTION, refute=False, seed=3)
     )
     atoms = result.estimate.distribution
     assert atoms is not None

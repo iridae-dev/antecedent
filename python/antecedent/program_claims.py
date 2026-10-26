@@ -170,6 +170,9 @@ class ProgramBinding:
         The complete executed contract remains native execution authority. This
         scientific contract also binds external results for the same identified query.
         """
+        from .outcomes import require_success
+
+        response = require_success(response)
         return cls.from_spec(
             _external_response(
                 _identification_from_response(response),
@@ -505,6 +508,9 @@ class _NativeProgramIdentification:
 
 
 def _identification_from_response(response: CausalResponseView) -> _NativeProgramIdentification:
+    from .outcomes import require_success
+
+    response = require_success(response)
     from .query import ResponseCurve
 
     raw = response._raw
@@ -581,6 +587,9 @@ def native_claim(
     caller. A response without a label for every coordinate, or one that is not point
     identified, refuses.
     """
+    from .outcomes import require_success
+
+    response = require_success(response)
     projection = _projection(response)
     binding_json = json.dumps(program._wire())
     if response.quantities is not None:

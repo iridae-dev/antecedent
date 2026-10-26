@@ -17,6 +17,7 @@ from pathlib import Path
 import antecedent
 import pytest
 from antecedent import interference
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 from _repo_text import read_text
@@ -89,8 +90,10 @@ def interference_case(units, design, exposure, from_, to, seed, draws=10_000):
         ),
         probability_draws=draws,
     )
-    r = interference.estimate(
-        {"y": y}, assignment=assignment, edges=ring(units), query=query, seed=seed
+    r = require_success(
+        interference.estimate(
+            {"y": y}, assignment=assignment, edges=ring(units), query=query, seed=seed
+        )
     )
     return {
         "horvitz_thompson": r.contrast.horvitz_thompson,

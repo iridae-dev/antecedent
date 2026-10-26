@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from antecedent import factorial
+from antecedent.outcomes import require_success
 
 
 def _balanced_fixture() -> tuple[dict[str, np.ndarray], list[bool], list[bool]]:
@@ -14,12 +15,14 @@ def _balanced_fixture() -> tuple[dict[str, np.ndarray], list[bool], list[bool]]:
 
 def test_factorial_2x2_recovers_known_cell_means_and_contrasts() -> None:
     data, a, b = _balanced_fixture()
-    result = factorial.estimate(
-        data,
-        factor_a=a,
-        factor_b=b,
-        design=factorial.FactorialDesign(0.5, 0.5),
-        outcome="y",
+    result = require_success(
+        factorial.estimate(
+            data,
+            factor_a=a,
+            factor_b=b,
+            design=factorial.FactorialDesign(0.5, 0.5),
+            outcome="y",
+        )
     )
 
     assert result.cell_means == pytest.approx({"00": 1.0, "01": 4.0, "10": 3.0, "11": 10.0})
@@ -37,32 +40,38 @@ def test_factorial_2x2_recovers_known_cell_means_and_contrasts() -> None:
 def test_factorial_2x2_refuses_probability_positivity_failure() -> None:
     data, a, b = _balanced_fixture()
     with pytest.raises(ValueError, match="strictly between zero and one"):
-        factorial.estimate(
-            data,
-            factor_a=a,
-            factor_b=b,
-            design=factorial.FactorialDesign(0.0, 0.5),
-            outcome="y",
+        require_success(
+            factorial.estimate(
+                data,
+                factor_a=a,
+                factor_b=b,
+                design=factorial.FactorialDesign(0.0, 0.5),
+                outcome="y",
+            )
         )
 
 
 def test_factorial_2x2_refuses_unobserved_cell_and_bad_assignment_alignment() -> None:
     data, a, b = _balanced_fixture()
     with pytest.raises(ValueError, match="observed support"):
-        factorial.estimate(
-            data,
-            factor_a=a,
-            factor_b=[False] * len(b),
-            design=factorial.FactorialDesign(0.5, 0.5),
-            outcome="y",
+        require_success(
+            factorial.estimate(
+                data,
+                factor_a=a,
+                factor_b=[False] * len(b),
+                design=factorial.FactorialDesign(0.5, 0.5),
+                outcome="y",
+            )
         )
     with pytest.raises(ValueError, match="one value per data row"):
-        factorial.estimate(
-            data,
-            factor_a=a[:-1],
-            factor_b=b,
-            design=factorial.FactorialDesign(0.5, 0.5),
-            outcome="y",
+        require_success(
+            factorial.estimate(
+                data,
+                factor_a=a[:-1],
+                factor_b=b,
+                design=factorial.FactorialDesign(0.5, 0.5),
+                outcome="y",
+            )
         )
 
 
@@ -87,15 +96,17 @@ def test_bayesian_factorial_main_effect_matches_the_exact_beta_moments() -> None
             [f"row-{i}" for i in range(40)],
         ),
     )
-    result = ant.analyze(
-        {"outcome": outcome},
-        query=query,
-        inference=ant.Bayesian(
-            backend="conjugate", n_draws=4000, design_model=BernoulliArms(1.0, 1.0)
-        ),
-        estimator=ant.Estimator.BAYESIAN_RANDOMIZED_SUPERPOPULATION,
-        seed=2,
-        refute="none",
+    result = require_success(
+        ant.analyze(
+            {"outcome": outcome},
+            query=query,
+            inference=ant.Bayesian(
+                backend="conjugate", n_draws=4000, design_model=BernoulliArms(1.0, 1.0)
+            ),
+            estimator=ant.Estimator.BAYESIAN_RANDOMIZED_SUPERPOPULATION,
+            seed=2,
+            refute="none",
+        )
     )
     theta = [(1 + s) / 12 for s in successes]  # order 00, 10, 01, 11
     variance = [(1 + s) * (11 - s) / (144 * 13) for s in successes]
@@ -109,12 +120,14 @@ def test_bayesian_factorial_main_effect_matches_the_exact_beta_moments() -> None
 def test_factorial_2x2_runs_through_the_compiled_randomized_route() -> None:
     data, a, b = _balanced_fixture()
     probability_a = [0.4, 0.5, 0.6, 0.5, 0.4, 0.5, 0.6, 0.5]
-    result = factorial.estimate(
-        data,
-        factor_a=a,
-        factor_b=b,
-        design=factorial.FactorialDesign(probability_a, 0.5),
-        outcome="y",
+    result = require_success(
+        factorial.estimate(
+            data,
+            factor_a=a,
+            factor_b=b,
+            design=factorial.FactorialDesign(probability_a, 0.5),
+            outcome="y",
+        )
     )
     y = data["y"]
     expected = {"00": 0.0, "01": 0.0, "10": 0.0, "11": 0.0}
