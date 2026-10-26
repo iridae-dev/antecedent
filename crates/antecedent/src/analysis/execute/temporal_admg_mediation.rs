@@ -166,13 +166,15 @@ impl super::Study {
             problem;
         // The window is identified once, at compile, and the program retains the components;
         // a plan that retained none identifies here.
-        let identified = match crate::analysis::lowering::plan_retained_execution_proof(self, physical) {
-            Some(crate::planner::lowered::RetainedExecutionProof::Admg(identified)) => identified.clone(),
-            _ => {
+        let identified =
+            if let Some(crate::planner::lowered::RetainedExecutionProof::Admg(identified)) =
+                crate::analysis::lowering::plan_retained_execution_proof(self, physical)
+            {
+                identified.clone()
+            } else {
                 report_identify_compute(ctx);
                 identify_components(window.admg(), &window_query, identifier_id, estimator_id)?
-            }
-        };
+            };
         let mut used = used_variables(template, &effect);
         used.extend(query.mediators.iter().copied());
         used.sort_unstable();
@@ -210,6 +212,25 @@ impl super::Study {
     pub(crate) fn retain_window_mediation_identification(
         &self,
         plan: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<crate::planner::lowered::RetainedExecutionProof>, CausalError> {
+        if matches!(self.graph.graph_ref(), GraphRef::TemporalPag(_)) {
+            let (super::DataInput::Temporal(series) | super::DataInput::Event(series)) = &self.data
+            else {
+                return Ok(None);
+            };
+            let Ok(count) = u32::try_from(series.schema().len()) else {
+                return Ok(None);
+            };
+            self.retain_pag_window_identification(count, ctx)
+        } else {
+            Ok(self.retain_admg_window_mediation_identification(plan))
+        }
+    }
+
+    fn retain_admg_window_mediation_identification(
+        &self,
+        plan: &PhysicalExecutionPlan,
     ) -> Option<crate::planner::lowered::RetainedExecutionProof> {
         let (super::DataInput::Temporal(series) | super::DataInput::Event(series)) = &self.data
         else {
@@ -236,7 +257,6 @@ impl super::Study {
                 .ok()?;
                 Some(crate::planner::lowered::RetainedExecutionProof::Admg(identified))
             }
-            GraphRef::TemporalPag(_) => self.retain_pag_window_identification(variable_count),
             _ => None,
         }
     }

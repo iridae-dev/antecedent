@@ -101,18 +101,17 @@ const TEMPORAL_RESPONSE_SERIES: &[GraphClass] = &[
     GraphClass::TemporalPag,
     GraphClass::TemporalAdmg,
 ];
-const TEMPORAL_MEDIATION: &[GraphClass] =
-    &[
-        GraphClass::TemporalDag,
-        GraphClass::TemporalCpdag,
-        GraphClass::TemporalPag,
-        GraphClass::TemporalAdmg,
-    ];
+const TEMPORAL_MEDIATION: &[GraphClass] = &[
+    GraphClass::TemporalDag,
+    GraphClass::TemporalCpdag,
+    GraphClass::TemporalPag,
+    GraphClass::TemporalAdmg,
+];
 const DAG: &[GraphClass] = &[GraphClass::Dag];
 const TEMPORAL_DAG: &[GraphClass] = &[GraphClass::TemporalDag];
 /// The classes an anomaly or change attribution runs on over a table: a Dag, each DAG of a
 /// Cpdag, each MAG completion of a Pag, and the noise blocks of an Admg (or the contemporaneous
-/// projection of a TemporalAdmg).
+/// projection of a `TemporalAdmg`).
 const STATIC_ATTRIBUTION: &[GraphClass] = &[
     GraphClass::Dag,
     GraphClass::Cpdag,
@@ -120,8 +119,8 @@ const STATIC_ATTRIBUTION: &[GraphClass] = &[
     GraphClass::Admg,
     GraphClass::TemporalAdmg,
 ];
-/// The same over a series: a TemporalDag, each completion of a temporal class, and the noise
-/// blocks of a TemporalAdmg unrolled over the window its longest lag spans.
+/// The same over a series: a `TemporalDag`, each completion of a temporal class, and the noise
+/// blocks of a `TemporalAdmg` unrolled over the window its longest lag spans.
 const TEMPORAL_ATTRIBUTION: &[GraphClass] = &[
     GraphClass::TemporalDag,
     GraphClass::TemporalCpdag,
@@ -161,7 +160,7 @@ const STATIC_DISTRIBUTION: &[GraphClass] = &[
     GraphClass::Pag,
 ];
 /// Path-restricted natural effects: identified on a Dag, in each completion of a Cpdag, over
-/// the ADMG (or the projection of a TemporalAdmg), and over the ADMGs each MAG completion of a
+/// the ADMG (or the projection of a `TemporalAdmg`), and over the ADMGs each MAG completion of a
 /// Pag stands for.
 const STATIC_PATH_SPECIFIC: &[GraphClass] = &[
     GraphClass::Dag,

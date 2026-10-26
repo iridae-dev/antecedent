@@ -192,3 +192,65 @@ fn all_frequentist_temporal_class_effect_coordinates_execute_from_retained_sourc
         }
     }
 }
+
+#[test]
+fn temporal_class_preparation_honors_context_after_a_warm_process_envelope() {
+    struct CancelIdentification(antecedent_core::CancellationToken);
+    impl antecedent_core::ProgressSink for CancelIdentification {
+        fn report(&self, _fraction: f64, stage: &str) {
+            if stage == "identify.compute" {
+                self.0.cancel();
+            }
+        }
+    }
+    for graph in graphs() {
+        for multi_step in [false, true] {
+            let query = query(multi_step);
+            let identifier = antecedent_identify::GeneralizedAdjustmentIdentifier::new();
+            // Warm the actual context-free lower-crate memo with exactly these premises.
+            match &graph {
+                SourceGraph::Cpdag(graph) => {
+                    identifier.identify_temporal_cpdag_envelope(graph, &query).unwrap();
+                }
+                SourceGraph::Pag(graph) => {
+                    identifier.identify_temporal_pag_envelope(graph, &query).unwrap();
+                }
+            }
+            let data = series(&graph);
+            let study = Study::series(data.clone())
+                .graph(explicit(&graph))
+                .query(CausalQuery::TemporalEffect(query))
+                .refute(RefuteSuite::None)
+                .bootstrap_replicates(0)
+                .build()
+                .unwrap();
+            let mut normal = ExecutionContext::for_tests(979);
+            normal.cache_policy = antecedent_core::CachePolicy::enabled(Some(4_000_000));
+            let prepared = study.prepare(&normal).unwrap();
+            let expected = prepared.estimate_series(&data, &normal).unwrap();
+            let mut disabled = ExecutionContext::for_tests(979);
+            disabled.cache_policy = antecedent_core::CachePolicy::disabled();
+            let uncached = study.prepare(&disabled).unwrap();
+            assert_eq!(
+                uncached.contract().unwrap().identities,
+                prepared.contract().unwrap().identities
+            );
+            assert_eq!(
+                uncached.estimate_series(&data, &disabled).unwrap().effect().to_bits(),
+                expected.effect().to_bits()
+            );
+            let limited = ExecutionContext::for_tests(979).with_memory_limit(Some(1));
+            assert!(matches!(
+                study.prepare(&limited),
+                Err(antecedent::CausalError::Resource { .. })
+            ));
+            let mut cancelled = ExecutionContext::for_tests(979);
+            cancelled.progress =
+                Some(std::sync::Arc::new(CancelIdentification(cancelled.cancellation.clone())));
+            assert!(matches!(
+                study.prepare(&cancelled),
+                Err(antecedent::CausalError::Cancelled { .. })
+            ));
+        }
+    }
+}

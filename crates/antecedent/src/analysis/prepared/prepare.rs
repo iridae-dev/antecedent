@@ -327,31 +327,7 @@ impl Study {
         caches: &mut Vec<IdentificationCache>,
     ) -> Result<(), CausalError> {
         if posterior.is_lagged_temporal_admg() {
-            // Lagged temporal-ADMG atoms are identified on the unrolled window of their own
-            // templates: a contrast once per atom here, a mediation (three components per
-            // atom) at each execution.
-            let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
-                return Err(CausalError::Unsupported {
-                    message: "a lagged temporal-ADMG graph posterior reads a time series",
-                });
-            };
-            return match &self.query {
-                CausalQuery::TemporalEffect(query) => {
-                    let variables: Vec<_> =
-                        data.schema().variables().iter().map(|variable| variable.id).collect();
-                    caches.push(IdentificationCache::GraphPosterior(Arc::new(
-                        crate::analysis::identification_cache::build_temporal_admg_posterior_identification_cache(
-                            posterior, &variables, query, ctx,
-                        )?,
-                    )));
-                    Ok(())
-                }
-                CausalQuery::Mediation(_) => Ok(()),
-                _ => Err(CausalError::Unsupported {
-                    message: "a lagged temporal-ADMG graph posterior answers a pulse, sustained \
-                              or conditional temporal contrast and a temporal mediation",
-                }),
-            };
+            return self.identify_lagged_admg_posterior_caches(posterior, ctx, caches);
         }
         match (&self.data, &self.query) {
             (DataInput::Tabular(_), CausalQuery::AverageEffect(query)) => {
@@ -381,41 +357,10 @@ impl Study {
                     .push(Self::identify_tabular_response_posterior_cache(posterior, query, ctx)?);
             }
             (DataInput::Tabular(_), CausalQuery::Transport(query)) => {
-                // Every atom is a selection diagram: sID decides it on its own graph.
-                let targets: Vec<_> = self
-                    .selection_diagram
-                    .as_ref()
-                    .map(|diagram| diagram.selection_targets().to_vec())
-                    .unwrap_or_default();
-                caches.push(IdentificationCache::GraphPosterior(Arc::new(
-                    crate::analysis::identification_cache::build_transport_graph_posterior_identification_cache(
-                        posterior, query, &targets, ctx,
-                    )?,
-                )));
-            }
-            (
-                DataInput::Tabular(_),
-                CausalQuery::Mediation(_)
-                | CausalQuery::PathSpecific(_)
-                | CausalQuery::NestedCounterfactual(_)
-                | CausalQuery::Counterfactual(_)
-                | CausalQuery::Distribution(_)
-                | CausalQuery::AnomalyAttribution(_)
-                | CausalQuery::ChangeAttribution(_),
-            ) => {
-                // Each atom is identified on its own structure by the executor of that
-                // structure at every execution, as a cross-world probe is.
+                caches.push(self.identify_transport_posterior_cache(posterior, query, ctx)?);
             }
             (DataInput::Tabular(_), CausalQuery::Interference(query)) => {
-                // The design identifies the contrast; the atoms only state their membership.
-                caches.push(IdentificationCache::GraphPosterior(Arc::new(
-                    crate::analysis::identification_cache::build_interference_graph_posterior_identification_cache(
-                        posterior,
-                        query,
-                        &self.inference,
-                        ctx,
-                    )?,
-                )));
+                caches.push(self.identify_interference_posterior_cache(posterior, query, ctx)?);
             }
             // A one-modifier conditional effect over TemporalDag atoms identifies each atom's
             // regressions at every execution, with the interval of the whole procedure.
@@ -459,6 +404,16 @@ impl Study {
                 )?;
             }
             (
+                DataInput::Tabular(_),
+                CausalQuery::Mediation(_)
+                | CausalQuery::PathSpecific(_)
+                | CausalQuery::NestedCounterfactual(_)
+                | CausalQuery::Counterfactual(_)
+                | CausalQuery::Distribution(_)
+                | CausalQuery::AnomalyAttribution(_)
+                | CausalQuery::ChangeAttribution(_),
+            )
+            | (
                 DataInput::Temporal(_) | DataInput::Event(_),
                 CausalQuery::NestedCounterfactual(_)
                 | CausalQuery::PathSpecific(_)
@@ -484,6 +439,77 @@ impl Study {
         Ok(())
     }
 
+    /// The design identifies the contrast; posterior atoms state only their membership.
+    fn identify_interference_posterior_cache(
+        &self,
+        posterior: &antecedent_discovery::GraphPosterior,
+        query: &antecedent_core::InterferenceQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<IdentificationCache, CausalError> {
+        // The design identifies the contrast; the atoms only state their membership.
+        Ok(IdentificationCache::GraphPosterior(Arc::new(
+                    crate::analysis::identification_cache::build_interference_graph_posterior_identification_cache(
+                        posterior,
+                        query,
+                        &self.inference,
+                        ctx,
+                    )?,
+                )))
+    }
+
+    /// A transport atom uses its own selection diagram rather than an effect witness.
+    fn identify_transport_posterior_cache(
+        &self,
+        posterior: &antecedent_discovery::GraphPosterior,
+        query: &antecedent_core::TransportQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<IdentificationCache, CausalError> {
+        // Every atom is a selection diagram: sID decides it on its own graph.
+        let targets: Vec<_> = self
+            .selection_diagram
+            .as_ref()
+            .map(|diagram| diagram.selection_targets().to_vec())
+            .unwrap_or_default();
+        Ok(IdentificationCache::GraphPosterior(Arc::new(
+                    crate::analysis::identification_cache::build_transport_graph_posterior_identification_cache(
+                        posterior, query, &targets, ctx,
+                    )?,
+                )))
+    }
+
+    fn identify_lagged_admg_posterior_caches(
+        &self,
+        posterior: &antecedent_discovery::GraphPosterior,
+        ctx: &ExecutionContext,
+        caches: &mut Vec<IdentificationCache>,
+    ) -> Result<(), CausalError> {
+        // Lagged temporal-ADMG atoms are identified on the unrolled window of their own
+        // templates: a contrast once per atom here, a mediation (three components per
+        // atom) at each execution.
+        let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
+            return Err(CausalError::Unsupported {
+                message: "a lagged temporal-ADMG graph posterior reads a time series",
+            });
+        };
+        match &self.query {
+            CausalQuery::TemporalEffect(query) => {
+                let variables: Vec<_> =
+                    data.schema().variables().iter().map(|variable| variable.id).collect();
+                caches.push(IdentificationCache::GraphPosterior(Arc::new(
+                        crate::analysis::identification_cache::build_temporal_admg_posterior_identification_cache(
+                            posterior, &variables, query, ctx,
+                        )?,
+                    )));
+                Ok(())
+            }
+            CausalQuery::Mediation(_) => Ok(()),
+            _ => Err(CausalError::Unsupported {
+                message: "a lagged temporal-ADMG graph posterior answers a pulse, sustained \
+                              or conditional temporal contrast and a temporal mediation",
+            }),
+        }
+    }
+
     /// Identify the caches of a study with a single supplied or discovered graph.
     fn identify_single_graph_caches(
         &self,
@@ -504,7 +530,7 @@ impl Study {
             }
             (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_)) => {
                 push(temporal(self.prepare_temporal_mediation_identification()?));
-                push(temporal_class(self.prepare_temporal_class_identification()?));
+                push(temporal_class(self.prepare_temporal_class_identification(ctx)?));
             }
             (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::TemporalEffect(query))
                 if matches!(self.graph.graph_ref(), GraphRef::TemporalAdmg(_)) =>
@@ -526,14 +552,14 @@ impl Study {
                 if matches!(self.graph.class(), GraphClass::Cpdag | GraphClass::Pag) =>
             {
                 // sID decides every member of the class on its own selection diagram.
-                push(self.identify_class_transport()?);
+                push(self.identify_class_transport(ctx)?);
             }
             (DataInput::Tabular(_), CausalQuery::Transport(query)) => {
                 let diagram = self.selection_diagram.as_ref().ok_or(CausalError::Unsupported {
                     message: "TransportQuery prepare requires a selection diagram",
                 })?;
                 let identification =
-                    crate::analysis::execute::live_transport_identification(diagram, query)?;
+                    crate::analysis::execute::live_transport_identification(diagram, query, ctx)?;
                 push(Some(IdentificationCache::Transport(Arc::new(identification))));
             }
             (DataInput::Tabular(_), query) if is_graphless_design(query) => {
@@ -562,7 +588,7 @@ impl Study {
             }
             (DataInput::Panel(_), CausalQuery::TemporalEffect(_) | CausalQuery::Response(_)) => {
                 if self.graph.class().is_incomplete_temporal() {
-                    push(temporal_class(self.prepare_temporal_class_identification()?));
+                    push(temporal_class(self.prepare_temporal_class_identification(ctx)?));
                 } else {
                     push(temporal(self.prepare_temporal_identification()?));
                 }
@@ -580,7 +606,7 @@ impl Study {
             }
             (_, _) => {
                 push(temporal(self.prepare_temporal_identification()?));
-                push(temporal_class(self.prepare_temporal_class_identification()?));
+                push(temporal_class(self.prepare_temporal_class_identification(ctx)?));
             }
         }
         Ok(())

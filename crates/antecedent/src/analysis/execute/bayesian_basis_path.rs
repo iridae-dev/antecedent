@@ -8,7 +8,7 @@ use super::{
     IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, InferenceMode, Instant,
     OverlapPolicy, PhysicalExecutionPlan, Strategy, Study, StudyResult, TabularData,
     bayesian_draw_count, elapsed_ns, identification_from_cache_or, identify_cached_diagnostic,
-    identify_static_query, project_for_ate_estimate, select_claim,
+    project_for_ate_estimate, select_claim,
 };
 use crate::planner::RouteDefaults;
 use antecedent_core::{
@@ -43,10 +43,12 @@ impl Study {
         });
         let (identification, estimand, identify_cached) =
             identification_from_cache_or(ctx, reused, || {
-                let identification = identify_static_query(
+                let identification = crate::strategy_table::identify_static_query_in_context(
                     identifier,
                     graph,
                     &CausalQuery::AverageEffect(query.clone()),
+                    None,
+                    Some(ctx),
                 )?;
                 select_claim(identification, EstimatorId::BayesianBasisGcomp)
             })?;

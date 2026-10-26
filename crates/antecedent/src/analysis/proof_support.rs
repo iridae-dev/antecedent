@@ -19,6 +19,13 @@ use super::execute::Study;
 use crate::error::CausalError;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 
+/// The physical proof boundary and the caller funding any unsealed proof replay.
+/// The context is used only while constructing an operation; it is never retained with it.
+pub(crate) struct CheckedCompileContext<'a> {
+    pub(crate) physical: std::sync::Arc<crate::planner::PhysicalExecutionPlan>,
+    pub(crate) ctx: &'a antecedent_core::ExecutionContext,
+}
+
 /// Comparison of what two identified estimands claim.
 ///
 /// `functional` is an [`ExprId`](antecedent_expr::ExprId) into the arena of
@@ -149,7 +156,7 @@ pub(crate) fn verify_retained_static(
     let sealed = plan
         .lowered()
         .and_then(crate::planner::lowered::LoweredProgram::retained_identification)
-        .and_then(|retained| retained.static_seal());
+        .and_then(crate::planner::lowered::RetainedIdentification::static_seal);
     let Some(sealed) = sealed else {
         return Ok(RetainedProof::NotRetained);
     };
@@ -172,7 +179,7 @@ pub(crate) fn verify_retained_temporal(
     let sealed = plan
         .lowered()
         .and_then(crate::planner::lowered::LoweredProgram::retained_identification)
-        .and_then(|retained| retained.temporal_seal());
+        .and_then(crate::planner::lowered::RetainedIdentification::temporal_seal);
     let Some(sealed) = sealed else {
         return Ok(RetainedProof::NotRetained);
     };
@@ -327,23 +334,17 @@ mod tests {
         // A different status, with the estimand untouched.
         let mut identification = cache.identification.clone();
         identification.status = antecedent_core::IdentificationStatus::PartiallyIdentified;
-        assert!(
-            verify_retained_static(&plan, &identification, &cache.estimand, message).is_err()
-        );
+        assert!(verify_retained_static(&plan, &identification, &cache.estimand, message).is_err());
         // A different query.
         let mut identification = cache.identification.clone();
         identification.query = antecedent_core::CausalQuery::AverageEffect(
             AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(0)),
         );
-        assert!(
-            verify_retained_static(&plan, &identification, &cache.estimand, message).is_err()
-        );
+        assert!(verify_retained_static(&plan, &identification, &cache.estimand, message).is_err());
         // A different arena: the claim is the same names over another functional.
         let mut identification = cache.identification.clone();
         identification.arena = antecedent_expr::CausalExprArena::new();
-        assert!(
-            verify_retained_static(&plan, &identification, &cache.estimand, message).is_err()
-        );
+        assert!(verify_retained_static(&plan, &identification, &cache.estimand, message).is_err());
     }
 
     #[test]

@@ -116,6 +116,40 @@ fn program_quote(worlds: &[JointPanelWorld]) -> Result<usize, JointPanelError> {
     }
     Ok(bytes)
 }
+/// Retained temporal-parameter declarations are distinct from world/output storage.
+fn add_temporal_spec_bytes(
+    bytes: &mut usize,
+    spec: &engine::time_varying::TemporalPanelSpec,
+) -> Result<(), JointPanelError> {
+    use engine::time_varying::PanelMeanParameter;
+    for parameter in &spec.varying {
+        add(bytes, std::mem::size_of_val(parameter))?;
+        match parameter {
+            PanelMeanParameter::Channel { id } | PanelMeanParameter::Interaction { id } => {
+                add(bytes, id.len())?
+            }
+            PanelMeanParameter::Lag { channel, .. }
+            | PanelMeanParameter::GeometricDecay { channel }
+            | PanelMeanParameter::HillShape { channel } => add(bytes, channel.len())?,
+            PanelMeanParameter::Intercept
+            | PanelMeanParameter::Confounder
+            | PanelMeanParameter::Season { .. }
+            | PanelMeanParameter::ClassLogHalfSaturation { .. }
+            | PanelMeanParameter::LogHalfSaturation => {}
+        }
+    }
+    add(
+        bytes,
+        spec.change_points
+            .len()
+            .checked_add(spec.smooth_knots.len())
+            .and_then(|n| n.checked_mul(std::mem::size_of::<usize>()))
+            .ok_or_else(overflow)?,
+    )?;
+    add(bytes, spec.smoothing.len().checked_mul(8).ok_or_else(overflow)?)?;
+    Ok(())
+}
+
 pub(super) fn retarget_quote(
     request: &JointPanelRequest,
     worlds: &[JointPanelWorld],
@@ -170,32 +204,7 @@ pub(super) fn retarget_quote(
         add(&mut bytes, initial.season_effects.len().checked_mul(8).ok_or_else(overflow)?)?;
     }
     if let Some(spec) = &request.temporal {
-        use engine::time_varying::PanelMeanParameter;
-        for parameter in &spec.varying {
-            add(&mut bytes, std::mem::size_of_val(parameter))?;
-            match parameter {
-                PanelMeanParameter::Channel { id } | PanelMeanParameter::Interaction { id } => {
-                    add(&mut bytes, id.len())?
-                }
-                PanelMeanParameter::Lag { channel, .. }
-                | PanelMeanParameter::GeometricDecay { channel }
-                | PanelMeanParameter::HillShape { channel } => add(&mut bytes, channel.len())?,
-                PanelMeanParameter::Intercept
-                | PanelMeanParameter::Confounder
-                | PanelMeanParameter::Season { .. }
-                | PanelMeanParameter::ClassLogHalfSaturation { .. }
-                | PanelMeanParameter::LogHalfSaturation => {}
-            }
-        }
-        add(
-            &mut bytes,
-            spec.change_points
-                .len()
-                .checked_add(spec.smooth_knots.len())
-                .and_then(|n| n.checked_mul(std::mem::size_of::<usize>()))
-                .ok_or_else(overflow)?,
-        )?;
-        add(&mut bytes, spec.smoothing.len().checked_mul(8).ok_or_else(overflow)?)?;
+        add_temporal_spec_bytes(&mut bytes, spec)?;
     }
     add(
         &mut bytes,

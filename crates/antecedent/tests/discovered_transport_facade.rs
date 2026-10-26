@@ -841,3 +841,43 @@ fn fci_on_simulated_rows_then_transport_recovers_the_enumerated_target_effect() 
         );
     }
 }
+
+#[test]
+fn retained_discovered_class_transport_uses_the_callers_pool_and_cancellation() {
+    use antecedent::analysis::discovered_transport::transport_discovered_structure_with_context;
+    use antecedent_identify::{IdentificationBudget, IdentificationError};
+    let data = table(3, 60, 1);
+    let run = discover_and_transport(&chain3(), &data, &[v(1)], &query(2), 64, &ctx()).unwrap();
+    let original = run.transport.unwrap();
+    let ample = ctx().with_memory_limit(Some(1 << 24));
+    let before = ample.admission().available();
+    let again =
+        transport_discovered_structure_with_context(&run.outcome, &[v(1)], &query(2), 64, &ample)
+            .unwrap();
+    assert_eq!(again.identity(), original.identity());
+    assert_eq!(again.envelope(), original.envelope());
+    assert_eq!(ample.admission().available(), before);
+    let tiny = ctx().with_memory_limit(Some(1));
+    let before = tiny.admission().available();
+    let error =
+        transport_discovered_structure_with_context(&run.outcome, &[v(1)], &query(2), 64, &tiny)
+            .unwrap_err();
+    assert!(matches!(
+        error,
+        DiscoveredTransportError::Identification(IdentificationError::Budget {
+            budget: IdentificationBudget::Memory
+        })
+    ));
+    assert_eq!(tiny.admission().available(), before);
+    ample.cancellation.cancel();
+    let error =
+        transport_discovered_structure_with_context(&run.outcome, &[v(1)], &query(2), 64, &ample)
+            .unwrap_err();
+    assert!(matches!(
+        error,
+        DiscoveredTransportError::Identification(IdentificationError::Cancelled)
+    ));
+    // Resource refusal leaves the retained discovery and its scientific report intact.
+    let replay = transport_discovered_structure(&run.outcome, &[v(1)], &query(2), 64).unwrap();
+    assert_eq!(replay.identity(), original.identity());
+}

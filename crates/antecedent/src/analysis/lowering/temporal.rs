@@ -512,32 +512,35 @@ fn lower_mediation(
 
 /// Identification of the window, retained with the program when it identifies at compile.
 /// A window that does not identify is left to execution, which reports the refusal.
-fn window_identification(cx: &LoweringContext<'_>) -> IdentificationLayer {
-    let retained = cx.study.retain_window_mediation_identification(cx.plan).and_then(|window| {
-        super::RetainedIdentification::new(None, Vec::new(), super::retention_key(cx.study))
-            .ok()
-            .map(|retained| retained.with_execution_proof(window))
-    });
-    match retained {
+fn window_identification(cx: &LoweringContext<'_>) -> Result<IdentificationLayer, CausalError> {
+    let retained =
+        cx.study.retain_window_mediation_identification(cx.plan, cx.ctx)?.and_then(|window| {
+            super::RetainedIdentification::new(None, Vec::new(), super::retention_key(cx.study))
+                .ok()
+                .map(|retained| retained.with_execution_proof(window))
+        });
+    Ok(match retained {
         Some(retained) => IdentificationLayer::Retained(Arc::new(retained)),
         None => {
             IdentificationLayer::PerExecution { reason: WINDOW_MEDIATION_IDENTIFIES_PER_EXECUTION }
         }
-    }
+    })
 }
 
 /// Identification of the cross-world probe, retained with the program when it identifies at
 /// compile. A probe that does not identify is left to execution, which reports the refusal.
-fn cross_world_identification(cx: &LoweringContext<'_>) -> IdentificationLayer {
-    let retained = cx.study.retain_cross_world_identification(cx.plan).and_then(|proof| {
+fn cross_world_identification(
+    cx: &LoweringContext<'_>,
+) -> Result<IdentificationLayer, CausalError> {
+    let retained = cx.study.retain_cross_world_identification(cx.plan, cx.ctx)?.and_then(|proof| {
         super::RetainedIdentification::new(None, Vec::new(), super::retention_key(cx.study))
             .ok()
             .map(|retained| retained.with_execution_proof(proof))
     });
-    match retained {
+    Ok(match retained {
         Some(retained) => IdentificationLayer::Retained(Arc::new(retained)),
         None => IdentificationLayer::PerExecution { reason: CROSS_WORLD_IDENTIFIES_PER_EXECUTION },
-    }
+    })
 }
 
 /// Natural mediation on one series under a temporal ADMG or PAG: identified on the unrolled
@@ -563,7 +566,7 @@ fn lower_mediation_window(
                 Some(query.outcome),
             ),
             envelope: is_class(cx.study),
-            identification: window_identification(cx),
+            identification: window_identification(cx)?,
             models,
             claim: ClaimKind::Point,
             width: WINDOW_DESIGN_AT_EXECUTION,
@@ -607,7 +610,7 @@ fn lower_cross_world(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalE
         TemporalLowering {
             target: super::query_functional(cx.study, kind, outcome),
             envelope: is_class(cx.study),
-            identification: cross_world_identification(cx),
+            identification: cross_world_identification(cx)?,
             models,
             claim: ClaimKind::Point,
             width: CROSS_WORLD_DESIGN_AT_EXECUTION,
@@ -756,7 +759,7 @@ fn assemble(
 fn retained(cx: &LoweringContext<'_>) -> Result<IdentificationLayer, CausalError> {
     match super::retain_identification(cx, None) {
         Ok(layer) => Ok(layer),
-        Err(error @ CausalError::Cancelled { .. }) => Err(error),
+        Err(error @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => Err(error),
         Err(_) => Ok(super::identification_refused_at_compile()),
     }
 }

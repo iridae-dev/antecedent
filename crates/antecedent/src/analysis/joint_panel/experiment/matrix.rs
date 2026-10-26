@@ -116,12 +116,27 @@ pub fn joint_experiment_acceptance_matrix() -> JointExperimentAcceptanceMatrix {
             }
         }
     }
+    append_retained_panel_obligations(&mut rows, &mappings, &translations, &decisions, &stages);
+    JointExperimentAcceptanceMatrix {
+        version: 1,
+        modular_policy: "frozen_joint_importance; not a joint refit".into(),
+        rows,
+    }
+}
+
+fn append_retained_panel_obligations(
+    rows: &mut Vec<JointExperimentAcceptanceRow>,
+    mappings: &[&str],
+    translations: &[&str],
+    decisions: &[&str],
+    stages: &[&str],
+) {
     // The separately advertised model-conditional panel workflow supports three
     // retained time projections. These rows complement the design catalogue.
     for functional in ["terminal_mean", "window_average", "weighted_sum"] {
-        for mapping in mappings {
-            for translation in translations {
-                for decision in decisions {
+        for &mapping in mappings {
+            for &translation in translations {
+                for &decision in decisions {
                     rows.push(JointExperimentAcceptanceRow {
                         id: format!(
                             "retained_panel::{functional}::{mapping}::{translation}::{decision}"
@@ -145,11 +160,6 @@ pub fn joint_experiment_acceptance_matrix() -> JointExperimentAcceptanceMatrix {
                 }
             }
         }
-    }
-    JointExperimentAcceptanceMatrix {
-        version: 1,
-        modular_policy: "frozen_joint_importance; not a joint refit".into(),
-        rows,
     }
 }
 

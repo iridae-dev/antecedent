@@ -1837,25 +1837,33 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
         {
             support_status = Some(CellStatus::Refused);
         }
-        if !carry.inspect_only
-            && matches!(
-                carry.estimator,
-                Some(
-                    EstimatorId::BayesianIvJointLinear
-                        | EstimatorId::BayesianRdLocalLinear
-                        | EstimatorId::BayesianBasisGcomp
-                        | EstimatorId::BayesianRobustAte
-                )
-            )
-            && support_status != Some(CellStatus::Licensed)
-        {
-            return Err(CausalError::Unsupported {
-                message: "selected Bayesian estimator is not licensed for this support cell",
-            });
-        }
+        require_licensed_bayesian_estimator(carry, support_status)?;
         support_status
     };
     Ok(ClassifiedSupport { settled, support_status })
+}
+
+fn require_licensed_bayesian_estimator(
+    carry: &Carry,
+    support_status: Option<CellStatus>,
+) -> Result<(), CausalError> {
+    if !carry.inspect_only
+        && matches!(
+            carry.estimator,
+            Some(
+                EstimatorId::BayesianIvJointLinear
+                    | EstimatorId::BayesianRdLocalLinear
+                    | EstimatorId::BayesianBasisGcomp
+                    | EstimatorId::BayesianRobustAte
+            )
+        )
+        && support_status != Some(CellStatus::Licensed)
+    {
+        return Err(CausalError::Unsupported {
+            message: "selected Bayesian estimator is not licensed for this support cell",
+        });
+    }
+    Ok(())
 }
 
 fn bind_exposure(settled: ClassifiedSupport) -> Result<BoundExposure, CausalError> {

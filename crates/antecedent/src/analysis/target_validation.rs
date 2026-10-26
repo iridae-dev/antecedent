@@ -800,7 +800,11 @@ fn scale_prior_deviations(
 }
 
 fn failed(error: &CausalError) -> TargetRefitError {
-    TargetRefitError::Failed(ValidationError::estimation_msg(error.to_string()))
+    TargetRefitError::Failed(match error {
+        CausalError::Cancelled { .. } => ValidationError::Cancelled,
+        CausalError::Resource { message } => ValidationError::Resource { message: message.clone() },
+        _ => ValidationError::estimation_msg(error.to_string()),
+    })
 }
 
 fn data_failed(error: antecedent_data::DataError) -> TargetRefitError {
@@ -1193,6 +1197,7 @@ impl PreparedRefit<'_> {
         &self,
         posterior: &antecedent_discovery::GraphPosterior,
         u: VariableId,
+        ctx: &ExecutionContext,
     ) -> Result<antecedent_discovery::GraphPosterior, TargetRefitError> {
         use antecedent_discovery::GraphPosteriorAtomKind as Kind;
         use antecedent_discovery::adjacency_mask::{has_edge, set_edge};
@@ -1250,15 +1255,22 @@ impl PreparedRefit<'_> {
                             .map_err(|error| {
                                 TargetRefitError::Failed(ValidationError::from(error))
                             })?;
-                    let mut members = antecedent_graph::CpdagCompletionSampler::new(
+                    let mut members = antecedent_graph::CpdagCompletionSampler::with_budget(
                         cpdag,
                         WITHIN_CLASS_MEMBER_CAP + 1,
+                        antecedent_core::SearchLimits {
+                            operations: antecedent_graph::DEFAULT_COMPLETION_OPERATIONS,
+                            depth: usize::MAX,
+                        },
+                        ctx,
                     )
                     .map_err(|error| {
                         TargetRefitError::Failed(ValidationError::estimation_msg(error.to_string()))
                     })?;
                     let dags: Vec<antecedent_graph::Dag> =
                         members.by_ref().map(|completion| completion.graph).collect();
+                    crate::strategy_table::check_class_search_stop(members.search_stop())
+                        .map_err(|error| failed(&error))?;
                     if dags.is_empty() || dags.len() > WITHIN_CLASS_MEMBER_CAP {
                         return Err(refuse(
                             "a class has no enumerated DAG members or more than the cap, so an \
@@ -1413,6 +1425,31 @@ impl PreparedRefit<'_> {
         ))
     }
 
+    /// Perturb the outcome and a continuous treatment by the same simulated cause.
+    fn plant_common_cause(
+        &self,
+        storage: &antecedent_data::OwnedColumnarStorage,
+        u: &[f64],
+    ) -> Result<ColumnReplacements, TargetRefitError> {
+        let strength = self.options.common_cause_strength;
+        if strength == 0.0 {
+            return Ok(Vec::new());
+        }
+        let mut out = Vec::new();
+        let y = Self::column_of(storage, self.outcome)?;
+        out.push((self.outcome, y.iter().zip(u).map(|(y, u)| y + strength * u).collect()));
+        let t = Self::column_of(storage, self.treatment)?;
+        #[allow(
+            clippy::float_cmp,
+            reason = "a binary treatment is coded exactly 0.0 or 1.0, so exact equality is the test"
+        )]
+        let binary = t.iter().all(|v| *v == 0.0 || *v == 1.0);
+        if !binary {
+            out.push((self.treatment, t.iter().zip(u).map(|(t, u)| t + strength * u).collect()));
+        }
+        Ok(out)
+    }
+
     /// Random common cause through the compiler: append a simulated cause, declare it as a
     /// parent of treatment and outcome, prepare the study on the augmented data and run it.
     fn random_common_cause(
@@ -1420,32 +1457,8 @@ impl PreparedRefit<'_> {
         rng: &mut CausalRng,
         ctx: &ExecutionContext,
     ) -> Result<Vec<f64>, TargetRefitError> {
-        let strength = self.options.common_cause_strength;
         let draw = |n: usize, rng: &mut CausalRng| -> Arc<[f64]> {
             (0..n).map(|_| antecedent_kernels::standard_normal(rng)).collect()
-        };
-        let plant = |storage: &antecedent_data::OwnedColumnarStorage,
-                     u: &[f64]|
-         -> Result<ColumnReplacements, TargetRefitError> {
-            if strength == 0.0 {
-                return Ok(Vec::new());
-            }
-            let mut out = Vec::new();
-            let y = Self::column_of(storage, self.outcome)?;
-            out.push((self.outcome, y.iter().zip(u).map(|(y, u)| y + strength * u).collect()));
-            let t = Self::column_of(storage, self.treatment)?;
-            #[allow(
-                clippy::float_cmp,
-                reason = "a binary treatment is coded exactly 0.0 or 1.0, so exact equality is the test"
-            )]
-            let binary = t.iter().all(|v| *v == 0.0 || *v == 1.0);
-            if !binary {
-                out.push((
-                    self.treatment,
-                    t.iter().zip(u).map(|(t, u)| t + strength * u).collect(),
-                ));
-            }
-            Ok(out)
         };
         let name = |storage: &antecedent_data::OwnedColumnarStorage| {
             let names: Vec<&str> =
@@ -1462,7 +1475,7 @@ impl PreparedRefit<'_> {
         let (data, u_id) = match self.data {
             PreparedTargetData::Tabular(data) => {
                 let u = draw(data.row_count(), rng);
-                let planted = plant(data.storage(), &u)?;
+                let planted = self.plant_common_cause(data.storage(), &u)?;
                 let base = if planted.is_empty() {
                     data.clone()
                 } else {
@@ -1473,7 +1486,7 @@ impl PreparedRefit<'_> {
             }
             PreparedTargetData::Series(series) => {
                 let u = draw(series.row_count(), rng);
-                let planted = plant(series.storage(), &u)?;
+                let planted = self.plant_common_cause(series.storage(), &u)?;
                 let base = series_with(series, &planted, None, None)?;
                 let (table, id) =
                     append(TabularData::new(base.storage().clone()), u, &name(series.storage()))?;
@@ -1488,7 +1501,7 @@ impl PreparedRefit<'_> {
                 let mut id = None;
                 for unit in panel.units() {
                     let u = draw(unit.series.row_count(), rng);
-                    let planted = plant(unit.series.storage(), &u)?;
+                    let planted = self.plant_common_cause(unit.series.storage(), &u)?;
                     let base = series_with(&unit.series, &planted, None, None)?;
                     let (table, uid) = append(TabularData::new(base.storage().clone()), u, &label)?;
                     id = Some(uid);
@@ -1510,7 +1523,7 @@ impl PreparedRefit<'_> {
                 let mut id = None;
                 for environment in environments.environments() {
                     let u = draw(environment.row_count(), rng);
-                    let planted = plant(environment.storage(), &u)?;
+                    let planted = self.plant_common_cause(environment.storage(), &u)?;
                     let base = series_with(environment, &planted, None, None)?;
                     let (table, uid) = append(TabularData::new(base.storage().clone()), u, &label)?;
                     id = Some(uid);
@@ -1526,11 +1539,14 @@ impl PreparedRefit<'_> {
         };
         let mut study = self.study().clone();
         if let Some(posterior) = &self.study().graph_posterior {
-            study.graph_posterior = Some(self.posterior_with_common_cause(posterior, u_id)?);
+            study.graph_posterior = Some(self.posterior_with_common_cause(posterior, u_id, ctx)?);
         } else {
             study.graph = Arc::new(self.graph_with_common_cause(u_id)?);
         }
         let refitted = Self::compile_and_run(study, &data, ctx).map_err(|error| {
+            if matches!(error, CausalError::Cancelled { .. } | CausalError::Resource { .. }) {
+                return failed(&error);
+            }
             unsupported(
                 format!("the study with the simulated common cause declared did not run: {error}"),
                 "a route that admits an extra declared covariate",

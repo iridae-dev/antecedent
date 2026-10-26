@@ -185,6 +185,7 @@ pub(super) fn temporal_class_effect(cx: &SealContext<'_>) -> SealOutcome {
             if cx.binding.names(identifier, estimator) {
                 let operation = crate::analysis::CheckedTemporalClassEffectOperation::checked(
                     crate::analysis::CheckedTemporalClassEffectOperationPremises {
+                        ctx: cx.ctx,
                         source_graph: (*analysis.graph).clone(),
                         query,
                         bundle: cache,

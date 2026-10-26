@@ -2072,17 +2072,7 @@ impl super::Study {
                 self.compile_physical_conditional_mixed(data, q, ctx)
             }
             RouteInput::MixedAdmgResponse { .. } => {
-                let admg = mixed_admg(self)?;
-                if admg_has_bidirected(&admg) {
-                    self.compile_logical_from(input)?.compile_physical(ctx)
-                } else {
-                    let dag = admg_without_latents_to_dag(&admg)?;
-                    self.compile_logical_from(input)?.compile_physical_with_graphs(
-                        ctx,
-                        None,
-                        Some(dag),
-                    )
-                }
+                self.compile_physical_mixed_response(input, ctx)
             }
             RouteInput::TemporalEffectDag { graph, .. }
             | RouteInput::TemporalCrossWorldDag { graph, .. }
@@ -2169,6 +2159,20 @@ impl super::Study {
             | RouteInput::TemporalCrossWorldClass { .. } => {
                 self.compile_logical_from(input)?.compile_physical(ctx)
             }
+        }
+    }
+
+    fn compile_physical_mixed_response(
+        &self,
+        input: &RouteInput<'_>,
+        ctx: &ExecutionContext,
+    ) -> Result<PhysicalExecutionPlan, CausalError> {
+        let admg = mixed_admg(self)?;
+        if admg_has_bidirected(&admg) {
+            self.compile_logical_from(input)?.compile_physical(ctx)
+        } else {
+            let dag = admg_without_latents_to_dag(&admg)?;
+            self.compile_logical_from(input)?.compile_physical_with_graphs(ctx, None, Some(dag))
         }
     }
 

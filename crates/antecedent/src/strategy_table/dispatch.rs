@@ -182,7 +182,8 @@ pub fn identify_static_query_in_context(
                 .0
         }
         IdentifierId::ResponseBackdoor => {
-            let id = ResponseIdentifier::new();
+            let mut id = ResponseIdentifier::new();
+            id.backdoor.config.context = context.cloned();
             let prepared =
                 id.prepare_with_assumptions(graph, AssumptionSet::new()).map_err(identify_err)?;
             id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
@@ -190,6 +191,7 @@ pub fn identify_static_query_in_context(
         IdentifierId::Auto => {
             let mut id = AutoIdentifier::new();
             id.backdoor.config.context = context.cloned();
+            id.efficient.config.context = context.cloned();
             if let Some(cfg) = rd {
                 id = id.with_rd(cfg);
             }
@@ -246,108 +248,6 @@ pub fn identify_cpdag_in_context(
             id.identify_cpdag_envelope(cpdag, query).map_err(identify_err)
         }
         other => reject_non_generalized_identifier(other, "CPDAG", "unsupported CPDAG identifier"),
-    }
-}
-
-/// Class-aware identification of a path-restricted natural effect (or a natural direct effect)
-/// over a CPDAG: the path-specific identifier on every MEC DAG completion.
-///
-/// # Errors
-///
-/// An identifier other than `path_specific.natural`, a query it does not read, or a
-/// completion that fails to prepare.
-pub(crate) fn identify_cpdag_path_specific(
-    identifier: IdentifierId,
-    cpdag: &antecedent_graph::Cpdag,
-    query: &CausalQuery,
-) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, CausalError> {
-    match identifier {
-        IdentifierId::PathSpecificNatural => GeneralizedAdjustmentIdentifier::new()
-            .identify_cpdag_path_specific_envelope(cpdag, query)
-            .map_err(identify_err),
-        other => Err(CausalError::Compile {
-            message: format!(
-                "CPDAG path-specific identification requires identifier \"path_specific.natural\"; \
-                 got {:?}",
-                other.as_str()
-            ),
-        }),
-    }
-}
-
-/// Class-aware identification of a path-restricted natural effect (or a natural direct effect)
-/// over a PAG: the path-specific identifier on every ADMG that shares the m-separation model
-/// of a MAG completion.
-///
-/// # Errors
-///
-/// An identifier other than `path_specific.natural`, a query it does not read, or a
-/// completion that fails to prepare.
-pub(crate) fn identify_pag_path_specific(
-    identifier: IdentifierId,
-    pag: &Pag,
-    query: &CausalQuery,
-) -> Result<IdentificationEnvelope<Pag>, CausalError> {
-    match identifier {
-        IdentifierId::PathSpecificNatural => GeneralizedAdjustmentIdentifier::new()
-            .identify_pag_path_specific_envelope(pag, query)
-            .map_err(identify_err),
-        other => Err(CausalError::Compile {
-            message: format!(
-                "PAG path-specific identification requires identifier \"path_specific.natural\"; \
-                 got {:?}",
-                other.as_str()
-            ),
-        }),
-    }
-}
-
-/// Class-aware identification of an interventional distribution in every DAG completion of a
-/// CPDAG: the complete ID algorithm (IDC when the query conditions) on each completion.
-///
-/// # Errors
-///
-/// An identifier other than `general.id`, a query the algorithm does not read, or a completion
-/// that fails to prepare.
-pub(crate) fn identify_cpdag_distribution(
-    identifier: IdentifierId,
-    cpdag: &antecedent_graph::Cpdag,
-    query: &CausalQuery,
-) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, CausalError> {
-    match identifier {
-        IdentifierId::GeneralId => GeneralizedAdjustmentIdentifier::new()
-            .identify_cpdag_distribution_envelope(cpdag, query)
-            .map_err(identify_err),
-        other => Err(CausalError::Compile {
-            message: format!(
-                "CPDAG distribution identification requires identifier \"general.id\"; got {:?}",
-                other.as_str()
-            ),
-        }),
-    }
-}
-
-/// Class-aware identification of an interventional distribution over a PAG: the complete ID
-/// algorithm on every ADMG that shares the m-separation model of a MAG completion.
-///
-/// # Errors
-///
-/// As [`identify_cpdag_distribution`].
-pub(crate) fn identify_pag_distribution(
-    identifier: IdentifierId,
-    pag: &Pag,
-    query: &CausalQuery,
-) -> Result<IdentificationEnvelope<Pag>, CausalError> {
-    match identifier {
-        IdentifierId::GeneralId => GeneralizedAdjustmentIdentifier::new()
-            .identify_pag_distribution_envelope(pag, query)
-            .map_err(identify_err),
-        other => Err(CausalError::Compile {
-            message: format!(
-                "PAG distribution identification requires identifier \"general.id\"; got {:?}",
-                other.as_str()
-            ),
-        }),
     }
 }
 
@@ -1099,29 +999,7 @@ pub fn identify_cpdag_response(
     graph: &antecedent_graph::Cpdag,
     query: &antecedent_core::ResponseQuery,
 ) -> Result<IdentificationEnvelope<Dag>, CausalError> {
-    let witness = crate::analysis::response_witness_ate(query)?;
-    if names_several_pairs(&query.functional) {
-        return require_adjustment_identifier(identifier, "CPDAG").and_then(|()| {
-            antecedent_identify::identify_cpdag_derivative_pairs(graph, query).map_err(identify_err)
-        });
-    }
-    if query.functional.treatment_ids().len() == 1 {
-        if identifier != IdentifierId::GeneralizedAdjustment
-            && identifier != IdentifierId::GeneralId
-        {
-            return identify_cpdag(identifier, graph, &witness);
-        }
-        return antecedent_identify::identify_cpdag_response_general(graph, query)
-            .map_err(identify_err);
-    }
-    if identifier != IdentifierId::GeneralizedAdjustment {
-        return Err(CausalError::Unsupported {
-            message: "joint CPDAG response requires generalized.adjustment",
-        });
-    }
-    GeneralizedAdjustmentIdentifier::new()
-        .identify_cpdag_response_envelope(graph, query)
-        .map_err(identify_err)
+    identify_cpdag_response_in_context(identifier, graph, query, None)
 }
 
 /// Whether a derivative functional names more than one treatment/outcome pair (a Jacobian or
@@ -1234,10 +1112,164 @@ pub fn identify_pag_response(
     graph: &Pag,
     query: &antecedent_core::ResponseQuery,
 ) -> Result<IdentificationEnvelope<Pag>, CausalError> {
+    identify_pag_response_in_context(identifier, graph, query, None)
+}
+
+/// Preserve declared work/depth truncation, but never publish a resource interruption as mass.
+pub(crate) fn check_class_search_stop(
+    stop: Option<antecedent_core::SearchStop>,
+) -> Result<(), CausalError> {
+    match stop {
+        Some(antecedent_core::SearchStop::Cancelled) => {
+            Err(CausalError::Cancelled { stage: "identify" })
+        }
+        Some(antecedent_core::SearchStop::Memory) => Err(CausalError::Resource {
+            message: "class completion search cannot be funded by the caller's admission pool"
+                .into(),
+        }),
+        _ => Ok(()),
+    }
+}
+
+/// One configured class owner shared by static facade routes and posterior workers.
+pub(crate) fn class_identifier_in_context(
+    context: Option<&ExecutionContext>,
+) -> GeneralizedAdjustmentIdentifier {
+    let mut identifier = GeneralizedAdjustmentIdentifier::new();
+    identifier.config.context = context.cloned();
+    identifier
+}
+
+/// The same scientific dispatch under the actual caller context.
+pub(crate) fn identify_cpdag_path_specific_in_context(
+    identifier: IdentifierId,
+    cpdag: &antecedent_graph::Cpdag,
+    query: &CausalQuery,
+    context: Option<&ExecutionContext>,
+) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, CausalError> {
+    match identifier {
+        IdentifierId::PathSpecificNatural => class_identifier_in_context(context)
+            .identify_cpdag_path_specific_envelope(cpdag, query)
+            .map_err(identify_err),
+        other => Err(CausalError::Compile {
+            message: format!(
+                "CPDAG path-specific identification requires identifier \"path_specific.natural\"; \
+                 got {:?}",
+                other.as_str()
+            ),
+        }),
+    }
+}
+
+/// The same scientific dispatch under the actual caller context.
+pub(crate) fn identify_pag_path_specific_in_context(
+    identifier: IdentifierId,
+    pag: &Pag,
+    query: &CausalQuery,
+    context: Option<&ExecutionContext>,
+) -> Result<IdentificationEnvelope<Pag>, CausalError> {
+    match identifier {
+        IdentifierId::PathSpecificNatural => class_identifier_in_context(context)
+            .identify_pag_path_specific_envelope(pag, query)
+            .map_err(identify_err),
+        other => Err(CausalError::Compile {
+            message: format!(
+                "PAG path-specific identification requires identifier \"path_specific.natural\"; \
+                 got {:?}",
+                other.as_str()
+            ),
+        }),
+    }
+}
+
+/// The same scientific dispatch under the actual caller context.
+pub(crate) fn identify_cpdag_distribution_in_context(
+    identifier: IdentifierId,
+    cpdag: &antecedent_graph::Cpdag,
+    query: &CausalQuery,
+    context: Option<&ExecutionContext>,
+) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, CausalError> {
+    match identifier {
+        IdentifierId::GeneralId => class_identifier_in_context(context)
+            .identify_cpdag_distribution_envelope(cpdag, query)
+            .map_err(identify_err),
+        other => Err(CausalError::Compile {
+            message: format!(
+                "CPDAG distribution identification requires identifier \"general.id\"; got {:?}",
+                other.as_str()
+            ),
+        }),
+    }
+}
+
+/// The same scientific dispatch under the actual caller context.
+pub(crate) fn identify_pag_distribution_in_context(
+    identifier: IdentifierId,
+    pag: &Pag,
+    query: &CausalQuery,
+    context: Option<&ExecutionContext>,
+) -> Result<IdentificationEnvelope<Pag>, CausalError> {
+    match identifier {
+        IdentifierId::GeneralId => class_identifier_in_context(context)
+            .identify_pag_distribution_envelope(pag, query)
+            .map_err(identify_err),
+        other => Err(CausalError::Compile {
+            message: format!(
+                "PAG distribution identification requires identifier \"general.id\"; got {:?}",
+                other.as_str()
+            ),
+        }),
+    }
+}
+
+/// The same scientific dispatch under the actual caller context.
+pub(crate) fn identify_cpdag_response_in_context(
+    identifier: IdentifierId,
+    graph: &antecedent_graph::Cpdag,
+    query: &antecedent_core::ResponseQuery,
+    context: Option<&ExecutionContext>,
+) -> Result<IdentificationEnvelope<Dag>, CausalError> {
+    let witness = crate::analysis::response_witness_ate(query)?;
+    if names_several_pairs(&query.functional) {
+        return require_adjustment_identifier(identifier, "CPDAG").and_then(|()| {
+            class_identifier_in_context(context)
+                .identify_cpdag_derivative_pairs(graph, query)
+                .map_err(identify_err)
+        });
+    }
+    if query.functional.treatment_ids().len() == 1 {
+        if identifier != IdentifierId::GeneralizedAdjustment
+            && identifier != IdentifierId::GeneralId
+        {
+            return identify_cpdag_in_context(identifier, graph, &witness, context);
+        }
+        return class_identifier_in_context(context)
+            .identify_cpdag_response_general(graph, query)
+            .map_err(identify_err);
+    }
+    if identifier != IdentifierId::GeneralizedAdjustment {
+        return Err(CausalError::Unsupported {
+            message: "joint CPDAG response requires generalized.adjustment",
+        });
+    }
+    class_identifier_in_context(context)
+        .identify_cpdag_response_envelope(graph, query)
+        .map_err(identify_err)
+}
+
+/// The same scientific dispatch under the actual caller context.
+pub(crate) fn identify_pag_response_in_context(
+    identifier: IdentifierId,
+    graph: &Pag,
+    query: &antecedent_core::ResponseQuery,
+    context: Option<&ExecutionContext>,
+) -> Result<IdentificationEnvelope<Pag>, CausalError> {
     let witness = crate::analysis::response_witness_ate(query)?;
     if names_several_pairs(&query.functional) {
         return require_adjustment_identifier(identifier, "PAG").and_then(|()| {
-            antecedent_identify::identify_pag_derivative_pairs(graph, query).map_err(identify_err)
+            class_identifier_in_context(context)
+                .identify_pag_derivative_pairs(graph, query)
+                .map_err(identify_err)
         });
     }
     if query.functional.treatment_ids().len() == 1 {
@@ -1245,9 +1277,10 @@ pub fn identify_pag_response(
         if identifier != IdentifierId::GeneralizedAdjustment
             && identifier != IdentifierId::GeneralId
         {
-            return identify_pag(identifier, graph, &witness);
+            return identify_pag_in_context(identifier, graph, &witness, context);
         }
-        let mut envelope = antecedent_identify::identify_pag_response_general(graph, query)
+        let mut envelope = class_identifier_in_context(context)
+            .identify_pag_response_general(graph, query)
             .map_err(identify_err)?;
         if is_derivative_functional(&query.functional) {
             // A completion general ID identifies but no adjustment reaches: front door.
@@ -1261,7 +1294,7 @@ pub fn identify_pag_response(
             message: "joint PAG response requires generalized.adjustment",
         });
     }
-    GeneralizedAdjustmentIdentifier::new()
+    class_identifier_in_context(context)
         .identify_pag_response_envelope(graph, query)
         .map_err(identify_err)
 }
@@ -1304,9 +1337,8 @@ mod class_context_tests {
         let (ctx, held, pool) = constrained(1 << 20, 1);
         let starved =
             identify_cpdag_in_context(IdentifierId::GeneralizedAdjustment, &cpdag, &q, Some(&ctx))
-                .unwrap();
-        // Nothing could be leased, so no completion was stacked or identified.
-        assert!(starved.cases.is_empty());
+                .unwrap_err();
+        assert!(matches!(starved, crate::CausalError::Resource { .. }));
         assert_eq!(pool.available().bytes(), 1);
         drop(held);
         let funded = identify_cpdag_in_context(
@@ -1327,8 +1359,8 @@ mod class_context_tests {
         let (ctx, held, pool) = constrained(1 << 20, 1);
         let starved =
             identify_pag_in_context(IdentifierId::GeneralizedAdjustment, &pag, &q, Some(&ctx))
-                .unwrap();
-        assert!(starved.cases.is_empty());
+                .unwrap_err();
+        assert!(matches!(starved, crate::CausalError::Resource { .. }));
         assert_eq!(pool.available().bytes(), 1);
         drop(held);
         let funded = identify_pag_in_context(

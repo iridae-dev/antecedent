@@ -62,6 +62,7 @@ impl super::Study {
                 IdentifierId::GeneralizedAdjustment,
                 &witness,
                 physical,
+                ctx,
             )?;
             let envelope = &bundle.envelope.envelope;
             let hit_cap = envelope.truncated_completions > 0;
@@ -1179,10 +1180,44 @@ impl super::Study {
                           derivative over several",
             });
         }
+        let claims = self.identify_admg_derivative_horizons(
+            template,
+            query,
+            &temporal.horizons,
+            variable_count,
+            physical,
+            ctx,
+        )?;
+        let identify_cached = claims.iter().all(|claim| claim.cached);
+        let run = ExecuteRun { physical, ctx, started, identify_cached };
+        let input = AdmgDerivativeInputs {
+            data,
+            template,
+            query,
+            temporal,
+            reported: (treatment, outcome),
+            run,
+        };
+        if let [claim] = claims.as_slice() {
+            return self.execute_single_admg_derivative(input, claim);
+        }
+        self.execute_multi_admg_derivative(input, &claims)
+    }
+
+    /// Retain one proof per requested horizon before any response fitting.
+    fn identify_admg_derivative_horizons(
+        &self,
+        template: &antecedent_graph::TemporalAdmg,
+        query: &ResponseQuery,
+        horizons: &[u32],
+        variable_count: u32,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<AdmgDerivativeClaim>, CausalError> {
         // The products compile retained or the prepared handle froze, else fresh identifications.
         let cache = self.reuse_temporal_identification(physical);
-        let mut claims = Vec::with_capacity(temporal.horizons.len());
-        for &horizon in temporal.horizons.iter() {
+        let mut claims = Vec::with_capacity(horizons.len());
+        for &horizon in horizons {
             let reused = cache.as_ref().and_then(|(cache, prepared)| {
                 cache.get(horizon).map(|entry| {
                     (
@@ -1206,52 +1241,117 @@ impl super::Study {
                 )?;
                 (found.identification, found.estimand, found.indexer, false)
             };
-            claims.push((horizon, identification, estimand, indexer, cached));
+            claims.push(AdmgDerivativeClaim { horizon, identification, estimand, indexer, cached });
         }
-        let identify_cached = claims.iter().all(|claim| claim.4);
-        let run = ExecuteRun { physical, ctx, started, identify_cached };
-        if let [(_, identification, estimand, indexer, _)] = claims.as_slice() {
-            if estimand.method_kind().ok() == Some(EstimandMethod::FrontDoor) {
-                let fit = self.temporal_admg_front_door_response(
-                    (data, template, query),
-                    (identification, estimand),
-                    ctx,
-                )?;
-                let refuted = if self.refute == RefuteSuite::None {
-                    (Vec::new(), Vec::new(), Vec::new())
-                } else {
-                    let (reports, notes) = self.refute_temporal_admg_front_door(
-                        &fit,
-                        (identification, estimand),
-                        ctx,
-                    )?;
-                    (reports, Vec::new(), notes)
-                };
-                return Ok(self.finish_temporal_admg_response(
-                    fit.response,
-                    IdentifiedClaim {
-                        identification: identification.clone(),
-                        estimand: estimand.clone(),
-                    },
-                    (treatment, outcome),
-                    run,
-                    refuted,
-                ));
-            }
-            return self.execute_temporal_derivative_response(
-                DerivativeResponseInputs { data, query, temporal, indexer, treatment, outcome },
+        Ok(claims)
+    }
+
+    /// One horizon keeps its native front-door or adjustment response and refuter.
+    fn execute_single_admg_derivative(
+        &self,
+        input: AdmgDerivativeInputs<'_>,
+        claim: &AdmgDerivativeClaim,
+    ) -> Result<StudyResult, CausalError> {
+        let AdmgDerivativeInputs {
+            data,
+            template,
+            query,
+            temporal,
+            reported: (treatment, outcome),
+            run,
+        } = input;
+        let ctx = run.ctx;
+        let AdmgDerivativeClaim { identification, estimand, indexer, .. } = claim;
+        if estimand.method_kind().ok() == Some(EstimandMethod::FrontDoor) {
+            let fit = self.temporal_admg_front_door_response(
+                (data, template, query),
+                (identification, estimand),
+                ctx,
+            )?;
+            let refuted = if self.refute == RefuteSuite::None {
+                (Vec::new(), Vec::new(), Vec::new())
+            } else {
+                let (reports, notes) =
+                    self.refute_temporal_admg_front_door(&fit, (identification, estimand), ctx)?;
+                (reports, Vec::new(), notes)
+            };
+            return Ok(self.finish_temporal_admg_response(
+                fit.response,
                 IdentifiedClaim {
                     identification: identification.clone(),
                     estimand: estimand.clone(),
                 },
+                (treatment, outcome),
                 run,
-            );
+                refuted,
+            ));
         }
+        self.execute_temporal_derivative_response(
+            DerivativeResponseInputs { data, query, temporal, indexer, treatment, outcome },
+            IdentifiedClaim { identification: identification.clone(), estimand: estimand.clone() },
+            run,
+        )
+    }
+
+    /// Fit horizons separately, then publish their joint response without mixing horizons.
+    fn execute_multi_admg_derivative(
+        &self,
+        input: AdmgDerivativeInputs<'_>,
+        claims: &[AdmgDerivativeClaim],
+    ) -> Result<StudyResult, CausalError> {
+        let AdmgDerivativeInputs { data, query, reported: (treatment, outcome), run, .. } = input;
+        let ctx = run.ctx;
+        let AdmgDerivativeFits { responses, witness_sites, horizon_reports, horizon_notes } =
+            self.fit_admg_derivative_horizons(input, claims)?;
+        let mut combined = combine_horizon_derivatives(&query.functional, &responses)?;
+        let first = claims.first().ok_or(CausalError::Compile {
+            message: "temporal ADMG derivative has no horizon claims".into(),
+        })?;
+        let mut identification = first.identification.clone();
+        let (status, assumptions) =
+            aggregate_temporal_horizon_evidence(claims.iter().map(|claim| &claim.identification))?;
+        identification.status = status;
+        identification.required_assumptions = assumptions.clone();
+        combined.identification_status = status;
+        combined.assumptions = assumptions;
+        let refuted = self.refute_admg_derivative_horizons(
+            data,
+            &combined,
+            &witness_sites,
+            horizon_reports,
+            horizon_notes,
+            ctx,
+        )?;
+        Ok(self.finish_temporal_admg_response(
+            combined,
+            IdentifiedClaim { identification, estimand: first.estimand.clone() },
+            (treatment, outcome),
+            run,
+            refuted,
+        ))
+    }
+
+    /// Fit each horizon on its native window, retaining its own witness and refuter state.
+    fn fit_admg_derivative_horizons(
+        &self,
+        input: AdmgDerivativeInputs<'_>,
+        claims: &[AdmgDerivativeClaim],
+    ) -> Result<AdmgDerivativeFits, CausalError> {
+        let AdmgDerivativeInputs {
+            data,
+            template,
+            query,
+            temporal,
+            reported: (treatment, outcome),
+            run,
+        } = input;
+        let ctx = run.ctx;
         let mut responses = Vec::with_capacity(claims.len());
         let mut witness_sites = Vec::new();
         let mut horizon_reports = Vec::new();
         let mut horizon_notes = Vec::new();
-        for (horizon, identification, estimand, indexer, _) in &claims {
+        for claim in claims {
+            let AdmgDerivativeClaim { horizon, identification, estimand, indexer, .. } = claim;
             let single =
                 crate::analysis::temporal_admg_contrast::single_horizon_query(query, *horizon)?;
             responses.push(if estimand.method_kind().ok() == Some(EstimandMethod::FrontDoor) {
@@ -1273,21 +1373,7 @@ impl super::Study {
                 fit.response
             } else {
                 if self.refute != RefuteSuite::None {
-                    witness_sites.push(super::temporal_response_refutation::PulseWitnessSite {
-                        key: u64::from(*horizon),
-                        horizon: *horizon,
-                        weight: 1.0,
-                        witness: unit_contrast_query(
-                            temporal,
-                            (treatment, outcome),
-                            *horizon,
-                            query.target_population.clone(),
-                        ),
-                        estimand: estimand.clone(),
-                        indexer: indexer.clone(),
-                        status: identification.status,
-                        assumptions: identification.required_assumptions.clone(),
-                    });
+                    witness_sites.push(claim.pulse_witness(input));
                 }
                 let probe = unit_contrast_query(
                     temporal,
@@ -1309,24 +1395,27 @@ impl super::Study {
                 )?
             });
         }
-        let mut combined = combine_horizon_derivatives(&query.functional, &responses)?;
-        let (_, first_identification, first_estimand, _, _) = &claims[0];
-        let mut identification = first_identification.clone();
-        let (status, assumptions) = aggregate_temporal_horizon_evidence(
-            claims.iter().map(|(_, identification, _, _, _)| identification),
-        )?;
-        identification.status = status;
-        identification.required_assumptions = assumptions.clone();
-        combined.identification_status = status;
-        combined.assumptions = assumptions;
+        Ok(AdmgDerivativeFits { responses, witness_sites, horizon_reports, horizon_notes })
+    }
+
+    /// Combine the published support check with each native horizon's refuter evidence.
+    fn refute_admg_derivative_horizons(
+        &self,
+        data: &TimeSeriesData,
+        combined: &CausalResponse,
+        witness_sites: &[super::temporal_response_refutation::PulseWitnessSite],
+        horizon_reports: Vec<antecedent_validate::RefutationReport>,
+        horizon_notes: Vec<Diagnostic>,
+        ctx: &ExecutionContext,
+    ) -> Result<super::temporal_response_refutation::TemporalLevelRefutation, CausalError> {
         // A multi-horizon derivative's cheap/full suite is the support of the published
         // values, the front-door state of each front-door horizon and the TemporalDag
         // Pulse-native suite on each adjustment horizon's witness; horizons are not mixed
         // (unlicensed).
         let mut refuted = (Vec::new(), Vec::new(), Vec::new());
         if self.refute != RefuteSuite::None {
-            let value = super::derivative_refutation::derivative_scalar(&combined).0;
-            refuted.0.push(super::derivative_refutation::support_report(&combined, value));
+            let value = super::derivative_refutation::derivative_scalar(combined).0;
+            refuted.0.push(super::derivative_refutation::support_report(combined, value));
             refuted.0.extend(horizon_reports);
             refuted.2.extend(horizon_notes);
             if !witness_sites.is_empty() {
@@ -1334,7 +1423,7 @@ impl super::Study {
                     super::temporal_response_refutation::refute_pulse_witness_sites(
                         self,
                         data,
-                        &witness_sites,
+                        witness_sites,
                         ctx,
                     )?;
                 refuted.0.extend(reports);
@@ -1346,13 +1435,7 @@ impl super::Study {
                 ));
             }
         }
-        Ok(self.finish_temporal_admg_response(
-            combined,
-            IdentifiedClaim { identification, estimand: first_estimand.clone() },
-            (treatment, outcome),
-            run,
-            refuted,
-        ))
+        Ok(refuted)
     }
 
     /// The front-door derivative of one horizon of a temporal ADMG, on the lag-aligned window
@@ -2072,6 +2155,7 @@ impl super::Study {
                 IdentifierId::GeneralizedAdjustment,
                 &effect_query,
                 physical,
+                ctx,
             )?;
             let envelope = &bundle.envelope.envelope;
             run.diagnostics.push(temporal_class_envelope_diagnostic(envelope, self.graph.class()));
@@ -2547,6 +2631,7 @@ impl super::Study {
                 IdentifierId::GeneralizedAdjustment,
                 &effect_query,
                 physical,
+                ctx,
             )?;
             let envelope = &bundle.envelope.envelope;
             let weights = class_weights.for_envelope(&bundle.envelope)?;
@@ -3004,7 +3089,7 @@ impl super::Study {
             Ok((identifier_id, cache, prepared))
         } else {
             report_identify_compute(ctx);
-            Ok((identifier_id, self.identify_temporal_class(identifier_id, query)?, false))
+            Ok((identifier_id, self.identify_temporal_class(identifier_id, query, ctx)?, false))
         }
     }
 
@@ -3027,7 +3112,7 @@ impl super::Study {
                 reused
             } else {
                 report_identify_compute(ctx);
-                (self.identify_temporal_class(identifier_id, query)?, false)
+                (self.identify_temporal_class(identifier_id, query, ctx)?, false)
             };
         let envelope = &bundle.envelope.envelope;
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
@@ -3393,11 +3478,12 @@ impl super::Study {
         identifier_id: IdentifierId,
         query: &TemporalEffectQuery,
         physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
     ) -> Result<Arc<crate::analysis::prepared::CachedTemporalClassIdentification>, CausalError>
     {
         match self.retained_temporal_class_horizon(physical, query.horizon_steps) {
             Some(bundle) => Ok(bundle),
-            None => self.identify_temporal_class(identifier_id, query),
+            None => self.identify_temporal_class(identifier_id, query, ctx),
         }
     }
 
@@ -3405,8 +3491,12 @@ impl super::Study {
         &self,
         identifier_id: IdentifierId,
         query: &TemporalEffectQuery,
+        ctx: &ExecutionContext,
     ) -> Result<Arc<crate::analysis::prepared::CachedTemporalClassIdentification>, CausalError>
     {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
+        }
         if let Some(cache) = self.temporal_class_identification_cache.as_ref() {
             if let Some((_, envelope)) =
                 cache.by_horizon.iter().find(|(horizon, _)| *horizon == query.horizon_steps)
@@ -3419,7 +3509,10 @@ impl super::Study {
                 ));
             }
         }
-        let mut config = antecedent_identify::GeneralizedAdjustmentConfig::default();
+        let mut config = antecedent_identify::GeneralizedAdjustmentConfig {
+            context: Some(ctx.clone()),
+            ..Default::default()
+        };
         if let Some(max) = self.max_completions {
             config.max_completions = max;
         }
@@ -5667,29 +5760,45 @@ impl super::Study {
     pub(crate) fn retain_cross_world_identification(
         &self,
         plan: &PhysicalExecutionPlan,
-    ) -> Option<crate::planner::lowered::RetainedExecutionProof> {
-        let probe = super::temporal_class_point::cross_world_identification_probe(&self.query)?;
+        ctx: &ExecutionContext,
+    ) -> Result<Option<crate::planner::lowered::RetainedExecutionProof>, CausalError> {
         use crate::accepted::GraphRef;
-        match self.graph.graph_ref() {
+        let Some(probe) =
+            super::temporal_class_point::cross_world_identification_probe(&self.query)
+        else {
+            return Ok(None);
+        };
+        Ok(match self.graph.graph_ref() {
             GraphRef::TemporalDag(graph) => {
-                let found =
-                    TemporalBackdoorIdentifier::new().identify_temporal(graph, &probe).ok()?;
-                require_identified(&found.result).ok()?;
-                found.result.estimands.first()?;
+                let Ok(found) = TemporalBackdoorIdentifier::new().identify_temporal(graph, &probe)
+                else {
+                    return Ok(None);
+                };
+                if require_identified(&found.result).is_err() || found.result.estimands.is_empty() {
+                    return Ok(None);
+                }
                 Some(crate::planner::lowered::RetainedExecutionProof::CrossWorld {
                     identification: found.result,
                     indexer: found.indexer,
                 })
             }
             GraphRef::TemporalCpdag(_) | GraphRef::TemporalPag(_) => {
-                let identifier_id = plan.binding().identifier_or(RouteDefaults::PAG).ok()?;
-                let bundle = self.identify_temporal_class(identifier_id, &probe).ok()?;
+                let Ok(identifier_id) = plan.binding().identifier_or(RouteDefaults::PAG) else {
+                    return Ok(None);
+                };
+                let bundle = match self.identify_temporal_class(identifier_id, &probe, ctx) {
+                    Ok(bundle) => bundle,
+                    Err(error @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => {
+                        return Err(error);
+                    }
+                    Err(_) => return Ok(None),
+                };
                 Some(crate::planner::lowered::RetainedExecutionProof::CrossWorldClass {
                     envelope: Arc::clone(&bundle.envelope),
                 })
             }
             _ => None,
-        }
+        })
     }
 
     #[allow(
@@ -6483,18 +6592,16 @@ pub(super) fn combine_horizon_derivatives(
     let mut upper = Vec::with_capacity(responses.len());
     let mut level_interpretation = None;
     for response in responses {
-        match &response.uncertainty {
-            ResponseUncertainty::Scalar {
-                lower: low, upper: high, level, interpretation, ..
-            } => {
-                lower.push(*low);
-                upper.push(*high);
-                level_interpretation = Some((*level, *interpretation));
-            }
-            _ => {
-                lower.clear();
-                break;
-            }
+        if let ResponseUncertainty::Scalar {
+            lower: low, upper: high, level, interpretation, ..
+        } = &response.uncertainty
+        {
+            lower.push(*low);
+            upper.push(*high);
+            level_interpretation = Some((*level, *interpretation));
+        } else {
+            lower.clear();
+            break;
         }
     }
     let uncertainty = match level_interpretation {
@@ -7050,6 +7157,58 @@ fn identified_horizon_entries<'a>(
         aligned.push(entry);
     }
     Ok(aligned)
+}
+
+/// One horizon's immutable identification and whether preparation supplied it.
+struct AdmgDerivativeClaim {
+    horizon: u32,
+    identification: IdentificationResult,
+    estimand: IdentifiedEstimand,
+    indexer: TemporalIndexer,
+    cached: bool,
+}
+
+impl AdmgDerivativeClaim {
+    /// A derivative's adjustment refuter uses the unit contrast at this same horizon.
+    fn pulse_witness(
+        &self,
+        input: AdmgDerivativeInputs<'_>,
+    ) -> super::temporal_response_refutation::PulseWitnessSite {
+        super::temporal_response_refutation::PulseWitnessSite {
+            key: u64::from(self.horizon),
+            horizon: self.horizon,
+            weight: 1.0,
+            witness: unit_contrast_query(
+                input.temporal,
+                input.reported,
+                self.horizon,
+                input.query.target_population.clone(),
+            ),
+            estimand: self.estimand.clone(),
+            indexer: self.indexer.clone(),
+            status: self.identification.status,
+            assumptions: self.identification.required_assumptions.clone(),
+        }
+    }
+}
+
+/// Native fits and refuter state in the requested horizon order.
+struct AdmgDerivativeFits {
+    responses: Vec<CausalResponse>,
+    witness_sites: Vec<super::temporal_response_refutation::PulseWitnessSite>,
+    horizon_reports: Vec<antecedent_validate::RefutationReport>,
+    horizon_notes: Vec<Diagnostic>,
+}
+
+/// Shared source/target and reporting frame for native ADMG derivative phases.
+#[derive(Clone, Copy)]
+struct AdmgDerivativeInputs<'a> {
+    data: &'a TimeSeriesData,
+    template: &'a antecedent_graph::TemporalAdmg,
+    query: &'a ResponseQuery,
+    temporal: &'a antecedent_core::TemporalResponseSpec,
+    reported: (VariableId, VariableId),
+    run: ExecuteRun<'a>,
 }
 
 /// The series, query, specification and unfold indexer a temporal derivative

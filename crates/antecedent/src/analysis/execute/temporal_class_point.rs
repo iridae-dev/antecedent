@@ -719,7 +719,7 @@ impl super::Study {
             }
         } else {
             report_identify_compute(ctx);
-            (self.identify_temporal_class(identifier_id, probe)?.envelope.clone(), false)
+            (self.identify_temporal_class(identifier_id, probe, ctx)?.envelope.clone(), false)
         })
     }
 
@@ -915,7 +915,7 @@ impl super::Study {
                 (Arc::clone(envelope), false)
             } else {
                 report_identify_compute(ctx);
-                (self.identify_temporal_class(identifier_id, &probe)?.envelope.clone(), false)
+                (self.identify_temporal_class(identifier_id, &probe, ctx)?.envelope.clone(), false)
             };
         let offsets = (probe.try_treatment_offset()?, probe.outcome_offset());
         let query = &self.query;

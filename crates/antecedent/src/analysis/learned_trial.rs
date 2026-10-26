@@ -107,7 +107,8 @@ impl StudyBuilder {
             return Err(err("trial transport cancelled"));
         }
         antecedent_estimate::validate_trial_query(&query).map_err(err)?;
-        let identification = TransportIdentifier::new().identify(&diagram, &query).map_err(err)?;
+        let identification =
+            TransportIdentifier::new().identify_with_context(&diagram, &query, ctx).map_err(err)?;
         antecedent_estimate::validate_trial_aipw(&identification, &input, &options).map_err(err)?;
         Ok(PreparedStudy {
             state: LearnedTrialState {

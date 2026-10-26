@@ -8,7 +8,7 @@ use super::{
     IdentificationResult, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
     IdentifierId, InferenceDiagnostics, InferenceMode, Instant, OverlapPolicy,
     PhysicalExecutionPlan, SharpRdConfig, SharpRdIdentifier, Strategy, Study, StudyResult,
-    TabularData, elapsed_ns, identify_static_query, require_identified, select_estimand,
+    TabularData, elapsed_ns, require_identified, select_estimand,
 };
 use antecedent_estimate::DrawSpec;
 use antecedent_estimate::bayesian_iv::{
@@ -91,7 +91,13 @@ impl Study {
             return Ok((cache.identification.clone(), cache.estimand.clone(), prepared));
         }
         super::report_identify_compute(ctx);
-        let identification = identify_static_query(identifier, graph, target)?;
+        let identification = crate::strategy_table::identify_static_query_in_context(
+            identifier,
+            graph,
+            target,
+            None,
+            Some(ctx),
+        )?;
         require_identified(&identification)?;
         let estimand = select_estimand(&identification, estimator)?;
         Ok((identification, estimand, false))

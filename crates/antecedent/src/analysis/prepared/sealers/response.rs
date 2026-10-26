@@ -145,6 +145,7 @@ pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
             {
                 Some(crate::analysis::execute::CheckedCellAipwResponseOperation::checked(
                     crate::analysis::execute::CheckedCellAipwResponseOperationPremises {
+                        ctx: cx.ctx,
                         structure: &crate::analysis::execute::CellAipwStructure::Dag(graph.clone()),
                         query,
                         cache,
@@ -185,6 +186,7 @@ pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
             };
             Some(crate::analysis::execute::CheckedCellAipwResponseOperation::checked(
                 crate::analysis::execute::CheckedCellAipwResponseOperationPremises {
+                    ctx: cx.ctx,
                     structure: &crate::analysis::execute::CellAipwStructure::TierClosure {
                         admg: admg.clone(),
                         background: background.clone(),

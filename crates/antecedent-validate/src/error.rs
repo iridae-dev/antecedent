@@ -16,6 +16,12 @@ pub enum ValidationError {
     /// Execution was cancelled before a complete validation report was available.
     #[error("validation cancelled")]
     Cancelled,
+    /// Execution could not fund validation's required work.
+    #[error("validation resource refusal: {message}")]
+    Resource {
+        /// The refused resource demand.
+        message: String,
+    },
     /// Data transformation failed.
     #[error(transparent)]
     Data(#[from] DataError),

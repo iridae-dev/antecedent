@@ -2091,40 +2091,7 @@ fn compile_with_payloads(
         body_frame(&study.query, lagged.as_deref(), cached, study.population_registry.as_ref())?;
     body.window_variables = window_namespace(study);
     let (evidence_obligations, evidence_actions) = evidence_needs::derive(study, cached);
-    let mut functional = match overlap_label(study, resolved_estimator.as_deref()) {
-        Some(overlap) => format!("{}+{overlap}", functional_label(&study.query)),
-        None => functional_label(&study.query),
-    };
-    // Calibration labels retain nuisance, stratification and matching choices in order.
-    if let Some(estimator) = study.estimator_spec.as_deref() {
-        for label in [
-            estimator.propensity_calibration_label(),
-            estimator.stratification_calibration_label().map(str::to_owned),
-            estimator.matching_calibration_label().map(str::to_owned),
-            estimator.bootstrap_interval_calibration_label().map(str::to_owned),
-        ]
-        .into_iter()
-        .flatten()
-        {
-            functional = format!("{functional}+{label}");
-        }
-    }
-    // Sampling weights change the estimand and the variance: an interval measured on unweighted
-    // rows must not bind to a weighted-population estimate.
-    let weighted_table = match &study.data {
-        DataInput::Tabular(data) => data.storage().weights().is_some(),
-        DataInput::Temporal(data) | DataInput::Event(data) => data.storage().weights().is_some(),
-        DataInput::MultiEnv(_) | DataInput::Panel(_) => false,
-    };
-    if weighted_table
-        || study
-            .estimator_spec
-            .as_deref()
-            .and_then(crate::estimator_spec::EstimatorSpec::sampling_weights_calibration_label)
-            .is_some()
-    {
-        functional = format!("{functional}+{}", crate::estimator_spec::SAMPLING_WEIGHTS_LABEL);
-    }
+    let functional = contract_functional_label(study, resolved_estimator.as_deref());
     Ok((
         CausalContract {
             identities: payloads.identities,
@@ -2168,6 +2135,45 @@ fn compile_with_payloads(
         },
         payloads,
     ))
+}
+
+/// Calibration labels retain estimator choices in the established wire order.
+fn contract_functional_label(study: &Study, resolved_estimator: Option<&str>) -> String {
+    let mut functional = match overlap_label(study, resolved_estimator) {
+        Some(overlap) => format!("{}+{overlap}", functional_label(&study.query)),
+        None => functional_label(&study.query),
+    };
+    // Calibration labels retain nuisance, stratification and matching choices in order.
+    if let Some(estimator) = study.estimator_spec.as_deref() {
+        for label in [
+            estimator.propensity_calibration_label(),
+            estimator.stratification_calibration_label().map(str::to_owned),
+            estimator.matching_calibration_label().map(str::to_owned),
+            estimator.bootstrap_interval_calibration_label().map(str::to_owned),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            functional = format!("{functional}+{label}");
+        }
+    }
+    // Sampling weights change the estimand and the variance: an interval measured on unweighted
+    // rows must not bind to a weighted-population estimate.
+    let weighted_table = match &study.data {
+        DataInput::Tabular(data) => data.storage().weights().is_some(),
+        DataInput::Temporal(data) | DataInput::Event(data) => data.storage().weights().is_some(),
+        DataInput::MultiEnv(_) | DataInput::Panel(_) => false,
+    };
+    if weighted_table
+        || study
+            .estimator_spec
+            .as_deref()
+            .and_then(crate::estimator_spec::EstimatorSpec::sampling_weights_calibration_label)
+            .is_some()
+    {
+        functional = format!("{functional}+{}", crate::estimator_spec::SAMPLING_WEIGHTS_LABEL);
+    }
+    functional
 }
 
 fn data_schema(data: &DataInput) -> &CausalSchema {

@@ -19,9 +19,9 @@
 //! own and a disagreement diagnostic states how far the completions spread. The state
 //! executes and is unlicensed: no coverage or evidence record names it.
 
-use super::atom_mix::{finish_atom_refutations, ScalarRefuterMix};
+use super::atom_mix::{ScalarRefuterMix, finish_atom_refutations};
 use super::derivative_refutation::{
-    derivative_scalar, refute_derivative, DerivativeRefutationInput,
+    DerivativeRefutationInput, derivative_scalar, refute_derivative,
 };
 use super::response_path::FrontDoorClaim;
 use super::{
@@ -137,58 +137,7 @@ impl super::Study {
             };
             per_atom.push((*weight, reports));
         }
-        let lower = values.iter().copied().fold(f64::INFINITY, f64::min);
-        let upper = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-        let spread = if values.is_empty() { f64::NAN } else { upper - lower };
-        let same_value = spread.is_finite()
-            && spread <= SAME_VALUE_TOLERANCE * lower.abs().max(upper.abs()).max(1.0);
-        diagnostics.push(
-            Diagnostic::new(
-                "refute.response.class_envelope_disagreement",
-                DiagnosticKind::Scientific,
-                if same_value { DiagnosticSeverity::Info } else { DiagnosticSeverity::Warning },
-                format!(
-                    "{} evaluated completion(s); completion derivatives span [{lower}, {upper}] \
-                     (spread {spread}). {}",
-                    values.len(),
-                    if same_value {
-                        "Every completion publishes the same derivative, so the per-completion \
-                         refuter reports are mixed by completion weight."
-                    } else {
-                        "The completions disagree, so each completion's refuter reports are \
-                         kept on their own; no mixed verdict is formed over an identified set."
-                    }
-                ),
-            )
-            .with_fields([
-                ("completions", values.len().to_string()),
-                ("lower", lower.to_string()),
-                ("upper", upper.to_string()),
-            ]),
-        );
-        if unchecked > 0 {
-            diagnostics.push(Diagnostic::new(
-                "refute.derivative.general_id_unchecked",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Warning,
-                format!(
-                    "{unchecked} completion(s) are identified by the general ID algorithm \
-                     through a functional that is neither an adjustment nor a front door, so \
-                     no derivative plug-in exists to refit; their mass is not covered by the \
-                     derivative refuter state"
-                ),
-            ));
-        }
-        diagnostics.push(Diagnostic::new(
-            "refute.response.class_derivative_state",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "class-aware derivative refuter state: the static derivative state (support, \
-             finite difference of the identified levels, and under full resampling stability) \
-             on each completion's own adjustment estimand, the front-door state on a \
-             front-door completion. It executes unlicensed: no coverage or evidence record \
-             names it, and the verdicts are checks, not a calibration claim.",
-        ));
+        let same_value = class_derivative_diagnostics(&values, unchecked, &mut diagnostics);
         let (reports, diagnostics) = finish_atom_refutations(
             per_atom,
             diagnostics,
@@ -199,4 +148,64 @@ impl super::Study {
         );
         Ok((reports, checks, diagnostics))
     }
+}
+
+fn class_derivative_diagnostics(
+    values: &[f64],
+    unchecked: usize,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let lower = values.iter().copied().fold(f64::INFINITY, f64::min);
+    let upper = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let spread = if values.is_empty() { f64::NAN } else { upper - lower };
+    let same_value = spread.is_finite()
+        && spread <= SAME_VALUE_TOLERANCE * lower.abs().max(upper.abs()).max(1.0);
+    diagnostics.push(
+        Diagnostic::new(
+            "refute.response.class_envelope_disagreement",
+            DiagnosticKind::Scientific,
+            if same_value { DiagnosticSeverity::Info } else { DiagnosticSeverity::Warning },
+            format!(
+                "{} evaluated completion(s); completion derivatives span [{lower}, {upper}] \
+                 (spread {spread}). {}",
+                values.len(),
+                if same_value {
+                    "Every completion publishes the same derivative, so the per-completion \
+                     refuter reports are mixed by completion weight."
+                } else {
+                    "The completions disagree, so each completion's refuter reports are \
+                     kept on their own; no mixed verdict is formed over an identified set."
+                }
+            ),
+        )
+        .with_fields([
+            ("completions", values.len().to_string()),
+            ("lower", lower.to_string()),
+            ("upper", upper.to_string()),
+        ]),
+    );
+    if unchecked > 0 {
+        diagnostics.push(Diagnostic::new(
+            "refute.derivative.general_id_unchecked",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            format!(
+                "{unchecked} completion(s) are identified by the general ID algorithm \
+                 through a functional that is neither an adjustment nor a front door, so \
+                 no derivative plug-in exists to refit; their mass is not covered by the \
+                 derivative refuter state"
+            ),
+        ));
+    }
+    diagnostics.push(Diagnostic::new(
+        "refute.response.class_derivative_state",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        "class-aware derivative refuter state: the static derivative state (support, \
+         finite difference of the identified levels, and under full resampling stability) \
+         on each completion's own adjustment estimand, the front-door state on a \
+         front-door completion. It executes unlicensed: no coverage or evidence record \
+         names it, and the verdicts are checks, not a calibration claim.",
+    ));
+    same_value
 }

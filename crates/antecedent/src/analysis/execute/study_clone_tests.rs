@@ -166,7 +166,11 @@ fn temporal_class_lookup_returns_the_retained_envelope_without_copying() {
         .with_max_history_lag(Some(1));
     let before = Arc::strong_count(retained);
     let bundle = analysis
-        .identify_temporal_class(IdentifierId::GeneralizedAdjustment, &probe)
+        .identify_temporal_class(
+            IdentifierId::GeneralizedAdjustment,
+            &probe,
+            &ExecutionContext::for_tests(91),
+        )
         .expect("retained certificate");
     assert!(Arc::ptr_eq(&bundle.envelope, retained), "the envelope is shared, not copied");
     assert_eq!(Arc::strong_count(retained), before + 1);

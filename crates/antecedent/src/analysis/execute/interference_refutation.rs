@@ -179,35 +179,7 @@ fn assignment_calibration(
             ))
         }
         AssignmentDesign::ClusterRandomization { clusters, treated_clusters } => {
-            if clusters.len() != assignment.len() {
-                return None;
-            }
-            let mut by_cluster: std::collections::BTreeMap<u32, (usize, usize)> =
-                std::collections::BTreeMap::new();
-            for (cluster, &z) in clusters.iter().zip(assignment) {
-                let entry = by_cluster.entry(*cluster).or_insert((0, 0));
-                entry.0 += 1;
-                entry.1 += usize::from(z);
-            }
-            let mixed = by_cluster.values().filter(|(n, t)| *t != 0 && t != n).count();
-            let whole = by_cluster.values().filter(|(n, t)| t == n).count();
-            let passed = mixed == 0 && whole == *treated_clusters;
-            Some(RefutationReport::new(
-                "interference.assignment_calibration",
-                whole as f64,
-                *treated_clusters as f64,
-                if passed { 1.0 } else { 0.0 },
-                true,
-                passed,
-                (!passed).then(|| {
-                    std::sync::Arc::from(format!(
-                        "{whole} wholly treated clusters and {mixed} partly treated clusters \
-                         where cluster randomization treats exactly {treated_clusters} whole \
-                         clusters"
-                    ))
-                }),
-                1,
-            ))
+            cluster_assignment_calibration(clusters, *treated_clusters, assignment)
         }
         AssignmentDesign::TwoStageSaturation { realized_saturation, .. } => {
             if realized_saturation.len() != assignment.len() {
@@ -534,6 +506,42 @@ fn randomization_unbiasedness(
             ))
         }),
         ok,
+    ))
+}
+
+fn cluster_assignment_calibration(
+    clusters: &[u32],
+    treated_clusters: usize,
+    assignment: &[bool],
+) -> Option<RefutationReport> {
+    if clusters.len() != assignment.len() {
+        return None;
+    }
+    let mut by_cluster: std::collections::BTreeMap<u32, (usize, usize)> =
+        std::collections::BTreeMap::new();
+    for (cluster, &z) in clusters.iter().zip(assignment) {
+        let entry = by_cluster.entry(*cluster).or_insert((0, 0));
+        entry.0 += 1;
+        entry.1 += usize::from(z);
+    }
+    let mixed = by_cluster.values().filter(|(n, t)| *t != 0 && t != n).count();
+    let whole = by_cluster.values().filter(|(n, t)| t == n).count();
+    let passed = mixed == 0 && whole == treated_clusters;
+    Some(RefutationReport::new(
+        "interference.assignment_calibration",
+        whole as f64,
+        treated_clusters as f64,
+        if passed { 1.0 } else { 0.0 },
+        true,
+        passed,
+        (!passed).then(|| {
+            std::sync::Arc::from(format!(
+                "{whole} wholly treated clusters and {mixed} partly treated clusters \
+                 where cluster randomization treats exactly {treated_clusters} whole \
+                 clusters"
+            ))
+        }),
+        1,
     ))
 }
 

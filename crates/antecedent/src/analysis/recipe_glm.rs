@@ -188,6 +188,10 @@ pub fn logistic_standardized_effect(
     ctx: &ExecutionContext,
 ) -> Result<RecipeAte, CausalError> {
     let response = column(data, outcome)?;
+    #[allow(
+        clippy::float_cmp,
+        reason = "observed binary response labels must be exactly zero or one"
+    )]
     if response.iter().any(|value| *value != 0.0 && *value != 1.0) {
         return Err(compile("a logistic recipe fit needs a 0/1 response"));
     }

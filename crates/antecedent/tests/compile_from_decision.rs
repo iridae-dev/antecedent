@@ -324,3 +324,41 @@ fn evsi_refuses_before_allocation_when_the_pool_cannot_hold_the_store() {
     // Nothing was leased from the pool.
     assert_eq!(ctx.admission().available().bytes(), 64);
 }
+
+#[test]
+fn evsi_evaluation_keeps_caller_context_and_exact_ranking_artifact() {
+    use antecedent_core::CachePolicy;
+    let study = study(true);
+    let wire = ranking_wire(&["context-ranking"]);
+    let warm = evaluate_for_study(&study, &wire, &ExecutionContext::production(3, 1)).unwrap();
+    let disabled = ExecutionContext::for_tests(999);
+    let mut bounded = disabled.clone();
+    bounded.cache_policy = CachePolicy::enabled(Some(1024));
+    let mut finite = disabled.clone().with_memory_limit(Some(16 << 20));
+    finite.cache_policy = CachePolicy::enabled(None);
+    for ctx in [disabled, bounded, finite] {
+        let before = ctx.admission().available();
+        let evaluated = evaluate_for_study(&study, &wire, &ctx).unwrap();
+        assert_eq!(evaluated.report(), warm.report());
+        assert_eq!(evaluated.artifact(), warm.artifact());
+        assert_eq!(evaluated.lowered_program_identity(), warm.lowered_program_identity());
+        assert_eq!(ctx.admission().available(), before);
+    }
+    let tiny = ExecutionContext::for_tests(3).with_memory_limit(Some(64));
+    let before = tiny.admission().available();
+    let error = evaluate_for_study(&study, &wire, &tiny).unwrap_err();
+    assert!(matches!(error, DesignRankingError::Compile(CausalError::Resource { .. })));
+    assert_eq!(tiny.admission().available(), before);
+
+    let cancelled = ExecutionContext::for_tests(3);
+    cancelled.cancellation.cancel();
+    let error = evaluate_for_study(&study, &wire, &cancelled).unwrap_err();
+    assert!(
+        matches!(
+            error,
+            DesignRankingError::Compile(CausalError::Cancelled { .. })
+                | DesignRankingError::Evsi(antecedent_design::evsi::EvsiError::Cancelled)
+        ),
+        "{error}"
+    );
+}

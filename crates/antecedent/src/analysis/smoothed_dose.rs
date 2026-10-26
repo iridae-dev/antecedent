@@ -123,8 +123,11 @@ impl StudyBuilder {
         {
             return Err(err("variable names must cover every graph coordinate"));
         }
-        let identification =
-            TransportIdentifier::new().identify(&diagram, &query.transport_query())?;
+        let identification = TransportIdentifier::new().identify_with_context(
+            &diagram,
+            &query.transport_query(),
+            ctx,
+        )?;
         antecedent_estimate::validate_smoothed_dose(&identification, &query, &input, &options)
             .map_err(estimate_err)?;
         Ok(PreparedSmoothedDose {

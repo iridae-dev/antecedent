@@ -114,12 +114,12 @@ impl super::Study {
         physical: &Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let class = self.static_class_members()?;
+        let class = self.static_class_members(ctx)?;
         let cache = self.class_attribution_identification(physical, ctx)?;
-        let outcomes = self.run_class_members(&class, ctx, |member| {
+        let outcomes = Self::run_class_members(&class, ctx, |member| {
             self.attribute_static_member(member, data, physical, &cache, ctx)
         })?;
-        self.finish_class_attribution(&class, outcomes)
+        Self::finish_class_attribution(&class, outcomes)
     }
 
     /// Attribute one member of a static structure class: the DAG attribution on a directed
@@ -163,12 +163,12 @@ impl super::Study {
         physical: &Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let class = self.temporal_class_members(series)?;
+        let class = self.temporal_class_members(series, ctx)?;
         let cache = self.class_attribution_identification(physical, ctx)?;
-        let outcomes = self.run_class_members(&class, ctx, |member| {
+        let outcomes = Self::run_class_members(&class, ctx, |member| {
             self.attribute_series_member(member, series, physical, &cache, ctx)
         })?;
-        self.finish_class_attribution(&class, outcomes)
+        Self::finish_class_attribution(&class, outcomes)
     }
 
     /// Attribute one member of a temporal structure class on a series, as
@@ -246,7 +246,6 @@ impl super::Study {
     /// Run `run` on every member, in order. A member's refusal or failure is its outcome; only a
     /// cancellation ends the run.
     fn run_class_members(
-        &self,
         class: &ClassMembers,
         ctx: &ExecutionContext,
         mut run: impl FnMut(&Member) -> MemberRun,
@@ -260,7 +259,7 @@ impl super::Study {
             }
             let outcome = run(member);
             if let Err(error) = &outcome {
-                if matches!(error, CausalError::Cancelled { .. }) {
+                if matches!(error, CausalError::Cancelled { .. } | CausalError::Resource { .. }) {
                     return Err(error.clone());
                 }
             }
@@ -270,7 +269,7 @@ impl super::Study {
     }
 
     /// The members of a static structure class.
-    fn static_class_members(&self) -> Result<ClassMembers, CausalError> {
+    fn static_class_members(&self, ctx: &ExecutionContext) -> Result<ClassMembers, CausalError> {
         let targets = self.class_attribution_targets()?;
         let cap = self.max_completions.unwrap_or(DEFAULT_CLASS_MEMBERS);
         match self.graph.graph_ref() {
@@ -290,8 +289,13 @@ impl super::Study {
                 })
             }
             GraphRef::Cpdag(cpdag) => {
-                let mut sampler = antecedent_graph::CpdagCompletionSampler::new(cpdag.clone(), cap)
-                    .map_err(CausalError::rejected)?;
+                let mut sampler = antecedent_graph::CpdagCompletionSampler::with_budget(
+                    cpdag.clone(),
+                    cap,
+                    class_completion_limits(),
+                    ctx,
+                )
+                .map_err(CausalError::rejected)?;
                 let members = sampler
                     .by_ref()
                     .map(|completion| Member {
@@ -299,6 +303,7 @@ impl super::Study {
                         kind: MemberKind::Directed(AcceptedGraph::from(completion.graph)),
                     })
                     .collect();
+                crate::strategy_table::check_class_search_stop(sampler.search_stop())?;
                 Ok(ClassMembers {
                     members,
                     capped: sampler.hit_cap(),
@@ -307,13 +312,19 @@ impl super::Study {
                 })
             }
             GraphRef::Pag(pag) => {
-                let mut sampler = antecedent_graph::CompletionSampler::new(pag.clone(), cap)
-                    .map_err(CausalError::rejected)?;
+                let mut sampler = antecedent_graph::CompletionSampler::with_budget(
+                    pag,
+                    cap,
+                    class_completion_limits(),
+                    ctx,
+                )
+                .map_err(CausalError::rejected)?;
                 let mut members = Vec::new();
                 for completion in sampler.by_ref() {
                     let admg = labelled_confounded_admg(&completion.graph)?;
                     members.push(Member { weight: 1.0, kind: mixed_member(&admg, &targets)? });
                 }
+                crate::strategy_table::check_class_search_stop(sampler.search_stop())?;
                 Ok(ClassMembers {
                     members,
                     capped: sampler.hit_cap() || sampler.class_audit_incomplete(),
@@ -329,7 +340,11 @@ impl super::Study {
     }
 
     /// The members of a temporal structure class over `series`.
-    fn temporal_class_members(&self, series: &TimeSeriesData) -> Result<ClassMembers, CausalError> {
+    fn temporal_class_members(
+        &self,
+        series: &TimeSeriesData,
+        ctx: &ExecutionContext,
+    ) -> Result<ClassMembers, CausalError> {
         let targets = self.class_attribution_targets()?;
         let cap = self.max_completions.unwrap_or(DEFAULT_CLASS_MEMBERS);
         match self.graph.graph_ref() {
@@ -343,9 +358,13 @@ impl super::Study {
                 posterior: None,
             }),
             GraphRef::TemporalCpdag(cpdag) => {
-                let mut sampler =
-                    antecedent_graph::TemporalCpdagCompletionSampler::new(cpdag.clone(), cap)
-                        .map_err(CausalError::rejected)?;
+                let mut sampler = antecedent_graph::TemporalCpdagCompletionSampler::with_budget(
+                    cpdag.clone(),
+                    cap,
+                    class_completion_limits(),
+                    ctx,
+                )
+                .map_err(CausalError::rejected)?;
                 let members = sampler
                     .by_ref()
                     .map(|completion| Member {
@@ -353,6 +372,7 @@ impl super::Study {
                         kind: MemberKind::Directed(AcceptedGraph::from(completion.graph)),
                     })
                     .collect();
+                crate::strategy_table::check_class_search_stop(sampler.search_stop())?;
                 Ok(ClassMembers {
                     members,
                     capped: sampler.hit_cap(),
@@ -361,9 +381,13 @@ impl super::Study {
                 })
             }
             GraphRef::TemporalPag(pag) => {
-                let mut sampler =
-                    antecedent_graph::TemporalPagCompletionSampler::new(pag.clone(), cap)
-                        .map_err(CausalError::rejected)?;
+                let mut sampler = antecedent_graph::TemporalPagCompletionSampler::with_budget(
+                    pag.clone(),
+                    cap,
+                    class_completion_limits(),
+                    ctx,
+                )
+                .map_err(CausalError::rejected)?;
                 let mut members = Vec::new();
                 for completion in sampler.by_ref() {
                     let template = temporal_mag_template(&completion.graph, series)?;
@@ -372,6 +396,7 @@ impl super::Study {
                         kind: temporal_mixed_member(&template, series, &targets)?,
                     });
                 }
+                crate::strategy_table::check_class_search_stop(sampler.search_stop())?;
                 Ok(ClassMembers {
                     members,
                     capped: sampler.hit_cap() || sampler.class_audit_incomplete(),
@@ -394,7 +419,6 @@ impl super::Study {
         reason = "one pass: account the members, merge the payload and the posterior, publish the set"
     )]
     fn finish_class_attribution(
-        &self,
         class: &ClassMembers,
         outcomes: Vec<MemberRun>,
     ) -> Result<StudyResult, CausalError> {
@@ -661,16 +685,16 @@ impl super::Study {
                           this posterior carries DBN lag structure",
             });
         }
-        let class = self.posterior_class_members(gp)?;
+        let class = self.posterior_class_members(gp, ctx)?;
         let cache = self.class_attribution_identification(physical, ctx)?;
         // The mechanisms of an atom are fitted on it exactly as on an accepted structure: the
         // posterior is the provenance of the atom's graph, not a different graph.
         let mut base = self.clone();
         base.structure_source = crate::support::StructureSource::Accepted;
-        let outcomes = self.run_class_members(&class, ctx, |member| {
+        let outcomes = Self::run_class_members(&class, ctx, |member| {
             base.attribute_static_member(member, data, physical, &cache, ctx)
         })?;
-        let mut result = self.finish_class_attribution(&class, outcomes)?;
+        let mut result = Self::finish_class_attribution(&class, outcomes)?;
         result.structure_source = crate::support::StructureSource::GraphPosterior;
         Ok(result)
     }
@@ -691,14 +715,14 @@ impl super::Study {
         physical: &Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let class = self.series_posterior_members(series, gp)?;
+        let class = self.series_posterior_members(series, gp, ctx)?;
         let cache = self.class_attribution_identification(physical, ctx)?;
         let mut base = self.clone();
         base.structure_source = crate::support::StructureSource::Accepted;
-        let outcomes = self.run_class_members(&class, ctx, |member| {
+        let outcomes = Self::run_class_members(&class, ctx, |member| {
             base.attribute_series_member(member, series, physical, &cache, ctx)
         })?;
-        let mut result = self.finish_class_attribution(&class, outcomes)?;
+        let mut result = Self::finish_class_attribution(&class, outcomes)?;
         result.structure_source = crate::support::StructureSource::GraphPosterior;
         Ok(result)
     }
@@ -710,10 +734,9 @@ impl super::Study {
         &self,
         series: &TimeSeriesData,
         gp: &GraphPosterior,
+        ctx: &ExecutionContext,
     ) -> Result<ClassMembers, CausalError> {
-        use antecedent_discovery::dbn_posterior::{
-            temporal_cpdag_from_dbn_atoms, temporal_dag_from_dbn_atoms, temporal_pag_from_dbn_atoms,
-        };
+        type Template = (AdjacencyMask, u64, AdjacencyMask, u64);
         let (Some(lag_masks), Some(max_lag)) = (gp.lag_masks.as_ref(), gp.max_lag) else {
             return Err(CausalError::Unsupported {
                 message: "a series attribution over a graph posterior needs per-atom lag masks \
@@ -728,7 +751,6 @@ impl super::Study {
         };
         let latent_of =
             |index: usize| gp.lag_bidirected_masks.as_ref().map_or(0, |masks| masks[index]);
-        type Template = (AdjacencyMask, u64, AdjacencyMask, u64);
         let mut mass: std::collections::HashMap<Template, f64> = std::collections::HashMap::new();
         let mut firsts: Vec<(usize, Template)> = Vec::new();
         for index in 0..gp.n_graphs {
@@ -747,86 +769,28 @@ impl super::Study {
             let key = u64::try_from(index).unwrap_or(u64::MAX);
             let weight = mass[&template];
             let mut kinds: Vec<(f64, MemberKind)> = Vec::new();
-            let mut class_graph: Option<AcceptedGraph> = None;
-            match gp.atom_kind {
-                GraphPosteriorAtomKind::Dag => {
-                    match temporal_dag_from_dbn_atoms(
-                        gp.atoms[index],
-                        lag_masks[index],
-                        gp.n_vars,
-                        max_lag,
-                        &variables,
-                    ) {
-                        Ok(mut dag) => {
-                            // A template with no edge holds no node; its variables are
-                            // isolated contemporaneous nodes, each its own exogenous mechanism.
-                            if dag.nodes().is_empty() {
-                                for &target in &targets {
-                                    antecedent_graph::unfold::ensure_lagged(
-                                        &mut dag,
-                                        target,
-                                        antecedent_core::Lag::CONTEMPORANEOUS,
-                                    )
-                                    .map_err(CausalError::rejected)?;
-                                }
-                            }
-                            kinds.push((
-                                weight,
-                                MemberKind::Directed(AcceptedGraph::temporal_dag(dag)),
-                            ));
-                        }
-                        Err(_) => outside.push((key, weight)),
-                    }
+            let class_graph = match series_posterior_atom(
+                series,
+                gp,
+                index,
+                (lag_masks, max_lag),
+                &variables,
+                &targets,
+            )? {
+                Some(SeriesAtomGraph::Member(kind)) => {
+                    kinds.push((weight, kind));
+                    None
                 }
-                GraphPosteriorAtomKind::TemporalAdmg => {
-                    let template = gp
-                        .temporal_admg_atom(index)
-                        .and_then(|atom| atom.to_template(gp.n_vars, max_lag, &variables).ok());
-                    match template {
-                        Some(template) => kinds
-                            .push((weight, temporal_mixed_member(&template, series, &targets)?)),
-                        None => outside.push((key, weight)),
-                    }
+                Some(SeriesAtomGraph::Class(graph)) => Some(graph),
+                None => {
+                    outside.push((key, weight));
+                    None
                 }
-                GraphPosteriorAtomKind::Cpdag => {
-                    match temporal_cpdag_from_dbn_atoms(
-                        gp.atoms[index],
-                        lag_masks[index],
-                        gp.n_vars,
-                        max_lag,
-                        &variables,
-                    )
-                    .ok()
-                    .and_then(|cpdag| AcceptedGraph::temporal_cpdag(cpdag).ok())
-                    {
-                        Some(graph) => class_graph = Some(graph),
-                        None => outside.push((key, weight)),
-                    }
-                }
-                GraphPosteriorAtomKind::Pag => {
-                    match temporal_pag_from_dbn_atoms(
-                        gp.atoms[index],
-                        lag_masks[index],
-                        mark_of(index),
-                        gp.n_vars,
-                        max_lag,
-                        &variables,
-                    ) {
-                        Ok(pag) => class_graph = Some(AcceptedGraph::temporal_pag(pag)),
-                        Err(_) => outside.push((key, weight)),
-                    }
-                }
-                _ => {
-                    return Err(CausalError::Unsupported {
-                        message: "a series attribution over a graph posterior reads Dag, \
-                                  TemporalAdmg, Cpdag or Pag atoms with lag masks",
-                    });
-                }
-            }
+            };
             if let Some(graph) = class_graph {
                 let mut atom = self.clone();
                 atom.graph = Arc::new(graph);
-                let completions = atom.temporal_class_members(series)?;
+                let completions = atom.temporal_class_members(series, ctx)?;
                 capped |= completions.capped;
                 let share = weight / completions.members.len().max(1) as f64;
                 kinds.extend(completions.members.into_iter().map(|member| (share, member.kind)));
@@ -846,7 +810,11 @@ impl super::Study {
 
     /// The members an attribution over `gp` is repeated over: one per DAG or mixed-graph atom,
     /// one per completion of a class atom, weighted by the posterior probability of the atom.
-    fn posterior_class_members(&self, gp: &GraphPosterior) -> Result<ClassMembers, CausalError> {
+    fn posterior_class_members(
+        &self,
+        gp: &GraphPosterior,
+        ctx: &ExecutionContext,
+    ) -> Result<ClassMembers, CausalError> {
         let targets = self.class_attribution_targets()?;
         let cap = self.max_completions.unwrap_or(DEFAULT_CLASS_MEMBERS);
         let n_vars = gp.n_vars;
@@ -882,9 +850,15 @@ impl super::Study {
                 }
                 GraphPosteriorAtomKind::Cpdag => match cpdag_from_adjacency_mask(atom, n_vars) {
                     Ok(cpdag) => {
-                        let mut sampler = antecedent_graph::CpdagCompletionSampler::new(cpdag, cap)
-                            .map_err(CausalError::rejected)?;
+                        let mut sampler = antecedent_graph::CpdagCompletionSampler::with_budget(
+                            cpdag,
+                            cap,
+                            class_completion_limits(),
+                            ctx,
+                        )
+                        .map_err(CausalError::rejected)?;
                         let completions: Vec<_> = sampler.by_ref().collect();
+                        crate::strategy_table::check_class_search_stop(sampler.search_stop())?;
                         capped |= sampler.hit_cap();
                         let share = weight / completions.len().max(1) as f64;
                         for completion in completions {
@@ -901,13 +875,19 @@ impl super::Study {
                         gp.mark_atoms.as_ref().map_or(AdjacencyMask::EMPTY, |marks| marks[index]);
                     match pag_from_adjacency_mask(atom, mark, n_vars) {
                         Ok(pag) => {
-                            let mut sampler = antecedent_graph::CompletionSampler::new(pag, cap)
-                                .map_err(CausalError::rejected)?;
+                            let mut sampler = antecedent_graph::CompletionSampler::with_budget(
+                                &pag,
+                                cap,
+                                class_completion_limits(),
+                                ctx,
+                            )
+                            .map_err(CausalError::rejected)?;
                             let mut found = Vec::new();
                             for completion in sampler.by_ref() {
                                 let admg = labelled_confounded_admg(&completion.graph)?;
                                 found.push(mixed_member(&admg, &targets)?);
                             }
+                            crate::strategy_table::check_class_search_stop(sampler.search_stop())?;
                             capped |= sampler.hit_cap() || sampler.class_audit_incomplete();
                             let share = weight / found.len().max(1) as f64;
                             kinds.extend(found.into_iter().map(|kind| (share, kind)));
@@ -1504,4 +1484,100 @@ fn posterior_envelope_diagnostic(identified: &[(usize, StudyResult)]) -> Option<
             ranges.join("; ")
         ),
     ))
+}
+
+/// A decoded posterior atom is either one mechanism model or a class to enumerate.
+enum SeriesAtomGraph {
+    Member(MemberKind),
+    Class(AcceptedGraph),
+}
+
+fn series_posterior_atom(
+    series: &TimeSeriesData,
+    gp: &GraphPosterior,
+    index: usize,
+    lags: (&[u64], u32),
+    variables: &[VariableId],
+    targets: &[VariableId],
+) -> Result<Option<SeriesAtomGraph>, CausalError> {
+    use antecedent_discovery::dbn_posterior::{
+        temporal_cpdag_from_dbn_atoms, temporal_dag_from_dbn_atoms, temporal_pag_from_dbn_atoms,
+    };
+    let (lag_masks, max_lag) = lags;
+    let graph = match gp.atom_kind {
+        GraphPosteriorAtomKind::Dag => {
+            let Ok(mut dag) = temporal_dag_from_dbn_atoms(
+                gp.atoms[index],
+                lag_masks[index],
+                gp.n_vars,
+                max_lag,
+                variables,
+            ) else {
+                return Ok(None);
+            };
+            // Empty templates still carry isolated target mechanisms.
+            if dag.nodes().is_empty() {
+                for &target in targets {
+                    antecedent_graph::unfold::ensure_lagged(
+                        &mut dag,
+                        target,
+                        antecedent_core::Lag::CONTEMPORANEOUS,
+                    )
+                    .map_err(CausalError::rejected)?;
+                }
+            }
+            SeriesAtomGraph::Member(MemberKind::Directed(AcceptedGraph::temporal_dag(dag)))
+        }
+        GraphPosteriorAtomKind::TemporalAdmg => {
+            let Some(template) = gp
+                .temporal_admg_atom(index)
+                .and_then(|atom| atom.to_template(gp.n_vars, max_lag, variables).ok())
+            else {
+                return Ok(None);
+            };
+            SeriesAtomGraph::Member(temporal_mixed_member(&template, series, targets)?)
+        }
+        GraphPosteriorAtomKind::Cpdag => {
+            let Some(graph) = temporal_cpdag_from_dbn_atoms(
+                gp.atoms[index],
+                lag_masks[index],
+                gp.n_vars,
+                max_lag,
+                variables,
+            )
+            .ok()
+            .and_then(|cpdag| AcceptedGraph::temporal_cpdag(cpdag).ok()) else {
+                return Ok(None);
+            };
+            SeriesAtomGraph::Class(graph)
+        }
+        GraphPosteriorAtomKind::Pag => {
+            let mark = gp.mark_atoms.as_ref().map_or(AdjacencyMask::EMPTY, |marks| marks[index]);
+            let Ok(pag) = temporal_pag_from_dbn_atoms(
+                gp.atoms[index],
+                lag_masks[index],
+                mark,
+                gp.n_vars,
+                max_lag,
+                variables,
+            ) else {
+                return Ok(None);
+            };
+            SeriesAtomGraph::Class(AcceptedGraph::temporal_pag(pag))
+        }
+        _ => {
+            return Err(CausalError::Unsupported {
+                message: "a series attribution over a graph posterior reads Dag, \
+                      TemporalAdmg, Cpdag or Pag atoms with lag masks",
+            });
+        }
+    };
+    Ok(Some(graph))
+}
+
+fn class_completion_limits() -> antecedent_core::SearchLimits {
+    antecedent_core::SearchLimits {
+        operations: antecedent_graph::DEFAULT_COMPLETION_OPERATIONS,
+        depth: usize::MAX,
+    }
 }

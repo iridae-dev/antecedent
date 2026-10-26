@@ -15,7 +15,7 @@
 
 use antecedent_data::TableView;
 
-use super::atom_mix::{AtomBoundRule, AtomMixInput, mix_atom_evals};
+use super::atom_mix::{AtomBoundRule, AtomMixInput, MixedAtomEvals, mix_atom_evals};
 use super::transport_posterior::ScalarAtomEval;
 use super::{
     Arc, CausalError, CheckedInterferenceOperation, Diagnostic, DiagnosticKind, DiagnosticSeverity,
@@ -120,6 +120,25 @@ impl super::Study {
             posterior.unidentified_mass = if total > 0.0 { unidentified_mass / total } else { 0.0 };
             posterior.identification = result.identification.status;
         }
+        self.annotate_interference_posterior(
+            &mut result,
+            physical,
+            &mixed,
+            unidentified_mass,
+            identify_cached,
+        );
+        result.structural_response = Some(mixed.mixture);
+        Ok(result)
+    }
+
+    fn annotate_interference_posterior(
+        &self,
+        result: &mut StudyResult,
+        physical: &PhysicalExecutionPlan,
+        mixed: &MixedAtomEvals,
+        unidentified_mass: f64,
+        identify_cached: bool,
+    ) {
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
         result.diagnostics.push(Diagnostic::new(
@@ -153,8 +172,6 @@ impl super::Study {
                 result.diagnostics.push(identify_cached_diagnostic());
             }
         }
-        result.structural_response = Some(mixed.mixture);
-        Ok(result)
     }
 
     /// The frozen per-atom interference identification: the prepared cache, the product the

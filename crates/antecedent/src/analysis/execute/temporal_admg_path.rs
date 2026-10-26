@@ -82,18 +82,8 @@ impl super::Study {
             CausalError::Compile { message: "series schema exceeds the variable id range".into() }
         })?;
         // The product compile retained or the prepared handle froze, else a fresh identification.
-        let reused = self.reuse_temporal_identification(physical).and_then(|(cache, prepared)| {
-            cache
-                .get(query.horizon_steps)
-                .map(|entry| (entry.identification.clone(), entry.estimand.clone(), prepared))
-        });
-        let (identification, estimand, identify_cached) = if let Some(found) = reused {
-            found
-        } else {
-            report_identify_compute(ctx);
-            let contrast = identify_window_contrast(template, query, variable_count)?;
-            (contrast.identification, contrast.estimand, false)
-        };
+        let (identification, estimand, identify_cached) =
+            self.identify_admg_contrast(physical, template, query, variable_count, ctx)?;
         let plan = plan_temporal_admg_window(template, query)?;
         let window = template.unroll_window_over(plan.periods, variable_count)?;
         let table =
@@ -173,6 +163,28 @@ impl super::Study {
                 ..Default::default()
             }),
         ))
+    }
+    /// Reuse the exact horizon proof before identifying this template's window.
+    fn identify_admg_contrast(
+        &self,
+        physical: &PhysicalExecutionPlan,
+        template: &antecedent_graph::TemporalAdmg,
+        query: &TemporalEffectQuery,
+        variable_count: u32,
+        ctx: &ExecutionContext,
+    ) -> Result<(super::IdentificationResult, super::IdentifiedEstimand, bool), CausalError> {
+        let reused = self.reuse_temporal_identification(physical).and_then(|(cache, prepared)| {
+            cache
+                .get(query.horizon_steps)
+                .map(|entry| (entry.identification.clone(), entry.estimand.clone(), prepared))
+        });
+        Ok(if let Some(found) = reused {
+            found
+        } else {
+            report_identify_compute(ctx);
+            let contrast = identify_window_contrast(template, query, variable_count)?;
+            (contrast.identification, contrast.estimand, false)
+        })
     }
 }
 

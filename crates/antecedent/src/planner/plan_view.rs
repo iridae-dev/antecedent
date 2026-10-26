@@ -644,7 +644,7 @@ impl IdentificationView {
             IdentificationLayer::NotClaimed { refusal } => {
                 view.kind = IdentificationKind::NotClaimed;
                 view.reason = refusal.as_deref().map(|_| REFUSED_CAUSAL_QUERY);
-                view.refusal = refusal.clone();
+                view.refusal.clone_from(refusal);
             }
             IdentificationLayer::NonGraphical(identification) => {
                 view.kind = IdentificationKind::NonGraphical;
@@ -2150,7 +2150,7 @@ fn evidence_operations(program: &EvidenceDecisionProgram) -> Vec<OperationView> 
             ));
         }
     }
-    if let Some(quote) = program.planning().and_then(|planning| planning.simulation()) {
+    if let Some(quote) = program.planning().and_then(super::lowered::PlanningProgram::simulation) {
         operations.push(OperationView::new(
             OperationLayer::Evidence,
             "simulate",

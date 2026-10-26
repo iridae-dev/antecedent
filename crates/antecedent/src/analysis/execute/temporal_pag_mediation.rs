@@ -50,6 +50,21 @@ const CONTRASTS: [(MediationContrast, &str); 3] = [
     (MediationContrast::NaturalIndirect, "indirect"),
 ];
 
+/// The identified window, component proofs and uncertainty declaration used by one execution.
+struct PagMediationRun<'a> {
+    table: &'a super::TabularData,
+    windows: &'a [TemporalPagMediationWindow],
+    envelopes: &'a [Option<TemporalClassEnvelope>],
+    requested: usize,
+    requested_envelope: &'a TemporalClassEnvelope,
+    query: &'a MediationQuery,
+    strategy: (super::IdentifierId, EstimatorId),
+    resampling:
+        (antecedent_estimate::RowResampling, antecedent_estimate::util::SamplingDeclaration),
+    started: Instant,
+    disclosure: Diagnostic,
+}
+
 /// Whether every completion of the envelope is identified (no unidentified mass).
 fn fully_identified(envelope: &TemporalClassEnvelope) -> bool {
     let envelope = &envelope.envelope;
@@ -100,8 +115,10 @@ impl super::Study {
         &self,
         template: &TemporalPag,
         window: &TemporalPagMediationWindow,
+        ctx: &ExecutionContext,
     ) -> Result<TemporalClassEnvelope, CausalError> {
-        let mut config = GeneralizedAdjustmentConfig::default();
+        let mut config =
+            GeneralizedAdjustmentConfig { context: Some(ctx.clone()), ..Default::default() };
         if let Some(max) = self.max_completions {
             config.max_completions = max;
         }
@@ -123,10 +140,16 @@ impl super::Study {
         template: &TemporalPag,
         windows: &[TemporalPagMediationWindow],
         requested: usize,
+        ctx: &ExecutionContext,
     ) -> Result<Vec<Option<TemporalClassEnvelope>>, CausalError> {
         let mut envelopes: Vec<Option<TemporalClassEnvelope>> = Vec::new();
         for (slot, window) in windows.iter().enumerate() {
-            let envelope = match self.identify_temporal_pag_window(template, window) {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled {
+                    stage: crate::analysis::stage::STAGE_IDENTIFY,
+                });
+            }
+            let envelope = match self.identify_temporal_pag_window(template, window, ctx) {
                 Ok(envelope) if fully_identified(&envelope) => Some(envelope),
                 Ok(envelope) if slot == requested => {
                     return Err(CausalError::not_identified(
@@ -157,27 +180,40 @@ impl super::Study {
     pub(crate) fn retain_pag_window_identification(
         &self,
         variable_count: u32,
-    ) -> Option<crate::planner::lowered::RetainedExecutionProof> {
-        let GraphRef::TemporalPag(template) = self.graph.graph_ref() else {
-            return None;
+        ctx: &ExecutionContext,
+    ) -> Result<Option<crate::planner::lowered::RetainedExecutionProof>, CausalError> {
+        let inputs = (|| {
+            let GraphRef::TemporalPag(template) = self.graph.graph_ref() else {
+                return None;
+            };
+            let antecedent_core::CausalQuery::Mediation(query) = &self.query else {
+                return None;
+            };
+            let effect = window_effect_query(query).ok()?;
+            let base =
+                temporal_pag_mediation_window(template, &effect, query, variable_count).ok()?;
+            let windows: Vec<TemporalPagMediationWindow> = CONTRASTS
+                .iter()
+                .map(|(contrast, _)| {
+                    let mut window = base.clone();
+                    window.query.contrast = *contrast;
+                    window
+                })
+                .collect();
+            Some((template, windows, component_slot(query.contrast)))
+        })();
+        let Some((template, windows, requested)) = inputs else {
+            return Ok(None);
         };
-        let antecedent_core::CausalQuery::Mediation(query) = &self.query else {
-            return None;
-        };
-        let effect = window_effect_query(query).ok()?;
-        let base = temporal_pag_mediation_window(template, &effect, query, variable_count).ok()?;
-        let windows: Vec<TemporalPagMediationWindow> = CONTRASTS
-            .iter()
-            .map(|(contrast, _)| {
-                let mut window = base.clone();
-                window.query.contrast = *contrast;
-                window
-            })
-            .collect();
-        let envelopes = self
-            .identify_pag_window_components(template, &windows, component_slot(query.contrast))
-            .ok()?;
-        Some(crate::planner::lowered::RetainedExecutionProof::Pag { envelopes })
+        match self.identify_pag_window_components(template, &windows, requested, ctx) {
+            Ok(envelopes) => {
+                Ok(Some(crate::planner::lowered::RetainedExecutionProof::Pag { envelopes }))
+            }
+            Err(error @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => {
+                Err(error)
+            }
+            Err(_) => Ok(None),
+        }
     }
 
     /// Identify and estimate the mediation decomposition on the unfolded window of a
@@ -237,14 +273,13 @@ impl super::Study {
         // The window is identified once, at compile, and the program retains the
         // certificates; a plan that retained none identifies here.
         let envelopes =
-            match crate::analysis::lowering::plan_retained_execution_proof(self, physical) {
-                Some(crate::planner::lowered::RetainedExecutionProof::Pag { envelopes }) => {
-                    envelopes.clone()
-                }
-                _ => {
-                    report_identify_compute(ctx);
-                    self.identify_pag_window_components(template, &windows, requested)?
-                }
+            if let Some(crate::planner::lowered::RetainedExecutionProof::Pag { envelopes }) =
+                crate::analysis::lowering::plan_retained_execution_proof(self, physical)
+            {
+                envelopes.clone()
+            } else {
+                report_identify_compute(ctx);
+                self.identify_pag_window_components(template, &windows, requested, ctx)?
             };
         let requested_envelope = envelopes[requested].clone().ok_or_else(|| {
             CausalError::Compile { message: "requested contrast has no proof".into() }
@@ -272,79 +307,141 @@ impl super::Study {
             resampling.block_length(table.row_count()),
             requested_envelope.envelope.cases.len(),
         );
-        let certificate =
-            |envelope: &TemporalClassEnvelope| crate::Identification::TemporalEnvelope {
-                envelope: envelope.clone(),
-                strategy: identifier_id,
-                structure_version: self.graph.version(),
-            };
-
         // Every present component identified by one functional: evaluate them at the same
         // resampled tables.
+        let run = PagMediationRun {
+            table: &table,
+            windows: &windows,
+            envelopes: &envelopes,
+            requested,
+            requested_envelope: &requested_envelope,
+            query,
+            strategy: (identifier_id, estimator_id),
+            resampling: (resampling, design),
+            started,
+            disclosure,
+        };
         if envelopes.iter().flatten().all(|found| found.envelope.invariant.is_some()) {
-            let mut identified = Vec::new();
-            for entry in &envelopes {
-                identified.push(match entry {
-                    Some(found) => {
-                        let case = found
-                            .envelope
-                            .cases
-                            .iter()
-                            .find(|case| {
-                                identification_status_ok_for_case(case.result.status)
-                                    && !case.result.estimands.is_empty()
-                            })
-                            .ok_or_else(|| CausalError::Compile {
-                                message: "an identified temporal PAG envelope has no case that \
-                                          carries an estimand"
-                                    .into(),
-                            })?;
-                        let mut result = case.result.clone();
-                        result.status = found.envelope.status;
-                        let estimand = select_estimand(&result, estimator_id)?;
-                        Some((result, estimand))
-                    }
-                    None => None,
-                });
-            }
-            let mut wq_roles =
-                vec![windows[requested].query.treatment, windows[requested].query.outcome];
-            wq_roles.extend(windows[requested].query.mediators.iter().copied());
-            let result = self.estimate_components(
-                &table,
-                ComponentRun {
-                    identified,
-                    requested,
-                    roles: wq_roles,
-                    reported: (query.treatment, query.outcome),
-                    resampling: (resampling, design),
-                    structure: "unfolded temporal PAG window",
-                    strategy: (identifier_id, estimator_id),
-                    started,
-                    extra_diagnostics: vec![
-                        disclosure,
-                        pag_envelope_diagnostic(&requested_envelope.envelope),
-                    ],
-                },
-                physical,
-                ctx,
-            )?;
-            return Ok(self.attach_certificate(result, certificate(&requested_envelope)));
+            return self.estimate_pag_invariant_components(run, physical, ctx);
         }
+        self.estimate_pag_class_components(run, physical, ctx)
+    }
+    fn temporal_pag_certificate(
+        &self,
+        envelope: &TemporalClassEnvelope,
+        identifier: super::IdentifierId,
+    ) -> crate::Identification {
+        crate::Identification::TemporalEnvelope {
+            envelope: envelope.clone(),
+            strategy: identifier,
+            structure_version: self.graph.version(),
+        }
+    }
 
+    /// Common functional components share the same resampled window tables.
+    fn estimate_pag_invariant_components(
+        &self,
+        run: PagMediationRun<'_>,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let PagMediationRun {
+            table,
+            windows,
+            envelopes,
+            requested,
+            requested_envelope,
+            query,
+            strategy: (identifier_id, estimator_id),
+            resampling: (resampling, design),
+            started,
+            disclosure,
+        } = run;
+        let mut identified = Vec::new();
+        for entry in envelopes {
+            identified.push(match entry {
+                Some(found) => {
+                    let case = found
+                        .envelope
+                        .cases
+                        .iter()
+                        .find(|case| {
+                            identification_status_ok_for_case(case.result.status)
+                                && !case.result.estimands.is_empty()
+                        })
+                        .ok_or_else(|| CausalError::Compile {
+                            message: "an identified temporal PAG envelope has no case that \
+                                          carries an estimand"
+                                .into(),
+                        })?;
+                    let mut result = case.result.clone();
+                    result.status = found.envelope.status;
+                    let estimand = select_estimand(&result, estimator_id)?;
+                    Some((result, estimand))
+                }
+                None => None,
+            });
+        }
+        let mut wq_roles =
+            vec![windows[requested].query.treatment, windows[requested].query.outcome];
+        wq_roles.extend(windows[requested].query.mediators.iter().copied());
+        let result = self.estimate_components(
+            table,
+            ComponentRun {
+                identified,
+                requested,
+                roles: wq_roles,
+                reported: (query.treatment, query.outcome),
+                resampling: (resampling, design),
+                structure: "unfolded temporal PAG window",
+                strategy: (identifier_id, estimator_id),
+                started,
+                extra_diagnostics: vec![
+                    disclosure,
+                    pag_envelope_diagnostic(&requested_envelope.envelope),
+                ],
+            },
+            physical,
+            ctx,
+        )?;
+        Ok(self.attach_certificate(
+            result,
+            self.temporal_pag_certificate(requested_envelope, identifier_id),
+        ))
+    }
+
+    /// Disagreeing functionals retain class sets and their component-native refutations.
+    fn estimate_pag_class_components(
+        &self,
+        run: PagMediationRun<'_>,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let PagMediationRun {
+            table,
+            windows,
+            envelopes,
+            requested,
+            requested_envelope: _,
+            query: _,
+            strategy: (identifier_id, estimator_id),
+            resampling: (resampling, design),
+            started,
+            disclosure,
+        } = run;
         // Completions that identify different functionals: each component is the class result
         // of the static PAG route on the window table.
         let mut results: Vec<Option<StudyResult>> = Vec::new();
         for (slot, entry) in envelopes.iter().enumerate() {
             results.push(match entry {
                 Some(found) => Some(self.finish_class_path_specific(
-                    &table,
+                    table,
                     PathSpecificMixedSource::Mediation(&windows[slot].query),
                     ClassPathRun {
                         envelope: &found.envelope,
                         class: ClassTag::TemporalPag,
                         envelope_diagnostic: pag_envelope_diagnostic(&found.envelope),
-                        certificate: certificate(found),
+                        certificate: self.temporal_pag_certificate(found, identifier_id),
                         identifier_id,
                         estimator_id,
                         started,
@@ -404,7 +501,7 @@ impl super::Study {
             vec![windows[requested].query.treatment, windows[requested].query.outcome];
         member_roles.extend(windows[requested].query.mediators.iter().copied());
         result.refutations = self.refute_mediation_members(
-            &table,
+            table,
             MemberProofs { per_slot: &per_slot, requested, estimator_id },
             &member_roles,
             (resampling, design),

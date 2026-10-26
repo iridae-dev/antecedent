@@ -238,8 +238,8 @@ impl super::Study {
                 });
             }
             (_, CausalQuery::Distribution(_), class)
-                if !(self.graph_posterior.is_some() && class == GraphClass::Pag)
-                    && !matches!(
+                if !(self.graph_posterior.is_some() && class == GraphClass::Pag
+                    || matches!(
                         (&self.data, class),
                         (
                             DataInput::Tabular(_),
@@ -254,7 +254,7 @@ impl super::Study {
                                 | GraphClass::TemporalCpdag
                                 | GraphClass::TemporalPag
                         )
-                    ) =>
+                    )) =>
             {
                 return Err(CausalError::Unsupported {
                     message: "CausalQuery::Distribution requires tabular data and a static Dag, Cpdag, Pag or Admg",
@@ -869,23 +869,7 @@ impl super::Study {
                 self.execute_temporal_cross_world(data, graph, physical, ctx)
             }
             Some(AnalysisRoute::TemporalMediation) => {
-                let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
-                    return Err(route_mismatch());
-                };
-                let CausalQuery::Mediation(q) = &self.query else { return Err(route_mismatch()) };
-                if self.graph.class() == GraphClass::TemporalCpdag {
-                    return self.execute_temporal_cpdag_mediation(data, q, physical, ctx);
-                }
-                if self.graph.class() == GraphClass::TemporalAdmg {
-                    return self.execute_temporal_admg_mediation(data, q, physical, ctx);
-                }
-                if self.graph.class() == GraphClass::TemporalPag {
-                    return self.execute_temporal_pag_mediation(data, q, physical, ctx);
-                }
-                let graph = physical.temporal_graph().ok_or(CausalError::Compile {
-                    message: "Ready temporal mediation plan missing resolved graph".into(),
-                })?;
-                self.execute_temporal_mediation(data, graph, q, physical, ctx)
+                self.execute_series_mediation_route(data, physical, ctx)
             }
             Some(AnalysisRoute::TemporalEffect) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
@@ -906,20 +890,7 @@ impl super::Study {
                 self.execute_temporal(data, graph, q, physical, ctx, None)
             }
             Some(AnalysisRoute::TemporalResponse) => {
-                let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
-                    return Err(route_mismatch());
-                };
-                let CausalQuery::Response(q) = &self.query else { return Err(route_mismatch()) };
-                if self.graph.class() == GraphClass::TemporalAdmg {
-                    return self.execute_temporal_admg_derivative(data, q, physical, ctx);
-                }
-                if self.graph.class().is_incomplete_temporal() {
-                    return self.execute_temporal_class_response(data, q, physical, ctx);
-                }
-                let graph = physical.temporal_graph().ok_or(CausalError::Compile {
-                    message: "Ready temporal-response plan missing resolved graph".into(),
-                })?;
-                self.execute_temporal_response(data, graph, q, physical, ctx)
+                self.execute_series_response_route(data, physical, ctx)
             }
             Some(AnalysisRoute::Association) => {
                 let (DataInput::Temporal(series) | DataInput::Event(series)) = data else {
@@ -964,6 +935,54 @@ impl super::Study {
                 message: "execute path unsupported for this configuration",
             }),
         }
+    }
+
+    /// Resolve the temporal response's graph family before its numerical executor.
+    fn execute_series_response_route(
+        &self,
+        data: &DataInput,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
+            return Err(route_mismatch());
+        };
+        let CausalQuery::Response(q) = &self.query else { return Err(route_mismatch()) };
+        if self.graph.class() == GraphClass::TemporalAdmg {
+            return self.execute_temporal_admg_derivative(data, q, physical, ctx);
+        }
+        if self.graph.class().is_incomplete_temporal() {
+            return self.execute_temporal_class_response(data, q, physical, ctx);
+        }
+        let graph = physical.temporal_graph().ok_or(CausalError::Compile {
+            message: "Ready temporal-response plan missing resolved graph".into(),
+        })?;
+        self.execute_temporal_response(data, graph, q, physical, ctx)
+    }
+
+    fn execute_series_mediation_route(
+        &self,
+        data: &DataInput,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
+            return Err(route_mismatch());
+        };
+        let CausalQuery::Mediation(q) = &self.query else { return Err(route_mismatch()) };
+        if self.graph.class() == GraphClass::TemporalCpdag {
+            return self.execute_temporal_cpdag_mediation(data, q, physical, ctx);
+        }
+        if self.graph.class() == GraphClass::TemporalAdmg {
+            return self.execute_temporal_admg_mediation(data, q, physical, ctx);
+        }
+        if self.graph.class() == GraphClass::TemporalPag {
+            return self.execute_temporal_pag_mediation(data, q, physical, ctx);
+        }
+        let graph = physical.temporal_graph().ok_or(CausalError::Compile {
+            message: "Ready temporal mediation plan missing resolved graph".into(),
+        })?;
+        self.execute_temporal_mediation(data, graph, q, physical, ctx)
     }
 
     /// Series anomaly or change attribution on a supplied `TemporalDag`: the sealed
@@ -1325,48 +1344,7 @@ impl super::Study {
                 self.execute_tabular_distribution_route(data, physical, execution, ctx)
             }
             AnalysisRoute::PathSpecific => {
-                let CausalQuery::PathSpecific(q) = &self.query else {
-                    return Err(route_mismatch());
-                };
-                match self.graph.graph_ref() {
-                    GraphRef::Admg(admg) => self.execute_path_specific_mixed(
-                        data,
-                        admg,
-                        super::PathSpecificMixedSource::PathSpecific(q),
-                        physical,
-                        ctx,
-                    ),
-                    GraphRef::TemporalAdmg(temporal) => {
-                        let admg = temporal_admg_projection(temporal)?;
-                        self.execute_path_specific_mixed(
-                            data,
-                            &admg,
-                            super::PathSpecificMixedSource::PathSpecific(q),
-                            physical,
-                            ctx,
-                        )
-                    }
-                    GraphRef::Cpdag(cpdag) => self.execute_class_path_specific(
-                        data,
-                        cpdag,
-                        super::PathSpecificMixedSource::PathSpecific(q),
-                        physical,
-                        ctx,
-                    ),
-                    GraphRef::Pag(pag) => self.execute_pag_path_specific(
-                        data,
-                        pag,
-                        super::PathSpecificMixedSource::PathSpecific(q),
-                        physical,
-                        ctx,
-                    ),
-                    _ => {
-                        let graph = self.require_execute_dag(
-                            "PathSpecific execute requires a supplied static Dag, Cpdag, Pag or Admg",
-                        )?;
-                        self.execute_path_specific(data, graph, q, physical, ctx)
-                    }
-                }
+                self.execute_tabular_path_specific_route(data, physical, ctx)
             }
             AnalysisRoute::Conditional => {
                 self.execute_tabular_conditional_route(data, physical, ctx)
@@ -1437,6 +1415,56 @@ impl super::Study {
             | AnalysisRoute::MultiEnvTemporalEffect => Err(CausalError::Unsupported {
                 message: "execute path unsupported for this configuration",
             }),
+        }
+    }
+
+    fn execute_tabular_path_specific_route(
+        &self,
+        data: &TabularData,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let CausalQuery::PathSpecific(q) = &self.query else {
+            return Err(route_mismatch());
+        };
+        match self.graph.graph_ref() {
+            GraphRef::Admg(admg) => self.execute_path_specific_mixed(
+                data,
+                admg,
+                super::PathSpecificMixedSource::PathSpecific(q),
+                physical,
+                ctx,
+            ),
+            GraphRef::TemporalAdmg(temporal) => {
+                let admg = temporal_admg_projection(temporal)?;
+                self.execute_path_specific_mixed(
+                    data,
+                    &admg,
+                    super::PathSpecificMixedSource::PathSpecific(q),
+                    physical,
+                    ctx,
+                )
+            }
+            GraphRef::Cpdag(cpdag) => self.execute_class_path_specific(
+                data,
+                cpdag,
+                super::PathSpecificMixedSource::PathSpecific(q),
+                physical,
+                ctx,
+            ),
+            GraphRef::Pag(pag) => self.execute_pag_path_specific(
+                data,
+                pag,
+                super::PathSpecificMixedSource::PathSpecific(q),
+                physical,
+                ctx,
+            ),
+            _ => {
+                let graph = self.require_execute_dag(
+                    "PathSpecific execute requires a supplied static Dag, Cpdag, Pag or Admg",
+                )?;
+                self.execute_path_specific(data, graph, q, physical, ctx)
+            }
         }
     }
 

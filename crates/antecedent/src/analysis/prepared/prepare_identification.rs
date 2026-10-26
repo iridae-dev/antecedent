@@ -235,8 +235,7 @@ impl Study {
         context: Option<&ExecutionContext>,
     ) -> Result<Option<CachedStaticIdentification>, CausalError> {
         use crate::strategy_table::{
-            EstimatorId, IdentifierId, identify_static, identify_static_query, select_claim,
-            select_estimand,
+            EstimatorId, IdentifierId, identify_static_query, select_estimand,
         };
         if let Some(cached) = self.prepare_static_query_only_identification()? {
             return Ok(Some(cached));
@@ -276,48 +275,7 @@ impl Study {
                 Ok(Some(CachedStaticIdentification { identification, estimand }))
             }
             CausalQuery::ConditionalEffect(query) => {
-                // A latent-confounded ADMG identifies the contrast by IDC at the two levels;
-                // `execute_admg_conditional` reads this cache. A latent-free ADMG runs the
-                // Dag route, which keeps no prepare-time cache.
-                let projected;
-                let mixed = match self.graph.graph_ref() {
-                    GraphRef::Admg(admg) => Some(admg),
-                    GraphRef::TemporalAdmg(temporal) => {
-                        projected = crate::analysis::execute::temporal_admg_projection(temporal)?;
-                        Some(&projected)
-                    }
-                    _ => None,
-                };
-                if let Some(admg) = mixed {
-                    if crate::analysis::execute::admg_has_bidirected(admg) {
-                        let identification =
-                            crate::analysis::conditional_admg::admg_conditional_identification(
-                                admg, query,
-                            )?;
-                        let estimand =
-                            identification.estimands.first().cloned().ok_or_else(|| {
-                                CausalError::Compile {
-                                    message: "ADMG conditional identification returned no estimand"
-                                        .into(),
-                                }
-                            })?;
-                        return Ok(Some(CachedStaticIdentification { identification, estimand }));
-                    }
-                }
-                // Mirrors execute_conditional / execute_bayesian: identifier is
-                // builder-selected or defaults to backdoor; estimator follows inference.
-                let Some(graph) = self.graph.as_dag().cloned() else {
-                    return Ok(None);
-                };
-                let identifier_id = plan.binding().identifier_or(RouteDefaults::CONDITIONAL)?;
-                let identification = identify_static(identifier_id, &graph, &query.inner)?;
-                let estimator_id = if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                    EstimatorId::BayesianConditional
-                } else {
-                    EstimatorId::ConditionalLinearAdjustment
-                };
-                let (identification, estimand) = select_claim(identification, estimator_id)?;
-                Ok(Some(CachedStaticIdentification { identification, estimand }))
+                self.prepare_conditional_identification(plan, query)
             }
             CausalQuery::PathSpecific(query) => {
                 // Mirrors `execute_path_specific`'s identify+select-estimand step exactly.
@@ -379,6 +337,54 @@ impl Study {
             }
             _ => Ok(None),
         }
+    }
+
+    fn prepare_conditional_identification(
+        &self,
+        plan: &PhysicalExecutionPlan,
+        query: &antecedent_core::ConditionalEffectQuery,
+    ) -> Result<Option<CachedStaticIdentification>, CausalError> {
+        use crate::strategy_table::{EstimatorId, identify_static, select_claim};
+        // A latent-confounded ADMG identifies the contrast by IDC at the two levels;
+        // `execute_admg_conditional` reads this cache. A latent-free ADMG runs the
+        // Dag route, which keeps no prepare-time cache.
+        let projected;
+        let mixed = match self.graph.graph_ref() {
+            GraphRef::Admg(admg) => Some(admg),
+            GraphRef::TemporalAdmg(temporal) => {
+                projected = crate::analysis::execute::temporal_admg_projection(temporal)?;
+                Some(&projected)
+            }
+            _ => None,
+        };
+        if let Some(admg) = mixed {
+            if crate::analysis::execute::admg_has_bidirected(admg) {
+                let identification =
+                    crate::analysis::conditional_admg::admg_conditional_identification(
+                        admg, query,
+                    )?;
+                let estimand = identification.estimands.first().cloned().ok_or_else(|| {
+                    CausalError::Compile {
+                        message: "ADMG conditional identification returned no estimand".into(),
+                    }
+                })?;
+                return Ok(Some(CachedStaticIdentification { identification, estimand }));
+            }
+        }
+        // Mirrors execute_conditional / execute_bayesian: identifier is
+        // builder-selected or defaults to backdoor; estimator follows inference.
+        let Some(graph) = self.graph.as_dag().cloned() else {
+            return Ok(None);
+        };
+        let identifier_id = plan.binding().identifier_or(RouteDefaults::CONDITIONAL)?;
+        let identification = identify_static(identifier_id, &graph, &query.inner)?;
+        let estimator_id = if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            EstimatorId::BayesianConditional
+        } else {
+            EstimatorId::ConditionalLinearAdjustment
+        };
+        let (identification, estimand) = select_claim(identification, estimator_id)?;
+        Ok(Some(CachedStaticIdentification { identification, estimand }))
     }
 
     /// Identification of a pulse, sustained or conditional contrast on a temporal ADMG: the
@@ -726,7 +732,12 @@ impl Study {
         })?;
         let identifier_id = plan.binding().identifier_or(RouteDefaults::PAG)?;
         let envelope = if let CausalQuery::Response(response) = &self.query {
-            crate::strategy_table::identify_pag_response(identifier_id, pag, response)?
+            crate::strategy_table::identify_pag_response_in_context(
+                identifier_id,
+                pag,
+                response,
+                context,
+            )?
         } else {
             identify_pag_in_context(identifier_id, pag, &query, context)?
         };
@@ -757,7 +768,12 @@ impl Study {
         };
         let identifier_id = plan.binding().identifier_or(RouteDefaults::PAG)?;
         let envelope = if let CausalQuery::Response(response) = &self.query {
-            crate::strategy_table::identify_cpdag_response(identifier_id, cpdag, response)?
+            crate::strategy_table::identify_cpdag_response_in_context(
+                identifier_id,
+                cpdag,
+                response,
+                context,
+            )?
         } else {
             identify_cpdag_in_context(identifier_id, cpdag, &query, context)?
         };
@@ -855,6 +871,7 @@ impl Study {
 
     pub(super) fn prepare_temporal_class_identification(
         &self,
+        ctx: &ExecutionContext,
     ) -> Result<Option<CachedTemporalClassIdentification>, CausalError> {
         if !matches!(self.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag) {
             return Ok(None);
@@ -890,8 +907,11 @@ impl Study {
             _ => return Ok(None),
         };
         let identifier_id = self.identifier.unwrap_or(RouteDefaults::PAG.identifier);
-        let mut bundle =
-            std::sync::Arc::unwrap_or_clone(self.identify_temporal_class(identifier_id, &query)?);
+        let mut bundle = std::sync::Arc::unwrap_or_clone(self.identify_temporal_class(
+            identifier_id,
+            &query,
+            ctx,
+        )?);
         let horizons: &[u32] = match &self.query {
             CausalQuery::Response(response) => {
                 &response.temporal.as_ref().expect("temporal query").horizons
@@ -905,7 +925,7 @@ impl Study {
             let identified = if horizon == query.horizon_steps {
                 bundle.envelope.clone()
             } else {
-                self.identify_temporal_class(identifier_id, &qh)?.envelope.clone()
+                self.identify_temporal_class(identifier_id, &qh, ctx)?.envelope.clone()
             };
             bundle.by_horizon.push((horizon, identified));
         }

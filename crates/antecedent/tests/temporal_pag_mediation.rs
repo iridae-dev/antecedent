@@ -425,9 +425,10 @@ fn a_two_period_temporal_admg_decomposition_publishes_an_artifact_a_consumer_rea
         graph.insert_directed(from, to).unwrap();
     }
     let series = lagged_series(6_000, 31);
-    for inference in
-        [InferenceMode::Frequentist, InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(8))]
-    {
+    for inference in [
+        InferenceMode::Frequentist,
+        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(8)),
+    ] {
         let built = Study::series(series.clone())
             .graph(graph.clone())
             .query(CausalQuery::Mediation(query(MediationContrast::NaturalDirect)))
@@ -444,4 +445,32 @@ fn a_two_period_temporal_admg_decomposition_publishes_an_artifact_a_consumer_rea
         let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
         assert_eq!(consumed.body.estimate, Some(result.effect()));
     }
+}
+
+#[test]
+fn retained_pag_mediation_uses_its_callers_context_for_window_identification() {
+    let data = contemporaneous_series(4_000.0);
+    let built = study(
+        data.clone(),
+        contemporaneous_template(),
+        query(MediationContrast::NaturalDirect),
+        InferenceMode::Frequentist,
+        0,
+    );
+    let ctx = ExecutionContext::for_tests(76);
+    let prepared = built.prepare(&ctx).unwrap();
+    let expected = prepared.estimate_series(&data, &ctx).unwrap();
+    let limited = ExecutionContext::for_tests(76).with_memory_limit(Some(1));
+    assert!(matches!(built.prepare(&limited), Err(antecedent::CausalError::Resource { .. })));
+    let cancelled = ExecutionContext::for_tests(76);
+    cancelled.cancellation.cancel();
+    assert!(matches!(built.prepare(&cancelled), Err(antecedent::CausalError::Cancelled { .. })));
+    let mut disabled = ExecutionContext::for_tests(76);
+    disabled.cache_policy = antecedent_core::CachePolicy::disabled();
+    let rechecked = built.prepare(&disabled).unwrap();
+    assert_eq!(prepared.contract().unwrap().identities, rechecked.contract().unwrap().identities);
+    assert_eq!(
+        expected.effect().to_bits(),
+        rechecked.estimate_series(&data, &disabled).unwrap().effect().to_bits()
+    );
 }

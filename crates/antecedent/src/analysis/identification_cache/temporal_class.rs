@@ -84,7 +84,9 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
     if let Some(max) = max_completions {
         config.max_completions = max;
     }
-    let mapped = map_posterior_graphs(posterior, ctx, |i, _inner| {
+    let mapped = map_posterior_graphs(posterior, ctx, |i, inner| {
+        let mut config = config.clone();
+        config.context = Some(inner.clone());
         let key = dbn_envelope_key(i)?;
         let mark = posterior
             .mark_atoms
@@ -102,13 +104,12 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
                     return Ok(None);
                 };
                 Ok::<_, CausalError>(
-                    identify_temporal_cpdag_configured(
+                    temporal_class_attempt(identify_temporal_cpdag_configured(
                         DEFAULT_PAG_IDENTIFIER_ID,
                         &cpdag,
                         query,
                         config.clone(),
-                    )
-                    .ok()
+                    ))?
                     .map(|envelope| cache_temporal_class_atom(key, query, envelope)),
                 )
             }
@@ -123,13 +124,12 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
                 ) else {
                     return Ok(None);
                 };
-                Ok(identify_temporal_pag_configured(
+                Ok(temporal_class_attempt(identify_temporal_pag_configured(
                     DEFAULT_PAG_IDENTIFIER_ID,
                     &pag,
                     query,
                     config.clone(),
-                )
-                .ok()
+                ))?
                 .map(|envelope| cache_temporal_class_atom(key, query, envelope)))
             }
             _ => Ok(None),
@@ -167,6 +167,17 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
     }
     let graphs = WeightedGraphSamples::new(weights, flags, keys)?;
     Ok(CachedTemporalClassPosteriorIdentification { graphs, class_atoms: Arc::from(class_atoms) })
+}
+
+/// Scientific refusals keep unidentified mass; interrupted or unfunded searches refuse the attempt.
+fn temporal_class_attempt(
+    attempt: Result<antecedent_identify::TemporalClassEnvelope, CausalError>,
+) -> Result<Option<antecedent_identify::TemporalClassEnvelope>, CausalError> {
+    match attempt {
+        Ok(envelope) => Ok(Some(envelope)),
+        Err(error @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => Err(error),
+        Err(_) => Ok(None),
+    }
 }
 
 fn cache_temporal_class_atom(

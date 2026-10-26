@@ -102,7 +102,7 @@ pub(super) fn temporal_admg_effect(cx: &SealContext<'_>) -> SealOutcome {
     if analysis
         .graph_posterior
         .as_ref()
-        .is_some_and(|posterior| posterior.is_lagged_temporal_admg())
+        .is_some_and(antecedent_discovery::GraphPosterior::is_lagged_temporal_admg)
         && matches!(
             analysis.data,
             crate::analysis::builder::DataInput::Temporal(_)

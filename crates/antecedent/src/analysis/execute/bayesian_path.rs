@@ -27,17 +27,16 @@ use super::{
     elapsed_ns, envelope_mass_diagnostic, envelope_refute_atoms, envelope_se_omission_diagnostic,
     estimate_static_effect, evaluate_bayesian_prior_sensitivity, first_key_positions,
     identification_from_cache_or, identification_status_ok_for_case, identified_envelope_keys,
-    identify_static, interactive_subsample_graphs_accounted, mass_fields,
-    maybe_interactive_envelope_subsample, mediation_mechanism_seed, merge_posterior_notes,
-    mix_graph_posterior_identified_atoms, mix_prior_sensitivity_summaries, mix_static_envelope_se,
-    mix_weighted_analytic_se, mixed_static_influence, most_conservative_identification_status,
-    nan_effect, overlap_diagnostic, project_for_ate_estimate, projection_diagnostic,
-    provenance_ids, push_conflict_diagnostics,
-    push_graph_posterior_structural_aggregation_diagnostic, report_subsampled_out_mass,
-    require_identified, resolve_bayesian_prior_with_conflict, resolve_envelope_prior_anchor,
-    resolve_posterior_status, resolve_structural_aggregation, retain_envelope_assumptions,
-    run_envelope_bayesian_full_validation, select_claim, select_estimand,
-    sequential_linear_sem_assumption, shared_block_mixture_message,
+    interactive_subsample_graphs_accounted, mass_fields, maybe_interactive_envelope_subsample,
+    mediation_mechanism_seed, merge_posterior_notes, mix_graph_posterior_identified_atoms,
+    mix_prior_sensitivity_summaries, mix_static_envelope_se, mix_weighted_analytic_se,
+    mixed_static_influence, most_conservative_identification_status, nan_effect,
+    overlap_diagnostic, project_for_ate_estimate, projection_diagnostic, provenance_ids,
+    push_conflict_diagnostics, push_graph_posterior_structural_aggregation_diagnostic,
+    report_subsampled_out_mass, require_identified, resolve_bayesian_prior_with_conflict,
+    resolve_envelope_prior_anchor, resolve_posterior_status, resolve_structural_aggregation,
+    retain_envelope_assumptions, run_envelope_bayesian_full_validation, select_claim,
+    select_estimand, sequential_linear_sem_assumption, shared_block_mixture_message,
     shared_circular_block_mixture_se, short_series_warning, static_aligned_influence,
     temporal_refuter_average, validator_not_applicable_diagnostics, with_conflict_summary,
     with_prior_sensitivity,
@@ -1502,7 +1501,13 @@ impl super::Study {
                 ),
             });
             identification_from_cache_or(ctx, reused, || {
-                let identification = identify_static(identifier_id, graph, query)?;
+                let identification = crate::strategy_table::identify_static_query_in_context(
+                    identifier_id,
+                    graph,
+                    &CausalQuery::AverageEffect(query.clone()),
+                    None,
+                    Some(ctx),
+                )?;
                 select_claim(identification, estimator_id)
             })?
         };

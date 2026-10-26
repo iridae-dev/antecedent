@@ -290,6 +290,10 @@ pub fn retain_regression(
 /// `rows` is one `(parent configuration, (level, count))` entry per
 /// configuration of the mechanism's table.
 #[must_use]
+#[allow(
+    clippy::type_complexity,
+    reason = "preserve the public versioned parent-configuration and level-count wire tuple"
+)]
 pub fn retain_counts(
     variable: &str,
     rows: Vec<(Vec<(String, String)>, Vec<(String, u64)>)>,
@@ -795,11 +799,15 @@ fn seal(
     Ok(ObservationClaim { wire })
 }
 
+/// Recorded conditioning and the optional measured signal occupy separate axes.
+struct ConditioningSlots {
+    observed: Vec<(String, String)>,
+    measured: Option<MeasuredSlotWire>,
+}
+
 /// Split conditioning slots into direct recorded values and the one measured
 /// signal, if any.
-fn split_slots(
-    slots: &[ObservedSlot],
-) -> Result<(Vec<(String, String)>, Option<MeasuredSlotWire>), ObservationQueryRefusal> {
+fn split_slots(slots: &[ObservedSlot]) -> Result<ConditioningSlots, ObservationQueryRefusal> {
     let mut observed = Vec::new();
     let mut measured = None;
     for slot in slots {
@@ -808,7 +816,7 @@ fn split_slots(
             SlotValue::Measured(indicator) => measured = Some(measured_wire(slot, indicator)?),
         }
     }
-    Ok((observed, measured))
+    Ok(ConditioningSlots { observed, measured })
 }
 
 fn real_bits(pairs: &[(String, f64)]) -> Vec<(String, u64)> {
@@ -911,7 +919,7 @@ impl PreparedMechanismComposition {
                     interventions: &request.interventions,
                 })
                 .map_err(ObservationQueryRefusal::one)?;
-                let (observed, measured) = split_slots(&request.conditioning)?;
+                let ConditioningSlots { observed, measured } = split_slots(&request.conditioning)?;
                 Ok(match request.operation {
                     ObservationOperation::Intervention if request.conditioning.is_empty() => {
                         ObservationQueryWire::InterventionalOutcome {

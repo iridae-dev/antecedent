@@ -239,7 +239,7 @@ fn cross_world_range(input: &ExtraInput<'_>) -> Extras {
         }
     };
     let range = match (&route, mediator) {
-        (Route::Direct(_), Some(_)) | (Route::Through(_), Some(_)) => {
+        (Route::Direct(_) | Route::Through(_), Some(_)) => {
             let summary = mediation_sensitivity_fit(&cols[0], &cols[2], &cols[1], &covariates);
             let total = total_effect_slope(&cols[0], &cols[1], &covariates);
             match (summary, total, &route) {
@@ -264,62 +264,7 @@ fn cross_world_range(input: &ExtraInput<'_>) -> Extras {
             return (Vec::new(), notes);
         }
     };
-    // The range is in the units of the linear model; rescale it to the route's own contrast.
-    let at_zero = range.tested.iter().find(|p| p.parameter == 0.0).map(|p| p.target);
-    let scale = match at_zero {
-        Some(x0) if x0.abs() > 1e-12 => effect / x0,
-        _ => {
-            notes.push(not_applicable(
-                NAME,
-                "the linear model reads no effect at rho = 0 to rescale the range by",
-                "a nonzero fitted effect",
-            ));
-            return (Vec::new(), notes);
-        }
-    };
-    let bound = range
-        .tested
-        .iter()
-        .filter(|p| (p.parameter.abs() - RHO_BAR).abs() < 1e-12)
-        .map(|p| p.target * scale)
-        .min_by(|a, b| a.abs().total_cmp(&b.abs()))
-        .unwrap_or(effect);
-    let break_even = range.break_even;
-    let passed = break_even.is_none_or(|b| b.abs() >= RHO_BAR);
-    let curve = range
-        .tested
-        .iter()
-        .map(|p| format!("{:+.2}: {:.5}", p.parameter, p.target * scale))
-        .collect::<Vec<_>>()
-        .join(", ");
-    notes.push(note(
-        "refute.functional.cross_world_range",
-        format!(
-            "assumption `{}`: {}. Effect by {} (rho: effect): {curve}. Break-even {}",
-            range.assumption.as_str(),
-            range.assumption.statement(),
-            range.parameter,
-            break_even
-                .map_or_else(|| "not reached on the grid".to_owned(), |b| format!("rho = {b:.4}"))
-        ),
-    ));
-    let report = RefutationReport::new(
-        NAME,
-        effect,
-        bound,
-        break_even.map_or(f64::INFINITY, f64::abs),
-        true,
-        passed,
-        (!passed).then(|| {
-            Arc::from(format!(
-                "a correlation of {:.3} between the errors the cross-world functional assumes \
-                 independent explains the effect away (bar {RHO_BAR})",
-                break_even.unwrap_or(f64::NAN)
-            ))
-        }),
-        0,
-    );
-    (vec![stamp(report, input.program)], notes)
+    publish_cross_world_range(input, effect, &range, notes)
 }
 
 fn mean_and_sd(values: &[f64]) -> (f64, f64) {
@@ -467,24 +412,8 @@ fn distribution_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
         ));
         return Ok((Vec::new(), notes));
     };
-    let n = input.data.row_count();
-    let mut expected = Vec::with_capacity(kept);
-    for atom in &atoms[..kept] {
-        let mut hits = 0_usize;
-        'rows: for row in 0..n {
-            for (variable, value) in atom.outcomes.iter() {
-                let Some(position) = outcome_ids.iter().position(|id| id == variable) else {
-                    continue 'rows;
-                };
-                match value.as_f64() {
-                    Some(v) if (cols[position][row] - v).abs() < 1e-9 => {}
-                    _ => continue 'rows,
-                }
-            }
-            hits += 1;
-        }
-        expected.push(hits as f64 / n as f64);
-    }
+    let expected =
+        observed_atom_probabilities(input.data.row_count(), &atoms[..kept], &outcome_ids, &cols);
     let Some(column) = columns(input.data, &[treatment]) else {
         notes.push(not_applicable(
             NAME,
@@ -493,29 +422,14 @@ fn distribution_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
         ));
         return Ok((Vec::new(), notes));
     };
-    let replicates = input.replicates.max(kept as u32 + 8);
-    let mut rows = Vec::with_capacity(replicates as usize * kept);
-    for replicate in 0..replicates {
-        if input.ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_VALIDATE });
-        }
-        let mut rng =
-            target_refuter_stream(TargetRefuterKind::PlaceboTreatment, replicate, input.ctx);
-        let mut permuted = column[0].clone();
-        shuffle(&mut rng, &mut permuted);
-        let data = input
-            .data
-            .with_replaced_float(treatment, permuted.into())
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        let refit = input.prepared.estimate(&data, input.ctx)?;
-        let (_, _, values) = result_target_values(&refit)?;
-        if values.len() != kept {
-            return Err(CausalError::Compile {
-                message: "the placebo refit published a different number of atoms".into(),
-            });
-        }
-        rows.extend_from_slice(&values);
-    }
+    let required =
+        u32::try_from(kept).ok().and_then(|count| count.checked_add(8)).ok_or_else(|| {
+            CausalError::Compile {
+                message: "the placebo outcome dimension exceeds the replicate count range".into(),
+            }
+        })?;
+    let replicates = input.replicates.max(required);
+    let rows = distribution_placebo_replicates(input, treatment, &column[0], kept, replicates)?;
     let statistic = match joint_mahalanobis(&expected, &rows, kept) {
         Ok(statistic) => statistic,
         Err(error) => {
@@ -565,7 +479,11 @@ struct LinearScm {
 impl LinearScm {
     fn fit(dag: &Dag, data: &TabularData) -> Option<Self> {
         let k = dag.node_count();
-        let ids: Vec<VariableId> = (0..k).map(|i| VariableId::from_raw(i as u32)).collect();
+        let node_ids: Vec<DenseNodeId> = (0..k)
+            .map(|i| u32::try_from(i).ok().map(DenseNodeId::from_raw))
+            .collect::<Option<_>>()?;
+        let ids: Vec<VariableId> =
+            node_ids.iter().map(|id| VariableId::from_raw(id.raw())).collect();
         let columns = columns(data, &ids)?;
         let n = columns.first()?.len();
         let order: Vec<usize> =
@@ -575,11 +493,8 @@ impl LinearScm {
         let mut residuals = vec![Vec::new(); k];
         let mut ws = LeastSquaresWorkspace::default();
         for v in 0..k {
-            let ps: Vec<usize> = dag
-                .parents(DenseNodeId::from_raw(v as u32))
-                .iter()
-                .map(|p| p.raw() as usize)
-                .collect();
+            let ps: Vec<usize> =
+                dag.parents(node_ids[v]).iter().map(|p| p.raw() as usize).collect();
             let p = 1 + ps.len();
             if n <= p + 1 {
                 return None;
@@ -592,22 +507,12 @@ impl LinearScm {
             if fit.rank < p {
                 return None;
             }
-            coefficients[v] = fit.coefficients.to_vec();
-            residuals[v] = fit.residuals.to_vec();
+            coefficients[v].clone_from(&fit.coefficients);
+            residuals[v].clone_from(&fit.residuals);
             parents[v] = ps;
         }
         let descendants = (0..k)
-            .map(|a| {
-                (0..k)
-                    .map(|b| {
-                        a != b
-                            && dag.reaches(
-                                DenseNodeId::from_raw(a as u32),
-                                DenseNodeId::from_raw(b as u32),
-                            )
-                    })
-                    .collect()
-            })
+            .map(|a| (0..k).map(|b| a != b && dag.reaches(node_ids[a], node_ids[b])).collect())
             .collect();
         Some(Self { order, parents, coefficients, residuals, columns, descendants })
     }
@@ -671,8 +576,13 @@ fn with_columns(
 ) -> Result<TabularData, CausalError> {
     let replacements: Vec<(VariableId, Arc<[f64]>)> = blocks
         .iter()
-        .map(|&v| (VariableId::from_raw(v as u32), Arc::from(new[v].clone())))
-        .collect();
+        .map(|&v| {
+            let id = u32::try_from(v).map_err(|_| CausalError::Compile {
+                message: "a replacement column index exceeds the variable id range".into(),
+            })?;
+            Ok((VariableId::from_raw(id), Arc::from(new[v].clone())))
+        })
+        .collect::<Result<_, CausalError>>()?;
     data.with_replaced_floats(&replacements)
         .map_err(|e| CausalError::Compile { message: e.to_string() })
 }
@@ -837,4 +747,126 @@ fn noise_block_permutation(input: &ExtraInput<'_>) -> Result<Extras, CausalError
         replicates * tested,
     );
     Ok((vec![stamp(report, input.program)], notes))
+}
+
+fn publish_cross_world_range(
+    input: &ExtraInput<'_>,
+    effect: f64,
+    range: &antecedent_validate::AssumptionRange,
+    mut notes: Vec<Diagnostic>,
+) -> Extras {
+    // The range is in the units of the linear model; rescale it to the route's own contrast.
+    let at_zero = range.tested.iter().find(|p| p.parameter == 0.0).map(|p| p.target);
+    let scale = match at_zero {
+        Some(x0) if x0.abs() > 1e-12 => effect / x0,
+        _ => {
+            notes.push(not_applicable(
+                "target.cross_world_sensitivity",
+                "the linear model reads no effect at rho = 0 to rescale the range by",
+                "a nonzero fitted effect",
+            ));
+            return (Vec::new(), notes);
+        }
+    };
+    let bound = range
+        .tested
+        .iter()
+        .filter(|p| (p.parameter.abs() - RHO_BAR).abs() < 1e-12)
+        .map(|p| p.target * scale)
+        .min_by(|a, b| a.abs().total_cmp(&b.abs()))
+        .unwrap_or(effect);
+    let break_even = range.break_even;
+    let passed = break_even.is_none_or(|b| b.abs() >= RHO_BAR);
+    let curve = range
+        .tested
+        .iter()
+        .map(|p| format!("{:+.2}: {:.5}", p.parameter, p.target * scale))
+        .collect::<Vec<_>>()
+        .join(", ");
+    notes.push(note(
+        "refute.functional.cross_world_range",
+        format!(
+            "assumption `{}`: {}. Effect by {} (rho: effect): {curve}. Break-even {}",
+            range.assumption.as_str(),
+            range.assumption.statement(),
+            range.parameter,
+            break_even
+                .map_or_else(|| "not reached on the grid".to_owned(), |b| format!("rho = {b:.4}"))
+        ),
+    ));
+    let report = RefutationReport::new(
+        "target.cross_world_sensitivity",
+        effect,
+        bound,
+        break_even.map_or(f64::INFINITY, f64::abs),
+        true,
+        passed,
+        (!passed).then(|| {
+            Arc::from(format!(
+                "a correlation of {:.3} between the errors the cross-world functional assumes \
+                 independent explains the effect away (bar {RHO_BAR})",
+                break_even.unwrap_or(f64::NAN)
+            ))
+        }),
+        0,
+    );
+    (vec![stamp(report, input.program)], notes)
+}
+
+fn observed_atom_probabilities(
+    n: usize,
+    atoms: &[antecedent_estimate::DistributionAtom],
+    outcome_ids: &[VariableId],
+    cols: &[Vec<f64>],
+) -> Vec<f64> {
+    let mut expected = Vec::with_capacity(atoms.len());
+    for atom in atoms {
+        let mut hits = 0_usize;
+        'rows: for row in 0..n {
+            for (variable, value) in atom.outcomes.iter() {
+                let Some(position) = outcome_ids.iter().position(|id| id == variable) else {
+                    continue 'rows;
+                };
+                match value.as_f64() {
+                    Some(v) if (cols[position][row] - v).abs() < 1e-9 => {}
+                    _ => continue 'rows,
+                }
+            }
+            hits += 1;
+        }
+        expected.push(hits as f64 / n as f64);
+    }
+    expected
+}
+
+fn distribution_placebo_replicates(
+    input: &ExtraInput<'_>,
+    treatment: VariableId,
+    column: &[f64],
+    kept: usize,
+    replicates: u32,
+) -> Result<Vec<f64>, CausalError> {
+    let mut rows = Vec::with_capacity(replicates as usize * kept);
+    for replicate in 0..replicates {
+        if input.ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_VALIDATE });
+        }
+        let mut rng =
+            target_refuter_stream(TargetRefuterKind::PlaceboTreatment, replicate, input.ctx);
+        let mut permuted = column.to_vec();
+        shuffle(&mut rng, &mut permuted);
+        let data = input
+            .data
+            .with_replaced_float(treatment, permuted.into())
+            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let refit = input.prepared.estimate(&data, input.ctx)?;
+        let (_, _, values) = result_target_values(&refit)?;
+        if values.len() != kept {
+            return Err(CausalError::Compile {
+                message: "the placebo refit published a different number of atoms".into(),
+            });
+        }
+        rows.extend_from_slice(&values);
+    }
+    Ok(rows)
 }

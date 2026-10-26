@@ -82,10 +82,8 @@ pub(super) use crate::strategy_table::{
     DEFAULT_PAG_ESTIMATOR_ID, DEFAULT_PAG_IDENTIFIER_ID, DEFAULT_PATH_ESTIMATOR_ID,
     DEFAULT_PATH_IDENTIFIER_ID, DEFAULT_RESPONSE_IDENTIFIER_ID, EstimatorId, IdentifierId,
     StaticEstimateInput, StaticEstimateWorkspaces, estimate_provenance_step,
-    estimate_static_effect, identify_admg, identify_admg_query, identify_cpdag_distribution,
-    identify_cpdag_path_specific, identify_pag_distribution, identify_pag_path_specific,
-    identify_provenance_step, identify_static, identify_static_query,
-    identify_static_query_in_context, identify_static_query_with_rd,
+    estimate_static_effect, identify_admg, identify_admg_query, identify_provenance_step,
+    identify_static_query, identify_static_query_in_context, identify_static_query_with_rd,
     identify_temporal_cpdag_configured, identify_temporal_pag_configured, require_identified,
     select_claim, select_estimand, validate_static_pair,
 };

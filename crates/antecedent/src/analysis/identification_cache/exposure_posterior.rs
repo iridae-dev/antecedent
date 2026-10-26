@@ -1,6 +1,6 @@
 //! Identification caches of the transport and interference queries over a graph posterior.
 //!
-//! A `TransportQuery` reads a selection diagram, so every atom of a Dag, Admg or TemporalAdmg
+//! A `TransportQuery` reads a selection diagram, so every atom of a Dag, Admg or `TemporalAdmg`
 //! posterior is run through sID on its own graph with the declared selection targets: the
 //! atom is identified when sID certifies a formula, and it is unidentified mass when sID
 //! does not. An atom of a Cpdag or Pag posterior names a class of selection diagrams, so it
@@ -25,8 +25,7 @@ use antecedent_discovery::{AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{Admg, SelectionDiagram};
 use antecedent_identify::{
-    ClassTransportEnvelope, GeneralizedAdjustmentIdentifier, IdentificationResult,
-    TransportIdentification, TransportIdentifier,
+    ClassTransportEnvelope, IdentificationResult, TransportIdentification, TransportIdentifier,
 };
 use antecedent_prob::GraphIdentFlag;
 
@@ -67,22 +66,29 @@ fn atom_admg(mask: AdjacencyMask, n_vars: usize, kind: GraphPosteriorAtomKind) -
 type TransportAtom = (IdentifiedEstimand, IdentificationResult, Arc<TransportIdentification>);
 
 /// Run sID on the selection diagram of one atom. `None` when the atom is not a member of
-/// the graph class, the diagram does not build, sID errors, or no formula is certified.
+/// the graph class, the diagram does not build, or no formula is certified. Errors propagate.
 fn transport_atom(
     mask: AdjacencyMask,
     n_vars: usize,
     kind: GraphPosteriorAtomKind,
     query: &TransportQuery,
     selection_targets: &[VariableId],
-) -> Option<TransportAtom> {
-    let admg = atom_admg(mask, n_vars, kind)?;
-    let diagram = SelectionDiagram::try_new(admg, selection_targets.to_vec()).ok()?;
-    let identified = TransportIdentifier::new().identify(&diagram, query).ok()?;
+    ctx: &ExecutionContext,
+) -> Result<Option<TransportAtom>, CausalError> {
+    let Some(admg) = atom_admg(mask, n_vars, kind) else { return Ok(None) };
+    let Ok(diagram) = SelectionDiagram::try_new(admg, selection_targets.to_vec()) else {
+        return Ok(None);
+    };
+    let identified = TransportIdentifier::new().identify_with_context(&diagram, query, ctx)?;
     if !matches!(identified, TransportIdentification::Transportable { .. }) {
-        return None;
+        return Ok(None);
     }
-    let (identification, estimand) = crate::Study::transport_posterior_atom(query, &identified)?;
-    Some((estimand, identification, Arc::new(identified)))
+    let Some((identification, estimand)) =
+        crate::Study::transport_posterior_atom(query, &identified)
+    else {
+        return Ok(None);
+    };
+    Ok(Some((estimand, identification, Arc::new(identified))))
 }
 
 /// Stable code of the disclosure a class atom carries about the members of its class.
@@ -157,27 +163,27 @@ fn class_transport_atom(
     index: usize,
     query: &TransportQuery,
     selection_targets: &[VariableId],
-) -> Option<TransportAtom> {
+    ctx: &ExecutionContext,
+) -> Result<Option<TransportAtom>, CausalError> {
     let mask = posterior.atoms[index];
     let n_vars = posterior.n_vars;
-    let identifier = GeneralizedAdjustmentIdentifier::new();
+    let identifier = crate::strategy_table::class_identifier_in_context(Some(ctx));
     match posterior.atom_kind {
         GraphPosteriorAtomKind::Cpdag => {
-            let cpdag = cpdag_from_adjacency_mask(mask, n_vars).ok()?;
-            let class = identifier
-                .identify_cpdag_transport_envelope(&cpdag, selection_targets, query)
-                .ok()?;
-            class_envelope_atom(&class, query)
+            let Ok(cpdag) = cpdag_from_adjacency_mask(mask, n_vars) else { return Ok(None) };
+            let class =
+                identifier.identify_cpdag_transport_envelope(&cpdag, selection_targets, query)?;
+            Ok(class_envelope_atom(&class, query))
         }
         GraphPosteriorAtomKind::Pag => {
             let mark =
                 posterior.mark_atoms.as_ref().map_or(AdjacencyMask::EMPTY, |marks| marks[index]);
-            let pag = pag_from_adjacency_mask(mask, mark, n_vars).ok()?;
+            let Ok(pag) = pag_from_adjacency_mask(mask, mark, n_vars) else { return Ok(None) };
             let class =
-                identifier.identify_pag_transport_envelope(&pag, selection_targets, query).ok()?;
-            class_envelope_atom(&class, query)
+                identifier.identify_pag_transport_envelope(&pag, selection_targets, query)?;
+            Ok(class_envelope_atom(&class, query))
         }
-        _ => None,
+        _ => Ok(None),
     }
 }
 
@@ -216,8 +222,8 @@ pub(crate) fn build_transport_graph_posterior_identification_cache(
     }
     crate::analysis::execute::report_identify_compute(ctx);
     let n_vars = posterior.n_vars;
-    let by_mask = identify_unique_adjacency_masks(posterior, ctx, |mask, _inner| {
-        Ok::<_, CausalError>(transport_atom(mask, n_vars, kind, query, selection_targets))
+    let by_mask = identify_unique_adjacency_masks(posterior, ctx, |mask, inner| {
+        transport_atom(mask, n_vars, kind, query, selection_targets, inner)
     })?;
     let (graphs, atoms) = collect_graph_posterior_atoms(posterior, ctx, |i, first_for_key| {
         let Some(Some((estimand, identification, transport))) = by_mask.get(&posterior.atoms[i])
@@ -262,12 +268,7 @@ fn build_class_transport_cache(
         if inner.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
         }
-        Ok::<_, CausalError>(class_transport_atom(
-            posterior,
-            firsts[position],
-            query,
-            selection_targets,
-        ))
+        class_transport_atom(posterior, firsts[position], query, selection_targets, inner)
     })?;
     let by_key: std::collections::HashMap<u64, Option<TransportAtom>> =
         firsts.iter().map(|&index| posterior.graph_keys[index]).zip(solved).collect();

@@ -2,23 +2,23 @@
 
 use super::completion_fit_memo::{CompletionFitKey, CompletionFitMemo};
 use super::{
+    Arc, AverageEffectQuery, CausalError, CausalQuery, CausalResponse, ClassEnvelopeRun,
+    ContinuousResponseEstimator, Dag, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+    EffectEstimate, EstimandMethod, EstimationWorkspace, EstimatorId, EvalError, ExecuteRun,
+    ExecutionContext, FunctionalDistributionWorkspace, FunctionalEffect, GraphClass,
+    GraphIdentFlag, GraphPosterior, IdentificationResult, IdentificationStatus, IdentifiedClaim,
+    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights,
+    IdentifierId, InferenceMode, Instant, Intervention, ObservationMechanismEstimator,
+    ObservationSpec, OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefutationRun,
+    RefuteSuite, ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty,
+    ResponseValue, Strategy, StudyResult, TableView, TabularData, VariableId, WeightedGraphSamples,
     bayesian_gcomp, elapsed_ns, envelope_se_omits_between_atom_variance,
     envelope_to_identification_result_for, functional_cell_unevaluable,
     identification_from_cache_or, identification_status_ok_for_case,
-    identified_set_interval_diagnostics, identify_cached_diagnostic, identify_static_query,
+    identified_set_interval_diagnostics, identify_cached_diagnostic,
     interactive_subsample_graphs_accounted, provenance_ids, report_identify_compute,
     resolve_posterior_status, response_functional_is_derivative, scalar_identified_set,
-    support_from_functional_eval, Arc, AverageEffectQuery, CausalError, CausalQuery,
-    CausalResponse, ClassEnvelopeRun, ContinuousResponseEstimator, Dag, Diagnostic, DiagnosticKind,
-    DiagnosticSeverity, EffectEstimate, EstimandMethod, EstimationWorkspace, EstimatorId,
-    EvalError, ExecuteRun, ExecutionContext, FunctionalDistributionWorkspace, FunctionalEffect,
-    GraphClass, GraphIdentFlag, GraphPosterior, IdentificationResult, IdentificationStatus,
-    IdentifiedClaim, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
-    IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant, Intervention,
-    ObservationMechanismEstimator, ObservationSpec, OverlapPolicy, PhysicalExecutionPlan,
-    PosteriorMassSummary, RefutationRun, RefuteSuite, ResponseFunctional, ResponseIdentification,
-    ResponseQuery, ResponseUncertainty, ResponseValue, Strategy, StudyResult, TableView,
-    TabularData, VariableId, WeightedGraphSamples,
+    support_from_functional_eval,
 };
 use crate::planner::RouteDefaults;
 
@@ -576,25 +576,27 @@ impl super::Study {
         let (unidentified_mass, failed_mass, subsampled_out_mass) =
             (fits.unidentified_mass, fits.failed_mass, fits.subsampled_out_mass);
         let weighted = &fits.weighted;
-        let mut diagnostics = vec![Diagnostic::new(
-            "estimate.response.graph_posterior",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!(
-                "posterior_probability weights; identified_mass={}, unidentified_mass={}; \
+        let mut diagnostics = vec![
+            Diagnostic::new(
+                "estimate.response.graph_posterior",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "posterior_probability weights; identified_mass={}, unidentified_mass={}; \
                  unevaluable_mass={}; subsampled_out_mass={}; failed estimation and \
                  atoms the Interactive tier did not evaluate are not mixed into \
                  unidentified mass",
-                identified_mass / total_mass,
+                    identified_mass / total_mass,
+                    unidentified_mass / total_mass,
+                    failed_mass / total_mass,
+                    subsampled_out_mass / total_mass
+                ),
+            )
+            .with_fields(super::mass_fields(
+                Some(identified_mass / total_mass),
                 unidentified_mass / total_mass,
-                failed_mass / total_mass,
-                subsampled_out_mass / total_mass
-            ),
-        )
-        .with_fields(super::mass_fields(
-            Some(identified_mass / total_mass),
-            unidentified_mass / total_mass,
-        ))];
+            )),
+        ];
         if weighted.len() > 1 && mixed_if_se.is_none() {
             diagnostics.push(Diagnostic::new(
                 "estimate.response.graph_posterior.uncertainty_withheld",
@@ -1136,10 +1138,12 @@ impl super::Study {
                     binding.resolves_to(RouteDefaults::STATIC_ATE, identifier_id, estimator_id)
                 });
                 identification_from_cache_or(ctx, reused, || {
-                    let identification = identify_static_query(
+                    let identification = crate::strategy_table::identify_static_query_in_context(
                         identifier_id,
                         graph,
                         &CausalQuery::Response(query.clone()),
+                        None,
+                        Some(ctx),
                     )?;
                     let estimand = identification.estimands.first().cloned().ok_or_else(|| {
                         CausalError::Compile {
@@ -1888,10 +1892,11 @@ impl super::Study {
                     } else {
                         report_identify_compute(ctx);
                         (
-                            Arc::new(crate::strategy_table::identify_pag_response(
+                            Arc::new(crate::strategy_table::identify_pag_response_in_context(
                                 identifier_id,
                                 pag,
                                 query,
+                                Some(ctx),
                             )?),
                             false,
                         )
@@ -1928,10 +1933,11 @@ impl super::Study {
                     } else {
                         report_identify_compute(ctx);
                         (
-                            Arc::new(crate::strategy_table::identify_cpdag_response(
+                            Arc::new(crate::strategy_table::identify_cpdag_response_in_context(
                                 identifier_id,
                                 cpdag,
                                 query,
+                                Some(ctx),
                             )?),
                             false,
                         )
@@ -2254,53 +2260,28 @@ impl super::Study {
         query: &ResponseQuery,
         atoms: ClassResponseAtoms,
     ) -> Result<MixedClassResponse, CausalError> {
+        let mut atoms = atoms;
+        atoms.require_estimable(query)?;
         let ClassResponseAtoms {
-            mut weighted,
+            weighted,
             structural_atoms,
             atom_scores,
             total_w,
             unestimated_id_mass,
-            unevaluable_general_id,
+            unevaluable_general_id: _,
             primary_estimand,
         } = atoms;
-        if !matches!(total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
-            if let Some(response) = unevaluable_general_id {
-                // Sole general-ID atom could not evaluate a required cell.
-                // Publish the support report; do not invent a number.
-                weighted.push((0, 1.0, response));
-            } else if response_functional_is_derivative(&query.functional)
-                && unestimated_id_mass > 0.0
-            {
-                return Err(CausalError::Unsupported {
-                    message: "every identified completion identifies the derivative through a \
-                              functional that is not an adjustment (front-door or general ID); \
-                              no continuous-treatment estimator evaluates such a functional",
-                });
-            } else {
-                return Err(CausalError::Compile {
-                    message: "class-aware response envelope had no estimable identified cases"
-                        .into(),
-                });
-            }
-        }
         let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
             message: "class-aware response envelope missing estimand".into(),
         })?;
         let mut mixed = mix_class_responses(&weighted, envelope.status)?;
-        let total_mass = envelope.identified_weight.0 + envelope.unidentified_weight.0;
-        let structural_response = crate::result::StructuralResponseMixture {
-            weight_basis: crate::result::StructuralWeightBasis::CompletionEnumeration,
-            atoms: structural_atoms,
-            identified_mass: total_w / total_mass.max(f64::EPSILON),
-            unidentified_mass: envelope.unidentified_weight.0 / total_mass.max(f64::EPSILON),
-            unevaluable_mass: unestimated_id_mass / total_mass.max(f64::EPSILON),
-            subsampled_out_mass: 0.0,
-            identified_set: response_envelope_from_weighted(&weighted),
-            identified_set_interval: None,
-            conditional_on_identified: None,
-            full_mass_scope: envelope.truncated_completions == 0,
-            truncated_atoms: envelope.truncated_completions,
-        };
+        let structural_response = structural_class_response(
+            envelope,
+            structural_atoms,
+            &weighted,
+            total_w,
+            unestimated_id_mass,
+        );
         let identification =
             envelope_to_identification_result_for(envelope, CausalQuery::Response(query.clone()));
         // A multi-completion envelope must not keep a single atom's plugin
@@ -2600,6 +2581,30 @@ struct ClassResponseInputs<'a> {
     ctx: &'a ExecutionContext,
 }
 
+/// Normalize class masses without redistributing unidentified or unevaluable completions.
+fn structural_class_response<G>(
+    envelope: &antecedent_identify::IdentificationEnvelope<G>,
+    structural_atoms: Vec<crate::result::StructuralResponseAtom>,
+    weighted: &[(u64, f64, CausalResponse)],
+    total_w: f64,
+    unestimated_id_mass: f64,
+) -> crate::result::StructuralResponseMixture {
+    let total_mass = envelope.identified_weight.0 + envelope.unidentified_weight.0;
+    crate::result::StructuralResponseMixture {
+        weight_basis: crate::result::StructuralWeightBasis::CompletionEnumeration,
+        atoms: structural_atoms,
+        identified_mass: total_w / total_mass.max(f64::EPSILON),
+        unidentified_mass: envelope.unidentified_weight.0 / total_mass.max(f64::EPSILON),
+        unevaluable_mass: unestimated_id_mass / total_mass.max(f64::EPSILON),
+        subsampled_out_mass: 0.0,
+        identified_set: response_envelope_from_weighted(weighted),
+        identified_set_interval: None,
+        conditional_on_identified: None,
+        full_mass_scope: envelope.truncated_completions == 0,
+        truncated_atoms: envelope.truncated_completions,
+    }
+}
+
 /// Per-completion results of a class-aware response, in envelope order.
 struct ClassResponseAtoms {
     weighted: Vec<(u64, f64, CausalResponse)>,
@@ -2612,6 +2617,31 @@ struct ClassResponseAtoms {
 }
 
 impl ClassResponseAtoms {
+    /// Preserve unevaluable general-ID support without inventing a numeric mixture.
+    fn require_estimable(&mut self, query: &ResponseQuery) -> Result<(), CausalError> {
+        if !matches!(self.total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
+            if let Some(response) = self.unevaluable_general_id.take() {
+                // Sole general-ID atom could not evaluate a required cell.
+                // Publish the support report; do not invent a number.
+                self.weighted.push((0, 1.0, response));
+            } else if response_functional_is_derivative(&query.functional)
+                && self.unestimated_id_mass > 0.0
+            {
+                return Err(CausalError::Unsupported {
+                    message: "every identified completion identifies the derivative through a \
+                              functional that is not an adjustment (front-door or general ID); \
+                              no continuous-treatment estimator evaluates such a functional",
+                });
+            } else {
+                return Err(CausalError::Compile {
+                    message: "class-aware response envelope had no estimable identified cases"
+                        .into(),
+                });
+            }
+        }
+        Ok(())
+    }
+
     /// Adds a completion identified by general ID or the front-door, or accounts its lost mass.
     fn add_general_id_case(
         &mut self,
@@ -2799,7 +2829,7 @@ pub(super) fn response_envelope_from_weighted(
                 upper: Arc::from(upper),
             })
         }
-        _ => None,
+        ResponseValue::Envelope(_) => None,
     }
 }
 
@@ -2855,7 +2885,7 @@ fn singleton_response_value(
             treatments: *treatments,
             values: Arc::clone(&envelope.lower),
         }),
-        _ => Err(CausalError::Compile {
+        ResponseValue::Envelope(_) => Err(CausalError::Compile {
             message: "class-aware response only publishes scalar, surface, vector and Jacobian \
                       identified sets"
                 .into(),
@@ -3027,7 +3057,7 @@ pub(super) fn mix_response_values(
                 _ => ResponseValue::Vector(Arc::from(acc)),
             })
         }
-        _ => Err(CausalError::Compile {
+        ResponseValue::Envelope(_) => Err(CausalError::Compile {
             message: "class-aware response only mixes scalar, surface, vector and Jacobian \
                       payloads"
                 .into(),

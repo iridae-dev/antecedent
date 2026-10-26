@@ -12,9 +12,7 @@ use super::{
 };
 use crate::RdConfig;
 use crate::analysis::prepared::Inspect;
-use crate::strategy_table::{
-    EstimatorId, IdentifierId, identify_static_query, require_identified, select_estimand,
-};
+use crate::strategy_table::{EstimatorId, IdentifierId, require_identified, select_estimand};
 
 /// Which conjugate specialist model the retained operation executes.
 #[derive(Clone, Copy, Debug)]
@@ -74,6 +72,7 @@ impl CheckedBayesianSpecialistOperation {
     pub(crate) fn checked(
         study: &Study,
         plan: &std::sync::Arc<PhysicalExecutionPlan>,
+        ctx: &ExecutionContext,
     ) -> Result<Option<Box<Self>>, CausalError> {
         let CausalQuery::AverageEffect(query) = &study.query else {
             return Ok(None);
@@ -148,7 +147,14 @@ impl CheckedBayesianSpecialistOperation {
                 match study.reuse_static_identification(plan) {
                     Some((cache, _)) if cache.identification.query == target => cache,
                     _ => {
-                        let identification = identify_static_query(identifier, graph, &target)?;
+                        let identification =
+                            crate::strategy_table::identify_static_query_in_context(
+                                identifier,
+                                graph,
+                                &target,
+                                None,
+                                Some(ctx),
+                            )?;
                         require_identified(&identification)?;
                         let estimand = select_estimand(&identification, estimator)?;
                         Arc::new(crate::analysis::prepared::CachedStaticIdentification {
@@ -163,6 +169,11 @@ impl CheckedBayesianSpecialistOperation {
                     // The design was identified once, at compile.
                     Some((cache, _)) if cache.identification.query == target => cache,
                     _ => {
+                        if ctx.cancellation.is_cancelled() {
+                            return Err(CausalError::Cancelled {
+                                stage: crate::analysis::stage::STAGE_IDENTIFY,
+                            });
+                        }
                         let identification = SharpRdIdentifier::new(SharpRdConfig::new(
                             rd.running_variable,
                             rd.cutoff,

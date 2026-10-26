@@ -78,7 +78,7 @@ impl CheckedTemporalAdmgOperation {
             None => study
                 .graph_posterior
                 .as_ref()
-                .is_some_and(|posterior| posterior.is_lagged_temporal_admg()),
+                .is_some_and(antecedent_discovery::GraphPosterior::is_lagged_temporal_admg),
             _ => false,
         };
         if !admitted {

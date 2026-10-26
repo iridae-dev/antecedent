@@ -9,8 +9,7 @@ use super::{
     ExecutionContext, GraphClass, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
     IdentifiedResultContext, IdentifierId, InferenceMode, Instant, PhysicalExecutionPlan, Strategy,
     StudyResult, TableView, TabularData, bayesian_draw_count, elapsed_ns,
-    finish_identified_execute_with_context, identify_static_query, project_for_ate_estimate,
-    select_claim,
+    finish_identified_execute_with_context, project_for_ate_estimate, select_claim,
 };
 use crate::analysis::prepared::Inspect;
 use crate::analysis::proof_support::{
@@ -18,6 +17,8 @@ use crate::analysis::proof_support::{
 };
 use antecedent_core::{TargetPopulation, VariableId};
 use antecedent_learn::{BasisTargetPopulation, BayesianBasisGComputation, BayesianBasisSpec};
+
+const PROOF_REFUSED: &str = "Bayesian basis proof is not justified by its retained graph";
 
 /// The checked graph proof, target, prior and physical plan for the licensed basis ATE.
 #[derive(Clone)]
@@ -75,8 +76,9 @@ impl CheckedBayesianBasisAteExecution {
         cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
         inference: InferenceMode,
         context: IdentifiedResultContext,
-        physical: std::sync::Arc<PhysicalExecutionPlan>,
+        compilation: crate::analysis::proof_support::CheckedCompileContext<'_>,
     ) -> Result<Self, CausalError> {
+        let crate::analysis::proof_support::CheckedCompileContext { physical, ctx } = compilation;
         let (identification, estimand) = (&cache.identification, &cache.estimand);
         let CausalQuery::AverageEffect(target) = &context.query else {
             return Err(CausalError::Compile {
@@ -129,15 +131,17 @@ impl CheckedBayesianBasisAteExecution {
                 message: "Bayesian basis estimand is not supplied by its retained proof".into(),
             });
         }
-        const PROOF_REFUSED: &str = "Bayesian basis proof is not justified by its retained graph";
+
         if verify_retained_static(&physical, identification, estimand, PROOF_REFUSED)?
             == RetainedProof::NotRetained
         {
             let (checked_identification, checked_estimand) = select_claim(
-                identify_static_query(
+                crate::strategy_table::identify_static_query_in_context(
                     IdentifierId::BackdoorAdjustment,
                     graph,
                     &CausalQuery::AverageEffect(query.clone()),
+                    None,
+                    Some(ctx),
                 )?,
                 EstimatorId::BayesianBasisGcomp,
             )?;

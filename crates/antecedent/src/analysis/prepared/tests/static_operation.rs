@@ -731,3 +731,49 @@ fn late_stage_cancellation_never_commits_a_refresh_candidate() {
     assert!((refreshed.effect() - 2.0 * baseline).abs() < 1e-10);
     assert_ne!(before.data_snapshot, prepared.contract().unwrap().identities.data_snapshot);
 }
+
+#[test]
+fn unsealed_bayesian_basis_proof_replay_uses_the_construction_context() {
+    let data = data();
+    let graph =
+        Dag::from_named_edges(data.schema(), &[("z", "t"), ("z", "y"), ("t", "y")]).unwrap();
+    let query = AverageEffectQuery::binary_ate(
+        data.schema().id_of("t").unwrap(),
+        data.schema().id_of("y").unwrap(),
+    );
+    let inference = crate::InferenceMode::Bayesian(crate::BayesianConfig::conjugate().n_draws(16));
+    let study = Study::tabular(data.clone())
+        .graph(graph.clone())
+        .query(query.clone())
+        .estimator(EstimatorId::BayesianBasisGcomp)
+        .inference(inference.clone())
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
+    let ctx = ExecutionContext::for_tests(87);
+    let prepared = study.prepare(&ctx).unwrap();
+    let cache = prepared.study().identification_cache.as_ref().unwrap();
+    let mut physical = (*prepared.plan).clone();
+    physical.lowered = None;
+    let physical = Arc::new(physical);
+    let check = |ctx: &ExecutionContext| {
+        crate::analysis::execute::CheckedBayesianBasisAteExecution::checked(
+            &data,
+            &graph,
+            query.clone(),
+            cache.clone(),
+            inference.clone(),
+            crate::analysis::execute::IdentifiedResultContext::from_study(prepared.study()),
+            crate::analysis::proof_support::CheckedCompileContext {
+                physical: physical.clone(),
+                ctx,
+            },
+        )
+    };
+    assert!(check(&ctx).is_ok());
+    let cancelled = ExecutionContext::for_tests(87);
+    cancelled.cancellation.cancel();
+    assert!(matches!(check(&cancelled), Err(crate::CausalError::Cancelled { .. })));
+    let limited = ExecutionContext::for_tests(87).with_memory_limit(Some(1));
+    assert!(matches!(check(&limited), Err(crate::CausalError::Resource { .. })));
+}

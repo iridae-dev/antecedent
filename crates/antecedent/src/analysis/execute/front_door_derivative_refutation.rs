@@ -23,11 +23,11 @@
 //! The state executes and is unlicensed: its verdicts are checks, not a calibration
 //! claim, and no coverage record names it.
 
-use antecedent_data::TableView;
 use super::{
     Arc, CausalError, CausalResponse, Diagnostic, DiagnosticKind, DiagnosticSeverity,
     ExecutionContext, IdentificationStatus, RefuteSuite, ResponseQuery, TabularData, VariableId,
 };
+use antecedent_data::TableView;
 use antecedent_estimate::{
     ContinuousResponseEstimator, ContinuousResponseOptions, FrontDoorDerivativeInference,
 };
@@ -177,7 +177,7 @@ fn smoothness_sensitivity(
                 } else {
                     (alt - value).abs()
                 };
-                if worst.map_or(true, |(_, current)| ratio > current) {
+                if worst.is_none_or(|(_, current)| ratio > current) {
                     worst = Some((alt, ratio));
                 }
             }

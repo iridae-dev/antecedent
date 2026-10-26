@@ -6,8 +6,7 @@ use super::{
     ExecutionContext, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
     IdentifiedExecuteFinish, IdentifiedResultContext, IdentifierId, InferenceMode, Instant,
     PhysicalExecutionPlan, RefuteSuite, Strategy, Study, StudyResult, TableView, TabularData,
-    VariableId, bayesian_gcomp, elapsed_ns, finish_identified_execute_with_context,
-    identify_static_query, select_claim,
+    VariableId, bayesian_gcomp, elapsed_ns, finish_identified_execute_with_context, select_claim,
 };
 use crate::analysis::prepared::Inspect;
 use crate::analysis::proof_support::{EstimandClaim, proof_supplies_with_mediators};
@@ -50,6 +49,7 @@ impl CheckedBayesianStaticMediationOperation {
         data: &TabularData,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         cache: &Arc<crate::analysis::prepared::CachedStaticIdentification>,
+        ctx: &ExecutionContext,
     ) -> Result<Self, CausalError> {
         let CausalQuery::Mediation(query) = &study.query else {
             return Err(CausalError::Compile {
@@ -66,7 +66,7 @@ impl CheckedBayesianStaticMediationOperation {
             });
         };
         ensure_mediation_prior_admitted(config, data, query)?;
-        verify_mediation_proof(study, physical, cache, graph)?;
+        verify_mediation_proof(study, physical, cache, graph, ctx)?;
 
         let program_schema = ProgramSchema::new(
             data.schema()
@@ -267,6 +267,7 @@ fn verify_mediation_proof(
     physical: &PhysicalExecutionPlan,
     cache: &crate::analysis::prepared::CachedStaticIdentification,
     graph: &Dag,
+    ctx: &ExecutionContext,
 ) -> Result<(), CausalError> {
     if !matches!(
         study.structure_source,
@@ -289,7 +290,26 @@ fn verify_mediation_proof(
             message: "Bayesian mediation proof, procedure, structure, or validation changed after preparation".into(),
         });
     }
-    let verified = identify_static_query(IdentifierId::PathSpecificNatural, graph, &study.query)?;
+    if physical.static_graph().is_some_and(|retained| retained == graph)
+        && crate::analysis::proof_support::verify_retained_static(
+            physical,
+            &cache.identification,
+            &cache.estimand,
+            "Bayesian mediation proof is not justified by its retained graph",
+        )? == crate::analysis::proof_support::RetainedProof::Sealed
+    {
+        return Ok(());
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
+    }
+    let verified = crate::strategy_table::identify_static_query_in_context(
+        IdentifierId::PathSpecificNatural,
+        graph,
+        &study.query,
+        None,
+        Some(ctx),
+    )?;
     let (verified, verified_estimand) = select_claim(verified, EstimatorId::StaticMediationLinear)?;
     if verified.query != cache.identification.query
         || !verified_estimand.same_claim_with_mediators(&cache.estimand)
@@ -403,7 +423,7 @@ mod tests {
                         .build()
                         .unwrap();
                     let physical = study.compile(&ctx).unwrap();
-                    let identified = identify_static_query(
+                    let identified = crate::strategy_table::identify_static_query(
                         IdentifierId::PathSpecificNatural,
                         &graph,
                         &study.query,
@@ -420,6 +440,7 @@ mod tests {
                         &data,
                         &Arc::new(physical.clone()),
                         &cache,
+                        &ctx,
                     )
                     .unwrap();
                     assert_eq!(operation.inspect().0, &query);

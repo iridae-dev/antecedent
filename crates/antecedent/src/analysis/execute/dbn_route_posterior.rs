@@ -285,6 +285,13 @@ impl DbnLane<'_> {
     }
 }
 
+/// Refutation reports, predictive checks and their accompanying diagnostic disclosures.
+type LaneRefutation = (
+    Vec<antecedent_validate::RefutationReport>,
+    Vec<super::PredictiveCheckReport>,
+    Vec<Diagnostic>,
+);
+
 impl super::Study {
     /// Fit one horizon (or the one point) of a dynamic posterior: identify every distinct
     /// template on its own graph, fit its regressions and mix the values.
@@ -311,8 +318,7 @@ impl super::Study {
         let mut unidentified_keys: std::collections::HashSet<u64> =
             std::collections::HashSet::new();
         let mut seen: std::collections::HashSet<u64> = std::collections::HashSet::new();
-        for index in 0..gp.n_graphs {
-            let key = keys[index];
+        for &key in keys.iter().take(gp.n_graphs) {
             if !seen.insert(key) {
                 continue;
             }
@@ -587,14 +593,7 @@ impl super::Study {
         data: &TimeSeriesData,
         lane: &DbnLane<'_>,
         ctx: &ExecutionContext,
-    ) -> Result<
-        (
-            Vec<antecedent_validate::RefutationReport>,
-            Vec<super::PredictiveCheckReport>,
-            Vec<Diagnostic>,
-        ),
-        CausalError,
-    > {
+    ) -> Result<LaneRefutation, CausalError> {
         let DbnPoint::Derivative { query, probe } = &lane.point else {
             return Err(CausalError::Unsupported {
                 message: "a temporal conditional or cross-world point over a graph posterior is \
@@ -652,7 +651,10 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let points = DbnPoint::of_all(&self.query)?;
-        let derivative = matches!(points[0], DbnPoint::Derivative { .. });
+        let first_point = points.first().ok_or(CausalError::Compile {
+            message: "dynamic graph posterior has no requested point".into(),
+        })?;
+        let derivative = matches!(first_point, DbnPoint::Derivative { .. });
         if self.refute != RefuteSuite::None && !derivative {
             return Err(CausalError::Unsupported {
                 message: "a temporal conditional or cross-world point over a graph posterior is \
@@ -662,13 +664,13 @@ impl super::Study {
         }
         let prior_scale = isotropic_prior_scale(
             &self.inference,
-            match points[0] {
+            match first_point {
                 DbnPoint::Conditional(_) => CONDITIONAL_PRIOR_REFUSAL,
                 DbnPoint::Derivative { .. } => DERIVATIVE_PRIOR_REFUSAL,
                 DbnPoint::CrossWorld { .. } => CROSS_WORLD_PRIOR_REFUSAL,
             },
         )?;
-        let label = points[0].label();
+        let label = first_point.label();
         let variables: Vec<VariableId> =
             data.schema().variables().iter().map(|variable| variable.id).collect();
 
@@ -860,7 +862,7 @@ impl super::Study {
             let pooled: Vec<Vec<f64>> = (0..n_draws)
                 .map(|draw| {
                     let mut row = Vec::with_capacity(lane_count * width);
-                    for index in 0..lane_count {
+                    for (index, &lane_total) in lane_totals.iter().enumerate().take(lane_count) {
                         for coordinate in 0..width {
                             row.push(
                                 draws
@@ -870,7 +872,7 @@ impl super::Study {
                                     .zip(&lane_of)
                                     .filter(|(_, lane)| **lane == index)
                                     .map(|((atom, weight), _)| {
-                                        weight / lane_totals[index] * atom[draw][coordinate]
+                                        weight / lane_total * atom[draw][coordinate]
                                     })
                                     .sum::<f64>(),
                             );

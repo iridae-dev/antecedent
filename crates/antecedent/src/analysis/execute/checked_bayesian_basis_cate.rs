@@ -9,13 +9,15 @@ use super::{
     IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext, IdentifierId,
     InferenceMode, Instant, PhysicalExecutionPlan, Strategy, StudyResult, TableView, TabularData,
     VariableId, bayesian_draw_count, elapsed_ns, finish_identified_execute_with_context,
-    identify_static, select_claim,
+    select_claim,
 };
 use crate::analysis::proof_support::{
     RetainedProof, verify_proof_against_graph, verify_retained_static,
 };
 use antecedent_core::ConditionalEffectQuery;
 use antecedent_learn::{BasisTargetPopulation, BayesianBasisGComputation, BayesianBasisSpec};
+
+const PROOF_REFUSED: &str = "Bayesian basis CATE proof is not justified by its retained graph";
 
 /// Checked CATE plan for the basis estimator. This initial contract conditions
 /// on every adjustment variable, matching the row-wise predictions produced by
@@ -51,8 +53,9 @@ impl CheckedBayesianBasisCateExecution {
         cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
         inference: InferenceMode,
         context: IdentifiedResultContext,
-        physical: std::sync::Arc<PhysicalExecutionPlan>,
+        compilation: crate::analysis::proof_support::CheckedCompileContext<'_>,
     ) -> Result<Self, CausalError> {
+        let crate::analysis::proof_support::CheckedCompileContext { physical, ctx } = compilation;
         let (identification, estimand) = (&cache.identification, &cache.estimand);
         let CausalQuery::ConditionalEffect(target) = &context.query else {
             return Err(CausalError::Compile {
@@ -107,15 +110,20 @@ impl CheckedBayesianBasisCateExecution {
                 message: "bayesian.basis.gcomp CATE requires effect modifiers to equal the complete adjustment set",
             });
         }
-        const PROOF_REFUSED: &str =
-            "Bayesian basis CATE proof is not justified by its retained graph";
+
         // The proof is the identification compile sealed: equality with that digest verifies
         // it without identifying again. A plan that retained none replays it from the graph.
         if verify_retained_static(&physical, identification, estimand, PROOF_REFUSED)?
             == RetainedProof::NotRetained
         {
             let (checked_identification, checked_estimand) = select_claim(
-                identify_static(IdentifierId::BackdoorAdjustment, graph, inner)?,
+                crate::strategy_table::identify_static_query_in_context(
+                    IdentifierId::BackdoorAdjustment,
+                    graph,
+                    &CausalQuery::AverageEffect(inner.clone()),
+                    None,
+                    Some(ctx),
+                )?,
                 EstimatorId::BayesianBasisGcomp,
             )?;
             verify_proof_against_graph(

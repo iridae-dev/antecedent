@@ -9,14 +9,16 @@ use super::{
     PosteriorPredictiveCheck, PredictiveCheckReport, PriorPredictiveCheck, RefutationRun,
     RefuteSuite, Strategy, StudyResult, TableView, TabularData, ValidationSuite, ValidatorId,
     VariableId, bayesian_gcomp, effect_from_posterior, evaluate_bayesian_prior_sensitivity,
-    finish_identified_execute_with_context, identify_static, project_for_ate_estimate,
-    projection_diagnostic, resolve_bayesian_prior_with_conflict, select_claim,
-    validator_not_applicable_diagnostics, with_conflict_summary, with_prior_sensitivity,
+    finish_identified_execute_with_context, project_for_ate_estimate, projection_diagnostic,
+    resolve_bayesian_prior_with_conflict, select_claim, validator_not_applicable_diagnostics,
+    with_conflict_summary, with_prior_sensitivity,
 };
 use crate::analysis::prepared::Inspect;
 use crate::analysis::proof_support::{
     RetainedProof, proof_supplies, verify_proof_against_graph, verify_retained_static,
 };
+
+const PROOF_REFUSED: &str = "Bayesian CATE proof is not justified by its retained graph";
 
 const PPC_ALPHA: f64 = 0.05;
 
@@ -59,6 +61,7 @@ pub(crate) struct CheckedBayesianConditionalOperation {
 
 /// The frozen premises of [`CheckedBayesianConditionalOperation::checked`], carried together.
 pub(crate) struct CheckedBayesianConditionalOperationPremises<'a> {
+    pub(crate) ctx: &'a ExecutionContext,
     pub(crate) graph: &'a Dag,
     pub(crate) query: antecedent_core::ConditionalEffectQuery,
     pub(crate) cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
@@ -105,6 +108,7 @@ impl CheckedBayesianConditionalOperation {
         premises: CheckedBayesianConditionalOperationPremises<'_>,
     ) -> Result<Self, CausalError> {
         let CheckedBayesianConditionalOperationPremises {
+            ctx,
             graph,
             query,
             cache,
@@ -161,12 +165,18 @@ impl CheckedBayesianConditionalOperation {
                 message: "Bayesian CATE estimand is not supplied by its retained proof".into(),
             });
         }
-        const PROOF_REFUSED: &str = "Bayesian CATE proof is not justified by its retained graph";
+
         if verify_retained_static(&physical, identification, estimand, PROOF_REFUSED)?
             == RetainedProof::NotRetained
         {
             let (checked_identification, checked_estimand) = select_claim(
-                identify_static(IdentifierId::BackdoorAdjustment, graph, &query.inner)?,
+                crate::strategy_table::identify_static_query_in_context(
+                    IdentifierId::BackdoorAdjustment,
+                    graph,
+                    &CausalQuery::AverageEffect(query.inner.clone()),
+                    None,
+                    Some(ctx),
+                )?,
                 EstimatorId::BayesianConditional,
             )?;
             verify_proof_against_graph(

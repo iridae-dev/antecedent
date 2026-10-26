@@ -36,14 +36,13 @@ fn answers_per_atom(study: &Study, resolved_estimator: Option<&str>) -> bool {
         posterior.lag_masks.is_none()
             && posterior.max_lag.is_none()
             && matches!(study.data, DataInput::Tabular(_))
-    }) && match (&study.query, resolved_estimator) {
+    }) && matches!(
+        (&study.query, resolved_estimator),
         (
             CausalQuery::PathSpecific(_) | CausalQuery::NestedCounterfactual(_),
             Some("functional.effect"),
-        )
-        | (CausalQuery::Distribution(_), Some("functional.distribution")) => true,
-        _ => false,
-    }
+        ) | (CausalQuery::Distribution(_), Some("functional.distribution"))
+    )
 }
 
 /// The accepted structure of one single-structure posterior sample, `None` when it is not a
@@ -93,7 +92,7 @@ fn atom_answer(
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
         }
-        let class = study.class_atom_identification(posterior, index)?;
+        let class = study.class_atom_identification(posterior, index, ctx)?;
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
         }

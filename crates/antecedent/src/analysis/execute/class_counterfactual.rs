@@ -48,9 +48,7 @@ use antecedent_graph::{Admg, Cpdag, Dag, Pag};
 use antecedent_identify::counterfactual_id::{
     COUNTERFACTUAL_ID_MAX_LEVELS, COUNTERFACTUAL_ID_MAX_VARIABLES, CounterfactualIdRefusal,
 };
-use antecedent_identify::{
-    GeneralizedAdjustmentIdentifier, GraphIdentificationCase, ProbabilityMass,
-};
+use antecedent_identify::{GraphIdentificationCase, ProbabilityMass};
 
 /// Completions retained when the study names no cap (the generalized-adjustment default).
 const COMPLETION_CAP: usize = 32;
@@ -244,7 +242,7 @@ impl Table {
             LawTolerance::default(),
         )
         .and_then(|law| law.with_empirical_counts(counts))
-        .map_err(|error| invalid_query(error))
+        .map_err(invalid_query)
     }
 
     /// The law the Dirichlet-weighted rows put on the cells.
@@ -269,7 +267,7 @@ impl Table {
             "bayesian_bootstrap",
             LawTolerance::default(),
         )
-        .map_err(|error| invalid_query(error))
+        .map_err(invalid_query)
     }
 }
 
@@ -301,7 +299,7 @@ fn event_query(
         outcome,
         level,
     )
-    .map_err(|error| invalid_query(error))
+    .map_err(invalid_query)
 }
 
 /// The variable of every node of a static structure, in node order.
@@ -562,6 +560,7 @@ impl super::Study {
                     ctx,
                 )?;
                 let mags: Vec<Pag> = sampler.by_ref().map(|completion| completion.graph).collect();
+                crate::strategy_table::check_class_search_stop(sampler.search_stop())?;
                 if sampler.validation_report().ambiguous_global_class {
                     return Err(outside_contract(
                         "the circle endpoints admit completions of more than one Markov \
@@ -576,7 +575,7 @@ impl super::Study {
                     ));
                 }
                 let incomplete = sampler.hit_cap() || sampler.class_audit_incomplete();
-                let identifier = GeneralizedAdjustmentIdentifier::new();
+                let identifier = crate::strategy_table::class_identifier_in_context(Some(ctx));
                 let completions = mags
                     .into_iter()
                     .map(|mag| {
@@ -587,13 +586,16 @@ impl super::Study {
                                  every one of them",
                             )),
                             Ok(found) => Candidates::Open(found.members),
+                            Err(error) if error.is_budget_or_cancel() => {
+                                return Err(CausalError::from(error));
+                            }
                             Err(error) => Candidates::Refused(outside_contract(format!(
                                 "this MAG completion has no ADMG reading ({error})"
                             ))),
                         };
-                        Completion { graph: Some(mag), candidates }
+                        Ok(Completion { graph: Some(mag), candidates })
                     })
-                    .collect();
+                    .collect::<Result<Vec<_>, CausalError>>()?;
                 Ok((completions, node_variables(pag.nodes())?, incomplete))
             }
             other => {
@@ -1054,6 +1056,7 @@ impl super::Study {
             ctx,
         )?;
         let dags: Vec<Dag> = sampler.by_ref().map(|completion| completion.graph).collect();
+        crate::strategy_table::check_class_search_stop(sampler.search_stop())?;
         let capped = sampler.hit_cap();
         if dags.is_empty() {
             return Err(CausalError::Compile {

@@ -110,7 +110,8 @@ impl StudyBuilder {
         {
             return Err(err("variable names must cover every graph coordinate"));
         }
-        let identification = TransportIdentifier::new().identify(&diagram, &query)?;
+        let identification =
+            TransportIdentifier::new().identify_with_context(&diagram, &query, ctx)?;
         antecedent_estimate::validate_learned_continuous(&identification, &input, &options)
             .map_err(estimate_err)?;
         Ok(PreparedLearnedContinuous {

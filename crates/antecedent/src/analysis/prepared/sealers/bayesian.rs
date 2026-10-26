@@ -34,7 +34,10 @@ pub(super) fn bayesian_basis_ate(cx: &SealContext<'_>) -> SealOutcome {
                     Arc::clone(cache),
                     analysis.inference.clone(),
                     crate::analysis::execute::IdentifiedResultContext::from_study(analysis),
-                    plan.clone(),
+                    crate::analysis::proof_support::CheckedCompileContext {
+                        physical: plan.clone(),
+                        ctx: cx.ctx,
+                    },
                 )?)
             }
             _ => None,
@@ -64,7 +67,10 @@ pub(super) fn bayesian_basis_cate(cx: &SealContext<'_>) -> SealOutcome {
                     Arc::clone(cache),
                     analysis.inference.clone(),
                     crate::analysis::execute::IdentifiedResultContext::from_study(analysis),
-                    plan.clone(),
+                    crate::analysis::proof_support::CheckedCompileContext {
+                        physical: plan.clone(),
+                        ctx: cx.ctx,
+                    },
                 )?)
             }
             _ => None,
@@ -94,7 +100,10 @@ pub(super) fn bayesian_robust_ate(cx: &SealContext<'_>) -> SealOutcome {
                     Arc::clone(cache),
                     analysis.inference.clone(),
                     crate::analysis::execute::IdentifiedResultContext::from_study(analysis),
-                    plan.clone(),
+                    crate::analysis::proof_support::CheckedCompileContext {
+                        physical: plan.clone(),
+                        ctx: cx.ctx,
+                    },
                 )?)
             }
             _ => None,
@@ -126,6 +135,7 @@ pub(super) fn bayesian_conditional(cx: &SealContext<'_>) -> SealOutcome {
                 })?;
                 Some(crate::analysis::execute::CheckedBayesianConditionalOperation::checked(
                     crate::analysis::execute::CheckedBayesianConditionalOperationPremises {
+                        ctx: cx.ctx,
                         graph,
                         query: query.clone(),
                         cache: Arc::clone(cache),
@@ -174,6 +184,7 @@ pub(super) fn bayesian_gcomp(cx: &SealContext<'_>) -> SealOutcome {
     Ok(Some(PreparedExecution::BayesianGcomp(
         crate::analysis::execute::CheckedBayesianDagAteExecution::checked(
             crate::analysis::execute::CheckedBayesianDagAteExecutionPremises {
+                ctx: cx.ctx,
                 graph,
                 operation,
                 context: crate::analysis::execute::IdentifiedResultContext::from_study(analysis),

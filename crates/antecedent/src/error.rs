@@ -405,6 +405,7 @@ impl From<ValidationError> for CausalError {
     fn from(error: ValidationError) -> Self {
         match error {
             ValidationError::Cancelled => Self::Cancelled { stage: STAGE_VALIDATE },
+            ValidationError::Resource { message } => Self::Resource { message },
             ValidationError::Discovery(DiscoveryError::Cancelled) => {
                 Self::Cancelled { stage: STAGE_VALIDATE }
             }

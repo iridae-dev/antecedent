@@ -577,7 +577,8 @@ impl WeightedRowSource for FileWeightedRows<'_> {
             .and_then(|plan| {
                 // The reader keeps its parsed footer for the whole stream, beside
                 // the chunk it decodes.
-                plan.chunk_quote().map(|quote| quote.total_bytes().saturating_add(plan.reader_bytes()))
+                plan.chunk_quote()
+                    .map(|quote| quote.total_bytes().saturating_add(plan.reader_bytes()))
             })
             .map_err(|error| WeightedCapacityError::RowSource { message: error.to_string() })
     }
@@ -673,7 +674,7 @@ impl WeightedRowSource for FileWeightedRows<'_> {
             self.projected.record_numeric(global, 0, global, 0);
             if missing.is_none() {
                 let weight = if self.weight.is_some() { values[values.len() - 1] } else { 1.0 };
-                let observed = values[..self.covariates.len() + 1].iter().copied();
+                let observed = values[..=self.covariates.len()].iter().copied();
                 record_row(&mut self.cohort, global, observed, weight);
             }
             if let Some((column, global)) = missing {

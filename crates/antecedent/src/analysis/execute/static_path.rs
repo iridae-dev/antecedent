@@ -12,11 +12,11 @@ use super::{
     SharpRdIdentifier, SharpRegressionDiscontinuity, StaticEstimateInput, StaticEstimateWorkspaces,
     Strategy, StudyResult, TableView, TabularData, bayesian_draw_count, bayesian_gcomp, elapsed_ns,
     envelope_se_omission_diagnostic, envelope_to_identification_result_for, estimate_static_effect,
-    identification_from_cache_or, identification_status_ok_for_case, identify_static,
-    identify_static_query, identify_static_query_in_context, mix_static_envelope_se,
-    mix_weighted_analytic_se, mixed_static_influence, overlap_diagnostic, project_for_ate_estimate,
-    projection_diagnostic, report_identify_compute, require_identified, scalar_identified_set,
-    select_claim, select_estimand, static_aligned_influence,
+    identification_from_cache_or, identification_status_ok_for_case, identify_static_query,
+    identify_static_query_in_context, mix_static_envelope_se, mix_weighted_analytic_se,
+    mixed_static_influence, overlap_diagnostic, project_for_ate_estimate, projection_diagnostic,
+    report_identify_compute, require_identified, scalar_identified_set, select_claim,
+    select_estimand, static_aligned_influence,
 };
 use crate::analysis::lowering::scan::STREAMED_BATCH_ROWS;
 use crate::estimator_spec::EstimatorSpec;
@@ -398,32 +398,7 @@ impl<'a> StaticAteExecution<'a> {
         let prepared_aipw = execution.aipw_operation();
         let prepared_frontdoor = execution.frontdoor_linear();
         let prepared_iv = execution.iv();
-        // A weighting or two-stage least-squares plan that streams its design reduces the
-        // rows in closed form; the linear adjustment has its own streamed fit below.
-        let streamed_nuisance = if self.run.physical.streams_design()
-            && !matches!(self.estimator_id, EstimatorId::LinearAdjustmentAte)
-        {
-            crate::strategy_table::estimate_static_effect_streamed(
-                &checked.spec,
-                self.estimator_id,
-                StaticEstimateInput {
-                    data: &self.data_est,
-                    estimand: &self.estimand_est,
-                    query: &self.query_est,
-                    // Point stage: no bootstrap.
-                    bootstrap_replicates: 0,
-                    overlap_policy: self.study.overlap_policy,
-                    population_registry: self.study.population_registry.as_ref(),
-                    sampling_design: self.study.sampling_design,
-                },
-                self.identification.required_assumptions.clone(),
-                ctx.rng.master_seed(),
-                STREAMED_BATCH_ROWS,
-                ctx.memory_limit_bytes().unwrap_or(u64::MAX / 4),
-            )?
-        } else {
-            None
-        };
+        let streamed_nuisance = self.fit_streamed_nuisance(checked)?;
         let mut point = if let Some(operation) = prepared_iv {
             self.fit_prepared_iv(operation, &mut ws.iv)?
         } else if let Some((fitter, receipt)) = &checked.linear {
@@ -511,6 +486,40 @@ impl<'a> StaticAteExecution<'a> {
             &super::super::stage::StageEvent::Point { estimate: point.clone() },
         );
         Ok(point)
+    }
+
+    /// Streamed nuisance routes reduce rows before the retained point-fit dispatch.
+    fn fit_streamed_nuisance(
+        &self,
+        checked: &StaticCheckedFits,
+    ) -> Result<Option<EffectEstimate>, CausalError> {
+        let ctx = self.run.ctx;
+        Ok(
+            if self.run.physical.streams_design()
+                && !matches!(self.estimator_id, EstimatorId::LinearAdjustmentAte)
+            {
+                crate::strategy_table::estimate_static_effect_streamed(
+                    &checked.spec,
+                    self.estimator_id,
+                    StaticEstimateInput {
+                        data: &self.data_est,
+                        estimand: &self.estimand_est,
+                        query: &self.query_est,
+                        // Point stage: no bootstrap.
+                        bootstrap_replicates: 0,
+                        overlap_policy: self.study.overlap_policy,
+                        population_registry: self.study.population_registry.as_ref(),
+                        sampling_design: self.study.sampling_design,
+                    },
+                    self.identification.required_assumptions.clone(),
+                    ctx.rng.master_seed(),
+                    STREAMED_BATCH_ROWS,
+                    ctx.memory_limit_bytes().unwrap_or(u64::MAX / 4),
+                )?
+            } else {
+                None
+            },
+        )
     }
 
     /// Point fit of a retained checked IV operation after its lowering is matched to the query.
@@ -1206,7 +1215,13 @@ impl super::Study {
         let (identification, estimand, identify_cached) =
             identification_from_cache_or(ctx, self.reuse_static_identification(physical), || {
                 let cq = CausalQuery::PathSpecific(query.clone());
-                let identification = identify_static_query(identifier_id, graph, &cq)?;
+                let identification = crate::strategy_table::identify_static_query_in_context(
+                    identifier_id,
+                    graph,
+                    &cq,
+                    None,
+                    Some(ctx),
+                )?;
                 let estimand = select_estimand(&identification, estimator_id)?;
                 Ok((identification, estimand))
             })?;
@@ -1373,10 +1388,12 @@ impl super::Study {
         });
         let (identification, estimand, identify_cached) =
             identification_from_cache_or(ctx, reused, || {
-                let identification = identify_static_query(
+                let identification = crate::strategy_table::identify_static_query_in_context(
                     identifier_id,
                     graph,
                     &CausalQuery::AverageEffect(query.clone()),
+                    None,
+                    Some(ctx),
                 )?;
                 let estimand = select_estimand(&identification, estimator_id)?;
                 Ok((identification, estimand))
@@ -1540,7 +1557,13 @@ impl super::Study {
         });
         let (identification, estimand, identify_cached) =
             identification_from_cache_or(ctx, reused, || {
-                let identification = identify_static(identifier_id, graph, &query.inner)?;
+                let identification = crate::strategy_table::identify_static_query_in_context(
+                    identifier_id,
+                    graph,
+                    &CausalQuery::AverageEffect(query.inner.clone()),
+                    None,
+                    Some(ctx),
+                )?;
                 select_claim(identification, EstimatorId::ConditionalLinearAdjustment)
             })?;
         let data_est = super::super::helpers::apply_scalar_outcome_functional(
@@ -1861,10 +1884,12 @@ impl super::Study {
         let started = Instant::now();
         let (identification, estimand, identify_cached) =
             identification_from_cache_or(ctx, self.reuse_static_identification(physical), || {
-                let identification = identify_static_query(
+                let identification = crate::strategy_table::identify_static_query_in_context(
                     IdentifierId::PathSpecificNatural,
                     graph,
                     &CausalQuery::Mediation(query.clone()),
+                    None,
+                    Some(ctx),
                 )?;
                 select_claim(identification, EstimatorId::StaticMediationLinear)
             })?;

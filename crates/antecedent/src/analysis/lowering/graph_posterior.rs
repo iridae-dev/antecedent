@@ -266,7 +266,6 @@ fn problem_target(
         }
         CausalQuery::AnomalyAttribution(_) => FunctionalKind::AnomalyAttribution,
         CausalQuery::ChangeAttribution(_) => FunctionalKind::ChangeAttribution,
-        CausalQuery::Transport(_) => FunctionalKind::InterventionContrast,
         CausalQuery::Interference(_) => FunctionalKind::ExposureContrast,
         CausalQuery::Mediation(query) if query.contrast != MediationContrast::Total => {
             FunctionalKind::PathSpecific
@@ -274,7 +273,8 @@ fn problem_target(
         CausalQuery::AverageEffect(_)
         | CausalQuery::ConditionalEffect(_)
         | CausalQuery::TemporalEffect(_)
-        | CausalQuery::Mediation(_) => FunctionalKind::InterventionContrast,
+        | CausalQuery::Mediation(_)
+        | CausalQuery::Transport(_) => FunctionalKind::InterventionContrast,
         CausalQuery::Response(query)
             if !matches!(
                 query.functional,

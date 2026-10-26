@@ -3796,6 +3796,7 @@ pub variant antecedent_validate::ValidationError::Estimation(antecedent_estimate
 pub variant antecedent_validate::ValidationError::NotApplicable { message: &'static str }
 pub variant antecedent_validate::ValidationError::Prob(antecedent_prob::error::ProbError)
 pub variant antecedent_validate::ValidationError::Refused { message: alloc::string::String }
+pub variant antecedent_validate::ValidationError::Resource { message: alloc::string::String }
 pub variant antecedent_validate::ValidationError::Stats(antecedent_stats::error::StatsError)
 pub variant antecedent_validate::ValidationOutcome::CustomNotApplicable { name: alloc::sync::Arc<str>, reason: alloc::sync::Arc<str> }
 pub variant antecedent_validate::ValidationOutcome::Failed { validator: alloc::sync::Arc<str>, reason: alloc::sync::Arc<str> }

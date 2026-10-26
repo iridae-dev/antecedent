@@ -299,12 +299,21 @@ fn atom_identified_bounds(result: &StudyResult) -> Option<(f64, f64)> {
     (lower.is_finite() && upper.is_finite() && lower <= upper).then_some((lower, upper))
 }
 
+/// Shared replicates refit each atom without recursively resampling or validating it.
+fn quiet_bootstrap_study(study: &super::Study) -> super::Study {
+    let mut quiet = study.clone();
+    quiet.bootstrap_replicates = 0;
+    quiet.refute = RefuteSuite::None;
+    quiet
+}
+
 /// The first coordinate of a response payload, the scalar the mixer accounts an atom by.
 fn first_coordinate(value: &ResponseValue) -> Option<f64> {
     match value {
         ResponseValue::Scalar(value) => Some(*value),
-        ResponseValue::Vector(values) => values.first().copied(),
-        ResponseValue::Jacobian { values, .. } => values.first().copied(),
+        ResponseValue::Vector(values) | ResponseValue::Jacobian { values, .. } => {
+            values.first().copied()
+        }
         ResponseValue::Surface { mean, .. } => mean.first().copied(),
         ResponseValue::Envelope(_) => None,
     }
@@ -645,14 +654,9 @@ impl super::Study {
         if !total.is_finite() || total <= 0.0 {
             return Ok(unavailable("the contributing atoms carry no posterior mass"));
         }
-        let quiet: Vec<(f64, super::Study, &AtomGraph)> = atoms
+        let quiet: Vec<_> = atoms
             .iter()
-            .map(|(weight, study, graph)| {
-                let mut quiet = (*study).clone();
-                quiet.bootstrap_replicates = 0;
-                quiet.refute = RefuteSuite::None;
-                (*weight, quiet, *graph)
-            })
+            .map(|(weight, study, graph)| (*weight, quiet_bootstrap_study(study), *graph))
             .collect();
         let mut values: Vec<f64> = Vec::new();
         let mut failed = 0_u32;
@@ -908,10 +912,10 @@ impl super::Study {
             // mixture's.
             if let Some(own) = representative.1.estimate.as_effect() {
                 estimate.uncertainty = own.uncertainty;
-                estimate.scores.influence = own.scores.influence.clone();
+                estimate.scores.influence.clone_from(&own.scores.influence);
             }
             if published_posterior.is_none() {
-                published_posterior = representative.1.posterior.clone();
+                published_posterior.clone_from(&representative.1.posterior);
             }
             if let Some(posterior) = published_posterior.as_mut() {
                 posterior.unidentified_mass = mixture.unidentified_mass;
@@ -1145,7 +1149,7 @@ impl super::Study {
                     if contributing == 1 {
                         if let Some(own) = representative.1.estimate.as_effect() {
                             estimate.uncertainty = own.uncertainty;
-                            estimate.scores.influence = own.scores.influence.clone();
+                            estimate.scores.influence.clone_from(&own.scores.influence);
                         }
                     }
                     payload = ResultPayload::Response(response);

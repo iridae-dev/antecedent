@@ -31,8 +31,7 @@ use super::mediation_mixed::{ClassStructure, component_slot};
 use super::{
     CausalError, CausalQuery, EstimatorId, ExecutionContext, IdentificationEnvelope,
     IdentifiedEstimand, PhysicalExecutionPlan, RefuteSuite, TabularData,
-    identification_status_ok_for_case, identify_cpdag_path_specific, identify_pag_path_specific,
-    select_estimand,
+    identification_status_ok_for_case, select_estimand,
 };
 use crate::planner::RouteDefaults;
 
@@ -152,11 +151,23 @@ impl super::Study {
             let target = CausalQuery::Mediation(component);
             let cases = match class {
                 ClassStructure::Cpdag(cpdag) => {
-                    identify_cpdag_path_specific(identifier_id, cpdag, &target)
-                        .map(|envelope| envelope_cases(&envelope))
+                    crate::strategy_table::identify_cpdag_path_specific_in_context(
+                        identifier_id,
+                        cpdag,
+                        &target,
+                        Some(ctx),
+                    )
+                    .map(|envelope| envelope_cases(&envelope))
                 }
-                ClassStructure::Pag(pag) => identify_pag_path_specific(identifier_id, pag, &target)
-                    .map(|envelope| envelope_cases(&envelope)),
+                ClassStructure::Pag(pag) => {
+                    crate::strategy_table::identify_pag_path_specific_in_context(
+                        identifier_id,
+                        pag,
+                        &target,
+                        Some(ctx),
+                    )
+                    .map(|envelope| envelope_cases(&envelope))
+                }
             };
             match cases {
                 Ok(cases) => per_slot.push(Some(cases)),
@@ -261,6 +272,7 @@ impl super::Study {
 }
 
 /// The proofs of the cases of a class and the contrast the study asked for.
+#[derive(Clone, Copy)]
 pub(super) struct MemberProofs<'a> {
     /// Per contrast (total, direct, indirect), the proof of each case; `None` where the
     /// contrast is not identified in the class.

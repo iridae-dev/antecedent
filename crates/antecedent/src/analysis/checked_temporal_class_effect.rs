@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{CausalQuery, TemporalEffectQuery};
+use antecedent_core::{CausalQuery, ExecutionContext, TemporalEffectQuery};
 use antecedent_data::DiscoveryEstimationSplit;
 use antecedent_identify::result::IdentificationResult;
 use antecedent_validate::CustomEffectValidator;
@@ -40,6 +40,7 @@ pub(crate) struct CheckedTemporalClassEffectOperation {
 
 /// The frozen premises of [`CheckedTemporalClassEffectOperation::checked`], carried together.
 pub(crate) struct CheckedTemporalClassEffectOperationPremises<'a> {
+    pub(crate) ctx: &'a ExecutionContext,
     pub(crate) source_graph: AcceptedGraph,
     pub(crate) query: &'a TemporalEffectQuery,
     pub(crate) bundle: &'a CachedTemporalClassIdentification,
@@ -82,6 +83,7 @@ impl CheckedTemporalClassEffectOperation {
         premises: CheckedTemporalClassEffectOperationPremises<'_>,
     ) -> Result<Self, CausalError> {
         let CheckedTemporalClassEffectOperationPremises {
+            ctx,
             source_graph,
             query,
             bundle,
@@ -125,7 +127,10 @@ impl CheckedTemporalClassEffectOperation {
                     .into(),
             });
         }
-        let mut config = antecedent_identify::GeneralizedAdjustmentConfig::default();
+        let mut config = antecedent_identify::GeneralizedAdjustmentConfig {
+            context: Some(ctx.clone()),
+            ..Default::default()
+        };
         if let Some(max) = max_completions {
             config.max_completions = max;
         }
@@ -409,6 +414,7 @@ mod tests {
         let query = TemporalEffectQuery::sustained(treatment, outcome, 1, 1.0);
         let error = CheckedTemporalClassEffectOperation::checked(
             CheckedTemporalClassEffectOperationPremises {
+                ctx: &ExecutionContext::for_tests(81),
                 source_graph: AcceptedGraph::temporal_cpdag(
                     antecedent_graph::TemporalCpdag::empty(),
                 )
@@ -435,6 +441,7 @@ mod tests {
         let query = TemporalEffectQuery::pulse(treatment, outcome, 1.0);
         let error = CheckedTemporalClassEffectOperation::checked(
             CheckedTemporalClassEffectOperationPremises {
+                ctx: &ExecutionContext::for_tests(81),
                 source_graph: AcceptedGraph::temporal_dag(antecedent_graph::TemporalDag::empty()),
                 query: &query,
                 bundle: &empty_bundle(),

@@ -63,6 +63,7 @@ pub(crate) struct CheckedCellAipwResponseOperation {
 /// The frozen premises of [`CheckedCellAipwResponseOperation::checked`], carried together.
 #[derive(Clone, Copy)]
 pub(crate) struct CheckedCellAipwResponseOperationPremises<'a> {
+    pub(crate) ctx: &'a ExecutionContext,
     pub(crate) structure: &'a CellAipwStructure,
     pub(crate) query: &'a ResponseQuery,
     pub(crate) cache: &'a Arc<crate::analysis::prepared::CachedStaticIdentification>,
@@ -88,6 +89,7 @@ impl CheckedCellAipwResponseOperation {
         premises: CheckedCellAipwResponseOperationPremises<'_>,
     ) -> Result<Self, CausalError> {
         let CheckedCellAipwResponseOperationPremises {
+            ctx,
             structure,
             query,
             cache,
@@ -163,7 +165,7 @@ impl CheckedCellAipwResponseOperation {
             None => false,
         };
         if !sealed {
-            Self::replay_identification(structure, identifier, query, identification)?;
+            Self::replay_identification(structure, identifier, query, identification, ctx)?;
         }
         Ok(Self {
             structure: structure.clone(),
@@ -187,13 +189,21 @@ impl CheckedCellAipwResponseOperation {
         identifier: IdentifierId,
         query: &ResponseQuery,
         identification: &antecedent_identify::IdentificationResult,
+        ctx: &ExecutionContext,
     ) -> Result<(), CausalError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
+        }
         let graph_replay = match structure {
-            CellAipwStructure::Dag(graph) => crate::strategy_table::identify_static_query(
-                identifier,
-                graph,
-                &CausalQuery::Response(query.clone()),
-            )?,
+            CellAipwStructure::Dag(graph) => {
+                crate::strategy_table::identify_static_query_in_context(
+                    identifier,
+                    graph,
+                    &CausalQuery::Response(query.clone()),
+                    None,
+                    Some(ctx),
+                )?
+            }
             CellAipwStructure::TierClosure { admg, background } => {
                 antecedent_identify::identify_tiered_joint_on(background, admg, query)?
             }
@@ -545,6 +555,7 @@ mod tests {
         let estimand = identification.estimands.first().unwrap().clone();
         let operation =
             CheckedCellAipwResponseOperation::checked(CheckedCellAipwResponseOperationPremises {
+                ctx: &ExecutionContext::for_tests(86),
                 structure: &CellAipwStructure::Dag(graph.clone()),
                 query: &query,
                 cache: &cached(&identification, &estimand),
@@ -590,6 +601,7 @@ mod tests {
         let estimand = identification.estimands.first().unwrap().clone();
         let operation =
             CheckedCellAipwResponseOperation::checked(CheckedCellAipwResponseOperationPremises {
+                ctx: &ExecutionContext::for_tests(86),
                 structure: &CellAipwStructure::Dag(graph.clone()),
                 query: &query,
                 cache: &cached(&identification, &estimand),
@@ -633,6 +645,7 @@ mod tests {
         .unwrap();
         let err =
             CheckedCellAipwResponseOperation::checked(CheckedCellAipwResponseOperationPremises {
+                ctx: &ExecutionContext::for_tests(86),
                 structure: &CellAipwStructure::Dag(graph.clone()),
                 query: &bad_query,
                 cache: &cached(&bad_identification, bad_identification.estimands.first().unwrap()),
@@ -645,5 +658,34 @@ mod tests {
             })
             .unwrap_err();
         assert!(err.to_string().contains("Set levels 0 or 1"));
+    }
+    #[test]
+    fn unsealed_cell_response_proof_replay_honors_the_actual_compile_context() {
+        let (graph, query, _data, identification) = fixture();
+        let estimand = identification.estimands.first().unwrap().clone();
+        let cache = cached(&identification, &estimand);
+        let structure = CellAipwStructure::Dag(graph);
+        let check = |ctx: &ExecutionContext| {
+            CheckedCellAipwResponseOperation::checked(CheckedCellAipwResponseOperationPremises {
+                ctx,
+                structure: &structure,
+                query: &query,
+                cache: &cache,
+                identifier: IdentifierId::ResponseBackdoor,
+                estimator: EstimatorId::CellAipw,
+                fold_seed: 817,
+                validation: RefuteSuite::None,
+                origin: DagResponseOrigin::Accepted,
+                plan: None,
+            })
+        };
+        check(&ExecutionContext::for_tests(86)).unwrap();
+        let cancelled = ExecutionContext::for_tests(86);
+        cancelled.cancellation.cancel();
+        let error = check(&cancelled).unwrap_err();
+        assert!(matches!(error, CausalError::Cancelled { .. }), "{error:?}");
+        let limited = ExecutionContext::for_tests(86).with_memory_limit(Some(1));
+        let error = check(&limited).unwrap_err();
+        assert!(matches!(error, CausalError::Resource { .. }), "{error:?}");
     }
 }

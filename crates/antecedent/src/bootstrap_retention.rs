@@ -45,16 +45,21 @@ impl RetainedBootstrap {
     ///
     /// # Errors
     /// An estimate is not finite: a replicate without an estimate is counted in `failed`.
-    pub fn from_replicates(estimates: Vec<f64>, failed: u32) -> Result<Self, CausalError> {
+    pub fn from_replicates(mut estimates: Vec<f64>, failed: u32) -> Result<Self, CausalError> {
         let mut result = Self {
             estimates: Vec::new(),
             failed: 0,
             count: 0,
             mean: 0.0,
             m2: 0.0,
-            retention: RetentionMode::FullReusable,
+            retention: RetentionMode::SummaryOnly,
         };
         result.append(&estimates, failed)?;
+        // Reuse the caller's owned buffer after the shared validation/moment pass.
+        // Compact unused capacity rather than retaining an arbitrarily padded input.
+        estimates.shrink_to_fit();
+        result.estimates = estimates;
+        result.retention = RetentionMode::FullReusable;
         Ok(result)
     }
 

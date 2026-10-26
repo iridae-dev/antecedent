@@ -534,7 +534,7 @@ impl PhysicalExecutionPlan {
         };
         let profile = RouteMemoryProfile::design(rows, columns)
             .expanded(!design.direct())
-            .workers(self.quoted_workers(ctx));
+            .workers(Self::quoted_workers(ctx));
         let memory = admit_memory(profile, ctx)?;
         let design_bytes = profile.design_bytes().map_err(memory_refusal)?;
         let copy_bytes = design_bytes
@@ -606,7 +606,7 @@ impl PhysicalExecutionPlan {
         let learners = count(statistical.models().len()).max(1);
         let replicates = statistical.resampling().map_or(0, |plan| u64::from(plan.replicates()));
         let draws = statistical.posterior().map_or(0, |plan| count(plan.draws()));
-        let workers = self.quoted_workers(ctx);
+        let workers = Self::quoted_workers(ctx);
         // CrossfitPlan::run consumes one fold before fitting the next. Portable
         // DML/DR learners map their folds onto at most the context's workers.
         // A bootstrap worker owns one sequential cross-fit at a time. Training
@@ -684,7 +684,7 @@ impl PhysicalExecutionPlan {
     }
 
     /// Workers that each hold a solver scratch copy: the context's threads under the pool.
-    fn quoted_workers(&self, ctx: &ExecutionContext) -> u64 {
+    fn quoted_workers(ctx: &ExecutionContext) -> u64 {
         u64::from(ctx.parallelism.max_threads.get().min(ctx.admission().thread_budget()).max(1))
     }
 }

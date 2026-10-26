@@ -26,8 +26,7 @@ use super::{
     IdentificationEnvelope, IdentificationStatus, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
     IdentifierId, Instant, OverlapPolicy, PathSpecificMixedSource, PhysicalExecutionPlan, Strategy,
     StudyResult, TableView, TabularData, elapsed_ns, envelope_se_omission_diagnostic,
-    envelope_to_identification_result_for, identification_status_ok_for_case,
-    identify_cpdag_path_specific, identify_pag_path_specific, overlap_diagnostic,
+    envelope_to_identification_result_for, identification_status_ok_for_case, overlap_diagnostic,
     report_identify_compute, select_estimand,
 };
 use crate::planner::RouteDefaults;
@@ -49,6 +48,16 @@ pub(super) struct ClassPathRun<'a, G> {
     )>,
 }
 
+/// Ordered fit products of the identified class completions.
+struct ClassPathEstimates {
+    outcomes: Vec<ClassAtomOutcome>,
+    evaluated: Vec<(f64, EffectEstimate, Option<super::CausalPosterior>)>,
+    prepared_completions:
+        Vec<(antecedent_estimate::FunctionalEffect, antecedent_estimate::PreparedFunctionalEffect)>,
+    first_estimand: Option<super::IdentifiedEstimand>,
+    assumptions: antecedent_core::AssumptionSet,
+}
+
 impl super::Study {
     /// Identify the effect in every DAG completion of `cpdag`, estimate the identified
     /// completions and publish the class-level result.
@@ -67,7 +76,12 @@ impl super::Study {
         let (identified_query, _, _, _) = super::static_path::path_specific_source_parts(source);
 
         report_identify_compute(ctx);
-        let envelope = identify_cpdag_path_specific(identifier_id, cpdag, &identified_query)?;
+        let envelope = crate::strategy_table::identify_cpdag_path_specific_in_context(
+            identifier_id,
+            cpdag,
+            &identified_query,
+            Some(ctx),
+        )?;
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
             || envelope.identified_weight.0 <= 0.0
         {
@@ -120,7 +134,12 @@ impl super::Study {
         let (identified_query, _, _, _) = super::static_path::path_specific_source_parts(source);
 
         report_identify_compute(ctx);
-        let envelope = identify_pag_path_specific(identifier_id, pag, &identified_query)?;
+        let envelope = crate::strategy_table::identify_pag_path_specific_in_context(
+            identifier_id,
+            pag,
+            &identified_query,
+            Some(ctx),
+        )?;
         if envelope.unidentified_weight.0 > 0.0
             || envelope.identified_weight.0 <= 0.0
             || matches!(envelope.status, IdentificationStatus::NotIdentified)
@@ -157,28 +176,19 @@ impl super::Study {
         )
     }
 
-    /// Estimate every identified case of a class envelope and publish the class result.
-    pub(super) fn finish_class_path_specific<G>(
+    /// Evaluate completions in envelope order, retaining their matched bootstrap preparations.
+    fn estimate_class_path_completions<G>(
         &self,
         data: &TabularData,
-        source: PathSpecificMixedSource<'_>,
-        run: ClassPathRun<'_, G>,
-        physical: &PhysicalExecutionPlan,
+        envelope: &IdentificationEnvelope<G>,
+        estimator_id: EstimatorId,
+        roles: &[antecedent_core::VariableId],
+        resampling: Option<(
+            antecedent_estimate::RowResampling,
+            antecedent_estimate::util::SamplingDeclaration,
+        )>,
         ctx: &ExecutionContext,
-    ) -> Result<StudyResult, CausalError> {
-        let ClassPathRun {
-            envelope,
-            class,
-            envelope_diagnostic,
-            certificate,
-            identifier_id,
-            estimator_id,
-            started,
-            resampling,
-        } = run;
-        let (_, treatment, outcome, roles) = super::static_path::path_specific_source_parts(source);
-        let identification = envelope_to_identification_result_for(envelope, self.query.clone());
-
+    ) -> Result<ClassPathEstimates, CausalError> {
         let mut outcomes = vec![ClassAtomOutcome::NotEvaluated; envelope.cases.len()];
         let mut evaluated = Vec::new();
         let mut prepared_completions = Vec::new();
@@ -197,12 +207,12 @@ impl super::Study {
                     data,
                     &estimand,
                     &case.result,
-                    &roles,
+                    roles,
                     resampling,
                     ctx,
                 )?,
                 None => {
-                    self.estimate_functional_effect(data, &estimand, &case.result, &roles, ctx)?
+                    self.estimate_functional_effect(data, &estimand, &case.result, roles, ctx)?
                 }
             };
             outcomes[index] = ClassAtomOutcome::Evaluated(estimate.ate);
@@ -225,13 +235,97 @@ impl super::Study {
                         &estimand,
                         &case.result.arena,
                         case.result.required_assumptions.clone(),
-                        &roles,
+                        roles,
                     )
                     .map_err(CausalError::from)?;
                 prepared_completions.push((fitter, prepared));
             }
             evaluated.push((case.weight.0, estimate, posterior));
         }
+        Ok(ClassPathEstimates {
+            outcomes,
+            evaluated,
+            prepared_completions,
+            first_estimand,
+            assumptions,
+        })
+    }
+
+    fn class_path_intervals(
+        &self,
+        rows: usize,
+        truncated: bool,
+        evaluated: &[(f64, EffectEstimate, Option<super::CausalPosterior>)],
+        prepared_completions: &[(
+            antecedent_estimate::FunctionalEffect,
+            antecedent_estimate::PreparedFunctionalEffect,
+        )],
+        mixture: &mut Option<crate::result::StructuralResponseMixture>,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CausalError> {
+        // Completions that disagree: an Imbens-Manski interval for the identified set, from
+        // every completion refit on the same resampled rows.
+        if let Some(mixture) = mixture.as_mut() {
+            if self.inference.is_bayesian() && evaluated.iter().all(|(_, _, p)| p.is_some()) {
+                mixture.identified_set_interval = super::posterior_identified_set_interval(
+                    evaluated.iter().filter_map(|(_, _, p)| p.as_ref()),
+                    rows,
+                    truncated,
+                );
+            }
+        }
+        if let (Some(mixture), Some((fitter, _))) = (mixture.as_mut(), prepared_completions.first())
+        {
+            let refs: Vec<&antecedent_estimate::PreparedFunctionalEffect> =
+                prepared_completions.iter().map(|(_, prepared)| prepared).collect();
+            let draws = fitter.shared_replicate_draws(&refs, ctx).map_err(CausalError::from)?;
+            let points: Vec<f64> = evaluated.iter().map(|(_, estimate, _)| estimate.ate).collect();
+            if points.len() == refs.len() {
+                mixture.identified_set_interval =
+                    antecedent_estimate::imbens_manski_shared_replicates(
+                        &points, &draws, 1.0, rows, 0.95,
+                    );
+            }
+        }
+        Ok(())
+    }
+
+    /// Estimate every identified case of a class envelope and publish the class result.
+    pub(super) fn finish_class_path_specific<G>(
+        &self,
+        data: &TabularData,
+        source: PathSpecificMixedSource<'_>,
+        run: ClassPathRun<'_, G>,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let ClassPathRun {
+            envelope,
+            class,
+            envelope_diagnostic,
+            certificate,
+            identifier_id,
+            estimator_id,
+            started,
+            resampling,
+        } = run;
+        let (_, treatment, outcome, roles) = super::static_path::path_specific_source_parts(source);
+        let identification = envelope_to_identification_result_for(envelope, self.query.clone());
+
+        let ClassPathEstimates {
+            outcomes,
+            mut evaluated,
+            prepared_completions,
+            first_estimand,
+            assumptions,
+        } = self.estimate_class_path_completions(
+            data,
+            envelope,
+            estimator_id,
+            &roles,
+            resampling,
+            ctx,
+        )?;
         let total: f64 = evaluated.iter().map(|(weight, _, _)| *weight).sum();
         if evaluated.is_empty()
             || !matches!(total.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater))
@@ -246,34 +340,14 @@ impl super::Study {
 
         let class_tag = class.as_str();
         let mut mixture = super::pag_path::static_class_structural_mixture(envelope, &outcomes);
-        // Completions that disagree: an Imbens-Manski interval for the identified set, from
-        // every completion refit on the same resampled rows.
-        if let Some(mixture) = mixture.as_mut() {
-            if self.inference.is_bayesian() && evaluated.iter().all(|(_, _, p)| p.is_some()) {
-                mixture.identified_set_interval = super::posterior_identified_set_interval(
-                    evaluated.iter().filter_map(|(_, _, p)| p.as_ref()),
-                    data.row_count(),
-                    envelope.truncated_completions > 0,
-                );
-            }
-        }
-        if let (Some(mixture), Some((fitter, _))) = (mixture.as_mut(), prepared_completions.first())
-        {
-            let refs: Vec<&antecedent_estimate::PreparedFunctionalEffect> =
-                prepared_completions.iter().map(|(_, prepared)| prepared).collect();
-            let draws = fitter.shared_replicate_draws(&refs, ctx).map_err(CausalError::from)?;
-            let points: Vec<f64> = evaluated.iter().map(|(_, estimate, _)| estimate.ate).collect();
-            if points.len() == refs.len() {
-                mixture.identified_set_interval =
-                    antecedent_estimate::imbens_manski_shared_replicates(
-                        &points,
-                        &draws,
-                        1.0,
-                        data.row_count(),
-                        0.95,
-                    );
-            }
-        }
+        self.class_path_intervals(
+            data.row_count(),
+            envelope.truncated_completions > 0,
+            &evaluated,
+            &prepared_completions,
+            &mut mixture,
+            ctx,
+        )?;
         let mut diagnostics = vec![envelope_diagnostic];
         if let Some(mixture) = mixture.as_ref() {
             diagnostics.extend(super::pag_path::static_class_identified_set_diagnostic(

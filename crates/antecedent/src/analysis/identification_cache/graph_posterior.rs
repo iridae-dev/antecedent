@@ -88,7 +88,7 @@ pub(crate) fn build_graph_posterior_identification_cache(
     ctx: &ExecutionContext,
 ) -> Result<CachedGraphPosteriorIdentification, CausalError> {
     use crate::strategy_table::{
-        DEFAULT_IDENTIFIER_ID, EstimatorId, identify_static, select_estimand,
+        DEFAULT_IDENTIFIER_ID, EstimatorId, identify_static_query_in_context, select_estimand,
     };
 
     // A DBN posterior's contemporaneous masks are valid DAGs, but identifying a
@@ -110,12 +110,19 @@ pub(crate) fn build_graph_posterior_identification_cache(
         _ => return build_class_graph_posterior_identification_cache(posterior, query, ctx),
     }
     crate::analysis::execute::report_identify_compute(ctx);
-    let by_mask = identify_unique_adjacency_masks(posterior, ctx, |mask, _inner| {
+    let by_mask = identify_unique_adjacency_masks(posterior, ctx, |mask, inner| {
         (|| -> Result<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError> {
             let Ok(dag) = dag_from_adjacency_mask(mask, posterior.n_vars) else {
                 return Ok(None);
             };
-            let Ok(identification) = identify_static(DEFAULT_IDENTIFIER_ID, &dag, query) else {
+            let Some(identification) = class_envelope_outcome(identify_static_query_in_context(
+                DEFAULT_IDENTIFIER_ID,
+                &dag,
+                &CausalQuery::AverageEffect(query.clone()),
+                None,
+                Some(inner),
+            ))?
+            else {
                 return Ok(None);
             };
             if !crate::analysis::execute::identification_status_ok_for_case(identification.status)
@@ -184,8 +191,11 @@ pub(crate) fn build_admg_graph_posterior_response_identification_cache(
             let Ok(admg) = admg_from_adjacency_mask(mask, posterior.n_vars) else {
                 return Ok(None);
             };
-            let Ok(identification) =
-                identify_admg_query(DEFAULT_ADMG_IDENTIFIER_ID, &admg, &causal_query)
+            let Some(identification) = class_envelope_outcome(identify_admg_query(
+                DEFAULT_ADMG_IDENTIFIER_ID,
+                &admg,
+                &causal_query,
+            ))?
             else {
                 return Ok(None);
             };
@@ -220,7 +230,9 @@ fn build_admg_graph_posterior_identification_cache(
             let Ok(admg) = admg_from_adjacency_mask(mask, posterior.n_vars) else {
                 return Ok(None);
             };
-            let Ok(identification) = identify_admg(DEFAULT_ADMG_IDENTIFIER_ID, &admg, query) else {
+            let Some(identification) =
+                class_envelope_outcome(identify_admg(DEFAULT_ADMG_IDENTIFIER_ID, &admg, query))?
+            else {
                 return Ok(None);
             };
             if !crate::analysis::execute::identification_status_ok_for_case(identification.status)
@@ -318,19 +330,30 @@ pub(crate) fn build_temporal_admg_posterior_identification_cache(
     })
 }
 
+/// Only an identification refusal can remove an atom from the identified mass.
+fn class_envelope_outcome<T>(outcome: Result<T, CausalError>) -> Result<Option<T>, CausalError> {
+    match outcome {
+        Ok(envelope) => Ok(Some(envelope)),
+        Err(error) if error.is_identification_refusal() => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
 /// Identify every CPDAG/PAG posterior atom with the existing class ATE envelope.
 fn build_class_graph_posterior_identification_cache(
     posterior: &GraphPosterior,
     query: &AverageEffectQuery,
     ctx: &ExecutionContext,
 ) -> Result<CachedGraphPosteriorIdentification, CausalError> {
-    use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER_ID, identify_cpdag, identify_pag};
+    use crate::strategy_table::{
+        DEFAULT_PAG_IDENTIFIER_ID, identify_cpdag_in_context, identify_pag_in_context,
+    };
     use antecedent_discovery::adjacency_mask::{
         cpdag_from_adjacency_mask, pag_from_adjacency_mask,
     };
 
     crate::analysis::execute::report_identify_compute(ctx);
-    let resolved = map_posterior_graphs(posterior, ctx, |i, _inner| {
+    let resolved = map_posterior_graphs(posterior, ctx, |i, inner| {
         let mask = posterior.atoms[i];
         let mark = posterior
             .mark_atoms
@@ -342,19 +365,25 @@ fn build_class_graph_posterior_identification_cache(
                 let Ok(cpdag) = cpdag_from_adjacency_mask(mask, posterior.n_vars) else {
                     return Ok(None);
                 };
-                Ok::<_, CausalError>(
-                    identify_cpdag(DEFAULT_PAG_IDENTIFIER_ID, &cpdag, query)
-                        .ok()
-                        .map(|envelope| cache_class_envelope(key, query, envelope)),
-                )
+                class_envelope_outcome(identify_cpdag_in_context(
+                    DEFAULT_PAG_IDENTIFIER_ID,
+                    &cpdag,
+                    query,
+                    Some(inner),
+                ))
+                .map(|envelope| envelope.map(|envelope| cache_class_envelope(key, query, envelope)))
             }
             antecedent_discovery::GraphPosteriorAtomKind::Pag => {
                 let Ok(pag) = pag_from_adjacency_mask(mask, mark, posterior.n_vars) else {
                     return Ok(None);
                 };
-                Ok(identify_pag(DEFAULT_PAG_IDENTIFIER_ID, &pag, query)
-                    .ok()
-                    .map(|envelope| cache_class_envelope(key, query, envelope)))
+                class_envelope_outcome(identify_pag_in_context(
+                    DEFAULT_PAG_IDENTIFIER_ID,
+                    &pag,
+                    query,
+                    Some(inner),
+                ))
+                .map(|envelope| envelope.map(|envelope| cache_class_envelope(key, query, envelope)))
             }
             _ => Ok(None),
         }?;
@@ -458,6 +487,64 @@ mod tests {
             },
         )
         .unwrap()
+    }
+
+    fn class_posterior() -> GraphPosterior {
+        let mut posterior = repeated_posterior(2);
+        let mut complete = AdjacencyMask::EMPTY;
+        for i in 0..4 {
+            for j in 0..4 {
+                if i != j {
+                    complete = set_edge(complete, 4, i, j, true);
+                }
+            }
+        }
+        posterior.atoms = vec![complete; 2].into();
+        posterior.atom_kind = antecedent_discovery::GraphPosteriorAtomKind::Cpdag;
+        posterior
+    }
+
+    #[test]
+    fn static_class_posterior_workers_keep_the_actual_pool_after_a_warm_run() {
+        use antecedent_core::CachePolicy;
+        use antecedent_core::execution::AdmissionPool;
+        let posterior = class_posterior();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let warm = build_graph_posterior_identification_cache(
+            &posterior,
+            &query,
+            &ExecutionContext::production(81, 2),
+        )
+        .unwrap();
+        assert!(!warm.class_atoms.is_empty());
+        for policy in
+            [CachePolicy::disabled(), CachePolicy::enabled(Some(1)), CachePolicy::enabled(None)]
+        {
+            let pool = AdmissionPool::fixed(2, 1 << 20);
+            let mut ctx = ExecutionContext::production(81, 2).with_admission(pool.clone());
+            ctx.cache_policy = policy;
+            let held = ctx.acquire_admission(0, (1 << 20) - 1).unwrap();
+            let error =
+                build_graph_posterior_identification_cache(&posterior, &query, &ctx).unwrap_err();
+            assert!(matches!(error, CausalError::Resource { .. }), "{error:?}");
+            assert_eq!(pool.available().bytes(), 1);
+            drop(held);
+            assert_eq!(pool.available().bytes(), 1 << 20);
+        }
+    }
+
+    #[test]
+    fn static_class_posterior_worker_cancellation_is_not_unidentified_mass() {
+        let posterior = class_posterior();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let mut ctx = ExecutionContext::production(81, 2);
+        ctx.cancellation = antecedent_core::CancellationToken::cancel_after_checks(32);
+        let error =
+            build_graph_posterior_identification_cache(&posterior, &query, &ctx).unwrap_err();
+        assert!(matches!(error, CausalError::Cancelled { .. }), "{error:?}");
+        assert_eq!(ctx.admission.available().threads(), 2);
     }
 
     /// Timing harness for the three static builders (`cargo test -p antecedent --lib

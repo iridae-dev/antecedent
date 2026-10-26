@@ -427,50 +427,10 @@ fn static_route_input<'a>(
     route: AnalysisRoute,
     graph: GraphRef<'a>,
 ) -> Option<RouteInput<'a>> {
+    if let Some(input) = static_adjustment_route_input(study, route, graph) {
+        return Some(input);
+    }
     Some(match (route, graph) {
-        (AnalysisRoute::Response, GraphRef::Dag(dag)) => RouteInput::StaticResponseDag {
-            data: tabular(study),
-            query: response_query(study),
-            graph: dag,
-        },
-        (AnalysisRoute::Response, GraphRef::Pag(pag)) => RouteInput::StaticResponsePag {
-            data: tabular(study),
-            query: response_query(study),
-            pag,
-        },
-        (AnalysisRoute::Response, GraphRef::Cpdag(cpdag)) => RouteInput::StaticResponseCpdag {
-            data: tabular(study),
-            query: response_query(study),
-            cpdag,
-        },
-        (AnalysisRoute::Response, GraphRef::Admg(admg))
-            if study.tiered.as_ref().is_some_and(|background| {
-                background.within_tier == antecedent_graph::WithinTier::CoDetermined
-            }) =>
-        {
-            RouteInput::CodeterminedJoint {
-                data: tabular(study),
-                query: response_query(study),
-                admg,
-            }
-        }
-        (AnalysisRoute::Response, GraphRef::Admg(_) | GraphRef::TemporalAdmg(_)) => {
-            RouteInput::MixedAdmgResponse { data: tabular(study), query: response_query(study) }
-        }
-        (AnalysisRoute::StaticAte, GraphRef::Dag(dag)) => RouteInput::StaticAteDag {
-            data: tabular(study),
-            query: average_effect(study),
-            graph: dag,
-        },
-        (AnalysisRoute::StaticAte, GraphRef::Pag(pag)) => {
-            RouteInput::StaticAtePag { data: tabular(study), query: average_effect(study), pag }
-        }
-        (AnalysisRoute::StaticAte, GraphRef::Cpdag(cpdag)) => {
-            RouteInput::StaticAteCpdag { data: tabular(study), query: average_effect(study), cpdag }
-        }
-        (AnalysisRoute::StaticAte, GraphRef::Admg(_) | GraphRef::TemporalAdmg(_)) => {
-            RouteInput::StaticAteMixed { data: tabular(study), query: average_effect(study) }
-        }
         (AnalysisRoute::Distribution, GraphRef::Dag(dag)) => RouteInput::DistributionDag {
             data: tabular(study),
             query: distribution(study),
@@ -550,6 +510,60 @@ fn static_route_input<'a>(
                 source: PathSpecificMixedSource::Nested(query),
             }
         }
+        _ => return None,
+    })
+}
+
+/// Static response, average and conditional adjustment cells share graph resolution.
+fn static_adjustment_route_input<'a>(
+    study: &'a Study,
+    route: AnalysisRoute,
+    graph: GraphRef<'a>,
+) -> Option<RouteInput<'a>> {
+    Some(match (route, graph) {
+        (AnalysisRoute::Response, GraphRef::Dag(dag)) => RouteInput::StaticResponseDag {
+            data: tabular(study),
+            query: response_query(study),
+            graph: dag,
+        },
+        (AnalysisRoute::Response, GraphRef::Pag(pag)) => RouteInput::StaticResponsePag {
+            data: tabular(study),
+            query: response_query(study),
+            pag,
+        },
+        (AnalysisRoute::Response, GraphRef::Cpdag(cpdag)) => RouteInput::StaticResponseCpdag {
+            data: tabular(study),
+            query: response_query(study),
+            cpdag,
+        },
+        (AnalysisRoute::Response, GraphRef::Admg(admg))
+            if study.tiered.as_ref().is_some_and(|background| {
+                background.within_tier == antecedent_graph::WithinTier::CoDetermined
+            }) =>
+        {
+            RouteInput::CodeterminedJoint {
+                data: tabular(study),
+                query: response_query(study),
+                admg,
+            }
+        }
+        (AnalysisRoute::Response, GraphRef::Admg(_) | GraphRef::TemporalAdmg(_)) => {
+            RouteInput::MixedAdmgResponse { data: tabular(study), query: response_query(study) }
+        }
+        (AnalysisRoute::StaticAte, GraphRef::Dag(dag)) => RouteInput::StaticAteDag {
+            data: tabular(study),
+            query: average_effect(study),
+            graph: dag,
+        },
+        (AnalysisRoute::StaticAte, GraphRef::Pag(pag)) => {
+            RouteInput::StaticAtePag { data: tabular(study), query: average_effect(study), pag }
+        }
+        (AnalysisRoute::StaticAte, GraphRef::Cpdag(cpdag)) => {
+            RouteInput::StaticAteCpdag { data: tabular(study), query: average_effect(study), cpdag }
+        }
+        (AnalysisRoute::StaticAte, GraphRef::Admg(_) | GraphRef::TemporalAdmg(_)) => {
+            RouteInput::StaticAteMixed { data: tabular(study), query: average_effect(study) }
+        }
         (AnalysisRoute::Conditional, GraphRef::Dag(dag)) => RouteInput::ConditionalDag {
             data: tabular(study),
             query: conditional(study),
@@ -574,6 +588,9 @@ fn temporal_route_input<'a>(
     route: AnalysisRoute,
     graph: GraphRef<'a>,
 ) -> Option<RouteInput<'a>> {
+    if let Some(input) = mediation_route_input(study, route, graph) {
+        return Some(input);
+    }
     Some(match (route, graph) {
         (AnalysisRoute::TemporalEffect, GraphRef::TemporalCpdag(_) | GraphRef::TemporalPag(_)) => {
             RouteInput::TemporalEffectClass {
@@ -652,6 +669,17 @@ fn temporal_route_input<'a>(
                 graph: temporal_dag,
             }
         }
+        _ => return None,
+    })
+}
+
+/// Mediation selects its own static or temporal graph-family payload.
+fn mediation_route_input<'a>(
+    study: &'a Study,
+    route: AnalysisRoute,
+    graph: GraphRef<'a>,
+) -> Option<RouteInput<'a>> {
+    Some(match (route, graph) {
         (AnalysisRoute::TemporalMediation, GraphRef::TemporalDag(temporal_dag)) => {
             RouteInput::TemporalMediationDag {
                 data: series(study),

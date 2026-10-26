@@ -15,15 +15,16 @@
 use std::sync::Arc;
 
 use antecedent_core::{Intervention, VariableId};
-use antecedent_estimate::{DistributionAtom, FunctionalDistribution, InterventionalDistributionEstimate};
+use antecedent_estimate::{
+    DistributionAtom, FunctionalDistribution, InterventionalDistributionEstimate,
+};
 
 use super::{
     BootstrapAccounting, CausalError, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
     EffectEstimate, EstimatorId, ExecutionContext, IdentificationEnvelope, IdentificationStatus,
     IdentifiedExecuteExtras, IdentifiedExecuteFinish, Instant, PhysicalExecutionPlan, Strategy,
     StudyResult, TabularData, elapsed_ns, envelope_to_identification_result_for,
-    identification_status_ok_for_case, identify_cpdag_distribution, identify_pag_distribution,
-    report_identify_compute, select_estimand,
+    identification_status_ok_for_case, report_identify_compute, select_estimand,
 };
 use crate::planner::RouteDefaults;
 
@@ -55,10 +56,7 @@ pub(super) fn envelope_of_members(
     members: &[&[DistributionAtom]],
     weights: &[f64],
 ) -> Vec<AtomEnvelope> {
-    let mut keys: Vec<(
-        Arc<[(VariableId, antecedent_core::Value)]>,
-        Arc<[(VariableId, antecedent_core::Value)]>,
-    )> = Vec::new();
+    let mut keys = Vec::new();
     for atoms in members {
         for atom in *atoms {
             let key = (Arc::clone(&atom.outcomes), Arc::clone(&atom.conditioning));
@@ -158,58 +156,76 @@ impl super::Study {
         report_identify_compute(ctx);
         let causal_query = CausalQuery::Distribution(query.clone());
         // The envelope types differ by class; both reduce to the same case list.
-        let (cases, status, identified_weight, unidentified_weight, capped, certificate, label, identification) =
-            match class {
-                DistributionClass::Cpdag(cpdag) => {
-                    let envelope = identify_cpdag_distribution(identifier_id, cpdag, &causal_query)?;
-                    let certificate = crate::Identification::CpdagEnvelope {
-                        envelope: envelope.clone(),
-                        strategy: identifier_id,
-                        structure_version: self.graph.version(),
-                    };
-                    let identification =
-                        envelope_to_identification_result_for(&envelope, self.query.clone());
-                    (
-                        case_results(&envelope),
+        let (
+            cases,
+            status,
+            identified_weight,
+            unidentified_weight,
+            capped,
+            certificate,
+            label,
+            identification,
+        ) = match class {
+            DistributionClass::Cpdag(cpdag) => {
+                let envelope = crate::strategy_table::identify_cpdag_distribution_in_context(
+                    identifier_id,
+                    cpdag,
+                    &causal_query,
+                    Some(ctx),
+                )?;
+                let certificate = crate::Identification::CpdagEnvelope {
+                    envelope: envelope.clone(),
+                    strategy: identifier_id,
+                    structure_version: self.graph.version(),
+                };
+                let identification =
+                    envelope_to_identification_result_for(&envelope, self.query.clone());
+                (
+                    case_results(&envelope),
+                    envelope.status,
+                    envelope.identified_weight.0,
+                    envelope.unidentified_weight.0,
+                    envelope.truncated_completions > 0,
+                    certificate,
+                    "CPDAG",
+                    identification,
+                )
+            }
+            DistributionClass::Pag(pag) => {
+                let envelope = crate::strategy_table::identify_pag_distribution_in_context(
+                    identifier_id,
+                    pag,
+                    &causal_query,
+                    Some(ctx),
+                )?;
+                if envelope.unidentified_weight.0 > 0.0 {
+                    return Err(CausalError::not_identified(
                         envelope.status,
-                        envelope.identified_weight.0,
-                        envelope.unidentified_weight.0,
                         envelope.truncated_completions > 0,
-                        certificate,
-                        "CPDAG",
-                        identification,
-                    )
-                }
-                DistributionClass::Pag(pag) => {
-                    let envelope = identify_pag_distribution(identifier_id, pag, &causal_query)?;
-                    if envelope.unidentified_weight.0 > 0.0 {
-                        return Err(CausalError::not_identified(
-                            envelope.status,
-                            envelope.truncated_completions > 0,
-                            "PAG distribution not identified: an ADMG sharing the m-separation \
+                        "PAG distribution not identified: an ADMG sharing the m-separation \
                              model of a MAG completion leaves it unidentified, so no functional \
                              is correct for every model the PAG represents",
-                        ));
-                    }
-                    let certificate = crate::Identification::Envelope {
-                        envelope: envelope.clone(),
-                        strategy: identifier_id,
-                        structure_version: self.graph.version(),
-                    };
-                    let identification =
-                        envelope_to_identification_result_for(&envelope, self.query.clone());
-                    (
-                        case_results(&envelope),
-                        envelope.status,
-                        envelope.identified_weight.0,
-                        envelope.unidentified_weight.0,
-                        envelope.truncated_completions > 0,
-                        certificate,
-                        "PAG",
-                        identification,
-                    )
+                    ));
                 }
-            };
+                let certificate = crate::Identification::Envelope {
+                    envelope: envelope.clone(),
+                    strategy: identifier_id,
+                    structure_version: self.graph.version(),
+                };
+                let identification =
+                    envelope_to_identification_result_for(&envelope, self.query.clone());
+                (
+                    case_results(&envelope),
+                    envelope.status,
+                    envelope.identified_weight.0,
+                    envelope.unidentified_weight.0,
+                    envelope.truncated_completions > 0,
+                    certificate,
+                    "PAG",
+                    identification,
+                )
+            }
+        };
         if matches!(status, IdentificationStatus::NotIdentified) || identified_weight <= 0.0 {
             return Err(CausalError::not_identified(
                 status,
@@ -224,21 +240,18 @@ impl super::Study {
             ..FunctionalDistribution::new()
         }
         .with_row_resampling(row_resampling, sampling_design);
-        let mut members: Vec<(f64, InterventionalDistributionEstimate, Option<antecedent_estimate::CausalPosterior>)> =
-            Vec::new();
+        let mut members: Vec<(
+            f64,
+            InterventionalDistributionEstimate,
+            Option<antecedent_estimate::CausalPosterior>,
+        )> = Vec::new();
         for (weight, result) in &cases {
             if !identification_status_ok_for_case(result.status) || result.estimands.is_empty() {
                 continue;
             }
             let estimand = select_estimand(result, estimator_id)?;
             let prepared = fitter
-                .prepare(
-                    data,
-                    query,
-                    &estimand,
-                    &result.arena,
-                    result.required_assumptions.clone(),
-                )
+                .prepare(data, query, &estimand, &result.arena, result.required_assumptions.clone())
                 .map_err(CausalError::from)?;
             let (dist, posterior) =
                 self.estimate_distribution(&fitter, &prepared, result.status, ctx)?;

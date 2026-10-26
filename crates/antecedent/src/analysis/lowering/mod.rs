@@ -261,9 +261,7 @@ fn scan_demand(study: &Study, lowered: &LoweredProgram) -> scan::ScanDemand {
         DataInput::Tabular(data) => data.row_count(),
         DataInput::Temporal(data) | DataInput::Event(data) => data.row_count(),
         DataInput::Panel(data) => data.total_rows(),
-        DataInput::MultiEnv(data) => {
-            data.environments().iter().map(|environment| environment.row_count()).sum()
-        }
+        DataInput::MultiEnv(data) => data.environments().iter().map(TableView::row_count).sum(),
     };
     let mut projected: std::collections::HashSet<VariableId> =
         lowered.scientific().query_variables().iter().copied().collect();

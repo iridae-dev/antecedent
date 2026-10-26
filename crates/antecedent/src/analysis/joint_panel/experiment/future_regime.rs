@@ -167,6 +167,22 @@ impl PanelExperimentResult {
         let means =
             mapped_means(&source_values, &regime.mapping.intercepts, &regime.mapping.slopes)?;
         let weights = self.original.projection(&regime.functional)?.1;
+        let identity = self.future_regime_identity(regime, &weights);
+        Ok(PreparedRegime {
+            source_values,
+            intercepts: regime.mapping.intercepts.clone(),
+            slopes: regime.mapping.slopes.clone(),
+            means,
+            identity: Some(identity),
+        })
+    }
+
+    /// Bind the bridge, source dependency, exact functional and paired mapping in wire order.
+    fn future_regime_identity(
+        &self,
+        regime: &PanelFutureRegime,
+        weights: &[Vec<f64>],
+    ) -> SemanticDigest {
         let mut writer = antecedent_core::CanonicalWriter::new("antecedent.panel.future_regime.v1");
         writer
             .bytes(regime.bridge.identity().as_bytes())
@@ -179,13 +195,7 @@ impl PanelExperimentResult {
         for value in regime.mapping.intercepts.iter().chain(&regime.mapping.slopes) {
             writer.word(value.to_bits());
         }
-        Ok(PreparedRegime {
-            source_values,
-            intercepts: regime.mapping.intercepts.clone(),
-            slopes: regime.mapping.slopes.clone(),
-            means,
-            identity: Some(SemanticDigest::from_bytes(writer.finish())),
-        })
+        SemanticDigest::from_bytes(writer.finish())
     }
 
     /// Rank candidate studies, each in its own regime, by the value of the update it would cause.

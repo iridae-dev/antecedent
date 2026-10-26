@@ -117,8 +117,8 @@ impl GraphPosteriorCell {
                 | CausalQuery::Distribution(_)
                 | CausalQuery::AnomalyAttribution(_)
                 | CausalQuery::ChangeAttribution(_),
-            ) => Self::CrossWorld,
-            (
+            )
+            | (
                 DataInput::Temporal(_) | DataInput::Event(_),
                 CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_),
             ) => Self::CrossWorld,

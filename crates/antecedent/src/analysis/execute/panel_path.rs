@@ -338,7 +338,7 @@ impl super::Study {
                 reused
             } else {
                 report_identify_compute(ctx);
-                (self.identify_temporal_class(identifier_id, query)?, false)
+                (self.identify_temporal_class(identifier_id, query, ctx)?, false)
             };
         let envelope = &bundle.envelope.envelope;
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
@@ -1083,7 +1083,7 @@ impl super::Study {
             if !run.identify_cached {
                 report_identify_compute(run.ctx);
             }
-            self.identify_temporal_class(run.identifier_id, &horizon_query)?
+            self.identify_temporal_class(run.identifier_id, &horizon_query, run.ctx)?
         };
         let envelope = &bundle.envelope.envelope;
         state.diagnostics.push(super::temporal_path::temporal_class_envelope_diagnostic(

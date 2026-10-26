@@ -50,6 +50,19 @@ pub struct NextDesignStep {
     pub design: String,
 }
 
+impl NextDesignStep {
+    /// Keep the first-seen hybrid and component ordering for this missing premise.
+    fn add_hybrid(&mut self, mask: u8) {
+        self.hybrids.push(mask);
+        let blamed = blamed_components(self.obligation, mask);
+        for (bit, component) in COMPONENTS.iter().enumerate() {
+            if blamed & (1 << bit) != 0 && !self.components.contains(component) {
+                self.components.push(*component);
+            }
+        }
+    }
+}
+
 /// Finer decomposition as far as the design supports, with what follows from the rest.
 #[derive(Clone, Debug)]
 pub struct DesignAdaptiveReference {
@@ -191,25 +204,19 @@ impl JointPanelResult {
         let mut next_designs: Vec<NextDesignStep> = Vec::new();
         for hybrid in &requested.hybrids {
             for obligation in &hybrid.obligations {
-                let step = match next_designs.iter_mut().find(|step| step.obligation == *obligation)
+                if let Some(step) =
+                    next_designs.iter_mut().find(|step| step.obligation == *obligation)
                 {
-                    Some(step) => step,
-                    None => {
-                        next_designs.push(NextDesignStep {
-                            obligation: *obligation,
-                            components: Vec::new(),
-                            hybrids: Vec::new(),
-                            design: design_for(*obligation).into(),
-                        });
-                        next_designs.last_mut().expect("just pushed")
-                    }
-                };
-                step.hybrids.push(hybrid.mask);
-                let blamed = blamed_components(*obligation, hybrid.mask);
-                for (bit, component) in COMPONENTS.iter().enumerate() {
-                    if blamed & (1 << bit) != 0 && !step.components.contains(component) {
-                        step.components.push(*component);
-                    }
+                    step.add_hybrid(hybrid.mask);
+                } else {
+                    let mut step = NextDesignStep {
+                        obligation: *obligation,
+                        components: Vec::new(),
+                        hybrids: Vec::new(),
+                        design: design_for(*obligation).into(),
+                    };
+                    step.add_hybrid(hybrid.mask);
+                    next_designs.push(step);
                 }
             }
         }

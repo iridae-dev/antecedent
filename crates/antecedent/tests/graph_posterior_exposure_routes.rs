@@ -258,7 +258,7 @@ fn frequentist_transport_mixes_certified_atoms_and_states_the_lost_mass() {
         );
 
         // The prepared handle retains the per-atom proofs and returns the same answer.
-        let mut prepared = study.prepare(&ctx).unwrap();
+        let prepared = study.prepare(&ctx).unwrap();
         assert!(matches!(prepared.retained_operation(), RetainedOperation::EstimatorRoute));
         let again = prepared.estimate(&transport_data(), &ctx).unwrap();
         assert!((again.estimate.as_effect().unwrap().ate - effect.ate).abs() < 1e-12);
@@ -598,7 +598,7 @@ fn the_cluster_total_effect_runs_the_checked_design_over_a_posterior() {
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("interference.cluster_neyman"));
 
         // The prepared handle returns the same contrast with its posterior retained.
-        let mut prepared = interference_study(
+        let prepared = interference_study(
             &data,
             cluster_query(),
             spec,
@@ -773,7 +773,7 @@ fn a_cpdag_whose_members_agree_is_a_point() {
         assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
         assert!(result.structural_response.is_none(), "a point, not an identified set");
         assert!((result.estimate.as_effect().unwrap().ate - 2.0).abs() < 1e-12);
-        let mut prepared =
+        let prepared =
             class_study(ClassGraph::Cpdag(open_chain()), &[], InferenceMode::Frequentist)
                 .prepare(&ctx)
                 .unwrap();
@@ -962,7 +962,7 @@ fn a_posterior_of_cpdag_atoms_mixes_the_class_envelope_of_sid_outcomes() {
         );
 
         // The prepared handle retains the per-atom class proofs and returns the same answer.
-        let mut prepared = study.prepare(&ctx).unwrap();
+        let prepared = study.prepare(&ctx).unwrap();
         let again = prepared.estimate(&transport_data(), &ctx).unwrap();
         assert!((again.estimate.as_effect().unwrap().ate - effect.ate).abs() < 1e-12);
         assert!(again.diagnostics.iter().any(|item| item.code.as_ref() == "exec.identify.cached"));

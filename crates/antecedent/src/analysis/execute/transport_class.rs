@@ -25,9 +25,7 @@
 
 use antecedent_data::TableView;
 use antecedent_estimate::{TransportEffectEstimate, trial_to_target_effect};
-use antecedent_identify::{
-    GeneralizedAdjustmentIdentifier, IdentificationEnvelope, TransportIdentification,
-};
+use antecedent_identify::{IdentificationEnvelope, TransportIdentification};
 
 use super::pag_path::ClassTag;
 use super::transport_interference_path::{
@@ -57,6 +55,7 @@ impl super::Study {
     /// A selection target outside the graph, or a query sID does not read.
     pub(crate) fn identify_class_transport(
         &self,
+        ctx: &ExecutionContext,
     ) -> Result<Option<IdentificationCache>, CausalError> {
         let CausalQuery::Transport(query) = &self.query else { return Ok(None) };
         let targets: Vec<VariableId> = self
@@ -64,7 +63,7 @@ impl super::Study {
             .as_ref()
             .map(|diagram| diagram.selection_targets().to_vec())
             .unwrap_or_default();
-        let identifier = GeneralizedAdjustmentIdentifier::new();
+        let identifier = crate::strategy_table::class_identifier_in_context(Some(ctx));
         let target = CausalQuery::Transport(query.clone());
         Ok(match self.graph.graph_ref() {
             GraphRef::Cpdag(cpdag) => {
@@ -173,7 +172,7 @@ impl super::Study {
             _ => {}
         }
         super::report_identify_compute(ctx);
-        let fresh = self.identify_class_transport()?.ok_or(CausalError::Unsupported {
+        let fresh = self.identify_class_transport(ctx)?.ok_or(CausalError::Unsupported {
             message: "class TransportQuery execute requires a supplied Cpdag or Pag",
         })?;
         Ok((fresh, false))

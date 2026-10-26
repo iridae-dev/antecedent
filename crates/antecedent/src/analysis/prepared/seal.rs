@@ -424,6 +424,7 @@ impl Study {
     pub(super) fn seal_bayesian_temporal_class_effect(
         analysis: &Study,
         plan: &Arc<PhysicalExecutionPlan>,
+        ctx: &antecedent_core::ExecutionContext,
     ) -> Result<
         Option<Box<crate::analysis::CheckedBayesianTemporalClassEffectOperation>>,
         CausalError,
@@ -457,6 +458,7 @@ impl Study {
         }
         let target = crate::analysis::CheckedTemporalClassEffectOperation::checked(
             crate::analysis::CheckedTemporalClassEffectOperationPremises {
+                ctx,
                 source_graph: (*analysis.graph).clone(),
                 query,
                 bundle: cache,

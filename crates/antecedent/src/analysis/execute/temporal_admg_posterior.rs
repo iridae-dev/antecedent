@@ -180,6 +180,18 @@ struct WindowMix<'a> {
     unidentified_mass: f64,
 }
 
+/// Publication inputs shared by posterior window contrasts and native mediation.
+struct WindowPosteriorFinish<'a> {
+    physical: &'a PhysicalExecutionPlan,
+    reported: (VariableId, VariableId),
+    strategy: Strategy,
+    identify_cached: bool,
+    refutations: Vec<antecedent_validate::RefutationReport>,
+    started: Instant,
+    diagnostics: Vec<Diagnostic>,
+    decomposition: Option<(Option<f64>, Option<f64>, Option<f64>)>,
+}
+
 /// The standard error of the draw-wise mixture, and the replicates it rests on.
 struct MixtureSe {
     se: f64,
@@ -444,16 +456,145 @@ impl super::Study {
     }
 
     /// Adopt the mixture standard error on a mixed estimate of several atoms.
-    fn adopt_mixture_se(mixed: &mut MixedAtomEvals, se: Option<MixtureSe>) {
+    fn adopt_mixture_se(mixed: &mut MixedAtomEvals, se: Option<&MixtureSe>) {
         if let Some(MixtureSe { se, replicates }) = se {
             mixed.estimate.uncertainty.bootstrap = BootstrapAccounting {
-                se: Some(se),
-                replicates_ok: Some(replicates),
+                se: Some(*se),
+                replicates_ok: Some(*replicates),
                 replicates_failed: Some(0),
                 cancelled: false,
                 early_stopped: false,
             };
         }
+    }
+
+    /// Refit the three native components per contributing window, then mix reports by atom mass.
+    fn refute_mediation_window_atoms(
+        &self,
+        found: &[Option<AtomComponents>],
+        weights: &[f64],
+        tables: &WindowTables,
+        requested: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<antecedent_validate::RefutationReport>, CausalError> {
+        let mut refutations = Vec::new();
+        if self.refute != RefuteSuite::None {
+            let mut per_atom = Vec::new();
+            for (position, atom) in found.iter().enumerate() {
+                let Some(atom) = atom else { continue };
+                let weight = weights[position];
+                if weight <= 0.0 || atom.components.get(requested).is_none_or(Option::is_none) {
+                    continue;
+                }
+                let table = tables.get(atom.window.periods)?;
+                let components: [Option<super::mediation_refutation::IdentifiedComponent>; 3] =
+                    std::array::from_fn(|slot| {
+                        let (identification, estimand) =
+                            atom.components.get(slot).and_then(Option::as_ref)?;
+                        let value = plug_in_value(
+                            table,
+                            estimand,
+                            identification,
+                            &atom.window.roles,
+                            ctx,
+                        )?;
+                        Some((identification.clone(), estimand.clone(), value))
+                    });
+                let resampling = self.window_row_resampling(atom.window.periods)?;
+                per_atom.push((
+                    weight,
+                    self.refute_mediation_decomposition(
+                        table,
+                        &components,
+                        &atom.window.roles,
+                        resampling,
+                        ctx,
+                    )?,
+                ));
+            }
+            refutations = antecedent_validate::QueryRefutationPlan::mix_weighted(per_atom);
+        }
+        Ok(refutations)
+    }
+
+    /// Disclose the windows, posterior availability, aggregation policy and overlap of the mixture.
+    fn window_mixture_diagnostics(
+        &self,
+        mixed: &MixedAtomEvals,
+        windows: &[AtomWindow],
+        atoms: usize,
+        unidentified_mass: f64,
+    ) -> Vec<Diagnostic> {
+        let mut lengths = BTreeMap::new();
+        for window in windows {
+            *lengths.entry(window.periods).or_insert(0usize) += 1;
+        }
+        let mut diagnostics = mixed.identification.diagnostics.clone();
+        if self.inference.is_bayesian() && mixed.posterior.is_none() {
+            diagnostics.push(graph_posterior_withheld_diagnostic());
+        }
+        diagnostics.push(window_disclosure(atoms, &lengths, unidentified_mass));
+        diagnostics.push(structural_aggregation_diagnostic(mixed));
+        diagnostics.push(overlap_diagnostic(mixed.estimate.provenance.overlap));
+        diagnostics
+    }
+
+    /// Bind native family outputs to their retained physical plan and provenance.
+    fn finish_window_posterior(
+        &self,
+        mixed: MixedAtomEvals,
+        finish: WindowPosteriorFinish<'_>,
+    ) -> StudyResult {
+        let WindowPosteriorFinish {
+            physical,
+            reported,
+            strategy,
+            identify_cached,
+            refutations,
+            started,
+            diagnostics,
+            decomposition,
+        } = finish;
+        let algo =
+            physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
+        let mediation = decomposition.map(|(total, direct, mediated)| TemporalMediationEstimate {
+            effect: mixed.estimate.clone(),
+            total,
+            direct,
+            mediated,
+        });
+        let MixedAtomEvals {
+            policy, identification, estimand, estimate, posterior, mixture, ..
+        } = mixed;
+        self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                strategy,
+                reported.0,
+                reported.1,
+            )
+            .identify_cached(identify_cached)
+            .mediation(mediation)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
+                identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
+                estimate_provenance: Some(provenance_ids(
+                    "estimate.temporal_admg_graph_posterior",
+                    policy.as_str(),
+                )),
+                n_draws: posterior
+                    .as_ref()
+                    .map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
+                posterior,
+                diagnostics: Some(diagnostics),
+                structural_response: Some(mixture),
+                ..Default::default()
+            }),
+        )
     }
 
     /// Mix the pulse, sustained or conditional contrast of `query` over the atoms of a lagged
@@ -531,7 +672,7 @@ impl super::Study {
             },
             ctx,
         )?;
-        Self::adopt_mixture_se(&mut mixed, se);
+        Self::adopt_mixture_se(&mut mixed, se.as_ref());
         let refutations = self.refute_window_atoms(
             &WindowMix {
                 tables: &tables,
@@ -547,49 +688,24 @@ impl super::Study {
             mixed.policy,
             PosteriorMassSummary { unidentified: unidentified_mass, ..Default::default() },
         );
-        let mut lengths = BTreeMap::new();
-        for window in &windows {
-            *lengths.entry(window.periods).or_insert(0usize) += 1;
-        }
-        let mut diagnostics = mixed.identification.diagnostics.clone();
-        if self.inference.is_bayesian() && mixed.posterior.is_none() {
-            diagnostics.push(graph_posterior_withheld_diagnostic());
-        }
-        diagnostics.push(window_disclosure(identified.atoms.len(), &lengths, unidentified_mass));
-        diagnostics.push(structural_aggregation_diagnostic(&mixed));
-        diagnostics.push(overlap_diagnostic(mixed.estimate.provenance.overlap));
-        let algo =
-            physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
-        let MixedAtomEvals {
-            policy, identification, estimand, estimate, posterior, mixture, ..
-        } = mixed;
-        Ok(self.finish_identified_execute(
-            IdentifiedExecuteFinish::new(
+        let diagnostics = self.window_mixture_diagnostics(
+            &mixed,
+            &windows,
+            identified.atoms.len(),
+            unidentified_mass,
+        );
+        Ok(self.finish_window_posterior(
+            mixed,
+            WindowPosteriorFinish {
                 physical,
-                identification,
-                estimand,
-                estimate,
-                Strategy::new(IdentifierId::GeneralId, EstimatorId::FunctionalEffect),
-                query.treatment,
-                query.outcome,
-            )
-            .identify_cached(identify_cached)
-            .refutations(refutations)
-            .wall_time_ns(elapsed_ns(started))
-            .extras(IdentifiedExecuteExtras {
-                identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
-                estimate_provenance: Some(provenance_ids(
-                    "estimate.temporal_admg_graph_posterior",
-                    policy.as_str(),
-                )),
-                n_draws: posterior
-                    .as_ref()
-                    .map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
-                posterior,
-                diagnostics: Some(diagnostics),
-                structural_response: Some(mixture),
-                ..Default::default()
-            }),
+                reported: (query.treatment, query.outcome),
+                strategy: Strategy::new(IdentifierId::GeneralId, EstimatorId::FunctionalEffect),
+                identify_cached,
+                refutations,
+                started,
+                diagnostics,
+                decomposition: None,
+            },
         ))
     }
 
@@ -629,30 +745,7 @@ impl super::Study {
                 atom_components(gp, i, &variables, variable_count, query, &effect).ok().flatten(),
             )
         })?;
-        // One identification layer per component: the atoms that identify it.
-        let mut slots: Vec<SlotAtoms> =
-            (0..COMPONENTS.len()).map(|_| SlotAtoms::default()).collect();
-        let mut keys = Vec::with_capacity(gp.n_graphs);
-        for (i, atom) in found.iter().enumerate() {
-            keys.push(position_key(i)?);
-            for (slot, layer) in slots.iter_mut().enumerate() {
-                let identified = atom.as_ref().and_then(|atom| {
-                    atom.components[slot].as_ref().map(|component| (atom, component))
-                });
-                if let Some((atom, (identification, estimand))) = identified {
-                    layer.flags.push(GraphIdentFlag::Identified);
-                    layer.proofs.push(CachedGraphPosteriorAtomIdentification {
-                        key: keys[i],
-                        estimand: estimand.clone(),
-                        identification: identification.clone(),
-                        transport: None,
-                    });
-                    layer.windows.push(atom.window.clone());
-                } else {
-                    layer.flags.push(GraphIdentFlag::Unidentified);
-                }
-            }
-        }
+        let (slots, keys) = mediation_component_slots(gp, &found)?;
         if slots[requested].proofs.is_empty() {
             return Err(CausalError::not_identified(
                 IdentificationStatus::NotIdentified,
@@ -685,7 +778,7 @@ impl super::Study {
                 ctx,
             )?;
             if slot == requested {
-                Self::adopt_mixture_se(&mut mixed, se);
+                Self::adopt_mixture_se(&mut mixed, se.as_ref());
             }
             mixed.identification.status = resolve_posterior_status(
                 mixed.identification.status,
@@ -694,46 +787,8 @@ impl super::Study {
             );
             results.push(Some((mixed, unidentified_mass)));
         }
-        // The mediation-native suite refits the three components of every atom that carries
-        // weight on the window table of its own template; the per-atom reports are mixed by
-        // posterior weight.
-        let mut refutations = Vec::new();
-        if self.refute != RefuteSuite::None {
-            let mut per_atom = Vec::new();
-            for (position, atom) in found.iter().enumerate() {
-                let Some(atom) = atom else { continue };
-                let weight = weights[position];
-                if weight <= 0.0 || atom.components.get(requested).is_none_or(Option::is_none) {
-                    continue;
-                }
-                let table = tables.get(atom.window.periods)?;
-                let components: [Option<super::mediation_refutation::IdentifiedComponent>; 3] =
-                    std::array::from_fn(|slot| {
-                        let (identification, estimand) =
-                            atom.components.get(slot).and_then(Option::as_ref)?;
-                        let value = plug_in_value(
-                            table,
-                            estimand,
-                            identification,
-                            &atom.window.roles,
-                            ctx,
-                        )?;
-                        Some((identification.clone(), estimand.clone(), value))
-                    });
-                let resampling = self.window_row_resampling(atom.window.periods)?;
-                per_atom.push((
-                    weight,
-                    self.refute_mediation_decomposition(
-                        table,
-                        &components,
-                        &atom.window.roles,
-                        resampling,
-                        ctx,
-                    )?,
-                ));
-            }
-            refutations = antecedent_validate::QueryRefutationPlan::mix_weighted(per_atom);
-        }
+        let refutations =
+            self.refute_mediation_window_atoms(&found, &weights, &tables, requested, ctx)?;
         let value = |slot: usize| {
             results[slot]
                 .as_ref()
@@ -744,56 +799,27 @@ impl super::Study {
         let (mixed, unidentified_mass) = results[requested].take().ok_or_else(|| {
             CausalError::Compile { message: "requested contrast has no mixture".into() }
         })?;
-        let mut lengths = BTreeMap::new();
-        for window in &slots[requested].windows {
-            *lengths.entry(window.periods).or_insert(0usize) += 1;
-        }
-        let mut diagnostics = mixed.identification.diagnostics.clone();
-        if self.inference.is_bayesian() && mixed.posterior.is_none() {
-            diagnostics.push(graph_posterior_withheld_diagnostic());
-        }
-        diagnostics.push(window_disclosure(
+        let diagnostics = self.window_mixture_diagnostics(
+            &mixed,
+            &slots[requested].windows,
             slots[requested].proofs.len(),
-            &lengths,
             unidentified_mass,
-        ));
-        diagnostics.push(structural_aggregation_diagnostic(&mixed));
-        diagnostics.push(overlap_diagnostic(mixed.estimate.provenance.overlap));
-        let algo =
-            physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
-        let MixedAtomEvals {
-            policy, identification, estimand, estimate, posterior, mixture, ..
-        } = mixed;
-        let decomposition =
-            TemporalMediationEstimate { effect: estimate.clone(), total, direct, mediated };
-        Ok(self.finish_identified_execute(
-            IdentifiedExecuteFinish::new(
+        );
+        Ok(self.finish_window_posterior(
+            mixed,
+            WindowPosteriorFinish {
                 physical,
-                identification,
-                estimand,
-                estimate,
-                Strategy::new(IdentifierId::PathSpecificNatural, EstimatorId::FunctionalEffect),
-                query.treatment,
-                query.outcome,
-            )
-            .identify_cached(false)
-            .mediation(Some(decomposition))
-            .refutations(refutations)
-            .wall_time_ns(elapsed_ns(started))
-            .extras(IdentifiedExecuteExtras {
-                identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
-                estimate_provenance: Some(provenance_ids(
-                    "estimate.temporal_admg_graph_posterior",
-                    policy.as_str(),
-                )),
-                n_draws: posterior
-                    .as_ref()
-                    .map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
-                posterior,
-                diagnostics: Some(diagnostics),
-                structural_response: Some(mixture),
-                ..Default::default()
-            }),
+                reported: (query.treatment, query.outcome),
+                strategy: Strategy::new(
+                    IdentifierId::PathSpecificNatural,
+                    EstimatorId::FunctionalEffect,
+                ),
+                identify_cached: false,
+                refutations,
+                started,
+                diagnostics,
+                decomposition: Some((total, direct, mediated)),
+            },
         ))
     }
 }
@@ -805,6 +831,37 @@ struct SlotAtoms {
     flags: Vec<GraphIdentFlag>,
     proofs: Vec<CachedGraphPosteriorAtomIdentification>,
     windows: Vec<AtomWindow>,
+}
+
+/// Preserve one aligned flag per posterior sample and component, with proofs only where identified.
+fn mediation_component_slots(
+    gp: &GraphPosterior,
+    found: &[Option<AtomComponents>],
+) -> Result<(Vec<SlotAtoms>, Vec<u64>), CausalError> {
+    // One identification layer per component: the atoms that identify it.
+    let mut slots: Vec<SlotAtoms> = (0..COMPONENTS.len()).map(|_| SlotAtoms::default()).collect();
+    let mut keys = Vec::with_capacity(gp.n_graphs);
+    for (i, atom) in found.iter().enumerate() {
+        keys.push(position_key(i)?);
+        for (slot, layer) in slots.iter_mut().enumerate() {
+            let identified = atom
+                .as_ref()
+                .and_then(|atom| atom.components[slot].as_ref().map(|component| (atom, component)));
+            if let Some((atom, (identification, estimand))) = identified {
+                layer.flags.push(GraphIdentFlag::Identified);
+                layer.proofs.push(CachedGraphPosteriorAtomIdentification {
+                    key: keys[i],
+                    estimand: estimand.clone(),
+                    identification: identification.clone(),
+                    transport: None,
+                });
+                layer.windows.push(atom.window.clone());
+            } else {
+                layer.flags.push(GraphIdentFlag::Unidentified);
+            }
+        }
+    }
+    Ok((slots, keys))
 }
 
 /// One atom's three components on its window.

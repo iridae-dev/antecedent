@@ -383,7 +383,11 @@ pub fn plan_over_routes(
         .collect::<Result<Vec<_>, _>>()
         .map_err(EvidencePlanArtifactError::from)
         .and_then(|repairs| {
-            EvidencePlanArtifact::build(&repairs, evaluation.as_ref().map(|e| e.artifact()), &plan)
+            EvidencePlanArtifact::build(
+                &repairs,
+                evaluation.as_ref().map(DesignRankingEvaluation::artifact),
+                &plan,
+            )
         });
     Ok(EvidencePlanResult { plan, generation, reports, value: evaluation, names, artifact })
 }
@@ -496,14 +500,9 @@ impl Study {
     ) -> Result<antecedent_contract::OperationReport, EvidencePlanFacadeError> {
         let inputs = self.retained_failure(ctx)?;
         let (obligations, _) = failure_evidence_needs(self, &inputs.result);
-        let routes = failure_routes(
-            &inputs.result,
-            &inputs.graph,
-            &inputs.observed,
-            STUDY_POPULATION,
-            None,
-        )
-        .ok();
+        let routes =
+            failure_routes(&inputs.result, &inputs.graph, &inputs.observed, STUDY_POPULATION, None)
+                .ok();
         let names = routes.as_ref().map_or_else(
             || inputs.names.iter().map(ToString::to_string).collect(),
             |routes| variable_names(&inputs.names, routes, &inputs.graph),

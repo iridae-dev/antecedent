@@ -57,7 +57,8 @@ use antecedent_discovery::selective::{
     StaticDiscoveryContract, StaticSelectiveDiscovery,
 };
 use antecedent_identify::discovered_transport::{
-    DiscoveredTransportRequest, transport_across_class, transport_across_pag,
+    DiscoveredTransportRequest, transport_across_class_with_context,
+    transport_across_pag_with_context,
 };
 
 pub use antecedent_identify::discovered_transport::{
@@ -207,9 +208,30 @@ pub fn transport_discovered_structure(
     query: &TransportQuery,
     member_bound: usize,
 ) -> Result<DiscoveredTransportReport, DiscoveredTransportError> {
+    transport_discovered_structure_with_context(
+        outcome,
+        selection_targets,
+        query,
+        member_bound,
+        &ExecutionContext::production(0, 1),
+    )
+}
+
+/// Read a discovered class under the caller's completion/member-search memory
+/// account and cancellation without changing its scientific envelope identity.
+///
+/// # Errors
+/// As [`transport_discovered_structure`], including typed identification memory/cancellation.
+pub fn transport_discovered_structure_with_context(
+    outcome: &DiscoveryOutcome,
+    selection_targets: &[VariableId],
+    query: &TransportQuery,
+    member_bound: usize,
+    ctx: &ExecutionContext,
+) -> Result<DiscoveredTransportReport, DiscoveredTransportError> {
     let exhausted = exhausted_bounds(outcome);
     let envelope = match &outcome.native {
-        NativeResult::StaticCpdag(result) => transport_across_class(
+        NativeResult::StaticCpdag(result) => transport_across_class_with_context(
             &DiscoveredTransportRequest {
                 class: &result.evidence.graph,
                 selection_targets,
@@ -217,8 +239,9 @@ pub fn transport_discovered_structure(
                 member_bound,
             },
             query,
+            ctx,
         )?,
-        NativeResult::StaticPag(result) => transport_across_pag(
+        NativeResult::StaticPag(result) => transport_across_pag_with_context(
             &PagTransportRequest {
                 class: &result.evidence.graph,
                 selection_targets,
@@ -227,6 +250,7 @@ pub fn transport_discovered_structure(
                 completion_operations: antecedent_graph::DEFAULT_COMPLETION_OPERATIONS,
             },
             query,
+            ctx,
         )?,
         _ => {
             return Err(DiscoveredTransportError::Refused(DiscoveredTransportRefusal {
@@ -296,8 +320,13 @@ pub fn discover_and_transport(
             "the discovery run retained no outcome",
         )
     })?;
-    let transport =
-        transport_discovered_structure(&outcome, selection_targets, query, member_bound);
+    let transport = transport_discovered_structure_with_context(
+        &outcome,
+        selection_targets,
+        query,
+        member_bound,
+        ctx,
+    );
     Ok(DiscoveredTransportRun { discovery, outcome, transport })
 }
 

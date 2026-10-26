@@ -735,7 +735,7 @@ fn temporal_class_response_pooled_block_se(
             message: "temporal class graph-posterior response SE: atom key overflow".into(),
         })?;
         let Some(bundle) =
-            identify_posterior_atom_pulse(study, (gp, vars), (lag_masks, max_lag), i, &pulse)
+            identify_posterior_atom_pulse(study, (gp, vars), (lag_masks, max_lag), i, &pulse, ctx)?
         else {
             continue;
         };
@@ -789,10 +789,12 @@ fn identify_posterior_atom_pulse(
     (lag_masks, max_lag): (&[u64], u32),
     i: usize,
     pulse: &TemporalEffectQuery,
-) -> Option<Arc<crate::analysis::prepared::CachedTemporalClassIdentification>> {
+    ctx: &ExecutionContext,
+) -> Result<Option<Arc<crate::analysis::prepared::CachedTemporalClassIdentification>>, CausalError>
+{
     let mark =
         gp.mark_atoms.as_ref().map_or(antecedent_discovery::AdjacencyMask::EMPTY, |marks| marks[i]);
-    let graph = reconstruct_temporal_class_atom(
+    let Ok(graph) = reconstruct_temporal_class_atom(
         gp.atom_kind,
         gp.atoms[i],
         lag_masks[i],
@@ -800,15 +802,20 @@ fn identify_posterior_atom_pulse(
         gp.n_vars,
         max_lag,
         vars,
-    )
-    .ok()?;
+    ) else {
+        return Ok(None);
+    };
     let mut atom_study = study.clone();
     atom_study.graph_posterior = None;
     atom_study.graph = Arc::new(graph);
     atom_study.query = CausalQuery::TemporalEffect(pulse.clone());
     atom_study.temporal_class_identification_cache = None;
     atom_study.temporal_class_posterior_identification_cache = None;
-    atom_study.identify_temporal_class(IdentifierId::GeneralizedAdjustment, pulse).ok()
+    match atom_study.identify_temporal_class(IdentifierId::GeneralizedAdjustment, pulse, ctx) {
+        Ok(bundle) => Ok(Some(bundle)),
+        Err(error @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => Err(error),
+        Err(_) => Ok(None),
+    }
 }
 
 fn reconstruct_temporal_class_atom(
@@ -906,7 +913,7 @@ fn refute_temporal_class_graph_posterior_intervention(
             message: "temporal class graph-posterior IR refuter: atom key overflow".into(),
         })?;
         let Some(bundle) =
-            identify_posterior_atom_pulse(study, (gp, vars), (lag_masks, max_lag), i, &pulse)
+            identify_posterior_atom_pulse(study, (gp, vars), (lag_masks, max_lag), i, &pulse, ctx)?
         else {
             continue;
         };

@@ -10,16 +10,17 @@ use super::{
     PhysicalExecutionPlan, PosteriorPredictiveCheck, PredictiveCheckReport, PriorPredictiveCheck,
     RefutationRun, RefuteSuite, Strategy, StudyResult, TableView, TabularData, ValidationSuite,
     ValidatorId, bayesian_gcomp, effect_from_posterior, evaluate_bayesian_prior_sensitivity,
-    finish_identified_execute_with_context, identify_static, project_for_ate_estimate,
-    projection_diagnostic, push_conflict_diagnostics, resolve_bayesian_prior_with_conflict,
-    select_claim, validator_not_applicable_diagnostics, with_conflict_summary,
-    with_prior_sensitivity,
+    finish_identified_execute_with_context, project_for_ate_estimate, projection_diagnostic,
+    push_conflict_diagnostics, resolve_bayesian_prior_with_conflict, select_claim,
+    validator_not_applicable_diagnostics, with_conflict_summary, with_prior_sensitivity,
 };
 use std::sync::Mutex;
 
 use crate::analysis::proof_support::{
     RetainedProof, proof_supplies, verify_proof_against_graph, verify_retained_static,
 };
+
+const PROOF_REFUSED: &str = "Bayesian DAG effect proof is not justified by its retained graph";
 
 /// Fitted point stage state the validate stage reuses.
 struct CheckedBayesianDagAtePoint {
@@ -73,6 +74,7 @@ pub(crate) struct CheckedBayesianDagAteExecution {
 
 /// The frozen premises of [`CheckedBayesianDagAteExecution::checked`], carried together.
 pub(crate) struct CheckedBayesianDagAteExecutionPremises<'a> {
+    pub(crate) ctx: &'a ExecutionContext,
     pub(crate) graph: &'a Dag,
     pub(crate) operation: super::super::prepared::CheckedBayesianGcompOperation,
     pub(crate) context: IdentifiedResultContext,
@@ -96,6 +98,43 @@ impl std::fmt::Debug for CheckedBayesianDagAteExecution {
             .field("validation", &self.validation)
             .finish_non_exhaustive()
     }
+}
+
+/// Validate the retained seal before a necessary graph replay under the constructing context.
+fn verify_bayesian_dag_proof(
+    physical: &PhysicalExecutionPlan,
+    operation: &super::super::prepared::CheckedBayesianGcompOperation,
+    graph: &Dag,
+    target: &antecedent_core::AverageEffectQuery,
+    ctx: &ExecutionContext,
+) -> Result<(), CausalError> {
+    // The proof is the identification compile sealed: equality with that digest verifies
+    // it without identifying again. A plan that retained none replays it from the graph.
+    if verify_retained_static(
+        physical,
+        operation.identification(),
+        operation.estimand(),
+        PROOF_REFUSED,
+    )? == RetainedProof::NotRetained
+    {
+        let checked_identification = crate::strategy_table::identify_static_query_in_context(
+            IdentifierId::BackdoorAdjustment,
+            graph,
+            &CausalQuery::AverageEffect(target.clone()),
+            None,
+            Some(ctx),
+        )?;
+        let (checked_identification, checked_estimand) =
+            select_claim(checked_identification, EstimatorId::BayesianGcomp)?;
+        verify_proof_against_graph(
+            &checked_identification,
+            &checked_estimand,
+            operation.identification(),
+            operation.estimand(),
+            PROOF_REFUSED,
+        )?;
+    }
+    Ok(())
 }
 
 impl CheckedBayesianDagAteExecution {
@@ -141,6 +180,7 @@ impl CheckedBayesianDagAteExecution {
         premises: CheckedBayesianDagAteExecutionPremises<'_>,
     ) -> Result<Self, CausalError> {
         let CheckedBayesianDagAteExecutionPremises {
+            ctx,
             graph,
             operation,
             context,
@@ -203,29 +243,8 @@ impl CheckedBayesianDagAteExecution {
                 message: "checked Bayesian DAG g-computation licenses a mean ATE over AllObserved, and a model-based mean effect over the Treated or Untreated arm",
             });
         }
-        const PROOF_REFUSED: &str =
-            "Bayesian DAG effect proof is not justified by its retained graph";
-        // The proof is the identification compile sealed: equality with that digest verifies
-        // it without identifying again. A plan that retained none replays it from the graph.
-        if verify_retained_static(
-            &physical,
-            operation.identification(),
-            operation.estimand(),
-            PROOF_REFUSED,
-        )? == RetainedProof::NotRetained
-        {
-            let checked_identification =
-                identify_static(IdentifierId::BackdoorAdjustment, graph, target)?;
-            let (checked_identification, checked_estimand) =
-                select_claim(checked_identification, EstimatorId::BayesianGcomp)?;
-            verify_proof_against_graph(
-                &checked_identification,
-                &checked_estimand,
-                operation.identification(),
-                operation.estimand(),
-                PROOF_REFUSED,
-            )?;
-        }
+
+        verify_bayesian_dag_proof(&physical, &operation, graph, target, ctx)?;
         let config = config.clone();
         Ok(Self {
             graph: graph.clone(),

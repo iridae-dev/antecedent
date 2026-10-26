@@ -38,6 +38,35 @@ pub(super) struct TransportTrialInputs<'a> {
     pub(super) identify_cached: bool,
 }
 
+/// Owned probability and outcome columns detached from the transport design declaration.
+struct TrialSample {
+    outcomes: Vec<f64>,
+    treatment_bool: Vec<bool>,
+    trial_bool: Vec<bool>,
+    selection: Vec<f64>,
+    propensity: Vec<f64>,
+}
+
+impl TrialSample {
+    fn read(
+        data: &TabularData,
+        trial_spec: &super::super::builder::TransportTrialSpec,
+        treatment: VariableId,
+        outcome: VariableId,
+    ) -> Result<Self, CausalError> {
+        let outcomes = data.float64_values(outcome).map_err(CausalError::rejected)?;
+        let treatment_col = data.float64_values(treatment).map_err(CausalError::rejected)?;
+        let trial_col = data.float64_values(trial_spec.trial).map_err(CausalError::rejected)?;
+        let selection =
+            data.float64_values(trial_spec.selection_probability).map_err(CausalError::rejected)?;
+        let propensity =
+            data.float64_values(trial_spec.treatment_probability).map_err(CausalError::rejected)?;
+        let treatment_bool: Vec<bool> = treatment_col.iter().map(|v| *v != 0.0).collect();
+        let trial_bool: Vec<bool> = trial_col.iter().map(|v| *v != 0.0).collect();
+        Ok(Self { outcomes, treatment_bool, trial_bool, selection, propensity })
+    }
+}
+
 impl super::Study {
     pub(super) fn execute_transport(
         &self,
@@ -67,7 +96,7 @@ impl super::Study {
                 ((*cached).clone(), prepared)
             } else {
                 report_identify_compute(ctx);
-                (live_transport_identification(diagram, query)?, false)
+                (live_transport_identification(diagram, query, ctx)?, false)
             };
         let (identification, estimand) =
             Self::transport_design_identification(query, &transport_id)?;
@@ -144,15 +173,8 @@ impl super::Study {
             identify_cached,
         } = inputs;
         let (treatment, outcome) = transport_primary_pair(query)?;
-        let outcomes = data.float64_values(outcome).map_err(CausalError::rejected)?;
-        let treatment_col = data.float64_values(treatment).map_err(CausalError::rejected)?;
-        let trial_col = data.float64_values(trial_spec.trial).map_err(CausalError::rejected)?;
-        let selection =
-            data.float64_values(trial_spec.selection_probability).map_err(CausalError::rejected)?;
-        let propensity =
-            data.float64_values(trial_spec.treatment_probability).map_err(CausalError::rejected)?;
-        let treatment_bool: Vec<bool> = treatment_col.iter().map(|v| *v != 0.0).collect();
-        let trial_bool: Vec<bool> = trial_col.iter().map(|v| *v != 0.0).collect();
+        let TrialSample { outcomes, treatment_bool, trial_bool, selection, propensity } =
+            TrialSample::read(data, trial_spec, treatment, outcome)?;
         let mut transported = trial_to_target_effect(
             transport_id,
             &outcomes,
@@ -639,9 +661,11 @@ pub(super) fn refuse_transport_bayesian_priors(cfg: &BayesianConfig) -> Result<(
 pub(crate) fn live_transport_identification(
     diagram: &antecedent_graph::SelectionDiagram,
     query: &antecedent_core::TransportQuery,
+    ctx: &ExecutionContext,
 ) -> Result<TransportIdentification, CausalError> {
-    let identified =
-        TransportIdentifier::new().identify(diagram, query).map_err(CausalError::rejected)?;
+    let identified = TransportIdentifier::new()
+        .identify_with_context(diagram, query, ctx)
+        .map_err(CausalError::from)?;
     refuse_unestimable_transport(&identified)?;
     Ok(identified)
 }

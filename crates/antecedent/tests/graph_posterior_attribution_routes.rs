@@ -15,8 +15,8 @@ use antecedent_core::{
 };
 use antecedent_data::{TabularData, TimeSeriesData};
 use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary,
-    adjacency_mask_from_cpdag, set_edge, with_lagged_edge,
+    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_cpdag, set_edge,
+    with_lagged_edge,
 };
 use antecedent_graph::{Cpdag, Dag, DenseNodeId, TemporalDag};
 use antecedent_prob::InferenceDiagnostics;
@@ -106,11 +106,7 @@ fn mask_of(edges: &[(usize, usize)]) -> u64 {
     edges.iter().fold(0_u64, |mask, &(from, to)| set_edge(mask, 2, from, to, true))
 }
 
-fn posterior(
-    kind: GraphPosteriorAtomKind,
-    weights: &[f64],
-    masks: Vec<u64>,
-) -> GraphPosterior {
+fn posterior(kind: GraphPosteriorAtomKind, weights: &[f64], masks: Vec<u64>) -> GraphPosterior {
     GraphPosterior::new(2, weights.to_vec(), masks, vec![0.0; 4], vec![0.0; 4], sampling())
         .unwrap()
         .with_atom_kind(kind)
@@ -209,7 +205,7 @@ fn an_anomaly_is_the_posterior_weighted_mean_of_the_atoms_dag_attributions() {
         assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "attribution.class.envelope"));
 
         // The prepared handle answers the same attribution.
-        let mut prepared = built.prepare(&ctx).unwrap();
+        let prepared = built.prepare(&ctx).unwrap();
         let again = prepared.estimate(&data, &ctx).unwrap();
         let again = &again.anomaly().unwrap()[0];
         assert!((mean_over_rows(again, 0) - mean_over_rows(merged, 0)).abs() < 1e-9);

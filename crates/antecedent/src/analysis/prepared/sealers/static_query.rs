@@ -21,7 +21,7 @@ pub(super) fn bayesian_static_mediation(cx: &SealContext<'_>) -> SealOutcome {
     ) {
         (Some(data), Some(cache), InferenceMode::Bayesian(_)) => Some(Box::new(
             crate::analysis::execute::CheckedBayesianStaticMediationOperation::checked(
-                analysis, data, plan, cache,
+                analysis, data, plan, cache, cx.ctx,
             )?,
         )),
         _ => None,

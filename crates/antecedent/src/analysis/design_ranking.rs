@@ -29,11 +29,11 @@ use antecedent_contract::{
     ExternalCapability, ExternalRefusal, ExternalScientificObject, ExternalTrustState,
     ProviderObjectIdentity, ScientificQuantity, SignalProviderContract,
 };
-use antecedent_core::{CancellationToken, ExecutionContext, SemanticDigest};
-use antecedent_design::design_ranking_artifact::{SealInputs, seal};
+use antecedent_core::{ExecutionContext, SemanticDigest};
+use antecedent_design::design_ranking_artifact::SealInputs;
 use antecedent_design::evsi::{
     CostToUtilityMap, EvsiCandidate, EvsiError, EvsiReport, EvsiRequest, StudyCostSpec,
-    evaluate_evsi,
+    evaluate_evsi_with_context,
 };
 use antecedent_design::ranking::{RankingError, StructuralCandidate};
 use antecedent_design::signal::{
@@ -541,28 +541,25 @@ struct Prepared {
 fn prepare(wire: &DesignRankingRequestWire) -> Result<Prepared, DesignRankingError> {
     let decision = &wire.decision;
     let actions: Vec<usize> = (0..decision.action_ids.len()).collect();
-    let problem: DecisionProblem<usize, f64> = match &decision.utility_table {
-        Some(table) => {
-            if !decision.intercepts.is_empty() || !decision.slopes.is_empty() {
-                return Err(invalid(
-                    "declare the utility as an affine function or as a table, not both",
-                ));
-            }
-            if !matches!(decision.prior, PriorDeclWire::Draws { .. }) {
-                return Err(invalid("a tabulated utility needs a prior of draws on its states"));
-            }
-            if table.rows.len() != decision.action_ids.len() {
-                return Err(invalid("a utility table needs one row per action"));
-            }
-            let utility = GridUtility::new(table.states.clone(), table.rows.clone())
-                .map_err(|e| invalid(format!("utility table: {e}")))?;
-            DecisionProblem::new(actions, Arc::new(utility), vec![])
+    let problem: DecisionProblem<usize, f64> = if let Some(table) = &decision.utility_table {
+        if !decision.intercepts.is_empty() || !decision.slopes.is_empty() {
+            return Err(invalid(
+                "declare the utility as an affine function or as a table, not both",
+            ));
         }
-        None => {
-            let utility = AffineUtility::new(decision.intercepts.clone(), decision.slopes.clone())
-                .map_err(|e| invalid(format!("utility: {e}")))?;
-            DecisionProblem::new(actions, Arc::new(utility), vec![])
+        if !matches!(decision.prior, PriorDeclWire::Draws { .. }) {
+            return Err(invalid("a tabulated utility needs a prior of draws on its states"));
         }
+        if table.rows.len() != decision.action_ids.len() {
+            return Err(invalid("a utility table needs one row per action"));
+        }
+        let utility = GridUtility::new(table.states.clone(), table.rows.clone())
+            .map_err(|e| invalid(format!("utility table: {e}")))?;
+        DecisionProblem::new(actions, Arc::new(utility), vec![])
+    } else {
+        let utility = AffineUtility::new(decision.intercepts.clone(), decision.slopes.clone())
+            .map_err(|e| invalid(format!("utility: {e}")))?;
+        DecisionProblem::new(actions, Arc::new(utility), vec![])
     };
     let prior = match &decision.prior {
         PriorDeclWire::Draws { states } => DecisionPrior::Draws(states.clone()),
@@ -676,7 +673,11 @@ pub fn evaluate(
     wire: &DesignRankingRequestWire,
 ) -> Result<DesignRankingEvaluation, DesignRankingError> {
     let prepared = prepare(wire)?;
-    evaluate_prepared(wire, &prepared, &CancellationToken::new(), None)
+    let ctx = ExecutionContext::production(
+        prepared.request.rng_seed,
+        antecedent_core::default_user_threads(),
+    );
+    evaluate_prepared(wire, &prepared, &ctx, None)
 }
 
 /// Compile `study` as the state belief of the declared EVSI evaluation.
@@ -732,26 +733,36 @@ pub fn evaluate_for_study(
                 "the plan compiled for an EVSI request carries no value-of-information program"
             ))
         })?;
-    evaluate_prepared(wire, &prepared, &ctx.cancellation, Some(lowered.identity()))
+    evaluate_prepared(wire, &prepared, ctx, Some(lowered.identity()))
 }
 
 fn evaluate_prepared(
     wire: &DesignRankingRequestWire,
     prepared: &Prepared,
-    cancellation: &CancellationToken,
+    ctx: &ExecutionContext,
     lowered_program: Option<SemanticDigest>,
 ) -> Result<DesignRankingEvaluation, DesignRankingError> {
-    let report =
-        evaluate_evsi(&prepared.problem, &prepared.prior, &prepared.request, cancellation)?;
-    let artifact = seal(&SealInputs {
-        problem: &prepared.problem,
-        prior: &prepared.prior,
-        request: &prepared.request,
-        report: &report,
-        source_digests: &wire.source_digests,
-    })?;
-    let ranking = RankingRecord::from_evsi(&report, &wire.source_digests)?;
-    Ok(DesignRankingEvaluation { report, ranking, wire: artifact, lowered_program })
+    let evaluation =
+        evaluate_evsi_with_context(&prepared.problem, &prepared.prior, &prepared.request, ctx)?;
+    let report = evaluation.report();
+    let artifact = antecedent_design::design_ranking_artifact::seal_with_context(
+        &SealInputs {
+            problem: &prepared.problem,
+            prior: &prepared.prior,
+            request: &prepared.request,
+            report,
+            source_digests: &wire.source_digests,
+        },
+        &evaluation,
+        ctx,
+    )?;
+    let ranking = RankingRecord::from_evsi(report, &wire.source_digests)?;
+    Ok(DesignRankingEvaluation {
+        report: evaluation.into_report(),
+        ranking,
+        wire: artifact,
+        lowered_program,
+    })
 }
 
 /// The structural ordering when no probabilistic model is licensed: verified structural

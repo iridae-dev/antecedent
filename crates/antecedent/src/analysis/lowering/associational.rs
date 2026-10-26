@@ -181,7 +181,7 @@ mod tests;
 
 /// The lowered program's model slot of an association: the analysis name it fixed.
 pub(crate) fn lowered_analysis(program: &LoweredProgram) -> Option<&str> {
-    program.statistical().models().first().map(|model| model.family())
+    program.statistical().models().first().map(crate::planner::statistical::ModelSlot::family)
 }
 
 /// The refusal reason an association program retained, when it follows a refused causal query.

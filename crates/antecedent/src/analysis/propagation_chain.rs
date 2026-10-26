@@ -764,84 +764,13 @@ pub fn family_table(
             covariance.clone_from(matrix);
         }
         FamilyDependence::LedgerOverlap => {
-            let ledger = ledger.ok_or_else(|| {
-                family_refusal(
-                    "propagation_chain.family_authority",
-                    "a ledger overlap needs the ledger that holds the authorizing sources",
-                    None,
-                )
-            })?;
-            let mut rows_used = Vec::with_capacity(k);
-            for estimate in estimates {
-                let id = estimate.authority.ok_or_else(|| {
-                    family_refusal(
-                        "propagation_chain.family_authority",
-                        "a ledger overlap needs the authorizing source of every estimate",
-                        Some(&estimate.id),
-                    )
-                })?;
-                let source = ledger.source(id).ok_or_else(|| {
-                    family_refusal(
-                        "propagation_chain.family_authority",
-                        "the authorizing source is not in the ledger",
-                        Some(&estimate.id),
-                    )
-                })?;
-                if !matches!(source.status, SourceStatus::Active) {
-                    return Err(ChainRefusal::new(
-                        antecedent_core::reason_code!("invalid_argument"),
-                        "propagation_chain.family_authority",
-                        "a retired source cannot seed a chain",
-                        Some(&estimate.id),
-                        antecedent_contract::propagation_chain::RERUN_WITHOUT_WITHDRAWN_SOURCE,
-                    ));
-                }
-                let known = source.effective.known().ok_or_else(|| {
-                    ChainRefusal::new(
-                        antecedent_core::reason_code!("evidence_overlap_unknown"),
-                        "propagation_chain.family_dependence",
-                        "the authorizing source declares no observations, so its overlap is unknown",
-                        Some(&estimate.id),
-                        antecedent_contract::propagation_chain::DECLARE_SHARED_FACTORS,
-                    )
-                })?;
-                rows_used.push(known.len());
-            }
-            for i in 0..k {
-                for j in (i + 1)..k {
-                    let (a, b) = (estimates[i].authority, estimates[j].authority);
-                    let (Some(a), Some(b)) = (a, b) else { continue };
-                    let shared = ledger
-                        .shared_observations(a, b)
-                        .map_err(|error| authority_refusal(&error, &estimates[i].id))?
-                        .len();
-                    let correlation = antecedent_stats::shared_row_correlation(
-                        rows_used[i],
-                        rows_used[j],
-                        shared,
-                    )
-                    .map_err(|error| {
-                        family_refusal(
-                            "propagation_chain.family_covariance",
-                            error.to_string(),
-                            Some(&estimates[i].id),
-                        )
-                    })?;
-                    let term = correlation * standard_error[i] * standard_error[j];
-                    covariance[i * k + j] = term;
-                    covariance[j * k + i] = term;
-                    if shared > 0 {
-                        let (low, high) = if a.to_hex() <= b.to_hex() {
-                            (a.to_hex(), b.to_hex())
-                        } else {
-                            (b.to_hex(), a.to_hex())
-                        };
-                        let factor = format!("ledger-rows:{low}:{high}");
-                        derived[i].push((SharedFactorKind::Row, factor.clone()));
-                        derived[j].push((SharedFactorKind::Row, factor));
-                    }
-                }
-            }
+            apply_family_ledger_overlap(
+                estimates,
+                ledger,
+                &standard_error,
+                &mut covariance,
+                &mut derived,
+            )?;
         }
     }
     let sources: Vec<DependenceSource> = estimates
@@ -849,43 +778,7 @@ pub fn family_table(
         .zip(&derived)
         .map(|(estimate, extra)| dependence_source(estimate, extra))
         .collect::<Result<_, _>>()?;
-    match dependence {
-        FamilyDependence::Independent => {
-            DependenceContract::try_claim_independent(&sources)
-                .map_err(|error| dependence_refusal(&error))?;
-        }
-        FamilyDependence::Covariance(_) => {
-            for i in 0..k {
-                for j in (i + 1)..k {
-                    let pair =
-                        DependenceContract::assess(&[sources[i].clone(), sources[j].clone()])
-                            .map_err(|error| dependence_refusal(&error))?;
-                    let shares = !pair.shared_factors().is_empty();
-                    let term = covariance[i * k + j];
-                    let live = standard_error[i] > 0.0 && standard_error[j] > 0.0;
-                    if live && term != 0.0 && !shares {
-                        return Err(ChainRefusal::new(
-                            antecedent_core::reason_code!("evidence_overlap_unknown"),
-                            "propagation_chain.family_dependence",
-                            "a nonzero covariance names the evidence the two estimates share; declare the shared factor",
-                            Some(&estimates[i].id),
-                            antecedent_contract::propagation_chain::DECLARE_SHARED_FACTORS,
-                        ));
-                    }
-                    if live && term == 0.0 && shares {
-                        return Err(ChainRefusal::new(
-                            antecedent_core::reason_code!("evidence_double_counted"),
-                            "propagation_chain.family_dependence",
-                            "two estimates share declared evidence but the covariance counts it as independent",
-                            Some(&estimates[i].id),
-                            antecedent_contract::propagation_chain::POOL_WITH_JOINT_COVARIANCE,
-                        ));
-                    }
-                }
-            }
-        }
-        _ => {}
-    }
+    check_family_dependence(estimates, &sources, dependence, &standard_error, &covariance)?;
     let means: Vec<f64> = estimates.iter().map(|e| e.estimate).collect();
     let table = antecedent_stats::moment_matched_normal_table(&means, &covariance, rows, seed)
         .map_err(|error| {
@@ -952,6 +845,142 @@ impl PropagationChain {
             )
         })
     }
+}
+
+/// Derive covariance and shared row factors from the authorizing ledger, in estimate order.
+fn apply_family_ledger_overlap(
+    estimates: &[FamilyEstimate],
+    ledger: Option<&EvidenceLedger>,
+    standard_error: &[f64],
+    covariance: &mut [f64],
+    derived: &mut [Vec<(SharedFactorKind, String)>],
+) -> Result<(), ChainRefusal> {
+    let k = estimates.len();
+    let ledger = ledger.ok_or_else(|| {
+        family_refusal(
+            "propagation_chain.family_authority",
+            "a ledger overlap needs the ledger that holds the authorizing sources",
+            None,
+        )
+    })?;
+    let mut rows_used = Vec::with_capacity(k);
+    for estimate in estimates {
+        let id = estimate.authority.ok_or_else(|| {
+            family_refusal(
+                "propagation_chain.family_authority",
+                "a ledger overlap needs the authorizing source of every estimate",
+                Some(&estimate.id),
+            )
+        })?;
+        let source = ledger.source(id).ok_or_else(|| {
+            family_refusal(
+                "propagation_chain.family_authority",
+                "the authorizing source is not in the ledger",
+                Some(&estimate.id),
+            )
+        })?;
+        if !matches!(source.status, SourceStatus::Active) {
+            return Err(ChainRefusal::new(
+                antecedent_core::reason_code!("invalid_argument"),
+                "propagation_chain.family_authority",
+                "a retired source cannot seed a chain",
+                Some(&estimate.id),
+                antecedent_contract::propagation_chain::RERUN_WITHOUT_WITHDRAWN_SOURCE,
+            ));
+        }
+        let known = source.effective.known().ok_or_else(|| {
+            ChainRefusal::new(
+                antecedent_core::reason_code!("evidence_overlap_unknown"),
+                "propagation_chain.family_dependence",
+                "the authorizing source declares no observations, so its overlap is unknown",
+                Some(&estimate.id),
+                antecedent_contract::propagation_chain::DECLARE_SHARED_FACTORS,
+            )
+        })?;
+        rows_used.push(known.len());
+    }
+    for i in 0..k {
+        for j in (i + 1)..k {
+            let (a, b) = (estimates[i].authority, estimates[j].authority);
+            let (Some(a), Some(b)) = (a, b) else { continue };
+            let shared = ledger
+                .shared_observations(a, b)
+                .map_err(|error| authority_refusal(&error, &estimates[i].id))?
+                .len();
+            let correlation =
+                antecedent_stats::shared_row_correlation(rows_used[i], rows_used[j], shared)
+                    .map_err(|error| {
+                        family_refusal(
+                            "propagation_chain.family_covariance",
+                            error.to_string(),
+                            Some(&estimates[i].id),
+                        )
+                    })?;
+            let term = correlation * standard_error[i] * standard_error[j];
+            covariance[i * k + j] = term;
+            covariance[j * k + i] = term;
+            if shared > 0 {
+                let (low, high) = if a.to_hex() <= b.to_hex() {
+                    (a.to_hex(), b.to_hex())
+                } else {
+                    (b.to_hex(), a.to_hex())
+                };
+                let factor = format!("ledger-rows:{low}:{high}");
+                derived[i].push((SharedFactorKind::Row, factor.clone()));
+                derived[j].push((SharedFactorKind::Row, factor));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Check the declared covariance against the same dependence factors used by the chain rule.
+fn check_family_dependence(
+    estimates: &[FamilyEstimate],
+    sources: &[DependenceSource],
+    dependence: &FamilyDependence,
+    standard_error: &[f64],
+    covariance: &[f64],
+) -> Result<(), ChainRefusal> {
+    let k = estimates.len();
+    match dependence {
+        FamilyDependence::Independent => {
+            DependenceContract::try_claim_independent(sources)
+                .map_err(|error| dependence_refusal(&error))?;
+        }
+        FamilyDependence::Covariance(_) => {
+            for i in 0..k {
+                for j in (i + 1)..k {
+                    let pair =
+                        DependenceContract::assess(&[sources[i].clone(), sources[j].clone()])
+                            .map_err(|error| dependence_refusal(&error))?;
+                    let shares = !pair.shared_factors().is_empty();
+                    let term = covariance[i * k + j];
+                    let live = standard_error[i] > 0.0 && standard_error[j] > 0.0;
+                    if live && term != 0.0 && !shares {
+                        return Err(ChainRefusal::new(
+                            antecedent_core::reason_code!("evidence_overlap_unknown"),
+                            "propagation_chain.family_dependence",
+                            "a nonzero covariance names the evidence the two estimates share; declare the shared factor",
+                            Some(&estimates[i].id),
+                            antecedent_contract::propagation_chain::DECLARE_SHARED_FACTORS,
+                        ));
+                    }
+                    if live && term == 0.0 && shares {
+                        return Err(ChainRefusal::new(
+                            antecedent_core::reason_code!("evidence_double_counted"),
+                            "propagation_chain.family_dependence",
+                            "two estimates share declared evidence but the covariance counts it as independent",
+                            Some(&estimates[i].id),
+                            antecedent_contract::propagation_chain::POOL_WITH_JOINT_COVARIANCE,
+                        ));
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 #[cfg(test)]

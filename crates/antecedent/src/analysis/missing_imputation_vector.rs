@@ -247,9 +247,9 @@ fn scalar_coordinates(result: &StudyResult) -> Result<Extracted, CausalError> {
 fn response_vector(value: &ResponseValue) -> Result<Vec<f64>, CausalError> {
     let point: Vec<f64> = match value {
         ResponseValue::Scalar(x) => vec![*x],
-        ResponseValue::Surface { mean, .. } => mean.to_vec(),
-        ResponseValue::Vector(values) => values.to_vec(),
-        ResponseValue::Jacobian { values, .. } => values.to_vec(),
+        ResponseValue::Surface { mean: values, .. }
+        | ResponseValue::Vector(values)
+        | ResponseValue::Jacobian { values, .. } => values.to_vec(),
         ResponseValue::Envelope(_) => {
             return Err(refused(
                 "a partially identified response envelope is an identified set, not a point to pool",
@@ -644,9 +644,9 @@ fn apply_response(result: &mut StudyResult, pooled: &RubinVectorPooled) -> Resul
     let scalar = matches!(value, ResponseValue::Scalar(_));
     match value {
         ResponseValue::Scalar(x) => *x = pooled.point[0],
-        ResponseValue::Surface { mean, .. } => *mean = Arc::from(pooled.point.clone()),
-        ResponseValue::Vector(values) => *values = Arc::from(pooled.point.clone()),
-        ResponseValue::Jacobian { values, .. } => *values = Arc::from(pooled.point.clone()),
+        ResponseValue::Surface { mean: values, .. }
+        | ResponseValue::Vector(values)
+        | ResponseValue::Jacobian { values, .. } => *values = Arc::from(pooled.point.clone()),
         ResponseValue::Envelope(_) => {
             return Err(refused("a response envelope is not pooled"));
         }
@@ -755,7 +755,7 @@ fn requested_component(query: &CausalQuery) -> usize {
 }
 
 /// Take the next `n` means of the pooled extras.
-fn take_extras<'a>(extras: &mut std::slice::Iter<'a, f64>) -> Option<f64> {
+fn take_extras(extras: &mut std::slice::Iter<'_, f64>) -> Option<f64> {
     extras.next().copied()
 }
 
@@ -1045,9 +1045,9 @@ fn apply_credible_response(
     let scalar = matches!(value, ResponseValue::Scalar(_));
     match value {
         ResponseValue::Scalar(x) => *x = means[0],
-        ResponseValue::Surface { mean, .. } => *mean = Arc::from(means.clone()),
-        ResponseValue::Vector(values) => *values = Arc::from(means.clone()),
-        ResponseValue::Jacobian { values, .. } => *values = Arc::from(means.clone()),
+        ResponseValue::Surface { mean: values, .. }
+        | ResponseValue::Vector(values)
+        | ResponseValue::Jacobian { values, .. } => *values = Arc::from(means.clone()),
         ResponseValue::Envelope(_) => return Err(refused("a response envelope is not pooled")),
     }
     let tail = 0.5 * (1.0 - level);
@@ -1195,6 +1195,49 @@ struct Pooling {
     digest: Arc<str>,
 }
 
+/// Publish the multivariate Rubin moments and joint Wald summary without changing
+/// the separate scalar coordinate reported by the route.
+fn rubin_vector_report(
+    pooled: &RubinVectorPooled,
+    labels: Arc<[Arc<str>]>,
+    points: Arc<[Arc<[f64]>]>,
+    covariance_basis: &str,
+    extras: Arc<[ImputationExtra]>,
+) -> ImputationVectorReport {
+    let p = pooled.dim;
+    let wald = pooled.wald(&vec![0.0; p]).ok().map(|wald| ImputationWald {
+        null: Arc::from(vec![0.0; p]),
+        statistic: wald.statistic,
+        df_numerator: wald.df_numerator,
+        df_denominator: wald.df_denominator,
+    });
+    ImputationVectorReport {
+        labels,
+        covariance_basis: Arc::from(covariance_basis),
+        points,
+        point: Arc::from(pooled.point.clone()),
+        within: Arc::from(pooled.within.clone()),
+        between: Arc::from(pooled.between.clone()),
+        total: Arc::from(pooled.total.clone()),
+        coordinate_df: pooled
+            .coordinates
+            .iter()
+            .map(|c| c.df.is_finite().then_some(c.df))
+            .collect(),
+        coordinate_fraction_missing_information: pooled
+            .coordinates
+            .iter()
+            .map(|c| Some(c.fraction_missing_information))
+            .collect(),
+        average_relative_increase: pooled
+            .average_relative_increase
+            .is_finite()
+            .then_some(pooled.average_relative_increase),
+        wald,
+        extras,
+    }
+}
+
 /// Pool the collected fits into the first table's result and build the report.
 fn pool_into_result(
     study: &Study,
@@ -1215,39 +1258,8 @@ fn pool_into_result(
     let report = match &run.pooled {
         PooledVectorEstimate::Rubin(pooled) => {
             apply_frequentist(&mut result, &study.query, pooled, &extra_means)?;
-            let p = pooled.dim;
-            let wald = pooled.wald(&vec![0.0; p]).ok().map(|wald| ImputationWald {
-                null: Arc::from(vec![0.0; p]),
-                statistic: wald.statistic,
-                df_numerator: wald.df_numerator,
-                df_denominator: wald.df_denominator,
-            });
+            let vector = rubin_vector_report(pooled, labels, points, collected.basis, extras_view);
             let first = &pooled.coordinates[0];
-            let vector = ImputationVectorReport {
-                labels,
-                covariance_basis: Arc::from(collected.basis),
-                points,
-                point: Arc::from(pooled.point.clone()),
-                within: Arc::from(pooled.within.clone()),
-                between: Arc::from(pooled.between.clone()),
-                total: Arc::from(pooled.total.clone()),
-                coordinate_df: pooled
-                    .coordinates
-                    .iter()
-                    .map(|c| c.df.is_finite().then_some(c.df))
-                    .collect(),
-                coordinate_fraction_missing_information: pooled
-                    .coordinates
-                    .iter()
-                    .map(|c| Some(c.fraction_missing_information))
-                    .collect(),
-                average_relative_increase: pooled
-                    .average_relative_increase
-                    .is_finite()
-                    .then_some(pooled.average_relative_increase),
-                wald,
-                extras: extras_view,
-            };
             ImputationReport {
                 spec: meta.spec,
                 unit: Arc::clone(&meta.unit),
@@ -1382,6 +1394,12 @@ fn dense_groups(labels: &[Arc<str>]) -> Arc<[u32]> {
     Arc::from(groups)
 }
 
+/// Imputation must retain both the realized assignment and its sampling units.
+struct RandomizedImputationDesign {
+    columns: Vec<ImputationColumn>,
+    groups: Option<Arc<[u32]>>,
+}
+
 /// The complete columns and sampling groups a randomized design adds to the imputation model:
 /// the arm each row was assigned (which the table does not hold, and without which an outcome
 /// would be imputed as if it were unaffected by assignment) and, under a declared clustered
@@ -1389,9 +1407,9 @@ fn dense_groups(labels: &[Arc<str>]) -> Arc<[u32]> {
 fn randomized_design(
     study: &Study,
     rows: usize,
-) -> Result<(Vec<ImputationColumn>, Option<Arc<[u32]>>), CausalError> {
+) -> Result<RandomizedImputationDesign, CausalError> {
     let CausalQuery::RandomizedEffect(query) = &study.query else {
-        return Ok((Vec::new(), None));
+        return Ok(RandomizedImputationDesign { columns: Vec::new(), groups: None });
     };
     if query.realized_assignment.len() != rows {
         return Err(refused("the randomized assignment does not align with the table rows"));
@@ -1410,7 +1428,7 @@ fn randomized_design(
         }
         _ => None,
     };
-    Ok((vec![column], groups))
+    Ok(RandomizedImputationDesign { columns: vec![column], groups })
 }
 
 /// Impute, fit with `click` on every completed table, and pool the coordinates jointly.
@@ -1440,7 +1458,8 @@ where
         .filter(|row| row.supports(declaration.policy))
         .ok_or_else(|| refused("this route cell does not execute multiple imputation"))?;
     let bayesian = study.inference.is_bayesian();
-    let (extra, groups) = randomized_design(study, data.row_count())?;
+    let RandomizedImputationDesign { columns: extra, groups } =
+        randomized_design(study, data.row_count())?;
     let (imputer, ids) = build_imputer_with(study, declaration, spec, data, extra, groups)?;
     let imputed: Vec<usize> = imputer
         .variables()
@@ -1647,7 +1666,8 @@ pub(crate) fn declared_assumptions_digest(study: &Study) -> Option<String> {
     let (declaration, spec) = declared_imputation(study)?;
     let imputer = match &study.data {
         DataInput::Tabular(data) => {
-            let (extra, groups) = randomized_design(study, data.row_count()).ok()?;
+            let RandomizedImputationDesign { columns: extra, groups } =
+                randomized_design(study, data.row_count()).ok()?;
             build_imputer_with(study, declaration, spec, data, extra, groups).ok()?.0
         }
         DataInput::Temporal(series) => series_imputer(study, declaration, spec, series).ok()?.0,

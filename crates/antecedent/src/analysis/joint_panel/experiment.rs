@@ -939,59 +939,15 @@ fn rank_law_next_studies<A: serde::Serialize>(
             "each regime-specific study needs one finite experimental mean per retained draw slot",
         ));
     }
-    let mut action_size = law::WireCounter(0);
-    serde_json::to_writer(&mut action_size, &problem.actions)
-        .map_err(|error| JointPanelError::compile(error.to_string()))?;
-    let projection_bytes = projection_retained_bytes(receipt.projection.as_deref())?
-        .checked_add(action_size.0.checked_mul(2).ok_or_else(|| {
-            JointPanelError::compile("action-domain serialization quote overflow")
-        })?)
-        .and_then(|n| n.checked_add(std::any::type_name::<A>().len()))
-        .and_then(|n| n.checked_add(256))
-        .ok_or_else(|| JointPanelError::compile("future-study shared ownership quote overflow"))?;
-    let output_bytes = candidates
-        .iter()
-        .try_fold(projection_bytes, |bytes, candidate| {
-            bytes
-                .checked_add(std::mem::size_of::<PanelFutureSampleValue>())?
-                .checked_add(candidate.id.len())
-        })
-        .and_then(|bytes| u64::try_from(bytes).ok())
-        .ok_or_else(|| JointPanelError::compile("future-study output quote overflow"))?;
-    let output_retention = Arc::new(admit(ctx, output_bytes)?);
-    let mut action_writer =
-        antecedent_core::CanonicalWriter::new("antecedent.future_study.explicit_action_domain.v1");
-    action_writer
-        .bytes(receipt.question_identity.as_bytes())
-        .text(std::any::type_name::<A>())
-        .bytes(
-            &serde_json::to_vec(&problem.actions)
-                .map_err(|error| JointPanelError::compile(error.to_string()))?,
-        );
-    let admissible_action_identity = SemanticDigest::from_bytes(action_writer.finish());
+    let output_retention = future_study_output_retention(receipt, problem, candidates, ctx)?;
+    let admissible_action_identity = future_study_action_identity(receipt, problem)?;
     let projection = receipt.projection.clone();
     let width = coefficients.len();
     let weights =
         law.metadata().weights.as_ref().ok_or_else(|| {
             JointPanelError::compile("conditional law must retain posterior weights")
         })?;
-    // The existing decision owner retains both its action-by-state utility table
-    // and the corresponding regret gaps, in addition to aligned response states.
-    let action_cells = problem
-        .actions
-        .len()
-        .checked_mul(weights.len())
-        .and_then(|cells| cells.checked_mul(3))
-        .ok_or_else(|| JointPanelError::compile("preposterior action table quote overflow"))?;
-    let bytes = law
-        .draws()
-        .len()
-        .checked_mul(3)
-        .and_then(|cells| cells.checked_add(action_cells))
-        .and_then(|cells| cells.checked_add(weights.len().checked_mul(16)?))
-        .and_then(|cells| cells.checked_mul(8))
-        .and_then(|n| u64::try_from(n).ok())
-        .ok_or_else(|| JointPanelError::compile("preposterior quote overflow"))?;
+    let bytes = future_preposterior_bytes(law, problem.actions.len(), weights.len())?;
     let _lease = admit(ctx, bytes)?;
     let states = law
         .draws()
@@ -1061,6 +1017,27 @@ fn rank_law_next_studies<A: serde::Serialize>(
             .then_with(|| left.id.cmp(&right.id))
     });
     Ok(rows)
+}
+
+fn future_preposterior_bytes(
+    law: &DistributionArtifact,
+    n_actions: usize,
+    n_weights: usize,
+) -> Result<u64, JointPanelError> {
+    // The existing decision owner retains both its action-by-state utility table
+    // and the corresponding regret gaps, in addition to aligned response states.
+    let action_cells = n_actions
+        .checked_mul(n_weights)
+        .and_then(|cells| cells.checked_mul(3))
+        .ok_or_else(|| JointPanelError::compile("preposterior action table quote overflow"))?;
+    law.draws()
+        .len()
+        .checked_mul(3)
+        .and_then(|cells| cells.checked_add(action_cells))
+        .and_then(|cells| cells.checked_add(n_weights.checked_mul(16)?))
+        .and_then(|cells| cells.checked_mul(8))
+        .and_then(|n| u64::try_from(n).ok())
+        .ok_or_else(|| JointPanelError::compile("preposterior quote overflow"))
 }
 
 fn admit(
@@ -1154,4 +1131,50 @@ impl PanelExperimentResult {
         }
         Ok(self.clone())
     }
+}
+
+/// Admit all retained result rows and their shared action-domain/projection ownership.
+fn future_study_output_retention<A: serde::Serialize>(
+    receipt: &ExperimentRankingReceipt,
+    problem: &DecisionProblem<A, PanelExperimentDecisionState>,
+    candidates: &[PanelFutureSample],
+    ctx: &ExecutionContext,
+) -> Result<Arc<antecedent_core::execution::AdmissionLease>, JointPanelError> {
+    let mut action_size = law::WireCounter(0);
+    serde_json::to_writer(&mut action_size, &problem.actions)
+        .map_err(|error| JointPanelError::compile(error.to_string()))?;
+    let projection_bytes = projection_retained_bytes(receipt.projection.as_deref())?
+        .checked_add(action_size.0.checked_mul(2).ok_or_else(|| {
+            JointPanelError::compile("action-domain serialization quote overflow")
+        })?)
+        .and_then(|n| n.checked_add(std::any::type_name::<A>().len()))
+        .and_then(|n| n.checked_add(256))
+        .ok_or_else(|| JointPanelError::compile("future-study shared ownership quote overflow"))?;
+    let output_bytes = candidates
+        .iter()
+        .try_fold(projection_bytes, |bytes, candidate| {
+            bytes
+                .checked_add(std::mem::size_of::<PanelFutureSampleValue>())?
+                .checked_add(candidate.id.len())
+        })
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .ok_or_else(|| JointPanelError::compile("future-study output quote overflow"))?;
+    Ok(Arc::new(admit(ctx, output_bytes)?))
+}
+
+/// Bind the actual serialized admissible actions, their Rust type, and the ranking question.
+fn future_study_action_identity<A: serde::Serialize>(
+    receipt: &ExperimentRankingReceipt,
+    problem: &DecisionProblem<A, PanelExperimentDecisionState>,
+) -> Result<SemanticDigest, JointPanelError> {
+    let mut action_writer =
+        antecedent_core::CanonicalWriter::new("antecedent.future_study.explicit_action_domain.v1");
+    action_writer
+        .bytes(receipt.question_identity.as_bytes())
+        .text(std::any::type_name::<A>())
+        .bytes(
+            &serde_json::to_vec(&problem.actions)
+                .map_err(|error| JointPanelError::compile(error.to_string()))?,
+        );
+    Ok(SemanticDigest::from_bytes(action_writer.finish()))
 }

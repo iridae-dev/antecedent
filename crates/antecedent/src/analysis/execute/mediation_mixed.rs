@@ -24,12 +24,18 @@ use antecedent_graph::Admg;
 
 use super::{
     CausalError, CausalPosterior, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    EffectEstimate, EstimatorId, ExecutionContext, IdentificationResult, IdentifiedExecuteExtras,
-    IdentifiedExecuteFinish, IdentifiedEstimand, IdentifierId, Instant, PathSpecificMixedSource,
-    PhysicalExecutionPlan, Strategy, StudyResult, TabularData, elapsed_ns,
+    EffectEstimate, EstimatorId, ExecutionContext, IdentificationResult, IdentifiedEstimand,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, Instant,
+    PathSpecificMixedSource, PhysicalExecutionPlan, Strategy, StudyResult, TabularData, elapsed_ns,
     identify_admg_query, report_identify_compute, run_functional, select_estimand,
 };
 use crate::planner::RouteDefaults;
+
+/// Aligned preparation and fitted uncertainty for every mediation component slot.
+struct ComponentFits {
+    prepared: Vec<Option<antecedent_estimate::PreparedFunctionalEffect>>,
+    estimates: Vec<Option<(EffectEstimate, Option<CausalPosterior>)>>,
+}
 
 /// Stable code of the joint-uncertainty disclosure.
 const JOINT_CODE: &str = "estimate.mediation.joint";
@@ -252,87 +258,15 @@ impl super::Study {
             ..FunctionalEffect::new()
         }
         .with_row_resampling(row_resampling, sampling_design);
-        let mut prepared = Vec::new();
-        for entry in &identified {
-            prepared.push(match entry {
-                Some((identification, estimand)) => Some(
-                    fitter
-                        .prepare(
-                            data,
-                            estimand,
-                            &identification.arena,
-                            identification.required_assumptions.clone(),
-                            &roles,
-                        )
-                        .map_err(CausalError::from)?,
-                ),
-                None => None,
-            });
-        }
-        let refs: Vec<&antecedent_estimate::PreparedFunctionalEffect> =
-            prepared.iter().flatten().collect();
-        fitter.assert_same_rows(&refs).map_err(CausalError::from)?;
-
-        let mut estimates: Vec<Option<(EffectEstimate, Option<CausalPosterior>)>> = Vec::new();
-        for (entry, prepared) in identified.iter().zip(&prepared) {
-            estimates.push(match (entry, prepared) {
-                (Some((identification, _)), Some(prepared)) => Some(run_functional(
-                    &fitter,
-                    prepared,
-                    &self.inference,
-                    identification.status,
-                    ctx,
-                )?),
-                _ => None,
-            });
-        }
+        let ComponentFits { prepared, mut estimates } =
+            self.fit_mediation_components(data, &fitter, &identified, &roles, ctx)?;
 
         // Paired draws: the bootstrap replicates (frequentist) or the Dirichlet draws
         // (Bayesian) of every identified component, evaluated at the same resampled tables.
         let mut diagnostics = extra_diagnostics;
-        let present: Vec<usize> =
-            (0..COMPONENTS.len()).filter(|&i| estimates[i].is_some()).collect();
-        if self.inference.is_bayesian() {
-            let columns: Vec<(&str, &[f64])> = present
-                .iter()
-                .filter_map(|&i| {
-                    estimates[i]
-                        .as_ref()
-                        .and_then(|(_, posterior)| posterior.as_ref())
-                        .map(|p| (COMPONENTS[i].1, p.draws.values.as_ref()))
-                })
-                .collect();
-            if let Some((_, first)) = columns.first() {
-                if columns.iter().all(|(_, values)| values.len() == first.len()) {
-                    diagnostics.push(joint_diagnostic(
-                        &columns,
-                        first.len(),
-                        "Bayesian-bootstrap",
-                        structure,
-                    ));
-                }
-            }
-        } else if self.bootstrap_replicates > 0 {
-            let refs: Vec<&antecedent_estimate::PreparedFunctionalEffect> =
-                present.iter().filter_map(|&i| prepared[i].as_ref()).collect();
-            let rows = fitter.shared_replicate_draws(&refs, ctx).map_err(CausalError::from)?;
-            if rows.len() > 1 {
-                let columns: Vec<Vec<f64>> = (0..present.len())
-                    .map(|c| rows.iter().map(|row| row[c]).collect())
-                    .collect();
-                let named: Vec<(&str, &[f64])> = present
-                    .iter()
-                    .zip(&columns)
-                    .map(|(&i, values)| (COMPONENTS[i].1, values.as_slice()))
-                    .collect();
-                diagnostics.push(joint_diagnostic(
-                    &named,
-                    rows.len(),
-                    "circular-block or row bootstrap",
-                    structure,
-                ));
-            }
-        }
+        diagnostics.extend(
+            self.component_joint_diagnostics(&fitter, &prepared, &estimates, structure, ctx)?,
+        );
 
         // The mediation-native suite refits every identified component together; it reads the
         // proofs before the requested one is taken out below.
@@ -365,12 +299,8 @@ impl super::Study {
             CausalError::Compile { message: "requested contrast has no proof".into() }
         })?;
         identification.query = self.query.clone();
-        let decomposition = TemporalMediationEstimate {
-            effect: estimate.clone(),
-            total,
-            direct,
-            mediated,
-        };
+        let decomposition =
+            TemporalMediationEstimate { effect: estimate.clone(), total, direct, mediated };
         Ok(self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
@@ -394,6 +324,108 @@ impl super::Study {
                 ..Default::default()
             }),
         ))
+    }
+
+    fn fit_mediation_components(
+        &self,
+        data: &TabularData,
+        fitter: &FunctionalEffect,
+        identified: &[Option<(IdentificationResult, IdentifiedEstimand)>],
+        roles: &[VariableId],
+        ctx: &ExecutionContext,
+    ) -> Result<ComponentFits, CausalError> {
+        let mut prepared = Vec::new();
+        for entry in identified {
+            prepared.push(match entry {
+                Some((identification, estimand)) => Some(
+                    fitter
+                        .prepare(
+                            data,
+                            estimand,
+                            &identification.arena,
+                            identification.required_assumptions.clone(),
+                            roles,
+                        )
+                        .map_err(CausalError::from)?,
+                ),
+                None => None,
+            });
+        }
+        let refs: Vec<&antecedent_estimate::PreparedFunctionalEffect> =
+            prepared.iter().flatten().collect();
+        fitter.assert_same_rows(&refs).map_err(CausalError::from)?;
+
+        let mut estimates: Vec<Option<(EffectEstimate, Option<CausalPosterior>)>> = Vec::new();
+        for (entry, prepared) in identified.iter().zip(&prepared) {
+            estimates.push(match (entry, prepared) {
+                (Some((identification, _)), Some(prepared)) => Some(run_functional(
+                    fitter,
+                    prepared,
+                    &self.inference,
+                    identification.status,
+                    ctx,
+                )?),
+                _ => None,
+            });
+        }
+
+        Ok(ComponentFits { prepared, estimates })
+    }
+
+    /// Publish the paired component law on the same draws or resampled tables.
+    fn component_joint_diagnostics(
+        &self,
+        fitter: &FunctionalEffect,
+        prepared: &[Option<antecedent_estimate::PreparedFunctionalEffect>],
+        estimates: &[Option<(EffectEstimate, Option<CausalPosterior>)>],
+        structure: &str,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<Diagnostic>, CausalError> {
+        let mut diagnostics = Vec::new();
+        let present: Vec<usize> =
+            (0..COMPONENTS.len()).filter(|&i| estimates[i].is_some()).collect();
+        if self.inference.is_bayesian() {
+            let columns: Vec<(&str, &[f64])> = present
+                .iter()
+                .filter_map(|&i| {
+                    estimates[i]
+                        .as_ref()
+                        .and_then(|(_, posterior)| posterior.as_ref())
+                        .map(|p| (COMPONENTS[i].1, p.draws.values.as_ref()))
+                })
+                .collect();
+            if let Some((_, first)) = columns.first() {
+                if columns.iter().all(|(_, values)| values.len() == first.len()) {
+                    diagnostics.push(joint_diagnostic(
+                        &columns,
+                        first.len(),
+                        "Bayesian-bootstrap",
+                        structure,
+                    ));
+                }
+            }
+        } else if self.bootstrap_replicates > 0 {
+            let refs: Vec<&antecedent_estimate::PreparedFunctionalEffect> =
+                present.iter().filter_map(|&i| prepared[i].as_ref()).collect();
+            let rows = fitter.shared_replicate_draws(&refs, ctx).map_err(CausalError::from)?;
+            if rows.len() > 1 {
+                let columns: Vec<Vec<f64>> =
+                    (0..present.len()).map(|c| rows.iter().map(|row| row[c]).collect()).collect();
+                let named: Vec<(&str, &[f64])> = present
+                    .iter()
+                    .zip(&columns)
+                    .map(|(&i, values)| (COMPONENTS[i].1, values.as_slice()))
+                    .collect();
+                diagnostics.push(joint_diagnostic(
+                    &named,
+                    rows.len(),
+                    "circular-block or row bootstrap",
+                    structure,
+                ));
+            }
+        }
+
+        Ok(diagnostics)
     }
 
     /// The mediation decomposition over a CPDAG or a PAG: each contrast is the class result of

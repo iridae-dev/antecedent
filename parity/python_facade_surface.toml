@@ -643,6 +643,13 @@ status = "bound"
 python = "native:python/src/discovered_transport_api.rs"
 
 [[entry]]
+rust = "antecedent::analysis::discovered_transport::transport_discovered_structure_with_context"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport.discovered.discover_and_transport"
+detail = "The discovery-and-transport workflow executes this contextual structural stage with the same caller context; the standalone retained-outcome wrapper preserves its established defaults."
+
+[[entry]]
 rust = "antecedent::analysis::discovered_transport_estimate::estimate_discovered_transport"
 kind = "fn"
 status = "bound"

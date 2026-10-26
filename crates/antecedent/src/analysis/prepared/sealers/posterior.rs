@@ -60,7 +60,7 @@ pub(super) fn bayesian_class_conditional(cx: &SealContext<'_>) -> SealOutcome {
 }
 
 pub(super) fn bayesian_temporal_class_effect(cx: &SealContext<'_>) -> SealOutcome {
-    Ok(Study::seal_bayesian_temporal_class_effect(cx.analysis, cx.plan)?
+    Ok(Study::seal_bayesian_temporal_class_effect(cx.analysis, cx.plan, cx.ctx)?
         .map(PreparedExecution::BayesianTemporalClassEffect))
 }
 
@@ -70,8 +70,12 @@ pub(super) fn temporal_graph_posterior_effect(cx: &SealContext<'_>) -> SealOutco
 }
 
 pub(super) fn bayesian_specialist(cx: &SealContext<'_>) -> SealOutcome {
-    Ok(crate::analysis::execute::CheckedBayesianSpecialistOperation::checked(cx.analysis, cx.plan)?
-        .map(PreparedExecution::BayesianSpecialist))
+    Ok(crate::analysis::execute::CheckedBayesianSpecialistOperation::checked(
+        cx.analysis,
+        cx.plan,
+        cx.ctx,
+    )?
+    .map(PreparedExecution::BayesianSpecialist))
 }
 
 pub(super) fn transport_trial(cx: &SealContext<'_>) -> SealOutcome {
