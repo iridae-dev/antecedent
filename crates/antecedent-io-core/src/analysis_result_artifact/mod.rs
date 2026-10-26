@@ -1265,6 +1265,22 @@ pub struct AnalysisResultWire {
     /// Upper endpoint of a published Anderson–Rubin set. May be infinite.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interval_upper: Option<f64>,
+    /// Joint score-family covariance retained by the producing execution. Its values
+    /// are sealed evidence; a standalone scalar program cannot replay the other members.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub joint_covariance: Option<crate::JointCovarianceWire>,
+    /// Nominal simultaneous interval of this member (lower, upper, level).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub simultaneous_interval: Option<(f64, f64, f64)>,
+    /// Family BH and BY adjusted p-values, when published.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub adjusted_p_values: Option<(f64, f64)>,
+    /// Declared score-family contrast (value, standard error).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub family_contrast: Option<(f64, f64)>,
+    /// Nominal simultaneous contrast interval (lower, upper, level).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub family_contrast_interval: Option<(f64, f64, f64)>,
     /// Estimation assumptions.
     pub assumptions: Vec<AssumptionRecordWire>,
     /// Execution and scientific diagnostics.

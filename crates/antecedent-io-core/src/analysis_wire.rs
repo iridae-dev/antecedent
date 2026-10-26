@@ -27,6 +27,16 @@ use crate::trace::{
     AssumptionRecordWire, DerivationStepWire, assumptions_from_wire, assumptions_to_wire,
 };
 
+/// Joint covariance, column-major.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct JointCovarianceWire {
+    /// Number of functionals.
+    pub dim: usize,
+    /// Covariance entries.
+    pub values: Vec<f64>,
+}
+
 /// Sharp RD design on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]

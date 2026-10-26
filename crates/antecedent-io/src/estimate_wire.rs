@@ -14,6 +14,7 @@ use antecedent_estimate::{
 use antecedent_validate::RefutationReport;
 use serde::{Deserialize, Serialize};
 
+pub use antecedent_io_core::analysis_wire::JointCovarianceWire;
 use antecedent_io_core::analysis_wire::RefutationReportWire;
 
 use crate::error::IoError;
@@ -240,16 +241,6 @@ pub struct CandidateSelectionWire {
     pub disjoint: bool,
 }
 
-/// Joint covariance, column-major.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct JointCovarianceWire {
-    /// Number of functionals.
-    pub dim: usize,
-    /// Covariance entries.
-    pub values: Vec<f64>,
-}
-
 /// Simultaneous inference over a declared score family.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[allow(
@@ -391,7 +382,9 @@ pub struct FirstStageDiagnosticsWire {
 #[must_use]
 pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
     let (overlap_policy, overlap_clip, overlap_trim) = match e.provenance.overlap {
-        OverlapPolicy::ExplicitOverride => (EstimateOverlapPolicyWire::ExplicitOverride, None, None),
+        OverlapPolicy::ExplicitOverride => {
+            (EstimateOverlapPolicyWire::ExplicitOverride, None, None)
+        }
         OverlapPolicy::RequireDiagnostics { clip, trim } => {
             (EstimateOverlapPolicyWire::RequireDiagnostics, clip, trim)
         }
@@ -516,9 +509,7 @@ fn score_table_to_wire(table: &antecedent_estimate::ScoreTable) -> ScoreTableWir
     }
 }
 
-fn score_table_from_wire(
-    wire: ScoreTableWire,
-) -> Result<antecedent_estimate::ScoreTable, IoError> {
+fn score_table_from_wire(wire: ScoreTableWire) -> Result<antecedent_estimate::ScoreTable, IoError> {
     let domain = antecedent_estimate::ScoreTableWire {
         observed_arm: wire.observed_arm,
         propensities: wire.propensities,

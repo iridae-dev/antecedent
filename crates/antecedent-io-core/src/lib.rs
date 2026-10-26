@@ -94,8 +94,8 @@ pub mod provider_verification_artifact;
 pub mod quantity_wire;
 pub mod query_wire;
 pub mod reader;
-pub mod replay_tolerance;
 pub mod recalc_receipt_artifact;
+pub mod replay_tolerance;
 pub mod response_wire;
 pub mod rollout_query_wire;
 pub mod scientific_target_wire;
@@ -137,8 +137,9 @@ pub use analysis_result_artifact::{
 };
 pub use analysis_wire::{
     DiagnosticWire, HedgeCertificateWire, IdentificationResultWire, IdentifiedEstimandWire,
-    RdDesignWire, RefutationReportWire, diagnostic_from_wire, diagnostic_to_wire,
-    identification_from_wire, identification_to_wire, identification_to_wire_with_registry,
+    JointCovarianceWire, RdDesignWire, RefutationReportWire, diagnostic_from_wire,
+    diagnostic_to_wire, identification_from_wire, identification_to_wire,
+    identification_to_wire_with_registry,
 };
 pub use artifact_codec::{
     ArtifactCheckError, ArtifactContainer, CONTENT_BYTES, CONTENT_CBOR, CodecError, ConsumeLimits,
@@ -208,17 +209,16 @@ pub use identity::{
     AdaptiveBudgetWire, BayesianBindingWire, CheckedFrontDoorLoweringWire,
     CheckedFunctionalResponseGridWire, CheckedFunctionalResponseMemberWire,
     CheckedLinearAdjustmentLoweringWire, CheckedNestedCounterfactualWire, ClassPriorIdentityWire,
-    GRAPH_POSTERIOR_MIXING_RULE, GraphPosteriorAtomProgramWire, GraphPosteriorProgramsWire,
     DataPartitionIdentityWire, DataSnapshotIdentityWire, DistributionFactorDomainWire,
     DistributionFactorKeyWire, DistributionFactorLawsWire, DistributionFactorRowWire,
     DistributionFactorTableWire, EstimatorConfigWire, EstimatorSpecWire, ExecutionIdentityWire,
-    ExternalComposeIdentityWire, ExternalPriorSourceIdentityWire, GlmOptionsWire,
-    GraphIdentityWire, IdentificationEnvelopeWire, IdentificationIdentityWire,
-    IdentificationProductWire, ImputationSpecWire, InferenceBindingWire,
-    InferentialCommitmentsWire, InterferenceSnapshotWire, KernelPolicyWire, LinearFitMomentsWire,
-    MissingPolicyWire, NestedCounterfactualFitWire, ObservationIdentityWire,
-    ObservationOptionsWire, OverlapPolicyWire, ParticipantBindingWire, PayloadDigestWire,
-    PosteriorAtomGraphWire, PosteriorAtomIdentityWire, PriorMappingIdentityWire,
+    ExternalComposeIdentityWire, ExternalPriorSourceIdentityWire, GRAPH_POSTERIOR_MIXING_RULE,
+    GlmOptionsWire, GraphIdentityWire, GraphPosteriorAtomProgramWire, GraphPosteriorProgramsWire,
+    IdentificationEnvelopeWire, IdentificationIdentityWire, IdentificationProductWire,
+    ImputationSpecWire, InferenceBindingWire, InferentialCommitmentsWire, InterferenceSnapshotWire,
+    KernelPolicyWire, LinearFitMomentsWire, MissingPolicyWire, NestedCounterfactualFitWire,
+    ObservationIdentityWire, ObservationOptionsWire, OverlapPolicyWire, ParticipantBindingWire,
+    PayloadDigestWire, PosteriorAtomGraphWire, PosteriorAtomIdentityWire, PriorMappingIdentityWire,
     PriorSetIdentityWire, PriorSpecIdentityWire, ProgramIdentityWire, ROW_WEIGHTS_PAYLOAD,
     RdConfigWire, ResponseOptionsWire, ScoreReuseIdentityWire, ScoreTableKey, SplitIdentityWire,
     TargetIdentityWire, TargetWeightsIdentityWire, TemporalClassIdentityWire,
@@ -283,8 +283,8 @@ pub use propagation_chain_record::{
     ChainChangeWire, ChainCoefficientWire, ChainExprTermWire, ChainFactorWire, ChainOpWire,
     ChainSourceWire, ChainStageResultWire, ChainStageWire, ChainUnaryWire,
     ConsumedPropagationChain, PROPAGATION_CHAIN_FEATURE, PROPAGATION_CHAIN_SECTION,
-    PROPAGATION_CHAIN_VERSION, PropagationChainError, PropagationChainRecordWire,
-    chain_float_bits, propagation_chain_identity,
+    PROPAGATION_CHAIN_VERSION, PropagationChainError, PropagationChainRecordWire, chain_float_bits,
+    propagation_chain_identity,
 };
 pub use provenance_wire::{
     ProvenanceGraphWire, ProvenanceNodeWire, provenance_from_wire, provenance_to_wire,

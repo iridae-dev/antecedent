@@ -70,6 +70,16 @@ pub(in crate::contract_section) fn contract_unresolved(
 ) -> Vec<ContractReason> {
     let mut unresolved = verify_stored_payloads(contract);
     note_linear_fit_replay(contract, body, &mut unresolved);
+    // This artifact seals one member's recorded family evidence, but does not carry
+    // every other query and aligned score table needed to replay family inference.
+    if body.joint_covariance.is_some()
+        || body.simultaneous_interval.is_some()
+        || body.adjusted_p_values.is_some()
+        || body.family_contrast.is_some()
+        || body.family_contrast_interval.is_some()
+    {
+        unresolved.push(ContractReason::DependenciesCheckedBatchFamilyOperation);
+    }
     note_checked_program_targets(contract, &mut unresolved);
     if contract.target.query != body.query {
         unresolved.push(ContractReason::BodyQuery);
@@ -936,13 +946,14 @@ pub(in crate::contract_section) fn note_published_claim(
             unresolved.push(ContractReason::ReasoningIdentificationMasses);
         }
         if let Some(structural) = &body.structural_response {
-            let masses_match = restated_masses_agree(slot.identified_mass, structural.identified_mass)
-                && restated_masses_agree(slot.unidentified_mass, structural.unidentified_mass)
-                && restated_masses_agree(slot.unevaluable_mass, structural.unevaluable_mass)
-                && restated_masses_agree(
-                    slot.incomplete_search_mass,
-                    structural.subsampled_out_mass,
-                );
+            let masses_match =
+                restated_masses_agree(slot.identified_mass, structural.identified_mass)
+                    && restated_masses_agree(slot.unidentified_mass, structural.unidentified_mass)
+                    && restated_masses_agree(slot.unevaluable_mass, structural.unevaluable_mass)
+                    && restated_masses_agree(
+                        slot.incomplete_search_mass,
+                        structural.subsampled_out_mass,
+                    );
             if !masses_match {
                 unresolved.push(ContractReason::ReasoningIdentificationMasses);
             }
@@ -1530,7 +1541,8 @@ pub(in crate::contract_section) fn verify_graph_posterior_programs(
             structure = Some(&samples[slot].graph);
         }
         let reported = f64::from_bits(atom.weight_bits);
-        bound &= reported.is_finite() && (reported - weight).abs() <= ATOM_WEIGHT_RELATIVE_TOLERANCE * weight.abs().max(1.0);
+        bound &= reported.is_finite()
+            && (reported - weight).abs() <= ATOM_WEIGHT_RELATIVE_TOLERANCE * weight.abs().max(1.0);
         let class_atom = matches!(
             structure,
             Some(crate::PosteriorAtomGraphWire::Cpdag(_) | crate::PosteriorAtomGraphWire::Pag(_))

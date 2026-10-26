@@ -613,3 +613,65 @@ fn validate_result_refuses_malformed_cate() {
     let err = encode_analysis_result_artifact(&bad_nan, names, "cate-nan").unwrap_err();
     assert!(err.to_string().contains("cate"), "{err}");
 }
+
+#[test]
+fn portable_family_summaries_roundtrip_without_changing_historical_absence() {
+    let legacy = fixture();
+    let old_json = serde_json::to_value(&legacy).unwrap();
+    for field in [
+        "joint_covariance",
+        "simultaneous_interval",
+        "adjusted_p_values",
+        "family_contrast",
+        "family_contrast_interval",
+    ] {
+        assert!(
+            old_json.get(field).is_none(),
+            "absent optional {field} changed historical payloads"
+        );
+    }
+    let mut body = legacy;
+    body.joint_covariance =
+        Some(crate::JointCovarianceWire { dim: 2, values: vec![1.0, 0.25, 0.25, 2.0] });
+    body.simultaneous_interval = Some((-1.0, 3.0, 0.95));
+    body.adjusted_p_values = Some((0.1, 0.2));
+    body.family_contrast = Some((0.5, 0.3));
+    body.family_contrast_interval = Some((-0.1, 1.1, 0.95));
+    let artifact =
+        encode_analysis_result_artifact(&body, vec!["a".into(), "y".into()], "family").unwrap();
+    let mut bytes = Vec::new();
+    artifact.write_to(&mut bytes).unwrap();
+    let (_, _, restored) = decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(restored, body);
+}
+
+#[test]
+fn malformed_portable_family_covariance_and_bands_are_refused() {
+    let names = vec!["a".into(), "y".into()];
+    for covariance in [
+        crate::JointCovarianceWire { dim: 2, values: vec![1.0] },
+        crate::JointCovarianceWire { dim: 2, values: vec![1.0, 0.25, 0.5, 1.0] },
+        crate::JointCovarianceWire { dim: 2, values: vec![1.0, 2.0, 2.0, 1.0] },
+        crate::JointCovarianceWire { dim: 1, values: vec![-1.0] },
+        crate::JointCovarianceWire { dim: 1, values: vec![f64::NAN] },
+    ] {
+        let mut body = fixture();
+        body.joint_covariance = Some(covariance);
+        let error =
+            encode_analysis_result_artifact(&body, names.clone(), "bad-family").unwrap_err();
+        assert!(error.to_string().contains("family inference"), "{error}");
+    }
+    let mut missing_covariance = fixture();
+    missing_covariance.simultaneous_interval = Some((0.0, 2.0, 0.95));
+    assert!(
+        encode_analysis_result_artifact(&missing_covariance, names.clone(), "band-without-family")
+            .is_err()
+    );
+    let mut missing_contrast = fixture();
+    missing_contrast.joint_covariance =
+        Some(crate::JointCovarianceWire { dim: 1, values: vec![1.0] });
+    missing_contrast.family_contrast_interval = Some((0.0, 2.0, 0.95));
+    assert!(
+        encode_analysis_result_artifact(&missing_contrast, names, "band-without-contrast").is_err()
+    );
+}

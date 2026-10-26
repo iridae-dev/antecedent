@@ -111,6 +111,16 @@ pub(super) fn body_for(
         standard_error: executed_estimate.and(published.as_ref().and_then(|p| p.standard_error)),
         interval_lower: published.as_ref().and_then(|p| p.lower),
         interval_upper: published.as_ref().and_then(|p| p.upper),
+        joint_covariance: effect.and_then(|estimate| estimate.joint.covariance.as_ref()).map(
+            |covariance| antecedent_io::JointCovarianceWire {
+                dim: covariance.dim,
+                values: covariance.values.to_vec(),
+            },
+        ),
+        simultaneous_interval: effect.and_then(|estimate| estimate.family.simultaneous_interval),
+        adjusted_p_values: effect.and_then(|estimate| estimate.family.adjusted_p_values),
+        family_contrast: effect.and_then(|estimate| estimate.family.contrast),
+        family_contrast_interval: effect.and_then(|estimate| estimate.family.contrast_interval),
         assumptions: antecedent_io::assumptions_to_wire(
             effect
                 .map_or(&result.identification.required_assumptions, |e| &e.provenance.assumptions),

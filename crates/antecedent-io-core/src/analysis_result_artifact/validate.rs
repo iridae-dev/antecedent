@@ -541,6 +541,7 @@ pub(super) fn validate_result(
         validate_unit_effects(unit_effects)?;
     }
     validate_cate_and_learner_metrics(result)?;
+    validate_family_inference(result)?;
     if let Some(structural) = &result.structural_response {
         validate_structural_response(structural, variable_names.len())?;
     }
@@ -921,6 +922,73 @@ fn validate_temporal_namespace(
             return Err(IoError::Convert(
                 "temporal namespace contains an unknown base variable or duplicate node".into(),
             ));
+        }
+    }
+    Ok(())
+}
+
+/// Validate recorded family summaries without claiming to replay their science.
+fn validate_family_inference(result: &AnalysisResultWire) -> Result<(), IoError> {
+    let invalid = |detail: &str| IoError::Convert(format!("invalid family inference: {detail}"));
+    if let Some(covariance) = &result.joint_covariance {
+        let n = covariance.dim;
+        if n == 0 || n.checked_mul(n) != Some(covariance.values.len()) {
+            return Err(invalid("covariance dimensions"));
+        }
+        if covariance.values.iter().any(|value| !value.is_finite()) {
+            return Err(invalid("covariance contains a non-finite value"));
+        }
+        let scale = covariance.values.iter().fold(0.0_f64, |scale, value| scale.max(value.abs()));
+        for i in 0..n {
+            if covariance.values[i * n + i] < 0.0 {
+                return Err(invalid("covariance has a negative variance"));
+            }
+            for j in 0..i {
+                if (covariance.values[i * n + j] - covariance.values[j * n + i]).abs()
+                    > 1e-12 * scale
+                {
+                    return Err(invalid("covariance is asymmetric"));
+                }
+            }
+        }
+        let mut factor = vec![0.0; covariance.values.len()];
+        antecedent_kernels::cholesky::cholesky_psd_into(&covariance.values, n, 1e-10, &mut factor)
+            .map_err(|_| invalid("covariance is not positive semidefinite"))?;
+    }
+    let check_interval = |interval: (f64, f64, f64)| {
+        let (lower, upper, level) = interval;
+        lower.is_finite()
+            && upper.is_finite()
+            && lower <= upper
+            && level.is_finite()
+            && level > 0.0
+            && level < 1.0
+    };
+    if let Some(interval) = result.simultaneous_interval {
+        if !check_interval(interval) || result.joint_covariance.is_none() {
+            return Err(invalid("simultaneous interval requires valid covariance and bounds"));
+        }
+    }
+    if let Some((bh, by)) = result.adjusted_p_values {
+        // Degenerate native Wald statistics are recorded as NaN, never as discoveries.
+        if [bh, by]
+            .iter()
+            .any(|value| !value.is_nan() && (!value.is_finite() || !(0.0..=1.0).contains(value)))
+        {
+            return Err(invalid("adjusted p-value is outside [0, 1]"));
+        }
+    }
+    if let Some((value, standard_error)) = result.family_contrast {
+        if !value.is_finite() || !standard_error.is_finite() || standard_error < 0.0 {
+            return Err(invalid("contrast requires a finite value and nonnegative standard error"));
+        }
+    }
+    if let Some(interval) = result.family_contrast_interval {
+        if !check_interval(interval)
+            || result.family_contrast.is_none()
+            || result.joint_covariance.is_none()
+        {
+            return Err(invalid("contrast interval requires its contrast and covariance"));
         }
     }
     Ok(())

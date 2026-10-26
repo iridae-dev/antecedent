@@ -58,6 +58,8 @@ pub enum ContractReason {
     DependenciesCheckedAdmgGraphPosteriorResponseOperation,
     /// `dependencies.checked_attribution_operation`.
     DependenciesCheckedAttributionOperation,
+    /// `dependencies.checked_batch_family_operation`.
+    DependenciesCheckedBatchFamilyOperation,
     /// `dependencies.checked_bayesian_basis_ate_operation`.
     DependenciesCheckedBayesianBasisAteOperation,
     /// `dependencies.checked_bayesian_basis_cate_operation`.
@@ -459,6 +461,9 @@ impl ContractReason {
             Self::DependenciesCheckedAttributionOperation => {
                 "dependencies.checked_attribution_operation"
             }
+            Self::DependenciesCheckedBatchFamilyOperation => {
+                "dependencies.checked_batch_family_operation"
+            }
             Self::DependenciesCheckedBayesianBasisAteOperation => {
                 "dependencies.checked_bayesian_basis_ate_operation"
             }
@@ -816,6 +821,7 @@ impl ContractReason {
                 | Self::DependenciesCheckedBayesianMediationOperation
                 | Self::DependenciesCheckedAttributionOperation
                 | Self::DependenciesCheckedBayesianDagAteOperation
+                | Self::DependenciesCheckedBatchFamilyOperation
                 | Self::DependenciesCheckedBayesianBasisAteOperation
                 | Self::DependenciesCheckedBayesianBasisCateOperation
                 | Self::DependenciesCheckedBayesianRobustAteOperation
@@ -910,6 +916,7 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::DataSnapshotObservation,
     ContractReason::DependenciesCheckedAdmgGraphPosteriorResponseOperation,
     ContractReason::DependenciesCheckedAttributionOperation,
+    ContractReason::DependenciesCheckedBatchFamilyOperation,
     ContractReason::DependenciesCheckedBayesianBasisAteOperation,
     ContractReason::DependenciesCheckedBayesianBasisCateOperation,
     ContractReason::DependenciesCheckedBayesianClassConditionalOperation,
@@ -1119,6 +1126,7 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "data_snapshot.observation",
     "dependencies.checked_admg_graph_posterior_response_operation",
     "dependencies.checked_attribution_operation",
+    "dependencies.checked_batch_family_operation",
     "dependencies.checked_bayesian_basis_ate_operation",
     "dependencies.checked_bayesian_basis_cate_operation",
     "dependencies.checked_bayesian_class_conditional_operation",

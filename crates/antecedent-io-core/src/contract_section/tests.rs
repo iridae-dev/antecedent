@@ -211,6 +211,11 @@ fn fixture_body() -> (AnalysisResultWire, TargetIdentityWire, Vec<String>) {
         interference_inference: None,
         interventional_distribution: None,
         standard_error: Some(0.1),
+        joint_covariance: None,
+        simultaneous_interval: None,
+        adjusted_p_values: None,
+        family_contrast: None,
+        family_contrast_interval: None,
         interval_lower: None,
         interval_upper: None,
         assumptions: Vec::new(),
@@ -1675,4 +1680,33 @@ fn moment_replay_inverse_is_scale_free_and_refuses_collinear_moments() {
     let mut non_finite = gram;
     non_finite[0] = f64::NAN;
     assert!(invert_linear_moments(&non_finite, 3).is_none());
+}
+
+#[test]
+fn portable_family_evidence_is_sealed_without_claiming_scalar_replay_verifies_it() {
+    let (mut body, target, names) = fixture_body();
+    body.joint_covariance = Some(crate::JointCovarianceWire { dim: 1, values: vec![0.04] });
+    body.simultaneous_interval = Some((1.6, 2.4, 0.95));
+    let contract = contract_for(target, &body);
+    let encoded = to_bytes(&body, names.clone(), Some(&contract));
+    let consumed = consume_analysis_result(&encoded).unwrap();
+    assert_eq!(consumed.body.joint_covariance, body.joint_covariance);
+    assert_eq!(consumed.body.simultaneous_interval, body.simultaneous_interval);
+    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert_eq!(
+        consumed.acceptance.unresolved.as_ref(),
+        &[std::sync::Arc::<str>::from("dependencies.checked_batch_family_operation")]
+    );
+    let before = result_digest(&body).unwrap();
+    body.joint_covariance.as_mut().unwrap().values[0] = 0.09;
+    assert_ne!(result_digest(&body).unwrap(), before);
+    assert!(
+        encode_analysis_result_artifact_with_contract(
+            &body,
+            names,
+            "tampered-family",
+            Some(&contract)
+        )
+        .is_err()
+    );
 }
