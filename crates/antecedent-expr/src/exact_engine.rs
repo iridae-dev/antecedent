@@ -216,7 +216,11 @@ impl<'a> ExactSession<'a> {
                 let num = self.slot(numerator, env)?.required()?;
                 let den = self.slot(denominator, env)?.required()?;
                 denominator_value = Some(den);
-                if den == 0.0 {
+                // Exact values are sums and products of non-negative probabilities, so a
+                // denominator's error scale is its own magnitude and it cannot cancel; the
+                // shared guard then reduces to an exact-zero test, by the same rule the
+                // compiled evaluator applies with propagated error scales.
+                if crate::extended::denominator_is_degenerate(den, den) {
                     let error =
                         self.provider.zero_denominator(self.arena, self.plan.origins[slot], env);
                     // A denominator that marginalizes this numerator's joint over a strict

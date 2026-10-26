@@ -100,7 +100,7 @@ pub use panel::{PanelData, PanelUnit, PanelUnitView};
 pub use panel_window::PopulationUnit;
 pub use pooled_frame::{
     DEFAULT_MAX_TIME_ONE_HOT_LEVELS, DummyOptions, PooledLaggedFrame, TimeDummyEncoding,
-    pool_multi_env_lagged_frame,
+    pool_multi_env_lagged_frame, pool_multi_env_lagged_frame_within,
 };
 pub use project::{IdRemap, dedupe_variable_ids};
 pub use reference::ReferencePointPolicy;

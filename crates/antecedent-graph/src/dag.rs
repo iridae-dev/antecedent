@@ -20,6 +20,9 @@ pub struct Dag {
     directed: DirectedCore,
 }
 
+/// Graph equality: the same labeled nodes in the same dense order and the same directed edge
+/// set. The order in which edges were inserted, which fixes each adjacency row's order, is not
+/// part of the graph.
 impl PartialEq for Dag {
     fn eq(&self, other: &Self) -> bool {
         self.directed.same_directed(&other.directed)
@@ -317,7 +320,7 @@ impl Dag {
         best[from.as_usize()]
     }
 
-    fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
+    pub(crate) fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
         if id.as_usize() >= self.node_count() {
             Err(GraphError::UnknownNode { id: id.raw() })
         } else {
@@ -476,6 +479,29 @@ mod tests {
             assert!(removed.directed_edge_pairs_sorted().is_empty());
             assert_eq!(graph.directed_edge_pairs_sorted(), vec![(0, 1)]);
         }
+    }
+
+    #[test]
+    fn equality_ignores_edge_insertion_order() {
+        let edges = [(0, 1), (0, 2), (0, 3), (1, 3), (2, 3)];
+        let build = |order: &[(u32, u32)]| {
+            let mut g = Dag::with_variables(4);
+            for &(u, v) in order {
+                g.insert_directed(DenseNodeId::from_raw(u), DenseNodeId::from_raw(v)).unwrap();
+            }
+            g
+        };
+        let forward = build(&edges);
+        let mut reversed_edges = edges;
+        reversed_edges.reverse();
+        let reversed = build(&reversed_edges);
+        assert_ne!(
+            forward.children(DenseNodeId::from_raw(0)),
+            reversed.children(DenseNodeId::from_raw(0)),
+            "the rows really are in different orders"
+        );
+        assert_eq!(forward, reversed);
+        assert_ne!(forward, build(&edges[..4]));
     }
 
     #[test]

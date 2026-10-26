@@ -876,7 +876,9 @@ fn convert_missing(
     order: &[VariableId],
     policy: MissingPolicy,
 ) -> Result<(MissingConversion, Vec<bool>), DataError> {
-    MissingConversion::convert_and_select(table, table.storage().analysis_mask(), order, policy)
+    let (conversion, keep) =
+        MissingConversion::convert_and_select(table, table.storage().analysis_mask(), order, policy)?;
+    Ok((conversion, keep.to_bools()))
 }
 
 fn physical_matches(value_type: &ValueType, column: &OwnedColumn) -> bool {

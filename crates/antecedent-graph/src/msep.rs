@@ -27,10 +27,10 @@ impl Admg {
         z: &[DenseNodeId],
         ws: &mut DSeparationWorkspace,
     ) -> Result<bool, GraphError> {
-        self.validate_node_pub(x)?;
-        self.validate_node_pub(y)?;
+        self.validate_node(x)?;
+        self.validate_node(y)?;
         for &v in z {
-            self.validate_node_pub(v)?;
+            self.validate_node(v)?;
         }
         if x == y {
             return Ok(false);
@@ -60,7 +60,7 @@ impl Admg {
         ws: &mut DSeparationWorkspace,
     ) -> Result<bool, GraphError> {
         for &node in sources.iter().chain(targets).chain(z) {
-            self.validate_node_pub(node)?;
+            self.validate_node(node)?;
         }
         if sources.is_empty() || targets.is_empty() {
             return Ok(true);
@@ -94,10 +94,10 @@ impl Admg {
         z: &[DenseNodeId],
         ws: &mut DSeparationWorkspace,
     ) -> Result<SeparationResult, GraphError> {
-        self.validate_node_pub(x)?;
-        self.validate_node_pub(y)?;
+        self.validate_node(x)?;
+        self.validate_node(y)?;
         for &v in z {
-            self.validate_node_pub(v)?;
+            self.validate_node(v)?;
         }
         if x == y {
             return Ok(SeparationResult::Connected { active_path: vec![PathStep { node: x }] });
@@ -521,6 +521,16 @@ pub enum PagSeparation {
     Undetermined,
 }
 
+/// What the marks alone settle about a PAG separation query.
+enum MarkDecision {
+    /// No path is possibly active: separated in every member.
+    Separated,
+    /// A definite-status active path connects the nodes in every member.
+    Connected(Vec<DenseNodeId>),
+    /// The marks settle neither; the path may be active in some member.
+    Open(Vec<DenseNodeId>),
+}
+
 /// Outcome of the class-wide query, with the path that decided a connection.
 enum ClassSeparation {
     Separated,
@@ -535,9 +545,8 @@ impl Pag {
     /// member: its colliders, non-colliders and the directed paths that open
     /// its colliders are shared by all of them. Conversely every path that is
     /// m-connecting in some member is possibly active here, so when no path is
-    /// possibly active the nodes are separated in every member. `Ok(None)`
-    /// means the marks settle neither; the second component is then a path
-    /// that may be active in some member.
+    /// possibly active the nodes are separated in every member. [`MarkDecision::Open`]
+    /// means the marks settle neither and carries a path that may be active in some member.
     fn separation_from_marks(
         &self,
         x: DenseNodeId,
@@ -545,7 +554,7 @@ impl Pag {
         z: &[DenseNodeId],
         max_paths: usize,
         max_len: usize,
-    ) -> Result<(Option<bool>, Option<Vec<DenseNodeId>>), GraphError> {
+    ) -> Result<MarkDecision, GraphError> {
         let mut examined = 0usize;
         let mut capped = max_paths == 0 || max_len == 0;
         let mut definite_active = None;
@@ -568,13 +577,13 @@ impl Pag {
             }
             true
         });
-        if definite_active.is_some() {
-            return Ok((Some(false), definite_active));
+        if let Some(path) = definite_active {
+            return Ok(MarkDecision::Connected(path));
         }
         if capped || cut {
             return Err(GraphError::SearchBudgetExhausted { max_paths, max_len });
         }
-        Ok((possibly_active.is_none().then_some(true), possibly_active))
+        Ok(possibly_active.map_or(MarkDecision::Separated, MarkDecision::Open))
     }
 
     fn class_separation(
@@ -585,10 +594,10 @@ impl Pag {
         max_paths: usize,
         max_len: usize,
     ) -> Result<ClassSeparation, GraphError> {
-        self.validate_node_pub(x)?;
-        self.validate_node_pub(y)?;
+        self.validate_node(x)?;
+        self.validate_node(y)?;
         for &v in z {
-            self.validate_node_pub(v)?;
+            self.validate_node(v)?;
         }
         if x == y {
             return Ok(ClassSeparation::Connected(vec![x]));
@@ -596,12 +605,11 @@ impl Pag {
         if z.iter().any(|&v| v == x || v == y) {
             return Ok(ClassSeparation::Connected(vec![x, y]));
         }
-        let (decided, path) = self.separation_from_marks(x, y, z, max_paths, max_len)?;
-        match decided {
-            Some(true) => return Ok(ClassSeparation::Separated),
-            Some(false) => return Ok(ClassSeparation::Connected(path.unwrap_or_default())),
-            None => {}
-        }
+        let possible_path = match self.separation_from_marks(x, y, z, max_paths, max_len)? {
+            MarkDecision::Separated => return Ok(ClassSeparation::Separated),
+            MarkDecision::Connected(path) => return Ok(ClassSeparation::Connected(path)),
+            MarkDecision::Open(path) => path,
+        };
         // The marks leave it open: ask every member. The audit is refused when its search
         // budget cannot enumerate and certify the whole class, and yields nothing for marks
         // no maximal ancestral graph satisfies; neither is a separation.
@@ -630,7 +638,7 @@ impl Pag {
         }
         Ok(match verdict {
             Some(true) => ClassSeparation::Separated,
-            Some(false) => ClassSeparation::Connected(path.unwrap_or_default()),
+            Some(false) => ClassSeparation::Connected(possible_path),
             None => ClassSeparation::Undetermined,
         })
     }
@@ -827,7 +835,7 @@ mod pag_msep_tests {
             g.insert_circle_circle(n(a), n(b)).unwrap();
         }
         let z = [n(1), n(2)];
-        assert_eq!(g.separation_from_marks(n(0), n(3), &z, 64, 6).unwrap().0, None);
+        assert!(matches!(g.separation_from_marks(n(0), n(3), &z, 64, 6).unwrap(), MarkDecision::Open(_)));
         assert_eq!(g.m_separation_status(n(0), n(3), &z, 64, 6).unwrap(), PagSeparation::Separated);
         assert_eq!(
             g.m_separation_status(n(0), n(3), &[n(1)], 64, 6).unwrap(),
@@ -907,18 +915,18 @@ mod pag_msep_tests {
                     let nowhere = separated_in.iter().all(|&s| !s);
                     tally.queries += 1;
 
-                    let (from_marks, _) =
+                    let from_marks =
                         g.separation_from_marks(node(x), node(y), &z, 100_000, n).unwrap();
                     match from_marks {
-                        Some(true) => {
+                        MarkDecision::Separated => {
                             assert!(all, "marks certify a separation some member lacks: {g:?}");
                             tally.marks_separated += 1;
                         }
-                        Some(false) => {
+                        MarkDecision::Connected(_) => {
                             assert!(nowhere, "marks certify a connection some member lacks: {g:?}");
                             tally.marks_connected += 1;
                         }
-                        None => tally.settled_by_members += 1,
+                        MarkDecision::Open(_) => tally.settled_by_members += 1,
                     }
                     let expected = if all {
                         PagSeparation::Separated

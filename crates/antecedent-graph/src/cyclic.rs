@@ -17,7 +17,8 @@
 
 use antecedent_core::VariableId;
 
-use crate::directed::DirectedStore;
+use crate::algo::insert_sorted;
+use crate::directed::{DirectedStore, sorted_row_pairs};
 use crate::error::GraphError;
 use crate::scc::Condensation;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
@@ -216,13 +217,44 @@ impl CyclicDigraph {
 pub struct CyclicMixedGraph {
     directed: CyclicDigraph,
     bidirected: Vec<Vec<DenseNodeId>>,
+    revision: Revision,
 }
+
+/// Identity of one graph state, for caches keyed on "this exact graph".
+///
+/// The empty graph carries a fixed token; every mutation (and every graph built from outside
+/// parts) draws a process-unique one. A clone shares its source's token until either side
+/// mutates, so equal tokens imply identical content. The token is not part of graph equality:
+/// two graphs built in different ways compare equal while their tokens differ.
+#[derive(Clone, Copy, Debug)]
+struct Revision(u64);
+
+impl Revision {
+    const EMPTY: Self = Self(0);
+
+    fn fresh() -> Self {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        Self(NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+    }
+}
+
+impl PartialEq for Revision {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for Revision {}
 
 impl CyclicMixedGraph {
     /// Empty graph.
     #[must_use]
     pub const fn empty() -> Self {
-        Self { directed: CyclicDigraph::empty(), bidirected: Vec::new() }
+        Self {
+            directed: CyclicDigraph::empty(),
+            bidirected: Vec::new(),
+            revision: Revision::EMPTY,
+        }
     }
 
     /// One static node per variable `0..n`, in that dense order.
@@ -265,7 +297,13 @@ impl CyclicMixedGraph {
     #[must_use]
     pub fn from_cyclic_digraph(graph: CyclicDigraph) -> Self {
         let bidirected = vec![Vec::new(); graph.node_count()];
-        Self { directed: graph, bidirected }
+        Self { directed: graph, bidirected, revision: Revision::fresh() }
+    }
+
+    /// Token identifying this exact graph state: equal tokens imply identical content, and any
+    /// change to the graph draws a new one. A cache keyed on it needs no structural comparison.
+    pub(crate) fn revision(&self) -> u64 {
+        self.revision.0
     }
 
     /// Number of nodes.
@@ -305,6 +343,7 @@ impl CyclicMixedGraph {
         }
         let id = self.directed.add_node(node)?;
         self.bidirected.push(Vec::new());
+        self.revision = Revision::fresh();
         Ok(id)
     }
 
@@ -318,6 +357,7 @@ impl CyclicMixedGraph {
         from: DenseNodeId,
         to: DenseNodeId,
     ) -> Result<(), GraphError> {
+        self.revision = Revision::fresh();
         self.directed.insert_directed(from, to)
     }
 
@@ -332,10 +372,11 @@ impl CyclicMixedGraph {
         DirectedStore::known(self.node_count(), a)?;
         DirectedStore::known(self.node_count(), b)?;
         reject_self_loop(self.nodes(), a, b)?;
-        if !DirectedStore::insert_sorted(&mut self.bidirected[a.as_usize()], b) {
+        self.revision = Revision::fresh();
+        if !insert_sorted(&mut self.bidirected[a.as_usize()], b) {
             return Err(GraphError::DuplicateEdge { from: a.raw(), to: b.raw() });
         }
-        if !DirectedStore::insert_sorted(&mut self.bidirected[b.as_usize()], a) {
+        if !insert_sorted(&mut self.bidirected[b.as_usize()], a) {
             let row = &mut self.bidirected[a.as_usize()];
             let at = row.binary_search(&b).expect("bidirected edge was just inserted");
             row.remove(at);
@@ -439,6 +480,7 @@ fn named_directed_edges(
 ) -> Result<Vec<(DenseNodeId, DenseNodeId)>, GraphError> {
     let limit = node_count as usize;
     let mut pending = Vec::with_capacity(edges.len());
+    let mut seen = std::collections::HashSet::with_capacity(edges.len());
     for &(from_name, to_name) in edges {
         let (from, to) = crate::named::resolve_named_edge(schema, from_name, to_name)?;
         if from.as_usize() >= limit {
@@ -452,7 +494,7 @@ fn named_directed_edges(
                 variable: VariableId::from_raw(from.raw()),
             });
         }
-        if pending.contains(&(from, to)) {
+        if !seen.insert((from, to)) {
             return Err(GraphError::DuplicateEdge { from: from.raw(), to: to.raw() });
         }
         pending.push((from, to));
@@ -461,13 +503,7 @@ fn named_directed_edges(
 }
 
 fn bidirected_pairs(bidirected: &[Vec<DenseNodeId>]) -> Vec<(u32, u32)> {
-    let mut pairs = Vec::new();
-    for (i, neighbors) in bidirected.iter().enumerate() {
-        let from = u32::try_from(i).expect("node fit");
-        pairs.extend(neighbors.iter().filter(|to| to.raw() > from).map(|to| (from, to.raw())));
-    }
-    pairs.sort_unstable();
-    pairs
+    sorted_row_pairs(bidirected, |from, to| to > from)
 }
 
 fn validate_directed(graph: &CyclicDigraph) -> Result<(), GraphError> {

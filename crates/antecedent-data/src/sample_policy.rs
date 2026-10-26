@@ -137,10 +137,6 @@ pub struct ImputationSpec {
 impl ImputationSpec {
     /// Fewest imputations Rubin's rules accept (a between-imputation variance needs two).
     pub const MIN_IMPUTATIONS: u32 = 2;
-    /// Most imputations one analysis accepts.
-    pub const MAX_IMPUTATIONS: u32 = 1_000;
-    /// Most sweeps one imputation accepts.
-    pub const MAX_ITERATIONS: u32 = 1_000;
     /// Default number of imputations.
     pub const DEFAULT_IMPUTATIONS: u32 = 20;
     /// Default number of sweeps.
@@ -196,20 +192,17 @@ impl ImputationSpec {
     /// Why the counts are out of range, if they are.
     #[must_use]
     pub fn range_problem(&self) -> Option<String> {
-        if self.imputations < Self::MIN_IMPUTATIONS || self.imputations > Self::MAX_IMPUTATIONS {
+        // The counts have no upper bound of their own: how much work a declaration may cost
+        // is the execution's budget and cancellation to decide, not a constant here.
+        if self.imputations < Self::MIN_IMPUTATIONS {
             return Some(format!(
-                "imputations must lie in [{}, {}], got {}",
+                "imputations must be at least {}, got {}",
                 Self::MIN_IMPUTATIONS,
-                Self::MAX_IMPUTATIONS,
                 self.imputations
             ));
         }
-        if self.iterations == 0 || self.iterations > Self::MAX_ITERATIONS {
-            return Some(format!(
-                "iterations must lie in [1, {}], got {}",
-                Self::MAX_ITERATIONS,
-                self.iterations
-            ));
+        if self.iterations == 0 {
+            return Some(format!("iterations must be at least 1, got {}", self.iterations));
         }
         None
     }

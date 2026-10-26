@@ -25,6 +25,7 @@ use std::sync::Arc;
 
 use antecedent_core::named_variants;
 use antecedent_core::refusal::NextAttempt;
+use antecedent_kernels::Welford;
 
 use crate::error::DataError;
 use crate::missing::{DropReason, RowAccounting};
@@ -653,8 +654,8 @@ impl PanelBalanceReport {
                 ),
             ));
         }
-        let mut stayers = Moments::default();
-        let mut attriters = Moments::default();
+        let mut stayers = Welford::new();
+        let mut attriters = Welford::new();
         let mut missing_baseline = 0usize;
         for unit in &*self.units {
             let Some(row) = unit.first_observed_row else {
@@ -669,18 +670,21 @@ impl PanelBalanceReport {
                 stayers.push(value);
             }
         }
-        let standardized_difference = match (stayers.variance(), attriters.variance()) {
+        let standardized_difference = match (stayers.sample_variance(), attriters.sample_variance())
+        {
             (Some(vs), Some(va)) if vs + va > 0.0 => {
-                Some((attriters.mean - stayers.mean) / ((vs + va) / 2.0).sqrt())
+                Some((attriters.mean() - stayers.mean()) / ((vs + va) / 2.0).sqrt())
             }
             _ => None,
         };
+        let observed_mean = |group: &Welford| (group.count() > 0).then_some(group.mean());
+        let count = |group: &Welford| usize::try_from(group.count()).unwrap_or(usize::MAX);
         Ok(AttritionBaseline {
-            stayers: stayers.count,
-            attriters: attriters.count,
+            stayers: count(&stayers),
+            attriters: count(&attriters),
             missing_baseline,
-            mean_stayers: stayers.mean(),
-            mean_attriters: attriters.mean(),
+            mean_stayers: observed_mean(&stayers),
+            mean_attriters: observed_mean(&attriters),
             standardized_difference,
         })
     }
@@ -1090,31 +1094,6 @@ impl PreparedPanel {
         );
         accounting.reasons = self.reasons().into();
         accounting.with_units(self.units_total, self.units_dropped())
-    }
-}
-
-/// Count, mean and sum of squared deviations (Welford).
-#[derive(Clone, Copy, Debug, Default)]
-struct Moments {
-    count: usize,
-    mean: f64,
-    squares: f64,
-}
-
-impl Moments {
-    fn push(&mut self, value: f64) {
-        self.count += 1;
-        let delta = value - self.mean;
-        self.mean += delta / self.count as f64;
-        self.squares += delta * (value - self.mean);
-    }
-
-    fn mean(&self) -> Option<f64> {
-        (self.count > 0).then_some(self.mean)
-    }
-
-    fn variance(&self) -> Option<f64> {
-        (self.count > 1).then(|| self.squares / (self.count - 1) as f64)
     }
 }
 

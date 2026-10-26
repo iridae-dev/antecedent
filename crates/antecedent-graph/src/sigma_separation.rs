@@ -26,7 +26,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::algo::closure_into;
+use crate::algo::{closure_into, insert_sorted};
 use crate::cyclic::CyclicMixedGraph;
 use crate::dsep::{BayesBallGraph, DSeparationWorkspace, bayes_ball_reaches};
 use crate::error::GraphError;
@@ -174,8 +174,9 @@ pub struct SigmaSeparationWorkspace {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct CachedAcyclification {
     nodes: usize,
-    directed: Vec<(u32, u32)>,
-    bidirected: Vec<(u32, u32)>,
+    /// [`CyclicMixedGraph::revision`] of the graph the acyclification was built from: equal
+    /// tokens mean the same graph, so reuse costs no edge-list comparison.
+    revision: u64,
     component_of: Vec<usize>,
     components: Vec<Vec<DenseNodeId>>,
 }
@@ -328,8 +329,7 @@ impl SigmaSeparationWorkspace {
         };
         cache.nodes == graph.node_count()
             && condensation_covers(cache)
-            && cache.directed == graph.directed_edge_pairs_sorted()
-            && cache.bidirected == graph.bidirected_edge_pairs_sorted()
+            && cache.revision == graph.revision()
     }
 
     fn rebuild_acyclification(&mut self, graph: &CyclicMixedGraph) {
@@ -350,8 +350,7 @@ impl SigmaSeparationWorkspace {
         fill_bidirected(graph, &component_of, &components, &mut self.bidirected);
         self.cache = Some(CachedAcyclification {
             nodes: n,
-            directed: graph.directed_edge_pairs_sorted(),
-            bidirected: graph.bidirected_edge_pairs_sorted(),
+            revision: graph.revision(),
             component_of,
             components,
         });
@@ -461,12 +460,6 @@ fn link_directed(
 fn link_bidirected(rows: &mut [Vec<DenseNodeId>], a: DenseNodeId, b: DenseNodeId) {
     insert_sorted(&mut rows[a.as_usize()], b);
     insert_sorted(&mut rows[b.as_usize()], a);
-}
-
-fn insert_sorted<T: Ord>(list: &mut Vec<T>, value: T) {
-    if let Err(at) = list.binary_search(&value) {
-        list.insert(at, value);
-    }
 }
 
 fn walk_connects(graph: &CyclicMixedGraph, ends: &QueryEnds) -> bool {

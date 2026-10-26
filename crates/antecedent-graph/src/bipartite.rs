@@ -36,22 +36,46 @@ fn id(i: usize) -> DenseNodeId {
     DenseNodeId::from_raw(u32::try_from(i).expect("bounded bipartite order"))
 }
 
+/// Kuhn's augmenting-path search from `root`, with an explicit stack so the depth of an
+/// augmenting path is bounded by memory rather than the call stack.
+///
+/// Visits incidence in the order a recursive search would, so the matching it finds is the one
+/// the recursive form finds. `seen` marks the variables already tried for this root.
 fn augment(
-    equation: usize,
+    root: usize,
     incidence: &[Vec<usize>],
     exogenous: &[bool],
     seen: &mut [bool],
     matched: &mut [Option<usize>],
 ) -> bool {
-    for &variable in &incidence[equation] {
+    // `stack` holds (equation, next incidence position); `via[i]` is the variable through
+    // which `stack[i]` descended into `stack[i + 1]`.
+    let mut stack: Vec<(usize, usize)> = vec![(root, 0)];
+    let mut via: Vec<usize> = Vec::new();
+    while let Some(frame) = stack.last_mut() {
+        let equation = frame.0;
+        let Some(&variable) = incidence[equation].get(frame.1) else {
+            stack.pop();
+            via.pop();
+            continue;
+        };
+        frame.1 += 1;
         if exogenous[variable] || seen[variable] {
             continue;
         }
         seen[variable] = true;
-        if matched[variable].is_none_or(|other| augment(other, incidence, exogenous, seen, matched))
-        {
-            matched[variable] = Some(equation);
-            return true;
+        match matched[variable] {
+            Some(other) => {
+                via.push(variable);
+                stack.push((other, 0));
+            }
+            None => {
+                matched[variable] = Some(equation);
+                for (entered, (parent, _)) in via.iter().zip(&stack).rev() {
+                    matched[*entered] = Some(*parent);
+                }
+                return true;
+            }
         }
     }
     false
@@ -59,16 +83,19 @@ fn augment(
 
 impl BipartiteCausalGraph {
     /// Construct a graph with a perfect endogenous-variable/equation matching.
-    /// This implementation uses bounded augmenting paths and the existing SCC
-    /// engine; the resulting clusters do not depend on the chosen matching.
+    /// This implementation uses augmenting paths and the existing SCC engine, both
+    /// polynomial in the system size; the resulting clusters do not depend on the chosen
+    /// matching.
     pub fn new(
         variables: usize,
         exogenous: &[usize],
         equations: Vec<Vec<usize>>,
     ) -> Result<Self, GraphError> {
-        if variables == 0 || variables > 128 {
-            return Err(GraphError::NodeBoundExceeded { nodes: variables, bound: 128 });
+        if variables == 0 {
+            return Err(invalid("a causal graph needs at least one variable"));
         }
+        // Dense ids are `u32`; every `id(i)` below is then in range.
+        u32::try_from(variables).map_err(|_| GraphError::TooManyNodes)?;
         let mut external = vec![false; variables];
         for &v in exogenous {
             if v >= variables || external[v] {
@@ -89,9 +116,10 @@ impl BipartiteCausalGraph {
             }
         }
         let mut matched = vec![None; variables];
+        let mut seen = vec![false; variables];
         for equation in 0..incidence.len() {
-            if !augment(equation, &incidence, &external, &mut vec![false; variables], &mut matched)
-            {
+            seen.fill(false);
+            if !augment(equation, &incidence, &external, &mut seen, &mut matched) {
                 return Err(invalid("no perfect endogenous equation-variable matching"));
             }
         }
@@ -116,14 +144,16 @@ impl BipartiteCausalGraph {
             .map(|v| condensation.component_index(id(v)).expect("known node"))
             .collect();
         let equation_cluster: Vec<_> = solved_variable.iter().map(|&v| cluster_of[v]).collect();
+        let mut members: Vec<Vec<usize>> = vec![Vec::new(); condensation.components().len()];
+        for (v, &cluster) in cluster_of.iter().enumerate() {
+            members[cluster].push(v);
+        }
         let mut edges = std::collections::BTreeSet::new();
         for (e, neighbors) in incidence.iter().enumerate() {
             for &input in neighbors {
                 if cluster_of[input] != equation_cluster[e] {
-                    for (v, &cluster) in cluster_of.iter().enumerate() {
-                        if cluster == equation_cluster[e] {
-                            edges.insert((input, v));
-                        }
+                    for &v in &members[equation_cluster[e]] {
+                        edges.insert((input, v));
                     }
                 }
             }
@@ -247,6 +277,33 @@ mod tests {
         assert!(determined.determined.contains(&2));
         assert!(!graph.b_separates(0, 1, &[]).unwrap().separated);
     }
+    #[test]
+    fn systems_larger_than_a_machine_word_or_fixed_bound_are_accepted() {
+        // A chain x0 (exogenous) -> x1 -> ... -> x299: one equation per endogenous variable.
+        let n = 300;
+        let equations: Vec<Vec<usize>> = (1..n).map(|i| vec![i - 1, i]).collect();
+        let graph = BipartiteCausalGraph::new(n, &[0], equations).unwrap();
+        assert_eq!(graph.variable_clusters().len(), n);
+        assert!(!graph.b_separates(0, n - 1, &[]).unwrap().separated);
+        assert!(graph.b_separates(0, n - 1, &[150]).unwrap().separated);
+        assert!(matches!(
+            BipartiteCausalGraph::new(0, &[], vec![]),
+            Err(GraphError::InvalidEndpoints { .. })
+        ));
+    }
+
+    #[test]
+    fn a_long_augmenting_path_finds_the_perfect_matching() {
+        // Equation i uses variables i and i + 1, so the first n - 1 equations match variable i
+        // greedily. The last equation uses only variable 0: matching it re-routes every earlier
+        // equation along one augmenting path of length n.
+        let n = 2000;
+        let mut equations: Vec<Vec<usize>> = (0..n - 1).map(|i| vec![i, i + 1]).collect();
+        equations.push(vec![0]);
+        let graph = BipartiteCausalGraph::new(n, &[], equations).unwrap();
+        assert_eq!(graph.variable_clusters().len(), n);
+    }
+
     #[test]
     fn bipartite_feedback_clusters_and_equation_permutations() {
         // Endogenous supply/demand variables 0,1; independent exogenous 2,3.

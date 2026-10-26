@@ -118,7 +118,7 @@ impl RowAccounting {
         analysis_mask: Option<&ValidityBitmap>,
         policy: MissingPolicy,
         variables: &[VariableId],
-        keep: &[bool],
+        keep: &ValidityBitmap,
     ) -> Result<Self, DataError> {
         let n = table.row_count();
         if keep.len() != n {
@@ -133,20 +133,13 @@ impl RowAccounting {
         for &id in variables {
             let validity = table.column(id)?.validity();
             let name = Arc::clone(&table.schema().get(id)?.name);
-            let missing = if validity.is_all_valid() {
-                0
-            } else {
-                (0..n).filter(|&row| !validity.is_valid(row)).count()
-            };
+            let missing = n - validity.count_valid();
             missing_by_variable.push((name, missing));
             validities.push(validity);
         }
         let mut counts = [0usize; 3];
         let mut dropped_rows = Vec::new();
-        for (row, kept) in keep.iter().enumerate() {
-            if *kept {
-                continue;
-            }
+        for row in keep.iter_invalid() {
             let reason = if analysis_mask.is_some_and(|mask| !mask.is_valid(row)) {
                 DropReason::AnalysisMask
             } else if validities.iter().any(|validity| !validity.is_valid(row)) {
@@ -244,9 +237,7 @@ impl RowAccounting {
                 ),
             });
         }
-        let keep: Vec<bool> = (0..table.row_count())
-            .map(|row| analysis_mask.is_none_or(|mask| mask.is_valid(row)))
-            .collect();
+        let keep = complete_rows(table, analysis_mask, &[])?;
         Self::from_selection(table, analysis_mask, policy, variables, &keep)
     }
 
@@ -314,7 +305,8 @@ impl RowAccounting {
     }
 }
 
-/// Rows the analysis mask exposes and where every requested column is observed.
+/// Rows the analysis mask exposes and where every requested column is observed, as a bitmap
+/// (the word-wise AND of the mask and the requested columns' validity).
 ///
 /// Unlike `TabularData::complete_case_mask`, an empty selection is not an error: the caller
 /// is accounting for a selection, not drawing a sample from it.
@@ -326,24 +318,20 @@ pub fn complete_rows<T: TableView>(
     table: &T,
     analysis_mask: Option<&ValidityBitmap>,
     variables: &[VariableId],
-) -> Result<Vec<bool>, DataError> {
+) -> Result<ValidityBitmap, DataError> {
     let n = table.row_count();
-    let mut keep = vec![true; n];
-    if let Some(mask) = analysis_mask.filter(|mask| !mask.is_all_valid()) {
-        for (row, slot) in keep.iter_mut().enumerate() {
-            *slot = mask.is_valid(row);
-        }
-    }
+    let mut parts: Vec<&ValidityBitmap> = Vec::with_capacity(variables.len() + 1);
+    parts.extend(analysis_mask.filter(|mask| !mask.is_all_valid()));
     for &id in variables {
         let validity = table.column(id)?.validity();
-        if validity.is_all_valid() {
-            continue;
-        }
-        for (row, slot) in keep.iter_mut().enumerate() {
-            *slot = *slot && validity.is_valid(row);
+        if !validity.is_all_valid() {
+            parts.push(validity);
         }
     }
-    Ok(keep)
+    if parts.is_empty() {
+        return Ok(ValidityBitmap::all_valid(n));
+    }
+    ValidityBitmap::intersection(n, &parts)
 }
 
 /// A copy of `table` whose `Float64` columns named in `replacements` hold the supplied
@@ -501,7 +489,7 @@ impl MissingConversion {
         analysis_mask: Option<&ValidityBitmap>,
         variables: &[VariableId],
         policy: MissingPolicy,
-    ) -> Result<(Self, Vec<bool>), DataError> {
+    ) -> Result<(Self, ValidityBitmap), DataError> {
         executable_policy(policy)?;
         if policy == MissingPolicy::ErrorOnMissing {
             refuse_error_on_missing(table, variables)?;
@@ -649,7 +637,7 @@ mod tests {
                             .collect();
                         let actual =
                             complete_rows(&table, table.storage().analysis_mask(), &ids()).unwrap();
-                        assert_eq!(actual, expected);
+                        assert_eq!(actual.to_bools(), expected);
                         if expected.iter().any(|keep| *keep) {
                             assert_eq!(table.complete_case_mask(&ids()).unwrap(), expected);
                         } else {
@@ -698,7 +686,7 @@ mod tests {
     #[test]
     fn accounting_counts_dropped_rows_by_variable_and_reason() {
         let data = table();
-        let keep = data.complete_case_mask(&ids()).unwrap();
+        let keep = ValidityBitmap::from_bools(&data.complete_case_mask(&ids()).unwrap());
         let accounting =
             RowAccounting::from_selection(&data, None, MissingPolicy::CompleteCase, &ids(), &keep)
                 .unwrap();
@@ -736,8 +724,9 @@ mod tests {
     #[test]
     fn complete_rows_removed_with_their_unit_are_attributed_to_the_unit() {
         let data = table();
-        let mut keep = data.complete_case_mask(&ids()).unwrap();
-        keep[3] = false;
+        let mut flags = data.complete_case_mask(&ids()).unwrap();
+        flags[3] = false;
+        let keep = ValidityBitmap::from_bools(&flags);
         let accounting =
             RowAccounting::from_selection(&data, None, MissingPolicy::BalancedPanel, &ids(), &keep)
                 .unwrap()
@@ -752,12 +741,13 @@ mod tests {
     #[test]
     fn group_totals_follow_the_labels() {
         let data = table();
-        let keep = data.complete_case_mask(&ids()).unwrap();
+        let flags = data.complete_case_mask(&ids()).unwrap();
+        let keep = ValidityBitmap::from_bools(&flags);
         let labels: Vec<Arc<str>> = ["a", "a", "a", "b", "b", "b"].map(Arc::from).to_vec();
         let accounting =
             RowAccounting::from_selection(&data, None, MissingPolicy::CompleteCase, &ids(), &keep)
                 .unwrap()
-                .with_groups(&labels, &keep, &keep)
+                .with_groups(&labels, &flags, &flags)
                 .unwrap();
         let groups: Vec<_> = accounting
             .groups

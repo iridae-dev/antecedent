@@ -12,7 +12,8 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalSchema, VariableId};
+use antecedent_core::execution::AdmissionError;
+use antecedent_core::{CausalSchema, ExecutionContext, VariableId};
 
 use crate::column::{
     BooleanColumn, ColumnView, FixedVectorColumn, Float64Column, Int64Column, OwnedColumn,
@@ -141,14 +142,83 @@ impl EventData {
     ///
     /// # Errors
     ///
-    /// Zero interval, empty events, or column construction failures.
+    /// Zero interval, empty events, a grid too large to allocate, or column construction
+    /// failures. The number of bins is limited by memory alone; use
+    /// [`Self::align_to_grid_in`] to bound it by an execution's memory budget.
+    pub fn align_to_grid(&self, interval_ns: u64) -> Result<TimeSeriesData, DataError> {
+        self.align_with(interval_ns, |_, _| Ok(()))
+    }
+
+    /// [`Self::align_to_grid`] admitted against `ctx`'s memory budget.
+    ///
+    /// The bytes the grid needs (the bin index, every aligned column and its validity, the
+    /// mask and the weights, with the transient copy each column makes) are acquired from the
+    /// context's admission pool before anything is allocated and released when the result is
+    /// built, so the grid's size is bounded by the memory the execution has, not by a
+    /// constant.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::align_to_grid`], [`DataError::Cancelled`] when the context is cancelled, or an
+    /// [`DataError::InvalidArgument`] naming the bytes needed when the pool cannot admit them.
+    pub fn align_to_grid_in(
+        &self,
+        interval_ns: u64,
+        ctx: &ExecutionContext,
+    ) -> Result<TimeSeriesData, DataError> {
+        let mut lease = None;
+        let aligned = self.align_with(interval_ns, |n_bins, bytes| {
+            lease = Some(ctx.acquire_admission(0, bytes).map_err(|error| match error {
+                AdmissionError::Cancelled => DataError::Cancelled,
+                other => DataError::InvalidArgument {
+                    message: format!(
+                        "align_to_grid needs {bytes} bytes for {n_bins} bins, which the \
+                         execution's memory budget does not admit ({other})"
+                    ),
+                },
+            })?);
+            Ok(())
+        });
+        drop(lease);
+        aligned
+    }
+
+    /// Bytes one grid bin costs across the bin index, the aligned columns, their validity
+    /// bytes, the mask and the weights, doubled for the copy each column makes while it is
+    /// frozen into shared storage.
+    fn bytes_per_bin(&self) -> u64 {
+        let columns: u64 = self
+            .storage
+            .columns()
+            .iter()
+            .map(|column| {
+                let width = match column {
+                    OwnedColumn::Float64(_) | OwnedColumn::Int64(_) | OwnedColumn::Timestamp(_) => 8,
+                    OwnedColumn::Boolean(_) | OwnedColumn::Categorical(_) => 1,
+                    OwnedColumn::FixedVector(c) => {
+                        8u64.saturating_mul(u64::try_from(c.dim).unwrap_or(u64::MAX))
+                    }
+                };
+                width.saturating_add(1)
+            })
+            .fold(0, u64::saturating_add);
+        let weights = if self.storage.weights().is_some() { 8 } else { 0 };
+        let index = u64::try_from(std::mem::size_of::<Option<usize>>()).unwrap_or(u64::MAX);
+        columns.saturating_add(weights).saturating_add(1).saturating_mul(2).saturating_add(index)
+    }
+
+    /// The one alignment behind [`Self::align_to_grid`] and [`Self::align_to_grid_in`].
+    /// `admit` is called once with the bin count and the bytes the grid needs, before any
+    /// grid allocation.
     #[allow(
         clippy::cast_possible_truncation,
-        reason = "n_bins is at most MAX_ALIGN_BINS, checked before the cast, so it fits usize on every target"
+        reason = "the bin count is converted with try_from; the per-event bin index is clamped to it"
     )]
-    pub fn align_to_grid(&self, interval_ns: u64) -> Result<TimeSeriesData, DataError> {
-        /// Most bins one alignment may allocate.
-        const MAX_ALIGN_BINS: u64 = 10_000_000;
+    fn align_with(
+        &self,
+        interval_ns: u64,
+        admit: impl FnOnce(u64, u64) -> Result<(), DataError>,
+    ) -> Result<TimeSeriesData, DataError> {
         if interval_ns == 0 {
             return Err(DataError::InvalidArgument {
                 message: "align_to_grid requires interval_ns > 0".into(),
@@ -172,17 +242,16 @@ impl EventData {
             span.checked_div(interval_ns).and_then(|q| q.checked_add(1)).ok_or_else(|| {
                 DataError::InvalidArgument { message: "align_to_grid bin count overflowed".into() }
             })?;
-        if n_bins > MAX_ALIGN_BINS {
-            return Err(DataError::InvalidArgument {
-                message: format!(
-                    "align_to_grid would allocate {n_bins} bins, over the limit of {MAX_ALIGN_BINS}"
-                ),
-            });
-        }
-        let n_bins = n_bins as usize;
+        admit(n_bins, n_bins.saturating_mul(self.bytes_per_bin()))?;
+        let too_large = || DataError::InvalidArgument {
+            message: format!("align_to_grid cannot allocate {n_bins} bins"),
+        };
+        let n_bins = usize::try_from(n_bins).map_err(|_| too_large())?;
 
         // Last event index per bin (None = empty).
-        let mut last_in_bin: Vec<Option<usize>> = vec![None; n_bins];
+        let mut last_in_bin: Vec<Option<usize>> = Vec::new();
+        last_in_bin.try_reserve_exact(n_bins).map_err(|_| too_large())?;
+        last_in_bin.resize(n_bins, None);
         for (i, &t) in times.iter().enumerate() {
             #[allow(
                 clippy::cast_possible_truncation,
@@ -465,6 +534,24 @@ mod tests {
         assert!(!c.validity.is_valid(1));
         assert!(c.validity.is_valid(2));
         assert!((c.values.as_slice()[2] - 9.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn grid_size_is_bounded_by_the_execution_memory_budget_not_a_constant() {
+        use antecedent_core::execution::AdmissionPool;
+
+        // 2 000 001 bins of 10 ns need tens of megabytes.
+        let data = EventData::try_new(one_col(2), Arc::<[i64]>::from(vec![0, 20_000_000])).unwrap();
+        let tight = ExecutionContext::for_tests(1).with_admission(AdmissionPool::fixed(1, 1_000));
+        let refused = data.align_to_grid_in(10, &tight).unwrap_err();
+        assert!(refused.to_string().contains("memory budget"), "{refused}");
+        assert_eq!(tight.admission().available().bytes(), 1_000, "a refusal holds nothing");
+
+        let roomy = ExecutionContext::for_tests(1)
+            .with_admission(AdmissionPool::fixed(1, 1_000_000_000));
+        let series = data.align_to_grid_in(10, &roomy).unwrap();
+        assert_eq!(series.row_count(), 2_000_001);
+        assert_eq!(roomy.admission().available().bytes(), 1_000_000_000, "the lease is released");
     }
 
     #[test]

@@ -469,8 +469,12 @@ fn orthonormal_polynomial_basis(k: usize) -> Result<Vec<f64>, DataError> {
     let inv_sqrt_k = 1.0 / kf.sqrt();
     basis[..k].fill(inv_sqrt_k);
     let mut beta_prev = 0.0;
+    // One scratch vector for every degree; each degree overwrites it completely.
+    let mut v = vec![0.0; k];
     for d in 0..k.saturating_sub(1) {
-        let mut v: Vec<f64> = (0..k).map(|r| x[r] * basis[r + d * k]).collect();
+        for (r, slot) in v.iter_mut().enumerate() {
+            *slot = x[r] * basis[r + d * k];
+        }
         let alpha: f64 = (0..k).map(|r| v[r] * basis[r + d * k]).sum();
         for r in 0..k {
             v[r] -= alpha * basis[r + d * k];

@@ -191,34 +191,64 @@ impl ArrowCStream {
         })
     }
 
-    /// Read every batch, up to `65_536`. Chunks are not concatenated.
+    /// Read every batch. Chunks are not concatenated.
+    ///
+    /// The number of batches is not capped; the import is bounded by memory alone. Use
+    /// [`Self::into_batches_within`] to bound it by the bytes the batches retain, for
+    /// instance by the execution's memory limit.
     ///
     /// # Errors
     ///
-    /// When the stream schema or a later batch cannot be imported, or the stream
-    /// yields more than `65_536` batches. The stream is released on both success
-    /// and failure.
+    /// When the stream schema or a later batch cannot be imported. The stream is released
+    /// on both success and failure.
     pub fn into_batches(self) -> Result<(SchemaRef, Vec<RecordBatch>), DataError> {
+        self.into_batches_within(u64::MAX)
+    }
+
+    /// Read batches while the bytes they retain stay within `max_bytes`.
+    ///
+    /// Each batch is charged its array memory plus the batch handle itself, so a stream of
+    /// many small or empty batches is bounded by the same budget as a stream of few large
+    /// ones.
+    ///
+    /// # Errors
+    ///
+    /// When the stream schema or a later batch cannot be imported, or the batches read so
+    /// far retain more than `max_bytes`. The stream is released on both success and failure.
+    pub fn into_batches_within(
+        self,
+        max_bytes: u64,
+    ) -> Result<(SchemaRef, Vec<RecordBatch>), DataError> {
         let reader = self.into_reader()?;
         let schema = reader.schema();
         let mut batches = Vec::new();
+        let mut retained = 0u64;
         for batch in reader {
-            if batches.len() == MAX_STREAM_BATCHES {
-                return Err(DataError::InvalidArgument {
-                    message: format!("Arrow stream exceeds {MAX_STREAM_BATCHES} batches"),
-                });
-            }
             let batch = batch.map_err(|e| DataError::InvalidArgument {
                 message: format!("Arrow stream batch import failed: {e}"),
             })?;
+            retained = retained.saturating_add(batch_footprint(&batch));
+            if retained > max_bytes {
+                return Err(DataError::InvalidArgument {
+                    message: format!(
+                        "Arrow stream retains more than the {max_bytes}-byte import budget \
+                         after {} batches",
+                        batches.len() + 1
+                    ),
+                });
+            }
             batches.push(batch);
         }
         Ok((schema, batches))
     }
 }
 
-/// Most record batches [`ArrowCStream::into_batches`] will read.
-const MAX_STREAM_BATCHES: usize = 65_536;
+/// Bytes one imported batch keeps alive: its arrays and the batch handle.
+fn batch_footprint(batch: &RecordBatch) -> u64 {
+    let arrays = u64::try_from(batch.get_array_memory_size()).unwrap_or(u64::MAX);
+    let handle = u64::try_from(std::mem::size_of::<RecordBatch>()).unwrap_or(u64::MAX);
+    arrays.saturating_add(handle)
+}
 
 /// Import a single Arrow array via CDI.
 ///
@@ -453,7 +483,7 @@ mod tests {
     }
 
     #[test]
-    fn stream_batch_count_is_bounded() {
+    fn stream_import_is_bounded_by_retained_bytes() {
         use arrow_array::{RecordBatch, RecordBatchReader};
         use arrow_schema::{ArrowError, DataType, Field, Schema, SchemaRef};
 
@@ -474,14 +504,17 @@ mod tests {
             }
         }
         let schema = Arc::new(Schema::new(vec![Field::new("x", DataType::Float64, true)]));
+        // Empty batches still retain their handle, so even an endless stream of them
+        // exhausts the byte budget instead of the process.
+        let budget = 1u64 << 20;
         let err = ArrowCStream::from_reader(Box::new(Endless { schema }))
-            .into_batches()
-            .expect_err("batch cap");
+            .into_batches_within(budget)
+            .expect_err("byte budget");
         match err {
             DataError::InvalidArgument { message } => {
-                assert!(message.contains(&MAX_STREAM_BATCHES.to_string()));
+                assert!(message.contains(&budget.to_string()), "{message}");
             }
-            other => panic!("expected the batch cap, got {other}"),
+            other => panic!("expected the byte budget, got {other}"),
         }
     }
 }

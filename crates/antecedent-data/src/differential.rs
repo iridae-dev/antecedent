@@ -41,7 +41,7 @@ fn selected(source: &OwnedSource) -> Vec<bool> {
     let storage = borrowed.storage();
     let ids: Vec<VariableId> =
         storage.schema().variables().iter().map(|variable| variable.id).collect();
-    complete_rows(storage, storage.analysis_mask(), &ids).unwrap()
+    complete_rows(storage, storage.analysis_mask(), &ids).unwrap().to_bools()
 }
 
 fn assert_same_science(left: &OwnedSource, right: &OwnedSource) {
@@ -174,7 +174,7 @@ fn projection_before_complete_case_changes_the_sample() {
     let storage = columns(&[("x", &x), ("y", &y)]);
     let full = tabular(storage.clone());
     let both = selected(&full);
-    let only_x = complete_rows(&storage, None, &[VariableId::from_raw(0)]).unwrap();
+    let only_x = complete_rows(&storage, None, &[VariableId::from_raw(0)]).unwrap().to_bools();
     assert_eq!(both.as_slice(), &[true, false, true]);
     assert_eq!(only_x.as_slice(), &[true, true, true]);
     assert_ne!(both, only_x);

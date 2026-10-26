@@ -317,9 +317,9 @@ fn signature_queries(n: usize) -> Option<u128> {
     pairs.checked_mul(subsets)
 }
 
-/// Bytes of one stored signature (one bool per query).
+/// Bytes of one stored signature (one bit per query).
 fn signature_bytes(n: usize) -> u64 {
-    signature_queries(n).and_then(|q| u64::try_from(q).ok()).unwrap_or(u64::MAX)
+    signature_queries(n).and_then(|q| u64::try_from(q.div_ceil(8)).ok()).unwrap_or(u64::MAX)
 }
 
 /// Whether two signatures (the reference and the candidate) can be built within the
@@ -342,7 +342,7 @@ struct Walk<'a, F: Fn(&Pag) -> Option<Pag>> {
     report: CompletionValidationReport,
     completions: Vec<Pag>,
     represented_completions: usize,
-    reference_signature: Option<Vec<bool>>,
+    reference_signature: Option<SeparationSignature>,
     /// Queries the audit may still charge before it is abandoned for the rest of the walk.
     audit_allowance: usize,
     /// Storage leases for the retained completions, taken from the context's admission pool
@@ -459,20 +459,20 @@ impl<F: Fn(&Pag) -> Option<Pag>> Walk<'_, F> {
                 self.audit_allowance -= cost;
             }
         }
-        if self.audit_class {
-            let signature = if self.sites.is_empty() {
-                Vec::new()
-            } else {
-                let depth = self.sites.len();
-                let bytes = self.live_bytes();
-                m_separation_signature(&audited, || budget.charge(depth, bytes))?
-            };
+        if self.audit_class && !self.sites.is_empty() {
+            let depth = self.sites.len();
+            let bytes = self.live_bytes();
+            // The first candidate's signature is the reference. Every later candidate is
+            // compared against it as its answers are produced, so only one signature is ever
+            // stored and a differing class stops at the first differing answer.
             if let Some(reference) = &self.reference_signature {
-                if reference != &signature {
+                if !m_separation_model_matches(&audited, reference, || budget.charge(depth, bytes))?
+                {
                     self.report.ambiguous_global_class = true;
                     return Ok(());
                 }
             } else {
+                let signature = m_separation_signature(&audited, || budget.charge(depth, bytes))?;
                 self.reference_signature = Some(signature);
             }
         }
@@ -596,9 +596,21 @@ pub(crate) fn is_maximal_ancestral_graph(g: &Pag) -> bool {
 
 fn preserves_unshielded_colliders(pag: &Pag, mag: &Pag) -> bool {
     let n = pag.node_count();
+    // The mark each MAG neighbour carries at `middle`, indexed once per node instead of found
+    // by a scan for every unshielded pair.
+    let mut mag_marks: Vec<(DenseNodeId, Endpoint)> = Vec::new();
     for middle_i in 0..n {
         let middle = DenseNodeId::from_index(middle_i);
         let neighbors: Vec<_> = pag.neighbors(middle).map(|(node, mark, _)| (node, mark)).collect();
+        mag_marks.clear();
+        mag_marks.extend(mag.neighbors(middle).map(|(node, mark, _)| (node, mark)));
+        mag_marks.sort_unstable_by_key(|(node, _)| *node);
+        let mag_mark = |node: DenseNodeId| -> Endpoint {
+            let at = mag_marks
+                .binary_search_by_key(&node, |(neighbor, _)| *neighbor)
+                .expect("same skeleton");
+            mag_marks[at].1
+        };
         for i in 0..neighbors.len() {
             for j in (i + 1)..neighbors.len() {
                 let (left, pag_left_mark) = neighbors[i];
@@ -606,20 +618,10 @@ fn preserves_unshielded_colliders(pag: &Pag, mag: &Pag) -> bool {
                 if pag.has_edge(left, right) {
                     continue;
                 }
-                let mag_left_mark = mag
-                    .neighbors(middle)
-                    .find(|(node, _, _)| *node == left)
-                    .map(|(_, mark, _)| mark)
-                    .expect("same skeleton");
-                let mag_right_mark = mag
-                    .neighbors(middle)
-                    .find(|(node, _, _)| *node == right)
-                    .map(|(_, mark, _)| mark)
-                    .expect("same skeleton");
                 let pag_collider = matches!(pag_left_mark, Endpoint::Arrow)
                     && matches!(pag_right_mark, Endpoint::Arrow);
-                let mag_collider = matches!(mag_left_mark, Endpoint::Arrow)
-                    && matches!(mag_right_mark, Endpoint::Arrow);
+                let mag_collider = matches!(mag_mark(left), Endpoint::Arrow)
+                    && matches!(mag_mark(right), Endpoint::Arrow);
                 if pag_collider != mag_collider {
                     return false;
                 }
@@ -654,45 +656,113 @@ pub(crate) fn as_admg(g: &Pag) -> Admg {
     admg
 }
 
-/// The m-separation model of `g`: one answer per node pair and conditioning subset.
+/// The m-separation model of a graph: one answer per node pair and conditioning subset, one
+/// bit per query in canonical order.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct SeparationSignature {
+    words: Vec<u64>,
+    len: usize,
+}
+
+impl SeparationSignature {
+    fn push(&mut self, answer: bool) {
+        if self.len % 64 == 0 {
+            self.words.push(0);
+        }
+        if answer {
+            if let Some(word) = self.words.last_mut() {
+                *word |= 1u64 << (self.len % 64);
+            }
+        }
+        self.len += 1;
+    }
+
+    fn get(&self, index: usize) -> bool {
+        (self.words[index / 64] >> (index % 64)) & 1 == 1
+    }
+}
+
+/// Answer every m-separation query of `g` in canonical order, handing each answer to `visit`.
 ///
-/// `charge` is called before each query; an `Err` abandons the signature.
-pub(crate) fn m_separation_signature(
+/// `charge` is called before each query; an `Err` abandons the walk. `visit` returns `false` to
+/// stop early. Returns whether the walk ran to the end. The conditioning buffers are reused
+/// across queries.
+fn visit_m_separation_model(
     g: &Pag,
     mut charge: impl FnMut() -> Result<(), SearchStop>,
-) -> Result<Vec<bool>, SearchStop> {
+    mut visit: impl FnMut(bool) -> bool,
+) -> Result<bool, SearchStop> {
     let admg = as_admg(g);
     let n = g.node_count();
-    let mut signature = Vec::new();
     let mut ws = DSeparationWorkspace::default();
+    let mut others: Vec<usize> = Vec::with_capacity(n);
+    let mut z: Vec<DenseNodeId> = Vec::with_capacity(n);
     for i in 0..n {
         for j in (i + 1)..n {
-            let others: Vec<_> = (0..n).filter(|&k| k != i && k != j).collect();
+            others.clear();
+            others.extend((0..n).filter(|&k| k != i && k != j));
             // Each subset is an iteration of a bitset counter over `others`, not a machine
             // word, so the node count is bounded by the caller's budget alone.
             let mut subset = BitSet::with_len(others.len());
             loop {
                 charge()?;
-                let z: Vec<_> = subset
-                    .iter()
-                    .map(|bit| DenseNodeId::from_index(others[bit.as_usize()]))
-                    .collect();
-                signature.push(
-                    admg.is_m_separated(
+                z.clear();
+                z.extend(subset.iter().map(|bit| DenseNodeId::from_index(others[bit.as_usize()])));
+                let separated = admg
+                    .is_m_separated(
                         DenseNodeId::from_index(i),
                         DenseNodeId::from_index(j),
                         &z,
                         &mut ws,
                     )
-                    .expect("known nodes"),
-                );
+                    .expect("known nodes");
+                if !visit(separated) {
+                    return Ok(false);
+                }
                 if !increment(&mut subset) {
                     break;
                 }
             }
         }
     }
+    Ok(true)
+}
+
+/// The m-separation signature of `g`.
+///
+/// `charge` is called before each query; an `Err` abandons the signature.
+pub(crate) fn m_separation_signature(
+    g: &Pag,
+    charge: impl FnMut() -> Result<(), SearchStop>,
+) -> Result<SeparationSignature, SearchStop> {
+    let mut signature = SeparationSignature::default();
+    // The caller's budget has already admitted this many queries; the hint is capped so a
+    // budget that would stop the walk early never pre-allocates what it will not use.
+    if let Some(queries) = signature_queries(g.node_count()) {
+        let words = usize::try_from(queries.div_ceil(64)).unwrap_or(usize::MAX);
+        let _ = signature.words.try_reserve(words.min(1 << 16));
+    }
+    visit_m_separation_model(g, charge, |answer| {
+        signature.push(answer);
+        true
+    })?;
     Ok(signature)
+}
+
+/// Whether the m-separation model of `g` equals `reference`, compared as the answers are
+/// produced: the first differing answer ends the walk, and no second signature is stored.
+fn m_separation_model_matches(
+    g: &Pag,
+    reference: &SeparationSignature,
+    charge: impl FnMut() -> Result<(), SearchStop>,
+) -> Result<bool, SearchStop> {
+    let mut index = 0usize;
+    let completed = visit_m_separation_model(g, charge, |answer| {
+        let same = index < reference.len && reference.get(index) == answer;
+        index += 1;
+        same
+    })?;
+    Ok(completed && index == reference.len)
 }
 
 /// Advance `subset` to the next subset in binary counting order (bit 0 least significant).
@@ -742,10 +812,9 @@ pub fn audit_finite_mag_equivalence(graphs: &[Pag]) -> Option<bool> {
     let (limits, ctx) = default_completion_search();
     let mut budget = SearchBudget::new(limits, &ctx).ok()?;
     let bytes = signature_bytes(n).saturating_mul(2);
-    let mut signature_of = |g: &Pag| m_separation_signature(g, || budget.charge(n, bytes)).ok();
-    let signature = signature_of(reference)?;
+    let signature = m_separation_signature(reference, || budget.charge(n, bytes)).ok()?;
     for g in &graphs[1..] {
-        if signature_of(g)? != signature {
+        if !m_separation_model_matches(g, &signature, || budget.charge(n, bytes)).ok()? {
             return Some(false);
         }
     }
@@ -1248,7 +1317,7 @@ mod tests {
             }
         }
         let mut out = Vec::new();
-        let mut reference: Option<Vec<bool>> = None;
+        let mut reference: Option<SeparationSignature> = None;
         for mask in 0..(1u64 << sites.len()) {
             let mut graph = pag.clone();
             let mut ok = true;

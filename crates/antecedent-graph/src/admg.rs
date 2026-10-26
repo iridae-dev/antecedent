@@ -5,7 +5,7 @@
 use antecedent_core::VariableId;
 
 use crate::algo::{closure_into, components_by, is_dag};
-use crate::directed::DirectedCore;
+use crate::directed::{DirectedCore, same_rows_as_sets, sorted_row_pairs};
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::{BitSet, GraphWorkspace};
@@ -36,7 +36,8 @@ pub struct Admg {
 
 impl PartialEq for Admg {
     fn eq(&self, other: &Self) -> bool {
-        self.directed.same_directed(&other.directed) && self.bidirected == other.bidirected
+        self.directed.same_directed(&other.directed)
+            && same_rows_as_sets(&self.bidirected, &other.bidirected)
     }
 }
 
@@ -217,16 +218,11 @@ impl Admg {
         Ok(id)
     }
 
-    fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
+    pub(crate) fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
         if id.as_usize() >= self.node_count() {
             return Err(GraphError::UnknownNode { id: id.raw() });
         }
         Ok(())
-    }
-
-    /// Validate node for public APIs.
-    pub(crate) fn validate_node_pub(&self, id: DenseNodeId) -> Result<(), GraphError> {
-        self.validate_node(id)
     }
 
     /// Insert directed edge `from -> to` if it preserves directed acyclicity.
@@ -404,13 +400,7 @@ impl Admg {
     /// Bidirected edges as raw `(lower, higher)` dense-id pairs in ascending order.
     #[must_use]
     pub fn bidirected_edge_pairs_sorted(&self) -> Vec<(u32, u32)> {
-        let mut pairs = Vec::new();
-        for (i, neighbors) in self.bidirected.iter().enumerate() {
-            let from = u32::try_from(i).expect("node fit");
-            pairs.extend(neighbors.iter().filter(|to| to.raw() > from).map(|to| (from, to.raw())));
-        }
-        pairs.sort_unstable();
-        pairs
+        sorted_row_pairs(&self.bidirected, |from, to| to > from)
     }
 
     /// The variable a static node stands for, or `None` for a non-static or unknown node.
@@ -465,8 +455,11 @@ impl Admg {
         let mut pending: Vec<usize> = self.directed.parent_adj().iter().map(Vec::len).collect();
         let mut ready: Vec<DenseNodeId> =
             self.node_ids().filter(|v| pending[v.as_usize()] == 0).collect();
+        // One scratch copy of the finished node's ancestors, reused for every node.
+        let mut done = BitSet::with_len(n);
         while let Some(v) = ready.pop() {
-            let done = ancestors[v.as_usize()].clone();
+            done.clear();
+            done.union_with(&ancestors[v.as_usize()]);
             for &c in self.children(v) {
                 let ci = c.as_usize();
                 ancestors[ci].union_with(&done);

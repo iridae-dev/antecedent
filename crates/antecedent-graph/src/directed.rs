@@ -4,14 +4,15 @@
 //! Those public types are wrappers: an ADMG adds bidirected edges, and a
 //! temporal DAG adds lag rules. The node table and the directed edges live
 //! here. Both are behind `Arc`, so a wrapper copy bumps refcounts until one
-//! side adds a node or a directed edge. Equality compares the tables, never
-//! the insertion scratch.
+//! side adds a node or a directed edge. Equality compares the node table and the directed
+//! edge set, never the insertion order of an adjacency row or the insertion scratch.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::algo::{bfs_reaches, kahn_order};
+use crate::algo::{bfs_reaches, insert_sorted, kahn_order};
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
@@ -25,6 +26,9 @@ pub(crate) struct DirectedCore {
     nodes: Arc<Vec<NodeRef>>,
     children: Arc<Vec<Vec<DenseNodeId>>>,
     parents: Arc<Vec<Vec<DenseNodeId>>>,
+    /// Every directed edge, keyed `(parent, child)`: the duplicate check is one lookup rather
+    /// than a scan of an insertion-ordered row.
+    edge_index: Arc<HashSet<(DenseNodeId, DenseNodeId)>>,
     insert_ws: GraphWorkspace,
 }
 
@@ -41,6 +45,7 @@ impl DirectedCore {
             nodes: Arc::new(Vec::new()),
             children: Arc::new(Vec::new()),
             parents: Arc::new(Vec::new()),
+            edge_index: Arc::new(HashSet::new()),
             insert_ws: GraphWorkspace::default(),
         }
     }
@@ -124,13 +129,12 @@ impl DirectedCore {
 
     /// Directed edges as raw `(parent, child)` dense-id pairs in ascending order.
     pub(crate) fn edge_pairs_sorted(&self) -> Vec<(u32, u32)> {
-        let mut pairs = Vec::new();
-        for (i, kids) in self.children.iter().enumerate() {
-            let from = u32::try_from(i).expect("node fit");
-            pairs.extend(kids.iter().map(|to| (from, to.raw())));
-        }
-        pairs.sort_unstable();
-        pairs
+        sorted_row_pairs(&self.children, |_, _| true)
+    }
+
+    /// Whether `from -> to` is already present.
+    pub(crate) fn has_edge(&self, from: DenseNodeId, to: DenseNodeId) -> bool {
+        self.edge_index.contains(&(from, to))
     }
 
     /// Reachability using a reusable workspace.
@@ -157,7 +161,7 @@ impl DirectedCore {
         from: DenseNodeId,
         to: DenseNodeId,
     ) -> Result<(), GraphError> {
-        if self.children[from.as_usize()].contains(&to) {
+        if self.has_edge(from, to) {
             return Err(GraphError::DuplicateEdge { from: from.raw(), to: to.raw() });
         }
         let mut ws = core::mem::take(&mut self.insert_ws);
@@ -175,21 +179,24 @@ impl DirectedCore {
     pub(crate) fn push_unchecked(&mut self, from: DenseNodeId, to: DenseNodeId) {
         Arc::make_mut(&mut self.children)[from.as_usize()].push(to);
         Arc::make_mut(&mut self.parents)[to.as_usize()].push(from);
+        Arc::make_mut(&mut self.edge_index).insert((from, to));
     }
 
     /// Append `from -> to` when it is not already present. Does not search for a cycle.
     pub(crate) fn push_if_absent(&mut self, from: DenseNodeId, to: DenseNodeId) -> bool {
-        if self.children[from.as_usize()].contains(&to) {
+        if self.has_edge(from, to) {
             return false;
         }
         self.push_unchecked(from, to);
         true
     }
 
-    /// Edge-list equality. The insertion scratch is not part of the graph.
+    /// Directed edge-set equality: the same `(parent, child)` pairs, whatever order the edges
+    /// were inserted in. Neither the row order nor the insertion scratch is part of the graph.
     pub(crate) fn same_edges(&self, other: &Self) -> bool {
-        self.children.as_slice() == other.children.as_slice()
-            && self.parents.as_slice() == other.parents.as_slice()
+        // The edge index holds exactly the pairs in the adjacency rows, so set equality of the
+        // index is edge-set equality (and each parent row is determined by the children).
+        Arc::ptr_eq(&self.edge_index, &other.edge_index) || self.edge_index == other.edge_index
     }
 
     /// Node-table and edge-list equality. The insertion scratch is not part of the graph.
@@ -209,7 +216,7 @@ impl DirectedCore {
             if from.as_usize() >= n || to.as_usize() >= n {
                 return false;
             }
-            if !seen.insert((from, to)) || self.children[from.as_usize()].contains(&to) {
+            if !seen.insert((from, to)) || self.has_edge(from, to) {
                 return false;
             }
         }
@@ -234,7 +241,7 @@ impl DirectedCore {
 ///
 /// [`DirectedCore`] appends and rejects a cycle. This store keeps each child
 /// list and each parent list in ascending dense-id order and does not search
-/// for a cycle. [`Self::known`] and [`Self::insert_sorted`] are the one copy
+/// for a cycle. [`Self::known`] and [`crate::algo::insert_sorted`] are the one copy
 /// of those operations.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DirectedStore {
@@ -293,17 +300,6 @@ impl DirectedStore {
         }
     }
 
-    /// Insert `id` in ascending order. Returns `false` when it is already present.
-    pub(crate) fn insert_sorted(list: &mut Vec<DenseNodeId>, id: DenseNodeId) -> bool {
-        match list.binary_search(&id) {
-            Ok(_) => false,
-            Err(at) => {
-                list.insert(at, id);
-                true
-            }
-        }
-    }
-
     /// Append `node` and one empty adjacency row.
     ///
     /// # Errors
@@ -326,10 +322,10 @@ impl DirectedStore {
     ///
     /// [`GraphError::DuplicateEdge`] when the directed edge is already present.
     pub(crate) fn link(&mut self, from: DenseNodeId, to: DenseNodeId) -> Result<(), GraphError> {
-        if !Self::insert_sorted(&mut self.children[from.as_usize()], to) {
+        if !insert_sorted(&mut self.children[from.as_usize()], to) {
             return Err(GraphError::DuplicateEdge { from: from.raw(), to: to.raw() });
         }
-        if !Self::insert_sorted(&mut self.parents[to.as_usize()], from) {
+        if !insert_sorted(&mut self.parents[to.as_usize()], from) {
             let kids = &mut self.children[from.as_usize()];
             let at = kids.binary_search(&to).expect("child edge was just inserted");
             kids.remove(at);
@@ -340,12 +336,38 @@ impl DirectedStore {
 
     /// Directed edges as raw `(parent, child)` pairs in ascending order.
     pub(crate) fn edge_pairs_sorted(&self) -> Vec<(u32, u32)> {
-        let mut pairs = Vec::new();
-        for (i, kids) in self.children.iter().enumerate() {
-            let from = u32::try_from(i).expect("node fit");
-            pairs.extend(kids.iter().map(|to| (from, to.raw())));
-        }
-        pairs.sort_unstable();
-        pairs
+        sorted_row_pairs(&self.children, |_, _| true)
     }
+}
+
+/// Whether two adjacency tables hold the same neighbors per node, ignoring the order inside
+/// each row. Equal rows are accepted without sorting; only differing rows are compared sorted.
+pub(crate) fn same_rows_as_sets(a: &[Vec<DenseNodeId>], b: &[Vec<DenseNodeId>]) -> bool {
+    a.len() == b.len()
+        && a.iter().zip(b).all(|(x, y)| {
+            x == y
+                || (x.len() == y.len() && {
+                    let (mut x, mut y) = (x.clone(), y.clone());
+                    x.sort_unstable();
+                    y.sort_unstable();
+                    x == y
+                })
+        })
+}
+
+/// `(row index, entry)` pairs of adjacency `rows` that `keep` accepts, ascending.
+///
+/// The one mechanism behind every sorted edge-pair listing: directed edges keep every pair,
+/// a symmetric bidirected row keeps each unordered pair once with `to > from`.
+pub(crate) fn sorted_row_pairs(
+    rows: &[Vec<DenseNodeId>],
+    mut keep: impl FnMut(u32, u32) -> bool,
+) -> Vec<(u32, u32)> {
+    let mut pairs = Vec::new();
+    for (i, row) in rows.iter().enumerate() {
+        let from = u32::try_from(i).expect("node fit");
+        pairs.extend(row.iter().map(|to| (from, to.raw())).filter(|&(f, t)| keep(f, t)));
+    }
+    pairs.sort_unstable();
+    pairs
 }

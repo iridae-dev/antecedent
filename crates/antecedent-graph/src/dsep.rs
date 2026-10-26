@@ -342,10 +342,10 @@ impl Dag {
         ws: &mut DSeparationWorkspace,
         overlay: Option<&GraphOverlay>,
     ) -> Result<bool, GraphError> {
-        self.validate_node_pub(x)?;
-        self.validate_node_pub(y)?;
+        self.validate_node(x)?;
+        self.validate_node(y)?;
         for &v in z {
-            self.validate_node_pub(v)?;
+            self.validate_node(v)?;
         }
         if x == y {
             return Ok(false);
@@ -392,10 +392,10 @@ impl Dag {
         ws: &mut DSeparationWorkspace,
         overlay: Option<&GraphOverlay>,
     ) -> Result<SeparationResult, GraphError> {
-        self.validate_node_pub(x)?;
-        self.validate_node_pub(y)?;
+        self.validate_node(x)?;
+        self.validate_node(y)?;
         for &v in z {
-            self.validate_node_pub(v)?;
+            self.validate_node(v)?;
         }
         if z.iter().any(|&v| v == x || v == y) {
             return Err(GraphError::InvalidEndpoints {

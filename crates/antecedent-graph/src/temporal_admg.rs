@@ -12,10 +12,9 @@ use std::collections::HashSet;
 use antecedent_core::{Lag, TemporalNodeKey, VariableId};
 
 use crate::admg::Admg;
-use crate::algo::bfs_reaches;
+use crate::directed::DirectedCore;
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
-use crate::workspace::GraphWorkspace;
 
 /// A finite window of a [`TemporalAdmg`] template as one static [`Admg`].
 ///
@@ -32,6 +31,8 @@ use crate::workspace::GraphWorkspace;
 pub struct UnrolledTemporalAdmg {
     admg: Admg,
     variables: Vec<VariableId>,
+    /// Position of each template variable in `variables`.
+    position: std::collections::HashMap<VariableId, usize>,
     periods: u32,
 }
 
@@ -60,7 +61,7 @@ impl UnrolledTemporalAdmg {
         if period >= self.periods {
             return None;
         }
-        let index = self.variables.iter().position(|v| *v == variable)?;
+        let index = *self.position.get(&variable)?;
         let count = u32::try_from(self.variables.len()).ok()?;
         Some(VariableId::from_raw(period * count + u32::try_from(index).ok()?))
     }
@@ -78,42 +79,35 @@ impl UnrolledTemporalAdmg {
 /// Acyclic directed mixed graph over lagged (`VariableId`, `Lag`) nodes.
 #[derive(Clone, Debug)]
 pub struct TemporalAdmg {
-    nodes: Vec<NodeRef>,
-    children: Vec<Vec<DenseNodeId>>,
-    parents: Vec<Vec<DenseNodeId>>,
+    /// Lagged nodes and the acyclic directed edges: the core a [`crate::TemporalDag`] and an
+    /// [`Admg`] also wrap.
+    directed: DirectedCore,
     bidirected: Vec<Vec<DenseNodeId>>,
-    insert_ws: GraphWorkspace,
 }
 
 impl TemporalAdmg {
     /// Empty temporal ADMG.
     #[must_use]
     pub fn empty() -> Self {
-        Self {
-            nodes: Vec::new(),
-            children: Vec::new(),
-            parents: Vec::new(),
-            bidirected: Vec::new(),
-            insert_ws: GraphWorkspace::default(),
-        }
+        Self { directed: DirectedCore::new(), bidirected: Vec::new() }
     }
 
     /// Node count.
     #[must_use]
     pub fn node_count(&self) -> usize {
-        self.nodes.len()
+        self.directed.node_count()
     }
 
     /// Whether empty.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.nodes.is_empty()
+        self.directed.is_empty()
     }
 
     /// Nodes in dense order.
     #[must_use]
     pub fn nodes(&self) -> &[NodeRef] {
-        &self.nodes
+        self.directed.nodes()
     }
 
     /// Add a lagged node.
@@ -130,12 +124,9 @@ impl TemporalAdmg {
                 });
             }
         }
-        let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
-        self.nodes.push(node);
-        self.children.push(Vec::new());
-        self.parents.push(Vec::new());
+        let id = self.directed.push_labeled(node)?;
         self.bidirected.push(Vec::new());
-        Ok(DenseNodeId::from_raw(id))
+        Ok(id)
     }
 
     /// Convenience: add `variable` at `lag`.
@@ -167,25 +158,14 @@ impl TemporalAdmg {
         if let (
             NodeRef::Lagged { variable: v1, lag: l1 },
             NodeRef::Lagged { variable: v2, lag: l2 },
-        ) = (self.nodes[from.as_usize()], self.nodes[to.as_usize()])
+        ) = (self.nodes()[from.as_usize()], self.nodes()[to.as_usize()])
         {
             if v1 == v2 && l1 == l2 && l1.is_contemporaneous() {
                 return Err(GraphError::ContemporaneousSelfEdge { variable: v1 });
             }
-            crate::types::reject_future_to_past(&self.nodes, from, to)?;
+            crate::types::reject_future_to_past(self.nodes(), from, to)?;
         }
-        if self.children[from.as_usize()].contains(&to) {
-            return Err(GraphError::DuplicateEdge { from: from.raw(), to: to.raw() });
-        }
-        let mut ws = core::mem::take(&mut self.insert_ws);
-        let cycle = bfs_reaches(&self.children, to, from, &mut ws);
-        self.insert_ws = ws;
-        if cycle {
-            return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
-        }
-        self.children[from.as_usize()].push(to);
-        self.parents[to.as_usize()].push(from);
-        Ok(())
+        self.directed.try_insert(from, to)
     }
 
     /// Insert bidirected edge `a ↔ b` (latent confounder).
@@ -215,13 +195,13 @@ impl TemporalAdmg {
     /// Children.
     #[must_use]
     pub fn children(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        self.children.get(id.as_usize()).map_or(&[], Vec::as_slice)
+        self.directed.children_of(id)
     }
 
     /// Parents.
     #[must_use]
     pub fn parents(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        self.parents.get(id.as_usize()).map_or(&[], Vec::as_slice)
+        self.directed.parents_of(id)
     }
 
     /// Bidirected neighbors.
@@ -239,13 +219,7 @@ impl TemporalAdmg {
     /// Directed and bidirected edges as marked edges.
     #[must_use]
     pub fn edges(&self) -> Vec<MarkedEdge> {
-        let mut edges = Vec::new();
-        for (i, kids) in self.children.iter().enumerate() {
-            let from = DenseNodeId::from_index(i);
-            for &to in kids {
-                edges.push(MarkedEdge::directed(from, to));
-            }
-        }
+        let mut edges: Vec<MarkedEdge> = self.directed.marked_edges().collect();
         for (i, neighbors) in self.bidirected.iter().enumerate() {
             let a = DenseNodeId::from_index(i);
             for &b in neighbors {
@@ -260,7 +234,7 @@ impl TemporalAdmg {
     /// Map dense id to a serializable [`TemporalNodeKey`].
     #[must_use]
     pub fn temporal_key(&self, id: DenseNodeId) -> Option<TemporalNodeKey> {
-        match self.nodes.get(id.as_usize())? {
+        match self.nodes().get(id.as_usize())? {
             NodeRef::Lagged { variable, lag } => {
                 let offset = -i32::try_from(lag.raw()).ok()?;
                 Some(TemporalNodeKey { variable: *variable, offset })
@@ -280,8 +254,8 @@ impl TemporalAdmg {
     /// A variable occupies more than one lag, or a node is not lagged. That graph
     /// does not have this projection.
     pub fn project_preserving_functional(&self) -> Result<Admg, GraphError> {
-        let mut seen = HashSet::with_capacity(self.nodes.len());
-        for node in &self.nodes {
+        let mut seen = HashSet::with_capacity(self.nodes().len());
+        for node in self.nodes() {
             let NodeRef::Lagged { variable, .. } = node else {
                 return Err(GraphError::InvalidEndpoints {
                     message: "TemporalAdmg projection requires lagged nodes",
@@ -295,11 +269,11 @@ impl TemporalAdmg {
             }
         }
         let mut admg = Admg::empty();
-        for node in &self.nodes {
+        for node in self.nodes() {
             let NodeRef::Lagged { variable, .. } = node else { unreachable!("checked above") };
             admg.add_node(NodeRef::Static(*variable))?;
         }
-        for (i, kids) in self.children.iter().enumerate() {
+        for (i, kids) in self.directed.child_adj().iter().enumerate() {
             let from = DenseNodeId::from_index(i);
             for &to in kids {
                 admg.insert_directed(from, to)?;
@@ -324,7 +298,7 @@ impl TemporalAdmg {
     /// As [`Self::unroll_window_over`].
     pub fn unroll_window(&self, periods: u32) -> Result<UnrolledTemporalAdmg, GraphError> {
         let largest = self
-            .nodes
+            .nodes()
             .iter()
             .filter_map(|node| match node {
                 NodeRef::Lagged { variable, .. } => Some(variable.raw()),
@@ -352,7 +326,7 @@ impl TemporalAdmg {
         periods: u32,
         variable_count: u32,
     ) -> Result<UnrolledTemporalAdmg, GraphError> {
-        for node in &self.nodes {
+        for node in self.nodes() {
             let NodeRef::Lagged { variable, .. } = node else {
                 return Err(GraphError::InvalidEndpoints {
                     message: "TemporalAdmg unrolling requires lagged nodes",
@@ -373,7 +347,7 @@ impl TemporalAdmg {
             });
         }
         let template = |id: DenseNodeId| -> Result<(usize, i64), GraphError> {
-            match self.nodes.get(id.as_usize()) {
+            match self.nodes().get(id.as_usize()) {
                 Some(&NodeRef::Lagged { variable, lag }) => {
                     Ok((variable.as_usize(), i64::from(lag.raw())))
                 }
@@ -397,7 +371,7 @@ impl TemporalAdmg {
             Err(GraphError::DuplicateEdge { .. }) => Ok(()),
             other => other,
         };
-        for (parent_id, kids) in self.children.iter().enumerate() {
+        for (parent_id, kids) in self.directed.child_adj().iter().enumerate() {
             let (pi, plag) = template(DenseNodeId::from_index(parent_id))?;
             for &kid in kids {
                 let (ci, clag) = template(kid)?;
@@ -450,7 +424,11 @@ impl TemporalAdmg {
                 }
             }
         }
-        Ok(UnrolledTemporalAdmg { admg, variables, periods })
+        let mut position = std::collections::HashMap::with_capacity(variables.len());
+        for (index, variable) in variables.iter().enumerate() {
+            position.entry(*variable).or_insert(index);
+        }
+        Ok(UnrolledTemporalAdmg { admg, variables, position, periods })
     }
 
     /// Lift a static [`Admg`] to contemporaneous lagged nodes.

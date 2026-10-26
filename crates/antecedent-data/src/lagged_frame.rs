@@ -299,35 +299,31 @@ impl LaggedFrame {
         &self.validity[idx]
     }
 
-    /// Keep-mask for a set of lagged column indexes: AND of their validity bitmaps.
+    /// Keep-mask for a set of lagged column indexes: the word-wise AND of their validity
+    /// bitmaps, one bit per effective row.
     ///
     /// # Errors
     ///
     /// Empty column list or out-of-range index.
-    pub fn keep_mask_for_columns(&self, cols: &[usize]) -> Result<Vec<bool>, DataError> {
+    pub fn keep_mask_for_columns(&self, cols: &[usize]) -> Result<ValidityBitmap, DataError> {
         if cols.is_empty() {
             return Err(DataError::InvalidArgument {
                 message: "keep_mask_for_columns needs ≥1 column".into(),
             });
         }
-        let mut keep = vec![true; self.n_effective];
+        let mut parts: Vec<&ValidityBitmap> = Vec::with_capacity(cols.len());
         for &c in cols {
             if c >= self.ncols() {
                 return Err(DataError::InvalidArgument {
                     message: format!("keep_mask_for_columns: column {c} out of range"),
                 });
             }
-            let v = &self.validity[c];
-            for (i, slot) in keep.iter_mut().enumerate() {
-                if *slot && !v.is_valid(i) {
-                    *slot = false;
-                }
-            }
+            parts.push(&self.validity[c]);
         }
-        Ok(keep)
+        ValidityBitmap::intersection(self.n_effective, &parts)
     }
 
-    /// Compact to effective rows where `keep[i]` is true.
+    /// Compact to the effective rows `keep` marks valid.
     ///
     /// Used for regime-masked CI: the full series is materialized first so lag
     /// alignment is correct, then only windows wholly inside a regime are retained.
@@ -335,7 +331,7 @@ impl LaggedFrame {
     /// # Errors
     ///
     /// Length mismatch or empty keep set.
-    pub fn retain_effective(&self, keep: &[bool]) -> Result<Self, DataError> {
+    pub fn retain_effective(&self, keep: &ValidityBitmap) -> Result<Self, DataError> {
         if keep.len() != self.n_effective {
             return Err(DataError::InvalidArgument {
                 message: format!(
@@ -345,7 +341,7 @@ impl LaggedFrame {
                 ),
             });
         }
-        let n_new = keep.iter().filter(|&&k| k).count();
+        let n_new = keep.count_valid();
         if n_new == 0 {
             return Err(DataError::InvalidArgument {
                 message: "retain_effective: no effective rows retained".into(),
@@ -357,12 +353,8 @@ impl LaggedFrame {
         for c in 0..n_cols {
             let src = self.column(c);
             let dst = &mut values[c * n_new..(c + 1) * n_new];
-            let mut j = 0;
-            for (i, &k) in keep.iter().enumerate() {
-                if k {
-                    dst[j] = src[i];
-                    j += 1;
-                }
+            for (slot, row) in dst.iter_mut().zip(keep.iter_valid()) {
+                *slot = src[row];
             }
             validity.push(self.validity[c].compact(keep)?);
         }
@@ -411,6 +403,8 @@ impl LaggedFrame {
         let n_cols = first.ncols();
         let mut values = vec![0.0; n_cols.saturating_mul(n_eff)];
         let mut validity = Vec::with_capacity(n_cols);
+        // One reference list for every column; each column refills it.
+        let mut parts: Vec<&ValidityBitmap> = Vec::with_capacity(frames.len());
         for c in 0..n_cols {
             let mut offset = 0usize;
             for f in frames {
@@ -419,7 +413,8 @@ impl LaggedFrame {
                 dst.copy_from_slice(src);
                 offset += f.n_effective;
             }
-            let parts: Vec<&ValidityBitmap> = frames.iter().map(|f| &f.validity[c]).collect();
+            parts.clear();
+            parts.extend(frames.iter().map(|f| &f.validity[c]));
             validity.push(ValidityBitmap::concat(&parts)?);
         }
         Ok(Self {
@@ -590,8 +585,8 @@ mod tests {
         let i0 = frame.column_index(vars[0], Lag::CONTEMPORANEOUS).unwrap();
         assert!(!frame.column_valid(i0).is_valid(3));
         let keep = frame.keep_mask_for_columns(&[i0]).unwrap();
-        assert!(!keep[3]);
-        assert!(keep[0]);
+        assert!(!keep.is_valid(3));
+        assert!(keep.is_valid(0));
     }
 
     #[test]
@@ -692,6 +687,6 @@ mod tests {
         let keep = frame.keep_mask_for_columns(&cols).unwrap();
         let compacted = frame.retain_effective(&keep).unwrap();
         assert!(compacted.is_fully_valid());
-        assert_eq!(compacted.n_effective(), keep.iter().filter(|&&k| k).count());
+        assert_eq!(compacted.n_effective(), keep.count_valid());
     }
 }

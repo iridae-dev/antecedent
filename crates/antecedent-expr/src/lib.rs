@@ -22,6 +22,7 @@ pub(crate) fn test_variable(raw: u32) -> antecedent_core::VariableId {
 pub mod estimand;
 pub mod eval;
 pub mod exact;
+mod extended;
 mod exact_engine;
 pub mod exact_plan;
 pub use exact::{
@@ -678,13 +679,17 @@ impl CausalExprArena {
 
     /// Hash-cons an expression node.
     pub fn intern(&mut self, node: ExprNode) -> ExprId {
-        if let Some(id) = self.node_index.get(&node) {
-            return *id;
+        // One hash and one clone per new node: the index key doubles as the stored copy's
+        // source, and a hit never clones.
+        match self.node_index.entry(node) {
+            std::collections::hash_map::Entry::Occupied(hit) => *hit.get(),
+            std::collections::hash_map::Entry::Vacant(slot) => {
+                let id = ExprId(u32::try_from(self.nodes.len()).expect("expr id"));
+                self.nodes.push(slot.key().clone());
+                slot.insert(id);
+                id
+            }
         }
-        let id = ExprId(u32::try_from(self.nodes.len()).expect("expr id"));
-        self.nodes.push(node.clone());
-        self.node_index.insert(node, id);
-        id
     }
 
     /// Copy the expression rooted at `root` in `source` into this arena and return its id here.

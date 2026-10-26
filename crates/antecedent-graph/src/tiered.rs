@@ -32,6 +32,30 @@ pub struct TieredBackground {
     pub tiers: Arc<[Arc<[VariableId]>]>,
     /// Within-tier interpretation.
     pub within_tier: WithinTier,
+    index: TierIndex,
+}
+
+/// Variable → tier lookup built once from a tier list, so a tier query is one hash lookup
+/// instead of a nested scan.
+///
+/// It remembers which tier list it indexes: `tiers` is a public field, and a list swapped in
+/// after construction is detected by identity and answered by a scan instead of a stale map.
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct TierIndex {
+    source: Arc<[Arc<[VariableId]>]>,
+    tier_of: std::collections::HashMap<VariableId, usize>,
+}
+
+impl TierIndex {
+    fn build(tiers: &Arc<[Arc<[VariableId]>]>) -> Self {
+        let mut tier_of = std::collections::HashMap::new();
+        for (index, tier) in tiers.iter().enumerate() {
+            for &variable in tier.iter() {
+                tier_of.entry(variable).or_insert(index);
+            }
+        }
+        Self { source: Arc::clone(tiers), tier_of }
+    }
 }
 
 /// Tiers keep their causal order; the variables inside one tier are a set and
@@ -80,7 +104,8 @@ impl TieredBackground {
                 }
             }
         }
-        Ok(Self { tiers, within_tier })
+        let index = TierIndex::build(&tiers);
+        Ok(Self { tiers, within_tier, index })
     }
 
     /// Named-tier constructor (`schema` resolves names to ids).
@@ -110,6 +135,9 @@ impl TieredBackground {
     /// Tier index of `id`, if declared.
     #[must_use]
     pub fn tier_of(&self, id: VariableId) -> Option<usize> {
+        if Arc::ptr_eq(&self.index.source, &self.tiers) {
+            return self.index.tier_of.get(&id).copied();
+        }
         self.tiers.iter().position(|t| t.iter().any(|&v| v == id))
     }
 

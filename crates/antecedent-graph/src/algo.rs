@@ -14,6 +14,19 @@ use std::ops::{BitAnd, BitOr, Not};
 use crate::types::DenseNodeId;
 use crate::workspace::{BitSet, GraphWorkspace};
 
+/// Insert `value` into the ascending `list`, keeping it sorted. Returns `false`, leaving the
+/// list unchanged, when `value` is already present. The one sorted-row insertion every graph
+/// store uses.
+pub(crate) fn insert_sorted<T: Ord>(list: &mut Vec<T>, value: T) -> bool {
+    match list.binary_search(&value) {
+        Ok(_) => false,
+        Err(at) => {
+            list.insert(at, value);
+            true
+        }
+    }
+}
+
 /// Directed BFS reachability from `from` to `to` over `children`.
 #[must_use]
 pub(crate) fn bfs_reaches(

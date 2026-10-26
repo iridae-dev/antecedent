@@ -67,17 +67,10 @@ impl Dag {
     /// Unknown node ids.
     pub fn mutilate(&self, intervened: &[DenseNodeId]) -> Result<Dag, GraphError> {
         for &v in intervened {
-            self.validate_node_pub(v)?;
+            self.validate_node(v)?;
         }
         let overlay = GraphOverlay::do_intervention(self.node_count(), intervened);
         self.view(&overlay).materialize()
     }
 
-    pub(crate) fn validate_node_pub(&self, id: DenseNodeId) -> Result<(), GraphError> {
-        if id.as_usize() >= self.node_count() {
-            Err(GraphError::UnknownNode { id: id.raw() })
-        } else {
-            Ok(())
-        }
-    }
 }

@@ -141,15 +141,11 @@ impl Pag {
         Ok(DenseNodeId::from_raw(id))
     }
 
-    fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
+    pub(crate) fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
         if id.as_usize() >= self.node_count() {
             return Err(GraphError::UnknownNode { id: id.raw() });
         }
         Ok(())
-    }
-
-    pub(crate) fn validate_node_pub(&self, id: DenseNodeId) -> Result<(), GraphError> {
-        self.validate_node(id)
     }
 
     /// Whether marks are legal for a PAG (any Tail/Arrow/Circle/Conflict pair on distinct nodes).
