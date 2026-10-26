@@ -30,16 +30,29 @@ pub fn sigmoid(x: f64) -> f64 {
     }
 }
 
+/// Neumaier-compensated sum of `values` in iteration order.
+///
+/// The compensation term of an infinite partial sum is `NaN` (`∞ − ∞`), which would turn an
+/// honest infinite total into `NaN`. When the compensated total is not finite the plain
+/// left-to-right sum is returned instead, so `NaN` and infinities propagate exactly as they do
+/// for an uncompensated sum.
+#[must_use]
+pub(crate) fn compensated_sum_or_plain(values: impl Iterator<Item = f64> + Clone) -> f64 {
+    let compensated = CompensatedSum::of(values.clone());
+    if compensated.is_finite() { compensated } else { values.sum() }
+}
+
 /// Arithmetic mean `Σx / n`; `NaN` for an empty slice, and any `NaN` or infinite value
-/// propagates (no sanitising). The single plain-mean owner; the masked and weighted forms are
-/// in [`crate::scalar`].
+/// propagates (no sanitising). The sum is Neumaier-compensated, so a long or badly scaled
+/// sample does not accumulate rounding error linearly in `n`. The single plain-mean owner;
+/// the masked and weighted forms are in [`crate::scalar`].
 #[inline]
 #[must_use]
 pub fn mean(values: &[f64]) -> f64 {
     if values.is_empty() {
         return f64::NAN;
     }
-    values.iter().sum::<f64>() / values.len() as f64
+    compensated_sum_or_plain(values.iter().copied()) / values.len() as f64
 }
 
 /// Dot product `Σ aᵢ bᵢ`, summed left to right with no sanitising (a `NaN` propagates).
@@ -99,7 +112,8 @@ impl CompensatedSum {
 }
 
 /// Unbiased sample standard deviation `sqrt(Σ(x − x̄)² / (n − 1))`; `NaN` for fewer than two
-/// values, and a `NaN` value gives `NaN`.
+/// values, and a `NaN` value gives `NaN`. Both the mean and the centered sum of squares use
+/// compensated accumulation (two-pass).
 #[must_use]
 pub fn sample_std(values: &[f64]) -> f64 {
     let n = values.len();
@@ -107,14 +121,11 @@ pub fn sample_std(values: &[f64]) -> f64 {
         return f64::NAN;
     }
     let nf = n as f64;
-    let mean = values.iter().sum::<f64>() / nf;
-    let ss: f64 = values
-        .iter()
-        .map(|v| {
-            let d = v - mean;
-            d * d
-        })
-        .sum();
+    let mean = compensated_sum_or_plain(values.iter().copied()) / nf;
+    let ss = compensated_sum_or_plain(values.iter().map(|v| {
+        let d = v - mean;
+        d * d
+    }));
     (ss / (nf - 1.0)).sqrt()
 }
 

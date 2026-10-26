@@ -211,6 +211,84 @@ pub fn log_norm_pdf(x: f64) -> f64 {
     -LN_SQRT_2PI - 0.5 * x * x
 }
 
+/// Why [`gaussian_log_density`] refused its inputs.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GaussianDensityError {
+    /// `values`, `mean` and `out` do not have the same length.
+    LengthMismatch,
+    /// `sigma` is not a positive finite number.
+    InvalidScale,
+}
+
+impl core::fmt::Display for GaussianDensityError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::LengthMismatch => "gaussian log-density buffers differ in length",
+            Self::InvalidScale => "gaussian scale must be positive and finite",
+        })
+    }
+}
+
+impl std::error::Error for GaussianDensityError {}
+
+/// Row-wise Gaussian log-density `ln N(vᵢ; μᵢ, σ²) = −½ ln 2π − ln σ − ½ ((vᵢ − μᵢ)/σ)²`
+/// written into `out`.
+///
+/// The single workspace owner of the per-row normal log-density with a common scale. The scale
+/// enters as `log_norm = −½ ln 2π − ln σ` and `z = (v − μ) · (1/σ)`, so a `NaN` value or mean
+/// yields `NaN` for that row and nothing else. On error `out` is left untouched.
+///
+/// # Errors
+///
+/// See [`GaussianDensityError`].
+pub fn gaussian_log_density(
+    values: &[f64],
+    mean: &[f64],
+    sigma: f64,
+    out: &mut [f64],
+) -> Result<(), GaussianDensityError> {
+    if values.len() != mean.len() || values.len() != out.len() {
+        return Err(GaussianDensityError::LengthMismatch);
+    }
+    let (log_norm, inv_sigma) = gaussian_constants(sigma)?;
+    for ((slot, &v), &m) in out.iter_mut().zip(values).zip(mean) {
+        let z = (v - m) * inv_sigma;
+        *slot = log_norm - 0.5 * z * z;
+    }
+    Ok(())
+}
+
+/// [`gaussian_log_density`] with one common mean for every row (the standard normal for
+/// `mean = 0`, `sigma = 1`).
+///
+/// # Errors
+///
+/// See [`GaussianDensityError`]; the length check is `values.len() == out.len()`.
+pub fn gaussian_log_density_common_mean(
+    values: &[f64],
+    mean: f64,
+    sigma: f64,
+    out: &mut [f64],
+) -> Result<(), GaussianDensityError> {
+    if values.len() != out.len() {
+        return Err(GaussianDensityError::LengthMismatch);
+    }
+    let (log_norm, inv_sigma) = gaussian_constants(sigma)?;
+    for (slot, &v) in out.iter_mut().zip(values) {
+        let z = (v - mean) * inv_sigma;
+        *slot = log_norm - 0.5 * z * z;
+    }
+    Ok(())
+}
+
+/// `(−½ ln 2π − ln σ, 1/σ)` for a validated scale.
+fn gaussian_constants(sigma: f64) -> Result<(f64, f64), GaussianDensityError> {
+    if !(sigma.is_finite() && sigma > 0.0) {
+        return Err(GaussianDensityError::InvalidScale);
+    }
+    Ok((-0.5 * (2.0 * std::f64::consts::PI).ln() - sigma.ln(), 1.0 / sigma))
+}
+
 /// Left-tail Mills ratio pieces for `t ≥ 8`: returns `(ratio, delta)` with
 /// `ratio = φ(t) / Φ(−t) = t + delta` and `delta = 1 / (t + 1 / (t + 2 / (t + 3 / …)))`.
 ///
@@ -631,5 +709,29 @@ mod tests {
             let rel = (norm_cdf(x) - p).abs() / p;
             assert!(rel < 1e-7, "round trip at p={p} gave rel error {rel:e}");
         }
+    }
+
+    #[test]
+    fn gaussian_log_density_matches_the_closed_form_and_validates() {
+        let values = [0.0, 1.0, -2.5];
+        let mean = [0.0, 0.5, 1.0];
+        let mut out = [0.0; 3];
+        gaussian_log_density(&values, &mean, 2.0, &mut out).unwrap();
+        for ((&v, &m), &got) in values.iter().zip(&mean).zip(&out) {
+            let z = (v - m) / 2.0;
+            let want = -0.5 * (2.0 * std::f64::consts::PI).ln() - 2.0_f64.ln() - 0.5 * z * z;
+            assert!((got - want).abs() < 1e-14);
+        }
+        let mut std_normal = [0.0; 3];
+        gaussian_log_density_common_mean(&values, 0.0, 1.0, &mut std_normal).unwrap();
+        assert!((std_normal[0] - log_norm_pdf(0.0)).abs() < 1e-14);
+        assert_eq!(
+            gaussian_log_density(&values, &mean, 0.0, &mut out),
+            Err(GaussianDensityError::InvalidScale)
+        );
+        assert_eq!(
+            gaussian_log_density(&values, &mean[..2], 1.0, &mut out),
+            Err(GaussianDensityError::LengthMismatch)
+        );
     }
 }

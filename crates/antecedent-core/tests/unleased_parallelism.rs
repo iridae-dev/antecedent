@@ -42,13 +42,13 @@ struct Allowed {
 
 const ALLOWLIST: &[Allowed] = &[
     Allowed {
-        path: "crates/antecedent-core/src/execution.rs",
+        path: "crates/antecedent-core/src/execution/pipeline.rs",
         marker: "acquire_map_lease",
         reason: "the admission pool's own parallel map: it takes the worker lease before it \
                  spawns and holds it until the workers join",
     },
     Allowed {
-        path: "crates/antecedent-data/src/resample.rs",
+        path: "crates/antecedent-data/src/resample/replicates.rs",
         marker: "admit_resample_scratch",
         reason: "batch resampling leases its workers and per-worker scratch with \
                  `admit_scratch` before the scope starts, and the scope uses exactly the \

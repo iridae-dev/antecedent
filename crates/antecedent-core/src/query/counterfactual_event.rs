@@ -15,7 +15,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::cross_world::{ExogenousCoupling, MAX_CROSS_WORLDS, WorldId, WorldSpec};
+use super::cross_world::{ExogenousCoupling, WorldId, WorldSpec};
 use super::error::QueryError;
 use crate::ids::VariableId;
 
@@ -87,7 +87,7 @@ impl CounterfactualEventQuery {
     /// # Errors
     ///
     /// [`QueryError::InvalidIntervention`] when no or more than
-    /// [`MAX_CROSS_WORLDS`] worlds are given, an event names an unknown world, or
+    /// [`WorldId::CAPACITY`] worlds are given, an event names an unknown world, or
     /// the event conjunction is empty.
     pub fn new(
         worlds: Vec<WorldSpec>,
@@ -114,9 +114,10 @@ impl CounterfactualEventQuery {
     ///
     /// See [`Self::new`].
     pub fn validate(&self) -> Result<(), QueryError> {
-        if !(1..=MAX_CROSS_WORLDS).contains(&self.worlds.len()) {
+        if !(1..=WorldId::CAPACITY).contains(&self.worlds.len()) {
             return Err(QueryError::InvalidIntervention(
-                "a counterfactual event query names between one and eight worlds".into(),
+                "a counterfactual event query names at least one world, each addressable by a world index"
+                    .into(),
             ));
         }
         if self.event.is_empty() {

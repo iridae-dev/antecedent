@@ -235,17 +235,24 @@ impl ObservedAdmission {
 }
 impl Drop for ObservedAdmission {
     fn drop(&mut self) {
+        // An accounting imbalance is an internal bug. Report it on the ordinary
+        // path, but never panic while already unwinding (a second panic would
+        // abort the process); saturate to zero there instead.
+        let mut imbalance = None;
         for counter in self.counters.iter().filter_map(Weak::upgrade) {
             let mut held =
                 counter.admitted.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-            held.0 = held
-                .0
-                .checked_sub(u128::from(self.bytes))
-                .expect("admission observation byte balance");
-            held.1 = held
-                .1
-                .checked_sub(u128::from(self.threads))
-                .expect("admission observation worker balance");
+            held.0 = held.0.checked_sub(u128::from(self.bytes)).unwrap_or_else(|| {
+                imbalance = Some("admission observation byte balance");
+                0
+            });
+            held.1 = held.1.checked_sub(u128::from(self.threads)).unwrap_or_else(|| {
+                imbalance = Some("admission observation worker balance");
+                0
+            });
+        }
+        if let Some(message) = imbalance {
+            assert!(std::thread::panicking(), "{message}");
         }
     }
 }

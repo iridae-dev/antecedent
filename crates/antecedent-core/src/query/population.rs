@@ -8,6 +8,7 @@ use std::sync::Arc;
 use crate::ids::DistributionRef;
 
 use super::error::QueryError;
+use super::probability::BINARY_CODING_TOLERANCE;
 use super::target::{PredicateExpr, TargetPopulation};
 
 /// Caller-supplied bindings for named predicates and custom target distributions.
@@ -125,8 +126,8 @@ impl TargetPopulation {
                 let want_treated = matches!(self, Self::Treated);
                 let mut keep = vec![false; n];
                 for (i, &ti) in t.iter().enumerate() {
-                    let is_t = (ti - 1.0).abs() <= 1e-12;
-                    let is_c = ti.abs() <= 1e-12;
+                    let is_t = (ti - 1.0).abs() <= BINARY_CODING_TOLERANCE;
+                    let is_c = ti.abs() <= BINARY_CODING_TOLERANCE;
                     if !is_t && !is_c {
                         return Err(QueryError::PopulationNonBinaryTreatment);
                     }

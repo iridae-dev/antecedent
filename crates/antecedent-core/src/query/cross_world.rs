@@ -17,14 +17,15 @@
 use super::error::QueryError;
 use crate::ids::VariableId;
 
-/// Most worlds one query may declare.
-pub const MAX_CROSS_WORLDS: usize = 8;
-
 /// Index of a world within one query.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct WorldId(u8);
 
 impl WorldId {
+    /// Number of distinct world indices: the only bound on how many worlds a
+    /// query may declare, set by the width of the index, not by any cost model.
+    pub const CAPACITY: usize = u8::MAX as usize + 1;
+
     /// World from its index.
     #[must_use]
     pub const fn new(index: u8) -> Self {
@@ -171,7 +172,7 @@ impl CrossWorldQuery {
     /// # Errors
     ///
     /// [`QueryError::InvalidIntervention`] when fewer than two or more than
-    /// [`MAX_CROSS_WORLDS`] worlds are given, a route or observation names an
+    /// [`WorldId::CAPACITY`] worlds are given, a route or observation names an
     /// unknown world, a route reads its own world, or the two observations are
     /// the same.
     pub fn new(
@@ -192,9 +193,10 @@ impl CrossWorldQuery {
     /// See [`Self::new`].
     pub fn validate(&self) -> Result<(), QueryError> {
         let n = self.worlds.len();
-        if !(2..=MAX_CROSS_WORLDS).contains(&n) {
+        if !(2..=WorldId::CAPACITY).contains(&n) {
             return Err(QueryError::InvalidIntervention(
-                "a cross-world query names between two and eight worlds".into(),
+                "a cross-world query names at least two worlds, each addressable by a world index"
+                    .into(),
             ));
         }
         for (index, world) in self.worlds.iter().enumerate() {

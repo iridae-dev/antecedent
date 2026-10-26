@@ -1541,7 +1541,7 @@ fn a_wrapped_search_declares_what_it_wraps() {
     assert!(stable.method.uses_independence_tests());
     assert_eq!(stable.method.id(), "bootstrap_stability");
     assert!(stability(DiscoveryMethod::Pc, 1).validate().is_err());
-    assert!(stability(DiscoveryMethod::Pc, 10_001).validate().is_err());
+    assert!(stability(DiscoveryMethod::Pc, 10_001).validate().is_ok());
     assert!(stability(DiscoveryMethod::Rpcmci { min_regime_len: None }, 50).validate().is_ok());
     assert!(stability(DiscoveryMethod::StructureMcmc, 50).validate().is_err());
     assert!(

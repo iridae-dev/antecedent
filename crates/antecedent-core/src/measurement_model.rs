@@ -522,6 +522,10 @@ fn variance(value: f64) -> bool {
     value.is_finite() && value >= 0.0
 }
 
+fn reliability_floor(value: f64) -> bool {
+    value.is_finite() && (0.0..1.0).contains(&value)
+}
+
 /// A typed relationship between one indicator and one construct.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MeasurementModel {
@@ -612,148 +616,191 @@ impl MeasurementModel {
         self.validate_parameters()
     }
 
-    #[allow(
-        clippy::too_many_lines,
-        reason = "one arm per measurement route, each checking its own parameter block against its own structure"
-    )]
+    /// Check the parameter block against the route and the declared error structure.
     fn validate_parameters(&self) -> Result<(), MeasurementModelError> {
-        let floor_ok = |v: f64| v.is_finite() && (0.0..1.0).contains(&v);
         match &self.parameters {
             MeasurementParameters::ClassicalError {
                 error_variance,
                 error_variance_standard_error,
                 min_reliability,
-            } => {
-                if !variance(*error_variance) || !variance(*error_variance_standard_error) {
-                    return Err(MeasurementModelError::InvalidParameter(
-                        "error variance and its standard error must be finite and non-negative",
-                    ));
-                }
-                if !floor_ok(*min_reliability) {
-                    return Err(MeasurementModelError::InvalidParameter(
-                        "minimum reliability must lie in [0, 1)",
-                    ));
-                }
-                if self.structure != ErrorStructure::NonDifferential {
-                    return Err(MeasurementModelError::StructureParameterMismatch);
-                }
-            }
+            } => self.validate_classical(
+                *error_variance,
+                *error_variance_standard_error,
+                *min_reliability,
+            ),
             MeasurementParameters::Repeated { min_replicated_units, min_reliability } => {
-                if *min_replicated_units < 2 || !floor_ok(*min_reliability) {
-                    return Err(MeasurementModelError::InvalidParameter(
-                        "repeated measurements need at least two replicated units and a reliability floor in [0, 1)",
-                    ));
-                }
-                if self.structure != ErrorStructure::NonDifferential {
-                    return Err(MeasurementModelError::StructureParameterMismatch);
-                }
+                self.validate_repeated(*min_replicated_units, *min_reliability)
             }
             MeasurementParameters::Binary { rates, min_youden } => {
-                if !(min_youden.is_finite() && *min_youden > 0.0 && *min_youden < 1.0) {
-                    return Err(MeasurementModelError::InvalidParameter(
-                        "minimum Youden index must lie in (0, 1)",
-                    ));
-                }
-                for arm in rates {
-                    if !(probability(arm.sensitivity) && probability(arm.specificity)) {
-                        return Err(MeasurementModelError::InvalidParameter(
-                            "sensitivity and specificity must lie in [0, 1]",
-                        ));
-                    }
-                    if !(variance(arm.sensitivity_variance) && variance(arm.specificity_variance)) {
-                        return Err(MeasurementModelError::InvalidParameter(
-                            "rate variances must be finite and non-negative",
-                        ));
-                    }
-                    if arm.arm_id.as_deref().is_some_and(blank) {
-                        return Err(MeasurementModelError::BlankField("rates.arm_id"));
-                    }
-                }
-                let shared = rates.len() == 1 && rates[0].arm_id.is_none();
-                let per_arm = rates.len() >= 2 && rates.iter().all(|arm| arm.arm_id.is_some()) && {
-                    let mut ids: Vec<&str> =
-                        rates.iter().filter_map(|arm| arm.arm_id.as_deref()).collect();
-                    ids.sort_unstable();
-                    ids.windows(2).all(|pair| pair[0] != pair[1])
-                };
-                match self.structure {
-                    ErrorStructure::NonDifferential if shared => {}
-                    ErrorStructure::Differential(DifferentialAxis::Arm) if per_arm => {}
-                    _ => return Err(MeasurementModelError::StructureParameterMismatch),
-                }
+                self.validate_binary(rates, *min_youden)
             }
             MeasurementParameters::Categorical {
                 levels,
                 confusion,
                 column_counts,
                 max_condition,
-            } => {
-                let k = levels.len();
-                if !(2..=16).contains(&k)
-                    || confusion.len() != k * k
-                    || levels.iter().any(|level| blank(level))
-                {
-                    return Err(MeasurementModelError::InvalidParameter(
-                        "a confusion model needs 2 to 16 named levels and a square matrix",
-                    ));
-                }
-                let mut seen: Vec<&str> = levels.iter().map(String::as_str).collect();
-                seen.sort_unstable();
-                if seen.windows(2).any(|pair| pair[0] == pair[1]) {
-                    return Err(MeasurementModelError::InvalidParameter("level names repeat"));
-                }
-                if !confusion.iter().all(|v| probability(*v)) {
-                    return Err(MeasurementModelError::InvalidParameter(
-                        "confusion entries must be probabilities",
-                    ));
-                }
-                for t in 0..k {
-                    let sum: f64 = (0..k).map(|j| confusion[j * k + t]).sum();
-                    if (sum - 1.0).abs() > 1e-9 {
-                        return Err(MeasurementModelError::InvalidParameter(
-                            "each confusion column must sum to one",
-                        ));
-                    }
-                }
-                if let Some(counts) = column_counts {
-                    if counts.len() != k || counts.contains(&0) {
-                        return Err(MeasurementModelError::InvalidParameter(
-                            "validation counts need one positive count per true level",
-                        ));
-                    }
-                }
-                if !(max_condition.is_finite() && *max_condition >= 1.0) {
-                    return Err(MeasurementModelError::InvalidParameter(
-                        "maximum condition number must be at least one",
-                    ));
-                }
-                if self.structure != ErrorStructure::NonDifferential {
-                    return Err(MeasurementModelError::StructureParameterMismatch);
-                }
-            }
+            } => self.validate_categorical(
+                levels,
+                confusion,
+                column_counts.as_deref(),
+                *max_condition,
+            ),
             MeasurementParameters::ExternalPosterior { reference, min_draws, .. } => {
-                for (name, value) in [
-                    ("reference.provider_id", &reference.provider_id),
-                    ("reference.object_id", &reference.object_id),
-                    ("reference.version_id", &reference.version_id),
-                    ("reference.snapshot_id", &reference.snapshot_id),
-                    ("reference.request_id", &reference.request_id),
-                ] {
-                    if blank(value) {
-                        return Err(MeasurementModelError::BlankField(name));
-                    }
-                }
-                if *min_draws < 2 {
-                    return Err(MeasurementModelError::InvalidParameter(
-                        "a posterior route needs at least two joint draws",
-                    ));
-                }
-                if self.structure != ErrorStructure::NonDifferential {
-                    return Err(MeasurementModelError::StructureParameterMismatch);
-                }
+                self.validate_posterior(reference, *min_draws)
             }
         }
-        Ok(())
+    }
+
+    /// Routes whose error law cannot depend on the arm or another axis.
+    fn require_non_differential(&self) -> Result<(), MeasurementModelError> {
+        if self.structure == ErrorStructure::NonDifferential {
+            Ok(())
+        } else {
+            Err(MeasurementModelError::StructureParameterMismatch)
+        }
+    }
+
+    fn validate_classical(
+        &self,
+        error_variance: f64,
+        error_variance_standard_error: f64,
+        min_reliability: f64,
+    ) -> Result<(), MeasurementModelError> {
+        if !variance(error_variance) || !variance(error_variance_standard_error) {
+            return Err(MeasurementModelError::InvalidParameter(
+                "error variance and its standard error must be finite and non-negative",
+            ));
+        }
+        if !reliability_floor(min_reliability) {
+            return Err(MeasurementModelError::InvalidParameter(
+                "minimum reliability must lie in [0, 1)",
+            ));
+        }
+        self.require_non_differential()
+    }
+
+    fn validate_repeated(
+        &self,
+        min_replicated_units: u32,
+        min_reliability: f64,
+    ) -> Result<(), MeasurementModelError> {
+        if min_replicated_units < 2 || !reliability_floor(min_reliability) {
+            return Err(MeasurementModelError::InvalidParameter(
+                "repeated measurements need at least two replicated units and a reliability floor in [0, 1)",
+            ));
+        }
+        self.require_non_differential()
+    }
+
+    fn validate_binary(
+        &self,
+        rates: &[BinaryArmRates],
+        min_youden: f64,
+    ) -> Result<(), MeasurementModelError> {
+        if !(min_youden.is_finite() && min_youden > 0.0 && min_youden < 1.0) {
+            return Err(MeasurementModelError::InvalidParameter(
+                "minimum Youden index must lie in (0, 1)",
+            ));
+        }
+        for arm in rates {
+            if !(probability(arm.sensitivity) && probability(arm.specificity)) {
+                return Err(MeasurementModelError::InvalidParameter(
+                    "sensitivity and specificity must lie in [0, 1]",
+                ));
+            }
+            if !(variance(arm.sensitivity_variance) && variance(arm.specificity_variance)) {
+                return Err(MeasurementModelError::InvalidParameter(
+                    "rate variances must be finite and non-negative",
+                ));
+            }
+            if arm.arm_id.as_deref().is_some_and(blank) {
+                return Err(MeasurementModelError::BlankField("rates.arm_id"));
+            }
+        }
+        let shared = rates.len() == 1 && rates[0].arm_id.is_none();
+        let per_arm = rates.len() >= 2 && rates.iter().all(|arm| arm.arm_id.is_some()) && {
+            let mut ids: Vec<&str> = rates.iter().filter_map(|arm| arm.arm_id.as_deref()).collect();
+            ids.sort_unstable();
+            ids.windows(2).all(|pair| pair[0] != pair[1])
+        };
+        match self.structure {
+            ErrorStructure::NonDifferential if shared => Ok(()),
+            ErrorStructure::Differential(DifferentialAxis::Arm) if per_arm => Ok(()),
+            _ => Err(MeasurementModelError::StructureParameterMismatch),
+        }
+    }
+
+    fn validate_categorical(
+        &self,
+        levels: &[String],
+        confusion: &[f64],
+        column_counts: Option<&[u64]>,
+        max_condition: f64,
+    ) -> Result<(), MeasurementModelError> {
+        let k = levels.len();
+        if !(2..=16).contains(&k)
+            || confusion.len() != k * k
+            || levels.iter().any(|level| blank(level))
+        {
+            return Err(MeasurementModelError::InvalidParameter(
+                "a confusion model needs 2 to 16 named levels and a square matrix",
+            ));
+        }
+        let mut seen: Vec<&str> = levels.iter().map(String::as_str).collect();
+        seen.sort_unstable();
+        if seen.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(MeasurementModelError::InvalidParameter("level names repeat"));
+        }
+        if !confusion.iter().all(|v| probability(*v)) {
+            return Err(MeasurementModelError::InvalidParameter(
+                "confusion entries must be probabilities",
+            ));
+        }
+        for t in 0..k {
+            let sum: f64 = (0..k).map(|j| confusion[j * k + t]).sum();
+            if (sum - 1.0).abs() > 1e-9 {
+                return Err(MeasurementModelError::InvalidParameter(
+                    "each confusion column must sum to one",
+                ));
+            }
+        }
+        if let Some(counts) = column_counts {
+            if counts.len() != k || counts.contains(&0) {
+                return Err(MeasurementModelError::InvalidParameter(
+                    "validation counts need one positive count per true level",
+                ));
+            }
+        }
+        if !(max_condition.is_finite() && max_condition >= 1.0) {
+            return Err(MeasurementModelError::InvalidParameter(
+                "maximum condition number must be at least one",
+            ));
+        }
+        self.require_non_differential()
+    }
+
+    fn validate_posterior(
+        &self,
+        reference: &PosteriorReference,
+        min_draws: u32,
+    ) -> Result<(), MeasurementModelError> {
+        for (name, value) in [
+            ("reference.provider_id", &reference.provider_id),
+            ("reference.object_id", &reference.object_id),
+            ("reference.version_id", &reference.version_id),
+            ("reference.snapshot_id", &reference.snapshot_id),
+            ("reference.request_id", &reference.request_id),
+        ] {
+            if blank(value) {
+                return Err(MeasurementModelError::BlankField(name));
+            }
+        }
+        if min_draws < 2 {
+            return Err(MeasurementModelError::InvalidParameter(
+                "a posterior route needs at least two joint draws",
+            ));
+        }
+        self.require_non_differential()
     }
 
     fn write_variable(stream: &mut CanonicalWriter, variable: &MeasurementVariable) {

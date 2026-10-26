@@ -22,9 +22,12 @@ use crate::canonical_encode::{CanonicalEncode, count, encode_variables};
 use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 
-/// Largest number of nodes an expression may hold.
+/// Node count that program declarations in dependent crates bound themselves by.
+/// The expression contract itself ([`ValueExpr::value_type`]) does not enforce it.
 pub const MAX_EXPR_NODES: usize = 512;
-/// Deepest nesting an expression may have.
+/// Default deepest nesting an expression may have. Nesting recurses through the
+/// owned tree in every structural operation, so this protects the stack; use
+/// [`ValueExpr::value_type_within_depth`] to choose another bound.
 pub const MAX_EXPR_DEPTH: usize = 64;
 
 /// Static type of an expression.
@@ -314,8 +317,8 @@ pub enum ExpressionFault {
     /// A constant is NaN or infinite.
     #[error("expression constant is not finite")]
     NonFiniteConstant,
-    /// The expression exceeds the node or depth bound.
-    #[error("expression exceeds the {}-node or {}-level bound", MAX_EXPR_NODES, MAX_EXPR_DEPTH)]
+    /// The expression nests deeper than the depth bound.
+    #[error("expression nests deeper than the depth bound ({} levels by default)", MAX_EXPR_DEPTH)]
     TooLarge,
     /// A lagged read with lag zero (use a current read).
     #[error("a lagged read must look back at least one step")]
@@ -719,23 +722,38 @@ impl ValueExpr {
         }
     }
 
-    /// Type of the expression, checking every operand, constant and bound.
+    /// Type of the expression, checking every operand, constant and the nesting
+    /// bound [`MAX_EXPR_DEPTH`].
     ///
     /// # Errors
     ///
     /// [`ExpressionFault`] naming the first violation.
     pub fn value_type(&self) -> Result<ExprType, ExpressionFault> {
-        let mut count = 0usize;
-        self.check(1, &mut count)
+        self.value_type_within_depth(MAX_EXPR_DEPTH)
     }
 
-    fn check(&self, depth: usize, count: &mut usize) -> Result<ExprType, ExpressionFault> {
-        *count += 1;
-        if depth > MAX_EXPR_DEPTH || *count > MAX_EXPR_NODES {
+    /// As [`Self::value_type`] with a caller-chosen nesting bound.
+    ///
+    /// The tree is a recursive owned structure, so cloning, hashing, encoding,
+    /// dropping and this check all recurse with its depth; the bound protects the
+    /// stack, not any cost model. A caller that runs on a larger stack may raise it.
+    /// There is no bound on the node count: a wide expression of bounded depth is
+    /// already resident, and its size is governed by the memory budget of whoever
+    /// built it.
+    ///
+    /// # Errors
+    ///
+    /// [`ExpressionFault`] naming the first violation.
+    pub fn value_type_within_depth(&self, max_depth: usize) -> Result<ExprType, ExpressionFault> {
+        self.check(1, max_depth)
+    }
+
+    fn check(&self, depth: usize, max_depth: usize) -> Result<ExprType, ExpressionFault> {
+        if depth > max_depth {
             return Err(ExpressionFault::TooLarge);
         }
-        let want = |expr: &Self, expected: ExprType, count: &mut usize| {
-            let found = expr.check(depth + 1, count)?;
+        let want = |expr: &Self, expected: ExprType, max_depth: usize| {
+            let found = expr.check(depth + 1, max_depth)?;
             if found == expected {
                 Ok(())
             } else {
@@ -759,38 +777,38 @@ impl ValueExpr {
                 }
             }
             Self::Neg(a) => {
-                want(a, ExprType::Number, count)?;
+                want(a, ExprType::Number, max_depth)?;
                 Ok(ExprType::Number)
             }
             Self::Arith { lhs, rhs, .. } => {
-                want(lhs, ExprType::Number, count)?;
-                want(rhs, ExprType::Number, count)?;
+                want(lhs, ExprType::Number, max_depth)?;
+                want(rhs, ExprType::Number, max_depth)?;
                 Ok(ExprType::Number)
             }
             Self::Clip { value, lower, upper } => {
-                want(value, ExprType::Number, count)?;
-                want(lower, ExprType::Number, count)?;
-                want(upper, ExprType::Number, count)?;
+                want(value, ExprType::Number, max_depth)?;
+                want(lower, ExprType::Number, max_depth)?;
+                want(upper, ExprType::Number, max_depth)?;
                 Ok(ExprType::Number)
             }
             Self::Compare { lhs, rhs, .. } => {
-                want(lhs, ExprType::Number, count)?;
-                want(rhs, ExprType::Number, count)?;
+                want(lhs, ExprType::Number, max_depth)?;
+                want(rhs, ExprType::Number, max_depth)?;
                 Ok(ExprType::Boolean)
             }
             Self::Not(a) => {
-                want(a, ExprType::Boolean, count)?;
+                want(a, ExprType::Boolean, max_depth)?;
                 Ok(ExprType::Boolean)
             }
             Self::Logic { lhs, rhs, .. } => {
-                want(lhs, ExprType::Boolean, count)?;
-                want(rhs, ExprType::Boolean, count)?;
+                want(lhs, ExprType::Boolean, max_depth)?;
+                want(rhs, ExprType::Boolean, max_depth)?;
                 Ok(ExprType::Boolean)
             }
             Self::If { condition, then_branch, else_branch } => {
-                want(condition, ExprType::Boolean, count)?;
-                let then_type = then_branch.check(depth + 1, count)?;
-                let else_type = else_branch.check(depth + 1, count)?;
+                want(condition, ExprType::Boolean, max_depth)?;
+                let then_type = then_branch.check(depth + 1, max_depth)?;
+                let else_type = else_branch.check(depth + 1, max_depth)?;
                 if then_type == else_type {
                     Ok(then_type)
                 } else {
@@ -798,7 +816,7 @@ impl ValueExpr {
                 }
             }
             Self::Indicator(a) => {
-                want(a, ExprType::Boolean, count)?;
+                want(a, ExprType::Boolean, max_depth)?;
                 Ok(ExprType::Number)
             }
             Self::Callback(call) => {
@@ -813,7 +831,7 @@ impl ValueExpr {
                     });
                 }
                 for arg in call.args() {
-                    want(arg, ExprType::Number, count)?;
+                    want(arg, ExprType::Number, max_depth)?;
                 }
                 Ok(ExprType::Number)
             }
@@ -1074,11 +1092,16 @@ mod tests {
             deep = deep.neg();
         }
         assert_eq!(deep.value_type(), Err(ExpressionFault::TooLarge));
-        let mut wide = ValueExpr::constant(1.0);
-        for _ in 0..MAX_EXPR_NODES {
-            wide = wide.add(ValueExpr::constant(1.0));
+        assert_eq!(deep.value_type_within_depth(MAX_EXPR_DEPTH + 2), Ok(ExprType::Number));
+        // A wide expression of bounded depth is not refused for its node count.
+        fn balanced(levels: usize) -> ValueExpr {
+            if levels == 0 {
+                ValueExpr::constant(1.0)
+            } else {
+                balanced(levels - 1).add(balanced(levels - 1))
+            }
         }
-        assert_eq!(wide.value_type(), Err(ExpressionFault::TooLarge));
+        assert_eq!(balanced(10).value_type(), Ok(ExprType::Number));
     }
 
     #[test]

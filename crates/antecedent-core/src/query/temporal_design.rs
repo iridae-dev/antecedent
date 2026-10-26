@@ -4,6 +4,7 @@
 use std::sync::Arc;
 
 use super::QueryError;
+use super::probability::row_totals_one;
 use crate::canonical_encode::{
     CanonicalEncode, count, encode_flags, encode_i64s, encode_usizes, encode_variables, flag,
 };
@@ -490,7 +491,7 @@ impl TemporalDesignQuery {
                     || probabilities.iter().any(|row| {
                         row.len() != arms.len()
                             || !probabilities_valid(row)
-                            || (row.iter().sum::<f64>() - 1.0).abs() > 1e-8
+                            || !row_totals_one(row)
                     })
                 {
                     return Err(invalid(

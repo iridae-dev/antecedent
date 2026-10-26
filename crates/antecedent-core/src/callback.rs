@@ -21,7 +21,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use crate::canonical_encode::{CanonicalEncode, count};
-use crate::identity::CanonicalWriter;
+use crate::identity::{CanonicalWriter, digest_from_lower_hex};
 use crate::reason_code;
 use crate::value_expr::ValueExpr;
 
@@ -179,11 +179,8 @@ impl CallbackSpec {
         let implementation = match &self.implementation {
             CallbackImplementation::Runtime => true,
             CallbackImplementation::Recoverable { source_sha256, entry_point } => {
-                source_sha256.len() == 64
-                    && source_sha256
-                        .bytes()
-                        .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-                    && !entry_point.is_empty()
+                // Canonical identity text: lowercase hex only (uppercase is a different spelling).
+                digest_from_lower_hex(source_sha256).is_some() && !entry_point.is_empty()
             }
         };
         !self.name.is_empty() && distinct && self.output.is_well_formed() && implementation

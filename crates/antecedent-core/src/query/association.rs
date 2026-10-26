@@ -8,13 +8,9 @@ use crate::canonical_encode::{CanonicalEncode, encode_option, encode_variables};
 use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 
-/// Most columns (predictors, conditioning variables, outcome and weight together) one
-/// association reads.
-pub const MAX_ASSOCIATION_COLUMNS: usize = 64;
-/// Fewest and most folds a predictive model is scored over.
+/// Fewest folds a predictive model is scored over. The most is the number of
+/// rows (leave-one-out), which only the data can decide.
 pub const MIN_PREDICTIVE_FOLDS: u32 = 2;
-/// Most folds a predictive model is scored over.
-pub const MAX_PREDICTIVE_FOLDS: u32 = 20;
 /// Longest refusal reason a query retains.
 pub const MAX_REFUSED_AFTER_BYTES: usize = 256;
 
@@ -268,10 +264,10 @@ impl AssociationQuery {
     ///
     /// # Errors
     ///
-    /// [`QueryError::InvalidAssociation`] when a column repeats across roles, too many columns
-    /// are read, the functional does not fit the roles (a measure takes one predictor and no
-    /// conditioning, coefficients and a predictive model take a predictor, folds are outside
-    /// 2 to 20), or the recorded refusal reason is empty or too long.
+    /// [`QueryError::InvalidAssociation`] when a column repeats across roles, the functional
+    /// does not fit the roles (a measure takes one predictor and no conditioning, coefficients
+    /// and a predictive model take a predictor, fewer than two folds), or the recorded
+    /// refusal reason is empty or too long.
     pub fn validate(&self) -> Result<(), QueryError> {
         let invalid = |message: &str| Err(QueryError::InvalidAssociation(message.to_owned()));
         let columns = self.columns();
@@ -283,9 +279,6 @@ impl AssociationQuery {
                 "declare distinct outcome, predictor, conditioning and weight columns; a column \
                  cannot take two roles",
             );
-        }
-        if columns.len() > MAX_ASSOCIATION_COLUMNS {
-            return invalid("an association reads at most 64 columns");
         }
         match self.functional {
             AssociationFunctional::Auto | AssociationFunctional::Conditional => {}
@@ -306,8 +299,8 @@ impl AssociationQuery {
                 if self.predictors.is_empty() {
                     return invalid("a predictive model needs at least one predictor");
                 }
-                if !(MIN_PREDICTIVE_FOLDS..=MAX_PREDICTIVE_FOLDS).contains(&folds) {
-                    return invalid("a predictive model is scored over 2 to 20 folds");
+                if folds < MIN_PREDICTIVE_FOLDS {
+                    return invalid("a predictive model is scored over at least 2 folds");
                 }
             }
         }

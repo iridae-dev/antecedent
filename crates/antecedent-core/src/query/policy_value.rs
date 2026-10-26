@@ -5,6 +5,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::QueryError;
+use super::probability::{compensated_sum, row_totals_one, within_budget};
 use crate::canonical_encode::{
     CanonicalEncode, count, encode_flags, encode_option, encode_usizes, flag,
 };
@@ -75,7 +76,7 @@ impl MultiActionPolicyInputs {
             capacities.iter().any(|&limit| limit < n)
                 || budget.is_some_and(|limit| {
                     let maximum_cost = costs.iter().copied().fold(0.0_f64, f64::max);
-                    limit + 1e-12 < n as f64 * maximum_cost
+                    !within_budget(n as f64 * maximum_cost, limit)
                 })
         })
     }
@@ -123,8 +124,7 @@ impl MultiActionPolicyInputs {
                 .flatten()
                 .any(|x| !x.is_finite() || x < 0.0)
             || self.propensities.chunks_exact(k).any(|row| {
-                row.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p > 1.0)
-                    || (row.iter().sum::<f64>() - 1.0).abs() > 1e-8
+                row.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p > 1.0) || !row_totals_one(row)
             })
         {
             return Err(QueryError::InvalidPolicyValue("multi-action probabilities must be positive and sum to one; costs and budgets must be finite and non-negative".into()));
@@ -139,7 +139,6 @@ impl MultiActionPolicyInputs {
             ),
         ] {
             let mut counts = vec![0usize; k];
-            let mut total_cost = 0.0;
             for (i, &action) in recommendations.iter().enumerate() {
                 if !self.available[i * k + action] {
                     return Err(QueryError::InvalidPolicyValue(
@@ -147,10 +146,10 @@ impl MultiActionPolicyInputs {
                     ));
                 }
                 counts[action] += 1;
-                total_cost += costs[action];
             }
+            let total_cost = compensated_sum(recommendations.iter().map(|&action| costs[action]));
             if counts.iter().zip(capacities.iter()).any(|(count, limit)| count > limit)
-                || budget.is_some_and(|limit| total_cost > limit + 1e-12)
+                || budget.is_some_and(|limit| !within_budget(total_cost, limit))
             {
                 return Err(QueryError::InvalidPolicyValue(
                     "policy exceeds its action capacity or budget".into(),

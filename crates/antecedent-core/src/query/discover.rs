@@ -246,9 +246,6 @@ pub enum DiscoveryMethod {
     },
 }
 
-/// Most resamples a stability search draws.
-const MAX_STABILITY_REPLICATES: u32 = 10_000;
-
 impl DiscoveryMethod {
     /// Stable algorithm id, written to the logical plan's `discovery_algorithm`.
     #[must_use]
@@ -572,8 +569,8 @@ fn method_fault(method: &DiscoveryMethod) -> Option<&'static str> {
             ),
         },
         DiscoveryMethod::BootstrapStability { base, replicates } => {
-            if *replicates < 2 || *replicates > MAX_STABILITY_REPLICATES {
-                return Some("a stability search draws between 2 and 10000 resamples");
+            if *replicates < 2 {
+                return Some("a stability search draws at least 2 resamples");
             }
             match &**base {
                 DiscoveryMethod::Pc

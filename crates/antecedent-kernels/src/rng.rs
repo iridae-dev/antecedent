@@ -44,7 +44,11 @@ pub(crate) fn box_muller(u1: f64, u2: f64) -> (f64, f64) {
 }
 
 /// One standard exponential draw `-ln U`, with `U` floored at `f64::MIN_POSITIVE`
-/// so an exact-zero uniform yields a large finite value instead of `+∞`.
+/// so an exact-zero uniform yields a large finite value (about 708) instead of `+∞`.
+///
+/// This is the workspace endpoint policy for exponential and Bayesian-bootstrap draws: only
+/// the exact-zero uniform is altered (a 53-bit uniform is otherwise at least `2^-53`, far above
+/// the floor), so the floor never changes any other draw or the RNG stream.
 #[must_use]
 pub(crate) fn exp1(rng: &mut CausalRng) -> f64 {
     -rng.next_f64().max(f64::MIN_POSITIVE).ln()
@@ -56,16 +60,31 @@ pub(crate) fn exp1(rng: &mut CausalRng) -> f64 {
 /// `normalize == true` they are rescaled to mean one, `wᵢ *= n / Σw` (the
 /// unguarded `n as f64 / total` of the call sites this replaces: a zero or
 /// non-finite total is left to the caller to check on the raw variant).
+///
+/// The endpoint policy is that of [`exp1`]: the uniform is floored at `f64::MIN_POSITIVE` and
+/// nothing else is capped. Callers that fill an existing buffer use
+/// [`fill_bayesian_bootstrap_weights`], which consumes the identical stream.
 #[must_use]
 pub fn bayesian_bootstrap_weights(rng: &mut CausalRng, n: usize, normalize: bool) -> Vec<f64> {
-    let mut weights: Vec<f64> = (0..n).map(|_| exp1(rng)).collect();
+    let mut weights = vec![0.0; n];
+    fill_bayesian_bootstrap_weights(rng, &mut weights, normalize);
+    weights
+}
+
+/// In-place form of [`bayesian_bootstrap_weights`]: overwrite `out` with `out.len()` weights,
+/// drawing one uniform per slot in order. With `normalize` the weights are rescaled to mean
+/// one (`wᵢ *= n / Σw`), the sum being the plain left-to-right sum used by the allocating form.
+pub fn fill_bayesian_bootstrap_weights(rng: &mut CausalRng, out: &mut [f64], normalize: bool) {
+    for w in out.iter_mut() {
+        *w = exp1(rng);
+    }
     if normalize {
-        let total: f64 = weights.iter().sum();
-        for w in &mut weights {
-            *w *= n as f64 / total;
+        let n = out.len() as f64;
+        let total: f64 = out.iter().sum();
+        for w in out.iter_mut() {
+            *w *= n / total;
         }
     }
-    weights
 }
 
 /// Fill `out` with i.i.d. standard normals, emitting both Box–Muller components.
@@ -188,6 +207,80 @@ pub fn sample_categorical(rng: &mut CausalRng, weights: &[f64]) -> Option<usize>
     Some(categorical_index(weights, rng.next_f64() * total))
 }
 
+/// A categorical distribution prepared for repeated draws: sanitized cumulative masses and a
+/// binary-search inverse CDF, so each draw is `O(log k)` after one `O(k)` construction.
+///
+/// Masses are sanitized exactly as in [`sample_categorical`] (negative, `NaN` and infinite
+/// weights carry none). A draw maps a unit-interval `u` to the category whose half-open
+/// cumulative interval `[F(i-1), F(i))` contains `u · total`; categories without mass are never
+/// returned, and rounding that leaves the target at or above the final cumulative mass resolves
+/// to the last category with mass. [`sample_categorical`] consumes one `next_f64` per draw, and
+/// [`Self::sample`] consumes the same single uniform.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CategoricalSampler {
+    /// Running sum of sanitized masses; non-decreasing, one entry per category.
+    cumulative: Vec<f64>,
+    /// Sum of all sanitized masses.
+    total: f64,
+    /// Last category with positive mass.
+    last_with_mass: usize,
+}
+
+impl CategoricalSampler {
+    /// Prepare `weights` for repeated draws; `None` when there is no positive finite total
+    /// mass (empty, all-zero, all-invalid, or overflowing weights).
+    #[must_use]
+    pub fn new(weights: &[f64]) -> Option<Self> {
+        let total = categorical_total(weights)?;
+        let mut cumulative = Vec::with_capacity(weights.len());
+        let mut acc = 0.0;
+        for &w in weights {
+            acc += categorical_mass(w);
+            cumulative.push(acc);
+        }
+        let last_with_mass = weights.iter().rposition(|&w| categorical_mass(w) > 0.0)?;
+        Some(Self { cumulative, total, last_with_mass })
+    }
+
+    /// Number of categories (including zero-mass ones).
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.cumulative.len()
+    }
+
+    /// Always `false`: construction refuses an empty or massless weight vector.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.cumulative.is_empty()
+    }
+
+    /// Total sanitized mass.
+    #[must_use]
+    pub const fn total(&self) -> f64 {
+        self.total
+    }
+
+    /// Category for the unit-interval `u` (clamped to `[0, 1]`); `None` when `u` is `NaN`.
+    #[must_use]
+    pub fn from_u(&self, u: f64) -> Option<usize> {
+        if u.is_nan() {
+            return None;
+        }
+        let target = u.clamp(0.0, 1.0) * self.total;
+        // First index whose cumulative mass exceeds the target; strict `>` skips zero-mass
+        // categories because their cumulative equals the previous one.
+        let idx = self.cumulative.partition_point(|&c| c <= target);
+        Some(idx.min(self.last_with_mass))
+    }
+
+    /// Draw one category, consuming one uniform from `rng`.
+    #[must_use]
+    pub fn sample(&self, rng: &mut CausalRng) -> usize {
+        let target = rng.next_f64() * self.total;
+        self.cumulative.partition_point(|&c| c <= target).min(self.last_with_mass)
+    }
+}
+
 /// Draw a categorical index from a unit-interval `u` and (possibly unnormalized) weights.
 ///
 /// The inverse CDF: category `i` owns `[F(i-1), F(i))`, so `u == 0` never selects a
@@ -218,6 +311,35 @@ mod tests {
         // Unnormalized weights use their own total.
         assert_eq!(categorical_from_u(0.75, &[2.0, 6.0]), Some(1));
         assert_eq!(categorical_from_u(0.2, &[2.0, 6.0]), Some(0));
+    }
+
+    #[test]
+    fn prepared_sampler_matches_the_linear_scan() {
+        let weights = [0.0, 0.5, 0.0, 1.5, f64::NAN, -3.0, 2.0, 0.0];
+        let sampler = CategoricalSampler::new(&weights).unwrap();
+        assert_eq!(sampler.len(), weights.len());
+        for step in 0..=1000 {
+            let u = f64::from(step) / 1000.0;
+            assert_eq!(sampler.from_u(u), categorical_from_u(u, &weights), "u={u}");
+        }
+        assert_eq!(sampler.from_u(f64::NAN), None);
+        let mut a = CausalRng::from_seed(21);
+        let mut b = CausalRng::from_seed(21);
+        for _ in 0..200 {
+            assert_eq!(Some(sampler.sample(&mut a)), sample_categorical(&mut b, &weights));
+        }
+        assert!(CategoricalSampler::new(&[]).is_none());
+        assert!(CategoricalSampler::new(&[0.0, f64::NAN]).is_none());
+    }
+
+    #[test]
+    fn fill_bootstrap_weights_matches_allocating_form() {
+        let mut a = CausalRng::from_seed(4);
+        let mut b = CausalRng::from_seed(4);
+        let expected = bayesian_bootstrap_weights(&mut a, 9, true);
+        let mut got = vec![0.0; 9];
+        fill_bayesian_bootstrap_weights(&mut b, &mut got, true);
+        assert!(expected.iter().zip(&got).all(|(x, y)| x.to_bits() == y.to_bits()));
     }
 
     #[test]

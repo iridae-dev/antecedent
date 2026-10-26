@@ -4,6 +4,112 @@
 
 use crate::ids::VariableId;
 
+/// Why a randomized-effect declaration is refused. Each variant is one violated
+/// contract; the display text is the stable human-readable statement of it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
+pub enum RandomizedEffectFault {
+    /// Refused: multi-arm contrasts do not combine with receipt adjustment, CUPED, ANCOVA, or exact Fisher inference.
+    #[error("multi-arm contrasts do not combine with receipt adjustment, CUPED, ANCOVA, or exact Fisher inference")]
+    MultiArmCombination,
+    /// Refused: multi-arm labels, assignment, probabilities, and distinct unit identities must align.
+    #[error("multi-arm labels, assignment, probabilities, and distinct unit identities must align")]
+    MultiArmAlignment,
+    /// Refused: multi-arm observed actions and known probability rows must agree.
+    #[error("multi-arm observed actions and known probability rows must agree")]
+    MultiArmProbabilityRows,
+    /// Refused: multi-arm positivity failure: every declared arm needs observed support.
+    #[error("multi-arm positivity failure: every declared arm needs observed support")]
+    MultiArmPositivity,
+    /// Refused: randomization inference requires an unadjusted complete two-arm design.
+    #[error("randomization inference requires an unadjusted complete two-arm design")]
+    ExactTestDesign,
+    /// Refused: CACE/LATE requires Bernoulli assignment, row-aligned treatment receipt, and no CUPED adjustment.
+    #[error("CACE/LATE requires Bernoulli assignment, row-aligned treatment receipt, and no CUPED adjustment")]
+    ReceiptDesign,
+    /// Refused: treatment-on-treated requires observed one-sided noncompliance: no control-assigned unit received treatment.
+    #[error("treatment-on-treated requires observed one-sided noncompliance: no control-assigned unit received treatment")]
+    TreatmentOnTreatedNoncompliance,
+    /// Refused: treatment receipt is only valid for a CACE/LATE or treatment-on-treated query.
+    #[error("treatment receipt is only valid for a CACE/LATE or treatment-on-treated query")]
+    ReceiptWithoutComplier,
+    /// Refused: fixed CUPED requires Bernoulli assignment, a distinct pre-assignment covariate, and a finite externally fixed coefficient.
+    #[error("fixed CUPED requires Bernoulli assignment, a distinct pre-assignment covariate, and a finite externally fixed coefficient")]
+    FixedCupedDesign,
+    /// Refused: ANCOVA requires distinct pre-assignment covariates, independent unit-level Bernoulli assignment with a common probability, and residual degrees of freedom.
+    #[error("ANCOVA requires distinct pre-assignment covariates, independent unit-level Bernoulli assignment with a common probability, and residual degrees of freedom")]
+    AncovaDesign,
+    /// Refused: factorial contrasts do not combine with receipt adjustment or CUPED on this route.
+    #[error("factorial contrasts do not combine with receipt adjustment or CUPED on this route")]
+    FactorialCombination,
+    /// Refused: assignment, probabilities, and unit identities must have at least two aligned rows.
+    #[error("assignment, probabilities, and unit identities must have at least two aligned rows")]
+    RowAlignment,
+    /// Refused: assignment inclusion probabilities must be finite and strictly between zero and one.
+    #[error("assignment inclusion probabilities must be finite and strictly between zero and one")]
+    AssignmentProbabilityRange,
+    /// Refused: assignment and outcome unit labels must be non-empty.
+    #[error("assignment and outcome unit labels must be non-empty")]
+    EmptyUnitLabel,
+    /// Refused: retained randomized ITT requires one outcome unit per row.
+    #[error("retained randomized ITT requires one outcome unit per row")]
+    DuplicateOutcomeUnit,
+    /// Refused: individual randomization requires one assignment unit per row.
+    #[error("individual randomization requires one assignment unit per row")]
+    DuplicateAssignmentUnit,
+    /// Refused: treatment arm labels must be distinct and non-empty.
+    #[error("treatment arm labels must be distinct and non-empty")]
+    ArmLabels,
+    /// Refused: both assigned arms must be observed.
+    #[error("both assigned arms must be observed")]
+    UnobservedArm,
+    /// Refused: complete-randomization variance requires at least two units in each arm.
+    #[error("complete-randomization variance requires at least two units in each arm")]
+    CompleteArmSize,
+    /// Refused: complete assignment must match the declared treated count.
+    #[error("complete assignment must match the declared treated count")]
+    CompleteTreatedCount,
+    /// Refused: complete assignment probabilities must equal treated_units / n.
+    #[error("complete assignment probabilities must equal treated_units / n")]
+    CompleteProbability,
+    /// Refused: assignment and probability must be constant within each randomized cluster.
+    #[error("assignment and probability must be constant within each randomized cluster")]
+    ClusterConstancy,
+    /// Refused: cluster-randomization variance requires at least two clusters in each arm.
+    #[error("cluster-randomization variance requires at least two clusters in each arm")]
+    ClusterArmSize,
+    /// Refused: cluster assignment must match declared treated count and inclusion probability.
+    #[error("cluster assignment must match declared treated count and inclusion probability")]
+    ClusterAllocation,
+    /// Refused: stratified block labels and allocations must align with rows.
+    #[error("stratified block labels and allocations must align with rows")]
+    StratifiedAlignment,
+    /// Refused: each block must have a consistent allocation and inclusion probability.
+    #[error("each block must have a consistent allocation and inclusion probability")]
+    StratifiedConsistency,
+    /// Refused: stratified variance requires at least two units per arm in every block.
+    #[error("stratified variance requires at least two units per arm in every block")]
+    StratifiedArmSize,
+    /// Refused: stratified assignment must match declared block counts and inclusion probabilities.
+    #[error("stratified assignment must match declared block counts and inclusion probabilities")]
+    StratifiedAllocation,
+    /// Refused: factorial design requires four cells with at least two units each, aligned second-factor assignment, and distinct labels.
+    #[error("factorial design requires four cells with at least two units each, aligned second-factor assignment, and distinct labels")]
+    FactorialCells,
+    /// Refused: factorial observed cell counts and primary-factor inclusion probabilities must match the fixed four-cell allocation.
+    #[error("factorial observed cell counts and primary-factor inclusion probabilities must match the fixed four-cell allocation")]
+    FactorialAllocation,
+    /// Refused: switchback period labels must be non-empty and aligned with rows.
+    #[error("switchback period labels must be non-empty and aligned with rows")]
+    SwitchbackLabels,
+    /// Refused: switchback periods must be unique within each sequence.
+    #[error("switchback periods must be unique within each sequence")]
+    SwitchbackDuplicatePeriod,
+    /// Refused: switchback variance requires at least two independent sequences.
+    #[error("switchback variance requires at least two independent sequences")]
+    SwitchbackSequences,
+}
+
 /// Errors from query construction or validation.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 #[non_exhaustive]
@@ -20,6 +126,9 @@ pub enum QueryError {
     /// Invalid randomized experiment contract.
     #[error("invalid randomized-effect query: {0}")]
     InvalidRandomizedEffect(String),
+    /// A randomized-effect declaration violates one named contract.
+    #[error("invalid randomized-effect query: {0}")]
+    RandomizedEffectRefused(RandomizedEffectFault),
     /// Invalid held-out policy value contract.
     #[error("invalid policy-value query: {0}")]
     InvalidPolicyValue(String),

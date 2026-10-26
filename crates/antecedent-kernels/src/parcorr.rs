@@ -4,6 +4,15 @@
 
 use std::collections::HashMap;
 
+use crate::numeric::CompensatedSum;
+
+/// Compensated column mean. A non-finite entry makes the mean non-finite, which every caller
+/// already turns into a refusal through [`constant_column`], so the fallback that
+/// `crate::numeric::mean` applies to infinities is not needed here.
+fn column_mean(values: &[f64]) -> f64 {
+    CompensatedSum::of(values.iter().copied()) / values.len() as f64
+}
+
 /// Scratch for residualization and Pearson correlation.
 ///
 /// `design` stays public so a caller can check that a batch reused the same
@@ -101,24 +110,19 @@ fn pearson_floored(x: &[f64], y: &[f64], floors: Option<(f64, f64)>) -> Option<f
         return None;
     }
     let nf = n as f64;
-    let mut mx = 0.0;
-    let mut my = 0.0;
-    for i in 0..n {
-        mx += x[i];
-        my += y[i];
-    }
-    mx /= nf;
-    my /= nf;
-    let mut cxx = 0.0;
-    let mut cyy = 0.0;
-    let mut cxy = 0.0;
+    let mx = column_mean(x);
+    let my = column_mean(y);
+    let mut cxx = CompensatedSum::default();
+    let mut cyy = CompensatedSum::default();
+    let mut cxy = CompensatedSum::default();
     for i in 0..n {
         let dx = x[i] - mx;
         let dy = y[i] - my;
-        cxx += dx * dx;
-        cyy += dy * dy;
-        cxy += dx * dy;
+        cxx.add(dx * dx);
+        cyy.add(dy * dy);
+        cxy.add(dx * dy);
     }
+    let (cxx, cyy, cxy) = (cxx.total(), cyy.total(), cxy.total());
     let (floor_x, floor_y) = floors.unwrap_or((raw_floor(mx, nf), raw_floor(my, nf)));
     if constant_column(cxx, floor_x) || constant_column(cyy, floor_y) {
         return None;
@@ -143,8 +147,8 @@ fn raw_floor(mean: f64, nf: f64) -> f64 {
 /// constant or non-finite has no variation to explain: any residual is noise.
 fn residual_floor(raw: &[f64]) -> f64 {
     let nf = raw.len() as f64;
-    let mean = raw.iter().sum::<f64>() / nf;
-    let css = raw.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>();
+    let mean = column_mean(raw);
+    let css = CompensatedSum::of(raw.iter().map(|v| (v - mean) * (v - mean)));
     if constant_column(css, raw_floor(mean, nf)) {
         f64::INFINITY
     } else {
@@ -175,20 +179,17 @@ fn build_design(z_cols: &[&[f64]], n: usize, design: &mut [f64]) -> bool {
 /// One column of [`build_design`]: centered and scaled to unit sum of squares into `out`.
 fn scale_column(z: &[f64], n: usize, out: &mut [f64]) -> bool {
     let nf = n as f64;
-    let mut mean = 0.0;
-    for &v in z.iter().take(n) {
-        if !v.is_finite() {
-            return false;
-        }
-        mean += v;
+    if z.iter().take(n).any(|v| !v.is_finite()) {
+        return false;
     }
-    mean /= nf;
-    let mut css = 0.0;
+    let mean = column_mean(&z[..n]);
+    let mut css = CompensatedSum::default();
     for r in 0..n {
         let d = z[r] - mean;
         out[r] = d;
-        css += d * d;
+        css.add(d * d);
     }
+    let css = css.total();
     if constant_column(css, raw_floor(mean, nf)) {
         return false;
     }
@@ -216,7 +217,7 @@ fn form_gram(design: &[f64], n: usize, ncols: usize, gram: &mut [f64]) {
 }
 
 fn form_xty(design: &[f64], y: &[f64], n: usize, ncols: usize, out: &mut [f64]) {
-    let y_mean = y.iter().sum::<f64>() / n as f64;
+    let y_mean = column_mean(&y[..n]);
     for c in 0..ncols {
         let col = &design[c * n..(c + 1) * n];
         out[c] = centered_dot(col, y, y_mean);
@@ -252,7 +253,7 @@ fn solve_inplace(gram: &mut [f64], rhs: &mut [f64], ncols: usize, nrhs: usize) -
 
 fn residual_from_cols(y: &[f64], cols: &[&[f64]], beta: &[f64], out: &mut [f64]) {
     let n = y.len();
-    let y_mean = y.iter().sum::<f64>() / n as f64;
+    let y_mean = column_mean(y);
     for r in 0..n {
         let mut pred = 0.0;
         for (col, b) in cols.iter().zip(beta) {
@@ -359,6 +360,47 @@ enum ColumnSlot {
     At(usize),
 }
 
+/// Largest number of dense cache cells (`Option<f64>`, 16 bytes each) a [`PairCache`] holds
+/// before it falls back to a sparse map keyed by the pair actually requested.
+const DENSE_CACHE_CELLS: usize = 1 << 16;
+
+/// Memo of one `f64` per ordered `(row, col)` column pair of a batch.
+///
+/// Dense and indexed directly when the `rows * cols` grid fits [`DENSE_CACHE_CELLS`]; sparse
+/// otherwise, because a batch over very many columns usually touches only a few pairs. The
+/// stored values are produced by the same loops either way, so the choice never changes a result.
+enum PairCache {
+    Dense { cols: usize, cells: Vec<Option<f64>> },
+    Sparse(HashMap<(usize, usize), f64>),
+}
+
+impl PairCache {
+    fn new(rows: usize, cols: usize) -> Self {
+        match rows.checked_mul(cols) {
+            Some(cells) if cells <= DENSE_CACHE_CELLS => {
+                Self::Dense { cols, cells: vec![None; cells] }
+            }
+            _ => Self::Sparse(HashMap::new()),
+        }
+    }
+
+    fn get(&self, key: (usize, usize)) -> Option<f64> {
+        match self {
+            Self::Dense { cols, cells } => cells[key.0 * cols + key.1],
+            Self::Sparse(map) => map.get(&key).copied(),
+        }
+    }
+
+    fn insert(&mut self, key: (usize, usize), value: f64) {
+        match self {
+            Self::Dense { cols, cells } => cells[key.0 * *cols + key.1] = Some(value),
+            Self::Sparse(map) => {
+                map.insert(key, value);
+            }
+        }
+    }
+}
+
 /// Outcome of answering a query from [`SharedDesign`].
 enum Served {
     Answer(Option<f64>),
@@ -375,8 +417,8 @@ struct SharedDesign {
     n: usize,
     pool: Vec<f64>,
     slot: Vec<ColumnSlot>,
-    gram_pair: HashMap<(usize, usize), f64>,
-    target_dot: HashMap<(usize, usize), f64>,
+    gram_pair: PairCache,
+    target_dot: PairCache,
     target_mean: Vec<Option<f64>>,
 }
 
@@ -386,8 +428,8 @@ impl SharedDesign {
             n,
             pool: Vec::new(),
             slot: vec![ColumnSlot::Unseen; columns],
-            gram_pair: HashMap::new(),
-            target_dot: HashMap::new(),
+            gram_pair: PairCache::new(columns, columns),
+            target_dot: PairCache::new(columns, columns),
             target_mean: vec![None; columns],
         }
     }
@@ -422,7 +464,7 @@ impl SharedDesign {
     }
 
     fn gram_entry(&mut self, key: (usize, usize), offs: (usize, usize)) -> f64 {
-        if let Some(&v) = self.gram_pair.get(&key) {
+        if let Some(v) = self.gram_pair.get(key) {
             return v;
         }
         let (a, b) = (self.scaled(offs.0), self.scaled(offs.1));
@@ -435,12 +477,12 @@ impl SharedDesign {
     }
 
     fn target_entry(&mut self, columns: &[&[f64]], idx: usize, target: usize, off: usize) -> f64 {
-        if let Some(&v) = self.target_dot.get(&(idx, target)) {
+        if let Some(v) = self.target_dot.get((idx, target)) {
             return v;
         }
         let y = columns[target];
         let mean =
-            *self.target_mean[target].get_or_insert_with(|| y.iter().sum::<f64>() / self.n as f64);
+            *self.target_mean[target].get_or_insert_with(|| column_mean(&y[..self.n]));
         let acc = centered_dot(self.scaled(off), y, mean);
         self.target_dot.insert((idx, target), acc);
         acc

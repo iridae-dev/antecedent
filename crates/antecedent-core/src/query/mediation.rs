@@ -13,7 +13,6 @@ use crate::value::Value;
 use super::AverageEffectQuery;
 use super::TargetPopulation;
 use super::error::QueryError;
-use super::response::MAX_TEMPORAL_RESPONSE_HORIZONS;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 /// Which mediation contrast to identify / estimate (linear SEM path).
@@ -111,11 +110,11 @@ impl MediationQuery {
 
     /// Replace requested horizons after validating the same rules as
     /// [`super::TemporalResponseSpec`] (nonempty, each ≥ 1, strictly
-    /// increasing, count ≤ [`MAX_TEMPORAL_RESPONSE_HORIZONS`]).
+    /// increasing).
     ///
     /// # Errors
     ///
-    /// Empty, zero, non-increasing, or oversized horizon lists.
+    /// Empty, zero, or non-increasing horizon lists.
     pub fn with_horizons(mut self, horizons: impl Into<Arc<[u32]>>) -> Result<Self, QueryError> {
         self.horizons = horizons.into();
         self.validate_horizons()?;
@@ -126,11 +125,6 @@ impl MediationQuery {
         if self.horizons.is_empty() {
             return Err(QueryError::InvalidResponse(
                 "temporal mediation requires at least one horizon".into(),
-            ));
-        }
-        if self.horizons.len() > MAX_TEMPORAL_RESPONSE_HORIZONS {
-            return Err(QueryError::InvalidResponse(
-                "temporal mediation horizon count exceeds the materialization cap".into(),
             ));
         }
         if self.horizons.iter().any(|h| *h == 0) {

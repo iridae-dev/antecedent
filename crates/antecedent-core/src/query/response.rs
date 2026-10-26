@@ -15,19 +15,14 @@ use crate::{InitialLaw, Intervention, TargetPopulation, Value, VariableId};
 use super::QueryError;
 use super::functional::OutcomeFunctional;
 
-/// Maximum number of discrete horizons a temporal response may request.
-pub const MAX_TEMPORAL_RESPONSE_HORIZONS: usize = 512;
-
-/// Maximum number of materialized dose-by-horizon cells.
+/// Default dose-by-horizon cell count an executor materializes when the caller
+/// supplies no [`crate::ExecutionContext::memory_limit_bytes`].
 ///
-/// Bounding each axis independently is insufficient: one million doses across
-/// 512 horizons would otherwise allocate hundreds of millions of estimates,
-/// intervals, support labels, and two-coordinate grid rows. The one-million
-/// ceiling matches the existing single-grid cardinality ceiling and bounds the
-/// five unavoidable cell-scaled `f64` values (mean, lower, upper, dose, horizon)
-/// to 40 MB before support labels and allocator overhead. It is an absolute
-/// materialization guard, not a mathematical restriction; execution also
-/// honors [`crate::ExecutionContext::memory_limit_bytes`] when the caller supplies one.
+/// The query contract does not enforce this value: a temporal response query
+/// is valid for any grid and horizon list whose cell count fits in `usize`,
+/// and the resource bound is the execution memory budget. Executors that
+/// materialize the five cell-scaled `f64` values (mean, lower, upper, dose,
+/// horizon) use this as their fallback ceiling only when no budget is declared.
 pub const MAX_TEMPORAL_RESPONSE_CELLS: usize = 1_000_000;
 
 /// Licensed temporal-response query policy, for language facades.
@@ -37,9 +32,12 @@ pub const MAX_TEMPORAL_RESPONSE_CELLS: usize = 1_000_000;
 /// defining them.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct TemporalResponseLicense {
-    /// Maximum number of discrete horizons a query may request.
+    /// Largest horizon count the query contract accepts. The contract has no
+    /// fixed count: the execution memory budget bounds materialization, so this
+    /// is `usize::MAX`.
     pub max_horizons: usize,
-    /// Absolute dose-by-horizon materialization ceiling.
+    /// Largest dose-by-horizon cell count the query contract accepts. The
+    /// contract has no fixed count (see `max_horizons`), so this is `usize::MAX`.
     pub max_cells: usize,
     /// Wire tags this spec accepts (`pulse`, `sustained`).
     pub allowed_policies: &'static [&'static str],
@@ -166,8 +164,6 @@ impl CanonicalEncode for TemporalResponseSpec {
 }
 
 impl TemporalResponseSpec {
-    /// Horizon-count cap ([`MAX_TEMPORAL_RESPONSE_HORIZONS`]).
-    pub const MAX_HORIZONS: usize = MAX_TEMPORAL_RESPONSE_HORIZONS;
     /// Wire tag for [`crate::intervention::TemporalPolicy::Pulse`].
     pub const POLICY_PULSE: &'static str = "pulse";
     /// Wire tag for [`crate::intervention::TemporalPolicy::Sustained`].
@@ -184,8 +180,8 @@ impl TemporalResponseSpec {
     #[must_use]
     pub const fn license() -> TemporalResponseLicense {
         TemporalResponseLicense {
-            max_horizons: Self::MAX_HORIZONS,
-            max_cells: MAX_TEMPORAL_RESPONSE_CELLS,
+            max_horizons: usize::MAX,
+            max_cells: usize::MAX,
             allowed_policies: Self::ALLOWED_POLICIES,
             default_policy: Self::DEFAULT_POLICY,
             default_treatment_lag: Self::DEFAULT_TREATMENT_LAG,
@@ -215,7 +211,7 @@ impl TemporalResponseSpec {
     ///
     /// # Errors
     ///
-    /// Empty/non-increasing/oversized horizons, zero horizon, or invalid policy.
+    /// Empty/non-increasing horizons, zero horizon, or invalid policy.
     pub fn new(
         horizons: impl Into<Arc<[u32]>>,
         policy: TemporalPolicy,
@@ -247,11 +243,6 @@ impl TemporalResponseSpec {
         if self.horizons.is_empty() {
             return Err(QueryError::InvalidResponse(
                 "temporal response requires at least one horizon".into(),
-            ));
-        }
-        if self.horizons.len() > Self::MAX_HORIZONS {
-            return Err(QueryError::InvalidResponse(
-                "temporal response horizon count exceeds the materialization cap".into(),
             ));
         }
         if self.horizons.iter().any(|h| *h == 0) {
@@ -306,17 +297,14 @@ impl TemporalResponseSpec {
     }
 }
 
-/// Maximum treatment dimension for an explicitly gridded non-parametric surface.
-pub const MAX_NONPARAMETRIC_RESPONSE_DIM: usize = 2;
-
-/// Maximum number of points a [`GridSpec::Linspace`] may materialize.
+/// Treatment dimension up to which an estimator may tabulate an explicit
+/// evaluation grid.
 ///
-/// `GridSpec::values` previously only checked that `points` fit in a `u32`, so e.g.
-/// `Linspace { points: 4_000_000_000 }` passed validation and then tried to allocate a
-/// multi-gigabyte `Vec<f64>` (8 bytes/point). This cap keeps materialization bounded to
-/// something a caller could plausibly intend as an evaluation grid; 1,000,000 points is already
-/// far beyond what any of this crate's response/derivative estimators need per grid.
-pub const MAX_MATERIALIZED_GRID_POINTS: usize = 1_000_000;
+/// The query contract does not enforce this value: a response query may name
+/// any number of treatments, and a gradient of `k` treatments is `k` partial
+/// derivatives of one fit. Estimators that materialize a full tensor grid use
+/// it as their own guard.
+pub const MAX_NONPARAMETRIC_RESPONSE_DIM: usize = 2;
 
 /// Points at which a continuous response is evaluated.
 #[derive(Clone, Debug, PartialEq)]
@@ -350,23 +338,59 @@ impl CanonicalEncode for GridSpec {
 }
 
 impl GridSpec {
+    /// Number of grid points (not validated).
+    #[must_use]
+    pub fn point_count(&self) -> usize {
+        match self {
+            Self::Values(values) => values.len(),
+            Self::Linspace { points, .. } => *points,
+        }
+    }
+
+    /// The `index`-th grid point of a validated grid, computed without
+    /// materializing the grid; `None` past the end. Streaming and tiled
+    /// consumers use this instead of [`Self::values`].
+    #[must_use]
+    pub fn value_at(&self, index: usize) -> Option<f64> {
+        match self {
+            Self::Values(values) => values.get(index).copied(),
+            Self::Linspace { start, end, points } => {
+                if index >= *points || *points < 2 {
+                    return None;
+                }
+                let step = (end - start) / (*points - 1) as f64;
+                Some(start + index as f64 * step)
+            }
+        }
+    }
+
     /// Materialize the grid after validation.
+    ///
+    /// The allocation is requested fallibly, so a grid the allocator cannot
+    /// satisfy is a typed refusal rather than an abort; callers with a declared
+    /// memory budget should check [`Self::point_count`] against it first or
+    /// stream through [`Self::value_at`].
     ///
     /// # Errors
     ///
-    /// [`QueryError::InvalidResponse`] when the grid is invalid or too large to materialize.
+    /// [`QueryError::InvalidResponse`] when the grid is invalid or its
+    /// allocation fails.
     pub fn values(&self) -> Result<Vec<f64>, QueryError> {
         self.validate()?;
-        Ok(match self {
-            Self::Values(values) => values.to_vec(),
+        match self {
+            Self::Values(values) => Ok(values.to_vec()),
             Self::Linspace { start, end, points } => {
-                let points = u32::try_from(*points).map_err(|_| {
-                    QueryError::InvalidResponse("linspace point count exceeds u32 capacity".into())
+                let mut out = Vec::new();
+                out.try_reserve_exact(*points).map_err(|_| {
+                    QueryError::InvalidResponse(
+                        "linspace point count exceeds available memory".into(),
+                    )
                 })?;
-                let step = (end - start) / f64::from(points - 1);
-                (0..points).map(|i| start + f64::from(i) * step).collect()
+                let step = (end - start) / (*points - 1) as f64;
+                out.extend((0..*points).map(|i| start + i as f64 * step));
+                Ok(out)
             }
-        })
+        }
     }
 
     /// Validate finiteness, size, and ordering.
@@ -393,11 +417,6 @@ impl GridSpec {
                 if !start.is_finite() || !end.is_finite() || start >= end || *points < 2 {
                     return Err(QueryError::InvalidResponse(
                         "linspace requires finite start < end and at least two points".into(),
-                    ));
-                }
-                if *points > MAX_MATERIALIZED_GRID_POINTS {
-                    return Err(QueryError::InvalidResponse(
-                        "linspace point count is too large to materialize".into(),
                     ));
                 }
             }
@@ -974,23 +993,16 @@ impl ResponseQuery {
             temporal.validate()?;
             match &self.functional {
                 ResponseFunctional::MeanCurve { treatment, .. } => {
-                    let dose_count = match &treatment.grid {
-                        GridSpec::Values(values) => values.len(),
-                        GridSpec::Linspace { points, .. } => *points,
-                    };
-                    let cells =
-                        dose_count.checked_mul(temporal.horizons.len()).ok_or_else(|| {
+                    // The contract bounds the cell count only by what `usize`
+                    // can address; the execution memory budget bounds
+                    // materialization.
+                    treatment.grid.point_count().checked_mul(temporal.horizons.len()).ok_or_else(
+                        || {
                             QueryError::InvalidResponse(
                                 "temporal response dose-by-horizon cell count overflow".into(),
                             )
-                        })?;
-                    if cells > MAX_TEMPORAL_RESPONSE_CELLS {
-                        return Err(QueryError::InvalidResponse(format!(
-                            "temporal response has {cells} dose-by-horizon cells; \
-                                 materialization limit is {MAX_TEMPORAL_RESPONSE_CELLS}; \
-                                 coarsen the dose grid or request fewer horizons"
-                        )));
-                    }
+                        },
+                    )?;
                 }
                 ResponseFunctional::InterventionResponse { .. }
                 | ResponseFunctional::AverageDerivative { .. }
@@ -1066,8 +1078,8 @@ mod tests {
     #[test]
     fn temporal_response_license_is_the_facade_contract() {
         let license = TemporalResponseSpec::license();
-        assert_eq!(license.max_horizons, MAX_TEMPORAL_RESPONSE_HORIZONS);
-        assert_eq!(license.max_cells, MAX_TEMPORAL_RESPONSE_CELLS);
+        assert_eq!(license.max_horizons, usize::MAX);
+        assert_eq!(license.max_cells, usize::MAX);
         assert_eq!(license.allowed_policies, TemporalResponseSpec::ALLOWED_POLICIES);
         assert_eq!(license.default_policy, TemporalResponseSpec::POLICY_PULSE);
         assert!(license.allowed_policies.contains(&license.default_policy));
@@ -1075,10 +1087,8 @@ mod tests {
         let at = -i32::try_from(license.default_treatment_lag).unwrap();
         assert!(TemporalResponseSpec::parse_policy(license.default_policy, at).is_ok());
         assert!(TemporalResponseSpec::parse_policy("dynamic", at).is_err());
-        let ok: Vec<u32> = (1..=u32::try_from(license.max_horizons).unwrap()).collect();
-        assert!(TemporalResponseSpec::new(ok, TemporalPolicy::pulse(at), None).is_ok());
-        let too_many: Vec<u32> = (1..=u32::try_from(license.max_horizons + 1).unwrap()).collect();
-        assert!(TemporalResponseSpec::new(too_many, TemporalPolicy::pulse(at), None).is_err());
+        let many: Vec<u32> = (1..=100_000).collect();
+        assert!(TemporalResponseSpec::new(many, TemporalPolicy::pulse(at), None).is_ok());
     }
 
     #[test]
@@ -1094,25 +1104,27 @@ mod tests {
     }
 
     #[test]
-    fn temporal_surface_caps_the_cross_product_not_only_each_axis() {
-        let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
-            outcome: VariableId::from_raw(1),
-            treatment: ContinuousDomain::new(
-                VariableId::from_raw(0),
-                GridSpec::Linspace { start: 0.0, end: 1.0, points: 2_000 },
-            ),
-        })
-        .with_temporal(
-            TemporalResponseSpec::new(
-                (1..=512).collect::<Vec<_>>(),
-                TemporalPolicy::pulse(-1),
-                None,
+    fn temporal_surface_has_no_fixed_cell_count_but_refuses_overflow() {
+        let surface = |points: usize, horizons: usize| {
+            ResponseQuery::new(ResponseFunctional::MeanCurve {
+                outcome: VariableId::from_raw(1),
+                treatment: ContinuousDomain::new(
+                    VariableId::from_raw(0),
+                    GridSpec::Linspace { start: 0.0, end: 1.0, points },
+                ),
+            })
+            .with_temporal(
+                TemporalResponseSpec::new(
+                    (1..=u32::try_from(horizons).unwrap()).collect::<Vec<_>>(),
+                    TemporalPolicy::pulse(-1),
+                    None,
+                )
+                .unwrap(),
             )
-            .unwrap(),
-        );
-        let error = query.validate().unwrap_err();
-        assert!(error.to_string().contains("1024000 dose-by-horizon cells"));
-        assert!(error.to_string().contains("materialization limit is 1000000"));
+        };
+        assert!(surface(2_000, 1_024).validate().is_ok());
+        let error = surface(usize::MAX, 2).validate().unwrap_err();
+        assert!(error.to_string().contains("cell count overflow"));
     }
 
     #[test]
@@ -1123,16 +1135,21 @@ mod tests {
     }
 
     #[test]
-    fn linspace_beyond_materialization_cap_is_rejected() {
-        // Before the fix, only `u32::try_from(points)` was checked, so a huge-but-u32-valid
-        // point count (here, well over MAX_MATERIALIZED_GRID_POINTS but still far under
-        // u32::MAX) would sail through validation and then try to allocate an
-        // unreasonably large `Vec<f64>`.
-        let grid =
-            GridSpec::Linspace { start: 0.0, end: 1.0, points: MAX_MATERIALIZED_GRID_POINTS + 1 };
-        let err = grid.validate().unwrap_err();
-        assert!(matches!(err, QueryError::InvalidResponse(_)));
-        assert!(grid.values().is_err());
+    fn linspace_streams_and_materializes_the_same_points() {
+        let grid = GridSpec::Linspace { start: -1.0, end: 2.0, points: 7 };
+        let values = grid.values().unwrap();
+        assert_eq!(values.len(), grid.point_count());
+        for (i, value) in values.iter().enumerate() {
+            assert_eq!(grid.value_at(i), Some(*value));
+        }
+        assert_eq!(grid.value_at(7), None);
+    }
+
+    #[test]
+    fn linspace_beyond_addressable_memory_is_a_typed_refusal() {
+        let grid = GridSpec::Linspace { start: 0.0, end: 1.0, points: usize::MAX };
+        assert!(grid.validate().is_ok());
+        assert!(matches!(grid.values(), Err(QueryError::InvalidResponse(_))));
     }
 
     #[test]
@@ -1150,14 +1167,13 @@ mod tests {
     }
 
     #[test]
-    fn linspace_point_count_far_beyond_u32_capacity_is_still_rejected_by_the_cap() {
-        // Guards the original bug report directly: a `points` value so large the old
-        // `u32::try_from` guard alone would have rejected it, but only after already deciding
-        // the input was otherwise well-formed. The size cap must reject it first and for the
-        // documented "too large to materialize" reason.
+    fn linspace_point_count_far_beyond_u32_capacity_is_a_budget_matter_not_a_validation_cap() {
+        // A grid is described by its endpoints and a count and is never materialised by
+        // validation, so a very large count is well-formed; materialising it is what the
+        // memory budget governs.
         let grid = GridSpec::Linspace { start: 0.0, end: 1.0, points: 4_000_000_000 };
-        let err = grid.validate().unwrap_err();
-        assert!(matches!(err, QueryError::InvalidResponse(_)));
+        assert!(grid.validate().is_ok());
+        assert_eq!(grid.point_count(), 4_000_000_000);
     }
 
     fn temporal_curve() -> ResponseQuery {

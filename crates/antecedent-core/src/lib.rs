@@ -160,11 +160,11 @@ pub use query::{
     InterferenceFunctional, InterferenceQuery, InterventionAssignment,
     InterventionalDistributionQuery, IvBoundsQuery, KnownCensoringSurvival, LawOrigin,
     LicensedWeights, LocalPolynomialRatioQuery, LongitudinalRegimeMethod, LongitudinalRegimeQuery,
-    MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS,
+    MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS,
     MechanismChangeQuery, MediationContrast, MediationQuery, MultiActionPolicyInputs,
     NestedCounterfactualQuery, ObservationAssumption, ObservationSpec, OrderedFloatBits,
     OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery,
-    PopulationRegistry, PopulationSelection, PopulationSelector, PredicateExpr, QueryError,
+    PopulationRegistry, PopulationSelection, PopulationSelector, PredicateExpr, QueryError, QueryVariant, RandomizedEffectFault,
     RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand, RegimeBinding, RegimeKind,
     ResponseFunctional, ResponseQuery, SamplingDesign, SamplingSelection, SequentialContrastQuery,
     ShapleyConfig, ShapleyMode, SharedData, SurvivalFunctional, SurvivalQuery,
@@ -178,7 +178,7 @@ pub use query::{
 };
 pub use query::{
     AssociationFunctional, AssociationMeasure, AssociationOutcome, AssociationQuery,
-    MAX_ASSOCIATION_COLUMNS, MAX_PREDICTIVE_FOLDS, MAX_REFUSED_AFTER_BYTES, MIN_PREDICTIVE_FOLDS,
+    MAX_REFUSED_AFTER_BYTES, MIN_PREDICTIVE_FOLDS,
 };
 pub use query::{
     AttributeQuery, AttributeTarget, ChangeEstimator, ChangeMeasure, DiscoverQuery,
@@ -188,7 +188,7 @@ pub use query::{
 };
 pub use query::{CounterfactualEvent, CounterfactualEventQuery};
 pub use query::{
-    CrossWorldQuery, EdgeRoute, ExogenousCoupling, MAX_CROSS_WORLDS, WorldId, WorldObservation,
+    CrossWorldQuery, EdgeRoute, ExogenousCoupling, WorldId, WorldObservation,
     WorldSpec,
 };
 pub use query::{

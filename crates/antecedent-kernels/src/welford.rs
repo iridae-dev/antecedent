@@ -12,16 +12,38 @@
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Welford {
     mass: f64,
+    /// Sum of squared weights, for the reliability-weight variance and effective sample size.
+    mass_sq: f64,
     count: u64,
     mean: f64,
     m2: f64,
 }
 
+/// Why a checked ingestion call was refused. The accumulator is unchanged on error.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WelfordError {
+    /// The observation is `NaN` or infinite.
+    NonFiniteValue,
+    /// The weight is `NaN`, infinite or negative.
+    InvalidWeight,
+}
+
+impl core::fmt::Display for WelfordError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::NonFiniteValue => "observation is not finite",
+            Self::InvalidWeight => "weight is not a finite nonnegative number",
+        })
+    }
+}
+
+impl std::error::Error for WelfordError {}
+
 impl Welford {
     /// Empty accumulator.
     #[must_use]
     pub const fn new() -> Self {
-        Self { mass: 0.0, count: 0, mean: 0.0, m2: 0.0 }
+        Self { mass: 0.0, mass_sq: 0.0, count: 0, mean: 0.0, m2: 0.0 }
     }
 
     /// Add one observation with unit weight.
@@ -30,6 +52,13 @@ impl Welford {
     }
 
     /// Add one observation with a nonnegative `weight` (zero weights are ignored).
+    ///
+    /// # Preconditions
+    ///
+    /// `weight` must be finite and nonnegative and `x` finite. This unchecked form does not
+    /// verify them: a negative weight can drive the mass to zero or below and a non-finite
+    /// input poisons every later moment. Use [`Self::try_push_weighted`] when either is not
+    /// already guaranteed.
     pub fn push_weighted(&mut self, weight: f64, x: f64) {
         if weight == 0.0 {
             return;
@@ -39,7 +68,40 @@ impl Welford {
         self.mean += (weight / total) * delta;
         self.m2 += weight * delta * (x - self.mean);
         self.mass = total;
+        self.mass_sq += weight * weight;
         self.count += 1;
+    }
+
+    /// Checked ingestion of one unit-weight observation.
+    ///
+    /// # Errors
+    ///
+    /// [`WelfordError::NonFiniteValue`] when `x` is not finite; the accumulator is unchanged.
+    pub fn try_push(&mut self, x: f64) -> Result<(), WelfordError> {
+        self.try_push_weighted(1.0, x)
+    }
+
+    /// Checked form of [`Self::push_weighted`]: refuses a non-finite observation or a weight
+    /// that is not finite and nonnegative, leaving the accumulator unchanged. A zero weight is
+    /// accepted and ignored.
+    ///
+    /// # Errors
+    ///
+    /// See [`WelfordError`].
+    pub fn try_push_weighted(&mut self, weight: f64, x: f64) -> Result<(), WelfordError> {
+        if !weight.is_finite() || weight < 0.0 {
+            return Err(WelfordError::InvalidWeight);
+        }
+        if !x.is_finite() {
+            return Err(WelfordError::NonFiniteValue);
+        }
+        let total = self.mass + weight;
+        let total_sq = self.mass_sq + weight * weight;
+        if !total.is_finite() || !total_sq.is_finite() {
+            return Err(WelfordError::InvalidWeight);
+        }
+        self.push_weighted(weight, x);
+        Ok(())
     }
 
     /// Number of observations added.
@@ -66,10 +128,38 @@ impl Welford {
         self.m2
     }
 
-    /// Bessel-corrected sample variance for unit weights; `None` for fewer than 2 observations.
+    /// Sample variance `m2 / (mass − 1)` under *frequency-weight* semantics (each weight is a
+    /// repeat count), which is Bessel's correction for unit weights; `None` for fewer than 2
+    /// observations. For reliability (precision) weights use
+    /// [`Self::reliability_sample_variance`].
     #[must_use]
     pub fn sample_variance(&self) -> Option<f64> {
         (self.count >= 2).then(|| (self.m2 / (self.mass - 1.0)).max(0.0))
+    }
+
+    /// Sum of squared weights.
+    #[must_use]
+    pub const fn mass_squared(&self) -> f64 {
+        self.mass_sq
+    }
+
+    /// Kish effective sample size `mass² / Σw²`; `None` when empty.
+    #[must_use]
+    pub fn effective_sample_size(&self) -> Option<f64> {
+        (self.mass_sq > 0.0).then(|| self.mass * self.mass / self.mass_sq)
+    }
+
+    /// Unbiased variance under *reliability-weight* semantics,
+    /// `m2 / (mass − Σw² / mass)`; `None` for fewer than 2 observations or when the
+    /// denominator is not positive (all mass on one observation). Equals
+    /// [`Self::sample_variance`] when every weight is 1.
+    #[must_use]
+    pub fn reliability_sample_variance(&self) -> Option<f64> {
+        if self.count < 2 {
+            return None;
+        }
+        let denominator = self.mass - self.mass_sq / self.mass;
+        (denominator > 0.0).then(|| (self.m2 / denominator).max(0.0))
     }
 
     /// Standard error of the mean for unit weights, `sqrt(s² / n)`; `+∞` for fewer than
@@ -88,12 +178,52 @@ impl Welford {
 /// covariance already used; it is not the `f64` mass of [`Welford`], so a
 /// diagonal entry can differ from [`Welford::m2`] in the last bit.
 ///
-/// A short buffer or a zero count does nothing.
+/// A short buffer or a zero count does nothing; callers that must distinguish an invalid
+/// update from a successful one use [`try_update_scatter`].
 pub fn update_scatter(mean: &mut [f64], m2: &mut [f64], n_before: u64, x: &[f64]) {
+    // The refusal is the documented no-op of this form.
+    let _ = try_update_scatter(mean, m2, n_before, x);
+}
+
+/// Why [`try_update_scatter`] refused an update. The buffers are unchanged on error.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ScatterError {
+    /// `n_before` is zero (or the count would overflow): there is no mean to update.
+    EmptyCount,
+    /// `x` is shorter than `mean`, or `m2` is shorter than `dim × dim`.
+    ShapeMismatch,
+}
+
+impl core::fmt::Display for ScatterError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::EmptyCount => "scatter update requires at least one prior row",
+            Self::ShapeMismatch => "scatter update buffers do not match the dimension",
+        })
+    }
+}
+
+impl std::error::Error for ScatterError {}
+
+/// Checked form of [`update_scatter`]: identical arithmetic, but a zero count or a short buffer
+/// is reported instead of silently skipped.
+///
+/// # Errors
+///
+/// See [`ScatterError`].
+pub fn try_update_scatter(
+    mean: &mut [f64],
+    m2: &mut [f64],
+    n_before: u64,
+    x: &[f64],
+) -> Result<(), ScatterError> {
     let dim = mean.len();
     let next = n_before.saturating_add(1);
-    if n_before == 0 || x.len() < dim || m2.len() < dim.saturating_mul(dim) || next == 0 {
-        return;
+    if n_before == 0 || next == 0 {
+        return Err(ScatterError::EmptyCount);
+    }
+    if x.len() < dim || m2.len() < dim.saturating_mul(dim) {
+        return Err(ScatterError::ShapeMismatch);
     }
     let correction = n_before as f64 / next as f64;
     for i in 0..dim {
@@ -107,6 +237,7 @@ pub fn update_scatter(mean: &mut [f64], m2: &mut [f64], n_before: u64, x: &[f64]
     for (slot, value) in mean.iter_mut().zip(x) {
         *slot += (*value - *slot) / next as f64;
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -136,6 +267,64 @@ mod tests {
         }
         assert!((a.mean() - b.mean()).abs() < 1e-14);
         assert!((a.m2() - b.m2()).abs() < 1e-14);
+    }
+
+    #[test]
+    fn checked_ingestion_refuses_bad_inputs_without_mutation() {
+        let mut w = Welford::new();
+        w.try_push(1.0).unwrap();
+        let before = w;
+        assert_eq!(w.try_push(f64::NAN), Err(WelfordError::NonFiniteValue));
+        assert_eq!(w.try_push_weighted(-1.0, 2.0), Err(WelfordError::InvalidWeight));
+        assert_eq!(w.try_push_weighted(f64::NAN, 2.0), Err(WelfordError::InvalidWeight));
+        assert_eq!(w.try_push_weighted(f64::INFINITY, 2.0), Err(WelfordError::InvalidWeight));
+        assert_eq!(w, before);
+        w.try_push_weighted(0.0, 5.0).unwrap();
+        assert_eq!(w, before);
+    }
+
+    #[test]
+    fn reliability_variance_matches_frequency_variance_for_unit_weights() {
+        let mut w = Welford::new();
+        for x in [1.0, 2.0, 4.0, 8.0] {
+            w.push(x);
+        }
+        let a = w.sample_variance().unwrap();
+        let b = w.reliability_sample_variance().unwrap();
+        assert!((a - b).abs() < 1e-12);
+        assert!((w.effective_sample_size().unwrap() - 4.0).abs() < 1e-12);
+        // Unequal weights: reliability denominator mass − Σw²/mass differs from mass − 1.
+        let mut u = Welford::new();
+        u.push_weighted(3.0, 1.0);
+        u.push_weighted(1.0, 5.0);
+        let denominator = 4.0 - 10.0 / 4.0;
+        assert!((u.reliability_sample_variance().unwrap() - u.m2() / denominator).abs() < 1e-12);
+        let mut single = Welford::new();
+        single.push_weighted(2.0, 1.0);
+        assert!(single.reliability_sample_variance().is_none());
+    }
+
+    #[test]
+    fn checked_scatter_reports_invalid_updates_and_matches_the_unchecked_form() {
+        let mut mean = [1.0, 2.0];
+        let mut m2 = [0.0; 4];
+        assert_eq!(
+            try_update_scatter(&mut mean, &mut m2, 0, &[1.0, 1.0]),
+            Err(ScatterError::EmptyCount)
+        );
+        assert_eq!(
+            try_update_scatter(&mut mean, &mut m2, 1, &[1.0]),
+            Err(ScatterError::ShapeMismatch)
+        );
+        assert_eq!(
+            try_update_scatter(&mut mean, &mut [0.0; 3], 1, &[1.0, 1.0]),
+            Err(ScatterError::ShapeMismatch)
+        );
+        assert_eq!((mean, m2), ([1.0, 2.0], [0.0; 4]));
+        let (mut mean_u, mut m2_u) = (mean, m2);
+        try_update_scatter(&mut mean, &mut m2, 1, &[3.0, 5.0]).unwrap();
+        update_scatter(&mut mean_u, &mut m2_u, 1, &[3.0, 5.0]);
+        assert_eq!((mean, m2), (mean_u, m2_u));
     }
 
     #[test]

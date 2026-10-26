@@ -175,12 +175,11 @@ pub fn standardize_inplace(x: &mut [f64], eps: f64) -> (f64, f64) {
     if n == 0 {
         return (0.0, eps.max(1.0));
     }
-    let mean = x.iter().sum::<f64>() / n as f64;
-    let mut var = 0.0;
-    for &v in x.iter() {
+    let mean = crate::numeric::compensated_sum_or_plain(x.iter().copied()) / n as f64;
+    let var = crate::numeric::compensated_sum_or_plain(x.iter().map(|&v| {
         let d = v - mean;
-        var += d * d;
-    }
+        d * d
+    }));
     let scale = if n > 1 { (var / (n - 1) as f64).sqrt().max(eps) } else { 1.0_f64.max(eps) };
     for v in x.iter_mut() {
         *v = (*v - mean) / scale;
@@ -190,7 +189,7 @@ pub fn standardize_inplace(x: &mut [f64], eps: f64) -> (f64, f64) {
 
 /// Fill `out` (`n * n`) with pairwise L1 distances `|x_i - x_j|`.
 ///
-/// Deterministic row-major fill. Tolerance class: `Exact` for finite inputs.
+/// Deterministic fill: each unordered pair is computed once and mirrored. Tolerance class: `Exact` for finite inputs.
 /// On error `out` is left untouched.
 ///
 /// # Errors
@@ -201,11 +200,15 @@ pub fn pairwise_l1_fill(x: &[f64], out: &mut [f64]) -> Result<(), ViewError> {
     if out.len() != n.saturating_mul(n) {
         return Err(shape("pairwise out must be n*n"));
     }
+    // |xi - xj| is symmetric exactly (negation is exact), so compute the upper triangle once
+    // and mirror it.
     for i in 0..n {
         let xi = x[i];
-        let row = i * n;
-        for j in 0..n {
-            out[row + j] = (xi - x[j]).abs();
+        out[i * n + i] = (xi - xi).abs();
+        for j in (i + 1)..n {
+            let d = (xi - x[j]).abs();
+            out[i * n + j] = d;
+            out[j * n + i] = d;
         }
     }
     Ok(())
