@@ -309,6 +309,8 @@ def refusal(call):
 summary = transport.PeriodRefreshSummary.consume(summary_bytes)
 out = {
     "retention": summary.retention,
+    "source": summary.source,
+    "row_counts": summary.row_counts.to_dict(),
     "n": summary.n,
     "beta": list(summary.beta),
     "residual_variance": summary.residual_variance,
@@ -364,11 +366,13 @@ def test_a_summary_only_artifact_serves_a_fresh_process_and_refuses_the_rows_it_
     assert outcome.outcome == ("extended" if invariant else "restarted")
     live = refresh.least_squares
     seen = _read_summary_in_a_fresh_process(
-        tmp_path, refresh.export_summary_only(), bytes(refresh.export())
+        tmp_path, bytes(refresh.export(retention="summary-only")), bytes(refresh.export())
     )
 
     assert seen["retention"] == "summary-only"
     assert seen["n"] == live.n
+    assert seen["source"] == ("v@snap_1" if invariant else "v@snap_2")
+    assert seen["row_counts"] == {"rows": live.n, "live_rows": live.n, "effective_n": live.n}
     assert seen["beta"] == pytest.approx(list(live.beta), abs=1e-9)
     assert seen["residual_variance"] == pytest.approx(live.residual_variance, abs=1e-9)
     for operation, refused in seen["ops"].items():
@@ -384,7 +388,9 @@ def test_a_summary_only_artifact_serves_a_fresh_process_and_refuses_the_rows_it_
     assert seen["ledger_beta"] == pytest.approx(list(live.beta), abs=1e-9)
     assert consume_period_refresh_artifact(bytes(refresh.export())).rows_used == live.n
     assert (
-        require_success(transport.PeriodRefreshSummary.consume(refresh.export_summary_only())).n
+        require_success(
+            transport.PeriodRefreshSummary.consume(refresh.export(retention="summary-only"))
+        ).n
         == live.n
     )
 
@@ -394,9 +400,15 @@ def test_a_declared_invariant_extension_and_a_restart_serve_different_summaries(
     require_success(extended.refresh(SERIES[6:12], period_window(6, 12, "snap_2")))
     restarted = started(invariant=False)
     require_success(restarted.refresh(SERIES[6:12], period_window(6, 12, "snap_2")))
-    pooled = require_success(transport.PeriodRefreshSummary.consume(extended.export_summary_only()))
+    pooled = require_success(
+        transport.PeriodRefreshSummary.consume(extended.export(retention="summary-only"))
+    )
     fresh_start = require_success(
-        transport.PeriodRefreshSummary.consume(restarted.export_summary_only())
+        transport.PeriodRefreshSummary.consume(restarted.export(retention="summary-only"))
     )
     assert pooled.n > fresh_start.n, "the restart dropped the first period's rows"
     assert pooled.source_digest != fresh_start.source_digest
+    assert pooled.source == "v@snap_1"
+    assert fresh_start.source == "v@snap_2"
+    assert pooled.row_counts.to_dict() == {"rows": 10, "live_rows": 10, "effective_n": 10}
+    assert fresh_start.row_counts.to_dict() == {"rows": 4, "live_rows": 4, "effective_n": 4}

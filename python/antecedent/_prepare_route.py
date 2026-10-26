@@ -2918,5 +2918,6 @@ def _check_quantile_functional(
         raise CausalUnsupportedError(
             "quantiles require Frequentist AllObserved AIPW AverageEffect, binary "
             "ConditionalEffect with one modifier, or cell-AIPW joint response; use prepare + "
-            "retarget for score-table target weights"
+            "retarget for score-table target weights",
+            reason_code="route_not_supported",
         )

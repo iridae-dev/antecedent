@@ -15,11 +15,12 @@ import sys
 import antecedent
 import numpy as np
 import pytest
-from _refusal import REGISTERED
 from antecedent import nuisance_scores
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError
 from antecedent.execution import Execution
 from antecedent.outcomes import require_success
+
+from _refusal import REGISTERED
 
 
 def sigmoid(x):

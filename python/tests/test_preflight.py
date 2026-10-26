@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 from antecedent import preflight as pf
 from antecedent.errors import CausalUnsupportedError
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -196,7 +197,7 @@ def test_a_prepared_plan_diagnoses_and_counts_its_cost() -> None:
     assert sum(a.rows for a in report.arms) == 500
     assert not report.is_blocked
 
-    fitted = prepared.diagnose_fit()
+    fitted = require_success(prepared.diagnose_fit())
     assert fitted.status == "fitted" and fitted.fit is not None
     assert 0.0 < fitted.fit.min <= fitted.fit.max < 1.0
     t = data["t"]
@@ -231,9 +232,15 @@ def test_a_prepared_batch_diagnoses_and_costs_every_claim() -> None:
         antecedent.AverageEffect(treatment="t", outcome="y"),
         antecedent.AverageEffect(treatment="t2", outcome="y"),
     ]
-    batch = antecedent.estimation.PreparedBatch.prepare(
-        data, graph=graph, queries=queries, estimator="aipw", refute="none", bootstrap=10
+    batch = antecedent.estimation.prepare_many(
+        data,
+        graph=graph,
+        queries=queries,
+        estimator="aipw",
+        refute="none",
+        inference=antecedent.Frequentist(bootstrap=10),
     )
+    assert batch._native.materialized_plan_count() == 0
     report = batch.diagnose()
     assert len(report.reports) == 2
     assert report.blocked_plans == ()
@@ -245,8 +252,10 @@ def test_a_prepared_batch_diagnoses_and_costs_every_claim() -> None:
     assert cost.nuisance_fits_upper_bound == 330
     assert cost.bootstrap_replicates_total == 20
     assert cost.plans[0].inference.refit_warning is not None
-    assert len(batch.diagnose_fit()) == 2
+    assert batch._native.materialized_plan_count() == 0
+    assert len(require_success(batch.diagnose_fit())) == 2
     assert len(batch.plan_rank_drop()) == 2
+    assert batch._native.materialized_plan_count() == 0
 
 
 def _collinear(n: int = 600, seed: int = 31):

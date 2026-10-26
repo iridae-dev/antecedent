@@ -42,7 +42,7 @@ def test_migration_examples_execute_with_declared_application_inputs():
         "other_query": ant.AverageEffect("z", "outcome"),
     }
     examples = blocks("docs/migrations/2.4-to-3.0-python.md")
-    assert len(examples) == 5
+    assert len(examples) == 7
     execute(examples[0], namespace, "migration:preparation")
     assert namespace["result"].answer.value == pytest.approx(2.0)
     assert namespace["updated_result"].answer.value == pytest.approx(3.0)
@@ -74,3 +74,25 @@ def test_migration_examples_execute_with_declared_application_inputs():
         namespace["targeted_loaded"].inspect().target_weights_id
         == targeted.inspect().target_weights_id
     )
+    execute(examples[5], namespace, "migration:shared-batch")
+    original_batch = namespace["batch_result"]
+    changed_batch = namespace["changed_batch"]
+    assert original_batch.member(0).answer.value == pytest.approx(2.0)
+    assert changed_batch.member(0).answer.value == pytest.approx(3.0)
+    assert original_batch.member(1).answer.value == pytest.approx(-1.0)
+    assert namespace["selected_member"].answer.value == pytest.approx(2.0)
+    assert namespace["loaded_member"].study is None
+    assert namespace["loaded_member"].acceptance.identity_bound
+
+    execute(examples[6], namespace, "migration:scientific-profiles")
+    profile_study = namespace["profile_study"]
+    profile_outcome = namespace["profile_result"]
+    assert profile_outcome.accepted
+    assert profile_outcome.answer.value == pytest.approx(2.0)
+    profile_result = profile_outcome.value
+    assert profile_result.performance.latency_mode == "interactive"
+    assert profile_result.performance.bootstrap_replicates_requested == 25
+    assert profile_study._declarations["inference"] == ant.Frequentist(
+        profile="interactive", bootstrap=25
+    )
+    assert profile_study.inspect().stage == "prepared"

@@ -18,6 +18,7 @@ from antecedent.transport.advanced import (
     PeriodRowCounts,
     TemporalExtensionRefusal,
 )
+
 from test_temporal_extensions import SERIES, period_window, started
 
 LEDGER = "ANTECEDENT-PERIOD-REFRESH"

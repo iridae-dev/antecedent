@@ -13,7 +13,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent.errors import CausalError, CausalEstimateError, CausalUnsupportedError
-from antecedent.estimation import PreparedBatch, RetargetClaim, RetargetContrast
+from antecedent.estimation import RetargetClaim, RetargetContrast
 from antecedent.estimators import Aipw, ClusterDml
 from antecedent.outcomes import require_success
 
@@ -53,8 +53,8 @@ def _wide_graph(p: int):
     return [(f"x{i}", "t") for i in range(p)] + [(f"x{i}", "y") for i in range(p)] + [("t", "y")]
 
 
-def _prepare_aipw(data, p: int):
-    return ant.prepare(
+def _aipw_outcome(data, p: int):
+    study = ant.prepare(
         data,
         graph=_wide_graph(p),
         query=ant.AverageEffect(treatment="t", outcome="y"),
@@ -62,12 +62,21 @@ def _prepare_aipw(data, p: int):
         refute=False,
         inference=ant.Frequentist(bootstrap=0),
     )
+    return ant.estimate(study)
+
+
+def _refusal_error(outcome, error_type):
+    """Assert a scientific refusal, then expose its unchanged native error."""
+    assert outcome.refusal is not None
+    with pytest.raises(error_type) as raised:
+        require_success(outcome)
+    return raised.value
 
 
 def _absent(fields: dict, *names: str) -> None:
     for name in names:
         value = fields[name]
-        assert value is None or value == [], (name, value)
+        assert value is None or value == [] or value == (), (name, value)
 
 
 def test_a_retarget_onto_unsupported_rows_reports_arm_sizes_and_propensity_range():
@@ -81,9 +90,10 @@ def test_a_retarget_onto_unsupported_rows_reports_arm_sizes_and_propensity_range
         inference=ant.Frequentist(bootstrap=0),
     )
     weights = (np.asarray(data["z"]) > 1.2).astype(float)
-    with pytest.raises(CausalUnsupportedError) as raised:
-        prepared.retarget(weights, ["z"])
-    error = raised.value
+    completed = ant.estimate(prepared)
+    require_success(completed)
+    refused = completed.study.retarget(weights, depends_on=["z"])
+    error = _refusal_error(refused, CausalUnsupportedError)
     # The class, code and message are those of the support refusal.
     assert str(error) == (
         "refused: retarget refused: weighted overlap failed under the declared target weights"
@@ -138,16 +148,18 @@ def test_a_retarget_dependence_refusal_has_stage_reason_and_remedy_but_no_number
         inference=ant.Frequentist(bootstrap=0),
     )
     weights = np.exp(0.3 * np.asarray(data["z"]))
-    with pytest.raises(CausalError) as raised:
-        prepared.retarget(weights, ["t"])
-    error = raised.value
+    completed = ant.estimate(prepared)
+    require_success(completed)
+    refused = completed.study.retarget(weights, depends_on=["t"])
+    error = _refusal_error(refused, CausalError)
     assert "must not include the treatment" in str(error)
     fields = error.refusal_fields
     assert fields["stage"] == "retarget"
     assert fields["subject"] == "effect(t -> y)"
     assert fields["reason"] == "weights_depend_on_treatment_or_descendant"
     assert fields["remedy"]
-    # Nothing was fitted at this stage: every numeric entry is absent rather than zero.
+    # This dependence check produces no numeric diagnostic; earlier retained fits
+    # must not be substituted for figures the failed check did not compute.
     _absent(
         fields,
         "arm_ess",
@@ -169,9 +181,8 @@ def test_the_real_aipw_refusal_at_rank_174_of_175_carries_rank_and_columns():
     t = (rng.random(n) < 0.5).astype(float)
     y = t + covariates[0] + rng.standard_normal(n)
     data = {"t": t, "y": y} | {f"x{i}": c for i, c in enumerate(covariates)}
-    with pytest.raises(CausalEstimateError) as raised:
-        _prepare_aipw(data, p)
-    error = raised.value
+    refused = _aipw_outcome(data, p)
+    error = _refusal_error(refused, CausalEstimateError)
     assert "rank deficient: rank=174 ncols=175" in str(error)
     fields = error.refusal_fields
     assert set(fields) == FIELD_KEYS
@@ -193,9 +204,8 @@ def test_the_real_aipw_refusal_under_joint_separation_carries_the_fit_facts():
     data = {"t": (rng.random(n) < 0.5).astype(float), "y": rng.standard_normal(n)} | {
         f"x{i}": rng.standard_normal(n) for i in range(p)
     }
-    with pytest.raises(CausalEstimateError) as raised:
-        _prepare_aipw(data, p)
-    error = raised.value
+    refused = _aipw_outcome(data, p)
+    error = _refusal_error(refused, CausalEstimateError)
     fields = error.refusal_fields
     assert set(fields) == FIELD_KEYS
     assert fields["remedy"]
@@ -234,18 +244,15 @@ def test_a_cluster_count_shortfall_reports_found_and_minimum_counts():
     y = 2.0 * t + z0 + 0.5 * z1 + 0.5 * rng.normal(size=n)
     data = {"z0": z0, "z1": z1, "t": t, "y": y}
     cfg = Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=cluster.tolist(), min_clusters=20))
-    with pytest.raises(CausalError) as raised:
-        require_success(
-            ant.analyze(
-                data,
-                graph=[("z0", "t"), ("z1", "t"), ("z0", "y"), ("z1", "y"), ("t", "y")],
-                query=ant.AverageEffect("t", "y"),
-                estimator=cfg,
-                refute=False,
-                execution=ant.Execution(seed=1),
-            )
-        )
-    error = raised.value
+    refused = ant.analyze(
+        data,
+        graph=[("z0", "t"), ("z1", "t"), ("z0", "y"), ("z1", "y"), ("t", "y")],
+        query=ant.AverageEffect("t", "y"),
+        estimator=cfg,
+        refute=False,
+        execution=ant.Execution(seed=1),
+    )
+    error = _refusal_error(refused, CausalError)
     assert error.reason_code == "too_few_clusters"
     assert_registered_refusal(error)
     assert "12 clusters are below the declared minimum 20" in str(error)
@@ -266,27 +273,31 @@ def test_batch_retarget_members_carry_the_failing_claim_as_subject():
     y2 = -t1 - 0.5 * z + 0.3 * rng.normal(size=n)
     data = {"t1": t1, "y1": y1, "y2": y2, "z": z}
     graph = [("z", "t1"), ("z", "y1"), ("z", "y2"), ("t1", "y1"), ("t1", "y2")]
-    batch = PreparedBatch.prepare(
-        data,
-        graph=graph,
-        queries=[ant.AverageEffect("t1", "y1"), ant.AverageEffect("t1", "y2")],
-        estimator="aipw",
-        refute=False,
-        seed=11,
-        bootstrap=0,
+    batch = require_success(
+        ant.estimation.prepare_many(
+            data,
+            graph=graph,
+            queries=[ant.AverageEffect("t1", "y1"), ant.AverageEffect("t1", "y2")],
+            estimator="aipw",
+            refute=False,
+            inference=ant.Frequentist(bootstrap=0),
+            execution=ant.Execution(seed=11),
+        ).estimate()
     )
     rows = batch.retarget_rows()
     assert rows is not None
     plus = np.exp(0.4 * np.asarray(data["z"])[list(rows)])
     spike = np.zeros_like(plus)
     spike[:3] = 1.0
-    report = batch.retarget(
-        [
-            RetargetClaim("good", 0, plus, depends_on=["z"]),
-            RetargetClaim("spiked", 1, spike, depends_on=["z"]),
-            RetargetClaim("short", 1, plus[:10], depends_on=["z"]),
-        ],
-        [RetargetContrast("good_minus_spiked", {"good": 1.0, "spiked": -1.0})],
+    report = require_success(
+        batch.retarget(
+            [
+                RetargetClaim("good", 0, plus, depends_on=["z"]),
+                RetargetClaim("spiked", 1, spike, depends_on=["z"]),
+                RetargetClaim("short", 1, plus[:10], depends_on=["z"]),
+            ],
+            [RetargetContrast("good_minus_spiked", {"good": 1.0, "spiked": -1.0})],
+        )
     )
     members = {m.name: m for m in (*report.claims, *report.contrasts)}
     assert members["good"].refusal_fields is None
@@ -316,18 +327,22 @@ def test_a_malformed_family_names_the_offending_claim_as_subject():
     z = rng.normal(size=n)
     t = (rng.uniform(size=n) < 1 / (1 + np.exp(-z))).astype(float)
     data = {"t": t, "y": t + z + rng.normal(size=n), "z": z}
-    batch = PreparedBatch.prepare(
-        data,
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        queries=[ant.AverageEffect("t", "y")],
-        estimator="aipw",
-        refute=False,
-        seed=12,
-        bootstrap=0,
+    batch = require_success(
+        ant.estimation.prepare_many(
+            data,
+            graph=[("z", "t"), ("z", "y"), ("t", "y")],
+            queries=[ant.AverageEffect("t", "y")],
+            estimator="aipw",
+            refute=False,
+            inference=ant.Frequentist(bootstrap=0),
+            execution=ant.Execution(seed=12),
+        ).estimate()
     )
     rows = batch.retarget_rows()
     plus = np.exp(0.4 * np.asarray(data["z"])[list(rows)])
     good = RetargetClaim("a", 0, plus, depends_on=["z"])
+    # Duplicate declarations are invalid arguments and must raise directly,
+    # rather than being accepted as a scientific refusal outcome.
     with pytest.raises(CausalUnsupportedError) as raised:
         batch.retarget([good, good])
     fields = raised.value.refusal_fields

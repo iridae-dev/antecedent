@@ -76,6 +76,20 @@ SCOPED = [
         lambda p: ant.SustainedEffect("x", "y", treatment_lag=1, target_population=p),
     ),
     _case(
+        "TemporalConditionalPulse",
+        _series,
+        TEMPORAL_DAG,
+        lambda p: ant.TemporalConditionalPulse("x", "y", "x", treatment_lag=1, target_population=p),
+    ),
+    _case(
+        "TemporalConditionalSustained",
+        _series,
+        TEMPORAL_DAG,
+        lambda p: ant.TemporalConditionalSustained(
+            "x", "y", "x", treatment_lag=1, target_population=p
+        ),
+    ),
+    _case(
         "TemporalMediationEffect",
         _series,
         TEMPORAL_DAG,
@@ -198,10 +212,13 @@ def test_every_population_scoped_class_has_the_field() -> None:
     for cls in unscoped:
         assert "target_population" not in {f.name for f in fields(cls)}, cls.__name__
     query_names = {name for name in ant.query.__all__ if name in ant.__all__}
-    # AnomalyReference and FeedbackMechanism configure a query; neither is itself a query target.
-    assert query_names - {"AnomalyReference", "FeedbackMechanism"} == {
-        cls.__name__ for cls in scoped | unscoped
-    }
+    # These declarations configure/wrap a concrete target rather than introducing
+    # another population-scoped query kind. TemporalQuery carries the nested
+    # query's population, which is exercised through native execution below.
+    wrappers = {"AnomalyReference", "FeedbackMechanism", "TemporalQuery"}
+    assert "TemporalQuery" in query_names
+    assert "query" in {field.name for field in fields(ant.TemporalQuery)}
+    assert query_names - wrappers == {cls.__name__ for cls in scoped | unscoped}
 
 
 @pytest.mark.parametrize(
@@ -222,18 +239,39 @@ def test_an_unlicensed_population_refuses_by_code(make, graph, query, options, p
     registry = P.PopulationRegistry()
     registry.insert_predicate("upper", list(range(n // 2, n)))
     registry.insert_distribution(7, [1.0] * n)
+    outcome = ant.analyze(
+        data,
+        graph=graph,
+        query=query(population),
+        population_registry=registry,
+        refute=False,
+        **options,
+    )
+    assert outcome.refusal is not None
+    assert outcome.refusal.code == "population_not_estimable", outcome.refusal
     with pytest.raises(CausalUnsupportedError) as caught:
-        require_success(
-            ant.analyze(
-                data,
-                graph=graph,
-                query=query(population),
-                population_registry=registry,
-                refute=False,
-                **options,
-            )
-        )
+        require_success(outcome)
     assert caught.value.reason_code == "population_not_estimable", str(caught.value)
+
+
+def test_temporal_geometry_retains_the_nested_query_population() -> None:
+    population = P.Treated()
+    nested = ant.PointDerivative("x", "y", at=0.5, target_population=population)
+    query = ant.TemporalQuery(nested, horizons=(1,), treatment_lag=1)
+    assert query.query.target_population == population
+    study = ant.prepare(
+        _series(),
+        graph=TEMPORAL_DAG,
+        query=query,
+        estimator_config={"bandwidth": 0.8},
+        refute=False,
+    )
+    outcome = ant.estimate(study)
+    assert outcome.refusal is not None
+    assert outcome.refusal.code == "population_not_estimable"
+    with pytest.raises(CausalUnsupportedError) as caught:
+        require_success(outcome)
+    assert caught.value.reason_code == "population_not_estimable"
 
 
 @pytest.mark.parametrize(
@@ -289,15 +327,16 @@ def test_linear_adjustment_refuses_a_population_on_a_class_graph() -> None:
     )
     data = {k: v for k, v in _static().items() if k in ("z", "t", "y")}
     require_success(ant.analyze(data, graph=cpdag, query=ant.AverageEffect("t", "y"), refute=False))
+    outcome = ant.analyze(
+        data,
+        graph=cpdag,
+        query=ant.AverageEffect("t", "y", target_population=P.Treated()),
+        refute=False,
+    )
+    assert outcome.refusal is not None
+    assert outcome.refusal.code == "population_not_estimable"
     with pytest.raises(CausalUnsupportedError) as caught:
-        require_success(
-            ant.analyze(
-                data,
-                graph=cpdag,
-                query=ant.AverageEffect("t", "y", target_population=P.Treated()),
-                refute=False,
-            )
-        )
+        require_success(outcome)
     assert caught.value.reason_code == "population_not_estimable"
 
 
@@ -307,8 +346,13 @@ def test_analyze_many_estimates_each_query_population() -> None:
         ant.AverageEffect("t", "y"),
         ant.AverageEffect("t", "y", target_population=P.Treated()),
     ]
-    ate, att = ant.estimation.analyze_many(
-        data, graph=STATIC_DAG, queries=queries, estimator="aipw", refute=False
+    ate, att = tuple(
+        require_success(member)
+        for member in require_success(
+            ant.estimation.analyze_many(
+                data, graph=STATIC_DAG, queries=queries, estimator="aipw", refute=False
+            )
+        ).members
     )
     assert att.ate > ate.ate + 0.3
     single = require_success(

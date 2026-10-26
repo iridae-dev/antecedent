@@ -87,7 +87,7 @@ from antecedent.errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
-from antecedent.estimation import PreparedBatch, RetargetClaim
+from antecedent.estimation import RetargetClaim
 from antecedent.evidence_ledger import EvidenceLedgerRefusal
 from antecedent.external import ExternalRefusal
 from antecedent.inference import PosteriorArtifact, encode_posterior_artifact
@@ -577,23 +577,27 @@ def _batch_retarget() -> Any:
     y1 = 2.0 * t1 + 0.5 * t2 + z + 0.3 * rng.normal(size=n)
     y2 = -t1 + 1.5 * t2 - 0.5 * z + 0.3 * rng.normal(size=n)
     data = {"t1": t1, "t2": t2, "y1": y1, "y2": y2, "z": z}
-    batch = PreparedBatch.prepare(
-        data,
-        graph=BATCH_GRAPH,
-        queries=[Q_T1_Y1, Q_T1_Y2, Q_T2_Y1],
-        estimator="aipw",
-        refute=False,
-        seed=11,
-        bootstrap=0,
+    batch = require_success(
+        ac.estimation.prepare_many(
+            data,
+            graph=BATCH_GRAPH,
+            queries=[Q_T1_Y1, Q_T1_Y2, Q_T2_Y1],
+            estimator="aipw",
+            refute=False,
+            inference=ac.Frequentist(bootstrap=0),
+            execution=ac.Execution(seed=11),
+        ).estimate()
     )
     rows = batch.retarget_rows()
     assert rows is not None
     zs = np.asarray(data["z"])[list(rows)]
-    return batch.retarget(
-        [
-            RetargetClaim("a", Q_T1_Y1, np.exp(0.4 * zs), depends_on=["z"]),
-            RetargetClaim("b", 0, np.exp(-0.4 * zs), depends_on=["z"]),
-        ]
+    return require_success(
+        batch.retarget(
+            [
+                RetargetClaim("a", Q_T1_Y1, np.exp(0.4 * zs), depends_on=["z"]),
+                RetargetClaim("b", 0, np.exp(-0.4 * zs), depends_on=["z"]),
+            ]
+        )
     )
 
 
