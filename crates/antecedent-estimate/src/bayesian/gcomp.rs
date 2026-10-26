@@ -25,7 +25,8 @@ use crate::adjustment::{PreparedEstimationProblem, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::serial_dependence::{
-    DEPENDENCE_ASSUMPTION_ID, DependenceScope, SerialDependence, long_run_tempering_factor,
+    DEPENDENCE_ASSUMPTION_ID, DependenceScope, ResidualFitReuse, SerialDependence,
+    long_run_tempering_factor,
 };
 use crate::util::require_explicit_override;
 
@@ -452,7 +453,8 @@ impl BayesianGComputationAte {
 
         let likelihood = self.effective_likelihood();
         let (max_draws, mut extra_notes) = self.draw_budget()?;
-        let tempering_weights = temper_likelihood(problem, &mut assumptions, &mut extra_notes)?;
+        let tempering_weights =
+            temper_likelihood(problem, &mut assumptions, &mut extra_notes, ctx)?;
         let (laplace_adaptive, initial_draws) =
             self.adaptive_schedule(likelihood, &prior, ctx, max_draws)?;
 
@@ -797,6 +799,7 @@ fn temper_likelihood(
     problem: &PreparedBayesianProblem,
     assumptions: &mut AssumptionSet,
     extra_notes: &mut Vec<Arc<str>>,
+    ctx: &ExecutionContext,
 ) -> Result<Option<Vec<f64>>, EstimationError> {
     let tempering = match &problem.serial_dependence {
         SerialDependence::Iid => None,
@@ -807,7 +810,11 @@ fn temper_likelihood(
                      panel units",
                 ));
             }
-            Some(long_run_tempering_factor(&problem.design, scope)?)
+            Some(long_run_tempering_factor(
+                &problem.design,
+                scope,
+                ResidualFitReuse::for_context(ctx),
+            )?)
         }
         SerialDependence::SegmentedTempering { scope, segments } => {
             if problem.unit_ids.is_some() {

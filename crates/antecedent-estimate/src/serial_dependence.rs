@@ -87,7 +87,8 @@
 //! Everything that depends only on the design — the OLS residual, the REML
 //! fit at every candidate order, `X'R̂X` and `tr(HR̂)` on the delta-method
 //! stencil, the observed information — is computed once per design
-//! ([`long_run_tempering_factor`] keeps a small content-keyed cache), and each
+//! ([`long_run_tempering_factor`] keeps a small content-keyed cache when the caller
+//! permits unbounded reuse), and each
 //! REML likelihood evaluation is O(q²p²) from lagged cross-products of the
 //! augmented design accumulated once, so the fit costs about the same at any
 //! `n`. Each combination then adds O(p²) quadratic forms and, only while it can
@@ -370,7 +371,9 @@ pub fn tempering_inestimable_from_notes(notes: &[Arc<str>]) -> bool {
 /// (every horizon of a temporal response is its own design, but the class atoms
 /// of one adjustment set, a Study's estimate and its checks, or a re-run on the
 /// same series are not) reuse it through a small content-keyed cache
-/// (`residual_fit`). The fit is a pure function of the design, so a cache hit
+/// (`residual_fit`) when `reuse` permits process retention. Disabled or bounded
+/// caller caches compute the same fit without consulting or populating the memo.
+/// The fit is a pure function of the design, so a cache hit
 /// and a recomputation are indistinguishable.
 ///
 /// # Errors
@@ -384,6 +387,7 @@ pub fn tempering_inestimable_from_notes(notes: &[Arc<str>]) -> bool {
 pub(crate) fn long_run_tempering_factor(
     design: &CompiledDesign,
     scope: &DependenceScope,
+    reuse: ResidualFitReuse,
 ) -> Result<TemperingFactor, EstimationError> {
     let n = design.nrows;
     let p = design.ncols;
@@ -417,7 +421,7 @@ pub(crate) fn long_run_tempering_factor(
     if directions.is_empty() {
         return Ok(floor);
     }
-    let fit = residual_fit(design)?;
+    let fit = residual_fit(design, reuse)?;
     // An exact fit leaves only rounding error, whose autocorrelation is an artefact of the
     // arithmetic: there is no residual dependence to correct.
     if fit.exact {
@@ -812,6 +816,37 @@ impl ResidualFit {
     }
 }
 
+/// Whether an execution may share a residual fit beyond its own lifetime.
+/// The process memo cannot honor a caller-owned byte lease or a bounded cache policy.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ResidualFitReuse {
+    /// Compute only for this execution; retain no source or fit in the process memo.
+    Uncached,
+    /// Reuse the bounded process memo under an unbounded caller policy.
+    ProcessMemo,
+}
+
+impl ResidualFitReuse {
+    pub(crate) fn for_context(ctx: &antecedent_core::ExecutionContext) -> Self {
+        if ctx.cache_policy.enabled
+            && ctx.cache_policy.max_bytes.is_none()
+            && ctx.admission.byte_budget() == u64::MAX
+        {
+            Self::ProcessMemo
+        } else {
+            Self::Uncached
+        }
+    }
+}
+
+// Per-thread observations avoid resetting shared state or racing other numerical tests.
+#[cfg(test)]
+thread_local! {
+    static FIT_CACHE_ACCESSES: std::cell::Cell<(usize, usize)> = const {
+        std::cell::Cell::new((0, 0))
+    };
+}
+
 /// Cached design-level fits, most recently used first: at most this many
 /// designs, and at most `FIT_CACHE_MAX_ELEMENTS` retained `f64` values across
 /// them (the cache keeps each design's rows alive to verify a hit by content,
@@ -861,7 +896,18 @@ fn design_hash(x: &[f64], y: &[f64]) -> u64 {
 /// The design-level fit of `design`, from the cache when the same rows were fitted
 /// before (a process-wide cache of [`FIT_CACHE_CAPACITY`] designs, keyed on the
 /// row contents so the result is a pure function of the design).
-fn residual_fit(design: &CompiledDesign) -> Result<Arc<ResidualFit>, EstimationError> {
+fn residual_fit(
+    design: &CompiledDesign,
+    reuse: ResidualFitReuse,
+) -> Result<Arc<ResidualFit>, EstimationError> {
+    if reuse == ResidualFitReuse::Uncached {
+        return ResidualFit::new(design).map(Arc::new);
+    }
+    #[cfg(test)]
+    FIT_CACHE_ACCESSES.with(|counts| {
+        let (lookups, insertions) = counts.get();
+        counts.set((lookups + 1, insertions));
+    });
     let n = design.nrows;
     let p = design.ncols;
     let x = &design.matrix[..n * p];
@@ -891,6 +937,11 @@ fn residual_fit(design: &CompiledDesign) -> Result<Arc<ResidualFit>, EstimationE
     }
     let mut cache = FIT_CACHE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     cache.insert(0, entry);
+    #[cfg(test)]
+    FIT_CACHE_ACCESSES.with(|counts| {
+        let (lookups, insertions) = counts.get();
+        counts.set((lookups, insertions + 1));
+    });
     cache.truncate(FIT_CACHE_CAPACITY);
     let mut total = cache.iter().map(CachedFit::retained_elements).fold(0, usize::saturating_add);
     while total > FIT_CACHE_MAX_ELEMENTS {
@@ -1827,6 +1878,88 @@ mod tests {
         }
     }
 
+    fn fit_tempered_design(
+        d: &CompiledDesign,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> crate::bayesian::CausalPosterior {
+        use crate::bayesian::{
+            BayesianGCompWorkspace, BayesianGComputationAte, PreparedBayesianProblem,
+        };
+        let problem = PreparedBayesianProblem {
+            design: d.clone(),
+            method: Arc::from("residual-cache-policy-regression"),
+            adjustment_set: Arc::from([VariableId::from_raw(2)]),
+            active: 1.0,
+            control: 0.0,
+            overlap: crate::overlap::OverlapPolicy::ExplicitOverride,
+            coef_names: None,
+            unit_ids: None,
+            serial_dependence: SerialDependence::LongRunTempering(DependenceScope::Treatment),
+            preparation: None,
+        };
+        BayesianGComputationAte::conjugate()
+            .with_n_draws(100)
+            .fit(
+                &problem,
+                antecedent_core::IdentificationStatus::NonparametricallyIdentified,
+                &mut BayesianGCompWorkspace::default(),
+                ctx,
+            )
+            .unwrap()
+    }
+
+    #[test]
+    fn production_tempering_honors_disabled_bounded_and_admitted_cache_policy() {
+        use antecedent_core::{CachePolicy, ExecutionContext};
+        let disabled = ExecutionContext::for_tests(33);
+        let mut bounded = disabled.clone();
+        bounded.cache_policy = CachePolicy::enabled(Some(1 << 20));
+        let mut finite_pool = disabled.clone().with_memory_limit(Some(1 << 26));
+        finite_pool.cache_policy = CachePolicy::enabled(None);
+        for (ctx, seed) in [(disabled, 90_100), (bounded, 90_101), (finite_pool, 90_102)] {
+            let d = design(100, 0.7, seed);
+            let source_refs = Arc::strong_count(&d.matrix);
+            let outcome_refs = Arc::strong_count(&d.outcome);
+            FIT_CACHE_ACCESSES.with(|counts| counts.set((0, 0)));
+            let fresh = fit_tempered_design(&d, &ctx);
+            assert_eq!(FIT_CACHE_ACCESSES.with(std::cell::Cell::get), (0, 0));
+            assert_eq!(Arc::strong_count(&d.matrix), source_refs);
+            assert_eq!(Arc::strong_count(&d.outcome), outcome_refs);
+            assert!(
+                FIT_CACHE
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .all(|entry| { !Arc::ptr_eq(&entry.matrix, &d.matrix) })
+            );
+            // A pre-existing identical cached fit must not override this caller's
+            // disabled/bounded policy. Count accesses on this test thread only,
+            // so concurrent eviction or unrelated fits cannot change the assertion.
+            let _warm = residual_fit(&d, ResidualFitReuse::ProcessMemo).unwrap();
+            FIT_CACHE_ACCESSES.with(|counts| counts.set((0, 0)));
+            let warm = fit_tempered_design(&d, &ctx);
+            assert_eq!(FIT_CACHE_ACCESSES.with(std::cell::Cell::get), (0, 0));
+            assert_eq!(fresh.draws.values.as_ref(), warm.draws.values.as_ref());
+        }
+    }
+
+    #[test]
+    fn production_tempering_explicit_unbounded_cache_uses_the_process_memo() {
+        use antecedent_core::{CachePolicy, ExecutionContext};
+        let mut ctx = ExecutionContext::for_tests(33);
+        ctx.cache_policy = CachePolicy::enabled(None);
+        let d = design(100, 0.7, 90_103);
+        FIT_CACHE_ACCESSES.with(|counts| counts.set((0, 0)));
+        let first = fit_tempered_design(&d, &ctx);
+        let (lookups, insertions) = FIT_CACHE_ACCESSES.with(std::cell::Cell::get);
+        assert_eq!((lookups, insertions), (1, 1));
+        let second = fit_tempered_design(&d, &ctx);
+        // Both executions consult the memo. Whether an unrelated concurrent fit
+        // evicts the first entry is immaterial to either result or this policy.
+        assert_eq!(FIT_CACHE_ACCESSES.with(std::cell::Cell::get).0, 2);
+        assert_eq!(first.draws.values.as_ref(), second.draws.values.as_ref());
+    }
+
     #[test]
     fn oversized_design_is_fitted_without_process_cache_retention() {
         let mut d = design(100, 0.4, 912);
@@ -1836,8 +1969,8 @@ mod tests {
         let mut padded = d.matrix.to_vec();
         padded.resize(FIT_CACHE_MAX_ELEMENTS + 1, 0.0);
         d.matrix = padded.into();
-        let first = residual_fit(&d).unwrap();
-        let second = residual_fit(&d).unwrap();
+        let first = residual_fit(&d, ResidualFitReuse::ProcessMemo).unwrap();
+        let second = residual_fit(&d, ResidualFitReuse::ProcessMemo).unwrap();
         assert!(!Arc::ptr_eq(&first, &second), "oversized source must not be retained");
         assert_eq!(first.residuals, second.residuals);
         assert_eq!(first.model.z, second.model.z);
@@ -1859,10 +1992,10 @@ mod tests {
             &[],
         )
         .unwrap();
-        let first = residual_fit(&d).unwrap();
-        let second = residual_fit(&copy).unwrap();
+        let first = residual_fit(&d, ResidualFitReuse::ProcessMemo).unwrap();
+        let second = residual_fit(&copy, ResidualFitReuse::ProcessMemo).unwrap();
         assert!(Arc::ptr_eq(&first, &second), "identical rows share one fit");
-        let other = residual_fit(&design(300, 0.7, 22)).unwrap();
+        let other = residual_fit(&design(300, 0.7, 22), ResidualFitReuse::ProcessMemo).unwrap();
         assert!(!Arc::ptr_eq(&first, &other));
         let direct = ResidualFit::new(&d).unwrap();
         assert_eq!(direct.model.z, first.model.z);
@@ -1899,8 +2032,12 @@ mod tests {
     fn iid_rows_centre_on_one() {
         let mut ratios = Vec::new();
         for seed in 0..40 {
-            let f = long_run_tempering_factor(&design(400, 0.0, seed), &DependenceScope::Treatment)
-                .unwrap();
+            let f = long_run_tempering_factor(
+                &design(400, 0.0, seed),
+                &DependenceScope::Treatment,
+                ResidualFitReuse::ProcessMemo,
+            )
+            .unwrap();
             assert!(f.kappa >= 1.0);
             assert!(f.fixed_b > 1.0 && f.fixed_b < 1.05, "fixed-b at n = 400: {}", f.fixed_b);
             ratios.push(f.ar_ratio);
@@ -1922,6 +2059,7 @@ mod tests {
             let f = long_run_tempering_factor(
                 &design(2_000, rho, 100 + seed),
                 &DependenceScope::Treatment,
+                ResidualFitReuse::ProcessMemo,
             )
             .unwrap();
             ratios.push(f.kappa);
@@ -1933,20 +2071,36 @@ mod tests {
         assert!((mean / truth - 1.0).abs() < 0.15, "ratio {mean} vs analytic {truth}");
         // The treatment direction written explicitly is the same combination.
         let d = design(500, rho, 7);
-        let a = long_run_tempering_factor(&d, &DependenceScope::Treatment).unwrap();
-        let b =
-            long_run_tempering_factor(&d, &DependenceScope::Direction(Arc::from([0.0, 1.0, 0.0])))
-                .unwrap();
+        let a = long_run_tempering_factor(
+            &d,
+            &DependenceScope::Treatment,
+            ResidualFitReuse::ProcessMemo,
+        )
+        .unwrap();
+        let b = long_run_tempering_factor(
+            &d,
+            &DependenceScope::Direction(Arc::from([0.0, 1.0, 0.0])),
+            ResidualFitReuse::ProcessMemo,
+        )
+        .unwrap();
         assert!((a.raw_ratio - b.raw_ratio).abs() < 1e-9);
     }
 
     #[test]
     fn levels_scope_takes_the_largest_ratio_of_its_combinations() {
         let d = design(800, 0.7, 11);
-        let slope = long_run_tempering_factor(&d, &DependenceScope::Treatment).unwrap();
-        let intercept =
-            long_run_tempering_factor(&d, &DependenceScope::Direction(Arc::from([1.0, 0.0, 0.0])))
-                .unwrap();
+        let slope = long_run_tempering_factor(
+            &d,
+            &DependenceScope::Treatment,
+            ResidualFitReuse::ProcessMemo,
+        )
+        .unwrap();
+        let intercept = long_run_tempering_factor(
+            &d,
+            &DependenceScope::Direction(Arc::from([1.0, 0.0, 0.0])),
+            ResidualFitReuse::ProcessMemo,
+        )
+        .unwrap();
         let levels = long_run_tempering_factor(
             &d,
             &DependenceScope::Levels(Arc::from([
@@ -1954,6 +2108,7 @@ mod tests {
                 Arc::from([1.0, 0.0, 0.0]),
                 Arc::from([0.0, 0.0, 0.0]),
             ])),
+            ResidualFitReuse::ProcessMemo,
         )
         .unwrap();
         assert_eq!(levels.scope, "response_levels");
@@ -1961,18 +2116,25 @@ mod tests {
         let wrong_width = long_run_tempering_factor(
             &d,
             &DependenceScope::Levels(Arc::from([Arc::from([1.0, 0.0])])),
+            ResidualFitReuse::ProcessMemo,
         );
         assert!(wrong_width.is_err());
     }
 
     #[test]
     fn short_or_irrelevant_designs_do_not_temper() {
-        let f = long_run_tempering_factor(&design(6, 0.9, 1), &DependenceScope::Treatment).unwrap();
+        let f = long_run_tempering_factor(
+            &design(6, 0.9, 1),
+            &DependenceScope::Treatment,
+            ResidualFitReuse::ProcessMemo,
+        )
+        .unwrap();
         assert!((f.kappa - 1.0).abs() < f64::EPSILON);
         assert!(f.inestimable);
         let zero = long_run_tempering_factor(
             &design(200, 0.9, 1),
             &DependenceScope::Direction(Arc::from([0.0, 0.0, 0.0])),
+            ResidualFitReuse::ProcessMemo,
         )
         .unwrap();
         assert!((zero.kappa - 1.0).abs() < f64::EPSILON);
@@ -2015,7 +2177,12 @@ mod tests {
         let mut picked_high = 0;
         for seed in 0..40 {
             let d = design(400, 0.7, 100 + seed);
-            let f = long_run_tempering_factor(&d, &DependenceScope::Treatment).unwrap();
+            let f = long_run_tempering_factor(
+                &d,
+                &DependenceScope::Treatment,
+                ResidualFitReuse::ProcessMemo,
+            )
+            .unwrap();
             picked_high += usize::from(f.residual_ar_order >= 2);
         }
         assert!(picked_high <= 4, "REML picked q >= 2 on {picked_high}/40 AR(1) designs");
@@ -2055,7 +2222,12 @@ mod tests {
         let (mut kappas, mut oracles) = (Vec::new(), Vec::new());
         for seed in 0..30 {
             let d = ar2_design(200, phi, 300 + seed);
-            let f = long_run_tempering_factor(&d, &DependenceScope::Treatment).unwrap();
+            let f = long_run_tempering_factor(
+                &d,
+                &DependenceScope::Treatment,
+                ResidualFitReuse::ProcessMemo,
+            )
+            .unwrap();
             assert!(f.residual_ar_order >= 2, "{f:?}");
             assert!(!f.bounded, "the score bound must not bind on AR(2): {f:?}");
             kappas.push(f.kappa);
@@ -2089,12 +2261,16 @@ mod tests {
 
     #[test]
     fn kappa_uncertainty_shrinks_with_the_series_length() {
-        let short =
-            long_run_tempering_factor(&ar2_design(80, [0.3, 0.5], 9), &DependenceScope::Treatment)
-                .unwrap();
+        let short = long_run_tempering_factor(
+            &ar2_design(80, [0.3, 0.5], 9),
+            &DependenceScope::Treatment,
+            ResidualFitReuse::ProcessMemo,
+        )
+        .unwrap();
         let long = long_run_tempering_factor(
             &ar2_design(2_000, [0.3, 0.5], 9),
             &DependenceScope::Treatment,
+            ResidualFitReuse::ProcessMemo,
         )
         .unwrap();
         assert!(short.kappa_log_sd > 0.1, "{short:?}");
@@ -2119,7 +2295,12 @@ mod tests {
         let y: Vec<f64> =
             (0..n).map(|i| 2.0 * t[i + 1] + 3.0 * t[i] + 0.03 * (0.73 * i as f64).sin()).collect();
         let d = CompiledDesign::linear_adjustment(&x, &[], &y, &[]).unwrap();
-        let f = long_run_tempering_factor(&d, &DependenceScope::Treatment).unwrap();
+        let f = long_run_tempering_factor(
+            &d,
+            &DependenceScope::Treatment,
+            ResidualFitReuse::ProcessMemo,
+        )
+        .unwrap();
         assert!(f.residual_ar_order >= 2, "{f:?}");
         assert!(f.kappa < 2.0, "the bounded autoregressive factor must not blow kappa up: {f:?}");
         assert!(f.bounded, "{f:?}");
@@ -2142,9 +2323,12 @@ mod tests {
             &[],
         )
         .unwrap();
-        let f =
-            long_run_tempering_factor(&d, &DependenceScope::Direction(Arc::from([0.0, 1.0, 1.0])))
-                .unwrap();
+        let f = long_run_tempering_factor(
+            &d,
+            &DependenceScope::Direction(Arc::from([0.0, 1.0, 1.0])),
+            ResidualFitReuse::ProcessMemo,
+        )
+        .unwrap();
         assert!((f.kappa - 1.0).abs() < f64::EPSILON, "{f:?}");
     }
 }
