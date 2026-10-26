@@ -88,12 +88,11 @@ def test_catalog_filter_accept_reject_partial():
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Bayesian(n_draws=48),
             refute=False,
-            seed=11,
-            return_posterior_artifact=True,
+            execution=antecedent.Execution(seed=11),
         )
     )
     assert result.posterior is not None
-    artifact = bytes(result.posterior.artifact)
+    artifact = bytes(result.export(quantity="posterior"))
     names = list(antecedent.inference.decode_posterior_artifact(artifact).quantity_names)
     assert any(n == "intercept" or n.startswith("coef_") for n in names)
     assert "ate" in names
@@ -166,12 +165,11 @@ def test_effect_prior_transfer_shrinks_toward_source():
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
             refute=False,
-            seed=3,
-            return_posterior_artifact=True,
+            execution=antecedent.Execution(seed=3),
         )
     )
     assert source.posterior is not None
-    artifact = bytes(source.posterior.artifact)
+    artifact = bytes(source.export(quantity="posterior"))
     source_mean = float(source.posterior.effect_mean)
 
     w = rng.normal(size=n)
@@ -189,8 +187,7 @@ def test_effect_prior_transfer_shrinks_toward_source():
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
             refute=False,
-            seed=5,
-            return_posterior_artifact=True,
+            execution=antecedent.Execution(seed=5),
         )
     )
     assert baseline.posterior is not None
@@ -208,8 +205,7 @@ def test_effect_prior_transfer_shrinks_toward_source():
                 mapping=antecedent.priors.PriorMapping.effect_functional("ate"),
             ),
             refute=False,
-            seed=5,
-            return_posterior_artifact=True,
+            execution=antecedent.Execution(seed=5),
         )
     )
     assert mapped.posterior is not None
@@ -230,8 +226,7 @@ def test_effect_prior_transfer_shrinks_toward_source():
                 prior_from=artifact,
             ),
             refute=False,
-            seed=5,
-            return_posterior_artifact=True,
+            execution=antecedent.Execution(seed=5),
         )
     )
     assert auto.posterior is not None
@@ -251,8 +246,7 @@ def test_effect_prior_transfer_shrinks_toward_source():
                     mapping=antecedent.priors.PriorMapping.identical(),
                 ),
                 refute=False,
-                seed=5,
-                return_posterior_artifact=True,
+                execution=antecedent.Execution(seed=5),
             )
         )
     assert_registered_refusal(caught.value)
@@ -401,8 +395,7 @@ def test_compose_weight_and_conflict():
                 prior_from=prior_for_fit,
             ),
             refute=False,
-            seed=7,
-            return_posterior_artifact=True,
+            execution=antecedent.Execution(seed=7),
         )
     )
     assert result.posterior is not None
@@ -658,8 +651,7 @@ def test_alpha_prior_sensitivity_on_composed_prior():
                 prior_from=composed,
             ),
             refute="full",
-            seed=31,
-            return_posterior_artifact=True,
+            execution=antecedent.Execution(seed=31),
         )
     )
     assert result.posterior is not None
@@ -832,11 +824,10 @@ def test_posterior_round_trip_preserves_named_schema_and_source_contrast(contras
             query=query,
             inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
             refute=False,
-            seed=13,
-            return_posterior_artifact=True,
+            execution=antecedent.Execution(seed=13),
         )
     )
-    original = source.posterior.artifact
+    original = bytes(source.export(quantity="posterior"))
     decoded = antecedent.inference.decode_posterior_artifact(original)
     assert decoded.treatment_contrast == contrast
     reencoded = bytes(antecedent.inference.encode_posterior_artifact(decoded))

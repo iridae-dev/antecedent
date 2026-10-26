@@ -196,12 +196,11 @@ def test_actual_native_bayesian_producer_catalog_adapter_ranking_handoff():
             graph=[("t", "y")],
             query=query,
             inference=ac.Bayesian(n_draws=32),
-            return_posterior_artifact=True,
             refute=False,
-            seed=19,
+            execution=ac.Execution(seed=19),
         )
     )
-    assert result.posterior is not None and result.posterior.artifact is not None
+    assert result.posterior is not None
     source = PriorSource(
         PriorSourceMeta(
             "actual-fit",
@@ -209,7 +208,7 @@ def test_actual_native_bayesian_producer_catalog_adapter_ranking_handoff():
             "IdentifiedUnderParametricRestrictions",
             design=(DesignVariable("t", "treatment"), DesignVariable("y", "outcome")),
         ),
-        bytes(result.posterior.artifact),
+        bytes(result.export(quantity="posterior")),
     )
     checked = dr.adapt_prior_to_signal(
         PriorCatalog([source]),
