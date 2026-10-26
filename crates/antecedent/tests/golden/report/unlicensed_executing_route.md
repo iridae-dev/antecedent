@@ -18,7 +18,7 @@
 
 ## Claim
 
-- **Claim id:** 649a68b1339d51d2bf91ac19dd9e760303be61d4c978e530c39557372c9f5c99
+- **Claim id:** 2a97d0a2f5e9285199caf07945112ecf8b03d25ff8e2170af27a4f67bfe87a6c
 - **Kind:** point
 - **Value:** none
 - **Outcome units:** none

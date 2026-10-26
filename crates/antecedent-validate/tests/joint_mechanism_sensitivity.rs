@@ -987,7 +987,7 @@ fn every_joint_sensitivity_detail_pairs_with_its_recorded_reason_code() {
     ] {
         push(with(&|s| s.factors[1].factor = factor));
     }
-    push(with(&|s| s.frontier_points = 99));
+    push(with(&|s| s.frontier_points = JOINT_SENSITIVITY_MAX_FRONTIER_POINTS + 1));
     // A non-numeric outcome level.
     let mut labelled = data(&model, "snapshot-0").laws()[0].clone();
     let mut axes = labelled.axes().to_vec();
