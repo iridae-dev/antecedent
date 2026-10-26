@@ -522,7 +522,7 @@ impl SplitDiscovery {
         let binding =
             self.check_analysis_table(self.analysis_rows()).map_err(|error| match error {
                 SelectiveDiscoveryError::Refused { code, detail, remedy } => {
-                    EstimationError::refused(code, format!("{detail}: {remedy}"))
+                    EstimationError::refused_detail(code, detail, remedy)
                 }
                 other => EstimationError::data_msg(other.to_string()),
             })?;

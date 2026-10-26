@@ -1495,8 +1495,8 @@ impl super::Study {
 
         let mut est =
             SharpRegressionDiscontinuity::new(rd.running_variable, rd.cutoff, rd.bandwidth);
-        est.bootstrap_replicates = self.bootstrap_replicates;
-        est.se_kind = rd.se_kind;
+        est.inference.bootstrap_replicates = self.bootstrap_replicates;
+        est.inference.se_kind = rd.se_kind;
         let checked = est.prepare_checked(data, &identification, 0).map_err(CausalError::from)?;
         let mut ws = RdWorkspace::default();
         let estimate = est.fit_checked(&checked, &mut ws, ctx).map_err(CausalError::from)?;
@@ -1573,7 +1573,10 @@ impl super::Study {
             query.inner.outcome,
             &query.inner.outcome_functional,
         )?;
-        let est = ConditionalLinearAdjustment::new();
+        let mut est = ConditionalLinearAdjustment::new();
+        if query.inner.effect_modifiers.len() > 1 {
+            est = est.with_joint_modifiers();
+        }
         let mut mean_query = query.clone();
         mean_query.inner.outcome_functional = antecedent_core::OutcomeFunctional::Mean;
         let estimate =

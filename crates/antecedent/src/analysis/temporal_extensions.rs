@@ -69,6 +69,13 @@ fn identity_for(
     panel: &TemporalUnitPanel,
     sequence: [u32; 2],
 ) -> Result<TemporalWindowIdentity, IoError> {
+    if panel.horizon().is_some_and(|steps| steps != TEMPORAL_REFRESH_HORIZON) {
+        return Err(refused(
+            reason_code!("invalid_argument"),
+            "temporal_refresh.invalid_replacement",
+            "a prepared result's panel must have the refreshable horizon of two",
+        ));
+    }
     let identity = TemporalWindowIdentity {
         graph_id: window.graph_id.clone().unwrap_or_else(|| premises.graph_id.clone()),
         horizon: window.horizon,
@@ -135,7 +142,8 @@ impl TemporalInitialState {
         premises.validate()?;
         let query = MarginalizedQuery::new(sequence, spec)?;
         let marginalized = query.effect(&panel)?;
-        let fixed_query = fixed_state.map(|s0| FixedStateQuery { sequence, s0 });
+        let fixed_query =
+            fixed_state.map(|s0| FixedStateQuery { sequence: sequence.to_vec(), s0 });
         let fixed = fixed_query.as_ref().map(|q| q.effect(&panel)).transpose()?;
         let identity = match window {
             Some(w) => {
@@ -293,7 +301,7 @@ impl TemporalInitialState {
             premises: self.premises.clone(),
             sequence: self.sequence,
             query: self.query.clone(),
-            fixed_query: self.fixed_query,
+            fixed_query: self.fixed_query.clone(),
             panel,
             marginalized: refreshed.value,
             fixed,
@@ -433,8 +441,12 @@ fn interval_estimator(
     estimand: IntervalEstimand,
 ) -> Result<Box<dyn TemporalEstimator>, IoError> {
     Ok(match estimand {
-        IntervalEstimand::Observed => Box::new(ObservedStateSequence { sequence }),
-        IntervalEstimand::FixedState(s0) => Box::new(FixedStateQuery { sequence, s0 }),
+        IntervalEstimand::Observed => {
+            Box::new(ObservedStateSequence { sequence: sequence.to_vec() })
+        }
+        IntervalEstimand::FixedState(s0) => {
+            Box::new(FixedStateQuery { sequence: sequence.to_vec(), s0 })
+        }
         IntervalEstimand::Marginalized(spec) => Box::new(MarginalizedQuery::new(sequence, spec)?),
     })
 }
@@ -533,7 +545,7 @@ pub fn temporal_dependent_interval_candidate(
     let wire = match &estimand {
         IntervalEstimand::Observed => IntervalEstimatorWire::observed(sequence),
         IntervalEstimand::FixedState(s0) => {
-            IntervalEstimatorWire::fixed(&FixedStateQuery { sequence, s0: *s0 })
+            IntervalEstimatorWire::fixed(&FixedStateQuery { sequence: sequence.to_vec(), s0: *s0 })
         }
         IntervalEstimand::Marginalized(spec) => IntervalEstimatorWire::marginalized(
             sequence,

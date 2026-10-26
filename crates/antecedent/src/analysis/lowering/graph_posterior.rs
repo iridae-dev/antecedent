@@ -17,9 +17,9 @@
 //! * Layer four is the atom mixture; layer five has no single design width, since
 //!   every atom fits its own adjustment design.
 //!
-//! Identification is refused before any atom is identified when the posterior is
-//! wider than the atom packing admits, or when the query is one every execution of
-//! the cell refuses.
+//! Identification is refused before any atom is identified when the query is one
+//! every execution of the cell refuses; the atoms are otherwise identified one by
+//! one at any posterior width, under the existing work and memory budgets.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -37,7 +37,7 @@ use antecedent_core::{
     TemporalPolicy, TimeFrame, Value, VariableId, WorldAction, WorldBinding, WorldCollection,
 };
 use antecedent_data::TableView;
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, MAX_POSTERIOR_NODES};
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind};
 
 use super::{GraphPosteriorCell, LoweringContext, RouteCell};
 use crate::analysis::IdentificationCache;
@@ -62,10 +62,6 @@ const CROSS_WORLD_IDENTIFIES_PER_EXECUTION: &str = "a cross-world or attribution
      structure at each execution";
 /// Why a graph-posterior program has no single design width.
 const ATOM_DESIGNS: &str = "every graph-posterior atom fits its own adjustment design";
-/// Refusal when a posterior is wider than the atom packing.
-const ATOM_CAP_REFUSAL: &str = "graph-posterior atoms are packed over at most \
-                                antecedent_discovery::MAX_POSTERIOR_NODES variables; this \
-                                posterior is wider, so no atom is identified";
 /// Declaration name used when the route record names no estimator.
 const UNNAMED_ESTIMATOR: &str = "unnamed";
 /// Domain tag of the supplied structure posterior's digest.
@@ -81,7 +77,7 @@ const LAG_WINDOW_UNIT: &str = "lag_window";
 ///
 /// # Errors
 ///
-/// The study carries no graph posterior, the posterior or query is refused before
+/// The study carries no graph posterior, the query is refused before
 /// identification, an atom's identification refuses as preparation would have, a
 /// declaration name is empty, or a decision goal demands a carrier the realization
 /// cannot publish.
@@ -95,7 +91,7 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
     let posterior = study.graph_posterior.as_ref().ok_or(CausalError::Unsupported {
         message: "a graph-posterior cell requires a study that carries a graph posterior",
     })?;
-    refuse_before_identification(study, posterior)?;
+    refuse_before_identification(study)?;
     let plan = cx.plan;
     let record = &plan.logical.record;
     let identifier =
@@ -154,15 +150,8 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
     .finish())
 }
 
-/// Refuse, before any atom is identified, a posterior wider than the atom packing
-/// and a query every execution of the cell refuses.
-fn refuse_before_identification(
-    study: &Study,
-    posterior: &GraphPosterior,
-) -> Result<(), CausalError> {
-    if posterior.n_vars > MAX_POSTERIOR_NODES {
-        return Err(CausalError::Unsupported { message: ATOM_CAP_REFUSAL });
-    }
+/// Refuse, before any atom is identified, a query every execution of the cell refuses.
+fn refuse_before_identification(study: &Study) -> Result<(), CausalError> {
     match (&study.data, &study.query) {
         // A derivative or multi-coordinate level is answered atom by atom, and each atom's
         // executor states its own refusals.
@@ -196,8 +185,8 @@ const fn is_series(cell: GraphPosteriorCell) -> bool {
 
 /// Graph family every atom of `posterior` belongs to.
 fn atom_family(posterior: &GraphPosterior) -> GraphFamily {
-    let temporal = posterior.lag_masks.is_some() || posterior.max_lag.is_some();
-    match (posterior.atom_kind, temporal) {
+    let temporal = posterior.lag_masks().is_some() || posterior.max_lag().is_some();
+    match (posterior.atom_kind(), temporal) {
         (GraphPosteriorAtomKind::Cpdag, false) => GraphFamily::Cpdag,
         (GraphPosteriorAtomKind::Cpdag, true) => GraphFamily::TemporalCpdag,
         (GraphPosteriorAtomKind::Pag, false) => GraphFamily::Pag,
@@ -733,7 +722,7 @@ fn statistical_program(inputs: &ProgramInputs<'_>) -> Result<StatisticalProgram,
         },
         InferenceMode::Frequentist => PosteriorPlan {
             algorithm: PosteriorAlgorithm::AtomMixture,
-            draws: posterior.n_graphs,
+            draws: posterior.n_graphs(),
             prior: Prior::new(structure).map_err(declaration_error)?,
         },
     });
@@ -751,19 +740,19 @@ fn statistical_program(inputs: &ProgramInputs<'_>) -> Result<StatisticalProgram,
 fn structure_prior_name(posterior: &GraphPosterior) -> String {
     let mut writer = CanonicalWriter::new(STRUCTURE_PRIOR_TAG);
     writer
-        .text(posterior.atom_kind.as_str())
-        .word(posterior.n_vars as u64)
-        .word(posterior.n_graphs as u64)
-        .opt_word(posterior.max_lag.map(u64::from))
-        .reals(&posterior.weights);
-    for key in posterior.graph_keys.iter() {
+        .text(posterior.atom_kind().as_str())
+        .word(posterior.n_vars() as u64)
+        .word(posterior.n_graphs() as u64)
+        .opt_word(posterior.max_lag().map(u64::from))
+        .reals(posterior.weights());
+    for key in posterior.graph_keys().iter() {
         writer.word(*key);
     }
-    match &posterior.lag_masks {
+    match posterior.lag_masks() {
         Some(masks) => {
             writer.word(1).word(masks.len() as u64);
             for mask in masks.iter() {
-                writer.word(*mask);
+                writer.word(mask.key());
             }
         }
         None => {
@@ -772,13 +761,13 @@ fn structure_prior_name(posterior: &GraphPosterior) -> String {
     }
     // Lagged latent-confounder edges distinguish two templates with the same directed edges;
     // a posterior without them writes nothing here, so its digest is the one it always had.
-    if let Some(masks) = &posterior.lag_bidirected_masks {
+    if let Some(masks) = posterior.lag_bidirected_masks() {
         writer.word(2).word(masks.len() as u64);
         for mask in masks.iter() {
-            writer.word(*mask);
+            writer.word(mask.key());
         }
     }
-    match &posterior.mark_atoms {
+    match posterior.mark_atoms() {
         Some(marks) => {
             writer.word(1).word(marks.len() as u64);
             for mark in marks.iter() {
@@ -791,9 +780,9 @@ fn structure_prior_name(posterior: &GraphPosterior) -> String {
     }
     format!(
         "graph_posterior(algorithm={}, atom_kind={}, atoms={}, digest={})",
-        posterior.algorithm.as_deref().unwrap_or("unnamed"),
-        posterior.atom_kind.as_str(),
-        posterior.n_graphs,
+        posterior.algorithm().map_or("unnamed", |algorithm| &**algorithm),
+        posterior.atom_kind().as_str(),
+        posterior.n_graphs(),
         writer.finish_hex()
     )
 }

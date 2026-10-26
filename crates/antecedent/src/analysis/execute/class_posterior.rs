@@ -48,7 +48,7 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let conditional = matches!(self.query, CausalQuery::ConditionalEffect(_));
-        let class_tag = gp.atom_kind.as_str().to_ascii_lowercase();
+        let class_tag = gp.atom_kind().as_str().to_ascii_lowercase();
         let (identified, identify_cached) = if let Some(cache) =
             self.graph_posterior_cache()
         {

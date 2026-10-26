@@ -79,7 +79,7 @@ impl super::Study {
             });
         }
         if !matches!(
-            gp.atom_kind,
+            gp.atom_kind(),
             antecedent_discovery::GraphPosteriorAtomKind::Admg
                 | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
         ) {

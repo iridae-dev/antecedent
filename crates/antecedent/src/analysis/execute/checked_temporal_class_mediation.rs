@@ -121,13 +121,13 @@ impl CheckedTemporalClassMediationOperation {
                 Some(posterior),
                 GraphClass::TemporalCpdag,
                 crate::support::StructureSource::GraphPosterior,
-            ) => posterior.atom_kind == GraphPosteriorAtomKind::Cpdag && query.horizons.len() == 1,
+            ) => posterior.atom_kind() == GraphPosteriorAtomKind::Cpdag && query.horizons.len() == 1,
             (
                 Some(posterior),
                 GraphClass::TemporalDag,
                 crate::support::StructureSource::GraphPosterior,
             ) => {
-                posterior.atom_kind == GraphPosteriorAtomKind::Dag
+                posterior.atom_kind() == GraphPosteriorAtomKind::Dag
                     && (matches!(study.inference, InferenceMode::Bayesian(_))
                         || query.horizons.len() == 1)
             }
@@ -165,7 +165,7 @@ impl CheckedTemporalClassMediationOperation {
         }
         let proof = match study.graph_posterior.as_ref() {
             None => Self::class_envelope_proof(study, physical, query)?,
-            Some(posterior) if posterior.atom_kind == GraphPosteriorAtomKind::Cpdag => {
+            Some(posterior) if posterior.atom_kind() == GraphPosteriorAtomKind::Cpdag => {
                 Self::class_posterior_proof(study, physical, posterior)?
             }
             Some(posterior) => Self::dbn_posterior_proof(study, physical, posterior)?,
@@ -240,8 +240,8 @@ impl CheckedTemporalClassMediationOperation {
                     message: "temporal class posterior mediation proof was not prepared".into(),
                 }
             })?;
-        if cache.graphs.weights.as_ref() != posterior.weights.as_ref()
-            || cache.graphs.n_samples != posterior.n_graphs
+        if cache.graphs.weights.as_ref() != posterior.weights().as_ref()
+            || cache.graphs.n_samples != posterior.n_graphs()
         {
             return Err(CausalError::Compile {
                 message:
@@ -281,8 +281,8 @@ impl CheckedTemporalClassMediationOperation {
                 message: "DBN posterior mediation proof retained no atoms".into(),
             });
         }
-        if cache.graphs.weights.as_ref() != posterior.weights.as_ref()
-            || cache.graphs.n_samples != posterior.n_graphs
+        if cache.graphs.weights.as_ref() != posterior.weights().as_ref()
+            || cache.graphs.n_samples != posterior.n_graphs()
         {
             return Err(CausalError::Compile {
                 message: "DBN posterior mediation proof does not bind the frozen posterior".into(),
@@ -379,11 +379,11 @@ impl CheckedTemporalClassMediationOperation {
             | CheckedTemporalMediationProof::DbnPosterior { posterior, .. } => Arc::from(format!(
                 "{}:{}:{}:{}:{}:{}",
                 self.proof.name(),
-                join_bits(&posterior.weights),
-                join_masks(&posterior.atoms),
-                join_u64(&posterior.graph_keys),
-                posterior.lag_masks.as_deref().map_or_else(|| "none".to_string(), join_u64),
-                posterior.max_lag.map_or_else(|| "none".to_string(), |lag| lag.to_string()),
+                join_bits(posterior.weights()),
+                join_masks(posterior.atoms()),
+                join_u64(posterior.graph_keys()),
+                posterior.lag_masks().map_or_else(|| "none".to_string(), |masks| join_masks(masks)),
+                posterior.max_lag().map_or_else(|| "none".to_string(), |lag| lag.to_string()),
             )),
         }
     }
@@ -514,18 +514,19 @@ impl CheckedTemporalClassMediationOperation {
 }
 
 fn same_posterior(retained: &GraphPosterior, current: &GraphPosterior) -> bool {
-    retained.n_vars == current.n_vars
-        && retained.n_graphs == current.n_graphs
-        && retained.atom_kind == current.atom_kind
-        && retained.max_lag == current.max_lag
-        && retained.atoms.as_ref() == current.atoms.as_ref()
-        && retained.graph_keys.as_ref() == current.graph_keys.as_ref()
-        && retained.lag_masks.as_deref() == current.lag_masks.as_deref()
-        && retained.weights.len() == current.weights.len()
+    retained.n_vars() == current.n_vars()
+        && retained.n_graphs() == current.n_graphs()
+        && retained.atom_kind() == current.atom_kind()
+        && retained.max_lag() == current.max_lag()
+        && retained.atoms().as_ref() == current.atoms().as_ref()
+        && retained.graph_keys().as_ref() == current.graph_keys().as_ref()
+        && retained.lag_masks().map(|masks| &masks[..])
+            == current.lag_masks().map(|masks| &masks[..])
+        && retained.weights().len() == current.weights().len()
         && retained
-            .weights
+            .weights()
             .iter()
-            .zip(current.weights.iter())
+            .zip(current.weights().iter())
             .all(|(a, b)| a.to_bits() == b.to_bits())
 }
 

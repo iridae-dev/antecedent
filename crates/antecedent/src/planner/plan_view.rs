@@ -1355,8 +1355,8 @@ impl MixtureView {
             (Some(graphs.identified_mass()), Some(graphs.unidentified_mass()))
         } else {
             if let Some(posterior) = posterior {
-                for (sample, weight) in posterior.weights.iter().enumerate() {
-                    let key = posterior.graph_keys.get(sample).copied().unwrap_or(sample as u64);
+                for (sample, weight) in posterior.weights().iter().enumerate() {
+                    let key = posterior.graph_keys().get(sample).copied().unwrap_or(sample as u64);
                     push(key, *weight, None);
                 }
             }
@@ -1364,7 +1364,7 @@ impl MixtureView {
         };
         let total_weight = atoms.iter().map(|atom| atom.weight).sum();
         Self {
-            atom_kind: posterior.map(|posterior| posterior.atom_kind.as_str()),
+            atom_kind: posterior.map(|posterior| posterior.atom_kind().as_str()),
             atoms,
             total_weight,
             identified_mass,

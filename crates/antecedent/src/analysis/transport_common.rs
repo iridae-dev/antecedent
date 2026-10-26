@@ -54,17 +54,17 @@ pub(super) fn is_valid_exact_law(law: &antecedent_expr::ExactDistribution) -> bo
 pub(super) fn apply_posterior_draw_floor(
     estimate: &mut antecedent_estimate::BayesianStatisticalTransportEstimate,
 ) {
-    if estimate.interval_reason.as_deref()
-        != Some(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED)
-    {
+    if estimate.interval_reason != Some(antecedent_estimate::TransportIntervalReason::NotMeasured) {
         return;
     }
-    if let Err(reason) =
-        PERCENTILE_FLOOR.decide(estimate.draws_requested, estimate.draws_ok, estimate.draws_failed)
+    if PERCENTILE_FLOOR
+        .decide(estimate.draws_requested, estimate.draws_ok, estimate.draws_failed)
+        .is_err()
     {
         estimate.atom_intervals = Arc::from([]);
         estimate.mean_intervals = Arc::from([]);
-        estimate.interval_reason = Some(Arc::from(reason));
+        estimate.interval_reason =
+            Some(antecedent_estimate::TransportIntervalReason::InsufficientDraws);
     }
 }
 

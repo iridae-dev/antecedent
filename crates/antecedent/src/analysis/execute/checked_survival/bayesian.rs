@@ -25,7 +25,7 @@ use antecedent_estimate::survival_posterior::{
 };
 
 fn refuse(code: &'static str, detail: &str, message: &str) -> CausalError {
-    CausalError::Estimate(EstimationError::refused(code, format!("{detail}: {message}")))
+    CausalError::Estimate(EstimationError::refused_detail(code, detail, message))
 }
 
 fn competing_causes() -> CausalError {

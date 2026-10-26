@@ -330,9 +330,9 @@ fn graph_posterior_conditional_effect_body() {
                 assert_eq!(plan.query, query.inner, "{coordinate}");
                 assert_eq!(plan.estimator, estimator, "{coordinate}");
                 assert_eq!(plan.validation, suite, "{coordinate}");
-                assert_eq!(plan.graph_keys.as_ref(), fixture.posterior.graph_keys.as_ref());
-                assert_eq!(plan.weights.as_ref(), fixture.posterior.weights.as_ref());
-                assert_eq!(plan.identified.len(), fixture.posterior.n_graphs);
+                assert_eq!(plan.graph_keys.as_ref(), fixture.posterior.graph_keys().as_ref());
+                assert_eq!(plan.weights.as_ref(), fixture.posterior.weights().as_ref());
+                assert_eq!(plan.identified.len(), fixture.posterior.n_graphs());
                 assert_eq!(
                     plan.identified.iter().filter(|f| **f == GraphIdentFlag::Unidentified).count(),
                     1,

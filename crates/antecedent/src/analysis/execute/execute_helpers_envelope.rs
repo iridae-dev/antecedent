@@ -79,7 +79,7 @@ impl super::Study {
             self.graph.class(),
             GraphClass::TemporalAdmg | GraphClass::TemporalPag
         ) || self.graph_posterior.as_ref().is_some_and(|gp| {
-            gp.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
+            gp.atom_kind() == antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
         });
         let rows =
             (RowResampling::Rows, antecedent_estimate::util::SamplingDeclaration::Undeclared);

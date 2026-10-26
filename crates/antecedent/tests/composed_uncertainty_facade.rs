@@ -398,7 +398,7 @@ fn a_composed_exceedance_reports_the_probability_band_and_verdict() {
         .expect("consume");
     assert_eq!(consumed.label, "uncalibrated_spread");
     assert_eq!(consumed.value("probability"), claim.value("probability"));
-    assert!(consumed.result.iter().any(|(name, code)| name == "verdict_code" && *code == 0));
+    assert!(consumed.verdict().map(|verdict| verdict.as_str()) == Some("act"));
 }
 
 #[test]

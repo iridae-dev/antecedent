@@ -69,7 +69,7 @@ impl CheckedBayesianGraphPosteriorAte {
         let query = target.inner();
         let atom_query = target.atom_identification_query();
         let licensed = target.bayesian_estimator();
-        if posterior.atom_kind != GraphPosteriorAtomKind::Dag
+        if posterior.atom_kind() != GraphPosteriorAtomKind::Dag
             || !posterior_cache_matches(&posterior, &*identification, CacheKeys::PosteriorKeys)
             || identification.atoms.iter().any(|atom| atom.identification.query != atom_query)
             || query.treatment == query.outcome

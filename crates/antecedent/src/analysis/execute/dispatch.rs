@@ -782,7 +782,7 @@ impl super::Study {
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if is_class_atom(gp.atom_kind)
+        if is_class_atom(gp.atom_kind())
             && super::temporal_class_point::temporal_class_point_family(&self.query)
         {
             return self.execute_temporal_class_graph_posterior_family(data, gp, physical, ctx);
@@ -793,7 +793,7 @@ impl super::Study {
             return self.execute_dbn_route_graph_posterior(data, gp, physical, ctx);
         }
         match &self.query {
-            CausalQuery::TemporalEffect(q) => match gp.atom_kind {
+            CausalQuery::TemporalEffect(q) => match gp.atom_kind() {
                 antecedent_discovery::GraphPosteriorAtomKind::Cpdag
                 | antecedent_discovery::GraphPosteriorAtomKind::Pag => {
                     self.execute_temporal_class_graph_posterior(data, gp, q, physical, ctx)
@@ -810,7 +810,7 @@ impl super::Study {
                     }
                 },
             },
-            CausalQuery::Mediation(q) => match gp.atom_kind {
+            CausalQuery::Mediation(q) => match gp.atom_kind() {
                 antecedent_discovery::GraphPosteriorAtomKind::Cpdag => self
                     .execute_temporal_class_graph_posterior_mediation(data, gp, q, physical, ctx),
                 antecedent_discovery::GraphPosteriorAtomKind::Pag => {
@@ -821,7 +821,7 @@ impl super::Study {
                 }
                 _ => self.execute_dbn_posterior_mediation(data, gp, q, physical, ctx),
             },
-            CausalQuery::Response(q) => match gp.atom_kind {
+            CausalQuery::Response(q) => match gp.atom_kind() {
                 antecedent_discovery::GraphPosteriorAtomKind::Cpdag
                 | antecedent_discovery::GraphPosteriorAtomKind::Pag => {
                     self.execute_temporal_class_graph_posterior_response(data, gp, q, physical, ctx)
@@ -1139,7 +1139,7 @@ impl super::Study {
             // executor of each atom's structure.
             CausalQuery::ConditionalEffect(_)
                 if matches!(
-                    gp.atom_kind,
+                    gp.atom_kind(),
                     antecedent_discovery::GraphPosteriorAtomKind::Admg
                         | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
                 ) =>
@@ -1153,7 +1153,7 @@ impl super::Study {
                 return self.execute_atom_route_graph_posterior(data, gp, physical, ctx);
             }
             CausalQuery::ConditionalEffect(q) => &q.inner,
-            CausalQuery::Response(q) => match gp.atom_kind {
+            CausalQuery::Response(q) => match gp.atom_kind() {
                 antecedent_discovery::GraphPosteriorAtomKind::Dag => {
                     return self.execute_graph_posterior_response(data, gp, q, physical, ctx);
                 }
@@ -1182,7 +1182,7 @@ impl super::Study {
             }
             _ => return Err(CausalError::Unsupported { message: GRAPH_POSTERIOR_QUERY_REFUSAL }),
         };
-        match gp.atom_kind {
+        match gp.atom_kind() {
             antecedent_discovery::GraphPosteriorAtomKind::Admg
             | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg => {
                 return self.execute_admg_graph_posterior(data, gp, query, physical, ctx);
@@ -2271,7 +2271,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<Option<Box<StudyResult>>, CausalError> {
         if self.graph_posterior.as_ref().is_some_and(|posterior| {
-            posterior.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::Dag
+            posterior.atom_kind() == antecedent_discovery::GraphPosteriorAtomKind::Dag
         }) && self.inference.is_frequentist()
             && self.point_validation()
             && self.custom_validators.is_empty()
@@ -2286,7 +2286,7 @@ impl super::Study {
                 );
             }
         }
-        if self.graph_posterior.as_ref().is_some_and(|posterior| is_class_atom(posterior.atom_kind))
+        if self.graph_posterior.as_ref().is_some_and(|posterior| is_class_atom(posterior.atom_kind()))
             && self.inference.is_frequentist()
             && self.estimator.is_none_or(|id| id == EstimatorId::LinearAdjustmentAte)
         {
@@ -2321,7 +2321,7 @@ impl super::Study {
             && self.estimator.is_none_or(|id| id == EstimatorId::ConditionalLinearAdjustment)
         {
             if let Some(RouteInput::ConditionalDag { data, query, .. }) = route {
-                if query.inner.effect_modifiers.len() == 1 {
+                if !query.inner.effect_modifiers.is_empty() {
                     return self.admit_sealed_tabular(
                         data,
                         ctx,
@@ -2606,7 +2606,7 @@ impl super::Study {
             && self.custom_validators.is_empty()
             && self.graph_posterior.as_ref().is_some_and(|posterior| {
                 matches!(
-                    posterior.atom_kind,
+                    posterior.atom_kind(),
                     antecedent_discovery::GraphPosteriorAtomKind::Dag
                         | antecedent_discovery::GraphPosteriorAtomKind::Cpdag
                         | antecedent_discovery::GraphPosteriorAtomKind::Pag
@@ -2725,9 +2725,9 @@ impl super::Study {
             crate::analysis::GraphPosteriorEffectTarget::from_query(&self.query),
             &self.data,
         ) {
-            let class_atoms = is_class_atom(posterior.atom_kind);
+            let class_atoms = is_class_atom(posterior.atom_kind());
             let dag_atoms =
-                posterior.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::Dag;
+                posterior.atom_kind() == antecedent_discovery::GraphPosteriorAtomKind::Dag;
             let bayesian = self.inference.is_bayesian();
             let expected =
                 if bayesian { target.bayesian_estimator() } else { target.frequentist_estimator() };

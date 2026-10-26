@@ -103,7 +103,7 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         if !matches!(
-            gp.atom_kind,
+            gp.atom_kind(),
             antecedent_discovery::GraphPosteriorAtomKind::Admg
                 | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
         ) {
@@ -269,7 +269,7 @@ impl super::Study {
                 self,
                 run.data,
                 run.query,
-                AtomAdjacency { mask, n_vars: run.gp.n_vars },
+                AtomAdjacency { mask, n_vars: run.gp.n_vars() },
                 &atom.identification,
                 &atom.estimand,
                 inner,
@@ -543,18 +543,18 @@ fn mask_for_atom_key(
     gp: &GraphPosterior,
     key: u64,
 ) -> Result<antecedent_discovery::AdjacencyMask, CausalError> {
-    gp.graph_keys
+    gp.graph_keys()
         .iter()
-        .zip(gp.atoms.iter())
+        .zip(gp.atoms().iter())
         .find(|(candidate, _)| **candidate == key)
-        .map(|(_, mask)| *mask)
+        .map(|(_, mask)| mask.clone())
         .ok_or_else(|| CausalError::Compile {
             message: format!("ADMG graph-posterior atom missing adjacency mask for key {key:x}"),
         })
 }
 
 /// An ADMG posterior atom's adjacency bitmask and the variable count it indexes.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct AtomAdjacency {
     mask: antecedent_discovery::AdjacencyMask,
     n_vars: usize,

@@ -77,9 +77,10 @@ fn not_licensed(subject: &str, reason: &str, implicated: Vec<String>, remedy: &s
         remedy: Some(remedy.to_string()),
         ..RefusalFields::default()
     };
-    EstimationError::refused_with_fields(
+    EstimationError::refused_detail_with_fields(
         reason_code!("rank_drop_not_licensed"),
-        format!("{subject}: {reason}; nothing was estimated"),
+        subject,
+        format!("{reason}; nothing was estimated"),
         fields,
     )
     .into()

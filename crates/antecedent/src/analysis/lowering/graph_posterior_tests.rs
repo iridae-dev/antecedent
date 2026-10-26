@@ -14,7 +14,9 @@ use antecedent_core::{
     TargetForm, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::{TabularData, TimeSeriesData};
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
+use antecedent_discovery::{
+    AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, LagMask, SamplingSummary, set_edge,
+};
 use antecedent_prob::InferenceDiagnostics;
 
 use crate::analysis::lowering::{GraphPosteriorCell, RouteCell};
@@ -72,10 +74,11 @@ fn tabular_data() -> TabularData {
 /// DAG atoms over `[t, y, z]`: `t -> y`, the `z`-confounded graph, and, when
 /// `reverse`, an unidentified `y -> t` atom carrying weight 0.2.
 fn tabular_posterior(reverse: bool) -> GraphPosterior {
-    let direct = set_edge(0, 3, 0, 1, true);
-    let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+    let direct = set_edge(0_u64, 3, 0, 1, true);
+    let adjusted =
+        set_edge(set_edge(set_edge(0_u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
     let (weights, atoms) = if reverse {
-        (vec![0.5, 0.3, 0.2], vec![direct, adjusted, set_edge(0, 3, 1, 0, true)])
+        (vec![0.5, 0.3, 0.2], vec![direct, adjusted, set_edge(0_u64, 3, 1, 0, true)])
     } else {
         (vec![0.6, 0.4], vec![direct, adjusted])
     };
@@ -83,14 +86,14 @@ fn tabular_posterior(reverse: bool) -> GraphPosterior {
     for (weight, atom) in weights.iter().zip(&atoms) {
         for from in 0..3 {
             for to in 0..3 {
-                if from != to && set_edge(*atom, 3, from, to, true) == *atom {
+                if from != to && set_edge(atom, 3, from, to, true) == *atom {
                     marginals[from * 3 + to] += weight;
                 }
             }
         }
     }
     let sampling = summary(&weights, "graph_posterior_lowering");
-    GraphPosterior::new(3, weights, atoms, marginals.clone(), marginals, sampling)
+    GraphPosterior::from_atoms(3, weights, atoms, marginals.clone(), marginals, sampling)
         .unwrap()
         .with_algorithm("graph_posterior_lowering")
 }
@@ -117,8 +120,8 @@ fn tabular_study(
 
 // --- Series fixtures. ------------------------------------------------------
 
-fn lag_bit(n: usize, from: usize, to: usize) -> u64 {
-    1u64 << (from * n + to)
+fn lag_bit(n: usize, from: usize, to: usize) -> LagMask {
+    LagMask::EMPTY.with_bit(u32::try_from(from * n + to).unwrap(), true)
 }
 
 fn uniform(state: &mut u64) -> f64 {
@@ -189,7 +192,7 @@ fn mediation_posterior() -> GraphPosterior {
     GraphPosterior::from_atoms(
         n,
         vec![1.0],
-        vec![set_edge(0, n, 1, 2, true)],
+        vec![set_edge(0_u64, n, 1, 2, true)],
         vec![0.0; n * n],
         vec![0.0; n * n],
         summary(&[1.0], "graph_posterior_lowering"),
@@ -198,7 +201,7 @@ fn mediation_posterior() -> GraphPosterior {
     .with_atom_kind(GraphPosteriorAtomKind::Dag)
     .with_lagged_marginals(1, vec![0.0; n * n])
     .unwrap()
-    .with_lag_masks(vec![lag_bit(n, 0, 1) | lag_bit(n, 0, 2)])
+    .with_lag_masks(vec![lag_bit(n, 0, 1).union(&lag_bit(n, 0, 2))])
     .unwrap()
 }
 
@@ -229,7 +232,7 @@ fn cross_posterior() -> GraphPosterior {
     GraphPosterior::from_atoms(
         n,
         vec![1.0],
-        vec![set_edge(0, n, 1, 2, true)],
+        vec![set_edge(0_u64, n, 1, 2, true)],
         vec![0.0; n * n],
         vec![0.0; n * n],
         summary(&[1.0], "graph_posterior_lowering"),
@@ -238,7 +241,7 @@ fn cross_posterior() -> GraphPosterior {
     .with_atom_kind(GraphPosteriorAtomKind::Cpdag)
     .with_lagged_marginals(1, vec![0.0; n * n])
     .unwrap()
-    .with_lag_masks(vec![lag_bit(n, 0, 1) | lag_bit(n, 0, 2)])
+    .with_lag_masks(vec![lag_bit(n, 0, 1).union(&lag_bit(n, 0, 2))])
     .unwrap()
 }
 
@@ -280,12 +283,12 @@ fn transport_data() -> TabularData {
 /// `t -> y` (no population-varying ancestor of `y`), `t -> y <- z` (standardized over `z`), and
 /// a cyclic `t <-> y` atom of weight 0.2 that is not a DAG.
 fn transport_posterior() -> GraphPosterior {
-    let direct = set_edge(0, 6, 0, 1, true);
-    let standardized = set_edge(set_edge(0, 6, 0, 1, true), 6, 2, 1, true);
-    let cyclic = set_edge(set_edge(0, 6, 0, 1, true), 6, 1, 0, true);
+    let direct = set_edge(0_u64, 6, 0, 1, true);
+    let standardized = set_edge(set_edge(0_u64, 6, 0, 1, true), 6, 2, 1, true);
+    let cyclic = set_edge(set_edge(0_u64, 6, 0, 1, true), 6, 1, 0, true);
     let weights = vec![0.5, 0.3, 0.2];
     let sampling = summary(&weights, "graph_posterior_transport_lowering");
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         6,
         weights,
         vec![direct, standardized, cyclic],
@@ -357,10 +360,14 @@ fn interference_study(inference: InferenceMode) -> Study {
     );
     let weights = vec![0.5, 0.3, 0.2];
     let sampling = summary(&weights, "graph_posterior_interference_lowering");
-    let posterior = GraphPosterior::new(
+    let posterior = GraphPosterior::from_atoms(
         2,
         weights,
-        vec![set_edge(0, 2, 0, 1, true), 0, set_edge(set_edge(0, 2, 0, 1, true), 2, 1, 0, true)],
+        vec![
+            set_edge(0_u64, 2, 0, 1, true),
+            AdjacencyMask::EMPTY,
+            set_edge(set_edge(0_u64, 2, 0, 1, true), 2, 1, 0, true),
+        ],
         vec![0.0; 4],
         vec![0.0; 4],
         sampling,
@@ -507,7 +514,7 @@ fn every_graph_posterior_cell_lowers_a_complete_program_that_execution_stamps() 
             assert_eq!(with_study.identity(), view.identity(), "{name}: one program");
             let mixture = with_study.mixture().expect("a graph-posterior view states its mixture");
             let posterior = study.graph_posterior.as_ref().expect("a graph-posterior study");
-            assert_eq!(mixture.atom_kind(), Some(posterior.atom_kind.as_str()), "{name}");
+            assert_eq!(mixture.atom_kind(), Some(posterior.atom_kind().as_str()), "{name}");
             assert!(!mixture.atoms().is_empty(), "{name}: the mixture names its atoms");
             if mixture.identification_retained() {
                 let identified = mixture.identified_mass().unwrap();
@@ -518,7 +525,7 @@ fn every_graph_posterior_cell_lowers_a_complete_program_that_execution_stamps() 
                 );
             } else {
                 assert!(
-                    (mixture.total_weight() - posterior.weights.iter().sum::<f64>()).abs() < 1e-9,
+                    (mixture.total_weight() - posterior.weights().iter().sum::<f64>()).abs() < 1e-9,
                     "{name}: the mixture carries the posterior's whole weight"
                 );
             }
@@ -548,7 +555,7 @@ fn every_graph_posterior_cell_lowers_a_complete_program_that_execution_stamps() 
             assert_eq!(mixture.algorithm(), PosteriorAlgorithm::AtomMixture, "{name}");
             assert!(
                 matches!(lowered.evidence().composition(), Composition::AtomMixture { atoms }
-                    if atoms == study.graph_posterior.as_ref().unwrap().n_graphs),
+                    if atoms == study.graph_posterior.as_ref().unwrap().n_graphs()),
                 "{name}: layer four mixes every atom"
             );
             if matches!(

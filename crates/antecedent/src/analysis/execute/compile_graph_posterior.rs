@@ -100,7 +100,7 @@ impl super::Study {
                 | CausalQuery::Counterfactual(_)
                 | CausalQuery::Distribution(_),
             ) if self.graph_posterior.as_ref().is_some_and(|posterior| {
-                is_class_atom(posterior.atom_kind) || super::dbn_atoms(posterior)
+                is_class_atom(posterior.atom_kind()) || super::dbn_atoms(posterior)
             }) =>
             {
                 self.compile_graph_posterior_cross_world(data, ctx)
@@ -118,7 +118,7 @@ impl super::Study {
         q: &antecedent_core::ResponseQuery,
         ctx: &ExecutionContext,
     ) -> Result<PhysicalExecutionPlan, CausalError> {
-        let atom_kind = self.graph_posterior.as_ref().map(|gp| gp.atom_kind);
+        let atom_kind = self.graph_posterior.as_ref().map(|gp| gp.atom_kind());
         let mut logical = if matches!(
             atom_kind,
             Some(
@@ -182,7 +182,7 @@ impl super::Study {
             message: "too many variables for graph-posterior compile".into(),
         })?;
         let stub = Dag::with_variables(n_vars);
-        let atom_kind = self.graph_posterior.as_ref().map(|gp| gp.atom_kind);
+        let atom_kind = self.graph_posterior.as_ref().map(|gp| gp.atom_kind());
         let (identifier, estimator) = match atom_kind {
             Some(
                 antecedent_discovery::GraphPosteriorAtomKind::Admg
@@ -230,7 +230,7 @@ impl super::Study {
             message: "too many variables for graph-posterior compile".into(),
         })?;
         let stub = Dag::with_variables(n_vars);
-        let atom_kind = self.graph_posterior.as_ref().map(|gp| gp.atom_kind);
+        let atom_kind = self.graph_posterior.as_ref().map(|gp| gp.atom_kind());
         let (identifier, estimator) = match atom_kind {
             Some(
                 antecedent_discovery::GraphPosteriorAtomKind::Cpdag
@@ -408,7 +408,7 @@ impl super::Study {
             class,
         )?;
         let class_atom =
-            self.graph_posterior.as_ref().map(|gp| gp.atom_kind).is_some_and(is_class_atom);
+            self.graph_posterior.as_ref().map(|gp| gp.atom_kind()).is_some_and(is_class_atom);
         if self.lagged_admg_atoms()? {
             // Every atom is identified on the unrolled window of its own template and
             // evaluated by the discrete plug-in on the lag-aligned window table.
@@ -441,7 +441,7 @@ impl super::Study {
     /// and read tabular rows, not a series.
     pub(super) fn lagged_admg_atoms(&self) -> Result<bool, CausalError> {
         let Some(posterior) = self.graph_posterior.as_ref() else { return Ok(false) };
-        if posterior.atom_kind != antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg {
+        if posterior.atom_kind() != antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg {
             return Ok(false);
         }
         if !posterior.is_lagged_temporal_admg() {
@@ -470,7 +470,7 @@ impl super::Study {
         }
         super::temporal_posterior_response::dbn_posterior_response_supported(q)?;
         let mut logical = compile_logical_temporal_response(data, &TemporalDag::empty(), q, false)?;
-        if self.graph_posterior.as_ref().map(|gp| gp.atom_kind).is_some_and(is_class_atom) {
+        if self.graph_posterior.as_ref().map(|gp| gp.atom_kind()).is_some_and(is_class_atom) {
             logical.record.identifier =
                 Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
         }
@@ -516,7 +516,7 @@ impl super::Study {
         } else if self
             .graph_posterior
             .as_ref()
-            .is_some_and(|gp| gp.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::Pag)
+            .is_some_and(|gp| gp.atom_kind() == antecedent_discovery::GraphPosteriorAtomKind::Pag)
         {
             // Each atom is a temporal PAG read through the ADMGs of its window, as a supplied
             // one is; one outcome horizon names the window.
@@ -572,7 +572,7 @@ impl super::Study {
                 discovery_algorithm: Some(
                     self.graph_posterior
                         .as_ref()
-                        .and_then(|gp| gp.algorithm.clone())
+                        .and_then(|gp| gp.algorithm().cloned())
                         .unwrap_or_else(|| Arc::from("graph_posterior")),
                 ),
                 graph_review_required: false,
@@ -598,7 +598,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<PhysicalExecutionPlan, CausalError> {
         q.validate()?;
-        let atom_kind = self.graph_posterior.as_ref().map(|gp| gp.atom_kind);
+        let atom_kind = self.graph_posterior.as_ref().map(|gp| gp.atom_kind());
         let (identifier, estimator) = match atom_kind {
             Some(
                 antecedent_discovery::GraphPosteriorAtomKind::Dag
@@ -640,7 +640,7 @@ impl super::Study {
     fn graph_posterior_discovery_algorithm(&self, fallback: &str) -> Arc<str> {
         self.graph_posterior
             .as_ref()
-            .and_then(|gp| gp.algorithm.clone())
+            .and_then(|gp| gp.algorithm().cloned())
             .unwrap_or_else(|| Arc::from(fallback))
     }
 }

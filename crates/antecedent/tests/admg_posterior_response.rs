@@ -423,6 +423,6 @@ fn admg_frontdoor_mask_is_not_a_dag_for_response() {
     let pin = pin();
     let admg = admg_from_pin(&pin);
     let mask = adjacency_mask_from_admg(&admg).unwrap();
-    assert!(!mask_is_dag(mask, admg.node_count()));
+    assert!(!mask_is_dag(&mask, admg.node_count()));
     assert!(dag_from_adjacency_mask(mask, admg.node_count()).is_err());
 }

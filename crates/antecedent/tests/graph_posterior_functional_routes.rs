@@ -221,7 +221,7 @@ fn the_admg_conditional_mixture_weights_the_atoms_and_states_the_lost_mass() {
         let weights = [0.5, 0.3, 0.2];
         let graphs = [mask_of(&confounded_modifier()), mask_of(&modifier_outside()), refused_mask()];
         let posterior = admg_posterior(&graphs, &weights);
-        let keys = posterior.graph_keys.clone();
+        let keys = posterior.graph_keys().clone();
         // The conditional contrast of an identified atom is the modifier-stratified difference
         // whether or not the modifier is in the atom's mechanism (conditioning on the modifier is
         // the query's, not the graph's), so the two identified atoms agree and the weights are
@@ -350,7 +350,7 @@ fn the_temporal_admg_conditional_mixture_is_the_counted_contrast_with_the_lost_m
         let graphs = [mask_of(&confounded_modifier()), mask_of(&modifier_outside()), refused_mask()];
         let weights = [0.5, 0.3, 0.2];
         let posterior = temporal_admg_posterior(&graphs, &weights);
-        let keys = posterior.graph_keys.clone();
+        let keys = posterior.graph_keys().clone();
         let study = conditional_study(posterior, InferenceMode::Frequentist, 80);
         assert_eq!(study.support_status(), Some(CellStatus::Refused));
         let ctx = ExecutionContext::for_tests(8_901);
@@ -611,13 +611,13 @@ fn a_derivative_mixture_is_the_weighted_sum_of_the_explicit_atoms() {
             matches!(response.estimate, ResponseIdentification::GraphDependent(_)),
             "lost mass makes the response graph dependent, not a point"
         );
-        for (key, truth) in [(posterior.graph_keys[0], e1), (posterior.graph_keys[1], e2)] {
+        for (key, truth) in [(posterior.graph_keys()[0], e1), (posterior.graph_keys()[1], e2)] {
             match value_of(&result, key) {
                 Some(ResponseValue::Scalar(value)) => assert!((value - truth).abs() < 1e-9),
                 other => panic!("an identified atom carries its own derivative, got {other:?}"),
             }
         }
-        assert!(value_of(&result, posterior.graph_keys[2]).is_none());
+        assert!(value_of(&result, posterior.graph_keys()[2]).is_none());
         assert!(has(&result, "estimate.graph_posterior.atom_route"));
 
         // With every sample identified the response is a point.
@@ -855,7 +855,7 @@ fn a_counterfactual_mixture_weights_the_enumerated_atoms_and_states_the_lost_mas
         )
         .unwrap()
         .with_atom_kind(GraphPosteriorAtomKind::Admg);
-        let keys = posterior.graph_keys.clone();
+        let keys = posterior.graph_keys().clone();
         let study = Study::tabular(data)
             .graph_posterior(posterior)
             .query(counterfactual_query())

@@ -27,7 +27,7 @@ use antecedent_estimate::continuous_dose_posterior::{
 };
 
 fn refuse(code: &'static str, detail: &str, message: &str) -> CausalError {
-    CausalError::Estimate(EstimationError::refused(code, format!("{detail}: {message}")))
+    CausalError::Estimate(EstimationError::refused_detail(code, detail, message))
 }
 
 /// Refuse what this posterior does not model, before any row is read.

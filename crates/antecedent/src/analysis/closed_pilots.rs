@@ -188,10 +188,11 @@ fn from_estimation(error: &EstimationError) -> ClosedPilotRefusal {
     match error {
         EstimationError::Refused { code, message }
         | EstimationError::RefusedWithFields { code, message, .. } => {
-            let (detail, rest) = message
-                .split_once(": ")
-                .unwrap_or(("nested_markov.invalid_input", message.as_str()));
-            ClosedPilotRefusal::new(code, detail, rest)
+            ClosedPilotRefusal::new(
+                code,
+                message.detail().unwrap_or("nested_markov.invalid_input"),
+                message.explanation(),
+            )
         }
         other => ClosedPilotRefusal::new(
             antecedent_core::reason_code!("invalid_argument"),

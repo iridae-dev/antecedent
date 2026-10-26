@@ -196,8 +196,8 @@ pub(super) fn checked_rd(cx: &SealContext<'_>) -> SealOutcome {
                 config.cutoff,
                 config.bandwidth,
             );
-            fitter.bootstrap_replicates = analysis.bootstrap_replicates;
-            fitter.se_kind = config.se_kind;
+            fitter.inference.bootstrap_replicates = analysis.bootstrap_replicates;
+            fitter.inference.se_kind = config.se_kind;
             // The design is checked against the data (sharp assignment,
             // rows inside the bandwidth window) when it executes, as the
             // route always did; a prepare on data the design does not fit
@@ -231,7 +231,7 @@ pub(super) fn checked_conditional(cx: &SealContext<'_>) -> SealOutcome {
         (Some((data, query)), graph_class, InferenceMode::Frequentist)
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
-                && query.inner.effect_modifiers.len() == 1
+                && !query.inner.effect_modifiers.is_empty()
                 && analysis.custom_validators.is_empty()
                 && matches!(
                     analysis.structure_source,

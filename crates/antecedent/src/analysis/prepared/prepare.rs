@@ -383,7 +383,7 @@ impl Study {
             // another question.
             (DataInput::Tabular(_), CausalQuery::ConditionalEffect(_))
                 if matches!(
-                    posterior.atom_kind,
+                    posterior.atom_kind(),
                     antecedent_discovery::GraphPosteriorAtomKind::Admg
                         | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
                 ) => {}
@@ -426,7 +426,7 @@ impl Study {
                     data.schema().variables().iter().map(|variable| variable.id).collect();
                 // A posterior of temporal PAGs identifies each atom on the window of its own
                 // template at every execution, as a supplied temporal PAG does.
-                if posterior.atom_kind != antecedent_discovery::GraphPosteriorAtomKind::Pag {
+                if posterior.atom_kind() != antecedent_discovery::GraphPosteriorAtomKind::Pag {
                     caches.push(self.identify_temporal_mediation_posterior_cache(
                         posterior, &variables, query, ctx,
                     )?);
@@ -662,7 +662,7 @@ impl Study {
     ) -> Result<IdentificationCache, CausalError> {
         Ok(IdentificationCache::GraphPosterior(Arc::new(
             if matches!(
-                posterior.atom_kind,
+                posterior.atom_kind(),
                 antecedent_discovery::GraphPosteriorAtomKind::Admg
                     | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
             ) {
@@ -687,7 +687,7 @@ impl Study {
         query: &TemporalEffectQuery,
         ctx: &ExecutionContext,
     ) -> Result<IdentificationCache, CausalError> {
-        Ok(if crate::analysis::execute::is_class_atom(posterior.atom_kind) {
+        Ok(if crate::analysis::execute::is_class_atom(posterior.atom_kind()) {
             IdentificationCache::TemporalClassPosterior(Arc::new(
                 build_temporal_class_posterior_identification_cache(
                     posterior,
@@ -712,7 +712,7 @@ impl Study {
         query: &antecedent_core::MediationQuery,
         ctx: &ExecutionContext,
     ) -> Result<IdentificationCache, CausalError> {
-        Ok(if crate::analysis::execute::is_class_atom(posterior.atom_kind) {
+        Ok(if crate::analysis::execute::is_class_atom(posterior.atom_kind()) {
             let horizon = query.horizons.first().copied().ok_or_else(|| CausalError::Compile {
                 message: "temporal class graph-posterior mediation requires a horizon".into(),
             })?;
@@ -745,7 +745,7 @@ impl Study {
         ctx: &ExecutionContext,
         caches: &mut Vec<IdentificationCache>,
     ) -> Result<(), CausalError> {
-        if crate::analysis::execute::is_class_atom(posterior.atom_kind) {
+        if crate::analysis::execute::is_class_atom(posterior.atom_kind()) {
             let (treatment, outcome) =
                 query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
                     message: "temporal class graph-posterior response has no \

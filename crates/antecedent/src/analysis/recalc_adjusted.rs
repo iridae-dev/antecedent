@@ -27,6 +27,7 @@ use antecedent_estimate::vector_treatment::{
 };
 use antecedent_identify::backdoor::{CheckedJointAdjustment, check_joint_adjustment};
 use antecedent_stats::{GlmFamily, GlmOptions};
+use std::borrow::Cow;
 use std::sync::Arc;
 
 /// Declared adjusted model and inference configuration.
@@ -353,32 +354,37 @@ impl AdjustedRequest {
             .column(id)
             .ok_or(RecalcRunError::Request(RecalcRequestCode::InvalidAdjustmentSet))
     }
-    fn input(&self, snapshot: &str) -> Result<VectorTreatmentInput, RecalcRunError> {
+    /// The fit input over the request's own columns; nothing is copied.
+    fn input<'a>(&'a self, snapshot: &'a str) -> Result<VectorTreatmentInput<'a>, RecalcRunError> {
         let adjustment = self
             .adjustment
             .iter()
             .map(|&id| {
                 let (name, values) = self.role(id)?;
-                Ok::<_, RecalcRunError>(NamedColumn { name: name.clone(), values: values.clone() })
+                Ok::<_, RecalcRunError>(NamedColumn::new(name.as_str(), values.as_slice()))
             })
             .collect::<Result<Vec<_>, RecalcRunError>>()?;
-        let names = adjustment.iter().map(|z| z.name.clone()).collect::<Vec<_>>();
+        let names = self
+            .adjustment
+            .iter()
+            .map(|&id| Ok::<_, RecalcRunError>(Cow::Borrowed(self.role(id)?.0.as_str())))
+            .collect::<Result<Vec<_>, RecalcRunError>>()?;
         let treatments = self
             .treatments
             .iter()
             .map(|&id| {
                 let (name, values) = self.role(id)?;
                 Ok::<_, RecalcRunError>(TreatmentColumn {
-                    name: name.clone(),
-                    values: values.clone(),
+                    name: Cow::Borrowed(name.as_str()),
+                    values: Cow::Borrowed(values.as_slice()),
                     adjustment_set: names.clone(),
-                    row_snapshot: snapshot.to_owned(),
+                    row_snapshot: Cow::Borrowed(snapshot),
                 })
             })
             .collect::<Result<Vec<_>, RecalcRunError>>()?;
         Ok(VectorTreatmentInput {
-            outcome: self.role(self.outcome)?.1.clone(),
-            row_snapshot: snapshot.to_owned(),
+            outcome: Cow::Borrowed(self.role(self.outcome)?.1.as_slice()),
+            row_snapshot: Cow::Borrowed(snapshot),
             adjustment,
             treatments,
         })
@@ -516,7 +522,8 @@ fn adjusted_fit(
     recorder: &mut ReceiptRecorder,
 ) -> Result<Arc<AdjustedFit>, RecalcRunError> {
     Ok(if recomputed(plan, Stage::ScoreArtifact) {
-        let input = request.input(&requested.own(Stage::DataSnapshot).to_hex())?;
+        let snapshot = requested.own(Stage::DataSnapshot).to_hex();
+        let input = request.input(&snapshot)?;
         let (fit, n) = count_adjusted_model_fits(|| match &request.model {
             AdjustedModel::Linear { covariance } => AdjustedFit::linear(
                 &input,
@@ -528,7 +535,7 @@ fn adjusted_fit(
                     outcome: input.outcome,
                     row_snapshot: input.row_snapshot,
                     adjustment: input.adjustment,
-                    levels: levels.clone(),
+                    levels: Cow::Borrowed(levels.as_slice()),
                 },
                 spec,
             ),

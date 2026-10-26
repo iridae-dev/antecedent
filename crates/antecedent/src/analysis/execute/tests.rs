@@ -142,9 +142,9 @@ mod envelope_refuter_target_tests {
     /// Two identified atoms fit on the same rows: unadjusted (effect 3) and
     /// Z-adjusted (effect 2), at weights 0.5 / 0.3.
     fn fitted_atoms(data: &TabularData, ctx: &ExecutionContext) -> Vec<EnvelopeRefuteAtom> {
-        let direct = set_edge(0, 3, 0, 1, true);
-        let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
-        let gp = GraphPosterior::new(
+        let direct = set_edge(0u64, 3, 0, 1, true);
+        let adjusted = set_edge(set_edge(set_edge(0u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+        let gp = GraphPosterior::from_atoms(
             3,
             vec![0.5, 0.3],
             vec![direct, adjusted],
@@ -273,8 +273,8 @@ mod envelope_refuter_target_tests {
     fn single_atom_graph_posterior_keeps_its_se_without_omission_diagnostic() {
         // D-4: one contributing atom omits nothing, so the between-atom
         // omission diagnostic must not fire.
-        let direct = set_edge(0, 3, 0, 1, true);
-        let gp = GraphPosterior::new(
+        let direct = set_edge(0u64, 3, 0, 1, true);
+        let gp = GraphPosterior::from_atoms(
             3,
             vec![1.0],
             vec![direct],
@@ -528,7 +528,7 @@ mod identify_only_tests {
     fn identify_only_refuses_graph_posterior() {
         // graph_posterior x Frequentist is now closed at `build()`, so reach
         // identify_only's own guard through the still-open Bayesian cell.
-        let gp = GraphPosterior::new(
+        let gp = GraphPosterior::from_atoms(
             2,
             vec![1.0],
             vec![0u64],
@@ -598,12 +598,12 @@ mod identify_only_tests {
         assert!((weighted_sum / identified_mass - mixture_truth).abs() < 1e-12);
         assert!((weights[2] - unidentified_truth).abs() < 1e-12);
 
-        let direct = set_edge(0, 3, 0, 1, true); // T -> Y; no adjustment.
-        let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true); // Z -> T, Z -> Y, T -> Y.
-        let unidentified = set_edge(0, 3, 1, 0, true); // Y -> T; no admissible adjustment.
-        assert!(mask_is_dag(direct, 3));
-        assert!(mask_is_dag(adjusted, 3));
-        assert!(mask_is_dag(unidentified, 3));
+        let direct = set_edge(0u64, 3, 0, 1, true); // T -> Y; no adjustment.
+        let adjusted = set_edge(set_edge(set_edge(0u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true); // Z -> T, Z -> Y, T -> Y.
+        let unidentified = set_edge(0u64, 3, 1, 0, true); // Y -> T; no admissible adjustment.
+        assert!(mask_is_dag(&direct, 3));
+        assert!(mask_is_dag(&adjusted, 3));
+        assert!(mask_is_dag(&unidentified, 3));
 
         // Keep marginals consistent with the three frozen atoms even though
         // effect execution consumes their masks and weights directly.
@@ -618,10 +618,10 @@ mod identify_only_tests {
         // from a validation-none run.
         let mut report_counts = Vec::new();
         for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
-            let gp = GraphPosterior::new(
+            let gp = GraphPosterior::from_atoms(
                 3,
                 weights.clone(),
-                vec![direct, adjusted, unidentified],
+                vec![direct.clone(), adjusted.clone(), unidentified.clone()],
                 marginals.clone(),
                 marginals.clone(),
                 SamplingSummary {
@@ -788,9 +788,9 @@ mod identify_only_tests {
             .collect();
         let unidentified_truth = pin["expected_unidentified_mass"].as_f64().unwrap();
 
-        let direct = set_edge(0, 3, 0, 1, true);
-        let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
-        let unidentified = set_edge(0, 3, 1, 0, true);
+        let direct = set_edge(0u64, 3, 0, 1, true);
+        let adjusted = set_edge(set_edge(set_edge(0u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+        let unidentified = set_edge(0u64, 3, 1, 0, true);
         let mut marginals = vec![0.0; 9];
         marginals[1] = weights[0] + weights[1];
         marginals[3] = weights[2];
@@ -799,10 +799,10 @@ mod identify_only_tests {
 
         let mut report_counts = Vec::new();
         for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
-            let gp = GraphPosterior::new(
+            let gp = GraphPosterior::from_atoms(
                 3,
                 weights.clone(),
-                vec![direct, adjusted, unidentified],
+                vec![direct.clone(), adjusted.clone(), unidentified.clone()],
                 marginals.clone(),
                 marginals.clone(),
                 SamplingSummary {
@@ -939,13 +939,13 @@ mod identify_only_tests {
         // Distinct adjustment sets are GraphDependentAtoms. Cheap overlap is
         // the first contributing atom, Bayesian and Frequentist alike.
         let n = 64;
-        let direct = set_edge(0, 3, 0, 1, true);
-        let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
-        let unidentified = set_edge(0, 3, 1, 0, true);
-        let mix = GraphPosterior::new(
+        let direct = set_edge(0u64, 3, 0, 1, true);
+        let adjusted = set_edge(set_edge(set_edge(0u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+        let unidentified = set_edge(0u64, 3, 1, 0, true);
+        let mix = GraphPosterior::from_atoms(
             3,
             vec![0.5, 0.3, 0.2],
-            vec![direct, adjusted, unidentified],
+            vec![direct.clone(), adjusted.clone(), unidentified.clone()],
             vec![0.0; 9],
             vec![0.0; 9],
             SamplingSummary {
@@ -955,7 +955,7 @@ mod identify_only_tests {
             },
         )
         .unwrap();
-        let first_only = GraphPosterior::new(
+        let first_only = GraphPosterior::from_atoms(
             3,
             vec![1.0],
             vec![direct],
@@ -981,13 +981,13 @@ mod identify_only_tests {
         // Under GraphDependentAtoms the cheap overlap report comes from the
         // first contributing atom only, not a mass-weighted mix.
         let n = 64;
-        let direct = set_edge(0, 3, 0, 1, true);
-        let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
-        let unidentified = set_edge(0, 3, 1, 0, true);
-        let mix = GraphPosterior::new(
+        let direct = set_edge(0u64, 3, 0, 1, true);
+        let adjusted = set_edge(set_edge(set_edge(0u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+        let unidentified = set_edge(0u64, 3, 1, 0, true);
+        let mix = GraphPosterior::from_atoms(
             3,
             vec![0.5, 0.3, 0.2],
-            vec![direct, adjusted, unidentified],
+            vec![direct.clone(), adjusted.clone(), unidentified.clone()],
             vec![0.0; 9],
             vec![0.0; 9],
             SamplingSummary {
@@ -997,7 +997,7 @@ mod identify_only_tests {
             },
         )
         .unwrap();
-        let first_only = GraphPosterior::new(
+        let first_only = GraphPosterior::from_atoms(
             3,
             vec![1.0],
             vec![direct],
@@ -1020,9 +1020,9 @@ mod identify_only_tests {
 
     #[test]
     fn fresh_graph_posterior_cancelled_during_identification_returns_typed_error() {
-        let direct = set_edge(0, 3, 0, 1, true);
-        let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
-        let gp = GraphPosterior::new(
+        let direct = set_edge(0u64, 3, 0, 1, true);
+        let adjusted = set_edge(set_edge(set_edge(0u64, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+        let gp = GraphPosterior::from_atoms(
             3,
             vec![0.5, 0.5],
             vec![direct, adjusted],

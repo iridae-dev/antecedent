@@ -245,9 +245,10 @@ impl MultiLevelTreatment {
         request: &MultiLevelTreatmentRequest,
     ) -> Result<MultiLevelReportWire, CausalError> {
         let invalid = |detail: &str, message: &str| {
-            CausalError::Estimate(EstimationError::refused(
+            CausalError::Estimate(EstimationError::refused_detail(
                 antecedent_core::reason_code!("invalid_argument"),
-                format!("{detail}: {message}"),
+                detail,
+                message,
             ))
         };
         let rows = request.outcome.len();

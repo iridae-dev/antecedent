@@ -2764,7 +2764,7 @@ impl super::Study {
         let block = shared_circular_block_mixture_se(
             &atoms.designs.iter().collect::<Vec<_>>(),
             &weights,
-            gp.max_lag.unwrap_or(1) as usize + 1,
+            gp.max_lag().unwrap_or(1) as usize + 1,
             self.bootstrap_replicates,
             0xDBF0_0000,
             ctx,

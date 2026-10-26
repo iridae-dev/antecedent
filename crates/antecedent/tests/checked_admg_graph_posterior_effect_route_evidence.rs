@@ -107,7 +107,7 @@ fn admg_graph_posterior_effect_is_sealed_for_both_inference_modes() {
             assert_eq!(plan.estimator.as_str(), "functional.effect");
             assert_eq!(plan.validation, suite);
             assert_eq!(plan.weights.as_ref(), &[0.8, 0.2]);
-            assert_eq!(plan.graph_keys.as_ref(), graphs.graph_keys.as_ref());
+            assert_eq!(plan.graph_keys.as_ref(), graphs.graph_keys().as_ref());
             let result = prepared.estimate(&data, &context).unwrap();
             let tolerance = if bayesian { 0.05 } else { 1e-9 };
             assert!(

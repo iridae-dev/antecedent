@@ -319,8 +319,8 @@ fn all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms
                     };
                     assert_eq!(plan.query, query);
                     assert_eq!(plan.atom_kind, fixture.kind);
-                    assert_eq!(plan.weights.as_ref(), fixture.posterior.weights.as_ref());
-                    assert_eq!(plan.graph_keys.len(), fixture.posterior.n_graphs);
+                    assert_eq!(plan.weights.as_ref(), fixture.posterior.weights().as_ref());
+                    assert_eq!(plan.graph_keys.len(), fixture.posterior.n_graphs());
                     assert_eq!(plan.validation, suite);
                     assert_eq!(
                         plan.identifier,

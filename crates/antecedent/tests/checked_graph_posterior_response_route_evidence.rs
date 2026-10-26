@@ -243,7 +243,7 @@ fn graph_posterior_responses_body() {
                     assert_eq!(plan.estimator, expected_estimator, "{label}");
                     assert_eq!(plan.inference.starts_with("bayesian:"), bayesian, "{label}");
                     assert_eq!(plan.validation, suite, "{label}");
-                    assert_eq!(plan.graph_keys.as_ref(), gp.graph_keys.as_ref(), "{label}");
+                    assert_eq!(plan.graph_keys.as_ref(), gp.graph_keys().as_ref(), "{label}");
                     assert_eq!(plan.weights.as_ref(), &[0.6, 0.4], "{label}");
                     assert_eq!(
                         plan.identified.as_ref(),

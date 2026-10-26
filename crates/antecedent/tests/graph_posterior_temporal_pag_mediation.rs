@@ -17,8 +17,7 @@ use antecedent_core::{
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge,
-    with_lagged_edge,
+    GraphPosterior, GraphPosteriorAtomKind, LagMask, SamplingSummary, set_edge, with_lagged_edge,
 };
 use antecedent_graph::TemporalPag;
 use antecedent_prob::InferenceDiagnostics;
@@ -117,7 +116,7 @@ fn contemporaneous(edges: &[(u32, u32)]) -> u64 {
 }
 
 /// `(contemporaneous mask, lag mask)` of the lagged template.
-fn lagged_atom() -> (u64, u64) {
+fn lagged_atom() -> (u64, LagMask) {
     (
         contemporaneous(&[(X, M), (W, M), (M, Y), (X, Y)]),
         with_lagged_edge(0, N_VARS, 1, C as usize, X as usize, true).unwrap(),
@@ -125,11 +124,11 @@ fn lagged_atom() -> (u64, u64) {
 }
 
 /// `(contemporaneous mask, lag mask)` of the template with no lag.
-fn contemporaneous_atom() -> (u64, u64) {
-    (contemporaneous(&[(C, X), (X, M), (W, M), (M, Y), (X, Y)]), 0)
+fn contemporaneous_atom() -> (u64, LagMask) {
+    (contemporaneous(&[(C, X), (X, M), (W, M), (M, Y), (X, Y)]), LagMask::EMPTY)
 }
 
-fn pag_posterior(weights: &[f64], atoms: &[(u64, u64)]) -> GraphPosterior {
+fn pag_posterior(weights: &[f64], atoms: &[(u64, LagMask)]) -> GraphPosterior {
     GraphPosterior::from_atoms(
         N_VARS,
         weights.to_vec(),
@@ -146,7 +145,7 @@ fn pag_posterior(weights: &[f64], atoms: &[(u64, u64)]) -> GraphPosterior {
     .with_atom_kind(GraphPosteriorAtomKind::Pag)
     .with_lagged_marginals(1, vec![0.0; N_VARS * N_VARS])
     .unwrap()
-    .with_lag_masks(atoms.iter().map(|atom| atom.1).collect::<Vec<_>>())
+    .with_lag_masks(atoms.iter().map(|atom| atom.1.clone()).collect::<Vec<_>>())
     .unwrap()
     .with_mark_atoms(vec![0_u64; atoms.len()])
     .unwrap()

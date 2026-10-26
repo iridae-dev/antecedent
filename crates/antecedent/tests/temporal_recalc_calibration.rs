@@ -35,14 +35,7 @@ fn request(n: usize, seed: u64, functional: TemporalFunctional) -> TemporalReque
                             + 0.2 * f64::from(s0 * l2)
                             + 0.05 * f64::from(a1 + a2)
                             + shock;
-                        histories.push(TemporalHistoryWire {
-                            time_id: 3 * histories.len() as u64,
-                            s0,
-                            a1,
-                            l2,
-                            a2,
-                            y: rng.binary(probability) as f64,
-                        });
+                        histories.push(TemporalHistoryWire::two_step(3 * histories.len() as u64, s0, a1, l2, a2, rng.binary(probability) as f64));
                     }
                 }
             }
@@ -54,7 +47,7 @@ fn request(n: usize, seed: u64, functional: TemporalFunctional) -> TemporalReque
         bidirected: vec![],
         selection_targets: vec![0],
         horizon: 2,
-        lag_alignment: [0, 1, 2, 2, 2],
+        lag_alignment: vec![0, 1, 2, 2, 2],
         period: (0, 49),
         units,
         snapshot_id: format!("independent_binary_temporal_units:{seed}"),
@@ -125,7 +118,7 @@ fn temporal_checked_effect_percentile_l95() {
     measure(
         "temporal_checked_effect_percentile_l95",
         "cov.temporal_transport.selection_admg.frequentist.bootstrap_percentile.l95.temporal_checked_effect_percentile_l95",
-        &TemporalFunctional::Effect { active: [1, 1], control: [0, 0] },
+        &TemporalFunctional::Effect { active: vec![1, 1], control: vec![0, 0] },
         IntervalMethod::Percentile,
         0.1,
         256,
@@ -141,7 +134,7 @@ fn temporal_checked_effect_basic_l95() {
     measure(
         "temporal_checked_effect_basic_l95",
         "cov.temporal_transport.selection_admg.frequentist.bootstrap_basic.l95.temporal_checked_effect_basic_l95",
-        &TemporalFunctional::Effect { active: [1, 1], control: [0, 0] },
+        &TemporalFunctional::Effect { active: vec![1, 1], control: vec![0, 0] },
         IntervalMethod::Basic,
         0.1,
         128,
@@ -155,7 +148,7 @@ fn checked_temporal_calibration_oracle_matches_enumerated_scm() {
     std::thread::Builder::new()
         .stack_size(8 * 1024 * 1024)
         .spawn(|| {
-            let mut input = request(1, 17, TemporalFunctional::Response { sequence: [0, 0] });
+            let mut input = request(1, 17, TemporalFunctional::Response { sequence: vec![0, 0] });
             input.units.clear();
             for shock in [-0.1, 0.1] {
                 for noise in 0..20 {
@@ -175,14 +168,7 @@ fn checked_temporal_calibration_oracle_matches_enumerated_scm() {
                                     } else {
                                         0.
                                     };
-                                    histories.push(TemporalHistoryWire {
-                                        time_id: 3 * histories.len() as u64,
-                                        s0,
-                                        a1,
-                                        l2,
-                                        a2,
-                                        y,
-                                    });
+                                    histories.push(TemporalHistoryWire::two_step(3 * histories.len() as u64, s0, a1, l2, a2, y));
                                 }
                             }
                         }
@@ -193,9 +179,9 @@ fn checked_temporal_calibration_oracle_matches_enumerated_scm() {
                 }
             }
             for (functional, expected) in [
-                (TemporalFunctional::Response { sequence: [0, 0] }, 0.49),
-                (TemporalFunctional::Response { sequence: [1, 1] }, 0.59),
-                (TemporalFunctional::Effect { active: [1, 1], control: [0, 0] }, 0.1),
+                (TemporalFunctional::Response { sequence: vec![0, 0] }, 0.49),
+                (TemporalFunctional::Response { sequence: vec![1, 1] }, 0.59),
+                (TemporalFunctional::Effect { active: vec![1, 1], control: vec![0, 0] }, 0.1),
             ] {
                 input.functional = functional;
                 let value = execute_temporal_with_receipt(
@@ -218,7 +204,7 @@ fn temporal_checked_response_studentized_l95() {
     measure(
         "temporal_checked_response_studentized_l95",
         "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_checked_response_studentized_l95",
-        &TemporalFunctional::Response { sequence: [0, 0] },
+        &TemporalFunctional::Response { sequence: vec![0, 0] },
         IntervalMethod::Studentized,
         0.49,
         128,
@@ -231,7 +217,7 @@ fn temporal_checked_effect_studentized_l95() {
     measure(
         "temporal_checked_effect_studentized_l95",
         "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_checked_effect_studentized_l95",
-        &TemporalFunctional::Effect { active: [1, 1], control: [0, 0] },
+        &TemporalFunctional::Effect { active: vec![1, 1], control: vec![0, 0] },
         IntervalMethod::Studentized,
         0.1,
         128,
@@ -243,21 +229,21 @@ fn temporal_checked_effect_studentized_l95() {
 fn checked_temporal_studentized_unit_scores_match_independent_paired_scm_algebra() {
     let ctx = ExecutionContext::for_tests(179);
     for functional in [
-        TemporalFunctional::Response { sequence: [0, 0] },
-        TemporalFunctional::Effect { active: [1, 1], control: [0, 0] },
+        TemporalFunctional::Response { sequence: vec![0, 0] },
+        TemporalFunctional::Effect { active: vec![1, 1], control: vec![0, 0] },
     ] {
         let input = request(24, 179, functional.clone());
-        let sequence_score = |unit: &TemporalUnitWire, seq: [u32; 2]| {
+        let sequence_score = |unit: &TemporalUnitWire, seq: &[u32]| {
             unit.histories
                 .iter()
-                .filter(|h| h.a1 == seq[0] && h.a2 == seq[1])
+                .filter(|h| h.actions == seq)
                 .map(|h| h.y * if h.s0 == 0 { 0.15 } else { 0.35 })
                 .sum::<f64>()
         };
         let scores = input
             .units
             .iter()
-            .map(|u| match functional {
+            .map(|u| match &functional {
                 TemporalFunctional::Response { sequence } => sequence_score(u, sequence),
                 TemporalFunctional::Effect { active, control } => {
                     sequence_score(u, active) - sequence_score(u, control)

@@ -103,11 +103,11 @@ impl ArrayFit {
 impl From<ArrayFitError> for CausalError {
     fn from(error: ArrayFitError) -> Self {
         let (code, detail) = error.refusal();
-        let message = match &error {
-            ArrayFitError::Refused { .. } => error.to_string(),
-            other => format!("{detail}: {other}"),
+        let explanation = match &error {
+            ArrayFitError::Refused { message, .. } => message.clone(),
+            other => other.to_string(),
         };
-        CausalError::Estimate(EstimationError::refused(code, message))
+        CausalError::Estimate(EstimationError::refused_detail(code, detail, explanation))
     }
 }
 

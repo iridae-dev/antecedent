@@ -761,7 +761,7 @@ pub(crate) fn graph_identity(study: &Study) -> Result<GraphIdentityWire, CausalE
     if let Some(posterior) = &study.graph_posterior {
         return Ok(GraphIdentityWire::GraphPosterior {
             graph_class: study.graph.class().as_str().into(),
-            n_atoms: u64::try_from(posterior.n_graphs).unwrap_or(u64::MAX),
+            n_atoms: u64::try_from(posterior.n_graphs()).unwrap_or(u64::MAX),
             atoms: graph_posterior_atom_identities(posterior).map_err(|err| io_err(&err))?,
         });
     }

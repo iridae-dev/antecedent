@@ -980,13 +980,13 @@ fn temporal_request(benefit: f64) -> TemporalRequest {
         bidirected: vec![],
         selection_targets: vec![0],
         horizon: 2,
-        lag_alignment: [0, 1, 2, 2, 2],
+        lag_alignment: vec![0, 1, 2, 2, 2],
         period: (0, 48),
         units,
         snapshot_id: "flagship-temporal-source".to_owned(),
         initial_state: [0.2, 0.8],
         initial_state_id: "flagship-target-law".to_owned(),
-        functional: TemporalFunctional::Effect { active: [1, 1], control: [0, 0] },
+        functional: TemporalFunctional::Effect { active: vec![1, 1], control: vec![0, 0] },
         benefit_per_unit: benefit,
         cost: 0.5,
     }
@@ -999,14 +999,14 @@ fn complete_binary_histories(unit_id: u64) -> Vec<TemporalHistoryWire> {
             for l2 in 0..2u32 {
                 for a2 in 0..2u32 {
                     let index = u64::try_from(histories.len()).unwrap_or(0);
-                    histories.push(TemporalHistoryWire {
-                        time_id: index.saturating_mul(3),
+                    histories.push(TemporalHistoryWire::two_step(
+                        index.saturating_mul(3),
                         s0,
                         a1,
                         l2,
                         a2,
-                        y: binary_outcome(unit_id, a1, a2),
-                    });
+                        binary_outcome(unit_id, a1, a2),
+                    ));
                 }
             }
         }
@@ -1366,7 +1366,7 @@ struct TemporalSourceView<'a> {
     bidirected: &'a [(u32, u32)],
     selection_targets: &'a [u32],
     horizon: usize,
-    lag_alignment: &'a [u8; 5],
+    lag_alignment: &'a [u8],
     period: (u64, u64),
     units: &'a [TemporalUnitWire],
     snapshot_id: &'a str,

@@ -94,14 +94,14 @@ pub(crate) fn build_graph_posterior_identification_cache(
     // A DBN posterior's contemporaneous masks are valid DAGs, but identifying a
     // static effect on them alone would drop every lagged confounder. That is
     // a different coordinate (temporal Pulse / Sustained), so fail closed.
-    if posterior.lag_masks.is_some() || posterior.max_lag.is_some() {
+    if posterior.lag_masks().is_some() || posterior.max_lag().is_some() {
         return Err(CausalError::Unsupported {
             message: "static AverageEffect over a graph posterior requires static DAG atoms; \
                       this posterior carries DBN lag structure, so it needs a temporal \
                       Pulse / single-step Sustained query",
         });
     }
-    match posterior.atom_kind {
+    match posterior.atom_kind() {
         antecedent_discovery::GraphPosteriorAtomKind::Dag => {}
         antecedent_discovery::GraphPosteriorAtomKind::Admg
         | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg => {
@@ -112,7 +112,7 @@ pub(crate) fn build_graph_posterior_identification_cache(
     crate::analysis::execute::report_identify_compute(ctx);
     let by_mask = identify_unique_adjacency_masks(posterior, ctx, |mask, inner| {
         (|| -> Result<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError> {
-            let Ok(dag) = dag_from_adjacency_mask(mask, posterior.n_vars) else {
+            let Ok(dag) = dag_from_adjacency_mask(mask, posterior.n_vars()) else {
                 return Ok(None);
             };
             let Some(identification) = class_envelope_outcome(identify_static_query_in_context(
@@ -188,7 +188,7 @@ pub(crate) fn build_admg_graph_posterior_response_identification_cache(
     };
     let by_mask = identify_unique_adjacency_masks(posterior, ctx, |mask, _inner| {
         (|| -> Result<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError> {
-            let Ok(admg) = admg_from_adjacency_mask(mask, posterior.n_vars) else {
+            let Ok(admg) = admg_from_adjacency_mask(mask, posterior.n_vars()) else {
                 return Ok(None);
             };
             let Some(identification) = class_envelope_outcome(identify_admg_query(
@@ -227,7 +227,7 @@ fn build_admg_graph_posterior_identification_cache(
     crate::analysis::execute::report_identify_compute(ctx);
     let by_mask = identify_unique_adjacency_masks(posterior, ctx, |mask, _inner| {
         (|| -> Result<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError> {
-            let Ok(admg) = admg_from_adjacency_mask(mask, posterior.n_vars) else {
+            let Ok(admg) = admg_from_adjacency_mask(mask, posterior.n_vars()) else {
                 return Ok(None);
             };
             let Some(identification) =
@@ -285,14 +285,14 @@ pub(crate) fn build_temporal_admg_posterior_identification_cache(
                 .into(),
         });
     }
-    let max_lag = posterior.max_lag.unwrap_or(0);
+    let max_lag = posterior.max_lag().unwrap_or(0);
     let variable_count = u32::try_from(variables.len()).map_err(|_| CausalError::Compile {
         message: "series schema exceeds the variable id range".into(),
     })?;
     crate::analysis::execute::report_identify_compute(ctx);
     let mapped = map_posterior_graphs(posterior, ctx, |i, _inner| {
         let Some(atom) = posterior.temporal_admg_atom(i) else { return Ok(None) };
-        let Ok(template) = atom.to_template(posterior.n_vars, max_lag, variables) else {
+        let Ok(template) = atom.to_template(posterior.n_vars(), max_lag, variables) else {
             return Ok(None);
         };
         let Ok(contrast) = identify_window_contrast(&template, query, variable_count) else {
@@ -303,14 +303,14 @@ pub(crate) fn build_temporal_admg_posterior_identification_cache(
             contrast.identification,
         )))
     })?;
-    let mut weights = Vec::with_capacity(posterior.n_graphs);
-    let mut flags = Vec::with_capacity(posterior.n_graphs);
-    let mut keys = Vec::with_capacity(posterior.n_graphs);
+    let mut weights = Vec::with_capacity(posterior.n_graphs());
+    let mut flags = Vec::with_capacity(posterior.n_graphs());
+    let mut keys = Vec::with_capacity(posterior.n_graphs());
     let mut atoms = Vec::new();
     for (i, found) in mapped.into_iter().enumerate() {
         let key = super::dbn_envelope_key(i)?;
         keys.push(key);
-        weights.push(posterior.weights[i]);
+        weights.push(posterior.weights()[i]);
         if let Some((estimand, identification)) = found {
             flags.push(GraphIdentFlag::Identified);
             atoms.push(CachedGraphPosteriorAtomIdentification {
@@ -354,15 +354,12 @@ fn build_class_graph_posterior_identification_cache(
 
     crate::analysis::execute::report_identify_compute(ctx);
     let resolved = map_posterior_graphs(posterior, ctx, |i, inner| {
-        let mask = posterior.atoms[i];
-        let mark = posterior
-            .mark_atoms
-            .as_ref()
-            .map_or(antecedent_discovery::AdjacencyMask::EMPTY, |marks| marks[i]);
-        let key = posterior.graph_keys[i];
-        let cached = match posterior.atom_kind {
+        let mask = &posterior.atoms()[i];
+        let mark = posterior.mark_atom(i);
+        let key = posterior.graph_keys()[i];
+        let cached = match posterior.atom_kind() {
             antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
-                let Ok(cpdag) = cpdag_from_adjacency_mask(mask, posterior.n_vars) else {
+                let Ok(cpdag) = cpdag_from_adjacency_mask(mask, posterior.n_vars()) else {
                     return Ok(None);
                 };
                 class_envelope_outcome(identify_cpdag_in_context(
@@ -374,7 +371,7 @@ fn build_class_graph_posterior_identification_cache(
                 .map(|envelope| envelope.map(|envelope| cache_class_envelope(key, query, envelope)))
             }
             antecedent_discovery::GraphPosteriorAtomKind::Pag => {
-                let Ok(pag) = pag_from_adjacency_mask(mask, mark, posterior.n_vars) else {
+                let Ok(pag) = pag_from_adjacency_mask(mask, &mark, posterior.n_vars()) else {
                     return Ok(None);
                 };
                 class_envelope_outcome(identify_pag_in_context(
@@ -459,8 +456,9 @@ mod tests {
     fn repeated_posterior(n_graphs: usize) -> GraphPosterior {
         const N: usize = 4;
         let edges = |list: &[(usize, usize)]| {
-            list.iter()
-                .fold(AdjacencyMask::EMPTY, |mask, &(from, to)| set_edge(mask, N, from, to, true))
+            list.iter().fold(AdjacencyMask::EMPTY, |mask, &(from, to)| {
+                set_edge(mask, N, from, to, true)
+            })
         };
         let structures = [
             edges(&[(0, 1)]),
@@ -473,7 +471,7 @@ mod tests {
             edges(&[(0, 1), (1, 2)]),
         ];
         let adjacency: Vec<AdjacencyMask> =
-            (0..n_graphs).map(|i| structures[i % structures.len()]).collect();
+            (0..n_graphs).map(|i| structures[i % structures.len()].clone()).collect();
         GraphPosterior::from_atoms(
             N,
             vec![1.0 / n_graphs as f64; n_graphs],
@@ -490,7 +488,7 @@ mod tests {
     }
 
     fn class_posterior() -> GraphPosterior {
-        let mut posterior = repeated_posterior(2);
+        let posterior = repeated_posterior(2);
         let mut complete = AdjacencyMask::EMPTY;
         for i in 0..4 {
             for j in 0..4 {
@@ -499,9 +497,20 @@ mod tests {
                 }
             }
         }
-        posterior.atoms = vec![complete; 2].into();
-        posterior.atom_kind = antecedent_discovery::GraphPosteriorAtomKind::Cpdag;
-        posterior
+        GraphPosterior::from_atoms(
+            posterior.n_vars(),
+            Arc::clone(posterior.weights()),
+            vec![complete; 2],
+            Arc::clone(posterior.edge_marginals()),
+            Arc::clone(posterior.orientation_marginals()),
+            SamplingSummary {
+                ess: posterior.ess(),
+                diagnostics: posterior.diagnostics().clone(),
+                rejected_invalid: posterior.rejected_invalid(),
+            },
+        )
+        .unwrap()
+        .with_atom_kind(antecedent_discovery::GraphPosteriorAtomKind::Cpdag)
     }
 
     #[test]

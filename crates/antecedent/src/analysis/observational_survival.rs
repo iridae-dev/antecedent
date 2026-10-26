@@ -154,7 +154,7 @@ impl ObservationalSurvivalEffect {
         request: &ObservationalSurvivalRequest,
     ) -> Result<ObservationalSurvivalReportWire, CausalError> {
         let refused = |code: &'static str, detail: &str, message: &str| {
-            CausalError::Estimate(EstimationError::refused(code, format!("{detail}: {message}")))
+            CausalError::Estimate(EstimationError::refused_detail(code, detail, message))
         };
         let spec = &request.spec;
         let Some(horizon) = spec.horizon else {

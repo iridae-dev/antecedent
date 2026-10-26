@@ -635,9 +635,12 @@ pub fn discover_order_mcmc(
         .with_schedule(schedule.n_chains, schedule.n_warmup, schedule.n_draws, schedule.thin)
         .with_diagnostics_gate(require_diagnostics_gate);
     let mut ws = DiscoveryWorkspace::default();
-    Ok(eng
-        .run(data, variables, &params.prior, params.score_family, &mut ws, ctx)?
-        .with_algorithm("order_mcmc"))
+    let posterior = eng.run(data, variables, &params.prior, params.score_family, &mut ws, ctx)?;
+    // A problem too large for the order sampler is routed to structure MCMC and tagged so.
+    if posterior.algorithm().is_some_and(|tag| &**tag == "order_mcmc_via_structure_mcmc") {
+        return Ok(posterior);
+    }
+    Ok(posterior.with_algorithm("order_mcmc"))
 }
 
 /// Structure MCMC DAG posterior (Gaussian BIC).

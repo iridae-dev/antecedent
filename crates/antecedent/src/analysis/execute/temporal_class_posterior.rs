@@ -307,7 +307,7 @@ impl super::Study {
                 message: "class-aware multi-step sustained requires no discovery-estimation split",
             });
         }
-        let class_tag = temporal_class_posterior_tag(gp.atom_kind)?;
+        let class_tag = temporal_class_posterior_tag(gp.atom_kind())?;
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
         let (identified, identify_cached) =
             self.temporal_class_posterior_identification(gp, &vars, query, physical, ctx)?;

@@ -3066,7 +3066,7 @@ fn lag1_gp_posterior() -> GraphPosterior {
     GraphPosterior::from_atoms(
         2,
         vec![1.0],
-        vec![0],
+        vec![0_u64],
         vec![0.0; 4],
         vec![0.0; 4],
         SamplingSummary {
@@ -3078,7 +3078,7 @@ fn lag1_gp_posterior() -> GraphPosterior {
     .unwrap()
     .with_lagged_marginals(1, vec![0.0, 1.0, 0.0, 0.0])
     .unwrap()
-    .with_lag_masks(vec![2])
+    .with_lag_masks(vec![2_u64])
     .unwrap()
 }
 

@@ -70,7 +70,7 @@ impl CheckedGraphPosteriorResponse {
             validation,
             latency_mode,
         } = premises;
-        let class_atoms = match posterior.atom_kind {
+        let class_atoms = match posterior.atom_kind() {
             antecedent_discovery::GraphPosteriorAtomKind::Dag => false,
             antecedent_discovery::GraphPosteriorAtomKind::Cpdag
             | antecedent_discovery::GraphPosteriorAtomKind::Pag => true,
@@ -194,7 +194,7 @@ impl super::Study {
         bound.estimator = Some(operation.procedure().1);
         bound.identifier = Some(operation.procedure().0);
         bound.custom_validators = Vec::new();
-        match operation.posterior().atom_kind {
+        match operation.posterior().atom_kind() {
             antecedent_discovery::GraphPosteriorAtomKind::Dag => bound
                 .execute_graph_posterior_response(
                     data,
@@ -251,7 +251,7 @@ impl Inspect for CheckedGraphPosteriorResponse {
         let (identifier, estimator) = self.procedure();
         CheckedGraphPosteriorResponseInfo {
             query: self.query().clone(),
-            atom_kind: self.posterior().atom_kind,
+            atom_kind: self.posterior().atom_kind(),
             identifier,
             estimator,
             inference: inference_label(self.inference()),

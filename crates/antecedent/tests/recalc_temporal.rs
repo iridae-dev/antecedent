@@ -34,7 +34,7 @@ fn request(functional: TemporalFunctional) -> TemporalRequest {
                     for uy in 0..20 {
                         let l2 = u32::from(ul < s0 + a1 + 1);
                         let y = f64::from(uy < 2 + 4 * a1 + 3 * l2 + 5 * a2 + 2 * s0 + 2 * s0 * a1);
-                        let history = TemporalHistoryWire { time_id: 0, s0, a1, l2, a2, y };
+                        let history = TemporalHistoryWire::two_step(0, s0, a1, l2, a2, y);
                         units.push(TemporalUnitWire {
                             unit_id: u64::try_from(units.len()).unwrap(),
                             histories: vec![
@@ -52,7 +52,7 @@ fn request(functional: TemporalFunctional) -> TemporalRequest {
         bidirected: vec![],
         selection_targets: vec![0],
         horizon: 2,
-        lag_alignment: [0, 1, 2, 2, 2],
+        lag_alignment: vec![0, 1, 2, 2, 2],
         period: (0, 5),
         units,
         snapshot_id: "enumerated-dependent-source".into(),
@@ -64,7 +64,7 @@ fn request(functional: TemporalFunctional) -> TemporalRequest {
     }
 }
 fn effect() -> TemporalRequest {
-    request(TemporalFunctional::Effect { active: [1, 1], control: [0, 0] })
+    request(TemporalFunctional::Effect { active: vec![1, 1], control: vec![0, 0] })
 }
 // Integrate the structural conditional probabilities, without invoking either engine.
 fn mean(a1: f64, a2: f64, p1: f64) -> f64 {
@@ -94,7 +94,7 @@ fn run(session: &mut TemporalSession, request: &TemporalRequest) -> TemporalOutc
 #[test]
 fn temporal_history_response_and_effect_match_enumerated_longitudinal_truth() {
     for sequence in [[0, 0], [0, 1], [1, 0], [1, 1]] {
-        let r = request(TemporalFunctional::Response { sequence });
+        let r = request(TemporalFunctional::Response { sequence: sequence.to_vec() });
         let result = run(&mut TemporalSession::new(), &r);
         close(result.means[0], mean(f64::from(sequence[0]), f64::from(sequence[1]), 0.8));
         close(
@@ -118,7 +118,7 @@ fn temporal_history_unchanged_utility_and_initial_law_reuse_actual_source_fits()
     let mut session = TemporalSession::new();
     run(&mut session, &r);
     let source = std::ptr::from_ref(session.source_factor().unwrap());
-    let active = std::ptr::from_ref(session.sequence_fit([1, 1]).unwrap());
+    let active = std::ptr::from_ref(session.sequence_fit(&[1, 1]).unwrap());
     let unchanged = run(&mut session, &r);
     assert_eq!(unchanged.recalc.receipt.totals().total(), 0);
     let mut utility = r.clone();
@@ -138,7 +138,7 @@ fn temporal_history_unchanged_utility_and_initial_law_reuse_actual_source_fits()
     assert_eq!(updated.recalc.receipt.totals().factor_builds, 0);
     assert!(updated.recalc.receipt.totals().integrations > 0);
     assert_eq!(source, std::ptr::from_ref(session.source_factor().unwrap()));
-    assert_eq!(active, std::ptr::from_ref(session.sequence_fit([1, 1]).unwrap()));
+    assert_eq!(active, std::ptr::from_ref(session.sequence_fit(&[1, 1]).unwrap()));
 }
 
 #[test]
@@ -147,7 +147,7 @@ fn temporal_history_new_sequence_and_new_raw_histories_invalidate_only_real_work
     let mut session = TemporalSession::new();
     run(&mut session, &r);
     let source = std::ptr::from_ref(session.source_factor().unwrap());
-    r.functional = TemporalFunctional::Effect { active: [1, 0], control: [0, 1] };
+    r.functional = TemporalFunctional::Effect { active: vec![1, 0], control: vec![0, 1] };
     let changed = run(&mut session, &r);
     close(changed.recalc.law.ate, 0.0675);
     assert_eq!(changed.recalc.receipt.totals().factor_builds, 2);
@@ -439,7 +439,7 @@ fn checked_response_retired_intervals_refuse_before_resampling() {
         DependentIntervalConfig, IntervalMethod,
     };
     let mut session = TemporalSession::new();
-    run(&mut session, &request(TemporalFunctional::Response { sequence: [0, 0] }));
+    run(&mut session, &request(TemporalFunctional::Response { sequence: vec![0, 0] }));
     for method in [IntervalMethod::Percentile, IntervalMethod::Basic] {
         let config = DependentIntervalConfig {
             method,

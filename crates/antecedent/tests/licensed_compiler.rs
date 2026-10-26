@@ -459,9 +459,9 @@ fn static_gp(n_vars: usize) -> GraphPosterior {
     GraphPosterior::from_atoms(
         n_vars,
         vec![1.0],
-        vec![0],
+        vec![0_u64],
+        contemporaneous.clone(),
         contemporaneous,
-        vec![0.0; cell],
         SamplingSummary {
             ess: 1.0,
             diagnostics: InferenceDiagnostics::analytic("licensed-compiler-static-gp"),
@@ -480,7 +480,7 @@ fn temporal_gp(n_vars: usize) -> GraphPosterior {
         return GraphPosterior::from_atoms(
             n_vars,
             vec![1.0],
-            vec![8],
+            vec![8_u64],
             vec![0.0; cell],
             vec![0.0; cell],
             SamplingSummary {
@@ -494,14 +494,18 @@ fn temporal_gp(n_vars: usize) -> GraphPosterior {
         .unwrap()
         .with_lagged_marginals(1, lagged)
         .unwrap()
-        .with_lag_masks(vec![6])
+        .with_lag_masks(vec![6_u64])
         .unwrap();
     }
     let mut lagged = vec![0.0; cell];
     if n_vars >= 2 {
         lagged[1] = 1.0;
     }
-    static_gp(n_vars).with_lagged_marginals(1, lagged).unwrap().with_lag_masks(vec![2]).unwrap()
+    static_gp(n_vars)
+        .with_lagged_marginals(1, lagged)
+        .unwrap()
+        .with_lag_masks(vec![2_u64])
+        .unwrap()
 }
 
 /// Reconstructible TemporalCpdag/Pag atom.

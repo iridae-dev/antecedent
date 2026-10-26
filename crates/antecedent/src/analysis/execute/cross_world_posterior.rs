@@ -47,7 +47,7 @@ use antecedent_discovery::adjacency_mask::{
     pag_from_adjacency_mask,
 };
 use antecedent_discovery::dbn_posterior::temporal_pag_from_dbn_atoms;
-use antecedent_discovery::{AdjacencyMask, GraphPosteriorAtomKind};
+use antecedent_discovery::{AdjacencyMask, GraphPosteriorAtomKind, LagMask};
 use antecedent_estimate::{
     DistributionAtom, InterventionalDistributionEstimate, TemporalMediationEstimate,
 };
@@ -385,14 +385,14 @@ impl super::Study {
         &self,
         gp: &GraphPosterior,
     ) -> Result<(), CausalError> {
-        if gp.lag_masks.is_some() || gp.max_lag.is_some() {
+        if gp.lag_masks().is_some() || gp.max_lag().is_some() {
             return Err(CausalError::Unsupported {
                 message: "a static cross-world query over a graph posterior requires static \
                           atoms; this posterior carries DBN lag structure",
             });
         }
         if let (CausalQuery::Distribution(query), false) =
-            (&self.query, gp.atom_kind == GraphPosteriorAtomKind::Dag)
+            (&self.query, gp.atom_kind() == GraphPosteriorAtomKind::Dag)
         {
             // A mixed graph or a class reads an unconditional finite-discrete table.
             super::static_path::ensure_admg_distribution_licensed(query, self.refute)?;
@@ -411,8 +411,8 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let mask = gp.atoms[index];
-        let n_vars = gp.n_vars;
+        let mask = gp.atoms()[index].clone();
+        let n_vars = gp.n_vars();
         let not_member = || {
             CausalError::not_identified(
                 IdentificationStatus::NotIdentified,
@@ -420,7 +420,7 @@ impl super::Study {
                 "the posterior atom is not a member of the posterior's graph class",
             )
         };
-        match gp.atom_kind {
+        match gp.atom_kind() {
             GraphPosteriorAtomKind::Dag => {
                 let dag = dag_from_adjacency_mask(mask, n_vars).map_err(|_| not_member())?;
                 self.cross_world_on_dag(data, &dag, kind, physical, ctx)
@@ -463,8 +463,7 @@ impl super::Study {
                 }
             }
             GraphPosteriorAtomKind::Pag => {
-                let mark =
-                    gp.mark_atoms.as_ref().map_or(AdjacencyMask::EMPTY, |marks| marks[index]);
+                let mark = gp.mark_atom(index);
                 let pag = pag_from_adjacency_mask(mask, mark, n_vars).map_err(|_| not_member())?;
                 match kind {
                     CrossWorldKind::Mediation(q) => self.execute_mediation_class(
@@ -518,9 +517,9 @@ impl super::Study {
         let mut keys: Vec<u64> = Vec::new();
         let mut firsts: Vec<usize> = Vec::new();
         let mut seen = HashSet::new();
-        for index in 0..gp.n_graphs {
-            if seen.insert(gp.graph_keys[index]) {
-                keys.push(gp.graph_keys[index]);
+        for index in 0..gp.n_graphs() {
+            if seen.insert(gp.graph_keys()[index]) {
+                keys.push(gp.graph_keys()[index]);
                 firsts.push(index);
             }
         }
@@ -741,10 +740,10 @@ impl super::Study {
         self.publish_cross_world(
             CrossWorldRuns {
                 kind,
-                samples: (&gp.weights[..], &gp.graph_keys[..]),
+                samples: (&gp.weights()[..], &gp.graph_keys()[..]),
                 keys,
                 runs,
-                structure: gp.atom_kind.as_str(),
+                structure: gp.atom_kind().as_str(),
                 strategy: (
                     Self::cross_world_identifier(kind),
                     Self::cross_world_estimator(gp, kind),
@@ -1030,7 +1029,7 @@ impl super::Study {
         let started = Instant::now();
         query.validate()?;
         let (GraphPosteriorAtomKind::Pag, Some(lag_masks), Some(max_lag)) =
-            (gp.atom_kind, gp.lag_masks.as_ref(), gp.max_lag)
+            (gp.atom_kind(), gp.lag_masks(), gp.max_lag())
         else {
             return Err(CausalError::Unsupported {
                 message: "a temporal PAG graph posterior needs Pag atoms with per-atom lag masks \
@@ -1039,16 +1038,14 @@ impl super::Study {
         };
         let variables: Vec<VariableId> =
             series.schema().variables().iter().map(|variable| variable.id).collect();
-        let mark_of = |index: usize| {
-            gp.mark_atoms.as_ref().map_or(AdjacencyMask::EMPTY, |marks| marks[index])
-        };
+        let mark_of = |index: usize| gp.mark_atom(index);
         // One run per distinct template; a sample is keyed by the first sample that holds it.
-        let mut first_of: HashMap<(AdjacencyMask, u64, AdjacencyMask), usize> = HashMap::new();
+        let mut first_of: HashMap<(AdjacencyMask, LagMask, AdjacencyMask), usize> = HashMap::new();
         let mut firsts: Vec<usize> = Vec::new();
-        let mut sample_keys: Vec<u64> = Vec::with_capacity(gp.n_graphs);
-        for index in 0..gp.n_graphs {
+        let mut sample_keys: Vec<u64> = Vec::with_capacity(gp.n_graphs());
+        for index in 0..gp.n_graphs() {
             let first = *first_of
-                .entry((gp.atoms[index], lag_masks[index], mark_of(index)))
+                .entry((gp.atoms()[index].clone(), lag_masks[index].clone(), mark_of(index)))
                 .or_insert_with(|| {
                     firsts.push(index);
                     index
@@ -1066,10 +1063,10 @@ impl super::Study {
             }
             keys.push(u64::try_from(index).unwrap_or(u64::MAX));
             let template = temporal_pag_from_dbn_atoms(
-                gp.atoms[index],
-                lag_masks[index],
+                &gp.atoms()[index],
+                &lag_masks[index],
                 mark_of(index),
-                gp.n_vars,
+                gp.n_vars(),
                 max_lag,
                 &variables,
             );
@@ -1097,7 +1094,7 @@ impl super::Study {
         self.publish_cross_world(
             CrossWorldRuns {
                 kind: CrossWorldKind::Mediation(query),
-                samples: (&gp.weights[..], &sample_keys),
+                samples: (&gp.weights()[..], &sample_keys),
                 keys,
                 runs: require_a_fit(runs, refusal)?,
                 structure: "temporal_pag",
@@ -1118,7 +1115,7 @@ impl super::Study {
     fn temporal_pag_shared_replicates(
         &self,
         series: &TimeSeriesData,
-        posterior: (&GraphPosterior, &[u64], u32),
+        posterior: (&GraphPosterior, &[LagMask], u32),
         query: &MediationQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
@@ -1225,25 +1222,23 @@ impl super::Study {
     /// Resolve every contributing template before any shared resampling stream is drawn.
     fn temporal_pag_replicate_members(
         &self,
-        posterior: (&GraphPosterior, &[u64], u32),
+        posterior: (&GraphPosterior, &[LagMask], u32),
         ids: &[VariableId],
         atoms: &[(u64, f64)],
     ) -> Result<Vec<(f64, Self)>, &'static str> {
         let (gp, lag_masks, max_lag) = posterior;
-        let mark_of = |index: usize| {
-            gp.mark_atoms.as_ref().map_or(AdjacencyMask::EMPTY, |marks| marks[index])
-        };
+        let mark_of = |index: usize| gp.mark_atom(index);
         let mut members: Vec<(f64, Self)> = Vec::with_capacity(atoms.len());
         for (key, weight) in atoms {
             let index = usize::try_from(*key).unwrap_or(usize::MAX);
-            if index >= gp.n_graphs {
+            if index >= gp.n_graphs() {
                 return Err("a contributing atom is outside the posterior");
             }
             let Ok(template) = temporal_pag_from_dbn_atoms(
-                gp.atoms[index],
-                lag_masks[index],
+                &gp.atoms()[index],
+                &lag_masks[index],
                 mark_of(index),
-                gp.n_vars,
+                gp.n_vars(),
                 max_lag,
                 ids,
             ) else {
@@ -1416,8 +1411,8 @@ impl super::Study {
             return Ok(unavailable("the contributing atoms carry no posterior mass"));
         }
         let mut first_index: HashMap<u64, usize> = HashMap::new();
-        for index in 0..gp.n_graphs {
-            first_index.entry(gp.graph_keys[index]).or_insert(index);
+        for index in 0..gp.n_graphs() {
+            first_index.entry(gp.graph_keys()[index]).or_insert(index);
         }
         let mut quiet = self.clone();
         quiet.bootstrap_replicates = 0;
@@ -1480,7 +1475,7 @@ impl super::Study {
     /// The estimator the result records: the Dag cell's own for a DAG posterior, the functional
     /// plug-in for every other structure.
     fn cross_world_estimator(gp: &GraphPosterior, kind: CrossWorldKind<'_>) -> EstimatorId {
-        match (gp.atom_kind, kind) {
+        match (gp.atom_kind(), kind) {
             (GraphPosteriorAtomKind::Dag, _) => kind.dag_estimator(),
             (_, CrossWorldKind::Distribution(_)) => EstimatorId::FunctionalDistribution,
             _ => EstimatorId::FunctionalEffect,
@@ -1614,13 +1609,13 @@ impl super::Study {
             CrossWorldKind::Mediation(_) => return Ok(None),
         };
         let distribution = matches!(kind, CrossWorldKind::Distribution(_));
-        let mask = gp.atoms[index];
+        let mask = gp.atoms()[index].clone();
         let refusal = |error: CausalError| {
             if error.is_identification_refusal() { Ok(None) } else { Err(error) }
         };
-        match gp.atom_kind {
+        match gp.atom_kind() {
             GraphPosteriorAtomKind::Cpdag => {
-                let Ok(cpdag) = cpdag_from_adjacency_mask(mask, gp.n_vars) else {
+                let Ok(cpdag) = cpdag_from_adjacency_mask(mask, gp.n_vars()) else {
                     return Ok(None);
                 };
                 let envelope = if distribution {
@@ -1650,9 +1645,8 @@ impl super::Study {
                 Ok(Some(ClassAtomIdentification::from_envelope(&envelope, self.query.clone())))
             }
             GraphPosteriorAtomKind::Pag => {
-                let mark =
-                    gp.mark_atoms.as_ref().map_or(AdjacencyMask::EMPTY, |marks| marks[index]);
-                let Ok(pag) = pag_from_adjacency_mask(mask, mark, gp.n_vars) else {
+                let mark = gp.mark_atom(index);
+                let Ok(pag) = pag_from_adjacency_mask(mask, mark, gp.n_vars()) else {
                     return Ok(None);
                 };
                 let envelope = if distribution {

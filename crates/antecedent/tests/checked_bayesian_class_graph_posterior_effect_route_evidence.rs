@@ -161,8 +161,8 @@ fn bayesian_class_graph_posterior_effect_body() {
             assert!(plan.inference.starts_with("bayesian:"), "{coordinate}: {}", plan.inference);
             assert_eq!(plan.estimator.as_str(), "bayesian.gcomp", "{coordinate}");
             assert_eq!(plan.validation, suite, "{coordinate}");
-            assert_eq!(plan.graph_keys.as_ref(), posterior.graph_keys.as_ref());
-            assert_eq!(plan.weights.as_ref(), posterior.weights.as_ref());
+            assert_eq!(plan.graph_keys.as_ref(), posterior.graph_keys().as_ref());
+            assert_eq!(plan.weights.as_ref(), posterior.weights().as_ref());
             assert_eq!(plan.class_atom_count, class_atoms, "{coordinate}");
             assert_eq!(
                 plan.identified.iter().filter(|f| **f == GraphIdentFlag::Unidentified).count(),

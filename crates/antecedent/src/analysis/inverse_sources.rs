@@ -72,9 +72,9 @@ pub use super::design_exports::design_crate::inverse_forward_source::{
     LicensedForwardSource, SourcedInverseResult, forward_claim_digest, query_needs_law,
 };
 pub use super::design_exports::design_crate::inverse_observational_scenarios::{
-    MAX_OBSERVATIONAL_SCENARIOS, OBSERVATIONAL_SCENARIO_SCOPE_NOTE, OBSERVATIONAL_SCENARIO_VERSION,
-    ObservationalScenarioError, ObservationalScenarioQuery, ObservationalScenarioResult,
-    OutcomeEvent, ScenarioCell, ScenarioCondition, ScenarioReport,
+    OBSERVATIONAL_SCENARIO_SCOPE_NOTE, OBSERVATIONAL_SCENARIO_VERSION, ObservationalScenarioError,
+    ObservationalScenarioQuery, ObservationalScenarioResult, OutcomeEvent, ScenarioCell,
+    ScenarioCondition, ScenarioReport,
 };
 pub use antecedent_contract::provider_transport::TransportedInputPolicy;
 use antecedent_design::inverse_forward_source::{

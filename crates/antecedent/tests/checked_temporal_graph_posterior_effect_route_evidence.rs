@@ -205,7 +205,7 @@ fn all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_pr
     let ctx = ExecutionContext::for_tests(4_100);
     let suites = [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full];
     for route in routes() {
-        let kind = route.posterior.atom_kind;
+        let kind = route.posterior.atom_kind();
         for inference in inferences() {
             for suite in suites {
                 let builder = Study::series(route.data.clone())
@@ -239,10 +239,10 @@ fn all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_pr
                 assert_eq!(plan.validation, suite);
                 assert!(plan.inference.starts_with(inference_label(&inference)));
                 assert_eq!(plan.bootstrap_replicates, 8);
-                assert_eq!(plan.graph_keys.len(), route.posterior.n_graphs);
-                assert_eq!(plan.weights.as_ref(), route.posterior.weights.as_ref());
+                assert_eq!(plan.graph_keys.len(), route.posterior.n_graphs());
+                assert_eq!(plan.weights.as_ref(), route.posterior.weights().as_ref());
                 assert!(plan.identified_atom_count > 0);
-                assert!(plan.identified_atom_count < route.posterior.n_graphs);
+                assert!(plan.identified_atom_count < route.posterior.n_graphs());
 
                 let result = prepared.estimate_series(&route.data, &ctx).unwrap();
                 let estimate = point(&result, &inference);

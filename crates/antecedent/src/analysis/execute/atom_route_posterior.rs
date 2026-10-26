@@ -41,7 +41,7 @@ use antecedent_discovery::adjacency_mask::{
     admg_from_adjacency_mask, cpdag_from_adjacency_mask, dag_from_adjacency_mask,
     pag_from_adjacency_mask,
 };
-use antecedent_discovery::{AdjacencyMask, GraphPosteriorAtomKind};
+use antecedent_discovery::GraphPosteriorAtomKind;
 
 use super::atom_mix::{AtomBoundRule, AtomEvalView, AtomMixInput, MixedAtomEvals, mix_atom_evals};
 use super::response_path::{
@@ -169,9 +169,9 @@ impl AtomGraph {
     /// The structure of sample `index`; `None` when the sample is not a member of the
     /// posterior's graph class.
     fn of(gp: &GraphPosterior, index: usize) -> Option<Self> {
-        let mask = gp.atoms[index];
-        let n_vars = gp.n_vars;
-        match gp.atom_kind {
+        let mask = gp.atoms()[index].clone();
+        let n_vars = gp.n_vars();
+        match gp.atom_kind() {
             GraphPosteriorAtomKind::Dag => {
                 dag_from_adjacency_mask(mask, n_vars).ok().map(Self::Dag)
             }
@@ -182,8 +182,7 @@ impl AtomGraph {
                 cpdag_from_adjacency_mask(mask, n_vars).ok().map(Self::Cpdag)
             }
             GraphPosteriorAtomKind::Pag => {
-                let mark =
-                    gp.mark_atoms.as_ref().map_or(AdjacencyMask::EMPTY, |marks| marks[index]);
+                let mark = gp.mark_atom(index);
                 pag_from_adjacency_mask(mask, mark, n_vars).ok().map(Self::Pag)
             }
             _ => None,
@@ -515,7 +514,7 @@ impl super::Study {
         gp: &GraphPosterior,
         kind: AtomQuery<'_>,
     ) -> Result<(), CausalError> {
-        if gp.lag_masks.is_some() || gp.max_lag.is_some() {
+        if gp.lag_masks().is_some() || gp.max_lag().is_some() {
             return Err(CausalError::Unsupported {
                 message: "a static query over a graph posterior requires static atoms; this \
                           posterior carries DBN lag structure",
@@ -567,8 +566,8 @@ impl super::Study {
         let mut records: Vec<AtomRecord> = Vec::new();
         let mut seen: std::collections::HashSet<u64> = std::collections::HashSet::new();
         let mut refusal: Option<CausalError> = None;
-        for index in 0..gp.n_graphs {
-            let key = gp.graph_keys[index];
+        for index in 0..gp.n_graphs() {
+            let key = gp.graph_keys()[index];
             if !seen.insert(key) {
                 continue;
             }
@@ -803,13 +802,13 @@ impl super::Study {
 
         // The sample flags: a refused atom is unidentified mass, an atom the identifier
         // accepted stays identified whether or not its estimator evaluated.
-        let flags: Vec<GraphIdentFlag> = (0..gp.n_graphs)
-            .map(|index| match by_key.get(&gp.graph_keys[index]).map(|&p| &records[p].run) {
+        let flags: Vec<GraphIdentFlag> = (0..gp.n_graphs())
+            .map(|index| match by_key.get(&gp.graph_keys()[index]).map(|&p| &records[p].run) {
                 Some(AtomRun::Fit(_) | AtomRun::Unevaluable) => GraphIdentFlag::Identified,
                 _ => GraphIdentFlag::Unidentified,
             })
             .collect();
-        let graphs = WeightedGraphSamples::new(gp.weights.to_vec(), flags, gp.graph_keys.to_vec())?;
+        let graphs = WeightedGraphSamples::new(gp.weights().to_vec(), flags, gp.graph_keys().to_vec())?;
         let unidentified_mass = graphs.unidentified_mass();
         let key_weights = IdentifiedKeyWeights::new(&graphs);
         let frequentist = self.inference.is_frequentist();
@@ -1191,7 +1190,7 @@ impl super::Study {
                      that identify and evaluate it ({contributing} of {} distinct graph(s)); an \
                      atom the identifier refuses is unidentified mass and an atom whose \
                      estimator cannot be evaluated is unevaluable mass, neither redistributed",
-                    gp.atom_kind.as_str(),
+                    gp.atom_kind().as_str(),
                     kind.label(),
                     records.len(),
                 ),

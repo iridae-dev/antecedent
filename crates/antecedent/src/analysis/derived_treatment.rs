@@ -168,7 +168,7 @@ fn refuse(
         remedy: Some(remedy.to_string()),
         ..RefusalFields::default()
     };
-    EstimationError::refused_with_fields(code, format!("{detail}: {message}"), fields).into()
+    EstimationError::refused_detail_with_fields(code, detail, message, fields).into()
 }
 
 fn invalid(declaration: &str, message: &str) -> CausalError {
@@ -594,9 +594,10 @@ pub fn check_derived_treatment(
             ),
             ..RefusalFields::default()
         };
-        return Err(EstimationError::refused_with_fields(
+        return Err(EstimationError::refused_detail_with_fields(
             reason_code!("design_rank_deficient"),
-            format!("joint_cells.derived_rank_deficient: {message}"),
+            "joint_cells.derived_rank_deficient",
+            message,
             fields,
         )
         .into());

@@ -1025,8 +1025,11 @@ pub(crate) fn attach_conditional_functional_grid(
         return Ok(estimate);
     };
     let y_orig = data.float64_values(query.inner.outcome).map_err(CausalError::from)?;
-    let est = antecedent_estimate::ConditionalLinearAdjustment::new()
+    let mut est = antecedent_estimate::ConditionalLinearAdjustment::new()
         .with_fold_seed(ctx.rng.master_seed());
+    if query.inner.effect_modifiers.len() > 1 {
+        est = est.with_joint_modifiers();
+    }
     let mut raw_cdf = Vec::with_capacity(thresholds.len() * 2);
     let mut columns = Vec::with_capacity(thresholds.len() * 2);
     let mut event_n_eff = Vec::with_capacity(thresholds.len() * 2);

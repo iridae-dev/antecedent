@@ -143,9 +143,9 @@ fn admg_frontdoor_mask_is_not_a_dag() {
     let admg = admg_from_pin(&pin);
     assert!(admg.has_bidirected());
     let mask = adjacency_mask_from_admg(&admg).unwrap();
-    assert!(!mask_is_dag(mask, admg.node_count()));
+    assert!(!mask_is_dag(&mask, admg.node_count()));
     assert!(
-        dag_from_adjacency_mask(mask, admg.node_count()).is_err(),
+        dag_from_adjacency_mask(&mask, admg.node_count()).is_err(),
         "bidirected ADMG packing must not coerce to Dag"
     );
     let back = admg_from_adjacency_mask(mask, admg.node_count()).unwrap();
@@ -165,7 +165,7 @@ fn admg_posterior_average_effect_none_runs() {
     let tolerance = pin["frequentist"]["absolute_tolerance"].as_f64().unwrap();
     let weights = [0.8, 0.2];
     let gp = admg_posterior(n, &weights, &[identified_mask, cyclic_mask(n)]);
-    assert_eq!(gp.atom_kind, GraphPosteriorAtomKind::Admg);
+    assert_eq!(gp.atom_kind(), GraphPosteriorAtomKind::Admg);
 
     for inference in [
         InferenceMode::Frequentist,

@@ -85,7 +85,7 @@ fn bayesian_dag_graph_posterior_ate_is_sealed_across_validation_lifecycle() {
         assert_eq!(plan.query, query);
         assert_eq!(plan.estimator.as_str(), "bayesian.gcomp");
         assert_eq!(plan.validation, suite);
-        assert_eq!(plan.graph_keys.as_ref(), graph_posterior.graph_keys.as_ref());
+        assert_eq!(plan.graph_keys.as_ref(), graph_posterior.graph_keys().as_ref());
         assert_eq!(plan.weights.as_ref(), &[0.5, 0.5]);
         assert!(plan.inference.starts_with("bayesian:"));
 

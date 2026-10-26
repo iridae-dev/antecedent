@@ -1041,8 +1041,8 @@ mod s4 {
         .unwrap();
         let slots = TemporalSlots {
             baseline: vec![vid(B)],
-            covariates: [vec![vid(L1)], vec![vid(L2)]],
-            actions: [vid(A1), vid(A2)],
+            covariates: vec![vec![vid(L1)], vec![vid(L2)]],
+            actions: vec![vid(A1), vid(A2)],
             outcome: vid(Y),
         };
         let coordinates: Vec<ScenarioCoordinate> = NAMES

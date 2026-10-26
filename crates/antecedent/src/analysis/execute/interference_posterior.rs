@@ -42,7 +42,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         query.validate()?;
-        if gp.n_vars != data.schema().len() {
+        if gp.n_vars() != data.schema().len() {
             return Err(CausalError::Unsupported {
                 message: "InterferenceQuery over a graph posterior binds the unit schema: the \
                           posterior's atoms must cover exactly the unit table's variables",

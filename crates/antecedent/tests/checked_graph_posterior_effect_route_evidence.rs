@@ -87,7 +87,7 @@ fn frequentist_dag_graph_posterior_effect_is_sealed_and_preserves_graph_mass() {
         assert_eq!(plan.estimator.as_str(), "linear.adjustment.ate");
         assert_eq!(plan.validation, suite);
         assert_eq!(plan.weights.as_ref(), &[0.5, 0.3, 0.2]);
-        assert_eq!(plan.graph_keys.as_ref(), gp.graph_keys.as_ref());
+        assert_eq!(plan.graph_keys.as_ref(), gp.graph_keys().as_ref());
         assert_eq!(plan.identified.len(), 3);
         assert_eq!(plan.bootstrap_replicates, 199);
 

@@ -28,14 +28,7 @@ fn panel() -> Vec<UnitHistories> {
                                 + 0.1 * f64::from(s0)
                                 + 0.2 * f64::from(s0 * l2)
                                 + 0.05 * f64::from(a1 + a2);
-                            histories.push(SequenceHistory {
-                                time_id: u64::try_from(histories.len()).unwrap(),
-                                s0,
-                                a1,
-                                l2,
-                                a2,
-                                y: mean + shock,
-                            });
+                            histories.push(SequenceHistory::two_step(u64::try_from(histories.len()).unwrap(), s0, a1, l2, a2, mean + shock));
                         }
                     }
                 }

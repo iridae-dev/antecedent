@@ -37,7 +37,7 @@ use antecedent_discovery::adjacency_mask::{
     admg_from_adjacency_mask, cpdag_from_adjacency_mask, dag_from_adjacency_mask,
     pag_from_adjacency_mask,
 };
-use antecedent_discovery::{AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind};
+use antecedent_discovery::{AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, LagMask};
 use antecedent_graph::{Endpoint, NodeRef, Pag, TemporalAdmg, TemporalPag};
 use antecedent_prob::PosteriorQuantityKind;
 
@@ -679,7 +679,7 @@ impl super::Study {
         physical: &Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if gp.lag_masks.is_some() || gp.max_lag.is_some() {
+        if gp.lag_masks().is_some() || gp.max_lag().is_some() {
             return Err(CausalError::Unsupported {
                 message: "a static attribution over a graph posterior requires static atoms; \
                           this posterior carries DBN lag structure",
@@ -736,8 +736,8 @@ impl super::Study {
         gp: &GraphPosterior,
         ctx: &ExecutionContext,
     ) -> Result<ClassMembers, CausalError> {
-        type Template = (AdjacencyMask, u64, AdjacencyMask, u64);
-        let (Some(lag_masks), Some(max_lag)) = (gp.lag_masks.as_ref(), gp.max_lag) else {
+        type Template = (AdjacencyMask, LagMask, AdjacencyMask, LagMask);
+        let (Some(lag_masks), Some(max_lag)) = (gp.lag_masks(), gp.max_lag()) else {
             return Err(CausalError::Unsupported {
                 message: "a series attribution over a graph posterior needs per-atom lag masks \
                           and max_lag",
@@ -746,20 +746,24 @@ impl super::Study {
         let targets = self.class_attribution_targets()?;
         let variables: Vec<VariableId> =
             series.schema().variables().iter().map(|variable| variable.id).collect();
-        let mark_of = |index: usize| {
-            gp.mark_atoms.as_ref().map_or(AdjacencyMask::EMPTY, |marks| marks[index])
+        let mark_of = |index: usize| gp.mark_atom(index);
+        let latent_of = |index: usize| {
+            gp.lag_bidirected_masks().map_or(LagMask::EMPTY, |masks| masks[index].clone())
         };
-        let latent_of =
-            |index: usize| gp.lag_bidirected_masks.as_ref().map_or(0, |masks| masks[index]);
         let mut mass: std::collections::HashMap<Template, f64> = std::collections::HashMap::new();
         let mut firsts: Vec<(usize, Template)> = Vec::new();
-        for index in 0..gp.n_graphs {
-            let template = (gp.atoms[index], lag_masks[index], mark_of(index), latent_of(index));
-            let slot = mass.entry(template).or_insert_with(|| {
+        for index in 0..gp.n_graphs() {
+            let template = (
+                gp.atoms()[index].clone(),
+                lag_masks[index].clone(),
+                mark_of(index),
+                latent_of(index),
+            );
+            let slot = mass.entry(template.clone()).or_insert_with(|| {
                 firsts.push((index, template));
                 0.0
             });
-            *slot += gp.weights[index];
+            *slot += gp.weights()[index];
         }
         let mut members: Vec<Member> = Vec::new();
         let mut keys: Vec<u64> = Vec::new();
@@ -817,27 +821,27 @@ impl super::Study {
     ) -> Result<ClassMembers, CausalError> {
         let targets = self.class_attribution_targets()?;
         let cap = self.max_completions.unwrap_or(DEFAULT_CLASS_MEMBERS);
-        let n_vars = gp.n_vars;
+        let n_vars = gp.n_vars();
         let mut mass: std::collections::HashMap<u64, f64> = std::collections::HashMap::new();
         let mut firsts: Vec<usize> = Vec::new();
-        for index in 0..gp.n_graphs {
-            let key = gp.graph_keys[index];
+        for index in 0..gp.n_graphs() {
+            let key = gp.graph_keys()[index];
             let slot = mass.entry(key).or_insert_with(|| {
                 firsts.push(index);
                 0.0
             });
-            *slot += gp.weights[index];
+            *slot += gp.weights()[index];
         }
         let mut members: Vec<Member> = Vec::new();
         let mut keys: Vec<u64> = Vec::new();
         let mut outside: Vec<(u64, f64)> = Vec::new();
         let mut capped = false;
         for index in firsts {
-            let key = gp.graph_keys[index];
+            let key = gp.graph_keys()[index];
             let weight = mass[&key];
-            let atom = gp.atoms[index];
+            let atom = gp.atoms()[index].clone();
             let mut kinds: Vec<(f64, MemberKind)> = Vec::new();
-            match gp.atom_kind {
+            match gp.atom_kind() {
                 GraphPosteriorAtomKind::Dag => match dag_from_adjacency_mask(atom, n_vars) {
                     Ok(dag) => kinds.push((weight, MemberKind::Directed(AcceptedGraph::from(dag)))),
                     Err(_) => outside.push((key, weight)),
@@ -871,8 +875,7 @@ impl super::Study {
                     Err(_) => outside.push((key, weight)),
                 },
                 GraphPosteriorAtomKind::Pag => {
-                    let mark =
-                        gp.mark_atoms.as_ref().map_or(AdjacencyMask::EMPTY, |marks| marks[index]);
+                    let mark = gp.mark_atom(index);
                     match pag_from_adjacency_mask(atom, mark, n_vars) {
                         Ok(pag) => {
                             let mut sampler = antecedent_graph::CompletionSampler::with_budget(
@@ -1496,7 +1499,7 @@ fn series_posterior_atom(
     series: &TimeSeriesData,
     gp: &GraphPosterior,
     index: usize,
-    lags: (&[u64], u32),
+    lags: (&[LagMask], u32),
     variables: &[VariableId],
     targets: &[VariableId],
 ) -> Result<Option<SeriesAtomGraph>, CausalError> {
@@ -1504,12 +1507,12 @@ fn series_posterior_atom(
         temporal_cpdag_from_dbn_atoms, temporal_dag_from_dbn_atoms, temporal_pag_from_dbn_atoms,
     };
     let (lag_masks, max_lag) = lags;
-    let graph = match gp.atom_kind {
+    let graph = match gp.atom_kind() {
         GraphPosteriorAtomKind::Dag => {
             let Ok(mut dag) = temporal_dag_from_dbn_atoms(
-                gp.atoms[index],
-                lag_masks[index],
-                gp.n_vars,
+                gp.atoms()[index].clone(),
+                &lag_masks[index],
+                gp.n_vars(),
                 max_lag,
                 variables,
             ) else {
@@ -1531,7 +1534,7 @@ fn series_posterior_atom(
         GraphPosteriorAtomKind::TemporalAdmg => {
             let Some(template) = gp
                 .temporal_admg_atom(index)
-                .and_then(|atom| atom.to_template(gp.n_vars, max_lag, variables).ok())
+                .and_then(|atom| atom.to_template(gp.n_vars(), max_lag, variables).ok())
             else {
                 return Ok(None);
             };
@@ -1539,9 +1542,9 @@ fn series_posterior_atom(
         }
         GraphPosteriorAtomKind::Cpdag => {
             let Some(graph) = temporal_cpdag_from_dbn_atoms(
-                gp.atoms[index],
-                lag_masks[index],
-                gp.n_vars,
+                gp.atoms()[index].clone(),
+                &lag_masks[index],
+                gp.n_vars(),
                 max_lag,
                 variables,
             )
@@ -1552,12 +1555,12 @@ fn series_posterior_atom(
             SeriesAtomGraph::Class(graph)
         }
         GraphPosteriorAtomKind::Pag => {
-            let mark = gp.mark_atoms.as_ref().map_or(AdjacencyMask::EMPTY, |marks| marks[index]);
+            let mark = gp.mark_atom(index);
             let Ok(pag) = temporal_pag_from_dbn_atoms(
-                gp.atoms[index],
-                lag_masks[index],
+                gp.atoms()[index].clone(),
+                &lag_masks[index],
                 mark,
-                gp.n_vars,
+                gp.n_vars(),
                 max_lag,
                 variables,
             ) else {

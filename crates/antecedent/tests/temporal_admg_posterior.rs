@@ -25,8 +25,8 @@ use antecedent_core::{
 use antecedent_data::TimeSeriesData;
 use antecedent_discovery::adjacency_mask::set_edge;
 use antecedent_discovery::{
-    AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, TemporalAdmgAtom,
-    TemporalAdmgPosterior, with_lagged_edge,
+    AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, LagMask, SamplingSummary,
+    TemporalAdmgAtom, TemporalAdmgPosterior, with_lagged_edge,
 };
 use antecedent_prob::InferenceDiagnostics;
 
@@ -61,7 +61,7 @@ fn atom_posterior(
     GraphPosterior::from_atoms(
         n_vars,
         weights.to_vec(),
-        atoms.iter().map(|atom| atom.contemporaneous),
+        atoms.iter().map(|atom| atom.contemporaneous.clone()),
         vec![0.0; n_vars * n_vars],
         vec![0.0; n_vars * n_vars],
         SamplingSummary {
@@ -74,14 +74,16 @@ fn atom_posterior(
     .with_atom_kind(GraphPosteriorAtomKind::TemporalAdmg)
     .with_lagged_marginals(max_lag, vec![0.0; max_lag as usize * n_vars * n_vars])
     .unwrap()
-    .with_lag_masks(atoms.iter().map(|atom| atom.lagged_directed).collect::<Vec<_>>())
+    .with_lag_masks(atoms.iter().map(|atom| atom.lagged_directed.clone()).collect::<Vec<_>>())
     .unwrap()
-    .with_lag_bidirected_masks(atoms.iter().map(|atom| atom.lagged_bidirected).collect::<Vec<_>>())
+    .with_lag_bidirected_masks(
+        atoms.iter().map(|atom| atom.lagged_bidirected.clone()).collect::<Vec<_>>(),
+    )
     .unwrap()
 }
 
-fn lagged(entries: &[(u32, usize, usize)], n_vars: usize) -> u64 {
-    entries.iter().fold(0, |word, &(lag, from, to)| {
+fn lagged(entries: &[(u32, usize, usize)], n_vars: usize) -> LagMask {
+    entries.iter().fold(LagMask::EMPTY, |word, &(lag, from, to)| {
         with_lagged_edge(word, n_vars, lag, from, to, true).unwrap()
     })
 }
@@ -142,7 +144,7 @@ fn true_atom() -> TemporalAdmgAtom {
     TemporalAdmgAtom {
         contemporaneous: contemporaneous(&[(Z, X)], 3),
         lagged_directed: lagged(&[(1, Z, Z), (1, X, Y), (1, Z, Y)], 3),
-        lagged_bidirected: 0,
+        lagged_bidirected: LagMask::EMPTY,
     }
 }
 
@@ -152,7 +154,7 @@ fn omitting_atom() -> TemporalAdmgAtom {
     TemporalAdmgAtom {
         contemporaneous: AdjacencyMask::EMPTY,
         lagged_directed: lagged(&[(1, Z, Z), (1, X, Y)], 3),
-        lagged_bidirected: 0,
+        lagged_bidirected: LagMask::EMPTY,
     }
 }
 
@@ -310,9 +312,7 @@ fn contemporaneous_atoms_are_refused_with_their_next_attempt_and_validation_runs
     let ctx = ExecutionContext::for_tests(85);
     let series = effect_series(2_000, 29);
     // No lag masks: the atoms are contemporaneous and read tabular rows.
-    let mut plain = atom_posterior(3, 1, &[1.0], &[true_atom()]);
-    plain.lag_masks = None;
-    plain.max_lag = None;
+    let plain = atom_posterior(3, 1, &[1.0], &[true_atom()]).without_lag_template();
     let error = Study::series(series.clone())
         .graph_posterior(plain)
         .temporal_query(effect_query())
@@ -347,9 +347,9 @@ fn a_posterior_scored_from_the_series_concentrates_on_the_supported_template() {
     let posterior =
         TemporalAdmgPosterior::new(1).run(&series, &variables, &family, None, &ctx).unwrap();
     assert!(
-        posterior.weights[0] > 0.99,
+        posterior.weights()[0] > 0.99,
         "the lagged z -> y coefficient is 0.3: {:?}",
-        posterior.weights
+        posterior.weights()
     );
     let result = Study::series(series)
         .graph_posterior(posterior)
@@ -434,7 +434,7 @@ fn mediation_atom() -> TemporalAdmgAtom {
     TemporalAdmgAtom {
         contemporaneous: contemporaneous(&[(MX, M), (W, M)], 5),
         lagged_directed: lagged(&[(1, C, MX), (1, MX, MY), (1, M, MY)], 5),
-        lagged_bidirected: 0,
+        lagged_bidirected: LagMask::EMPTY,
     }
 }
 

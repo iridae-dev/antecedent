@@ -45,9 +45,10 @@ pub(crate) fn declared_imputation(study: &Study) -> Option<(&MissingDeclaration,
 }
 
 pub(super) fn refused(message: impl Into<String>) -> CausalError {
-    CausalError::Estimate(EstimationError::refused(
+    CausalError::Estimate(EstimationError::refused_detail(
         antecedent_core::reason_code!("missing_policy_not_applicable"),
-        format!("missing_data.multiple_imputation: {}", message.into()),
+        "missing_data.multiple_imputation",
+        message.into(),
     ))
 }
 

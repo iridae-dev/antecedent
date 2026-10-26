@@ -969,7 +969,7 @@ fn class_posterior_atom_kind_defaults_to_dag_masks() {
         },
     )
     .unwrap();
-    assert_eq!(gp.atom_kind, GraphPosteriorAtomKind::Dag);
+    assert_eq!(gp.atom_kind(), GraphPosteriorAtomKind::Dag);
 }
 
 #[test]

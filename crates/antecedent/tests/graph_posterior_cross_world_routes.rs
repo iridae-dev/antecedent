@@ -213,7 +213,7 @@ fn each_mediation_component_is_mixed_over_the_atoms_that_identify_it() {
             &[0.5, 0.3, 0.2],
             &[mask_of(&latent_free()), mask_of(&front_door()), refused_mask()],
         );
-        let keys = graphs.graph_keys.clone();
+        let keys = graphs.graph_keys().clone();
         let query = CausalQuery::Mediation(mediation(MediationContrast::Total));
         let built = study(graphs, query, InferenceMode::Frequentist).build().unwrap();
         assert_eq!(built.support_status(), Some(CellStatus::Refused));
@@ -262,7 +262,7 @@ fn the_requested_direct_component_is_the_posterior_weighted_mean_of_the_atoms_va
     on_large_stack(|| {
         let ctx = ExecutionContext::for_tests(8_002);
         let graphs = admg_posterior(&[0.6, 0.4], &[mask_of(&latent_free()), refused_mask()]);
-        let keys = graphs.graph_keys.clone();
+        let keys = graphs.graph_keys().clone();
         let query = CausalQuery::Mediation(mediation(MediationContrast::NaturalDirect));
         let result =
             study(graphs, query, InferenceMode::Frequentist).build().unwrap().run(&ctx).unwrap();
@@ -343,7 +343,7 @@ fn a_dag_atom_runs_the_dag_cells_own_estimator_and_a_non_member_mask_is_unidenti
         // `t -> m -> y -> t`: not a DAG.
         let cyclic = dag_mask(&[(0, 1), (1, 2), (2, 0)]);
         let graphs = posterior_of(GraphPosteriorAtomKind::Dag, &[0.7, 0.3], vec![member, cyclic]);
-        let keys = graphs.graph_keys.clone();
+        let keys = graphs.graph_keys().clone();
         let query = CausalQuery::Mediation(mediation(MediationContrast::NaturalDirect));
         let result = study(graphs, query.clone(), InferenceMode::Frequentist)
             .build()
@@ -404,7 +404,7 @@ fn a_natural_direct_effect_over_dag_and_admg_atoms_is_the_counted_direct_effect(
 
         // An Admg atom beside a confounded one.
         let graphs = admg_posterior(&[0.6, 0.4], &[mask_of(&latent_free()), refused_mask()]);
-        let keys = graphs.graph_keys.clone();
+        let keys = graphs.graph_keys().clone();
         let result =
             study(graphs, nested, InferenceMode::Frequentist).build().unwrap().run(&ctx).unwrap();
         assert!((value_of(&result, keys[0]).unwrap() - counted_direct()).abs() < 1e-12);
@@ -419,7 +419,7 @@ fn a_path_restricted_effect_over_a_posterior_equals_the_explicit_cell_per_atom()
         let path = PathSpecificEffectQuery::binary(v(0), v(2)).with_path_nodes([v(1)]);
         let query = CausalQuery::PathSpecific(path);
         let graphs = admg_posterior(&[0.75, 0.25], &[mask_of(&latent_free()), refused_mask()]);
-        let keys = graphs.graph_keys.clone();
+        let keys = graphs.graph_keys().clone();
         let result = study(graphs, query.clone(), InferenceMode::Frequentist)
             .build()
             .unwrap()
@@ -451,7 +451,7 @@ fn an_interventional_distribution_is_the_posterior_weighted_mean_probability_of_
             &[0.5, 0.3, 0.2],
             &[mask_of(&latent_free()), mask_of(&front_door()), refused_mask()],
         );
-        let keys = graphs.graph_keys.clone();
+        let keys = graphs.graph_keys().clone();
         let query = CausalQuery::Distribution(InterventionalDistributionQuery::new(
             v(2),
             [Intervention::set(v(0), Value::f64(1.0))],

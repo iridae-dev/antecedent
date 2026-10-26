@@ -74,7 +74,7 @@ impl CheckedTemporalGraphPosteriorResponse {
         };
         matches!(study.data, DataInput::Temporal(_) | DataInput::Event(_))
             && matches!(
-                posterior.atom_kind,
+                posterior.atom_kind(),
                 GraphPosteriorAtomKind::Dag
                     | GraphPosteriorAtomKind::Cpdag
                     | GraphPosteriorAtomKind::Pag
@@ -85,7 +85,7 @@ impl CheckedTemporalGraphPosteriorResponse {
             && query.is_temporal()
             // A single-horizon derivative over TemporalDag atoms is answered atom by atom with
             // the interval of the whole procedure, not by the response design.
-            && !(posterior.atom_kind == GraphPosteriorAtomKind::Dag
+            && !(posterior.atom_kind() == GraphPosteriorAtomKind::Dag
                 && super::execute::dbn_route_query(&study.query))
             && complete_mean_response(query)
             && temporal_response_is_direct(query)
@@ -97,7 +97,7 @@ impl CheckedTemporalGraphPosteriorResponse {
                         RefuteSuite::Cheap | RefuteSuite::Full
                     )
             )
-            && study.identifier.is_none_or(|id| match posterior.atom_kind {
+            && study.identifier.is_none_or(|id| match posterior.atom_kind() {
                 GraphPosteriorAtomKind::Dag => id == IdentifierId::TemporalBackdoorUnfolded,
                 _ => id == IdentifierId::GeneralizedAdjustment,
             })
@@ -120,7 +120,7 @@ impl CheckedTemporalGraphPosteriorResponse {
             max_completions,
             class_prior,
         } = premises;
-        let (identifier, kind_matches) = match (posterior.atom_kind, &proof) {
+        let (identifier, kind_matches) = match (posterior.atom_kind(), &proof) {
             (GraphPosteriorAtomKind::Dag, TemporalPosteriorResponseProof::Dbn(_)) => {
                 (IdentifierId::TemporalBackdoorUnfolded, true)
             }
@@ -218,12 +218,12 @@ impl CheckedTemporalGraphPosteriorResponse {
     #[must_use]
     pub(crate) fn matches_posterior(&self, posterior: Option<&GraphPosterior>) -> bool {
         posterior.is_some_and(|candidate| {
-            candidate.atom_kind == self.posterior.atom_kind
-                && candidate.n_graphs == self.posterior.n_graphs
-                && candidate.weights.as_ref() == self.posterior.weights.as_ref()
-                && candidate.atoms.as_ref() == self.posterior.atoms.as_ref()
-                && candidate.lag_masks.as_deref() == self.posterior.lag_masks.as_deref()
-                && candidate.mark_atoms.as_deref() == self.posterior.mark_atoms.as_deref()
+            candidate.atom_kind() == self.posterior.atom_kind()
+                && candidate.n_graphs() == self.posterior.n_graphs()
+                && candidate.weights().as_ref() == self.posterior.weights().as_ref()
+                && candidate.atoms().as_ref() == self.posterior.atoms().as_ref()
+                && candidate.lag_masks() == self.posterior.lag_masks()
+                && candidate.mark_atoms() == self.posterior.mark_atoms()
         })
     }
 }
@@ -250,7 +250,7 @@ impl Inspect for CheckedTemporalGraphPosteriorResponse {
         let (graph_keys, weights, identified) = self.sample_mass();
         CheckedGraphPosteriorResponseInfo {
             query: self.query().clone(),
-            atom_kind: self.posterior().atom_kind,
+            atom_kind: self.posterior().atom_kind(),
             graph_keys: Arc::from(graph_keys),
             weights: Arc::from(weights),
             identified: Arc::from(identified),

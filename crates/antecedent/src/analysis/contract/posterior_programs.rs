@@ -33,8 +33,8 @@ use super::{CheckedProgramBinding, contract_identification, identification_produ
 /// per atom.
 fn answers_per_atom(study: &Study, resolved_estimator: Option<&str>) -> bool {
     study.graph_posterior.as_ref().is_some_and(|posterior| {
-        posterior.lag_masks.is_none()
-            && posterior.max_lag.is_none()
+        posterior.lag_masks().is_none()
+            && posterior.max_lag().is_none()
             && matches!(study.data, DataInput::Tabular(_))
     }) && matches!(
         (&study.query, resolved_estimator),
@@ -49,11 +49,11 @@ fn answers_per_atom(study: &Study, resolved_estimator: Option<&str>) -> bool {
 /// member of the posterior's graph class. A natural direct effect on a DAG atom is answered
 /// through the mixed-graph executor, so its structure is the DAG read as an ADMG.
 fn atom_structure(posterior: &GraphPosterior, index: usize, nested: bool) -> Option<AcceptedGraph> {
-    let mask = posterior.atoms[index];
-    let n_vars = posterior.n_vars;
-    match posterior.atom_kind {
+    let mask = posterior.atoms()[index].clone();
+    let n_vars = posterior.n_vars();
+    match posterior.atom_kind() {
         GraphPosteriorAtomKind::Dag => {
-            let dag = dag_from_adjacency_mask(mask, n_vars).ok()?;
+            let dag = dag_from_adjacency_mask(&mask, n_vars).ok()?;
             if nested {
                 Some(AcceptedGraph::admg(Admg::from_dag(&dag).ok()?))
             } else {
@@ -61,7 +61,7 @@ fn atom_structure(posterior: &GraphPosterior, index: usize, nested: bool) -> Opt
             }
         }
         GraphPosteriorAtomKind::Admg | GraphPosteriorAtomKind::TemporalAdmg => {
-            Some(AcceptedGraph::admg(admg_from_adjacency_mask(mask, n_vars).ok()?))
+            Some(AcceptedGraph::admg(admg_from_adjacency_mask(&mask, n_vars).ok()?))
         }
         _ => None,
     }
@@ -87,7 +87,10 @@ fn atom_answer(
     }
     // A class is answered per completion: its identification product states which
     // completions identified and how the class weight splits between them.
-    if matches!(posterior.atom_kind, GraphPosteriorAtomKind::Cpdag | GraphPosteriorAtomKind::Pag) {
+    if matches!(
+        posterior.atom_kind(),
+        GraphPosteriorAtomKind::Cpdag | GraphPosteriorAtomKind::Pag
+    ) {
         crate::analysis::execute::report_identify_compute(ctx);
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
@@ -172,8 +175,8 @@ pub(crate) fn graph_posterior_programs(
     };
     let mut order: Vec<u64> = Vec::new();
     let mut samples: HashMap<u64, Vec<usize>> = HashMap::new();
-    for index in 0..posterior.n_graphs {
-        let key = posterior.graph_keys[index];
+    for index in 0..posterior.n_graphs() {
+        let key = posterior.graph_keys()[index];
         samples
             .entry(key)
             .or_insert_with(|| {
@@ -185,7 +188,7 @@ pub(crate) fn graph_posterior_programs(
     let mut atoms = Vec::with_capacity(order.len());
     for key in order {
         let members = &samples[&key];
-        let weight: f64 = members.iter().map(|&index| posterior.weights[index]).sum();
+        let weight: f64 = members.iter().map(|&index| posterior.weights()[index]).sum();
         let (functional_program, identification_product) =
             atom_answer(study, posterior, members[0], selected, ctx)?;
         atoms.push(GraphPosteriorAtomProgramWire {

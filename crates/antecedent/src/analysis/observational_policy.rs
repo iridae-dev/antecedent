@@ -200,7 +200,7 @@ impl ObservationalPolicyValue {
         request: &ObservationalPolicyRequest,
     ) -> Result<ObservationalPolicyReportWire, CausalError> {
         let refused = |code: &'static str, detail: &str, message: &str| {
-            CausalError::Estimate(EstimationError::refused(code, format!("{detail}: {message}")))
+            CausalError::Estimate(EstimationError::refused_detail(code, detail, message))
         };
         let missing = |detail: &str, message: &str| {
             refused(antecedent_core::reason_code!("required_option_missing"), detail, message)

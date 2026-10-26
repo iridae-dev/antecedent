@@ -204,12 +204,12 @@ fn window_variables(
     gp: &GraphPosterior,
 ) -> Result<(Vec<VariableId>, u32), CausalError> {
     let count = series.schema().len();
-    if count != gp.n_vars {
+    if count != gp.n_vars() {
         return Err(CausalError::Compile {
             message: format!(
                 "the lagged temporal-ADMG posterior covers {} variables and the series has \
                  {count}; the masks name the series' variables by position",
-                gp.n_vars
+                gp.n_vars()
             ),
         });
     }
@@ -616,7 +616,7 @@ impl super::Study {
         let started = Instant::now();
         self.ensure_admg_posterior_window_licensed()?;
         let (variables, variable_count) = window_variables(series, gp)?;
-        let max_lag = gp.max_lag.unwrap_or(0);
+        let max_lag = gp.max_lag().unwrap_or(0);
         let (identified, identify_cached): (Arc<CachedGraphPosteriorIdentification>, bool) =
             if let Some(cache) = self.graph_posterior_cache() {
                 (Arc::clone(cache), true)
@@ -647,7 +647,7 @@ impl super::Study {
                 .ok_or_else(|| CausalError::Compile {
                     message: "a retained atom has no lagged template in the posterior".into(),
                 })?
-                .to_template(gp.n_vars, max_lag, &variables)?;
+                .to_template(gp.n_vars(), max_lag, &variables)?;
             let plan = plan_temporal_admg_window(&template, query)?;
             windows.push(AtomWindow {
                 periods: plan.periods,
@@ -735,7 +735,7 @@ impl super::Study {
         let (variables, variable_count) = window_variables(series, gp)?;
         let requested = component_slot(query.contrast);
         crate::analysis::execute::report_identify_compute(ctx);
-        let found = ctx.map_indexed(gp.n_graphs, |i, inner| {
+        let found = ctx.map_indexed(gp.n_graphs(), |i, inner| {
             if inner.cancellation.is_cancelled() {
                 return Err(CausalError::Cancelled {
                     stage: crate::analysis::stage::STAGE_IDENTIFY,
@@ -757,7 +757,7 @@ impl super::Study {
         let all_windows: Vec<AtomWindow> =
             slots.iter().flat_map(|layer| layer.windows.iter().cloned()).collect();
         let tables = WindowTables::build(series, &variables, &all_windows, ctx)?;
-        let weights: Vec<f64> = gp.weights.to_vec();
+        let weights: Vec<f64> = gp.weights().to_vec();
         let mut results: Vec<Option<(MixedAtomEvals, f64)>> = Vec::new();
         for (slot, layer) in slots.iter().enumerate() {
             if layer.proofs.is_empty() {
@@ -840,7 +840,7 @@ fn mediation_component_slots(
 ) -> Result<(Vec<SlotAtoms>, Vec<u64>), CausalError> {
     // One identification layer per component: the atoms that identify it.
     let mut slots: Vec<SlotAtoms> = (0..COMPONENTS.len()).map(|_| SlotAtoms::default()).collect();
-    let mut keys = Vec::with_capacity(gp.n_graphs);
+    let mut keys = Vec::with_capacity(gp.n_graphs());
     for (i, atom) in found.iter().enumerate() {
         keys.push(position_key(i)?);
         for (slot, layer) in slots.iter_mut().enumerate() {
@@ -881,7 +881,7 @@ fn atom_components(
     effect: &TemporalEffectQuery,
 ) -> Result<Option<AtomComponents>, CausalError> {
     let Some(atom) = gp.temporal_admg_atom(index) else { return Ok(None) };
-    let Ok(template) = atom.to_template(gp.n_vars, gp.max_lag.unwrap_or(0), variables) else {
+    let Ok(template) = atom.to_template(gp.n_vars(), gp.max_lag().unwrap_or(0), variables) else {
         return Ok(None);
     };
     let plan = plan_temporal_admg_window(&template, effect)?;

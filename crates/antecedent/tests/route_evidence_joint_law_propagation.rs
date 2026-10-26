@@ -423,12 +423,7 @@ fn an_exported_claim_is_the_sealed_artifact_of_its_own_identity_and_result() {
     assert_eq!(wire.identity, claim.identity());
     assert_eq!(wire.alignment_id.as_deref(), claim.alignment_id());
     assert_eq!(wire.route, "aligned_joint_law");
-    let variance = wire
-        .result
-        .iter()
-        .find(|(name, _)| name == "variance")
-        .map(|(_, bits)| f64::from_bits(*bits))
-        .expect("stored variance");
+    let variance = wire.result.value("variance").expect("stored variance");
     near(variance, 1.61);
 }
 

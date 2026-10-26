@@ -103,7 +103,7 @@ impl GraphPosteriorCell {
                 | CausalQuery::PathSpecific(_)
                 | CausalQuery::Counterfactual(_)
                 | CausalQuery::Distribution(_),
-            ) if is_class_atom(posterior.atom_kind)
+            ) if is_class_atom(posterior.atom_kind())
                 || crate::analysis::execute::dbn_atoms(posterior) =>
             {
                 Self::CrossWorld

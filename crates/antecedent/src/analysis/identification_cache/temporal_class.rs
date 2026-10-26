@@ -69,14 +69,14 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
         identify_temporal_pag_configured,
     };
 
-    let lag_masks = posterior.lag_masks.as_ref().ok_or_else(|| CausalError::Compile {
+    let lag_masks = posterior.lag_masks().ok_or_else(|| CausalError::Compile {
         message: "temporal class posterior missing per-atom lag masks".into(),
     })?;
-    let max_lag = posterior.max_lag.ok_or_else(|| CausalError::Compile {
+    let max_lag = posterior.max_lag().ok_or_else(|| CausalError::Compile {
         message: "temporal class posterior missing max_lag".into(),
     })?;
     if !matches!(
-        posterior.atom_kind,
+        posterior.atom_kind(),
         antecedent_discovery::GraphPosteriorAtomKind::Cpdag
             | antecedent_discovery::GraphPosteriorAtomKind::Pag
     ) {
@@ -93,16 +93,13 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
         let mut config = config.clone();
         config.context = Some(inner.clone());
         let key = dbn_envelope_key(i)?;
-        let mark = posterior
-            .mark_atoms
-            .as_ref()
-            .map_or(antecedent_discovery::AdjacencyMask::EMPTY, |marks| marks[i]);
-        let cached = match posterior.atom_kind {
+        let mark = posterior.mark_atom(i);
+        let cached = match posterior.atom_kind() {
             antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
                 let Ok(cpdag) = temporal_cpdag_from_dbn_atoms(
-                    posterior.atoms[i],
-                    lag_masks[i],
-                    posterior.n_vars,
+                    &posterior.atoms()[i],
+                    &lag_masks[i],
+                    posterior.n_vars(),
                     max_lag,
                     variables,
                 ) else {
@@ -120,10 +117,10 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
             }
             antecedent_discovery::GraphPosteriorAtomKind::Pag => {
                 let Ok(pag) = temporal_pag_from_dbn_atoms(
-                    posterior.atoms[i],
-                    lag_masks[i],
-                    mark,
-                    posterior.n_vars,
+                    &posterior.atoms()[i],
+                    &lag_masks[i],
+                    &mark,
+                    posterior.n_vars(),
                     max_lag,
                     variables,
                 ) else {
@@ -141,9 +138,9 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
         }?;
         Ok(cached)
     })?;
-    let mut weights = Vec::with_capacity(posterior.n_graphs);
-    let mut flags = Vec::with_capacity(posterior.n_graphs);
-    let mut keys = Vec::with_capacity(posterior.n_graphs);
+    let mut weights = Vec::with_capacity(posterior.n_graphs());
+    let mut flags = Vec::with_capacity(posterior.n_graphs());
+    let mut keys = Vec::with_capacity(posterior.n_graphs());
     let mut class_atoms = Vec::new();
 
     for (i, cached) in mapped.into_iter().enumerate() {
@@ -151,11 +148,11 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
             return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
         }
         if let Some(progress) = &ctx.progress {
-            progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
+            progress.report(i as f64 / posterior.n_graphs().max(1) as f64, "envelope.identify");
         }
         let key = dbn_envelope_key(i)?;
         keys.push(key);
-        weights.push(posterior.weights[i]);
+        weights.push(posterior.weights()[i]);
         let Some(cached) = cached else {
             flags.push(GraphIdentFlag::Unidentified);
             continue;

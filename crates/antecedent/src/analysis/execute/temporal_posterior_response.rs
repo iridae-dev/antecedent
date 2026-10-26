@@ -249,7 +249,7 @@ impl super::Study {
         query: &'q ResponseQuery,
         ctx: &ExecutionContext,
     ) -> Result<&'q antecedent_core::TemporalResponseSpec, CausalError> {
-        if !matches!(gp.atom_kind, antecedent_discovery::GraphPosteriorAtomKind::Dag) {
+        if !matches!(gp.atom_kind(), antecedent_discovery::GraphPosteriorAtomKind::Dag) {
             return Err(CausalError::Unsupported {
                 message: "DBN-posterior response is licensed for TemporalDag atoms; \
                           TemporalCpdag/TemporalPag posterior atoms use the class-aware combiner",

@@ -219,7 +219,7 @@ impl CheckedAdmgGraphPosteriorResponse {
         validation: RefuteSuite,
     ) -> Result<Self, CausalError> {
         if !matches!(
-            posterior.atom_kind,
+            posterior.atom_kind(),
             GraphPosteriorAtomKind::Admg | GraphPosteriorAtomKind::TemporalAdmg
         ) {
             return Err(CausalError::Unsupported {
@@ -327,7 +327,7 @@ impl CheckedGraphPosteriorEffect {
             latency_mode,
             validation,
         } = premises;
-        let licensed = match posterior.atom_kind {
+        let licensed = match posterior.atom_kind() {
             GraphPosteriorAtomKind::Dag => procedure.id() == target.frequentist_estimator(),
             GraphPosteriorAtomKind::Admg | GraphPosteriorAtomKind::TemporalAdmg => {
                 !target.is_conditional() && procedure.id() == EstimatorId::FunctionalEffect
@@ -341,8 +341,8 @@ impl CheckedGraphPosteriorEffect {
         }
         let query = target.inner();
         if query.treatment == query.outcome
-            || usize::try_from(query.treatment.raw()).map_or(true, |v| v >= posterior.n_vars)
-            || usize::try_from(query.outcome.raw()).map_or(true, |v| v >= posterior.n_vars)
+            || usize::try_from(query.treatment.raw()).map_or(true, |v| v >= posterior.n_vars())
+            || usize::try_from(query.outcome.raw()).map_or(true, |v| v >= posterior.n_vars())
         {
             return Err(CausalError::Unsupported {
                 message: "graph-posterior effect query variables must be distinct and in range",
@@ -566,9 +566,9 @@ mod tests {
     fn cache(graphs: &GraphPosterior) -> Arc<CachedGraphPosteriorIdentification> {
         Arc::new(CachedGraphPosteriorIdentification {
             graphs: WeightedGraphSamples::new(
-                graphs.weights.to_vec(),
-                vec![GraphIdentFlag::Unidentified; graphs.n_graphs],
-                graphs.graph_keys.to_vec(),
+                graphs.weights().to_vec(),
+                vec![GraphIdentFlag::Unidentified; graphs.n_graphs()],
+                graphs.graph_keys().to_vec(),
             )
             .unwrap(),
             atoms: Arc::from([]),
@@ -593,7 +593,7 @@ mod tests {
             validation: RefuteSuite::Full,
         })
         .unwrap();
-        assert_eq!(plan.posterior().weights.as_ref(), &[0.25, 0.75]);
+        assert_eq!(plan.posterior().weights().as_ref(), &[0.25, 0.75]);
         assert_eq!(plan.query(), &query);
         assert_eq!(plan.estimator(), EstimatorId::LinearAdjustmentAte);
         assert_eq!(plan.validation(), RefuteSuite::Full);

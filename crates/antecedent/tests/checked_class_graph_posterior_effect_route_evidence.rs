@@ -145,7 +145,7 @@ fn frequentist_cpdag_graph_posterior_effect_body() {
         assert_eq!(plan.estimator.as_str(), "linear.adjustment.ate");
         assert_eq!(plan.validation, suite);
         assert_eq!(plan.weights.as_ref(), &[0.5, 0.3, 0.2]);
-        assert_eq!(plan.graph_keys.as_ref(), gp.graph_keys.as_ref());
+        assert_eq!(plan.graph_keys.as_ref(), gp.graph_keys().as_ref());
         assert_eq!(plan.identified.len(), 3);
         assert_eq!(plan.class_atom_count, 2);
         assert_eq!(plan.bootstrap_replicates, 199);
@@ -207,7 +207,8 @@ fn frequentist_pag_graph_posterior_effect_body() {
     let gp = visible_pag_posterior();
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let ctx = ExecutionContext::for_tests(1941);
-    let dag = antecedent_discovery::pag_from_adjacency_mask(gp.adjacency[0], 0, 3).unwrap();
+    let adjacency = gp.adjacency_words().expect("one-word atoms")[0];
+    let dag = antecedent_discovery::pag_from_adjacency_mask(adjacency, 0, 3).unwrap();
     let truth = antecedent::identify::GeneralizedAdjustmentIdentifier::new()
         .identify_pag_envelope(&dag, &query)
         .unwrap();

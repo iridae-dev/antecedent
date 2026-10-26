@@ -27,7 +27,7 @@ use antecedent_data::TableView;
 use std::collections::HashMap;
 
 use antecedent_core::{CausalQuery, ResponseQuery, TemporalEffectQuery};
-use antecedent_discovery::{AdjacencyMask, GraphPosteriorAtomKind};
+use antecedent_discovery::{AdjacencyMask, GraphPosteriorAtomKind, LagMask};
 use antecedent_identify::TemporalBackdoorIdentifier;
 
 use super::atom_mix::{AtomBoundRule, AtomMixInput, MixedAtomEvals, mix_atom_evals};
@@ -65,9 +65,9 @@ const CROSS_WORLD_PRIOR_REFUSAL: &str = "a temporal cross-world effect uses the 
 /// Whether a posterior is a dynamic-Bayesian posterior over `TemporalDag` atoms.
 #[must_use]
 pub(crate) fn dbn_atoms(posterior: &GraphPosterior) -> bool {
-    posterior.atom_kind == GraphPosteriorAtomKind::Dag
-        && posterior.lag_masks.is_some()
-        && posterior.max_lag.is_some()
+    posterior.atom_kind() == GraphPosteriorAtomKind::Dag
+        && posterior.lag_masks().is_some()
+        && posterior.max_lag().is_some()
 }
 
 /// Whether a series query is answered atom by atom over `TemporalDag` atoms: a
@@ -318,7 +318,7 @@ impl super::Study {
         let mut unidentified_keys: std::collections::HashSet<u64> =
             std::collections::HashSet::new();
         let mut seen: std::collections::HashSet<u64> = std::collections::HashSet::new();
-        for &key in keys.iter().take(gp.n_graphs) {
+        for &key in keys.iter().take(gp.n_graphs()) {
             if !seen.insert(key) {
                 continue;
             }
@@ -369,7 +369,7 @@ impl super::Study {
                 }
             })
             .collect();
-        let graphs = WeightedGraphSamples::new(gp.weights.to_vec(), flags, keys.to_vec())?;
+        let graphs = WeightedGraphSamples::new(gp.weights().to_vec(), flags, keys.to_vec())?;
         let unidentified_mass = graphs.unidentified_mass();
         let key_weights = IdentifiedKeyWeights::new(&graphs);
         if templates.is_empty() {
@@ -675,13 +675,15 @@ impl super::Study {
             data.schema().variables().iter().map(|variable| variable.id).collect();
 
         // Samples that carry one (contemporaneous, lag) template share one atom.
-        let lag_masks = gp.lag_masks.as_ref().ok_or_else(|| CausalError::Compile {
+        let lag_masks = gp.lag_masks().ok_or_else(|| CausalError::Compile {
             message: "a dynamic graph posterior carries per-atom lag masks".into(),
         })?;
-        let mut first_of: HashMap<(AdjacencyMask, u64), usize> = HashMap::new();
-        let mut keys: Vec<u64> = Vec::with_capacity(gp.n_graphs);
-        for index in 0..gp.n_graphs {
-            let first = *first_of.entry((gp.atoms[index], lag_masks[index])).or_insert(index);
+        let mut first_of: HashMap<(AdjacencyMask, LagMask), usize> = HashMap::new();
+        let mut keys: Vec<u64> = Vec::with_capacity(gp.n_graphs());
+        for index in 0..gp.n_graphs() {
+            let first = *first_of
+                .entry((gp.atoms()[index].clone(), lag_masks[index].clone()))
+                .or_insert(index);
             keys.push(u64::try_from(first).map_err(|_| CausalError::Compile {
                 message: "a dynamic graph posterior has too many atoms for atom keys".into(),
             })?);

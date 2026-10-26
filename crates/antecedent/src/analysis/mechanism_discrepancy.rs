@@ -66,10 +66,14 @@ impl MechanismDiscrepancyRefusal {
         match error {
             EstimationError::Refused { code, message }
             | EstimationError::RefusedWithFields { code, message, .. } => {
-                let (detail, rest) = message
-                    .split_once(": ")
-                    .unwrap_or(("mechanism_discrepancy.invalid_request", message.as_str()));
-                Self { code, detail: detail.to_owned(), message: rest.to_owned() }
+                Self {
+                    code,
+                    detail: message
+                        .detail()
+                        .unwrap_or("mechanism_discrepancy.invalid_request")
+                        .to_owned(),
+                    message: message.explanation().to_owned(),
+                }
             }
             other => Self {
                 code: antecedent_core::reason_code!("invalid_argument"),

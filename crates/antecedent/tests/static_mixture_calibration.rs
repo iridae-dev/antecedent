@@ -129,9 +129,10 @@ fn draw_data(seed: u64, modifier: bool) -> TabularData {
 fn disagreeing_mixture_posterior(modifier: bool) -> GraphPosterior {
     let n = if modifier { 4 } else { 3 };
     let base = if modifier { set_edge(0, n, 3, 1, true) } else { AdjacencyMask::EMPTY };
-    let direct = set_edge(base, n, 0, 1, true);
-    let adjusted = set_edge(set_edge(set_edge(base, n, 0, 1, true), n, 2, 0, true), n, 2, 1, true);
-    let unidentified = set_edge(base, n, 1, 0, true);
+    let direct = set_edge(&base, n, 0, 1, true);
+    let adjusted =
+        set_edge(set_edge(set_edge(&base, n, 0, 1, true), n, 2, 0, true), n, 2, 1, true);
+    let unidentified = set_edge(&base, n, 1, 0, true);
     let cells = n * n;
     GraphPosterior::from_atoms(
         n,
@@ -152,9 +153,9 @@ fn disagreeing_mixture_posterior(modifier: bool) -> GraphPosterior {
 fn same_estimand_mixture_posterior(modifier: bool) -> GraphPosterior {
     let n = if modifier { 4 } else { 3 };
     let base = if modifier { set_edge(0, n, 3, 1, true) } else { AdjacencyMask::EMPTY };
-    let direct = set_edge(base, n, 0, 1, true);
-    let outcome_parent = set_edge(set_edge(base, n, 0, 1, true), n, 2, 1, true);
-    let unidentified = set_edge(base, n, 1, 0, true);
+    let direct = set_edge(&base, n, 0, 1, true);
+    let outcome_parent = set_edge(set_edge(&base, n, 0, 1, true), n, 2, 1, true);
+    let unidentified = set_edge(&base, n, 1, 0, true);
     let cells = n * n;
     GraphPosterior::from_atoms(
         n,

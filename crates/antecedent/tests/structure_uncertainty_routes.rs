@@ -195,16 +195,19 @@ fn a_class_posterior_collapses_the_dag_posterior_it_wraps() {
         )
         .unwrap();
         let expected = direct.to_equivalence_classes().unwrap();
-        assert_eq!(classes.atom_kind, GraphPosteriorAtomKind::Cpdag);
-        assert_eq!(classes.atoms, expected.atoms);
+        assert_eq!(classes.atom_kind(), GraphPosteriorAtomKind::Cpdag);
+        assert_eq!(classes.atoms(), expected.atoms());
         let bits = |weights: &[f64]| weights.iter().map(|w| w.to_bits()).collect::<Vec<_>>();
-        assert_eq!(bits(&classes.weights[..]), bits(&expected.weights[..]));
+        assert_eq!(bits(&classes.weights()[..]), bits(&expected.weights()[..]));
         // Three variables have 25 DAGs in 11 classes; the collapse never splits a class.
-        assert!(classes.n_graphs <= 11);
-        assert!(classes.n_graphs < direct.n_graphs);
-        let mass: f64 = classes.weights.iter().sum();
+        assert!(classes.n_graphs() <= 11);
+        assert!(classes.n_graphs() < direct.n_graphs());
+        let mass: f64 = classes.weights().iter().sum();
         assert!((mass - 1.0).abs() < 1e-9);
-        assert_eq!(classes.algorithm.as_deref(), Some("class_posterior(exact_dag_posterior)"));
+        assert_eq!(
+            classes.algorithm().map(|algorithm| &**algorithm),
+            Some("class_posterior(exact_dag_posterior)")
+        );
 
         // The accepted class posterior is a posterior, never one DAG.
         let (_, claim) = execution.contract_and_claim(&ctx()).unwrap();
@@ -440,10 +443,10 @@ fn a_template_posterior_collapses_onto_temporal_equivalence_classes() {
         else {
             panic!("a class posterior returns a posterior");
         };
-        assert_eq!(classes.atom_kind, GraphPosteriorAtomKind::Cpdag);
-        assert_eq!(classes.max_lag, Some(1));
-        assert!(classes.lag_masks.is_some());
-        let mass: f64 = classes.weights.iter().sum();
+        assert_eq!(classes.atom_kind(), GraphPosteriorAtomKind::Cpdag);
+        assert_eq!(classes.max_lag(), Some(1));
+        assert!(classes.lag_masks().is_some());
+        let mass: f64 = classes.weights().iter().sum();
         assert!((mass - 1.0).abs() < 1e-9);
         let templates = antecedent::discovery::discover_dbn_posterior(
             &series,
@@ -455,7 +458,7 @@ fn a_template_posterior_collapses_onto_temporal_equivalence_classes() {
             &ctx(),
         )
         .unwrap();
-        assert!(classes.n_graphs <= templates.n_graphs);
+        assert!(classes.n_graphs() <= templates.n_graphs());
     });
 }
 
@@ -487,8 +490,8 @@ fn an_order_posterior_under_laplace_noise_orients_what_the_gaussian_posterior_ca
         else {
             panic!("an order search returns a posterior");
         };
-        let forward = posterior.edge_marginals[1];
-        let backward = posterior.edge_marginals[2];
+        let forward = posterior.edge_marginals()[1];
+        let backward = posterior.edge_marginals()[2];
         assert!(forward > backward + 0.3, "x -> y {forward}, y -> x {backward}");
     });
 }
@@ -513,13 +516,13 @@ fn a_pag_posterior_is_a_compiled_bayesian_route_over_ancestral_graph_classes() {
         else {
             panic!("a PAG posterior returns a posterior");
         };
-        assert_eq!(pag.atom_kind, GraphPosteriorAtomKind::Pag);
-        assert!(pag.mark_atoms.is_some());
-        let mass: f64 = pag.weights.iter().sum();
+        assert_eq!(pag.atom_kind(), GraphPosteriorAtomKind::Pag);
+        assert!(pag.mark_atoms().is_some());
+        let mass: f64 = pag.weights().iter().sum();
         assert!((mass - 1.0).abs() < 1e-9);
         let direct =
             antecedent::discovery::discover_exact_pag_posterior(&data, &three(), &ctx()).unwrap();
-        assert_eq!(pag.atoms, direct.atoms);
+        assert_eq!(pag.atoms(), direct.atoms());
         // Five variables are not enumerated: the same spec is routed to the sampler and keeps
         // the sampler's label.
         let columns: Vec<Vec<f64>> = (0..5)
@@ -548,8 +551,8 @@ fn a_pag_posterior_is_a_compiled_bayesian_route_over_ancestral_graph_classes() {
         else {
             panic!("a wide PAG posterior returns a posterior");
         };
-        assert_eq!(sampled.atom_kind, GraphPosteriorAtomKind::Pag);
-        assert_eq!(sampled.algorithm.as_deref(), Some("pag_mcmc"));
+        assert_eq!(sampled.atom_kind(), GraphPosteriorAtomKind::Pag);
+        assert_eq!(sampled.algorithm().map(|algorithm| &**algorithm), Some("pag_mcmc"));
     });
 }
 
@@ -618,8 +621,8 @@ fn a_pag_sampler_is_a_compiled_bayesian_route_beyond_four_variables() {
         else {
             panic!("a PAG sampler returns a posterior");
         };
-        assert_eq!(pag.atom_kind, GraphPosteriorAtomKind::Pag);
-        let mass: f64 = pag.weights.iter().sum();
+        assert_eq!(pag.atom_kind(), GraphPosteriorAtomKind::Pag);
+        let mass: f64 = pag.weights().iter().sum();
         assert!((mass - 1.0).abs() < 1e-9);
         // The sampler is bounded by a work budget, not by a variable count below 32: a
         // schedule whose work exceeds the budget is refused.

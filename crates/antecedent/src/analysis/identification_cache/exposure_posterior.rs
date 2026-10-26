@@ -38,7 +38,7 @@ use crate::error::CausalError;
 /// Refuse a posterior that carries DBN lag structure: a static exposure query reads the
 /// contemporaneous masks alone, which would drop every lagged parent.
 fn refuse_lagged_atoms(posterior: &GraphPosterior) -> Result<(), CausalError> {
-    if posterior.lag_masks.is_some() || posterior.max_lag.is_some() {
+    if posterior.lag_masks().is_some() || posterior.max_lag().is_some() {
         return Err(CausalError::Unsupported {
             message: "a static transport or interference query over a graph posterior requires \
                       static atoms; this posterior carries DBN lag structure",
@@ -49,7 +49,7 @@ fn refuse_lagged_atoms(posterior: &GraphPosterior) -> Result<(), CausalError> {
 
 /// The selection-diagram carrier of one atom: the atom's ADMG, with a DAG atom read as the
 /// ADMG with no bidirected edge.
-fn atom_admg(mask: AdjacencyMask, n_vars: usize, kind: GraphPosteriorAtomKind) -> Option<Admg> {
+fn atom_admg(mask: &AdjacencyMask, n_vars: usize, kind: GraphPosteriorAtomKind) -> Option<Admg> {
     match kind {
         GraphPosteriorAtomKind::Dag => {
             let dag = dag_from_adjacency_mask(mask, n_vars).ok()?;
@@ -68,7 +68,7 @@ type TransportAtom = (IdentifiedEstimand, IdentificationResult, Arc<TransportIde
 /// Run sID on the selection diagram of one atom. `None` when the atom is not a member of
 /// the graph class, the diagram does not build, or no formula is certified. Errors propagate.
 fn transport_atom(
-    mask: AdjacencyMask,
+    mask: &AdjacencyMask,
     n_vars: usize,
     kind: GraphPosteriorAtomKind,
     query: &TransportQuery,
@@ -165,10 +165,10 @@ fn class_transport_atom(
     selection_targets: &[VariableId],
     ctx: &ExecutionContext,
 ) -> Result<Option<TransportAtom>, CausalError> {
-    let mask = posterior.atoms[index];
-    let n_vars = posterior.n_vars;
+    let mask = &posterior.atoms()[index];
+    let n_vars = posterior.n_vars();
     let identifier = crate::strategy_table::class_identifier_in_context(Some(ctx));
-    match posterior.atom_kind {
+    match posterior.atom_kind() {
         GraphPosteriorAtomKind::Cpdag => {
             let Ok(cpdag) = cpdag_from_adjacency_mask(mask, n_vars) else { return Ok(None) };
             let class =
@@ -176,9 +176,8 @@ fn class_transport_atom(
             Ok(class_envelope_atom(&class, query))
         }
         GraphPosteriorAtomKind::Pag => {
-            let mark =
-                posterior.mark_atoms.as_ref().map_or(AdjacencyMask::EMPTY, |marks| marks[index]);
-            let Ok(pag) = pag_from_adjacency_mask(mask, mark, n_vars) else { return Ok(None) };
+            let mark = posterior.mark_atom(index);
+            let Ok(pag) = pag_from_adjacency_mask(mask, &mark, n_vars) else { return Ok(None) };
             let class =
                 identifier.identify_pag_transport_envelope(&pag, selection_targets, query)?;
             Ok(class_envelope_atom(&class, query))
@@ -205,7 +204,7 @@ pub(crate) fn build_transport_graph_posterior_identification_cache(
     ctx: &ExecutionContext,
 ) -> Result<CachedGraphPosteriorIdentification, CausalError> {
     refuse_lagged_atoms(posterior)?;
-    let kind = posterior.atom_kind;
+    let kind = posterior.atom_kind();
     if matches!(kind, GraphPosteriorAtomKind::Cpdag | GraphPosteriorAtomKind::Pag) {
         return build_class_transport_cache(posterior, query, selection_targets, ctx);
     }
@@ -221,17 +220,17 @@ pub(crate) fn build_transport_graph_posterior_identification_cache(
         });
     }
     crate::analysis::execute::report_identify_compute(ctx);
-    let n_vars = posterior.n_vars;
+    let n_vars = posterior.n_vars();
     let by_mask = identify_unique_adjacency_masks(posterior, ctx, |mask, inner| {
         transport_atom(mask, n_vars, kind, query, selection_targets, inner)
     })?;
     let (graphs, atoms) = collect_graph_posterior_atoms(posterior, ctx, |i, first_for_key| {
-        let Some(Some((estimand, identification, transport))) = by_mask.get(&posterior.atoms[i])
+        let Some(Some((estimand, identification, transport))) = by_mask.get(&posterior.atoms()[i])
         else {
             return Ok((GraphIdentFlag::Unidentified, None));
         };
         let atom = first_for_key.then(|| CachedGraphPosteriorAtomIdentification {
-            key: posterior.graph_keys[i],
+            key: posterior.graph_keys()[i],
             estimand: estimand.clone(),
             identification: identification.clone(),
             transport: Some(Arc::clone(transport)),
@@ -256,9 +255,9 @@ fn build_class_transport_cache(
     crate::analysis::execute::report_identify_compute(ctx);
     let mut first_of_key: std::collections::HashMap<u64, usize> = std::collections::HashMap::new();
     let mut firsts = Vec::new();
-    for index in 0..posterior.n_graphs {
+    for index in 0..posterior.n_graphs() {
         if let std::collections::hash_map::Entry::Vacant(slot) =
-            first_of_key.entry(posterior.graph_keys[index])
+            first_of_key.entry(posterior.graph_keys()[index])
         {
             slot.insert(index);
             firsts.push(index);
@@ -271,15 +270,15 @@ fn build_class_transport_cache(
         class_transport_atom(posterior, firsts[position], query, selection_targets, inner)
     })?;
     let by_key: std::collections::HashMap<u64, Option<TransportAtom>> =
-        firsts.iter().map(|&index| posterior.graph_keys[index]).zip(solved).collect();
+        firsts.iter().map(|&index| posterior.graph_keys()[index]).zip(solved).collect();
     let (graphs, atoms) = collect_graph_posterior_atoms(posterior, ctx, |i, first_for_key| {
         let Some(Some((estimand, identification, transport))) =
-            by_key.get(&posterior.graph_keys[i])
+            by_key.get(&posterior.graph_keys()[i])
         else {
             return Ok((GraphIdentFlag::Unidentified, None));
         };
         let atom = first_for_key.then(|| CachedGraphPosteriorAtomIdentification {
-            key: posterior.graph_keys[i],
+            key: posterior.graph_keys()[i],
             estimand: estimand.clone(),
             identification: identification.clone(),
             transport: Some(Arc::clone(transport)),
@@ -296,18 +295,17 @@ fn build_class_transport_cache(
 /// Whether sample `index` of `posterior` is a member of the posterior's graph class: a DAG
 /// mask that is acyclic, an ADMG mask, a CPDAG mask, or a PAG mask with its marks.
 fn atom_is_member(posterior: &GraphPosterior, index: usize) -> bool {
-    let mask = posterior.atoms[index];
-    let n_vars = posterior.n_vars;
-    match posterior.atom_kind {
+    let mask = &posterior.atoms()[index];
+    let n_vars = posterior.n_vars();
+    match posterior.atom_kind() {
         GraphPosteriorAtomKind::Dag => dag_from_adjacency_mask(mask, n_vars).is_ok(),
         GraphPosteriorAtomKind::Admg | GraphPosteriorAtomKind::TemporalAdmg => {
             admg_from_adjacency_mask(mask, n_vars).is_ok()
         }
         GraphPosteriorAtomKind::Cpdag => cpdag_from_adjacency_mask(mask, n_vars).is_ok(),
         GraphPosteriorAtomKind::Pag => {
-            let mark =
-                posterior.mark_atoms.as_ref().map_or(AdjacencyMask::EMPTY, |marks| marks[index]);
-            pag_from_adjacency_mask(mask, mark, n_vars).is_ok()
+            let mark = posterior.mark_atom(index);
+            pag_from_adjacency_mask(mask, &mark, n_vars).is_ok()
         }
         _ => false,
     }
@@ -344,7 +342,7 @@ pub(crate) fn build_interference_graph_posterior_identification_cache(
             return Ok((GraphIdentFlag::Unidentified, None));
         }
         let atom = first_for_key.then(|| CachedGraphPosteriorAtomIdentification {
-            key: posterior.graph_keys[i],
+            key: posterior.graph_keys()[i],
             estimand: estimand.clone(),
             identification: identification.clone(),
             transport: None,

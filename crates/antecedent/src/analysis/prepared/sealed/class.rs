@@ -39,7 +39,7 @@ impl SealedOperation for CheckedGraphPosteriorEffect {
         click_analysis.data = DataInput::Tabular(data.clone());
         click_analysis.query = self.target().causal_query();
         let result = if matches!(
-            self.posterior().atom_kind,
+            self.posterior().atom_kind(),
             antecedent_discovery::GraphPosteriorAtomKind::Admg
                 | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
         ) {

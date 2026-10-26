@@ -108,8 +108,10 @@ impl ConditionalClassProof {
 /// Whether the conditional estimator fits an interaction design over `count` effect
 /// modifiers. This is the single place the checked operation reads the estimator's
 /// modifier-set support from; the operation itself carries every modifier as a design role.
+/// A modifier set is fitted as the vector generalization of the one-modifier model and its
+/// interval carries the estimator's assumption record naming it uncalibrated.
 const fn estimator_fits_modifier_set(count: usize) -> bool {
-    count == 1
+    count >= 1
 }
 
 /// The actual point and uncertainty procedure is determined by the functional and arms.
@@ -288,7 +290,10 @@ impl CheckedConditionalOperation {
             self.query.inner.outcome,
             &self.query.inner.outcome_functional,
         )?;
-        let fitter = ConditionalLinearAdjustment::new().with_fold_seed(ctx.rng.master_seed());
+        let mut fitter = ConditionalLinearAdjustment::new().with_fold_seed(ctx.rng.master_seed());
+        if self.query.inner.effect_modifiers.len() > 1 {
+            fitter = fitter.with_joint_modifiers();
+        }
         let mut mean_query = self.query.clone();
         mean_query.inner.outcome_functional = OutcomeFunctional::Mean;
         let estimate = fitter.estimate(&data_est, &self.cache.estimand, &mean_query, ctx)?;

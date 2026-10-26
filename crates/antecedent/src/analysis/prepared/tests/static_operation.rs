@@ -610,10 +610,10 @@ fn signed_zero_query_drift_is_refused_before_posterior_contract_work() {
         ("z", context.as_slice()),
     ])
     .unwrap();
-    let posterior = GraphPosterior::new(
+    let posterior = GraphPosterior::from_atoms(
         3,
         vec![1.0],
-        vec![set_edge(0, 3, 0, 1, true)],
+        vec![set_edge(0u64, 3, 0, 1, true)],
         vec![0.0; 9],
         vec![0.0; 9],
         SamplingSummary {

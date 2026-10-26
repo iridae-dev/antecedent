@@ -83,14 +83,14 @@ pub(crate) fn posterior_cache_matches(
     keys: CacheKeys,
 ) -> bool {
     let graphs = proof.graphs();
-    if graphs.n_samples != posterior.n_graphs
-        || graphs.identified.len() != posterior.n_graphs
-        || graphs.weights.as_ref() != posterior.weights.as_ref()
+    if graphs.n_samples != posterior.n_graphs()
+        || graphs.identified.len() != posterior.n_graphs()
+        || graphs.weights.as_ref() != posterior.weights().as_ref()
     {
         return false;
     }
     if keys == CacheKeys::PosteriorKeys
-        && graphs.graph_keys.as_ref() != posterior.graph_keys.as_ref()
+        && graphs.graph_keys.as_ref() != posterior.graph_keys().as_ref()
     {
         return false;
     }
@@ -159,11 +159,11 @@ mod tests {
     #[test]
     fn cache_matches_only_its_own_samples() {
         let graphs = posterior();
-        let own = cache(graphs.weights.to_vec(), graphs.graph_keys.to_vec());
+        let own = cache(graphs.weights().to_vec(), graphs.graph_keys().to_vec());
         assert!(posterior_cache_matches(&graphs, &own, CacheKeys::PosteriorKeys));
-        let reweighted = cache(vec![0.5, 0.5], graphs.graph_keys.to_vec());
+        let reweighted = cache(vec![0.5, 0.5], graphs.graph_keys().to_vec());
         assert!(!posterior_cache_matches(&graphs, &reweighted, CacheKeys::PosteriorKeys));
-        let rekeyed = cache(graphs.weights.to_vec(), vec![1, 2]);
+        let rekeyed = cache(graphs.weights().to_vec(), vec![1, 2]);
         assert!(!posterior_cache_matches(&graphs, &rekeyed, CacheKeys::PosteriorKeys));
         assert!(posterior_cache_matches(&graphs, &rekeyed, CacheKeys::CacheLocal));
     }
@@ -171,9 +171,9 @@ mod tests {
     #[test]
     fn sample_mass_exposes_keys_weights_and_flags() {
         let graphs = posterior();
-        let own = cache(graphs.weights.to_vec(), graphs.graph_keys.to_vec());
+        let own = cache(graphs.weights().to_vec(), graphs.graph_keys().to_vec());
         let (keys, weights, flags) = own.sample_mass();
-        assert_eq!(keys, graphs.graph_keys.as_ref());
+        assert_eq!(keys, graphs.graph_keys().as_ref());
         assert_eq!(weights, &[0.25, 0.75]);
         assert_eq!(flags, &[GraphIdentFlag::Unidentified; 2]);
         assert!(identified_key_set(&own.graphs).is_empty());

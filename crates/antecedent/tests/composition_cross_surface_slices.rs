@@ -710,14 +710,7 @@ fn one_unit(unit: usize, shocks: &[f64]) -> UnitHistories {
                         + 0.1 * state
                         + 0.2 * state * covariate
                         + 0.05 * actions;
-                    histories.push(SequenceHistory {
-                        time_id: time,
-                        s0,
-                        a1,
-                        l2,
-                        a2,
-                        y: mean + shock,
-                    });
+                    histories.push(SequenceHistory::two_step(time, s0, a1, l2, a2, mean + shock));
                     time += 1;
                 }
             }

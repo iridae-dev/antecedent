@@ -533,10 +533,11 @@ fn arm_refusal(subject: &str, arms: &[ArmCount], empty: &[String]) -> CausalErro
         ),
         ..RefusalFields::default()
     };
-    EstimationError::refused_with_fields(
+    EstimationError::refused_detail_with_fields(
         reason_code!("arm_not_populated"),
+        subject,
         format!(
-            "{subject}: an arm or cell has no complete-case rows ({})",
+            "an arm or cell has no complete-case rows ({})",
             arms.iter()
                 .map(|a| format!("{} has {}", a.label, a.rows))
                 .collect::<Vec<_>>()
@@ -1300,9 +1301,10 @@ fn rank_drop_refusal(
         remedy: Some(remedy.to_string()),
         ..RefusalFields::default()
     };
-    EstimationError::refused_with_fields(
+    EstimationError::refused_detail_with_fields(
         reason_code!("rank_drop_not_licensed"),
-        format!("{subject}: {reason}; nothing was dropped"),
+        subject,
+        format!("{reason}; nothing was dropped"),
         fields,
     )
     .into()

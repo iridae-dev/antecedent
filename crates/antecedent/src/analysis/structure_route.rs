@@ -736,7 +736,7 @@ impl DiscoveredStructure {
             Self::TemporalCpdag(result) => Some(&*result.algorithm.id),
             Self::TemporalPag(result) => Some(&*result.algorithm.id),
             Self::Regimes(result) => Some(&*result.algorithm.id),
-            Self::Posterior(posterior) => posterior.algorithm.as_deref(),
+            Self::Posterior(posterior) => posterior.algorithm().map(|algorithm| &**algorithm),
             Self::EdgeMarginals(_) => Some("exact_dag_marginals"),
             Self::Stability(_) | Self::RegimeStability(_) => Some("bootstrap_stability"),
         }
@@ -2183,7 +2183,7 @@ impl AcceptedPosterior {
                  posterior instead"
             ));
         }
-        if self.posterior.atom_kind != antecedent_discovery::GraphPosteriorAtomKind::Dag {
+        if self.posterior.atom_kind() != antecedent_discovery::GraphPosteriorAtomKind::Dag {
             return Err(crate::compile_reason!(
                 "route_not_supported",
                 "the posterior's atoms are not DAGs; supply it as a graph posterior instead"
@@ -2191,7 +2191,7 @@ impl AcceptedPosterior {
         }
         let best = self
             .posterior
-            .weights
+            .weights()
             .iter()
             .enumerate()
             .fold(None::<(usize, f64)>, |best, (index, &weight)| match best {
@@ -2202,15 +2202,15 @@ impl AcceptedPosterior {
             .ok_or_else(|| {
                 crate::compile_reason!("invalid_argument", "the structure posterior has no atoms")
             })?;
-        let mask = self.posterior.atoms[best];
+        let mask = self.posterior.atoms()[best].clone();
         let dag = antecedent_discovery::adjacency_mask::dag_from_adjacency_mask(
             mask,
-            self.posterior.n_vars,
+            self.posterior.n_vars(),
         )?;
         let mut provenance = (*self.provenance).clone();
         provenance.review = Arc::from("posterior_map");
         let mut accepted = AcceptedGraph::dag(dag);
-        if let Some(algorithm) = self.posterior.algorithm.as_deref() {
+        if let Some(algorithm) = self.posterior.algorithm().map(|algorithm| &**algorithm) {
             accepted = accepted.with_discovery_algorithm(algorithm);
         }
         Ok(accepted.with_provenance(Arc::new(provenance)))

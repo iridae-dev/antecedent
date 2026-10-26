@@ -1,6 +1,6 @@
 //! A plug-in derivative over three treatments is answered through the prepared workflow, and a
-//! refusal that names a remedy keeps its message unchanged, adds no reason code, and carries
-//! the structured remedy read off the facade error (the field Python exposes as `remedy`).
+//! frequentist conditional effect over several modifiers is fitted as the vector interaction
+//! model.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -86,12 +86,12 @@ fn three_treatment_derivatives_are_answered_through_the_prepared_workflow() {
     }
 }
 
-/// The frequentist `ConditionalEffect` interaction regression fits one
-/// modifier. Over several it keeps its message and (absent) reason code and
-/// names the routes that take a modifier set: the Bayesian conditional
-/// estimator and the `EconML` handoff.
+/// The frequentist `ConditionalEffect` interaction regression over a modifier set is the vector
+/// generalization of the one-modifier model: the contrast marginalizes over the observed
+/// modifier values, here `2 + 0.5 * mean(w) = 3` for an exactly linear outcome with no
+/// interaction on the second modifier.
 #[test]
-fn multi_modifier_frequentist_conditional_effect_names_the_bayesian_and_handoff_routes() {
+fn multi_modifier_frequentist_conditional_effect_fits_the_vector_interaction_model() {
     use antecedent::EstimatorId;
     use antecedent_core::{AverageEffectQuery, ConditionalEffectQuery};
 
@@ -125,22 +125,14 @@ fn multi_modifier_frequentist_conditional_effect_names_the_bayesian_and_handoff_
             study = study.estimator(estimator);
         }
         let study = study.build().unwrap();
-        let one_shot = study.run(&ctx).expect_err("two modifiers are refused");
+        let one_shot = study.run(&ctx).expect("a modifier set is fitted");
         let prepared = study
             .prepare(&ctx)
             .and_then(|prepared| prepared.estimate(&data, &ctx))
-            .expect_err("two modifiers are refused");
-        for error in [one_shot, prepared] {
-            assert_eq!(
-                error.to_string(),
-                "ConditionalLinearAdjustment currently supports one effect modifier"
-            );
-            assert_eq!(error.reason_code(), None, "no reason code is added or changed");
-            let remedy = error.remedy().expect("the refusal names the multi-modifier routes");
-            assert!(remedy.contains("EstimatorId::BayesianConditional"), "{remedy}");
-            assert!(remedy.contains("capability: adjustment handoff"), "{remedy}");
-            assert!(!remedy.contains("antecedent.handoff.econml"), "{remedy}");
-            assert!(!error.to_string().contains(remedy), "the remedy is not in the message");
+            .expect("a prepared modifier set is fitted");
+        for result in [one_shot, prepared] {
+            let effect = result.estimate.as_effect().expect("an effect payload");
+            assert!((effect.ate - 3.0).abs() < 1e-8, "{}", effect.ate);
         }
     }
 }

@@ -316,15 +316,15 @@ fn adjusted_vector_reused_contrasts_preserve_joint_covariance() {
     offset.contrast = numeric(&[0.3, 0.0], &[0.0, 0.0]);
     let direct = fit_vector_treatment(
         &VectorTreatmentInput {
-            outcome: offset.columns[2].1.clone(),
+            outcome: offset.columns[2].1.as_slice().into(),
             row_snapshot: "offset".into(),
-            adjustment: vec![NamedColumn { name: "z".into(), values: offset.columns[3].1.clone() }],
+            adjustment: vec![NamedColumn::new("z", offset.columns[3].1.as_slice())],
             treatments: offset
                 .treatments
                 .iter()
                 .map(|&id| TreatmentColumn {
-                    name: offset.columns[id as usize].0.clone(),
-                    values: offset.columns[id as usize].1.clone(),
+                    name: offset.columns[id as usize].0.as_str().into(),
+                    values: offset.columns[id as usize].1.as_slice().into(),
                     adjustment_set: vec!["z".into()],
                     row_snapshot: "offset".into(),
                 })

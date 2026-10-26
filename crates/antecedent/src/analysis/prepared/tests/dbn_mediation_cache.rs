@@ -90,7 +90,7 @@ fn graph_posterior_with_weights(weights: [f64; 2]) -> GraphPosterior {
     GraphPosterior::new(
         3,
         weights.to_vec(),
-        vec![8, 8],
+        vec![8u64, 8],
         vec![0.0; 9],
         vec![0.0; 9],
         SamplingSummary {
@@ -102,7 +102,7 @@ fn graph_posterior_with_weights(weights: [f64; 2]) -> GraphPosterior {
     .unwrap()
     .with_lagged_marginals(1, vec![0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     .unwrap()
-    .with_lag_masks(vec![6, 6])
+    .with_lag_masks(vec![6u64, 6])
     .unwrap()
 }
 

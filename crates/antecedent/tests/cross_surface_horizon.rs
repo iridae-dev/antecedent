@@ -159,7 +159,7 @@ fn history_indexed_law_licenses_the_two_step_horizon_and_reloads() {
         "unit-histories",
         Some(vec![UnitHistories {
             unit_id: 1,
-            histories: vec![SequenceHistory { time_id: 1, s0: 0, a1: 1, l2: 0, a2: 1, y: 1.0 }],
+            histories: vec![SequenceHistory::two_step(1, 0, 1, 0, 1, 1.0)],
         }]),
     )
     .unwrap();

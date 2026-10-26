@@ -114,7 +114,7 @@ impl Study {
         if !Self::graph_posterior_target_is_sealable(analysis, target.inner()) {
             return Ok(None);
         }
-        match (posterior.atom_kind, &analysis.inference) {
+        match (posterior.atom_kind(), &analysis.inference) {
             (antecedent_discovery::GraphPosteriorAtomKind::Dag, InferenceMode::Frequentist) => {
                 let estimator = target.frequentist_estimator();
                 if !Self::graph_posterior_procedure_is(analysis, estimator)
@@ -190,7 +190,7 @@ impl Study {
             return Ok(None);
         };
         if !matches!(
-            posterior.atom_kind,
+            posterior.atom_kind(),
             antecedent_discovery::GraphPosteriorAtomKind::Cpdag
                 | antecedent_discovery::GraphPosteriorAtomKind::Pag
         ) || !Self::graph_posterior_target_is_sealable(analysis, target.inner())
@@ -242,7 +242,7 @@ impl Study {
             return Ok(None);
         };
         let estimator = target.bayesian_estimator();
-        if posterior.atom_kind != antecedent_discovery::GraphPosteriorAtomKind::Dag
+        if posterior.atom_kind() != antecedent_discovery::GraphPosteriorAtomKind::Dag
             || !Self::graph_posterior_target_is_sealable(analysis, target.inner())
             || !Self::graph_posterior_procedure_is(analysis, estimator)
             || !plan.binding().resolves_to(
@@ -285,7 +285,7 @@ impl Study {
             return Ok(None);
         };
         if !matches!(
-            posterior.atom_kind,
+            posterior.atom_kind(),
             antecedent_discovery::GraphPosteriorAtomKind::Admg
                 | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
         ) || !analysis.custom_validators.is_empty()
@@ -388,7 +388,7 @@ impl Study {
         if !crate::analysis::CheckedTemporalGraphPosteriorResponse::admits(analysis) {
             return Ok(None);
         }
-        let proof = match posterior.atom_kind {
+        let proof = match posterior.atom_kind() {
             antecedent_discovery::GraphPosteriorAtomKind::Dag => {
                 let Some(cache) = analysis.dbn_posterior_cache() else {
                     return Ok(None);
@@ -497,7 +497,7 @@ impl Study {
         if !crate::analysis::CheckedTemporalGraphPosteriorEffect::admits(analysis) {
             return Ok(None);
         }
-        let proof = match posterior.atom_kind {
+        let proof = match posterior.atom_kind() {
             antecedent_discovery::GraphPosteriorAtomKind::Dag => analysis
                 .dbn_posterior_cache()
                 .cloned()
@@ -607,7 +607,7 @@ impl Study {
         ) else {
             return Ok(None);
         };
-        let class_atoms = match posterior.atom_kind {
+        let class_atoms = match posterior.atom_kind() {
             antecedent_discovery::GraphPosteriorAtomKind::Dag => false,
             antecedent_discovery::GraphPosteriorAtomKind::Cpdag
             | antecedent_discovery::GraphPosteriorAtomKind::Pag => true,

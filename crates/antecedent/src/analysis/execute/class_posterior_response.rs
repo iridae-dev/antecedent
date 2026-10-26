@@ -51,7 +51,7 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         graph_posterior_response_supported(query)?;
-        let class_tag = gp.atom_kind.as_str().to_ascii_lowercase();
+        let class_tag = gp.atom_kind().as_str().to_ascii_lowercase();
         let witness = response_path::response_witness_ate(query)?;
         let (treatment, outcome) = response_primary_pair(&query.functional)?;
         let (identified, identify_cached) =

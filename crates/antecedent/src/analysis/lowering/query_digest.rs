@@ -56,13 +56,13 @@ pub(crate) fn retention_key(study: &Study) -> Option<[u8; 32]> {
         Some(posterior) => {
             writer
                 .word(1)
-                .word(posterior.n_vars as u64)
-                .word(posterior.n_graphs as u64)
-                .text(posterior.atom_kind.as_str())
-                .opt_word(posterior.max_lag.map(u64::from))
-                .reals(&posterior.weights);
-            writer.word(posterior.graph_keys.len() as u64);
-            for key in posterior.graph_keys.iter() {
+                .word(posterior.n_vars() as u64)
+                .word(posterior.n_graphs() as u64)
+                .text(posterior.atom_kind().as_str())
+                .opt_word(posterior.max_lag().map(u64::from))
+                .reals(posterior.weights());
+            writer.word(posterior.graph_keys().len() as u64);
+            for key in posterior.graph_keys().iter() {
                 writer.word(*key);
             }
         }

@@ -65,7 +65,7 @@ pub(super) fn evidence_program(
 ) -> Result<EvidenceDecisionProgram, CausalError> {
     let composition = match cx.cell {
         RouteCell::GraphPosterior(_) => Composition::AtomMixture {
-            atoms: cx.study.graph_posterior.as_ref().map_or(0, |posterior| posterior.n_graphs),
+            atoms: cx.study.graph_posterior.as_ref().map_or(0, |posterior| posterior.n_graphs()),
         },
         RouteCell::TransportMixed => Composition::Transported,
         _ => Composition::Single,

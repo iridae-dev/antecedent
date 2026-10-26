@@ -537,13 +537,16 @@ fn merge_derivative_checks(
 
 /// A lagged-template mask repacked from `n` to `m` nodes: the bit of the edge `from -> to` at
 /// lag `lag + 1` moves from `lag * n * n + from * n + to` to `lag * m * m + from * m + to`.
-fn repack_lag_mask(old: u64, n: usize, m: usize, max_lag: usize) -> u64 {
-    let mut packed = 0_u64;
-    for bit in 0..max_lag * n * n {
-        if (old >> bit) & 1 == 1 {
-            let (lag, from, to) = (bit / (n * n), (bit % (n * n)) / n, bit % n);
-            packed |= 1_u64 << (lag * m * m + from * m + to);
-        }
+fn repack_lag_mask(
+    old: &antecedent_discovery::LagMask,
+    n: usize,
+    m: usize,
+    max_lag: usize,
+) -> antecedent_discovery::LagMask {
+    let mut packed = antecedent_discovery::LagMask::EMPTY;
+    for bit in old.set_bits().map(|bit| bit as usize).filter(|&bit| bit < max_lag * n * n) {
+        let (lag, from, to) = (bit / (n * n), (bit % (n * n)) / n, bit % n);
+        packed.set_bit(u32::try_from(lag * m * m + from * m + to).unwrap_or(u32::MAX), true);
     }
     packed
 }
@@ -619,20 +622,62 @@ mod repack_tests {
     }
 
     #[test]
+    fn a_class_within_the_limit_keeps_every_member_and_a_larger_one_a_stable_subsample() {
+        let member = |i: usize| {
+            antecedent_discovery::adjacency_mask::set_edge(
+                antecedent_discovery::AdjacencyMask::EMPTY,
+                16,
+                0,
+                1 + i % 15,
+                true,
+            )
+        };
+        let mut all = ClassSample::new(8);
+        for i in 0..8 {
+            all.offer(i, member(i));
+        }
+        assert_eq!(all.seen, 8);
+        assert_eq!(all.into_members(), (0..8).map(member).collect::<Vec<_>>());
+        let sample = |limit: usize| {
+            let mut kept = ClassSample::new(limit);
+            for i in 0..1000 {
+                kept.offer(i, member(i));
+            }
+            kept
+        };
+        let kept = sample(16);
+        assert_eq!((kept.seen, kept.members.len()), (1000, 16));
+        // The subsample is the 16 positions of smallest rank, whatever the order they arrive in.
+        let mut expected: Vec<usize> = (0..1000).collect();
+        expected.sort_by_key(|&i| (ClassSample::rank(i), i));
+        expected.truncate(16);
+        expected.sort_unstable();
+        let positions: Vec<usize> = kept.members.iter().map(|&(_, p, _)| p).collect();
+        let mut positions_sorted = positions;
+        positions_sorted.sort_unstable();
+        assert_eq!(positions_sorted, expected);
+    }
+
+    #[test]
     fn a_lagged_edge_keeps_its_lag_source_and_target_when_a_node_is_added() {
         // Two nodes, two lags: bit (lag, from, to) = lag * 4 + from * 2 + to.
-        let old = (1_u64 << 1) | (1_u64 << (4 + 2)); // lag 1: 0 -> 1; lag 2: 1 -> 0
-        let packed = repack_lag_mask(old, 2, 3, 2);
+        let old = antecedent_discovery::LagMask::from_word((1_u64 << 1) | (1_u64 << (4 + 2)));
+        // lag 1: 0 -> 1; lag 2: 1 -> 0
+        let packed = repack_lag_mask(&old, 2, 3, 2);
         assert_eq!(packed, (1_u64 << 1) | (1_u64 << (9 + 3)));
-        assert_eq!(repack_lag_mask(0, 2, 3, 2), 0);
+        assert!(repack_lag_mask(&antecedent_discovery::LagMask::EMPTY, 2, 3, 2).is_empty());
+        // A template wider than a machine word repacks too.
+        let wide = antecedent_discovery::LagMask::EMPTY.with_bit(7 * 49 + 3 * 7 + 5, true);
+        let moved = repack_lag_mask(&wide, 7, 8, 8);
+        assert!(moved.bit(7 * 64 + 3 * 8 + 5) && moved.count_ones() == 1);
     }
 }
 
 /// Interventional means one derivative coordinate reads: the evaluation point and one step each way.
 const DERIVATIVE_POINTS_PER_COORDINATE: usize = 3;
 
-/// DAG members of one class the common-cause refuter enumerates when the context declares no
-/// memory limit.
+/// DAG members of one class the common-cause refuter retains when the context declares no memory
+/// limit; a larger class is reduced to a deterministic subsample of this size.
 const DEFAULT_WITHIN_CLASS_MEMBERS: usize = 512;
 
 /// Bytes budgeted per enumerated DAG member of an `n`-node class: its edge set, the augmented
@@ -641,12 +686,68 @@ const fn within_class_member_bytes(n: usize) -> u64 {
     16 * (n as u64 * n as u64 + 64)
 }
 
-/// Most DAG members of one `n`-node class the common-cause refuter enumerates: as many as the
-/// context's memory limit holds, or [`DEFAULT_WITHIN_CLASS_MEMBERS`] when it declares none.
+/// Most DAG members of one `n`-node class the common-cause refuter retains: as many as the
+/// context's memory limit holds, or [`DEFAULT_WITHIN_CLASS_MEMBERS`] when it declares none. A
+/// class with more members is subsampled to this many (see [`ClassSample`]).
 fn within_class_member_cap(ctx: &ExecutionContext, n: usize) -> usize {
     ctx.memory_limit_bytes().map_or(DEFAULT_WITHIN_CLASS_MEMBERS, |limit| {
         usize::try_from(limit / within_class_member_bytes(n)).unwrap_or(usize::MAX).max(1)
     })
+}
+
+/// The members of one equivalence class a bounded retention keeps, with the number enumerated.
+///
+/// Each member is ranked by a fixed hash of its position in the enumeration, and the `limit`
+/// members of smallest rank are kept. The enumeration order is deterministic, so the sample is
+/// too, and because the hash does not depend on the member's content or on `limit`, the kept
+/// members are a uniform draw without replacement from the class. A class within `limit` keeps
+/// every member, in enumeration order.
+struct ClassSample {
+    limit: usize,
+    /// Members kept, as (rank, position in the enumeration, member).
+    members: Vec<(u64, usize, antecedent_discovery::AdjacencyMask)>,
+    /// Members offered, kept or not.
+    seen: usize,
+}
+
+impl ClassSample {
+    fn new(limit: usize) -> Self {
+        Self { limit: limit.max(1), members: Vec::new(), seen: 0 }
+    }
+
+    /// The splitmix64 finalizer of the position: a fixed, well mixed rank.
+    fn rank(position: usize) -> u64 {
+        let mut z = (position as u64).wrapping_add(0x9E37_79B9_7F4A_7C15);
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+
+    fn offer(&mut self, position: usize, member: antecedent_discovery::AdjacencyMask) {
+        self.seen += 1;
+        let rank = Self::rank(position);
+        if self.members.len() < self.limit {
+            self.members.push((rank, position, member));
+            return;
+        }
+        // A position never repeats, so the ranks of two members differ unless the hash
+        // collides; the position breaks such a tie.
+        let Some((worst, _)) =
+            self.members.iter().enumerate().max_by_key(|(_, (rank, position, _))| (*rank, *position))
+        else {
+            return;
+        };
+        let (worst_rank, worst_position, _) = self.members[worst];
+        if (rank, position) < (worst_rank, worst_position) {
+            self.members[worst] = (rank, position, member);
+        }
+    }
+
+    /// The kept members in enumeration order.
+    fn into_members(mut self) -> Vec<antecedent_discovery::AdjacencyMask> {
+        self.members.sort_unstable_by_key(|&(_, position, _)| position);
+        self.members.into_iter().map(|(_, _, member)| member).collect()
+    }
 }
 
 impl Default for TargetRefitOptions {
@@ -1218,10 +1319,12 @@ impl PreparedRefit<'_> {
     /// of the class is meant: an added parent can create a collider with a parent the treatment
     /// already has. The posterior does not say how a class's mass divides among its members, so
     /// this needs the declared assumption `WithinClassDistribution::UniformOverMembers`: every
-    /// atom's DAG members are enumerated (at most [`within_class_member_cap`], else the class is
-    /// refused), each member gets an equal share of the atom's mass, the common cause is added to
-    /// each, and the shares are collapsed to the classes of the augmented DAGs. The assumption is
-    /// written into the posterior's diagnostics. A PAG atom or a lagged class posterior is
+    /// atom's DAG members are enumerated, each member gets an equal share of the atom's mass, the
+    /// common cause is added to each, and the shares are collapsed to the classes of the
+    /// augmented DAGs. A class with more members than [`within_class_member_cap`] is reduced to
+    /// a deterministic uniform subsample of that many (see [`ClassSample`]); a class the search
+    /// budget cannot finish enumerating is refused. The assumption, and the number of members a
+    /// subsample dropped, are written into the posterior's diagnostics. A PAG atom or a lagged class posterior is
     /// refused.
     #[allow(
         clippy::too_many_lines,
@@ -1234,16 +1337,16 @@ impl PreparedRefit<'_> {
         ctx: &ExecutionContext,
     ) -> Result<antecedent_discovery::GraphPosterior, TargetRefitError> {
         use antecedent_discovery::GraphPosteriorAtomKind as Kind;
-        use antecedent_discovery::adjacency_mask::{has_edge, set_edge};
-        let n = posterior.n_vars;
+        use antecedent_discovery::adjacency_mask::set_edge;
+        let n = posterior.n_vars();
         let m = n + 1;
         let refuse = |reason: &'static str| {
             unsupported(reason, "refute one accepted structure of the posterior")
         };
-        if u.as_usize() != n || m > antecedent_discovery::MAX_POSTERIOR_NODES {
+        if u.as_usize() != n || !antecedent_discovery::edge_bits_fit(m) {
             return Err(refuse(
                 "the posterior's nodes are not the study's columns, or the added node does not fit \
-                 the atom packing",
+                 the edge bit index",
             ));
         }
         let (t, y) = (self.treatment.as_usize(), self.outcome.as_usize());
@@ -1253,13 +1356,13 @@ impl PreparedRefit<'_> {
                 "a posterior that names both",
             ));
         }
-        let lags = posterior.max_lag.map(|lag| lag as usize);
+        let lags = posterior.max_lag().map(|lag| lag as usize);
         // Repack a contemporaneous atom onto `m` nodes and add the common cause.
-        let repack = |atom: antecedent_discovery::AdjacencyMask| {
+        let repack = |atom: &antecedent_discovery::AdjacencyMask| {
             let mut packed = antecedent_discovery::AdjacencyMask::EMPTY;
             for i in 0..n {
                 for j in 0..n {
-                    if i != j && has_edge(atom, n, i, j) {
+                    if i != j && atom.has_edge(n, i, j) {
                         packed = set_edge(packed, m, i, j, true);
                     }
                 }
@@ -1269,11 +1372,11 @@ impl PreparedRefit<'_> {
         };
         let mut atoms: Vec<antecedent_discovery::AdjacencyMask> = Vec::new();
         let mut weights: Vec<f64> = Vec::new();
-        let mut note: Option<&'static str> = None;
-        match posterior.atom_kind {
+        let mut note: Option<String> = None;
+        match posterior.atom_kind() {
             Kind::Dag => {
-                atoms = posterior.atoms.iter().map(|&atom| repack(atom)).collect();
-                weights = posterior.weights.to_vec();
+                atoms = posterior.atoms().iter().map(repack).collect();
+                weights = posterior.weights().to_vec();
             }
             Kind::Cpdag if lags.is_none() => {
                 if self.options.within_class != Some(WithinClassDistribution::UniformOverMembers) {
@@ -1284,15 +1387,20 @@ impl PreparedRefit<'_> {
                     ));
                 }
                 let member_cap = within_class_member_cap(ctx, n);
-                for (&atom, &weight) in posterior.atoms.iter().zip(posterior.weights.iter()) {
+                let (mut seen_total, mut kept_total) = (0_usize, 0_usize);
+                let mut sampled_classes = 0_usize;
+                for (atom, &weight) in posterior.atoms().iter().zip(posterior.weights().iter()) {
                     let cpdag =
                         antecedent_discovery::adjacency_mask::cpdag_from_adjacency_mask(atom, n)
                             .map_err(|error| {
                                 TargetRefitError::Failed(ValidationError::from(error))
                             })?;
+                    // Members are streamed and reduced to their augmented edge sets at once; the
+                    // class keeps the `member_cap` members of smallest priority, so a class
+                    // above the cap is subsampled deterministically rather than refused.
                     let mut members = antecedent_graph::CpdagCompletionSampler::with_budget(
                         cpdag,
-                        member_cap.saturating_add(1),
+                        usize::MAX,
                         antecedent_core::SearchLimits {
                             operations: antecedent_graph::DEFAULT_COMPLETION_OPERATIONS,
                             depth: usize::MAX,
@@ -1302,32 +1410,52 @@ impl PreparedRefit<'_> {
                     .map_err(|error| {
                         TargetRefitError::Failed(ValidationError::estimation_msg(error.to_string()))
                     })?;
-                    let dags: Vec<antecedent_graph::Dag> =
-                        members.by_ref().map(|completion| completion.graph).collect();
-                    crate::strategy_table::check_class_search_stop(members.search_stop())
-                        .map_err(|error| failed(&error))?;
-                    if dags.is_empty() || dags.len() > member_cap {
-                        return Err(refuse(
-                            "a class has no enumerated DAG members or more than the memory limit \
-                             holds, so an even division of its mass is not defined",
-                        ));
-                    }
-                    let share = weight / dags.len() as f64;
-                    for dag in &dags {
+                    let mut kept = ClassSample::new(member_cap);
+                    for completion in members.by_ref() {
                         let mut mask = antecedent_discovery::AdjacencyMask::EMPTY;
-                        for edge in dag.edges() {
+                        for edge in completion.graph.edges() {
                             if let Some((from, to)) = edge.parent_child() {
                                 mask = set_edge(mask, n, from.as_usize(), to.as_usize(), true);
                             }
                         }
-                        atoms.push(repack(mask));
+                        kept.offer(completion.index, repack(&mask));
+                    }
+                    crate::strategy_table::check_class_search_stop(members.search_stop())
+                        .map_err(|error| failed(&error))?;
+                    if members.search_stop().is_some() {
+                        return Err(refuse(
+                            "the search budget stopped the enumeration of a class's DAG members \
+                             before it finished, so an even division of its mass is not defined",
+                        ));
+                    }
+                    if kept.seen == 0 {
+                        return Err(refuse(
+                            "a class has no enumerated DAG members, so an even division of its \
+                             mass is not defined",
+                        ));
+                    }
+                    seen_total += kept.seen;
+                    kept_total += kept.members.len();
+                    sampled_classes += usize::from(kept.seen > kept.members.len());
+                    let share = weight / kept.members.len() as f64;
+                    for packed in kept.into_members() {
+                        atoms.push(packed);
                         weights.push(share);
                     }
                 }
-                note = Some(
+                let mut text = String::from(
                     "declared assumption: the mass of each class divides evenly among its DAG \
                      members before the common cause is added",
                 );
+                if sampled_classes > 0 {
+                    text = format!(
+                        "{text}; {sampled_classes} class(es) above the per-class limit of \
+                         {member_cap} members were reduced to a deterministic subsample, \
+                         dropping {} of {seen_total} enumerated members",
+                        seen_total - kept_total,
+                    );
+                }
+                note = Some(text);
             }
             _ => {
                 return Err(refuse(
@@ -1338,19 +1466,19 @@ impl PreparedRefit<'_> {
         }
         let total: f64 = weights.iter().sum();
         let mut edge = vec![0.0; m * m];
-        for (&atom, &weight) in atoms.iter().zip(&weights) {
+        for (atom, &weight) in atoms.iter().zip(&weights) {
             for i in 0..m {
                 for j in 0..m {
-                    if i != j && has_edge(atom, m, i, j) {
+                    if i != j && atom.has_edge(m, i, j) {
                         edge[i * m + j] += weight / total;
                     }
                 }
             }
         }
         let weights: Vec<f64> = weights.iter().map(|w| w / total).collect();
-        let mut diagnostics = posterior.diagnostics.clone();
+        let mut diagnostics = posterior.diagnostics().clone();
         if let Some(note) = note {
-            diagnostics.notes.push(Arc::from(note));
+            diagnostics.notes.push(Arc::from(note.as_str()));
         }
         let mut rebuilt = antecedent_discovery::GraphPosterior::from_atoms(
             m,
@@ -1359,28 +1487,27 @@ impl PreparedRefit<'_> {
             edge.clone(),
             edge,
             antecedent_discovery::SamplingSummary {
-                ess: posterior.ess,
+                ess: posterior.ess(),
                 diagnostics,
-                rejected_invalid: posterior.rejected_invalid,
+                rejected_invalid: posterior.rejected_invalid(),
             },
         )
         .map_err(|error| TargetRefitError::Failed(ValidationError::from(error)))?;
-        if let (Some(max_lag), Some(lag_masks)) = (lags, posterior.lag_masks.as_ref()) {
+        if let (Some(max_lag), Some(lag_masks)) = (lags, posterior.lag_masks()) {
             // Lagged edges keep their sources and targets; the added node has none, and the bit
             // of an edge moves with the node count.
-            if max_lag * m * m > 64 {
+            if u32::try_from(max_lag * m * m).is_err() {
                 return Err(refuse(
-                    "the lagged template does not fit its packing with one more node",
+                    "the lagged template has more edge bits than a bit index addresses with one \
+                     more node",
                 ));
             }
-            let packed: Vec<u64> =
-                lag_masks.iter().map(|&old| repack_lag_mask(old, n, m, max_lag)).collect();
+            let packed: Vec<antecedent_discovery::LagMask> =
+                lag_masks.iter().map(|old| repack_lag_mask(old, n, m, max_lag)).collect();
             let mut lagged = vec![0.0; max_lag * m * m];
-            for (&mask, &weight) in packed.iter().zip(&weights) {
-                for (bit, cell) in lagged.iter_mut().enumerate() {
-                    if (mask >> bit) & 1 == 1 {
-                        *cell += weight;
-                    }
+            for (mask, &weight) in packed.iter().zip(&weights) {
+                for bit in mask.set_bits() {
+                    lagged[bit as usize] += weight;
                 }
             }
             rebuilt = rebuilt
@@ -1388,12 +1515,12 @@ impl PreparedRefit<'_> {
                 .and_then(|post| post.with_lag_masks(packed))
                 .map_err(|error| TargetRefitError::Failed(ValidationError::from(error)))?;
         }
-        if posterior.atom_kind == Kind::Cpdag {
+        if posterior.atom_kind() == Kind::Cpdag {
             rebuilt = rebuilt
                 .to_equivalence_classes()
                 .map_err(|error| TargetRefitError::Failed(ValidationError::from(error)))?;
         }
-        Ok(match &posterior.algorithm {
+        Ok(match posterior.algorithm() {
             Some(algorithm) => rebuilt.with_algorithm(Arc::clone(algorithm)),
             None => rebuilt,
         })

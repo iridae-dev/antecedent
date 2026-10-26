@@ -63,12 +63,15 @@ fn complete_binary_unit(unit: &antecedent_io::temporal_recalc_artifact::Temporal
     }
     let mut seen = 0u16;
     for h in &unit.histories {
-        if [h.s0, h.a1, h.l2, h.a2].iter().any(|state| *state > 1)
+        let (&[a1, a2], &[l2]) = (h.actions.as_slice(), h.covariates.as_slice()) else {
+            return false;
+        };
+        if [h.s0, a1, l2, a2].iter().any(|state| *state > 1)
             || ![0.0f64.to_bits(), (-0.0f64).to_bits(), 1.0f64.to_bits()].contains(&h.y.to_bits())
         {
             return false;
         }
-        let bit = 1u16 << (h.s0 * 8 + h.a1 * 4 + h.l2 * 2 + h.a2);
+        let bit = 1u16 << (h.s0 * 8 + a1 * 4 + l2 * 2 + a2);
         if seen & bit != 0 {
             return false;
         }
@@ -85,10 +88,13 @@ fn preflight(
     let request = &source.request;
     let effect = matches!(
         &request.functional,
-        TemporalFunctionalWire::Effect { active: [1, 1], control: [0, 0] }
+        TemporalFunctionalWire::Effect { active, control }
+            if active.as_slice() == [1, 1] && control.as_slice() == [0, 0]
     );
-    let response =
-        matches!(&request.functional, TemporalFunctionalWire::Response { sequence: [0, 0] });
+    let response = matches!(
+        &request.functional,
+        TemporalFunctionalWire::Response { sequence } if sequence.as_slice() == [0, 0]
+    );
     if !(effect || response)
         || (response && config.method != IntervalMethod::Studentized)
         || config.level.to_bits() != 0.95f64.to_bits()
@@ -291,14 +297,14 @@ mod tests {
                             let y = f64::from(u32::from(
                                 (state >> 32) % 10 < u64::from(3 + s0 + l2 + a1 + a2),
                             ));
-                            histories.push(TemporalHistoryWire {
-                                time_id: u64::try_from(histories.len()).unwrap() * 3,
+                            histories.push(TemporalHistoryWire::two_step(
+                                u64::try_from(histories.len()).unwrap() * 3,
                                 s0,
                                 a1,
                                 l2,
                                 a2,
                                 y,
-                            });
+                            ));
                         }
                     }
                 }
@@ -321,13 +327,13 @@ mod tests {
             bidirected: vec![],
             selection_targets: vec![0],
             horizon: 2,
-            lag_alignment: [0, 1, 2, 2, 2],
+            lag_alignment: vec![0, 1, 2, 2, 2],
             period: (0, 49),
             units,
             snapshot_id: "measured-artifact-oracle".into(),
             initial_state: [0.3, 0.7],
             initial_state_id: "fixed-target-law".into(),
-            functional: TemporalFunctional::Effect { active: [1, 1], control: [0, 0] },
+            functional: TemporalFunctional::Effect { active: vec![1, 1], control: vec![0, 0] },
             benefit_per_unit: 1.0,
             cost: 0.0,
         };

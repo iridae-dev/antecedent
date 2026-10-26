@@ -27,8 +27,8 @@ use antecedent_core::{
 use antecedent_data::{TabularData, TimeSeriesData};
 use antecedent_discovery::adjacency_mask::set_edge;
 use antecedent_discovery::{
-    AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, TemporalAdmgAtom,
-    with_lagged_edge,
+    AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, LagMask, SamplingSummary,
+    TemporalAdmgAtom, with_lagged_edge,
 };
 use antecedent_graph::{Admg, Cpdag, Dag, DenseNodeId, Pag, TemporalAdmg, TemporalPag};
 use antecedent_prob::InferenceDiagnostics;
@@ -710,7 +710,7 @@ fn atom_posterior(weights: &[f64], atoms: &[TemporalAdmgAtom], n_vars: usize) ->
     GraphPosterior::from_atoms(
         n_vars,
         weights.to_vec(),
-        atoms.iter().map(|atom| atom.contemporaneous),
+        atoms.iter().map(|atom| atom.contemporaneous.clone()),
         vec![0.0; n_vars * n_vars],
         vec![0.0; n_vars * n_vars],
         SamplingSummary {
@@ -723,14 +723,14 @@ fn atom_posterior(weights: &[f64], atoms: &[TemporalAdmgAtom], n_vars: usize) ->
     .with_atom_kind(GraphPosteriorAtomKind::TemporalAdmg)
     .with_lagged_marginals(1, vec![0.0; n_vars * n_vars])
     .unwrap()
-    .with_lag_masks(atoms.iter().map(|atom| atom.lagged_directed).collect::<Vec<_>>())
+    .with_lag_masks(atoms.iter().map(|atom| atom.lagged_directed.clone()).collect::<Vec<_>>())
     .unwrap()
-    .with_lag_bidirected_masks(atoms.iter().map(|atom| atom.lagged_bidirected).collect::<Vec<_>>())
+    .with_lag_bidirected_masks(atoms.iter().map(|atom| atom.lagged_bidirected.clone()).collect::<Vec<_>>())
     .unwrap()
 }
 
-fn lagged(entries: &[(u32, usize, usize)], n_vars: usize) -> u64 {
-    entries.iter().fold(0, |word, &(lag, from, to)| {
+fn lagged(entries: &[(u32, usize, usize)], n_vars: usize) -> LagMask {
+    entries.iter().fold(LagMask::EMPTY, |word, &(lag, from, to)| {
         with_lagged_edge(word, n_vars, lag, from, to, true).unwrap()
     })
 }
@@ -746,7 +746,7 @@ fn mediation_atom() -> TemporalAdmgAtom {
     TemporalAdmgAtom {
         contemporaneous: contemporaneous(&[(TX, TM), (TW, TM)], 5),
         lagged_directed: lagged(&[(1, TC, TX), (1, TX, TY), (1, TM, TY)], 5),
-        lagged_bidirected: 0,
+        lagged_bidirected: LagMask::EMPTY,
     }
 }
 
@@ -862,7 +862,7 @@ fn true_atom() -> TemporalAdmgAtom {
     TemporalAdmgAtom {
         contemporaneous: contemporaneous(&[(PZ, PX)], 3),
         lagged_directed: lagged(&[(1, PZ, PZ), (1, PX, PY), (1, PZ, PY)], 3),
-        lagged_bidirected: 0,
+        lagged_bidirected: LagMask::EMPTY,
     }
 }
 
@@ -870,7 +870,7 @@ fn omitting_atom() -> TemporalAdmgAtom {
     TemporalAdmgAtom {
         contemporaneous: AdjacencyMask::EMPTY,
         lagged_directed: lagged(&[(1, PZ, PZ), (1, PX, PY)], 3),
-        lagged_bidirected: 0,
+        lagged_bidirected: LagMask::EMPTY,
     }
 }
 

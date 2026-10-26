@@ -225,7 +225,7 @@ fn frequentist_transport_mixes_certified_atoms_and_states_the_lost_mass() {
         assert!((mixture.unidentified_mass - 0.2).abs() < 1e-9, "{}", mixture.unidentified_mass);
         assert!((mixture.unevaluable_mass - 0.2).abs() < 1e-9, "{}", mixture.unevaluable_mass);
         assert_eq!(mixture.atoms.len(), 4);
-        let keys = &graphs.graph_keys;
+        let keys = graphs.graph_keys();
         for certified in [keys[0], keys[1]] {
             let value = value_of(&result, certified).expect("a certified atom has a value");
             assert!((value - 2.0).abs() < 1e-12, "{value}");
@@ -939,7 +939,7 @@ fn a_posterior_of_cpdag_atoms_mixes_the_class_envelope_of_sid_outcomes() {
             class_study(ClassGraph::Cpdag(open_chain()), &[Z], InferenceMode::Frequentist)
                 .run(&ctx)
                 .unwrap();
-        for key in graphs.graph_keys.iter() {
+        for key in graphs.graph_keys().iter() {
             let value = value_of(&result, *key).expect("an identified atom has a value");
             assert!((value - explicit.estimate.as_effect().unwrap().ate).abs() < 1e-12);
         }
@@ -1016,7 +1016,7 @@ fn a_posterior_of_pag_atoms_states_the_mass_sid_does_not_certify() {
         assert!((mixture.identified_mass - 0.75).abs() < 1e-9, "{}", mixture.identified_mass);
         assert!((mixture.unidentified_mass - 0.25).abs() < 1e-9, "{}", mixture.unidentified_mass);
         assert!(mixture.unevaluable_mass.abs() < 1e-12);
-        let keys = &graphs.graph_keys;
+        let keys = graphs.graph_keys();
         assert!(value_of(&result, keys[1]).is_none(), "the uncertified atom has no value");
         for certified in [keys[0], keys[2]] {
             let value = value_of(&result, certified).expect("a certified atom has a value");

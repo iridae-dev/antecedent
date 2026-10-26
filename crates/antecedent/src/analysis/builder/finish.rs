@@ -248,7 +248,7 @@ fn bind_graph(
             (g, None)
         }
         (None, Some(gp)) => {
-            let stub = stub_accepted_graph_for(data, gp.n_vars, gp.atom_kind)?;
+            let stub = stub_accepted_graph_for(data, gp.n_vars(), gp.atom_kind())?;
             (stub, Some(gp))
         }
         (None, None) if design_based => (AcceptedGraph::randomized_trial(data_schema(data)), None),

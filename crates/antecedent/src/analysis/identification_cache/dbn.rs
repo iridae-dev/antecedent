@@ -208,11 +208,11 @@ pub(crate) fn build_dbn_posterior_identification_cache(
 ) -> Result<CachedDbnPosteriorIdentification, CausalError> {
     use crate::strategy_table::select_estimand;
 
-    let lag_masks = posterior.lag_masks.as_ref().ok_or_else(|| CausalError::Compile {
+    let lag_masks = posterior.lag_masks().ok_or_else(|| CausalError::Compile {
         message: "DBN posterior missing per-atom lag masks".into(),
     })?;
     let max_lag = posterior
-        .max_lag
+        .max_lag()
         .ok_or_else(|| CausalError::Compile { message: "DBN posterior missing max_lag".into() })?;
     crate::analysis::execute::report_identify_compute(ctx);
     let mapped = map_posterior_graphs(posterior, ctx, |i, _inner| {
@@ -224,9 +224,9 @@ pub(crate) fn build_dbn_posterior_identification_cache(
         // GraphPosterior representation.
         let key = dbn_envelope_key(i)?;
         let Ok(graph) = temporal_dag_from_dbn_atoms(
-            posterior.atoms[i],
-            lag_masks[i],
-            posterior.n_vars,
+            &posterior.atoms()[i],
+            &lag_masks[i],
+            posterior.n_vars(),
             max_lag,
             variables,
         ) else {
@@ -255,9 +255,9 @@ pub(crate) fn build_dbn_posterior_identification_cache(
             horizons: None,
         }))
     })?;
-    let mut weights = Vec::with_capacity(posterior.n_graphs);
-    let mut flags = Vec::with_capacity(posterior.n_graphs);
-    let mut keys = Vec::with_capacity(posterior.n_graphs);
+    let mut weights = Vec::with_capacity(posterior.n_graphs());
+    let mut flags = Vec::with_capacity(posterior.n_graphs());
+    let mut keys = Vec::with_capacity(posterior.n_graphs());
     let mut atoms = Vec::new();
     let mut identify_demotion = DbnIdentifyDemotion::default();
 
@@ -266,11 +266,11 @@ pub(crate) fn build_dbn_posterior_identification_cache(
             return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
         }
         if let Some(progress) = &ctx.progress {
-            progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
+            progress.report(i as f64 / posterior.n_graphs().max(1) as f64, "envelope.identify");
         }
         let key = dbn_envelope_key(i)?;
         keys.push(key);
-        weights.push(posterior.weights[i]);
+        weights.push(posterior.weights()[i]);
         match outcome {
             DbnAtomOutcome::InvalidGraph => {
                 flags.push(GraphIdentFlag::Unidentified);
@@ -331,19 +331,19 @@ pub(crate) fn build_dbn_posterior_response_identification_cache(
     })?;
     let (treatment, outcome) =
         crate::analysis::proof_support::require_primary_pair(&query.functional)?;
-    let lag_masks = posterior.lag_masks.as_ref().ok_or_else(|| CausalError::Compile {
+    let lag_masks = posterior.lag_masks().ok_or_else(|| CausalError::Compile {
         message: "DBN posterior missing per-atom lag masks".into(),
     })?;
     let max_lag = posterior
-        .max_lag
+        .max_lag()
         .ok_or_else(|| CausalError::Compile { message: "DBN posterior missing max_lag".into() })?;
     crate::analysis::execute::report_identify_compute(ctx);
     let mapped = map_posterior_graphs(posterior, ctx, |i, _inner| {
         let key = dbn_envelope_key(i)?;
         let Ok(graph) = temporal_dag_from_dbn_atoms(
-            posterior.atoms[i],
-            lag_masks[i],
-            posterior.n_vars,
+            &posterior.atoms()[i],
+            &lag_masks[i],
+            posterior.n_vars(),
             max_lag,
             variables,
         ) else {
@@ -383,9 +383,9 @@ pub(crate) fn build_dbn_posterior_response_identification_cache(
             horizons: Some(horizons),
         }))
     })?;
-    let mut weights = Vec::with_capacity(posterior.n_graphs);
-    let mut flags = Vec::with_capacity(posterior.n_graphs);
-    let mut keys = Vec::with_capacity(posterior.n_graphs);
+    let mut weights = Vec::with_capacity(posterior.n_graphs());
+    let mut flags = Vec::with_capacity(posterior.n_graphs());
+    let mut keys = Vec::with_capacity(posterior.n_graphs());
     let mut atoms = Vec::new();
     let mut identify_demotion = DbnIdentifyDemotion::default();
 
@@ -394,11 +394,11 @@ pub(crate) fn build_dbn_posterior_response_identification_cache(
             return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
         }
         if let Some(progress) = &ctx.progress {
-            progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
+            progress.report(i as f64 / posterior.n_graphs().max(1) as f64, "envelope.identify");
         }
         let key = dbn_envelope_key(i)?;
         keys.push(key);
-        weights.push(posterior.weights[i]);
+        weights.push(posterior.weights()[i]);
         match outcome {
             DbnAtomOutcome::InvalidGraph => {
                 flags.push(GraphIdentFlag::Unidentified);
@@ -474,38 +474,38 @@ pub(crate) fn build_dbn_mediation_cache_with_identifier(
         &MediationQuery,
     ) -> Result<CachedTemporalIdentification, CausalError>,
 ) -> Result<CachedDbnPosteriorIdentification, CausalError> {
-    let lag_masks = posterior.lag_masks.as_ref().ok_or_else(|| CausalError::Compile {
+    let lag_masks = posterior.lag_masks().ok_or_else(|| CausalError::Compile {
         message: "DBN posterior missing per-atom lag masks".into(),
     })?;
     let max_lag = posterior
-        .max_lag
+        .max_lag()
         .ok_or_else(|| CausalError::Compile { message: "DBN posterior missing max_lag".into() })?;
     crate::analysis::execute::report_identify_compute(ctx);
-    let mut weights = Vec::with_capacity(posterior.n_graphs);
-    let mut flags = Vec::with_capacity(posterior.n_graphs);
-    let mut keys = Vec::with_capacity(posterior.n_graphs);
+    let mut weights = Vec::with_capacity(posterior.n_graphs());
+    let mut flags = Vec::with_capacity(posterior.n_graphs());
+    let mut keys = Vec::with_capacity(posterior.n_graphs());
     let mut atoms = Vec::new();
     query.validate()?;
     let mut horizon_demotions: Vec<_> =
         query.horizons.iter().map(|h| (*h, DbnIdentifyDemotion::default())).collect();
 
-    for i in 0..posterior.n_graphs {
+    for i in 0..posterior.n_graphs() {
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
         }
         if let Some(progress) = &ctx.progress {
-            progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
+            progress.report(i as f64 / posterior.n_graphs().max(1) as f64, "envelope.identify");
         }
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
         }
         let key = dbn_envelope_key(i)?;
         keys.push(key);
-        weights.push(posterior.weights[i]);
+        weights.push(posterior.weights()[i]);
         let Ok(graph) = temporal_dag_from_dbn_atoms(
-            posterior.atoms[i],
-            lag_masks[i],
-            posterior.n_vars,
+            &posterior.atoms()[i],
+            &lag_masks[i],
+            posterior.n_vars(),
             max_lag,
             variables,
         ) else {
@@ -578,19 +578,19 @@ pub(crate) fn temporal_dag_from_dbn_atom(
     let index = usize::try_from(key).map_err(|_| CausalError::Compile {
         message: "DBN envelope key does not fit a posterior index".into(),
     })?;
-    let lag_masks = posterior.lag_masks.as_ref().ok_or_else(|| CausalError::Compile {
+    let lag_masks = posterior.lag_masks().ok_or_else(|| CausalError::Compile {
         message: "DBN posterior missing per-atom lag masks".into(),
     })?;
     let max_lag = posterior
-        .max_lag
+        .max_lag()
         .ok_or_else(|| CausalError::Compile { message: "DBN posterior missing max_lag".into() })?;
-    if index >= posterior.n_graphs || index >= lag_masks.len() {
+    if index >= posterior.n_graphs() || index >= lag_masks.len() {
         return Err(CausalError::Compile { message: "DBN envelope key is out of range".into() });
     }
     temporal_dag_from_dbn_atoms(
-        posterior.atoms[index],
-        lag_masks[index],
-        posterior.n_vars,
+        &posterior.atoms()[index],
+        &lag_masks[index],
+        posterior.n_vars(),
         max_lag,
         variables,
     )

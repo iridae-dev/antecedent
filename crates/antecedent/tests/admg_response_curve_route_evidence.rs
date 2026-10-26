@@ -333,7 +333,7 @@ fn graph_posterior_admg_response_curve_is_sealed_for_both_inference_modes() {
             panic!("{coordinate}: retained ADMG graph-posterior response plan")
         };
         assert_eq!(plan.query, query);
-        assert_eq!(plan.graph_keys.as_ref(), posterior.graph_keys.as_ref());
+        assert_eq!(plan.graph_keys.as_ref(), posterior.graph_keys().as_ref());
         assert_eq!(plan.weights.as_ref(), &[0.65, 0.35]);
         assert!(
             plan.identified.iter().all(|flag| *flag == antecedent_prob::GraphIdentFlag::Identified)

@@ -551,7 +551,7 @@ fn graph_posterior_response_retains_probability_atoms_and_mass() {
         );
         assert!(structural.conditional_on_identified.is_some());
         assert!((structural.identified_mass + structural.unidentified_mass - 1.0).abs() < 1e-10);
-        assert_eq!(structural.atoms.len(), gp.n_graphs);
+        assert_eq!(structural.atoms.len(), gp.n_graphs());
         assert!(result.response().is_some());
     }
 }

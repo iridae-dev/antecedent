@@ -15,8 +15,8 @@ use antecedent_core::{
 };
 use antecedent_data::{TabularData, TimeSeriesData};
 use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_cpdag, set_edge,
-    with_lagged_edge,
+    GraphPosterior, GraphPosteriorAtomKind, LagMask, SamplingSummary, adjacency_mask_from_cpdag,
+    set_edge, with_lagged_edge,
 };
 use antecedent_graph::{Cpdag, Dag, DenseNodeId, TemporalDag};
 use antecedent_prob::InferenceDiagnostics;
@@ -162,7 +162,7 @@ fn an_anomaly_is_the_posterior_weighted_mean_of_the_atoms_dag_attributions() {
             &[0.6, 0.3, 0.1],
             vec![mask_of(&[(0, 1)]), mask_of(&[(1, 0)]), mask_of(&[(0, 1), (1, 0)])],
         );
-        let keys = graphs.graph_keys.clone();
+        let keys = graphs.graph_keys().clone();
         let built = posterior_study(&data, graphs, &query);
         assert_eq!(built.support_status(), Some(CellStatus::Refused));
         let result = built.run(&ctx).unwrap();
@@ -370,7 +370,7 @@ fn template_posterior(weights: &[f64]) -> GraphPosterior {
     .unwrap()
     .with_lagged_marginals(1, vec![0.0; 9])
     .unwrap()
-    .with_lag_masks(vec![lagged, 0])
+    .with_lag_masks(vec![lagged, LagMask::EMPTY])
     .unwrap()
 }
 
@@ -407,7 +407,7 @@ fn a_series_posterior_attributes_each_template_as_a_supplied_temporal_dag() {
         let data = lagged_series(8.0);
         let query = anomaly_query(1);
         let graphs = template_posterior(&[0.7, 0.3]);
-        let keys = graphs.graph_keys.clone();
+        let keys = graphs.graph_keys().clone();
         let built = Study::series(data.clone())
             .graph_posterior(graphs)
             .query(query.clone())

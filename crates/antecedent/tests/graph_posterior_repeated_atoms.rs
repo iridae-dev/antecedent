@@ -276,18 +276,21 @@ fn repeated_static_atom_response_is_the_mass_weighted_mixture() {
 }
 
 #[test]
-fn one_graph_key_for_different_masks_is_refused() {
-    let mut gp = posterior(&[direct(), adjusted()], &[0.5, 0.5]);
-    gp.graph_keys = Arc::from([7_u64, 7]);
-    let error = Study::tabular(binary_data(0x2A73))
-        .graph_posterior(gp)
-        .query(ate_query())
-        .inference(InferenceMode::Frequentist)
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(11))
-        .unwrap_err();
-    assert!(error.to_string().contains("graph key"), "{error}");
+fn graph_keys_follow_the_atoms_repeated_atoms_share_one_and_distinct_atoms_differ() {
+    // Keys are derived from the atoms: a corrupted key table cannot be built, so the invariant
+    // that remains reachable is that equal atoms share one key and distinct atoms never do.
+    let gp = repeated();
+    let keys = gp.graph_keys();
+    assert_eq!(keys.len(), 4);
+    assert_eq!(keys[0], keys[1], "the repeated atom keeps one key");
+    let distinct: std::collections::BTreeSet<u64> = keys.iter().copied().collect();
+    assert_eq!(distinct.len(), 3, "A, B and C keep three distinct keys");
+    assert_ne!(keys[0], keys[2]);
+    assert_ne!(keys[0], keys[3]);
+    assert_ne!(keys[2], keys[3]);
+    let single = coalesced();
+    assert_eq!(single.graph_keys().len(), 3);
+    assert_eq!(single.graph_keys()[0], keys[0]);
+    assert_eq!(single.graph_keys()[1], keys[2]);
+    assert_eq!(single.graph_keys()[2], keys[3]);
 }

@@ -55,18 +55,17 @@ fn identify_unique_adjacency_masks<T, F>(
 ) -> Result<std::collections::HashMap<AdjacencyMask, T>, CausalError>
 where
     T: Send,
-    F: Fn(AdjacencyMask, &ExecutionContext) -> Result<T, CausalError> + Sync,
+    F: Fn(&AdjacencyMask, &ExecutionContext) -> Result<T, CausalError> + Sync,
 {
-    let mut unique = Vec::new();
+    let mut unique: Vec<&AdjacencyMask> = Vec::new();
     let mut seen = std::collections::HashSet::new();
-    for i in 0..posterior.n_graphs {
-        let mask = posterior.atoms[i];
+    for mask in posterior.atoms().iter() {
         if seen.insert(mask) {
             unique.push(mask);
         }
     }
     let values = ctx.map_indexed(unique.len(), |i, inner| identify(unique[i], inner))?;
-    Ok(unique.into_iter().zip(values).collect())
+    Ok(unique.into_iter().cloned().zip(values).collect())
 }
 
 /// One result per posterior position, under `ctx.parallelism`.
@@ -82,7 +81,7 @@ where
     if ctx.cancellation.is_cancelled() {
         return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
     }
-    ctx.map_indexed(posterior.n_graphs, |i, inner| {
+    ctx.map_indexed(posterior.n_graphs(), |i, inner| {
         if inner.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
         }
@@ -105,30 +104,30 @@ fn collect_graph_posterior_atoms<A>(
 ) -> Result<(WeightedGraphSamples, Vec<A>), CausalError> {
     use std::collections::hash_map::Entry;
 
-    let mut weights = Vec::with_capacity(posterior.n_graphs);
-    let mut flags = Vec::with_capacity(posterior.n_graphs);
-    let mut keys = Vec::with_capacity(posterior.n_graphs);
+    let mut weights = Vec::with_capacity(posterior.n_graphs());
+    let mut flags = Vec::with_capacity(posterior.n_graphs());
+    let mut keys = Vec::with_capacity(posterior.n_graphs());
     let mut atoms = Vec::new();
     let mut atom_masks: std::collections::HashMap<u64, AdjacencyMask> =
         std::collections::HashMap::new();
 
-    for i in 0..posterior.n_graphs {
+    for i in 0..posterior.n_graphs() {
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
         }
         if let Some(progress) = &ctx.progress {
-            progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
+            progress.report(i as f64 / posterior.n_graphs().max(1) as f64, "envelope.identify");
         }
-        let mask = posterior.atoms[i];
-        let key = posterior.graph_keys[i];
+        let mask = &posterior.atoms()[i];
+        let key = posterior.graph_keys()[i];
         keys.push(key);
-        weights.push(posterior.weights[i]);
+        weights.push(posterior.weights()[i]);
         let first_for_key = match atom_masks.entry(key) {
             Entry::Vacant(slot) => {
-                slot.insert(mask);
+                slot.insert(mask.clone());
                 true
             }
-            Entry::Occupied(slot) if *slot.get() == mask => false,
+            Entry::Occupied(slot) if slot.get() == mask => false,
             Entry::Occupied(_) => {
                 return Err(CausalError::Compile {
                     message: "graph posterior reuses one graph key for different adjacency masks"
@@ -159,11 +158,11 @@ fn collect_mask_atoms(
     by_mask: &MaskIdentifications,
 ) -> Result<CachedGraphPosteriorIdentification, CausalError> {
     let (graphs, atoms) = collect_graph_posterior_atoms(posterior, ctx, |i, first_for_key| {
-        let Some(Some((estimand, identification))) = by_mask.get(&posterior.atoms[i]) else {
+        let Some(Some((estimand, identification))) = by_mask.get(&posterior.atoms()[i]) else {
             return Ok((GraphIdentFlag::Unidentified, None));
         };
         let atom = first_for_key.then(|| CachedGraphPosteriorAtomIdentification {
-            key: posterior.graph_keys[i],
+            key: posterior.graph_keys()[i],
             estimand: estimand.clone(),
             identification: identification.clone(),
             transport: None,

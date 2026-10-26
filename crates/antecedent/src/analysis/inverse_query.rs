@@ -31,7 +31,7 @@ pub use antecedent_design::inverse_query::{
     ActionReport, Comparison, ConstraintValue, EnumeratedForwardValue, ExistenceClaim,
     FeasibilityStatus, ForwardClaim, ForwardEvidence, GridScope, INVERSE_QUERY_SCOPE_NOTE,
     IdentifiedSet, IntervalRegion, InverseConstraint, InverseQuery, InverseQueryError,
-    InverseResult, MAX_INVERSE_GRID, MemberStatus, PosteriorFeasibility, SelectionOutcome,
+    InverseResult, MemberStatus, PosteriorFeasibility, SelectionOutcome,
     SelectionRule, evaluate_inverse_query, finite_enumeration_baseline,
 };
 pub use antecedent_design::inverse_query_artifact::{

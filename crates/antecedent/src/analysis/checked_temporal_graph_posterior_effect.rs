@@ -76,7 +76,7 @@ impl CheckedTemporalGraphPosteriorEffect {
         };
         matches!(study.data, DataInput::Temporal(_) | DataInput::Event(_))
             && matches!(
-                posterior.atom_kind,
+                posterior.atom_kind(),
                 GraphPosteriorAtomKind::Dag
                     | GraphPosteriorAtomKind::Cpdag
                     | GraphPosteriorAtomKind::Pag
@@ -87,7 +87,7 @@ impl CheckedTemporalGraphPosteriorEffect {
             && query.policy.is_pulse_or_sustained()
             // A conditional effect over TemporalDag atoms is answered atom by atom with the
             // interval of the whole procedure, not by the pulse design.
-            && (posterior.atom_kind != GraphPosteriorAtomKind::Dag
+            && (posterior.atom_kind() != GraphPosteriorAtomKind::Dag
                 || query.effect_modifiers.is_empty())
             && study
                 .estimator
@@ -120,7 +120,7 @@ impl CheckedTemporalGraphPosteriorEffect {
                 message: "checked temporal graph-posterior effect supports none, cheap, or full validation",
             });
         }
-        match (&proof, posterior.atom_kind) {
+        match (&proof, posterior.atom_kind()) {
             (CheckedTemporalGraphPosteriorProof::Dbn(_), GraphPosteriorAtomKind::Dag)
             | (
                 CheckedTemporalGraphPosteriorProof::Class(_),
@@ -132,7 +132,7 @@ impl CheckedTemporalGraphPosteriorEffect {
                 });
             }
         }
-        if posterior.lag_masks.is_none() || posterior.max_lag.is_none() {
+        if posterior.lag_masks().is_none() || posterior.max_lag().is_none() {
             return Err(CausalError::Unsupported {
                 message: "checked temporal graph-posterior effect requires per-atom lag masks",
             });
@@ -233,18 +233,18 @@ impl CheckedTemporalGraphPosteriorEffect {
     #[must_use]
     pub(crate) fn matches_posterior(&self, posterior: &GraphPosterior) -> bool {
         let sealed = &*self.posterior;
-        sealed.atom_kind == posterior.atom_kind
-            && sealed.n_vars == posterior.n_vars
-            && sealed.n_graphs == posterior.n_graphs
-            && sealed.max_lag == posterior.max_lag
+        sealed.atom_kind() == posterior.atom_kind()
+            && sealed.n_vars() == posterior.n_vars()
+            && sealed.n_graphs() == posterior.n_graphs()
+            && sealed.max_lag() == posterior.max_lag()
             && sealed
-                .weights
+                .weights()
                 .iter()
-                .zip(posterior.weights.iter())
+                .zip(posterior.weights().iter())
                 .all(|(a, b)| a.to_bits() == b.to_bits())
-            && sealed.atoms == posterior.atoms
-            && sealed.graph_keys == posterior.graph_keys
-            && sealed.lag_masks == posterior.lag_masks
+            && sealed.atoms() == posterior.atoms()
+            && sealed.graph_keys() == posterior.graph_keys()
+            && sealed.lag_masks() == posterior.lag_masks()
     }
 
     /// Number of identified atoms carrying a retained proof.
@@ -357,7 +357,7 @@ impl Inspect for CheckedTemporalGraphPosteriorEffect {
         let (graph_keys, weights, identified) = self.sample_mass();
         CheckedTemporalGraphPosteriorEffectInfo {
             query: self.query().clone(),
-            atom_kind: self.posterior().atom_kind,
+            atom_kind: self.posterior().atom_kind(),
             identifier: self.identifier(),
             estimator: self.estimator(),
             validation: self.validation(),

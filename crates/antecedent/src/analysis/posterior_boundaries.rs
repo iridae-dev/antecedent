@@ -84,9 +84,10 @@ pub fn trajectory_hazard_credible_interval(
         rows, active, control,
     ) {
         Err(invalid) => Err(data_error(invalid)),
-        Ok(_) => Err(CausalError::Estimate(EstimationError::refused(
+        Ok(_) => Err(CausalError::Estimate(EstimationError::refused_detail(
             antecedent_core::reason_code!("cell_not_licensed"),
-            format!("trajectory_survival.credible_interval_not_licensed: {message}"),
+            "trajectory_survival.credible_interval_not_licensed",
+            message,
         ))),
     }
 }

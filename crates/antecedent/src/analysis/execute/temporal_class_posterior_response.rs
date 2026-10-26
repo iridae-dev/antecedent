@@ -40,7 +40,7 @@ impl super::Study {
         let started = Instant::now();
         dbn_posterior_response_supported(query)?;
         query.require_licensed_temporal_observation()?;
-        let class_tag = temporal_class_posterior_tag(gp.atom_kind)?;
+        let class_tag = temporal_class_posterior_tag(gp.atom_kind())?;
         let (treatment, outcome) = response_primary_pair(&query.functional)?;
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
         let inputs = ClassPosteriorInputs { data, gp, query, vars: &vars, ctx };
@@ -134,7 +134,7 @@ impl super::Study {
     /// Whether the prepared handle retains an identification for this posterior.
     fn class_posterior_cache_retained(&self, gp: &GraphPosterior) -> bool {
         self.temporal_class_posterior_cache()
-            .is_some_and(|cache| cache.graphs.n_samples == gp.n_graphs)
+            .is_some_and(|cache| cache.graphs.n_samples == gp.n_graphs())
     }
 
     /// Evaluates each posterior atom through the temporal class response on
@@ -147,10 +147,10 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
     ) -> Result<Vec<ClassPosteriorAtomRun>, CausalError> {
         let ClassPosteriorInputs { data, gp, query, vars, ctx } = *inputs;
-        let lag_masks = gp.lag_masks.as_ref().ok_or_else(|| CausalError::Compile {
+        let lag_masks = gp.lag_masks().ok_or_else(|| CausalError::Compile {
             message: "temporal class posterior missing per-atom lag masks".into(),
         })?;
-        let max_lag = gp.max_lag.ok_or_else(|| CausalError::Compile {
+        let max_lag = gp.max_lag().ok_or_else(|| CausalError::Compile {
             message: "temporal class posterior missing max_lag".into(),
         })?;
         // A prepared handle retains one completion envelope per atom for the
@@ -159,13 +159,13 @@ impl super::Study {
         // and evaluable atoms reuse their retained proof for that horizon.
         let retained = self
             .temporal_class_posterior_cache()
-            .filter(|cache| cache.graphs.n_samples == gp.n_graphs);
+            .filter(|cache| cache.graphs.n_samples == gp.n_graphs());
         let first_horizon = query.temporal.as_ref().and_then(|spec| spec.horizons.first().copied());
-        ctx.map_indexed(gp.n_graphs, |i, inner| {
+        ctx.map_indexed(gp.n_graphs(), |i, inner| {
             let key = u64::try_from(i).map_err(|_| CausalError::Compile {
                 message: "temporal class graph-posterior response: too many atoms".into(),
             })?;
-            let weight = gp.weights[i];
+            let weight = gp.weights()[i];
             if retained.is_some_and(|cache| {
                 cache.graphs.identified.get(i) == Some(&GraphIdentFlag::Unidentified)
             }) {
@@ -180,16 +180,13 @@ impl super::Study {
                         by_horizon: vec![(horizon, atom.envelope.clone())],
                     })
                 });
-            let mark = gp
-                .mark_atoms
-                .as_ref()
-                .map_or(antecedent_discovery::AdjacencyMask::EMPTY, |marks| marks[i]);
+            let mark = gp.mark_atom(i);
             let reconstructed = reconstruct_temporal_class_atom(
-                gp.atom_kind,
-                gp.atoms[i],
-                lag_masks[i],
-                mark,
-                gp.n_vars,
+                gp.atom_kind(),
+                &gp.atoms()[i],
+                &lag_masks[i],
+                &mark,
+                gp.n_vars(),
                 max_lag,
                 vars,
             );
@@ -397,7 +394,7 @@ impl ClassPosteriorMasses {
         (unidentified_mass, failed_mass): (f64, f64),
     ) -> Self {
         let identified_mass = weighted.iter().map(|(_, weight, _)| *weight).sum::<f64>();
-        let total_mass = gp.weights.iter().sum::<f64>();
+        let total_mass = gp.weights().iter().sum::<f64>();
         Self {
             identified: identified_mass / total_mass,
             unidentified: unidentified_mass / total_mass,
@@ -718,10 +715,10 @@ fn temporal_class_response_pooled_block_se(
         return Ok(None);
     }
     let pulse = response_pulse_witness(query)?;
-    let lag_masks = gp.lag_masks.as_ref().ok_or_else(|| CausalError::Compile {
+    let lag_masks = gp.lag_masks().ok_or_else(|| CausalError::Compile {
         message: "temporal class posterior missing per-atom lag masks".into(),
     })?;
-    let max_lag = gp.max_lag.ok_or_else(|| CausalError::Compile {
+    let max_lag = gp.max_lag().ok_or_else(|| CausalError::Compile {
         message: "temporal class posterior missing max_lag".into(),
     })?;
     let mut designs = Vec::new();
@@ -783,20 +780,19 @@ fn temporal_class_response_pooled_block_se(
 fn identify_posterior_atom_pulse(
     study: &Study,
     (gp, vars): (&GraphPosterior, &[VariableId]),
-    (lag_masks, max_lag): (&[u64], u32),
+    (lag_masks, max_lag): (&[antecedent_discovery::LagMask], u32),
     i: usize,
     pulse: &TemporalEffectQuery,
     ctx: &ExecutionContext,
 ) -> Result<Option<Arc<crate::analysis::prepared::CachedTemporalClassIdentification>>, CausalError>
 {
-    let mark =
-        gp.mark_atoms.as_ref().map_or(antecedent_discovery::AdjacencyMask::EMPTY, |marks| marks[i]);
+    let mark = gp.mark_atom(i);
     let Ok(graph) = reconstruct_temporal_class_atom(
-        gp.atom_kind,
-        gp.atoms[i],
-        lag_masks[i],
-        mark,
-        gp.n_vars,
+        gp.atom_kind(),
+        &gp.atoms()[i],
+        &lag_masks[i],
+        &mark,
+        gp.n_vars(),
         max_lag,
         vars,
     ) else {
@@ -816,9 +812,9 @@ fn identify_posterior_atom_pulse(
 
 fn reconstruct_temporal_class_atom(
     kind: antecedent_discovery::GraphPosteriorAtomKind,
-    adjacency: antecedent_discovery::AdjacencyMask,
-    lag_mask: u64,
-    mark: antecedent_discovery::AdjacencyMask,
+    adjacency: &antecedent_discovery::AdjacencyMask,
+    lag_mask: &antecedent_discovery::LagMask,
+    mark: &antecedent_discovery::AdjacencyMask,
     n_vars: usize,
     max_lag: u32,
     variables: &[VariableId],
@@ -897,10 +893,10 @@ fn refute_temporal_class_graph_posterior_intervention(
         ));
     }
     let pulse = response_pulse_witness(query)?;
-    let lag_masks = gp.lag_masks.as_ref().ok_or_else(|| CausalError::Compile {
+    let lag_masks = gp.lag_masks().ok_or_else(|| CausalError::Compile {
         message: "temporal class posterior missing per-atom lag masks".into(),
     })?;
-    let max_lag = gp.max_lag.ok_or_else(|| CausalError::Compile {
+    let max_lag = gp.max_lag().ok_or_else(|| CausalError::Compile {
         message: "temporal class posterior missing max_lag".into(),
     })?;
     let mut refute_atoms = Vec::new();

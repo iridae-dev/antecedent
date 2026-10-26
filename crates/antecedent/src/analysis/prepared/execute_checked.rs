@@ -354,7 +354,7 @@ impl PreparedStudy {
                 &operation.cache.estimand,
             ),
             estimate,
-            Some(operation.fitter.bootstrap_replicates),
+            Some(operation.fitter.inference.bootstrap_replicates),
             started,
             ctx,
         )

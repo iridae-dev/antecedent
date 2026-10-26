@@ -329,14 +329,14 @@ fn original_adjusted_law_summary_failure_does_not_modify_the_fit() {
     let snapshot = "attempt.adjusted.summary".to_string();
     let fit = AdjustedFit::linear(
         &VectorTreatmentInput {
-            outcome: r.columns[1].1.clone(),
-            row_snapshot: snapshot.clone(),
-            adjustment: vec![NamedColumn { name: "z".into(), values: r.columns[2].1.clone() }],
+            outcome: r.columns[1].1.as_slice().into(),
+            row_snapshot: snapshot.as_str().into(),
+            adjustment: vec![NamedColumn::new("z", r.columns[2].1.as_slice())],
             treatments: vec![TreatmentColumn {
                 name: "t".into(),
-                values: r.columns[0].1.clone(),
+                values: r.columns[0].1.as_slice().into(),
                 adjustment_set: vec!["z".into()],
-                row_snapshot: snapshot,
+                row_snapshot: snapshot.as_str().into(),
             }],
         },
         &VectorTreatmentOptions { covariance: VectorCovariance::ModelBased, contrasts: vec![] },

@@ -148,15 +148,15 @@ fn bayesian_uncertainty_slot(
     posterior: Option<&antecedent_estimate::BayesianStatisticalTransportEstimate>,
 ) -> SlotAvailability<UncertaintySlot> {
     if let Some(posterior) = posterior {
-        return match posterior.interval_reason.as_deref() {
-            Some(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED) => {
+        return match posterior.interval_reason {
+            Some(antecedent_estimate::TransportIntervalReason::NotMeasured) => {
                 SlotAvailability::Available(UncertaintySlot::new([UncertaintyComponent::new(
                     UncertaintySource::Sampling,
                     antecedent_estimate::POSTERIOR_EQUAL_TAIL,
                     false,
                 )]))
             }
-            Some(reason) => SlotAvailability::unavailable(reason),
+            Some(reason) => SlotAvailability::unavailable(reason.as_str()),
             None => SlotAvailability::unavailable(
                 IntervalWithholdReason::UncertaintyUnavailable.as_str(),
             ),
@@ -1839,7 +1839,7 @@ impl PreparedStudy<StatisticalPreparedState> {
                     draws_requested: posterior.draws_requested,
                     draws_ok: posterior.draws_ok,
                     draws_failed: posterior.draws_failed,
-                    interval_reason: posterior.interval_reason.as_ref().map(ToString::to_string),
+                    interval_reason: posterior.interval_reason,
                     probabilities: posterior
                         .distributions
                         .iter()
@@ -2730,8 +2730,8 @@ fn check_bayesian_posterior(
         return if expected { Err(PosteriorFault::MissingDraws) } else { Ok(None) };
     };
     check_posterior_metadata(wire, point, estimator, requested, expected)?;
-    let reason = wire.interval_reason.as_deref();
-    let parsed = reason.and_then(IntervalWithholdReason::parse);
+    let reason = wire.interval_reason;
+    let parsed = reason.and_then(|reason| IntervalWithholdReason::parse(reason.as_str()));
     let dependence = parsed.is_some_and(IntervalWithholdReason::is_dependence_refusal);
     let withheld = parsed.is_some_and(IntervalWithholdReason::withholds_posterior_summary);
     check_posterior_draw_counts(wire, parsed, dependence)?;
@@ -2747,7 +2747,7 @@ fn check_bayesian_posterior(
             distributions: distributions.into(),
             atom_intervals: Arc::from([]),
             mean_intervals: Arc::from([]),
-            interval_reason: reason.map(Arc::from),
+            interval_reason: reason,
             draws_requested: wire.draws_requested,
             draws_ok: wire.draws_ok,
             draws_failed: wire.draws_failed,
@@ -2756,7 +2756,7 @@ fn check_bayesian_posterior(
     // A published posterior interval must have earned the facade's draw floor;
     // the producer withholds it below the floor, and so does the consumer.
     ensure(
-        reason == Some(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED)
+        reason == Some(antecedent_estimate::TransportIntervalReason::NotMeasured)
             && PERCENTILE_FLOOR
                 .decide(wire.draws_requested, wire.draws_ok, wire.draws_failed)
                 .is_ok(),
@@ -2782,9 +2782,7 @@ fn check_bayesian_posterior(
         draws_requested: wire.draws_requested,
         draws_ok: wire.draws_ok,
         draws_failed: wire.draws_failed,
-        interval_reason: Some(Arc::from(
-            reason.unwrap_or(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED),
-        )),
+        interval_reason: Some(antecedent_estimate::TransportIntervalReason::NotMeasured),
     }))
 }
 
@@ -3317,7 +3315,10 @@ mod tests {
         .unwrap();
         assert_eq!(withheld.draws_failed, 8);
         assert!(withheld.mean_intervals.is_empty());
-        assert_eq!(withheld.interval_reason.as_deref(), Some("bootstrap_failure_fraction"));
+        assert_eq!(
+            withheld.interval_reason,
+            Some(antecedent_estimate::TransportIntervalReason::BootstrapFailureFraction)
+        );
     }
 
     #[test]

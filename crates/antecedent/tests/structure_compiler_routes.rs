@@ -282,8 +282,8 @@ fn a_structure_posterior_declares_bayesian_inference_and_equals_its_engine() {
         )
         .unwrap();
         let bits = |weights: &[f64]| weights.iter().map(|w| w.to_bits()).collect::<Vec<_>>();
-        assert_eq!(bits(&posterior.weights[..]), bits(&direct.weights[..]));
-        assert_eq!(posterior.adjacency, direct.adjacency);
+        assert_eq!(bits(&posterior.weights()[..]), bits(&direct.weights()[..]));
+        assert_eq!(posterior.atoms(), direct.atoms());
         // A static search refuses lagged data and a Bayesian study setting.
         assert!(
             Study::tabular(data.clone())

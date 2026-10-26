@@ -200,7 +200,7 @@ fn a_common_cause_is_declared_in_every_atom_of_a_graph_posterior() {
     let base = [(2, 0), (2, 1), (0, 1), (2, 3)];
     let first =
         base.iter().fold(AdjacencyMask::EMPTY, |mask, &(a, b)| set_edge(mask, 4, a, b, true));
-    let second = set_edge(first, 4, 0, 3, true);
+    let second = set_edge(&first, 4, 0, 3, true);
     let posterior = GraphPosterior::from_atoms(
         4,
         vec![0.7, 0.3],
@@ -389,8 +389,8 @@ fn a_common_cause_on_a_class_posterior_needs_the_declared_within_class_distribut
     )
     .unwrap();
     let classes = dags.to_equivalence_classes().unwrap();
-    assert_eq!(classes.atom_kind, GraphPosteriorAtomKind::Cpdag);
-    assert_eq!(classes.n_graphs, 1);
+    assert_eq!(classes.atom_kind(), GraphPosteriorAtomKind::Cpdag);
+    assert_eq!(classes.n_graphs(), 1);
     let prepared = Study::tabular(data.clone())
         .graph_posterior(classes)
         .query(AverageEffectQuery::binary_ate(v(0), v(1)))

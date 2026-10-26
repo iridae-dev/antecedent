@@ -90,7 +90,7 @@ fn single_word_masks_round_trip_on_eight_nodes() {
 }
 
 #[test]
-fn graph_posterior_keeps_its_single_word_fields_and_constructor() {
+fn graph_posterior_keeps_its_single_word_constructor_and_words() {
     let mut diagnostics = antecedent_prob::InferenceDiagnostics::analytic("released_surface");
     diagnostics.converged = true;
     let adjacency: Arc<[u64]> = Arc::from(vec![0_u64, set_edge(0, 2, 0, 1, true)]);
@@ -103,14 +103,14 @@ fn graph_posterior_keeps_its_single_word_fields_and_constructor() {
         SamplingSummary { ess: 2.0, diagnostics, rejected_invalid: 0 },
     )
     .expect("a valid posterior");
-    let words: &Arc<[u64]> = &posterior.adjacency;
-    assert_eq!(words.as_ref(), adjacency.as_ref());
-    assert_eq!(posterior.atoms.len(), 2);
+    let words: Option<Vec<u64>> = posterior.adjacency_words();
+    assert_eq!(words.as_deref(), Some(adjacency.as_ref()));
+    assert_eq!(posterior.atoms().len(), 2);
     let posterior = posterior
         .with_atom_kind(GraphPosteriorAtomKind::Pag)
         .with_mark_masks(vec![0_u64, 0])
         .expect("matching length");
-    let marks: &Option<Arc<[u64]>> = &posterior.mark_masks;
+    let marks: Option<Vec<u64>> = posterior.mark_words();
     assert_eq!(marks.as_deref(), Some([0_u64, 0].as_slice()));
 }
 

@@ -28,7 +28,7 @@ use antecedent_estimate::quantile_posterior::randomized_quantile_posterior;
 use antecedent_prob::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 
 fn refuse(code: &'static str, detail: &str, message: &str) -> CausalError {
-    CausalError::Estimate(EstimationError::refused(code, format!("{detail}: {message}")))
+    CausalError::Estimate(EstimationError::refused_detail(code, detail, message))
 }
 
 /// Model-scope checks of the checked and one-shot randomized quantile routes.
@@ -221,16 +221,14 @@ impl Study {
             ctx.rng.master_seed(),
         )
         .map_err(|error| match error {
-            EstimationError::Unsupported { message } if message.contains("threshold grid") => {
-                refuse(
-                    antecedent_core::reason_code!("route_not_supported"),
-                    "quantile_posterior.unresolved_draws",
-                    &format!(
-                        "{message}. Next attempt: a threshold grid that brackets the quantile \
-                         of both arms, or a level inside the grid's range"
-                    ),
-                )
-            }
+            unresolved @ EstimationError::QuantileGridUnresolved => refuse(
+                antecedent_core::reason_code!("route_not_supported"),
+                "quantile_posterior.unresolved_draws",
+                &format!(
+                    "{unresolved}. Next attempt: a threshold grid that brackets the quantile \
+                     of both arms, or a level inside the grid's range"
+                ),
+            ),
             other => CausalError::from(other),
         })?;
         let row = antecedent_io::bayesian_posterior_row_artifact::quantile_row(&posterior);
