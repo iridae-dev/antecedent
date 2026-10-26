@@ -23,13 +23,22 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass, fields
-from typing import Any, Literal
+from dataclasses import asdict, dataclass, field, fields
+from typing import TYPE_CHECKING, Any, Literal
 
 from . import _native
-from ._artifact_protocol import ExportedArtifact, container_bytes
+from ._artifact_protocol import (
+    ArtifactAcceptance,
+    ArtifactExpectation,
+    ExportedArtifact,
+    container_bytes,
+)
 from ._data import ingest_columns
-from .errors import CausalTypeError
+from ._freeze import freeze, thaw
+from ._scientific import ScientificResult
+from .errors import CausalTypeError, CausalUnsupportedError, StructuredRefusal
+from .execution import Execution
+from .outcomes import Answer, Outcome, outcome_operation, require_success
 
 __all__ = [
     "Recommendation",
@@ -37,8 +46,13 @@ __all__ = [
     "StalenessFinding",
     "StalenessPolicy",
     "StalenessReport",
+    "baseline",
+    "consume_baseline",
     "staleness",
 ]
+
+if TYPE_CHECKING:
+    from .prepared import PreparedAnalysis
 
 Recommendation = Literal["reuse", "refresh", "reidentify", "refuse"]
 
@@ -111,7 +125,7 @@ def _policy_json(policy: StalenessPolicy | Mapping[str, Any] | None) -> str | No
 
 
 @dataclass(frozen=True, slots=True)
-class StalenessFinding:
+class StalenessFinding(ScientificResult):
     """One evaluated diagnostic; ``exceeded`` says whether it counts as a finding."""
 
     kind: str
@@ -148,14 +162,11 @@ class StalenessFinding:
 
     def to_dict(self) -> dict[str, Any]:
         """Plain JSON-compatible view."""
-        out = asdict(self)
-        out["keys"] = list(self.keys)
-        out["auxiliary"] = dict(self.auxiliary)
-        return out
+        return {item.name: thaw(getattr(self, item.name)) for item in fields(self)}
 
 
 @dataclass(frozen=True, slots=True)
-class StalenessReport:
+class StalenessReport(ScientificResult):
     """The comparison of new data with a stored plan or baseline."""
 
     recommendation: Recommendation
@@ -173,6 +184,31 @@ class StalenessReport:
     policy_identity: str
     new_rows: int
     identity: str
+
+    @property
+    def answer(self) -> Answer:
+        return Answer("structured", structured={"recommendation": self.recommendation})
+
+    @property
+    def identities(self) -> Mapping[str, str]:
+        return freeze(
+            {
+                "identity": self.identity,
+                "plan_identity": self.plan_identity,
+                "old_snapshot": self.old_snapshot,
+                "new_snapshot": self.new_snapshot,
+                "baseline_identity": self.baseline_identity,
+                "policy_identity": self.policy_identity,
+            }
+        )
+
+    def _summary_fields(self) -> dict[str, Any]:
+        return {
+            "recommendation": self.recommendation,
+            "finding_count": len(self.findings),
+            "new_rows": self.new_rows,
+            "identity": self.identity,
+        }
 
     @property
     def findings(self) -> tuple[StalenessFinding, ...]:
@@ -223,54 +259,210 @@ class StalenessReport:
         }
 
 
-@dataclass(frozen=True, slots=True)
-class StalenessBaseline:
-    """The sealed summary of a plan's data, consumable without the producer."""
+@dataclass(frozen=True, slots=True, init=False, repr=False)
+class StalenessBaseline(ScientificResult):
+    """Independently checked diagnostic summary, with no live study or full dataset.
 
-    artifact: bytes
+    The historical baseline may retain a bounded diagnostic covariate subsample.
+    Its seal authenticates its recorded summary; it does not establish causal
+    identification or replay the unavailable original observations.
+    """
 
-    def to_bytes(self) -> bytes:
-        """The sealed artifact bytes."""
-        return self.artifact
+    _artifact_bytes: bytes = field(repr=False)
+    _metadata: Mapping[str, Any] = field(repr=False)
+    acceptance: ArtifactAcceptance
 
-    @classmethod
-    def from_bytes(cls, artifact: bytes) -> StalenessBaseline:
-        """Wrap artifact bytes; they are verified when assessed."""
-        artifact = (
-            container_bytes(artifact)
-            if isinstance(artifact, (bytes, bytearray, memoryview, ExportedArtifact))
-            else artifact
+    def __init__(self, artifact: Any, *, expected_identity: str | None = None) -> None:
+        encoded = container_bytes(artifact)
+        metadata = json.loads(
+            _native.consume_staleness_baseline(encoded, expected_identity=expected_identity)
         )
-        return cls(bytes(artifact))
+        object.__setattr__(self, "_artifact_bytes", encoded)
+        object.__setattr__(self, "_metadata", freeze(metadata))
+        object.__setattr__(
+            self,
+            "acceptance",
+            ArtifactAcceptance(
+                status="sealed",
+                identity_bound=expected_identity is not None,
+                replayable=False,
+                resumable=False,
+                proof="native baseline consumer verifies its version, required features and summary seal",
+                unresolved=(
+                    "original observations are unavailable for independent profile replay",
+                ),
+            ),
+        )
+        object.__setattr__(self, "_inspection_stage", "consumed")
+
+    @property
+    def identity(self) -> str:
+        return str(self._metadata["identity"])
+
+    @property
+    def plan_identity(self) -> str:
+        return str(self._metadata["plan_identity"])
+
+    @property
+    def snapshot(self) -> str:
+        return str(self._metadata["snapshot"])
+
+    @property
+    def policy_identity(self) -> str:
+        return str(self._metadata["policy_identity"])
+
+    @property
+    def rows(self) -> int:
+        return int(self._metadata["rows"])
+
+    @property
+    def complete_rows(self) -> int:
+        return int(self._metadata["complete_rows"])
+
+    def _summary_fields(self) -> dict[str, Any]:
+        return {"identity": self.identity, "rows": self.rows, "complete_rows": self.complete_rows}
+
+    def to_dict(self) -> dict[str, Any]:
+        """Bounded native summary metadata; retained profile arrays stay in the artifact."""
+        return {**thaw(self._metadata), "acceptance": self.acceptance.to_dict()}
+
+    def export(self) -> ExportedArtifact[StalenessBaseline]:
+        return ExportedArtifact(
+            self._artifact_bytes,
+            "staleness_baseline_v1",
+            ArtifactExpectation("staleness_baseline_v1", self.identity),
+        )
+
+    def assess(
+        self,
+        new_data: Any,
+        *,
+        policy: StalenessPolicy | Mapping[str, Any] | None = None,
+        execution: Execution | None = None,
+    ) -> Outcome[StalenessReport]:
+        return staleness(self, new_data, policy=policy, execution=execution)
 
 
-def staleness(
-    artifact: StalenessBaseline | bytes | Any,
-    new_data: Mapping[str, Any] | Any,
+@outcome_operation
+def consume_baseline(artifact: Any, *, expected_identity: str | None = None) -> StalenessBaseline:
+    """Invoke the native independent baseline consumer; never recreate a live study."""
+    return StalenessBaseline(artifact, expected_identity=expected_identity)
+
+
+def _execution(source: Any, execution: Execution | None) -> Execution:
+    from .prepared import PreparedAnalysis
+
+    if execution is not None:
+        if not isinstance(execution, Execution):
+            raise CausalTypeError("execution must be an Execution declaration or None")
+        policy = execution
+    else:
+        policy = source.execution if isinstance(source, PreparedAnalysis) else Execution()
+    if policy.on_stage is not None:
+        raise CausalUnsupportedError(
+            "drift diagnostics do not expose causal estimation stages",
+            reason_code="stage_stream_unavailable",
+        )
+    return policy
+
+
+def _study_engine(study: Any) -> Any:
+    from .estimation import PreparedAnalysis as Engine
+    from .prepared import PreparedAnalysis
+
+    if not isinstance(study, PreparedAnalysis):
+        raise CausalTypeError("baseline requires a canonical PreparedAnalysis")
+    if study._refused is not None:
+        assert study._refused.refusal is not None
+        study._refused.refusal.raise_error()
+    engine = study._engine
+    if not isinstance(engine, Engine) or engine._native is None or engine._transport is not None:
+        raise StructuredRefusal(
+            {
+                "code": "route_not_supported",
+                "detail": "staleness.native_table_required",
+                "message": "staleness requires an ordinary prepared tabular or series snapshot",
+                "stage": "staleness",
+            }
+        )
+    return engine
+
+
+@outcome_operation
+def baseline(
+    study: PreparedAnalysis[Any],
     *,
     policy: StalenessPolicy | Mapping[str, Any] | None = None,
-    threads: int | None = None,
-) -> StalenessReport:
-    """Compare ``new_data`` with a staleness baseline under ``policy``.
+    execution: Execution | None = None,
+) -> StalenessBaseline:
+    """Explicitly compute a native diagnostic baseline under the declared policy.
 
-    ``artifact`` is a :class:`StalenessBaseline`, its bytes (as written by
-    ``PreparedAnalysis.staleness_baseline().to_bytes()``), or a prepared study (whose retained
-    data is the baseline). Only the artifact and the new data are read: the producer and its
-    rows are not needed.
+    Profiling includes the existing diagnostic propensity fit. Calling this
+    operation neither estimates the causal effect nor changes the prepared study.
+    Preparation and inspection never invoke it implicitly.
     """
-    artifact = (
-        container_bytes(artifact)
-        if isinstance(artifact, (bytes, bytearray, memoryview, ExportedArtifact))
-        else artifact
-    )
-    if hasattr(artifact, "staleness") and not isinstance(artifact, bytes | bytearray):
-        report: StalenessReport = artifact.staleness(new_data, policy=policy, threads=threads)
-        return report
-    raw = artifact.to_bytes() if isinstance(artifact, StalenessBaseline) else artifact
-    if not isinstance(raw, bytes | bytearray | memoryview):
-        raise CausalTypeError("artifact must be a StalenessBaseline, bytes, or a prepared study")
-    names, columns = ingest_columns(new_data)
-    text = _native.staleness_from_artifact(
-        bytes(raw), names, columns, policy_json=_policy_json(policy), threads=threads
-    )
-    return StalenessReport._from_json(text)
+    engine = _study_engine(study)
+    controls = _execution(study, execution)
+
+    def execute() -> StalenessBaseline:
+        encoded = engine._native.export_staleness_baseline(
+            policy_json=_policy_json(policy), seed=controls.seed, threads=controls.threads
+        )
+        return StalenessBaseline(encoded)
+
+    return controls._call(execute)
+
+
+@outcome_operation
+def staleness(
+    source: PreparedAnalysis[Any]
+    | StalenessBaseline
+    | Outcome[StalenessBaseline]
+    | ExportedArtifact[Any]
+    | bytes,
+    new_data: Any,
+    *,
+    policy: StalenessPolicy | Mapping[str, Any] | None = None,
+    execution: Execution | None = None,
+) -> StalenessReport:
+    """Explicitly assess new observations against a canonical study or sealed baseline.
+
+    Every native diagnostic and recommendation is retained. A ``refuse``
+    recommendation is a successful assessment of the plan's applicability;
+    operational failures remain exceptions. The source is never mutated.
+    """
+    from .prepared import PreparedAnalysis
+
+    source = require_success(source)
+    controls = _execution(source, execution)
+    policy_json = _policy_json(policy)
+
+    def assess() -> StalenessReport:
+        if isinstance(source, PreparedAnalysis):
+            engine = _study_engine(source)
+            names, columns = engine._staleness_payload(new_data)
+            text = engine._native.staleness(
+                names,
+                columns,
+                policy_json=policy_json,
+                seed=controls.seed,
+                threads=controls.threads,
+            )
+        else:
+            encoded = (
+                source._artifact_bytes
+                if isinstance(source, StalenessBaseline)
+                else container_bytes(source)
+            )
+            names, columns = ingest_columns(new_data)
+            text = _native.staleness_from_artifact(
+                encoded,
+                names,
+                columns,
+                policy_json=policy_json,
+                seed=controls.seed,
+                threads=controls.threads,
+            )
+        return StalenessReport._from_json(text)
+
+    return controls._call(assess)

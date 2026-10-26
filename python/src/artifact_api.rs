@@ -211,6 +211,12 @@ fn inspect_container_metadata(bytes: &[u8], depth: usize) -> PyResult<String> {
             },
         }));
     }
+    if bytes.starts_with(b"ANTSTALEBASE1") {
+        return json(&serde_json::json!({
+            "manifest": {"artifact_kind": {"other": "staleness_baseline_v1"}},
+            "metadata": {"encoded_payload_bytes": bytes.len() - 13, "validation": "requires_consumer"},
+        }));
+    }
     if bytes.starts_with(b"ANTECEDENT-") {
         let delimiter = bytes
             .iter()

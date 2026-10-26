@@ -257,7 +257,7 @@ def inspect_artifact(value: Any) -> ArtifactInspection:
             ArtifactAcceptance("unavailable", False, False, False),
             data,
         )
-    if data.startswith((b"CAUSAL\0\0", b"ANTECEDENT-", b"ANTBOUNDPRIOR1")) or (
+    if data.startswith((b"CAUSAL\0\0", b"ANTECEDENT-", b"ANTBOUNDPRIOR1", b"ANTSTALEBASE1")) or (
         data and data[0] >> 5 == 5
     ):
         raw = json.loads(_native.inspect_artifact_container(data))
@@ -401,6 +401,7 @@ def artifact_from_receipt(source: Any, receipt: Any) -> ExportedArtifact[Any]:
 
 # No consumer is selected by trying families until one accepts. The native manifest is the discriminator.
 _CONSUMERS: dict[str, tuple[str, str]] = {
+    "staleness_baseline_v1": ("drift", "consume_baseline"),
     "causal_posterior": ("_posterior_artifact", "consume_posterior"),
     "ANTECEDENT-PERIOD-REFRESH": ("transport.advanced", "consume_period_refresh_artifact"),
     "ANTECEDENT-PERIOD-REFRESH-SUMMARY": ("transport.advanced", "PeriodRefreshSummary.consume"),

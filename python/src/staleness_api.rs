@@ -112,7 +112,55 @@ fn staleness_policy(policy_json: Option<String>) -> PyResult<String> {
     Ok(staleness_policy_json(&policy_of(policy_json.as_deref())?).to_string())
 }
 
+/// Independently verify a baseline and expose bounded metadata, never its profile arrays.
+#[pyfunction]
+#[pyo3(signature = (artifact, *, expected_identity=None))]
+fn consume_staleness_baseline(
+    py: Python<'_>,
+    artifact: &[u8],
+    expected_identity: Option<String>,
+) -> PyResult<String> {
+    detach_catch(py, move || {
+        let ctx = py_execution_context(1, resolve_user_threads(None));
+        crate::measured_inference_api::check_cancelled(&ctx)?;
+        let baseline =
+            antecedent_io_core::staleness_artifact::StalenessBaselineWire::consume_admitted(
+                artifact, &ctx,
+            )
+            .map_err(|error| match error {
+                antecedent_io_core::IoError::StreamCancelled => {
+                    py_err(antecedent::CausalError::Cancelled {
+                        stage: "consume_staleness_baseline",
+                    })
+                }
+                antecedent_io_core::IoError::StreamBudgetRefused { message } => {
+                    crate::CausalResourceError::new_err(message)
+                }
+                other => crate::bridge::serialization(other),
+            })?;
+        // Keep the admitted owner through verification, expected-identity checking
+        // and all reads. No decoded profile can escape without its lease.
+        let wire = baseline.wire();
+        crate::measured_inference_api::check_cancelled(&ctx)?;
+        if expected_identity.as_ref().is_some_and(|expected| expected != &wire.seal) {
+            return Err(crate::value_err("staleness baseline identity differs from expectation"));
+        }
+        Ok(serde_json::json!({
+            "identity": wire.seal,
+            "plan_identity": wire.plan_identity,
+            "snapshot": wire.snapshot,
+            "policy_identity": wire.policy,
+            "rows": wire.rows,
+            "complete_rows": wire.complete_rows,
+            "columns": wire.columns.len(),
+            "version": wire.version,
+        })
+        .to_string())
+    })
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(consume_staleness_baseline, module)?)?;
     module.add_function(wrap_pyfunction!(staleness_from_artifact, module)?)?;
     module.add_function(wrap_pyfunction!(staleness_policy, module)?)?;
     Ok(())

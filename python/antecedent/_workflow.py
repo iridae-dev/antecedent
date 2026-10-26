@@ -476,7 +476,7 @@ def _load(data: Any, *, expected: Any = None, context: LoadContext | None = None
         )
     )
     if not legacy_transport and (
-        encoded.startswith((b"CAUSAL\0\0", b"ANTECEDENT-", b"ANTBOUNDPRIOR1"))
+        encoded.startswith((b"CAUSAL\0\0", b"ANTECEDENT-", b"ANTBOUNDPRIOR1", b"ANTSTALEBASE1"))
         or encoded.startswith(
             len(b"antecedent.model.discretized_scm_artifact").to_bytes(8, "little")
             + b"antecedent.model.discretized_scm_artifact"

@@ -1,8 +1,9 @@
 # Staleness and drift diagnostics
 
 A prepared study, or a claim exported from one, rests on the data it was
-prepared on. When new data arrives, `refresh` refits and selective
-recalculation recomputes what changed, but neither says whether the stored
+prepared on. When new data arrives, `ant.rebind(study, data=new_data)` prepares
+an independent branch and `ant.estimate(branch)` explicitly executes it. Selective
+recalculation recomputes what changed; neither operation says whether the stored
 claim has gone stale or whether the plan still applies. The staleness
 diagnostic answers that question before anything is refitted. It compares new
 data with the stored plan (or with an exported baseline of it) under a declared
@@ -11,7 +12,7 @@ policy and returns one typed recommendation:
 | Recommendation | Meaning | Next attempt |
 | --- | --- | --- |
 | `reuse` | No diagnostic exceeds its threshold. | Keep the stored claim; nothing is refitted. |
-| `refresh` | The data changed, but every identification-level premise holds. | `refresh(new_data)`: identification and the plan are kept; the score or fit artifact, the law and the decision are recomputed. |
+| `refresh` | The data changed, but every identification-level premise holds. | `ant.rebind(study, data=new_data)`, then explicitly `ant.estimate(branch)`: compatible identification is retained and dependent scores, fits, laws and decisions are invalidated. |
 | `reidentify` | A premise of the identification product or of the adjustment set failed: positivity, overlap, support of the treatment or adjustment set, a recorded identification check, or drift across periods. | Prepare again on the new data (for period drift, first declare the mechanism invariant across periods or model period-level parameters). |
 | `refuse` | The schema or the target is incompatible with the plan, or too few rows remain to assess uncertainty. | Project the new data onto the prepared schema, re-specify the target, or collect more rows. |
 
@@ -23,27 +24,65 @@ on the recommendation.
 
 ```python
 import antecedent as ant
+import numpy as np
+from antecedent import drift
 from antecedent.drift import StalenessPolicy
+from antecedent.outcomes import require_success
 
-study = ant.prepare(data, graph=[("z", "t"), ("z", "y"), ("t", "y")],
-                    query=ant.AverageEffect("t", "y"))
+def sample(seed, shift=0.0):
+    rng = np.random.default_rng(seed)
+    z = rng.normal(size=800) + shift
+    t = (rng.random(800) < 1 / (1 + np.exp(-0.5 * z))).astype(float)
+    y = 1 + 2 * t + z + rng.normal(size=800)
+    return {"t": t, "y": y, "z": z}
 
-policy = StalenessPolicy(alpha=0.01, multiplicity="holm", period_column=None)
-report = study.staleness(new_data, policy=policy)
+data, new_data = sample(1), sample(2, shift=0.35)
+execution = ant.Execution(seed=1, threads=2)
+study = ant.prepare(
+    data, graph=[("z", "t"), ("z", "y"), ("t", "y")],
+    query=ant.AverageEffect("t", "y"), execution=execution,
+    inference=ant.Frequentist(bootstrap=0), refute=False,
+)
+policy = StalenessPolicy(alpha=0.01, multiplicity="holm", subsample=60, permutations=99)
+# Explicit diagnostics may fit the diagnostic propensity model; preparation does not.
+outcome = drift.staleness(study, new_data, policy=policy)
+report = require_success(outcome)
+assert report.recommendation == "refresh"
+assert "data_snapshot" in report.changed_keys
+assert "identification" not in report.invalidated
+report.next_attempt  # recommendation-specific explanation
+report.findings      # diagnostics whose declared thresholds were exceeded
+report.to_dict()     # explicit JSON-compatible materialization, including every evaluation
 
-report.recommendation          # "reuse" | "refresh" | "reidentify" | "refuse"
-report.next_attempt            # the attempt to make next, in words
-for finding in report.findings:            # the diagnostics that exceeded
-    print(finding.kind, finding.subject, finding.statistic, finding.threshold_name,
-          finding.threshold, finding.adjusted_p_value, finding.keys)
-report.changed_keys            # e.g. ("data_snapshot",)
-report.invalidated             # e.g. ("data_snapshot", "score_artifact", "law", "decision")
-report.to_dict()               # JSON-compatible, every evaluation included
+# Export once; load with explicit producer expectations through the native consumer.
+baseline = require_success(drift.baseline(study, policy=policy))
+artifact = baseline.export()
+loaded = ant.load(artifact, expected=artifact.expectation)
+assert loaded.study is None
+assert loaded.acceptance.status == "sealed" and not loaded.acceptance.replayable
+restored = require_success(loaded)
+independent = require_success(drift.staleness(restored, new_data, policy=policy, execution=execution))
+assert independent.identity == report.identity
+assert independent.to_dict() == report.to_dict()
+assert require_success(drift.staleness(bytes(artifact), new_data, policy=policy, execution=execution)).identity == report.identity
 
-# Producer: export the baseline once. Consumer: assess with the bytes alone.
-artifact = study.staleness_baseline(policy=policy).to_bytes()
-report = ant.staleness(artifact, new_data, policy=policy)
+# Act explicitly: earlier studies, results and diagnostic baselines remain unchanged.
+branch = ant.rebind(study, data=new_data)
+result = ant.estimate(branch)
+require_success(result)
 ```
+
+`drift.baseline` and `drift.staleness` return typed outcomes. Prepared-study
+conveniences `study.staleness_baseline(...)` and `study.staleness(...)` delegate to
+the same operations. Invalid arguments, resource failures, cancellation and callback
+failures raise typed errors. A report recommending `refuse` is an accepted assessment
+that the plan does not apply; it does not pretend to estimate a causal effect.
+
+A loaded baseline contains its sealed diagnostic summary and bounded subsample;
+it reconstructs no live study or complete dataset. Its acceptance verifies the native
+summary seal and declared identity expectations, and explicitly excludes replay of the
+unavailable original observations. `export()` returns the typed artifact and
+`bytes(artifact)` explicitly materializes its encoding.
 
 `report.evaluations` holds every diagnostic that was run, exceeded or not;
 `report.findings` holds those that exceeded; `report.not_evaluated` names the

@@ -108,6 +108,20 @@ class PreparedAnalysis(Generic[T]):
 
         return estimate_cost(self, execution=execution)
 
+    def staleness(
+        self, data: Any, *, policy: Any = None, execution: Execution | None = None
+    ) -> Outcome[Any]:
+        from .drift import staleness
+
+        return staleness(self, data, policy=policy, execution=execution)
+
+    def staleness_baseline(
+        self, *, policy: Any = None, execution: Execution | None = None
+    ) -> Outcome[Any]:
+        from .drift import baseline
+
+        return baseline(self, policy=policy, execution=execution)
+
     def treatment_score_posterior(
         self,
         *,
