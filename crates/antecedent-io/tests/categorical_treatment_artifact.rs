@@ -22,7 +22,7 @@ use antecedent_estimate::vector_treatment::{NamedColumn, VectorCovariance};
 use antecedent_io::categorical_treatment_artifact::{
     CATEGORICAL_TREATMENT_ARTIFACT_VERSION, CATEGORICAL_TREATMENT_CALIBRATION, CategoricalSpecWire,
     CategoricalTreatmentArtifact, CategoricalTreatmentArtifactError, CategoricalTreatmentRequest,
-    decode_parts, encode_parts,
+    CovarianceKindWire, LevelScaleWire, MonotonicityDirectionWire, decode_parts, encode_parts,
 };
 use antecedent_io::vector_treatment_artifact::AdjustmentColumnRequest;
 use antecedent_kernels::erfc;
@@ -45,12 +45,12 @@ fn names(levels: &[&str]) -> Vec<String> {
 fn spec(levels: &[&str], ordered: bool, reference: &str) -> CategoricalSpecWire {
     CategoricalSpecWire {
         declared_levels: names(levels),
-        scale: if ordered { "ordered" } else { "unordered" }.into(),
+        scale: if ordered { LevelScaleWire::Ordered } else { LevelScaleWire::Unordered },
         reference: reference.into(),
         min_level_rows: 2,
         pairwise: vec![],
         monotonicity: None,
-        covariance: "model_based".into(),
+        covariance: CovarianceKindWire::ModelBased,
     }
 }
 
@@ -88,7 +88,7 @@ fn ordered_request() -> CategoricalTreatmentRequest {
         adjustment: vec![],
         levels: rows.iter().map(|r| r.0.to_string()).collect(),
         spec: CategoricalSpecWire {
-            monotonicity: Some("non_decreasing".into()),
+            monotonicity: Some(MonotonicityDirectionWire::NonDecreasing),
             ..spec(&["lo", "mid", "hi"], true, "lo")
         },
     }
@@ -168,13 +168,13 @@ fn categorical_artifact_unordered_level_permutation_gives_identical_artifacts() 
 fn categorical_artifact_ordered_scale_is_part_of_the_estimand() {
     let ordered = {
         let mut request = abc_request();
-        request.spec.scale = "ordered".into();
+        request.spec.scale = LevelScaleWire::Ordered;
         CategoricalTreatmentArtifact::seal(&request).unwrap()
     };
     let unordered = CategoricalTreatmentArtifact::seal(&abc_request()).unwrap();
     assert_ne!(ordered.identity().level_scale_id, unordered.identity().level_scale_id);
     let mut reversed = abc_request();
-    reversed.spec.scale = "ordered".into();
+    reversed.spec.scale = LevelScaleWire::Ordered;
     reversed.spec.declared_levels = names(&["c", "b", "a"]);
     let reversed = CategoricalTreatmentArtifact::seal(&reversed).unwrap();
     assert_ne!(ordered.identity().level_scale_id, reversed.identity().level_scale_id);
@@ -208,7 +208,7 @@ fn categorical_artifact_monotonicity_result_and_null_are_stored_and_replayed() {
     assert!(report.caveats[2].contains("failing to reject does not prove"), "{:?}", report.caveats);
     // The opposite direction has a different null and the reverse orientation (p = 1 here).
     let mut down = ordered_request();
-    down.spec.monotonicity = Some("non_increasing".into());
+    down.spec.monotonicity = Some(MonotonicityDirectionWire::NonIncreasing);
     let flipped = export(&down).0.report();
     let flipped = flipped.result.monotonicity.unwrap();
     assert_eq!(flipped.direction, "non_increasing");
@@ -267,7 +267,7 @@ fn categorical_artifact_sparse_absent_and_undeclared_levels_refuse_with_the_leve
     assert_eq!(detail, "categorical_treatment.unknown_reference");
 
     let mut unordered_monotone = abc_request();
-    unordered_monotone.spec.monotonicity = Some("non_decreasing".into());
+    unordered_monotone.spec.monotonicity = Some(MonotonicityDirectionWire::NonDecreasing);
     let (code, detail, _) =
         CategoricalTreatmentArtifact::seal(&unordered_monotone).unwrap_err().refusal().unwrap();
     assert_eq!(
@@ -275,17 +275,15 @@ fn categorical_artifact_sparse_absent_and_undeclared_levels_refuse_with_the_leve
         ("route_not_supported", "categorical_treatment.monotonicity_requires_ordered")
     );
 
-    let mut bad_kind = abc_request();
-    bad_kind.spec.covariance = "cluster".into();
-    let (_, detail, _) =
-        CategoricalTreatmentArtifact::seal(&bad_kind).unwrap_err().refusal().unwrap();
-    assert_eq!(detail, "categorical_treatment.invalid_request");
+    // A covariance kind outside the wire's set cannot be written into a declaration; it is
+    // refused when the declaration is decoded.
+    assert!(serde_json::from_str::<CovarianceKindWire>("\"cluster\"").is_err());
 }
 
 #[test]
 fn categorical_artifact_robust_covariance_replays_from_a_summary() {
     let mut hc = abc_request();
-    hc.spec.covariance = "hc1".into();
+    hc.spec.covariance = CovarianceKindWire::Hc1;
     let (artifact, bytes) = export(&hc);
     assert_eq!(artifact.report().replay, "robust_summary");
     // The summary is X'X, X'y, RSS and the meat of a p = 3 design, plus the level counts: no row
@@ -339,7 +337,7 @@ fn synthetic_seeded(n: usize, covariance: &str, seed: u64) -> CategoricalTreatme
         levels,
         spec: CategoricalSpecWire {
             pairwise: vec![("b".into(), "c".into())],
-            covariance: covariance.into(),
+            covariance: serde_json::from_str(&format!("\"{covariance}\"")).expect("a covariance kind"),
             ..spec(&["a", "b", "c"], false, "a")
         },
     }
@@ -355,7 +353,7 @@ fn row_fit(request: &CategoricalTreatmentRequest) -> CategoricalTreatmentFit {
         VectorCovariance::Hc3,
     ]
     .into_iter()
-    .find(|kind| kind.as_str() == request.spec.covariance)
+    .find(|kind| CovarianceKindWire::from(*kind) == request.spec.covariance)
     .unwrap();
     let input = CategoricalTreatmentInput {
         outcome: request.outcome.clone(),
@@ -612,7 +610,7 @@ fn categorical_artifact_resealed_identity_changes_are_refused() {
     resealed_mutation_refuses(&original, &data, "design");
 
     let mut kind = original.clone();
-    kind.spec.covariance = "hc0".into();
+    kind.spec.covariance = CovarianceKindWire::Hc0;
     resealed_mutation_refuses(&original, &kind, "design");
 
     let mut pairs = original.clone();
@@ -620,7 +618,7 @@ fn categorical_artifact_resealed_identity_changes_are_refused() {
     resealed_mutation_refuses(&original, &pairs, "family");
 
     let mut direction = original.clone();
-    direction.spec.monotonicity = Some("non_increasing".into());
+    direction.spec.monotonicity = Some(MonotonicityDirectionWire::NonIncreasing);
     resealed_mutation_refuses(&original, &direction, "family");
 
     let mut minimum = original.clone();

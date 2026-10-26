@@ -87,7 +87,7 @@ pub fn digest_wire<T: Serialize>(
 ) -> Result<SemanticDigest, IoError> {
     let mut hasher = blake3::Hasher::new_derive_key(domain.derive_key());
     hasher.update(&IDENTITY_FORMAT.to_le_bytes());
-    ciborium::into_writer(value, &mut hasher).map_err(|error| IoError::Cbor(error.to_string()))?;
+    ciborium::into_writer(value, &mut hasher).map_err(IoError::cbor_encode)?;
     Ok(SemanticDigest::from_bytes(*hasher.finalize().as_bytes()))
 }
 
@@ -105,9 +105,10 @@ pub fn digest_wire_hex<T: Serialize>(domain: IdentityDomain, value: &T) -> Resul
 /// Host/Python view of the executed functional: human-readable label pairs for
 /// inspection reports.
 ///
-/// The query kind and estimand tags are stable; several value labels render
-/// collections with `Debug` and reals with `to_string()`, so they are display text
-/// only. They feed no digest and no equality check; identity is carried by
+/// The query kind and estimand tags are stable, and every value label has an explicit
+/// rendering (comma-joined lists, `none` for an absent option, the wire's JSON for an
+/// expression), never a derived `Debug`. Reals render with `to_string()`, so the labels
+/// are display text. They feed no digest and no equality check; identity is carried by
 /// [`digest_wire`] over the typed wire, which encodes reals by bit pattern. Do not
 /// compare or hash these labels.
 ///
@@ -321,7 +322,7 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                         |(id, coefficient)| format!("fixed_cuped:{id}:{coefficient}"),
                     )
                 } else {
-                    format!("ancova:{:?}", query.ancova_covariates)
+                    format!("ancova:{}", join_ids(&query.ancova_covariates))
                 },
             ),
             ("switchback_periods".into(), query.periods.join(",")),
@@ -333,8 +334,22 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                     .map(|value| if *value { '1' } else { '0' })
                     .collect(),
             ),
-            ("factorial_cell_counts".into(), format!("{:?}", query.factorial_cell_counts)),
-            ("factorial_second_arms".into(), format!("{:?}", query.second_factor_arms)),
+            (
+                "factorial_cell_counts".into(),
+                query.factorial_cell_counts.map_or_else(
+                    || "none".into(),
+                    |counts| {
+                        counts.iter().map(ToString::to_string).collect::<Vec<_>>().join(",")
+                    },
+                ),
+            ),
+            (
+                "factorial_second_arms".into(),
+                query
+                    .second_factor_arms
+                    .as_ref()
+                    .map_or_else(|| "none".into(), |(first, second)| format!("{first}->{second}")),
+            ),
             ("temporal_coordinates".into(), "none".into()),
         ],
         CausalQueryWire::PanelDid(query) => {
@@ -355,7 +370,13 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             let mut dimensions = vec![
                 ("query_kind".into(), "panel_did".into()),
                 ("outcome".into(), query.outcome.to_string()),
-                ("augmented_nuisance".into(), format!("{:?}", query.augmented)),
+                (
+                    "augmented_nuisance".into(),
+                    query.augmented.map_or_else(
+                        || "none".into(),
+                        |(first, second, third, flag)| format!("{first}:{second}:{third}:{flag}"),
+                    ),
+                ),
                 ("design".into(), design.into()),
                 ("temporal_coordinates".into(), "pre_post".into()),
             ];
@@ -367,14 +388,14 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                 dimensions.push((
                     "rollout_estimator".into(),
                     format!(
-                        "{}:{}:{}:{}:{}:anticipation={}:covariates={:?}",
+                        "{}:{}:{}:{}:{}:anticipation={}:covariates={}",
                         rollout.estimator,
                         rollout.comparison,
                         rollout.nuisance,
                         rollout.base_period,
                         rollout.aggregation,
                         rollout.anticipation,
-                        rollout.covariates
+                        join_ids(&rollout.covariates)
                     ),
                 ));
             }
@@ -424,8 +445,15 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                 dimensions.push((
                     "synthetic_interval".into(),
                     format!(
-                        "{}:{}:adoptions={:?}",
-                        rollout.interval, rollout.replicates, rollout.adoptions
+                        "{}:{}:adoptions={}",
+                        rollout.interval,
+                        rollout.replicates,
+                        rollout
+                            .adoptions
+                            .iter()
+                            .map(|(unit, period)| format!("{unit}={period}"))
+                            .collect::<Vec<_>>()
+                            .join(",")
                     ),
                 ));
             }
@@ -447,11 +475,13 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                 dimensions.push((
                     "local_ratio_options".into(),
                     format!(
-                        "{}:temporal={:?}:density={}:balance={:?}",
+                        "{}:temporal={}:density={}:balance={}",
                         options.bandwidth_rule,
-                        options.temporal_replicates,
+                        options
+                            .temporal_replicates
+                            .map_or_else(|| "none".into(), |replicates| replicates.to_string()),
                         options.density_test,
-                        options.balance_covariates
+                        join_ids(&options.balance_covariates)
                     ),
                 ));
             }
@@ -482,7 +512,10 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             ("dose".into(), query.dose.to_string()),
             ("dose_density".into(), query.dose_density.to_string()),
             ("group_count".into(), query.baseline_groups.len().to_string()),
-            ("target_doses".into(), format!("{:?}", query.target_doses)),
+            (
+                "target_doses".into(),
+                query.target_doses.iter().map(ToString::to_string).collect::<Vec<_>>().join(","),
+            ),
             ("bandwidth".into(), query.bandwidth.to_string()),
             ("density_provenance".into(), query.density_provenance.clone()),
         ],
@@ -579,7 +612,7 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
         CausalQueryWire::Discover(query) => vec![
             ("query_kind".into(), "discover".into()),
             ("variables".into(), join_ids(&query.variables)),
-            ("method".into(), format!("{:?}", query.method)),
+            ("method".into(), json_label(&query.method)),
             (
                 "temporal_coordinates".into(),
                 if query.max_lag == 0 {
@@ -690,6 +723,12 @@ fn named_outcomes(kind: &'static str, outcomes: &[u32]) -> Vec<(String, String)>
     ]
 }
 
+/// The JSON rendering of a wire value, for labels of values with no shorter stable spelling
+/// (an expression tree, a method with parameters). Field and variant names are the wire's.
+fn json_label<T: Serialize>(value: &T) -> String {
+    serde_json::to_string(value).unwrap_or_else(|_| "unrenderable".into())
+}
+
 fn join_ids(ids: &[u32]) -> String {
     ids.iter().map(ToString::to_string).collect::<Vec<_>>().join(",")
 }
@@ -751,10 +790,10 @@ fn intervention_label(intervention: &InterventionWire) -> String {
         // so two different programs (or a transform and an assignment of one expression)
         // never share a label. Released variants above are unchanged.
         InterventionWire::Transform { variable, expr, reads } => {
-            format!("transform:{variable}:{expr:?}:{reads:?}")
+            format!("transform:{variable}:{}:{}", json_label(expr), json_label(reads))
         }
         InterventionWire::Assign { variable, expr, reads } => {
-            format!("assign:{variable}:{expr:?}:{reads:?}")
+            format!("assign:{variable}:{}:{}", json_label(expr), json_label(reads))
         }
         InterventionWire::Sequence { steps } => format!(
             "sequence:{}",
@@ -794,11 +833,37 @@ impl TargetIdentityWire {
     /// population change keeps identification and moves target and program.
     #[must_use]
     pub fn question(&self) -> Self {
-        let mut question = self.clone();
-        if let Some(population) = question.query.target_population_mut() {
+        self.clone().into_question()
+    }
+
+    /// [`Self::question`] for an owned payload: the population is replaced in
+    /// place and nothing is cloned.
+    #[must_use]
+    pub fn into_question(mut self) -> Self {
+        if let Some(population) = self.query.target_population_mut() {
             *population = TargetPopulationWire::AllObserved;
         }
-        question
+        self
+    }
+
+    /// Target digest of the population-free question, without cloning the
+    /// payload: the population is set aside while the question is hashed and put
+    /// back before this returns, error or not.
+    ///
+    /// # Errors
+    ///
+    /// The payload does not encode.
+    pub fn question_digest(&mut self) -> Result<antecedent_core::SemanticDigest, IoError> {
+        let set_aside = self
+            .query
+            .target_population_mut()
+            .map(|population| std::mem::replace(population, TargetPopulationWire::AllObserved));
+        let digest = digest_wire(IdentityDomain::Target, self);
+        if let (Some(original), Some(population)) = (set_aside, self.query.target_population_mut())
+        {
+            *population = original;
+        }
+        digest
     }
 }
 
@@ -831,7 +896,7 @@ pub fn payload_digest(kind: &str, bytes: &[u8]) -> [u8; 32] {
 /// into the hasher. The digest bytes match `payload_digest(kind, &to_cbor(value)?)`.
 pub(crate) fn payload_digest_of<T: Serialize>(kind: &str, value: &T) -> Result<[u8; 32], IoError> {
     let mut hasher = payload_hasher(kind, |_| {});
-    ciborium::into_writer(value, &mut hasher).map_err(|error| IoError::Cbor(error.to_string()))?;
+    ciborium::into_writer(value, &mut hasher).map_err(IoError::cbor_encode)?;
     Ok(*hasher.finalize().as_bytes())
 }
 

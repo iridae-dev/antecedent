@@ -15,7 +15,8 @@ pub use antecedent_io_core::analysis_wire::{
 
 pub use crate::estimate_wire::{
     CandidateSelectionWire, ClipSensitivityWire, EffectEstimateWire, FirstStageDiagnosticsWire,
-    JointCovarianceWire, OverlapReportWire, PreparationWire, PropensityIntervalWire,
-    ScoreColumnWire, ScoreInferenceWire, ScoreTableWire, effect_estimate_from_wire,
+    JointCovarianceWire, EstimateOverlapPolicyWire, OverlapReportWire, PreparationWire,
+    PropensityIntervalWire, ScoreColumnWire, ScoreInferenceWire, ScoreTableWire,
+    UncertaintyWithheldWire, effect_estimate_from_owned_wire, effect_estimate_from_wire,
     effect_estimate_to_wire, refutation_from_wire, refutation_to_wire,
 };

@@ -11,6 +11,7 @@ use crate::contract_reason::ContractReason;
 use crate::contract_wire::{CheckedAipwLoweringWire, checked_aipw_rows_digest};
 use crate::identity::{PayloadDigestWire, digest_wire, score_reuse_digest, target_weights_digest};
 use crate::query_wire::TargetPopulationWire;
+use crate::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
 use crate::{AnalysisResultWire, CausalQueryWire};
 
 /// Whether the contract advertises `estimator` or its program resolved to it.
@@ -148,7 +149,7 @@ pub(in crate::contract_section) fn verify_nested_counterfactual_result(
         return Err(ContractReason::BodyNestedCounterfactualEstimate);
     }
     let expected = natural_direct_from_fit(fit, snapshot.row_count, active_bits, control_bits)?;
-    if (actual - expected).abs() > 1e-8 * expected.abs().max(1.0) {
+    if !close_replay_value(actual, expected) {
         return Err(ContractReason::BodyNestedCounterfactualEstimate);
     }
     Ok(())
@@ -236,7 +237,7 @@ pub(in crate::contract_section) fn verify_temporal_nested_point(
             }
             other => other,
         })?;
-    if (estimate - expected).abs() > 1e-8 * expected.abs().max(1.0) {
+    if !close_replay_value(estimate, expected) {
         return Err(ContractReason::BodyTemporalNestedPoint);
     }
     Ok(())
@@ -610,7 +611,7 @@ pub(in crate::contract_section) fn verify_linear_fit_moments(
         || usize::try_from(moments.columns).ok() != Some(p)
         || moments.complete_case_rows != lowering.complete_case_rows
         || moments.complete_case_rows > snapshot.row_count
-        || !(2..=64).contains(&p)
+        || p < 2
         || moments.complete_case_rows <= p as u64
         || moments.gram.len() != p * p
         || moments.outcome_cross.len() != p
@@ -703,10 +704,15 @@ pub(in crate::contract_section) fn apply_moment_inverse(
     beta.iter().all(|v| v.is_finite()).then_some(beta)
 }
 
+/// The contract replay's policy for a recomputed estimate or standard error: a relative
+/// bound of `1e-8` against the recomputed value (absolute below one), non-finite refused.
+/// The replay rebuilds the number from published moments by a different route than the
+/// estimator took, so the two agree to the conditioning of the solve, not to an ulp.
+const CONTRACT_REPLAY_VALUE: ReplayTolerance =
+    ReplayTolerance::new(1e-8, ReplayScale::ReplayedOrOne, ReplayNonFinite::Refuse);
+
 pub(in crate::contract_section) fn close_replay_value(actual: f64, expected: f64) -> bool {
-    actual.is_finite()
-        && expected.is_finite()
-        && (actual - expected).abs() <= 1e-8 * expected.abs().max(1.0)
+    CONTRACT_REPLAY_VALUE.close(actual, expected)
 }
 
 pub(in crate::contract_section) fn verify_checked_iv(

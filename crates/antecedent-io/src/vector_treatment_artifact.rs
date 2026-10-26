@@ -65,7 +65,6 @@ use crate::artifact_budget::{
     BudgetDetails, BudgetRefusal, admit_export, admit_regression, unbounded_context,
 };
 use crate::artifact_codec::CanonicalSize;
-use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const VECTOR_TREATMENT_ARTIFACT_VERSION: u16 = 1;
@@ -768,20 +767,9 @@ fn encode_parts_impl(
     artifact_id: &str,
     export_budget: usize,
 ) -> Result<Vec<u8>, VectorTreatmentArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(VectorTreatmentArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes =
-        to_cbor(meta).map_err(|error| VectorTreatmentArtifactError::Encode(error.to_string()))?;
     // A consumer reads at most the byte cap of uncompressed sections, whatever the container
     // compresses to; the caller's budget bounds the container itself.
-    admit_export(
-        BUDGET,
-        meta_bytes.len().saturating_add(numbers.len()),
-        MAX_VECTOR_TREATMENT_ARTIFACT_BYTES,
-    )
-    .map_err(budget_refusal)?;
-    let bytes = crate::encode_container(
+    let bytes = crate::artifact_codec::encode_sectioned_admitting(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "vector_treatment_wald_unmeasured",
@@ -789,20 +777,17 @@ fn encode_parts_impl(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[
-            crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            },
-            crate::OutSection {
-                id: NUMBERS_SECTION,
-                content_type: crate::CONTENT_BYTES,
-                bytes: numbers,
-            },
-        ],
-    )
-    .map_err(|error| crate::map_artifact_check!(error, VectorTreatmentArtifactError))?;
+        META_SECTION,
+        meta,
+        &[crate::OutSection {
+            id: NUMBERS_SECTION,
+            content_type: crate::CONTENT_BYTES,
+            bytes: numbers,
+        }],
+        |uncompressed| {
+            admit_export(BUDGET, uncompressed, MAX_VECTOR_TREATMENT_ARTIFACT_BYTES).map_err(budget_refusal)
+        },
+    )?;
     admit_export(BUDGET, bytes.len(), export_budget.min(MAX_VECTOR_TREATMENT_ARTIFACT_BYTES))
         .map_err(budget_refusal)?;
     Ok(bytes)
@@ -826,23 +811,17 @@ pub fn decode_parts(
 fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<(VectorTreatmentMeta, Vec<u8>), VectorTreatmentArtifactError> {
-    let parts = crate::decode_container(
+    let (meta, parts) = crate::artifact_codec::decode_sectioned::<VectorTreatmentArtifactError, VectorTreatmentMeta>(
         ARTIFACT_KIND,
         MAX_VECTOR_TREATMENT_ARTIFACT_BYTES,
-        &[META_SECTION, NUMBERS_SECTION],
+        META_SECTION,
+        &[NUMBERS_SECTION],
+        VECTOR_TREATMENT_ARTIFACT_VERSION,
         bytes,
-    )
-    .map_err(|error| crate::map_artifact_check!(error, VectorTreatmentArtifactError))?;
-    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
+    )?;
+    let Ok([payload]) = <[Vec<u8>; 1]>::try_from(parts) else {
         return Err(VectorTreatmentArtifactError::Malformed("unsupported container layout".into()));
     };
-    let meta = crate::decode_with_version(&meta_bytes, |version| {
-        if version == VECTOR_TREATMENT_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(VectorTreatmentArtifactError::UnsupportedVersion { version })
-        }
-    })?;
     Ok((meta, payload))
 }
 
@@ -1078,9 +1057,10 @@ impl VectorTreatmentArtifact {
         ctx: &ExecutionContext,
     ) -> Result<Self, VectorTreatmentArtifactError> {
         let (meta, raw) = decode_parts_impl(bytes)?;
-        if meta.feature != VECTOR_TREATMENT_ARTIFACT_FEATURE {
-            return Err(VectorTreatmentArtifactError::UnsupportedSemantics("feature marker"));
-        }
+        crate::artifact_codec::require_semantics::<VectorTreatmentArtifactError>(
+            meta.feature == VECTOR_TREATMENT_ARTIFACT_FEATURE,
+            "feature marker",
+        )?;
         if meta.null != VECTOR_TREATMENT_NULL {
             return Err(VectorTreatmentArtifactError::IdentityMismatch { field: "null" });
         }

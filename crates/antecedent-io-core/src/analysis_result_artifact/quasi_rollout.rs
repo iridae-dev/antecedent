@@ -16,7 +16,13 @@ use std::cmp::Ordering;
 use serde::{Deserialize, Serialize};
 
 use super::AnalysisResultWire;
+use crate::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
 use crate::{CausalQueryWire, IoError};
+
+/// Replay policy of a rollout's published numbers against its own effects: a relative `1e-9`
+/// of the larger value, absolute below one; non-finite is refused.
+const ROLLOUT_AGREEMENT: ReplayTolerance =
+    ReplayTolerance::new(1e-9, ReplayScale::OnePlusLarger, ReplayNonFinite::Refuse);
 
 /// Normal 97.5% quantile of the pointwise intervals.
 const NORMAL_Q975: f64 = 1.959_963_984_540_054;
@@ -202,9 +208,8 @@ pub(in crate::analysis_result_artifact) fn validate_quasi_rollout(
     {
         return fail("exactly the first effect is the scalar summary");
     }
-    if result.estimate.is_some_and(|estimate| {
-        (estimate - overall.estimate).abs() > 1e-9 * (1.0 + overall.estimate.abs())
-    }) {
+    if result.estimate.is_some_and(|estimate| !ROLLOUT_AGREEMENT.close(estimate, overall.estimate))
+    {
         return fail("the published estimate differs from the scalar summary");
     }
     if rollout.replicates_ok.checked_add(rollout.replicates_failed)
@@ -217,7 +222,7 @@ pub(in crate::analysis_result_artifact) fn validate_quasi_rollout(
     }) {
         return fail("a simultaneous critical value is below the pointwise quantile");
     }
-    let near = |a: f64, b: f64| (a - b).abs() <= 1e-9 * (1.0 + a.abs().max(b.abs()));
+    let near = |a: f64, b: f64| ROLLOUT_AGREEMENT.close(a, b);
     for effect in &rollout.effects {
         if !effect.estimate.is_finite() {
             return fail("an effect estimate is not finite");

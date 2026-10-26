@@ -503,14 +503,9 @@ fn wire_status(status: &str) -> String {
 ///
 /// Wrong length or non-hex input.
 pub fn parse_digest_hex(hex: &str) -> Result<[u8; 32], IoError> {
-    if hex.len() != 64 {
-        return Err(IoError::Convert("digest hex must be 64 characters".into()));
-    }
-    if !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return Err(IoError::Convert("digest hex must be hexadecimal digits".into()));
-    }
-    antecedent_core::digest_from_hex(hex)
-        .ok_or_else(|| IoError::Convert("digest hex must be hexadecimal digits".into()))
+    antecedent_contract::evidence_ledger::parse_digest_hex(hex)
+        .map(|digest| *digest.as_bytes())
+        .ok_or_else(|| IoError::Convert("digest hex must be 64 hexadecimal characters".into()))
 }
 
 /// Decode an external-estimate receipt and return its claim section.

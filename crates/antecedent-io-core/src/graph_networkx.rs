@@ -8,7 +8,7 @@ use antecedent_graph::Dag;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
-use crate::convert::{dag_from_wire, dag_to_wire};
+use crate::convert::{GraphLimits, dag_from_wire_with_limits, dag_to_wire};
 use crate::error::IoError;
 use crate::graph_dot;
 use crate::graph_json::without_names;
@@ -96,8 +96,20 @@ without_names! {
 ///
 /// Undirected / malformed JSON / cycles.
 pub fn dag_with_names_from_networkx_node_link(json: &str) -> Result<(Dag, Vec<String>), IoError> {
+    dag_with_names_from_networkx_node_link_with_limits(json, &GraphLimits::default())
+}
+
+/// [`dag_with_names_from_networkx_node_link`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`dag_with_names_from_networkx_node_link`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn dag_with_names_from_networkx_node_link_with_limits(
+    json: &str,
+    limits: &GraphLimits,
+) -> Result<(Dag, Vec<String>), IoError> {
     let (wire, names) = dag_wire_and_names_from_networkx_node_link(json)?;
-    Ok((dag_from_wire(&wire)?, names))
+    Ok((dag_from_wire_with_limits(&wire, limits)?, names))
 }
 
 /// Serialize a [`Dag`] to `NetworkX` node-link JSON.
@@ -245,6 +257,18 @@ without_names! {
 ///
 /// Undirected / malformed / cycles / unsupported adjacency shape.
 pub fn dag_with_names_from_networkx_adjacency(json: &str) -> Result<(Dag, Vec<String>), IoError> {
+    dag_with_names_from_networkx_adjacency_with_limits(json, &GraphLimits::default())
+}
+
+/// [`dag_with_names_from_networkx_adjacency`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`dag_with_names_from_networkx_adjacency`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn dag_with_names_from_networkx_adjacency_with_limits(
+    json: &str,
+    limits: &GraphLimits,
+) -> Result<(Dag, Vec<String>), IoError> {
     let doc: NetworkXAdjacency =
         serde_json::from_str(json).map_err(|e| IoError::Convert(format!("json: {e}")))?;
     if !doc.directed {
@@ -280,7 +304,7 @@ pub fn dag_with_names_from_networkx_adjacency(json: &str) -> Result<(Dag, Vec<St
         }
     }
     let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
-    let dag = dag_from_wire(&DagWire { node_count, edges })?;
+    let dag = dag_from_wire_with_limits(&DagWire { node_count, edges }, limits)?;
     Ok((dag, order))
 }
 

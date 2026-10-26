@@ -5,7 +5,7 @@
 use antecedent_graph::Dag;
 use serde::{Deserialize, Serialize};
 
-use crate::convert::{check_graph_budget, dag_from_wire, dag_to_wire};
+use crate::convert::{GraphLimits, dag_from_wire_with_limits, dag_to_wire};
 use crate::error::IoError;
 use crate::wire::{DagWire, SchemaWire};
 
@@ -110,8 +110,20 @@ without_names! {
 /// JSON parse errors, invalid DAG structure, or a `variable_names` length
 /// mismatch.
 pub fn dag_with_names_from_json(json: &str) -> Result<(Dag, Vec<String>), IoError> {
+    dag_with_names_from_json_with_limits(json, &GraphLimits::default())
+}
+
+/// [`dag_with_names_from_json`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`dag_with_names_from_json`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn dag_with_names_from_json_with_limits(
+    json: &str,
+    limits: &GraphLimits,
+) -> Result<(Dag, Vec<String>), IoError> {
     let doc: DagJson = json_from_str(json)?;
-    check_graph_budget(doc.node_count, doc.edges.len())?;
+    crate::convert::check_graph_budget_within(doc.node_count, doc.edges.len(), limits)?;
     let names = match &doc.variable_names {
         Some(names) => {
             if names.len() != doc.node_count as usize {
@@ -121,7 +133,7 @@ pub fn dag_with_names_from_json(json: &str) -> Result<(Dag, Vec<String>), IoErro
         }
         None => (0..doc.node_count).map(|i| i.to_string()).collect(),
     };
-    let dag = dag_from_wire(&doc.to_wire())?;
+    let dag = dag_from_wire_with_limits(&doc.to_wire(), limits)?;
     Ok((dag, names))
 }
 

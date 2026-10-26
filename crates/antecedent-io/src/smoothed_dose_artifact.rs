@@ -2,11 +2,11 @@
 //!
 //! Format version 1 of the artifact (`checked_smoothed_dose_transport_v1`).
 //! A consumer never fits a learner or resamples. Before any replay work it refuses a
-//! stored bound that is looser than this build's compiled bound (compared field by field:
-//! a larger cap, a lower replicate floor or a node count this build does not offer; an
-//! equal or tighter stored bound is accepted, so a v1 artifact stays readable after a
-//! future build raises a cap), a request above the stored bounds, a request above its own
-//! row and covariate limits, and a replay workspace estimate above its memory limit (the
+//! stored enforced bound that is looser than this build's (a lower replicate floor, a node
+//! count this build does not offer or a larger workspace cap; an equal or tighter stored
+//! bound is accepted, so a v1 artifact stays readable after a future build raises a cap), a
+//! request whose node count the stored bounds do not offer, a request above its own row and
+//! covariate limits, and a replay workspace estimate above its memory limit (the
 //! mandatory 512 MiB cap, lowered by the consumer's own limit or context hard memory
 //! limit). It then re-derives the transport certificate from the stored graph and smoothed-dose
 //! query and requires the stored certificate record to match; re-validates the request
@@ -485,31 +485,19 @@ impl SmoothedDoseArtifactWire {
     /// stored bound is equal to or tighter than the compiled one.
     fn looser_stored_bound(&self) -> Option<&'static str> {
         let (stored, own) = (&self.bounds, &SMOOTHED_DOSE_BOUNDS);
+        // The size bounds (grid, folds, replicates, rows, covariates, degree, knots) are the
+        // producer's measured envelope, recorded in the premises and not enforced: a request
+        // is bounded by the replay workspace estimate. The node set, the replicate floor and
+        // the workspace cap are enforced.
         [
-            (stored.max_grid > own.max_grid, "stored bound max_grid exceeds this build's"),
             (
                 stored.quadrature_nodes.iter().any(|q| !own.quadrature_nodes.contains(q)),
                 "stored bound quadrature_nodes offers a node count this build does not",
             ),
-            (stored.max_folds > own.max_folds, "stored bound max_folds exceeds this build's"),
             (
                 stored.min_bootstrap < own.min_bootstrap,
                 "stored bound min_bootstrap is below this build's floor",
             ),
-            (
-                stored.max_bootstrap > own.max_bootstrap,
-                "stored bound max_bootstrap exceeds this build's",
-            ),
-            (stored.max_rows > own.max_rows, "stored bound max_rows exceeds this build's"),
-            (
-                stored.max_features > own.max_features,
-                "stored bound max_features exceeds this build's",
-            ),
-            (
-                stored.max_basis_degree > own.max_basis_degree,
-                "stored bound max_basis_degree exceeds this build's",
-            ),
-            (stored.max_knots > own.max_knots, "stored bound max_knots exceeds this build's"),
             (
                 stored.max_workspace_bytes > own.max_workspace_bytes,
                 "stored bound max_workspace_bytes exceeds this build's",
@@ -537,15 +525,7 @@ impl SmoothedDoseArtifactWire {
         }
         let o = &self.options;
         let b = &self.bounds;
-        if self.query.grid.len() > b.max_grid
-            || o.folds > b.max_folds
-            || o.bootstrap > b.max_bootstrap
-            || !b.quadrature_nodes.contains(&o.quadrature_nodes)
-            || n > b.max_rows
-            || self.input.features.len() > b.max_features
-            || o.basis.degree > b.max_basis_degree
-            || o.basis.knots.len() > b.max_knots
-        {
+        if !b.quadrature_nodes.contains(&o.quadrature_nodes) {
             return Err(Refusal::LimitsExceeded("request above the stored frozen bounds"));
         }
         let r = &self.result;

@@ -1287,16 +1287,16 @@ pub struct AnalysisResultWire {
     pub unit_effects: Option<UnitEffectsWire>,
     /// Complete-case-aligned CATE point predictions.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cate: Option<Vec<f64>>,
+    pub cate: Option<std::sync::Arc<[f64]>>,
     /// Portable fitted effect, bound into the result body identity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fitted_effect: Option<antecedent_learn::FittedEffect>,
+    pub fitted_effect: Option<std::sync::Arc<antecedent_learn::FittedEffect>>,
     /// Licensed pointwise CATE standard errors, when computed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cate_se: Option<Vec<f64>>,
+    pub cate_se: Option<std::sync::Arc<[f64]>>,
     /// Forest leaf-dispersion diagnostic per row. Not a standard error.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cate_leaf_dispersion: Option<Vec<f64>>,
+    pub cate_leaf_dispersion: Option<std::sync::Arc<[f64]>>,
     /// Held-out outcome R².
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub outcome_oof_r2: Option<f64>,

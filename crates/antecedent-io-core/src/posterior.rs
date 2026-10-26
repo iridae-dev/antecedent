@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
 use crate::convert::{from_cbor, to_cbor};
 use crate::error::IoError;
+use crate::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
 use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
 
 /// Quantity kind on the wire.
@@ -206,7 +207,10 @@ fn validate_summaries_against_draws(
 ) -> Result<(), IoError> {
     use antecedent_prob::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 
-    const RELATIVE: f64 = 1e-9;
+    // Summaries restated from the embedded draws: a relative `1e-9` of the larger value,
+    // absolute below one; a non-finite summary is a mismatch.
+    const SUMMARY: ReplayTolerance =
+        ReplayTolerance::new(1e-9, ReplayScale::LargerOrOne, ReplayNonFinite::Refuse);
     let n_draws = meta.n_draws as usize;
     let schema = PosteriorSchema {
         quantities: (0..meta.quantities.len())
@@ -216,9 +220,7 @@ fn validate_summaries_against_draws(
     let recomputed = PosteriorDraws::from_column_major(schema, n_draws, draws.to_vec())
         .map_err(|err| IoError::Convert(err.to_string()))?
         .summarize();
-    let close = |stored: f64, derived: f64| {
-        (stored - derived).abs() <= RELATIVE * derived.abs().max(stored.abs()).max(1.0)
-    };
+    let close = |stored: f64, derived: f64| SUMMARY.close(stored, derived);
     for q in 0..meta.quantities.len() {
         // The interval is the type-7 interval of the draws, or the exchangeable-rank (type-6)
         // interval a Laplace posterior publishes below its measured draw count: both are

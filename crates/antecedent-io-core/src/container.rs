@@ -134,7 +134,7 @@ pub struct SectionBytes {
     /// Pack-time zstd on-wire bytes (the exact buffer the descriptor hashed).
     /// [`EncodedArtifact::write_to`] streams this instead of re-encoding;
     /// `None` for uncompressed sections or sections built without packing.
-    packed_on_wire: Option<Arc<[u8]>>,
+    packed_on_wire: Option<Arc<Vec<u8>>>,
 }
 
 // Manual impl: the on-wire cache is derived from `data` and must not affect
@@ -164,6 +164,23 @@ pub struct EncodedArtifact {
     pub sections: Vec<SectionBytes>,
 }
 
+/// One section validated for writing: the logical slice and, when compressed,
+/// the on-wire buffer that replaces it.
+struct PreparedSection<'a> {
+    logical: &'a [u8],
+    encoded: Option<Arc<Vec<u8>>>,
+    compressed_size: u64,
+}
+
+impl PreparedSection<'_> {
+    fn on_wire(&self) -> &[u8] {
+        match &self.encoded {
+            Some(v) => v.as_slice(),
+            None => self.logical,
+        }
+    }
+}
+
 /// Section compression policy for [`section_descriptor`] / [`pack_section`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CompressPolicy {
@@ -191,16 +208,38 @@ impl EncodedArtifact {
     ///
     /// CBOR or IO failures; section/manifest inconsistency.
     pub fn write_to<W: Write>(&self, mut w: W) -> Result<(), IoError> {
+        let prepared = self.prepare_on_wire()?;
+        w.write_all(MAGIC)?;
+        w.write_all(&CONTAINER_VERSION.to_le_bytes())?;
+        let mut manifest_buf = Vec::new();
+        ciborium::into_writer(&self.manifest, &mut manifest_buf).map_err(IoError::cbor_encode)?;
+        let manifest_len = u32::try_from(manifest_buf.len()).map_err(|_| IoError::TooLarge)?;
+        w.write_all(&manifest_len.to_le_bytes())?;
+        w.write_all(&manifest_buf)?;
+        for section in &prepared {
+            let on_wire = section.on_wire();
+            let len = u32::try_from(on_wire.len()).map_err(|_| IoError::TooLarge)?;
+            debug_assert_eq!(u64::from(len), section.compressed_size);
+            w.write_all(&len.to_le_bytes())?;
+            w.write_all(on_wire)?;
+        }
+        Ok(())
+    }
+
+    /// Validate every section against its descriptor and resolve the buffer that
+    /// goes on the wire.
+    ///
+    /// Uncompressed sections borrow the shared logical slice; sections packed via
+    /// `pack_section` / `pack_section_shared` carry the pack-time zstd buffer, so
+    /// no section is zstd-encoded twice. The size and BLAKE3 guards validate
+    /// whichever buffer is streamed.
+    fn prepare_on_wire(&self) -> Result<Vec<PreparedSection<'_>>, IoError> {
         if self.manifest.sections.len() != self.sections.len() {
             return Err(IoError::ManifestMismatch {
                 message: "section count != manifest section count",
             });
         }
-        // Precompute on-wire for compressed sections; uncompressed use logical borrow.
-        // Sections packed via `pack_section` / `pack_section_shared` carry the
-        // pack-time zstd buffer, so no section is zstd-encoded twice; the size
-        // and BLAKE3 guards below still validate whichever buffer is streamed.
-        let mut compressed_bufs: Vec<Option<Arc<[u8]>>> = Vec::with_capacity(self.sections.len());
+        let mut prepared = Vec::with_capacity(self.sections.len());
         for (desc, sec) in self.manifest.sections.iter().zip(self.sections.iter()) {
             if desc.id != sec.id {
                 return Err(IoError::ManifestMismatch { message: "section id mismatch" });
@@ -210,57 +249,32 @@ impl EncodedArtifact {
             if sec.data.len() != expected_uncomp {
                 return Err(IoError::ManifestMismatch { message: "section logical size mismatch" });
             }
-            let on_wire_owned: Option<Arc<[u8]>> =
+            let encoded: Option<Arc<Vec<u8>>> =
                 match (desc.compression.as_deref(), &sec.packed_on_wire) {
                     (Some(COMPRESSION_ZSTD), Some(cached)) => Some(Arc::clone(cached)),
                     (compression, _) => {
-                        encode_on_wire_owned(sec.data.as_ref(), compression)?.map(Arc::from)
+                        encode_on_wire_owned(sec.data.as_ref(), compression)?.map(Arc::new)
                     }
                 };
-            let on_wire: &[u8] = match &on_wire_owned {
-                Some(v) => v.as_ref(),
-                None => sec.data.as_ref(),
+            let section = PreparedSection {
+                logical: sec.data.as_ref(),
+                encoded,
+                compressed_size: desc.compressed_size,
             };
             let expected_comp =
                 usize::try_from(desc.compressed_size).map_err(|_| IoError::TooLarge)?;
+            let on_wire = section.on_wire();
             if on_wire.len() != expected_comp {
                 return Err(IoError::ManifestMismatch {
                     message: "section compressed size mismatch",
                 });
             }
-            let hash = blake3::hash(on_wire);
-            if hash.as_bytes() != &desc.blake3 {
+            if blake3::hash(on_wire).as_bytes() != &desc.blake3 {
                 return Err(IoError::ChecksumMismatch { section: sec.id.clone() });
             }
-            compressed_bufs.push(on_wire_owned);
+            prepared.push(section);
         }
-
-        w.write_all(MAGIC)?;
-        w.write_all(&CONTAINER_VERSION.to_le_bytes())?;
-        let mut manifest_buf = Vec::new();
-        ciborium::into_writer(&self.manifest, &mut manifest_buf)
-            .map_err(|e| IoError::Cbor(e.to_string()))?;
-        let manifest_len = u32::try_from(manifest_buf.len()).map_err(|_| IoError::TooLarge)?;
-        w.write_all(&manifest_len.to_le_bytes())?;
-        w.write_all(&manifest_buf)?;
-        for (desc, sec, owned) in self
-            .manifest
-            .sections
-            .iter()
-            .zip(self.sections.iter())
-            .zip(compressed_bufs.iter())
-            .map(|((d, s), o)| (d, s, o))
-        {
-            let on_wire: &[u8] = match owned {
-                Some(v) => v.as_ref(),
-                None => sec.data.as_ref(),
-            };
-            let len = u32::try_from(on_wire.len()).map_err(|_| IoError::TooLarge)?;
-            debug_assert_eq!(u64::from(len), desc.compressed_size);
-            w.write_all(&len.to_le_bytes())?;
-            w.write_all(on_wire)?;
-        }
-        Ok(())
+        Ok(prepared)
     }
 
     /// Decode a container, materializing every section into owned logical bytes.
@@ -537,7 +551,7 @@ pub fn pack_section_shared(
     let id = id.into();
     let (desc, on_wire) =
         descriptor_and_on_wire(id.clone(), content_type, logical.as_ref(), policy);
-    (desc, SectionBytes { id, data: logical, packed_on_wire: on_wire.map(Arc::from) })
+    (desc, SectionBytes { id, data: logical, packed_on_wire: on_wire.map(Arc::new) })
 }
 
 /// Returns `(compression_tag, Some(owned_on_wire))` when compressed, or
@@ -576,7 +590,7 @@ fn encode_on_wire_owned(
         None => Ok(None),
         Some(COMPRESSION_ZSTD) => zstd::encode_all(logical, ZSTD_LEVEL)
             .map(Some)
-            .map_err(|e| IoError::Io(format!("zstd encode: {e}"))),
+            .map_err(|e| IoError::io(format!("zstd encode: {e}"))),
         Some(other) => Err(IoError::UnsupportedCompression { algo: other.into() }),
     }
 }
@@ -675,6 +689,11 @@ fn decode_size_cap(uncompressed_size: u64, max_section_bytes: usize) -> Result<u
     Ok(max)
 }
 
+/// Expected expansion ratio used to size the first output allocation.
+const DECODE_INITIAL_EXPANSION: usize = 4;
+/// Largest first output allocation of a bounded decode.
+const DECODE_INITIAL_CAPACITY_MAX: usize = 16 * 1024 * 1024;
+
 /// Stream-decompress zstd, never retaining more than `max_uncompressed + 1` bytes
 /// so a hostile frame cannot expand past the declared size.
 fn decode_zstd_bounded(
@@ -689,7 +708,13 @@ fn decode_zstd_bounded(
         .and_then(|n| n.checked_add(1))
         .ok_or(IoError::TooLarge)?;
     let mut limited = decoder.take(read_cap);
-    let mut out = Vec::new();
+    // The declared size is a limit, not a trusted allocation request: start from
+    // a small multiple of the compressed length and let the vector grow.
+    let mut out = Vec::with_capacity(
+        max_uncompressed
+            .min(on_wire.len().saturating_mul(DECODE_INITIAL_EXPANSION))
+            .min(DECODE_INITIAL_CAPACITY_MAX),
+    );
     limited
         .read_to_end(&mut out)
         .map_err(|e| IoError::Decompress { section: section.into(), message: e.to_string() })?;
@@ -713,15 +738,13 @@ pub const DEFAULT_STREAM_CHUNK_BYTES: usize = 64 * 1024;
 /// from untrusted input. Frames written at the default level use a 2 MiB window.
 pub const STREAM_DECODER_WINDOW_LOG_MAX: u32 = 23;
 
+/// Largest window log the Zstandard decoder accepts at all.
+const ZSTD_WINDOW_LOG_CEILING: u32 = 31;
+
 /// Bytes leased for the Zstandard compression context and its output buffer.
 const STREAM_ENCODER_WORKSPACE_BYTES: u64 = 8 * 1024 * 1024;
 /// Bytes leased for the Zstandard decoding window and its input buffers.
 const STREAM_DECODER_WORKSPACE_BYTES: u64 = (1 << STREAM_DECODER_WINDOW_LOG_MAX) + (1 << 20);
-
-/// Message prefix of an [`IoError::Io`] raised when the context was cancelled.
-pub const STREAM_CANCELLED: &str = "artifact stream cancelled";
-/// Message prefix of an [`IoError::Io`] raised when the admission pool refused the working set.
-pub const STREAM_BUDGET_REFUSED: &str = "artifact stream refused by the operation budget";
 
 /// The operation a streamed artifact call runs under: its admission pool and
 /// cancellation token, and the chunk size every buffer is sized from.
@@ -731,13 +754,23 @@ pub struct StreamWork<'a> {
     pub ctx: &'a ExecutionContext,
     /// Bytes moved per read. At least one.
     pub chunk_bytes: usize,
+    /// Largest single on-wire section a streamed read accepts.
+    pub max_section_bytes: usize,
+    /// Largest Zstandard window (log2 bytes) a streamed decode accepts. A frame that
+    /// declares a larger one is refused, and the decode lease is sized from this value.
+    pub decoder_window_log_max: u32,
 }
 
 impl<'a> StreamWork<'a> {
     /// Work under `ctx` with [`DEFAULT_STREAM_CHUNK_BYTES`].
     #[must_use]
     pub const fn new(ctx: &'a ExecutionContext) -> Self {
-        Self { ctx, chunk_bytes: DEFAULT_STREAM_CHUNK_BYTES }
+        Self {
+            ctx,
+            chunk_bytes: DEFAULT_STREAM_CHUNK_BYTES,
+            max_section_bytes: MAX_SECTION_BYTES,
+            decoder_window_log_max: STREAM_DECODER_WINDOW_LOG_MAX,
+        }
     }
 
     /// The same work with `chunk_bytes` per read.
@@ -746,14 +779,33 @@ impl<'a> StreamWork<'a> {
         Self { chunk_bytes, ..self }
     }
 
+    /// The same work accepting on-wire sections of at most `max_section_bytes`.
+    #[must_use]
+    pub const fn with_max_section_bytes(self, max_section_bytes: usize) -> Self {
+        Self { max_section_bytes, ..self }
+    }
+
+    /// The same work accepting Zstandard windows up to `2^decoder_window_log_max` bytes.
+    #[must_use]
+    pub const fn with_decoder_window_log_max(self, decoder_window_log_max: u32) -> Self {
+        Self { decoder_window_log_max, ..self }
+    }
+
+    /// Bytes a streamed decode under this work leases for its codec on top of two chunk
+    /// buffers: the decoding window and its input buffers.
+    #[must_use]
+    pub fn decoder_workspace_bytes(&self) -> u64 {
+        (1_u64 << self.decoder_window_log_max.min(ZSTD_WINDOW_LOG_CEILING)) + (1 << 20)
+    }
+
     /// Check cancellation. Called between chunks.
     ///
     /// # Errors
     ///
-    /// [`IoError::Io`] starting with [`STREAM_CANCELLED`].
+    /// [`IoError::StreamCancelled`].
     pub fn tick(&self) -> Result<(), IoError> {
         if self.ctx.cancellation.is_cancelled() {
-            return Err(IoError::Io(STREAM_CANCELLED.into()));
+            return Err(IoError::StreamCancelled);
         }
         Ok(())
     }
@@ -763,11 +815,11 @@ impl<'a> StreamWork<'a> {
     ///
     /// # Errors
     ///
-    /// Cancellation, a zero chunk, or [`IoError::Io`] starting with [`STREAM_BUDGET_REFUSED`].
+    /// Cancellation, a zero chunk, or [`IoError::StreamBudgetRefused`].
     pub fn admit(&self, codec_bytes: u64) -> Result<StreamLease, IoError> {
         self.tick()?;
         if self.chunk_bytes == 0 {
-            return Err(IoError::Io("artifact stream chunk must be at least one byte".into()));
+            return Err(IoError::io("artifact stream chunk must be at least one byte"));
         }
         let chunk = u64::try_from(self.chunk_bytes).map_err(|_| IoError::TooLarge)?;
         let bytes = chunk
@@ -775,7 +827,7 @@ impl<'a> StreamWork<'a> {
             .and_then(|buffers| buffers.checked_add(codec_bytes))
             .ok_or(IoError::TooLarge)?;
         let lease = self.ctx.acquire_admission(0, bytes).map_err(|error| {
-            IoError::Io(format!("{STREAM_BUDGET_REFUSED}: {bytes} bytes were needed: {error}"))
+            IoError::StreamBudgetRefused { message: format!("{bytes} bytes were needed: {error}") }
         })?;
         Ok(StreamLease { _lease: lease, buffer: vec![0; self.chunk_bytes], bytes })
     }
@@ -924,7 +976,7 @@ fn pump<R: Read + ?Sized, W: Write>(
 }
 
 fn zstd_io(error: &std::io::Error) -> IoError {
-    IoError::Io(format!("zstd encode: {error}"))
+    IoError::io(format!("zstd encode: {error}"))
 }
 
 /// Run one section's logical bytes through `compression` into `sink`.
@@ -1064,7 +1116,7 @@ pub fn write_streaming<W: Write>(
         ..StreamReceipt::default()
     };
     let mut manifest_buf = Vec::new();
-    ciborium::into_writer(manifest, &mut manifest_buf).map_err(|e| IoError::Cbor(e.to_string()))?;
+    ciborium::into_writer(manifest, &mut manifest_buf).map_err(IoError::cbor_encode)?;
     let manifest_len = u32::try_from(manifest_buf.len()).map_err(|_| IoError::TooLarge)?;
     w.write_all(MAGIC)?;
     w.write_all(&CONTAINER_VERSION.to_le_bytes())?;
@@ -1125,7 +1177,7 @@ impl EncodedArtifact {
 /// Every section is hashed in chunks before it is decoded, so a wanted section is
 /// delivered only after its on-wire checksum verified, and an unwanted one is verified
 /// and skipped. Zstandard decoding is capped by the descriptor's `uncompressed_size`
-/// and by [`STREAM_DECODER_WINDOW_LOG_MAX`]. No section is held whole.
+/// and by [`StreamWork::decoder_window_log_max`]. No section is held whole.
 ///
 /// # Errors
 ///
@@ -1137,7 +1189,7 @@ pub fn read_streaming<R: Read + Seek>(
     wants: impl Fn(&SectionDescriptor) -> bool,
     mut on_chunk: impl FnMut(&SectionDescriptor, &[u8]) -> Result<(), IoError>,
 ) -> Result<(ArtifactManifest, StreamReceipt), IoError> {
-    let mut lease = work.admit(STREAM_DECODER_WORKSPACE_BYTES)?;
+    let mut lease = work.admit(work.decoder_workspace_bytes())?;
     let mut receipt = StreamReceipt {
         leased_bytes: lease.bytes(),
         chunk_bytes: work.chunk_bytes,
@@ -1151,7 +1203,7 @@ pub fn read_streaming<R: Read + Seek>(
         if len != desc.compressed_size {
             return Err(IoError::ManifestMismatch { message: "section size mismatch" });
         }
-        if len > crate::error::lossless_u64(MAX_SECTION_BYTES) {
+        if len > crate::error::lossless_u64(work.max_section_bytes) {
             return Err(IoError::TooLarge);
         }
         let start = r.stream_position()?;
@@ -1231,7 +1283,7 @@ fn decode_pass<R: Read>(
         None => deliver(on_wire)?,
         Some(COMPRESSION_ZSTD) => {
             let mut decoder = zstd::Decoder::new(on_wire).map_err(decompress)?;
-            decoder.window_log_max(STREAM_DECODER_WINDOW_LOG_MAX).map_err(decompress)?;
+            decoder.window_log_max(work.decoder_window_log_max).map_err(decompress)?;
             deliver(&mut decoder)?;
         }
         Some(other) => return Err(IoError::UnsupportedCompression { algo: other.into() }),
@@ -1303,7 +1355,7 @@ pub fn zstd_compress_chunked<R: Read, W: Write>(
 
 /// Decompress a Zstandard stream into `on_chunk` in chunks, refusing more than
 /// `max_logical` bytes as they arrive and any window past
-/// [`STREAM_DECODER_WINDOW_LOG_MAX`]. Returns the logical bytes delivered.
+/// [`StreamWork::decoder_window_log_max`]. Returns the logical bytes delivered.
 ///
 /// # Errors
 ///
@@ -1320,7 +1372,7 @@ pub fn zstd_decompress_chunked<R: Read>(
         message: error.to_string(),
     };
     let mut decoder = zstd::Decoder::new(on_wire).map_err(corrupt)?;
-    decoder.window_log_max(STREAM_DECODER_WINDOW_LOG_MAX).map_err(corrupt)?;
+    decoder.window_log_max(work.decoder_window_log_max).map_err(corrupt)?;
     let mut total = 0u64;
     loop {
         work.tick()?;
@@ -1345,7 +1397,8 @@ pub const fn stream_encoder_workspace_bytes() -> u64 {
     STREAM_ENCODER_WORKSPACE_BYTES
 }
 
-/// Bytes a streamed decode leases for its codec on top of two chunk buffers.
+/// Bytes a streamed decode under the default window leases for its codec on top of two chunk
+/// buffers. [`StreamWork::decoder_workspace_bytes`] is the figure for a configured window.
 #[must_use]
 pub const fn stream_decoder_workspace_bytes() -> u64 {
     STREAM_DECODER_WORKSPACE_BYTES
@@ -1897,7 +1950,7 @@ mod tests {
             let refused =
                 describe_streaming("s", "t", &source, CompressPolicy::Always, &work).unwrap_err();
             assert!(
-                matches!(&refused, IoError::Io(m) if m.starts_with(STREAM_BUDGET_REFUSED)),
+                matches!(&refused, IoError::StreamBudgetRefused { .. }),
                 "{refused}"
             );
             assert_eq!(pool.available().bytes(), need - 1);
@@ -1913,7 +1966,7 @@ mod tests {
             let work = StreamWork::new(&ctx).with_chunk_bytes(chunk);
             let mut out = Vec::new();
             let refused = write_streaming(&mut out, &manifest, &[&source], &work).unwrap_err();
-            assert!(matches!(&refused, IoError::Io(m) if m.starts_with(STREAM_BUDGET_REFUSED)));
+            assert!(matches!(&refused, IoError::StreamBudgetRefused { .. }));
             assert!(out.is_empty(), "a refused lease writes no header");
         }
 
@@ -1950,7 +2003,7 @@ mod tests {
             let token = ctx.cancellation.clone();
             let mut sink = CancelAfter { seen: 0, limit: 1 << 20, token: &token };
             let refused = write_streaming(&mut sink, &manifest, &[&source], &work).unwrap_err();
-            assert!(matches!(&refused, IoError::Io(m) if m == STREAM_CANCELLED), "{refused}");
+            assert!(matches!(&refused, IoError::StreamCancelled), "{refused}");
             assert!(sink.seen < 4 << 20, "the write stopped soon after the cancel: {}", sink.seen);
             assert_eq!(pool.available().bytes(), 64 << 20, "the lease came back");
 
@@ -1973,7 +2026,7 @@ mod tests {
                 },
             )
             .unwrap_err();
-            assert!(matches!(&refused, IoError::Io(m) if m == STREAM_CANCELLED), "{refused}");
+            assert!(matches!(&refused, IoError::StreamCancelled), "{refused}");
             assert!(delivered < 4 << 20, "{delivered}");
             assert_eq!(pool.available().bytes(), 64 << 20);
         }

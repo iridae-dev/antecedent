@@ -554,13 +554,25 @@ impl ExternalClaimArtifact {
     /// Oversized, truncated, corrupt, incompatible or semantically changed
     /// artifacts refuse before any value is exposed.
     pub fn from_bytes(bytes: &[u8], expected: &ExternalClaimIdentity) -> Result<Self, IoError> {
-        if bytes.len() > MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES {
+        Self::from_bytes_within(bytes, expected, MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of [`MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a file over `max_bytes` is `TooLarge`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected: &ExternalClaimIdentity,
+        max_bytes: usize,
+    ) -> Result<Self, IoError> {
+        if bytes.len() > max_bytes {
             return Err(IoError::TooLarge);
         }
         expected.validate()?;
         let parts = crate::decode_container(
             ARTIFACT_KIND,
-            MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES,
+            max_bytes,
             &[META_SECTION, VALUES_SECTION],
             bytes,
         )

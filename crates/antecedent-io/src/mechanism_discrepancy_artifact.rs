@@ -40,7 +40,6 @@ use antecedent_estimate::mechanism_discrepancy::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const MECHANISM_DISCREPANCY_ARTIFACT_VERSION: u16 = 1;
@@ -616,12 +615,7 @@ fn encode_parts_impl(
     numbers: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, MechanismDiscrepancyArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(MechanismDiscrepancyArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta)
-        .map_err(|error| MechanismDiscrepancyArtifactError::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "mechanism_discrepancy_wald_unmeasured_never_certifies_invariance",
@@ -629,20 +623,14 @@ fn encode_parts_impl(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[
-            crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            },
-            crate::OutSection {
-                id: NUMBERS_SECTION,
-                content_type: crate::CONTENT_BYTES,
-                bytes: numbers,
-            },
-        ],
+        META_SECTION,
+        meta,
+        &[crate::OutSection {
+            id: NUMBERS_SECTION,
+            content_type: crate::CONTENT_BYTES,
+            bytes: numbers,
+        }],
     )
-    .map_err(|error| crate::map_artifact_check!(error, MechanismDiscrepancyArtifactError))
 }
 
 /// Decode the two sections of a container, refusing another version before the metadata is
@@ -663,25 +651,17 @@ pub fn decode_parts(
 fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<(MechanismDiscrepancyMeta, Vec<u8>), MechanismDiscrepancyArtifactError> {
-    let parts = crate::decode_container(
+    let (meta, parts) = crate::artifact_codec::decode_sectioned::<MechanismDiscrepancyArtifactError, MechanismDiscrepancyMeta>(
         ARTIFACT_KIND,
         MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES,
-        &[META_SECTION, NUMBERS_SECTION],
+        META_SECTION,
+        &[NUMBERS_SECTION],
+        MECHANISM_DISCREPANCY_ARTIFACT_VERSION,
         bytes,
-    )
-    .map_err(|error| crate::map_artifact_check!(error, MechanismDiscrepancyArtifactError))?;
-    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
-        return Err(MechanismDiscrepancyArtifactError::Malformed(
-            "unsupported container layout".into(),
-        ));
+    )?;
+    let Ok([payload]) = <[Vec<u8>; 1]>::try_from(parts) else {
+        return Err(MechanismDiscrepancyArtifactError::Malformed("unsupported container layout".into()));
     };
-    let meta = crate::decode_with_version(&meta_bytes, |version| {
-        if version == MECHANISM_DISCREPANCY_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(MechanismDiscrepancyArtifactError::UnsupportedVersion { version })
-        }
-    })?;
     Ok((meta, payload))
 }
 
@@ -689,9 +669,10 @@ fn check_semantics(
     meta: &MechanismDiscrepancyMeta,
 ) -> Result<(), MechanismDiscrepancyArtifactError> {
     use MechanismDiscrepancyArtifactError as E;
-    if meta.feature != MECHANISM_DISCREPANCY_ARTIFACT_FEATURE {
-        return Err(E::UnsupportedSemantics("feature marker"));
-    }
+    crate::artifact_codec::require_semantics::<E>(
+        meta.feature == MECHANISM_DISCREPANCY_ARTIFACT_FEATURE,
+        "feature marker",
+    )?;
     if meta.null != MECHANISM_DISCREPANCY_NULL {
         return Err(E::IdentityMismatch { field: "null" });
     }

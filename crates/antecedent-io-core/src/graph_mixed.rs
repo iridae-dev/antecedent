@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Write as _;
 
@@ -10,7 +11,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
 use crate::convert::{
-    admg_from_wire, admg_to_wire, cpdag_from_wire, cpdag_to_wire, pag_from_wire, pag_to_wire,
+    GraphLimits, admg_from_wire_with_limits, admg_to_wire, cpdag_from_wire_with_limits,
+    cpdag_to_wire, pag_from_wire_with_limits, pag_to_wire,
 };
 use crate::error::IoError;
 use crate::graph_dot;
@@ -122,9 +124,21 @@ without_names! {
 ///
 /// JSON / structure errors.
 pub fn pag_with_names_from_json(json: &str) -> Result<(Pag, Vec<String>), IoError> {
+    pag_with_names_from_json_with_limits(json, &GraphLimits::default())
+}
+
+/// [`pag_with_names_from_json`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`pag_with_names_from_json`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn pag_with_names_from_json_with_limits(
+    json: &str,
+    limits: &GraphLimits,
+) -> Result<(Pag, Vec<String>), IoError> {
     let doc: PagJson = json_from_str(json)?;
-    let names = names_or_default(doc.variable_names.as_deref(), doc.node_count)?;
-    let g = pag_from_wire(&PagWire { node_count: doc.node_count, edges: doc.edges })?;
+    let names = names_or_default(doc.variable_names.as_deref(), doc.node_count, limits)?;
+    let g = pag_from_wire_with_limits(&PagWire { node_count: doc.node_count, edges: doc.edges }, limits)?;
     Ok((g, names))
 }
 
@@ -148,13 +162,25 @@ without_names! {
 ///
 /// JSON / structure errors.
 pub fn cpdag_with_names_from_json(json: &str) -> Result<(Cpdag, Vec<String>), IoError> {
+    cpdag_with_names_from_json_with_limits(json, &GraphLimits::default())
+}
+
+/// [`cpdag_with_names_from_json`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`cpdag_with_names_from_json`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn cpdag_with_names_from_json_with_limits(
+    json: &str,
+    limits: &GraphLimits,
+) -> Result<(Cpdag, Vec<String>), IoError> {
     let doc: CpdagJson = json_from_str(json)?;
-    let names = names_or_default(doc.variable_names.as_deref(), doc.node_count)?;
-    let g = cpdag_from_wire(&GraphCpdagWire {
+    let names = names_or_default(doc.variable_names.as_deref(), doc.node_count, limits)?;
+    let g = cpdag_from_wire_with_limits(&GraphCpdagWire {
         node_count: doc.node_count,
         directed: doc.directed,
         undirected: doc.undirected,
-    })?;
+    }, limits)?;
     Ok((g, names))
 }
 
@@ -185,13 +211,25 @@ without_names! {
 ///
 /// JSON / structure errors.
 pub fn admg_with_names_from_json(json: &str) -> Result<(Admg, Vec<String>), IoError> {
+    admg_with_names_from_json_with_limits(json, &GraphLimits::default())
+}
+
+/// [`admg_with_names_from_json`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`admg_with_names_from_json`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn admg_with_names_from_json_with_limits(
+    json: &str,
+    limits: &GraphLimits,
+) -> Result<(Admg, Vec<String>), IoError> {
     let doc: AdmgJson = json_from_str(json)?;
-    let names = names_or_default(doc.variable_names.as_deref(), doc.node_count)?;
-    let g = admg_from_wire(&AdmgWire {
+    let names = names_or_default(doc.variable_names.as_deref(), doc.node_count, limits)?;
+    let g = admg_from_wire_with_limits(&AdmgWire {
         node_count: doc.node_count,
         directed: doc.directed,
         bidirected: doc.bidirected,
-    })?;
+    }, limits)?;
     Ok((g, names))
 }
 
@@ -205,8 +243,12 @@ graph_to_json!(
 );
 
 /// Validated names, or dense-index strings when the document carries none.
-fn names_or_default(names: Option<&[String]>, node_count: u32) -> Result<Vec<String>, IoError> {
-    crate::convert::check_graph_budget(node_count, 0)?;
+fn names_or_default(
+    names: Option<&[String]>,
+    node_count: u32,
+    limits: &GraphLimits,
+) -> Result<Vec<String>, IoError> {
+    crate::convert::check_graph_budget_within(node_count, 0, limits)?;
     check_optional_names(names, node_count)?;
     Ok(names.map_or_else(|| (0..node_count).map(|i| i.to_string()).collect(), <[String]>::to_vec))
 }
@@ -229,6 +271,18 @@ without_names! {
 ///
 /// Malformed DOT or illegal CPDAG marks.
 pub fn cpdag_with_names_from_dot(dot: &str) -> Result<(Cpdag, Vec<String>), IoError> {
+    cpdag_with_names_from_dot_with_limits(dot, &GraphLimits::default())
+}
+
+/// [`cpdag_with_names_from_dot`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`cpdag_with_names_from_dot`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn cpdag_with_names_from_dot_with_limits(
+    dot: &str,
+    limits: &GraphLimits,
+) -> Result<(Cpdag, Vec<String>), IoError> {
     let parsed = parse_dot(dot, true)?;
     let mut directed = Vec::new();
     let mut undirected = Vec::new();
@@ -242,7 +296,7 @@ pub fn cpdag_with_names_from_dot(dot: &str) -> Result<(Cpdag, Vec<String>), IoEr
         }
     }
     let g =
-        cpdag_from_wire(&GraphCpdagWire { node_count: parsed.node_count, directed, undirected })?;
+        cpdag_from_wire_with_limits(&GraphCpdagWire { node_count: parsed.node_count, directed, undirected }, limits)?;
     Ok((g, parsed.names))
 }
 
@@ -289,6 +343,18 @@ without_names! {
 ///
 /// Malformed DOT or illegal PAG marks.
 pub fn pag_with_names_from_dot(dot: &str) -> Result<(Pag, Vec<String>), IoError> {
+    pag_with_names_from_dot_with_limits(dot, &GraphLimits::default())
+}
+
+/// [`pag_with_names_from_dot`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`pag_with_names_from_dot`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn pag_with_names_from_dot_with_limits(
+    dot: &str,
+    limits: &GraphLimits,
+) -> Result<(Pag, Vec<String>), IoError> {
     let parsed = parse_dot(dot, true)?;
     let mut edges = Vec::new();
     for e in parsed.edges {
@@ -302,7 +368,7 @@ pub fn pag_with_names_from_dot(dot: &str) -> Result<(Pag, Vec<String>), IoError>
             if e.from <= e.to { (e.from, e.to, at_a, at_b) } else { (e.to, e.from, at_b, at_a) };
         edges.push(MarkedEdgeWire { a, b, at_a, at_b });
     }
-    let g = pag_from_wire(&PagWire { node_count: parsed.node_count, edges })?;
+    let g = pag_from_wire_with_limits(&PagWire { node_count: parsed.node_count, edges }, limits)?;
     Ok((g, parsed.names))
 }
 
@@ -349,11 +415,12 @@ pub fn pag_to_dot(pag: &Pag, names: Option<&[String]>) -> Result<String, IoError
                 push_label(&mut out, e.a, names, use_names);
                 out.push_str(" -> ");
                 push_label(&mut out, e.b, names, use_names);
-                out.push_str(&format!(
+                let _ = write!(
+                    out,
                     " [mark_a={}, mark_b={}];\n",
                     endpoint_str(at_a),
                     endpoint_str(at_b)
-                ));
+                );
             }
         }
     }
@@ -389,6 +456,18 @@ without_names! {
 ///
 /// Malformed DOT or illegal ADMG structure.
 pub fn admg_with_names_from_dot(dot: &str) -> Result<(Admg, Vec<String>), IoError> {
+    admg_with_names_from_dot_with_limits(dot, &GraphLimits::default())
+}
+
+/// [`admg_with_names_from_dot`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`admg_with_names_from_dot`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn admg_with_names_from_dot_with_limits(
+    dot: &str,
+    limits: &GraphLimits,
+) -> Result<(Admg, Vec<String>), IoError> {
     let parsed = parse_dot(dot, false)?;
     let mut directed = Vec::new();
     let mut bidirected = Vec::new();
@@ -406,7 +485,7 @@ pub fn admg_with_names_from_dot(dot: &str) -> Result<(Admg, Vec<String>), IoErro
             }
         }
     }
-    let g = admg_from_wire(&AdmgWire { node_count: parsed.node_count, directed, bidirected })?;
+    let g = admg_from_wire_with_limits(&AdmgWire { node_count: parsed.node_count, directed, bidirected }, limits)?;
     Ok((g, parsed.names))
 }
 
@@ -583,12 +662,24 @@ without_names! {
 ///
 /// Malformed GML.
 pub fn cpdag_with_names_from_gml(gml: &str) -> Result<(Cpdag, Vec<String>), IoError> {
+    cpdag_with_names_from_gml_with_limits(gml, &GraphLimits::default())
+}
+
+/// [`cpdag_with_names_from_gml`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`cpdag_with_names_from_gml`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn cpdag_with_names_from_gml_with_limits(
+    gml: &str,
+    limits: &GraphLimits,
+) -> Result<(Cpdag, Vec<String>), IoError> {
     let g = parse_gml(gml)?;
-    let cpdag = cpdag_from_wire(&GraphCpdagWire {
+    let cpdag = cpdag_from_wire_with_limits(&GraphCpdagWire {
         node_count: g.node_count,
         directed: g.directed,
         undirected: g.undirected,
-    })?;
+    }, limits)?;
     Ok((cpdag, g.names))
 }
 
@@ -623,6 +714,18 @@ without_names! {
 ///
 /// Malformed GML.
 pub fn pag_with_names_from_gml(gml: &str) -> Result<(Pag, Vec<String>), IoError> {
+    pag_with_names_from_gml_with_limits(gml, &GraphLimits::default())
+}
+
+/// [`pag_with_names_from_gml`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`pag_with_names_from_gml`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn pag_with_names_from_gml_with_limits(
+    gml: &str,
+    limits: &GraphLimits,
+) -> Result<(Pag, Vec<String>), IoError> {
     let g = parse_gml(gml)?;
     let mut edges = g.marked;
     for &(a, b) in &g.directed {
@@ -634,7 +737,7 @@ pub fn pag_with_names_from_gml(gml: &str) -> Result<(Pag, Vec<String>), IoError>
     for &(a, b) in &g.bidirected {
         edges.push(MarkedEdgeWire { a, b, at_a: EndpointWire::Arrow, at_b: EndpointWire::Arrow });
     }
-    let pag = pag_from_wire(&PagWire { node_count: g.node_count, edges })?;
+    let pag = pag_from_wire_with_limits(&PagWire { node_count: g.node_count, edges }, limits)?;
     Ok((pag, g.names))
 }
 
@@ -669,12 +772,24 @@ without_names! {
 ///
 /// Malformed GML.
 pub fn admg_with_names_from_gml(gml: &str) -> Result<(Admg, Vec<String>), IoError> {
+    admg_with_names_from_gml_with_limits(gml, &GraphLimits::default())
+}
+
+/// [`admg_with_names_from_gml`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`admg_with_names_from_gml`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn admg_with_names_from_gml_with_limits(
+    gml: &str,
+    limits: &GraphLimits,
+) -> Result<(Admg, Vec<String>), IoError> {
     let g = parse_gml(gml)?;
-    let admg = admg_from_wire(&AdmgWire {
+    let admg = admg_from_wire_with_limits(&AdmgWire {
         node_count: g.node_count,
         directed: g.directed,
         bidirected: g.bidirected,
-    })?;
+    }, limits)?;
     Ok((admg, g.names))
 }
 
@@ -763,34 +878,51 @@ fn emit_gml(
     edges_a: impl Iterator<Item = GmlEdge>,
     edges_b: impl Iterator<Item = GmlEdge>,
 ) -> String {
+    // Writing into a `String` cannot fail, so the `fmt::Result`s below are
+    // discarded explicitly.
     let mut out = String::from("graph [\n  directed 1\n");
     for i in 0..node_count {
-        let label = names.and_then(|n| n.get(i as usize)).cloned().unwrap_or_else(|| i.to_string());
-        let label = graph_gml::escape_gml_string(&label);
-        out.push_str(&format!("  node [\n    id \"{label}\"\n    label \"{label}\"\n  ]\n"));
+        let label = gml_label(names, i);
+        out.push_str("  node [\n    id \"");
+        graph_gml::push_escaped_gml(&mut out, &label);
+        out.push_str("\"\n    label \"");
+        graph_gml::push_escaped_gml(&mut out, &label);
+        out.push_str("\"\n  ]\n");
     }
     for e in edges_a.chain(edges_b) {
-        let (a, b, extra) = match e {
-            GmlEdge::Dir(a, b) => (a, b, String::new()),
-            GmlEdge::Undir(a, b) => (a, b, "    undirected \"1\"\n".into()),
-            GmlEdge::Bi(a, b) => (a, b, "    bidirected \"1\"\n".into()),
-            GmlEdge::Mark(a, b, at_a, at_b) => (
-                a,
-                b,
-                format!(
+        let (a, b) = match e {
+            GmlEdge::Dir(a, b) | GmlEdge::Undir(a, b) | GmlEdge::Bi(a, b) => (a, b),
+            GmlEdge::Mark(a, b, _, _) => (a, b),
+        };
+        out.push_str("  edge [\n    source \"");
+        graph_gml::push_escaped_gml(&mut out, &gml_label(names, a));
+        out.push_str("\"\n    target \"");
+        graph_gml::push_escaped_gml(&mut out, &gml_label(names, b));
+        out.push_str("\"\n");
+        match e {
+            GmlEdge::Dir(..) => {}
+            GmlEdge::Undir(..) => out.push_str("    undirected \"1\"\n"),
+            GmlEdge::Bi(..) => out.push_str("    bidirected \"1\"\n"),
+            GmlEdge::Mark(_, _, at_a, at_b) => {
+                let _ = write!(
+                    out,
                     "    mark_a \"{}\"\n    mark_b \"{}\"\n",
                     endpoint_str(at_a),
                     endpoint_str(at_b)
-                ),
-            ),
-        };
-        let sa = names.and_then(|n| n.get(a as usize)).cloned().unwrap_or_else(|| a.to_string());
-        let sb = names.and_then(|n| n.get(b as usize)).cloned().unwrap_or_else(|| b.to_string());
-        let (sa, sb) = (graph_gml::escape_gml_string(&sa), graph_gml::escape_gml_string(&sb));
-        out.push_str(&format!("  edge [\n    source \"{sa}\"\n    target \"{sb}\"\n{extra}  ]\n"));
+                );
+            }
+        }
+        out.push_str("  ]\n");
     }
     out.push(']');
     out
+}
+
+/// The name of node `i`, or its index when the graph carries no names.
+fn gml_label(names: Option<&[String]>, i: u32) -> Cow<'_, str> {
+    names
+        .and_then(|n| n.get(i as usize))
+        .map_or_else(|| Cow::Owned(i.to_string()), |name| Cow::Borrowed(name.as_str()))
 }
 
 // ── NetworkX node-link ──────────────────────────────────────────────────────
@@ -810,8 +942,18 @@ without_names! {
 /// # Errors
 ///
 /// Malformed JSON.
-pub fn cpdag_with_names_from_networkx_node_link(
+pub fn cpdag_with_names_from_networkx_node_link(json: &str) -> Result<(Cpdag, Vec<String>), IoError> {
+    cpdag_with_names_from_networkx_node_link_with_limits(json, &GraphLimits::default())
+}
+
+/// [`cpdag_with_names_from_networkx_node_link`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`cpdag_with_names_from_networkx_node_link`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn cpdag_with_names_from_networkx_node_link_with_limits(
     json: &str,
+    limits: &GraphLimits,
 ) -> Result<(Cpdag, Vec<String>), IoError> {
     let (order, links) = parse_nx(json)?;
     let mut directed = Vec::new();
@@ -824,7 +966,7 @@ pub fn cpdag_with_names_from_networkx_node_link(
         }
     }
     let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
-    let g = cpdag_from_wire(&GraphCpdagWire { node_count, directed, undirected })?;
+    let g = cpdag_from_wire_with_limits(&GraphCpdagWire { node_count, directed, undirected }, limits)?;
     Ok((g, order))
 }
 
@@ -864,6 +1006,18 @@ without_names! {
 ///
 /// Malformed JSON.
 pub fn pag_with_names_from_networkx_node_link(json: &str) -> Result<(Pag, Vec<String>), IoError> {
+    pag_with_names_from_networkx_node_link_with_limits(json, &GraphLimits::default())
+}
+
+/// [`pag_with_names_from_networkx_node_link`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`pag_with_names_from_networkx_node_link`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn pag_with_names_from_networkx_node_link_with_limits(
+    json: &str,
+    limits: &GraphLimits,
+) -> Result<(Pag, Vec<String>), IoError> {
     let (order, links) = parse_nx(json)?;
     let mut edges = Vec::new();
     for link in links {
@@ -886,7 +1040,7 @@ pub fn pag_with_names_from_networkx_node_link(json: &str) -> Result<(Pag, Vec<St
         edges.push(MarkedEdgeWire { a, b, at_a, at_b });
     }
     let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
-    let g = pag_from_wire(&PagWire { node_count, edges })?;
+    let g = pag_from_wire_with_limits(&PagWire { node_count, edges }, limits)?;
     Ok((g, order))
 }
 
@@ -931,6 +1085,18 @@ without_names! {
 ///
 /// Malformed JSON.
 pub fn admg_with_names_from_networkx_node_link(json: &str) -> Result<(Admg, Vec<String>), IoError> {
+    admg_with_names_from_networkx_node_link_with_limits(json, &GraphLimits::default())
+}
+
+/// [`admg_with_names_from_networkx_node_link`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`admg_with_names_from_networkx_node_link`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn admg_with_names_from_networkx_node_link_with_limits(
+    json: &str,
+    limits: &GraphLimits,
+) -> Result<(Admg, Vec<String>), IoError> {
     let (order, links) = parse_nx(json)?;
     let mut directed = Vec::new();
     let mut bidirected = Vec::new();
@@ -944,7 +1110,7 @@ pub fn admg_with_names_from_networkx_node_link(json: &str) -> Result<(Admg, Vec<
         }
     }
     let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
-    let g = admg_from_wire(&AdmgWire { node_count, directed, bidirected })?;
+    let g = admg_from_wire_with_limits(&AdmgWire { node_count, directed, bidirected }, limits)?;
     Ok((g, order))
 }
 

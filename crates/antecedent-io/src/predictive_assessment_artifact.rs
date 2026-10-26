@@ -37,6 +37,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
+use antecedent_io_core::byte_cursor::RealCursor;
+use antecedent_io_core::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
 use antecedent_validate::predictive_assessment::{
     AssessmentIdentity, DependenceDeclaration, EnsembleCrpsForm, FitDeclaration, ForecastLaw,
     Horizon, LawSource, MAX_CASES, MAX_JOINT_DIMENSION, MAX_LAW_ATOMS, MAX_PREDICTORS,
@@ -47,7 +49,6 @@ use antecedent_validate::predictive_assessment::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const PREDICTIVE_ASSESSMENT_ARTIFACT_VERSION: u16 = 1;
@@ -420,11 +421,17 @@ fn family_of(label: &str) -> &'static str {
     }
 }
 
+/// Stored forecasts and scores reproduce the recomputed ones to the assessment's replay
+/// tolerance, relative to the larger value (absolute below one). Identical bit patterns match,
+/// so an undefined or infinite score that replays to the same value passes.
+const REPLAY: ReplayTolerance = ReplayTolerance::new(
+    antecedent_validate::predictive_assessment::REPLAY_TOLERANCE,
+    ReplayScale::LargerOrOne,
+    ReplayNonFinite::SameBits,
+);
+
 fn close(a: f64, b: f64) -> bool {
-    a.to_bits() == b.to_bits()
-        || (a - b).abs()
-            <= antecedent_validate::predictive_assessment::REPLAY_TOLERANCE
-                * 1.0_f64.max(a.abs()).max(b.abs())
+    REPLAY.close(a, b)
 }
 
 // -- numbers section ----------------------------------------------------------------------
@@ -496,20 +503,20 @@ impl Writer {
 }
 
 struct Reader<'a> {
-    values: &'a [f64],
-    at: usize,
+    values: RealCursor<'a, Error>,
 }
 
-impl Reader<'_> {
-    fn remaining(&self) -> usize {
-        self.values.len() - self.at
+fn numbers_end_early() -> Error {
+    malformed("numbers section ends early")
+}
+
+impl<'a> Reader<'a> {
+    fn new(values: &'a [f64]) -> Self {
+        Self { values: RealCursor::new(values, numbers_end_early) }
     }
 
     fn take(&mut self) -> Result<f64, Error> {
-        let value =
-            *self.values.get(self.at).ok_or_else(|| malformed("numbers section ends early"))?;
-        self.at += 1;
-        Ok(value)
+        self.values.take()
     }
 
     #[allow(
@@ -526,12 +533,7 @@ impl Reader<'_> {
     }
 
     fn slice(&mut self, n: usize) -> Result<Vec<f64>, Error> {
-        if n > self.remaining() {
-            return Err(malformed("numbers section ends early"));
-        }
-        let out = self.values[self.at..self.at + n].to_vec();
-        self.at += n;
-        Ok(out)
+        Ok(self.values.take_slice(n)?.to_vec())
     }
 
     fn law(&mut self) -> Result<ForecastLaw, Error> {
@@ -832,11 +834,7 @@ fn encode_container(
     keys: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, Error> {
-    if artifact_id.trim().is_empty() {
-        return Err(Error::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta).map_err(|error| Error::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "predictive_assessment_point_only_unmeasured",
@@ -844,12 +842,9 @@ fn encode_container(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
+        META_SECTION,
+        meta,
         &[
-            crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            },
             crate::OutSection {
                 id: NUMBERS_SECTION,
                 content_type: crate::CONTENT_BYTES,
@@ -858,27 +853,20 @@ fn encode_container(
             crate::OutSection { id: KEYS_SECTION, content_type: crate::CONTENT_BYTES, bytes: keys },
         ],
     )
-    .map_err(|error| crate::map_artifact_check!(error, PredictiveAssessmentArtifactError))
 }
 
 fn decode_container(bytes: &[u8]) -> Result<(PredictiveAssessmentMeta, Vec<u8>, Vec<u8>), Error> {
-    let parts = crate::decode_container(
+    let (meta, parts) = crate::artifact_codec::decode_sectioned::<Error, PredictiveAssessmentMeta>(
         ARTIFACT_KIND,
         MAX_PREDICTIVE_ASSESSMENT_ARTIFACT_BYTES,
-        &[META_SECTION, NUMBERS_SECTION, KEYS_SECTION],
+        META_SECTION,
+        &[NUMBERS_SECTION, KEYS_SECTION],
+        PREDICTIVE_ASSESSMENT_ARTIFACT_VERSION,
         bytes,
-    )
-    .map_err(|error| crate::map_artifact_check!(error, PredictiveAssessmentArtifactError))?;
-    let Ok([meta_bytes, numbers, keys]) = <[Vec<u8>; 3]>::try_from(parts) else {
+    )?;
+    let Ok([numbers, keys]) = <[Vec<u8>; 2]>::try_from(parts) else {
         return Err(malformed("unsupported container layout"));
     };
-    let meta = crate::decode_with_version(&meta_bytes, |version| {
-        if version == PREDICTIVE_ASSESSMENT_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(Error::UnsupportedVersion { version })
-        }
-    })?;
     Ok((meta, numbers, keys))
 }
 
@@ -943,9 +931,10 @@ fn key_at(keys: &[u8], index: usize) -> ObservationKey {
 }
 
 fn check_claims(meta: &PredictiveAssessmentMeta) -> Result<(), Error> {
-    if meta.feature != PREDICTIVE_ASSESSMENT_ARTIFACT_FEATURE {
-        return Err(Error::UnsupportedSemantics("feature marker"));
-    }
+    crate::artifact_codec::require_semantics::<Error>(
+        meta.feature == PREDICTIVE_ASSESSMENT_ARTIFACT_FEATURE,
+        "feature marker",
+    )?;
     if meta.inference_claim != "point_only" {
         return Err(Error::UnsupportedSemantics("inference claim"));
     }
@@ -987,7 +976,7 @@ fn spec_of(
     if numbers.len() < result_count {
         return Err(malformed("numbers section length"));
     }
-    let mut reader = Reader { values: &numbers[..numbers.len() - result_count], at: 0 };
+    let mut reader = Reader::new(&numbers[..numbers.len() - result_count]);
     let ids: Vec<ObservationKey> = (0..cases).map(|i| key_at(keys, i)).collect();
     let outcomes =
         (0..cases).map(|_| reader.outcome(&meta.outcome_family)).collect::<Result<Vec<_>, _>>()?;
@@ -1017,7 +1006,7 @@ fn spec_of(
             fit,
         });
     }
-    if reader.remaining() != 0 {
+    if reader.values.remaining() != 0 {
         return Err(malformed("numbers section carries unread words"));
     }
     let scores = meta

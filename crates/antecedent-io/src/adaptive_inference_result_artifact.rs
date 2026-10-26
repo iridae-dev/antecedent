@@ -39,9 +39,8 @@ use antecedent_estimate::adaptive_inference::{
 use antecedent_io_core::adaptive_monitoring_contract_artifact::{
     AdaptiveMonitoringContractArtifact, AdaptiveMonitoringContractError, MonitoringContractMeta,
 };
+use antecedent_io_core::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
 use serde::{Deserialize, Serialize};
-
-use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const ADAPTIVE_INFERENCE_RESULT_ARTIFACT_VERSION: u16 = 1;
@@ -701,11 +700,16 @@ fn compute_identity(meta: &AdaptiveResultMeta) -> String {
     writer.finish_hex()
 }
 
+/// A stored result reproduces the recomputed one relative to the recomputed value (absolute
+/// below one); an undefined (NaN) value must be undefined in both.
+const REPLAY: ReplayTolerance = ReplayTolerance::new(
+    ADAPTIVE_RESULT_REPLAY_TOLERANCE,
+    ReplayScale::ReplayedOrOne,
+    ReplayNonFinite::NanMatchesNan,
+);
+
 fn close(stored: f64, recomputed: f64) -> bool {
-    if stored.is_nan() || recomputed.is_nan() {
-        return stored.is_nan() && recomputed.is_nan();
-    }
-    (stored - recomputed).abs() <= ADAPTIVE_RESULT_REPLAY_TOLERANCE * recomputed.abs().max(1.0)
+    REPLAY.close(stored, recomputed)
 }
 
 fn result_refusal(error: &AdaptiveResultError) -> Error {
@@ -720,9 +724,10 @@ fn check(
     if meta.version != ADAPTIVE_INFERENCE_RESULT_ARTIFACT_VERSION {
         return Err(Error::UnsupportedVersion { version: meta.version });
     }
-    if meta.feature != ADAPTIVE_INFERENCE_RESULT_ARTIFACT_FEATURE {
-        return Err(Error::UnsupportedSemantics("feature marker"));
-    }
+    crate::artifact_codec::require_semantics::<Error>(
+        meta.feature == ADAPTIVE_INFERENCE_RESULT_ARTIFACT_FEATURE,
+        "feature marker",
+    )?;
     if meta.claim != "point_only" || meta.calibration != ADAPTIVE_INFERENCE_CALIBRATION {
         return Err(Error::UnsupportedSemantics("claim or calibration status"));
     }
@@ -758,11 +763,7 @@ fn check(
 }
 
 fn encode_meta(meta: &AdaptiveResultMeta, artifact_id: &str) -> Result<Vec<u8>, Error> {
-    if artifact_id.trim().is_empty() {
-        return Err(Error::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta).map_err(|error| Error::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "adaptive_inference_result",
@@ -770,33 +771,22 @@ fn encode_meta(meta: &AdaptiveResultMeta, artifact_id: &str) -> Result<Vec<u8>, 
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: META_SECTION,
-            content_type: crate::CONTENT_CBOR,
-            bytes: &meta_bytes,
-        }],
+        META_SECTION,
+        meta,
+        &[],
     )
-    .map_err(|error| crate::map_artifact_check!(error, AdaptiveInferenceResultArtifactError))
 }
 
 fn decode_meta(bytes: &[u8]) -> Result<AdaptiveResultMeta, Error> {
-    let parts = crate::decode_container(
+    crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
         MAX_ADAPTIVE_INFERENCE_RESULT_BYTES,
-        &[META_SECTION],
+        META_SECTION,
+        &[],
+        ADAPTIVE_INFERENCE_RESULT_ARTIFACT_VERSION,
         bytes,
     )
-    .map_err(|error| crate::map_artifact_check!(error, AdaptiveInferenceResultArtifactError))?;
-    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(Error::Malformed("unsupported container layout".into()));
-    };
-    crate::decode_with_version(&meta_bytes, |version| {
-        if version == ADAPTIVE_INFERENCE_RESULT_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(Error::UnsupportedVersion { version })
-        }
-    })
+    .map(|(meta, _)| meta)
 }
 
 // -- public type -----------------------------------------------------------------------------

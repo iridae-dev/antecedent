@@ -34,8 +34,6 @@ use antecedent_core::recalc::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
-
 /// The artifact major version this reader writes and accepts.
 pub const RECALC_RECEIPT_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
@@ -733,9 +731,10 @@ fn check(
     if meta.version != RECALC_RECEIPT_ARTIFACT_VERSION {
         return Err(RecalcReceiptArtifactError::UnsupportedVersion { version: meta.version });
     }
-    if meta.feature != RECALC_RECEIPT_ARTIFACT_FEATURE {
-        return Err(RecalcReceiptArtifactError::UnsupportedSemantics("feature marker"));
-    }
+    crate::artifact_codec::require_semantics::<RecalcReceiptArtifactError>(
+        meta.feature == RECALC_RECEIPT_ARTIFACT_FEATURE,
+        "feature marker",
+    )?;
     if meta.entries.len() > MAX_RECALC_RECEIPT_STAGES {
         return Err(RecalcReceiptArtifactError::LimitsExceeded("receipt entries"));
     }
@@ -816,33 +815,26 @@ pub fn encode_parts(
     meta: &RecalcReceiptMeta,
     artifact_id: &str,
 ) -> Result<Vec<u8>, RecalcReceiptArtifactError> {
-    encode_parts_impl(meta, artifact_id)
+    encode_parts_impl(meta, artifact_id, MAX_RECALC_RECEIPT_ARTIFACT_BYTES)
 }
 
 fn encode_parts_impl(
     meta: &RecalcReceiptMeta,
     artifact_id: &str,
+    max_bytes: usize,
 ) -> Result<Vec<u8>, RecalcReceiptArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(RecalcReceiptArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes =
-        to_cbor(meta).map_err(|error| RecalcReceiptArtifactError::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "recalc_receipt",
-            max_bytes: MAX_RECALC_RECEIPT_ARTIFACT_BYTES,
+            max_bytes,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: META_SECTION,
-            content_type: crate::CONTENT_CBOR,
-            bytes: &meta_bytes,
-        }],
+        META_SECTION,
+        meta,
+        &[],
     )
-    .map_err(|error| crate::map_artifact_check!(error, RecalcReceiptArtifactError))
 }
 
 /// Decode the metadata section of a container, refusing another version before the metadata
@@ -855,23 +847,22 @@ fn encode_parts_impl(
 // doc(hidden): the facade reads the historical receipt metadata.
 #[doc(hidden)]
 pub fn decode_parts(bytes: &[u8]) -> Result<RecalcReceiptMeta, RecalcReceiptArtifactError> {
-    let parts = crate::decode_container(
+    decode_parts_within(bytes, MAX_RECALC_RECEIPT_ARTIFACT_BYTES)
+}
+
+fn decode_parts_within(
+    bytes: &[u8],
+    max_bytes: usize,
+) -> Result<RecalcReceiptMeta, RecalcReceiptArtifactError> {
+    crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
-        MAX_RECALC_RECEIPT_ARTIFACT_BYTES,
-        &[META_SECTION],
+        max_bytes,
+        META_SECTION,
+        &[],
+        RECALC_RECEIPT_ARTIFACT_VERSION,
         bytes,
     )
-    .map_err(|error| crate::map_artifact_check!(error, RecalcReceiptArtifactError))?;
-    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(RecalcReceiptArtifactError::Malformed("unsupported container layout".into()));
-    };
-    crate::decode_with_version(&meta_bytes, |version| {
-        if version == RECALC_RECEIPT_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(RecalcReceiptArtifactError::UnsupportedVersion { version })
-        }
-    })
+    .map(|(meta, _)| meta)
 }
 
 /// A produced or consumed selective-recalculation receipt: the stored table and the plan
@@ -969,7 +960,20 @@ impl RecalcReceiptArtifact {
     /// # Errors
     /// An empty id, an encoding failure or an oversized payload.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, RecalcReceiptArtifactError> {
-        encode_parts_impl(&self.meta, artifact_id)
+        self.to_bytes_within(artifact_id, MAX_RECALC_RECEIPT_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::to_bytes`] under the caller's byte bound instead of
+    /// [`MAX_RECALC_RECEIPT_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::to_bytes`]; a payload over `max_bytes` is `LimitsExceeded`.
+    pub fn to_bytes_within(
+        &self,
+        artifact_id: &str,
+        max_bytes: usize,
+    ) -> Result<Vec<u8>, RecalcReceiptArtifactError> {
+        encode_parts_impl(&self.meta, artifact_id, max_bytes)
     }
 
     /// Consume an artifact by recomputation.
@@ -985,7 +989,20 @@ impl RecalcReceiptArtifact {
         bytes: &[u8],
         expected_identity: Option<&str>,
     ) -> Result<Self, RecalcReceiptArtifactError> {
-        check(decode_parts(bytes)?, expected_identity)
+        Self::from_bytes_within(bytes, expected_identity, MAX_RECALC_RECEIPT_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of
+    /// [`MAX_RECALC_RECEIPT_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a file over `max_bytes` is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        max_bytes: usize,
+    ) -> Result<Self, RecalcReceiptArtifactError> {
+        check(decode_parts_within(bytes, max_bytes)?, expected_identity)
     }
 }
 

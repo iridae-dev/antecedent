@@ -133,7 +133,7 @@ impl CountFittedIntervalArtifactWire {
         // Complete rows: every fitted node was counted from exactly `rows` observations.
         for node in &nodes {
             if let NodeTable::Counts(counts) = &node.table {
-                if counts.iter().sum::<u64>() != self.rows {
+                if counts.iter().try_fold(0u64, |n, k| n.checked_add(*k)) != Some(self.rows) {
                     return Err(protocol(
                         "every fitted node must be counted from the same complete rows",
                     ));

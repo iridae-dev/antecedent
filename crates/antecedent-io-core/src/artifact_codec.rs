@@ -89,6 +89,7 @@ impl CodecError {
         match self {
             Self::MissingArtifactId => ArtifactCheckError::Encode("missing artifact id".into()),
             Self::Encode(error) => ArtifactCheckError::Encode(error.to_string()),
+            Self::Decode(error) if error.is_container_fault() => ArtifactCheckError::Container(error),
             Self::Decode(error) => ArtifactCheckError::Decode(error.to_string()),
             Self::FileTooLarge | Self::SectionsTooLarge => {
                 ArtifactCheckError::LimitsExceeded("artifact bytes")
@@ -109,6 +110,10 @@ pub enum ArtifactCheckError {
     /// The bytes do not decode as a container.
     #[error("{0}")]
     Decode(String),
+    /// The container itself is damaged or over a bound (a checksum, a framing, a size or a
+    /// compression fault); the typed cause is kept so a caller can match it.
+    #[error("{0}")]
+    Container(IoError),
     /// The container could not be encoded.
     #[error("{0}")]
     Encode(String),
@@ -132,10 +137,11 @@ pub enum ArtifactCheckError {
 /// The header, digest and limit refusals every sectioned checksummed artifact shares, as one
 /// generated enum.
 ///
-/// The seven shared variants (`Decode`, `UnsupportedVersion`, `UnsupportedSemantics`,
-/// `LimitsExceeded`, `Malformed`, `IdentityMismatch`, `Encode`), their `Display` texts, the
-/// `From<IoError>` decode mapping and the `Error` impl are generated from the artifact's
-/// `noun` and the spelling of its identity-mismatch detail. What differs between artifacts is
+/// The eight shared variants (`Decode`, `Container`, `UnsupportedVersion`,
+/// `UnsupportedSemantics`, `LimitsExceeded`, `Malformed`, `IdentityMismatch`, `Encode`), their
+/// `Display` texts, the `From<IoError>` decode mapping (a fault of the container itself keeps
+/// its typed [`IoError`] in `Container`) and the `Error` impl are generated from the
+/// artifact's `noun` and the spelling of its identity-mismatch detail. What differs between artifacts is
 /// declared beside them: extra `variants` and the `display` arms that render them, written as
 /// the arms of a `match self` with the formatter bound to the identifier named in
 /// `display(..)`. `refusal()` is not generated; each artifact keeps the one that matches the
@@ -166,6 +172,8 @@ macro_rules! sectioned_artifact_enum {
         pub enum $name {
             /// The bytes do not decode as this format.
             Decode(String),
+            /// The container is damaged or over a bound; the typed cause is kept.
+            Container($crate::IoError),
             /// Another major version, refused before the payload is interpreted.
             UnsupportedVersion {
                 /// The stored version.
@@ -198,6 +206,9 @@ macro_rules! sectioned_artifact_enum {
                     Self::Decode(message) => {
                         write!($f, "{noun} artifact does not decode: {message}", noun = $noun)
                     }
+                    Self::Container(error) => {
+                        write!($f, "{noun} artifact does not decode: {error}", noun = $noun)
+                    }
                     Self::UnsupportedVersion { version } => {
                         write!($f, "unsupported {noun} artifact version {version}", noun = $noun)
                     }
@@ -225,7 +236,50 @@ macro_rules! sectioned_artifact_enum {
 
         impl From<$crate::IoError> for $name {
             fn from(error: $crate::IoError) -> Self {
-                Self::Decode(error.to_string())
+                if error.is_container_fault() {
+                    Self::Container(error)
+                } else {
+                    Self::Decode(error.to_string())
+                }
+            }
+        }
+
+        impl $crate::artifact_codec::ArtifactFamilyError for $name {
+            fn from_check(check: $crate::artifact_codec::ArtifactCheckError) -> Self {
+                match check {
+                    $crate::artifact_codec::ArtifactCheckError::Decode(message) => {
+                        Self::Decode(message)
+                    }
+                    $crate::artifact_codec::ArtifactCheckError::Container(error) => {
+                        Self::Container(error)
+                    }
+                    $crate::artifact_codec::ArtifactCheckError::Encode(message) => {
+                        Self::Encode(message)
+                    }
+                    $crate::artifact_codec::ArtifactCheckError::LimitsExceeded(what) => {
+                        Self::LimitsExceeded(what)
+                    }
+                    $crate::artifact_codec::ArtifactCheckError::Malformed(message) => {
+                        Self::Malformed(message)
+                    }
+                    $crate::artifact_codec::ArtifactCheckError::UnsupportedVersion { version } => {
+                        match u16::try_from(version) {
+                            Ok(version) => Self::UnsupportedVersion { version },
+                            Err(_) => {
+                                Self::Decode(format!("unsupported artifact version {version}"))
+                            }
+                        }
+                    }
+                    $crate::artifact_codec::ArtifactCheckError::UnsupportedSemantics(detail) => {
+                        Self::UnsupportedSemantics(detail)
+                    }
+                    // `ArtifactCheckError` is non-exhaustive and this expands in other crates.
+                    #[allow(
+                        unreachable_patterns,
+                        reason = "ArtifactCheckError is non-exhaustive and this macro expands in other crates"
+                    )]
+                    other => Self::Malformed(other.to_string()),
+                }
             }
         }
     };
@@ -510,6 +564,108 @@ mod private {
     impl Sealed for u32 {}
 }
 
+/// An artifact error that has the container-level family variants (`Decode`, `Encode`,
+/// `LimitsExceeded`, `Malformed`, `UnsupportedVersion { version: u16 }` and
+/// `UnsupportedSemantics`) and decodes from an [`IoError`]. [`sectioned_artifact_enum!`]
+/// implements it, which is what lets the drivers below serve every sectioned artifact.
+pub trait ArtifactFamilyError: Sized + From<IoError> {
+    /// The artifact's own spelling of a container-level check.
+    fn from_check(check: ArtifactCheckError) -> Self;
+}
+
+/// `UnsupportedSemantics(what)` unless `holds`: the marker checks of a consumed artifact (its
+/// feature marker, claim, calibration and caveats are the ones this format defines).
+///
+/// # Errors
+/// The artifact's `UnsupportedSemantics(what)`.
+pub fn require_semantics<E: ArtifactFamilyError>(holds: bool, what: &'static str) -> Result<(), E> {
+    if holds { Ok(()) } else { Err(E::from_check(ArtifactCheckError::UnsupportedSemantics(what))) }
+}
+
+/// Write a CBOR metadata section followed by `payloads` as one checksummed container.
+///
+/// A blank artifact id is refused before the metadata is encoded; a file over the header's
+/// `max_bytes` is `LimitsExceeded("artifact bytes")`.
+///
+/// # Errors
+/// The artifact's `Encode`, `LimitsExceeded` or `Malformed` for the container-level failures.
+pub fn encode_sectioned<E: ArtifactFamilyError, M: Serialize>(
+    header: &ArtifactContainer<'_>,
+    meta_section: &str,
+    meta: &M,
+    payloads: &[OutSection<'_>],
+) -> Result<Vec<u8>, E> {
+    encode_sectioned_admitting(header, meta_section, meta, payloads, |_| Ok(()))
+}
+
+/// [`encode_sectioned`] with an admission check on the uncompressed bytes (the encoded metadata
+/// plus every payload), run after the metadata encodes and before the container is built, so an
+/// artifact that would exceed its export bound refuses without being assembled.
+///
+/// # Errors
+/// As [`encode_sectioned`], and `admit`'s refusal.
+pub fn encode_sectioned_admitting<E: ArtifactFamilyError, M: Serialize>(
+    header: &ArtifactContainer<'_>,
+    meta_section: &str,
+    meta: &M,
+    payloads: &[OutSection<'_>],
+    admit: impl FnOnce(usize) -> Result<(), E>,
+) -> Result<Vec<u8>, E> {
+    if header.artifact_id.trim().is_empty() {
+        return Err(E::from_check(ArtifactCheckError::Encode("missing artifact id".into())));
+    }
+    let meta_bytes = crate::convert::to_cbor(meta)
+        .map_err(|error| E::from_check(ArtifactCheckError::Encode(error.to_string())))?;
+    let uncompressed = payloads
+        .iter()
+        .fold(meta_bytes.len(), |total, section| total.saturating_add(section.bytes.len()));
+    admit(uncompressed)?;
+    let mut sections = Vec::with_capacity(payloads.len() + 1);
+    sections.push(OutSection { id: meta_section, content_type: CONTENT_CBOR, bytes: &meta_bytes });
+    sections.extend(payloads.iter().map(|section| OutSection {
+        id: section.id,
+        content_type: section.content_type,
+        bytes: section.bytes,
+    }));
+    encode_container(header, &sections).map_err(|error| E::from_check(error.into_check()))
+}
+
+/// Read a container of a CBOR metadata section followed by `payload_sections`, refusing another
+/// version before the metadata is interpreted as `M`.
+///
+/// Returns the metadata and the payload sections in order.
+///
+/// # Errors
+/// The artifact's `Decode`, `LimitsExceeded`, `Malformed` or `UnsupportedVersion`.
+pub fn decode_sectioned<E: ArtifactFamilyError, M: DeserializeOwned>(
+    kind: &str,
+    max_bytes: usize,
+    meta_section: &str,
+    payload_sections: &[&str],
+    supported_version: u16,
+    bytes: &[u8],
+) -> Result<(M, Vec<Vec<u8>>), E> {
+    let mut ids = Vec::with_capacity(payload_sections.len() + 1);
+    ids.push(meta_section);
+    ids.extend_from_slice(payload_sections);
+    let mut parts = decode_container(kind, max_bytes, &ids, bytes)
+        .map_err(|error| E::from_check(error.into_check()))?;
+    if parts.len() != ids.len() {
+        return Err(E::from_check(ArtifactCheckError::Malformed(
+            "unsupported container layout".into(),
+        )));
+    }
+    let meta_bytes = parts.remove(0);
+    let meta = decode_with_version(&meta_bytes, |version: u16| {
+        if version == supported_version {
+            Ok(())
+        } else {
+            Err(E::from_check(ArtifactCheckError::UnsupportedVersion { version: version.into() }))
+        }
+    })?;
+    Ok((meta, parts))
+}
+
 /// Write `sections` in order as one checksummed container.
 ///
 /// # Errors
@@ -634,7 +790,7 @@ where
     let value = cbor_value(bytes)?;
     let version = version_of::<V>(&value)?;
     gate(version)?;
-    value.deserialized().map_err(|error| IoError::Cbor(error.to_string()).into())
+    value.deserialized().map_err(|error| IoError::cbor_decode(error).into())
 }
 
 /// One CBOR item, trailing bytes refused (the shared single-item decoder).
@@ -648,7 +804,8 @@ fn cbor_value(bytes: &[u8]) -> Result<ciborium::Value, IoError> {
 /// not a value; callers that require an exact multiple of eight bytes check
 /// the length themselves.
 #[must_use]
-pub(crate) fn f64s_from_le_bytes(bytes: &[u8]) -> Vec<f64> {
+#[doc(hidden)]
+pub fn f64s_from_le_bytes(bytes: &[u8]) -> Vec<f64> {
     let mut values = Vec::with_capacity(bytes.len() / 8);
     for chunk in bytes.chunks_exact(8) {
         let mut word = [0_u8; 8];
@@ -662,7 +819,8 @@ pub(crate) fn f64s_from_le_bytes(bytes: &[u8]) -> Vec<f64> {
 ///
 /// Bit patterns are preserved, including the sign of zero and NaN payloads.
 #[must_use]
-pub(crate) fn f64s_to_le_bytes(values: &[f64]) -> Vec<u8> {
+#[doc(hidden)]
+pub fn f64s_to_le_bytes(values: &[f64]) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(values.len().saturating_mul(8));
     for value in values {
         bytes.extend_from_slice(&value.to_le_bytes());
@@ -670,11 +828,24 @@ pub(crate) fn f64s_to_le_bytes(values: &[f64]) -> Vec<u8> {
     bytes
 }
 
+/// Encode `u32` values as little-endian words.
+#[must_use]
+pub(crate) fn u32s_to_le_bytes(values: &[u32]) -> Vec<u8> {
+    values.iter().flat_map(|value| value.to_le_bytes()).collect()
+}
+
+/// Encode `u64` values as little-endian words.
+#[must_use]
+pub(crate) fn u64s_to_le_bytes(values: &[u64]) -> Vec<u8> {
+    values.iter().flat_map(|value| value.to_le_bytes()).collect()
+}
+
 /// Next `len` values of a decoded real section.
 ///
 /// The caller has already checked that the section is long enough. A short
 /// slice panics, the same as indexing it.
-pub(crate) fn split_reals<'a>(values: &mut &'a [f64], len: usize) -> &'a [f64] {
+#[doc(hidden)]
+pub fn split_reals<'a>(values: &mut &'a [f64], len: usize) -> &'a [f64] {
     let (head, tail) = values.split_at(len);
     *values = tail;
     head
@@ -685,38 +856,18 @@ fn version_of<V: VersionWord>(value: &ciborium::Value) -> Result<V, IoError> {
     struct Peek<V> {
         version: V,
     }
-    let peek: Peek<V> = value.deserialized().map_err(|error| IoError::Cbor(error.to_string()))?;
+    let peek: Peek<V> = value.deserialized().map_err(IoError::cbor_decode)?;
     Ok(peek.version)
 }
 
-/// Map a [`CodecError`] onto an artifact error that has the family variants
-/// `Decode`, `Encode`, `LimitsExceeded`, `Malformed`, `UnsupportedVersion { version: u16 }`
-/// and `UnsupportedSemantics`.
+/// Map a [`CodecError`] onto an artifact error that implements [`ArtifactFamilyError`] (every
+/// error generated by [`sectioned_artifact_enum!`]).
 #[macro_export]
 macro_rules! map_artifact_check {
     ($err:expr, $ty:ident) => {{
-        match $crate::artifact_codec::CodecError::into_check($err) {
-            $crate::artifact_codec::ArtifactCheckError::Decode(message) => $ty::Decode(message),
-            $crate::artifact_codec::ArtifactCheckError::Encode(message) => $ty::Encode(message),
-            $crate::artifact_codec::ArtifactCheckError::LimitsExceeded(what) => {
-                $ty::LimitsExceeded(what)
-            }
-            $crate::artifact_codec::ArtifactCheckError::Malformed(message) => {
-                $ty::Malformed(message)
-            }
-            $crate::artifact_codec::ArtifactCheckError::UnsupportedVersion { version } => {
-                match u16::try_from(version) {
-                    Ok(version) => $ty::UnsupportedVersion { version },
-                    Err(_) => $ty::Decode(format!("unsupported artifact version {version}")),
-                }
-            }
-            $crate::artifact_codec::ArtifactCheckError::UnsupportedSemantics(detail) => {
-                $ty::UnsupportedSemantics(detail)
-            }
-            // `ArtifactCheckError` is non-exhaustive and this expands in other crates.
-            #[allow(unreachable_patterns, reason = "ArtifactCheckError is non-exhaustive and this macro expands in other crates")]
-            other => $ty::Malformed(other.to_string()),
-        }
+        <$ty as $crate::artifact_codec::ArtifactFamilyError>::from_check(
+            $crate::artifact_codec::CodecError::into_check($err),
+        )
     }};
 }
 

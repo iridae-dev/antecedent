@@ -45,7 +45,6 @@ use antecedent_counterfactual::transported_path_specific::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const TRANSPORTED_COUNTERFACTUAL_ARTIFACT_VERSION: u16 = 1;
@@ -907,12 +906,7 @@ fn encode_parts_impl(
     meta: &TransportedCounterfactualMeta,
     artifact_id: &str,
 ) -> Result<Vec<u8>, TransportedCounterfactualArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(TransportedCounterfactualArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta)
-        .map_err(|error| TransportedCounterfactualArtifactError::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "transported_counterfactual_covariate_selected_point_only",
@@ -920,13 +914,10 @@ fn encode_parts_impl(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: META_SECTION,
-            content_type: crate::CONTENT_CBOR,
-            bytes: &meta_bytes,
-        }],
+        META_SECTION,
+        meta,
+        &[],
     )
-    .map_err(|error| crate::map_artifact_check!(error, TransportedCounterfactualArtifactError))
 }
 
 /// Decode the metadata section of a container, refusing another version before the metadata
@@ -941,31 +932,22 @@ fn encode_parts_impl(
 pub fn decode_parts(
     bytes: &[u8],
 ) -> Result<TransportedCounterfactualMeta, TransportedCounterfactualArtifactError> {
-    decode_parts_impl(bytes)
+    decode_parts_impl(bytes, MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES)
 }
 
 fn decode_parts_impl(
     bytes: &[u8],
+    max_bytes: usize,
 ) -> Result<TransportedCounterfactualMeta, TransportedCounterfactualArtifactError> {
-    let parts = crate::decode_container(
+    crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
-        MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES,
-        &[META_SECTION],
+        max_bytes,
+        META_SECTION,
+        &[],
+        TRANSPORTED_COUNTERFACTUAL_ARTIFACT_VERSION,
         bytes,
     )
-    .map_err(|error| crate::map_artifact_check!(error, TransportedCounterfactualArtifactError))?;
-    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(TransportedCounterfactualArtifactError::Malformed(
-            "unsupported container layout".into(),
-        ));
-    };
-    crate::decode_with_version(&meta_bytes, |version| {
-        if version == TRANSPORTED_COUNTERFACTUAL_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(TransportedCounterfactualArtifactError::UnsupportedVersion { version })
-        }
-    })
+    .map(|(meta, _)| meta)
 }
 
 /// A produced or consumed transported counterfactual artifact.
@@ -1066,10 +1048,24 @@ impl TransportedCounterfactualArtifact {
         bytes: &[u8],
         expected: Option<&TransportedCounterfactualIdentity>,
     ) -> Result<Self, TransportedCounterfactualArtifactError> {
-        let meta = decode_parts_impl(bytes)?;
-        if meta.feature != TRANSPORTED_COUNTERFACTUAL_ARTIFACT_FEATURE {
-            return Err(Failure::UnsupportedSemantics("feature marker"));
-        }
+        Self::from_bytes_within(bytes, expected, MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of
+    /// [`MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a file over `max_bytes` is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected: Option<&TransportedCounterfactualIdentity>,
+        max_bytes: usize,
+    ) -> Result<Self, TransportedCounterfactualArtifactError> {
+        let meta = decode_parts_impl(bytes, max_bytes)?;
+        crate::artifact_codec::require_semantics::<Failure>(
+            meta.feature == TRANSPORTED_COUNTERFACTUAL_ARTIFACT_FEATURE,
+            "feature marker",
+        )?;
         if meta.inference_claim != TRANSPORTED_COUNTERFACTUAL_INFERENCE_CLAIM {
             return Err(Failure::UnsupportedSemantics("inference claim"));
         }

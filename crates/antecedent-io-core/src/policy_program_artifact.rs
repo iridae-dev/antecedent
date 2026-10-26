@@ -143,7 +143,7 @@ pub fn encode_policy_program(interventions: &[Intervention]) -> Result<Vec<u8>, 
         interventions,
     };
     let mut bytes = POLICY_PROGRAM_MAGIC.to_vec();
-    ciborium::into_writer(&envelope, &mut bytes).map_err(|e| IoError::Cbor(e.to_string()))?;
+    ciborium::into_writer(&envelope, &mut bytes).map_err(IoError::cbor_encode)?;
     if bytes.len() > POLICY_PROGRAM_MAX_BYTES {
         return Err(IoError::TooLarge);
     }
@@ -157,23 +157,25 @@ fn open_envelope(bytes: &[u8]) -> Result<PolicyProgramEnvelope, IoError> {
         return Err(IoError::TooLarge);
     }
     let body = bytes.strip_prefix(POLICY_PROGRAM_MAGIC).ok_or(IoError::BadMagic)?;
-    let value: ciborium::Value =
-        ciborium::from_reader(body).map_err(|e| IoError::Cbor(e.to_string()))?;
-    let version = value
-        .as_map()
-        .and_then(|entries| {
-            entries.iter().find_map(|(key, found)| {
-                (key.as_text() == Some("version")).then(|| found.as_integer())
-            })
-        })
-        .flatten()
-        .and_then(|raw| u32::try_from(i128::from(raw)).ok())
-        .ok_or(IoError::ManifestMismatch { message: "policy program has no encoding version" })?;
+    // Read the version alone first so an unsupported encoding is refused before the
+    // body is interpreted, without building a value tree of every expression.
+    #[derive(Deserialize)]
+    struct Peek {
+        version: Option<u64>,
+    }
+    let no_version = IoError::ManifestMismatch { message: "policy program has no encoding version" };
+    let version = match ciborium::from_reader::<Peek, _>(body) {
+        Ok(peek) => peek.version,
+        Err(ciborium::de::Error::Semantic(..)) => return Err(no_version),
+        Err(error) => return Err(IoError::cbor_decode(error)),
+    }
+    .and_then(|raw| u32::try_from(raw).ok())
+    .ok_or(no_version)?;
     if !POLICY_PROGRAM_SUPPORTED_VERSIONS.iter().any(|v| u32::from(*v) == version) {
         return Err(IoError::UnsupportedVersion { version });
     }
     let envelope: PolicyProgramEnvelope =
-        value.deserialized().map_err(|e| IoError::Cbor(e.to_string()))?;
+        ciborium::from_reader(body).map_err(IoError::cbor_decode)?;
     if envelope.interventions.len() > POLICY_PROGRAM_MAX_INTERVENTIONS {
         return Err(IoError::TooLarge);
     }
@@ -318,13 +320,13 @@ pub fn interventions_from_named_json(
                 .get_mut("expr")
                 .map(serde_json::Value::take)
                 .ok_or_else(|| IoError::Convert("policy program: missing `expr`".into()))?;
-            rename_variables(&mut expr, &|v| match v {
-                serde_json::Value::String(name) => {
-                    resolve(name).map(serde_json::Value::from).ok_or_else(|| {
+            rename_variables(&mut expr, &|v| {
+                if let serde_json::Value::String(name) = v {
+                    *v = resolve(name).map(serde_json::Value::from).ok_or_else(|| {
                         IoError::Convert(format!("policy program: unknown variable {name:?}"))
-                    })
+                    })?;
                 }
-                other => Ok(other.clone()),
+                Ok(())
             })?;
             let expr = serde_json::from_value::<ValueExprWire>(expr)
                 .map_err(|e| IoError::Convert(format!("policy program expression: {e}")))?
@@ -372,9 +374,12 @@ pub fn named_json_from_interventions(
             }
         };
         let mut expr = serde_json::to_value(&expr).map_err(|e| IoError::Convert(e.to_string()))?;
-        rename_variables(&mut expr, &|v| match v.as_u64().and_then(|id| u32::try_from(id).ok()) {
-            Some(id) => spell(id).map(|name| serde_json::Value::from(name.as_str())),
-            None => Err(IoError::Convert("policy program: variable id is not a u32".into())),
+        rename_variables(&mut expr, &|v| {
+            let id = v.as_u64().and_then(|id| u32::try_from(id).ok()).ok_or_else(|| {
+                IoError::Convert("policy program: variable id is not a u32".into())
+            })?;
+            *v = serde_json::Value::from(spell(id)?.as_str());
+            Ok(())
         })?;
         out.push(serde_json::json!({
             "mode": mode,
@@ -388,14 +393,14 @@ pub fn named_json_from_interventions(
 /// Rewrite the `variable` field of every `var` and `lag` node of an expression tree.
 fn rename_variables(
     node: &mut serde_json::Value,
-    rewrite: &dyn Fn(&serde_json::Value) -> Result<serde_json::Value, IoError>,
+    rewrite: &dyn Fn(&mut serde_json::Value) -> Result<(), IoError>,
 ) -> Result<(), IoError> {
     match node {
         serde_json::Value::Object(map) => {
             for (tag, child) in map.iter_mut() {
                 if matches!(tag.as_str(), "var" | "lag") {
                     if let Some(field) = child.get_mut("variable") {
-                        *field = rewrite(field)?;
+                        rewrite(field)?;
                     }
                 } else {
                     rename_variables(child, rewrite)?;

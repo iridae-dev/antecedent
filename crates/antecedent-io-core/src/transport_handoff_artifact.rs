@@ -58,7 +58,6 @@ use antecedent_core::refusal::changed_identity;
 use antecedent_core::{CanonicalWriter, SemanticDigest};
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
 use crate::interface_contract_artifact::{
     ContractWire, InterfaceContractArtifactError, contract_from_wire, contract_to_wire,
 };
@@ -312,9 +311,10 @@ fn check(
     if meta.version != TRANSPORT_HANDOFF_ARTIFACT_VERSION {
         return Err(Failure::UnsupportedVersion { version: meta.version });
     }
-    if meta.feature != TRANSPORT_HANDOFF_ARTIFACT_FEATURE {
-        return Err(Failure::UnsupportedSemantics("feature marker"));
-    }
+    crate::artifact_codec::require_semantics::<Failure>(
+        meta.feature == TRANSPORT_HANDOFF_ARTIFACT_FEATURE,
+        "feature marker",
+    )?;
     if !meta.required_features.is_empty() {
         return Err(Failure::UnsupportedSemantics("required feature"));
     }
@@ -346,12 +346,11 @@ fn check(
     })
 }
 
-fn encode_meta(meta: &TransportHandoffMeta, artifact_id: &str) -> Result<Vec<u8>, Failure> {
-    if artifact_id.trim().is_empty() {
-        return Err(Failure::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta).map_err(|error| Failure::Encode(error.to_string()))?;
-    crate::encode_container(
+fn encode_meta(
+    meta: &TransportHandoffMeta,
+    artifact_id: &str,
+) -> Result<Vec<u8>, Failure> {
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "transport_handoff",
@@ -359,33 +358,25 @@ fn encode_meta(meta: &TransportHandoffMeta, artifact_id: &str) -> Result<Vec<u8>
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: META_SECTION,
-            content_type: crate::CONTENT_CBOR,
-            bytes: &meta_bytes,
-        }],
+        META_SECTION,
+        meta,
+        &[],
     )
-    .map_err(|error| crate::map_artifact_check!(error, TransportHandoffArtifactError))
 }
 
-fn decode_meta(bytes: &[u8]) -> Result<TransportHandoffMeta, Failure> {
-    let parts = crate::decode_container(
+fn decode_meta(
+    bytes: &[u8],
+    max_bytes: usize,
+) -> Result<TransportHandoffMeta, Failure> {
+    crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
-        MAX_TRANSPORT_HANDOFF_ARTIFACT_BYTES,
-        &[META_SECTION],
+        max_bytes,
+        META_SECTION,
+        &[],
+        TRANSPORT_HANDOFF_ARTIFACT_VERSION,
         bytes,
     )
-    .map_err(|error| crate::map_artifact_check!(error, TransportHandoffArtifactError))?;
-    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(Failure::Malformed("unsupported container layout".into()));
-    };
-    crate::decode_with_version(&meta_bytes, |version: u16| {
-        if version == TRANSPORT_HANDOFF_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(Failure::UnsupportedVersion { version })
-        }
-    })
+    .map(|(meta, _)| meta)
 }
 
 // -- public type ----------------------------------------------------------------------------------
@@ -553,7 +544,19 @@ impl TransportHandoffArtifact {
     /// bound exceeded, a declaration the library refuses, a policy that needs
     /// native target data, or a stored identity that does not match.
     pub fn from_bytes(bytes: &[u8], expected_identity: Option<&str>) -> Result<Self, Failure> {
-        check(&decode_meta(bytes)?, expected_identity)
+        Self::from_bytes_within(bytes, expected_identity, MAX_TRANSPORT_HANDOFF_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of [`MAX_TRANSPORT_HANDOFF_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a file over `max_bytes` is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        max_bytes: usize,
+    ) -> Result<Self, Failure> {
+        check(&decode_meta(bytes, max_bytes)?, expected_identity)
     }
 
     /// Read the stored metadata without replaying it.
@@ -561,7 +564,7 @@ impl TransportHandoffArtifact {
     /// # Errors
     /// Corruption, another major version or a malformed container.
     pub fn inspect(bytes: &[u8]) -> Result<TransportHandoffMeta, Failure> {
-        decode_meta(bytes)
+        decode_meta(bytes, MAX_TRANSPORT_HANDOFF_ARTIFACT_BYTES)
     }
 
     /// Check the handoff against a callback declaration the consumer holds:

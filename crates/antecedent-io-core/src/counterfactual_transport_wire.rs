@@ -37,10 +37,9 @@ use antecedent_core::{IdentityDomain, VariableId};
 use antecedent_expr::{ExactEvaluationLimits, ExactTransportData};
 use antecedent_identify::{
     COUNTERFACTUAL_TRANSPORT_CONTRACT, COUNTERFACTUAL_TRANSPORT_MAX_ATOMS,
-    COUNTERFACTUAL_TRANSPORT_MAX_LEVELS, COUNTERFACTUAL_TRANSPORT_MAX_LIMITS,
+    COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES, COUNTERFACTUAL_TRANSPORT_MAX_LIMITS,
     COUNTERFACTUAL_TRANSPORT_MAX_REGIMES, COUNTERFACTUAL_TRANSPORT_MAX_SOURCES,
-    COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES, COUNTERFACTUAL_TRANSPORT_MAX_WORLDS,
-    COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES, CounterfactualTransportDerivation,
+    COUNTERFACTUAL_TRANSPORT_MAX_WORLDS, COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES, CounterfactualTransportDerivation,
     CounterfactualTransportProblem, CounterfactualTransportQuery,
     CounterfactualTransportSearchRecord, CounterfactualTransportSource,
     CounterfactualTransportWitness,
@@ -739,12 +738,8 @@ impl CounterfactualTransportArtifactWire {
             _ => return Err(E::UnsupportedSemantics("status")),
         };
         let n = self.problem.variables.len();
-        if n == 0 || n > COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES {
+        if n == 0 || n > COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES {
             return Err(E::LimitsExceeded("variables"));
-        }
-        if self.problem.variables.iter().any(|(_, l)| l.len() > COUNTERFACTUAL_TRANSPORT_MAX_LEVELS)
-        {
-            return Err(E::LimitsExceeded("levels"));
         }
         if self.query.sources.len() > COUNTERFACTUAL_TRANSPORT_MAX_SOURCES {
             return Err(E::LimitsExceeded("sources"));

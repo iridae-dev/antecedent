@@ -4,15 +4,18 @@
 //! the same summary: weighted coefficients, `HC0` covariance, leverage, residual
 //! checks, and the Gaussian cross-products `X'WX`, `X'Wy`, `y'Wy`, and `Σw`.
 //! The coefficient call is [`antecedent_stats::fit_wls`] on the Cholesky factor
-//! of that Gram, which is the weighted normal equation. Rows are read in batches
-//! no larger than [`CapacityOptions::batch_rows`].
+//! of that Gram (or of its centered form), which is the weighted normal
+//! equation. Rows are read in batches no larger than
+//! [`CapacityOptions::batch_rows`].
 //!
 //! The cross-products are accumulated around running weighted means (a
 //! weighted Welford update per row), so the sums do not compound rounding
 //! across rows. The raw `X'WX`, `X'Wy`, and `y'Wy` are rebuilt from the
-//! centered moments once at the end. The solve still runs on the Gram, so its
-//! conditioning is the Gram's. The row stream is hashed in both passes and a
-//! source that changes between them is refused.
+//! centered moments once at the end, for the result. A design with one
+//! constant column is solved in the centered coordinates, so a column whose
+//! mean dwarfs its spread keeps its digits; a design without one is solved on
+//! the Gram, whose conditioning is then the Gram's. The row stream is hashed in
+//! both passes and a source that changes between them is refused.
 //!
 //! [`OutputRetention::SummaryOnly`] returns that summary resident.
 //! [`OutputRetention::DiskBacked`] writes the finished summary, and nothing
@@ -51,6 +54,8 @@ use antecedent_stats::{
     FaerBackend, FitDiagnostics, LeastSquaresWorkspace, StatsError, cholesky_spd, fit_wls,
     invert_square,
 };
+
+use crate::byte_cursor::ByteCursor;
 
 use super::spill_file::{self, AllocFail, Declared, IoFail, SpillFault};
 
@@ -122,7 +127,7 @@ pub struct SpillOptions {
 pub struct CeilingCharges {
     /// Resident source bytes. A file handle charges nothing for the unread body.
     pub input_ownership_bytes: u64,
-    /// Digest plus the one-row staging buffer that feeds it.
+    /// Digest plus the fixed chunk buffer a row is hashed through.
     pub content_identity_bytes: u64,
     /// Batch window, file decoder, and every solver and diagnostic buffer.
     pub decoder_bytes: u64,
@@ -872,7 +877,7 @@ pub fn run_weighted_capacity(
     source.rewind()?;
     let mut scan = Scan::open(plan.batch_rows, plan.ncols, options.cancellation.clone())?;
     let first = cross_product_pass(source, &mut scan, plan.ncols)?;
-    let solved = solve_weighted(&first.folded.cross_products, plan.ncols)?;
+    let solved = solve_weighted(&first.folded, plan.ncols)?;
     source.rewind()?;
     let diagnostics = diagnostic_pass(source, &mut scan, &solved, first.digest)?;
     drop(scan);
@@ -1023,7 +1028,7 @@ fn cross_product_pass(
     if fold.positive_rows == 0 {
         return Err(WeightedCapacityError::Empty);
     }
-    Ok(FirstPass { folded: fold.finish(), batches, digest: identity.digest() })
+    Ok(FirstPass { folded: fold.finish()?, batches, digest: identity.digest() })
 }
 
 fn diagnostic_pass(
@@ -1090,6 +1095,83 @@ struct Fold {
 struct Folded {
     cross_products: GaussianCrossProducts,
     positive_rows: u64,
+    /// The centered normal equations, kept when the design has a constant column,
+    /// which is what lets the solve run in the centered coordinates.
+    centered: Option<CenteredSystem>,
+}
+
+/// The weighted normal equations of a design with one constant column, in
+/// coordinates centered on the weighted column means.
+///
+/// With `x = A·x̃`, where `x̃` holds the centered non-constant columns and the
+/// constant, the Gram factors as `X'WX = A·blockdiag(C, Σw)·A'`. Solving `C` and the
+/// intercept separately never forms `C + Σw·m·m'`, which loses the spread of a column
+/// whose mean dwarfs its standard deviation.
+struct CenteredSystem {
+    /// Index of the constant column.
+    constant: usize,
+    /// The value that column takes in every row.
+    level: f64,
+    /// Weighted column means (the constant column's entry equals `level`).
+    mean: Vec<f64>,
+    mean_y: f64,
+    n_eff: f64,
+    /// Centered co-moments of the non-constant columns, row-major `(p-1)²`.
+    comoment: Vec<f64>,
+    /// Centered cross-moments with the response, length `p-1`.
+    cross: Vec<f64>,
+}
+
+impl CenteredSystem {
+    /// The centered system of a design with exactly one constant, non-zero column, or
+    /// `None` for any other design (the solve then runs on the raw Gram).
+    ///
+    /// A column is constant when its centered co-moment is exactly zero: the weighted
+    /// Welford update reproduces a constant column's mean exactly and every later offset
+    /// is exactly zero. `upper` holds the upper triangle of the centered co-moments.
+    fn extract(
+        ncols: usize,
+        mean: &[f64],
+        upper: &[f64],
+        cross: &[f64],
+        mean_y: f64,
+        n_eff: f64,
+    ) -> Result<Option<Self>, WeightedCapacityError> {
+        if ncols < 2 {
+            return Ok(None);
+        }
+        let mut constants = (0..ncols)
+            .filter(|&j| matches!(upper[j * ncols + j].partial_cmp(&0.0), Some(Ordering::Equal)));
+        let (Some(constant), None) = (constants.next(), constants.next()) else {
+            return Ok(None);
+        };
+        let level = mean[constant];
+        if !level.is_finite() || matches!(level.partial_cmp(&0.0), Some(Ordering::Equal)) {
+            return Ok(None);
+        }
+        let q = ncols - 1;
+        let kept: Vec<usize> = (0..ncols).filter(|&j| j != constant).collect();
+        let mut comoment = zeros(q * q, "centered Gram")?;
+        let mut centered_cross = zeros(q, "centered cross-moment")?;
+        for (a, &i) in kept.iter().enumerate() {
+            centered_cross[a] = cross[i];
+            for (b, &j) in kept.iter().enumerate() {
+                let (row, col) = if i <= j { (i, j) } else { (j, i) };
+                comoment[a * q + b] = upper[row * ncols + col];
+            }
+        }
+        let mut means = zeros(ncols, "column means")?;
+        means.copy_from_slice(mean);
+        Ok(Some(Self {
+            constant,
+            level,
+            mean: means,
+            mean_y,
+            n_eff,
+            comoment,
+            cross: centered_cross,
+        }))
+    }
 }
 
 impl Fold {
@@ -1149,7 +1231,7 @@ impl Fold {
     ///
     /// The centered buffers become the raw ones in place; the means and the
     /// row offsets are released.
-    fn finish(self) -> Folded {
+    fn finish(self) -> Result<Folded, WeightedCapacityError> {
         let Self {
             ncols,
             mean,
@@ -1162,6 +1244,7 @@ impl Fold {
             positive_rows,
         } = self;
         drop(offset);
+        let centered = CenteredSystem::extract(ncols, &mean, &xtwx, &xtwy, mean_y, n_eff)?;
         for (i, (line, &lead)) in xtwx.chunks_exact_mut(ncols).zip(&mean).enumerate() {
             for (cell, &other) in line[i..].iter_mut().zip(&mean[i..]) {
                 *cell += n_eff * lead * other;
@@ -1176,26 +1259,26 @@ impl Fold {
             *cell += n_eff * lead * mean_y;
         }
         let ytwy = y_ss + n_eff * mean_y * mean_y;
-        Folded { cross_products: GaussianCrossProducts { n_eff, xtwx, xtwy, ytwy }, positive_rows }
+        Ok(Folded {
+            cross_products: GaussianCrossProducts { n_eff, xtwx, xtwy, ytwy },
+            positive_rows,
+            centered,
+        })
     }
 }
+
+/// Bytes of the fixed stack chunk a row is hashed through.
+const IDENTITY_CHUNK_BYTES: usize = 256;
 
 struct RowIdentity {
     hasher: blake3::Hasher,
     ncols_tag: u32,
-    staging: Vec<u8>,
 }
 
 impl RowIdentity {
     fn open(ncols: usize) -> Result<Self, WeightedCapacityError> {
-        let row_bytes = batch_byte_len(1, ncols)?;
-        let width = usize::try_from(row_bytes).map_err(|_| WeightedCapacityError::Overflow)?;
-        let mut staging = Vec::new();
-        staging
-            .try_reserve_exact(width)
-            .map_err(|source| allocation_failure("row staging", row_bytes, source))?;
         let ncols_tag = u32::try_from(ncols).map_err(|_| WeightedCapacityError::Overflow)?;
-        Ok(Self { hasher: Self::seeded(ncols_tag), ncols_tag, staging })
+        Ok(Self { hasher: Self::seeded(ncols_tag), ncols_tag })
     }
 
     fn seeded(ncols_tag: u32) -> blake3::Hasher {
@@ -1204,17 +1287,27 @@ impl RowIdentity {
         hasher
     }
 
-    /// Start a fresh digest for the next pass without a second staging buffer.
+    /// Start a fresh digest for the next pass.
     fn reset(&mut self) {
         self.hasher = Self::seeded(self.ncols_tag);
     }
 
+    /// Hash the little-endian bytes of the row, response and weight. The bytes pass
+    /// through a fixed stack chunk, so a row of any width allocates nothing; the digest
+    /// is that of the concatenated bytes whatever the chunking.
     fn push(&mut self, row: &[f64], y: f64, weight: f64) {
-        self.staging.clear();
+        let mut chunk = [0_u8; IDENTITY_CHUNK_BYTES];
+        let mut filled = 0;
         for value in row.iter().chain(&[y, weight]) {
-            self.staging.extend_from_slice(&value.to_le_bytes());
+            if filled == IDENTITY_CHUNK_BYTES {
+                self.hasher.update(&chunk);
+                filled = 0;
+            }
+            let end = filled + std::mem::size_of::<f64>();
+            chunk[filled..end].copy_from_slice(&value.to_le_bytes());
+            filled = end;
         }
-        self.hasher.update(&self.staging);
+        self.hasher.update(&chunk[..filled]);
     }
 
     fn digest(&self) -> [u8; 32] {
@@ -1553,55 +1646,29 @@ fn encode_summary(
 }
 
 /// Cursor over a spill payload. Every read that runs past the end is a layout fault.
-struct PayloadReader<'a> {
-    rest: &'a [u8],
+type PayloadReader<'a> = ByteCursor<'a, WeightedCapacityError>;
+
+fn payload_fault() -> WeightedCapacityError {
+    WeightedCapacityError::Spill(SpillFault::PayloadLayout)
 }
 
-impl<'a> PayloadReader<'a> {
-    fn take(&mut self, len: usize) -> Result<&'a [u8], WeightedCapacityError> {
-        if self.rest.len() < len {
-            return Err(WeightedCapacityError::Spill(SpillFault::PayloadLayout));
-        }
-        let (head, tail) = self.rest.split_at(len);
-        self.rest = tail;
-        Ok(head)
+/// The next `len` little-endian `f64` values of `reader`.
+fn read_f64s(
+    reader: &mut PayloadReader<'_>,
+    len: usize,
+    what: &'static str,
+) -> Result<Vec<f64>, WeightedCapacityError> {
+    let raw = reader.take(len.checked_mul(8).ok_or(WeightedCapacityError::Overflow)?)?;
+    let mut values = zeros(len, what)?;
+    for (slot, chunk) in values.iter_mut().zip(raw.chunks_exact(8)) {
+        *slot = decode_f64(chunk)?;
     }
-
-    fn array<const N: usize>(&mut self) -> Result<[u8; N], WeightedCapacityError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| WeightedCapacityError::Spill(SpillFault::PayloadLayout))
-    }
-
-    fn u8(&mut self) -> Result<u8, WeightedCapacityError> {
-        Ok(self.array::<1>()?[0])
-    }
-
-    fn u32(&mut self) -> Result<u32, WeightedCapacityError> {
-        Ok(u32::from_le_bytes(self.array()?))
-    }
-
-    fn u64(&mut self) -> Result<u64, WeightedCapacityError> {
-        Ok(u64::from_le_bytes(self.array()?))
-    }
-
-    fn f64(&mut self) -> Result<f64, WeightedCapacityError> {
-        Ok(f64::from_le_bytes(self.array()?))
-    }
-
-    fn f64s(&mut self, len: usize, what: &'static str) -> Result<Vec<f64>, WeightedCapacityError> {
-        let raw = self.take(len.checked_mul(8).ok_or(WeightedCapacityError::Overflow)?)?;
-        let mut values = zeros(len, what)?;
-        for (slot, chunk) in values.iter_mut().zip(raw.chunks_exact(8)) {
-            *slot = decode_f64(chunk)?;
-        }
-        Ok(values)
-    }
+    Ok(values)
 }
 
 fn decode_summary(payload: &[u8]) -> Result<WeightedCapacityResult, WeightedCapacityError> {
     let layout = || WeightedCapacityError::Spill(SpillFault::PayloadLayout);
-    let mut reader = PayloadReader { rest: payload };
+    let mut reader = PayloadReader::new(payload, payload_fault);
     let control = match reader.u8()? {
         0 => CapacityControl::Glm,
         1 => CapacityControl::GaussianBayes,
@@ -1612,10 +1679,10 @@ fn decode_summary(payload: &[u8]) -> Result<WeightedCapacityResult, WeightedCapa
         return Err(layout());
     }
     let gram = p * p;
-    let coefficients = reader.f64s(p, "spilled coefficients")?;
-    let robust_covariance = reader.f64s(gram, "spilled covariance")?;
-    let xtwx = reader.f64s(gram, "spilled X'WX")?;
-    let xtwy = reader.f64s(p, "spilled X'Wy")?;
+    let coefficients = read_f64s(&mut reader, p, "spilled coefficients")?;
+    let robust_covariance = read_f64s(&mut reader, gram, "spilled covariance")?;
+    let xtwx = read_f64s(&mut reader, gram, "spilled X'WX")?;
+    let xtwy = read_f64s(&mut reader, p, "spilled X'Wy")?;
     let (n_eff, ytwy) = (reader.f64()?, reader.f64()?);
     let leverage =
         LeverageSummary { max: reader.f64()?, sum: reader.f64()?, saturated_rows: reader.u64()? };
@@ -1647,9 +1714,7 @@ fn decode_summary(payload: &[u8]) -> Result<WeightedCapacityResult, WeightedCapa
     };
     let batches = reader.u64()?;
     let source_passes = reader.u64()?;
-    if !reader.rest.is_empty() {
-        return Err(layout());
-    }
+    reader.finish(layout())?;
     Ok(WeightedCapacityResult {
         choice: Box::new(streamed_choice(charges.total_bytes)?),
         control,
@@ -1667,10 +1732,21 @@ fn decode_summary(payload: &[u8]) -> Result<WeightedCapacityResult, WeightedCapa
     })
 }
 
+/// Solve the weighted normal equations of the folded rows.
+///
+/// A design with one constant column is solved in centered coordinates
+/// ([`solve_centered`]); any other design on the raw Gram ([`solve_gram`]).
+fn solve_weighted(folded: &Folded, p: usize) -> Result<Solved, WeightedCapacityError> {
+    match &folded.centered {
+        Some(centered) => solve_centered(centered, p),
+        None => solve_gram(&folded.cross_products, p),
+    }
+}
+
 /// `L` is the row-major Cholesky factor of `X'WX`. That buffer is also the
 /// column-major layout of `L'`. [`fit_wls`] on `L'` with right-hand side
 /// `L⁻¹ X'Wy` is the weighted normal equation.
-fn solve_weighted(
+fn solve_gram(
     cross_products: &GaussianCrossProducts,
     p: usize,
 ) -> Result<Solved, WeightedCapacityError> {
@@ -1686,6 +1762,77 @@ fn solve_weighted(
     }
     let bread = invert_square(&cross_products.xtwx, p).ok_or(WeightedCapacityError::Singular)?;
     Ok(Solved { coefficients: fit.coefficients, diagnostics: fit.diagnostics, bread })
+}
+
+/// Solve in coordinates centered on the weighted column means.
+///
+/// The non-constant coefficients solve `C β = c` on the centered co-moments, and the
+/// constant column's coefficient is `(ȳ − Σ m_j β_j) / level`. The inverse Gram (the
+/// bread of the sandwich and of the leverage) is `B' · blockdiag(C⁻¹, 1/Σw) · B` with
+/// `B = A⁻¹`, so no step forms the raw Gram or inverts a matrix whose conditioning is
+/// the square of the centered one's.
+fn solve_centered(centered: &CenteredSystem, p: usize) -> Result<Solved, WeightedCapacityError> {
+    let q = p - 1;
+    let k = centered.constant;
+    let factor = cholesky_spd(&centered.comoment, q).ok_or(WeightedCapacityError::Singular)?;
+    let reduced_y = forward_substitute(&factor, q, &centered.cross)?;
+    let mut ones = zeros(q, "unit weights")?;
+    ones.fill(1.0);
+    let mut workspace = LeastSquaresWorkspace::default();
+    let fit = fit_wls(&factor, q, q, &reduced_y, &ones, &FaerBackend, &mut workspace)
+        .map_err(WeightedCapacityError::Solve)?;
+    if fit.coefficients.len() != q {
+        return Err(WeightedCapacityError::Shape(DesignShape::SolveWidth));
+    }
+    let inverse = invert_square(&centered.comoment, q).ok_or(WeightedCapacityError::Singular)?;
+    // Position of column `j` among the non-constant columns.
+    let slot = |j: usize| if j < k { j } else { j - 1 };
+
+    let mut coefficients = zeros(p, "centered coefficients")?;
+    let mut shift = 0.0;
+    for j in (0..p).filter(|&j| j != k) {
+        coefficients[j] = fit.coefficients[slot(j)];
+        shift += centered.mean[j] * coefficients[j];
+    }
+    coefficients[k] = (centered.mean_y - shift) / centered.level;
+
+    // `B = A⁻¹`: x̃_j = x_j − (m_j / level)·x_k for j ≠ k, and x̃_k = x_k / level.
+    let mut b = zeros(p * p, "centered basis change")?;
+    for j in (0..p).filter(|&j| j != k) {
+        b[j * p + j] = 1.0;
+        b[j * p + k] = -centered.mean[j] / centered.level;
+    }
+    b[k * p + k] = 1.0 / centered.level;
+    // `blockdiag(C⁻¹, 1/Σw)` in the full coordinate order.
+    let mut middle = zeros(p * p, "centered inverse")?;
+    for i in (0..p).filter(|&i| i != k) {
+        for j in (0..p).filter(|&j| j != k) {
+            middle[i * p + j] = inverse[slot(i) * q + slot(j)];
+        }
+    }
+    middle[k * p + k] = 1.0 / centered.n_eff;
+    // `bread = B' · middle · B`.
+    let mut transposed = zeros(p * p, "centered basis change transpose")?;
+    for i in 0..p {
+        for j in 0..p {
+            transposed[i * p + j] = b[j * p + i];
+        }
+    }
+    let mut product = zeros(p * p, "centered bread intermediate")?;
+    multiply_square(&transposed, &middle, p, &mut product);
+    drop(middle);
+    drop(transposed);
+    let mut bread = zeros(p * p, "centered bread")?;
+    multiply_square(&product, &b, p, &mut bread);
+
+    let reported = &fit.diagnostics;
+    let diagnostics = FitDiagnostics::new(
+        reported.rank + 1,
+        reported.rcond,
+        reported.backend,
+        reported.grow_count,
+    );
+    Ok(Solved { coefficients, diagnostics, bread })
 }
 
 fn forward_substitute(
@@ -1748,7 +1895,7 @@ fn plan_charges(
             return Err(WeightedCapacityError::RetentionKeepsRows);
         }
     };
-    let identity = content_identity_bytes(ncols)?;
+    let identity = content_identity_bytes();
     let decoder = working_bytes(options.batch_rows, ncols, source_decoder_bytes)?
         .checked_add(staging_bytes)
         .ok_or(WeightedCapacityError::Overflow)?;
@@ -1808,8 +1955,9 @@ fn payload_bytes(ncols: usize) -> Result<u64, WeightedCapacityError> {
     float_bytes.checked_add(header).ok_or(WeightedCapacityError::Overflow)
 }
 
-fn content_identity_bytes(ncols: usize) -> Result<u64, WeightedCapacityError> {
-    batch_byte_len(1, ncols)?.checked_add(32).ok_or(WeightedCapacityError::Overflow)
+/// The 32-byte digest plus the stack chunk a row is hashed through.
+const fn content_identity_bytes() -> u64 {
+    32 + IDENTITY_CHUNK_BYTES as u64
 }
 
 fn working_bytes(
@@ -1826,7 +1974,7 @@ fn working_bytes(
 }
 
 /// Reservation for every buffer the fold, the solve, and the diagnostic pass
-/// allocate beyond the output payload. Twelve `p×p` buffers, twenty-four
+/// allocate beyond the output payload. Sixteen `p×p` buffers, twenty-four
 /// length-`p` buffers, and two hundred fifty-six floats of fixed slack. The sum is taken
 /// as if the buffers were live together, which covers the Cholesky factor,
 /// the `fit_wls` copies and its backend factorization, the inversion
@@ -1835,7 +1983,7 @@ fn working_bytes(
 fn solver_bytes(ncols: usize) -> Result<u64, WeightedCapacityError> {
     let gram = ncols.checked_mul(ncols).ok_or(WeightedCapacityError::Overflow)?;
     let floats = gram
-        .checked_mul(12)
+        .checked_mul(16)
         .and_then(|cells| cells.checked_add(ncols.checked_mul(24)?))
         .and_then(|cells| cells.checked_add(256))
         .ok_or(WeightedCapacityError::Overflow)?;

@@ -316,12 +316,25 @@ pub fn receipt_from_bytes(
     bytes: &[u8],
     expected_digest: &str,
 ) -> Result<ProviderVerificationReceipt, IoError> {
-    if bytes.len() > MAX_PROVIDER_VERIFICATION_ARTIFACT_BYTES {
+    receipt_from_bytes_within(bytes, expected_digest, MAX_PROVIDER_VERIFICATION_ARTIFACT_BYTES)
+}
+
+/// [`receipt_from_bytes`] under the caller's byte bound instead of
+/// [`MAX_PROVIDER_VERIFICATION_ARTIFACT_BYTES`].
+///
+/// # Errors
+/// As [`receipt_from_bytes`]; a file over `max_bytes` is `TooLarge`.
+pub fn receipt_from_bytes_within(
+    bytes: &[u8],
+    expected_digest: &str,
+    max_bytes: usize,
+) -> Result<ProviderVerificationReceipt, IoError> {
+    if bytes.len() > max_bytes {
         return Err(IoError::TooLarge);
     }
     let parts = crate::decode_container(
         ARTIFACT_KIND,
-        MAX_PROVIDER_VERIFICATION_ARTIFACT_BYTES,
+        max_bytes,
         &[META_SECTION],
         bytes,
     )

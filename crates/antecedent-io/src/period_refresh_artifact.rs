@@ -22,6 +22,7 @@ use antecedent_estimate::temporal_refresh::{
     MechanismStanding, ObservationCadence, TemporalWindowIdentity, WindowFactors, WindowProduct,
     refresh_survival,
 };
+use antecedent_io_core::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
 use antecedent_stats::invert_square;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -45,7 +46,10 @@ const UNDECLARED: &str = "undeclared";
 const PRIOR_TAG: &str = "antecedent.io.period_refresh.prior";
 const BLOCK_TAG: &str = "antecedent.io.period_refresh.block";
 const REUSE_NEXT: &str = "drop the duplicate block, or rebuild the route from the distinct blocks";
-const TOLERANCE: f64 = 1e-9;
+/// Replay policy of a refreshed posterior and fit against the stored ones: a relative `1e-9` of
+/// the larger value, absolute near zero; non-finite is refused.
+const REPLAY: ReplayTolerance =
+    ReplayTolerance::new(1e-9, ReplayScale::OnePlusLarger, ReplayNonFinite::Refuse);
 
 fn refused(detail: &str, message: &str) -> IoError {
     IoError::Refused {
@@ -55,11 +59,11 @@ fn refused(detail: &str, message: &str) -> IoError {
 }
 
 fn close(a: f64, b: f64) -> bool {
-    (a - b).abs() <= TOLERANCE * (1.0 + a.abs().max(b.abs()))
+    REPLAY.close(a, b)
 }
 
 fn all_close(a: &[f64], b: &[f64]) -> bool {
-    a.len() == b.len() && a.iter().zip(b).all(|(x, y)| close(*x, *y))
+    REPLAY.all_close(a, b)
 }
 
 /// The stated prior of the mechanism.

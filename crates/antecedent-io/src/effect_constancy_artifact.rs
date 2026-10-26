@@ -33,7 +33,6 @@ use antecedent_estimate::effect_constancy::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const EFFECT_CONSTANCY_ARTIFACT_VERSION: u16 = 1;
@@ -612,12 +611,7 @@ fn encode_parts_impl(
     numbers: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, EffectConstancyArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(EffectConstancyArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes =
-        to_cbor(meta).map_err(|error| EffectConstancyArtifactError::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "effect_constancy_point_only_unmeasured",
@@ -625,20 +619,14 @@ fn encode_parts_impl(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[
-            crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            },
-            crate::OutSection {
-                id: NUMBERS_SECTION,
-                content_type: crate::CONTENT_BYTES,
-                bytes: numbers,
-            },
-        ],
+        META_SECTION,
+        meta,
+        &[crate::OutSection {
+            id: NUMBERS_SECTION,
+            content_type: crate::CONTENT_BYTES,
+            bytes: numbers,
+        }],
     )
-    .map_err(|error| crate::map_artifact_check!(error, EffectConstancyArtifactError))
 }
 
 /// Decode the two sections of a container, refusing another version before the metadata is
@@ -659,23 +647,17 @@ pub fn decode_parts(
 fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<(EffectConstancyMeta, Vec<u8>), EffectConstancyArtifactError> {
-    let parts = crate::decode_container(
+    let (meta, parts) = crate::artifact_codec::decode_sectioned::<EffectConstancyArtifactError, EffectConstancyMeta>(
         ARTIFACT_KIND,
         MAX_EFFECT_CONSTANCY_ARTIFACT_BYTES,
-        &[META_SECTION, NUMBERS_SECTION],
+        META_SECTION,
+        &[NUMBERS_SECTION],
+        EFFECT_CONSTANCY_ARTIFACT_VERSION,
         bytes,
-    )
-    .map_err(|error| crate::map_artifact_check!(error, EffectConstancyArtifactError))?;
-    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
+    )?;
+    let Ok([payload]) = <[Vec<u8>; 1]>::try_from(parts) else {
         return Err(EffectConstancyArtifactError::Malformed("unsupported container layout".into()));
     };
-    let meta = crate::decode_with_version(&meta_bytes, |version| {
-        if version == EFFECT_CONSTANCY_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(EffectConstancyArtifactError::UnsupportedVersion { version })
-        }
-    })?;
     Ok((meta, payload))
 }
 
@@ -802,9 +784,10 @@ impl EffectConstancyArtifact {
         expected: Option<&EffectConstancyIdentity>,
     ) -> Result<Self, EffectConstancyArtifactError> {
         let (meta, numbers) = decode_parts_impl(bytes)?;
-        if meta.feature != EFFECT_CONSTANCY_ARTIFACT_FEATURE {
-            return Err(EffectConstancyArtifactError::UnsupportedSemantics("feature marker"));
-        }
+        crate::artifact_codec::require_semantics::<EffectConstancyArtifactError>(
+            meta.feature == EFFECT_CONSTANCY_ARTIFACT_FEATURE,
+            "feature marker",
+        )?;
         if meta.null != EFFECT_CONSTANCY_NULL {
             return Err(EffectConstancyArtifactError::IdentityMismatch { field: "null" });
         }

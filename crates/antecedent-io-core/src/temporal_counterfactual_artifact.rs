@@ -34,7 +34,6 @@ use antecedent_counterfactual::temporal_cross_world::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION: u16 = 1;
@@ -695,12 +694,7 @@ fn encode_parts_impl(
     values: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, TemporalCounterfactualArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(TemporalCounterfactualArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta)
-        .map_err(|error| TemporalCounterfactualArtifactError::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "temporal_counterfactual_shared_abduction_point_only",
@@ -708,20 +702,14 @@ fn encode_parts_impl(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[
-            crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            },
-            crate::OutSection {
-                id: VALUES_SECTION,
-                content_type: crate::CONTENT_BYTES,
-                bytes: values,
-            },
-        ],
+        META_SECTION,
+        meta,
+        &[crate::OutSection {
+            id: VALUES_SECTION,
+            content_type: crate::CONTENT_BYTES,
+            bytes: values,
+        }],
     )
-    .map_err(|error| crate::map_artifact_check!(error, TemporalCounterfactualArtifactError))
 }
 
 /// Decode the two sections of a container, refusing another version before the metadata is
@@ -736,31 +724,29 @@ fn encode_parts_impl(
 pub fn decode_parts(
     bytes: &[u8],
 ) -> Result<(TemporalCounterfactualMeta, Vec<u8>), TemporalCounterfactualArtifactError> {
-    decode_parts_impl(bytes)
+    decode_parts_impl(bytes, MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES)
 }
 
 fn decode_parts_impl(
     bytes: &[u8],
+    max_bytes: usize,
 ) -> Result<(TemporalCounterfactualMeta, Vec<u8>), TemporalCounterfactualArtifactError> {
-    let parts = crate::decode_container(
+    let (meta, parts) = crate::artifact_codec::decode_sectioned::<
+        TemporalCounterfactualArtifactError,
+        TemporalCounterfactualMeta,
+    >(
         ARTIFACT_KIND,
-        MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES,
-        &[META_SECTION, VALUES_SECTION],
+        max_bytes,
+        META_SECTION,
+        &[VALUES_SECTION],
+        TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION,
         bytes,
-    )
-    .map_err(|error| crate::map_artifact_check!(error, TemporalCounterfactualArtifactError))?;
-    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
+    )?;
+    let Ok([payload]) = <[Vec<u8>; 1]>::try_from(parts) else {
         return Err(TemporalCounterfactualArtifactError::Malformed(
             "unsupported container layout".into(),
         ));
     };
-    let meta = crate::decode_with_version(&meta_bytes, |version| {
-        if version == TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(TemporalCounterfactualArtifactError::UnsupportedVersion { version })
-        }
-    })?;
     Ok((meta, payload))
 }
 
@@ -935,7 +921,26 @@ impl TemporalCounterfactualArtifact {
         expected: Option<&TemporalCounterfactualIdentity>,
         ctx: &ExecutionContext,
     ) -> Result<Self, TemporalCounterfactualArtifactError> {
-        let (meta, values) = decode_parts_impl(bytes)?;
+        Self::from_bytes_within(
+            bytes,
+            expected,
+            ctx,
+            MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES,
+        )
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of
+    /// [`MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a file over `max_bytes` is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected: Option<&TemporalCounterfactualIdentity>,
+        ctx: &ExecutionContext,
+        max_bytes: usize,
+    ) -> Result<Self, TemporalCounterfactualArtifactError> {
+        let (meta, values) = decode_parts_impl(bytes, max_bytes)?;
         if meta.feature != TEMPORAL_COUNTERFACTUAL_ARTIFACT_FEATURE {
             return Err(TemporalCounterfactualArtifactError::UnsupportedSemantics(
                 "feature marker",

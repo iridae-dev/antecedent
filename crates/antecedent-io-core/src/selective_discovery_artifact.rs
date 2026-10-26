@@ -35,7 +35,6 @@ use antecedent_discovery::selective::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const SELECTIVE_DISCOVERY_ARTIFACT_VERSION: u16 = 1;
@@ -409,9 +408,10 @@ fn check(
     if meta.version != SELECTIVE_DISCOVERY_ARTIFACT_VERSION {
         return Err(Failure::UnsupportedVersion { version: meta.version });
     }
-    if meta.feature != SELECTIVE_DISCOVERY_ARTIFACT_FEATURE {
-        return Err(Failure::UnsupportedSemantics("feature marker"));
-    }
+    crate::artifact_codec::require_semantics::<Failure>(
+        meta.feature == SELECTIVE_DISCOVERY_ARTIFACT_FEATURE,
+        "feature marker",
+    )?;
     if !meta.required_features.is_empty() {
         return Err(Failure::UnsupportedSemantics("required feature"));
     }
@@ -485,12 +485,11 @@ fn meta_of(state: &PortableDiscoveryState) -> SelectiveDiscoveryMeta {
     meta
 }
 
-fn encode_meta(meta: &SelectiveDiscoveryMeta, artifact_id: &str) -> Result<Vec<u8>, Failure> {
-    if artifact_id.trim().is_empty() {
-        return Err(Failure::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta).map_err(|error| Failure::Encode(error.to_string()))?;
-    crate::encode_container(
+fn encode_meta(
+    meta: &SelectiveDiscoveryMeta,
+    artifact_id: &str,
+) -> Result<Vec<u8>, Failure> {
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "selective_discovery",
@@ -498,33 +497,25 @@ fn encode_meta(meta: &SelectiveDiscoveryMeta, artifact_id: &str) -> Result<Vec<u
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: META_SECTION,
-            content_type: crate::CONTENT_CBOR,
-            bytes: &meta_bytes,
-        }],
+        META_SECTION,
+        meta,
+        &[],
     )
-    .map_err(|error| crate::map_artifact_check!(error, SelectiveDiscoveryArtifactError))
 }
 
-fn decode_meta(bytes: &[u8]) -> Result<SelectiveDiscoveryMeta, Failure> {
-    let parts = crate::decode_container(
+fn decode_meta(
+    bytes: &[u8],
+    max_bytes: usize,
+) -> Result<SelectiveDiscoveryMeta, Failure> {
+    crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
-        MAX_SELECTIVE_DISCOVERY_ARTIFACT_BYTES,
-        &[META_SECTION],
+        max_bytes,
+        META_SECTION,
+        &[],
+        SELECTIVE_DISCOVERY_ARTIFACT_VERSION,
         bytes,
     )
-    .map_err(|error| crate::map_artifact_check!(error, SelectiveDiscoveryArtifactError))?;
-    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(Failure::Malformed("unsupported container layout".into()));
-    };
-    crate::decode_with_version(&meta_bytes, |version: u16| {
-        if version == SELECTIVE_DISCOVERY_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(Failure::UnsupportedVersion { version })
-        }
-    })
+    .map(|(meta, _)| meta)
 }
 
 // -- public type --------------------------------------------------------------------------------
@@ -577,7 +568,19 @@ impl SelectiveDiscoveryArtifact {
         bytes: &[u8],
         expected_identity: Option<&str>,
     ) -> Result<Self, SelectiveDiscoveryArtifactError> {
-        check(&decode_meta(bytes)?, expected_identity)
+        Self::from_bytes_within(bytes, expected_identity, MAX_SELECTIVE_DISCOVERY_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of [`MAX_SELECTIVE_DISCOVERY_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a file over `max_bytes` is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        max_bytes: usize,
+    ) -> Result<Self, SelectiveDiscoveryArtifactError> {
+        check(&decode_meta(bytes, max_bytes)?, expected_identity)
     }
 
     /// Read the stored metadata without validating it: the independent inspection of a
@@ -589,7 +592,7 @@ impl SelectiveDiscoveryArtifact {
     pub fn inspect(
         bytes: &[u8],
     ) -> Result<SelectiveDiscoveryMeta, SelectiveDiscoveryArtifactError> {
-        decode_meta(bytes)
+        decode_meta(bytes, MAX_SELECTIVE_DISCOVERY_ARTIFACT_BYTES)
     }
 
     /// The validated state.

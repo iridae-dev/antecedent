@@ -593,23 +593,23 @@ fn validate_result_refuses_malformed_mediation_grid() {
 fn validate_result_refuses_malformed_cate() {
     let names = vec!["a".into(), "y".into()];
     let mut ok = fixture();
-    ok.cate = Some(vec![0.1, 0.2]);
-    ok.cate_se = Some(vec![0.05, 0.04]);
+    ok.cate = Some(vec![0.1, 0.2].into());
+    ok.cate_se = Some(vec![0.05, 0.04].into());
     assert!(encode_analysis_result_artifact(&ok, names.clone(), "cate-ok").is_ok());
 
     let mut bad_len = ok.clone();
-    bad_len.cate_se = Some(vec![0.05]);
+    bad_len.cate_se = Some(vec![0.05].into());
     let err = encode_analysis_result_artifact(&bad_len, names.clone(), "cate-len").unwrap_err();
     assert!(err.to_string().contains("cate"), "{err}");
 
     let mut bad_dispersion = ok.clone();
-    bad_dispersion.cate_leaf_dispersion = Some(vec![0.05, -1.0]);
+    bad_dispersion.cate_leaf_dispersion = Some(vec![0.05, -1.0].into());
     let err =
         encode_analysis_result_artifact(&bad_dispersion, names.clone(), "cate-disp").unwrap_err();
     assert!(err.to_string().contains("leaf dispersion"), "{err}");
 
     let mut bad_nan = ok;
-    bad_nan.cate = Some(vec![0.1, f64::NAN]);
+    bad_nan.cate = Some(vec![0.1, f64::NAN].into());
     let err = encode_analysis_result_artifact(&bad_nan, names, "cate-nan").unwrap_err();
     assert!(err.to_string().contains("cate"), "{err}");
 }

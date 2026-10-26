@@ -29,6 +29,28 @@ use crate::identity::{
 };
 use crate::{AnalysisResultHeader, AnalysisResultWire, CausalQueryWire};
 
+/// Largest absolute difference between one probability mass stored in two places that were
+/// written from the same computation (a reasoning slot and the structural response it
+/// restates). They agree to rounding, so this is a few ulps of a unit mass.
+const RESTATED_MASS_TOLERANCE: f64 = 1e-12;
+/// Largest absolute difference between a mass or weight and the sum of the parts it
+/// summarizes. The parts are accumulated in a different order than the whole, so the
+/// bound is looser than for a restated mass.
+const SUMMED_MASS_TOLERANCE: f64 = 1e-9;
+/// Largest relative difference between an atom's reported weight and the sum of the sample
+/// weights bound to it (relative, because atom weights are not normalized to one).
+const ATOM_WEIGHT_RELATIVE_TOLERANCE: f64 = 1e-12;
+
+/// Whether two restated masses agree to [`RESTATED_MASS_TOLERANCE`].
+fn restated_masses_agree(left: f64, right: f64) -> bool {
+    (left - right).abs() <= RESTATED_MASS_TOLERANCE
+}
+
+/// Whether a stored mass or weight matches the sum of its parts to [`SUMMED_MASS_TOLERANCE`].
+fn summed_masses_agree(stored: f64, summed: f64) -> bool {
+    (stored - summed).abs() <= SUMMED_MASS_TOLERANCE
+}
+
 /// Shared producer/consumer check: stored payloads, body query, and claim.
 ///
 /// Missing rehashable payloads are unresolved — attested digests are not enough.
@@ -914,10 +936,13 @@ pub(in crate::contract_section) fn note_published_claim(
             unresolved.push(ContractReason::ReasoningIdentificationMasses);
         }
         if let Some(structural) = &body.structural_response {
-            let masses_match = (slot.identified_mass - structural.identified_mass).abs() <= 1e-12
-                && (slot.unidentified_mass - structural.unidentified_mass).abs() <= 1e-12
-                && (slot.unevaluable_mass - structural.unevaluable_mass).abs() <= 1e-12
-                && (slot.incomplete_search_mass - structural.subsampled_out_mass).abs() <= 1e-12;
+            let masses_match = restated_masses_agree(slot.identified_mass, structural.identified_mass)
+                && restated_masses_agree(slot.unidentified_mass, structural.unidentified_mass)
+                && restated_masses_agree(slot.unevaluable_mass, structural.unevaluable_mass)
+                && restated_masses_agree(
+                    slot.incomplete_search_mass,
+                    structural.subsampled_out_mass,
+                );
             if !masses_match {
                 unresolved.push(ContractReason::ReasoningIdentificationMasses);
             }
@@ -1200,7 +1225,7 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
     let identification_ok = contract.reasoning.identification.value.as_ref().is_none_or(|slot| {
         let unidentified =
             slot.unidentified_mass + slot.unevaluable_mass + slot.incomplete_search_mass;
-        (unidentified - basis.scope.unidentified_mass).abs() <= 1e-9
+        summed_masses_agree(unidentified, basis.scope.unidentified_mass)
     });
     coordinate_ok && program_ok && snapshot_ok && identification_ok
 }
@@ -1505,7 +1530,7 @@ pub(in crate::contract_section) fn verify_graph_posterior_programs(
             structure = Some(&samples[slot].graph);
         }
         let reported = f64::from_bits(atom.weight_bits);
-        bound &= reported.is_finite() && (reported - weight).abs() <= 1e-12 * weight.abs().max(1.0);
+        bound &= reported.is_finite() && (reported - weight).abs() <= ATOM_WEIGHT_RELATIVE_TOLERANCE * weight.abs().max(1.0);
         let class_atom = matches!(
             structure,
             Some(crate::PosteriorAtomGraphWire::Cpdag(_) | crate::PosteriorAtomGraphWire::Pag(_))
@@ -1572,7 +1597,7 @@ pub(in crate::contract_section) fn verify_graph_posterior_mixture(
         };
         let weight = f64::from_bits(atom.weight_bits);
         let carried = atom.functional_program.is_some() || atom.identification_product.is_some();
-        consistent &= (published.weight - weight).abs() <= 1e-9;
+        consistent &= summed_masses_agree(published.weight, weight);
         consistent &= published.value.is_none() || carried;
         consistent &= carried
             || published.identification_status == crate::IdentificationStatusWire::NotIdentified;
@@ -1580,7 +1605,7 @@ pub(in crate::contract_section) fn verify_graph_posterior_mixture(
             uncovered += weight;
         }
     }
-    consistent &= mixture.unidentified_mass + 1e-9 >= uncovered;
+    consistent &= mixture.unidentified_mass + SUMMED_MASS_TOLERANCE >= uncovered;
     if !consistent {
         unresolved.push(ContractReason::ProgramGraphPosteriorProgramsBinding);
     }

@@ -416,12 +416,10 @@ impl LearnedContinuousArtifactWire {
         if self.input.features.len() > limits.max_features {
             return Err(Refusal::LimitsExceeded("feature count"));
         }
-        if self.options.folds
-            > antecedent_estimate::learned_continuous::LEARNED_CONTINUOUS_MAX_FOLDS
-            || self.options.bootstrap
-                > antecedent_estimate::learned_continuous::LEARNED_CONTINUOUS_MAX_BOOTSTRAP
-        {
-            return Err(Refusal::LimitsExceeded("frozen fold or bootstrap bound"));
+        // Fold ids are stored as `u16`; the estimator's own validation bounds the fold count by
+        // the stratum sizes. The recorded envelope bounds are premises, not ceilings.
+        if self.options.folds > usize::from(u16::MAX) + 1 {
+            return Err(Refusal::LimitsExceeded("fold count"));
         }
         let r = &self.result;
         if [r.membership.len(), r.mu0.len(), r.mu1.len(), r.folds.assignment.len()]

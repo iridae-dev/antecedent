@@ -99,10 +99,17 @@ pub fn governing_topologies(max_degree: u32) -> &'static [&'static str] {
     if max_degree >= SUPPORTED_MAX_DEGREE { &TOPOLOGIES } else { &TOPOLOGIES[..2] }
 }
 /// Fewest searched variables measured.
+///
+/// With [`MAX_VARIABLES`] and [`SUPPORTED_MAX_DEGREE`] this is the licence boundary of the
+/// calibration records, not a limit of the engine: the procedure runs on any table, but its
+/// coverage was measured only for these sizes and degrees, so any other is refused as
+/// `cell_not_licensed` (`parent_set_effect.variable_count_not_measured`,
+/// `parent_set_effect.degree_above_supported`) until a record measures it.
 pub const MIN_VARIABLES: usize = 10;
-/// Most searched variables measured.
+/// Most searched variables measured. See [`MIN_VARIABLES`].
 pub const MAX_VARIABLES: usize = 20;
-/// Largest declared maximum graph degree the construction supports.
+/// Largest declared maximum graph degree the construction has records for. See
+/// [`MIN_VARIABLES`].
 pub const SUPPORTED_MAX_DEGREE: u32 = 4;
 /// The acceptance reason of every executed construction: all edges incident to the treatment
 /// are oriented in the discovered class.
@@ -519,11 +526,13 @@ pub fn treatment_parent_set_under_conflicts(
             "the discovery met conflicting orientation evidence that no choice among the \
              colliders removes",
         )),
-        ConflictResolution::BudgetExceeded { implicated, budget } => Err(refused(
+        ConflictResolution::BudgetExceeded { implicated, budget, coverage } => Err(refused(
             "parent_set_effect.conflict_resolution_budget",
             &format!(
                 "{implicated} colliders are implicated in conflicting orientation evidence, \
-                 above the {budget} whose choices are compared"
+                 above the {budget} whose choices are compared; a sample covering {:.3}% of the \
+                 resolutions found no disagreement, which does not establish invariance",
+                coverage * 100.0
             ),
         )),
     }
@@ -779,13 +788,27 @@ impl ParentSetEffectRun {
 /// treatment's edges differently by choice or that implicates more than
 /// [`MAX_CONFLICTING_COLLIDERS`] colliders, a treatment edge left undirected, or the refusals of
 /// [`adjusted_effect`].
+pub fn run(
+    source: &ParentSetEffectSource,
+    ctx: &ExecutionContext,
+) -> Result<ParentSetEffectRun, IoError> {
+    run_with_collider_bound(source, ctx, MAX_CONFLICTING_COLLIDERS)
+}
+
+/// [`run`] comparing the treatment's orientation across the resolutions of at most
+/// `max_conflicting_colliders` implicated colliders (`2^bound` orientations of the skeleton)
+/// instead of [`MAX_CONFLICTING_COLLIDERS`].
+///
+/// # Errors
+/// Those of [`run`], with the caller's bound in place of the default.
 #[allow(
     clippy::too_many_lines,
     reason = "discovery, the parent-limit and conflict refusals and the adjusted fit read one search outcome"
 )]
-pub fn run(
+pub fn run_with_collider_bound(
     source: &ParentSetEffectSource,
     ctx: &ExecutionContext,
+    max_conflicting_colliders: usize,
 ) -> Result<ParentSetEffectRun, IoError> {
     source.validate()?;
     let frame = source.frame()?;
@@ -872,7 +895,7 @@ pub fn run(
             &source.names,
             source.treatment,
             source.outcome,
-            MAX_CONFLICTING_COLLIDERS,
+            max_conflicting_colliders,
         )?,
         (_, true) => {
             return Err(refused(

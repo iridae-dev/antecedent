@@ -14,7 +14,13 @@
 use serde::{Deserialize, Serialize};
 
 use super::AnalysisResultWire;
+use crate::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
 use crate::{CausalQueryWire, IoError};
+
+/// Replay policy of the published bounds against the bounds recomputed from the observed law:
+/// a relative `1e-9` of the recomputed value, absolute below one; non-finite is refused.
+const BOUNDS_REPLAY: ReplayTolerance =
+    ReplayTolerance::new(1e-9, ReplayScale::OnePlusReplayed, ReplayNonFinite::Refuse);
 
 /// Uncertainty label of a result that reports the identified set without a sampling interval.
 pub const IV_BOUNDS_POINT_UNCERTAINTY: &str = "identified_set_without_sampling_interval";
@@ -127,7 +133,7 @@ pub(in crate::analysis_result_artifact) fn validate_iv_bounds(
     if section.arm_weights.iter().any(|w| !w.is_finite() || *w <= 0.0) || section.rows == 0 {
         return fail("an instrument arm has no mass");
     }
-    let near = |a: f64, b: f64| (a - b).abs() <= 1e-9 * (1.0 + b.abs());
+    let near = |a: f64, b: f64| BOUNDS_REPLAY.close(a, b);
     let cells = &section.cells;
     let law = antecedent_identify::BinaryIvLaw {
         cells: [[cells[0], cells[1], cells[2], cells[3]], [cells[4], cells[5], cells[6], cells[7]]],

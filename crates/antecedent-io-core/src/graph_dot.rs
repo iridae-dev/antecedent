@@ -10,7 +10,7 @@ use std::fmt::Write as _;
 
 use antecedent_graph::Dag;
 
-use crate::convert::{dag_from_wire, dag_to_wire};
+use crate::convert::{GraphLimits, dag_from_wire_with_limits, dag_to_wire};
 use crate::error::IoError;
 use crate::graph_json::without_names;
 use crate::wire::DagWire;
@@ -38,8 +38,20 @@ without_names! {
 ///
 /// Malformed DOT, undirected edges, cycles, or empty graphs.
 pub fn dag_with_names_from_dot(dot: &str) -> Result<(Dag, Vec<String>), IoError> {
+    dag_with_names_from_dot_with_limits(dot, &GraphLimits::default())
+}
+
+/// [`dag_with_names_from_dot`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`dag_with_names_from_dot`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn dag_with_names_from_dot_with_limits(
+    dot: &str,
+    limits: &GraphLimits,
+) -> Result<(Dag, Vec<String>), IoError> {
     let (wire, names) = dag_wire_and_names_from_dot(dot)?;
-    let dag = dag_from_wire(&wire)?;
+    let dag = dag_from_wire_with_limits(&wire, limits)?;
     Ok((dag, names))
 }
 

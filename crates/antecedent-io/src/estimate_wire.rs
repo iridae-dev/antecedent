@@ -42,7 +42,7 @@ pub struct EffectEstimateWire {
     /// Assumptions.
     pub assumptions: Vec<AssumptionRecordWire>,
     /// Overlap policy tag.
-    pub overlap_policy: String,
+    pub overlap_policy: EstimateOverlapPolicyWire,
     /// Clip.
     pub overlap_clip: Option<f64>,
     /// Trim.
@@ -133,6 +133,67 @@ pub struct EffectEstimateWire {
     /// How the columns the estimator read were prepared, when it recorded a receipt.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preparation: Option<PreparationWire>,
+}
+
+/// Overlap policy of an estimate on the wire; its clip and trim ride beside it on
+/// [`EffectEstimateWire`].
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum EstimateOverlapPolicyWire {
+    /// Overlap diagnostics are required (with the optional clip and trim).
+    RequireDiagnostics,
+    /// The caller overrode the overlap requirement.
+    ExplicitOverride,
+}
+
+/// Why a first-stage / Anderson-Rubin uncertainty statement was withheld.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum UncertaintyWithheldWire {
+    /// The Anderson-Rubin set needs homoskedastic errors.
+    AndersonRubinRequiresHomoskedastic,
+    /// The Anderson-Rubin set is a union of disjoint intervals.
+    AndersonRubinSetIsUnion,
+    /// The Anderson-Rubin set is empty.
+    AndersonRubinSetEmpty,
+    /// The Anderson-Rubin set needs excluded instruments.
+    AndersonRubinRequiresExcludedInstruments,
+    /// The Anderson-Rubin level is not in `(0, 1)`.
+    AndersonRubinInvalidLevel,
+    /// The Anderson-Rubin critical value could not be computed.
+    AndersonRubinCriticalValueFailed,
+}
+
+impl UncertaintyWithheldWire {
+    /// The estimator's tag for this reason.
+    #[must_use]
+    pub const fn tag(self) -> &'static str {
+        match self {
+            Self::AndersonRubinRequiresHomoskedastic => "anderson_rubin_requires_homoskedastic",
+            Self::AndersonRubinSetIsUnion => "anderson_rubin_set_is_union",
+            Self::AndersonRubinSetEmpty => "anderson_rubin_set_empty",
+            Self::AndersonRubinRequiresExcludedInstruments => {
+                "anderson_rubin_requires_excluded_instruments"
+            }
+            Self::AndersonRubinInvalidLevel => "anderson_rubin_invalid_level",
+            Self::AndersonRubinCriticalValueFailed => "anderson_rubin_critical_value_failed",
+        }
+    }
+
+    /// The reason an estimator tag names, or `None` for a tag this format does not define.
+    #[must_use]
+    pub fn from_tag(tag: &str) -> Option<Self> {
+        [
+            Self::AndersonRubinRequiresHomoskedastic,
+            Self::AndersonRubinSetIsUnion,
+            Self::AndersonRubinSetEmpty,
+            Self::AndersonRubinRequiresExcludedInstruments,
+            Self::AndersonRubinInvalidLevel,
+            Self::AndersonRubinCriticalValueFailed,
+        ]
+        .into_iter()
+        .find(|reason| reason.tag() == tag)
+    }
 }
 
 /// Preparation receipt summary recorded on an estimate.
@@ -323,16 +384,16 @@ pub struct FirstStageDiagnosticsWire {
     pub anderson_rubin: Option<(f64, f64, f64)>,
     /// Why AR / licensed IV uncertainty was withheld.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub uncertainty_withheld: Option<String>,
+    pub uncertainty_withheld: Option<UncertaintyWithheldWire>,
 }
 
 /// Encode effect estimate.
 #[must_use]
 pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
     let (overlap_policy, overlap_clip, overlap_trim) = match e.provenance.overlap {
-        OverlapPolicy::ExplicitOverride => ("explicit_override".into(), None, None),
+        OverlapPolicy::ExplicitOverride => (EstimateOverlapPolicyWire::ExplicitOverride, None, None),
         OverlapPolicy::RequireDiagnostics { clip, trim } => {
-            ("require_diagnostics".into(), clip, trim)
+            (EstimateOverlapPolicyWire::RequireDiagnostics, clip, trim)
         }
     };
     EffectEstimateWire {
@@ -355,7 +416,11 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
                 df2: crate::width::lossless_u64(diagnostic.df2),
                 partial_r2: diagnostic.partial_r2,
                 anderson_rubin: diagnostic.anderson_rubin,
-                uncertainty_withheld: diagnostic.uncertainty_withheld.map(str::to_owned),
+                // The estimator names the closed set `UncertaintyWithheldWire` defines; a tag
+                // outside it has no wire spelling the decoder would accept, so it is not written.
+                uncertainty_withheld: diagnostic
+                    .uncertainty_withheld
+                    .and_then(UncertaintyWithheldWire::from_tag),
             }
         }),
         retained_memory_bytes: e.provenance.retained_memory_bytes,
@@ -452,27 +517,27 @@ fn score_table_to_wire(table: &antecedent_estimate::ScoreTable) -> ScoreTableWir
 }
 
 fn score_table_from_wire(
-    wire: &ScoreTableWire,
+    wire: ScoreTableWire,
 ) -> Result<antecedent_estimate::ScoreTable, IoError> {
     let domain = antecedent_estimate::ScoreTableWire {
-        observed_arm: wire.observed_arm.clone(),
-        propensities: wire.propensities.clone(),
-        observed_outcome: wire.observed_outcome.clone(),
+        observed_arm: wire.observed_arm,
+        propensities: wire.propensities,
+        observed_outcome: wire.observed_outcome,
         n_rows: wire.n_rows,
-        row_index: wire.row_index.clone(),
-        fold_ids: wire.fold_ids.clone(),
+        row_index: wire.row_index,
+        fold_ids: wire.fold_ids,
         n_folds: wire.n_folds,
-        scores: wire.scores.clone(),
+        scores: wire.scores,
         columns: wire
             .columns
-            .iter()
+            .into_iter()
             .map(|c| antecedent_estimate::ScoreColumn { arm: c.arm, threshold: c.threshold })
             .collect(),
-        adjustment_set: wire.adjustment_set.clone(),
-        nuisance_provenance: wire.nuisance_provenance.clone(),
+        adjustment_set: wire.adjustment_set,
+        nuisance_provenance: wire.nuisance_provenance,
         propensity_clip: wire.propensity_clip,
         treatment: wire.treatment,
-        intervened: wire.intervened.clone(),
+        intervened: wire.intervened,
     };
     antecedent_estimate::ScoreTable::from_wire(domain).map_err(|e| IoError::Convert(e.to_string()))
 }
@@ -505,12 +570,30 @@ fn overlap_report_to_wire(report: &OverlapReport) -> OverlapReportWire {
 
 /// Decode an effect estimate without dropping its assumptions or diagnostic evidence.
 ///
+/// This clones the wire; [`effect_estimate_from_owned_wire`] consumes it and moves the large
+/// score, scenario and CATE columns into the estimate instead.
+///
 /// # Errors
 ///
 /// Invalid assumption labels or scopes.
 pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimate, IoError> {
-    let overlap = overlap_policy_from_wire(w)?;
-    let overlap_report = w.overlap_report.as_ref().map(overlap_report_from_wire).transpose()?;
+    effect_estimate_from_owned_wire(w.clone())
+}
+
+/// [`effect_estimate_from_wire`] for an owned wire: its vectors become the estimate's
+/// columns without a copy.
+///
+/// # Errors
+///
+/// Invalid assumption labels or scopes.
+pub fn effect_estimate_from_owned_wire(w: EffectEstimateWire) -> Result<EffectEstimate, IoError> {
+    let overlap = match w.overlap_policy {
+        EstimateOverlapPolicyWire::RequireDiagnostics => {
+            OverlapPolicy::RequireDiagnostics { clip: w.overlap_clip, trim: w.overlap_trim }
+        }
+        EstimateOverlapPolicyWire::ExplicitOverride => OverlapPolicy::ExplicitOverride,
+    };
+    let overlap_report = w.overlap_report.map(overlap_report_from_wire).transpose()?;
     let first_stage = w.first_stage_diagnostics.as_ref().map(first_stage_from_wire).transpose()?;
     let mut estimate = EffectEstimate::from_parts(
         w.ate,
@@ -528,70 +611,67 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
         w.retained_memory_bytes,
     )
     .with_first_stage_diagnostics(first_stage);
-    if let Some(table) = w.score_table.as_ref() {
+    if let Some(table) = w.score_table {
         estimate = estimate.with_score_table(Some(score_table_from_wire(table)?));
     }
-    if let Some(cdf) = w.exceedance_cdf.as_ref() {
-        estimate = estimate.with_exceedance_cdf(Some(cdf.clone().into()));
+    if let Some(cdf) = w.exceedance_cdf {
+        estimate = estimate.with_exceedance_cdf(Some(cdf.into()));
     }
     estimate = estimate.with_monotone_rearranged(w.monotone_rearranged);
-    if let Some(c) = &w.joint_covariance {
+    if let Some(c) = w.joint_covariance {
         if c.dim == 0
             || c.values.len() != c.dim.saturating_mul(c.dim)
             || c.values.iter().any(|v| !v.is_finite())
         {
             return Err(IoError::Convert("invalid joint covariance".into()));
         }
-        estimate.joint.covariance = Some(antecedent_estimate::JointCovariance {
-            dim: c.dim,
-            values: c.values.clone().into(),
-        });
+        estimate.joint.covariance =
+            Some(antecedent_estimate::JointCovariance { dim: c.dim, values: c.values.into() });
     }
-    estimate.scores.inference =
-        w.score_inference.as_ref().map(score_inference_from_wire).transpose()?;
+    estimate.scores.inference = w.score_inference.map(score_inference_from_wire).transpose()?;
     estimate.family.simultaneous_interval = w.simultaneous_interval;
     estimate.family.adjusted_p_values = w.adjusted_p_values;
     estimate.family.contrast = w.family_contrast;
     estimate.family.contrast_interval = w.family_contrast_interval;
     estimate.diagnostics.evalue = w.evalue;
     estimate.diagnostics.evalue_threshold = w.evalue_threshold;
-    estimate.provenance.preparation = w.preparation.as_ref().map(|p| {
+    estimate.provenance.preparation = w.preparation.map(|p| {
         std::sync::Arc::new(
             antecedent_estimate::PreparationSummary::from_parts(
-                p.backend.clone(),
-                p.route_bound.clone(),
+                p.backend,
+                p.route_bound,
                 p.rows_admitted,
-                p.receipt_digest.clone(),
+                p.receipt_digest,
             )
-            .with_resources(p.admitted_bytes, p.budget_bytes, p.delivery.clone()),
+            .with_resources(p.admitted_bytes, p.budget_bytes, p.delivery),
         )
     });
     estimate.family.candidate_selection =
         w.candidate_selection.as_ref().map(candidate_selection_from_wire).transpose()?;
-    estimate.scenarios.effects = w.scenario_effects.clone().map(Into::into);
-    estimate.scenarios.intervals = w.scenario_intervals.clone().map(Into::into);
+    estimate.scenarios.effects = w.scenario_effects.map(Into::into);
+    estimate.scenarios.intervals = w.scenario_intervals.map(Into::into);
     estimate.joint.interaction_structurally_zero = w.interaction_structurally_zero.unwrap_or(false);
     estimate.heterogeneity.unit_effects_homogeneous = w.unit_effects_homogeneous.unwrap_or(false);
-    if let Some(model) = &w.fitted_effect {
+    if let Some(model) = w.fitted_effect {
         if model.version == 1 && model.predictor.version == 1 {
             model.validate().map_err(|e| IoError::Convert(e.to_string()))?;
-            estimate.heterogeneity.fitted_effect = Some(std::sync::Arc::new(model.clone()));
+            estimate.heterogeneity.fitted_effect = Some(std::sync::Arc::new(model));
         }
     }
-    estimate.heterogeneity.cate = w.cate.clone().map(Into::into);
-    estimate.heterogeneity.cate_se = w.cate_se.clone().map(Into::into);
-    estimate.heterogeneity.cate_leaf_dispersion = w.cate_leaf_dispersion.clone().map(Into::into);
+    estimate.heterogeneity.cate = w.cate.map(Into::into);
+    estimate.heterogeneity.cate_se = w.cate_se.map(Into::into);
+    estimate.heterogeneity.cate_leaf_dispersion = w.cate_leaf_dispersion.map(Into::into);
     estimate.crossfit.outcome_oof_r2 = w.outcome_oof_r2;
     estimate.crossfit.treatment_oof_logloss = w.treatment_oof_logloss;
     estimate.crossfit.folds = w.crossfit_folds;
     estimate.crossfit.seed = w.crossfit_seed;
     estimate.crossfit.learner_provenance = w
         .learner_provenance
-        .iter()
+        .into_iter()
         .map(|(spec, implementation, version)| antecedent_estimate::LearnerProvenance {
-            spec: spec.clone(),
-            implementation: implementation.clone(),
-            version: version.clone(),
+            spec,
+            implementation,
+            version,
         })
         .collect();
     Ok(estimate)
@@ -615,31 +695,12 @@ fn first_stage_from_wire(
         df2: usize::try_from(diagnostic.df2).map_err(|_| IoError::TooLarge)?,
         partial_r2: diagnostic.partial_r2,
         anderson_rubin: diagnostic.anderson_rubin,
-        uncertainty_withheld: match diagnostic.uncertainty_withheld.as_deref() {
-            None => None,
-            Some("anderson_rubin_requires_homoskedastic") => {
-                Some("anderson_rubin_requires_homoskedastic")
-            }
-            Some("anderson_rubin_set_is_union") => Some("anderson_rubin_set_is_union"),
-            Some("anderson_rubin_set_empty") => Some("anderson_rubin_set_empty"),
-            Some("anderson_rubin_requires_excluded_instruments") => {
-                Some("anderson_rubin_requires_excluded_instruments")
-            }
-            Some("anderson_rubin_invalid_level") => Some("anderson_rubin_invalid_level"),
-            Some("anderson_rubin_critical_value_failed") => {
-                Some("anderson_rubin_critical_value_failed")
-            }
-            Some(_) => {
-                return Err(IoError::Convert(
-                    "unknown first-stage uncertainty_withheld reason".into(),
-                ));
-            }
-        },
+        uncertainty_withheld: diagnostic.uncertainty_withheld.map(UncertaintyWithheldWire::tag),
     })
 }
 
 fn score_inference_from_wire(
-    s: &ScoreInferenceWire,
+    s: ScoreInferenceWire,
 ) -> Result<antecedent_estimate::scores::ScoreInference, IoError> {
     let n = s.raw_means.len();
     if n == 0
@@ -665,31 +726,20 @@ fn score_inference_from_wire(
         return Err(IoError::Convert("invalid score inference".into()));
     }
     Ok(antecedent_estimate::scores::ScoreInference {
-        raw_means: s.raw_means.clone(),
-        lower: s.lower.clone(),
-        upper: s.upper.clone(),
+        raw_means: s.raw_means,
+        lower: s.lower,
+        upper: s.upper,
         level: s.level,
         critical_value: s.critical_value,
-        event_n_eff: s.event_n_eff.clone(),
-        threshold_supported: s.threshold_supported.clone(),
+        event_n_eff: s.event_n_eff,
+        threshold_supported: s.threshold_supported,
         support: antecedent_estimate::WeightedSupport {
             n_eff: s.n_eff,
-            n_eff_by_arm: s.n_eff_by_arm.clone(),
+            n_eff_by_arm: s.n_eff_by_arm,
             propensity_range: s.propensity_range,
             overlap_ok: s.overlap_ok,
         },
     })
-}
-
-fn overlap_policy_from_wire(w: &EffectEstimateWire) -> Result<OverlapPolicy, IoError> {
-    let overlap = match w.overlap_policy.as_str() {
-        "require_diagnostics" => {
-            OverlapPolicy::RequireDiagnostics { clip: w.overlap_clip, trim: w.overlap_trim }
-        }
-        "explicit_override" => OverlapPolicy::ExplicitOverride,
-        other => return Err(IoError::Convert(format!("unknown overlap policy `{other}`"))),
-    };
-    Ok(overlap)
 }
 
 fn candidate_selection_from_wire(
@@ -728,7 +778,7 @@ fn candidate_selection_from_wire(
     })
 }
 
-fn overlap_report_from_wire(wire: &OverlapReportWire) -> Result<OverlapReport, IoError> {
+fn overlap_report_from_wire(wire: OverlapReportWire) -> Result<OverlapReport, IoError> {
     let finite = [
         wire.propensity_min,
         wire.propensity_max,
@@ -784,19 +834,19 @@ fn overlap_report_from_wire(wire: &OverlapReportWire) -> Result<OverlapReport, I
         target_population_support: wire.target_population_support,
         excluded_regions: wire
             .excluded_regions
-            .iter()
+            .into_iter()
             .map(|region| PropensityInterval { low: region.low, high: region.high })
             .collect::<Vec<_>>()
             .into(),
         clip: wire.clip,
         trim: wire.trim,
         retained_fraction: wire.retained_fraction,
-        clip_sensitivity: wire.clip_sensitivity.as_ref().map(|sensitivity| ClipSensitivity {
-            thresholds: sensitivity.thresholds.clone().into(),
-            ess: sensitivity.ess.clone().into(),
-            treated_ess: sensitivity.treated_ess.clone().into(),
-            control_ess: sensitivity.control_ess.clone().into(),
-            extreme_weight_counts: sensitivity.extreme_weight_counts.clone().into(),
+        clip_sensitivity: wire.clip_sensitivity.map(|sensitivity| ClipSensitivity {
+            thresholds: sensitivity.thresholds.into(),
+            ess: sensitivity.ess.into(),
+            treated_ess: sensitivity.treated_ess.into(),
+            control_ess: sensitivity.control_ess.into(),
+            extreme_weight_counts: sensitivity.extreme_weight_counts.into(),
         }),
     })
 }
@@ -1085,6 +1135,31 @@ mod tests {
     }
 
     #[test]
+    fn every_withheld_reason_round_trips_through_its_tag_and_the_wire_spelling() {
+        for tag in [
+            "anderson_rubin_requires_homoskedastic",
+            "anderson_rubin_set_is_union",
+            "anderson_rubin_set_empty",
+            "anderson_rubin_requires_excluded_instruments",
+            "anderson_rubin_invalid_level",
+            "anderson_rubin_critical_value_failed",
+        ] {
+            let reason = UncertaintyWithheldWire::from_tag(tag).expect("defined reason");
+            assert_eq!(reason.tag(), tag);
+            assert_eq!(serde_json::to_string(&reason).unwrap(), format!("\"{tag}\""));
+        }
+        assert_eq!(UncertaintyWithheldWire::from_tag("other"), None);
+        assert_eq!(
+            serde_json::to_string(&EstimateOverlapPolicyWire::RequireDiagnostics).unwrap(),
+            "\"require_diagnostics\""
+        );
+        assert_eq!(
+            serde_json::to_string(&EstimateOverlapPolicyWire::ExplicitOverride).unwrap(),
+            "\"explicit_override\""
+        );
+    }
+
+    #[test]
     fn effect_estimate_preserves_assumption_evidence() {
         let wire = EffectEstimateWire {
             ate: 1.0,
@@ -1095,7 +1170,7 @@ mod tests {
             bootstrap_cancelled: true,
             bootstrap_early_stopped: true,
             assumptions: vec![descriptive_assumption()],
-            overlap_policy: "require_diagnostics".into(),
+            overlap_policy: EstimateOverlapPolicyWire::RequireDiagnostics,
             overlap_clip: Some(0.01),
             overlap_trim: Some(0.02),
             overlap_report: Some(OverlapReportWire {

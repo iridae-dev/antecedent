@@ -25,12 +25,39 @@ pub struct StatisticalOptionsWire {
     pub max_joint_cells: usize,
 }
 
+/// How a Bayesian transport posterior's interval is read off its draws.
+///
+/// The wire spelling is the estimator's own constant; a payload naming any other method fails
+/// at deserialisation rather than at a later string comparison.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
+pub enum PosteriorIntervalMethodWire {
+    /// Equal-tailed interval from the posterior draws.
+    #[serde(rename = "posterior_equal_tail")]
+    EqualTail,
+}
+
+impl PosteriorIntervalMethodWire {
+    /// The wire spelling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::EqualTail => antecedent_estimate::POSTERIOR_EQUAL_TAIL,
+        }
+    }
+
+    /// The method named by `text`, or `None` for a method this wire does not carry.
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
+        (text == Self::EqualTail.as_str()).then_some(Self::EqualTail)
+    }
+}
+
 /// Posterior draw payload for Bayesian finite structural transport.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct BayesianTransportPosteriorWire {
     pub estimator: String,
-    pub interval_method: String,
+    pub interval_method: PosteriorIntervalMethodWire,
     #[serde(default)]
     pub interval_reason: Option<String>,
     pub draws_requested: u32,

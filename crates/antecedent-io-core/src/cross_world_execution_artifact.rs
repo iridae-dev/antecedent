@@ -37,7 +37,6 @@ use antecedent_counterfactual::selective::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const CROSS_WORLD_EXECUTION_ARTIFACT_VERSION: u16 = 1;
@@ -610,13 +609,8 @@ fn encode_parts_impl(
     values: &[f64],
     artifact_id: &str,
 ) -> Result<Vec<u8>, CrossWorldExecutionArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(CrossWorldExecutionArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta)
-        .map_err(|error| CrossWorldExecutionArtifactError::Encode(error.to_string()))?;
     let values = crate::artifact_codec::f64s_to_le_bytes(values);
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "cross_world_execution_exact_enumeration_point_only",
@@ -624,20 +618,14 @@ fn encode_parts_impl(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[
-            crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            },
-            crate::OutSection {
-                id: VALUES_SECTION,
-                content_type: crate::CONTENT_BYTES,
-                bytes: &values,
-            },
-        ],
+        META_SECTION,
+        meta,
+        &[crate::OutSection {
+            id: VALUES_SECTION,
+            content_type: crate::CONTENT_BYTES,
+            bytes: &values,
+        }],
     )
-    .map_err(|error| crate::map_artifact_check!(error, CrossWorldExecutionArtifactError))
 }
 
 /// Encode a metadata section and a values section as a checksummed container.
@@ -668,7 +656,7 @@ pub fn encode_parts(
 pub fn decode_parts(
     bytes: &[u8],
 ) -> Result<(CrossWorldExecutionMeta, Vec<f64>), CrossWorldExecutionArtifactError> {
-    CrossWorldExecutionArtifact::decode(bytes)
+    CrossWorldExecutionArtifact::decode(bytes, MAX_CROSS_WORLD_EXECUTION_ARTIFACT_BYTES)
 }
 
 /// A produced or consumed cross-world execution artifact.
@@ -753,26 +741,24 @@ impl CrossWorldExecutionArtifact {
 
     fn decode(
         bytes: &[u8],
+        max_bytes: usize,
     ) -> Result<(CrossWorldExecutionMeta, Vec<f64>), CrossWorldExecutionArtifactError> {
-        let parts = crate::decode_container(
+        let (meta, parts) = crate::artifact_codec::decode_sectioned::<
+            CrossWorldExecutionArtifactError,
+            CrossWorldExecutionMeta,
+        >(
             ARTIFACT_KIND,
-            MAX_CROSS_WORLD_EXECUTION_ARTIFACT_BYTES,
-            &[META_SECTION, VALUES_SECTION],
+            max_bytes,
+            META_SECTION,
+            &[VALUES_SECTION],
+            CROSS_WORLD_EXECUTION_ARTIFACT_VERSION,
             bytes,
-        )
-        .map_err(|error| crate::map_artifact_check!(error, CrossWorldExecutionArtifactError))?;
-        let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
+        )?;
+        let Ok([payload]) = <[Vec<u8>; 1]>::try_from(parts) else {
             return Err(CrossWorldExecutionArtifactError::Malformed(
                 "unsupported container layout".into(),
             ));
         };
-        let meta: CrossWorldExecutionMeta = crate::decode_with_version(&meta_bytes, |version| {
-            if version == CROSS_WORLD_EXECUTION_ARTIFACT_VERSION {
-                Ok(())
-            } else {
-                Err(CrossWorldExecutionArtifactError::UnsupportedVersion { version })
-            }
-        })?;
         if payload.len() % 8 != 0 {
             return Err(CrossWorldExecutionArtifactError::Malformed(
                 "values section length".into(),
@@ -796,10 +782,25 @@ impl CrossWorldExecutionArtifact {
         expected: Option<&CrossWorldExecutionIdentity>,
         ctx: &ExecutionContext,
     ) -> Result<Self, CrossWorldExecutionArtifactError> {
-        let (meta, stored) = Self::decode(bytes)?;
-        if meta.feature != CROSS_WORLD_EXECUTION_ARTIFACT_FEATURE {
-            return Err(CrossWorldExecutionArtifactError::UnsupportedSemantics("feature marker"));
-        }
+        Self::from_bytes_within(bytes, expected, ctx, MAX_CROSS_WORLD_EXECUTION_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of
+    /// [`MAX_CROSS_WORLD_EXECUTION_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a file over `max_bytes` is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected: Option<&CrossWorldExecutionIdentity>,
+        ctx: &ExecutionContext,
+        max_bytes: usize,
+    ) -> Result<Self, CrossWorldExecutionArtifactError> {
+        let (meta, stored) = Self::decode(bytes, max_bytes)?;
+        crate::artifact_codec::require_semantics::<CrossWorldExecutionArtifactError>(
+            meta.feature == CROSS_WORLD_EXECUTION_ARTIFACT_FEATURE,
+            "feature marker",
+        )?;
         if meta.inference_claim != CROSS_WORLD_EXECUTION_INFERENCE_CLAIM {
             return Err(CrossWorldExecutionArtifactError::UnsupportedSemantics("inference claim"));
         }

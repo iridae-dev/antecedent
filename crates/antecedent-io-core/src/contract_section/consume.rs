@@ -7,7 +7,8 @@ use super::verify::verify_contract_against_body;
 use std::sync::Arc;
 
 use antecedent_contract::{
-    AcceptanceReport, ConsumerProfile, HandoffReceipt, IDENTIFICATION_NOT_CLAIMED,
+    AcceptanceReport, ClaimDomains, ClaimKind, ConsumerProfile, DomainStatus, HandoffReceipt,
+    IDENTIFICATION_NOT_CLAIMED,
 };
 use antecedent_core::SemanticDigest;
 use serde::{Deserialize, Serialize};
@@ -145,47 +146,56 @@ pub fn result_digest(body: &AnalysisResultWire) -> Result<[u8; 32], IoError> {
 ///
 /// The single rule shared by the producer and the independent consumer.
 #[must_use]
-pub fn claim_kind_name(
+pub fn claim_kind(
     body: &AnalysisResultWire,
     identification: Option<&IdentificationSlotWire>,
-) -> &'static str {
+) -> ClaimKind {
     if body.policy_value.is_some() {
-        return "policy_value";
+        return ClaimKind::PolicyValue;
     }
     if body.response.is_some() {
-        return "response";
+        return ClaimKind::Response;
     }
     // A description of the observed law is associational whatever its identification slot
     // says: no slot turns an association section into a causal claim.
     if body.association.is_some() {
-        return "associational";
+        return ClaimKind::Associational;
     }
     // An identified set is never a point, whatever status the identification slot carries.
     if body.iv_bounds.is_some() {
-        return "bounds";
+        return ClaimKind::Bounds;
     }
     let Some(slot) = identification else {
-        return "point";
+        return ClaimKind::Point;
     };
     match slot.status.as_str() {
-        "partially_identified" => return "bounds",
+        "partially_identified" => return ClaimKind::Bounds,
         "nonparametrically_identified"
         | "identified_under_parametric_restrictions"
         | "identified_under_prior_restrictions"
         | "graph_dependent" => {}
         // `not_identified`, `not_certified`, `proven_non_transportable`, or any spelling this reader
         // does not know: never a point.
-        _ => return "incomplete",
+        _ => return ClaimKind::Incomplete,
     }
     // Any mass short of full identification, or a weighted mixture, is not a point.
     if slot.identified_mass < 1.0 || slot.weight_basis.is_some() {
         if body.structural_response.as_ref().is_some_and(|mixture| mixture.identified_set.is_some())
         {
-            return "bounds";
+            return ClaimKind::Bounds;
         }
-        return "mixture";
+        return ClaimKind::Mixture;
     }
-    "point"
+    ClaimKind::Point
+}
+
+/// Wire spelling of [`claim_kind`].
+#[must_use]
+pub fn claim_kind_name(
+    body: &AnalysisResultWire,
+    identification: Option<&IdentificationSlotWire>,
+) -> &'static str {
+    claim_kind(body, identification).as_str()
 }
 
 /// Whether an identification section states that identification is not claimed.
@@ -198,21 +208,30 @@ pub fn identification_not_claimed(section: &SlotSectionWire<IdentificationSlotWi
     section.value.is_none() && section.unavailable.as_deref() == Some(IDENTIFICATION_NOT_CLAIMED)
 }
 
-/// [`claim_kind_name`] over the whole identification section.
+/// [`claim_kind`] over the whole identification section.
 ///
 /// A section that states identification is not claimed implies an
 /// `associational` claim whatever the body carries; every other section reads
-/// as [`claim_kind_name`] does. The producer and the independent consumer both
+/// as [`claim_kind`] does. The producer and the independent consumer both
 /// call this one rule.
+#[must_use]
+pub fn claim_kind_of_section(
+    body: &AnalysisResultWire,
+    identification: &SlotSectionWire<IdentificationSlotWire>,
+) -> ClaimKind {
+    if identification_not_claimed(identification) {
+        return ClaimKind::Associational;
+    }
+    claim_kind(body, identification.value.as_ref())
+}
+
+/// Wire spelling of [`claim_kind_of_section`].
 #[must_use]
 pub fn claim_kind_name_of_section(
     body: &AnalysisResultWire,
     identification: &SlotSectionWire<IdentificationSlotWire>,
 ) -> &'static str {
-    if identification_not_claimed(identification) {
-        return "associational";
-    }
-    claim_kind_name(body, identification.value.as_ref())
+    claim_kind_of_section(body, identification).as_str()
 }
 
 /// Refuter ids whose outcome speaks to empirical support (overlap / positivity).
@@ -257,6 +276,20 @@ pub fn claim_domains(
     support: Option<&SupportSlotWire>,
     identification: Option<&IdentificationSlotWire>,
 ) -> ClaimDomainsWire {
+    let domains = claim_domain_statuses(support, identification);
+    ClaimDomainsWire {
+        identification: domains.identification.as_str().into(),
+        support: domains.support.as_str().into(),
+        evaluated: domains.evaluated.as_str().into(),
+    }
+}
+
+/// [`claim_domains`] as typed statuses.
+#[must_use]
+pub fn claim_domain_statuses(
+    support: Option<&SupportSlotWire>,
+    identification: Option<&IdentificationSlotWire>,
+) -> ClaimDomains {
     let identified = identification.is_some_and(|slot| {
         slot.unidentified_mass == 0.0
             && slot.unevaluable_mass == 0.0
@@ -268,19 +301,19 @@ pub fn claim_domains(
     });
     let support_domain = match support {
         Some(slot) if matches!(slot.matrix_status.as_str(), "refused" | "not_applicable") => {
-            "outside_scope"
+            DomainStatus::OutsideScope
         }
-        Some(slot) if slot.empirical.starts_with("failed:") => "contradicted",
+        Some(slot) if slot.empirical.starts_with("failed:") => DomainStatus::Contradicted,
         Some(slot) if slot.matrix_status == "licensed" && slot.empirical == "supported" => {
-            "supported"
+            DomainStatus::Supported
         }
-        _ => "unknown",
+        _ => DomainStatus::Unknown,
     };
-    ClaimDomainsWire {
-        identification: if identified { "identified" } else { "unknown" }.into(),
-        support: support_domain.into(),
-        evaluated: if identified { "evaluated" } else { "unknown" }.into(),
-    }
+    ClaimDomains::new(
+        if identified { DomainStatus::Identified } else { DomainStatus::Unknown },
+        support_domain,
+        if identified { DomainStatus::Evaluated } else { DomainStatus::Unknown },
+    )
 }
 
 /// [`claim_domains`] over the whole identification section.
@@ -294,10 +327,24 @@ pub fn claim_domains_of_section(
     support: Option<&SupportSlotWire>,
     identification: &SlotSectionWire<IdentificationSlotWire>,
 ) -> ClaimDomainsWire {
-    let mut domains = claim_domains(support, identification.value.as_ref());
+    let domains = claim_domain_statuses_of_section(support, identification);
+    ClaimDomainsWire {
+        identification: domains.identification.as_str().into(),
+        support: domains.support.as_str().into(),
+        evaluated: domains.evaluated.as_str().into(),
+    }
+}
+
+/// [`claim_domains_of_section`] as typed statuses.
+#[must_use]
+pub fn claim_domain_statuses_of_section(
+    support: Option<&SupportSlotWire>,
+    identification: &SlotSectionWire<IdentificationSlotWire>,
+) -> ClaimDomains {
+    let mut domains = claim_domain_statuses(support, identification.value.as_ref());
     if identification_not_claimed(identification) {
-        domains.identification = "not_claimed".into();
-        domains.evaluated = "evaluated".into();
+        domains.identification = DomainStatus::NotClaimed;
+        domains.evaluated = DomainStatus::Evaluated;
     }
     domains
 }

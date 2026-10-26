@@ -38,7 +38,7 @@ antecedent-stats = { workspace = true }
 blake3 = { workspace = true }
 ciborium = { workspace = true }
 memmap2 = { workspace = true }
-serde = { workspace = true }
+serde = { workspace = true, features = ["rc"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 zstd = { workspace = true }

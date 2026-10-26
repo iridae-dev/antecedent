@@ -46,12 +46,8 @@ impl Default for GraphLimits {
     }
 }
 
-/// Refuse a graph document whose node or edge count would allocate without bound.
-pub(crate) fn check_graph_budget(node_count: u32, edge_count: usize) -> Result<(), IoError> {
-    check_graph_budget_within(node_count, edge_count, &GraphLimits::default())
-}
-
-fn check_graph_budget_within(
+/// Refuse a graph document whose node or edge count exceeds `limits`.
+pub(crate) fn check_graph_budget_within(
     node_count: u32,
     edge_count: usize,
     limits: &GraphLimits,
@@ -451,7 +447,7 @@ pub fn admg_from_wire_with_limits(
 /// CBOR failure.
 pub fn to_cbor<T: serde::Serialize>(value: &T) -> Result<Vec<u8>, IoError> {
     let mut buf = Vec::new();
-    ciborium::into_writer(value, &mut buf).map_err(|e| IoError::Cbor(e.to_string()))?;
+    ciborium::into_writer(value, &mut buf).map_err(IoError::cbor_encode)?;
     Ok(buf)
 }
 
@@ -462,13 +458,16 @@ pub fn to_cbor<T: serde::Serialize>(value: &T) -> Result<Vec<u8>, IoError> {
 /// CBOR failure.
 pub fn from_cbor<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T, IoError> {
     let mut reader = bytes;
-    let value = ciborium::from_reader(&mut reader).map_err(|e| IoError::Cbor(e.to_string()))?;
+    let value = ciborium::from_reader(&mut reader).map_err(IoError::cbor_decode)?;
     // A section is one CBOR item. Bytes after it would ride under the section checksum
     // while no consumer reads them.
     if reader.is_empty() {
         Ok(value)
     } else {
-        Err(IoError::Cbor(format!("{} trailing bytes after the CBOR item", reader.len())))
+        Err(IoError::Cbor(crate::error::CborFailure::new(
+            crate::error::CborFault::TrailingBytes,
+            format!("{} trailing bytes after the CBOR item", reader.len()),
+        )))
     }
 }
 

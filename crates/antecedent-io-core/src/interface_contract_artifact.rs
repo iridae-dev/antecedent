@@ -43,7 +43,6 @@ use antecedent_core::CanonicalWriter;
 use antecedent_core::refusal::changed_identity;
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
 use crate::quantity_wire::ScientificQuantityWire;
 
 /// The artifact major version this reader writes and accepts.
@@ -629,12 +628,11 @@ fn check(
     Ok(InterfaceContractArtifact { contract, contract_identity, identity })
 }
 
-fn encode_meta(meta: &InterfaceContractMeta, artifact_id: &str) -> Result<Vec<u8>, Failure> {
-    if artifact_id.trim().is_empty() {
-        return Err(Failure::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta).map_err(|error| Failure::Encode(error.to_string()))?;
-    crate::encode_container(
+fn encode_meta(
+    meta: &InterfaceContractMeta,
+    artifact_id: &str,
+) -> Result<Vec<u8>, Failure> {
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "interface_contract",
@@ -642,33 +640,25 @@ fn encode_meta(meta: &InterfaceContractMeta, artifact_id: &str) -> Result<Vec<u8
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: META_SECTION,
-            content_type: crate::CONTENT_CBOR,
-            bytes: &meta_bytes,
-        }],
+        META_SECTION,
+        meta,
+        &[],
     )
-    .map_err(|error| crate::map_artifact_check!(error, InterfaceContractArtifactError))
 }
 
-fn decode_meta(bytes: &[u8], max_bytes: usize) -> Result<InterfaceContractMeta, Failure> {
-    let parts = crate::decode_container(
+fn decode_meta(
+    bytes: &[u8],
+    max_bytes: usize,
+) -> Result<InterfaceContractMeta, Failure> {
+    crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
         max_bytes,
-        &[META_SECTION],
+        META_SECTION,
+        &[],
+        INTERFACE_CONTRACT_ARTIFACT_VERSION,
         bytes,
     )
-    .map_err(|error| crate::map_artifact_check!(error, InterfaceContractArtifactError))?;
-    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(Failure::Malformed("unsupported container layout".into()));
-    };
-    crate::decode_with_version(&meta_bytes, |version: u16| {
-        if version == INTERFACE_CONTRACT_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(Failure::UnsupportedVersion { version })
-        }
-    })
+    .map(|(meta, _)| meta)
 }
 
 // -- public type --------------------------------------------------------------------------------

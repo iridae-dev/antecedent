@@ -35,10 +35,12 @@ use std::sync::Arc;
 
 use antecedent_core::{CancellationToken, CanonicalWriter};
 use antecedent_io_core::container::{
-    DomainDigest, STREAM_BUDGET_REFUSED, STREAM_CANCELLED, stream_decoder_workspace_bytes,
-    stream_encoder_workspace_bytes, zstd_compress_chunked, zstd_decompress_chunked,
+    DomainDigest, stream_encoder_workspace_bytes, zstd_compress_chunked, zstd_decompress_chunked,
 };
+use antecedent_io_core::byte_cursor::ByteCursor;
 use antecedent_io_core::error::IoError;
+
+use crate::width::lossless_u64;
 
 pub use antecedent_io_core::container::{LogicalSource, StreamReceipt, StreamWork};
 
@@ -520,7 +522,7 @@ fn read_sections<'a>(
     retain_payload: bool,
     shared: Option<&Arc<[u8]>>,
 ) -> Result<(StreamMetadata, Option<PayloadBytes<'a>>), StreamArtifactError> {
-    let mut reader = Reader::new(stream)?;
+    let mut reader = open_reader(stream)?;
     let section_count = reader.u32()?;
     if section_count == 0 {
         return Err(StreamArtifactError::Malformed("missing metadata"));
@@ -554,7 +556,7 @@ fn read_sections<'a>(
             "payload does not match the device declaration",
         ));
     }
-    reader.finish()?;
+    reader.finish(trailing_bytes())?;
     let kept = if retain_payload { payload } else { None };
     Ok((metadata, kept))
 }
@@ -632,7 +634,7 @@ fn read_section<'a>(
 }
 
 fn decode_metadata(bytes: &[u8]) -> Result<StreamMetadata, StreamArtifactError> {
-    let mut reader = Reader { bytes, at: 0 };
+    let mut reader = Reader::new(bytes, truncated);
     let producer = match reader.u8()? {
         PRODUCER_CPU => Producer::Cpu,
         PRODUCER_ACCELERATOR => Producer::Accelerator,
@@ -656,7 +658,7 @@ fn decode_metadata(bytes: &[u8]) -> Result<StreamMetadata, StreamArtifactError> 
     let artifact_id = std::str::from_utf8(id)
         .map_err(|_| StreamArtifactError::Malformed("artifact id"))?
         .to_owned();
-    reader.finish()?;
+    reader.finish(trailing_bytes())?;
     let metadata = StreamMetadata { artifact_id, producer, device };
     validate_identity(&metadata)?;
     Ok(metadata)
@@ -664,15 +666,14 @@ fn decode_metadata(bytes: &[u8]) -> Result<StreamMetadata, StreamArtifactError> 
 
 fn from_io(error: IoError) -> StreamArtifactError {
     match error {
-        IoError::Io(message) if message == STREAM_CANCELLED => StreamArtifactError::Cancelled,
-        IoError::Io(message) if message.starts_with(STREAM_BUDGET_REFUSED) => {
-            StreamArtifactError::BudgetRefused
-        }
+        IoError::StreamCancelled => StreamArtifactError::Cancelled,
+        IoError::StreamBudgetRefused { .. } => StreamArtifactError::BudgetRefused,
         IoError::ChecksumMismatch { .. } => {
             StreamArtifactError::ChecksumMismatch { section: PAYLOAD_SECTION }
         }
         IoError::Decompress { .. } => StreamArtifactError::Decompress,
         IoError::TooLarge => StreamArtifactError::Malformed("size"),
+        IoError::Io(failure) => StreamArtifactError::Io { kind: failure.kind() },
         _ => StreamArtifactError::Io { kind: std::io::ErrorKind::Other },
     }
 }
@@ -698,7 +699,7 @@ struct CountWriter<W: Write> {
 impl<W: Write> Write for CountWriter<W> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let taken = self.inner.write(buf)?;
-        self.written += u64_len_infallible(taken);
+        self.written += lossless_u64(taken);
         Ok(taken)
     }
 
@@ -719,7 +720,7 @@ impl<W: Write> Write for DigestWriter<W> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let taken = self.inner.write(buf)?;
         self.digest.update(&buf[..taken]);
-        self.written += u64_len_infallible(taken);
+        self.written += lossless_u64(taken);
         self.largest = self.largest.max(taken);
         Ok(taken)
     }
@@ -727,10 +728,6 @@ impl<W: Write> Write for DigestWriter<W> {
     fn flush(&mut self) -> std::io::Result<()> {
         self.inner.flush()
     }
-}
-
-fn u64_len_infallible(len: usize) -> u64 {
-    u64::try_from(len).unwrap_or(u64::MAX)
 }
 
 /// Run `source` through `codec` into `sink`, a chunk at a time. Returns the logical bytes read.
@@ -755,7 +752,7 @@ fn encode_payload_pass<W: Write>(
                     break total;
                 }
                 sink.write_all(&buffer[..taken]).map_err(|e| from_std(&e))?;
-                total += u64_len_infallible(taken);
+                total += lossless_u64(taken);
             }
         }
     };
@@ -956,7 +953,7 @@ impl StreamArtifact<'_> {
             charge(0, head.logical_len, bounds.max_retained_bytes)?;
             // Only a compressed payload needs a decoder; a stored one is leased the chunk alone.
             let _decoder_lease = if head.codec == CODEC_ZSTD {
-                let bytes = stream_decoder_workspace_bytes();
+                let bytes = work.decoder_workspace_bytes();
                 Some(
                     work.ctx
                         .acquire_admission(0, bytes)
@@ -977,7 +974,7 @@ impl StreamArtifact<'_> {
                 let buffer = lease.buffer();
                 read_fixed(&mut r, &mut buffer[..want])?;
                 digest.update(&buffer[..want]);
-                remaining -= u64_len_infallible(want);
+                remaining -= lossless_u64(want);
                 receipt.chunks += 1;
                 receipt.largest_read = receipt.largest_read.max(want);
             }
@@ -993,12 +990,12 @@ impl StreamArtifact<'_> {
             let mut deliver = |chunk: &[u8]| -> Result<(), IoError> {
                 match sink(chunk) {
                     Ok(()) => {
-                        delivered += u64_len_infallible(chunk.len());
+                        delivered += lossless_u64(chunk.len());
                         Ok(())
                     }
                     Err(error) => {
                         failure = Some(error);
-                        Err(IoError::Io("stream artifact sink refused a chunk".into()))
+                        Err(IoError::io("stream artifact sink refused a chunk"))
                     }
                 }
             };
@@ -1023,7 +1020,7 @@ impl StreamArtifact<'_> {
             }
             r.seek(SeekFrom::Start(start + head.on_wire_len)).map_err(|e| from_std(&e))?;
             receipt.logical_bytes = delivered;
-            receipt.chunks += delivered.div_ceil(u64_len_infallible(work.chunk_bytes.max(1)));
+            receipt.chunks += delivered.div_ceil(lossless_u64(work.chunk_bytes.max(1)));
         }
         let at = r.stream_position().map_err(|e| from_std(&e))?;
         let end = r.seek(SeekFrom::End(0)).map_err(|e| from_std(&e))?;
@@ -1045,11 +1042,11 @@ fn stored_chunked<R: Read>(
     let mut total = 0u64;
     loop {
         work.tick()?;
-        let taken = on_wire.read(buffer).map_err(|e| IoError::Io(e.to_string()))?;
+        let taken = on_wire.read(buffer).map_err(IoError::from)?;
         if taken == 0 {
             return Ok(total);
         }
-        total += u64_len_infallible(taken);
+        total += lossless_u64(taken);
         if total > max_logical {
             return Err(IoError::Decompress {
                 section: PAYLOAD_SECTION.into(),
@@ -1110,66 +1107,31 @@ fn observe(cancel: &CancellationToken) -> Result<(), StreamArtifactError> {
     Ok(())
 }
 
-struct Reader<'a> {
-    bytes: &'a [u8],
-    at: usize,
+type Reader<'a> = ByteCursor<'a, StreamArtifactError>;
+
+fn truncated() -> StreamArtifactError {
+    StreamArtifactError::Truncated
 }
 
-impl<'a> Reader<'a> {
-    fn new(bytes: &'a [u8]) -> Result<Self, StreamArtifactError> {
-        let mut reader = Self { bytes, at: 0 };
-        let magic = reader.take(STREAM_ARTIFACT_MAGIC.len())?;
-        if magic != STREAM_ARTIFACT_MAGIC {
-            return Err(StreamArtifactError::Malformed("magic"));
-        }
-        let version = reader.u16()?;
-        if version > STREAM_ARTIFACT_VERSION {
-            return Err(StreamArtifactError::NewerFormat { version });
-        }
-        if version != STREAM_ARTIFACT_VERSION {
-            return Err(StreamArtifactError::UnsupportedFormat { version });
-        }
-        Ok(reader)
-    }
+fn trailing_bytes() -> StreamArtifactError {
+    StreamArtifactError::Malformed("trailing bytes")
+}
 
-    fn take(&mut self, len: usize) -> Result<&'a [u8], StreamArtifactError> {
-        let end = self.at.checked_add(len).ok_or(StreamArtifactError::Truncated)?;
-        let slice = self.bytes.get(self.at..end).ok_or(StreamArtifactError::Truncated)?;
-        self.at = end;
-        Ok(slice)
+/// A reader positioned after the magic and a supported version.
+fn open_reader(bytes: &[u8]) -> Result<Reader<'_>, StreamArtifactError> {
+    let mut reader = Reader::new(bytes, truncated);
+    let magic = reader.take(STREAM_ARTIFACT_MAGIC.len())?;
+    if magic != STREAM_ARTIFACT_MAGIC {
+        return Err(StreamArtifactError::Malformed("magic"));
     }
-
-    fn u8(&mut self) -> Result<u8, StreamArtifactError> {
-        let mut buf = [0u8; 1];
-        buf.copy_from_slice(self.take(1)?);
-        Ok(buf[0])
+    let version = reader.u16()?;
+    if version > STREAM_ARTIFACT_VERSION {
+        return Err(StreamArtifactError::NewerFormat { version });
     }
-
-    fn u16(&mut self) -> Result<u16, StreamArtifactError> {
-        let mut buf = [0u8; 2];
-        buf.copy_from_slice(self.take(2)?);
-        Ok(u16::from_le_bytes(buf))
+    if version != STREAM_ARTIFACT_VERSION {
+        return Err(StreamArtifactError::UnsupportedFormat { version });
     }
-
-    fn u32(&mut self) -> Result<u32, StreamArtifactError> {
-        let mut buf = [0u8; 4];
-        buf.copy_from_slice(self.take(4)?);
-        Ok(u32::from_le_bytes(buf))
-    }
-
-    fn u64(&mut self) -> Result<u64, StreamArtifactError> {
-        let mut buf = [0u8; 8];
-        buf.copy_from_slice(self.take(8)?);
-        Ok(u64::from_le_bytes(buf))
-    }
-
-    fn finish(self) -> Result<(), StreamArtifactError> {
-        if self.at == self.bytes.len() {
-            Ok(())
-        } else {
-            Err(StreamArtifactError::Malformed("trailing bytes"))
-        }
-    }
+    Ok(reader)
 }
 
 #[cfg(test)]

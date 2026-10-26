@@ -630,9 +630,10 @@ fn check(
             version: meta.version,
         });
     }
-    if meta.feature != COMPOSITION_VERIFICATION_ARTIFACT_FEATURE {
-        return Err(CompositionVerificationArtifactError::UnsupportedSemantics("feature marker"));
-    }
+    crate::artifact_codec::require_semantics::<CompositionVerificationArtifactError>(
+        meta.feature == COMPOSITION_VERIFICATION_ARTIFACT_FEATURE,
+        "feature marker",
+    )?;
     if !meta.required_features.is_empty() {
         return Err(CompositionVerificationArtifactError::UnsupportedSemantics("required feature"));
     }
@@ -675,12 +676,7 @@ fn encode_meta(
     meta: &CompositionVerificationMeta,
     artifact_id: &str,
 ) -> Result<Vec<u8>, CompositionVerificationArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(CompositionVerificationArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta)
-        .map_err(|error| CompositionVerificationArtifactError::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "composition_verification",
@@ -688,37 +684,25 @@ fn encode_meta(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: META_SECTION,
-            content_type: crate::CONTENT_CBOR,
-            bytes: &meta_bytes,
-        }],
+        META_SECTION,
+        meta,
+        &[],
     )
-    .map_err(|error| crate::map_artifact_check!(error, CompositionVerificationArtifactError))
 }
 
 fn decode_meta(
     bytes: &[u8],
+    max_bytes: usize,
 ) -> Result<CompositionVerificationMeta, CompositionVerificationArtifactError> {
-    let parts = crate::decode_container(
+    crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
-        MAX_COMPOSITION_VERIFICATION_ARTIFACT_BYTES,
-        &[META_SECTION],
+        max_bytes,
+        META_SECTION,
+        &[],
+        COMPOSITION_VERIFICATION_ARTIFACT_VERSION,
         bytes,
     )
-    .map_err(|error| crate::map_artifact_check!(error, CompositionVerificationArtifactError))?;
-    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(CompositionVerificationArtifactError::Malformed(
-            "unsupported container layout".into(),
-        ));
-    };
-    crate::decode_with_version(&meta_bytes, |version: u16| {
-        if version == COMPOSITION_VERIFICATION_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(CompositionVerificationArtifactError::UnsupportedVersion { version })
-        }
-    })
+    .map(|(meta, _)| meta)
 }
 
 fn build_meta(
@@ -834,7 +818,19 @@ impl CompositionVerificationArtifact {
         bytes: &[u8],
         expected_identity: Option<&str>,
     ) -> Result<Self, CompositionVerificationArtifactError> {
-        check(&decode_meta(bytes)?, expected_identity)
+        Self::from_bytes_within(bytes, expected_identity, MAX_COMPOSITION_VERIFICATION_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of [`MAX_COMPOSITION_VERIFICATION_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a file over `max_bytes` is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        max_bytes: usize,
+    ) -> Result<Self, CompositionVerificationArtifactError> {
+        check(&decode_meta(bytes, max_bytes)?, expected_identity)
     }
 
     /// The replayed classification.

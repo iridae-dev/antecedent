@@ -31,6 +31,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::sync::Arc;
+
 use antecedent_core::EdgeRoute;
 use antecedent_core::{
     CrossWorldQuery, ExogenousCoupling, IdentityDomain, VariableId, WorldId, WorldObservation,
@@ -223,8 +225,9 @@ pub struct CrossWorldArtifactWire {
     pub mechanism: String,
     /// The estimand named by [`CROSS_WORLD_ESTIMAND`].
     pub estimand: String,
-    /// The factual table, one column per variable in id order.
-    pub columns: Vec<Vec<f64>>,
+    /// The factual table, one column per variable in id order. Shared, so the producer's
+    /// retained table and the wire it seals are one allocation.
+    pub columns: Arc<[Vec<f64>]>,
     /// The derivation that licensed the estimand.
     pub witness: CrossWorldWitness,
     /// IEEE bits of the point.
@@ -401,7 +404,7 @@ mod tests {
             query,
             mechanism: "linear_gaussian".into(),
             estimand: CROSS_WORLD_ESTIMAND.into(),
-            columns: vec![vec![0.0, 1.0, 2.0], vec![1.0, 3.0, 2.0]],
+            columns: vec![vec![0.0, 1.0, 2.0], vec![1.0, 3.0, 2.0]].into(),
             witness,
             point_bits: 0,
             data_digest: String::new(),
@@ -432,7 +435,7 @@ mod tests {
     #[test]
     fn the_producer_enforces_the_row_bound_the_consumer_enforces() {
         let mut w = wire();
-        w.columns = vec![vec![0.5; CROSS_WORLD_MAX_ROWS + 1]; 2];
+        w.columns = vec![vec![0.5; CROSS_WORLD_MAX_ROWS + 1]; 2].into();
         assert_eq!(w.check_bounds(), Err(CrossWorldArtifactError::LimitsExceeded("rows")));
         assert_eq!(
             w.clone().sealed().unwrap_err(),
@@ -440,7 +443,7 @@ mod tests {
         );
         assert_eq!(w.export().unwrap_err(), CrossWorldArtifactError::LimitsExceeded("rows"));
         let mut w = wire();
-        w.columns = vec![vec![0.5; CROSS_WORLD_MAX_ROWS]; 2];
+        w.columns = vec![vec![0.5; CROSS_WORLD_MAX_ROWS]; 2].into();
         assert!(w.check_bounds().is_ok());
     }
 
@@ -448,7 +451,9 @@ mod tests {
     fn the_data_digest_binds_the_table_and_the_premises_digest_binds_the_data_digest() {
         let w = wire();
         let mut edited = w.clone();
-        edited.columns[1][0] += 1.0;
+        let mut table = edited.columns.to_vec();
+        table[1][0] += 1.0;
+        edited.columns = table.into();
         assert_ne!(
             cross_world_data_digest(&edited.variable_names, &edited.columns).unwrap(),
             w.data_digest

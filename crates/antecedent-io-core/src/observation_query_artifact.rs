@@ -57,7 +57,7 @@ use antecedent_model::compose::{
 };
 use antecedent_model::observation_query::{
     BetaBernoulli, Direction, FiniteBayesModel, MAX_BAYES_HYPOTHESES, MAX_BAYES_OBSERVATION_LEVELS,
-    MAX_BAYES_SEQUENCE, ObservationQueryError, UnreachableBound, condition, condition_gaussian,
+    MAX_BAYES_UPDATE_WORK, ObservationQueryError, UnreachableBound, condition, condition_gaussian,
     condition_on_measured, conditioning_and_intervention, intervene, intervened_law,
     observations_required_binary_signal, observations_required_conjugate, required_bayes_factor,
     threshold_crossing_observations,
@@ -935,7 +935,7 @@ fn check_query_bounds(query: &ObservationQueryWire) -> Result<(), ObservationQue
             {
                 return Err(ObservationQueryArtifactError::LimitsExceeded("bayes model"));
             }
-            if observations.len() > MAX_BAYES_SEQUENCE {
+            if observations.len() as u64 > MAX_BAYES_UPDATE_WORK {
                 return Err(ObservationQueryArtifactError::LimitsExceeded("observations"));
             }
             Ok(())

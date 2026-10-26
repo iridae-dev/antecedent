@@ -69,11 +69,11 @@ use crate::artifact_budget::{
     BudgetDetails, BudgetRefusal, admit_export, admit_regression, unbounded_context,
 };
 use crate::artifact_codec::CanonicalSize;
-use crate::convert::to_cbor;
 use crate::vector_treatment_artifact::{
     AdjustmentColumnRequest, CoefficientWire, VECTOR_TREATMENT_ADJUSTMENT_CAVEAT,
     VECTOR_TREATMENT_MAX_ADJUSTMENT, WaldWire, bytes_to_reals, reals_to_bytes,
 };
+use crate::width::lossless_u64;
 
 /// The artifact major version this reader writes and accepts.
 pub const CATEGORICAL_TREATMENT_ARTIFACT_VERSION: u16 = 1;
@@ -121,31 +121,174 @@ fn budget_refusal((code, message): BudgetRefusal) -> CategoricalTreatmentArtifac
     CategoricalTreatmentArtifactError::Refused { code, message }
 }
 
-fn invalid_request(message: &str) -> CategoricalTreatmentArtifactError {
-    CategoricalTreatmentArtifactError::Refused {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        message: format!("categorical_treatment.invalid_request: {message}"),
-    }
-}
-
 /// The declared design of the categorical regime on the wire.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CategoricalSpecWire {
     /// Declared level set (the scale, when ordered).
     pub declared_levels: Vec<String>,
-    /// `ordered` or `unordered`.
-    pub scale: String,
+    /// Whether the levels are ordered.
+    pub scale: LevelScaleWire,
     /// Reference level.
     pub reference: String,
     /// Fewest rows a declared level may have.
     pub min_level_rows: u64,
     /// Requested pairwise contrasts `(from, to)`.
     pub pairwise: Vec<(String, String)>,
-    /// `non_decreasing`, `non_increasing` or absent.
-    pub monotonicity: Option<String>,
-    /// `model_based`, `hc0`, `hc1`, `hc2` or `hc3`.
-    pub covariance: String,
+    /// Declared monotonicity direction, when a monotonicity test is requested.
+    pub monotonicity: Option<MonotonicityDirectionWire>,
+    /// Covariance estimator.
+    pub covariance: CovarianceKindWire,
+}
+
+/// Level scale of a categorical treatment on the wire.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LevelScaleWire {
+    /// Levels are ordered as declared.
+    Ordered,
+    /// Levels are unordered.
+    Unordered,
+}
+
+impl LevelScaleWire {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Ordered => "ordered",
+            Self::Unordered => "unordered",
+        }
+    }
+}
+
+impl From<LevelScale> for LevelScaleWire {
+    fn from(scale: LevelScale) -> Self {
+        match scale {
+            LevelScale::Ordered => Self::Ordered,
+            LevelScale::Unordered => Self::Unordered,
+        }
+    }
+}
+
+impl From<LevelScaleWire> for LevelScale {
+    fn from(scale: LevelScaleWire) -> Self {
+        match scale {
+            LevelScaleWire::Ordered => Self::Ordered,
+            LevelScaleWire::Unordered => Self::Unordered,
+        }
+    }
+}
+
+impl PartialEq<&str> for LevelScaleWire {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
+/// Direction of a declared monotonicity test on the wire.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MonotonicityDirectionWire {
+    /// Effects do not decrease with the level order.
+    NonDecreasing,
+    /// Effects do not increase with the level order.
+    NonIncreasing,
+}
+
+impl MonotonicityDirectionWire {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::NonDecreasing => "non_decreasing",
+            Self::NonIncreasing => "non_increasing",
+        }
+    }
+}
+
+impl From<MonotonicityDirection> for MonotonicityDirectionWire {
+    fn from(direction: MonotonicityDirection) -> Self {
+        match direction {
+            MonotonicityDirection::NonDecreasing => Self::NonDecreasing,
+            MonotonicityDirection::NonIncreasing => Self::NonIncreasing,
+        }
+    }
+}
+
+impl From<MonotonicityDirectionWire> for MonotonicityDirection {
+    fn from(direction: MonotonicityDirectionWire) -> Self {
+        match direction {
+            MonotonicityDirectionWire::NonDecreasing => Self::NonDecreasing,
+            MonotonicityDirectionWire::NonIncreasing => Self::NonIncreasing,
+        }
+    }
+}
+
+impl PartialEq<&str> for MonotonicityDirectionWire {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
+/// Covariance estimator of a categorical treatment fit on the wire.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CovarianceKindWire {
+    /// Model-based covariance.
+    ModelBased,
+    /// Heteroskedasticity-consistent HC0.
+    Hc0,
+    /// HC1.
+    Hc1,
+    /// HC2.
+    Hc2,
+    /// HC3.
+    Hc3,
+}
+
+impl CovarianceKindWire {
+    /// Stable `snake_case` name, the one [`VectorCovariance::as_str`] gives.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ModelBased => "model_based",
+            Self::Hc0 => "hc0",
+            Self::Hc1 => "hc1",
+            Self::Hc2 => "hc2",
+            Self::Hc3 => "hc3",
+        }
+    }
+}
+
+impl From<VectorCovariance> for CovarianceKindWire {
+    fn from(kind: VectorCovariance) -> Self {
+        match kind {
+            VectorCovariance::ModelBased => Self::ModelBased,
+            VectorCovariance::Hc0 => Self::Hc0,
+            VectorCovariance::Hc1 => Self::Hc1,
+            VectorCovariance::Hc2 => Self::Hc2,
+            VectorCovariance::Hc3 => Self::Hc3,
+        }
+    }
+}
+
+impl From<CovarianceKindWire> for VectorCovariance {
+    fn from(kind: CovarianceKindWire) -> Self {
+        match kind {
+            CovarianceKindWire::ModelBased => Self::ModelBased,
+            CovarianceKindWire::Hc0 => Self::Hc0,
+            CovarianceKindWire::Hc1 => Self::Hc1,
+            CovarianceKindWire::Hc2 => Self::Hc2,
+            CovarianceKindWire::Hc3 => Self::Hc3,
+        }
+    }
+}
+
+impl PartialEq<&str> for CovarianceKindWire {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
 }
 
 /// What a producer declares: rows with level labels, the shared adjustment block and the design.
@@ -259,8 +402,8 @@ pub struct AdjacentStepWire {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MonotonicityWire {
-    /// `non_decreasing` or `non_increasing`.
-    pub direction: String,
+    /// Direction of the declared monotonicity.
+    pub direction: MonotonicityDirectionWire,
     /// The frozen null of that direction.
     pub null: String,
     /// The adjacent steps.
@@ -281,8 +424,8 @@ pub struct MonotonicityWire {
 pub struct CategoricalResultWire {
     /// Reference level.
     pub reference: String,
-    /// `ordered` or `unordered`.
-    pub scale: String,
+    /// Whether the levels are ordered.
+    pub scale: LevelScaleWire,
     /// Canonical level order used.
     pub level_order: Vec<String>,
     /// Rows per level, in canonical order.
@@ -302,27 +445,9 @@ pub struct CategoricalResultWire {
     /// Monotonicity test, when declared.
     pub monotonicity: Option<MonotonicityWire>,
     /// Covariance estimator.
-    pub covariance_kind: String,
+    pub covariance_kind: CovarianceKindWire,
     /// Always `unmeasured`.
     pub calibration: String,
-}
-
-const fn scale_tag(scale: LevelScale) -> &'static str {
-    match scale {
-        LevelScale::Ordered => "ordered",
-        LevelScale::Unordered => "unordered",
-    }
-}
-
-const fn direction_tag(direction: MonotonicityDirection) -> &'static str {
-    match direction {
-        MonotonicityDirection::NonDecreasing => "non_decreasing",
-        MonotonicityDirection::NonIncreasing => "non_increasing",
-    }
-}
-
-fn size(value: usize) -> u64 {
-    crate::width::lossless_u64(value)
 }
 
 impl CategoricalResultWire {
@@ -331,12 +456,12 @@ impl CategoricalResultWire {
             .map_err(|_| CategoricalTreatmentArtifactError::LimitsExceeded("degrees of freedom"))?;
         Ok(Self {
             reference: fit.reference.clone(),
-            scale: scale_tag(fit.scale).to_owned(),
+            scale: fit.scale.into(),
             level_order: fit.level_order.clone(),
             counts: fit
                 .counts
                 .iter()
-                .map(|c| LevelCountWire { level: c.level.clone(), rows: size(c.rows) })
+                .map(|c| LevelCountWire { level: c.level.clone(), rows: lossless_u64(c.rows) })
                 .collect(),
             coefficients: fit
                 .coefficients
@@ -376,14 +501,14 @@ impl CategoricalResultWire {
                     p_holm: c.p_holm,
                 })
                 .collect(),
-            family_size: size(fit.family_size),
+            family_size: lossless_u64(fit.family_size),
             omnibus: WaldWire {
                 statistic: fit.omnibus.statistic,
                 degrees_of_freedom,
                 p_value: fit.omnibus.p_value,
             },
             monotonicity: fit.monotonicity.as_ref().map(|m| MonotonicityWire {
-                direction: direction_tag(m.direction).to_owned(),
+                direction: m.direction.into(),
                 null: m.null.to_owned(),
                 steps: m
                     .steps
@@ -401,7 +526,7 @@ impl CategoricalResultWire {
                 conservative: m.conservative,
                 calibration: CATEGORICAL_TREATMENT_CALIBRATION.to_owned(),
             }),
-            covariance_kind: fit.covariance_kind.as_str().to_owned(),
+            covariance_kind: fit.covariance_kind.into(),
             calibration: CATEGORICAL_TREATMENT_CALIBRATION.to_owned(),
         })
     }
@@ -452,8 +577,8 @@ pub struct PosteriorContrastWire {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PosteriorMonotonicityWire {
-    /// `non_decreasing` or `non_increasing`.
-    pub direction: String,
+    /// Direction of the declared monotonicity.
+    pub direction: MonotonicityDirectionWire,
     /// Per-step marginal posterior probability of lying in the declared direction.
     pub step_probabilities: Vec<f64>,
     /// Lower (Bonferroni) bound of the joint probability.
@@ -523,7 +648,7 @@ fn posterior_section(
         level_contrasts: posterior.level_contrasts.iter().map(contrast_wire).collect(),
         pairwise: posterior.pairwise.iter().map(contrast_wire).collect(),
         monotonicity: posterior.monotonicity.as_ref().map(|m| PosteriorMonotonicityWire {
-            direction: direction_tag(m.direction).to_owned(),
+            direction: m.direction.into(),
             step_probabilities: m.step_probabilities.clone(),
             lower_bound: m.lower_bound,
             upper_bound: m.upper_bound,
@@ -614,42 +739,18 @@ pub struct CategoricalTreatmentReportWire {
     pub posterior: Option<CategoricalPosteriorWire>,
 }
 
-fn covariance_of(tag: &str) -> Result<VectorCovariance, CategoricalTreatmentArtifactError> {
-    [
-        VectorCovariance::ModelBased,
-        VectorCovariance::Hc0,
-        VectorCovariance::Hc1,
-        VectorCovariance::Hc2,
-        VectorCovariance::Hc3,
-    ]
-    .into_iter()
-    .find(|kind| kind.as_str() == tag)
-    .ok_or_else(|| invalid_request("unknown covariance kind"))
-}
-
 fn spec_of(
     wire: &CategoricalSpecWire,
 ) -> Result<CategoricalTreatmentSpec, CategoricalTreatmentArtifactError> {
-    let scale = match wire.scale.as_str() {
-        "ordered" => LevelScale::Ordered,
-        "unordered" => LevelScale::Unordered,
-        _ => return Err(invalid_request("unknown level scale")),
-    };
-    let monotonicity = match wire.monotonicity.as_deref() {
-        None => None,
-        Some("non_decreasing") => Some(MonotonicityDirection::NonDecreasing),
-        Some("non_increasing") => Some(MonotonicityDirection::NonIncreasing),
-        Some(_) => return Err(invalid_request("unknown monotonicity direction")),
-    };
     Ok(CategoricalTreatmentSpec {
         declared_levels: wire.declared_levels.clone(),
-        scale,
+        scale: wire.scale.into(),
         reference: wire.reference.clone(),
         min_level_rows: usize::try_from(wire.min_level_rows)
             .map_err(|_| CategoricalTreatmentArtifactError::LimitsExceeded("min_level_rows"))?,
         pairwise: wire.pairwise.clone(),
-        monotonicity,
-        covariance: covariance_of(&wire.covariance)?,
+        monotonicity: wire.monotonicity.map(Into::into),
+        covariance: wire.covariance.into(),
     })
 }
 
@@ -730,7 +831,7 @@ impl Replay {
         };
         counts
             .iter()
-            .map(|c| LevelCountWire { level: c.level.clone(), rows: size(c.rows) })
+            .map(|c| LevelCountWire { level: c.level.clone(), rows: lossless_u64(c.rows) })
             .collect()
     }
 
@@ -819,7 +920,7 @@ impl Replay {
 
 fn canonical_levels(spec: &CategoricalSpecWire) -> Vec<String> {
     let mut levels = spec.declared_levels.clone();
-    if spec.scale == "unordered" {
+    if spec.scale == LevelScaleWire::Unordered {
         levels.sort();
     }
     levels
@@ -852,7 +953,7 @@ fn result_canon(result: &CategoricalResultWire) -> CanonicalWriter {
     outcome.real(result.omnibus.statistic);
     outcome.real(result.omnibus.p_value);
     if let Some(m) = &result.monotonicity {
-        outcome.text(&m.direction);
+        outcome.text(m.direction.as_str());
         outcome.real(m.statistic);
         outcome.real(m.p_value);
         for step in &m.steps {
@@ -884,7 +985,7 @@ fn identity_of(
     }
 
     let mut scale = CanonicalWriter::new("categorical_treatment_v1.level_scale");
-    scale.text(&spec.scale);
+    scale.text(spec.scale.as_str());
     scale.text(&spec.reference);
     let levels = canonical_levels(spec);
     scale.size(levels.len());
@@ -918,7 +1019,7 @@ fn identity_of(
     }
 
     let mut covariance = CanonicalWriter::new("categorical_treatment_v1.covariance");
-    covariance.text(&spec.covariance);
+    covariance.text(spec.covariance.as_str());
 
     let mut family = CanonicalWriter::new("categorical_treatment_v1.family");
     family.word(spec.min_level_rows);
@@ -927,7 +1028,7 @@ fn identity_of(
         family.text(from);
         family.text(to);
     }
-    family.text(spec.monotonicity.as_deref().unwrap_or(""));
+    family.text(spec.monotonicity.map_or("", MonotonicityDirectionWire::as_str));
 
     let outcome = result_canon(result);
 
@@ -1127,20 +1228,9 @@ fn encode_parts_impl(
     artifact_id: &str,
     export_budget: usize,
 ) -> Result<Vec<u8>, CategoricalTreatmentArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(CategoricalTreatmentArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta)
-        .map_err(|error| CategoricalTreatmentArtifactError::Encode(error.to_string()))?;
     // A consumer reads at most the byte cap of uncompressed sections, whatever the container
     // compresses to; the caller's budget bounds the container itself.
-    admit_export(
-        BUDGET,
-        meta_bytes.len().saturating_add(numbers.len()),
-        MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES,
-    )
-    .map_err(budget_refusal)?;
-    let bytes = crate::encode_container(
+    let bytes = crate::artifact_codec::encode_sectioned_admitting(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "categorical_treatment_wald_unmeasured",
@@ -1148,20 +1238,17 @@ fn encode_parts_impl(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[
-            crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            },
-            crate::OutSection {
-                id: NUMBERS_SECTION,
-                content_type: crate::CONTENT_BYTES,
-                bytes: numbers,
-            },
-        ],
-    )
-    .map_err(|error| crate::map_artifact_check!(error, CategoricalTreatmentArtifactError))?;
+        META_SECTION,
+        meta,
+        &[crate::OutSection {
+            id: NUMBERS_SECTION,
+            content_type: crate::CONTENT_BYTES,
+            bytes: numbers,
+        }],
+        |uncompressed| {
+            admit_export(BUDGET, uncompressed, MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES).map_err(budget_refusal)
+        },
+    )?;
     admit_export(BUDGET, bytes.len(), export_budget.min(MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES))
         .map_err(budget_refusal)?;
     Ok(bytes)
@@ -1185,25 +1272,17 @@ pub fn decode_parts(
 fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<(CategoricalTreatmentMeta, Vec<u8>), CategoricalTreatmentArtifactError> {
-    let parts = crate::decode_container(
+    let (meta, parts) = crate::artifact_codec::decode_sectioned::<CategoricalTreatmentArtifactError, CategoricalTreatmentMeta>(
         ARTIFACT_KIND,
         MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES,
-        &[META_SECTION, NUMBERS_SECTION],
+        META_SECTION,
+        &[NUMBERS_SECTION],
+        CATEGORICAL_TREATMENT_ARTIFACT_VERSION,
         bytes,
-    )
-    .map_err(|error| crate::map_artifact_check!(error, CategoricalTreatmentArtifactError))?;
-    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
-        return Err(CategoricalTreatmentArtifactError::Malformed(
-            "unsupported container layout".into(),
-        ));
+    )?;
+    let Ok([payload]) = <[Vec<u8>; 1]>::try_from(parts) else {
+        return Err(CategoricalTreatmentArtifactError::Malformed("unsupported container layout".into()));
     };
-    let meta = crate::decode_with_version(&meta_bytes, |version| {
-        if version == CATEGORICAL_TREATMENT_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(CategoricalTreatmentArtifactError::UnsupportedVersion { version })
-        }
-    })?;
     Ok((meta, payload))
 }
 
@@ -1300,7 +1379,7 @@ impl CategoricalTreatmentArtifact {
             calibration: CATEGORICAL_TREATMENT_CALIBRATION.to_owned(),
             replay: replay.tag().to_owned(),
             row_snapshot: decl.row_snapshot.clone(),
-            n_rows: size(decl.n_rows),
+            n_rows: lossless_u64(decl.n_rows),
             data_digest: Some(digest),
             adjustment: decl.adjustment.clone(),
             spec: decl.spec.clone(),
@@ -1457,9 +1536,10 @@ impl CategoricalTreatmentArtifact {
         ctx: &ExecutionContext,
     ) -> Result<Self, CategoricalTreatmentArtifactError> {
         let (meta, raw) = decode_parts_impl(bytes)?;
-        if meta.feature != CATEGORICAL_TREATMENT_ARTIFACT_FEATURE {
-            return Err(CategoricalTreatmentArtifactError::UnsupportedSemantics("feature marker"));
-        }
+        crate::artifact_codec::require_semantics::<CategoricalTreatmentArtifactError>(
+            meta.feature == CATEGORICAL_TREATMENT_ARTIFACT_FEATURE,
+            "feature marker",
+        )?;
         if meta.null != CATEGORICAL_OMNIBUS_NULL {
             return Err(CategoricalTreatmentArtifactError::IdentityMismatch { field: "null" });
         }
@@ -1522,21 +1602,21 @@ mod number_section_tests {
     use super::{
         AdjustmentColumnRequest, CATEGORICAL_HC_ROW_CAP, CategoricalResultWire,
         CategoricalSpecWire, CategoricalTreatmentArtifact, CategoricalTreatmentArtifactError,
-        CategoricalTreatmentIdentity, CategoricalTreatmentMeta, CategoricalTreatmentRequest, Decl,
-        MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES, REPLAY_ROWS, Replay, compute, encode_parts_impl,
-        reals_to_bytes,
+        CategoricalTreatmentIdentity, CategoricalTreatmentMeta, CategoricalTreatmentRequest,
+        CovarianceKindWire, Decl, LevelScaleWire, MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES,
+        REPLAY_ROWS, Replay, compute, encode_parts_impl, reals_to_bytes,
     };
     use crate::vector_treatment_artifact::WaldWire;
 
     fn spec() -> CategoricalSpecWire {
         CategoricalSpecWire {
             declared_levels: vec!["a".into(), "b".into()],
-            scale: "unordered".into(),
+            scale: LevelScaleWire::Unordered,
             reference: "a".into(),
             min_level_rows: 1,
             pairwise: Vec::new(),
             monotonicity: None,
-            covariance: "hc1".into(),
+            covariance: CovarianceKindWire::Hc1,
         }
     }
 
@@ -1574,7 +1654,7 @@ mod number_section_tests {
             },
             result: CategoricalResultWire {
                 reference: String::new(),
-                scale: String::new(),
+                scale: LevelScaleWire::Unordered,
                 level_order: Vec::new(),
                 counts: Vec::new(),
                 coefficients: Vec::new(),
@@ -1584,7 +1664,7 @@ mod number_section_tests {
                 family_size: 0,
                 omnibus: WaldWire { statistic: 0.0, degrees_of_freedom: 0, p_value: 0.0 },
                 monotonicity: None,
-                covariance_kind: String::new(),
+                covariance_kind: CovarianceKindWire::Hc1,
                 calibration: String::new(),
             },
             caveats: Vec::new(),
@@ -1638,13 +1718,13 @@ mod number_section_tests {
             .collect()
     }
 
-    fn robust_request(n: usize, covariance: &str) -> CategoricalTreatmentRequest {
+    fn robust_request(n: usize, covariance: CovarianceKindWire) -> CategoricalTreatmentRequest {
         CategoricalTreatmentRequest {
             outcome: column(n, 1),
             row_snapshot: "snap".into(),
             adjustment: vec![AdjustmentColumnRequest { name: "z".into(), values: column(n, 2) }],
             levels: (0..n).map(|i| ["a", "b"][i % 2].to_owned()).collect(),
-            spec: CategoricalSpecWire { covariance: covariance.into(), ..spec() },
+            spec: CategoricalSpecWire { covariance, ..spec() },
         }
     }
 
@@ -1652,7 +1732,12 @@ mod number_section_tests {
     /// consumer is kept, and it reaches exactly the fit the summary artifact does.
     #[test]
     fn a_legacy_rows_artifact_replays_to_the_summary_fit_and_records_no_digest() {
-        for covariance in ["hc0", "hc1", "hc2", "hc3"] {
+        for covariance in [
+            CovarianceKindWire::Hc0,
+            CovarianceKindWire::Hc1,
+            CovarianceKindWire::Hc2,
+            CovarianceKindWire::Hc3,
+        ] {
             let request = robust_request(60, covariance);
             let summary = CategoricalTreatmentArtifact::seal(&request).unwrap();
             assert_eq!(summary.meta().replay, "robust_summary");
@@ -1679,7 +1764,7 @@ mod number_section_tests {
             let legacy =
                 CategoricalTreatmentArtifact::from_bytes(&bytes, Some(&meta.identity)).unwrap();
             assert_eq!(legacy.meta().replay, REPLAY_ROWS);
-            assert_eq!(legacy.fit(), summary.fit(), "{covariance}");
+            assert_eq!(legacy.fit(), summary.fit(), "{covariance:?}");
             // Embedded rows need no digest; asking to verify against one says so.
             let error = legacy.verify_data(&request).unwrap_err();
             assert_eq!(error.refusal().unwrap().1, "categorical_treatment.data_not_bound");

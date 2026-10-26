@@ -9,6 +9,13 @@
 use super::AnalysisResultWire;
 use crate::IoError;
 use crate::graphless_support::{GraphlessAssignmentSupport, GraphlessSupportKey, graphless_admits};
+use crate::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
+
+/// Replay policy of a graphless section's published estimates against the values recomputed from
+/// its stored scores: a relative `1e-9` of the recomputed value, absolute below one; non-finite
+/// is refused.
+const SECTION_REPLAY: ReplayTolerance =
+    ReplayTolerance::new(1e-9, ReplayScale::OnePlusReplayed, ReplayNonFinite::Refuse);
 
 /// Expected rows in each arm of an independent Bernoulli intention-to-treat interval (the support
 /// row's `min_expected_arm_units`, restated for this self-contained recompute).
@@ -19,11 +26,6 @@ const MIN_SMALL_ARM_UNITS: usize = 2;
 /// boundary, not a parser bound: the interval's coverage was only measured from this size, so
 /// a stored interval claiming it below the boundary is a forgery whatever its bytes.
 const MIN_SMALL_ARM_ROWS: usize = 100;
-/// Most ANCOVA covariates of a small-arm Student interval. A licence boundary mirroring the
-/// estimator's own: the interval uses `n - 2 - covariates` degrees of freedom and its
-/// coverage was measured only for up to this many covariates, so a stored interval claiming
-/// more is refused as unlicensed rather than parsed as too large.
-const MAX_SMALL_ARM_COVARIATES: usize = 2;
 
 /// Whether a stored graphless support status matches the independently
 /// recomputed license for a row. This is only the status comparison shared
@@ -489,7 +491,6 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
                     && query.realized_assignment.len() >= MIN_SMALL_ARM_ROWS
                     && control >= MIN_SMALL_ARM_UNITS
                     && treated >= MIN_SMALL_ARM_UNITS
-                    && query.ancova_covariates.len() <= MAX_SMALL_ARM_COVARIATES
                     && ((lower + upper) / 2.0 - randomized.effect).abs() <= 1e-8
                     && critical >= z95 - 1e-8
                     && critical <= antecedent_stats::student_t_ppf(0.975, 1.0) + 1e-8
@@ -2334,7 +2335,7 @@ pub(in crate::analysis_result_artifact) fn validate_sequential_contrast_graphles
     let rows = fit.contrast_scores.len();
     let n = rows as f64;
     let mean = |values: &[f64]| values.iter().sum::<f64>() / values.len() as f64;
-    let near = |a: f64, b: f64| (a - b).abs() <= 1e-9 * (1.0 + b.abs());
+    let near = |a: f64, b: f64| SECTION_REPLAY.close(a, b);
     let scores_ok = rows >= 2
         && fit.active_scores.len() == rows
         && fit.control_scores.len() == rows
@@ -2426,7 +2427,7 @@ pub(in crate::analysis_result_artifact) fn validate_history_match_graphless(
     if !is_query {
         return fail("a history match section needs its query");
     }
-    let near = |a: f64, b: f64| (a - b).abs() <= 1e-9 * (1.0 + b.abs());
+    let near = |a: f64, b: f64| SECTION_REPLAY.close(a, b);
     let pairs = fit.matched_queries.len();
     let total: f64 = fit.pair_weights.iter().sum();
     let weighted: f64 = fit.pair_weights.iter().zip(&fit.differences).map(|(w, d)| w * d).sum();

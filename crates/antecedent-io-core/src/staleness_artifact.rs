@@ -22,10 +22,16 @@ use serde::{Deserialize, Serialize};
 pub const STALENESS_BASELINE_MAGIC: &[u8] = b"ANTSTALEBASE1";
 /// Largest encoded baseline accepted before decoding.
 pub const STALENESS_BASELINE_MAX_BYTES: usize = 64_000_000;
-/// Wire format version.
+/// Wire format version of a baseline whose missingness patterns fit one 64-bit word.
 pub const STALENESS_BASELINE_VERSION: u32 = 1;
+/// Wire format version of a baseline that stores wide missingness patterns (more than 64 plan
+/// columns). A reader of version 1 refuses it; the narrow encoding is unchanged, so every
+/// baseline that fits one word keeps its bytes and its seal.
+pub const STALENESS_BASELINE_WIDE_VERSION: u32 = 2;
 /// Required feature of a staleness baseline.
 pub const STALENESS_BASELINE_FEATURE: &str = "staleness_baseline_v1";
+/// Most plan columns whose missingness patterns are stored as one 64-bit word.
+pub const NARROW_PATTERN_COLUMNS: usize = 64;
 
 /// Numeric summary of one column over its observed rows.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -101,8 +107,35 @@ pub struct JointProfileWire {
 pub struct MissingPatternWire {
     /// Columns the pattern bits refer to (bit `i` set means column `i` is missing).
     pub columns: Vec<String>,
-    /// `(pattern, count)` in ascending pattern order.
+    /// `(pattern, count)` in ascending pattern order, for at most [`NARROW_PATTERN_COLUMNS`]
+    /// columns (empty otherwise).
     pub patterns: Vec<(u64, u64)>,
+    /// `(pattern words, count)` in ascending pattern order, for more than
+    /// [`NARROW_PATTERN_COLUMNS`] columns: word `w` holds the bits of columns `64 w ..`, least
+    /// significant bit first, and trailing zero words are omitted. Absent (and not encoded) for a
+    /// narrow plan.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub wide_patterns: Vec<(Vec<u64>, u64)>,
+}
+
+impl MissingPatternWire {
+    /// Every pattern as trimmed words with its count, narrow or wide, in ascending order.
+    #[must_use]
+    pub fn word_patterns(&self) -> Vec<(Vec<u64>, u64)> {
+        let mut out: Vec<(Vec<u64>, u64)> = self
+            .patterns
+            .iter()
+            .map(|(p, c)| (if *p == 0 { Vec::new() } else { vec![*p] }, *c))
+            .collect();
+        out.extend(self.wide_patterns.iter().map(|(words, c)| {
+            let mut words = words.clone();
+            while words.last() == Some(&0) {
+                words.pop();
+            }
+            (words, *c)
+        }));
+        out
+    }
 }
 
 /// Propensity overlap of the treatment on the stored adjustment set.
@@ -232,7 +265,11 @@ impl StalenessBaselineWire {
     /// # Errors
     /// Encoding failure.
     pub fn sealed(mut self) -> Result<Self, IoError> {
-        self.version = STALENESS_BASELINE_VERSION;
+        self.version = if self.missing.as_ref().is_some_and(|m| !m.wide_patterns.is_empty()) {
+            STALENESS_BASELINE_WIDE_VERSION
+        } else {
+            STALENESS_BASELINE_VERSION
+        };
         self.required_features = vec![STALENESS_BASELINE_FEATURE.into()];
         self.kind = STALENESS_BASELINE_KIND.into();
         self.seal = self.expected_seal()?;
@@ -244,9 +281,12 @@ impl StalenessBaselineWire {
     /// # Errors
     /// The first field that does not verify.
     pub fn verify(&self) -> Result<(), IoError> {
-        if self.version != STALENESS_BASELINE_VERSION {
+        let wide = self.missing.as_ref().is_some_and(|m| !m.wide_patterns.is_empty());
+        let expected =
+            if wide { STALENESS_BASELINE_WIDE_VERSION } else { STALENESS_BASELINE_VERSION };
+        if self.version != expected {
             return Err(IoError::Convert(format!(
-                "staleness baseline version {} is not {STALENESS_BASELINE_VERSION}",
+                "staleness baseline version {} is not {expected}",
                 self.version
             )));
         }
@@ -272,7 +312,7 @@ impl StalenessBaselineWire {
     pub fn export(&self) -> Result<Vec<u8>, IoError> {
         self.verify()?;
         let mut bytes = STALENESS_BASELINE_MAGIC.to_vec();
-        ciborium::into_writer(self, &mut bytes).map_err(|e| IoError::Cbor(e.to_string()))?;
+        ciborium::into_writer(self, &mut bytes).map_err(IoError::cbor_encode)?;
         if bytes.len() > STALENESS_BASELINE_MAX_BYTES {
             return Err(IoError::Convert("staleness baseline exceeds the byte limit".into()));
         }
@@ -290,7 +330,7 @@ impl StalenessBaselineWire {
         let body = bytes
             .strip_prefix(STALENESS_BASELINE_MAGIC)
             .ok_or_else(|| IoError::Convert("bytes are not a staleness baseline".into()))?;
-        let wire: Self = ciborium::from_reader(body).map_err(|e| IoError::Cbor(e.to_string()))?;
+        let wire: Self = ciborium::from_reader(body).map_err(IoError::cbor_decode)?;
         wire.verify()?;
         Ok(wire)
     }
@@ -340,6 +380,36 @@ mod tests {
             outcome_model: None,
             seal: String::new(),
         }
+    }
+
+    #[test]
+    fn narrow_patterns_keep_version_one_and_wide_patterns_need_version_two() {
+        let mut narrow = minimal();
+        narrow.missing = Some(MissingPatternWire {
+            columns: vec!["z".into()],
+            patterns: vec![(0, 2), (1, 1)],
+            wide_patterns: Vec::new(),
+        });
+        let narrow = narrow.sealed().unwrap();
+        assert_eq!(narrow.version, STALENESS_BASELINE_VERSION);
+        assert_eq!(StalenessBaselineWire::consume(&narrow.export().unwrap()).unwrap(), narrow);
+
+        let mut wide = minimal();
+        wide.missing = Some(MissingPatternWire {
+            columns: (0..70).map(|k| format!("c{k}")).collect(),
+            patterns: Vec::new(),
+            wide_patterns: vec![(Vec::new(), 2), (vec![0, 1 << 5], 1)],
+        });
+        let wide = wide.sealed().unwrap();
+        assert_eq!(wide.version, STALENESS_BASELINE_WIDE_VERSION);
+        let back = StalenessBaselineWire::consume(&wide.export().unwrap()).unwrap();
+        assert_eq!(back, wide);
+        let patterns = back.missing.as_ref().unwrap().word_patterns();
+        assert_eq!(patterns, vec![(Vec::new(), 2), (vec![0, 1 << 5], 1)]);
+        // A wide baseline stamped with the narrow version does not verify.
+        let mut wrong = wide.clone();
+        wrong.version = STALENESS_BASELINE_VERSION;
+        assert!(wrong.verify().is_err());
     }
 
     #[test]

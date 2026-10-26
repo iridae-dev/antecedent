@@ -22,6 +22,7 @@ pub mod bayesian_prior_recalc_artifact;
 pub mod bound_identity;
 pub mod bridge_artifact;
 pub mod bridge_distribution;
+pub mod byte_cursor;
 pub mod calibration;
 pub mod callback_result_artifact;
 pub mod canonical_json;
@@ -93,6 +94,7 @@ pub mod provider_verification_artifact;
 pub mod quantity_wire;
 pub mod query_wire;
 pub mod reader;
+pub mod replay_tolerance;
 pub mod recalc_receipt_artifact;
 pub mod response_wire;
 pub mod rollout_query_wire;
@@ -161,8 +163,9 @@ pub use contract_section::{
     ClaimDomainsWire, ClaimHostProjection, ClaimSectionWire, ContractIdentitiesWire,
     ContractReason, IdentificationSlotWire, ObligationSectionWire, ReasoningSectionWire,
     SlotSectionWire, SupportSlotWire, UncertaintyComponentWire, UncertaintySlotWire, accept_claim,
-    checked_aipw_rows_digest, claim_domains, claim_domains_of_section, claim_kind_name,
-    claim_kind_name_of_section, consume_analysis_result, contract_seal,
+    checked_aipw_rows_digest, claim_domain_statuses, claim_domain_statuses_of_section,
+    claim_domains, claim_domains_of_section, claim_kind, claim_kind_name,
+    claim_kind_name_of_section, claim_kind_of_section, consume_analysis_result, contract_seal,
     decode_analysis_result_contract, identification_not_claimed, project_claim_host,
     project_lossy_scalar, result_digest, support_empirical, validate_contract_section,
     validate_mixture_masses, verify_contract_against_body, weight_basis_name,
@@ -177,7 +180,7 @@ pub use discovery_wire::{
     DiscoveryHeaderWire, EdgeEvidenceWire, LaggedLinkWire, TemporalGraphWire, TemporalNodeKeyWire,
     temporal_dag_from_wire, temporal_dag_to_wire,
 };
-pub use error::IoError;
+pub use error::{CborFailure, CborFault, IoError, IoFailure};
 pub use expr_wire::{
     ExprArenaWire, ExprNodeWire, FunctionalProgramWire, expr_arena_from_wire, expr_arena_to_wire,
     functional_program_from_wire, functional_program_to_wire,
@@ -340,6 +343,7 @@ pub use wire::{
 };
 
 pub mod temporal_counterfactual_artifact;
+pub mod temporal_counterfactual_general_artifact;
 pub mod transport_errors;
 pub mod transport_handoff_artifact;
 pub mod transport_interference_wire;

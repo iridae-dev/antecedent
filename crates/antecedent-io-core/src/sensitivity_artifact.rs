@@ -64,9 +64,11 @@ pub const MAX_SENSITIVITY_GRID_POINTS: usize = 1024;
 pub const MAX_SENSITIVITY_QUANTITIES: usize = 64;
 /// Most actions.
 pub const MAX_SENSITIVITY_ACTIONS: usize = 64;
-/// Most surface quantities whose assumption range is not a single point. Every grid point
-/// is evaluated at the `2^r` vertices of the box these quantities span.
-pub const MAX_SENSITIVITY_RANGED_QUANTITIES: usize = 3;
+/// Most utility evaluations a surface may need: grid points times the `2^r` range vertices of
+/// the `r` quantities whose assumption range is not a single point, times actions. Every grid
+/// point is evaluated at every vertex of the box the ranged quantities span, for every action,
+/// by the producer and again by every consumer.
+pub const MAX_SENSITIVITY_SCENARIO_EVALUATIONS: usize = 1 << 24;
 /// Deepest utility expression.
 pub const MAX_SENSITIVITY_UTILITY_DEPTH: usize = 32;
 /// Sampling-composition methods licensed for an assumption range. None is licensed, so a
@@ -918,9 +920,20 @@ fn validate_quantities(parts: &SensitivityParts) -> Result<(), IoError> {
     }) {
         return Err(wrong_contract("surface quantities mix populations or horizons"));
     }
-    if parts.quantities.iter().filter(|q| q.is_ranged()).count() > MAX_SENSITIVITY_RANGED_QUANTITIES
-    {
-        return Err(bounds_exceeded("too many surface quantities carry an assumption range"));
+    Ok(())
+}
+
+/// Refuse a surface whose vertex enumeration exceeds [`MAX_SENSITIVITY_SCENARIO_EVALUATIONS`].
+fn validate_scenario_work(parts: &SensitivityParts) -> Result<(), IoError> {
+    let ranged = parts.quantities.iter().filter(|q| q.is_ranged()).count();
+    let scenarios = u32::try_from(ranged).ok().and_then(|r| 1_usize.checked_shl(r));
+    let evaluations = scenarios
+        .and_then(|vertices| vertices.checked_mul(parts.grid.len()))
+        .and_then(|points| points.checked_mul(parts.actions.len()));
+    if evaluations.is_none_or(|work| work > MAX_SENSITIVITY_SCENARIO_EVALUATIONS) {
+        return Err(bounds_exceeded(
+            "the range vertices of the surface need more utility evaluations than the bound",
+        ));
     }
     Ok(())
 }
@@ -1016,6 +1029,7 @@ fn validate(parts: &SensitivityParts) -> Result<(), IoError> {
     validate_coordinate(parts)?;
     validate_quantities(parts)?;
     validate_actions(parts)?;
+    validate_scenario_work(parts)?;
     validate_uncertainty(parts)?;
     let p = &parts.provenance;
     if is_blank(&p.source_kind)

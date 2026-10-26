@@ -25,7 +25,9 @@
 use antecedent_core::recalc::{RetargetSupport, Stage, StageIdentities, StageIdentity};
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
+use crate::artifact_codec::{
+    f64s_to_le_bytes as f64_bytes, u32s_to_le_bytes as u32_bytes, u64s_to_le_bytes as u64_bytes,
+};
 use crate::recalc_receipt_artifact::{DeclaredStageWire, identities_from_wire, identities_to_wire};
 use crate::score_wire::{ScoreColumn, ScoreTableWire};
 
@@ -141,18 +143,6 @@ pub struct FrozenScoresMeta {
 }
 
 // -- identity -----------------------------------------------------------------------------
-
-fn u32_bytes(values: &[u32]) -> Vec<u8> {
-    values.iter().flat_map(|v| v.to_le_bytes()).collect()
-}
-
-fn u64_bytes(values: &[u64]) -> Vec<u8> {
-    values.iter().flat_map(|v| v.to_le_bytes()).collect()
-}
-
-fn f64_bytes(values: &[f64]) -> Vec<u8> {
-    crate::artifact_codec::f64s_to_le_bytes(values)
-}
 
 fn opt_f64_bytes(value: Option<f64>) -> Vec<u8> {
     match value {
@@ -323,9 +313,10 @@ fn check(
     if meta.version != FROZEN_SCORES_ARTIFACT_VERSION {
         return Err(FrozenScoresArtifactError::UnsupportedVersion { version: meta.version });
     }
-    if meta.feature != FROZEN_SCORES_ARTIFACT_FEATURE {
-        return Err(FrozenScoresArtifactError::UnsupportedSemantics("feature marker"));
-    }
+    crate::artifact_codec::require_semantics::<FrozenScoresArtifactError>(
+        meta.feature == FROZEN_SCORES_ARTIFACT_FEATURE,
+        "feature marker",
+    )?;
     let n = check_bounds(&meta.table, limits)?;
     check_shape(&meta.table, n, meta.input_rows)?;
     let declared = check_identities(&meta, limits)?;
@@ -366,12 +357,7 @@ fn encode_parts_impl(
     meta: &FrozenScoresMeta,
     artifact_id: &str,
 ) -> Result<Vec<u8>, FrozenScoresArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(FrozenScoresArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes =
-        to_cbor(meta).map_err(|error| FrozenScoresArtifactError::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "frozen_scores",
@@ -379,13 +365,10 @@ fn encode_parts_impl(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: META_SECTION,
-            content_type: crate::CONTENT_CBOR,
-            bytes: &meta_bytes,
-        }],
+        META_SECTION,
+        meta,
+        &[],
     )
-    .map_err(|error| crate::map_artifact_check!(error, FrozenScoresArtifactError))
 }
 
 /// Decode the metadata section of a container, refusing another version before the metadata
@@ -405,23 +388,15 @@ fn decode_parts_impl(
     bytes: &[u8],
     max_bytes: usize,
 ) -> Result<FrozenScoresMeta, FrozenScoresArtifactError> {
-    let parts = crate::decode_container(
+    crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
         max_bytes,
-        &[META_SECTION],
+        META_SECTION,
+        &[],
+        FROZEN_SCORES_ARTIFACT_VERSION,
         bytes,
     )
-    .map_err(|error| crate::map_artifact_check!(error, FrozenScoresArtifactError))?;
-    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(FrozenScoresArtifactError::Malformed("unsupported container layout".into()));
-    };
-    crate::decode_with_version(&meta_bytes, |version| {
-        if version == FROZEN_SCORES_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(FrozenScoresArtifactError::UnsupportedVersion { version })
-        }
-    })
+    .map(|(meta, _)| meta)
 }
 
 // -- public type --------------------------------------------------------------------------

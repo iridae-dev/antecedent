@@ -689,7 +689,7 @@ impl RetainedEffectModel {
         };
         let treatment_name = name(*treatment)?;
         let outcome_name = name(*outcome)?;
-        let effect = consumed.body.fitted_effect.clone().ok_or_else(|| {
+        let effect = consumed.body.fitted_effect.as_deref().cloned().ok_or_else(|| {
             CohortRefusal::new(
                 antecedent_core::reason_code!("route_not_supported"),
                 "cohort_decision.fitted_model_absent",

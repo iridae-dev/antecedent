@@ -81,8 +81,10 @@ pub use antecedent_io_core::{
     bayesian_prior_recalc_artifact, calibration, canonical_dag_wire, canonical_json,
     canonical_temporal_dag_wire, causal_artifact, causal_query_from_wire, causal_query_to_wire,
     causal_query_to_wire_with_registry, causal_response_from_wire, causal_response_to_wire,
-    checked_aipw_rows_digest, claim_digest, claim_domains, claim_domains_of_section,
-    claim_kind_name, claim_kind_name_of_section, compact_export, consume_analysis_result,
+    checked_aipw_rows_digest, claim_digest, claim_domain_statuses,
+    claim_domain_statuses_of_section, claim_domains, claim_domains_of_section, claim_kind,
+    claim_kind_name, claim_kind_name_of_section, claim_kind_of_section, compact_export,
+    consume_analysis_result,
     container, container_kind, contract_seal, contract_section, contract_wire, contrast_wire,
     convert, counterfactual_id_artifact, counterfactual_transport_wire, coverage_records_data,
     cpdag_from_dot, cpdag_from_gml, cpdag_from_json, cpdag_from_networkx_node_link,
@@ -128,7 +130,8 @@ pub use antecedent_io_core::{
     schema_wire_from_v01, score_reuse_digest, score_wire, search_bounds, section_descriptor,
     section_descriptor_with_policy, sectioned_artifact_enum, sectioned_artifact_error,
     stored_law_bounds, support_empirical, target_weights_digest, temporal_admg_identity,
-    temporal_counterfactual_artifact, temporal_cpdag_identity, temporal_dag_from_wire,
+    temporal_counterfactual_artifact, temporal_counterfactual_general_artifact,
+    temporal_cpdag_identity, temporal_dag_from_wire,
     temporal_dag_identity, temporal_dag_to_wire, temporal_pag_identity, temporal_recalc_artifact,
     to_cbor, trace, transport_catalog_wire, transport_certificate, transport_errors,
     transport_identity, transport_point_wire, transport_proof, transport_query_from_wire,
@@ -148,8 +151,9 @@ mod transport_effect_wire;
 
 pub use analysis_wire::{
     CandidateSelectionWire, ClipSensitivityWire, EffectEstimateWire, FirstStageDiagnosticsWire,
-    JointCovarianceWire, OverlapReportWire, PreparationWire, PropensityIntervalWire,
-    ScoreColumnWire, ScoreInferenceWire, ScoreTableWire, effect_estimate_from_wire,
+    JointCovarianceWire, EstimateOverlapPolicyWire, OverlapReportWire, PreparationWire,
+    PropensityIntervalWire, ScoreColumnWire, ScoreInferenceWire, ScoreTableWire,
+    UncertaintyWithheldWire, effect_estimate_from_owned_wire, effect_estimate_from_wire,
     effect_estimate_to_wire, refutation_from_wire, refutation_to_wire,
 };
 

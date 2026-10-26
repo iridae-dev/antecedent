@@ -41,9 +41,10 @@ pub use weighted_gaussian_capacity::{
     read_spilled_summary, run_weighted_capacity,
 };
 
-/// Largest decompression buffer this account will request.
+/// Default largest decompression buffer an account will reserve.
 ///
-/// This is the container's maximum section size. It is not a higher cap.
+/// This is the container's default maximum section size;
+/// [`CapacityAccount::with_decompression_cap`] sets another.
 pub const DECOMPRESSION_CAP: usize = crate::container::MAX_SECTION_BYTES;
 
 const SUMMARY_TAG: &str = "antecedent.capacity_account.summary";
@@ -209,7 +210,7 @@ pub enum CapacityError {
     DecompressionCap {
         /// Requested size.
         declared: u64,
-        /// Existing section cap.
+        /// The account's decompression cap.
         cap: usize,
     },
     /// A payload has to contain at least one byte.
@@ -360,6 +361,7 @@ pub struct CapacityAccount {
     retention: OutputRetention,
     entries: BTreeMap<u64, Entry>,
     next_id: u64,
+    decompression_cap: usize,
 }
 
 impl CapacityAccount {
@@ -371,7 +373,21 @@ impl CapacityAccount {
             retention: OutputRetention::FullReusable,
             entries: BTreeMap::new(),
             next_id: 1,
+            decompression_cap: DECOMPRESSION_CAP,
         }
+    }
+
+    /// The same account accepting decompression reservations of at most `cap` bytes
+    /// instead of [`DECOMPRESSION_CAP`]. The budget still bounds what is resident.
+    #[must_use]
+    pub fn with_decompression_cap(self, cap: usize) -> Self {
+        Self { decompression_cap: cap, ..self }
+    }
+
+    /// Largest decompression buffer this account will reserve.
+    #[must_use]
+    pub const fn decompression_cap(&self) -> usize {
+        self.decompression_cap
     }
 
     /// Declared budget.
@@ -651,8 +667,8 @@ impl CapacityAccount {
     ) -> Result<DecompressionBuffer, CapacityError> {
         self.require(AccountedOperation::ReserveDecompression)?;
         let size = usize::try_from(declared).unwrap_or(usize::MAX);
-        if declared == 0 || size > DECOMPRESSION_CAP {
-            return Err(CapacityError::DecompressionCap { declared, cap: DECOMPRESSION_CAP });
+        if declared == 0 || size > self.decompression_cap {
+            return Err(CapacityError::DecompressionCap { declared, cap: self.decompression_cap });
         }
         self.ensure_fits(declared)?;
         let id = self.alloc_id()?;

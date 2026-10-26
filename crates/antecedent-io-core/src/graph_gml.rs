@@ -10,7 +10,7 @@ use std::fmt::Write as _;
 
 use antecedent_graph::Dag;
 
-use crate::convert::{dag_from_wire, dag_to_wire};
+use crate::convert::{GraphLimits, dag_from_wire_with_limits, dag_to_wire};
 use crate::error::IoError;
 use crate::graph_dot;
 use crate::graph_json::without_names;
@@ -36,8 +36,20 @@ without_names! {
 ///
 /// Malformed GML, undirected graphs, cycles.
 pub fn dag_with_names_from_gml(gml: &str) -> Result<(Dag, Vec<String>), IoError> {
+    dag_with_names_from_gml_with_limits(gml, &GraphLimits::default())
+}
+
+/// [`dag_with_names_from_gml`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`dag_with_names_from_gml`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn dag_with_names_from_gml_with_limits(
+    gml: &str,
+    limits: &GraphLimits,
+) -> Result<(Dag, Vec<String>), IoError> {
     let (wire, names) = dag_wire_and_names_from_gml(gml)?;
-    Ok((dag_from_wire(&wire)?, names))
+    Ok((dag_from_wire_with_limits(&wire, limits)?, names))
 }
 
 /// Serialize a [`Dag`] to GML.
@@ -213,6 +225,12 @@ pub fn dag_wire_to_gml(wire: &DagWire, names: Option<&[String]>) -> String {
 /// `&quot;` and `&amp;`.
 pub(crate) fn escape_gml_string(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
+    push_escaped_gml(&mut out, s);
+    out
+}
+
+/// Append `s` to `out` with the GML escapes applied, without an intermediate string.
+pub(crate) fn push_escaped_gml(out: &mut String, s: &str) {
     for ch in s.chars() {
         match ch {
             '&' => out.push_str("&amp;"),
@@ -220,7 +238,6 @@ pub(crate) fn escape_gml_string(s: &str) -> String {
             _ => out.push(ch),
         }
     }
-    out
 }
 
 fn unescape_gml_string(s: &str) -> String {

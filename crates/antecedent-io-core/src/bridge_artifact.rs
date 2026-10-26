@@ -870,9 +870,10 @@ fn check_format(meta: &ScientificBridgeMeta) -> Result<(), ScientificBridgeArtif
         meta.contract.is_extended() || meta.draws.is_some() || meta.propagation.is_some();
     match meta.version {
         SCIENTIFIC_BRIDGE_ARTIFACT_VERSION => {
-            if meta.feature != SCIENTIFIC_BRIDGE_ARTIFACT_FEATURE {
-                return Err(ScientificBridgeArtifactError::UnsupportedSemantics("feature marker"));
-            }
+            crate::artifact_codec::require_semantics::<ScientificBridgeArtifactError>(
+                meta.feature == SCIENTIFIC_BRIDGE_ARTIFACT_FEATURE,
+                "feature marker",
+            )?;
             if extended {
                 return Err(ScientificBridgeArtifactError::UnsupportedSemantics(
                     "extended declarations in a version-1 artifact",
@@ -886,9 +887,10 @@ fn check_format(meta: &ScientificBridgeMeta) -> Result<(), ScientificBridgeArtif
                     version: meta.version,
                 });
             }
-            if meta.feature != SCIENTIFIC_BRIDGE_EXTENDED_FEATURE {
-                return Err(ScientificBridgeArtifactError::UnsupportedSemantics("feature marker"));
-            }
+            crate::artifact_codec::require_semantics::<ScientificBridgeArtifactError>(
+                meta.feature == SCIENTIFIC_BRIDGE_EXTENDED_FEATURE,
+                "feature marker",
+            )?;
             if !extended {
                 return Err(ScientificBridgeArtifactError::UnsupportedSemantics(
                     "extended format without extended declarations",

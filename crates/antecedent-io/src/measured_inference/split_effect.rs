@@ -51,8 +51,13 @@ pub const DISCOVERY_FRACTION: f64 = 0.5;
 /// The only nominal level of the measured construction.
 pub const LEVEL: f64 = 0.95;
 /// Fewest searched variables measured.
+///
+/// With [`MAX_VARIABLES`] this is the licence boundary of the calibration record, not a limit of
+/// the engine: the procedure runs on any table, but its coverage was measured only for these
+/// sizes, so any other size is refused as `cell_not_licensed`
+/// (`split_effect.variable_count_not_measured`) until a record measures it.
 pub const MIN_VARIABLES: usize = 5;
-/// Most searched variables measured.
+/// Most searched variables measured. See [`MIN_VARIABLES`].
 pub const MAX_VARIABLES: usize = 7;
 const MAX_ROWS: usize = 1 << 20;
 const FORMAT_VERSION: u32 = 1;

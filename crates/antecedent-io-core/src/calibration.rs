@@ -207,6 +207,86 @@ pub struct CalibrationBasisWire {
     pub scope: CalibrationScopeWire,
 }
 
+impl From<&antecedent_core::CalibrationBasis> for CalibrationBasisWire {
+    fn from(basis: &antecedent_core::CalibrationBasis) -> Self {
+        Self {
+            key: CalibrationKeyWire {
+                query: basis.query.to_string(),
+                graph_class: basis.graph_class.to_string(),
+                structure: basis.structure.to_string(),
+                modality: basis.modality.to_string(),
+                inference: basis.inference.to_string(),
+                estimator: basis.estimator.to_string(),
+                interval_method: basis.interval_method.to_string(),
+                se_kind: basis.se_kind.to_string(),
+                dependence: basis.dependence.to_string(),
+                posterior: basis.posterior.to_string(),
+                functional: basis.functional.to_string(),
+                level: basis.level,
+                identification: basis.identification.to_string(),
+            },
+            scope: CalibrationScopeWire {
+                row_count: basis.row_count,
+                replicates_ok: basis.replicates_ok,
+                posterior_draws: basis.posterior_draws,
+                unidentified_mass: basis.unidentified_mass,
+            },
+        }
+    }
+}
+
+/// Whether the structure behind a calibrated interval was fixed or learned.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CalibrationStructure {
+    /// Explicit or accepted structure.
+    Fixed,
+    /// Averaged over a graph posterior.
+    GraphPosterior,
+}
+
+impl CalibrationStructure {
+    /// The key spelling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Fixed => "fixed",
+            Self::GraphPosterior => "graph_posterior",
+        }
+    }
+
+    /// Classify a support-matrix structure axis name.
+    #[must_use]
+    pub fn from_axis(name: &str) -> Self {
+        if name == Self::GraphPosterior.as_str() { Self::GraphPosterior } else { Self::Fixed }
+    }
+}
+
+/// Inference family recorded in a calibration key.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CalibrationInference {
+    /// Frequentist inference.
+    Frequentist,
+    /// Bayesian inference.
+    Bayesian,
+}
+
+impl CalibrationInference {
+    /// The key spelling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Frequentist => "Frequentist",
+            Self::Bayesian => "Bayesian",
+        }
+    }
+
+    /// Classify an inference label (any ASCII case of `bayesian` is Bayesian).
+    #[must_use]
+    pub fn from_label(label: &str) -> Self {
+        if label.eq_ignore_ascii_case("bayesian") { Self::Bayesian } else { Self::Frequentist }
+    }
+}
+
 impl CalibrationKeyWire {
     fn same_construction(&self, record: &CoverageRecord) -> bool {
         self.same_construction_with_aliases(record, &FUNCTIONAL_IDENTITY_ALIASES)
@@ -692,6 +772,51 @@ mod tests {
         ] {
             crate::convert::assert_cbor_text_code(status.as_str(), &status);
         }
+    }
+
+    #[test]
+    fn basis_wire_carries_every_field_of_the_basis() {
+        let names = ["q", "g", "fixed", "tabular", "Bayesian", "e", "m", "s", "d", "p", "f"];
+        let basis = antecedent_core::CalibrationBasis::new(
+            names.map(std::sync::Arc::<str>::from),
+            0.95,
+            std::sync::Arc::from("point"),
+            120,
+            Some(7),
+            Some(9),
+            0.25,
+        );
+        let wire = CalibrationBasisWire::from(&basis);
+        let key = &wire.key;
+        assert_eq!(
+            [
+                key.query.as_str(),
+                key.graph_class.as_str(),
+                key.structure.as_str(),
+                key.modality.as_str(),
+                key.inference.as_str(),
+                key.estimator.as_str(),
+                key.interval_method.as_str(),
+                key.se_kind.as_str(),
+                key.dependence.as_str(),
+                key.posterior.as_str(),
+                key.functional.as_str(),
+            ],
+            names
+        );
+        assert_eq!((key.level, key.identification.as_str()), (0.95, "point"));
+        assert_eq!(wire.scope.row_count, 120);
+        assert_eq!((wire.scope.replicates_ok, wire.scope.posterior_draws), (Some(7), Some(9)));
+        assert_eq!(wire.scope.unidentified_mass, 0.25);
+    }
+
+    #[test]
+    fn structure_and_inference_spell_their_keys() {
+        assert_eq!(CalibrationStructure::from_axis("graph_posterior").as_str(), "graph_posterior");
+        assert_eq!(CalibrationStructure::from_axis("anything else").as_str(), "fixed");
+        assert_eq!(CalibrationInference::from_label("BAYESIAN"), CalibrationInference::Bayesian);
+        assert_eq!(CalibrationInference::from_label("Bayesian").as_str(), "Bayesian");
+        assert_eq!(CalibrationInference::from_label("frequentist").as_str(), "Frequentist");
     }
 
     fn key_from(record: &CoverageRecord) -> CalibrationKeyWire {

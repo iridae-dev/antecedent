@@ -343,9 +343,9 @@ fn bad_coordinates_and_surfaces_are_refused() {
     let (_, detail) =
         refused(&|p| p.uncertainty.assumption_range.kind = "confidence_interval".into());
     assert_eq!(detail, "sensitivity_decision_composition.wrong_contract");
-    // More ranged quantities than the vertex enumeration admits.
+    // More ranged quantities than the evaluation budget of the vertex enumeration admits.
     let (code, detail) = refused(&|p| {
-        p.quantities = (0..4).map(|k| surface(&format!("q{k}"), &[0.0; 3], &[1.0; 3])).collect();
+        p.quantities = (0..25).map(|k| surface(&format!("q{k}"), &[0.0; 3], &[1.0; 3])).collect();
         p.actions = vec![act("A", "q0"), act("B", "q1")];
     });
     assert_eq!(code, "route_not_supported");

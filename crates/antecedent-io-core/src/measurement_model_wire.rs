@@ -16,6 +16,7 @@
 //! A consumer holding the original data can additionally check
 //! [`MeasurementModelArtifact::covers_data_identity`].
 
+use crate::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
 use antecedent_core::identity::SemanticDigest;
 use antecedent_core::measurement_model::{
     ArmBinding, BinaryArmRates, CorrectedFunctionalRecord, DifferentialAxis, ErrorStructure,
@@ -41,8 +42,11 @@ pub const MEASUREMENT_MODEL_ARTIFACT_VERSION: u16 = 1;
 pub const MAX_MEASUREMENT_IMPUTATIONS: usize = 10_000;
 const ARTIFACT_KIND: &str = crate::artifact_kinds::MEASUREMENT_MODEL;
 const META_SECTION: &str = "measurement_model_meta";
-/// Relative tolerance of the replay comparison.
-const REPLAY_TOLERANCE: f64 = 1e-10;
+/// Replay policy: a stored point, standard error or variance reproduces the closed form of the
+/// moments to a relative `1e-10` of the larger of the two (absolute near zero); non-finite is
+/// refused.
+const REPLAY: ReplayTolerance =
+    ReplayTolerance::new(1e-10, ReplayScale::OnePlusLarger, ReplayNonFinite::Refuse);
 
 // ---------------------------------------------------------------------------
 // Wire types
@@ -653,8 +657,7 @@ fn identities_to_wire(model: &MeasurementModel) -> MeasurementIdentityWire {
 }
 
 fn digest_from_hex(hex: &str) -> Result<SemanticDigest, IoError> {
-    antecedent_core::digest_from_hex(hex)
-        .map(SemanticDigest::from_bytes)
+    antecedent_contract::evidence_ledger::parse_digest_hex(hex)
         .ok_or_else(|| convert("a digest is 64 hexadecimal characters"))
 }
 
@@ -1133,10 +1136,7 @@ fn linear_values(moments: &LinearMoments, index: usize) -> Result<ReplayedValues
 }
 
 fn near(stored: f64, replayed: f64) -> bool {
-    if !(stored.is_finite() && replayed.is_finite()) {
-        return false;
-    }
-    (stored - replayed).abs() <= REPLAY_TOLERANCE * (1.0 + stored.abs().max(replayed.abs()))
+    REPLAY.close(stored, replayed)
 }
 
 // ---------------------------------------------------------------------------
@@ -1331,13 +1331,25 @@ impl MeasurementModelArtifact {
     /// artifacts, an identity that is not the expected one, and a result that
     /// does not recompute refuse.
     pub fn from_bytes(bytes: &[u8], expected_model_identity: &str) -> Result<Self, IoError> {
-        if bytes.len() > MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES {
+        Self::from_bytes_within(bytes, expected_model_identity, MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of [`MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a file over `max_bytes` is `TooLarge`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected_model_identity: &str,
+        max_bytes: usize,
+    ) -> Result<Self, IoError> {
+        if bytes.len() > max_bytes {
             return Err(IoError::TooLarge);
         }
         digest_from_hex(expected_model_identity)?;
         let parts = crate::decode_container(
             ARTIFACT_KIND,
-            MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES,
+            max_bytes,
             &[META_SECTION],
             bytes,
         )

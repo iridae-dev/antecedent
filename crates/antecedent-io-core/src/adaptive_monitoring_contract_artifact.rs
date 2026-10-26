@@ -67,7 +67,7 @@ use antecedent_stats::adaptive_inference::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
+use crate::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
 
 /// The artifact major version this reader writes and accepts.
 pub const ADAPTIVE_MONITORING_CONTRACT_VERSION: u16 = 1;
@@ -1090,12 +1090,19 @@ fn replay_procedure(
 
 // -- consumption --------------------------------------------------------------------------
 
+/// Stored boundaries and readings reproduce the recomputed ones to an absolute bound.
+const BOUNDARY_REPLAY: ReplayTolerance = ReplayTolerance::new(
+    BOUNDARY_REPLAY_TOLERANCE,
+    ReplayScale::Absolute,
+    ReplayNonFinite::Refuse,
+);
+
 fn within(stored: &[u64], recomputed: &[f64]) -> bool {
     stored.len() == recomputed.len()
         && stored
             .iter()
             .zip(recomputed)
-            .all(|(s, r)| (f64::from_bits(*s) - r).abs() <= BOUNDARY_REPLAY_TOLERANCE)
+            .all(|(s, r)| BOUNDARY_REPLAY.close(f64::from_bits(*s), *r))
 }
 
 fn check(
@@ -1105,9 +1112,10 @@ fn check(
     if meta.version != ADAPTIVE_MONITORING_CONTRACT_VERSION {
         return Err(Error::UnsupportedVersion { version: meta.version });
     }
-    if meta.feature != ADAPTIVE_MONITORING_CONTRACT_FEATURE {
-        return Err(Error::UnsupportedSemantics("feature marker"));
-    }
+    crate::artifact_codec::require_semantics::<Error>(
+        meta.feature == ADAPTIVE_MONITORING_CONTRACT_FEATURE,
+        "feature marker",
+    )?;
     let contract = AdaptiveDesignContract::new(declaration_from_wire(&meta.declaration)?)?;
     if contract.identity().to_hex() != meta.contract_identity {
         return Err(Error::IdentityMismatch { field: "contract_identity" });
@@ -1168,11 +1176,7 @@ fn encode_meta_within(
     artifact_id: &str,
     export_budget: usize,
 ) -> Result<Vec<u8>, Error> {
-    if artifact_id.trim().is_empty() {
-        return Err(Error::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta).map_err(|error| Error::Encode(error.to_string()))?;
-    let bytes = crate::encode_container(
+    let bytes = crate::artifact_codec::encode_sectioned::<Error, _>(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "adaptive_monitoring_contract",
@@ -1180,13 +1184,10 @@ fn encode_meta_within(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: META_SECTION,
-            content_type: crate::CONTENT_CBOR,
-            bytes: &meta_bytes,
-        }],
-    )
-    .map_err(|error| crate::map_artifact_check!(error, AdaptiveMonitoringContractError))?;
+        META_SECTION,
+        meta,
+        &[],
+    )?;
     if bytes.len() > export_budget.min(MAX_ADAPTIVE_MONITORING_CONTRACT_BYTES) {
         return Err(export_refusal(
             bytes.len(),
@@ -1197,23 +1198,15 @@ fn encode_meta_within(
 }
 
 fn decode_meta(bytes: &[u8]) -> Result<MonitoringContractMeta, Error> {
-    let parts = crate::decode_container(
+    crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
         MAX_ADAPTIVE_MONITORING_CONTRACT_BYTES,
-        &[META_SECTION],
+        META_SECTION,
+        &[],
+        ADAPTIVE_MONITORING_CONTRACT_VERSION,
         bytes,
     )
-    .map_err(|error| crate::map_artifact_check!(error, AdaptiveMonitoringContractError))?;
-    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(Error::Malformed("unsupported container layout".into()));
-    };
-    crate::decode_with_version(&meta_bytes, |version| {
-        if version == ADAPTIVE_MONITORING_CONTRACT_VERSION {
-            Ok(())
-        } else {
-            Err(Error::UnsupportedVersion { version })
-        }
-    })
+    .map(|(meta, _)| meta)
 }
 
 // -- public type -----------------------------------------------------------------------------

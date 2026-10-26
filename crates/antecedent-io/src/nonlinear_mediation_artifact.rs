@@ -57,6 +57,7 @@ use crate::artifact_budget::{
     BudgetDetails, BudgetRefusal, admit_computation, admit_export, planned_bytes, unbounded_context,
 };
 use crate::convert::to_cbor;
+use crate::width::lossless_u64;
 
 /// The artifact major version this reader writes and accepts.
 pub const NONLINEAR_MEDIATION_ARTIFACT_VERSION: u16 = 1;
@@ -68,8 +69,6 @@ pub const NONLINEAR_MEDIATION_ARTIFACT_FEATURE: &str = "nonlinear_mediation_v1";
     note = "no longer enforced: the estimate has no row ceiling; the export and computation budgets bound the artifact"
 )]
 pub const NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS: usize = 20_000;
-/// Most covariates an artifact may embed.
-pub const NONLINEAR_MEDIATION_ARTIFACT_MAX_COVARIATES: usize = 64;
 /// Most bootstrap replicates a producer may request and a consumer will replay.
 pub const NONLINEAR_MEDIATION_ARTIFACT_MAX_BOOTSTRAP: u32 = 2_000;
 /// Most bytes an artifact may occupy: the largest export budget, enforced on consumption.
@@ -371,10 +370,6 @@ fn count_u32(n: usize) -> Result<u32, NonlinearMediationArtifactError> {
     u32::try_from(n).map_err(|_| NonlinearMediationArtifactError::LimitsExceeded("count"))
 }
 
-fn count_u64(n: usize) -> u64 {
-    crate::width::lossless_u64(n)
-}
-
 fn index(n: u32) -> usize {
     n as usize
 }
@@ -417,9 +412,8 @@ fn config_of(
 fn check_limits(
     request: &NonlinearMediationRequestWire,
 ) -> Result<(), NonlinearMediationArtifactError> {
-    if request.data.covariates.len() > NONLINEAR_MEDIATION_ARTIFACT_MAX_COVARIATES {
-        return Err(NonlinearMediationArtifactError::LimitsExceeded("covariates"));
-    }
+    // The covariate count is bounded by the bytes of the data section (a column is `n` reals),
+    // by the byte budget of the artifact and by the replay's memory budget, not by a count.
     if request.config.bootstrap_replicates > NONLINEAR_MEDIATION_ARTIFACT_MAX_BOOTSTRAP {
         return Err(NonlinearMediationArtifactError::LimitsExceeded("bootstrap replicates"));
     }
@@ -494,9 +488,6 @@ fn request_of(
 ) -> Result<NonlinearMediationRequestWire, NonlinearMediationArtifactError> {
     let n = usize::try_from(meta.n_rows).unwrap_or(usize::MAX);
     let p = meta.model_specs.covariates.len();
-    if p > NONLINEAR_MEDIATION_ARTIFACT_MAX_COVARIATES {
-        return Err(NonlinearMediationArtifactError::LimitsExceeded("covariates"));
-    }
     let columns = crate::width::columns_from_le(numbers, n, 3 + p)
         .ok_or_else(|| NonlinearMediationArtifactError::Malformed("data section length".into()))?;
     Ok(NonlinearMediationRequestWire {
@@ -589,10 +580,10 @@ fn result_wire(
                 .ok_or(NonlinearMediationArtifactError::LimitsExceeded("count"))?,
         )?,
         outcome_degree: count_u32(estimate.outcome_degree)?,
-        n_rows: count_u64(estimate.n_rows),
+        n_rows: lossless_u64(estimate.n_rows),
         overlap: MediationOverlapWire {
-            treated_count: count_u64(estimate.overlap.treated_count),
-            control_count: count_u64(estimate.overlap.control_count),
+            treated_count: lossless_u64(estimate.overlap.treated_count),
+            control_count: lossless_u64(estimate.overlap.control_count),
             treated_mediator_min: estimate.overlap.treated_mediator_range.0,
             treated_mediator_max: estimate.overlap.treated_mediator_range.1,
             mediator_support_violation: estimate.overlap.mediator_support_violation,
@@ -626,7 +617,7 @@ fn data_digest(data: &MediationDataWire) -> Result<String, NonlinearMediationArt
     let numbers = data_bytes(data);
     let hasher = CanonicalWriter::new("nonlinear_mediation_v1.data")
         .bytes(&names)
-        .word(count_u64(data.treatment.len()))
+        .word(lossless_u64(data.treatment.len()))
         .bytes(&numbers)
         .finish();
     Ok(antecedent_core::to_hex(&hasher))
@@ -655,7 +646,7 @@ fn build_meta(
         premise_records: records,
         model_specs: specs,
         config: request.config.clone(),
-        n_rows: count_u64(request.data.treatment.len()),
+        n_rows: lossless_u64(request.data.treatment.len()),
         data_binding: None,
         result,
         identity: NonlinearMediationIdentity {
@@ -715,20 +706,9 @@ fn encode_parts_impl(
     artifact_id: &str,
     export_budget: usize,
 ) -> Result<Vec<u8>, NonlinearMediationArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(NonlinearMediationArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta)
-        .map_err(|error| NonlinearMediationArtifactError::Encode(error.to_string()))?;
     // A consumer reads at most the byte cap of uncompressed sections, whatever the container
     // compresses to; the caller's budget bounds the container itself.
-    admit_export(
-        BUDGET,
-        meta_bytes.len().saturating_add(data.len()),
-        MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES,
-    )
-    .map_err(budget_refusal)?;
-    let bytes = crate::encode_container(
+    let bytes = crate::artifact_codec::encode_sectioned_admitting(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "nonlinear_mediation_point_with_diagnostics_unmeasured",
@@ -736,16 +716,17 @@ fn encode_parts_impl(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[
-            crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            },
-            crate::OutSection { id: DATA_SECTION, content_type: crate::CONTENT_BYTES, bytes: data },
-        ],
-    )
-    .map_err(|error| crate::map_artifact_check!(error, NonlinearMediationArtifactError))?;
+        META_SECTION,
+        meta,
+        &[crate::OutSection {
+            id: DATA_SECTION,
+            content_type: crate::CONTENT_BYTES,
+            bytes: data,
+        }],
+        |uncompressed| {
+            admit_export(BUDGET, uncompressed, MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES).map_err(budget_refusal)
+        },
+    )?;
     admit_export(BUDGET, bytes.len(), export_budget.min(MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES))
         .map_err(budget_refusal)?;
     Ok(bytes)
@@ -769,25 +750,17 @@ pub fn decode_parts(
 fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<(NonlinearMediationMeta, Vec<u8>), NonlinearMediationArtifactError> {
-    let parts = crate::decode_container(
+    let (meta, parts) = crate::artifact_codec::decode_sectioned::<NonlinearMediationArtifactError, NonlinearMediationMeta>(
         ARTIFACT_KIND,
         MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES,
-        &[META_SECTION, DATA_SECTION],
+        META_SECTION,
+        &[DATA_SECTION],
+        NONLINEAR_MEDIATION_ARTIFACT_VERSION,
         bytes,
-    )
-    .map_err(|error| crate::map_artifact_check!(error, NonlinearMediationArtifactError))?;
-    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
-        return Err(NonlinearMediationArtifactError::Malformed(
-            "unsupported container layout".into(),
-        ));
+    )?;
+    let Ok([payload]) = <[Vec<u8>; 1]>::try_from(parts) else {
+        return Err(NonlinearMediationArtifactError::Malformed("unsupported container layout".into()));
     };
-    let meta = crate::decode_with_version(&meta_bytes, |version| {
-        if version == NONLINEAR_MEDIATION_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(NonlinearMediationArtifactError::UnsupportedVersion { version })
-        }
-    })?;
     Ok((meta, payload))
 }
 
