@@ -171,6 +171,57 @@ impl TemporalDisposition {
     }
 }
 
+/// The state event that made a target stale.
+///
+/// Logged as [`InvalidationEntry::reason`] through its stable [`Self::as_str`] label, so a
+/// cause cannot drift or be misspelled between the places that record it.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum InvalidationReason {
+    /// A batch of data was appended.
+    AppendData,
+    /// The data catalog was replaced.
+    ReplaceData,
+    /// Graph evidence was added.
+    AddGraphEvidence,
+    /// A constraint was added.
+    AddConstraint,
+    /// A constraint was removed.
+    RemoveConstraint,
+    /// An assumption was updated.
+    UpdateAssumption,
+    /// An intervention was recorded.
+    RecordIntervention,
+}
+
+impl InvalidationReason {
+    /// Stable label, for example `replace_data`.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::AppendData => "append_data",
+            Self::ReplaceData => "replace_data",
+            Self::AddGraphEvidence => "add_graph_evidence",
+            Self::AddConstraint => "add_constraint",
+            Self::RemoveConstraint => "remove_constraint",
+            Self::UpdateAssumption => "update_assumption",
+            Self::RecordIntervention => "record_intervention",
+        }
+    }
+}
+
+impl core::fmt::Display for InvalidationReason {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl From<InvalidationReason> for Arc<str> {
+    fn from(reason: InvalidationReason) -> Self {
+        Self::from(reason.as_str())
+    }
+}
+
 /// One invalidation record.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InvalidationEntry {
@@ -178,7 +229,7 @@ pub struct InvalidationEntry {
     pub at_version: StateVersion,
     /// Target that is now stale.
     pub target: InvalidationTarget,
-    /// Human-readable reason.
+    /// Human-readable reason; an [`InvalidationReason`] label for state events.
     pub reason: Arc<str>,
     /// The stage input the causing event changed, when the event changes one.
     pub input: Option<ChangedInput>,

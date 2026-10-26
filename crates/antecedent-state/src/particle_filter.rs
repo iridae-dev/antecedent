@@ -8,8 +8,12 @@ use antecedent_kernels::standard_normal;
 use crate::error::StateError;
 use crate::retention::RetentionPolicy;
 
-/// Most particles one filter state holds (two `f64` buffers of this length).
-pub const MAX_PARTICLES: usize = 1 << 24;
+/// Bytes a filter holds per particle: the particle and log-weight buffers plus the three
+/// per-step scratch buffers (normalized weights, candidate log-weights, resampling target).
+pub const PARTICLE_BYTES: u64 = 5 * core::mem::size_of::<f64>() as u64;
+
+/// Memory budget [`ParticleFilterState::init`] applies when the caller supplies none (1 GiB).
+pub const DEFAULT_PARTICLE_BYTE_BUDGET: u64 = 1 << 30;
 
 /// Linear-Gaussian state-space model: `x_t = a x_{t-1} + σ_proc ε`, `y_t = x_t + σ_obs η`.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -42,12 +46,12 @@ struct StepScratch {
 /// Serializable particle-filter state (no borrowed buffers / callbacks).
 #[derive(Clone, Debug)]
 pub struct ParticleFilterState {
-    /// Particle count.
-    pub n_particles: usize,
+    /// Particle count; always equal to `particles.len()` and `log_weights.len()`.
+    n_particles: usize,
     /// Latent particle values.
-    pub particles: Vec<f64>,
+    particles: Vec<f64>,
     /// Unnormalized log-weights.
-    pub log_weights: Vec<f64>,
+    log_weights: Vec<f64>,
     /// Observations incorporated so far.
     pub n_obs: u64,
     /// Data catalog version stamp.
@@ -77,24 +81,51 @@ impl PartialEq for ParticleFilterState {
 }
 
 impl ParticleFilterState {
-    /// Initialize `n_particles` from `N(0, process_std²)` using `seed`.
+    /// Initialize `n_particles` from `N(0, process_std²)` using `seed`, within
+    /// [`DEFAULT_PARTICLE_BYTE_BUDGET`].
     ///
     /// # Errors
     ///
-    /// Zero particles or non-positive noise scales.
+    /// Zero particles, a particle count over the default budget, or non-positive noise scales.
     pub fn init(
         n_particles: usize,
         params: LgssmParams,
         data_version: u64,
         seed: u64,
     ) -> Result<Self, StateError> {
+        Self::init_within_budget(
+            n_particles,
+            params,
+            data_version,
+            seed,
+            DEFAULT_PARTICLE_BYTE_BUDGET,
+        )
+    }
+
+    /// Initialize `n_particles` from `N(0, process_std²)` using `seed`, refusing a filter
+    /// whose buffers ([`PARTICLE_BYTES`] per particle) would exceed `max_bytes`.
+    ///
+    /// The filter state is a long-lived handle with no execution context to lease from, so
+    /// the caller states the memory it is willing to commit.
+    ///
+    /// # Errors
+    ///
+    /// Zero particles, a particle count over the budget, or non-positive noise scales.
+    pub fn init_within_budget(
+        n_particles: usize,
+        params: LgssmParams,
+        data_version: u64,
+        seed: u64,
+        max_bytes: u64,
+    ) -> Result<Self, StateError> {
         if n_particles == 0 {
             return Err(StateError::Shape("n_particles must be > 0".into()));
         }
-        // The filter state is a long-lived handle with no execution context to lease from, so
-        // its two `f64` buffers are bounded by this ceiling instead (at most 256 MiB).
-        if n_particles > MAX_PARTICLES {
-            return Err(StateError::Shape(format!("n_particles must be at most {MAX_PARTICLES}")));
+        let needed = (n_particles as u64).saturating_mul(PARTICLE_BYTES);
+        if needed > max_bytes {
+            return Err(StateError::Shape(format!(
+                "{n_particles} particles need {needed} bytes, over the {max_bytes}-byte budget"
+            )));
         }
         if !params.a.is_finite()
             || !params.process_std.is_finite()
@@ -124,19 +155,59 @@ impl ParticleFilterState {
         })
     }
 
-    /// Kish effective sample size `1 / Σ w²` of the normalized weights
-    /// ([`antecedent_kernels::kish_ess`]); `NaN` when the weights are
-    /// impossible (no finite positive mass), never a uniform-looking value.
+    /// Particle count.
     #[must_use]
-    pub fn ess(&self) -> f64 {
-        antecedent_kernels::kish_ess(&normalized_weights(&self.log_weights))
+    pub const fn n_particles(&self) -> usize {
+        self.n_particles
+    }
+
+    /// Latent particle values.
+    #[must_use]
+    pub fn particles(&self) -> &[f64] {
+        &self.particles
+    }
+
+    /// Unnormalized log-weights.
+    #[must_use]
+    pub fn log_weights(&self) -> &[f64] {
+        &self.log_weights
+    }
+
+    /// Kish effective sample size `1 / Σ w²` of the normalized weights
+    /// ([`antecedent_kernels::kish_ess`]).
+    ///
+    /// # Errors
+    ///
+    /// The weights are impossible (no finite positive mass).
+    pub fn try_ess(&self) -> Result<f64, StateError> {
+        let mut weights = Vec::new();
+        normalized_weights_into(&self.log_weights, &mut weights)?;
+        Ok(antecedent_kernels::kish_ess(&weights))
     }
 
     /// Weighted mean of the latent particles.
+    ///
+    /// # Errors
+    ///
+    /// The weights are impossible (no finite positive mass).
+    pub fn try_weighted_mean(&self) -> Result<f64, StateError> {
+        let mut weights = Vec::new();
+        normalized_weights_into(&self.log_weights, &mut weights)?;
+        Ok(antecedent_kernels::dot(&weights, &self.particles))
+    }
+
+    /// [`Self::try_ess`], with `NaN` standing for impossible weights (never a uniform-looking
+    /// value). Prefer [`Self::try_ess`], which reports why.
+    #[must_use]
+    pub fn ess(&self) -> f64 {
+        self.try_ess().unwrap_or(f64::NAN)
+    }
+
+    /// [`Self::try_weighted_mean`], with `NaN` standing for impossible weights. Prefer
+    /// [`Self::try_weighted_mean`], which reports why.
     #[must_use]
     pub fn weighted_mean(&self) -> f64 {
-        let weights = normalized_weights(&self.log_weights);
-        antecedent_kernels::dot(&weights, &self.particles)
+        self.try_weighted_mean().unwrap_or(f64::NAN)
     }
 
     /// One bootstrap-filter step: predict → update with `y` → resample if ESS low.
@@ -221,17 +292,7 @@ impl ParticleFilterState {
     }
 }
 
-fn normalized_weights(log_w: &[f64]) -> Vec<f64> {
-    let mut w = Vec::new();
-    if normalized_weights_into(log_w, &mut w).is_err() {
-        w.clear();
-        w.resize(log_w.len(), f64::NAN);
-    }
-    w
-}
-
-/// Allocation-free core of [`normalized_weights`]: same arithmetic, writing
-/// into a caller-owned buffer.
+/// Normalize log-weights into a caller-owned buffer.
 fn normalized_weights_into(log_w: &[f64], out: &mut Vec<f64>) -> Result<(), StateError> {
     antecedent_kernels::normalize_log_weights_into(log_w, out)
         .map_err(|why| StateError::Numerical(format!("particle weights unusable: {why}")))
@@ -283,6 +344,19 @@ mod tests {
         assert!(state.step(0.0).is_err());
         assert_eq!(state, before);
         assert!(state.ess().is_nan(), "impossible weights must not look uniform");
+        assert!(state.try_ess().is_err());
+        assert!(state.try_weighted_mean().is_err());
+    }
+
+    #[test]
+    fn particle_budget_is_caller_controlled() {
+        let params = LgssmParams::default();
+        assert!(ParticleFilterState::init_within_budget(10, params, 0, 1, PARTICLE_BYTES * 9)
+            .is_err());
+        let state =
+            ParticleFilterState::init_within_budget(10, params, 0, 1, PARTICLE_BYTES * 10).unwrap();
+        assert_eq!(state.n_particles(), 10);
+        assert_eq!(state.particles().len(), state.log_weights().len());
     }
 
     #[test]

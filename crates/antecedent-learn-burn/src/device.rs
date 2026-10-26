@@ -113,15 +113,14 @@ pub const fn record_host_loss(epoch: usize, loss: f32) -> Result<EpochLoss, Lear
     Ok(EpochLoss { epoch, loss, sync: LossSync::HostEveryEpoch })
 }
 
-/// How long a fit holds Burn's process-global backend RNG.
+/// What a fit holds of Burn's process-global backend RNG.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RngLockScope {
-    /// From the backend seed through the last stochastic step.
-    ///
-    /// The CPU adapter and the WGPU fit hold the process-global training lock for this
-    /// whole scope. [`LeaseScheduler`] is the fold loop's matching protocol: it refuses
-    /// a second lease while one is open. The scheduler does not replace that process lock.
-    EntireFit,
+    /// Nothing. The initial weights are drawn on the host from the fold's seed and no
+    /// training step is stochastic, so a fit neither seeds nor reads the backend RNG and
+    /// concurrent fits share no state. [`LeaseScheduler`] still orders the fold loop one
+    /// fold at a time, which keeps each fold's seed attributable.
+    HostSeeded,
 }
 
 /// A fold's seed while it holds the orchestration lease.
@@ -133,7 +132,7 @@ pub struct RngLease {
     pub seed: u64,
 }
 
-/// Single-orchestrator protocol for [`RngLockScope::EntireFit`].
+/// Single-orchestrator protocol: the fold loop holds one fold's seed at a time.
 #[derive(Debug)]
 pub struct LeaseScheduler {
     open: Option<RngLease>,
@@ -492,7 +491,7 @@ pub fn orchestrate_cpu(
     Ok(Orchestration {
         physical,
         folds: outcomes,
-        rng_lock: RngLockScope::EntireFit,
+        rng_lock: RngLockScope::HostSeeded,
         loss_sync: LossSync::HostEveryEpoch,
         measurement: Measurement::NotMeasured,
     })
@@ -626,7 +625,7 @@ pub struct PortableFit {
     pub transfers: Vec<TransferStep>,
     /// Loss synchronization applied during the fit.
     pub loss_sync: LossSync,
-    /// RNG lock scope held during the fit.
+    /// What the fit held of the backend RNG.
     pub rng_lock: RngLockScope,
     /// Device and model ownership after the fit returns.
     pub ownership: RuntimeOwnership,
@@ -777,7 +776,7 @@ pub fn fit_portable_wgpu_cancellable(
         backend: LearnerBackend::Wgpu,
         transfers: transfer_plan(spec.epochs),
         loss_sync: LossSync::HostEveryEpoch,
-        rng_lock: RngLockScope::EntireFit,
+        rng_lock: RngLockScope::HostSeeded,
         ownership: RuntimeOwnership {
             backend: LearnerBackend::Wgpu,
             device: DeviceOwner::FitLocal,
@@ -998,7 +997,7 @@ mod tests {
         assert!(first.physical.iter().all(|value| value.is_finite()));
         assert_eq!(first.measurement, Measurement::NotMeasured);
         assert_eq!(first.loss_sync, LossSync::HostEveryEpoch);
-        assert_eq!(first.rng_lock, RngLockScope::EntireFit);
+        assert_eq!(first.rng_lock, RngLockScope::HostSeeded);
         let high = &first.folds[0];
         let low = &first.folds[1];
         assert_eq!(high.predict_rows[0], 4);

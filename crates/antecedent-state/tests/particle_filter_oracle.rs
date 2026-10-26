@@ -21,15 +21,15 @@ fn fixture() -> JsonValue {
 }
 
 fn weighted_moments(state: &ParticleFilterState) -> (f64, f64) {
-    let max = state.log_weights.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    let mut weights: Vec<f64> = state.log_weights.iter().map(|value| (value - max).exp()).collect();
+    let max = state.log_weights().iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let mut weights: Vec<f64> = state.log_weights().iter().map(|value| (value - max).exp()).collect();
     let sum: f64 = weights.iter().sum();
     for weight in &mut weights {
         *weight /= sum;
     }
-    let mean: f64 = weights.iter().zip(&state.particles).map(|(w, x)| w * x).sum();
+    let mean: f64 = weights.iter().zip(state.particles()).map(|(w, x)| w * x).sum();
     let variance: f64 =
-        weights.iter().zip(&state.particles).map(|(w, x)| w * (x - mean).powi(2)).sum();
+        weights.iter().zip(state.particles()).map(|(w, x)| w * (x - mean).powi(2)).sum();
     (mean, variance)
 }
 

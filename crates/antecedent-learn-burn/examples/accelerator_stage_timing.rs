@@ -118,7 +118,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             writeln!(report, "adapter_type = \"{}\"", adapter.device_type)?;
             writeln!(report, "adapter_max_buffer_bytes = {}", adapter.max_buffer_bytes)?;
         }
-        Err(reason) => writeln!(report, "adapter_unavailable = {reason:?}")?,
+        Err(reason) => writeln!(report, "adapter_unavailable = {:?}", reason.to_string())?,
     }
 
     let mut all: Vec<Measured> = Vec::new();

@@ -9,7 +9,9 @@ use antecedent_core::{AssumptionSet, CacheBudget, ContractIdentities, QueryId, S
 
 use crate::error::StateError;
 use crate::event::StateEvent;
-use crate::invalidation::{ChangedInput, InvalidationLog, InvalidationTarget};
+use crate::invalidation::{
+    ChangedInput, InvalidationLog, InvalidationReason, InvalidationTarget,
+};
 use crate::refresh_contract::{RefreshChange, RefreshDisposition, RefreshRoute, route_contract};
 use crate::store::{
     CachedResult, DataCatalog, DataVersion, GraphEvidenceStore, ModelStore, QueryStore,
@@ -130,14 +132,14 @@ impl CausalState {
             StateEvent::AppendData(batch) => {
                 self.data_catalog.batches.push(batch);
                 self.data_catalog.version = self.data_catalog.version.next();
-                self.invalidate_data_dependents(v, "append_data", input, RefreshChange::AppendRows);
+                self.invalidate_data_dependents(v, InvalidationReason::AppendData, input, RefreshChange::AppendRows);
             }
             StateEvent::ReplaceData(new_ver) => {
                 self.data_catalog.version = new_ver;
                 self.data_catalog.batches.clear();
                 self.invalidate_data_dependents(
                     v,
-                    "replace_data",
+                    InvalidationReason::ReplaceData,
                     input,
                     RefreshChange::SourceChanged,
                 );
@@ -163,30 +165,30 @@ impl CausalState {
                         &mut self.cache_budget,
                     );
                 }
-                self.invalidations.push(v, InvalidationTarget::LagIndexes, "replace_data");
-                self.invalidations.push(v, InvalidationTarget::GraphScores, "replace_data");
-                self.invalidations.push(v, InvalidationTarget::ParticleFilters, "replace_data");
+                self.invalidations.push(v, InvalidationTarget::LagIndexes, InvalidationReason::ReplaceData);
+                self.invalidations.push(v, InvalidationTarget::GraphScores, InvalidationReason::ReplaceData);
+                self.invalidations.push(v, InvalidationTarget::ParticleFilters, InvalidationReason::ReplaceData);
                 self.invalidations.push(
                     v,
                     InvalidationTarget::MechanismDiagnostics,
-                    "replace_data",
+                    InvalidationReason::ReplaceData,
                 );
             }
             StateEvent::AddGraphEvidence(rec) => {
                 self.graph_evidence.evidence.push(rec);
-                self.invalidate_all_results(v, "add_graph_evidence", input);
+                self.invalidate_all_results(v, InvalidationReason::AddGraphEvidence, input);
             }
             StateEvent::AddConstraint(rec) => {
                 self.graph_evidence.constraints.push(rec);
-                self.invalidate_all_results(v, "add_constraint", input);
+                self.invalidate_all_results(v, InvalidationReason::AddConstraint, input);
             }
             StateEvent::RemoveConstraint(id) => {
                 self.graph_evidence.constraints.retain(|c| c.id != id.0);
-                self.invalidate_all_results(v, "remove_constraint", input);
+                self.invalidate_all_results(v, InvalidationReason::RemoveConstraint, input);
             }
             StateEvent::UpdateAssumption(rec) => {
                 self.assumptions.push(rec);
-                self.invalidate_all_results(v, "update_assumption", input);
+                self.invalidate_all_results(v, InvalidationReason::UpdateAssumption, input);
             }
             StateEvent::RegisterQuery(query) => {
                 let _id = self.queries.register(query);
@@ -194,7 +196,7 @@ impl CausalState {
             }
             StateEvent::RecordIntervention(rec) => {
                 self.interventions.push(rec);
-                self.invalidate_all_results(v, "record_intervention", input);
+                self.invalidate_all_results(v, InvalidationReason::RecordIntervention, input);
             }
         }
         Ok(v)
@@ -525,7 +527,7 @@ impl CausalState {
     fn invalidate_data_dependents(
         &mut self,
         v: StateVersion,
-        reason: &str,
+        reason: InvalidationReason,
         input: Option<ChangedInput>,
         change: RefreshChange,
     ) {
@@ -543,7 +545,7 @@ impl CausalState {
             self.invalidations.push(
                 v,
                 InvalidationTarget::SuffStat(key),
-                format!("{reason}:ols_may_need_append"),
+                format!("{}:ols_may_need_append", reason.as_str()),
             );
         }
         self.invalidations.push(v, InvalidationTarget::LagIndexes, reason);
@@ -568,14 +570,16 @@ impl CausalState {
     fn invalidate_all_results(
         &mut self,
         v: StateVersion,
-        reason: &str,
+        reason: InvalidationReason,
         input: Option<ChangedInput>,
     ) {
         let ids: Vec<QueryId> = self.cached_results.results.keys().copied().collect();
-        let log = |log: &mut InvalidationLog, target: InvalidationTarget, reason: &str| match input
+        let log = |log: &mut InvalidationLog,
+                   target: InvalidationTarget,
+                   reason: InvalidationReason| match input
         {
-            Some(input) => log.push_input(v, target, Arc::from(reason), input),
-            None => log.push(v, target, Arc::from(reason)),
+            Some(input) => log.push_input(v, target, reason, input),
+            None => log.push(v, target, reason),
         };
         for q in ids {
             self.cached_results.remove(q, &mut self.cache_budget);

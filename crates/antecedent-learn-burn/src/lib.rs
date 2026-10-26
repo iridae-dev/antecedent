@@ -11,10 +11,9 @@
 #![deny(missing_docs)]
 
 use burn::backend::{Autodiff, NdArray};
-use burn::module::{AutodiffModule, Module};
+use burn::module::Module;
 use burn::nn::Linear;
-use burn::optim::{AdamConfig, GradientsParams, Optimizer};
-use burn::tensor::activation::{relu, sigmoid};
+use burn::tensor::activation::{log_sigmoid, relu};
 use burn::tensor::{Tensor, TensorData, backend::Backend};
 
 pub mod accelerator_probe;
@@ -24,19 +23,6 @@ pub mod policy;
 pub mod staged;
 
 type TrainBackend = Autodiff<NdArray<f32>>;
-type InferBackend = NdArray<f32>;
-
-/// Burn's backend RNG is global: training holds this lock so concurrent folds cannot
-/// reseed each other.
-static TRAIN_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-// The lock protects RNG sequencing, not mutable model state. All model/tensor
-// state belongs to the fit and unwinds on panic; every next fit reseeds before
-// creating tensors. Recovering this unit lock lets auto fall back after a device
-// panic while preserving whole-fit serialization on both training routes.
-fn training_guard() -> std::sync::MutexGuard<'static, ()> {
-    TRAIN_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
-}
 
 /// Trained two-hidden-layer MLP. Predicts one value per row.
 ///
@@ -81,8 +67,6 @@ pub enum LearnBurnError {
     BinaryLabels,
     /// Learning rate is non-finite or not positive.
     LearningRate,
-    /// Another thread panicked while holding the training lock.
-    LockPoisoned,
     /// Burn could not read the scalar loss.
     Loss(String),
     /// Training loss left the finite range.
@@ -118,7 +102,6 @@ impl std::fmt::Display for LearnBurnError {
             Self::LearningRate => {
                 f.write_str("neural_net learning_rate must be finite and positive")
             }
-            Self::LockPoisoned => f.write_str("neural_net training lock poisoned"),
             Self::Loss(detail) => write!(f, "neural_net loss: {detail}"),
             Self::Diverged(loss) => write!(f, "neural_net training diverged (loss {loss})"),
             Self::NonFiniteWeights => f.write_str("neural_net produced non-finite weights"),
@@ -180,101 +163,30 @@ pub fn train_cancellable(
     spec: &MlpSpec,
     stop: &dyn Fn() -> bool,
 ) -> Result<TrainedMlp, LearnBurnError> {
-    let MlpSpec { binary, hidden, epochs, learning_rate, seed } = *spec;
-    if nrows == 0 || ncols == 0 {
-        return Err(LearnBurnError::EmptyDesign);
+    // Every fit, on any backend, goes through the one staged implementation. The initial
+    // weights are drawn on the host from `spec.seed` and no training step is stochastic, so
+    // concurrent fits share no state and need no process-wide lock.
+    let device = <TrainBackend as Backend>::Device::default();
+    staged::fit_staged::<TrainBackend>(&device, x_colmajor, nrows, ncols, y, spec, stop)
+        .map(|fit| fit.model)
+}
+
+/// Mean training loss of `pred` against `y` (both `rows x 1`) on the standardized scale.
+///
+/// A binary target uses the cross-entropy of the *logits*,
+/// `-mean(y ln σ(z) + (1 - y) ln σ(-z))`, evaluated with Burn's stable log-sigmoid: a
+/// saturated prediction keeps a nonzero gradient and a nonzero loss, which clamping a
+/// probability away from 0 and 1 and taking its logarithm would flatten. A regression target
+/// uses the mean squared error.
+fn epoch_loss<B: Backend>(pred: Tensor<B, 2>, y: Tensor<B, 2>, binary: bool) -> Tensor<B, 1> {
+    if binary {
+        let log_p = log_sigmoid(pred.clone());
+        let log_q = log_sigmoid(pred.neg());
+        let complement = y.clone().neg().add_scalar(1.0);
+        y.mul(log_p).add(complement.mul(log_q)).mean().neg()
+    } else {
+        pred.sub(y).powf_scalar(2.0).mean()
     }
-    if x_colmajor.len() < nrows.saturating_mul(ncols) || y.len() != nrows {
-        return Err(LearnBurnError::ShapeMismatch);
-    }
-    if hidden == 0 || epochs == 0 {
-        return Err(LearnBurnError::Architecture);
-    }
-    if x_colmajor[..nrows * ncols].iter().chain(y).any(|v| !v.is_finite()) {
-        return Err(LearnBurnError::NonFiniteInput);
-    }
-    #[allow(clippy::float_cmp, reason = "a binary target is exactly the labels 0 and 1")]
-    let not_a_label = |v: f64| v != 0.0 && v != 1.0;
-    if binary && y.iter().any(|&v| not_a_label(v)) {
-        return Err(LearnBurnError::BinaryLabels);
-    }
-    if !learning_rate.is_finite() || learning_rate <= 0.0 {
-        return Err(LearnBurnError::LearningRate);
-    }
-    // Burn's backend RNG is global. Hold the lock through training so concurrent
-    // folds cannot reseed each other's initialization or stochastic operations.
-    let _guard = training_guard();
-    InferBackend::seed(seed);
-    let device = <InferBackend as Backend>::Device::default();
-    // Standardize inputs and (for regression) the target before training. Raw f32 inputs
-    // of scale 1e5 with a fixed Adam step saturate or overflow the network; the fitted
-    // weights live on the standardized scale and `predict` applies the same transform.
-    let (x_center, x_scale) = column_standardization(x_colmajor, nrows, ncols);
-    let (y_center, y_scale) = if binary { (0.0, 1.0) } else { target_standardization(y) };
-    let x_std = standardized(x_colmajor, nrows, ncols, &x_center, &x_scale);
-    let x_rm = colmajor_to_rowmajor_f32(&x_std, nrows, ncols);
-    #[allow(
-        clippy::cast_possible_truncation,
-        reason = "the network trains in f32, so narrowing the standardized target is the intended precision"
-    )]
-    let y_f: Vec<f32> = y.iter().map(|&v| ((v - y_center) / y_scale) as f32).collect();
-    let mut model = Mlp::<TrainBackend>::seeded(&device, ncols, hidden, seed);
-    let mut optim = AdamConfig::new().init();
-    let x_t = tensor2(&x_rm, [nrows, ncols], &device);
-    let y_t = tensor2(&y_f, [nrows, 1], &device);
-    let lr = learning_rate;
-    for _ in 0..epochs {
-        if stop() {
-            return Err(LearnBurnError::Cancelled);
-        }
-        let pred = model.forward(x_t.clone());
-        let loss = if binary {
-            let p = sigmoid(pred.clone()).clamp(1e-6, 1.0 - 1e-6);
-            let ones = p.ones_like();
-            y_t.clone()
-                .mul(p.clone().log())
-                .add(ones.clone().sub(y_t.clone()).mul(ones.sub(p).log()))
-                .mean()
-                .mul_scalar(-1.0)
-        } else {
-            pred.sub(y_t.clone()).powf_scalar(2.0).mean()
-        };
-        // A diverged fit yields NaN/inf weights that `clamp` would carry into an `Ok` model;
-        // stop at the first non-finite loss instead of returning it as a nuisance.
-        let loss_value = loss
-            .clone()
-            .into_data()
-            .as_slice::<f32>()
-            .map_err(|e| LearnBurnError::Loss(format!("{e:?}")))?
-            .first()
-            .copied()
-            .unwrap_or(f32::NAN);
-        if !loss_value.is_finite() {
-            return Err(LearnBurnError::Diverged(loss_value));
-        }
-        let grads = loss.backward();
-        let grads = GradientsParams::from_grads(grads, &model);
-        model = optim.step(lr, model, grads);
-    }
-    let model = model.valid();
-    let trained = TrainedMlp {
-        l1: extract_linear(&model.l1)?,
-        l2: extract_linear(&model.l2)?,
-        out: extract_linear(&model.out)?,
-        binary,
-        ncols,
-        x_center,
-        x_scale,
-        y_center,
-        y_scale,
-    };
-    let all_finite = [&trained.l1, &trained.l2, &trained.out]
-        .iter()
-        .all(|l| l.weight.iter().chain(&l.bias).all(|v| v.is_finite()));
-    if !all_finite {
-        return Err(LearnBurnError::NonFiniteWeights);
-    }
-    Ok(trained)
 }
 
 impl TrainedMlp {
@@ -412,24 +324,6 @@ fn relu_inplace(values: &mut [f32]) {
     }
 }
 
-fn extract_linear(layer: &Linear<InferBackend>) -> Result<DenseLayer, LearnBurnError> {
-    let weight = layer.weight.val();
-    let dims = weight.dims();
-    let din = dims[0];
-    let dout = dims[1];
-    let w = weight
-        .into_data()
-        .as_slice::<f32>()
-        .map_err(|e| LearnBurnError::Weight(format!("{e:?}")))?
-        .to_vec();
-    let bias = layer.bias.as_ref().ok_or(LearnBurnError::MissingBias)?.val().into_data();
-    let b = bias.as_slice::<f32>().map_err(|e| LearnBurnError::Bias(format!("{e:?}")))?.to_vec();
-    if w.len() != din.saturating_mul(dout) || b.len() != dout {
-        return Err(LearnBurnError::WeightShape);
-    }
-    Ok(DenseLayer { din, dout, weight: w, bias: b })
-}
-
 /// Centre and scale of each design column. A constant column (an intercept) keeps centre
 /// `0` and scale `1` so its meaning survives standardization.
 fn column_standardization(x: &[f64], nrows: usize, ncols: usize) -> (Vec<f64>, Vec<f64>) {
@@ -508,29 +402,53 @@ mod tests {
         (x, y)
     }
 
+    /// Fits share no state: the same request trained concurrently and sequentially, on the
+    /// public route and on the staged route, produces bit-identical predictions.
     #[test]
-    fn cpu_and_staged_training_reseed_after_a_panicked_fit() {
+    fn concurrent_fits_are_bit_identical_to_sequential_fits() {
         let (x, y) = line(20, 2.0, 0.5);
         let spec = MlpSpec { binary: false, hidden: 4, epochs: 2, learning_rate: 0.05, seed: 17 };
-        let before = train(&x, 20, 2, &y, &spec).unwrap();
-        let failed = std::panic::catch_unwind(|| {
-            let _held = training_guard();
-            panic!("simulated backend failure while training");
-        });
-        assert!(failed.is_err());
-        let after = train(&x, 20, 2, &y, &spec).unwrap();
+        let predict = |model: &TrainedMlp| {
+            let mut out = vec![0.0; 20];
+            model.predict(&x, 20, 2, &mut out).unwrap();
+            out
+        };
+        let reference = predict(&train(&x, 20, 2, &y, &spec).unwrap());
         let device = <TrainBackend as Backend>::Device::default();
         let staged =
             staged::fit_staged::<TrainBackend>(&device, &x, 20, 2, &y, &spec, &|| false).unwrap();
-        let mut reference = vec![0.0; 20];
-        before.predict(&x, 20, 2, &mut reference).unwrap();
-        for model in [&after, &staged.model] {
-            let mut predictions = vec![0.0; 20];
-            model.predict(&x, 20, 2, &mut predictions).unwrap();
-            for (expected, actual) in reference.iter().zip(predictions) {
-                assert_eq!(expected.to_bits(), actual.to_bits());
-            }
+        assert_eq!(bits(&reference), bits(&predict(&staged.model)));
+        let concurrent: Vec<Vec<f64>> = std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..4)
+                .map(|_| scope.spawn(|| predict(&train(&x, 20, 2, &y, &spec).unwrap())))
+                .collect();
+            handles.into_iter().map(|handle| handle.join().unwrap()).collect()
+        });
+        for out in &concurrent {
+            assert_eq!(bits(&reference), bits(out));
         }
+    }
+
+    fn bits(values: &[f64]) -> Vec<u64> {
+        values.iter().map(|v| v.to_bits()).collect()
+    }
+
+    /// A saturated binary prediction keeps a finite loss and a nonzero gradient.
+    #[test]
+    fn binary_loss_stays_informative_when_saturated() {
+        let device = <TrainBackend as Backend>::Device::default();
+        let z = Tensor::<TrainBackend, 2>::from_data(
+            TensorData::new(vec![40.0f32, -40.0], [2, 1]),
+            &device,
+        )
+        .require_grad();
+        let y = Tensor::<TrainBackend, 2>::from_data(TensorData::new(vec![0.0f32, 1.0], [2, 1]), &device);
+        let loss = epoch_loss(z.clone(), y, true);
+        let value = loss.clone().into_data().as_slice::<f32>().unwrap()[0];
+        assert!(value.is_finite() && value > 30.0, "loss {value}");
+        let grads = loss.backward();
+        let g = z.grad(&grads).unwrap().into_data();
+        assert!(g.as_slice::<f32>().unwrap().iter().all(|v| v.abs() > 0.1));
     }
 
     /// Mean absolute error relative to the target's SD.

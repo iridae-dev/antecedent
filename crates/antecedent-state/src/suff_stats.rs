@@ -9,6 +9,9 @@
 
 #![allow(clippy::similar_names, reason = "xtx / xty")]
 
+use std::collections::BTreeSet;
+
+use antecedent_core::CanonicalWriter;
 use antecedent_kernels::numeric::CompensatedSum;
 use antecedent_kernels::{chol_solve_into, cholesky_spd_into};
 use antecedent_stats::accumulate_xtx_xty_row;
@@ -183,6 +186,16 @@ impl LinearOlsSuffStats {
         if self.invalidated {
             return Err(unsupported("summary invalidated"));
         }
+        self.validate_row(row, y)?;
+        if !self.published_matches_scatter() {
+            return Err(unsupported("summary is out of step with its scatter"));
+        }
+        let mut joint_row = Vec::with_capacity(self.ncols.saturating_add(1));
+        self.append_validated(row, y, &mut joint_row)
+    }
+
+    /// Shape and finiteness of one row; touches nothing.
+    fn validate_row(&self, row: &[f64], y: f64) -> Result<(), StateError> {
         if row.len() != self.ncols {
             return Err(StateError::Shape(format!(
                 "row len {} != ncols {}",
@@ -193,14 +206,22 @@ impl LinearOlsSuffStats {
         if !y.is_finite() || row.iter().any(|v| !v.is_finite()) {
             return Err(StateError::Numerical("design row and response must be finite".into()));
         }
-        if !self.published_matches_scatter() {
-            return Err(unsupported("summary is out of step with its scatter"));
-        }
-        let mut joint_row = Vec::with_capacity(self.ncols.saturating_add(1));
+        Ok(())
+    }
+
+    /// Append a row already validated by [`Self::validate_row`] into a summary already
+    /// verified against its scatter. `joint_row` is reusable scratch.
+    fn append_validated(
+        &mut self,
+        row: &[f64],
+        y: f64,
+        joint_row: &mut Vec<f64>,
+    ) -> Result<(), StateError> {
+        joint_row.clear();
         joint_row.extend_from_slice(row);
         joint_row.push(y);
         // Fallible step first (count overflow); everything after it cannot fail.
-        self.joint.append(&joint_row)?;
+        self.joint.append(joint_row)?;
         accumulate_xtx_xty_row(row, y, &mut self.xtx, &mut self.xty);
         self.yty += y * y;
         self.n = self.n.saturating_add(1);
@@ -209,9 +230,15 @@ impl LinearOlsSuffStats {
 
     /// Append a batch of rows (row-major `n×p`) and responses.
     ///
+    /// The batch is one unit: every row is validated and the summary is verified against its
+    /// scatter once, before anything is appended, so a bad row leaves the summary untouched.
+    /// Nothing inside the batch can put the published moments out of step with the scatter,
+    /// so that one verification covers every row.
+    ///
     /// # Errors
     ///
-    /// Shape mismatch.
+    /// Shape mismatch, a non-finite value, an invalidated or out-of-step summary, or a count
+    /// that would overflow.
     pub fn append_batch(&mut self, rows_rowmajor: &[f64], y: &[f64]) -> Result<(), StateError> {
         if self.ncols == 0 {
             return Err(StateError::Shape("ncols is 0".into()));
@@ -223,9 +250,25 @@ impl LinearOlsSuffStats {
         if y.len() != n {
             return Err(StateError::Shape("y length mismatch".into()));
         }
-        for i in 0..n {
-            let row = &rows_rowmajor[i * self.ncols..(i + 1) * self.ncols];
-            self.append_row(row, y[i])?;
+        if n == 0 {
+            return Ok(());
+        }
+        if self.invalidated {
+            return Err(unsupported("summary invalidated"));
+        }
+        for (row, response) in rows_rowmajor.chunks_exact(self.ncols).zip(y) {
+            self.validate_row(row, *response)?;
+        }
+        if !self.published_matches_scatter() {
+            return Err(unsupported("summary is out of step with its scatter"));
+        }
+        u64::try_from(n)
+            .ok()
+            .and_then(|count| self.n.checked_add(count))
+            .ok_or_else(|| StateError::Numerical("covariance count overflow".into()))?;
+        let mut joint_row = Vec::with_capacity(self.ncols.saturating_add(1));
+        for (row, response) in rows_rowmajor.chunks_exact(self.ncols).zip(y) {
+            self.append_validated(row, *response, &mut joint_row)?;
         }
         Ok(())
     }
@@ -277,42 +320,14 @@ impl LinearOlsSuffStats {
         if !self.published_matches_scatter() {
             return None;
         }
-        let p = self.ncols;
-        let dim = p + 1;
-        let s = &self.joint.m2;
-        let mut sse = s[p * dim + p];
-        let mut bsy = 0.0;
-        let mut bsb = 0.0;
-        for i in 0..p {
-            bsy += beta[i] * s[i * dim + p];
-            for j in 0..p {
-                bsb += beta[i] * s[i * dim + j] * beta[j];
-            }
-        }
-        sse = sse - 2.0 * bsy + bsb;
-        if !sse.is_finite() {
-            return None;
-        }
-        // Mean residual r̄ = ȳ − x̄ᵀβ. Keep n r̄² whenever that product is finite.
-        let means = &self.joint.mean;
-        let mut r_bar = means[p];
-        for i in 0..p {
-            r_bar -= beta[i] * means[i];
-        }
-        let correction = (self.n as f64) * r_bar * r_bar;
-        if !correction.is_finite() {
-            return None;
-        }
-        sse += correction;
-        if sse < 0.0 {
-            let scale = s[p * dim + p].abs().max(1.0);
-            if sse.abs() <= 1e-12 * scale {
-                sse = 0.0;
-            } else {
-                return None;
-            }
-        }
-        Some(sse / (self.n as f64 - p as f64))
+        let sse = centered_residual_sse(
+            &self.joint.m2,
+            &self.joint.mean,
+            self.ncols,
+            beta,
+            self.n as f64,
+        )?;
+        Some(sse / (self.n as f64 - self.ncols as f64))
     }
 
     /// Merge `other` into this summary.
@@ -520,6 +535,175 @@ pub(crate) fn solve_gram(xtx: &[f64], xty: &[f64], ncols: usize) -> Result<Vec<f
     Ok(beta)
 }
 
+/// `Σ w (y − xᵀβ)²` from a mean-centred scatter of `[x | y]` (`m2`, row-major
+/// `(p + 1)²`) with total weight `mass`; `None` when the value is not representable or is
+/// negative beyond rounding.
+///
+/// `SSE = Σ w (r − r̄)² + mass · r̄²` with `r̄ = ȳ − x̄ᵀβ`: the scatter is stable under a
+/// large common offset, and the second term (zero for OLS with an intercept) makes the result
+/// exact for through-origin designs and externally supplied coefficients. Shared by the
+/// unit-weight and the real-weight summaries.
+pub(crate) fn centered_residual_sse(
+    m2: &[f64],
+    mean: &[f64],
+    p: usize,
+    beta: &[f64],
+    mass: f64,
+) -> Option<f64> {
+    let dim = p + 1;
+    if beta.len() != p || m2.len() < dim * dim || mean.len() < dim {
+        return None;
+    }
+    let mut sse = m2[p * dim + p];
+    let mut bsy = 0.0;
+    let mut bsb = 0.0;
+    for i in 0..p {
+        bsy += beta[i] * m2[i * dim + p];
+        for j in 0..p {
+            bsb += beta[i] * m2[i * dim + j] * beta[j];
+        }
+    }
+    sse = sse - 2.0 * bsy + bsb;
+    if !sse.is_finite() {
+        return None;
+    }
+    let mut r_bar = mean[p];
+    for i in 0..p {
+        r_bar -= beta[i] * mean[i];
+    }
+    let correction = mass * r_bar * r_bar;
+    if !correction.is_finite() {
+        return None;
+    }
+    sse += correction;
+    if sse < 0.0 {
+        let scale = m2[p * dim + p].abs().max(1.0);
+        if sse.abs() <= 1e-12 * scale {
+            sse = 0.0;
+        } else {
+            return None;
+        }
+    }
+    Some(sse)
+}
+
+/// Chan's merge of two mean-centred scatters, `base` taken as the reference so a shared
+/// offset is not cancelled twice. Masses are counts or total weights; `total_mass` is their
+/// sum. Returns the merged `(mean, m2)`.
+pub(crate) fn chan_merge_scatter(
+    dim: usize,
+    base: (f64, &[f64], &[f64]),
+    add: (f64, &[f64], &[f64]),
+    total_mass: f64,
+) -> (Vec<f64>, Vec<f64>) {
+    let (base_mass, base_mean, base_m2) = base;
+    let (add_mass, add_mean, add_m2) = add;
+    let weight = add_mass / total_mass;
+    let scale = base_mass * add_mass / total_mass;
+    let mut mean = vec![0.0; dim];
+    let mut delta = vec![0.0; dim];
+    let means = mean.iter_mut().zip(&mut delta);
+    let sources = base_mean.iter().zip(add_mean);
+    for ((slot, gap), (base_value, add_value)) in means.zip(sources) {
+        let step = *add_value - *base_value;
+        *gap = step;
+        *slot = *base_value + step * weight;
+    }
+    let mut m2 = vec![0.0; dim * dim];
+    for i in 0..dim {
+        for j in i..dim {
+            let value = add_f64(base_m2[i * dim + j], add_m2[i * dim + j]) + delta[i] * delta[j] * scale;
+            m2[i * dim + j] = value;
+            m2[j * dim + i] = value;
+        }
+    }
+    (mean, m2)
+}
+
+/// One weighted Welford step of the scatter of `z` (`dim` entries) with weight `weight`,
+/// given the total weight `mass_before` already absorbed (zero for the first row).
+///
+/// `delta` is caller-owned scratch. Only the upper triangle is computed and mirrored, so the
+/// scatter stays exactly symmetric.
+pub(crate) fn update_weighted_scatter(
+    mean: &mut [f64],
+    m2: &mut [f64],
+    mass_before: f64,
+    weight: f64,
+    z: &[f64],
+    delta: &mut Vec<f64>,
+) {
+    let dim = z.len();
+    let mass_next = mass_before + weight;
+    delta.clear();
+    delta.extend(z.iter().zip(mean.iter()).map(|(value, m)| value - m));
+    for (m, step) in mean.iter_mut().zip(delta.iter()) {
+        *m += step * (weight / mass_next);
+    }
+    for i in 0..dim {
+        for j in i..dim {
+            let value = m2[i * dim + j] + weight * delta[i] * (z[j] - mean[j]);
+            m2[i * dim + j] = value;
+            m2[j * dim + i] = value;
+        }
+    }
+}
+
+/// Start of a retained-row source digest: the tag, the source and the row width.
+pub(crate) fn source_digest_start(tag: &str, source: &str, width: usize) -> CanonicalWriter {
+    let mut writer = CanonicalWriter::new(tag);
+    writer.text(source).word(width as u64);
+    writer
+}
+
+/// Refusal of a row id that is already in a summary.
+pub(crate) fn repeated_row(id: u64) -> StateError {
+    StateError::InvalidEvent(format!(
+        "row {id} is already in the summary; each observation enters once, so drop the \
+         duplicate or evict the earlier row first"
+    ))
+}
+
+/// Validate `rows` with `validate` (which returns each row's id) and collect the ids,
+/// refusing an id that is in `taken` or repeats within `rows`.
+pub(crate) fn checked_row_ids<R>(
+    rows: &[R],
+    taken: &BTreeSet<u64>,
+    validate: impl Fn(&R) -> Result<u64, StateError>,
+) -> Result<BTreeSet<u64>, StateError> {
+    let mut ids = BTreeSet::new();
+    for row in rows {
+        let id = validate(row)?;
+        if taken.contains(&id) || !ids.insert(id) {
+            return Err(repeated_row(id));
+        }
+    }
+    Ok(ids)
+}
+
+/// Whether two slices agree element-wise within [`merge_within_tolerance`].
+pub(crate) fn all_close(left: &[f64], right: &[f64]) -> bool {
+    left.len() == right.len() && left.iter().zip(right).all(|(a, b)| merge_within_tolerance(*a, *b))
+}
+
+/// [`all_close`] for optional slices; two absent values agree.
+pub(crate) fn optional_close(left: Option<&[f64]>, right: Option<&[f64]>) -> bool {
+    match (left, right) {
+        (None, None) => true,
+        (Some(a), Some(b)) => all_close(a, b),
+        _ => false,
+    }
+}
+
+/// [`merge_within_tolerance`] for optional scalars; two absent values agree.
+pub(crate) fn optional_scalar_close(left: Option<f64>, right: Option<f64>) -> bool {
+    match (left, right) {
+        (None, None) => true,
+        (Some(a), Some(b)) => merge_within_tolerance(a, b),
+        _ => false,
+    }
+}
+
 fn rebuilt_moment(joint: &StreamingCovariance, row: usize, col: usize) -> f64 {
     let dim = joint.dim;
     joint.m2[row * dim + col] + (joint.n as f64) * joint.mean[row] * joint.mean[col]
@@ -546,7 +730,7 @@ fn unsupported(reason: &str) -> StateError {
     clippy::if_same_then_else,
     reason = "operand order is the recorded bits; a + b and b + a are not the same f64"
 )]
-const fn add_f64(left: f64, right: f64) -> f64 {
+pub(crate) const fn add_f64(left: f64, right: f64) -> f64 {
     let left_abs = left.abs().to_bits();
     let right_abs = right.abs().to_bits();
     let left_first =
@@ -697,31 +881,13 @@ impl StreamingCovariance {
         } else {
             (other, self)
         };
-        let n_base = base.n as f64;
-        let n_add = add.n as f64;
-        let n_f = n as f64;
-        let weight = n_add / n_f;
-        let scale = n_base * n_add / n_f;
+        let (mean, m2) = chan_merge_scatter(
+            self.dim,
+            (base.n as f64, &base.mean, &base.m2),
+            (add.n as f64, &add.mean, &add.m2),
+            n as f64,
+        );
         let dim = self.dim;
-        let cells = square_len(dim, "covariance dimension overflow")?;
-        let mut mean = vec![0.0; dim];
-        let mut delta = vec![0.0; dim];
-        let means = mean.iter_mut().zip(&mut delta);
-        let sources = base.mean.iter().zip(&add.mean);
-        for ((slot, gap), (base_mean, add_mean)) in means.zip(sources) {
-            let step = *add_mean - *base_mean;
-            *gap = step;
-            *slot = *base_mean + step * weight;
-        }
-        let mut m2 = vec![0.0; cells];
-        for i in 0..dim {
-            for j in i..dim {
-                let value = add_f64(base.m2[i * dim + j], add.m2[i * dim + j])
-                    + delta[i] * delta[j] * scale;
-                m2[i * dim + j] = value;
-                m2[j * dim + i] = value;
-            }
-        }
         Ok(Self { dim, n, mean, m2, retention: self.retention })
     }
 

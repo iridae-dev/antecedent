@@ -27,7 +27,10 @@ use antecedent_core::CanonicalWriter;
 use crate::disk_retention::{SpillDecoder, SpillEncoder, SpillHandle, SpillRegistry, Spillable};
 use crate::error::StateError;
 use crate::retention::{RetainedOperation, RetentionMode};
-use crate::suff_stats::{LinearOlsSuffStats, merge_within_tolerance};
+use crate::suff_stats::{
+    LinearOlsSuffStats, all_close, checked_row_ids, merge_within_tolerance, optional_close,
+    optional_scalar_close, repeated_row, source_digest_start,
+};
 
 const SOURCE_TAG: &str = "antecedent.state.ols_refresh.source";
 
@@ -136,9 +139,7 @@ pub struct OlsRefresh {
 }
 
 fn digest_start(source: &str, ncols: usize) -> CanonicalWriter {
-    let mut writer = CanonicalWriter::new(SOURCE_TAG);
-    writer.text(source).word(ncols as u64);
-    writer
+    source_digest_start(SOURCE_TAG, source, ncols)
 }
 
 fn digest_row(writer: &mut CanonicalWriter, row: &RefreshRow) {
@@ -297,7 +298,7 @@ impl OlsRefresh {
         self.check_source(source)?;
         row.validate(self.ncols)?;
         if self.ids.contains(&row.id) {
-            return Err(repeated(row.id));
+            return Err(repeated_row(row.id));
         }
         add_to_stats(&mut self.stats, row)?;
         self.take(row);
@@ -512,27 +513,12 @@ impl OlsRefresh {
     }
 }
 
-fn repeated(id: u64) -> StateError {
-    StateError::InvalidEvent(format!(
-        "row {id} is already in the summary; each observation enters once, so drop the \
-         duplicate or evict the earlier row first"
-    ))
-}
-
-/// Validate `rows` and return their ids, refusing an id in `taken` or repeated in `rows`.
 fn checked_ids(
     ncols: usize,
     rows: &[RefreshRow],
     taken: &BTreeSet<u64>,
 ) -> Result<BTreeSet<u64>, StateError> {
-    let mut ids = BTreeSet::new();
-    for row in rows {
-        row.validate(ncols)?;
-        if taken.contains(&row.id) || !ids.insert(row.id) {
-            return Err(repeated(row.id));
-        }
-    }
-    Ok(ids)
+    checked_row_ids(rows, taken, |row| row.validate(ncols).map(|()| row.id))
 }
 
 #[allow(
@@ -563,26 +549,6 @@ fn snapshot_of(
         residual_variance,
         source_digest: digest.finish_hex(),
         ledger,
-    }
-}
-
-fn all_close(left: &[f64], right: &[f64]) -> bool {
-    left.len() == right.len() && left.iter().zip(right).all(|(a, b)| merge_within_tolerance(*a, *b))
-}
-
-fn optional_close(left: Option<&[f64]>, right: Option<&[f64]>) -> bool {
-    match (left, right) {
-        (None, None) => true,
-        (Some(a), Some(b)) => all_close(a, b),
-        _ => false,
-    }
-}
-
-fn optional_scalar_close(left: Option<f64>, right: Option<f64>) -> bool {
-    match (left, right) {
-        (None, None) => true,
-        (Some(a), Some(b)) => merge_within_tolerance(a, b),
-        _ => false,
     }
 }
 

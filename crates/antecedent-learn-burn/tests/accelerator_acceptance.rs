@@ -30,7 +30,7 @@ impl DeviceProbe for Claimed {
     fn compiled(&self) -> bool {
         true
     }
-    fn adapter(&self) -> Result<AdapterSummary, String> {
+    fn adapter(&self) -> Result<AdapterSummary, antecedent_learn_burn::policy::AdapterError> {
         Ok(AdapterSummary {
             name: "Claimed GPU".to_string(),
             api: "Metal".to_string(),

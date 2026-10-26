@@ -53,16 +53,36 @@ impl ComputePolicy {
     ///
     /// # Errors
     ///
-    /// The unrecognized text.
-    pub fn parse(text: &str) -> Result<Self, String> {
+    /// [`PolicyParseError`] carrying the unrecognized text.
+    pub fn parse(text: &str) -> Result<Self, PolicyParseError> {
         match text {
             "cpu" => Ok(Self::Cpu),
             "gpu" => Ok(Self::Gpu),
             "auto" => Ok(Self::Auto),
-            other => Err(other.to_string()),
+            other => Err(PolicyParseError::Unrecognized(other.to_string())),
         }
     }
 }
+
+/// Why [`ComputePolicy::parse`] refused its text.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PolicyParseError {
+    /// The text names no policy.
+    Unrecognized(String),
+}
+
+impl fmt::Display for PolicyParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unrecognized(text) => {
+                write!(f, "unrecognized compute policy {text:?}; expected cpu, gpu, or auto")
+            }
+        }
+    }
+}
+
+impl std::error::Error for PolicyParseError {}
 
 /// Arithmetic width requested for the fit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -152,6 +172,30 @@ pub struct AdapterSummary {
     pub max_buffer_bytes: u64,
 }
 
+/// Why no device adapter is usable.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum AdapterError {
+    /// [`DISABLE_DEVICE_ENV`] hides the device from this process.
+    Disabled,
+    /// This build does not link the device library.
+    NotLinked,
+    /// The runtime reported no usable adapter; the detail is the runtime's.
+    Unavailable(String),
+}
+
+impl fmt::Display for AdapterError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Disabled => write!(f, "the device is disabled by {DISABLE_DEVICE_ENV}"),
+            Self::NotLinked => f.write_str("the device library is not linked in this build"),
+            Self::Unavailable(detail) => f.write_str(detail),
+        }
+    }
+}
+
+impl std::error::Error for AdapterError {}
+
 /// What this process can say about the device runtime.
 pub trait DeviceProbe {
     /// Whether this build links the device library.
@@ -162,7 +206,7 @@ pub trait DeviceProbe {
     /// # Errors
     ///
     /// Why no adapter is usable.
-    fn adapter(&self) -> Result<AdapterSummary, String>;
+    fn adapter(&self) -> Result<AdapterSummary, AdapterError>;
 }
 
 /// The real probe: the linked Burn WGPU runtime on this host.
@@ -174,7 +218,7 @@ impl DeviceProbe for SystemProbe {
         cfg!(feature = "wgpu")
     }
 
-    fn adapter(&self) -> Result<AdapterSummary, String> {
+    fn adapter(&self) -> Result<AdapterSummary, AdapterError> {
         if let Some(reason) = device_disabled(std::env::var(DISABLE_DEVICE_ENV).ok().as_deref()) {
             return Err(reason);
         }
@@ -188,25 +232,23 @@ impl DeviceProbe for SystemProbe {
 /// that must keep jobs off the GPU, and to exercise the missing-device refusal.
 pub const DISABLE_DEVICE_ENV: &str = "ANTECEDENT_DISABLE_DEVICE";
 
-/// The refusal text when `value` of [`DISABLE_DEVICE_ENV`] disables the device.
-fn device_disabled(value: Option<&str>) -> Option<String> {
+/// The refusal when `value` of [`DISABLE_DEVICE_ENV`] disables the device.
+fn device_disabled(value: Option<&str>) -> Option<AdapterError> {
     match value {
-        Some(text) if !text.is_empty() && text != "0" => {
-            Some(format!("the device is disabled by {DISABLE_DEVICE_ENV}"))
-        }
+        Some(text) if !text.is_empty() && text != "0" => Some(AdapterError::Disabled),
         _ => None,
     }
 }
 
 #[cfg(feature = "wgpu")]
-fn system_adapter() -> Result<AdapterSummary, String> {
+fn system_adapter() -> Result<AdapterSummary, AdapterError> {
     use std::sync::OnceLock;
 
     use burn::backend::wgpu::{AutoGraphicsApi, RuntimeOptions, WgpuDevice, init_setup};
 
     // Initializing a device twice is not allowed, so the one answer is cached. The first
     // call registers the default device that every later fit reuses.
-    static ADAPTER: OnceLock<Result<AdapterSummary, String>> = OnceLock::new();
+    static ADAPTER: OnceLock<Result<AdapterSummary, AdapterError>> = OnceLock::new();
     ADAPTER
         .get_or_init(|| {
             std::panic::catch_unwind(|| {
@@ -221,15 +263,18 @@ fn system_adapter() -> Result<AdapterSummary, String> {
                 }
             })
             .map_err(|payload| {
-                format!("no usable adapter: {}", super::device::panic_text(payload.as_ref()))
+                AdapterError::Unavailable(format!(
+                    "no usable adapter: {}",
+                    super::device::panic_text(payload.as_ref())
+                ))
             })
         })
         .clone()
 }
 
 #[cfg(not(feature = "wgpu"))]
-fn system_adapter() -> Result<AdapterSummary, String> {
-    Err("the device library is not linked in this build".to_string())
+fn system_adapter() -> Result<AdapterSummary, AdapterError> {
+    Err(AdapterError::NotLinked)
 }
 
 /// The process-wide device-byte account for the adapter this build links.
@@ -494,7 +539,7 @@ fn device_check(
     if !probe.compiled() {
         return Err(FallbackReason::RuntimeNotCompiled);
     }
-    let adapter = probe.adapter().map_err(FallbackReason::NoDevice)?;
+    let adapter = probe.adapter().map_err(|error| FallbackReason::NoDevice(error.to_string()))?;
     if adapter.device_type == "Cpu" {
         return Err(FallbackReason::NoDevice(format!(
             "adapter {} is a software renderer",
@@ -705,14 +750,14 @@ mod tests {
 
     struct Fake {
         compiled: bool,
-        adapter: Result<AdapterSummary, String>,
+        adapter: Result<AdapterSummary, AdapterError>,
     }
 
     impl DeviceProbe for Fake {
         fn compiled(&self) -> bool {
             self.compiled
         }
-        fn adapter(&self) -> Result<AdapterSummary, String> {
+        fn adapter(&self) -> Result<AdapterSummary, AdapterError> {
             self.adapter.clone()
         }
     }
@@ -769,12 +814,15 @@ mod tests {
             assert_eq!(ComputePolicy::parse(policy.as_str()), Ok(policy));
         }
         assert_eq!(ComputePolicy::default(), ComputePolicy::Cpu);
-        assert_eq!(ComputePolicy::parse("cuda"), Err("cuda".to_string()));
+        assert_eq!(
+            ComputePolicy::parse("cuda"),
+            Err(PolicyParseError::Unrecognized("cuda".to_string()))
+        );
     }
 
     #[test]
     fn the_disable_switch_hides_the_device_only_for_set_values() {
-        assert!(device_disabled(Some("1")).unwrap().contains(DISABLE_DEVICE_ENV));
+        assert!(device_disabled(Some("1")).unwrap().to_string().contains(DISABLE_DEVICE_ENV));
         assert!(device_disabled(Some("yes")).is_some());
         for off in [None, Some(""), Some("0")] {
             assert_eq!(device_disabled(off), None);
@@ -788,7 +836,7 @@ mod tests {
             fn compiled(&self) -> bool {
                 panic!("cpu policy must not ask whether the device is compiled");
             }
-            fn adapter(&self) -> Result<AdapterSummary, String> {
+            fn adapter(&self) -> Result<AdapterSummary, AdapterError> {
                 panic!("cpu policy must not probe an adapter");
             }
         }
@@ -802,7 +850,7 @@ mod tests {
 
     #[test]
     fn gpu_policy_refuses_each_failed_check_with_its_reason() {
-        let absent = Fake { compiled: true, adapter: Err("no adapter".to_string()) };
+        let absent = Fake { compiled: true, adapter: Err(AdapterError::Unavailable("no adapter".to_string())) };
         let not_linked = Fake { compiled: false, adapter: Ok(gpu_adapter()) };
         let software = Fake {
             compiled: true,
@@ -855,7 +903,7 @@ mod tests {
 
     #[test]
     fn auto_policy_falls_back_with_the_reason_and_never_labels_cpu_work_as_gpu() {
-        let absent = Fake { compiled: true, adapter: Err("no adapter".to_string()) };
+        let absent = Fake { compiled: true, adapter: Err(AdapterError::Unavailable("no adapter".to_string())) };
         let planned = plan(&request(ComputePolicy::Auto, 16), &absent, None, EAGER).unwrap();
         assert_eq!(planned.route, Route::Cpu);
         assert_eq!(planned.provenance.backend, LearnerBackend::NdArrayCpu);
@@ -924,7 +972,7 @@ mod tests {
     fn auto_fallback_fit_equals_the_plain_cpu_fit() {
         let n = 20;
         let (x, y) = data(n);
-        let absent = Fake { compiled: false, adapter: Err("n/a".to_string()) };
+        let absent = Fake { compiled: false, adapter: Err(AdapterError::Unavailable("n/a".to_string())) };
         let fit = fit_with_policy(
             &request(ComputePolicy::Auto, n),
             &x,
@@ -948,7 +996,7 @@ mod tests {
     fn gpu_request_in_a_cpu_only_build_refuses_without_fitting() {
         let n = 20;
         let (x, y) = data(n);
-        let not_linked = Fake { compiled: false, adapter: Err("n/a".to_string()) };
+        let not_linked = Fake { compiled: false, adapter: Err(AdapterError::Unavailable("n/a".to_string())) };
         let error = fit_with_policy(
             &request(ComputePolicy::Gpu, n),
             &x,

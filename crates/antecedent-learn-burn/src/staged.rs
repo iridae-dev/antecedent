@@ -20,13 +20,12 @@ use std::time::{Duration, Instant};
 use burn::module::AutodiffModule;
 use burn::nn::Linear;
 use burn::optim::{AdamConfig, GradientsParams, Optimizer};
-use burn::tensor::activation::sigmoid;
 use burn::tensor::backend::{AutodiffBackend, Backend};
 
 use super::device::{EpochLoss, record_host_loss};
 use super::{
     DenseLayer, LearnBurnError, Mlp, MlpSpec, TrainedMlp, colmajor_to_rowmajor_f32,
-    column_standardization, standardized, target_standardization, tensor2,
+    column_standardization, epoch_loss, standardized, target_standardization, tensor2,
 };
 
 /// Names of the stages in report order.
@@ -180,10 +179,6 @@ pub fn fit_staged<B: AutodiffBackend>(
     let y_f: Vec<f32> = y.iter().map(|&v| ((v - y_center) / y_scale) as f32).collect();
     let prepare = start.elapsed();
 
-    // Serialize the whole fit and share the CPU fallback's poison recovery rule.
-    let _guard = super::training_guard();
-    B::seed(seed);
-
     let start = Instant::now();
     let x_t = tensor2::<B, 2>(&x_rm, [nrows, ncols], device);
     let y_t = tensor2::<B, 2>(&y_f, [nrows, 1], device);
@@ -204,17 +199,7 @@ pub fn fit_staged<B: AutodiffBackend>(
         stopped(stop)?;
         let start = Instant::now();
         let pred = black_box(model.forward(x_t.clone()));
-        let loss = if binary {
-            let p = sigmoid(pred.clone()).clamp(1e-6, 1.0 - 1e-6);
-            let ones = p.ones_like();
-            y_t.clone()
-                .mul(p.clone().log())
-                .add(ones.clone().sub(y_t.clone()).mul(ones.sub(p).log()))
-                .mean()
-                .mul_scalar(-1.0)
-        } else {
-            pred.sub(y_t.clone()).powf_scalar(2.0).mean()
-        };
+        let loss = epoch_loss(pred, y_t.clone(), binary);
         B::sync(device);
         fit += start.elapsed();
 

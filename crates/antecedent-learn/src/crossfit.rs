@@ -277,7 +277,7 @@ pub fn cross_fit_with_folds_weighted(
     })?;
 
     let (predictions, model_provenance) = scatter_fold_predictions(n, fold_results)?;
-    let validation = diagnose(factory.task(), y.values(), &predictions);
+    let validation = try_diagnose(factory.task(), y.values(), &predictions)?;
     Ok(CrossFittedPrediction { predictions, fold_assignment, model_provenance, validation })
 }
 
@@ -353,9 +353,39 @@ fn gather_logical_target(y: TargetView<'_>, rows: &[u64]) -> Result<Vec<f64>, Le
 }
 
 /// Compute OOF diagnostics from physical-aligned predictions.
+///
+/// Inputs that cannot be scored (lengths differ, or a target or prediction is not finite)
+/// yield diagnostics with no metrics rather than a truncated or `NaN` score; use
+/// [`try_diagnose`] to learn why.
 #[must_use]
 pub fn diagnose(task: PredictionTask, y: &[f64], pred: &[f64]) -> NuisanceDiagnostics {
-    let n = y.len().min(pred.len());
+    try_diagnose(task, y, pred)
+        .unwrap_or_else(|_| NuisanceDiagnostics { task: Some(task), ..NuisanceDiagnostics::default() })
+}
+
+/// Compute OOF diagnostics from physical-aligned predictions, refusing inputs that cannot be
+/// scored.
+///
+/// # Errors
+///
+/// [`LearnError::Shape`] when `y` and `pred` differ in length (no silent truncation);
+/// [`LearnError::NonFinite`] when a target or prediction is `NaN` or infinite.
+pub fn try_diagnose(
+    task: PredictionTask,
+    y: &[f64],
+    pred: &[f64],
+) -> Result<NuisanceDiagnostics, LearnError> {
+    if y.len() != pred.len() {
+        return Err(LearnError::Shape { message: "diagnostics target and prediction lengths differ" });
+    }
+    if y.iter().chain(pred).any(|v| !v.is_finite()) {
+        return Err(LearnError::NonFinite { message: "diagnostics target or prediction" });
+    }
+    Ok(score_diagnostics(task, y, pred))
+}
+
+fn score_diagnostics(task: PredictionTask, y: &[f64], pred: &[f64]) -> NuisanceDiagnostics {
+    let n = y.len();
     if n == 0 {
         return NuisanceDiagnostics { task: Some(task), ..NuisanceDiagnostics::default() };
     }
@@ -457,7 +487,7 @@ pub fn cross_fit_selected(
     let predicted: Vec<_> =
         predictions.iter().zip(eligible).filter_map(|(v, use_row)| use_row.then_some(*v)).collect();
     Ok(CrossFittedPrediction {
-        validation: diagnose(factory.task(), &observed, &predicted),
+        validation: try_diagnose(factory.task(), &observed, &predicted)?,
         predictions,
         model_provenance,
         fold_assignment: fold_assignment.to_vec(),

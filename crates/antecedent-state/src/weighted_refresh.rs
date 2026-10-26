@@ -34,7 +34,11 @@ use crate::disk_retention::{SpillDecoder, SpillEncoder, SpillHandle, SpillRegist
 use crate::error::StateError;
 use crate::ols_refresh::RefreshOutcome;
 use crate::retention::{RetainedOperation, RetentionMode};
-use crate::suff_stats::{merge_within_tolerance, solve_gram};
+use crate::suff_stats::{
+    add_f64, all_close, centered_residual_sse, chan_merge_scatter, merge_within_tolerance,
+    optional_close, optional_scalar_close, solve_gram, update_weighted_scatter,
+    checked_row_ids, repeated_row, source_digest_start,
+};
 
 const SOURCE_TAG: &str = "antecedent.state.weighted_refresh.source";
 
@@ -42,15 +46,15 @@ const SOURCE_TAG: &str = "antecedent.state.weighted_refresh.source";
 #[derive(Clone, Debug, PartialEq)]
 pub struct WeightedRow {
     /// Identity of the observation within its source. Unique per summary.
-    pub id: u64,
+    id: u64,
     /// Design row.
-    pub x: Vec<f64>,
+    x: Vec<f64>,
     /// Response.
-    pub y: f64,
+    y: f64,
     /// Finite nonnegative precision weight. Zero keeps the row retained and out of the summary.
-    pub weight: f64,
+    weight: f64,
     /// Masked rows are retained and left out of the summary.
-    pub masked: bool,
+    masked: bool,
 }
 
 impl WeightedRow {
@@ -64,6 +68,43 @@ impl WeightedRow {
     #[must_use]
     pub const fn weighted(id: u64, x: Vec<f64>, y: f64, weight: f64) -> Self {
         Self { id, x, y, weight, masked: false }
+    }
+
+    /// The same row, masked or unmasked. A masked row is retained and left out of the summary.
+    #[must_use]
+    pub fn with_masked(mut self, masked: bool) -> Self {
+        self.masked = masked;
+        self
+    }
+
+    /// Identity of the observation within its source.
+    #[must_use]
+    pub const fn id(&self) -> u64 {
+        self.id
+    }
+
+    /// Design row.
+    #[must_use]
+    pub fn x(&self) -> &[f64] {
+        &self.x
+    }
+
+    /// Response.
+    #[must_use]
+    pub const fn y(&self) -> f64 {
+        self.y
+    }
+
+    /// Precision weight.
+    #[must_use]
+    pub const fn weight(&self) -> f64 {
+        self.weight
+    }
+
+    /// Whether the row is masked out of the summary.
+    #[must_use]
+    pub const fn is_masked(&self) -> bool {
+        self.masked
     }
 
     fn live(&self) -> bool {
@@ -141,33 +182,36 @@ impl WeightedStats {
         })
     }
 
-    fn add(&mut self, row: &WeightedRow) {
+    fn add(&mut self, row: &WeightedRow, scratch: &mut RowScratch) {
         if !row.live() {
             return;
         }
         let p = self.ncols;
-        let dim = p + 1;
         let w = row.weight;
         for i in 0..p {
-            self.xty[i] += w * row.x[i] * row.y;
-            for j in 0..p {
-                self.xtx[i * p + j] += w * row.x[i] * row.x[j];
+            let wxi = w * row.x[i];
+            self.xty[i] += wxi * row.y;
+            for j in i..p {
+                let value = wxi * row.x[j];
+                self.xtx[i * p + j] += value;
+                if j != i {
+                    self.xtx[j * p + i] += value;
+                }
             }
         }
         self.yty += w * row.y * row.y;
-        let mut z = row.x.clone();
-        z.push(row.y);
-        let sw_next = self.sw + w;
-        let delta: Vec<f64> = z.iter().zip(&self.mean).map(|(value, mean)| value - mean).collect();
-        for (mean, step) in self.mean.iter_mut().zip(&delta) {
-            *mean += step * (w / sw_next);
-        }
-        for (i, &delta_i) in delta.iter().enumerate() {
-            for (j, (&z_j, &mean_j)) in z.iter().zip(&self.mean).enumerate() {
-                self.m2[i * dim + j] += w * delta_i * (z_j - mean_j);
-            }
-        }
-        self.sw = sw_next;
+        scratch.z.clear();
+        scratch.z.extend_from_slice(&row.x);
+        scratch.z.push(row.y);
+        update_weighted_scatter(
+            &mut self.mean,
+            &mut self.m2,
+            self.sw,
+            w,
+            &scratch.z,
+            &mut scratch.delta,
+        );
+        self.sw += w;
         self.sw2 += w * w;
         self.live = self.live.saturating_add(1);
     }
@@ -182,23 +226,23 @@ impl WeightedStats {
         }
         let dim = self.ncols + 1;
         let total = self.sw + other.sw;
-        let scale = self.sw * other.sw / total;
-        let delta: Vec<f64> = other.mean.iter().zip(&self.mean).map(|(b, a)| b - a).collect();
-        for i in 0..dim {
-            for j in 0..dim {
-                self.m2[i * dim + j] += other.m2[i * dim + j] + delta[i] * delta[j] * scale;
-            }
-        }
-        for (mean, step) in self.mean.iter_mut().zip(&delta) {
-            *mean += step * (other.sw / total);
-        }
+        // The heavier summary is the Chan reference, so merging A then B matches B then A.
+        let (base, add) = if self.sw >= other.sw { (&*self, other) } else { (other, &*self) };
+        let (mean, m2) = chan_merge_scatter(
+            dim,
+            (base.sw, &base.mean, &base.m2),
+            (add.sw, &add.mean, &add.m2),
+            total,
+        );
+        self.mean = mean;
+        self.m2 = m2;
         for (slot, add) in self.xtx.iter_mut().zip(&other.xtx) {
-            *slot += add;
+            *slot = add_f64(*slot, *add);
         }
         for (slot, add) in self.xty.iter_mut().zip(&other.xty) {
-            *slot += add;
+            *slot = add_f64(*slot, *add);
         }
-        self.yty += other.yty;
+        self.yty = add_f64(self.yty, other.yty);
         self.sw = total;
         self.sw2 += other.sw2;
         self.live = self.live.saturating_add(other.live);
@@ -213,31 +257,16 @@ impl WeightedStats {
         if beta.len() != p || usize::try_from(self.live).is_ok_and(|live| live <= p) {
             return None;
         }
-        let dim = p + 1;
-        let mut sse = self.m2[p * dim + p];
-        for i in 0..p {
-            sse -= 2.0 * beta[i] * self.m2[i * dim + p];
-            for j in 0..p {
-                sse += beta[i] * self.m2[i * dim + j] * beta[j];
-            }
-        }
-        let mut r_bar = self.mean[p];
-        for (i, &coefficient) in beta.iter().enumerate() {
-            r_bar -= coefficient * self.mean[i];
-        }
-        sse += self.sw * r_bar * r_bar;
-        if !sse.is_finite() {
-            return None;
-        }
-        if sse < 0.0 {
-            let scale = self.m2[p * dim + p].abs().max(1.0);
-            if sse.abs() > 1e-12 * scale {
-                return None;
-            }
-            sse = 0.0;
-        }
+        let sse = centered_residual_sse(&self.m2, &self.mean, p, beta, self.sw)?;
         Some(sse / (self.live as f64 - p as f64))
     }
+}
+
+/// Reusable per-row buffers of [`WeightedStats::add`]; never part of a summary's state.
+#[derive(Debug, Default)]
+struct RowScratch {
+    z: Vec<f64>,
+    delta: Vec<f64>,
 }
 
 /// The complete result of a weighted summary.
@@ -282,9 +311,7 @@ pub struct WeightedOlsRefresh {
 }
 
 fn digest_start(source: &str, ncols: usize) -> CanonicalWriter {
-    let mut writer = CanonicalWriter::new(SOURCE_TAG);
-    writer.text(source).word(ncols as u64);
-    writer
+    source_digest_start(SOURCE_TAG, source, ncols)
 }
 
 fn digest_row(writer: &mut CanonicalWriter, row: &WeightedRow) {
@@ -309,19 +336,13 @@ fn derive(
     let mut stats = WeightedStats::new(ncols)?;
     let mut digest = digest_start(source, ncols);
     let mut ledger = EMPTY_LEDGER;
+    let mut scratch = RowScratch::default();
     for row in rows {
-        stats.add(row);
+        stats.add(row, &mut scratch);
         digest_row(&mut digest, row);
         ledger_add(&mut ledger, row);
     }
     Ok((stats, digest, ledger))
-}
-
-fn repeated(id: u64) -> StateError {
-    StateError::InvalidEvent(format!(
-        "row {id} is already in the summary; each observation enters once, so drop the \
-         duplicate or evict the earlier row first"
-    ))
 }
 
 fn checked_ids(
@@ -329,14 +350,7 @@ fn checked_ids(
     rows: &[WeightedRow],
     taken: &BTreeSet<u64>,
 ) -> Result<BTreeSet<u64>, StateError> {
-    let mut ids = BTreeSet::new();
-    for row in rows {
-        row.validate(ncols)?;
-        if taken.contains(&row.id) || !ids.insert(row.id) {
-            return Err(repeated(row.id));
-        }
-    }
-    Ok(ids)
+    checked_row_ids(rows, taken, |row| row.validate(ncols).map(|()| row.id))
 }
 
 impl WeightedOlsRefresh {
@@ -462,9 +476,9 @@ impl WeightedOlsRefresh {
         self.check_source(source)?;
         row.validate(self.ncols)?;
         if self.ids.contains(&row.id) {
-            return Err(repeated(row.id));
+            return Err(repeated_row(row.id));
         }
-        self.stats.add(row);
+        self.stats.add(row, &mut RowScratch::default());
         self.take(row);
         Ok(RefreshOutcome::Updated)
     }
@@ -482,8 +496,9 @@ impl WeightedOlsRefresh {
         self.check_source(source)?;
         checked_ids(self.ncols, rows, &self.ids)?;
         let mut window = WeightedStats::new(self.ncols)?;
+        let mut scratch = RowScratch::default();
         for row in rows {
-            window.add(row);
+            window.add(row, &mut scratch);
         }
         self.stats.merge(&window);
         for row in rows {
@@ -536,6 +551,10 @@ impl WeightedOlsRefresh {
     pub fn retain_last(&mut self, max_rows: usize) -> Result<RefreshOutcome, StateError> {
         self.require(RetainedOperation::ExactRowEviction)?;
         let drop_count = self.rows.len().saturating_sub(max_rows);
+        if drop_count == 0 {
+            // Nothing leaves the window: the summary already describes exactly these rows.
+            return Ok(RefreshOutcome::Updated);
+        }
         for row in self.rows.drain(..drop_count) {
             self.ids.remove(&row.id);
         }
@@ -696,12 +715,7 @@ impl WeightedOlsRefresh {
         if !optional_close(cached.beta_se.as_deref(), fresh.beta_se.as_deref()) {
             return mismatch("coefficient standard errors");
         }
-        let variance = match (cached.residual_variance, fresh.residual_variance) {
-            (None, None) => true,
-            (Some(a), Some(b)) => merge_within_tolerance(a, b),
-            _ => false,
-        };
-        if !variance {
+        if !optional_scalar_close(cached.residual_variance, fresh.residual_variance) {
             return mismatch("residual variance");
         }
         Ok(())
@@ -717,18 +731,6 @@ impl WeightedOlsRefresh {
         key: &str,
     ) -> Result<SpillHandle, StateError> {
         registry.spill(key, self)
-    }
-}
-
-fn all_close(left: &[f64], right: &[f64]) -> bool {
-    left.len() == right.len() && left.iter().zip(right).all(|(a, b)| merge_within_tolerance(*a, *b))
-}
-
-fn optional_close(left: Option<&[f64]>, right: Option<&[f64]>) -> bool {
-    match (left, right) {
-        (None, None) => true,
-        (Some(a), Some(b)) => all_close(a, b),
-        _ => false,
     }
 }
 

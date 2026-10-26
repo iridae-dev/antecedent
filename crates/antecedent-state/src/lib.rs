@@ -30,18 +30,20 @@ pub use disk_retention::{SpillHandle, SpillRegistry, SpillStats, Spillable};
 pub use error::StateError;
 pub use event::StateEvent;
 pub use graph_score::{
-    GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache, ParentSetOp,
-    full_graph_score,
+    DEFAULT_LOCAL_SCORE_CACHE_BYTES, GraphScoreCacheKey, GraphScoreData, GraphScoreFamily,
+    LocalScoreCache, ParentSetOp, full_graph_score,
 };
 pub use invalidation::{
-    ChangedInput, InvalidationEntry, InvalidationLog, InvalidationTarget, TemporalDisposition,
-    TemporalFactor, TemporalProduct,
+    ChangedInput, InvalidationEntry, InvalidationLog, InvalidationReason, InvalidationTarget,
+    TemporalDisposition, TemporalFactor, TemporalProduct,
 };
 pub use mechanism_diag::{
     RollingMechanismDiagnostics, evict_mechanism_diag, insert_mechanism_diag,
 };
 pub use ols_refresh::{OlsLedgerState, OlsRefresh, OlsSnapshot, RefreshOutcome, RefreshRow};
-pub use particle_filter::{LgssmParams, ParticleFilterState};
+pub use particle_filter::{
+    DEFAULT_PARTICLE_BYTE_BUDGET, LgssmParams, PARTICLE_BYTES, ParticleFilterState,
+};
 pub use refresh_contract::{RefreshChange, RefreshDisposition, RefreshRoute, route_contract};
 pub use retention::RetentionPolicy;
 pub use state::{CausalState, ResultPublication};

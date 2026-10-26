@@ -69,7 +69,7 @@ impl LearnerFactory for ForestLearner {
         if matches!(self.task, PredictionTask::BinaryProbability) {
             require_binary_labels(&gathered_y)?;
         }
-        let matrix = dense_column_major(&design, nrows, ncols)?;
+        let matrix = dense_column_major(design, nrows, ncols)?;
         let mut rng = ctx.rng.stream_for(StreamDomain::Learner, crate::streams::FOREST);
         let seed = rng.next_u64();
         let n_trees = self.spec.n_trees as usize;
@@ -125,7 +125,7 @@ impl FittedPredictor for FittedForestPredictor {
         if out.len() != nrows {
             return Err(LearnError::Shape { message: "predict out length != logical rows" });
         }
-        let matrix = dense_column_major(&design, nrows, ncols)?;
+        let matrix = dense_column_major(design, nrows, ncols)?;
         let preds = match &self.model {
             FittedForest::Rf(m) => {
                 m.predict(&matrix).map_err(|e| LearnError::Backend(e.to_string()))?
@@ -227,16 +227,25 @@ impl FittedPredictor for FittedForestPredictor {
     }
 }
 
+/// Wrap a column-major design for the forest backend. An owned buffer (a gathered or
+/// reordered design) is moved in; only a borrowed one has to be copied.
 fn dense_column_major(
-    colmajor: &[f64],
+    colmajor: std::borrow::Cow<'_, [f64]>,
     nrows: usize,
     ncols: usize,
 ) -> Result<DenseMatrix<f64>, LearnError> {
     // `from_2d_vec` rebuilt this column-major buffer as rows and then copied it back.
     // `DenseMatrix::new(..., column_major: true)` keeps the same layout and values.
-    if nrows == 0 || ncols == 0 || colmajor.len() < nrows.saturating_mul(ncols) {
+    let cells = nrows.saturating_mul(ncols);
+    if nrows == 0 || ncols == 0 || colmajor.len() < cells {
         return Err(LearnError::Shape { message: "forest design must be non-empty" });
     }
-    DenseMatrix::new(nrows, ncols, colmajor[..nrows * ncols].to_vec(), true)
-        .map_err(|e| LearnError::Backend(e.to_string()))
+    let values = match colmajor {
+        std::borrow::Cow::Owned(mut owned) => {
+            owned.truncate(cells);
+            owned
+        }
+        std::borrow::Cow::Borrowed(borrowed) => borrowed[..cells].to_vec(),
+    };
+    DenseMatrix::new(nrows, ncols, values, true).map_err(|e| LearnError::Backend(e.to_string()))
 }

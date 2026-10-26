@@ -59,7 +59,7 @@ pub use bayesian_basis_regression::{
 pub use crossfit::cross_fit_selected;
 pub use crossfit::{
     CrossFittedPrediction, NuisanceDiagnostics, assign_folds, cross_fit_with_folds,
-    cross_fit_with_folds_weighted, diagnose,
+    cross_fit_with_folds_weighted, diagnose, try_diagnose,
 };
 pub use design::{DenseDesign, DesignView, Layout, RowSelection, TargetView};
 pub use error::LearnError;

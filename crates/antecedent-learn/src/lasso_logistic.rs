@@ -8,8 +8,11 @@
 //!
 //! Solver: proximal Newton. Each outer step builds the weighted least-squares quadratic model
 //! of the logistic loss at the current iterate and minimizes it plus the L1 term exactly by
-//! cyclic coordinate descent (soft-thresholding), then backtracks on the true objective, so
-//! every accepted step decreases it. The solution is accepted only when the Karush-Kuhn-Tucker
+//! cyclic coordinate descent (soft-thresholding), then backtracks on the true objective: a
+//! step is accepted when it achieves a sufficient decrease of the objective relative to the
+//! decrease the quadratic model predicts, or, once the predicted decrease is below the
+//! floating-point resolution of the objective itself, when it does not raise it beyond that
+//! resolution. The solution is accepted only when the Karush-Kuhn-Tucker
 //! conditions of the *exact* objective hold: `|g_j| <= lambda` where the coefficient is zero,
 //! `g_j = lambda * sign(beta_j)` where it is not, and `g_0 = 0` for the intercept, with
 //! `g = X' (y - p)`. A fit that does not meet them is refused rather than used as a nuisance.
@@ -36,6 +39,13 @@ const MAX_SWEEPS: usize = 2_000;
 
 /// Step halvings of the backtracking line search.
 const MAX_HALVINGS: usize = 40;
+
+/// Share of the model-predicted decrease a step must realize (Armijo constant).
+const SUFFICIENT_DECREASE: f64 = 1e-4;
+
+/// Sweeps between exact recomputations of the coordinate-descent residual `r - X delta`, so
+/// incremental updates cannot accumulate rounding drift over the sweep budget.
+const RESIDUAL_REFRESH_SWEEPS: usize = 16;
 
 /// Largest KKT violation accepted, relative to `1 + lambda` (sum-scale score units).
 const KKT_TOLERANCE: f64 = 1e-7;
@@ -124,6 +134,8 @@ fn kkt_violation(score: &[f64], beta: &[f64], lambda: f64, pen_start: usize) -> 
 struct DescentProblem<'a> {
     x: &'a [f64],
     n: usize,
+    /// Working response `r`: the residual when `delta` is zero.
+    response: &'a [f64],
     weights: &'a [f64],
     curvature: &'a [f64],
     beta: &'a [f64],
@@ -132,15 +144,29 @@ struct DescentProblem<'a> {
 }
 
 /// Minimize `0.5 sum w_i (r_i - x_i . delta)^2 + lambda sum |beta_j + delta_j|` over `delta`
-/// by cyclic coordinate descent; `resid` enters as `r` and is consumed as the running residual.
+/// by cyclic coordinate descent from `delta = 0`; `resid` is scratch that holds the running
+/// residual `r - X delta`, recomputed exactly every [`RESIDUAL_REFRESH_SWEEPS`] sweeps and
+/// before a sweep is allowed to declare convergence.
 fn coordinate_descent(
     problem: &DescentProblem<'_>,
     resid: &mut [f64],
     delta: &mut [f64],
     sweep_tolerance: f64,
 ) {
-    let DescentProblem { x, n, weights, curvature, beta, lambda, pen_start } = *problem;
-    for _ in 0..MAX_SWEEPS {
+    let DescentProblem { x, n, response, weights, curvature, beta, lambda, pen_start } = *problem;
+    delta.fill(0.0);
+    resid.copy_from_slice(response);
+    let refresh = |resid: &mut [f64], delta: &[f64]| {
+        resid.copy_from_slice(response);
+        for (j, &d) in delta.iter().enumerate() {
+            if d.abs() > 0.0 {
+                for (slot, v) in resid.iter_mut().zip(&x[j * n..(j + 1) * n]) {
+                    *slot -= v * d;
+                }
+            }
+        }
+    };
+    for sweep in 1..=MAX_SWEEPS {
         let mut largest = 0.0_f64;
         for j in 0..beta.len() {
             let a = curvature[j];
@@ -164,11 +190,33 @@ fn coordinate_descent(
             largest = largest.max(a * diff.abs());
         }
         if largest <= sweep_tolerance {
-            break;
+            // Confirm against an exactly recomputed residual before stopping.
+            refresh(resid, delta);
+            let confirmed = (0..beta.len()).all(|j| {
+                let a = curvature[j];
+                if a <= 1e-300 {
+                    return true;
+                }
+                let col = &x[j * n..(j + 1) * n];
+                let mut u = a * delta[j];
+                for i in 0..n {
+                    u += weights[i] * col[i] * resid[i];
+                }
+                let target = a * beta[j] + u;
+                let updated =
+                    if j >= pen_start { soft_threshold(target, lambda) / a } else { target / a };
+                a * (updated - beta[j] - delta[j]).abs() <= sweep_tolerance
+            });
+            if confirmed {
+                break;
+            }
+        } else if sweep % RESIDUAL_REFRESH_SWEEPS == 0 {
+            refresh(resid, delta);
         }
     }
 }
 
+#[allow(clippy::cast_precision_loss, reason = "the row count scales a rounding tolerance")]
 /// Solve the penalized problem; the coefficients are returned only if they satisfy the KKT
 /// conditions of the exact objective.
 fn solve(
@@ -195,6 +243,7 @@ fn solve(
     }
     let tolerance = KKT_TOLERANCE * (1.0 + lambda);
     let mut weights = vec![0.0; n];
+    let mut response = vec![0.0; n];
     let mut resid = vec![0.0; n];
     let mut curvature = vec![0.0; p];
     let mut delta = vec![0.0; p];
@@ -202,14 +251,15 @@ fn solve(
     let mut converged = false;
     for _ in 0..MAX_NEWTON {
         let prob: Vec<f64> = eta.iter().map(|&e| sigmoid(e)).collect();
-        if kkt_violation(&score(x, n, p, y, &prob, prior), &beta, lambda, pen_start) <= tolerance {
+        let gradient_score = score(x, n, p, y, &prob, prior);
+        if kkt_violation(&gradient_score, &beta, lambda, pen_start) <= tolerance {
             converged = true;
             break;
         }
         for i in 0..n {
             let curvature_i = (prob[i] * (1.0 - prob[i])).max(MIN_WEIGHT);
             weights[i] = prior[i] * curvature_i;
-            resid[i] = (y[i] - prob[i]) / curvature_i;
+            response[i] = (y[i] - prob[i]) / curvature_i;
         }
         for j in 0..p {
             curvature[j] = x[j * n..(j + 1) * n].iter().zip(&weights).map(|(v, w)| w * v * v).sum();
@@ -219,6 +269,7 @@ fn solve(
             &DescentProblem {
                 x,
                 n,
+                response: &response,
                 weights: &weights,
                 curvature: &curvature,
                 beta: &beta,
@@ -236,6 +287,19 @@ fn solve(
             }
         }
         let current = objective(&eta, y, prior, &beta, lambda, pen_start);
+        // Decrease the quadratic model predicts for the full step (`<= 0` for a descent
+        // direction): `grad . delta + lambda (|beta + delta|_1 - |beta|_1)`, `grad = -score`.
+        let penalty_change: f64 = beta
+            .iter()
+            .zip(&delta)
+            .skip(pen_start)
+            .map(|(b, d)| (b + d).abs() - b.abs())
+            .sum();
+        let predicted: f64 =
+            -gradient_score.iter().zip(&delta).map(|(g, d)| g * d).sum::<f64>()
+                + lambda * penalty_change;
+        // Rounding resolution of the objective: below it a decrease cannot be verified.
+        let resolution = 4.0 * f64::EPSILON * current.abs().max(1.0) * (n as f64).sqrt();
         let mut step = 1.0_f64;
         let mut accepted = false;
         for _ in 0..MAX_HALVINGS {
@@ -244,7 +308,9 @@ fn solve(
             let candidate_eta: Vec<f64> =
                 eta.iter().zip(&x_delta).map(|(e, d)| e + step * d).collect();
             let value = objective(&candidate_eta, y, prior, &candidate_beta, lambda, pen_start);
-            if value <= current + 1e-12 * current.abs() {
+            let sufficient = value <= current + SUFFICIENT_DECREASE * step * predicted.min(0.0);
+            let unresolvable = -predicted <= resolution && value <= current + resolution;
+            if (sufficient && value.is_finite()) || unresolvable {
                 beta = candidate_beta;
                 eta = candidate_eta;
                 accepted = true;

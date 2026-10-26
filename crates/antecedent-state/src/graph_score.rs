@@ -6,7 +6,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use antecedent_core::Fnv1a64;
-use antecedent_kernels::{cholesky_spd_into, equilibrate_into, symmetric_scales};
+use antecedent_kernels::{
+    chol_solve_into, cholesky_spd_into, equilibrate_into, symmetric_scales,
+};
 
 use crate::error::StateError;
 
@@ -122,13 +124,19 @@ pub struct LocalScoreCache {
     parents: HashMap<u32, Arc<[u32]>>,
     /// Fingerprint of the data the cached scores belong to.
     bound_data: Option<u64>,
-    /// Gram of `[1 | columns]`, built once for the bound data.
+    /// Gram of the mean-centered columns, built once for the bound data.
     gram: Option<Vec<f64>>,
     /// Sum of local scores under the current parent sets, maintained incrementally.
     running_total: Option<f64>,
     /// Approximate retained bytes.
     bytes: u64,
+    /// Bytes the cache may retain; once exceeded the score entries (recomputable on demand)
+    /// are dropped. The Gram is retained for the life of the bound data and is never evicted.
+    byte_budget: u64,
 }
+
+/// Default retained-bytes budget of a [`LocalScoreCache`].
+pub const DEFAULT_LOCAL_SCORE_CACHE_BYTES: u64 = 1 << 30;
 
 impl LocalScoreCache {
     /// Empty cache for `key`.
@@ -142,7 +150,24 @@ impl LocalScoreCache {
             gram: None,
             running_total: None,
             bytes: 0,
+            byte_budget: DEFAULT_LOCAL_SCORE_CACHE_BYTES,
         }
+    }
+
+    /// Replace the retained-bytes budget (default [`DEFAULT_LOCAL_SCORE_CACHE_BYTES`]).
+    ///
+    /// When caching a further score would exceed the budget the cached scores are dropped
+    /// and recomputed on demand; results are unchanged, only the memory held is bounded.
+    #[must_use]
+    pub fn with_byte_budget(mut self, bytes: u64) -> Self {
+        self.byte_budget = bytes;
+        self
+    }
+
+    /// Approximate bytes currently retained.
+    #[must_use]
+    pub const fn retained_bytes(&self) -> u64 {
+        self.bytes
     }
 
     /// Clear all cached local scores and parent assignments, and unbind from the data.
@@ -252,8 +277,16 @@ impl LocalScoreCache {
             }
             GraphScoreFamily::LaplaceBic => laplace_bic_local(data, node, parents)?,
         };
+        let cost = 32 + 8 * parents.len() as u64;
+        if self.bytes.saturating_add(cost) > self.byte_budget {
+            self.entries.clear();
+            self.bytes = self
+                .gram
+                .as_ref()
+                .map_or(0, |g| (g.len() * core::mem::size_of::<f64>()) as u64);
+        }
         self.entries.entry(node).or_default().insert(Arc::clone(parents), s);
-        self.bytes = self.bytes.saturating_add(32 + 8 * parents.len() as u64);
+        self.bytes = self.bytes.saturating_add(cost);
         Ok(s)
     }
 
@@ -289,27 +322,59 @@ fn gaussian_bic_local(
     gaussian_bic_from_gram(data, &gaussian_design_gram(data), node, parents)
 }
 
-/// Row-major Gram of `[1 | columns]`. Index 0 is the intercept.
-fn gaussian_design_gram(data: &GraphScoreData) -> Vec<f64> {
-    let n = data.n_rows;
-    let m = data.n_vars + 1;
-    let mut g = vec![0.0; m * m];
-    g[0] = n as f64;
-    for j in 0..data.n_vars {
-        let col = data.col(j);
-        let mut sum = 0.0;
-        let mut dot = 0.0;
-        for &v in col {
-            sum += v;
-            dot += v * v;
+/// Neumaier-compensated sum: the rounding error of every partial sum is carried in a
+/// separate term, so long sums of mixed magnitudes keep their low-order digits.
+fn compensated_sum(values: impl Iterator<Item = f64>) -> f64 {
+    let mut sum = 0.0_f64;
+    let mut carry = 0.0_f64;
+    for v in values {
+        let t = sum + v;
+        if sum.abs() >= v.abs() {
+            carry += (sum - t) + v;
+        } else {
+            carry += (v - t) + sum;
         }
-        g[j + 1] = sum;
-        g[(j + 1) * m] = sum;
-        g[(j + 1) * m + (j + 1)] = dot;
-        for k in (j + 1)..data.n_vars {
-            let cross: f64 = col.iter().zip(data.col(k)).map(|(a, b)| a * b).sum();
-            g[(j + 1) * m + (k + 1)] = cross;
-            g[(k + 1) * m + (j + 1)] = cross;
+        sum = t;
+    }
+    sum + carry
+}
+
+/// Column `values` minus its compensated mean, with a second pass removing the rounding
+/// residue left in the mean of the first centering.
+#[allow(clippy::cast_precision_loss, reason = "row counts enter a mean as floats")]
+fn centered_column(values: &[f64]) -> Vec<f64> {
+    let n = values.len() as f64;
+    let mean = compensated_sum(values.iter().copied()) / n;
+    let mut centered: Vec<f64> = values.iter().map(|v| v - mean).collect();
+    let residue = compensated_sum(centered.iter().copied()) / n;
+    if residue.is_finite() && residue.abs() > 0.0 {
+        for v in &mut centered {
+            *v -= residue;
+        }
+    }
+    centered
+}
+
+/// Row-major `n_vars × n_vars` Gram of the mean-centered columns, accumulated with
+/// compensated sums.
+///
+/// The Gaussian BIC regresses a node on an intercept and its parents; the residual sum of
+/// squares of that fit is the Schur complement of the *centered* cross-product matrix, which
+/// is offset invariant. Forming it from the uncentered Gram of `[1 | X | y]` would subtract
+/// two quantities of size `n · offset²` and lose every digit when the data sit far from zero.
+#[allow(
+    clippy::many_single_char_names,
+    reason = "j and k index the two columns of the cross-product block"
+)]
+fn gaussian_design_gram(data: &GraphScoreData) -> Vec<f64> {
+    let m = data.n_vars;
+    let centered: Vec<Vec<f64>> = (0..m).map(|j| centered_column(data.col(j))).collect();
+    let mut g = vec![0.0; m * m];
+    for j in 0..m {
+        for k in j..m {
+            let cross = compensated_sum(centered[j].iter().zip(&centered[k]).map(|(a, b)| a * b));
+            g[j * m + k] = cross;
+            g[k * m + j] = cross;
         }
     }
     g
@@ -328,62 +393,62 @@ fn gaussian_bic_from_gram(
     if node as usize >= data.n_vars {
         return Err(StateError::Shape(format!("node {node} out of range")));
     }
-    let m = data.n_vars + 1;
-    let mut cols = Vec::with_capacity(parents.len() + 2);
-    cols.push(0usize);
+    let m = data.n_vars;
+    let mut cols = Vec::with_capacity(parents.len() + 1);
     for &p in parents {
         if p as usize >= data.n_vars {
             return Err(StateError::Shape(format!("parent {p} out of range")));
         }
-        cols.push(p as usize + 1);
+        cols.push(p as usize);
     }
-    cols.push(node as usize + 1);
+    cols.push(node as usize);
     bic_from_rss(rss_from_joint_gram(gram, m, &cols)?, n, parents.len() + 1)
 }
 
-/// Iteratively reweighted least squares sweeps of the least-absolute-deviations fit.
-const LAD_SWEEPS: usize = 60;
+/// Upper bound on iteratively reweighted least squares sweeps of the least-absolute-deviations
+/// fit; the iteration stops earlier as soon as the objective stops improving.
+const LAD_MAX_SWEEPS: usize = 500;
 
-/// Solve the symmetric system `a x = b` (`k × k`, row-major) by Gaussian elimination with
-/// partial pivoting; `None` when it is singular to working precision.
-fn solve_dense(mut a: Vec<f64>, mut b: Vec<f64>, k: usize) -> Option<Vec<f64>> {
-    for col in 0..k {
-        let pivot =
-            (col..k).max_by(|&i, &j| a[i * k + col].abs().total_cmp(&a[j * k + col].abs()))?;
-        if a[pivot * k + col].abs() < 1e-12 {
-            return None;
-        }
-        if pivot != col {
-            for c in 0..k {
-                a.swap(col * k + c, pivot * k + c);
-            }
-            b.swap(col, pivot);
-        }
-        for row in col + 1..k {
-            let factor = a[row * k + col] / a[col * k + col];
-            for c in col..k {
-                a[row * k + c] -= factor * a[col * k + c];
-            }
-            b[row] -= factor * b[col];
-        }
+/// Relative change of the absolute-deviation objective below which the fit has converged.
+const LAD_OBJECTIVE_TOLERANCE: f64 = 1e-12;
+
+/// Residual floor, relative to the outcome's scale, bounding the reweighting `1 / |r|`.
+const LAD_RESIDUAL_FLOOR: f64 = 1e-8;
+
+/// Solve the symmetric positive-definite system `a x = b` (`k × k`, row-major) through the
+/// shared equilibrated Cholesky; `None` when it is singular to working precision.
+fn solve_spd(a: &[f64], b: &[f64], k: usize) -> Option<Vec<f64>> {
+    let scales = symmetric_scales(a, k);
+    if scales.len() != k {
+        return None;
     }
-    let mut x = vec![0.0; k];
-    for row in (0..k).rev() {
-        let tail: f64 = (row + 1..k).map(|c| a[row * k + c] * x[c]).sum();
-        x[row] = (b[row] - tail) / a[row * k + row];
-    }
-    Some(x)
+    let mut eq = vec![0.0; k * k];
+    equilibrate_into(a, &scales, k, &mut eq);
+    let mut factor = vec![0.0; k * k];
+    cholesky_spd_into(&eq, k, &mut factor).ok()?;
+    // A = S E S with E = L Lᵀ, so A x = b  ⇔  E (S x) = S⁻¹ b.
+    let scaled: Vec<f64> = b.iter().zip(&scales).map(|(v, s)| v / s).collect();
+    let mut work = vec![0.0; k];
+    let mut y = vec![0.0; k];
+    chol_solve_into(&factor, k, &scaled, &mut work, &mut y);
+    let x: Vec<f64> = y.iter().zip(&scales).map(|(v, s)| v / s).collect();
+    x.iter().all(|v| v.is_finite()).then_some(x)
 }
 
+/// Laplace-noise BIC local score (higher is better):
+/// `-n (ln(2 b) + 1) - (k / 2) ln(n)` with `b` the mean absolute residual of the least
+/// absolute deviations fit of the node on intercept + parents and `k = |Pa| + 2`.
+///
+/// The fit is iteratively reweighted least squares on mean-centered columns (the residuals
+/// are unchanged by centering when an intercept is fitted). The reweighting floor scales with
+/// the outcome, the weighted normal equations go through the shared equilibrated Cholesky,
+/// and the iteration stops once the objective stops improving.
 #[allow(
     clippy::cast_precision_loss,
     clippy::needless_range_loop,
     clippy::many_single_char_names,
     reason = "row counts enter a likelihood as floats; the loops index the design by row and column"
 )]
-/// Laplace-noise BIC local score (higher is better):
-/// `-n (ln(2 b) + 1) - (k / 2) ln(n)` with `b` the mean absolute residual of the least
-/// absolute deviations fit of the node on intercept + parents and `k = |Pa| + 2`.
 fn laplace_bic_local(data: &GraphScoreData, node: u32, parents: &[u32]) -> Result<f64, StateError> {
     let n = data.n_rows;
     if n < 2 {
@@ -396,48 +461,61 @@ fn laplace_bic_local(data: &GraphScoreData, node: u32, parents: &[u32]) -> Resul
         return Err(StateError::Shape("parent out of range".into()));
     }
     let k = parents.len() + 1;
-    let y = data.col(node as usize);
-    let column = |c: usize, row: usize| -> f64 {
-        if c == 0 { 1.0 } else { data.col(parents[c - 1] as usize)[row] }
-    };
+    let y = centered_column(data.col(node as usize));
+    let outcome_scale = compensated_sum(y.iter().copied().map(f64::abs)) / n as f64;
+    if !(outcome_scale.is_finite() && outcome_scale > 0.0) {
+        return Err(StateError::Numerical(
+            "degenerate Laplace BIC fit (zero residual scale)".into(),
+        ));
+    }
+    let floor = LAD_RESIDUAL_FLOOR * outcome_scale;
+    // Design columns: the intercept, then each centered parent.
+    let mut design: Vec<Vec<f64>> = Vec::with_capacity(k);
+    design.push(vec![1.0; n]);
+    for &p in parents {
+        design.push(centered_column(data.col(p as usize)));
+    }
     let mut weights = vec![1.0; n];
     let mut beta = vec![0.0; k];
-    for _ in 0..LAD_SWEEPS {
+    let mut residuals = vec![0.0; n];
+    let mut previous = f64::INFINITY;
+    let mut objective = f64::INFINITY;
+    for _ in 0..LAD_MAX_SWEEPS {
         let mut gram = vec![0.0; k * k];
         let mut rhs = vec![0.0; k];
-        for row in 0..n {
-            let w = weights[row];
-            for i in 0..k {
-                let xi = column(i, row);
-                rhs[i] += w * xi * y[row];
-                for j in i..k {
-                    gram[i * k + j] += w * xi * column(j, row);
-                }
-            }
-        }
         for i in 0..k {
-            for j in 0..i {
-                gram[i * k + j] = gram[j * k + i];
+            rhs[i] = compensated_sum((0..n).map(|r| weights[r] * design[i][r] * y[r]));
+            for j in i..k {
+                let v =
+                    compensated_sum((0..n).map(|r| weights[r] * design[i][r] * design[j][r]));
+                gram[i * k + j] = v;
+                gram[j * k + i] = v;
             }
         }
-        let Some(next) = solve_dense(gram, rhs, k) else {
+        let Some(next) = solve_spd(&gram, &rhs, k) else {
             return Err(StateError::Numerical(
                 "Laplace BIC local fit: rank-deficient parents".into(),
             ));
         };
         beta = next;
         for row in 0..n {
-            let fitted: f64 = (0..k).map(|c| beta[c] * column(c, row)).sum();
-            weights[row] = 1.0 / (y[row] - fitted).abs().max(1e-8);
+            let fitted: f64 = (0..k).map(|c| beta[c] * design[c][row]).sum();
+            residuals[row] = y[row] - fitted;
+            weights[row] = 1.0 / residuals[row].abs().max(floor);
         }
+        objective = compensated_sum(residuals.iter().copied().map(f64::abs));
+        if !objective.is_finite() {
+            return Err(StateError::Numerical("non-finite Laplace BIC residuals".into()));
+        }
+        // IRLS minimizes the L1 objective monotonically up to rounding; stop on stagnation.
+        if previous.is_finite() && (previous - objective).abs() <= LAD_OBJECTIVE_TOLERANCE * previous
+        {
+            break;
+        }
+        previous = objective;
     }
-    let mut absolute = 0.0;
-    for row in 0..n {
-        let fitted: f64 = (0..k).map(|c| beta[c] * column(c, row)).sum();
-        absolute += (y[row] - fitted).abs();
-    }
-    let scale = absolute / n as f64;
-    if !(scale.is_finite() && scale > 1e-12) {
+    let scale = objective / n as f64;
+    if !(scale.is_finite() && scale > 1e-12 * outcome_scale) {
         return Err(StateError::Numerical(
             "degenerate Laplace BIC fit (zero residual scale)".into(),
         ));
@@ -448,7 +526,7 @@ fn laplace_bic_local(data: &GraphScoreData, node: u32, parents: &[u32]) -> Resul
 
 fn rss_from_joint_gram(gram: &[f64], m: usize, cols: &[usize]) -> Result<f64, StateError> {
     let q = cols.len();
-    if q < 2 || gram.len() < m.saturating_mul(m) {
+    if q < 1 || gram.len() < m.saturating_mul(m) {
         return Err(StateError::Shape("Gaussian BIC Gram is shorter than the design".into()));
     }
     let mut sub = vec![0.0; q * q];
@@ -851,5 +929,52 @@ mod tests {
                 "score(X→Y)-score(∅) changed under X*={scale}: {d1} vs {ds}"
             );
         }
+    }
+    /// A large common offset must not erase the residual: the score difference of an edge is
+    /// the same with and without a 1e6 shift of every column.
+    #[test]
+    fn gaussian_bic_is_offset_invariant() {
+        let base = chain_data();
+        let n = base.n_rows;
+        let shifted_cols: Vec<f64> = base.columns.iter().map(|v| v + 1.0e6).collect();
+        let shifted = GraphScoreData::new(n, 3, Arc::from(shifted_cols)).unwrap();
+        for (node, parents) in [(1u32, vec![0u32]), (2, vec![1]), (1, vec![])] {
+            let a = gaussian_bic_local(&base, node, &parents).unwrap();
+            let b = gaussian_bic_local(&shifted, node, &parents).unwrap();
+            assert!((a - b).abs() < 1e-5, "offset changed the score: {a} vs {b}");
+        }
+    }
+
+    /// The Laplace fit is offset invariant as well and still refuses a perfect fit.
+    #[test]
+    fn laplace_bic_is_offset_invariant() {
+        let n = 400;
+        let x = laplace_stream(n, 5);
+        let e = laplace_stream(n, 6);
+        let y: Vec<f64> = x.iter().zip(&e).map(|(x, e)| 0.5 * x + e).collect();
+        let build = |offset: f64| {
+            let mut cols: Vec<f64> = x.iter().map(|v| v + offset).collect();
+            cols.extend(y.iter().map(|v| v + offset));
+            GraphScoreData::new(n, 2, Arc::from(cols)).unwrap()
+        };
+        let a = laplace_bic_local(&build(0.0), 1, &[0]).unwrap();
+        let b = laplace_bic_local(&build(1.0e6), 1, &[0]).unwrap();
+        assert!((a - b).abs() < 1e-3, "offset changed the Laplace score: {a} vs {b}");
+    }
+
+    /// A tiny byte budget evicts cached scores without changing any returned score.
+    #[test]
+    fn cache_budget_bounds_retained_entries() {
+        let data = chain_data();
+        let mut cache = fresh_cache(&data).with_byte_budget(1);
+        let mut reference = fresh_cache(&data);
+        for parents in [vec![], vec![0u32], vec![0, 1]] {
+            let pa: Arc<[u32]> = Arc::from(parents);
+            let got = cache.local_score(&data, 2, &pa).unwrap();
+            let expect = reference.local_score(&data, 2, &pa).unwrap();
+            assert!((got - expect).abs() < 1e-12);
+        }
+        let entries: usize = cache.entries.values().map(HashMap::len).sum();
+        assert!(entries <= 1, "budget kept {entries} entries");
     }
 }

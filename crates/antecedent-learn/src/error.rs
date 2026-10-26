@@ -16,6 +16,12 @@ pub enum LearnError {
         /// Context.
         message: &'static str,
     },
+    /// A prediction, target or weight the computation needs to be finite is not.
+    #[error("non-finite value: {message}")]
+    NonFinite {
+        /// Context.
+        message: &'static str,
+    },
     /// Requested prediction task is not what this factory implements.
     #[error("task mismatch: requested {requested:?}, supported {supported:?}")]
     TaskMismatch {

@@ -15,8 +15,8 @@
 //!
 //! This is one small fold. It is not the frozen whole-workload control.
 //!
-//! Call [`probe_small_fold`] from one thread. The ndarray seed is process-global, and the
-//! training lock in the parent module is private, so this probe does not hold that lock.
+//! Call [`probe_small_fold`] from one thread. This probe builds its layers with Burn's own
+//! initializer, which draws from the process-global ndarray seed.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -30,7 +30,10 @@ use burn::optim::{AdamConfig, GradientsParams, Optimizer};
 use burn::tensor::activation::relu;
 use burn::tensor::{Tensor, TensorData, backend::Backend};
 
-use super::LearnBurnError;
+use super::{
+    LearnBurnError, colmajor_to_rowmajor_f32, column_standardization, standardized,
+    target_standardization,
+};
 use super::device::{self, LearnerBackend, LossSync};
 
 type TrainBackend = Autodiff<NdArray<f32>>;
@@ -435,56 +438,6 @@ fn relu_inplace(values: &mut [f32]) {
     for value in values {
         *value = value.max(0.0);
     }
-}
-
-fn column_standardization(x: &[f64], nrows: usize, ncols: usize) -> (Vec<f64>, Vec<f64>) {
-    let n = nrows as f64;
-    let mut centers = vec![0.0; ncols];
-    let mut scales = vec![1.0; ncols];
-    for col in 0..ncols {
-        let column = &x[col * nrows..(col + 1) * nrows];
-        let mean = column.iter().sum::<f64>() / n;
-        let second = column.iter().map(|value| (value - mean) * (value - mean)).sum::<f64>();
-        let sd = (second / n).sqrt();
-        if sd > 1e-12 * mean.abs().max(1.0) {
-            centers[col] = mean;
-            scales[col] = sd;
-        }
-    }
-    (centers, scales)
-}
-
-fn target_standardization(y: &[f64]) -> (f64, f64) {
-    let n = y.len() as f64;
-    let mean = y.iter().sum::<f64>() / n;
-    let sd = (y.iter().map(|value| (value - mean) * (value - mean)).sum::<f64>() / n).sqrt();
-    if sd > 1e-12 * mean.abs().max(1.0) { (mean, sd) } else { (mean, 1.0) }
-}
-
-fn standardized(
-    x: &[f64],
-    nrows: usize,
-    ncols: usize,
-    centers: &[f64],
-    scales: &[f64],
-) -> Vec<f64> {
-    let mut out = vec![0.0; nrows * ncols];
-    for col in 0..ncols {
-        for row in 0..nrows {
-            out[col * nrows + row] = (x[col * nrows + row] - centers[col]) / scales[col];
-        }
-    }
-    out
-}
-
-fn colmajor_to_rowmajor_f32(x: &[f64], nrows: usize, ncols: usize) -> Vec<f32> {
-    let mut out = vec![0.0f32; nrows.saturating_mul(ncols)];
-    for row in 0..nrows {
-        for col in 0..ncols {
-            out[row * ncols + col] = narrow_f32(x[col * nrows + row]);
-        }
-    }
-    out
 }
 
 #[allow(
