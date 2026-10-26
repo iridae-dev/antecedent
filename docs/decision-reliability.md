@@ -203,9 +203,4 @@ those expectations independently.
 
 ## Bounds
 
-A carrier holds at most these numbers; each is enforced with a typed refusal and
-cancellation is observed at bounded work boundaries.
-
-* max_candidates: 65536
-* max_cells: 67108864 (candidates times draws)
-* max_ranking_cells: 16777216 (ranking holds two `u32` ranks per cell)
+No fixed candidate or cell count is imposed. Draw tables and rank tables (two `u32` ranks per candidate-draw cell) are admitted against the execution context's memory budget, and cancellation is observed at bounded work boundaries.

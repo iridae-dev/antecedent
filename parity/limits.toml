@@ -28,18 +28,18 @@ record = "transport.shared_scenario_covariance"
 key = "max_completions"
 implementation = [{ path = "crates/antecedent-estimate/src/scenario_covariance.rs", constant = "MAX_SCENARIOS" }]
 documentation = [{ path = "crates/antecedent-estimate/src/scenario_covariance.rs", constant = "MAX_SCENARIOS" }]
-guard = { path = "crates/antecedent-estimate/src/scenario_covariance.rs", pattern = "if\\ scenarios\\.len\\(\\)\\ >\\ MAX_SCENARIOS\\ \\{" }
-refusal = { path = "crates/antecedent-estimate/src/scenario_covariance.rs", pattern = "if\\ scenarios\\.len\\(\\)\\ >\\ MAX_SCENARIOS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-estimate/tests/scenario_covariance.rs", pattern = "\\bindependent_rows_bounds_and_arguments_refuse\\b" }
+guard = { path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", pattern = 'if self\.scenarios\.len\(\) > MAX_SCENARIOS \{' }
+refusal = { path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", pattern = 'if self\.scenarios\.len\(\) > MAX_SCENARIOS \{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
+scope_fixture = { path = "crates/antecedent-estimate/tests/scenario_covariance.rs", pattern = '\bindependent_rows_bounds_and_arguments_refuse\b' }
 
 [[bound]]
 record = "transport.shared_scenario_covariance"
 key = "max_replicates"
 implementation = [{ path = "crates/antecedent-estimate/src/scenario_covariance.rs", constant = "MAX_REPLICATES" }]
 documentation = [{ path = "crates/antecedent-estimate/src/scenario_covariance.rs", constant = "MAX_REPLICATES" }]
-guard = { path = "crates/antecedent-estimate/src/scenario_covariance.rs", pattern = "if\\ options\\.replicates\\ >\\ MAX_REPLICATES\\ \\{" }
-refusal = { path = "crates/antecedent-estimate/src/scenario_covariance.rs", pattern = "if\\ options\\.replicates\\ >\\ MAX_REPLICATES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-estimate/tests/scenario_covariance.rs", pattern = "\\bindependent_rows_bounds_and_arguments_refuse\\b" }
+guard = { path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", pattern = 'if \*replicates > limits\.max_replicates \{' }
+refusal = { path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", pattern = 'if \*replicates > limits\.max_replicates \{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
+scope_fixture = { path = "crates/antecedent-estimate/tests/scenario_covariance.rs", pattern = '\bindependent_rows_bounds_and_arguments_refuse\b' }
 
 [[bound]]
 record = "transport.shared_scenario_covariance"
@@ -100,9 +100,9 @@ record = "identify.binary_nested_markov"
 key = "max_observed"
 implementation = [{ path = "crates/antecedent-estimate/src/nested_markov_binary.rs", constant = "MAX_OBSERVED" }]
 documentation = [{ path = "crates/antecedent-estimate/src/nested_markov_binary.rs", constant = "MAX_OBSERVED" }]
-guard = { path = "crates/antecedent-estimate/src/nested_markov_binary.rs", pattern = "if\\ input\\.graph\\.variables\\.len\\(\\)\\ >\\ MAX_OBSERVED\\ \\{" }
-refusal = { path = "crates/antecedent-estimate/src/nested_markov_binary.rs", pattern = "if\\ input\\.graph\\.variables\\.len\\(\\)\\ >\\ MAX_OBSERVED\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-io/tests/nested_markov_artifact.rs", pattern = "\\bnested_fit_replay_refuses_stored_sizes_above_the_consumer_limits\\b" }
+guard = { path = "crates/antecedent-io/src/nested_markov_artifact.rs", pattern = 'if self\.graph\.variables\.len\(\) > limits\.max_variables \{' }
+refusal = { path = "crates/antecedent-io/src/nested_markov_artifact.rs", pattern = 'if self\.graph\.variables\.len\(\) > limits\.max_variables \{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
+scope_fixture = { path = "crates/antecedent-io/tests/nested_markov_artifact.rs", pattern = '\bnested_fit_replay_refuses_stored_sizes_above_the_consumer_limits\b' }
 
 [[bound]]
 record = "identify.binary_nested_markov"
@@ -127,9 +127,9 @@ record = "temporal.dependent_interval"
 key = "max_replicates"
 implementation = [{ path = "crates/antecedent-estimate/src/temporal_dependent_interval.rs", constant = "INTERVAL_MAX_REPLICATES" }]
 documentation = [{ path = "crates/antecedent-estimate/src/temporal_dependent_interval.rs", constant = "INTERVAL_MAX_REPLICATES" }]
-guard = { path = "crates/antecedent-estimate/src/temporal_dependent_interval.rs", pattern = "if\\ config\\.replicates\\ >\\ INTERVAL_MAX_REPLICATES\\ \\{" }
-refusal = { path = "crates/antecedent-estimate/src/temporal_dependent_interval.rs", pattern = "if\\ config\\.replicates\\ >\\ INTERVAL_MAX_REPLICATES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", pattern = "\\bunknown_unit_dependence_refuses_an_absent_map_and_incompatible_units\\b" }
+guard = { path = "crates/antecedent/src/analysis/temporal_extensions.rs", pattern = 'if config\.replicates > INTERVAL_MAX_REPLICATES \{' }
+refusal = { path = "crates/antecedent/src/analysis/temporal_extensions.rs", pattern = 'if config\.replicates > INTERVAL_MAX_REPLICATES \{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
+scope_fixture = { path = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", pattern = '\bunknown_unit_dependence_refuses_an_absent_map_and_incompatible_units\b' }
 
 [[bound]]
 record = "temporal.dependent_interval"
@@ -168,15 +168,6 @@ refusal = { path = "crates/antecedent-estimate/src/temporal_refresh.rs", pattern
 scope_fixture = { path = "crates/antecedent-io/tests/temporal_refresh_artifact.rs", pattern = "\\bperiod_reseal_refuses_a_changed_period_snapshot_or_units\\b" }
 
 [[bound]]
-record = "temporal.new_period_refresh"
-key = "max_history_states"
-implementation = [{ path = "crates/antecedent-identify/src/sid/temporal_sequence.rs", constant = "TEMPORAL_MAX_HISTORY_STATES" }]
-documentation = [{ path = "crates/antecedent-identify/src/sid/temporal_sequence.rs", constant = "TEMPORAL_MAX_HISTORY_STATES" }]
-guard = { path = "crates/antecedent-identify/src/sid/temporal_sequence.rs", pattern = "if\\ states\\ >\\ TEMPORAL_MAX_HISTORY_STATES\\ \\{" }
-refusal = { path = "crates/antecedent-identify/src/sid/temporal_sequence.rs", pattern = "if\\ states\\ >\\ TEMPORAL_MAX_HISTORY_STATES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-io/tests/temporal_refresh_artifact.rs", pattern = "\\bperiod_reseal_refuses_a_changed_period_snapshot_or_units\\b" }
-
-[[bound]]
 record = "counterfactual.temporal_fixed_population"
 key = "max_horizon"
 implementation = [{ path = "crates/antecedent-counterfactual/src/temporal_cross_world.rs", constant = "MAX_HORIZON" }]
@@ -208,9 +199,9 @@ record = "recovery.sampled_observation"
 key = "max_replicates"
 implementation = [{ path = "crates/antecedent-estimate/src/recovery_sampled.rs", constant = "SAMPLED_RECOVERY_MAX_REPLICATES" }]
 documentation = [{ path = "crates/antecedent-estimate/src/recovery_sampled.rs", constant = "SAMPLED_RECOVERY_MAX_REPLICATES" }]
-guard = { path = "crates/antecedent-estimate/src/recovery_sampled.rs", pattern = "if\\ config\\.replicates\\ >\\ SAMPLED_RECOVERY_MAX_REPLICATES\\ \\{" }
-refusal = { path = "crates/antecedent-estimate/src/recovery_sampled.rs", pattern = "if\\ config\\.replicates\\ >\\ SAMPLED_RECOVERY_MAX_REPLICATES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-io/tests/sampled_recovery_artifact.rs", pattern = "\\bsampled_recovery_replay_refuses_stored_sizes_above_the_consumer_limits\\b" }
+guard = { path = "crates/antecedent/src/analysis/closed_pilots.rs", pattern = 'if request\.replicates > SAMPLED_RECOVERY_MAX_REPLICATES \{' }
+refusal = { path = "crates/antecedent/src/analysis/closed_pilots.rs", pattern = 'if request\.replicates > SAMPLED_RECOVERY_MAX_REPLICATES \{\s*return Some\(sampled\(\s*SampledRecoveryDetail::BoundsExceeded' }
+scope_fixture = { path = "crates/antecedent-io/tests/sampled_recovery_artifact.rs", pattern = '\bsampled_recovery_replay_refuses_stored_sizes_above_the_consumer_limits\b' }
 
 [[bound]]
 record = "recovery.sampled_observation"
@@ -226,9 +217,9 @@ record = "recovery.sampled_observation"
 key = "max_binary_variables"
 implementation = [{ path = "crates/antecedent-estimate/src/recovery_sampled.rs", constant = "SAMPLED_RECOVERY_MAX_BINARY_VARIABLES" }]
 documentation = [{ path = "crates/antecedent-estimate/src/recovery_sampled.rs", constant = "SAMPLED_RECOVERY_MAX_BINARY_VARIABLES" }]
-guard = { path = "crates/antecedent-estimate/src/recovery_sampled.rs", pattern = "if\\ k\\ \\+\\ m\\ >\\ SAMPLED_RECOVERY_MAX_BINARY_VARIABLES\\ \\{" }
-refusal = { path = "crates/antecedent-estimate/src/recovery_sampled.rs", pattern = "if\\ k\\ \\+\\ m\\ >\\ SAMPLED_RECOVERY_MAX_BINARY_VARIABLES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-io/tests/sampled_recovery_artifact.rs", pattern = "\\bsampled_recovery_replay_refuses_stored_sizes_above_the_consumer_limits\\b" }
+guard = { path = "crates/antecedent/src/analysis/closed_pilots.rs", pattern = '> SAMPLED_RECOVERY_MAX_BINARY_VARIABLES \{' }
+refusal = { path = "crates/antecedent/src/analysis/closed_pilots.rs", pattern = '> SAMPLED_RECOVERY_MAX_BINARY_VARIABLES \{\s*return Some\(sampled\(\s*SampledRecoveryDetail::BoundsExceeded' }
+scope_fixture = { path = "crates/antecedent-io/tests/sampled_recovery_artifact.rs", pattern = '\bsampled_recovery_replay_refuses_stored_sizes_above_the_consumer_limits\b' }
 
 [[bound]]
 record = "distribution.aligned_joint_draws"
@@ -289,9 +280,9 @@ record = "temporal.effect_constancy"
 key = "max_partitions"
 implementation = [{ path = "crates/antecedent-estimate/src/effect_constancy.rs", constant = "EFFECT_CONSTANCY_MAX_PARTITIONS" }]
 documentation = [{ path = "crates/antecedent-estimate/src/effect_constancy.rs", constant = "EFFECT_CONSTANCY_MAX_PARTITIONS" }]
-guard = { path = "crates/antecedent-estimate/src/effect_constancy.rs", pattern = "if\\ partitions\\.len\\(\\)\\ >\\ EFFECT_CONSTANCY_MAX_PARTITIONS\\ \\{" }
-refusal = { path = "crates/antecedent-estimate/src/effect_constancy.rs", pattern = "if\\ partitions\\.len\\(\\)\\ >\\ EFFECT_CONSTANCY_MAX_PARTITIONS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-estimate/tests/effect_constancy.rs", pattern = "\\bincompatible_partition_estimand_units_and_regime_refuse\\b" }
+guard = { path = "crates/antecedent-io/src/effect_constancy_artifact.rs", pattern = 'if request\.partitions\.len\(\) > EFFECT_CONSTANCY_MAX_PARTITIONS \{' }
+refusal = { path = "crates/antecedent-io/src/effect_constancy_artifact.rs", pattern = 'if request\.partitions\.len\(\) > EFFECT_CONSTANCY_MAX_PARTITIONS \{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
+scope_fixture = { path = "crates/antecedent-estimate/tests/effect_constancy.rs", pattern = '\bincompatible_partition_estimand_units_and_regime_refuse\b' }
 
 [[bound]]
 record = "decision.contract"
@@ -352,63 +343,36 @@ record = "design.evidence_obligations"
 key = "max_coordinates"
 implementation = [{ path = "crates/antecedent-contract/src/evidence_obligation.rs", constant = "MAX_OBLIGATION_COORDINATES" }]
 documentation = [{ path = "crates/antecedent-contract/src/evidence_obligation.rs", constant = "MAX_OBLIGATION_COORDINATES" }]
-guard = { path = "crates/antecedent-contract/src/evidence_obligation.rs", pattern = "if\\ coordinates\\ >\\ MAX_OBLIGATION_COORDINATES" }
-refusal = { path = "crates/antecedent-contract/src/evidence_obligation.rs", pattern = "if\\ coordinates\\ >\\ MAX_OBLIGATION_COORDINATES[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-contract/tests/evidence_obligation.rs", pattern = "\\bscientific_obligation_screen_refuses_missing_or_incompatible_measurement_semantics\\b" }
-
-[[bound]]
-record = "design.identification_repair"
-key = "max_candidates"
-implementation = [{ path = "crates/antecedent-design/src/repair.rs", constant = "REPAIR_MAX_CANDIDATES" }]
-documentation = [{ path = "crates/antecedent-design/src/repair.rs", constant = "REPAIR_MAX_CANDIDATES" }]
-guard = { path = "crates/antecedent-design/src/repair.rs", pattern = "if\\ candidates\\ >\\ REPAIR_MAX_CANDIDATES" }
-refusal = { path = "crates/antecedent-design/src/repair.rs", pattern = "if\\ candidates\\ >\\ REPAIR_MAX_CANDIDATES[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-design/tests/repair_facade.rs", pattern = "\\bbounds_and_cancellation_are_refusals_or_reports_not_verdicts\\b" }
-
-[[bound]]
-record = "design.identification_repair"
-key = "max_subset_size"
-implementation = [{ path = "crates/antecedent-design/src/repair.rs", constant = "REPAIR_MAX_DEPTH" }]
-documentation = [{ path = "crates/antecedent-design/src/repair.rs", constant = "REPAIR_MAX_DEPTH" }]
-guard = { path = "crates/antecedent-design/src/repair.rs", pattern = "\\|\\|\\ self\\.search\\.depth\\ >\\ REPAIR_MAX_DEPTH" }
-refusal = { path = "crates/antecedent-design/src/repair.rs", pattern = "\\|\\|\\ self\\.search\\.depth\\ >\\ REPAIR_MAX_DEPTH[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-design/tests/repair_facade.rs", pattern = "\\bbounds_and_cancellation_are_refusals_or_reports_not_verdicts\\b" }
+guard = { path = "crates/antecedent-design/src/study_candidate.rs", pattern = 'self\.interventions\.len\(\) \+ self\.measured\.len\(\) > MAX_OBLIGATION_COORDINATES' }
+refusal = { path = "crates/antecedent-design/src/study_candidate.rs", pattern = '> MAX_OBLIGATION_COORDINATES[\s\S]{0,600}?Err\s*\(' }
+scope_fixture = { path = "crates/antecedent-contract/tests/evidence_obligation.rs", pattern = '\bscientific_obligation_screen_refuses_missing_or_incompatible_measurement_semantics\b' }
 
 [[bound]]
 record = "design.identification_repair"
 key = "max_operations"
 implementation = [{ path = "crates/antecedent-design/src/repair.rs", constant = "REPAIR_MAX_OPERATIONS" }]
 documentation = [{ path = "crates/antecedent-design/src/repair.rs", constant = "REPAIR_MAX_OPERATIONS" }]
-guard = { path = "crates/antecedent-design/src/repair.rs", pattern = "\\|\\|\\ self\\.search\\.operations\\ >\\ REPAIR_MAX_OPERATIONS" }
-refusal = { path = "crates/antecedent-design/src/repair.rs", pattern = "\\|\\|\\ self\\.search\\.operations\\ >\\ REPAIR_MAX_OPERATIONS[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-design/tests/repair_facade.rs", pattern = "\\bbounds_and_cancellation_are_refusals_or_reports_not_verdicts\\b" }
+guard = { path = "crates/antecedent-design/src/repair.rs", pattern = 'self\.search\.operations > REPAIR_MAX_OPERATIONS' }
+refusal = { path = "crates/antecedent-design/src/repair.rs", pattern = 'self\.search\.operations > REPAIR_MAX_OPERATIONS[\s\S]{0,300}?Err\s*\(' }
+scope_fixture = { path = "crates/antecedent-design/tests/repair_facade.rs", pattern = '\bbounds_and_cancellation_are_refusals_or_reports_not_verdicts\b' }
 
 [[bound]]
 record = "design.identification_repair"
 key = "max_memory_bytes"
 implementation = [{ path = "crates/antecedent-design/src/repair.rs", constant = "REPAIR_MAX_MEMORY_BYTES" }]
 documentation = [{ path = "crates/antecedent-design/src/repair.rs", constant = "REPAIR_MAX_MEMORY_BYTES" }]
-guard = { path = "crates/antecedent-design/src/repair.rs", pattern = "\\|\\|\\ self\\.memory_limit_bytes\\ >\\ REPAIR_MAX_MEMORY_BYTES" }
-refusal = { path = "crates/antecedent-design/src/repair.rs", pattern = "\\|\\|\\ self\\.memory_limit_bytes\\ >\\ REPAIR_MAX_MEMORY_BYTES[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-design/tests/repair_facade.rs", pattern = "\\bbounds_and_cancellation_are_refusals_or_reports_not_verdicts\\b" }
+guard = { path = "crates/antecedent-design/src/repair.rs", pattern = 'self\.memory_limit_bytes > REPAIR_MAX_MEMORY_BYTES' }
+refusal = { path = "crates/antecedent-design/src/repair.rs", pattern = 'self\.memory_limit_bytes > REPAIR_MAX_MEMORY_BYTES[\s\S]{0,300}?Err\s*\(' }
+scope_fixture = { path = "crates/antecedent-design/tests/repair_facade.rs", pattern = '\bbounds_and_cancellation_are_refusals_or_reports_not_verdicts\b' }
 
 [[bound]]
 record = "estimate.vector_treatment"
 key = "max_treatments"
 implementation = [{ path = "crates/antecedent-estimate/src/vector_treatment.rs", constant = "VECTOR_TREATMENT_MAX_TREATMENTS" }]
 documentation = [{ path = "crates/antecedent-estimate/src/vector_treatment.rs", constant = "VECTOR_TREATMENT_MAX_TREATMENTS" }]
-guard = { path = "crates/antecedent-estimate/src/vector_treatment.rs", pattern = "if\\ k\\ >\\ VECTOR_TREATMENT_MAX_TREATMENTS\\ \\{" }
-refusal = { path = "crates/antecedent-estimate/src/vector_treatment.rs", pattern = "if\\ k\\ >\\ VECTOR_TREATMENT_MAX_TREATMENTS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-estimate/tests/vector_treatment.rs", pattern = "\\bvector_refuses_different_adjustment_sets\\b" }
-
-[[bound]]
-record = "estimate.vector_treatment"
-key = "hc_replay_row_cap"
-implementation = [{ path = "crates/antecedent-io/src/vector_treatment_artifact.rs", constant = "VECTOR_TREATMENT_HC_ROW_CAP" }]
-documentation = [{ path = "crates/antecedent-io/src/vector_treatment_artifact.rs", constant = "VECTOR_TREATMENT_HC_ROW_CAP" }]
-guard = { path = "crates/antecedent-io/src/vector_treatment_artifact.rs", pattern = "if\\ decl\\.n_rows\\ >\\ VECTOR_TREATMENT_HC_ROW_CAP\\ \\{" }
-refusal = { path = "crates/antecedent-io/src/vector_treatment_artifact.rs", pattern = "if\\ decl\\.n_rows\\ >\\ VECTOR_TREATMENT_HC_ROW_CAP\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-estimate/tests/vector_treatment.rs", pattern = "\\bvector_refuses_different_adjustment_sets\\b" }
+guard = { path = "crates/antecedent-io/src/vector_treatment_artifact.rs", pattern = 'if decl\.treatments\.len\(\) > VECTOR_TREATMENT_MAX_TREATMENTS \{' }
+refusal = { path = "crates/antecedent-io/src/vector_treatment_artifact.rs", pattern = 'if decl\.treatments\.len\(\) > VECTOR_TREATMENT_MAX_TREATMENTS \{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
+scope_fixture = { path = "crates/antecedent-estimate/tests/vector_treatment.rs", pattern = '\bvector_refuses_different_adjustment_sets\b' }
 
 [[bound]]
 record = "estimate.categorical_treatment"
@@ -418,15 +382,6 @@ documentation = [{ path = "crates/antecedent-io/src/categorical_treatment_artifa
 guard = { path = "crates/antecedent-io/src/categorical_treatment_artifact.rs", pattern = "if\\ decl\\.n_rows\\ >\\ CATEGORICAL_HC_ROW_CAP\\ \\{" }
 refusal = { path = "crates/antecedent-io/src/categorical_treatment_artifact.rs", pattern = "if\\ decl\\.n_rows\\ >\\ CATEGORICAL_HC_ROW_CAP\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "crates/antecedent-estimate/tests/categorical_treatment.rs", pattern = "\\bcategorical_sparse_level_is_refused_by_name_never_dropped\\b" }
-
-[[bound]]
-record = "estimate.latent_class_effects"
-key = "max_classes"
-implementation = [{ path = "crates/antecedent-estimate/src/latent_class_effects.rs", constant = "LATENT_CLASS_MAX_CLASSES" }]
-documentation = [{ path = "crates/antecedent-estimate/src/latent_class_effects.rs", constant = "LATENT_CLASS_MAX_CLASSES" }]
-guard = { path = "crates/antecedent-estimate/src/latent_class_effects.rs", pattern = "if\\ config\\.classes\\ >\\ LATENT_CLASS_MAX_CLASSES\\ \\{" }
-refusal = { path = "crates/antecedent-estimate/src/latent_class_effects.rs", pattern = "if\\ config\\.classes\\ >\\ LATENT_CLASS_MAX_CLASSES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-estimate/tests/latent_class_effects.rs", pattern = "\\blatent_weak_class_weight_refuses\\b" }
 
 [[bound]]
 record = "recalculation.selective"
@@ -442,9 +397,9 @@ record = "recalculation.receipt"
 key = "max_bytes"
 implementation = [{ path = "crates/antecedent-io-core/src/recalc_receipt_artifact.rs", constant = "MAX_RECALC_RECEIPT_ARTIFACT_BYTES" }]
 documentation = [{ path = "crates/antecedent-io-core/src/recalc_receipt_artifact.rs", constant = "MAX_RECALC_RECEIPT_ARTIFACT_BYTES" }]
-guard = { path = "crates/antecedent-io-core/src/recalc_receipt_artifact.rs", pattern = "\\bdecode_container\\s*\\(\\s*[A-Z_]+,\\s*MAX_RECALC_RECEIPT_ARTIFACT_BYTES,\\s*&\\[[^\\]]+\\],\\s*bytes,\\s*\\)" }
-refusal = { path = "crates/antecedent-io-core/src/artifact_codec.rs", pattern = "if\\s+bytes\\.len\\(\\)\\s*>\\s*max_bytes\\s*\\{\\s*return\\s+Err\\(CodecError::FileTooLarge\\)" }
-scope_fixture = { path = "crates/antecedent-io/tests/recalc_receipt_artifact.rs", pattern = "\\bartifact_model_fits_are_bound_and_legacy_counts_remain_unchanged\\b" }
+guard = { path = "crates/antecedent-io-core/src/recalc_receipt_artifact.rs", pattern = 'decode_parts_within\(bytes, MAX_RECALC_RECEIPT_ARTIFACT_BYTES\)' }
+refusal = { path = "crates/antecedent-io-core/src/artifact_codec.rs", pattern = 'if\s+bytes\.len\(\)\s*>\s*max_bytes\s*\{\s*return\s+Err\(CodecError::FileTooLarge\)' }
+scope_fixture = { path = "crates/antecedent-io/tests/recalc_receipt_artifact.rs", pattern = '\bartifact_model_fits_are_bound_and_legacy_counts_remain_unchanged\b' }
 
 [[bound]]
 record = "recalculation.receipt"
@@ -478,9 +433,9 @@ record = "transport.scenario_invariance"
 key = "max_scenarios"
 implementation = [{ path = "crates/antecedent-estimate/src/scenario_covariance.rs", constant = "MAX_SCENARIOS" }]
 documentation = [{ path = "crates/antecedent-estimate/src/scenario_covariance.rs", constant = "MAX_SCENARIOS" }]
-guard = { path = "crates/antecedent-estimate/src/scenario_covariance.rs", pattern = "if\\ scenarios\\.len\\(\\)\\ >\\ MAX_SCENARIOS\\ \\{" }
-refusal = { path = "crates/antecedent-estimate/src/scenario_covariance.rs", pattern = "if\\ scenarios\\.len\\(\\)\\ >\\ MAX_SCENARIOS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-estimate/tests/scenario_invariance_report.rs", pattern = "\\bscenario_invariance_a_report_for_another_set_is_refused\\b" }
+guard = { path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", pattern = 'if self\.scenarios\.len\(\) > MAX_SCENARIOS \{' }
+refusal = { path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", pattern = 'if self\.scenarios\.len\(\) > MAX_SCENARIOS \{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
+scope_fixture = { path = "crates/antecedent-estimate/tests/scenario_invariance_report.rs", pattern = '\bscenario_invariance_a_report_for_another_set_is_refused\b' }
 
 [[bound]]
 record = "counterfactual.transported_additive"
@@ -559,18 +514,27 @@ record = "sensitivity.mechanism_discrepancy"
 key = "max_bytes"
 implementation = [{ path = "crates/antecedent-io/src/mechanism_discrepancy_artifact.rs", constant = "MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES" }]
 documentation = [{ path = "crates/antecedent-io/src/mechanism_discrepancy_artifact.rs", constant = "MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES" }]
-guard = { path = "crates/antecedent-io/src/mechanism_discrepancy_artifact.rs", pattern = "\\bdecode_container\\s*\\(\\s*[A-Z_]+,\\s*MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES,\\s*&\\[[^\\]]+\\],\\s*bytes,\\s*\\)" }
-refusal = { path = "crates/antecedent-io-core/src/artifact_codec.rs", pattern = "if\\s+bytes\\.len\\(\\)\\s*>\\s*max_bytes\\s*\\{\\s*return\\s+Err\\(CodecError::FileTooLarge\\)" }
-scope_fixture = { path = "crates/antecedent-estimate/tests/mechanism_discrepancy.rs", pattern = "\\bdiscrepancy_incomparable_measurements_refuse\\b" }
+guard = { path = "crates/antecedent-io/src/mechanism_discrepancy_artifact.rs", pattern = 'decode_sectioned::<[^(]*>\(\s*[A-Z_]+,\s*MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES,' }
+refusal = { path = "crates/antecedent-io-core/src/artifact_codec.rs", pattern = 'if\s+bytes\.len\(\)\s*>\s*max_bytes\s*\{\s*return\s+Err\(CodecError::FileTooLarge\)' }
+scope_fixture = { path = "crates/antecedent-estimate/tests/mechanism_discrepancy.rs", pattern = '\bdiscrepancy_incomparable_measurements_refuse\b' }
 
 [[bound]]
 record = "sensitivity.marginal_structural_model"
 key = "max_strata"
-implementation = [{ path = "crates/antecedent-validate/src/msm_sensitivity.rs", constant = "MSM_MAX_STRATA" }, { path = "python/antecedent/msm_sensitivity.py", pattern = "len\\(groups\\) == (4096)" }]
-documentation = [{ path = "crates/antecedent-validate/src/msm_sensitivity.rs", constant = "MSM_MAX_STRATA" }, { path = "python/antecedent/msm_sensitivity.py", pattern = "len\\(groups\\) == (4096)" }]
-guard = { path = "crates/antecedent-validate/src/msm_sensitivity.rs", pattern = "if\\ strata\\.is_empty\\(\\)\\ \\|\\|\\ strata\\.len\\(\\)\\ >\\ MSM_MAX_STRATA\\ \\{" }
-refusal = { path = "crates/antecedent-validate/src/msm_sensitivity.rs", pattern = "if\\ strata\\.is_empty\\(\\)\\ \\|\\|\\ strata\\.len\\(\\)\\ >\\ MSM_MAX_STRATA\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-validate/tests/msm_sensitivity.rs", pattern = "\\bmsm_refuses_propensities_on_the_boundary\\b" }
+implementation = [{ path = "crates/antecedent-validate/src/msm_sensitivity.rs", constant = "MSM_MAX_STRATA" }]
+documentation = [{ path = "crates/antecedent-validate/src/msm_sensitivity.rs", constant = "MSM_MAX_STRATA" }]
+guard = { path = "crates/antecedent-validate/src/msm_sensitivity.rs", pattern = 'if\ strata\.is_empty\(\)\ \|\|\ strata\.len\(\)\ >\ MSM_MAX_STRATA\ \{' }
+refusal = { path = "crates/antecedent-validate/src/msm_sensitivity.rs", pattern = 'if\ strata\.is_empty\(\)\ \|\|\ strata\.len\(\)\ >\ MSM_MAX_STRATA\ \{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
+scope_fixture = { path = "crates/antecedent-validate/tests/msm_sensitivity.rs", pattern = '\bmsm_refuses_propensities_on_the_boundary\b' }
+
+[[bound]]
+record = "sensitivity.marginal_structural_model"
+key = "max_empirical_strata"
+implementation = [{ path = "python/antecedent/msm_sensitivity.py", pattern = 'len\(groups\) == (4096)' }]
+documentation = [{ path = "python/antecedent/msm_sensitivity.py", pattern = 'len\(groups\) == (4096)' }]
+guard = { path = "python/antecedent/msm_sensitivity.py", pattern = 'if len\(groups\) == 4096:' }
+refusal = { path = "python/antecedent/msm_sensitivity.py", pattern = 'if len\(groups\) == 4096:[\s\S]{0,250}?raise CausalValueError' }
+scope_fixture = { path = "python/tests/test_decision_flow_bridge.py", pattern = '\btest_empirical_msm_result_handoff_keeps_sample_bounds_distinct\b' }
 
 [[bound]]
 record = "sensitivity.marginal_structural_model"
@@ -586,27 +550,18 @@ record = "recalculation.frozen_scores_artifact"
 key = "max_bytes"
 implementation = [{ path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", constant = "MAX_FROZEN_SCORES_ARTIFACT_BYTES" }]
 documentation = [{ path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", constant = "MAX_FROZEN_SCORES_ARTIFACT_BYTES" }]
-guard = { path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", pattern = "\\bdecode_container\\s*\\(\\s*[A-Z_]+,\\s*MAX_FROZEN_SCORES_ARTIFACT_BYTES,\\s*&\\[[^\\]]+\\],\\s*bytes,\\s*\\)" }
-refusal = { path = "crates/antecedent-io-core/src/artifact_codec.rs", pattern = "if\\s+bytes\\.len\\(\\)\\s*>\\s*max_bytes\\s*\\{\\s*return\\s+Err\\(CodecError::FileTooLarge\\)" }
-scope_fixture = { path = "crates/antecedent-io/tests/frozen_scores_artifact.rs", pattern = "\\bscores_resealed_mutation_is_refused_by_a_retained_identity\\b" }
+guard = { path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", pattern = 'max_bytes: MAX_FROZEN_SCORES_ARTIFACT_BYTES,\s*max_rows: MAX_FROZEN_SCORE_ROWS' }
+refusal = { path = "crates/antecedent-io-core/src/artifact_codec.rs", pattern = 'if\s+bytes\.len\(\)\s*>\s*max_bytes\s*\{\s*return\s+Err\(CodecError::FileTooLarge\)' }
+scope_fixture = { path = "crates/antecedent-io/tests/frozen_scores_artifact.rs", pattern = '\bscores_resealed_mutation_is_refused_by_a_retained_identity\b' }
 
 [[bound]]
 record = "recalculation.frozen_scores_artifact"
 key = "max_rows"
 implementation = [{ path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", constant = "MAX_FROZEN_SCORE_ROWS" }]
 documentation = [{ path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", constant = "MAX_FROZEN_SCORE_ROWS" }]
-guard = { path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", pattern = "if\\ n\\ >\\ MAX_FROZEN_SCORE_ROWS\\ \\{" }
-refusal = { path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", pattern = "if\\ n\\ >\\ MAX_FROZEN_SCORE_ROWS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-io/tests/frozen_scores_artifact.rs", pattern = "\\bscores_resealed_mutation_is_refused_by_a_retained_identity\\b" }
-
-[[bound]]
-record = "recalculation.frozen_scores_artifact"
-key = "max_columns"
-implementation = [{ path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", constant = "MAX_FROZEN_SCORE_COLUMNS" }]
-documentation = [{ path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", constant = "MAX_FROZEN_SCORE_COLUMNS" }]
-guard = { path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", pattern = "if\\ table\\.columns\\.len\\(\\)\\ >\\ MAX_FROZEN_SCORE_COLUMNS\\ \\{" }
-refusal = { path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", pattern = "if\\ table\\.columns\\.len\\(\\)\\ >\\ MAX_FROZEN_SCORE_COLUMNS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-io/tests/frozen_scores_artifact.rs", pattern = "\\bscores_resealed_mutation_is_refused_by_a_retained_identity\\b" }
+guard = { path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", pattern = 'if n > limits\.max_rows \{' }
+refusal = { path = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", pattern = 'if n > limits\.max_rows \{\s*return limit\(' }
+scope_fixture = { path = "crates/antecedent-io/tests/frozen_scores_artifact.rs", pattern = '\bscores_resealed_mutation_is_refused_by_a_retained_identity\b' }
 
 [[bound]]
 record = "recalculation.operation_inventory"
@@ -628,15 +583,6 @@ scope_fixture = { path = "python/tests/test_recalc_adjusted.py", pattern = "\\bt
 
 [[bound]]
 record = "recalculation.adjusted"
-key = "max_glm_iterations"
-implementation = [{ path = "python/src/recalc_adjusted_api.rs", constant = "MAX_GLM_ITERATIONS" }]
-documentation = [{ path = "python/src/recalc_adjusted_api.rs", constant = "MAX_GLM_ITERATIONS" }]
-guard = { path = "python/src/recalc_adjusted_api.rs", pattern = "\\|\\|\\ max_iter\\ >\\ MAX_GLM_ITERATIONS" }
-refusal = { path = "python/src/recalc_adjusted_api.rs", pattern = "\\|\\|\\ max_iter\\ >\\ MAX_GLM_ITERATIONS[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "python/tests/test_recalc_adjusted.py", pattern = "\\btest_adjusted_glm_domain_and_solver_refusals_preserve_previous_fit\\b" }
-
-[[bound]]
-record = "recalculation.adjusted"
 key = "max_json_bytes"
 implementation = [{ path = "python/src/recalc_api.rs", constant = "MAX_JSON_BYTES" }]
 documentation = [{ path = "python/src/bridge.rs", constant = "MAX_CONFIG_DECLARATION_BYTES" }]
@@ -663,22 +609,13 @@ refusal = { path = "python/src/bridge.rs", pattern = "if len > limit \\{[\\s\\S]
 scope_fixture = { path = "crates/antecedent/tests/recalc_dr.rs", pattern = "\\bdr_complete_case_rows_frozen_scores_and_fresh_refit_are_bound_to_real_data\\b" }
 
 [[bound]]
-record = "recalculation.doubly_robust"
-key = "max_folds"
-implementation = [{ path = "python/src/recalc_dr_api.rs", constant = "MAX_FOLDS" }]
-documentation = [{ path = "python/src/recalc_dr_api.rs", constant = "MAX_FOLDS" }]
-guard = { path = "python/src/recalc_dr_api.rs", pattern = "if\\ config\\.folds\\.is_some_and\\(\\|n\\|\\ !\\(2\\.\\.=MAX_FOLDS\\)\\.contains\\(\\&n\\)\\)\\ \\{" }
-refusal = { path = "python/src/recalc_dr_api.rs", pattern = "if\\ config\\.folds\\.is_some_and\\(\\|n\\|\\ !\\(2\\.\\.=MAX_FOLDS\\)\\.contains\\(\\&n\\)\\)\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent/tests/recalc_dr.rs", pattern = "\\bdr_complete_case_rows_frozen_scores_and_fresh_refit_are_bound_to_real_data\\b" }
-
-[[bound]]
 record = "identify.binary_nested_markov_fisher"
 key = "max_observed"
 implementation = [{ path = "crates/antecedent-estimate/src/nested_markov_binary.rs", constant = "MAX_OBSERVED" }]
 documentation = [{ path = "crates/antecedent-estimate/src/nested_markov_binary.rs", constant = "MAX_OBSERVED" }]
-guard = { path = "crates/antecedent-estimate/src/nested_markov_binary.rs", pattern = "if\\ input\\.graph\\.variables\\.len\\(\\)\\ >\\ MAX_OBSERVED\\ \\{" }
-refusal = { path = "crates/antecedent-estimate/src/nested_markov_binary.rs", pattern = "if\\ input\\.graph\\.variables\\.len\\(\\)\\ >\\ MAX_OBSERVED\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-estimate/tests/nested_markov_uncertainty.rs", pattern = "\\bnested_fisher_refuses_pseudocounts_sparse_cells_invalid_scope_and_cancellation\\b" }
+guard = { path = "crates/antecedent-io/src/nested_markov_artifact.rs", pattern = 'if self\.graph\.variables\.len\(\) > limits\.max_variables \{' }
+refusal = { path = "crates/antecedent-io/src/nested_markov_artifact.rs", pattern = 'if self\.graph\.variables\.len\(\) > limits\.max_variables \{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
+scope_fixture = { path = "crates/antecedent-estimate/tests/nested_markov_uncertainty.rs", pattern = '\bnested_fisher_refuses_pseudocounts_sparse_cells_invalid_scope_and_cancellation\b' }
 
 [[bound]]
 record = "identify.binary_nested_markov_fisher"
@@ -696,15 +633,6 @@ implementation = [{ path = "python/src/recalc_static_api.rs", constant = "MAX_LA
 documentation = [{ path = "python/src/recalc_static_api.rs", constant = "MAX_LAW_CELLS" }]
 guard = { path = "python/src/recalc_static_api.rs", pattern = "if\\ cells\\ >\\ MAX_LAW_CELLS\\ \\{" }
 refusal = { path = "python/src/recalc_static_api.rs", pattern = "if\\ cells\\ >\\ MAX_LAW_CELLS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "python/tests/test_recalc_static.py", pattern = "\\btest_static_factor_domain_budget_refuses_before_cartesian_allocation\\b" }
-
-[[bound]]
-record = "recalculation.static_response"
-key = "max_variables"
-implementation = [{ path = "python/src/recalc_static_api.rs", constant = "MAX_VARIABLES" }]
-documentation = [{ path = "python/src/recalc_static_api.rs", constant = "MAX_VARIABLES" }]
-guard = { path = "python/src/recalc_static_api.rs", pattern = "if\\ names\\.len\\(\\)\\ >\\ MAX_VARIABLES\\ \\|\\|\\ wire\\.support\\.len\\(\\)\\ >\\ MAX_GRID\\ \\|\\|\\ wire\\.actions\\.len\\(\\)\\ >\\ MAX_GRID" }
-refusal = { path = "python/src/recalc_static_api.rs", pattern = "if\\ names\\.len\\(\\)\\ >\\ MAX_VARIABLES\\ \\|\\|\\ wire\\.support\\.len\\(\\)\\ >\\ MAX_GRID\\ \\|\\|\\ wire\\.actions\\.len\\(\\)\\ >\\ MAX_GRID[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "python/tests/test_recalc_static.py", pattern = "\\btest_static_factor_domain_budget_refuses_before_cartesian_allocation\\b" }
 
 [[bound]]
@@ -883,9 +811,9 @@ record = "temporal.effect_constancy_consumers"
 key = "max_partitions"
 implementation = [{ path = "crates/antecedent-estimate/src/effect_constancy.rs", constant = "EFFECT_CONSTANCY_MAX_PARTITIONS" }]
 documentation = [{ path = "crates/antecedent-estimate/src/effect_constancy.rs", constant = "EFFECT_CONSTANCY_MAX_PARTITIONS" }]
-guard = { path = "crates/antecedent-estimate/src/effect_constancy.rs", pattern = "if\\ partitions\\.len\\(\\)\\ >\\ EFFECT_CONSTANCY_MAX_PARTITIONS\\ \\{" }
-refusal = { path = "crates/antecedent-estimate/src/effect_constancy.rs", pattern = "if\\ partitions\\.len\\(\\)\\ >\\ EFFECT_CONSTANCY_MAX_PARTITIONS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "python/tests/test_effect_constancy_review.py", pattern = "\\btest_original_point_policy_handles_disagreement_ties_and_semantic_refusals\\b" }
+guard = { path = "crates/antecedent-io/src/effect_constancy_artifact.rs", pattern = 'if request\.partitions\.len\(\) > EFFECT_CONSTANCY_MAX_PARTITIONS \{' }
+refusal = { path = "crates/antecedent-io/src/effect_constancy_artifact.rs", pattern = 'if request\.partitions\.len\(\) > EFFECT_CONSTANCY_MAX_PARTITIONS \{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
+scope_fixture = { path = "python/tests/test_effect_constancy_review.py", pattern = '\btest_original_point_policy_handles_disagreement_ties_and_semantic_refusals\b' }
 
 [[bound]]
 record = "temporal.effect_constancy_consumers"
@@ -1072,11 +1000,6 @@ record = "design.identification_repair"
 key = "operation_limit"
 numbers_from = ["max_operations"]
 
-[[noninteger]]
-record = "design.identification_repair"
-key = "depth_limit"
-numbers_from = ["max_subset_size"]
-
 [[bound]]
 record = "sensitivity.source_lineage"
 key = "max_artifact_bytes"
@@ -1172,56 +1095,32 @@ record = "counterfactual.transport_general"
 key = "max_worlds"
 implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_WORLDS" }]
 documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_WORLDS" }]
-guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'event\.worlds\(\)\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_WORLDS' }
-refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'event\.worlds\(\)\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_WORLDS[\s\S]{0,1200}return Err\(Rejection::Unsupported' }
+guard = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = 'self\.query\.event\.worlds\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_WORLDS' }
+refusal = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = 'COUNTERFACTUAL_TRANSPORT_MAX_WORLDS \{\s*return Err\(E::LimitsExceeded\("worlds"\)' }
 
 [[bound]]
 record = "counterfactual.transport_general"
 key = "max_atoms"
 implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_ATOMS" }]
 documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_ATOMS" }]
-guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'event\.given\(\)\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_ATOMS' }
-refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'event\.given\(\)\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_ATOMS[\s\S]{0,1200}return Err\(Rejection::Unsupported' }
-
-[[bound]]
-record = "counterfactual.transport_general"
-key = "max_network_nodes"
-implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_NODES" }]
-documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_NODES" }]
-guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport/network.rs", pattern = '\.count\(\) > COUNTERFACTUAL_TRANSPORT_MAX_NODES \{' }
-refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport/network.rs", pattern = '\.count\(\) > COUNTERFACTUAL_TRANSPORT_MAX_NODES \{[\s\S]{0,300}return Err\(' }
+guard = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = '> COUNTERFACTUAL_TRANSPORT_MAX_ATOMS\s*\{' }
+refusal = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = '> COUNTERFACTUAL_TRANSPORT_MAX_ATOMS\s*\{\s*return Err\(E::LimitsExceeded\("atoms"\)' }
 
 [[bound]]
 record = "counterfactual.transport_general"
 key = "max_sources"
 implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_SOURCES" }]
 documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_SOURCES" }]
-guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'query\.sources\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_SOURCES' }
-refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'query\.sources\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_SOURCES[\s\S]{0,1200}return Err\(Rejection::Unsupported' }
-
-[[bound]]
-record = "counterfactual.transport_general"
-key = "max_controllable_per_source"
-implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE" }]
-documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE" }]
-guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = '\.controllable\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE' }
-refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = '\.controllable\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE[\s\S]{0,1200}return Err\(Rejection::Unsupported' }
+guard = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = 'self\.query\.sources\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_SOURCES' }
+refusal = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = 'COUNTERFACTUAL_TRANSPORT_MAX_SOURCES \{\s*return Err\(E::LimitsExceeded\("sources"\)' }
 
 [[bound]]
 record = "counterfactual.transport_general"
 key = "max_regimes"
 implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_REGIMES" }]
 documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_REGIMES" }]
-guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'catalog\.regimes\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_REGIMES' }
-refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'catalog\.regimes\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_REGIMES[\s\S]{0,1200}return Err\(Rejection::Unsupported' }
-
-[[bound]]
-record = "counterfactual.transport_general"
-key = "max_sum_cells"
-implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS" }]
-documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS" }]
-guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'c > COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS\)' }
-refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'c > COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS\)[\s\S]{0,300}return Err\(Abort::Error\(bounds_exceeded' }
+guard = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = 'self\.catalog\.regimes\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_REGIMES' }
+refusal = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = 'COUNTERFACTUAL_TRANSPORT_MAX_REGIMES \{\s*return Err\(E::LimitsExceeded\("regimes"\)' }
 
 [[bound]]
 record = "counterfactual.transport_general"
@@ -1245,8 +1144,8 @@ record = "counterfactual.transport_sampled"
 key = "max_tables"
 implementation = [{ path = "crates/antecedent-estimate/src/counterfactual_transport_sampled.rs", constant = "SAMPLED_TRANSPORT_MAX_TABLES" }]
 documentation = [{ path = "crates/antecedent-estimate/src/counterfactual_transport_sampled.rs", constant = "SAMPLED_TRANSPORT_MAX_TABLES" }]
-guard = { path = "crates/antecedent-estimate/src/counterfactual_transport_sampled.rs", pattern = 'request\.tables\.len\(\) > SAMPLED_TRANSPORT_MAX_TABLES' }
-refusal = { path = "crates/antecedent-estimate/src/counterfactual_transport_sampled.rs", pattern = 'request\.tables\.len\(\) > SAMPLED_TRANSPORT_MAX_TABLES[\s\S]{0,200}return Err\(invalid_counts' }
+guard = { path = "crates/antecedent-io/src/sampled_counterfactual_transport_artifact.rs", pattern = 'if wire\.tables\.len\(\) > limits\.max_tables \{' }
+refusal = { path = "crates/antecedent-io/src/sampled_counterfactual_transport_artifact.rs", pattern = 'if wire\.tables\.len\(\) > limits\.max_tables \{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
 
 [[bound]]
 record = "counterfactual.transport_sampled"
@@ -1374,48 +1273,24 @@ record = "measurement.model_contract"
 key = "max_artifact_bytes"
 implementation = [{ path = "crates/antecedent-io-core/src/measurement_model_wire.rs", constant = "MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES" }]
 documentation = [{ path = "crates/antecedent-io-core/src/measurement_model_wire.rs", constant = "MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES" }]
-guard = { path = "crates/antecedent-io-core/src/measurement_model_wire.rs", pattern = 'bytes\.len\(\) > MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES' }
-refusal = { path = "crates/antecedent-io-core/src/measurement_model_wire.rs", pattern = 'bytes\.len\(\) > MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES \{[\s\S]{0,100}return Err\(IoError::TooLarge\)' }
+guard = { path = "crates/antecedent-io-core/src/measurement_model_wire.rs", pattern = 'Self::from_bytes_within\(bytes, expected_model_identity, MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES\)' }
+refusal = { path = "crates/antecedent-io-core/src/measurement_model_wire.rs", pattern = 'if bytes\.len\(\) > max_bytes \{\s*return Err\(IoError::TooLarge\)' }
 
 [[bound]]
 record = "scientific_bridge.typed_bridges"
 key = "max_assumptions"
 implementation = [{ path = "crates/antecedent-contract/src/bridge/contract.rs", constant = "MAX_BRIDGE_ASSUMPTIONS" }]
 documentation = [{ path = "crates/antecedent-contract/src/bridge/contract.rs", constant = "MAX_BRIDGE_ASSUMPTIONS" }]
-guard = { path = "crates/antecedent-contract/src/bridge/contract.rs", pattern = 'self\.assumptions\.len\(\) > MAX_BRIDGE_ASSUMPTIONS' }
-refusal = { path = "crates/antecedent-contract/src/bridge/contract.rs", pattern = 'self\.assumptions\.len\(\) > MAX_BRIDGE_ASSUMPTIONS \{\s+return Err\(too_many_assumptions\(\)\)' }
+guard = { path = "crates/antecedent-io-core/src/bridge_artifact.rs", pattern = 'if wire\.assumptions\.len\(\) > MAX_BRIDGE_ASSUMPTIONS \{' }
+refusal = { path = "crates/antecedent-io-core/src/bridge_artifact.rs", pattern = 'MAX_BRIDGE_ASSUMPTIONS \{\s*return Err\(ScientificBridgeArtifactError::LimitsExceeded\("assumptions"\)' }
 
 [[bound]]
 record = "scientific_bridge.typed_bridges"
 key = "max_validation_trials"
 implementation = [{ path = "crates/antecedent-contract/src/bridge/mapping.rs", constant = "MAX_VALIDATION_TRIALS" }]
 documentation = [{ path = "crates/antecedent-contract/src/bridge/mapping.rs", constant = "MAX_VALIDATION_TRIALS" }]
-guard = { path = "crates/antecedent-contract/src/bridge/mapping.rs", pattern = 'validation\.trials\.len\(\) > MAX_VALIDATION_TRIALS' }
-refusal = { path = "crates/antecedent-contract/src/bridge/mapping.rs", pattern = 'validation\.trials\.len\(\) > MAX_VALIDATION_TRIALS \{[\s\S]{0,100}malformed_mapping' }
-
-[[bound]]
-record = "decision_reliability.sampled_decision"
-key = "max_candidates"
-implementation = [{ path = "crates/antecedent-design/src/decision_reliability.rs", constant = "MAX_CANDIDATES" }]
-documentation = [{ path = "docs/decision-reliability.md", pattern = "max_candidates: (\\d+)" }]
-guard = { path = "crates/antecedent-design/src/decision_reliability/draws.rs", pattern = "self\\.candidates\\.len\\(\\) > MAX_CANDIDATES" }
-refusal = { path = "crates/antecedent-design/src/decision_reliability/draws.rs", pattern = "self\\.candidates\\.len\\(\\) > MAX_CANDIDATES \\{\\s*return Err\\(" }
-
-[[bound]]
-record = "decision_reliability.sampled_decision"
-key = "max_cells"
-implementation = [{ path = "crates/antecedent-design/src/decision_reliability.rs", constant = "MAX_CELLS" }]
-documentation = [{ path = "docs/decision-reliability.md", pattern = "max_cells: (\\d+)" }]
-guard = { path = "crates/antecedent-design/src/decision_reliability/draws.rs", pattern = "c > MAX_CELLS" }
-refusal = { path = "crates/antecedent-design/src/decision_reliability/draws.rs", pattern = "c > MAX_CELLS\\) \\{\\s*return Err\\(" }
-
-[[bound]]
-record = "decision_reliability.ranking_statement"
-key = "max_ranking_cells"
-implementation = [{ path = "crates/antecedent-design/src/decision_reliability/ranking.rs", constant = "MAX_RANKING_CELLS" }]
-documentation = [{ path = "docs/decision-reliability.md", pattern = "max_ranking_cells: (\\d+)" }]
-guard = { path = "crates/antecedent-design/src/decision_reliability/ranking.rs", pattern = "c > MAX_RANKING_CELLS" }
-refusal = { path = "crates/antecedent-design/src/decision_reliability/ranking.rs", pattern = "c > MAX_RANKING_CELLS\\) \\{\\s*return Err\\(" }
+guard = { path = "crates/antecedent-io-core/src/bridge_artifact.rs", pattern = 'if trials\.len\(\) > MAX_VALIDATION_TRIALS \{' }
+refusal = { path = "crates/antecedent-io-core/src/bridge_artifact.rs", pattern = 'MAX_VALIDATION_TRIALS \{\s*return Err\(ScientificBridgeArtifactError::LimitsExceeded\("validation trials"\)' }
 
 [[bound]]
 record = "sequential_evaluation.policy_evaluation"
@@ -1511,72 +1386,24 @@ record = "composition_verification.claim_revalidation"
 key = "max_nodes"
 implementation = [{ path = "crates/antecedent-contract/src/composition_verification/graph.rs", constant = "MAX_NODES" }]
 documentation = [{ path = "crates/antecedent-contract/src/composition_verification/graph.rs", constant = "MAX_NODES" }]
-guard = { path = "crates/antecedent-contract/src/composition_verification/graph.rs", pattern = 'self\.nodes\.len\(\) >= MAX_NODES' }
-refusal = { path = "crates/antecedent-contract/src/composition_verification/graph.rs", pattern = 'self\.nodes\.len\(\) >= MAX_NODES \{\s+return Err\(GraphError::LimitExceeded\("nodes"\)\)' }
-
-[[bound]]
-record = "composition_verification.claim_revalidation"
-key = "max_edges"
-implementation = [{ path = "crates/antecedent-contract/src/composition_verification/graph.rs", constant = "MAX_EDGES" }]
-documentation = [{ path = "crates/antecedent-contract/src/composition_verification/graph.rs", constant = "MAX_EDGES" }]
-guard = { path = "crates/antecedent-contract/src/composition_verification/graph.rs", pattern = 'self\.edges\.len\(\) >= MAX_EDGES' }
-refusal = { path = "crates/antecedent-contract/src/composition_verification/graph.rs", pattern = 'self\.edges\.len\(\) >= MAX_EDGES \{\s+return Err\(GraphError::LimitExceeded\("edges"\)\)' }
-
-[[bound]]
-record = "composition_verification.claim_revalidation"
-key = "max_overlap_checks"
-implementation = [{ path = "crates/antecedent-contract/src/composition_verification/view.rs", constant = "MAX_OVERLAP_CHECKS" }]
-documentation = [{ path = "crates/antecedent-contract/src/composition_verification/view.rs", constant = "MAX_OVERLAP_CHECKS" }]
-guard = { path = "crates/antecedent-contract/src/composition_verification/view.rs", pattern = 'checks > MAX_OVERLAP_CHECKS' }
-refusal = { path = "crates/antecedent-contract/src/composition_verification/view.rs", pattern = 'checks > MAX_OVERLAP_CHECKS \{\s+return Err\(ViewError::LimitExceeded\)' }
+guard = { path = "crates/antecedent-io-core/src/composition_verification_artifact.rs", pattern = 'if wire\.nodes\.len\(\) > MAX_NODES \{' }
+refusal = { path = "crates/antecedent-io-core/src/composition_verification_artifact.rs", pattern = 'MAX_NODES \{\s*return Err\(CompositionVerificationArtifactError::LimitsExceeded\("nodes"\)' }
 
 [[bound]]
 record = "interface_contract.scientific_interface"
 key = "max_ports"
 implementation = [{ path = "crates/antecedent-contract/src/interface_contract/declaration.rs", constant = "MAX_INTERFACE_PORTS" }]
 documentation = [{ path = "crates/antecedent-contract/src/interface_contract/declaration.rs", constant = "MAX_INTERFACE_PORTS" }]
-guard = { path = "crates/antecedent-contract/src/interface_contract/declaration.rs", pattern = 'self\.consumes\.len\(\) > MAX_INTERFACE_PORTS' }
-refusal = { path = "crates/antecedent-contract/src/interface_contract/declaration.rs", pattern = 'self\.consumes\.len\(\) > MAX_INTERFACE_PORTS \{\s+return Err\(too_many_items' }
+guard = { path = "crates/antecedent-io-core/src/interface_contract_artifact.rs", pattern = 'wire\.produces\.len\(\) > limits\.max_ports \|\| wire\.consumes\.len\(\) > limits\.max_ports' }
+refusal = { path = "crates/antecedent-io-core/src/interface_contract_artifact.rs", pattern = 'limits\.max_ports \{\s*return Err\(Failure::LimitsExceeded\("ports"\)' }
 
 [[bound]]
 record = "interface_contract.scientific_interface"
 key = "max_port_set_items"
 implementation = [{ path = "crates/antecedent-contract/src/interface_contract/declaration.rs", constant = "MAX_PORT_SET_ITEMS" }]
 documentation = [{ path = "crates/antecedent-contract/src/interface_contract/declaration.rs", constant = "MAX_PORT_SET_ITEMS" }]
-guard = { path = "crates/antecedent-contract/src/interface_contract/declaration.rs", pattern = 'models\.len\(\) > MAX_PORT_SET_ITEMS' }
-refusal = { path = "crates/antecedent-contract/src/interface_contract/declaration.rs", pattern = 'models\.len\(\) > MAX_PORT_SET_ITEMS \{\s+return Err\(too_many_items' }
-
-[[bound]]
-record = "interface_contract.scientific_interface"
-key = "max_components"
-implementation = [{ path = "crates/antecedent-contract/src/interface_contract/composition.rs", constant = "MAX_COMPOSITION_COMPONENTS" }]
-documentation = [{ path = "crates/antecedent-contract/src/interface_contract/composition.rs", constant = "MAX_COMPOSITION_COMPONENTS" }]
-guard = { path = "crates/antecedent-contract/src/interface_contract/composition.rs", pattern = 'components\.len\(\) > MAX_COMPOSITION_COMPONENTS' }
-refusal = { path = "crates/antecedent-contract/src/interface_contract/composition.rs", pattern = 'components\.len\(\) > MAX_COMPOSITION_COMPONENTS \{\s+return Err\(vec!\[composition_too_large' }
-
-[[bound]]
-record = "interface_contract.scientific_interface"
-key = "max_connections"
-implementation = [{ path = "crates/antecedent-contract/src/interface_contract/composition.rs", constant = "MAX_COMPOSITION_CONNECTIONS" }]
-documentation = [{ path = "crates/antecedent-contract/src/interface_contract/composition.rs", constant = "MAX_COMPOSITION_CONNECTIONS" }]
-guard = { path = "crates/antecedent-contract/src/interface_contract/composition.rs", pattern = 'connections\.len\(\) > MAX_COMPOSITION_CONNECTIONS' }
-refusal = { path = "crates/antecedent-contract/src/interface_contract/composition.rs", pattern = 'connections\.len\(\) > MAX_COMPOSITION_CONNECTIONS \{\s+return Err\(vec!\[composition_too_large' }
-
-[[bound]]
-record = "interface_contract.cyclic_composition"
-key = "max_components"
-implementation = [{ path = "crates/antecedent-contract/src/interface_contract/composition.rs", constant = "MAX_COMPOSITION_COMPONENTS" }]
-documentation = [{ path = "crates/antecedent-contract/src/interface_contract/composition.rs", constant = "MAX_COMPOSITION_COMPONENTS" }]
-guard = { path = "crates/antecedent-contract/src/interface_contract/composition.rs", pattern = 'components\.len\(\) > MAX_COMPOSITION_COMPONENTS' }
-refusal = { path = "crates/antecedent-contract/src/interface_contract/composition.rs", pattern = 'components\.len\(\) > MAX_COMPOSITION_COMPONENTS \{\s+return Err\(vec!\[composition_too_large' }
-
-[[bound]]
-record = "interface_contract.cyclic_composition"
-key = "max_connections"
-implementation = [{ path = "crates/antecedent-contract/src/interface_contract/composition.rs", constant = "MAX_COMPOSITION_CONNECTIONS" }]
-documentation = [{ path = "crates/antecedent-contract/src/interface_contract/composition.rs", constant = "MAX_COMPOSITION_CONNECTIONS" }]
-guard = { path = "crates/antecedent-contract/src/interface_contract/composition.rs", pattern = 'connections\.len\(\) > MAX_COMPOSITION_CONNECTIONS' }
-refusal = { path = "crates/antecedent-contract/src/interface_contract/composition.rs", pattern = 'connections\.len\(\) > MAX_COMPOSITION_CONNECTIONS \{\s+return Err\(vec!\[composition_too_large' }
+guard = { path = "crates/antecedent-io-core/src/interface_contract_artifact.rs", pattern = 'if values\.len\(\) > limits\.max_set_items \{' }
+refusal = { path = "crates/antecedent-io-core/src/interface_contract_artifact.rs", pattern = 'limits\.max_set_items \{\s*return Err\(Failure::LimitsExceeded' }
 
 [[bound]]
 record = "joint_law.dependence_envelope"
@@ -1671,32 +1498,32 @@ record = "provider_callback.law_posterior_protocol"
 key = "max_dependencies"
 implementation = [{ path = "crates/antecedent-contract/src/callback_protocol/declaration.rs", constant = "MAX_CALLBACK_DEPENDENCIES" }]
 documentation = [{ path = "crates/antecedent-contract/src/callback_protocol/declaration.rs", constant = "MAX_CALLBACK_DEPENDENCIES" }]
-guard = { path = "crates/antecedent-contract/src/callback_protocol/declaration.rs", pattern = 'dependencies\.len\(\) > MAX_CALLBACK_DEPENDENCIES' }
-refusal = { path = "crates/antecedent-contract/src/callback_protocol/declaration.rs", pattern = 'dependencies\.len\(\) > MAX_CALLBACK_DEPENDENCIES \{\s+return Err\(too_many_items' }
+guard = { path = "crates/antecedent-io-core/src/callback_result_artifact.rs", pattern = 'wire\.dependencies\.len\(\) > MAX_CALLBACK_DEPENDENCIES' }
+refusal = { path = "crates/antecedent-io-core/src/callback_result_artifact.rs", pattern = 'MAX_CALLBACK_DEPENDENCIES \{\s*return Err\(Failure::LimitsExceeded\("dependencies"\)' }
 
 [[bound]]
 record = "provider_callback.law_posterior_protocol"
 key = "max_inputs"
 implementation = [{ path = "crates/antecedent-contract/src/callback_protocol/declaration.rs", constant = "MAX_CALLBACK_INPUTS" }]
 documentation = [{ path = "crates/antecedent-contract/src/callback_protocol/declaration.rs", constant = "MAX_CALLBACK_INPUTS" }]
-guard = { path = "crates/antecedent-contract/src/callback_protocol/declaration.rs", pattern = 'self\.inputs\.len\(\) > MAX_CALLBACK_INPUTS' }
-refusal = { path = "crates/antecedent-contract/src/callback_protocol/declaration.rs", pattern = 'self\.inputs\.len\(\) > MAX_CALLBACK_INPUTS \{\s+return Err\(too_many_items' }
+guard = { path = "crates/antecedent-io-core/src/callback_result_artifact.rs", pattern = 'wire\.inputs\.len\(\) > MAX_CALLBACK_INPUTS' }
+refusal = { path = "crates/antecedent-io-core/src/callback_result_artifact.rs", pattern = 'MAX_CALLBACK_INPUTS \|\|[^{]*\{\s*return Err\(Failure::LimitsExceeded\("inputs"\)' }
 
 [[bound]]
 record = "provider_callback.law_posterior_protocol"
 key = "max_draws"
 implementation = [{ path = "crates/antecedent-contract/src/callback_protocol/query.rs", constant = "MAX_CALLBACK_DRAWS" }]
 documentation = [{ path = "crates/antecedent-contract/src/callback_protocol/query.rs", constant = "MAX_CALLBACK_DRAWS" }]
-guard = { path = "crates/antecedent-contract/src/callback_protocol/query.rs", pattern = '\*draws > MAX_CALLBACK_DRAWS' }
-refusal = { path = "crates/antecedent-contract/src/callback_protocol/query.rs", pattern = '\*draws > MAX_CALLBACK_DRAWS \{\s+return Err\(query_invalid' }
+guard = { path = "crates/antecedent-io-core/src/callback_result_artifact.rs", pattern = 'is_some_and\(\|d\| d > MAX_CALLBACK_DRAWS\)' }
+refusal = { path = "crates/antecedent-io-core/src/callback_result_artifact.rs", pattern = 'MAX_CALLBACK_DRAWS\) \{\s*return Err\(Failure::LimitsExceeded\("draws"\)' }
 
 [[bound]]
 record = "provider_callback.law_posterior_protocol"
 key = "max_points"
 implementation = [{ path = "crates/antecedent-contract/src/callback_protocol/query.rs", constant = "MAX_CALLBACK_POINTS" }]
 documentation = [{ path = "crates/antecedent-contract/src/callback_protocol/query.rs", constant = "MAX_CALLBACK_POINTS" }]
-guard = { path = "crates/antecedent-contract/src/callback_protocol/query.rs", pattern = 'thresholds\.len\(\) > MAX_CALLBACK_POINTS' }
-refusal = { path = "crates/antecedent-contract/src/callback_protocol/query.rs", pattern = 'thresholds\.len\(\) > MAX_CALLBACK_POINTS \{\s+return Err\(query_invalid' }
+guard = { path = "crates/antecedent-io-core/src/callback_result_artifact.rs", pattern = 'wire\.query\.points_bits\.len\(\) > MAX_CALLBACK_POINTS' }
+refusal = { path = "crates/antecedent-io-core/src/callback_result_artifact.rs", pattern = 'MAX_CALLBACK_POINTS \{\s*return Err\(Failure::LimitsExceeded\("points"\)' }
 
 [[bound]]
 record = "discovery.selective_reuse"
@@ -1977,27 +1804,10 @@ scope_fixture = { path = "crates/antecedent/tests/sample_split_parent_set_effect
 
 [[bound]]
 record = "transport.cpdag_class_envelope"
-key = "max_levels_per_variable"
-implementation = [{ path = "crates/antecedent/src/analysis/discovered_transport_estimate.rs", constant = "MAX_LEVELS_PER_VARIABLE" }]
-documentation = [{ path = "crates/antecedent/src/analysis/discovered_transport_estimate.rs", constant = "MAX_LEVELS_PER_VARIABLE" }]
-guard = { path = "crates/antecedent/src/analysis/discovered_transport_estimate.rs", pattern = "if\\ levels\\ >\\ MAX_LEVELS_PER_VARIABLE\\ \\{" }
-refusal = { path = "crates/antecedent/src/analysis/discovered_transport_estimate.rs", pattern = "if\\ levels\\ >\\ MAX_LEVELS_PER_VARIABLE\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+key = "max_joint_cells"
+implementation = [{ path = "crates/antecedent/src/analysis/discovered_transport_estimate.rs", constant = "MAX_JOINT_CELLS" }]
+documentation = [{ path = "crates/antecedent/src/analysis/discovered_transport_estimate.rs", constant = "MAX_JOINT_CELLS" }]
+guard = { path = "crates/antecedent/src/analysis/discovered_transport_estimate.rs", pattern = "if\\ joint_cells\\ >\\ MAX_JOINT_CELLS\\ \\{" }
+refusal = { path = "crates/antecedent/src/analysis/discovered_transport_estimate.rs", pattern = "if\\ joint_cells\\ >\\ MAX_JOINT_CELLS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "crates/antecedent/tests/discovered_transport_facade.rs", pattern = "\\ba_variable_with_more_levels_than_supported_is_refused\\b" }
 
-[[bound]]
-record = "gcm.model.graph_falsification"
-key = "max_permutations"
-implementation = [{ path = "crates/antecedent-model/src/falsify.rs", constant = "MAX_GRAPH_PERMUTATIONS" }]
-documentation = [{ path = "crates/antecedent-model/src/falsify.rs", constant = "MAX_GRAPH_PERMUTATIONS" }]
-guard = { path = "crates/antecedent-model/src/falsify.rs", pattern = "if\\ self\\.n_permutations\\ >\\ MAX_GRAPH_PERMUTATIONS\\ \\{" }
-refusal = { path = "crates/antecedent-model/src/falsify.rs", pattern = "if\\ self\\.n_permutations\\ >\\ MAX_GRAPH_PERMUTATIONS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-model/src/falsify.rs", pattern = "\\binvalid_inputs_are_refused\\b" }
-
-[[bound]]
-record = "gcm.attribution.intrinsic_influence"
-key = "max_exact_players"
-implementation = [{ path = "crates/antecedent-attribution/src/intrinsic_influence.rs", constant = "INTRINSIC_MAX_EXACT_PLAYERS" }]
-documentation = [{ path = "crates/antecedent-attribution/src/intrinsic_influence.rs", constant = "INTRINSIC_MAX_EXACT_PLAYERS" }]
-guard = { path = "crates/antecedent-attribution/src/intrinsic_influence.rs", pattern = "if\\ n_players\\ >\\ INTRINSIC_MAX_EXACT_PLAYERS\\ \\{" }
-refusal = { path = "crates/antecedent-attribution/src/intrinsic_influence.rs", pattern = "if\\ n_players\\ >\\ INTRINSIC_MAX_EXACT_PLAYERS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-attribution/tests/intrinsic_influence.rs", pattern = "\\bexact_allocation_above_its_bound_and_invalid_settings_are_refused\\b" }

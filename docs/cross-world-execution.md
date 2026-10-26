@@ -99,9 +99,9 @@ single-world marginals needs no coupling.
 
 Bounds (registered in `parity/limits.toml`):
 
-- Variables: 12
-- Worlds: 8
-- Units: 1024
+- Variables: 4096
+- Worlds: 256
+- Units: 4000000
 - Joint exogenous states: 65536 per unit (the product of every exogenous term's states, shared or not); larger models are eliminated, not refused
 - Elimination table entries: 4194304 per table
 - Elimination variables: 8192 per unit
