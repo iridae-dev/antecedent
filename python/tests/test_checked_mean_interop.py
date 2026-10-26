@@ -8,8 +8,9 @@ from antecedent import decision
 from antecedent import evidence_ledger as el
 from antecedent import mechanism_composition as mc
 from antecedent import observation_query as oq
+from antecedent.artifacts import ExportedArtifact
 from antecedent.joint_distribution import ScientificQuantity
-from antecedent.outcomes import require_success
+from antecedent.outcomes import Outcome, require_success
 from antecedent.results import MeanSource
 
 
@@ -141,7 +142,7 @@ def test_mean_adapter_does_not_license_nonlinear_expected_utilities():
         criterion=decision.Criterion.expected_utility(),
     )
     with pytest.raises(decision.DecisionRefusal) as refused:
-        contract.evaluate(source)
+        require_success(contract.evaluate(source))
     assert refused.value.reason_code == "decision_contract_unsatisfied"
 
 
@@ -266,12 +267,86 @@ def test_adapter_bindings_are_checked_before_decision_and_keep_lineage():
         target_population="pop",
         criterion=decision.Criterion.expected_utility(),
     )
-    result = contract.evaluate(source)
+    result = require_success(contract.evaluate(source))
     assert source.provider_id in {link.id for link in result.lineage}
     with pytest.raises(ant.errors.CausalValueError, match="retained producer"):
-        contract.evaluate(replace(source, means=(999.0,)))
+        require_success(contract.evaluate(replace(source, means=(999.0,))))
     with pytest.raises(ant.errors.CausalValueError, match="cannot issue"):
-        contract.evaluate(replace(source, trust="native_licensed"))
+        require_success(contract.evaluate(replace(source, trust="native_licensed")))
+
+
+def test_outcome_mean_adapter_composes_directly_with_affine_decision():
+    from test_mechanism_composition import chain, compose
+
+    q = quantity()
+    producer = Outcome(value=compose(chain()))
+    source = producer.as_mean_source(quantity=q, contrast=mc.MeanContrast.mean_at("Y", {}))
+    assert source.accepted
+    assert require_success(source).means == pytest.approx((7.0,))
+    contract = decision.Contract(
+        actions=[
+            decision.Action("use", inputs=(q,), utility=decision.x(0)),
+            decision.Action("wait", inputs=(q,), utility=-decision.x(0)),
+        ],
+        utility_units="u",
+        target_population="pop",
+        criterion=decision.Criterion.expected_utility(),
+    )
+    outcome = contract.evaluate(source)
+    assert outcome.accepted
+    assert require_success(outcome).selected == ("use",)
+    assert require_success(outcome).source is require_success(source)
+    with pytest.raises(ant.errors.CausalValueError, match="explicit scientific quantity"):
+        producer.as_mean_source(contrast=mc.MeanContrast.mean_at("Y", {}))
+    with pytest.raises(ant.errors.CausalValueError, match="population"):
+        producer.as_mean_source(
+            quantity=replace(q, population_id="another-population"),
+            contrast=mc.MeanContrast.mean_at("Y", {}),
+        )
+    with pytest.raises(ant.errors.CausalValueError, match="units"):
+        producer.as_mean_source(
+            quantity=replace(q, units="another-unit"),
+            contrast=mc.MeanContrast.mean_at("Y", {}),
+        )
+
+
+def test_native_effect_outcome_enters_decision_as_contrast_mean_only():
+    import numpy as np
+
+    treatment = np.tile([0.0, 1.0], 24)
+    noise = np.repeat(np.linspace(-1.0, 1.0, 24), 2)
+    native = ant.estimate(
+        ant.prepare(
+            {"t": treatment, "y": 2.0 * treatment + noise},
+            query=ant.AverageEffect("t", "y"),
+            graph=[("t", "y")],
+            refute=False,
+        )
+    )
+    q = ScientificQuantity.from_effect(native, outcome_units="u", population="target")
+    assert q.functional_id == "mean_difference"
+
+    def contract(utility):
+        return decision.Contract(
+            actions=[
+                decision.Action("use", inputs=(q,), utility=utility),
+                decision.Action("wait", inputs=(q,), utility=-decision.x(0)),
+            ],
+            utility_units="u",
+            target_population="target",
+            criterion=decision.Criterion.expected_utility(),
+        )
+
+    affine = contract(decision.x(0)).evaluate(native)
+    assert affine.accepted
+    result = require_success(affine)
+    assert result.actions[0].expected_utility == pytest.approx(2.0)
+    assert isinstance(result.source, MeanSource)
+    assert result.source.coordinates == (q,)
+    assert result.original_execution is require_success(native)._raw
+    nonlinear = contract(decision.x(0) * decision.x(0)).evaluate(native)
+    assert not nonlinear.accepted
+    assert nonlinear.refusal.code == "decision_contract_unsatisfied"
 
 
 @pytest.mark.parametrize("producer", ["matched", "descriptive"])
@@ -288,8 +363,8 @@ def test_existing_json_families_export_typed_artifacts_and_bind_independently(pr
 
         original = compare()
     assert isinstance(bytes(original.export()), bytes)
-    assert isinstance(original.export(), ant.ExportedArtifact)
-    assert inspect.signature(original.export).return_annotation is ant.ExportedArtifact
+    assert isinstance(original.export(), ExportedArtifact)
+    assert inspect.signature(original.export).return_annotation is ExportedArtifact
     envelope = original.export()
     assert envelope.expectation.identity == original.identity
     assert ant.artifacts.inspect(envelope).kind == envelope.kind
@@ -324,11 +399,13 @@ def test_inverse_query_accepts_complete_bridge_and_retains_mean_boundaries():
         criterion=decision.Criterion.expected_utility(),
     )
     query = iq.InverseQuery(contract, ("use", "wait"), (iq.target_mean(0.0),))
-    direct = query.evaluate(claim)
-    adapted = query.evaluate(claim.as_mean_source())
+    direct = require_success(query.evaluate(claim))
+    adapted = require_success(query.evaluate(claim.as_mean_source()))
     assert direct.to_dict() == adapted.to_dict()
     with pytest.raises(iq.InverseQueryRefusal):
-        iq.InverseQuery(contract, ("use", "wait"), (iq.target_quantile(0.5, 0.0),)).evaluate(claim)
+        require_success(
+            iq.InverseQuery(contract, ("use", "wait"), (iq.target_quantile(0.5, 0.0),)).evaluate(claim)
+        )
 
 
 def test_callback_owner_token_refuses_pointer_rebinding_with_colliding_identities():

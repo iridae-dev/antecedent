@@ -359,17 +359,23 @@ def _load_analysis(
         from .transport._impl import _exact_distribution, consume_exact
 
         prepared = consume_exact(encoded)
-        return _exact_distribution(prepared._native, prepared._native.last_result())
+        return _consumed_transport_view(
+            prepared, _exact_distribution(prepared._native, prepared._native.last_result())
+        )
     if encoded.startswith(b"ANTECEDENT-STATISTICAL-TRANSPORT\x01"):
         from .transport._impl import _statistical_distribution, consume_statistical
 
         prepared = consume_statistical(encoded)
-        return _statistical_distribution(prepared._native, prepared._native.last_result())
+        return _consumed_transport_view(
+            prepared, _statistical_distribution(prepared._native, prepared._native.last_result())
+        )
     if encoded.startswith(b"ANTECEDENT-TRANSPORT-GRID\x01"):
         from .transport._impl import _response_grid, consume_response_grid
 
         prepared = consume_response_grid(encoded)
-        return _response_grid(prepared._native, prepared._native.last_result())
+        return _consumed_transport_view(
+            prepared, _response_grid(prepared._native, prepared._native.last_result())
+        )
     if encoded.startswith(b"ANTECEDENT-Z-TRANSPORT\x01"):
         from .transport._restricted import consume_restricted_artifacts
 
@@ -381,6 +387,17 @@ def _load_analysis(
     receipt = artifacts.accept(encoded)
     artifact = artifacts.loads(encoded)
     return LoadedResult(artifact, Acceptance.from_receipt(receipt), encoded)
+
+
+def _consumed_transport_view(prepared: Any, result: Any) -> Any:
+    """Keep native consumer proof when projecting an immutable answer view."""
+    from ._artifact_protocol import acceptance_from_consumer
+
+    # The specialized consumer can resume its prepared state. This read model
+    # carries the checked answer and replay proof, with no public resume handle.
+    receipt = replace(acceptance_from_consumer(prepared), resumable=False)
+    object.__setattr__(result, "acceptance", receipt)
+    return result
 
 
 LoadedT = TypeVar("LoadedT")

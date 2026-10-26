@@ -278,7 +278,7 @@ def adapt_mean_source(
             )
         if quantity.variable_id != contrast.outcome:
             raise CausalValueError("mean-source outcome differs from the composed contrast")
-        value = source.mean_contrast(contrast)
+        value = require_success(source.mean_contrast(contrast))
     elif name in ("PropagationClaim", "ConsumedJointLawPropagation"):
         if source.is_envelope:
             raise CausalUnsupportedError(
