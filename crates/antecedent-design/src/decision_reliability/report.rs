@@ -18,6 +18,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::borrow::Cow;
+
 use antecedent_core::ExecutionContext;
 use serde::{Deserialize, Serialize};
 
@@ -27,14 +29,12 @@ use super::draws::{
     CandidateCoupling, CandidateOrigin, DecisionDraws, SelectionRule, SourceParadigm,
     WithinStreamDependence,
 };
-use super::mc_error::{
-    BatchPlan, DifferenceEstimate, Functional, McEstimate, PairCoupling, estimate_difference,
-};
+use super::mc_error::{BatchPlan, DifferenceEstimate, Functional, McEstimate, PairCoupling};
 use super::ranking::{CalibrationStatus, RankingReport, RankingRequest, rank_validated};
 use super::selection::{
     CandidateEstimate, HeldOutAssessment, SelectionStatus, ValidationKind, ValueLabel,
-    WinnersCurseBound, held_out_evaluation, noise_dependence, select_validated, split_draws,
-    winners_curse_bound,
+    WinnersCurseBound, held_out_evaluation, noise_dependence_in_context, select_validated,
+    split_draws_in_context, winners_curse_bound,
 };
 
 /// Report body version.
@@ -322,9 +322,13 @@ fn weighted_spread(values: &[f64], weights: Option<&[f64]>) -> (f64, f64) {
     }
 }
 
-fn source_uncertainty(draws: &DecisionDraws, decided: &str) -> SourceUncertainty {
+fn source_uncertainty(
+    draws: &DecisionDraws,
+    decided: &str,
+    ctx: &ExecutionContext,
+) -> Result<SourceUncertainty, ReliabilityError> {
     if draws.source == SourceParadigm::KnownLaw {
-        return SourceUncertainty::KnownLaw;
+        return Ok(SourceUncertainty::KnownLaw);
     }
     let weights = draws.weights.as_deref();
     let decided_draws = draws.candidate(decided).map(|c| c.utilities.as_slice());
@@ -336,6 +340,7 @@ fn source_uncertainty(draws: &DecisionDraws, decided: &str) -> SourceUncertainty
             candidate.id != decided && draws.coupling == CandidateCoupling::SharedSimulation;
         let difference_standard_deviation = match decided_draws {
             Some(d) if paired_available => {
+                let _paired = super::workspace::reserve::<f64>(ctx, d.len())?;
                 let paired: Vec<f64> =
                     d.iter().zip(&candidate.utilities).map(|(a, b)| a - b).collect();
                 Some(weighted_spread(&paired, weights).1)
@@ -349,7 +354,7 @@ fn source_uncertainty(draws: &DecisionDraws, decided: &str) -> SourceUncertainty
             difference_standard_deviation,
         });
     }
-    SourceUncertainty::Spread { paradigm: draws.source, candidates }
+    Ok(SourceUncertainty::Spread { paradigm: draws.source, candidates })
 }
 
 fn stream_accounting(draws: &DecisionDraws) -> StreamAccounting {
@@ -409,14 +414,28 @@ pub fn assess(
         return Err(ReliabilityError::Cancelled);
     }
     let plan = request.batch_plan;
+    let split = if let (ValidationPlan::SplitSelectionDraws { selection_fraction, gap }, None) =
+        (&request.validation, validation)
+    {
+        Some(split_draws_in_context(draws, *selection_fraction, *gap, ctx)?)
+    } else {
+        None
+    };
     let (selection_draws, validation_draws, kind, gap) = match (&request.validation, validation) {
-        (ValidationPlan::NoValidation, None) => (draws.clone(), None, None, 0),
+        (ValidationPlan::NoValidation, None) => (Cow::Borrowed(draws), None, None, 0),
         (ValidationPlan::ProvidedStream { kind, gap }, Some(v)) => {
-            (draws.clone(), Some(v.clone()), Some(*kind), *gap)
+            (Cow::Borrowed(draws), Some(Cow::Borrowed(v)), Some(*kind), *gap)
         }
-        (ValidationPlan::SplitSelectionDraws { selection_fraction, gap }, None) => {
-            let (s, v) = split_draws(draws, *selection_fraction, *gap)?;
-            (s, Some(v), Some(ValidationKind::SplitOfSelectionStream), *gap)
+        (ValidationPlan::SplitSelectionDraws { gap, .. }, None) => {
+            let parts = split
+                .as_ref()
+                .ok_or_else(|| ReliabilityError::invalid("split", "split ownership missing"))?;
+            (
+                Cow::Borrowed(&parts.selection),
+                Some(Cow::Borrowed(&parts.validation)),
+                Some(ValidationKind::SplitOfSelectionStream),
+                *gap,
+            )
         }
         _ => {
             return Err(ReliabilityError::invalid(
@@ -425,7 +444,7 @@ pub fn assess(
             ));
         }
     };
-    let in_sample = select_validated(&selection_draws, &request.functional, plan)?;
+    let in_sample = select_validated(&selection_draws, &request.functional, plan, Some(ctx))?;
     let (decided_id, selected) = match &request.decision {
         DecisionChoice::SelectedByRule => (in_sample.selected_id.clone(), true),
         DecisionChoice::PreSpecified(id) => {
@@ -476,7 +495,7 @@ pub fn assess(
         }
         differences.push(DifferenceVsDecision {
             id: other.id.clone(),
-            difference: estimate_difference(
+            difference: super::mc_error::estimate_difference_in_context(
                 decided_series,
                 &other.utilities,
                 selection_draws.weights.as_deref(),
@@ -484,28 +503,44 @@ pub fn assess(
                 plan,
                 &request.functional,
                 pair_coupling,
+                ctx,
             )?,
         });
     }
     let held_out_checked = validation_draws.is_some();
     let selection_uncertainty = if selected {
+        let _estimates = super::workspace::reserve::<McEstimate>(ctx, in_sample.estimates.len())?;
         let estimates: Vec<McEstimate> = in_sample.estimates.iter().map(|c| c.estimate).collect();
-        let curse = winners_curse_bound(
-            &estimates,
-            selection_draws.n_considered(),
-            noise_dependence(&selection_draws),
-            decision_estimate.value,
-        )?;
+        let noise = noise_dependence_in_context(&selection_draws, ctx)?;
+        let curse = {
+            let _ses = super::workspace::reserve::<f64>(ctx, estimates.len())?;
+            let _groups = super::workspace::reserve::<(f64, u64)>(ctx, estimates.len())?;
+            winners_curse_bound(
+                &estimates,
+                selection_draws.n_considered(),
+                noise,
+                decision_estimate.value,
+            )?
+        };
         let held_out = match (&validation_draws, kind) {
-            (Some(v), Some(kind)) => Some(held_out_evaluation(
-                &selection_draws,
-                &decided_id,
-                v,
-                &request.functional,
-                plan,
-                kind,
-                gap,
-            )?),
+            (Some(v), Some(kind)) => {
+                let slots = super::workspace::estimate_slots(
+                    v.n_draws(),
+                    v.within_stream,
+                    plan,
+                    &request.functional,
+                )?;
+                let _held_out = super::workspace::reserve::<f64>(ctx, slots)?;
+                Some(held_out_evaluation(
+                    &selection_draws,
+                    &decided_id,
+                    v,
+                    &request.functional,
+                    plan,
+                    kind,
+                    gap,
+                )?)
+            }
             _ => None,
         };
         let status = match (&held_out, kind) {
@@ -565,7 +600,7 @@ pub fn assess(
             candidates_adaptively_generated: draws.origin == CandidateOrigin::AdaptivelyGenerated,
             validation_independent_of_selection: held_out_checked.then_some(true),
         },
-        source_uncertainty: source_uncertainty(&selection_draws, &decided_id),
+        source_uncertainty: source_uncertainty(&selection_draws, &decided_id, ctx)?,
         monte_carlo_error: MonteCarloErrorReport {
             functional: request.functional.clone(),
             candidates: in_sample.estimates,

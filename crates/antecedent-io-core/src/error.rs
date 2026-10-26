@@ -8,6 +8,9 @@ use thiserror::Error;
 #[derive(Clone, Debug, Eq, PartialEq, Error)]
 #[non_exhaustive]
 pub enum IoError {
+    /// Caller admission failed during artifact recomputation or encoding.
+    #[error(transparent)]
+    Admission(#[from] antecedent_core::execution::AdmissionError),
     /// Bad magic bytes.
     #[error("bad artifact magic")]
     BadMagic,

@@ -127,20 +127,30 @@ pub fn select_in_sample(
     plan: BatchPlan,
 ) -> Result<InSampleSelection, ReliabilityError> {
     draws.validate()?;
-    select_validated(draws, functional, plan)
+    select_validated(draws, functional, plan, None)
 }
 
 pub(crate) fn select_validated(
     draws: &DecisionDraws,
     functional: &Functional,
     plan: BatchPlan,
+    context: Option<&antecedent_core::ExecutionContext>,
 ) -> Result<InSampleSelection, ReliabilityError> {
     let weights = draws.weights.as_deref();
     let mut estimates = Vec::with_capacity(draws.n_candidates());
     for &i in &draws.canonical_order() {
         let candidate = &draws.candidates[i];
-        let estimated =
-            estimate(&candidate.utilities, weights, draws.within_stream, plan, functional)?;
+        let estimated = match context {
+            Some(ctx) => super::mc_error::estimate_in_context(
+                &candidate.utilities,
+                weights,
+                draws.within_stream,
+                plan,
+                functional,
+                ctx,
+            )?,
+            None => estimate(&candidate.utilities, weights, draws.within_stream, plan, functional)?,
+        };
         estimates
             .push(CandidateEstimate { id: candidate.id.clone(), estimate: estimated.estimate });
     }
@@ -176,16 +186,38 @@ pub enum NoiseDependence {
 /// Most candidates whose pairwise covariance signs are checked.
 const MAX_COVARIANCE_CHECK: usize = 128;
 
-/// Noise dependence of the candidates' Monte Carlo errors.
-#[must_use]
-pub fn noise_dependence(draws: &DecisionDraws) -> NoiseDependence {
+fn initial_noise_dependence(draws: &DecisionDraws) -> Option<NoiseDependence> {
     if draws.candidates.len() < 2 || draws.coupling == CandidateCoupling::DeclaredIndependent {
-        return NoiseDependence::IndependentStreams;
+        return Some(NoiseDependence::IndependentStreams);
     }
     if draws.candidates.len() > MAX_COVARIANCE_CHECK
         || draws.coupling != CandidateCoupling::SharedSimulation
     {
-        return NoiseDependence::Unassessed;
+        return Some(NoiseDependence::Unassessed);
+    }
+    None
+}
+
+pub(crate) fn noise_dependence_in_context(
+    draws: &DecisionDraws,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<NoiseDependence, ReliabilityError> {
+    if let Some(known) = initial_noise_dependence(draws) {
+        return Ok(known);
+    }
+    let _values = super::workspace::reserve::<f64>(
+        ctx,
+        super::workspace::product(draws.n_candidates(), draws.n_draws())?,
+    )?;
+    let _columns = super::workspace::reserve::<Vec<f64>>(ctx, draws.n_candidates())?;
+    Ok(noise_dependence(draws))
+}
+
+/// Noise dependence of the candidates' Monte Carlo errors.
+#[must_use]
+pub fn noise_dependence(draws: &DecisionDraws) -> NoiseDependence {
+    if let Some(known) = initial_noise_dependence(draws) {
+        return known;
     }
     let n = draws.n_draws() as f64;
     let centred: Vec<Vec<f64>> = draws
@@ -319,8 +351,8 @@ pub fn winners_curse_bound(
     let padded = n_considered - n_supplied;
     let union_bound = s_max * (2.0 * (n_considered as f64).ln()).sqrt();
     let mut ses: Vec<f64> = estimates.iter().map(|e| e.standard_error).collect();
-    ses.sort_by(f64::total_cmp);
-    let mut groups: Vec<(f64, u64)> = Vec::new();
+    ses.sort_unstable_by(f64::total_cmp);
+    let mut groups: Vec<(f64, u64)> = Vec::with_capacity(estimates.len());
     for s in ses {
         let repeated = groups.last().is_some_and(|g| g.0.to_bits() == s.to_bits());
         if repeated {
@@ -511,11 +543,11 @@ pub fn held_out_evaluation(
     clippy::cast_sign_loss,
     reason = "split sizes are derived from bounded draw counts"
 )]
-pub fn split_draws(
+fn split_layout(
     draws: &DecisionDraws,
     selection_fraction: f64,
     gap: u64,
-) -> Result<(DecisionDraws, DecisionDraws), ReliabilityError> {
+) -> Result<(usize, usize), ReliabilityError> {
     draws.validate()?;
     if !(selection_fraction.is_finite() && selection_fraction > 0.0 && selection_fraction < 1.0) {
         return Err(ReliabilityError::invalid("selection_fraction", "must lie in (0, 1)"));
@@ -538,6 +570,40 @@ pub fn split_draws(
             "each part of a split needs at least the minimum number of draws",
         ));
     }
+    Ok((n_sel, start_val))
+}
+
+pub(crate) struct ContextualSplit {
+    pub selection: DecisionDraws,
+    pub validation: DecisionDraws,
+    _rows: antecedent_core::execution::AdmissionLease,
+}
+
+pub(crate) fn split_draws_in_context(
+    draws: &DecisionDraws,
+    fraction: f64,
+    gap: u64,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<ContextualSplit, ReliabilityError> {
+    let (selection_rows, validation_start) = split_layout(draws, fraction, gap)?;
+    let rows = selection_rows + draws.n_draws() - validation_start;
+    let columns = draws.n_candidates() + usize::from(draws.weights.is_some());
+    let lease = super::workspace::reserve::<f64>(ctx, super::workspace::product(rows, columns)?)?;
+    let (selection, validation) = split_draws(draws, fraction, gap)?;
+    Ok(ContextualSplit { selection, validation, _rows: lease })
+}
+
+/// Split the validated carrier into selection and held-out streams.
+///
+/// # Errors
+/// Invalid fraction, insufficient rows, or an unseparated dependent stream.
+pub fn split_draws(
+    draws: &DecisionDraws,
+    selection_fraction: f64,
+    gap: u64,
+) -> Result<(DecisionDraws, DecisionDraws), ReliabilityError> {
+    let (n_sel, start_val) = split_layout(draws, selection_fraction, gap)?;
+    let n = draws.n_draws();
     let n_val = n - start_val;
     let part = |from: usize, len: usize, keep_search: bool| DecisionDraws {
         utility_unit: draws.utility_unit.clone(),

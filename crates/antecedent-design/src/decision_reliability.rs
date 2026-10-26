@@ -49,6 +49,7 @@ pub mod ranking;
 pub mod report;
 pub mod selection;
 pub mod stream;
+mod workspace;
 
 use antecedent_contract::ExternalRefusal;
 
@@ -195,6 +196,11 @@ pub enum ReliabilityError {
     },
     /// Cancellation was observed at a work boundary.
     Cancelled,
+    /// A concrete numerical buffer could not be admitted by the caller's pool.
+    Admission {
+        /// The original pool refusal, retained separately from scientific refusals.
+        error: antecedent_core::execution::AdmissionError,
+    },
 }
 
 impl std::fmt::Display for ReliabilityError {
@@ -375,6 +381,12 @@ impl ReliabilityError {
                 antecedent_core::reason_code!("cancelled_no_claim"),
                 "decision_reliability.cancelled",
             )
+            .build(),
+            Self::Admission { error } => builder(
+                antecedent_core::reason_code!("invalid_argument"),
+                "decision_reliability.memory_budget_exceeded",
+            )
+            .offending(error.to_string())
             .build(),
         }
     }

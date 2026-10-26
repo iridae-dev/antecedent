@@ -3,6 +3,9 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
+#[path = "decision_reliability_resources.rs"]
+mod decision_reliability_resources;
+
 #[path = "evidence_plan.rs"]
 mod evidence_plan;
 #[path = "inverse_query_artifact.rs"]

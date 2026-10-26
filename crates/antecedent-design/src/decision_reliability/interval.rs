@@ -43,12 +43,12 @@ use serde::{Deserialize, Serialize};
 use super::ReliabilityError;
 use super::calibration::{CalibrationCoordinate, PublishedRoute, license_route_at};
 use super::draws::{CandidateCoupling, DecisionDraws};
-use super::mc_error::{McEstimate, PairCoupling, estimate_difference};
+use super::mc_error::{McEstimate, PairCoupling};
 use super::report::{
     ReliabilityReport, ReliabilityRequest, SelectionUncertainty, SourceUncertainty, ValidationPlan,
     assess,
 };
-use super::selection::split_draws;
+use super::selection::split_draws_in_context;
 
 /// Body version of [`DerivedUncertainty`].
 pub const DERIVED_UNCERTAINTY_VERSION: u32 = 1;
@@ -451,7 +451,7 @@ fn paired_confidence_set(
             if i == j {
                 continue;
             }
-            let difference = estimate_difference(
+            let difference = super::mc_error::estimate_difference_in_context(
                 &draws.candidates[i].utilities,
                 &draws.candidates[j].utilities,
                 draws.weights.as_deref(),
@@ -459,6 +459,7 @@ fn paired_confidence_set(
                 request.batch_plan,
                 &request.functional,
                 pair_coupling,
+                ctx,
             )?;
             let beats = if difference.standard_error > 0.0 {
                 difference.value > z * difference.standard_error
@@ -708,12 +709,13 @@ pub fn derive_uncertainty(
 ) -> Result<DerivedUncertainty, ReliabilityError> {
     interval.validate()?;
     let report = assess(draws, validation, request, ctx)?;
-    let selection_draws = match &request.validation {
+    let split = match &request.validation {
         ValidationPlan::SplitSelectionDraws { selection_fraction, gap } => {
-            split_draws(draws, *selection_fraction, *gap)?.0
+            Some(split_draws_in_context(draws, *selection_fraction, *gap, ctx)?)
         }
-        _ => draws.clone(),
+        _ => None,
     };
+    let selection_draws = split.as_ref().map_or(draws, |parts| &parts.selection);
     let numerical = numerical_component(&report, interval)?;
     let confidence = confidence_set(&report, &selection_draws, request, interval.alpha(), ctx)?;
     let corrected = corrected_interval(&report, interval)?;

@@ -19,8 +19,10 @@ use antecedent_core::ExecutionContext;
 use serde::{Deserialize, Serialize};
 
 use super::ReliabilityError;
-use super::draws::{CandidateCoupling, CandidateOrigin, DecisionDraws, SourceParadigm};
-use super::mc_error::{BatchPlan, Functional, McEstimate, estimate, series_stats};
+use super::draws::{
+    CandidateCoupling, CandidateOrigin, DecisionDraws, SourceParadigm, WithinStreamDependence,
+};
+use super::mc_error::{BatchPlan, Functional, McEstimate, series_stats};
 
 /// Most candidate-by-draw cells a ranking will hold (two `u32` ranks per cell).
 pub const MAX_RANKING_CELLS: usize = 1 << 24;
@@ -170,6 +172,7 @@ pub(crate) fn rank_validated(
             message: format!("ranking holds at most {MAX_RANKING_CELLS} candidate-draw cells"),
         });
     }
+    let _order = super::workspace::reserve::<usize>(ctx, n_candidates)?;
     let order = draws.canonical_order();
     if let Some(&k) = request.top_k.iter().find(|&&k| k == 0 || k as usize > n_candidates) {
         return Err(ReliabilityError::invalid(
@@ -186,6 +189,11 @@ pub(crate) fn rank_validated(
         ),
         None => None,
     };
+    let _columns = super::workspace::reserve::<&[f64]>(ctx, n_candidates)?;
+    let _tables = super::workspace::reserve::<u32>(
+        ctx,
+        super::workspace::product(super::workspace::product(n_candidates, n)?, 2)?,
+    )?;
     let columns: Vec<&[f64]> =
         order.iter().map(|&i| draws.candidates[i].utilities.as_slice()).collect();
     let (greater, equal) = rank_tables(&columns, n, ctx)?;
@@ -193,6 +201,12 @@ pub(crate) fn rank_validated(
     let dependence = draws.within_stream;
     let plan = request.batch_plan;
     let probability = |series: &[f64]| -> Result<McEstimate, ReliabilityError> {
+        let count = if dependence == WithinStreamDependence::Autocorrelated {
+            plan.batches(series.len())?
+        } else {
+            0
+        };
+        let _means = super::workspace::reserve::<f64>(ctx, count)?;
         let stats = series_stats(series, weights, dependence, plan)?;
         Ok(McEstimate {
             value: stats.mean,
@@ -209,14 +223,17 @@ pub(crate) fn rank_validated(
         }
         let g = &greater[j * n..(j + 1) * n];
         let e = &equal[j * n..(j + 1) * n];
+        let _best = super::workspace::reserve::<f64>(ctx, n)?;
         let best: Vec<f64> = (0..n).map(|i| top_share(g[i], e[i], 1)).collect();
         let mut top_k = Vec::with_capacity(request.top_k.len());
         for &k in &request.top_k {
+            let _series = super::workspace::reserve::<f64>(ctx, n)?;
             let series: Vec<f64> = (0..n).map(|i| top_share(g[i], e[i], k)).collect();
             top_k.push(TopKEstimate { k, estimate: probability(&series)? });
         }
         let versus = match baseline {
             Some(b) if b != j => {
+                let _series = super::workspace::reserve::<f64>(ctx, n)?;
                 let series: Vec<f64> = columns[j]
                     .iter()
                     .zip(columns[b])
@@ -234,12 +251,13 @@ pub(crate) fn rank_validated(
             }
             _ => None,
         };
-        let utility = estimate(
+        let utility = super::mc_error::estimate_in_context(
             &draws.candidates[source].utilities,
             weights,
             dependence,
             plan,
             &Functional::ExpectedUtility,
+            ctx,
         )?
         .estimate;
         statements.push(CandidateRankStatement {
@@ -298,6 +316,7 @@ fn rank_tables(
     let n_candidates = columns.len();
     let mut greater = vec![0_u32; n_candidates * n];
     let mut equal = vec![0_u32; n_candidates * n];
+    let _order = super::workspace::reserve::<usize>(ctx, n_candidates)?;
     let mut order: Vec<usize> = (0..n_candidates).collect();
     for i in 0..n {
         if i % 1024 == 0 && ctx.cancellation.is_cancelled() {

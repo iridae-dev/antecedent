@@ -89,6 +89,24 @@ impl DecisionReliabilityRefusal {
     }
 
     fn from_io(error: &IoError) -> Self {
+        if let IoError::Admission(error) = error {
+            let cancelled = *error == antecedent_core::execution::AdmissionError::Cancelled;
+            return Self {
+                code: if cancelled {
+                    antecedent_core::reason_code!("cancelled_no_claim")
+                } else {
+                    antecedent_core::reason_code!("invalid_argument")
+                },
+                detail: if cancelled {
+                    "decision_reliability.cancelled"
+                } else {
+                    "decision_reliability.memory_budget_exceeded"
+                }
+                .to_owned(),
+                message: error.to_string(),
+                remedy: None,
+            };
+        }
         // The loader's own kind-mismatch detail survives; every other artifact
         // failure keeps the generic detail.
         if let IoError::Refused { code, message } = error {

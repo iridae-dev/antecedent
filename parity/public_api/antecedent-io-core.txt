@@ -2021,6 +2021,7 @@ impl core::convert::From<antecedent_contract::plan::DataClassification> for ante
 impl core::convert::From<antecedent_contract::plan::KernelSelection> for antecedent_io_core::plan_wire::KernelSelectionWire
 impl core::convert::From<antecedent_contract::propagation_chain::ChainRefusal> for antecedent_io_core::PropagationChainError
 impl core::convert::From<antecedent_contract::quantity::DistributionMeaning> for antecedent_io_core::quantity_wire::DistributionMeaningWire
+impl core::convert::From<antecedent_core::execution::AdmissionError> for antecedent_io_core::IoError
 impl core::convert::From<antecedent_core::query::mediation::MediationContrast> for antecedent_io_core::query_wire::MediationContrastWire
 impl core::convert::From<antecedent_identify::error::IdentificationError> for antecedent_io_core::IoError
 impl core::convert::From<antecedent_io_core::IoError> for antecedent_io_core::JointLawPropagationArtifactError
@@ -16323,6 +16324,7 @@ pub variant antecedent_io_core::InterventionWire::Soft { variable: u32, mechanis
 pub variant antecedent_io_core::InterventionWire::Stochastic { variable: u32, policy: antecedent_io_core::query_wire::StochasticPolicyWire }
 pub variant antecedent_io_core::InterventionWire::Transform { variable: u32, expr: antecedent_io_core::query_wire::ValueExprWire, reads: antecedent_io_core::query_wire::PolicyReadsWire }
 pub variant antecedent_io_core::IoError::AdmgConditional(antecedent_io_core::transport_errors::AdmgConditionalArtifactError)
+pub variant antecedent_io_core::IoError::Admission(antecedent_core::execution::AdmissionError)
 pub variant antecedent_io_core::IoError::BadMagic
 pub variant antecedent_io_core::IoError::Cbor(alloc::string::String)
 pub variant antecedent_io_core::IoError::ChecksumMismatch { section: alloc::string::String }

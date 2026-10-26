@@ -72,6 +72,9 @@ fn refused(detail: &str, message: &str) -> IoError {
 }
 
 fn from_reliability(error: &ReliabilityError) -> IoError {
+    if let ReliabilityError::Admission { error } = error {
+        return IoError::Admission(*error);
+    }
     IoError::Refused { code: error.reason_code(), message: error.to_string() }
 }
 
