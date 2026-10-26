@@ -13,7 +13,6 @@ use antecedent_stats::{gaussian_local_quadratic_bias_corrected_influence, silver
 
 use crate::EstimationError;
 
-use super::plugin::PluginGradientKind;
 use super::sample::{CompleteSample, row_ids};
 use super::{
     ContinuousResponseEstimator, PseudoOutcome, ResponseInfluence, local_design_refusal,
@@ -67,7 +66,6 @@ impl ContinuousResponseEstimator {
                     outcomes,
                     treatments,
                     at,
-                    PluginGradientKind::Jacobian,
                     true,
                 )?;
                 let mut columns = Vec::with_capacity(outcomes.len() * treatments.len());
@@ -84,7 +82,6 @@ impl ContinuousResponseEstimator {
                     outcomes,
                     treatments,
                     at,
-                    PluginGradientKind::Directional,
                     true,
                 )?;
                 let mut columns = Vec::with_capacity(outcomes.len());

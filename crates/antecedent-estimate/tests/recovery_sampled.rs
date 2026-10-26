@@ -307,9 +307,6 @@ fn unrecoverable_pattern_bounds_and_malformed_inputs_refuse() {
         estimate_sampled_recovery(&derivation, data, config, &ctx()).unwrap_err()
     };
     let good = input(rows.clone());
-    let error = run(&good, &SampledRecoveryConfig::new(2001, 1));
-    assert_eq!(error.detail, SampledRecoveryDetail::BoundsExceeded);
-    assert_eq!(error.reason_code(), "route_not_supported");
     let error = run(&good, &SampledRecoveryConfig::new(5, 1));
     assert_eq!(error.detail, SampledRecoveryDetail::InvalidInput);
     assert_eq!(error.reason_code(), "invalid_argument");

@@ -374,7 +374,26 @@ fn orderings_are_validated_and_enumerated() {
     }
 }
 
-/// Declarations outside the bounded cell are refused before any fit: more than three
+/// More components than can be enumerated exhaustively keep the declared ordering first and add
+/// a deterministic sample of distinct permutations, never a refusal.
+#[test]
+fn orderings_beyond_the_enumeration_budget_are_sampled() {
+    let first = orderings_for(4, &[3, 1, 0, 2], true).unwrap();
+    assert_eq!(first[0], vec![3, 1, 0, 2]);
+    assert_eq!(first.len(), antecedent_estimate::MAX_ORDERINGS);
+    let mut sorted = first.clone();
+    sorted.sort();
+    sorted.dedup();
+    assert_eq!(sorted.len(), first.len());
+    assert!(first.iter().all(|p| {
+        let mut q = p.clone();
+        q.sort_unstable();
+        q == vec![0, 1, 2, 3]
+    }));
+    assert_eq!(first, orderings_for(4, &[3, 1, 0, 2], true).unwrap());
+}
+
+/// Declarations outside the bounded cell are refused before any fit: no
 /// components, a repeated or oversized ordering list, an invalid tuning, a non-binary
 /// treatment, and a cancelled context.
 #[test]
@@ -392,7 +411,7 @@ fn declarations_outside_the_bounded_cell_are_refused() {
             fit_factorized_joint_cells(&data, treatments, y, &[z], orderings, config, &ctx)
         };
 
-    let (_, message) = refused(fit(&[t0, t1, t0, t1], &ok, &config()).unwrap_err());
+    let (_, message) = refused(fit(&[], &ok, &config()).unwrap_err());
     assert!(message.contains("joint_cells.component_count"), "{message}");
     let (_, message) = refused(fit(&[t0, t1], &[vec![0, 1], vec![0, 1]], &config()).unwrap_err());
     assert!(message.contains("joint_cells.ordering"), "{message}");

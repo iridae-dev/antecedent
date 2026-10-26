@@ -46,6 +46,7 @@ use antecedent_stats::{QuantileRule, equal_tail_interval_sorted};
 
 use crate::dose_basis_regression::{ResidualPrior, fit_basis_regression};
 use crate::error::EstimationError;
+use crate::util::dot;
 use crate::smoothed_dose::{
     DoseBasis, SMOOTHED_DOSE_MAX_BASIS_DEGREE, SMOOTHED_DOSE_MAX_KNOTS, SmoothedDoseInput,
     check_grid_bound, check_grid_windows, outcome_design, split_rule,
@@ -226,10 +227,6 @@ pub fn smoothed_dose_posterior(
         target_rows: target.len(),
         minimum_local_rows,
     })
-}
-
-fn dot(left: &[f64], right: &[f64]) -> f64 {
-    left.iter().zip(right).map(|(a, b)| a * b).sum()
 }
 
 /// Source and target row indices, after the structural checks of rows, basis and model.

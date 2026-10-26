@@ -130,6 +130,18 @@ pub(crate) fn likelihood_score(
     Ok((likelihood, score))
 }
 
+/// Lease the coordinate-search state of `parameters` coordinates (values, steps and the
+/// gradient/curvature scratch grow with the square of the count), so the parameter count is
+/// bounded by the context's memory budget instead of a constant.
+pub(crate) fn admit_parameters(
+    ctx: &ExecutionContext,
+    parameters: usize,
+) -> Result<antecedent_core::execution::AdmissionLease, EquilibriumError> {
+    let cells = parameters.saturating_mul(parameters.saturating_add(8));
+    let bytes = u64::try_from(cells.saturating_mul(16)).unwrap_or(u64::MAX);
+    ctx.acquire_admission(0, bytes).map_err(|e| EquilibriumError::Resource(e.to_string()))
+}
+
 /// Fit specified ODE drift parameters jointly across independent trajectories
 /// using forward sensitivities and Armijo backtracking. The drift structure,
 /// initial conditions, action schedule and observation variances remain fixed.
@@ -147,9 +159,7 @@ pub fn fit_ode_likelihood(
 ) -> Result<OdeFit, EquilibriumError> {
     template.validate()?;
     if data.is_empty()
-        || data.len() > 10_000
         || parameters.is_empty()
-        || parameters.len() > 64
         || !policy.learning_rate.is_finite()
         || policy.learning_rate <= 0.0
         || !policy.score_tolerance.is_finite()
@@ -159,6 +169,7 @@ pub fn fit_ode_likelihood(
     {
         return Err(invalid("ODE fit policy/data"));
     }
+    let _lease = admit_parameters(ctx, parameters.len())?;
     // Validate coordinates before indexing into template arrays.
     let n = template.equations.len();
     for (j, &parameter) in parameters.iter().enumerate() {
@@ -361,7 +372,6 @@ pub fn fit_ou_likelihood(
     let n = template.center.len();
     if rows.is_empty()
         || parameters.is_empty()
-        || parameters.len() > 256
         || !options.initial_step.is_finite()
         || options.initial_step <= 0.0
         || !options.tolerance.is_finite()
@@ -373,6 +383,7 @@ pub fn fit_ou_likelihood(
     {
         return Err(invalid("OU fit policy/data"));
     }
+    let _lease = admit_parameters(ctx, parameters.len())?;
     let mut initial = Vec::new();
     for (j, &parameter) in parameters.iter().enumerate() {
         if parameters[..j].contains(&parameter) {

@@ -49,6 +49,7 @@ use super::linalg::{cholesky, cholesky_solve, fit_logistic};
 use super::{MIN_CLUSTERS, PosteriorSummary, dense_labels, invalid, posterior_by_cluster_weights};
 use crate::error::EstimationError;
 use crate::util::refuse;
+use crate::util::dot;
 
 /// Stream key of the unit bootstrap.
 const BOOTSTRAP_STREAM: u64 = 0x7E5D_4E61_0000_0000;
@@ -294,10 +295,6 @@ fn weighted_least_squares(
         )
     })?;
     Ok(cholesky_solve(&factor, p, &xty))
-}
-
-fn dot(row: &[f64], coefficients: &[f64]) -> f64 {
-    row.iter().zip(coefficients).map(|(a, b)| a * b).sum()
 }
 
 fn positivity_error(arm: f64, floor: f64) -> EstimationError {

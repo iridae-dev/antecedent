@@ -12,9 +12,9 @@
 )]
 
 use antecedent_stats::{
-    MAX_CLUSTER_DIMENSIONS, SandwichKind, StatsError, bartlett_weight, cluster_meat_scalar,
+    MAX_MULTIWAY_WORK, SandwichKind, StatsError, bartlett_weight, cluster_meat_scalar,
     coefficient_covariance, combine_inclusion_exclusion, effective_nw_lag, intern_cluster_tuples,
-    multiway_subset_masks, newey_west_meat_scalar, panel_hac_meat_scalar,
+    multiway_subset_masks, multiway_work, newey_west_meat_scalar, panel_hac_meat_scalar,
     score_coefficient_covariance,
 };
 
@@ -210,9 +210,9 @@ pub(crate) fn require_multiway(
             "AnalyticSeKind::Multiway requires at least one clustering dimension",
         ));
     }
-    if ids.len() > MAX_CLUSTER_DIMENSIONS {
+    if multiway_work(ids.len(), n).is_none_or(|work| work > MAX_MULTIWAY_WORK) {
         return Err(EstimationError::unsupported(
-            "AnalyticSeKind::Multiway supports at most 4 clustering dimensions",
+            "AnalyticSeKind::Multiway inclusion-exclusion work (2^d - 1) * n exceeds the multiway work budget",
         ));
     }
     for (i, dim) in ids.iter().enumerate() {
@@ -491,12 +491,12 @@ pub(crate) fn multiway_influence_se(
         return Err(EstimationError::data_msg("multiway influence SE requires n >= 2"));
     }
     let d = dimensions.len();
-    if d > MAX_CLUSTER_DIMENSIONS {
+    let n = psi.len();
+    if multiway_work(d, n).is_none_or(|work| work > MAX_MULTIWAY_WORK) {
         return Err(EstimationError::unsupported(
-            "multiway influence SE supports at most 4 clustering dimensions",
+            "multiway influence SE inclusion-exclusion work (2^d - 1) * n exceeds the multiway work budget",
         ));
     }
-    let n = psi.len();
     for dim in dimensions {
         if dim.len() != n {
             return Err(EstimationError::data_msg(format!(

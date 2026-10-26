@@ -382,7 +382,7 @@ fn family_declarations_that_do_not_match_the_panel_are_refused() {
 #[test]
 fn geometric_weights_and_their_logit_coordinate_match_the_closed_form() {
     for logit in [-3.0_f64, -0.4, 0.0, 0.3, 2.5] {
-        let theta = 1.0 / (1.0 + (-logit).exp());
+        let theta = crate::util::sigmoid(logit);
         let w = likelihood::geometric(logit);
         for (actual, expected) in w.iter().zip(geo(theta)) {
             assert!((actual - expected).abs() < 1e-14);

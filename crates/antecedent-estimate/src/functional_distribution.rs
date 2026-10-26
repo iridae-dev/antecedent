@@ -65,7 +65,9 @@ type FactorKey = (Arc<[VariableId]>, Arc<[VariableId]>);
 type FactorSignature =
     (Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef);
 
-/// Hard cap on discrete levels per variable (fail-closed beyond this).
+/// Discrete levels per variable always admitted. A larger sample admits `n / 4` levels (an
+/// average of four rows per level), so only a variable with nearly unique values fails closed
+/// as continuous.
 const MAX_DISCRETE_LEVELS: usize = 64;
 
 /// Diagnostic code: the functional kept free variables and was averaged over their
@@ -613,13 +615,7 @@ impl FunctionalDistribution {
         self
     }
 
-    /// Set the number of bootstrap replicates used for the interventional mean's standard
-    /// error (0 = skip).
-    #[must_use]
-    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.bootstrap_replicates = replicates;
-        self
-    }
+    crate::inference::with_bootstrap_replicates!();
 
     /// Resample (or reweight) rows as `resampling` under the declared `design`.
     #[must_use]
@@ -1000,40 +996,64 @@ impl FunctionalDistribution {
         }));
         let _admitted = crate::util::admit_array::<f64>(ctx, draws, quantities.len())?;
         let mut values = vec![0.0; draws * quantities.len()];
-        let mut rng = ctx.rng.stream_for(StreamDomain::Estimate, 0xF01E_u64);
-        let mut draw_ws = FunctionalDistributionWorkspace::default();
-        for draw in 0..draws {
-            if ctx.cancellation.is_cancelled() {
-                return Err(EstimationError::unsupported("functional Bayesian cancelled"));
-            }
-            let provider = provider_from_bayesian_bootstrap(
-                &prepared.bootstrap_columns,
-                n,
-                &prepared.bootstrap_factors,
-                &prepared.bootstrap_signatures,
-                (self.row_resampling.block_length(n), &mut rng),
-            )?;
-            let est =
-                self.estimate_point_with(prepared, &provider, conditioning_values, &mut draw_ws)?;
-            if has_mean {
-                if !est.mean.is_finite() {
+        // Every draw owns an independent stream, so the draws are scheduled on the
+        // pool like the frequentist bootstrap, with one workspace per worker.
+        let block_length = self.row_resampling.block_length(n);
+        let per_draw = ctx.map_indexed_with_scratch_if_free(
+            draws,
+            FunctionalDistributionWorkspace::default,
+            |draw, inner, draw_ws| {
+                if inner.cancellation.is_cancelled() {
+                    return Err(EstimationError::unsupported("functional Bayesian cancelled"));
+                }
+                let mut rng = inner.rng.stream_for(
+                    StreamDomain::Estimate,
+                    antecedent_core::derive_stream(0xF01E_u64, draw as u64),
+                );
+                let provider = provider_from_bayesian_bootstrap(
+                    &prepared.bootstrap_columns,
+                    n,
+                    &prepared.bootstrap_factors,
+                    &prepared.bootstrap_signatures,
+                    (block_length, &mut rng),
+                )?;
+                let est = self.estimate_point_with(
+                    prepared,
+                    &provider,
+                    conditioning_values,
+                    draw_ws,
+                )?;
+                if has_mean && !est.mean.is_finite() {
                     return Err(EstimationError::stats_msg(
                         "functional Bayesian mean was non-finite",
                     ));
                 }
-                values[draw] = est.mean;
-            }
-            if est.atoms.len() != point.atoms.len() {
-                return Err(EstimationError::stats_msg("functional Bayesian atom support changed"));
-            }
-            for (i, (atom, expected)) in est.atoms.iter().zip(point.atoms.iter()).enumerate() {
-                if atom.outcomes != expected.outcomes
-                    || atom.conditioning != expected.conditioning
-                    || !atom.probability.is_finite()
-                {
-                    return Err(EstimationError::stats_msg("functional Bayesian atom was invalid"));
+                if est.atoms.len() != point.atoms.len() {
+                    return Err(EstimationError::stats_msg(
+                        "functional Bayesian atom support changed",
+                    ));
                 }
-                values[(atom_offset + i) * draws + draw] = atom.probability;
+                let mut probabilities = Vec::with_capacity(est.atoms.len());
+                for (atom, expected) in est.atoms.iter().zip(point.atoms.iter()) {
+                    if atom.outcomes != expected.outcomes
+                        || atom.conditioning != expected.conditioning
+                        || !atom.probability.is_finite()
+                    {
+                        return Err(EstimationError::stats_msg(
+                            "functional Bayesian atom was invalid",
+                        ));
+                    }
+                    probabilities.push(atom.probability);
+                }
+                Ok((est.mean, probabilities))
+            },
+        )?;
+        for (draw, (mean, probabilities)) in per_draw.into_iter().enumerate() {
+            if has_mean {
+                values[draw] = mean;
+            }
+            for (i, probability) in probabilities.into_iter().enumerate() {
+                values[(atom_offset + i) * draws + draw] = probability;
             }
         }
         let draws = PosteriorDraws::from_column_major(
@@ -1236,13 +1256,7 @@ impl FunctionalEffect {
         self
     }
 
-    /// Set the number of bootstrap replicates used for the scalar functional's standard
-    /// error (0 = skip).
-    #[must_use]
-    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.bootstrap_replicates = replicates;
-        self
-    }
+    crate::inference::with_bootstrap_replicates!();
 
     /// Resample (or reweight) rows as `resampling` under the declared `design`.
     #[must_use]
@@ -1832,7 +1846,7 @@ impl EncodedColumns {
             if col.levels.is_empty() {
                 return Err(EstimationError::data_msg("empty discrete domain"));
             }
-            if col.levels.len() > MAX_DISCRETE_LEVELS {
+            if col.levels.len() > MAX_DISCRETE_LEVELS.max(n / 4) {
                 return Err(EstimationError::unsupported(
                     "variable exceeds discrete level cap for functional.distribution",
                 ));

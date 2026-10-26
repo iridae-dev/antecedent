@@ -1182,7 +1182,7 @@ fn slope_ridge_coefficients(
     }
     let mut aug_ws = antecedent_stats::LeastSquaresWorkspace::default();
     Ok(SequentialRegression::solve_design(&aug_x, aug_n, ncols, &aug_y, None, &mut aug_ws)
-        .map_err(crate::util::stats_err)?
+        .map_err(crate::error::EstimationError::from)?
         .coefficients)
 }
 
@@ -1316,7 +1316,7 @@ pub fn temporal_conditional_marginal_effect_with_gaps(
     }
     let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
     let fit = SequentialRegression::solve_design(&design, n, ncols, y, None, &mut ws)
-        .map_err(crate::util::stats_err)?;
+        .map_err(crate::error::EstimationError::from)?;
     let mut coef = fit.coefficients;
     if let Some(scale) = prior_scale {
         coef = slope_ridge_coefficients(
@@ -1431,7 +1431,7 @@ pub fn temporal_linear_slopes(
     }
     let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
     let fit = SequentialRegression::solve_design(&design, n, ncols, y, None, &mut ws)
-        .map_err(crate::util::stats_err)?;
+        .map_err(crate::error::EstimationError::from)?;
     let mut coef = fit.coefficients;
     if let Some(scale) = prior_scale {
         coef = slope_ridge_coefficients(
@@ -1529,7 +1529,7 @@ pub fn nested_direct_fit_moments(
         }
         let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
         let coef = SequentialRegression::solve_design(&design, n, ncols, y, None, &mut ws)
-            .map_err(crate::util::stats_err)?
+            .map_err(crate::error::EstimationError::from)?
             .coefficients;
         let sigma2 = crate::util::ols_sigma2(&design, n, ncols, y, &coef).max(1e-12);
         let penalty = sigma2 / (scale * scale);

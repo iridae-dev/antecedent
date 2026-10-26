@@ -81,7 +81,8 @@ pub const MECHANISM_DISCREPANCY_DEPENDENCE: &str = "source and target samples ar
 /// Name of the intercept coefficient; no parent may use it.
 pub const MECHANISM_DISCREPANCY_INTERCEPT: &str = "(intercept)";
 
-/// Most parents one diagnostic accepts.
+/// Reference parent count of a diagnostic. Not enforced: the `(k + 1)^2` normal equations are
+/// admitted against the workflow account.
 pub const MECHANISM_DISCREPANCY_MAX_PARENTS: usize = 64;
 
 /// Smallest residual degrees of freedom `n - p` of either population.
@@ -343,13 +344,14 @@ pub fn summarize_population(
     let invalid = reason_code!("invalid_argument");
     let n = sample.outcome.len();
     let k = sample.measurement.parents.len();
-    if k > MECHANISM_DISCREPANCY_MAX_PARENTS {
-        return Err(refuse(
-            invalid,
-            "mechanism_discrepancy.too_many_parents",
-            "more parents than the diagnostic accepts",
-        ));
-    }
+    let _gram_lease = crate::util::admit_bound_array::<f64>(k.saturating_add(1), k.saturating_add(1))
+        .map_err(|_| {
+            refuse(
+                invalid,
+                "mechanism_discrepancy.too_many_parents",
+                "the parents' normal equations exceed the admitted memory",
+            )
+        })?;
     if n == 0 {
         return Err(refuse(invalid, "mechanism_discrepancy.sample_too_small", "no rows"));
     }
@@ -415,7 +417,7 @@ fn validate_summary_shape(s: &MechanismSummary) -> Result<(), EstimationError> {
     let bad = |detail: &str, message: &str| refuse(invalid, detail, message);
     let k = s.measurement.parents.len();
     let p = k + 1;
-    if k > MECHANISM_DISCREPANCY_MAX_PARENTS {
+    if k.checked_add(1).and_then(|p| p.checked_mul(p)).is_none() {
         return Err(bad("mechanism_discrepancy.too_many_parents", "too many parents"));
     }
     if s.xtx.len() != p * p || s.xty.len() != p {

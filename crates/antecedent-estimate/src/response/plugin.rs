@@ -5,8 +5,7 @@ use std::sync::Arc;
 #[cfg(feature = "calibration-internal")]
 use antecedent_core::{DerivativeScale, ResponseFunctional, ResponseUncertainty, ResponseValue};
 use antecedent_core::{
-    Diagnostic, DiagnosticKind, DiagnosticSeverity, Intervention, MAX_NONPARAMETRIC_RESPONSE_DIM,
-    VariableId,
+    Diagnostic, DiagnosticKind, DiagnosticSeverity, Intervention, VariableId,
 };
 use antecedent_data::TabularData;
 #[cfg(feature = "calibration-internal")]
@@ -16,8 +15,7 @@ use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, i
 use crate::EstimationError;
 
 use super::{
-    ContinuousResponseEstimator, DIRECTIONAL_TREATMENT_LIMIT_REMEDY, DiscreteAtom,
-    JACOBIAN_TREATMENT_LIMIT_REMEDY, policy_support, sample::CompleteSample,
+    ContinuousResponseEstimator, DiscreteAtom, policy_support, sample::CompleteSample,
     sample::read_shared_complete_samples,
 };
 
@@ -32,13 +30,8 @@ impl ContinuousResponseEstimator {
         outcomes: &[VariableId],
         treatments: &[VariableId],
         at: &[f64],
-        limit: PluginGradientKind,
         with_influence: bool,
     ) -> Result<PluginGradientRun, EstimationError> {
-        if treatments.len() > MAX_NONPARAMETRIC_RESPONSE_DIM {
-            let (message, remedy) = limit.refusal();
-            return Err(EstimationError::unsupported_with_remedy(message, remedy));
-        }
         let samples =
             read_shared_complete_samples(data, outcomes, treatments, &self.adjustment_set)?;
         let all_treatments =
@@ -115,12 +108,7 @@ impl ContinuousResponseEstimator {
                 ));
             }
         };
-        let kind = if direction.is_some() {
-            PluginGradientKind::Directional
-        } else {
-            PluginGradientKind::Jacobian
-        };
-        let run = self.plugin_gradient_run(data, outcomes, treatments, at, kind, true)?;
+        let run = self.plugin_gradient_run(data, outcomes, treatments, at, true)?;
         let nf = run.n as f64;
         let z = normal_ppf(0.5 + level / 2.0);
         let mut values = Vec::new();
@@ -433,28 +421,6 @@ pub(super) fn intervention_plugin_influence(
         coefficient.iter().zip(row_means).map(|(c, row)| row - mean + c).collect();
     center_in_place(&mut psi);
     Ok(psi)
-}
-
-/// Which plug-in gradient query a run serves, for its refusal wording.
-#[derive(Clone, Copy)]
-pub(super) enum PluginGradientKind {
-    Jacobian,
-    Directional,
-}
-
-impl PluginGradientKind {
-    fn refusal(self) -> (&'static str, &'static str) {
-        match self {
-            Self::Jacobian => (
-                "plug-in response Jacobian supports at most two treatments",
-                JACOBIAN_TREATMENT_LIMIT_REMEDY,
-            ),
-            Self::Directional => (
-                "plug-in directional derivative supports at most two treatments",
-                DIRECTIONAL_TREATMENT_LIMIT_REMEDY,
-            ),
-        }
-    }
 }
 
 /// Plug-in levels and gradients of every outcome (and their influence on request).

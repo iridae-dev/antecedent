@@ -41,7 +41,8 @@ use crate::tiled_prediction::{
     stream_tile,
 };
 
-/// Most grid doses one posterior may carry.
+/// Reference grid size. Not enforced: grid tiles are streamed under the context's memory
+/// admission.
 pub const MAX_POSTERIOR_GRID: usize = 64;
 
 /// One request: rows, the declared polynomial prior, and the named functional.
@@ -258,10 +259,9 @@ fn validate(request: &DoseGridPosteriorRequest<'_>) -> Result<Vec<f64>, Estimati
         DoseFunctional::Level | DoseFunctional::Derivative => request.grid.to_vec(),
     };
     if points.is_empty()
-        || points.len() > MAX_POSTERIOR_GRID
         || points.iter().any(|v| !v.is_finite())
     {
-        return Err(invalid("the requested doses must be one to 64 finite values"));
+        return Err(invalid("the requested doses must be at least one finite value"));
     }
     let (minimum, maximum) = request
         .dose

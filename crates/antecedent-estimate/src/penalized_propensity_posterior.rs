@@ -37,6 +37,7 @@ use antecedent_prob::{
 
 use crate::error::EstimationError;
 use crate::util::refuse;
+use crate::util::dot;
 
 /// Column-major propensity design: an intercept of ones, then covariates. Treatment is 0 or 1.
 #[derive(Clone, Debug)]
@@ -266,10 +267,6 @@ pub fn weighting_effect_posterior_refusal() -> EstimationError {
          Bayesian-bootstrap posterior of the cross-fitted ridge-orthogonal score, or the \
          Bayesian g-computation posterior of an outcome model",
     )
-}
-
-fn dot(beta: &[f64], row: &[f64]) -> f64 {
-    beta.iter().zip(row).map(|(b, x)| b * x).sum()
 }
 
 fn shape(message: &str) -> EstimationError {

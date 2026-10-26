@@ -48,10 +48,6 @@ use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
-/// Largest replicate count one bootstrap call accepts.
-const MAX_REPLICATES: usize = 10_000;
-/// Largest number of derived quantities carried per replicate or draw.
-const MAX_QUANTITIES: usize = 256;
 /// Largest squared Cholesky pivot ratio accepted as a regular information matrix.
 const MAX_PIVOT_RATIO: f64 = 1e12;
 /// Semantic stream tags, one per family; the low byte names the bootstrap method.
@@ -543,7 +539,7 @@ fn clamps_valid(clamps: &[Clamp], n: usize) -> bool {
 // ---------------------------------------------------------------- ODE family
 
 fn ode_values(model: &OdeSystem, parameters: &[OdeParameter]) -> Fallible<Vec<f64>> {
-    if parameters.is_empty() || parameters.len() > 64 {
+    if parameters.is_empty() {
         return Err(model_invalid("ODE parameter count"));
     }
     parameters
@@ -792,7 +788,7 @@ impl Family for OdeFamily<'_> {
 
 fn ou_values(model: &OrnsteinUhlenbeck, parameters: &[OuParameter]) -> Fallible<Vec<f64>> {
     let n = model.center.len();
-    if parameters.is_empty() || parameters.len() > 256 || model.drift.len() != n * n {
+    if parameters.is_empty() || model.drift.len() != n * n {
         return Err(model_invalid("OU parameter count or shape"));
     }
     parameters
@@ -1213,9 +1209,6 @@ fn check_quantities<F: Family>(
     family: &F,
     quantities: &[DynamicQuantity],
 ) -> Result<(), DynamicInferenceError> {
-    if quantities.len() > MAX_QUANTITIES {
-        return Err(invalid("too many derived quantities"));
-    }
     if quantities.iter().all(|q| family.check_quantity(q)) {
         Ok(())
     } else {
@@ -1265,53 +1258,12 @@ fn settle<T>(value: Fallible<T>) -> Result<Result<T, String>, DynamicInferenceEr
 }
 
 fn cholesky(matrix: &[f64], n: usize) -> Option<Vec<f64>> {
-    if matrix.len() != n * n {
-        return None;
-    }
-    let mut lower = vec![0.0; n * n];
-    for i in 0..n {
-        for j in 0..=i {
-            let value = matrix[i * n + j]
-                - (0..j).map(|k| lower[i * n + k] * lower[j * n + k]).sum::<f64>();
-            if i == j {
-                if !value.is_finite() || value <= 0.0 {
-                    return None;
-                }
-                lower[i * n + i] = value.sqrt();
-            } else {
-                lower[i * n + j] = value / lower[j * n + j];
-            }
-        }
-    }
-    Some(lower)
+    crate::linalg::SpdFactor::new(matrix, n).map(crate::linalg::SpdFactor::into_lower)
 }
 
 /// Inverse of `L L^T` from its Cholesky factor, symmetrized.
 fn spd_inverse(lower: &[f64], n: usize) -> Vec<f64> {
-    let mut inverse = vec![0.0; n * n];
-    let mut column = vec![0.0; n];
-    for target in 0..n {
-        for i in 0..n {
-            let rhs = if i == target { 1.0 } else { 0.0 };
-            column[i] = (rhs - (0..i).map(|k| lower[i * n + k] * column[k]).sum::<f64>())
-                / lower[i * n + i];
-        }
-        for i in (0..n).rev() {
-            column[i] = (column[i] - (i + 1..n).map(|k| lower[k * n + i] * column[k]).sum::<f64>())
-                / lower[i * n + i];
-        }
-        for (i, value) in column.iter().enumerate() {
-            inverse[i * n + target] = *value;
-        }
-    }
-    for i in 0..n {
-        for j in 0..i {
-            let value = 0.5 * (inverse[i * n + j] + inverse[j * n + i]);
-            inverse[i * n + j] = value;
-            inverse[j * n + i] = value;
-        }
-    }
-    inverse
+    crate::linalg::inverse_from_lower(lower, n)
 }
 
 fn spread(values: &[f64]) -> Option<f64> {
@@ -1625,7 +1577,7 @@ fn bootstrap<F: Family>(
     if ctx.cancellation.is_cancelled() {
         return Err(cancelled());
     }
-    if request.replicates == 0 || request.replicates > MAX_REPLICATES {
+    if request.replicates == 0 {
         return Err(invalid("bootstrap replicate count"));
     }
     check_quantities(family, quantities)?;

@@ -20,7 +20,8 @@ use antecedent_prob::{
 
 use crate::error::EstimationError;
 
-/// Most basis coefficients one regression may carry.
+/// Reference basis width. Not enforced: the `width x width` posterior precision and the draws
+/// are admitted against the workflow account.
 pub const MAX_BASIS_WIDTH: usize = 64;
 /// Fewest posterior draws accepted.
 pub const MIN_BASIS_DRAWS: usize = 200;
@@ -77,7 +78,6 @@ pub fn fit_basis_regression(
 ) -> Result<BasisPosterior, EstimationError> {
     let width = coefficient_scales.len();
     if width == 0
-        || width > MAX_BASIS_WIDTH
         || rows == 0
         || y.len() != rows
         || design_colmajor.len() != rows * width
@@ -88,6 +88,7 @@ pub fn fit_basis_regression(
         ));
     }
     let prior = checked_basis_prior(coefficient_scales, residual, draws)?;
+    let _precision = crate::util::admit_bound_array::<f64>(width, width)?;
     let fit = fit_conjugate_gaussian(
         BayesDesignRef {
             x_colmajor: design_colmajor,
@@ -119,8 +120,8 @@ pub(crate) fn checked_basis_prior(
     draws: usize,
 ) -> Result<PriorSet, EstimationError> {
     let width = coefficient_scales.len();
-    if width == 0 || width > MAX_BASIS_WIDTH {
-        return Err(EstimationError::data_msg("basis coefficient width must be between 1 and 64"));
+    if width == 0 {
+        return Err(EstimationError::data_msg("basis coefficient width must be at least 1"));
     }
     if coefficient_scales.iter().any(|scale| !scale.is_finite() || *scale <= 0.0) {
         return Err(EstimationError::data_msg(

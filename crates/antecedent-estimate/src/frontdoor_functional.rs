@@ -23,7 +23,8 @@
 //!   the contrasted arms. This restriction is recorded on the result.
 //!
 //! [`FrontDoorOutcomeModel::Auto`] picks `Saturated` when every mediator has at most
-//! [`MAX_SATURATED_MEDIATOR_LEVELS`] distinct values and `ArmLinear` otherwise.
+//! [`MAX_SATURATED_MEDIATOR_LEVELS`] distinct values (or `sqrt(n)` in a larger sample) and
+//! `ArmLinear` otherwise.
 //!
 //! # Standard error
 //!
@@ -68,12 +69,13 @@ use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::frontdoor::{PreparedFrontDoorProblem, prepare_frontdoor_problem};
 use crate::overlap::OverlapPolicy;
-use crate::util::{BootstrapSeResult, stats_err};
+use crate::util::{BootstrapSeResult};
 
-/// Largest number of distinct treatment values treated as arms.
+/// Distinct treatment values always treated as arms; a larger sample admits `n / 4` (an average
+/// of four rows per arm), so only a treatment with nearly unique values is read as continuous.
 pub(crate) const MAX_TREATMENT_LEVELS: usize = 32;
-/// Largest per-mediator distinct-value count for which [`FrontDoorOutcomeModel::Auto`]
-/// selects the saturated cell-mean model.
+/// Per-mediator distinct-value count up to which [`FrontDoorOutcomeModel::Auto`] always
+/// selects the saturated cell-mean model; a larger sample admits `sqrt(n)` levels.
 pub(crate) const MAX_SATURATED_MEDIATOR_LEVELS: usize = 16;
 
 /// Stable id of the positivity requirement checked by the saturated model.
@@ -126,12 +128,7 @@ impl FrontDoorFunctional {
         }
     }
 
-    /// Set the number of bootstrap replicates (`0` reports only the influence-function SE).
-    #[must_use]
-    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.bootstrap_replicates = replicates;
-        self
-    }
+    crate::inference::with_bootstrap_replicates!();
 
     /// Set the outcome model.
     #[must_use]
@@ -323,8 +320,8 @@ fn resolve_model(requested: FrontDoorOutcomeModel, mediators: &[Arc<[f64]>]) -> 
         FrontDoorOutcomeModel::ArmLinear => ResolvedModel::ArmLinear,
         FrontDoorOutcomeModel::Auto => {
             let discrete = mediators.iter().all(|m| {
-                level_codes(m)
-                    .is_some_and(|(_, levels)| levels.len() <= MAX_SATURATED_MEDIATOR_LEVELS)
+                let allowed = MAX_SATURATED_MEDIATOR_LEVELS.max(m.len().isqrt());
+                level_codes(m).is_some_and(|(_, levels)| levels.len() <= allowed)
             });
             if discrete { ResolvedModel::Saturated } else { ResolvedModel::ArmLinear }
         }
@@ -416,7 +413,7 @@ fn contrast(
     let (arm_of, arms) = level_codes(sample.treatment).ok_or_else(|| {
         EstimationError::data_msg("front-door functional needs a finite treatment")
     })?;
-    if arms.len() > MAX_TREATMENT_LEVELS {
+    if arms.len() > MAX_TREATMENT_LEVELS.max(n / 4) {
         return Err(EstimationError::unsupported(
             "frontdoor.functional needs a discrete treatment (its observed values are the arms of the functional); use frontdoor.linear_two_stage for a continuous treatment under its recorded linearity restriction",
         ));
@@ -594,7 +591,7 @@ impl OutcomeFit {
             if n_arm < ncols {
                 return Err(rank_deficient);
             }
-            let fit = backend.least_squares(&x, n_arm, ncols, &y, ols).map_err(stats_err)?;
+            let fit = backend.least_squares(&x, n_arm, ncols, &y, ols).map_err(crate::error::EstimationError::from)?;
             if fit.rank < ncols {
                 return Err(rank_deficient);
             }

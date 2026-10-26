@@ -1175,7 +1175,7 @@ fn column_major(columns: &[&[f64]], rows: &[usize]) -> Vec<f64> {
 }
 
 fn gather(values: &[f64], rows: &[usize]) -> Vec<f64> {
-    rows.iter().map(|&row| values[row]).collect()
+    crate::util::gather(values, rows)
 }
 
 fn linear_predictor(
@@ -1407,8 +1407,7 @@ fn mean(values: &[f64]) -> Result<f64, SequentialCrossfitError> {
     if values.is_empty() {
         return Err(refused("there is no score to average"));
     }
-    let total = values.iter().sum::<f64>();
-    let value = total / values.len() as f64;
+    let value = crate::util::mean(values);
     if value.is_finite() { Ok(value) } else { Err(refused("a regime mean is not finite")) }
 }
 

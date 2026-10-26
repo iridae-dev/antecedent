@@ -88,7 +88,7 @@ pub(crate) fn point_coefficients(
                 .collect();
             // Use the actual learner's penalty/intercept rule after prior-weight scaling.
             let inverse = antecedent_stats::ridge_gram_inverse(&design, m, p, ridge)
-                .map_err(crate::util::stats_err)?
+                .map_err(crate::error::EstimationError::from)?
                 .ok_or_else(|| EstimationError::stats_msg("singular AIPW training design"))?;
             let mut load = vec![0.0; p];
             for i in (0..n).filter(|&i| folds[i] == fold) {

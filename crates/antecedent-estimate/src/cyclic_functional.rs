@@ -200,23 +200,19 @@ pub fn evaluate_finite_cyclic_functional(
     if continuous {
         return Err(invalid("finite-law consumption requires discrete identification semantics"));
     }
-    if law.support.len() != nodes || assignments.is_empty() || assignments.len() > 1024 {
-        return Err(invalid("finite law shape/assignment limit"));
+    if law.support.len() != nodes || assignments.is_empty() {
+        return Err(invalid("finite law shape/assignment"));
     }
     let mut strides = Vec::new();
     let mut cells = 1usize;
     for values in &law.support {
         if values.is_empty()
-            || values.len() > 64
             || values.iter().enumerate().any(|(i, v)| !v.is_finite() || values[..i].contains(v))
         {
             return Err(invalid("finite variable support"));
         }
         strides.push(cells);
         cells = cells.checked_mul(values.len()).ok_or_else(|| invalid("finite law size"))?;
-        if cells > 65536 {
-            return Err(invalid("finite law cell limit"));
-        }
     }
     let total: f64 = law.weights.iter().sum();
     if law.weights.len() != cells

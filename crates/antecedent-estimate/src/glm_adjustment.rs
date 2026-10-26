@@ -39,7 +39,7 @@ use crate::gcomp::{GcompContrast, linear_predictors};
 use crate::overlap::OverlapPolicy;
 use crate::sampling_weights::{RetainedSamplingWeights, SamplingWeights};
 use crate::se::{AnalyticSeKind, SeSpec};
-use crate::util::{BootstrapOutcome, stats_err};
+use crate::util::{BootstrapOutcome};
 
 /// Prepared GLM adjustment problem (compiled design retained).
 #[derive(Clone, Debug)]
@@ -153,13 +153,7 @@ impl GlmAdjustmentAte {
         }
     }
 
-    /// Request a bootstrap interval produced by the complete fit/resample/stop/interval
-    /// procedure (see [`Self::bootstrap_interval`]).
-    #[must_use]
-    pub const fn with_bootstrap_interval(mut self, request: crate::util::IntervalRequest) -> Self {
-        self.bootstrap_interval = Some(request);
-        self
-    }
+    crate::inference::with_bootstrap_interval!();
 
     /// Declare sampling weights for every row of the source table.
     #[must_use]
@@ -168,14 +162,7 @@ impl GlmAdjustmentAte {
         self
     }
 
-    /// Set the number of bootstrap replicates used for the bootstrap standard error.
-    ///
-    /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE.
-    #[must_use]
-    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.bootstrap_replicates = replicates;
-        self
-    }
+    crate::inference::with_bootstrap_replicates!();
 
     /// Set the overlap policy. Must remain [`OverlapPolicy::ExplicitOverride`] — this is a
     /// regression (not propensity-based) path.
@@ -199,52 +186,17 @@ impl GlmAdjustmentAte {
         self
     }
 
-    /// Set the analytic SE kind (default [`AnalyticSeKind::Homoskedastic`], the Fisher
-    /// delta-method).
-    #[must_use]
-    pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
-        self.se_kind = se_kind;
-        self
-    }
+    crate::inference::with_se_kind!();
 
-    /// Set cluster ids for cluster / panel sandwich SE.
-    #[must_use]
-    pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
-        self.cluster_ids = Some(cluster_ids);
-        self
-    }
+    crate::inference::with_cluster_ids!();
 
-    /// Set cluster labels for every row of the source table (length must equal its row
-    /// count). Rows dropped as incomplete or outside the target population drop their
-    /// labels with them, so the labels stay with their rows.
-    #[must_use]
-    pub fn with_source_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
-        self.source_cluster_ids = Some(cluster_ids);
-        self
-    }
+    crate::inference::with_source_cluster_ids!();
 
-    /// Declare the sampling design of the rows. The bootstrap then refuses a resample that
-    /// design does not allow: a row-level draw under independent subject trajectories, a
-    /// non-block draw of a dependent series, or a draw that ignores a panel's clusters.
-    #[must_use]
-    pub fn with_sampling_design(mut self, design: antecedent_core::DeclaredSamplingDesign) -> Self {
-        self.sampling_design = crate::util::SamplingDeclaration::Declared(design);
-        self
-    }
+    crate::inference::with_sampling_design!();
 
-    /// Set multiway cluster ids (one `Vec<u32>` per clustering dimension).
-    #[must_use]
-    pub fn with_multiway_ids(mut self, multiway_ids: Vec<Vec<u32>>) -> Self {
-        self.multiway_ids = Some(multiway_ids);
-        self
-    }
+    crate::inference::with_multiway_ids!();
 
-    /// Set panel time labels for panel HAC sandwich SE.
-    #[must_use]
-    pub fn with_panel_times(mut self, panel_times: Vec<i64>) -> Self {
-        self.panel_times = Some(panel_times);
-        self
-    }
+    crate::inference::with_panel_times!();
 
     /// Prepare design from tabular data, identified estimand, and query levels.
     ///
@@ -450,8 +402,8 @@ impl GlmAdjustmentAte {
                     &mut workspace.ols,
                     &self.glm_options.without_separation_ridge(),
                 )
-                .map_err(stats_err)?;
-                fit.require_ok().map_err(stats_err)?;
+                .map_err(crate::error::EstimationError::from)?;
+                fit.require_ok().map_err(crate::error::EstimationError::from)?;
                 crate::adjustment_resume::record_model_fit();
                 fit
             }
@@ -586,7 +538,7 @@ impl GlmAdjustmentAte {
                 w_boot.resize(m, 0.0);
                 crate::util::gather_bootstrap_vector(y_boot, &problem.design.outcome, idx);
                 crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
-                crate::util::gather_resampled_design(x_boot, &problem.design.matrix, n, p, idx);
+                crate::util::gather_cols(x_boot, &problem.design.matrix, n, p, idx);
                 let boot_design =
                     GlmDesignRef { x_colmajor: x_boot, nrows: m, ncols: p, y: y_boot };
                 let options = self.glm_options.without_separation_ridge();
@@ -924,8 +876,8 @@ pub(crate) fn solve_adjustment_glm(
     options: &GlmOptions,
 ) -> Result<antecedent_stats::GlmFit, EstimationError> {
     let fit = fit_glm(family, design, &backend, workspace, &options.without_separation_ridge())
-        .map_err(stats_err)?;
-    fit.require_ok().map_err(stats_err)?;
+        .map_err(crate::error::EstimationError::from)?;
+    fit.require_ok().map_err(crate::error::EstimationError::from)?;
     crate::adjustment_resume::record_model_fit();
     Ok(fit)
 }

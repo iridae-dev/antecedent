@@ -237,14 +237,13 @@ pub(crate) fn cross_fit_aipw_nuisances(
         |rows, inner| fit_aipw_fold(&models, rows, inner),
         |_, part| {
             treat_prov.extend(part.provenance);
-            for (i, pred) in part.valid.iter().copied().zip(part.mu0) {
-                mu0[usize::try_from(i).expect("row id")] = pred;
-            }
-            for (i, pred) in part.valid.iter().copied().zip(part.mu1) {
-                mu1[usize::try_from(i).expect("row id")] = pred;
-            }
-            for (i, pred) in part.valid.iter().copied().zip(part.ehat) {
-                ehat[usize::try_from(i).expect("row id")] = pred;
+            for (((&i, p0), p1), pe) in
+                part.valid.iter().zip(part.mu0).zip(part.mu1).zip(part.ehat)
+            {
+                let row = usize::try_from(i).expect("row id");
+                mu0[row] = p0;
+                mu1[row] = p1;
+                ehat[row] = pe;
             }
             Ok(())
         },

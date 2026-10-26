@@ -263,11 +263,10 @@ fn dynamic_scm_interval_observed_state_estimand_is_labelled_distinctly() {
 #[test]
 fn dynamic_scm_interval_refuses_bounds_unsupported_histories_and_cancellation() {
     let p = panel(30);
-    let too_many = DependentIntervalConfig { replicates: 2001, ..config(1) };
-    let (code, message) =
-        refused(dependent_unit_interval(&p, &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(target_query()), &too_many, &ctx()).unwrap_err());
-    assert_eq!(code, "route_not_supported");
-    assert!(message.contains("temporal_interval.too_many_replicates"), "{message}");
+    // Replicates above the reference count are admitted: the budget bounds them, not a cap.
+    let many = DependentIntervalConfig { replicates: 2001, ..config(1) };
+    let interval = dependent_unit_interval(&p, &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(target_query()), &many, &ctx()).unwrap();
+    assert_eq!(interval.replicates.len(), 2001);
 
     let few = panel(5);
     let (code, message) =

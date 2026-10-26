@@ -109,13 +109,7 @@ impl PropensityStratification {
         }
     }
 
-    /// Request a bootstrap interval produced by the complete fit/resample/stop/interval
-    /// procedure (see [`Self::bootstrap_interval`]).
-    #[must_use]
-    pub const fn with_bootstrap_interval(mut self, request: crate::util::IntervalRequest) -> Self {
-        self.bootstrap_interval = Some(request);
-        self
-    }
+    crate::inference::with_bootstrap_interval!();
 
     /// Declare sampling weights for every row of the source table.
     #[must_use]
@@ -124,28 +118,11 @@ impl PropensityStratification {
         self
     }
 
-    /// Declare the cluster of each complete-case row.
-    #[must_use]
-    pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
-        self.cluster_ids = Some(cluster_ids);
-        self
-    }
+    crate::inference::with_cluster_ids!();
 
-    /// Declare the cluster of every row of the source table.
-    #[must_use]
-    pub fn with_source_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
-        self.source_cluster_ids = Some(cluster_ids);
-        self
-    }
+    crate::inference::with_source_cluster_ids!();
 
-    /// Declare the sampling design of the rows. The bootstrap then refuses a resample that
-    /// design does not allow: a row-level draw under independent subject trajectories, a
-    /// non-block draw of a dependent series, or a draw that ignores a panel's clusters.
-    #[must_use]
-    pub fn with_sampling_design(mut self, design: antecedent_core::DeclaredSamplingDesign) -> Self {
-        self.sampling_design = crate::util::SamplingDeclaration::Declared(design);
-        self
-    }
+    crate::inference::with_sampling_design!();
 
     /// Cluster label of each row of `problem`, when clusters are declared.
     fn clusters(
@@ -163,14 +140,7 @@ impl PropensityStratification {
         Ok(labels)
     }
 
-    /// Set the number of bootstrap replicates used for the bootstrap standard error.
-    ///
-    /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE.
-    #[must_use]
-    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.bootstrap_replicates = replicates;
-        self
-    }
+    crate::inference::with_bootstrap_replicates!();
 
     /// Set the overlap policy. Positivity is mandatory here:
     /// [`OverlapPolicy::ExplicitOverride`] is refused by `prepare`.
@@ -448,7 +418,7 @@ impl PropensityStratification {
         }
         crate::util::gather_bootstrap_vector(t, &problem.treatment, idx);
         crate::util::gather_bootstrap_vector(y, &problem.outcome, idx);
-        crate::util::gather_resampled_design(x, &problem.design_matrix, problem.nrows, ncols, idx);
+        crate::util::gather_cols(x, &problem.design_matrix, problem.nrows, ncols, idx);
         let fit = match sampling {
             Some(full) => {
                 crate::util::gather_bootstrap_vector(s, full, idx);

@@ -49,7 +49,7 @@ use crate::crossfit_plan::{
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::scores::{ScoreColumn, ScoreTable};
-use crate::util::{refuse, stats_err};
+use crate::util::{refuse};
 
 /// Provenance tag frozen on the generalized-propensity score table.
 pub const GENERALIZED_PROPENSITY_PROVENANCE: &str = "gps.crossfit.multinomial_logit.ols.v1";
@@ -461,7 +461,7 @@ impl MultiLevelAipw {
                             &y_level,
                             &mut ols_workspace,
                         )
-                        .map_err(stats_err)?;
+                        .map_err(crate::error::EstimationError::from)?;
                     predict_colmajor(
                         &design_valid,
                         nv,
@@ -542,8 +542,8 @@ pub(crate) fn fit_category_probabilities(
         workspace,
         options,
     )
-    .map_err(stats_err)?;
-    fit.require_ok().map_err(stats_err)?;
+    .map_err(crate::error::EstimationError::from)?;
+    fit.require_ok().map_err(crate::error::EstimationError::from)?;
     Ok(multinomial_probabilities(
         &fit.coefficients,
         design_valid,

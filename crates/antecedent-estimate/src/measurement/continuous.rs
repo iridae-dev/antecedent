@@ -85,7 +85,8 @@ pub const USE_BINARY_MISCLASSIFICATION: NextAttempt = NextAttempt::new(
 
 /// Fewest bootstrap replicates a bootstrap-based correction accepts.
 pub const MIN_BOOTSTRAP_REPLICATES: u32 = 50;
-/// Most bootstrap replicates a bootstrap-based correction accepts.
+/// Reference upper replicate count; not enforced (the replicate buffers are admitted against
+/// the context's memory budget).
 pub const MAX_BOOTSTRAP_REPLICATES: u32 = 100_000;
 /// Bootstrap replicates a caller gets when it states none.
 pub const DEFAULT_BOOTSTRAP_REPLICATES: u32 = 200;
@@ -704,8 +705,8 @@ fn coefficient_index(location: ErrorLocation) -> usize {
 /// # Errors
 /// Each failed check as a coded [`MeasurementError`]; an implied reliability
 /// at or below the model's floor; a rank-deficient design; an outcome model
-/// that does not fit; a bootstrap replicate count outside
-/// [`MIN_BOOTSTRAP_REPLICATES`]`..=`[`MAX_BOOTSTRAP_REPLICATES`]; more than a
+/// that does not fit; a bootstrap replicate count below
+/// [`MIN_BOOTSTRAP_REPLICATES`]; more than a
 /// tenth of bootstrap replicates failing; an admission pool that cannot fund
 /// the buffers; or cancellation.
 pub fn correct_continuous_error(
@@ -913,9 +914,9 @@ fn bootstrapped(
     ctx: &ExecutionContext,
 ) -> Result<CorrectedContinuousEffect, MeasurementError> {
     let requested = spec.bootstrap_replicates;
-    if !(MIN_BOOTSTRAP_REPLICATES..=MAX_BOOTSTRAP_REPLICATES).contains(&requested) {
+    if requested < MIN_BOOTSTRAP_REPLICATES {
         return Err(invalid(format!(
-            "{requested} bootstrap replicates requested; this correction needs between {MIN_BOOTSTRAP_REPLICATES} and {MAX_BOOTSTRAP_REPLICATES}"
+            "{requested} bootstrap replicates requested; this correction needs at least {MIN_BOOTSTRAP_REPLICATES}"
         )));
     }
     let simex_config = spec.method.simex_config();

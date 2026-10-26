@@ -7,66 +7,22 @@
 use crate::error::EstimationError;
 
 /// Lower Cholesky factor (row-major `n x n`) of a symmetric positive-definite matrix, or `None`
-/// when a pivot is not positive.
+/// when it is not positive definite under the shared relative pivot rule.
 pub(crate) fn cholesky(a: &[f64], n: usize) -> Option<Vec<f64>> {
-    if a.len() != n * n {
-        return None;
-    }
-    let scale = (0..n).map(|i| a[i * n + i].abs()).fold(0.0_f64, f64::max).max(1.0);
-    let mut l = vec![0.0; n * n];
-    for i in 0..n {
-        for j in 0..=i {
-            let mut sum = a[i * n + j];
-            for k in 0..j {
-                sum -= l[i * n + k] * l[j * n + k];
-            }
-            if i == j {
-                if !(sum.is_finite() && sum > 1e-13 * scale) {
-                    return None;
-                }
-                l[i * n + i] = sum.sqrt();
-            } else {
-                l[i * n + j] = sum / l[j * n + j];
-            }
-        }
-    }
-    Some(l)
+    crate::linalg::SpdFactor::new(a, n).map(crate::linalg::SpdFactor::into_lower)
 }
 
 /// Solve `L L^T x = b` with the lower factor `l`.
 pub(crate) fn cholesky_solve(l: &[f64], n: usize, b: &[f64]) -> Vec<f64> {
     let mut y = vec![0.0; n];
-    for i in 0..n {
-        let mut sum = b[i];
-        for k in 0..i {
-            sum -= l[i * n + k] * y[k];
-        }
-        y[i] = sum / l[i * n + i];
-    }
     let mut x = vec![0.0; n];
-    for i in (0..n).rev() {
-        let mut sum = y[i];
-        for k in (i + 1)..n {
-            sum -= l[k * n + i] * x[k];
-        }
-        x[i] = sum / l[i * n + i];
-    }
+    antecedent_kernels::chol_solve_into(l, n, b, &mut y, &mut x);
     x
 }
 
 /// Inverse (row-major) of a symmetric positive-definite matrix from its lower factor.
 pub(crate) fn cholesky_inverse(l: &[f64], n: usize) -> Vec<f64> {
-    let mut inverse = vec![0.0; n * n];
-    let mut unit = vec![0.0; n];
-    for column in 0..n {
-        unit.iter_mut().for_each(|value| *value = 0.0);
-        unit[column] = 1.0;
-        let solved = cholesky_solve(l, n, &unit);
-        for row in 0..n {
-            inverse[row * n + column] = solved[row];
-        }
-    }
-    inverse
+    antecedent_kernels::chol_inverse(l, n)
 }
 
 /// `L z` for the lower factor `l` and a vector `z`.
@@ -233,6 +189,16 @@ mod tests {
         let inverse = cholesky_inverse(&l, 3);
         let product: f64 = (0..3).map(|k| a[k] * inverse[k * 3]).sum();
         assert!((product - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn cholesky_acceptance_is_relative_to_the_matrix_scale() {
+        // The same well-conditioned matrix in rescaled units is still positive definite.
+        let tiny = [4.0e-15, 2.0e-15, 2.0e-15, 5.0e-15];
+        assert!(cholesky(&tiny, 2).is_some());
+        // A perfectly collinear matrix is singular at any scale.
+        assert!(cholesky(&[1.0e-15, 1.0e-15, 1.0e-15, 1.0e-15], 2).is_none());
+        assert!(cholesky(&[1.0e9, 1.0e9, 1.0e9, 1.0e9], 2).is_none());
     }
 
     #[test]

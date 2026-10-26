@@ -12,17 +12,17 @@ use antecedent_core::rng_key::{
 use antecedent_core::{CausalRng, ExecutionContext};
 use antecedent_data::{ImputationModel, ImputationSpec};
 use antecedent_kernels::{
-    bayesian_bootstrap_weights, chol_inverse, chol_solve_into, cholesky_spd_into, sample_gamma,
-    standard_normal,
+    bayesian_bootstrap_weights, chol_inverse, chol_solve_into, sample_gamma, standard_normal,
 };
 
+use crate::linalg::{Jitter, SpdFactor, symmetrize_average};
+use crate::util::{dot, sigmoid as logistic};
+
 use super::{
-    DECLARE_COMPLETE_CASE, IMPUTATION_OPERATION, ImputationUnits, MAX_IMPUTATION_VARIABLES,
+    DECLARE_COMPLETE_CASE, IMPUTATION_OPERATION, ImputationUnits,
     MultipleImputationError, USE_CHAINED_EQUATIONS, check_spec,
 };
 
-/// Logistic IRLS iterations of a binary conditional model.
-const LOGISTIC_ITERATIONS: usize = 50;
 /// Ridge on the non-intercept coefficients of a logistic conditional model; keeps a
 /// separated bootstrap sample finite without moving a well-identified fit.
 const LOGISTIC_RIDGE: f64 = 1e-4;
@@ -143,8 +143,7 @@ impl Imputer {
     ///
     /// # Errors
     ///
-    /// The specification's own refusals ([`check_spec`]); no variables or more than
-    /// [`MAX_IMPUTATION_VARIABLES`]; columns of different lengths; an infinite value; units
+    /// The specification's own refusals ([`check_spec`]); no variables; columns of different lengths; an infinite value; units
     /// whose length differs from the rows; a variable with too few observed cells to
     /// identify its conditional model; an incomplete binary variable under the joint normal
     /// model; too few rows for the joint normal posterior.
@@ -157,12 +156,10 @@ impl Imputer {
     ) -> Result<Self, MultipleImputationError> {
         check_spec(&spec)?;
         let p = columns.len();
-        if p == 0 || p > MAX_IMPUTATION_VARIABLES {
+        if p == 0 {
             return Err(MultipleImputationError::invalid(
                 "multiple_imputation.variable_count",
-                format!(
-                    "an imputation model reads 1 to {MAX_IMPUTATION_VARIABLES} variables, got {p}"
-                ),
+                "an imputation model reads at least one variable".to_owned(),
             ));
         }
         let rows = columns[0].values.len();
@@ -668,43 +665,27 @@ impl Imputer {
     ) -> Result<Vec<f64>, MultipleImputationError> {
         let k = self.width_for(j);
         let observed = self.fit_rows_of(j);
-        let mut beta = vec![0.0; k];
+        let nrows = observed.len();
         let mut x = vec![0.0; k];
-        for _ in 0..LOGISTIC_ITERATIONS {
-            let mut hessian = vec![0.0; k * k];
-            let mut score = vec![0.0; k];
-            for &i in observed {
-                design(i, &mut x, current);
-                let prob = logistic(dot(&x, &beta));
-                let w = weights[i];
-                let v = (prob * (1.0 - prob)).max(1e-12);
-                let resid = self.values[j][i] - prob;
-                for a in 0..k {
-                    score[a] += w * x[a] * resid;
-                    for b in 0..=a {
-                        hessian[a * k + b] += w * v * x[a] * x[b];
-                    }
-                }
-            }
-            for a in 1..k {
-                hessian[a * k + a] += LOGISTIC_RIDGE;
-                score[a] -= LOGISTIC_RIDGE * beta[a];
-            }
-            symmetrize(&mut hessian, k);
-            let step = solve_spd(&hessian, &score, k).ok_or_else(|| not_fitted(&self.names[j]))?;
-            let mut largest: f64 = 0.0;
-            for a in 0..k {
-                beta[a] += step[a];
-                largest = largest.max(step[a].abs());
-            }
-            if beta.iter().any(|b| !b.is_finite()) {
-                return Err(not_fitted(&self.names[j]));
-            }
-            if largest < 1e-10 {
-                break;
+        let mut matrix = vec![0.0; nrows * k];
+        for (r, &i) in observed.iter().enumerate() {
+            design(i, &mut x, current);
+            for (a, &value) in x.iter().enumerate() {
+                matrix[a * nrows + r] = value;
             }
         }
-        Ok(beta)
+        let y: Vec<f64> = observed.iter().map(|&i| self.values[j][i]).collect();
+        let row_weights: Vec<f64> = observed.iter().map(|&i| weights[i]).collect();
+        // The shared GLM engine, intercept unpenalised and a small ridge on the rest.
+        crate::util::fit_logistic_ridge(
+            &matrix,
+            nrows,
+            k,
+            &y,
+            Some(&row_weights),
+            LOGISTIC_RIDGE,
+        )
+        .map_err(|_| not_fitted(&self.names[j]))
     }
 
     /// One data-augmentation sweep of the joint normal model: draw the mean and covariance
@@ -912,24 +893,11 @@ fn weighted_moments(
 
 /// Lower Cholesky factor, retrying once with a small relative jitter on the diagonal.
 fn cholesky(a: &[f64], k: usize) -> Option<Vec<f64>> {
-    let mut l = vec![0.0; k * k];
-    if cholesky_spd_into(a, k, &mut l).is_ok() {
-        return Some(l);
-    }
-    let scale = (0..k).map(|i| a[i * k + i].abs()).fold(0.0_f64, f64::max).max(f64::MIN_POSITIVE);
-    let mut jittered = a.to_vec();
-    for i in 0..k {
-        jittered[i * k + i] += JITTER * scale;
-    }
-    cholesky_spd_into(&jittered, k, &mut l).ok().map(|()| l)
+    SpdFactor::with_jitter(a, k, Jitter::Relative(JITTER)).map(SpdFactor::into_lower)
 }
 
 fn solve_spd(a: &[f64], b: &[f64], k: usize) -> Option<Vec<f64>> {
-    let l = cholesky(a, k)?;
-    let mut y = vec![0.0; k];
-    let mut x = vec![0.0; k];
-    chol_solve_into(&l, k, b, &mut y, &mut x);
-    x.iter().all(|v| v.is_finite()).then_some(x)
+    crate::linalg::solve_spd_with(a, b, k, Jitter::Relative(JITTER))
 }
 
 /// `L A` for two lower-triangular row-major `p x p` matrices.
@@ -948,29 +916,6 @@ fn symmetrize(lower_filled: &mut [f64], k: usize) {
         for b in 0..a {
             lower_filled[b * k + a] = lower_filled[a * k + b];
         }
-    }
-}
-
-fn symmetrize_average(m: &mut [f64], k: usize) {
-    for a in 0..k {
-        for b in 0..a {
-            let avg = 0.5 * (m[a * k + b] + m[b * k + a]);
-            m[a * k + b] = avg;
-            m[b * k + a] = avg;
-        }
-    }
-}
-
-fn dot(x: &[f64], beta: &[f64]) -> f64 {
-    x.iter().zip(beta).map(|(a, b)| a * b).sum()
-}
-
-fn logistic(eta: f64) -> f64 {
-    if eta >= 0.0 {
-        1.0 / (1.0 + (-eta).exp())
-    } else {
-        let e = eta.exp();
-        e / (1.0 + e)
     }
 }
 

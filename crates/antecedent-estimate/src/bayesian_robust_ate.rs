@@ -339,39 +339,18 @@ fn fit_logistic(
         ));
     }
     let p = x[0].len();
-    let mut beta = vec![0.0; p];
-    let mut converged = false;
-    for _ in 0..80 {
-        let mut info = vec![0.0; p * p];
-        let mut score = vec![0.0; p];
-        for &i in rows {
-            let prob = antecedent_kernels::sigmoid(dot(&beta, &x[i]));
-            let variance = (prob * (1.0 - prob)).max(1e-8);
-            for j in 0..p {
-                score[j] += weights[i] * x[i][j] * (f64::from(t[i]) - prob);
-                for k in 0..p {
-                    info[j * p + k] += weights[i] * variance * x[i][j] * x[i][k];
-                }
-            }
-        }
-        for j in 1..p {
-            info[j * p + j] += lambda;
-            score[j] -= lambda * beta[j];
-        }
-        let step = solve_spd_system(&info, &score)?;
-        let max_step = step.iter().map(|v| v.abs()).fold(0.0, f64::max);
+    let nrows = rows.len();
+    let mut design = vec![0.0; nrows * p];
+    for (r, &i) in rows.iter().enumerate() {
         for j in 0..p {
-            beta[j] += step[j].clamp(-2.0, 2.0);
-        }
-        if max_step < 1e-8 {
-            converged = true;
-            break;
+            design[j * nrows + r] = x[i][j];
         }
     }
-    if !converged || beta.iter().any(|v| !v.is_finite()) {
-        return Err(EstimationError::stats_msg("weighted logistic nuisance did not converge"));
-    }
-    Ok(beta)
+    let y: Vec<f64> = rows.iter().map(|&i| f64::from(t[i])).collect();
+    let row_weights: Vec<f64> = rows.iter().map(|&i| weights[i]).collect();
+    // The shared GLM engine: damped IRLS with the intercept column unpenalised, the same
+    // weighted-ridge objective the outcome nuisances solve in closed form.
+    crate::util::fit_logistic_ridge(&design, nrows, p, &y, Some(&row_weights), lambda)
 }
 
 /// Ridge-penalise every non-intercept diagonal entry of the weighted Gram and solve.

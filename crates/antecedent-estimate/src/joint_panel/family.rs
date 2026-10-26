@@ -19,7 +19,7 @@
 use super::PanelError;
 use serde::{Deserialize, Serialize};
 
-/// Largest group count for which the dense spatial intercept covariance is factored.
+/// Reference group count of the dense spatial intercept covariance; not enforced.
 pub const MAX_SPATIAL_GROUPS: usize = 256;
 /// Diagonal regularization added to the spatial correlation so a smooth kernel stays factorable.
 pub(super) const SPATIAL_JITTER: f64 = 1e-9;
@@ -163,7 +163,10 @@ impl PanelFamily {
         if let Some(spatial) = &self.spatial {
             let groups = group_ids.len();
             let scale = spatial.distances.iter().copied().fold(0.0_f64, f64::max);
-            if groups > MAX_SPATIAL_GROUPS
+            if groups
+                .checked_mul(groups)
+                .and_then(|cells| cells.checked_mul(size_of::<f64>()))
+                .is_none_or(|bytes| isize::try_from(bytes).is_err())
                 || spatial.groups.len() != groups
                 || spatial.groups.iter().map(String::as_str).ne(group_ids.iter().copied())
                 || spatial.distances.len() != groups * groups
@@ -179,7 +182,7 @@ impl PanelFamily {
                 || scale <= 0.0
             {
                 return Err(invalid(
-                    "spatial structure needs identity-aligned groups (at most 256), a symmetric \
+                    "spatial structure needs identity-aligned groups, a symmetric \
                      nonnegative distance matrix with zero diagonal and a positive distance",
                 ));
             }

@@ -58,6 +58,7 @@ use antecedent_core::{
 };
 
 use crate::EstimationError;
+use crate::util::{mean, sigmoid as logistic};
 use crate::rollout_resampling::{
     DesignEffect, DesignEffectKind, ReplicateSummary, UnitWeighting, block_draws, resample_draws,
     summarize_posterior, summarize_replicates, unit_weights,
@@ -73,10 +74,6 @@ const OVERLAP_CEILING: f64 = 0.995;
 /// Iteration cap and tolerance of the weighted two-way fixed-effects projections.
 const PROJECTION_ITERATIONS: usize = 20_000;
 const PROJECTION_TOLERANCE: f64 = 1e-11;
-
-/// Newton iterations and tolerance of the weighted logistic propensity.
-const LOGISTIC_ITERATIONS: usize = 100;
-const LOGISTIC_TOLERANCE: f64 = 1e-10;
 
 /// The row-aligned long panel of a staggered rollout.
 #[derive(Clone, Copy, Debug)]
@@ -833,10 +830,6 @@ fn evaluate(
     Ok(Evaluation { overall, aggregate, cells, leads, unimputed })
 }
 
-fn mean(values: &[f64]) -> f64 {
-    if values.is_empty() { f64::NAN } else { values.iter().sum::<f64>() / values.len() as f64 }
-}
-
 /// Whether `unit` belongs to the comparison set of cohort `group` between `period` and `base`.
 fn compares(
     unit: &PanelUnit,
@@ -980,15 +973,6 @@ fn linear(coefficients: &[f64], covariates: &[f64]) -> f64 {
     coefficients[0] + coefficients[1..].iter().zip(covariates).map(|(b, x)| b * x).sum::<f64>()
 }
 
-fn logistic(eta: f64) -> f64 {
-    if eta >= 0.0 {
-        1.0 / (1.0 + (-eta).exp())
-    } else {
-        let e = eta.exp();
-        e / (1.0 + e)
-    }
-}
-
 /// Weighted least squares `argmin Σ w (y − xβ)²`; `None` when `XᵀWX` is not positive definite.
 pub(crate) fn weighted_least_squares(rows: &[(Vec<f64>, f64, f64)]) -> Option<Vec<f64>> {
     let p = rows.first()?.0.len();
@@ -1005,38 +989,20 @@ pub(crate) fn weighted_least_squares(rows: &[(Vec<f64>, f64, f64)]) -> Option<Ve
     crate::util::solve_spd(&gram, &rhs, p).filter(|beta| beta.iter().all(|value| value.is_finite()))
 }
 
-/// Weighted logistic regression of the `0/1` responses by Newton's method; `None` without
-/// convergence or under separation.
+/// Weighted logistic regression of the `0/1` responses through the shared GLM engine; `None`
+/// without convergence or under separation.
 fn weighted_logistic(rows: &[(Vec<f64>, f64, f64)]) -> Option<Vec<f64>> {
     let p = rows.first()?.0.len();
-    let mut beta = vec![0.0; p];
-    for _ in 0..LOGISTIC_ITERATIONS {
-        let mut gradient = vec![0.0; p];
-        let mut hessian = vec![0.0; p * p];
-        for (x, d, w) in rows {
-            let eta: f64 = beta.iter().zip(x).map(|(b, v)| b * v).sum();
-            let mu = logistic(eta);
-            let curvature = w * mu * (1.0 - mu);
-            for i in 0..p {
-                gradient[i] += w * (d - mu) * x[i];
-                for j in 0..p {
-                    hessian[i * p + j] += curvature * x[i] * x[j];
-                }
-            }
-        }
-        let step = crate::util::solve_spd(&hessian, &gradient, p)?;
-        let movement = step.iter().fold(0.0_f64, |largest, value| largest.max(value.abs()));
-        for (b, s) in beta.iter_mut().zip(&step) {
-            *b += s;
-        }
-        if beta.iter().any(|value| !value.is_finite() || value.abs() > 40.0) {
-            return None;
-        }
-        if movement < LOGISTIC_TOLERANCE {
-            return Some(beta);
+    let n = rows.len();
+    let mut design = vec![0.0; n * p];
+    for (r, (x, _, _)) in rows.iter().enumerate() {
+        for (c, &value) in x.iter().enumerate() {
+            design[c * n + r] = value;
         }
     }
-    None
+    let y: Vec<f64> = rows.iter().map(|&(_, d, _)| d).collect();
+    let w: Vec<f64> = rows.iter().map(|&(_, _, w)| w).collect();
+    crate::util::fit_logistic_weighted(&design, n, p, &y, &w).ok()
 }
 
 /// The group-time cells of one evaluation under unit weights `weights`, with the count of

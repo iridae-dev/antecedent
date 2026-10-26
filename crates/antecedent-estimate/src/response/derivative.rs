@@ -17,7 +17,7 @@ use super::{
     AverageDerivativeScores, ContinuousResponseEstimator, CrossFitFold, PseudoOutcome,
     bias_corrected_interval_note, delta_method_interval_note, delta_method_standard_error,
     ensure_crossfit_size, fieller_elasticity_interval, fieller_interval_note, local_design_refusal,
-    multivariate_support, plugin::PluginGradientKind, plugin::plugin_gradient_interval_withheld,
+    multivariate_support, plugin::plugin_gradient_interval_withheld,
     plugin::predict_one, push_outcome_tail_diagnostic, sample::CompleteSample, support_report,
     transform_derivative, transform_point_derivative, transform_point_derivative_gradient,
     treatment_sigma,
@@ -275,7 +275,6 @@ impl ContinuousResponseEstimator {
             outcomes,
             treatments,
             at,
-            PluginGradientKind::Jacobian,
             false,
         )?;
         let mut values = Vec::with_capacity(outcomes.len() * treatments.len());
@@ -311,7 +310,6 @@ impl ContinuousResponseEstimator {
             outcomes,
             treatments,
             at,
-            PluginGradientKind::Directional,
             false,
         )?;
         let values: Vec<f64> = run

@@ -26,7 +26,7 @@ use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
-use crate::util::{coefficient_variance, ols_sigma2};
+use crate::util::{ols_sigma2, xtx_inverse};
 
 mod shared;
 pub use shared::{
@@ -601,6 +601,7 @@ impl TemporalMediationEstimator {
             designs: [design_a, design_b, design_c],
             sigma2: [sigma2_a, sigma2_b, sigma2_c],
             residuals: [resid_a, resid_b, resid_c],
+            gram_inverse: std::array::from_fn(|_| std::sync::OnceLock::new()),
         })
     }
 }
@@ -747,22 +748,31 @@ struct ContrastFit {
     sigma2: [f64; 3],
     /// OLS residuals of the same three regressions, in the same order.
     residuals: [Vec<f64>; 3],
+    /// `(XᵀX)⁻¹` of each design, built on first use and shared by every contrast.
+    gram_inverse: [std::sync::OnceLock<Option<Vec<f64>>>; 3],
 }
 
 impl ContrastFit {
+    /// `σ² · [(XᵀX)⁻¹]_{col,col}` of design `which`, `NaN` when `XᵀX` is singular.
+    fn coefficient_variance(&self, which: usize, ncols: usize, col: usize) -> f64 {
+        let inverse = self.gram_inverse[which]
+            .get_or_init(|| xtx_inverse(&self.designs[which], self.n, ncols));
+        inverse.as_ref().map_or(f64::NAN, |inv| {
+            self.sigma2[which] * inv[col * ncols + col].max(0.0)
+        })
+    }
+
     /// Homoskedastic iid SE for `contrast` (Sobel for the mediated product).
     fn iid_se(&self, contrast: MediationContrast) -> f64 {
-        let (n, k, delta) = (self.n, self.n_extra, self.delta);
-        let [design_a, design_b, design_c] = &self.designs;
-        let [sigma2_a, sigma2_b, sigma2_c] = self.sigma2;
+        let (k, delta) = (self.n_extra, self.delta);
         let var = match contrast {
-            MediationContrast::Total => coefficient_variance(design_c, n, 2 + k, 1, sigma2_c),
+            MediationContrast::Total => self.coefficient_variance(2, 2 + k, 1),
             MediationContrast::Direct | MediationContrast::NaturalDirect => {
-                coefficient_variance(design_b, n, 3 + k, 1, sigma2_b)
+                self.coefficient_variance(1, 3 + k, 1)
             }
             MediationContrast::Mediated | MediationContrast::NaturalIndirect => {
-                let var_a = coefficient_variance(design_a, n, 2 + k, 1, sigma2_a);
-                let var_b = coefficient_variance(design_b, n, 3 + k, 2, sigma2_b);
+                let var_a = self.coefficient_variance(0, 2 + k, 1);
+                let var_b = self.coefficient_variance(1, 3 + k, 2);
                 // Sobel: SE(ab) ≈ sqrt(b² Var(a) + a² Var(b)).
                 self.b * self.b * var_a + self.a * self.a * var_b
             }
@@ -853,7 +863,7 @@ fn ols_fit_with_residuals(
 ) -> Result<(Vec<f64>, Vec<f64>), EstimationError> {
     let mut ws = LeastSquaresWorkspace::default();
     let fit = SequentialRegression::solve_design(design_colmajor, y.len(), ncols, y, None, &mut ws)
-        .map_err(crate::util::stats_err)?;
+        .map_err(crate::error::EstimationError::from)?;
     Ok((fit.coefficients, fit.residuals))
 }
 

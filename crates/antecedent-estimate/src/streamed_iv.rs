@@ -156,12 +156,12 @@ impl TwoStageLeastSquares {
         };
         debug_assert_eq!(result.cross_products.xtwx.len(), p * p);
         let fit =
-            antecedent_stats::fit_2sls_from_moments(&moments).map_err(crate::util::stats_err)?;
+            antecedent_stats::fit_2sls_from_moments(&moments).map_err(crate::error::EstimationError::from)?;
         let mut first_stage = fit.first_stage_diagnostics;
         if matches!(self.se_kind, AnalyticSeKind::Homoskedastic) {
             let (set, reason) =
                 antecedent_stats::anderson_rubin_confidence_set_from_moments(&moments, AR_LEVEL)
-                    .map_err(crate::util::stats_err)?;
+                    .map_err(crate::error::EstimationError::from)?;
             // Scale structural-coefficient endpoints to the published contrast.
             first_stage.anderson_rubin = set.map(|(lo, hi, level)| {
                 let (mut lo_a, mut hi_a) = (lo * delta, hi * delta);

@@ -125,7 +125,10 @@ pub const MIN_UNITS_PER_ARM_FOR_SMALL_ARM_INTERVAL: usize = 2;
 /// floor.
 pub const MIN_ROWS_FOR_SMALL_ARM_INTERVAL: usize = 100;
 
-/// Most covariates of a [`small_arm_interval_95`], the same bound as the Bernoulli interval.
+/// Covariates up to which the small-arm interval's coverage is measured, the envelope of the
+/// Bernoulli interval. [`small_arm_interval_95`] publishes inside it;
+/// [`small_arm_interval_any_covariates_95`] computes the same HC2 Student interval for any
+/// covariate count, outside the measured envelope.
 pub const MAX_COVARIATES_FOR_SMALL_ARM_INTERVAL: usize = 2;
 
 /// Treatment coefficient with an HC2 Student interval for arms too small for a normal one.
@@ -154,10 +157,27 @@ pub struct SmallArmInterval {
 ///
 /// Returns `None` for misaligned or non-finite inputs, fewer than
 /// [`MIN_UNITS_PER_ARM_FOR_SMALL_ARM_INTERVAL`] rows in an arm, more than
-/// [`MAX_COVARIATES_FOR_SMALL_ARM_INTERVAL`] covariates, a rank-deficient design, a row of
-/// leverage 1, or a variance that is not positive (constant outcomes within each arm).
+/// [`MAX_COVARIATES_FOR_SMALL_ARM_INTERVAL`] covariates (use
+/// [`small_arm_interval_any_covariates_95`]), a rank-deficient design, a row of leverage 1, or
+/// a variance that is not positive (constant outcomes within each arm).
 #[must_use]
 pub fn small_arm_interval_95(
+    outcome: &[f64],
+    assignment: &[bool],
+    covariates: &[&[f64]],
+) -> Option<SmallArmInterval> {
+    if covariates.len() > MAX_COVARIATES_FOR_SMALL_ARM_INTERVAL {
+        return None;
+    }
+    small_arm_interval_any_covariates_95(outcome, assignment, covariates)
+}
+
+/// [`small_arm_interval_95`] for any number of covariates. The HC2 leverage correction and the
+/// Bell–McCaffrey degrees of freedom are computed for the fitted design, so the interval is
+/// the same construction; its coverage is measured only up to
+/// [`MAX_COVARIATES_FOR_SMALL_ARM_INTERVAL`] covariates, so beyond that it is not calibrated.
+#[must_use]
+pub fn small_arm_interval_any_covariates_95(
     outcome: &[f64],
     assignment: &[bool],
     covariates: &[&[f64]],
@@ -165,8 +185,7 @@ pub fn small_arm_interval_95(
     let n = outcome.len();
     let q = covariates.len() + 2;
     let treated = assignment.iter().filter(|&&value| value).count();
-    if covariates.len() > MAX_COVARIATES_FOR_SMALL_ARM_INTERVAL
-        || assignment.len() != n
+    if assignment.len() != n
         || covariates.iter().any(|x| x.len() != n)
         || n <= q
         || treated < MIN_UNITS_PER_ARM_FOR_SMALL_ARM_INTERVAL

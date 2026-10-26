@@ -46,7 +46,7 @@ pub const EFFECT_CONSTANCY_NULL: &str = "effect equal across all declared partit
 /// Inference claim of the route.
 pub const EFFECT_CONSTANCY_INFERENCE_CLAIM: &str = "point_only";
 
-/// Most partitions one test accepts.
+/// Reference partition count of a test; not enforced.
 pub const EFFECT_CONSTANCY_MAX_PARTITIONS: usize = 1024;
 
 /// Statement attached to every result: non-rejection is not evidence of constancy.
@@ -258,13 +258,6 @@ fn validate_inputs(partitions: &[PartitionEstimate], alpha: f64) -> Result<(), E
             invalid,
             "effect_constancy.too_few_partitions",
             "a constancy test needs at least two partitions",
-        ));
-    }
-    if partitions.len() > EFFECT_CONSTANCY_MAX_PARTITIONS {
-        return Err(refuse(
-            invalid,
-            "effect_constancy.too_many_partitions",
-            "the partition count exceeds the supported bound",
         ));
     }
     for p in partitions {

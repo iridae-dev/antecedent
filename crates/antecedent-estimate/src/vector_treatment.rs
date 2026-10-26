@@ -50,8 +50,17 @@ pub const VECTOR_TREATMENT_NULL: &str = "all treatment coefficients are zero";
 /// Inference claim of the route: asymptotic Wald p-values with unmeasured calibration.
 pub const VECTOR_TREATMENT_INFERENCE_CLAIM: &str = "asymptotic_wald_calibration_unmeasured";
 
-/// Most treatments one joint fit accepts.
+/// Reference treatment count of a joint fit. Not enforced: the fit's own memory (the `p x p`
+/// Gram and the `n x p` design, admitted against the workflow account) bounds it.
 pub const VECTOR_TREATMENT_MAX_TREATMENTS: usize = 64;
+
+/// Whether the `(k + 1)^2` `f64` Gram of `k` treatments (and the intercept) is addressable.
+fn joint_gram_addressable(k: usize) -> bool {
+    k.checked_add(1)
+        .and_then(|p| p.checked_mul(p))
+        .and_then(|cells| cells.checked_mul(size_of::<f64>()))
+        .is_some_and(|bytes| isize::try_from(bytes).is_ok())
+}
 
 /// Name reserved for the intercept; no column may use it.
 pub(crate) const VECTOR_TREATMENT_INTERCEPT: &str = "(intercept)";
@@ -297,11 +306,11 @@ pub(crate) fn validate_input(
             "a vector treatment needs at least two treatments",
         ));
     }
-    if k > VECTOR_TREATMENT_MAX_TREATMENTS {
+    if !joint_gram_addressable(k) {
         return Err(refuse(
             invalid,
             "vector_treatment.too_many_treatments",
-            "more treatments than the joint fit accepts",
+            "the joint design is too wide to address",
         ));
     }
     let mut seen: BTreeSet<&str> = BTreeSet::new();
@@ -751,6 +760,9 @@ pub(crate) fn fit_joint_retained(
         antecedent_core::execution_attempt::Operation::AdjustedFit,
         || {
             validate_input(input, min_treatments)?;
+            let width = input.adjustment.len() + input.treatments.len() + 1;
+            let _design_lease = crate::util::admit_bound_array::<f64>(input.outcome.len(), width)?;
+            let _gram_lease = crate::util::admit_bound_array::<f64>(width, width)?;
             let design = build_design(input);
             check_design(&design, input)?;
             let ols = fit_ols(&design, &input.outcome)?;
@@ -1121,11 +1133,11 @@ fn fit_joint_from_statistics(
             "a vector treatment needs at least two treatments",
         ));
     }
-    if k > VECTOR_TREATMENT_MAX_TREATMENTS {
+    if !joint_gram_addressable(k) {
         return Err(refuse(
             invalid,
             "vector_treatment.too_many_treatments",
-            "more treatments than the joint fit accepts",
+            "the joint design is too wide to address",
         ));
     }
     let mut seen: BTreeSet<&str> = BTreeSet::new();

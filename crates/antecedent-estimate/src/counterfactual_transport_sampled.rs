@@ -96,7 +96,7 @@ use counts::{LawFlavor, law_of, table_probabilities};
 use inference::{DeltaOutcome, delta_standard_error};
 use overlap::{DatasetGroups, resolve_overlap};
 
-/// Most count tables of one request.
+/// Reference table count of a request; not enforced.
 pub const SAMPLED_TRANSPORT_MAX_TABLES: usize = 64;
 /// Most cells of one count table.
 pub const SAMPLED_TRANSPORT_MAX_TABLE_CELLS: usize = 1 << 16;
@@ -361,10 +361,8 @@ fn validate_request(request: &SampledTransportRequest) -> Result<(), EstimationE
              envelope budget between one and the contract's maximum",
         ));
     }
-    if request.tables.is_empty() || request.tables.len() > SAMPLED_TRANSPORT_MAX_TABLES {
-        return Err(invalid_counts(format!(
-            "a request supplies between one and {SAMPLED_TRANSPORT_MAX_TABLES} count tables"
-        )));
+    if request.tables.is_empty() {
+        return Err(invalid_counts("a request supplies at least one count table"));
     }
     Ok(())
 }

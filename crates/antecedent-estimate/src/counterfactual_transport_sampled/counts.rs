@@ -26,7 +26,7 @@ use crate::error::EstimationError;
 pub const SAMPLED_COUNT_IDENTITY_TAG: &str =
     "antecedent.estimate.counterfactual_transport_sampled.counts.v1";
 
-/// Most axes of one count table.
+/// Reference axis count of a count table; not enforced (the cell count is bounded).
 pub const SAMPLED_TRANSPORT_MAX_AXES: usize = 16;
 
 /// One measured variable of a count table and its declared levels.
@@ -128,10 +128,8 @@ impl SampledRegimeCounts {
         if population.is_empty() || snapshot_identity.is_empty() {
             return Err(invalid_counts("a count table names its population and its snapshot"));
         }
-        if axes.is_empty() || axes.len() > SAMPLED_TRANSPORT_MAX_AXES {
-            return Err(invalid_counts(format!(
-                "a count table measures between one and {SAMPLED_TRANSPORT_MAX_AXES} variables"
-            )));
+        if axes.is_empty() {
+            return Err(invalid_counts("a count table measures at least one variable"));
         }
         let mut seen: Vec<VariableId> = Vec::new();
         let mut cells: usize = 1;

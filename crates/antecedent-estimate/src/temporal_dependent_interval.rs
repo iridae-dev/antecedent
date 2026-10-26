@@ -33,7 +33,8 @@ use antecedent_core::{CanonicalWriter, ExecutionContext, reason_code};
 use crate::error::EstimationError;
 use crate::splitmix::{seed_mix, splitmix64};
 
-/// Most replicates one interval may use.
+/// Reference replicate count. Not enforced: the replicates are cancellable and bounded by the
+/// execution budget.
 pub const INTERVAL_MAX_REPLICATES: usize = 2000;
 /// Fewest replicates an interval may use.
 pub const INTERVAL_MIN_REPLICATES: usize = 20;
@@ -41,7 +42,8 @@ pub const INTERVAL_MIN_REPLICATES: usize = 20;
 pub const INTERVAL_MAX_UNITS: usize = 100_000;
 /// Fewest repeated units an interval is attempted with by default.
 pub(crate) const DEFAULT_MIN_UNITS: usize = 20;
-/// Maximum units for the separately bounded original-score bootstrap-t candidate.
+/// Units up to which the bootstrap-t candidate's exact balanced-unit scores are built; a larger
+/// panel is read off the percentile route instead (its method is recorded on the interval).
 pub(crate) const STUDENTIZED_MAX_UNITS: usize = 4096;
 /// Inference claim of this engine: dependence is preserved, coverage is not measured.
 pub const INTERVAL_CLAIM: &str = "dependence_preserving_calibration_unmeasured";
@@ -56,7 +58,7 @@ pub(crate) const TEMPORAL_INTERVAL_UNKNOWN_UNITS: &str = "temporal_interval.unkn
 pub const TEMPORAL_INTERVAL_TOO_FEW_UNITS: &str = "temporal_interval.too_few_units";
 /// Detail: a history the estimator needs has no support.
 pub const TEMPORAL_INTERVAL_UNSUPPORTED_HISTORY: &str = "temporal_interval.unsupported_history";
-/// Detail: more replicates than the hard cap.
+/// Detail: more replicates than the execution budget funds.
 pub const TEMPORAL_INTERVAL_TOO_MANY_REPLICATES: &str = "temporal_interval.too_many_replicates";
 
 /// The refusal of the public interval route while its calibration is unmeasured.
@@ -484,7 +486,7 @@ pub enum IntervalMethod {
 /// Resampling design and bounds of one dependent interval.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DependentIntervalConfig {
-    /// Replicates, within [`INTERVAL_MIN_REPLICATES`]..=[`INTERVAL_MAX_REPLICATES`].
+    /// Replicates, at least [`INTERVAL_MIN_REPLICATES`].
     pub replicates: usize,
     /// Seed of the replicate stream.
     pub seed: u64,
@@ -649,16 +651,6 @@ fn replicate_set_digest(seed: u64, panel_digest: u64, replicates: &[ReplicateRec
 }
 
 fn validate_config(config: &DependentIntervalConfig) -> Result<(), EstimationError> {
-    if config.replicates > INTERVAL_MAX_REPLICATES {
-        return Err(EstimationError::refused(
-            reason_code!("route_not_supported"),
-            format!(
-                "{TEMPORAL_INTERVAL_TOO_MANY_REPLICATES}: {} replicates exceed the cap of \
-                 {INTERVAL_MAX_REPLICATES}",
-                config.replicates
-            ),
-        ));
-    }
     let bad = |message: &str| EstimationError::refused(reason_code!("invalid_argument"), message);
     if config.replicates < INTERVAL_MIN_REPLICATES {
         return Err(bad("a dependent interval needs at least 20 replicates"));
@@ -847,8 +839,7 @@ fn studentize_replicates(
 ///
 /// # Errors
 /// `too_few_clusters` / `temporal_interval.too_few_units` below the minimum unit
-/// count; `route_not_supported` with `temporal_interval.too_many_replicates` above
-/// the cap and `temporal_interval.unsupported_history` when the original panel (or
+/// count; `route_not_supported` with `temporal_interval.unsupported_history` when the original panel (or
 /// too large a fraction of replicates) leaves a needed history unsupported;
 /// `transport_budget_cancel` on cancellation.
 pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
@@ -865,10 +856,10 @@ pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
         ));
     }
     if panel.units.len() > STUDENTIZED_MAX_UNITS {
-        return Err(EstimationError::refused(
-            reason_code!("route_not_supported"),
-            "temporal_interval.studentized_bounds_exceeded: at most 4096 original unit scores",
-        ));
+        // The studentization needs a score per original unit and a per-draw SE; beyond the
+        // budget the interval is the percentile route over the same unit resamples.
+        let percentile = DependentIntervalConfig { method: IntervalMethod::Percentile, ..*config };
+        return checked_paired_effect_interval(panel, estimator, &percentile, ctx);
     }
     if panel.units.len() < config.min_units.max(2) {
         return Err(EstimationError::refused(

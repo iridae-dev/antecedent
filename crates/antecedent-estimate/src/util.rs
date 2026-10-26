@@ -16,29 +16,24 @@ use antecedent_core::{
 };
 use antecedent_data::{DataError, ResamplingPlan, resample::fill_resample_index_replicate};
 use antecedent_stats::{
-    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, StatsError, chol_solve, cholesky_spd,
-    form_xtx, invert_square,
+    DenseLinearAlgebra, FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
+    fit_glm_ridge, fit_glm_ridge_weighted, fit_glm_weighted, form_xtx, invert_square,
 };
+
+/// The overflow-free logistic function shared by every estimator; with [`dot`] and [`mean`]
+/// (compensated, `NaN` for an empty slice, so a caller that must refuse emptiness tests the
+/// length first) it is the crate's one scalar kernel set.
+pub(crate) use antecedent_kernels::sigmoid;
 
 use crate::adaptive_resample_waves::{DriveError, StopReason, WaveStoppingRule, run_waves_serial};
 use crate::bootstrap_wave::{fill_worker_replicate, retained_index_slots};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 
-/// Map a stats-layer error into [`EstimationError::Stats`]. A refusal record the stats layer
-/// carries (a refused GLM fit, a rank-deficient design, too few clusters) stays in the error and
-/// is read back as structured fields by [`EstimationError::refusal_fields`]; the text and the
-/// variant are unchanged.
-#[allow(clippy::needless_pass_by_value, reason = "statsError is small / owned at call sites")]
-pub(crate) fn stats_err(e: StatsError) -> EstimationError {
-    EstimationError::from(e)
-}
-
 /// Solve `A x = b` for symmetric positive-definite row-major `A` (`p × p`).
 #[must_use]
 pub(crate) fn solve_spd(a: &[f64], b: &[f64], p: usize) -> Option<Vec<f64>> {
-    let chol = cholesky_spd(a, p)?;
-    chol_solve(&chol, p, b)
+    crate::linalg::solve_spd(a, b, p)
 }
 
 /// The 64-bit identity word of a finished canonical stream: the first eight bytes of its
@@ -1418,11 +1413,15 @@ pub(crate) fn ls_fit(
     workspace: &mut LeastSquaresWorkspace,
 ) -> Result<LsFit, EstimationError> {
     let fit =
-        backend.least_squares(design_colmajor, nrows, ncols, y, workspace).map_err(stats_err)?;
+        backend.least_squares(design_colmajor, nrows, ncols, y, workspace)?;
     Ok(LsFit { coefficients: fit.coefficients, rank: fit.rank })
 }
 
 /// OLS residual variance `σ² = RSS / (n − p)` for a fitted coefficient vector.
+///
+/// The residual sum of squares is compensated. `NaN` when the fit has no positive residual
+/// degrees of freedom (`nrows <= ncols`): a saturated fit carries no information about `σ²`,
+/// and a caller that needs a number must say so explicitly rather than read a divide-by-one.
 pub(crate) fn ols_sigma2(
     x_colmajor: &[f64],
     nrows: usize,
@@ -1430,21 +1429,23 @@ pub(crate) fn ols_sigma2(
     y: &[f64],
     beta: &[f64],
 ) -> f64 {
-    let mut rss = 0.0;
-    for r in 0..nrows {
+    if nrows <= ncols {
+        return f64::NAN;
+    }
+    let rss = antecedent_kernels::numeric::CompensatedSum::of((0..nrows).map(|r| {
         let mut pred = 0.0;
         for c in 0..ncols {
             pred += x_colmajor[c * nrows + r] * beta[c];
         }
         let e = y[r] - pred;
-        rss += e * e;
-    }
-    rss / (nrows.saturating_sub(ncols)).max(1) as f64
+        e * e
+    }));
+    rss / (nrows - ncols) as f64
 }
 
 /// Variance of a single OLS coefficient: `σ² · [(XᵀX)⁻¹]_{jj}`.
 ///
-/// Returns `NaN` if `XᵀX` is singular.
+/// Returns `NaN` if the design is rank deficient.
 pub(crate) fn coefficient_variance(
     x_colmajor: &[f64],
     nrows: usize,
@@ -1452,22 +1453,100 @@ pub(crate) fn coefficient_variance(
     col: usize,
     sigma2: f64,
 ) -> f64 {
-    let mut xtx = vec![0.0; ncols * ncols];
-    form_xtx(x_colmajor, nrows, ncols, &mut xtx);
-    let Some(inv) = invert_square(&xtx, ncols) else {
+    let Some(inv) = xtx_inverse(x_colmajor, nrows, ncols) else {
         return f64::NAN;
     };
     sigma2 * inv[col * ncols + col].max(0.0)
 }
 
-/// Compute `(XᵀX)⁻¹` for a column-major `nrows × ncols` design, or `None` if singular.
+/// `(XᵀX)⁻¹` for a column-major `nrows × ncols` design, or `None` if it is rank deficient.
 ///
-/// Shared `form_xtx` → `invert_square` idiom used by every analytic-SE helper that needs the
-/// unscaled inverse-information matrix.
+/// Derived from the triangular factor of a QR of the design itself (`R⁻¹R⁻ᵀ`, see
+/// [`crate::linalg::xtx_inverse_qr`]): the Gram matrix is never formed, and the rank rule is the
+/// one the least-squares point estimate applies. The unscaled inverse-information matrix of every
+/// analytic-SE helper.
 pub(crate) fn xtx_inverse(x_colmajor: &[f64], nrows: usize, ncols: usize) -> Option<Vec<f64>> {
-    let mut xtx = vec![0.0; ncols * ncols];
-    form_xtx(x_colmajor, nrows, ncols, &mut xtx);
-    invert_square(&xtx, ncols)
+    crate::linalg::xtx_inverse_qr(x_colmajor, nrows, ncols)
+}
+
+/// Ridge-penalised logistic regression through the stats GLM engine: the maximiser of
+/// `Σ wᵢ ℓᵢ(β) − ½ λ |β₁..|²` for a column-major `nrows × ncols` design whose constant first
+/// column, when present, is the unpenalised intercept. `weights` are nonnegative case weights
+/// (`None` is all ones). The one logistic fit for estimators that need coefficients only;
+/// floors, damping and the convergence rule are the engine's.
+///
+/// # Errors
+///
+/// A shape, outcome, weight or penalty the engine refuses (`lambda` must be positive and
+/// finite), a numerical failure, or a fit that did not converge.
+pub(crate) fn fit_logistic_ridge(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    y: &[f64],
+    weights: Option<&[f64]>,
+    lambda: f64,
+) -> Result<Vec<f64>, EstimationError> {
+    let design = GlmDesignRef { x_colmajor, nrows, ncols, y };
+    let options = GlmOptions::default();
+    let mut workspace = LeastSquaresWorkspace::default();
+    let fit = match weights {
+        Some(weights) => fit_glm_ridge_weighted(
+            GlmFamily::BinomialLogit,
+            design,
+            weights,
+            &FaerBackend,
+            &mut workspace,
+            &options,
+            lambda,
+        ),
+        None => fit_glm_ridge(
+            GlmFamily::BinomialLogit,
+            design,
+            &FaerBackend,
+            &mut workspace,
+            &options,
+            lambda,
+        ),
+    }?;
+    if !fit.converged || fit.coefficients.iter().any(|value| !value.is_finite()) {
+        return Err(EstimationError::stats_msg("the ridge logistic fit did not converge"));
+    }
+    Ok(fit.coefficients)
+}
+
+/// Unpenalised weighted logistic regression through the stats GLM engine, for a column-major
+/// `nrows × ncols` design and nonnegative case weights. Coefficients only: a fit that did not
+/// converge or is (quasi-)completely separated has no finite maximum-likelihood estimate and is
+/// an error.
+///
+/// # Errors
+///
+/// A shape, outcome or weight the engine refuses, a numerical failure, non-convergence or
+/// separation.
+pub(crate) fn fit_logistic_weighted(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    y: &[f64],
+    weights: &[f64],
+) -> Result<Vec<f64>, EstimationError> {
+    let design = GlmDesignRef { x_colmajor, nrows, ncols, y };
+    let mut workspace = LeastSquaresWorkspace::default();
+    let fit = fit_glm_weighted(
+        GlmFamily::BinomialLogit,
+        design,
+        weights,
+        &FaerBackend,
+        &mut workspace,
+        &GlmOptions::default().without_separation_ridge(),
+    )?;
+    if !fit.converged || fit.separated || fit.coefficients.iter().any(|value| !value.is_finite()) {
+        return Err(EstimationError::stats_msg(
+            "the weighted logistic fit did not converge or is separated",
+        ));
+    }
+    Ok(fit.coefficients)
 }
 
 /// Invert a small fixed-size matrix with [`invert_square`]'s scale-free rule, or `None` when it
@@ -1503,27 +1582,11 @@ pub(crate) fn gather_bootstrap_vector(out: &mut [f64], src: &[f64], idx: &[usize
     }
 }
 
-/// Gather `idx`-selected rows of a column-major `n × ncols` matrix `src` into `out` (a reused
-/// scratch buffer) for one IID bootstrap resample: `out[c*n+r] = src[c*n+idx[r]]`.
-pub(crate) fn gather_bootstrap_design(
-    out: &mut [f64],
-    src: &[f64],
-    n: usize,
-    ncols: usize,
-    idx: &[usize],
-) {
-    for (r, &i) in idx.iter().enumerate() {
-        for c in 0..ncols {
-            out[c * n + r] = src[c * n + i];
-        }
-    }
-}
-
 /// Gather `idx`-selected rows of a column-major matrix `src` of `src_rows` rows into `out`,
 /// whose row count is `idx.len()`: `out[c·m + r] = src[c·src_rows + idx[r]]` with
-/// `m = idx.len()`. For a resample as long as the data this is [`gather_bootstrap_design`];
-/// a whole-cluster resample has its own length.
-pub(crate) fn gather_resampled_design(
+/// `m = idx.len()`. The one column-major row gather: an IID resample as long as the data has
+/// `m == src_rows`, a whole-cluster resample has its own length.
+pub(crate) fn gather_cols(
     out: &mut [f64],
     src: &[f64],
     src_rows: usize,
@@ -1531,11 +1594,38 @@ pub(crate) fn gather_resampled_design(
     idx: &[usize],
 ) {
     let m = idx.len();
-    for (r, &i) in idx.iter().enumerate() {
-        for c in 0..ncols {
-            out[c * m + r] = src[c * src_rows + i];
+    for c in 0..ncols {
+        let source = &src[c * src_rows..(c + 1) * src_rows];
+        let target = &mut out[c * m..(c + 1) * m];
+        for (slot, &i) in target.iter_mut().zip(idx) {
+            *slot = source[i];
         }
     }
+}
+
+/// [`gather_cols`] into a growable buffer, which is cleared and resized to `idx.len() × ncols`.
+pub(crate) fn gather_cols_into(
+    out: &mut Vec<f64>,
+    src: &[f64],
+    src_rows: usize,
+    ncols: usize,
+    idx: &[usize],
+) {
+    out.clear();
+    out.resize(idx.len() * ncols, 0.0);
+    gather_cols(out, src, src_rows, ncols, idx);
+}
+
+/// `idx`-selected entries of `values` into a growable buffer, which is cleared first.
+pub(crate) fn gather_into<T: Copy>(out: &mut Vec<T>, values: &[T], idx: &[usize]) {
+    out.clear();
+    out.extend(idx.iter().map(|&i| values[i]));
+}
+
+/// `idx`-selected entries of `values` as a fresh vector.
+#[must_use]
+pub(crate) fn gather<T: Copy>(values: &[T], idx: &[usize]) -> Vec<T> {
+    idx.iter().map(|&i| values[i]).collect()
 }
 
 /// Delta-method SE for a linear contrast `gᵀ β`: `sqrt(σ² · gᵀ (XᵀX)⁻¹ g)`.
@@ -1563,6 +1653,42 @@ pub(crate) fn delta_method_se(inv_xtx: &[f64], ncols: usize, g: &[f64], sigma2: 
         return f64::NAN;
     }
     var.max(0.0).sqrt()
+}
+
+/// Count, mean and centered sum of squares of a variable within the two arms of a binary
+/// indicator (`arm > 0.5` is arm 1, otherwise arm 0). Index `0` is the control arm, `1` the
+/// treated (or instrument-on) arm; an empty arm has `n == 0` and a zero mean.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct ArmMoments {
+    /// Rows in each arm.
+    pub n: [usize; 2],
+    /// Mean of the variable in each arm.
+    pub mean: [f64; 2],
+    /// `Σ (v − mean)²` within each arm.
+    pub sum_sq: [f64; 2],
+}
+
+/// [`ArmMoments`] of `values` by the binary indicator `arm` (two passes, so the centered sum of
+/// squares does not cancel against a large mean).
+pub(crate) fn arm_moments(arm: &[f64], values: &[f64]) -> ArmMoments {
+    let mut n = [0usize; 2];
+    let mut total = [0.0; 2];
+    for (&a, &v) in arm.iter().zip(values) {
+        let k = usize::from(a > 0.5);
+        n[k] += 1;
+        total[k] += v;
+    }
+    let mean = [
+        if n[0] > 0 { total[0] / n[0] as f64 } else { 0.0 },
+        if n[1] > 0 { total[1] / n[1] as f64 } else { 0.0 },
+    ];
+    let mut sum_sq = [0.0; 2];
+    for (&a, &v) in arm.iter().zip(values) {
+        let k = usize::from(a > 0.5);
+        let d = v - mean[k];
+        sum_sq[k] += d * d;
+    }
+    ArmMoments { n, mean, sum_sq }
 }
 
 /// Single-pass `(min, max)` fold.

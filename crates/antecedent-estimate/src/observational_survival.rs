@@ -42,7 +42,7 @@ use crate::crossfit_plan::{
 };
 use crate::error::EstimationError;
 use crate::propensity::{CategoryTrainingRows, fit_category_probabilities};
-use crate::util::{mean, refuse, sample_std, stats_err};
+use crate::util::{mean, refuse, sample_std};
 
 /// Default cross-fit fold count.
 pub const DEFAULT_SURVIVAL_FOLDS: usize = 5;
@@ -356,7 +356,7 @@ impl ObservationalSurvival {
                 ),
             ));
         }
-        let event = cox_breslow(&time, &events, &covariates(p), p).map_err(stats_err)?;
+        let event = cox_breslow(&time, &events, &covariates(p), p).map_err(crate::error::EstimationError::from)?;
         let censoring_p = match self.censoring {
             CensoringAssumption::IndependentWithinArm => 0,
             CensoringAssumption::AtRandomGivenCovariates => p,
@@ -366,7 +366,7 @@ impl ObservationalSurvival {
         let censoring = if censored.contains(&true) {
             Some(
                 cox_breslow(&time, &censored, &covariates(censoring_p), censoring_p)
-                    .map_err(stats_err)?,
+                    .map_err(crate::error::EstimationError::from)?,
             )
         } else {
             None

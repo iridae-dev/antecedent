@@ -39,6 +39,7 @@ use crate::crossfit_aipw::DEFAULT_AIPW_FOLDS;
 use crate::crossfit_plan::crossfit_fold_plan;
 use crate::error::EstimationError;
 use crate::joint_if::JointCovariance;
+use crate::util::dot;
 use crate::overlap::{ClipSensitivity, IpwTarget, OverlapPolicy, OverlapReport, clip_propensity};
 use crate::prepare::treatment_contrast;
 use crate::propensity::{
@@ -138,10 +139,6 @@ fn for_each_kept_row(
 fn propensity(design: &[f64], gamma: &[f64]) -> f64 {
     let eta: f64 = design.iter().zip(gamma).map(|(x, g)| x * g).sum();
     antecedent_kernels::sigmoid(eta).clamp(1e-9, 1.0 - 1e-9)
-}
-
-fn dot(design: &[f64], beta: &[f64]) -> f64 {
-    design.iter().zip(beta).map(|(x, b)| x * b).sum()
 }
 
 /// Running sums of one weight vector: all rows and each arm.
@@ -572,7 +569,7 @@ mod tests {
                     return 2.0;
                 }
                 let eta = 0.6 * z1[i] - 0.4 * z2[i];
-                f64::from(0.5 + noise(i, 3) < 1.0 / (1.0 + (-eta).exp()))
+                f64::from(0.5 + noise(i, 3) < crate::util::sigmoid(eta))
             })
             .collect();
         let y: Vec<f64> = (0..rows)

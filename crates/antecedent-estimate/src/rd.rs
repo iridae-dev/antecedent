@@ -78,7 +78,7 @@ use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::se::AnalyticSeKind;
-use crate::util::{BootstrapSeResult, stats_err};
+use crate::util::{BootstrapSeResult};
 
 /// Local-linear RD design column count: `[1, T, (R-c), T·(R-c)]`.
 const RD_NCOLS: usize = 4;
@@ -225,24 +225,9 @@ impl SharpRegressionDiscontinuity {
         }
     }
 
-    /// Set the analytic SE kind. `Hc1` (default) and `Hc0`/`Hc2`/`Hc3` use the
-    /// residual sandwich and stay valid under heteroskedasticity; `Homoskedastic`
-    /// assumes a constant outcome variance in the window. Label-based kinds are
-    /// refused at `fit`.
-    #[must_use]
-    pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
-        self.se_kind = se_kind;
-        self
-    }
+    crate::inference::with_se_kind!();
 
-    /// Set the number of bootstrap replicates used for the bootstrap standard error.
-    ///
-    /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE.
-    #[must_use]
-    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.bootstrap_replicates = replicates;
-        self
-    }
+    crate::inference::with_bootstrap_replicates!();
 
     /// Set the overlap policy. Must remain [`OverlapPolicy::ExplicitOverride`] — RD is not a
     /// propensity-based method.
@@ -492,7 +477,7 @@ impl SharpRegressionDiscontinuity {
                 &problem.outcome,
                 &mut workspace.ols,
             )
-            .map_err(stats_err)?;
+            .map_err(crate::error::EstimationError::from)?;
         let ate = fit.coefficients[RD_TREATMENT_COL];
         let se_analytic = match self.se_kind {
             AnalyticSeKind::Homoskedastic => {
@@ -606,7 +591,7 @@ impl SharpRegressionDiscontinuity {
             || (RdWorkspace::default(), vec![0.0; n * RD_NCOLS], vec![0.0; n]),
             |(ws, x_boot, y_boot), idx| {
                 crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
-                crate::util::gather_bootstrap_design(x_boot, &problem.matrix, n, RD_NCOLS, idx);
+                crate::util::gather_cols(x_boot, &problem.matrix, n, RD_NCOLS, idx);
                 match self.backend.least_squares(x_boot, n, RD_NCOLS, y_boot, &mut ws.ols) {
                     Ok(fit) => Ok(Some(fit.coefficients[RD_TREATMENT_COL])),
                     Err(_) => Ok(None),

@@ -29,7 +29,6 @@ use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::propensity::clip_of;
 use crate::scores::{LinearContrast, ScoreColumn, ScoreSummary, ScoreTable};
-use crate::util::stats_err;
 
 thread_local! {
     /// Cell models (multinomial propensity or per-cell outcome regression) fitted on this
@@ -52,7 +51,10 @@ pub fn count_cell_model_fits<R>(work: impl FnOnce() -> R) -> (R, u64) {
     (out, after.saturating_sub(before))
 }
 
-/// Maximum jointly intervened binary coordinates (8 cells at k=3).
+/// Largest joint binary intervention the checked routes admit before fitting.
+///
+/// This estimator itself enforces no coordinate cap: it fits any `k` whose `2^k` joint cells
+/// are all populated by the complete-case rows (an empty cell is refused with its own error).
 pub const MAX_JOINT_BINARY: usize = 3;
 
 /// Named refuse: coarsened `continuous_cell` is not a point CDE.
@@ -107,7 +109,7 @@ impl CellSaturatedAipw {
     ///
     /// # Errors
     ///
-    /// Too many treatments, empty cells needed for a requested contrast,
+    /// No treatments, more joint cells than complete-case rows, empty cells needed for a requested contrast,
     /// a fold missing a cell that appears in the data, or a continuous cell
     /// (point CDE is unlicensed).
     pub fn fit_scores(
@@ -115,9 +117,9 @@ impl CellSaturatedAipw {
         data: &TabularData,
         spec: &CellScoreSpec<'_>,
     ) -> Result<ScoreTable, EstimationError> {
-        if spec.treatments.is_empty() || spec.treatments.len() > MAX_JOINT_BINARY {
+        if spec.treatments.is_empty() {
             return Err(EstimationError::unsupported(
-                "cell-saturated AIPW supports 1..=3 binary treatments",
+                "cell-saturated AIPW requires at least one binary treatment",
             ));
         }
         self.fit_scores_with_assignment(data, spec, SharedCellInputs::default())
@@ -138,9 +140,9 @@ impl CellSaturatedAipw {
     ) -> Result<ScoreTable, EstimationError> {
         let CellScoreSpec { treatments, outcome, adjustment, functional, continuous } = *spec;
         let SharedCellInputs { fold_ids, design } = shared;
-        if treatments.is_empty() || treatments.len() > MAX_JOINT_BINARY {
+        if treatments.is_empty() {
             return Err(EstimationError::unsupported(
-                "cell-saturated AIPW supports 1..=3 binary treatments",
+                "cell-saturated AIPW requires at least one binary treatment",
             ));
         }
         if continuous.is_some() {
@@ -180,7 +182,7 @@ impl CellSaturatedAipw {
 /// outcome and its functional, and the adjustment set.
 #[derive(Clone, Copy, Debug)]
 pub struct CellScoreSpec<'a> {
-    /// Binary treatments intervened on jointly (1..=[`MAX_JOINT_BINARY`]).
+    /// Binary treatments intervened on jointly (at least one).
     pub treatments: &'a [VariableId],
     /// Outcome variable.
     pub outcome: VariableId,
@@ -261,7 +263,15 @@ fn prepare_cells(
         return Err(EstimationError::data_msg("no complete-case rows for cell AIPW"));
     }
     let k = treatments.len();
-    let mut n_cells = 1usize << k;
+    // Every joint cell needs rows, so a `2^k` that exceeds the row count is an empty cell
+    // before any table is built (and keeps the shifts below in range).
+    let mut n_cells = u32::try_from(k)
+        .ok()
+        .and_then(|k| 1usize.checked_shl(k))
+        .filter(|cells| *cells <= n)
+        .ok_or_else(|| {
+            EstimationError::unsupported("unsupported cell: empty joint treatment combination")
+        })?;
     let mut extra: Option<Vec<usize>> = None;
     if let Some(spec) = continuous {
         if spec.grid.is_empty()
@@ -277,7 +287,7 @@ fn prepare_cells(
         }
         let d = data.float64_selected(spec.variable, &mask).map_err(EstimationError::from)?;
         let snapped: Vec<usize> = d.iter().map(|&v| nearest_index(spec.grid, v)).collect();
-        n_cells *= spec.grid.len();
+        n_cells = n_cells.saturating_mul(spec.grid.len());
         extra = Some(snapped);
     }
     let mut cell = vec![0u32; n];
@@ -299,14 +309,16 @@ fn prepare_cells(
         }
         cell[i] = code;
     }
-    {
-        for c in 0..n_cells {
-            if !cell.iter().any(|&code| code as usize == c) {
-                return Err(EstimationError::unsupported(
-                    "unsupported cell: empty joint treatment combination",
-                ));
-            }
+    let mut populated = vec![false; n_cells];
+    for &code in &cell {
+        if let Some(slot) = populated.get_mut(code as usize) {
+            *slot = true;
         }
+    }
+    if populated.iter().any(|seen| !seen) {
+        return Err(EstimationError::unsupported(
+            "unsupported cell: empty joint treatment combination",
+        ));
     }
     let ncols = 1 + adjustment.len();
     let mut design = vec![0.0; n * ncols];
@@ -494,7 +506,7 @@ fn crossfit_cell_scores(
                                     &y_c,
                                     &mut out_ws.outcome,
                                 )
-                                .map_err(stats_err)?;
+                                .map_err(crate::error::EstimationError::from)?;
                             note_cell_model_fit();
                             let mut pred = Vec::new();
                             predict_colmajor(
@@ -644,7 +656,7 @@ fn multinomial_propensity(
                 }
                 let step = backend
                     .least_squares(&hessian, d, d, &gradient, &mut ws)
-                    .map_err(stats_err)?
+                    .map_err(crate::error::EstimationError::from)?
                     .coefficients;
                 let old = loss(&prob);
                 let mut scale = 1.0;

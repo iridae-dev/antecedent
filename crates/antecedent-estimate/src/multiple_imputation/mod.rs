@@ -62,7 +62,8 @@ pub use pool::{
     rubin_pool_vector, stack_posterior, stack_posterior_quantities,
 };
 
-/// Most variables one imputation model reads.
+/// Reference variable count of an imputation model; not enforced (the joint posterior needs
+/// more rows than variables).
 pub const MAX_IMPUTATION_VARIABLES: usize = 64;
 
 /// Semantic operation tag of the imputation streams.

@@ -105,7 +105,7 @@ pub fn parameter_values(
     parameters: &[CyclicParameter],
 ) -> Result<Vec<f64>, EquilibriumError> {
     model.validate()?;
-    if parameters.is_empty() || parameters.len() > 1024 {
+    if parameters.is_empty() {
         return Err(invalid("parameter count"));
     }
     let mut out = Vec::with_capacity(parameters.len());
@@ -693,9 +693,12 @@ pub fn learn_cyclic_structure(
 ) -> Result<CyclicStructureFit, EquilibriumError> {
     template.validate()?;
     let n = template.order();
-    if n > 32 || !threshold.is_finite() || threshold <= 0.0 || options.l1_penalty <= 0.0 {
-        return Err(invalid("structure search needs order<=32, positive threshold and L1 penalty"));
+    if !threshold.is_finite() || threshold <= 0.0 || options.l1_penalty <= 0.0 {
+        return Err(invalid("structure search needs a positive threshold and L1 penalty"));
     }
+    // The complete candidate topology has one weight per ordered pair plus an intercept per
+    // equation; its state is leased against the context instead of capping the order.
+    let _lease = crate::cyclic_dynamics::admit_parameters(ctx, n.saturating_mul(n))?;
     let mut parameters = Vec::new();
     let mut starting = template.clone();
     for i in 0..n {
@@ -874,9 +877,6 @@ pub fn bootstrap_cyclic_structure_with_design(
     design: CyclicBootstrapDesign,
     ctx: &ExecutionContext,
 ) -> Result<Vec<Option<CyclicStructureFit>>, EquilibriumError> {
-    if replicates > 100 {
-        return Err(invalid("whole-selection bootstrap accepts at most 100 attempts"));
-    }
     let groups = bootstrap_groups(training, design);
     let bytes = training
         .len()

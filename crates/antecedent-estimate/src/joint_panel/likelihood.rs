@@ -239,7 +239,7 @@ fn simplex(x: &[f64]) -> [f64; 3] {
 }
 /// Normalized truncated geometric weights from the logit of the decay.
 pub(super) fn geometric(logit: f64) -> [f64; 3] {
-    let theta = 1.0 / (1.0 + (-logit).exp());
+    let theta = crate::util::sigmoid(logit);
     let u = [1.0, theta, theta * theta];
     let sum = u.iter().sum::<f64>();
     u.map(|value| value / sum)

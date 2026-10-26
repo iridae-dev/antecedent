@@ -47,12 +47,6 @@ pub const DEFAULT_RIDGE_GRID: [f64; 6] = [1e-2, 1e-1, 1.0, 1e1, 1e2, 1e3];
 /// unpenalized fit to one that zeroes every slope at moderate sample sizes.
 pub(crate) const DEFAULT_LASSO_GRID: [f64; 8] = [0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0];
 
-/// Largest declared penalty grid.
-const MAX_RIDGE_GRID: usize = 64;
-
-/// Largest declared number of inner cross-validation folds.
-const MAX_RIDGE_INNER_FOLDS: usize = 20;
-
 /// Marker the score table's provenance carries when its propensity was ridge-penalized.
 const RIDGE_PROVENANCE_TAG: &str = ";propensity=ridge_logistic";
 
@@ -96,22 +90,19 @@ impl RidgeTuning {
     ///
     /// # Errors
     ///
-    /// A refusal with the `invalid_argument` reason code for an empty or oversized grid, a
-    /// penalty that is not finite and positive, or an inner fold count outside `2..=20`.
+    /// A refusal with the `invalid_argument` reason code for an empty grid, a penalty that is
+    /// not finite and positive, or fewer than two inner folds (the fold plan refuses more
+    /// folds than the training rows hold).
     pub fn new(lambdas: &[f64], inner_folds: usize) -> Result<Self, EstimationError> {
-        if lambdas.is_empty() || lambdas.len() > MAX_RIDGE_GRID {
-            return Err(invalid(&format!(
-                "penalty grid must hold 1 to {MAX_RIDGE_GRID} values, got {}",
-                lambdas.len()
-            )));
+        if lambdas.is_empty() {
+            return Err(invalid("penalty grid must hold at least one value"));
         }
         if let Some(bad) = lambdas.iter().find(|l| !l.is_finite() || **l <= 0.0) {
             return Err(invalid(&format!("penalty must be finite and > 0, got {bad}")));
         }
-        if !(2..=MAX_RIDGE_INNER_FOLDS).contains(&inner_folds) {
+        if inner_folds < 2 {
             return Err(invalid(&format!(
-                "penalty selection needs 2 to {MAX_RIDGE_INNER_FOLDS} inner folds, \
-                 got {inner_folds}"
+                "penalty selection needs at least 2 inner folds, got {inner_folds}"
             )));
         }
         let mut sorted = lambdas.to_vec();
@@ -855,8 +846,6 @@ mod tests {
             RidgeTuning::new(&[f64::NAN], 5),
             RidgeTuning::new(&[f64::INFINITY], 5),
             RidgeTuning::new(&[1.0], 1),
-            RidgeTuning::new(&[1.0], 21),
-            RidgeTuning::new(&[1.0; 65], 5),
         ] {
             let error = bad.unwrap_err();
             assert!(error.to_string().contains("invalid_argument"), "{error}");

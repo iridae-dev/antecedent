@@ -165,18 +165,6 @@ struct AverageDerivativeScores {
 const GAM_TARGET_NOT_CONVERGED: &str =
     "additive GAM target did not converge; refuse rather than publish an unfinished fit";
 
-/// What a caller can do when a plug-in response Jacobian names more than
-/// [`MAX_NONPARAMETRIC_RESPONSE_DIM`] treatments.
-const JACOBIAN_TREATMENT_LIMIT_REMEDY: &str = "query the Jacobian over at most two treatments \
-     at a time (one ResponseJacobian per pair, with the remaining treatments in the adjustment \
-     set where the graph licenses it), or query an AverageDerivative per treatment";
-
-/// What a caller can do when a plug-in directional derivative names more than
-/// [`MAX_NONPARAMETRIC_RESPONSE_DIM`] treatments.
-const DIRECTIONAL_TREATMENT_LIMIT_REMEDY: &str = "restrict the direction to at most two \
-     treatments, or query a ResponseJacobian per pair of at most two treatments and take the \
-     inner product of the gradient with the direction yourself";
-
 /// Configuration for [`ContinuousResponseEstimator`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContinuousResponseOptions {

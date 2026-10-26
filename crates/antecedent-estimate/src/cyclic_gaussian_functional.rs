@@ -321,21 +321,16 @@ pub fn evaluate_gaussian_cyclic_functional(
     let source_identity = source.identity;
     if (!continuous && !source.calculus)
         || n == 0
-        || n > 16
         || assignments.is_empty()
-        || assignments.len() > 1024
         || assignments.iter().any(|a| a.len() > n)
     {
         return Err(invalid(
-            "Gaussian functional requires continuous semantics, at most 16 variables and 1024 assignments",
+            "Gaussian functional requires continuous semantics and at least one assignment",
         ));
     }
     let checked = source.program;
     if checked.schema().variables().any(|(variable, _)| variable.raw() as usize >= n) {
         return Err(invalid("Gaussian program variable exceeds observational law shape"));
-    }
-    if checked.arena().len() > 4096 {
-        return Err(invalid("Gaussian canonical node limit"));
     }
     let _lease = ctx
         .acquire_admission(1, (checked.arena().len() * ((n * n + n) * 32 + 256) + 65536) as u64)

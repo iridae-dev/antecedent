@@ -72,47 +72,7 @@ pub struct CohortLinearFit {
 
 /// Cholesky inverse of a symmetric positive definite row-major matrix.
 fn spd_inverse(a: &[f64], p: usize) -> Option<Vec<f64>> {
-    let mut l = vec![0.0; p * p];
-    let scale = (0..p).map(|i| a[i * p + i]).fold(0.0_f64, f64::max);
-    for i in 0..p {
-        for j in 0..=i {
-            let mut sum = a[i * p + j];
-            for k in 0..j {
-                sum -= l[i * p + k] * l[j * p + k];
-            }
-            if i == j {
-                if !(sum > 1e-12 * scale.max(1.0)) {
-                    return None;
-                }
-                l[i * p + i] = sum.sqrt();
-            } else {
-                l[i * p + j] = sum / l[j * p + j];
-            }
-        }
-    }
-    // Invert L, then A^-1 = L^-T L^-1.
-    let mut linv = vec![0.0; p * p];
-    for i in 0..p {
-        linv[i * p + i] = 1.0 / l[i * p + i];
-        for j in 0..i {
-            let mut sum = 0.0;
-            for k in j..i {
-                sum -= l[i * p + k] * linv[k * p + j];
-            }
-            linv[i * p + j] = sum / l[i * p + i];
-        }
-    }
-    let mut inv = vec![0.0; p * p];
-    for i in 0..p {
-        for j in 0..p {
-            let mut sum = 0.0;
-            for k in i.max(j)..p {
-                sum += linv[k * p + i] * linv[k * p + j];
-            }
-            inv[i * p + j] = sum;
-        }
-    }
-    Some(inv)
+    crate::linalg::SpdFactor::new(a, p).map(|factor| factor.inverse())
 }
 
 /// Fit the linear conditional effect by OLS with an HC3 sandwich covariance.
@@ -385,9 +345,10 @@ pub const DETAIL_NOT_LICENSED: &str = "cohort_decision.interval_not_licensed";
 pub const DETAIL_LEVEL_INVALID: &str = "cohort_decision.interval_level_invalid";
 /// Scope of the issued interval.
 pub const INTERVAL_SCOPE: &str = "interval for the declared-cohort mean of the true conditional effect under a correctly specified linear effect basis, ignorable or randomized treatment and independent rows, for a cohort of the fitted population; excludes support selection and a shifted target population";
-/// Largest number of fitted rows a replay accepts.
+/// Reference size of a replayed fit's rows. Not enforced: the normal-equation sizes follow the
+/// rows and modifiers given.
 pub const MAX_FIT_ROWS: usize = 1_000_000;
-/// Largest number of modifiers a replay accepts.
+/// Reference size of a replayed fit's modifier count. Not enforced.
 pub const MAX_FIT_FEATURES: usize = 32;
 
 /// The retained size of a native fit.
@@ -450,9 +411,6 @@ impl NativeCohortFit {
         response: &ScientificQuantityWire,
         feature_quantities: &[ScientificQuantityWire],
     ) -> Result<Self, EstimationError> {
-        if outcome.len() > MAX_FIT_ROWS || features.len() > MAX_FIT_FEATURES {
-            return Err(unsupported("cohort linear effect: the fit exceeds the replay bounds"));
-        }
         let fit = fit_cohort_linear_effect(outcome, treatment, features)?;
         let export = fit
             .to_compact_export(response, feature_quantities)

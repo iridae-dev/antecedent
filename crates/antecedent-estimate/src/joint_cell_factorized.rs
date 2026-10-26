@@ -1,7 +1,7 @@
 //! Factorized-propensity AIPW for bounded discrete joint cells.
 //!
-//! The joint treatment `T = (T_1, .., T_k)` is `k <= 3` binary coordinates, so there are at
-//! most 8 cells. [`crate::cell_aipw::CellSaturatedAipw`] fits one multinomial logit over all
+//! The joint treatment `T = (T_1, .., T_k)` is `k` binary coordinates, so there are
+//! `2^k` cells. [`crate::cell_aipw::CellSaturatedAipw`] fits one multinomial logit over all
 //! cells and refuses the whole family when any cell is empty. This route instead writes each
 //! cell propensity as a product of binary conditionals under a declared ordering `o`,
 //!
@@ -69,14 +69,16 @@ use crate::propensity::{
 use crate::scores::{ScoreColumn, ScoreTable};
 use crate::util::refuse;
 
-/// Most jointly intervened binary components of a factorized joint cell.
+/// Components of a factorized joint cell that are always admitted, whatever the row count.
+///
+/// Beyond this many components the fit also needs at least as many complete-case rows as joint
+/// cells (`2^k`), so the per-cell tables stay proportional to the data.
 pub const MAX_FACTORIZED_COMPONENTS: usize = 3;
 
-/// Most orderings one fit re-estimates the family under (`3! = 6`).
+/// Orderings [`orderings_for`] enumerates exhaustively (`3! = 6`). When the `k!` permutations of
+/// more components exceed it, the declared ordering is followed by a deterministic sample of
+/// distinct permutations up to this many orderings in all.
 pub const MAX_ORDERINGS: usize = 6;
-
-/// Largest declared number of cross-fit folds.
-const MAX_FOLDS: usize = 20;
 
 /// Provenance of the factorized joint-cell score table.
 const FACTORIZED_PROVENANCE: &str = "joint_cell.factorized.crossfit.ridge_logistic_prefix.ols.v1";
@@ -153,8 +155,8 @@ impl FactorizedJointConfig {
                 message,
             ))
         };
-        if !(2..=MAX_FOLDS).contains(&self.folds) {
-            return bad("folds must lie in 2..=20");
+        if self.folds < 2 {
+            return bad("folds must be at least 2 (the fold plan refuses more folds than rows)");
         }
         if !(self.clip > 0.0 && self.clip < 0.5) {
             return bad(
@@ -261,7 +263,7 @@ pub fn refuse_joint_learner_inference() -> EstimationError {
 ///
 /// # Errors
 ///
-/// `declared` is not a permutation of `0..k`, or `k` is outside `1..=3`.
+/// `declared` is not a permutation of `0..k`, or `k` is outside `1..=31`.
 pub fn orderings_for(
     k: usize,
     declared: &[usize],
@@ -271,12 +273,54 @@ pub fn orderings_for(
     if !all_permutations {
         return Ok(vec![declared.to_vec()]);
     }
+    if !factorial_within(k, MAX_ORDERINGS) {
+        return Ok(sampled_orderings(k, declared));
+    }
     let mut all = Vec::new();
     permutations(&mut (0..k).collect::<Vec<_>>(), 0, &mut all);
     all.sort();
     let mut out = vec![declared.to_vec()];
     out.extend(all.into_iter().filter(|p| p.as_slice() != declared));
     Ok(out)
+}
+
+/// Whether `k! <= limit`.
+fn factorial_within(k: usize, limit: usize) -> bool {
+    let mut product = 1usize;
+    for factor in 2..=k {
+        match product.checked_mul(factor) {
+            Some(next) if next <= limit => product = next,
+            _ => return false,
+        }
+    }
+    true
+}
+
+/// The declared ordering followed by a deterministic sample of distinct other permutations
+/// (seeded by `k` and the declared ordering), `MAX_ORDERINGS` in all, in lexicographic order.
+fn sampled_orderings(k: usize, declared: &[usize]) -> Vec<Vec<usize>> {
+    let mut state = declared
+        .iter()
+        .fold(antecedent_core::mix64(k as u64), |h, &c| antecedent_core::mix64(h ^ c as u64));
+    let mut sample: Vec<Vec<usize>> = Vec::with_capacity(MAX_ORDERINGS);
+    // Distinct draws are overwhelmingly likely; the attempt bound only guards a degenerate stream.
+    for _ in 0..MAX_ORDERINGS * 64 {
+        if sample.len() + 1 >= MAX_ORDERINGS {
+            break;
+        }
+        let mut permutation: Vec<usize> = (0..k).collect();
+        for i in (1..k).rev() {
+            let draw = antecedent_core::splitmix64(&mut state) % (i as u64 + 1);
+            permutation.swap(i, usize::try_from(draw).unwrap_or(0));
+        }
+        if permutation.as_slice() != declared && !sample.contains(&permutation) {
+            sample.push(permutation);
+        }
+    }
+    sample.sort();
+    let mut out = vec![declared.to_vec()];
+    out.extend(sample);
+    out
 }
 
 fn permutations(items: &mut Vec<usize>, start: usize, out: &mut Vec<Vec<usize>>) {
@@ -296,11 +340,12 @@ fn ordering_error(message: &str) -> EstimationError {
 }
 
 fn check_permutation(k: usize, ordering: &[usize]) -> Result<(), EstimationError> {
-    if k == 0 || k > MAX_FACTORIZED_COMPONENTS {
+    // Cell codes are `u32` bitmasks of the components.
+    if k == 0 || k > 31 {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
             "joint_cells.component_count",
-            "factorized joint cells support 1 to 3 binary components",
+            "factorized joint cells need 1 to 31 binary components",
         ));
     }
     let mut seen = vec![false; k];
@@ -320,8 +365,8 @@ pub(crate) fn validate_orderings(
     k: usize,
     orderings: &[Vec<usize>],
 ) -> Result<(), EstimationError> {
-    if orderings.is_empty() || orderings.len() > MAX_ORDERINGS {
-        return Err(ordering_error("declare 1 to 6 orderings; the first is the declared one"));
+    if orderings.is_empty() {
+        return Err(ordering_error("declare at least one ordering; the first is the declared one"));
     }
     for (i, ordering) in orderings.iter().enumerate() {
         check_permutation(k, ordering)?;
@@ -1079,7 +1124,7 @@ fn normalization(
 
 /// Fit the cell-saturated family with factorized propensities under every declared ordering.
 ///
-/// `treatments` are `k <= 3` binary 0/1 columns (cell bit `j` is `treatments[j]`),
+/// `treatments` are `k` binary 0/1 columns (cell bit `j` is `treatments[j]`),
 /// `adjustment` the certified adjustment set, and `orderings` the declared ordering followed by
 /// any alternatives (see [`orderings_for`]); each is a permutation of `0..k`.
 ///
@@ -1134,6 +1179,13 @@ fn fit_with_nuisance(
     let problem = prepare_problem(data, treatments, outcome, adjustment)?;
     let n = problem.n;
     let n_cells = 1u32 << k;
+    if k > MAX_FACTORIZED_COMPONENTS && n_cells as usize > n {
+        return Err(refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "joint_cells.component_count",
+            "more than three components need at least as many complete-case rows as joint cells",
+        ));
+    }
     let plan = CrossfitPlan::derive(
         n,
         config.folds,
@@ -1151,8 +1203,12 @@ fn fit_with_nuisance(
             FoldSplit { train: rows.train, valid: rows.valid, design_valid }
         })
         .collect();
-    let rows_in_cell: Vec<usize> =
-        (0..n_cells).map(|c| problem.cell.iter().filter(|&&code| code == c).count()).collect();
+    let mut rows_in_cell = vec![0usize; n_cells as usize];
+    for &code in &problem.cell {
+        if let Some(count) = rows_in_cell.get_mut(code as usize) {
+            *count += 1;
+        }
+    }
 
     let mut mu = Vec::with_capacity(n_cells as usize);
     let mut outcome_provenances: Vec<LearnerProvenance> = Vec::new();

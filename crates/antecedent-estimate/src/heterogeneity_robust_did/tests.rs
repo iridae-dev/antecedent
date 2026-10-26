@@ -181,7 +181,7 @@ fn conditional_trends(seed: u64, units: usize) -> Simulated {
     };
     for i in 0..units {
         let x = normal(&mut rng);
-        let treated = rng.uniform() < 1.0 / (1.0 + (-x).exp());
+        let treated = rng.uniform() < crate::util::sigmoid(x);
         let alpha = normal(&mut rng) + x;
         let label: Arc<str> = Arc::from(format!("unit{i:05}"));
         for period in 1..=2_i64 {

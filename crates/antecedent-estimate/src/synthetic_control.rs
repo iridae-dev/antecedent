@@ -382,12 +382,6 @@ pub fn exact_synthetic_unit_randomization_test(
         panel.entry(unit).or_default().insert(*period, *value);
         period_set.insert(*period);
     }
-    if panel.len() > 32 {
-        return Err(
-            "exact synthetic unit randomization currently supports at most 32 candidate units"
-                .into(),
-        );
-    }
     let pre: Vec<i64> =
         period_set.iter().copied().filter(|period| *period < intervention_period).collect();
     let post: Vec<i64> =
@@ -440,9 +434,6 @@ pub fn exact_augmented_synthetic_unit_randomization_test(
     let mut candidates: Vec<&str> = units.iter().map(String::as_str).collect();
     candidates.sort_unstable();
     candidates.dedup();
-    if candidates.len() > 32 {
-        return Err("exact augmented synthetic unit randomization currently supports at most 32 candidate units".into());
-    }
     let mut statistics = Vec::with_capacity(candidates.len());
     for candidate in candidates {
         let fit = fit_augmented_synthetic_control(
@@ -881,12 +872,6 @@ pub fn exact_synthetic_did_unit_randomization_test(
 ) -> Result<SyntheticUnitRandomizationTest, String> {
     fit_synthetic_did(outcome, units, periods, treated_unit, intervention_period)?;
     let candidates: BTreeSet<&str> = units.iter().map(String::as_str).collect();
-    if candidates.len() > 32 {
-        return Err(
-            "exact synthetic DiD unit randomization currently supports at most 32 candidate units"
-                .into(),
-        );
-    }
     let mut statistics = Vec::with_capacity(candidates.len());
     for candidate in candidates {
         let fit = fit_synthetic_did(outcome, units, periods, candidate, intervention_period)?;

@@ -348,7 +348,7 @@ impl TemporalSlopeDesign {
             None,
             &mut ws,
         )
-        .map_err(crate::util::stats_err)?;
+        .map_err(crate::error::EstimationError::from)?;
         let coefficients = match prior_scale {
             Some(scale) => self.ridge_mean(&fit.coefficients, scale)?.0,
             None => fit.coefficients,
@@ -480,7 +480,7 @@ impl TemporalSlopeDesign {
             None,
             &mut ws,
         )
-        .map_err(crate::util::stats_err)?;
+        .map_err(crate::error::EstimationError::from)?;
         let (mean, inverse, sigma2) = self.ridge_mean(&fit.coefficients, prior_scale)?;
         let scores = crate::temporal_block::normal_equation_scores_of_residuals(
             &self.matrix,
@@ -601,7 +601,7 @@ impl TemporalSlopeDesign {
                 None,
                 &mut ws,
             )
-            .map_err(crate::util::stats_err)?;
+            .map_err(crate::error::EstimationError::from)?;
             let (mean, inverse, sigma2) = design.ridge_mean(&fit.coefficients, prior_scale)?;
             let scores = crate::temporal_block::normal_equation_scores_of_residuals(
                 &design.matrix,

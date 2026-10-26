@@ -389,24 +389,23 @@ fn independent_rows_duplicate_unit_ids_refuse_without_a_cluster_map() {
 
 #[test]
 fn independent_rows_bounds_and_arguments_refuse() {
-    // Too many scenarios.
+    // A family wider than the reference scenario count and a replicate count above the
+    // reference are admitted: memory admission, not a constant, bounds them.
     let many: Vec<ScenarioRowEstimator> = (0..=MAX_SCENARIOS)
         .map(|i| linear(&format!("s{i}"), SNAPSHOT, units("u"), score_a))
         .collect();
-    both_methods_refuse(&many, "cell_not_licensed", "scenario_covariance.too_many_scenarios");
+    let wide = shared_row_bootstrap_covariance(&many, &boot_options(1), &ctx()).unwrap();
+    assert_eq!(wide.scenario_ids.len(), MAX_SCENARIOS + 1);
 
-    // Too many / too few replicates.
+    // Too few replicates.
     let family = vec![linear_by_name("a"), linear_by_name("b")];
     let over = SharedRowBootstrapOptions {
         replicates: MAX_REPLICATES + 1,
         seed: 1,
         max_failure_fraction: 0.0,
     };
-    assert_refusal(
-        shared_row_bootstrap_covariance(&family, &over, &ctx()),
-        "cell_not_licensed",
-        "scenario_covariance.too_many_replicates",
-    );
+    let more = shared_row_bootstrap_covariance(&family, &over, &ctx()).unwrap();
+    assert_eq!(more.replicates_total, MAX_REPLICATES as u64 + 1);
     let under = SharedRowBootstrapOptions { replicates: 1, seed: 1, max_failure_fraction: 0.0 };
     assert_refusal(
         shared_row_bootstrap_covariance(&family, &under, &ctx()),

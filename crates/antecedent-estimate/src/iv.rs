@@ -60,7 +60,7 @@ use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::se::AnalyticSeKind;
-use crate::util::stats_err;
+use crate::util::{arm_moments};
 
 /// Prepared IV problem: column-major instrument and exogenous-covariate designs, shared by
 /// [`WaldIv`] and [`TwoStageLeastSquares`].
@@ -501,7 +501,9 @@ fn shared_slice(shared: &mut Arc<[f64]>) -> Result<&mut [f64], EstimationError> 
 /// for compliers. It is not the population average effect when effects are heterogeneous
 /// (see the module docs).
 ///
-/// Use [`TwoStageLeastSquares`] for continuous or multiple instruments.
+/// Several or multi-valued instruments, or exogenous covariates, are routed to
+/// [`TwoStageLeastSquares`], whose estimand is the instrument-weighted combination of the
+/// pairwise Wald ratios.
 #[derive(Clone, Debug)]
 pub struct WaldIv {
     /// Bootstrap replicates (0 = skip bootstrap).
@@ -538,14 +540,7 @@ impl WaldIv {
         }
     }
 
-    /// Set the number of bootstrap replicates used for the bootstrap standard error.
-    ///
-    /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE.
-    #[must_use]
-    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.bootstrap_replicates = replicates;
-        self
-    }
+    crate::inference::with_bootstrap_replicates!();
 
     /// Set the overlap policy. Must remain [`OverlapPolicy::ExplicitOverride`] — IV is not a
     /// propensity-based method.
@@ -555,33 +550,13 @@ impl WaldIv {
         self
     }
 
-    /// Set the analytic SE kind (default: delta-method on the Y arms).
-    #[must_use]
-    pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
-        self.se_kind = se_kind;
-        self
-    }
+    crate::inference::with_se_kind!();
 
-    /// Set cluster ids for [`AnalyticSeKind::Cluster`] (length = prepared `nrows`).
-    #[must_use]
-    pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
-        self.cluster_ids = Some(cluster_ids);
-        self
-    }
+    crate::inference::with_cluster_ids!();
 
-    /// Set multiway cluster ids (one `Vec<u32>` per clustering dimension).
-    #[must_use]
-    pub fn with_multiway_ids(mut self, multiway_ids: Vec<Vec<u32>>) -> Self {
-        self.multiway_ids = Some(multiway_ids);
-        self
-    }
+    crate::inference::with_multiway_ids!();
 
-    /// Set panel time labels for panel HAC.
-    #[must_use]
-    pub fn with_panel_times(mut self, panel_times: Vec<i64>) -> Self {
-        self.panel_times = Some(panel_times);
-        self
-    }
+    crate::inference::with_panel_times!();
 
     /// Prepare the instrument/outcome/treatment design.
     ///
@@ -664,7 +639,8 @@ impl WaldIv {
     ///
     /// # Errors
     ///
-    /// More than one instrument, a non-binary instrument, or a degenerate (zero) first stage.
+    /// A degenerate (zero) first stage, or the two-stage fit's own failures when the design
+    /// has several or non-binary instruments or covariates.
     #[allow(
         clippy::float_cmp,
         reason = "a binary instrument is coded exactly 0.0 or 1.0, so exact comparison is the intended test"
@@ -675,24 +651,34 @@ impl WaldIv {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
-        let _ = ctx;
-        if problem.instruments.len() != 1 {
-            return Err(EstimationError::unsupported(
-                "WaldIv requires exactly one instrument; use TwoStageLeastSquares for multiple instruments",
-            ));
-        }
-        if !problem.adjustment_set.is_empty() {
-            return Err(EstimationError::unsupported(
-                "WaldIv does not support adjustment covariates; use TwoStageLeastSquares",
-            ));
-        }
         let n = problem.nrows;
-        let z: Vec<f64> = (0..n).map(|r| problem.instruments_matrix[n + r]).collect();
-        if !z.iter().all(|&v| v == 0.0 || v == 1.0) {
-            return Err(EstimationError::unsupported(
-                "WaldIv requires a binary (0/1) instrument; use TwoStageLeastSquares for continuous instruments",
-            ));
+        let binary_single = problem.instruments.len() == 1
+            && problem.adjustment_set.is_empty()
+            && (0..n).all(|r| {
+                let v = problem.instruments_matrix[n + r];
+                v == 0.0 || v == 1.0
+            });
+        if !binary_single {
+            // The ratio of two arm differences is the one-binary-instrument case. Several or
+            // multi-valued instruments and exogenous covariates are its instrument-weighted
+            // generalization, which is exactly what two-stage least squares estimates.
+            let two_stage = TwoStageLeastSquares {
+                backend: FaerBackend,
+                bootstrap_replicates: self.bootstrap_replicates,
+                overlap: self.overlap,
+                se_kind: self.se_kind,
+                cluster_ids: self.cluster_ids.clone(),
+                multiway_ids: self.multiway_ids.clone(),
+                panel_times: self.panel_times.clone(),
+            };
+            return two_stage.fit(
+                problem,
+                &mut TwoStageLeastSquaresWorkspace::default(),
+                ctx,
+                assumptions,
+            );
         }
+        let z: Vec<f64> = (0..n).map(|r| problem.instruments_matrix[n + r]).collect();
 
         let wald = wald_ratio(&z, &problem.treatment, &problem.outcome)?;
         let ate = wald.ratio * problem.treatment_delta;
@@ -728,37 +714,20 @@ struct WaldResult {
 
 /// Ratio-of-differences point estimate.
 fn wald_ratio(z: &[f64], t: &[f64], y: &[f64]) -> Result<WaldResult, EstimationError> {
-    let (mut sy1, mut sy0, mut st1, mut st0) = (0.0, 0.0, 0.0, 0.0);
-    let (mut n1, mut n0) = (0usize, 0usize);
-    for i in 0..z.len() {
-        if z[i] > 0.5 {
-            sy1 += y[i];
-            st1 += t[i];
-            n1 += 1;
-        } else {
-            sy0 += y[i];
-            st0 += t[i];
-            n0 += 1;
-        }
-    }
-    if n1 == 0 || n0 == 0 {
+    let outcome = arm_moments(z, y);
+    let treatment = arm_moments(z, t);
+    if outcome.n[0] == 0 || outcome.n[1] == 0 {
         return Err(EstimationError::data_msg(
             "Wald IV requires both instrument arms (Z=0 and Z=1) to be present",
         ));
     }
-    let n1f = n1 as f64;
-    let n0f = n0 as f64;
-    let mean_y1 = sy1 / n1f;
-    let mean_y0 = sy0 / n0f;
-    let mean_t1 = st1 / n1f;
-    let mean_t0 = st0 / n0f;
-    let denom = mean_t1 - mean_t0;
+    let denom = treatment.mean[1] - treatment.mean[0];
     if denom.abs() < 1e-10 {
         return Err(EstimationError::stats_msg(
             "degenerate first stage: instrument is uncorrelated with treatment",
         ));
     }
-    let ratio = (mean_y1 - mean_y0) / denom;
+    let ratio = (outcome.mean[1] - outcome.mean[0]) / denom;
     Ok(WaldResult { ratio })
 }
 
@@ -809,7 +778,7 @@ fn attach_anderson_rubin(
         IvBlocks { nrows: y.len(), instruments_colmajor, z_ncols, exogenous_colmajor, x_ncols };
     let (ar, reason) =
         anderson_rubin_confidence_set(&blocks, y, t, AR_LEVEL, &FaerBackend, &mut ws)
-            .map_err(stats_err)?;
+            .map_err(crate::error::EstimationError::from)?;
     // Scale structural-β endpoints to the published ATE contrast.
     diag.anderson_rubin = ar.map(|(lo, hi, level)| {
         let (mut lo_a, mut hi_a) = (lo * treatment_delta, hi * treatment_delta);
@@ -831,34 +800,15 @@ fn attach_anderson_rubin(
 /// mirroring [`fit_2sls`]'s [`FirstStageDiagnostics`] shape so both IV estimators expose
 /// the same diagnostic type.
 fn wald_first_stage_diagnostics(z: &[f64], t: &[f64]) -> Option<FirstStageDiagnostics> {
-    let (mut n1, mut n0) = (0usize, 0usize);
-    let (mut st1, mut st0) = (0.0, 0.0);
-    for i in 0..z.len() {
-        if z[i] > 0.5 {
-            st1 += t[i];
-            n1 += 1;
-        } else {
-            st0 += t[i];
-            n0 += 1;
-        }
-    }
+    let arms = arm_moments(z, t);
+    let (n0, n1) = (arms.n[0], arms.n[1]);
     if n1 < 2 || n0 < 2 {
         return None;
     }
     let n1f = n1 as f64;
     let n0f = n0 as f64;
-    let mean_t1 = st1 / n1f;
-    let mean_t0 = st0 / n0f;
-    let (mut ss1, mut ss0) = (0.0, 0.0);
-    for i in 0..z.len() {
-        if z[i] > 0.5 {
-            let d = t[i] - mean_t1;
-            ss1 += d * d;
-        } else {
-            let d = t[i] - mean_t0;
-            ss0 += d * d;
-        }
-    }
+    let (mean_t0, mean_t1) = (arms.mean[0], arms.mean[1]);
+    let (ss0, ss1) = (arms.sum_sq[0], arms.sum_sq[1]);
     let df2 = n1 + n0 - 2;
     let sse = ss1 + ss0;
     let ssr = (n1f * n0f / (n1f + n0f)) * (mean_t1 - mean_t0).powi(2);
@@ -936,14 +886,7 @@ impl TwoStageLeastSquares {
         }
     }
 
-    /// Set the number of bootstrap replicates used for the bootstrap standard error.
-    ///
-    /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE.
-    #[must_use]
-    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.bootstrap_replicates = replicates;
-        self
-    }
+    crate::inference::with_bootstrap_replicates!();
 
     /// Set the overlap policy. Must remain [`OverlapPolicy::ExplicitOverride`] — IV is not a
     /// propensity-based method.
@@ -953,34 +896,13 @@ impl TwoStageLeastSquares {
         self
     }
 
-    /// Set the analytic SE kind (default [`AnalyticSeKind::Homoskedastic`]).
-    #[must_use]
-    pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
-        self.se_kind = se_kind;
-        self
-    }
+    crate::inference::with_se_kind!();
 
-    /// Set cluster ids for cluster / panel SE.
-    #[must_use]
-    pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
-        self.cluster_ids = Some(cluster_ids);
-        self
-    }
+    crate::inference::with_cluster_ids!();
 
-    /// Set multiway cluster ids (one `Vec<u32>` per clustering dimension) for
-    /// [`AnalyticSeKind::Multiway`].
-    #[must_use]
-    pub fn with_multiway_ids(mut self, multiway_ids: Vec<Vec<u32>>) -> Self {
-        self.multiway_ids = Some(multiway_ids);
-        self
-    }
+    crate::inference::with_multiway_ids!();
 
-    /// Set panel time labels for panel HAC.
-    #[must_use]
-    pub fn with_panel_times(mut self, panel_times: Vec<i64>) -> Self {
-        self.panel_times = Some(panel_times);
-        self
-    }
+    crate::inference::with_panel_times!();
 
     /// Prepare the instrument/exogenous/outcome/treatment design.
     ///
@@ -1089,7 +1011,7 @@ impl TwoStageLeastSquares {
             &self.backend,
             &mut workspace.ols,
         )
-        .map_err(stats_err)?;
+        .map_err(crate::error::EstimationError::from)?;
         let coef = fit.second_stage.coefficients[0];
         let ate = coef * problem.treatment_delta;
         let mut diagnostics = Some(fit.first_stage_diagnostics);

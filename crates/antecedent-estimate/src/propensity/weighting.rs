@@ -141,22 +141,9 @@ impl PropensityWeighting {
         }
     }
 
-    /// Request a bootstrap interval produced by the complete fit/resample/stop/interval
-    /// procedure (see [`Self::bootstrap_interval`]).
-    #[must_use]
-    pub const fn with_bootstrap_interval(mut self, request: crate::util::IntervalRequest) -> Self {
-        self.bootstrap_interval = Some(request);
-        self
-    }
+    crate::inference::with_bootstrap_interval!();
 
-    /// Set the number of bootstrap replicates used for the bootstrap standard error.
-    ///
-    /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE.
-    #[must_use]
-    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.bootstrap_replicates = replicates;
-        self
-    }
+    crate::inference::with_bootstrap_replicates!();
 
     /// Set the overlap policy. Positivity is mandatory here:
     /// [`OverlapPolicy::ExplicitOverride`] is refused by `prepare`.
@@ -197,30 +184,11 @@ impl PropensityWeighting {
         self
     }
 
-    /// Declare the cluster of each complete-case row. The analytic SE becomes the cluster
-    /// sandwich and the bootstrap resamples whole clusters.
-    #[must_use]
-    pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
-        self.cluster_ids = Some(cluster_ids);
-        self
-    }
+    crate::inference::with_cluster_ids!();
 
-    /// Declare the cluster of every row of the source table; rows dropped as incomplete or
-    /// outside the target population take their labels with them.
-    #[must_use]
-    pub fn with_source_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
-        self.source_cluster_ids = Some(cluster_ids);
-        self
-    }
+    crate::inference::with_source_cluster_ids!();
 
-    /// Declare the sampling design of the rows. The bootstrap then refuses a resample that
-    /// design does not allow: a row-level draw under independent subject trajectories, a
-    /// non-block draw of a dependent series, or a draw that ignores a panel's clusters.
-    #[must_use]
-    pub fn with_sampling_design(mut self, design: antecedent_core::DeclaredSamplingDesign) -> Self {
-        self.sampling_design = crate::util::SamplingDeclaration::Declared(design);
-        self
-    }
+    crate::inference::with_sampling_design!();
 
     /// Cluster label of each row of `problem`, when clusters are declared.
     fn clusters(
@@ -633,7 +601,7 @@ impl PropensityWeighting {
         }
         crate::util::gather_bootstrap_vector(t, &problem.treatment, idx);
         crate::util::gather_bootstrap_vector(y, &problem.outcome, idx);
-        crate::util::gather_resampled_design(x, &problem.design_matrix, n, ncols, idx);
+        crate::util::gather_cols(x, &problem.design_matrix, n, ncols, idx);
         let fitted = match sampling {
             Some(full) => {
                 crate::util::gather_bootstrap_vector(s, full, idx);
@@ -740,21 +708,36 @@ pub(crate) fn compute_ipw_weights_into(
     }
 }
 
+/// Compensated `(Σ w·y, Σ w)` of the rows of one arm (`want_treated` selects `t > 0.5`).
+fn arm_weighted_sums(
+    treatment: &[f64],
+    outcome: &[f64],
+    weights: &[f64],
+    want_treated: bool,
+) -> (f64, f64) {
+    use antecedent_kernels::numeric::CompensatedSum;
+    let (mut numerator, mut denominator) = (CompensatedSum::default(), CompensatedSum::default());
+    for ((&t, &y), &w) in treatment.iter().zip(outcome).zip(weights) {
+        if (t > 0.5) == want_treated {
+            numerator.add(w * y);
+            denominator.add(w);
+        }
+    }
+    (numerator.total(), denominator.total())
+}
+
+/// Hájek difference of the two weighted arm means.
+///
+/// An arm without positive total weight is an error here: the difference of two means has no
+/// value without both arms, and a caller reports the refusal. See [`hajek_weighted_mean`] for
+/// the single-arm form, whose unavailable arm is a `NaN` that the replicate loops discard.
 pub(crate) fn hajek_difference(
     treatment: &[f64],
     outcome: &[f64],
     weights: &[f64],
 ) -> Result<f64, EstimationError> {
-    let (mut num1, mut den1, mut num0, mut den0) = (0.0, 0.0, 0.0, 0.0);
-    for ((&t, &y), &w) in treatment.iter().zip(outcome).zip(weights) {
-        if t > 0.5 {
-            num1 += w * y;
-            den1 += w;
-        } else {
-            num0 += w * y;
-            den0 += w;
-        }
-    }
+    let (num1, den1) = arm_weighted_sums(treatment, outcome, weights, true);
+    let (num0, den0) = arm_weighted_sums(treatment, outcome, weights, false);
     if den1 <= 0.0 || den0 <= 0.0 {
         return Err(EstimationError::data_msg(
             "IPW weighting left an arm with zero total weight (trimming/clipping removed all treated or all control units)",
@@ -763,19 +746,16 @@ pub(crate) fn hajek_difference(
     Ok(num1 / den1 - num0 / den0)
 }
 
+/// Hájek weighted mean of one arm; `NaN` when the arm has no positive total weight, so a
+/// per-arm quantity inside a bootstrap or cross-fit loop stays a value whose non-finiteness the
+/// loop's own finiteness check reports (see [`hajek_difference`] for the refusing form).
 pub(crate) fn hajek_weighted_mean(
     treatment: &[f64],
     outcome: &[f64],
     weights: &[f64],
     want_treated: bool,
 ) -> f64 {
-    let (mut num, mut den) = (0.0, 0.0);
-    for i in 0..treatment.len() {
-        if (treatment[i] > 0.5) == want_treated {
-            num += weights[i] * outcome[i];
-            den += weights[i];
-        }
-    }
+    let (num, den) = arm_weighted_sums(treatment, outcome, weights, want_treated);
     if den > 0.0 { num / den } else { f64::NAN }
 }
 
@@ -1245,6 +1225,7 @@ fn balanced_influence_values(
     let mut score = vec![0.0; n];
     let mut information = vec![0.0; n];
     let mut derivative = vec![0.0; n];
+    let mut leverages = vec![0.0; n];
     for i in 0..n {
         let arm = usize::from(treatment[i] > 0.5);
         let sign = if arm == 1 { 1.0 } else { -1.0 };
@@ -1261,6 +1242,7 @@ fn balanced_influence_values(
         if leverage >= 1.0 - 1e-10 {
             return Err(EstimationError::stats_msg("unit-leverage calibrated outcome moment"));
         }
+        leverages[i] = leverage;
         psi[i] = n as f64 / total
             * (sign * weights[i] * residual / (1.0 - leverage)
                 + mass(i) * (prediction(1) - prediction(0) - ate));
@@ -1297,6 +1279,7 @@ fn balanced_influence_values(
         &score,
         &information,
         &inverse,
+        &leverages,
     )?;
     Ok((psi, linearization))
 }
@@ -1319,6 +1302,7 @@ fn balanced_linearization(
     score: &[f64],
     information: &[f64],
     inverse: &[Vec<f64>],
+    leverages: &[f64],
 ) -> Result<BalancedLinearization, EstimationError> {
     let n = treatment.len();
     let mass = |i: usize| sampling.map_or(1.0, |s| s[i]);
@@ -1365,22 +1349,17 @@ fn balanced_linearization(
     let mut left = vec![0.0; n * rank];
     let mut right = vec![0.0; n * rank];
     let scaling = n as f64 / total;
+    let mut prop_row = vec![0.0; p];
     for i in 0..n {
         let arm = usize::from(treatment[i] > 0.5);
         let sign = if arm == 1 { 1.0 } else { -1.0 };
-        let leverage = weights[i]
-            * (0..p)
-                .map(|c| {
-                    (0..p)
-                        .map(|d| x[c * n + i] * inverse[arm][c * p + d] * x[d * n + i])
-                        .sum::<f64>()
-                })
-                .sum::<f64>();
+        let leverage = leverages[i];
         let raw = sign * weights[i] / (1.0 - leverage);
         diagonal[i] = scaling * raw;
-        let prop_row: Vec<f64> = (0..p)
-            .map(|c| score[i] * (0..p).map(|d| x[d * n + i] * prop_inverse[d * p + c]).sum::<f64>())
-            .collect();
+        for (c, slot) in prop_row.iter_mut().enumerate() {
+            *slot =
+                score[i] * (0..p).map(|d| x[d * n + i] * prop_inverse[d * p + c]).sum::<f64>();
+        }
         for a in 0..2 {
             for c in 0..p {
                 let direction = if a == 1 { 1.0 } else { -1.0 };

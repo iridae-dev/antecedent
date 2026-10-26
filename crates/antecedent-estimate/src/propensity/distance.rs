@@ -108,17 +108,7 @@ impl DistanceMatching {
         self
     }
 
-    /// Record a bootstrap-replicate count without licensing a bootstrap SE.
-    ///
-    /// The nonparametric bootstrap is invalid for nearest-neighbor matching CIs
-    /// (Abadie–Imbens 2008). This setter keeps the field for callers that still set it;
-    /// [`DistanceMatching::fit`] never writes [`EffectEstimate::se_bootstrap`]. Prefer the
-    /// analytic SE.
-    #[must_use]
-    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.bootstrap_replicates = replicates;
-        self
-    }
+    crate::inference::with_bootstrap_replicates!();
 
     /// Set the overlap policy. Positivity is mandatory here:
     /// [`OverlapPolicy::ExplicitOverride`] is refused by `prepare`.
@@ -145,12 +135,7 @@ impl DistanceMatching {
         self
     }
 
-    /// Set the analytic SE kind.
-    #[must_use]
-    pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
-        self.se_kind = se_kind;
-        self
-    }
+    crate::inference::with_se_kind!();
 
     /// Declare linear arm outcome models and include both residual donor-reuse noise and
     /// population treatment-effect heterogeneity in the analytic variance. The raw
@@ -161,26 +146,11 @@ impl DistanceMatching {
         self
     }
 
-    /// Set cluster ids aligned to prepared complete-case rows.
-    #[must_use]
-    pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
-        self.cluster_ids = Some(cluster_ids);
-        self
-    }
+    crate::inference::with_cluster_ids!();
 
-    /// Set multiway cluster ids (one `Vec<u32>` per clustering dimension).
-    #[must_use]
-    pub fn with_multiway_ids(mut self, multiway_ids: Vec<Vec<u32>>) -> Self {
-        self.multiway_ids = Some(multiway_ids);
-        self
-    }
+    crate::inference::with_multiway_ids!();
 
-    /// Set panel time labels for panel HAC.
-    #[must_use]
-    pub fn with_panel_times(mut self, panel_times: Vec<i64>) -> Self {
-        self.panel_times = Some(panel_times);
-        self
-    }
+    crate::inference::with_panel_times!();
 
     /// Prepare the covariate design.
     ///

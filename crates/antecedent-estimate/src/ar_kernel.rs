@@ -36,8 +36,20 @@
 /// long-run variance unbounded).
 pub(crate) const MAX_AR_RHO: f64 = 0.97;
 
-/// Largest autoregressive order the BIC search considers.
+/// Largest autoregressive order the fixed-capacity score-likelihood model carries.
 pub(crate) const MAX_AR_ORDER: usize = 4;
+
+/// Largest order of the BIC search over `n` rows by the Schwert rule `⌊12 (n/100)^{1/4}⌋`,
+/// never below [`MAX_AR_ORDER`], so the model space grows with the sample.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the rule is a small non-negative real floored to an order below n"
+)]
+fn schwert_order(n: usize) -> usize {
+    let rule = (12.0 * (n as f64 / 100.0).powf(0.25)).floor() as usize;
+    rule.max(MAX_AR_ORDER)
+}
 
 /// Fewest rows on which a score model is fitted; shorter series keep factor 1.
 const MIN_ROWS: usize = 8;
@@ -50,7 +62,7 @@ const MAX_ACF_LAGS: usize = 20_000;
 /// Bartlett kernel at `block` keeps, `f = (1 + 2 Σ_{k<ℓ} (1 − k/ℓ) ρ_k) / (1 + 2 Σ_k ρ_k)`
 /// with `ρ_k` the model autocorrelation. Two fits are read and the larger factor kept:
 /// a Kendall-corrected AR(1) (`ρ̂ + (1 + 3ρ̂)/n`, capped at 0.97) and, when BIC selects
-/// an order of at least 2 (Yule–Walker, `q ≤ 4`), that AR(q). A model with no positive
+/// an order of at least 2 (Yule–Walker, `q` up to the Schwert order of the sample), that AR(q). A model with no positive
 /// long-run excess, a constant or non-finite series, or fewer than 8 rows gives `1`.
 #[must_use]
 pub fn kernel_bias_factor(influence: &[f64], block: usize) -> f64 {
@@ -69,7 +81,7 @@ pub fn kernel_bias_factor(influence: &[f64], block: usize) -> f64 {
     if rho1 > 0.0 {
         fraction = fraction.min(bartlett_capture(&ar1_acf(rho1, block), block));
     }
-    let model = bic_autoregression(&s);
+    let model = bic_autoregression_to(&s, schwert_order(n));
     if model.phi.len() >= 2 {
         fraction = fraction.min(bartlett_capture(&model.acf(block), block));
     }
@@ -159,13 +171,22 @@ impl Autoregression {
     }
 }
 
+/// Smallest relative innovation-variance shrink and level a Levinson step may leave: below it
+/// the reduction is rounding noise and `ln(variance)` is not a usable BIC term.
+const RELATIVE_VARIANCE_FLOOR: f64 = 64.0 * f64::EPSILON;
+
 /// Levinson–Durbin fit of a mean-zero series `s` (uncentred autocovariances, the
 /// convention of [`kendall_rho`]) with `q ≤ MAX_AR_ORDER` minimizing
 /// `n ln σ̂²_q + q ln n`. The Toeplitz autocovariance is positive definite, so every
 /// fitted model is stationary.
 pub(crate) fn bic_autoregression(s: &[f64]) -> Autoregression {
+    bic_autoregression_to(s, MAX_AR_ORDER)
+}
+
+/// [`bic_autoregression`] over orders up to `order_limit` (and `n - 2`).
+pub(crate) fn bic_autoregression_to(s: &[f64], order_limit: usize) -> Autoregression {
     let n = s.len();
-    let max_order = MAX_AR_ORDER.min(n.saturating_sub(2));
+    let max_order = order_limit.min(n.saturating_sub(2));
     let gamma: Vec<f64> = (0..=max_order).map(|k| dot(&s[k..], s) / n as f64).collect();
     if gamma[0] <= 0.0 || !gamma[0].is_finite() {
         return Autoregression::default();
@@ -178,7 +199,9 @@ pub(crate) fn bic_autoregression(s: &[f64]) -> Autoregression {
         let acc = gamma[order]
             - phi.iter().enumerate().map(|(j, f)| f * gamma[order - 1 - j]).sum::<f64>();
         let reflection = acc / variance;
-        if !reflection.is_finite() || reflection.abs() >= 1.0 {
+        // Stop where the Levinson update would leave only rounding noise of the innovation
+        // variance: `1 − reflection²` within a few ulps of zero (or a non-stationary step).
+        if !reflection.is_finite() || 1.0 - reflection * reflection <= RELATIVE_VARIANCE_FLOOR {
             break;
         }
         let mut next: Vec<f64> =
@@ -186,7 +209,7 @@ pub(crate) fn bic_autoregression(s: &[f64]) -> Autoregression {
         next.push(reflection);
         phi = next;
         variance *= 1.0 - reflection * reflection;
-        if variance <= 0.0 || variance.is_nan() {
+        if !(variance > RELATIVE_VARIANCE_FLOOR * gamma[0]) {
             break;
         }
         let bic = nf * variance.ln() + order as f64 * nf.ln();
@@ -220,6 +243,13 @@ pub(crate) fn dot(a: &[f64], b: &[f64]) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn schwert_order_grows_with_the_sample_and_never_drops_below_the_floor() {
+        assert_eq!(schwert_order(8), MAX_AR_ORDER);
+        assert_eq!(schwert_order(100), 12);
+        assert!(schwert_order(10_000) > schwert_order(100));
+    }
 
     /// Deterministic AR(1) series with Gaussian innovations (Box–Muller on splitmix64).
     fn gaussian_series(n: usize, rho: f64, seed: u64) -> Vec<f64> {

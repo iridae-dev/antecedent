@@ -1549,11 +1549,10 @@ fn plugin_jacobian_warns_when_clamped_outside_support() {
     );
 }
 
-/// The plug-in derivative refusals over more than two treatments keep their
-/// message (no reason code, same class) and name what to do instead in the
-/// structured `remedy` field.
+/// The plug-in derivatives fit one additive smooth per treatment, so a query over more than
+/// two treatments returns one partial per coordinate.
 #[test]
-fn plugin_derivatives_over_two_treatments_name_a_remedy() {
+fn plugin_derivatives_serve_more_than_two_treatments() {
     let n: usize = 60;
     let col = |k: f64| (0..n).map(|i| (i as f64 * k).sin()).collect::<Vec<f64>>();
     let (a, b, c, y, x) = (col(0.3), col(0.7), col(1.1), col(0.5), col(0.9));
@@ -1568,7 +1567,7 @@ fn plugin_derivatives_over_two_treatments_name_a_remedy() {
     let treatments: Arc<[VariableId]> =
         Arc::from([VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)]);
     let estimator = ContinuousResponseEstimator::new([VariableId::from_raw(4)]);
-    let refuse = |functional| {
+    let serve = |functional| {
         estimator
             .estimate_identified(
                 &data,
@@ -1576,32 +1575,22 @@ fn plugin_derivatives_over_two_treatments_name_a_remedy() {
                 IdentificationStatus::IdentifiedUnderParametricRestrictions,
                 AssumptionSet::new(),
             )
-            .unwrap_err()
+            .expect("a plug-in derivative over three treatments is estimable")
     };
-    let jacobian = refuse(ResponseFunctional::Jacobian {
+    let jacobian = serve(ResponseFunctional::Jacobian {
         outcomes: Arc::from([VariableId::from_raw(3)]),
         treatments: treatments.clone(),
         at: Arc::from([0.0, 0.0, 0.0]),
         scale: DerivativeScale::Identity,
     });
-    assert_eq!(jacobian.to_string(), "plug-in response Jacobian supports at most two treatments");
-    assert!(!matches!(jacobian, EstimationError::Refused { .. }));
-    let remedy = jacobian.remedy().expect("the Jacobian refusal names a remedy");
-    assert!(remedy.contains("at most two treatments"), "{remedy}");
-    assert!(remedy.contains("AverageDerivative"), "{remedy}");
-
-    let directional = refuse(ResponseFunctional::DirectionalDerivative {
+    drop(jacobian);
+    let directional = serve(ResponseFunctional::DirectionalDerivative {
         outcomes: Arc::from([VariableId::from_raw(3)]),
         treatments,
         at: Arc::from([0.0, 0.0, 0.0]),
         direction: Arc::from([1.0, 0.0, 0.0]),
     });
-    assert_eq!(
-        directional.to_string(),
-        "plug-in directional derivative supports at most two treatments"
-    );
-    let remedy = directional.remedy().expect("the directional refusal names a remedy");
-    assert!(remedy.contains("ResponseJacobian"), "{remedy}");
+    drop(directional);
 }
 
 /// Every additive-GAM non-convergence refusal keeps its message and names

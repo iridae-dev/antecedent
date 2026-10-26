@@ -35,7 +35,7 @@ use crate::survival::SurvivalRows;
 pub const MIN_HAZARD_POSTERIOR_DRAWS: usize = 200;
 /// Most posterior draws one request may ask for.
 pub const MAX_HAZARD_POSTERIOR_DRAWS: usize = 200_000;
-/// Most hazard intervals one request may declare.
+/// Reference hazard interval count; not enforced.
 pub const MAX_HAZARD_INTERVALS: usize = 64;
 
 /// Independent gamma prior on every interval hazard, in events per unit time.
@@ -204,12 +204,11 @@ fn validate(
         }
     }
     if cuts.is_empty()
-        || cuts.len() > MAX_HAZARD_INTERVALS
         || cuts.iter().any(|cut| !cut.is_finite() || *cut <= 0.0)
         || cuts.windows(2).any(|pair| pair[0] >= pair[1])
     {
         return Err(EstimationError::data_msg(
-            "hazard cuts must be one to 64 strictly increasing positive finite times",
+            "hazard cuts must be at least one strictly increasing positive finite times",
         ));
     }
     if !prior.shape.is_finite()
@@ -282,13 +281,17 @@ fn survival_mean(arm: &[IntervalHazardPosterior]) -> f64 {
 }
 
 /// `E[(1 - exp(-h l)) / h] = ∫_0^l (rate / (rate + s))^shape ds`.
+#[allow(clippy::float_cmp, reason = "exactly shape 1 is the exponential-mixture branch of the integral")]
 fn interval_area(posterior: &IntervalHazardPosterior) -> f64 {
     let IntervalHazardPosterior { length, shape, rate, .. } = *posterior;
-    if (shape - 1.0).abs() < 1e-9 {
-        rate * (length / rate).ln_1p()
+    // `ln(rate / (rate + length))`, exact for a small `length / rate`.
+    let ratio = -(length / rate).ln_1p();
+    let excess = shape - 1.0;
+    if excess == 0.0 {
+        -rate * ratio
     } else {
-        let ratio = (rate / (rate + length)).ln();
-        rate * (1.0 - ((shape - 1.0) * ratio).exp()) / (shape - 1.0)
+        // `−expm1` keeps the cancellation-free value arbitrarily close to `shape = 1`.
+        -rate * (excess * ratio).exp_m1() / excess
     }
 }
 
@@ -325,6 +328,27 @@ mod tests {
 
     const CUTS: [f64; 3] = [1.0, 2.0, 3.0];
     const UNIFORM: HazardGammaPrior = HazardGammaPrior { shape: 1.0, rate: 1.0 };
+
+    #[test]
+    fn interval_area_is_continuous_through_shape_one() {
+        let area = |shape: f64| {
+            interval_area(&IntervalHazardPosterior {
+                length: 2.0,
+                events: 0,
+                exposure: 0.0,
+                shape,
+                rate: 3.0,
+            })
+        };
+        let exact = 3.0 * (2.0_f64 / 3.0).ln_1p();
+        assert!((area(1.0) - exact).abs() < 1e-15);
+        for offset in [1e-12, -1e-12, 1e-8, -1e-8] {
+            assert!((area(1.0 + offset) - exact).abs() < offset.abs(), "{offset}");
+        }
+        // Closed form away from shape 1: rate * (1 - (rate/(rate+len))^(s-1)) / (s-1).
+        let direct = 3.0 * (1.0 - (3.0_f64 / 5.0).powf(1.5)) / 1.5;
+        assert!((area(2.5) - direct).abs() < 1e-14);
+    }
 
     fn small() -> (Vec<f64>, Vec<i64>, Vec<bool>) {
         let mut duration = vec![0.5, 1.2, 2.5, 3.5, 1.8, 0.9];

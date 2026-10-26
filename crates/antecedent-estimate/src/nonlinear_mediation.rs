@@ -30,6 +30,8 @@
     clippy::needless_range_loop,
     reason = "dense numeric kernels index several parallel columns by row"
 )]
+use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
+
 use crate::EstimationError;
 use crate::splitmix::{mix64, seed_mix, splitmix64};
 use crate::util::mean;
@@ -43,9 +45,9 @@ pub const NONLINEAR_MEDIATION_CALIBRATION: &str = "unmeasured";
 pub const NONLINEAR_MEDIATION_INTERVAL_STATUS: &str = "closed_calibration_unmeasured";
 /// Replicate-id scheme of the bootstrap.
 pub(crate) const NONLINEAR_MEDIATION_REPLICATE_SCHEME: &str = "splitmix64 stream seeded by seed_mix(seed ^ mix64(replicate_id + 1)); n row draws with replacement";
-/// Largest outcome polynomial degree.
+/// Reference outcome polynomial degree; not enforced (rank checks refuse ill-posed fits).
 pub const NONLINEAR_MEDIATION_MAX_DEGREE: usize = 4;
-/// Largest declared Gauss-Hermite node count (the check evaluates `2n` nodes).
+/// Reference Gauss-Hermite node count; not enforced (the node count scales with the degree).
 pub const NONLINEAR_MEDIATION_MAX_NODES: usize = 64;
 
 /// Which mediation estimand is requested.
@@ -99,9 +101,10 @@ impl NonlinearMediationPremises {
 pub struct NonlinearMediationConfig {
     /// Requested estimand.
     pub estimand: NonlinearMediationEstimand,
-    /// Degree of the outcome polynomial in the standardized mediator (1 ..= 4).
+    /// Degree of the outcome polynomial in the standardized mediator (at least 1).
     pub outcome_degree: usize,
-    /// Declared Gauss-Hermite node count `n` (1 ..= 64); the check also runs `2n`.
+    /// Declared Gauss-Hermite node count `n` (at least 1, raised to what the degree needs); the
+    /// check also runs `2n`.
     pub quadrature_nodes: usize,
     /// Largest accepted integration error, as a fraction of the outcome standard deviation.
     pub integration_tolerance: f64,
@@ -326,18 +329,18 @@ fn validate(
             "columns differ in length",
         ));
     }
-    if config.outcome_degree == 0 || config.outcome_degree > NONLINEAR_MEDIATION_MAX_DEGREE {
+    if config.outcome_degree == 0 {
         return Err(refuse(
             invalid,
             "nonlinear_mediation.invalid_degree",
-            "outcome degree must lie in 1..=4",
+            "outcome degree must be at least 1",
         ));
     }
-    if config.quadrature_nodes == 0 || config.quadrature_nodes > NONLINEAR_MEDIATION_MAX_NODES {
+    if config.quadrature_nodes == 0 {
         return Err(refuse(
             invalid,
             "nonlinear_mediation.invalid_nodes",
-            "node count must lie in 1..=64",
+            "node count must be at least 1",
         ));
     }
     if !(config.integration_tolerance.is_finite() && config.integration_tolerance > 0.0) {
@@ -400,7 +403,8 @@ fn check_arms(
     Ok((treated, control))
 }
 
-/// Least squares by Jacobi-scaled normal equations with partial-pivot elimination.
+/// Least squares on unit-RMS columns by the backend's column-pivoted QR (the design is never
+/// squared into normal equations), with its numerical rank deciding rank deficiency.
 struct Ols {
     beta: Vec<f64>,
     residuals: Vec<f64>,
@@ -422,7 +426,7 @@ fn ols(cols: &[Vec<f64>], y: &[f64]) -> Result<Ols, EstimationError> {
     let mut scales = Vec::with_capacity(p);
     for c in cols {
         let s = (c.iter().map(|v| v * v).sum::<f64>() / nf).sqrt();
-        if !(s.is_finite() && s > 1e-12) {
+        if !(s.is_finite() && s > 0.0) {
             return Err(refuse(
                 rank_code,
                 "nonlinear_mediation.rank_deficient",
@@ -431,27 +435,21 @@ fn ols(cols: &[Vec<f64>], y: &[f64]) -> Result<Ols, EstimationError> {
         }
         scales.push(s);
     }
-    // Jacobi-scaled normal equations (unit-RMS columns): symmetric positive definite.
-    let mut gram = vec![0.0; p * p];
-    let mut rhs = vec![0.0; p];
-    for j in 0..p {
-        for k in j..p {
-            let dot: f64 = cols[j].iter().zip(&cols[k]).map(|(u, v)| u * v).sum();
-            let v = dot / (scales[j] * scales[k]);
-            gram[j * p + k] = v;
-            gram[k * p + j] = v;
-        }
-        let r: f64 = cols[j].iter().zip(y).map(|(u, v)| u * v).sum();
-        rhs[j] = r / scales[j];
+    // Unit-RMS columns, column-major, so the rank rule does not depend on the units.
+    let mut design = Vec::with_capacity(n * p);
+    for (c, s) in cols.iter().zip(&scales) {
+        design.extend(c.iter().map(|v| v / s));
     }
-    let sol = crate::util::solve_spd(&gram, &rhs, p).ok_or_else(|| {
-        refuse(
+    let mut workspace = LeastSquaresWorkspace::default();
+    let fit = crate::util::ls_fit(FaerBackend, &design, n, p, y, &mut workspace)?;
+    if fit.rank < p {
+        return Err(refuse(
             rank_code,
             "nonlinear_mediation.rank_deficient",
             "regression design is rank deficient",
-        )
-    })?;
-    let beta: Vec<f64> = sol.iter().zip(&scales).map(|(b, s)| b / s).collect();
+        ));
+    }
+    let beta: Vec<f64> = fit.coefficients.iter().zip(&scales).map(|(b, s)| b / s).collect();
     let mut residuals = Vec::with_capacity(n);
     let mut rss = 0.0;
     for i in 0..n {
@@ -594,6 +592,12 @@ fn hermite_eval(n: usize, z: f64) -> (f64, f64) {
         p1 = z * (2.0 / (jf + 1.0)).sqrt() * p2 - (jf / (jf + 1.0)).sqrt() * p3;
     }
     (p1, (2.0 * count(n)).sqrt() * p2)
+}
+
+/// Declared node count, raised to the least that integrates the degree-`d` outcome polynomial
+/// of the mediator exactly (`n` Gauss-Hermite nodes are exact to degree `2n - 1`).
+fn effective_nodes(config: &NonlinearMediationConfig) -> usize {
+    config.quadrature_nodes.max(config.outcome_degree.div_ceil(2) + 1)
 }
 
 fn gauss_hermite(n: usize) -> Result<Quadrature, EstimationError> {
@@ -854,8 +858,9 @@ pub fn estimate_nonlinear_mediation(
     let cols = validate(input, config)?;
     let (treated_count, control_count) = check_arms(&cols, config)?;
     let fit = fit_model(&cols, config.outcome_degree)?;
-    let coarse_q = gauss_hermite(config.quadrature_nodes)?;
-    let fine_q = gauss_hermite(2 * config.quadrature_nodes)?;
+    let nodes = effective_nodes(config);
+    let coarse_q = gauss_hermite(nodes)?;
+    let fine_q = gauss_hermite(2 * nodes)?;
     let range = treated_range(&cols);
     let violation = support_violation(&cols, &fit, &fine_q, range);
     if violation > config.max_support_violation {
@@ -893,8 +898,8 @@ pub fn estimate_nonlinear_mediation(
             "nonlinear_mediation.integration_error",
             &format!(
                 "{} versus {} node effects differ by {integration_error:.3e} of the outcome sd, above {}",
-                config.quadrature_nodes,
-                2 * config.quadrature_nodes,
+                nodes,
+                2 * nodes,
                 config.integration_tolerance
             ),
         ));
@@ -922,7 +927,7 @@ pub fn estimate_nonlinear_mediation(
         total_se: boot.se.map(|s| s.2),
         identity_residual,
         integration_error,
-        quadrature_nodes: config.quadrature_nodes,
+        quadrature_nodes: nodes,
         outcome_degree: config.outcome_degree,
         n_rows: cols.len(),
         overlap: NonlinearMediationOverlap {

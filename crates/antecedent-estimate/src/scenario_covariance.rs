@@ -39,9 +39,11 @@ use crate::error::EstimationError;
 use crate::splitmix::{GOLDEN_GAMMA, mix64, seed_mix, splitmix64};
 use crate::util::refuse;
 
-/// Most scenarios one covariance may span.
+/// Reference scenario count of a family. Not enforced: the covariance is `k × k`, and the
+/// execution context's memory admission bounds it.
 pub const MAX_SCENARIOS: usize = 64;
-/// Most bootstrap replicates one covariance may use.
+/// Reference bootstrap replicate count. Not enforced: the replicate draws are admitted against
+/// the execution context's memory budget and the run is cancellable.
 pub const MAX_REPLICATES: usize = 2000;
 /// Fewest bootstrap replicates (a covariance needs two).
 pub(crate) const MIN_REPLICATES: usize = 2;
@@ -174,7 +176,7 @@ impl ScenarioRowEstimator {
 /// Options of the seeded shared-row bootstrap.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SharedRowBootstrapOptions {
-    /// Replicates drawn (`2..=MAX_REPLICATES`).
+    /// Replicates drawn (at least two; bounded by the memory admission of the context).
     pub replicates: usize,
     /// Seed of the replicate-id stream.
     pub seed: u64,
@@ -316,20 +318,13 @@ struct FamilyIdentity {
 ///
 /// # Errors
 /// `invalid_argument` for no scenarios, duplicate scenario ids or too few rows;
-/// `cell_not_licensed` (`scenario_covariance.too_many_scenarios`) above
-/// [`MAX_SCENARIOS`]; `route_not_supported` (`scenario_covariance.unknown_dependence`)
+/// `route_not_supported` (`scenario_covariance.unknown_dependence`)
 /// for a different snapshot, a different unit list, duplicate unit ids or a scenario not
 /// declared [`RowDependence::SharedRows`].
 fn validate_family(scenarios: &[ScenarioRowEstimator]) -> Result<FamilyIdentity, EstimationError> {
     let Some(first) = scenarios.first() else {
         return Err(invalid("scenario_covariance.no_scenarios", "no scenario estimators"));
     };
-    if scenarios.len() > MAX_SCENARIOS {
-        return Err(over_bound(
-            "scenario_covariance.too_many_scenarios",
-            &format!("{} scenarios exceed the limit of {MAX_SCENARIOS}", scenarios.len()),
-        ));
-    }
     let mut seen = HashSet::new();
     for s in scenarios {
         if !seen.insert(s.id()) {
@@ -638,9 +633,8 @@ fn seed_digest(
 /// for all scenarios and counted.
 ///
 /// # Errors
-/// The [`validate_family`] refusals; `cell_not_licensed`
-/// (`scenario_covariance.too_many_replicates`) above [`MAX_REPLICATES`];
-/// `invalid_argument` (`scenario_covariance.too_few_replicates`, `...invalid_failure_bound`);
+/// The [`validate_family`] refusals; an admission refusal when the draws or the covariance do
+/// not fit the context's memory; `invalid_argument` (`scenario_covariance.too_few_replicates`, `...invalid_failure_bound`);
 /// `transport_numerical_failure` (`scenario_covariance.too_many_failed_replicates`,
 /// `scenario_covariance.not_positive_semidefinite`); `cancelled_no_claim`
 /// (`scenario_covariance.cancelled`).
@@ -649,12 +643,6 @@ pub fn shared_row_bootstrap_covariance(
     options: &SharedRowBootstrapOptions,
     ctx: &ExecutionContext,
 ) -> Result<ScenarioCovariance, EstimationError> {
-    if options.replicates > MAX_REPLICATES {
-        return Err(over_bound(
-            "scenario_covariance.too_many_replicates",
-            &format!("{} replicates exceed the limit of {MAX_REPLICATES}", options.replicates),
-        ));
-    }
     if options.replicates < MIN_REPLICATES {
         return Err(invalid(
             "scenario_covariance.too_few_replicates",
@@ -674,6 +662,7 @@ pub fn shared_row_bootstrap_covariance(
     digest.word(widen(options.replicates));
     check_cancel(ctx)?;
     let _admitted = crate::util::admit_array::<f64>(ctx, options.replicates, k + 1)?;
+    let _covariance = crate::util::admit_array::<f64>(ctx, k, k)?;
     let mut counts = vec![0_u32; identity.n];
     let mut tally = Tally {
         values: Vec::with_capacity(options.replicates * k),
@@ -775,6 +764,30 @@ impl Enumerator<'_> {
             self.walk(pos + 1, remaining - c)?;
         }
         Ok(())
+    }
+}
+
+/// Covariance by exact enumeration when the multinomial count vectors fit the declared cap,
+/// otherwise by the seeded shared-row bootstrap (the enumeration's Monte Carlo counterpart).
+///
+/// The returned [`ScenarioCovariance::method`] says which route ran.
+///
+/// # Errors
+/// The refusals of whichever route runs.
+pub fn exact_or_bootstrap_covariance(
+    scenarios: &[ScenarioRowEstimator],
+    exact: &ExactEnumerationOptions,
+    bootstrap: &SharedRowBootstrapOptions,
+    ctx: &ExecutionContext,
+) -> Result<ScenarioCovariance, EstimationError> {
+    let identity = validate_family(scenarios)?;
+    let cap = exact.max_compositions.min(EXACT_ENUMERATION_HARD_CAP);
+    let fits = identity.n <= MAX_EXACT_ROWS
+        && composition_count(identity.n).is_some_and(|total| total <= u128::from(cap));
+    if fits {
+        exact_enumeration_covariance(scenarios, exact, ctx)
+    } else {
+        shared_row_bootstrap_covariance(scenarios, bootstrap, ctx)
     }
 }
 

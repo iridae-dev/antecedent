@@ -170,11 +170,6 @@ pub fn estimate_saturation_interference(
             .iter()
             .map(|edge| (usize::try_from(edge.from.get()).expect("row id"), edge.weight))
             .collect::<Vec<_>>();
-        if neighbors.len() > 16 {
-            return Err(EstimationError::unsupported(
-                "exact saturation refuses more than 16 incoming neighbors per unit",
-            ));
-        }
         if neighbors.iter().any(|&(source, weight)| {
             clusters[source] != clusters[unit] || !weight.is_finite() || weight < 0.0
         }) {
@@ -344,6 +339,51 @@ fn saturation_cluster_interval(
     })
 }
 
+/// Most distinct treated-weight sums one neighbour distribution may carry. Count and
+/// fraction exposures need at most `neighbors + 1`; weighted exposure with integer or
+/// grid-valued weights stays far below it, and only adversarial real weights can reach it.
+const MAX_EXPOSURE_STATES: usize = 1 << 22;
+
+/// Resolution at which treated-weight sums are merged, relative to the total weight.
+const SUM_RESOLUTION: f64 = 1e9;
+
+/// Distribution of the treated-weight sum of independent Bernoulli(`saturation`) neighbours:
+/// `(sum, mass)` pairs, by dynamic programming over the neighbours (sums are merged when equal
+/// to [`SUM_RESOLUTION`] of the total weight, so equal-weight neighbours cost `O(m^2)`
+/// instead of `2^m`).
+fn treated_weight_distribution(
+    weights: &[f64],
+    saturation: f64,
+) -> Result<Vec<(f64, f64)>, EstimationError> {
+    let total: f64 = weights.iter().sum();
+    let scale = if total > 0.0 { SUM_RESOLUTION / total } else { 1.0 };
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "a rounded sum scaled to the resolution is far below i64::MAX"
+    )]
+    let key = |sum: f64| (sum * scale).round() as i64;
+    let mut states: BTreeMap<i64, (f64, f64)> = BTreeMap::new();
+    states.insert(0, (0.0, 1.0));
+    for &weight in weights {
+        let mut next: BTreeMap<i64, (f64, f64)> = BTreeMap::new();
+        for &(sum, mass) in states.values() {
+            for (selected, probability) in [(false, 1.0 - saturation), (true, saturation)] {
+                let sum = if selected { sum + weight } else { sum };
+                let entry = next.entry(key(sum)).or_insert((sum, 0.0));
+                entry.1 += mass * probability;
+            }
+        }
+        if next.len() > MAX_EXPOSURE_STATES {
+            return Err(EstimationError::unsupported(
+                "exact saturation: the neighbour exposure distribution has more distinct \
+                 weighted sums than the state budget",
+            ));
+        }
+        states = next;
+    }
+    Ok(states.into_values().collect())
+}
+
 fn level_probabilities(
     incoming: &[Vec<(usize, f64)>],
     low: f64,
@@ -352,8 +392,22 @@ fn level_probabilities(
     mapping: &ExposureMapping,
     level: ExposureLevel,
 ) -> Result<Vec<f64>, EstimationError> {
+    if matches!(mapping, ExposureMapping::OwnTreatment | ExposureMapping::Custom(_)) {
+        return Err(EstimationError::unsupported(
+            "saturation effects require a built-in neighbor exposure mapping",
+        ));
+    }
     let mut probabilities = Vec::with_capacity(incoming.len());
     for neighbors in incoming {
+        // Count and fraction exposures depend on how many neighbours are treated, so every
+        // neighbour weighs one; weighted exposure keeps the edge weights.
+        let weights: Vec<f64> = match mapping {
+            ExposureMapping::WeightedNeighborExposure => {
+                neighbors.iter().map(|&(_, weight)| weight).collect()
+            }
+            _ => vec![1.0; neighbors.len()],
+        };
+        let total_weight: f64 = weights.iter().sum();
         let mut probability = 0.0;
         for (saturation, saturation_mass) in [(low, 1.0 - high_share), (high, high_share)] {
             #[allow(
@@ -362,38 +416,26 @@ fn level_probabilities(
             )]
             let own_mass = if level.own == 1.0 { saturation } else { 1.0 - saturation };
             let mut neighbor_mass = 0.0;
-            for mask in 0..(1_usize << neighbors.len()) {
-                let mut mass = 1.0;
-                let mut treated = 0.0;
-                let mut treated_weight = 0.0;
-                let mut total_weight = 0.0;
-                for (j, &(_, weight)) in neighbors.iter().enumerate() {
-                    let selected = mask & (1 << j) != 0;
-                    mass *= if selected { saturation } else { 1.0 - saturation };
-                    treated += if selected { 1.0 } else { 0.0 };
-                    treated_weight += if selected { weight } else { 0.0 };
-                    total_weight += weight;
-                }
+            for (treated_weight, mass) in treated_weight_distribution(&weights, saturation)? {
+                #[allow(
+                    clippy::float_cmp,
+                    reason = "an empty or zero-weight neighbourhood has exposure exactly zero"
+                )]
                 let exposure = match mapping {
-                    ExposureMapping::NeighborCount => treated,
+                    ExposureMapping::NeighborCount => treated_weight,
                     ExposureMapping::NeighborFraction => {
                         if neighbors.is_empty() {
                             0.0
                         } else {
-                            treated / neighbors.len() as f64
+                            treated_weight / neighbors.len() as f64
                         }
                     }
-                    ExposureMapping::WeightedNeighborExposure => {
+                    _ => {
                         if total_weight == 0.0 {
                             0.0
                         } else {
                             treated_weight / total_weight
                         }
-                    }
-                    ExposureMapping::OwnTreatment | ExposureMapping::Custom(_) => {
-                        return Err(EstimationError::unsupported(
-                            "saturation effects require a built-in neighbor exposure mapping",
-                        ));
                     }
                 };
                 if (exposure - level.neighbors).abs() <= 1e-12 {
@@ -494,6 +536,28 @@ mod tests {
     use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 
     use super::{estimate_saturation_interference, estimate_saturation_interference_pointwise};
+
+    #[test]
+    fn count_exposure_probability_is_exact_beyond_sixteen_neighbors() {
+        // 24 equal-weight neighbours at saturation 0.5: P(count = 12) = C(24, 12) / 2^24.
+        let incoming = vec![(0..24).map(|j| (j, 1.0)).collect::<Vec<_>>()];
+        let level = ExposureLevel { own: 1.0, neighbors: 12.0 };
+        let probability = super::level_probabilities(
+            &incoming,
+            0.5,
+            0.5,
+            0.5,
+            &ExposureMapping::NeighborCount,
+            level,
+        )
+        .unwrap()[0];
+        let mut binomial = 1.0_f64;
+        for i in 0..12 {
+            binomial = binomial * f64::from(24 - i) / f64::from(i + 1);
+        }
+        let expected = 0.5 * binomial / f64::from(1_u32 << 24);
+        assert!((probability - expected).abs() < 1e-12, "{probability} vs {expected}");
+    }
 
     #[test]
     fn saturation_exposure_interval_covers_known_truth() {

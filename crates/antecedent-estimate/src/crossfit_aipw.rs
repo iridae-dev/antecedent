@@ -35,7 +35,6 @@ use crate::propensity::{
     require_interior_propensities, split_by_treatment,
 };
 use crate::scores::{ScoreColumn, ScoreTable};
-use crate::util::stats_err;
 
 /// Default fold count for licensed AIPW scores.
 pub const DEFAULT_AIPW_FOLDS: usize = 5;
@@ -368,9 +367,9 @@ fn build_scores_pass(
                         glm_options,
                     ),
                 }
-                .map_err(stats_err)
+                .map_err(crate::error::EstimationError::from)
                 .and_then(|fit| {
-                    fit.glm.require_ok().map_err(stats_err)?;
+                    fit.glm.require_ok().map_err(crate::error::EstimationError::from)?;
                     Ok(fit)
                 })
                 .inspect_err(|error| *failed = Some(FailedFit::from_error(fold, error)))?;
@@ -383,7 +382,7 @@ fn build_scores_pass(
                     &fit.coefficients,
                     &mut e_valid,
                 )
-                .map_err(stats_err)?;
+                .map_err(crate::error::EstimationError::from)?;
                 if let Some(out) = fitted_e.as_mut() {
                     for (k, &i) in valid.iter().enumerate() {
                         out[i] = e_valid[k];

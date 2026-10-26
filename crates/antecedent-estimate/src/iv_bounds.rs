@@ -190,12 +190,7 @@ impl IvBoundsEstimator {
         }
     }
 
-    /// Set the number of row-bootstrap replicates (0 = point bounds only).
-    #[must_use]
-    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.bootstrap_replicates = replicates;
-        self
-    }
+    crate::inference::with_bootstrap_replicates!();
 
     /// Declare the sampling design of the rows.
     #[must_use]

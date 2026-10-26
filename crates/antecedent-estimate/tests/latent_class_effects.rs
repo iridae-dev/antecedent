@@ -323,10 +323,10 @@ fn latent_premise_and_configuration_refusals() {
     assert!(message.contains("latent_class.randomization_not_declared"), "{message}");
 
     let mut many = config(1);
-    many.classes = 5;
+    many.classes = 100_000;
     let (code, message) = refusal(fit(&data, &many));
     assert_eq!(code, "invalid_argument");
-    assert!(message.contains("latent_class.too_many_classes"), "{message}");
+    assert!(message.contains("latent_class.too_few_rows"), "{message}");
 
     let mut constant = build();
     constant.a = vec![1.0; constant.a.len()];

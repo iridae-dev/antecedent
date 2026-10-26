@@ -31,11 +31,16 @@ use antecedent_stats::{QuantileRule, equal_tail_interval_sorted};
 use crate::continuous_dose::DoseRules;
 use crate::dose_basis_regression::{BasisPosterior, ResidualPrior, fit_basis_regression};
 use crate::error::EstimationError;
+use crate::util::dot;
 
-/// Gauss-Legendre nodes of the window quadrature: exact for polynomial curves of degree 29.
+/// Least Gauss-Legendre nodes of the window quadrature: exact for polynomial curves of degree 31.
 const WINDOW_NODES: usize = 16;
-/// Most polynomial coefficients per group, keeping the window quadrature exact.
-const MAX_GROUP_WIDTH: usize = 30;
+
+/// Nodes making the window quadrature exact for a polynomial of `width` coefficients: `n`
+/// nodes integrate degree `2n - 1` exactly, so the count grows with the width past the floor.
+fn window_nodes(width: usize) -> usize {
+    WINDOW_NODES.max(width.div_ceil(2))
+}
 
 /// Rows of the policy evaluation, aligned by row.
 #[derive(Clone, Copy, Debug)]
@@ -137,17 +142,16 @@ pub fn fixed_dose_policy_posterior(
         || !hi.is_finite()
         || lo >= hi
         || width == 0
-        || width > MAX_GROUP_WIDTH
         || rows.dose.iter().any(|d| *d < lo || *d > hi)
     {
         return Err(EstimationError::data_msg(
-            "a fixed dose policy posterior requires aligned finite rows inside the declared support, a positive bandwidth, support of at least two and a polynomial of at most 30 coefficients",
+            "a fixed dose policy posterior requires aligned finite rows inside the declared support, a positive bandwidth, support of at least two and a polynomial of at least one coefficient",
         ));
     }
     let observed: BTreeSet<&str> = rows.groups.iter().map(String::as_str).collect();
     let policy = mapping(rules.policy, &observed)?;
     let reference = mapping(rules.reference, &observed)?;
-    let (nodes, weights) = gauss_legendre(WINDOW_NODES);
+    let (nodes, weights) = gauss_legendre(window_nodes(width));
     let h = window.bandwidth;
     let mut minimum_local_rows = usize::MAX;
     let mut fractions = Vec::new();
@@ -285,10 +289,6 @@ fn fit_group(
     )
 }
 
-fn dot(left: &[f64], right: &[f64]) -> f64 {
-    left.iter().zip(right).map(|(a, b)| a * b).sum()
-}
-
 /// Add `fraction * functional . beta_k` to the policy and reference draws.
 fn accumulate(
     fit: &BasisPosterior,
@@ -347,6 +347,13 @@ fn interval_95(values: &[f64]) -> [f64; 2] {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn window_nodes_scale_with_the_polynomial_width() {
+        assert_eq!(window_nodes(1), WINDOW_NODES);
+        assert_eq!(window_nodes(30), WINDOW_NODES);
+        assert_eq!(window_nodes(80), 40);
+    }
 
     const SCALES: [f64; 3] = [3.0, 2.0, 1.0];
 

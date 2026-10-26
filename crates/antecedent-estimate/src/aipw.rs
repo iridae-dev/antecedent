@@ -83,7 +83,7 @@ use crate::propensity::{
 };
 use crate::sampling_weights::SamplingWeights;
 use crate::se::AnalyticSeKind;
-use crate::util::{BootstrapOutcome, refuse, stats_err};
+use crate::util::{BootstrapOutcome, refuse};
 
 /// Reusable scratch for AIPW point-estimate and bootstrap fits.
 ///
@@ -344,13 +344,7 @@ impl AipwAte {
         }
     }
 
-    /// Request a bootstrap interval produced by the complete fit/resample/stop/interval
-    /// procedure (see [`Self::bootstrap_interval`]).
-    #[must_use]
-    pub const fn with_bootstrap_interval(mut self, request: crate::util::IntervalRequest) -> Self {
-        self.bootstrap_interval = Some(request);
-        self
-    }
+    crate::inference::with_bootstrap_interval!();
 
     /// Declare sampling weights for every row of the source table. They are read by the
     /// cross-fitted ATE route; the estimand is the effect in the weighted population.
@@ -390,15 +384,7 @@ impl AipwAte {
         self
     }
 
-    /// Set the number of bootstrap replicates used for the bootstrap standard error.
-    ///
-    /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE.
-    /// Each replicate refits both the propensity model and the two outcome models.
-    #[must_use]
-    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.bootstrap_replicates = replicates;
-        self
-    }
+    crate::inference::with_bootstrap_replicates!();
 
     /// Set the overlap policy. Positivity is mandatory here:
     /// [`OverlapPolicy::ExplicitOverride`] is refused by `prepare`.
@@ -416,36 +402,13 @@ impl AipwAte {
         self
     }
 
-    /// Set the analytic standard-error kind (default [`AnalyticSeKind::Homoskedastic`]).
-    #[must_use]
-    pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
-        self.se_kind = se_kind;
-        self
-    }
+    crate::inference::with_se_kind!();
 
-    /// Set cluster ids (aligned to prepared rows) for [`AnalyticSeKind::Cluster`].
-    #[must_use]
-    pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
-        self.cluster_ids = Some(cluster_ids);
-        self
-    }
+    crate::inference::with_cluster_ids!();
 
-    /// Set cluster labels for every row of the source table (length must equal its row
-    /// count); each complete-case row keeps the label of its original row.
-    #[must_use]
-    pub fn with_source_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
-        self.source_cluster_ids = Some(cluster_ids);
-        self
-    }
+    crate::inference::with_source_cluster_ids!();
 
-    /// Declare the sampling design of the rows. The bootstrap then refuses a resample that
-    /// design does not allow: a row-level draw under independent subject trajectories, a
-    /// non-block draw of a dependent series, or a draw that ignores a panel's clusters.
-    #[must_use]
-    pub fn with_sampling_design(mut self, design: antecedent_core::DeclaredSamplingDesign) -> Self {
-        self.sampling_design = crate::util::SamplingDeclaration::Declared(design);
-        self
-    }
+    crate::inference::with_sampling_design!();
 
     /// Set the second-endpoint labels of a dyadic [`ClusterDml`] declaration for every row of
     /// the source table (length must equal its row count).
@@ -485,20 +448,9 @@ impl AipwAte {
         self
     }
 
-    /// Set multiway cluster ids (one `Vec<u32>` per clustering dimension) for
-    /// [`AnalyticSeKind::Multiway`].
-    #[must_use]
-    pub fn with_multiway_ids(mut self, multiway_ids: Vec<Vec<u32>>) -> Self {
-        self.multiway_ids = Some(multiway_ids);
-        self
-    }
+    crate::inference::with_multiway_ids!();
 
-    /// Set panel time labels for [`AnalyticSeKind::PanelClusterHac`].
-    #[must_use]
-    pub fn with_panel_times(mut self, panel_times: Vec<i64>) -> Self {
-        self.panel_times = Some(panel_times);
-        self
-    }
+    crate::inference::with_panel_times!();
 
     /// Prepare the covariate design from tabular data, identified estimand, and query.
     ///
@@ -1710,7 +1662,7 @@ impl AipwAte {
                 }
                 crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
                 crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
-                crate::util::gather_resampled_design(x_boot, &problem.design_matrix, n, ncols, idx);
+                crate::util::gather_cols(x_boot, &problem.design_matrix, n, ncols, idx);
                 // The resample carries each drawn row's sampling weight.
                 let w_boot: Option<Vec<f64>> = problem
                     .sampling_weights
@@ -1985,21 +1937,11 @@ pub(crate) fn select_rows_colmajor(
     idx: &[usize],
     out: &mut Vec<f64>,
 ) {
-    let m = idx.len();
-    out.clear();
-    out.resize(m * ncols, 0.0);
-    for c in 0..ncols {
-        let src_base = c * nrows;
-        let dst_base = c * m;
-        for (r, &i) in idx.iter().enumerate() {
-            out[dst_base + r] = matrix[src_base + i];
-        }
-    }
+    crate::util::gather_cols_into(out, matrix, nrows, ncols, idx);
 }
 
 fn select_values(values: &[f64], idx: &[usize], out: &mut Vec<f64>) {
-    out.clear();
-    out.extend(idx.iter().map(|&i| values[i]));
+    crate::util::gather_into(out, values, idx);
 }
 
 /// Fit separate OLS outcome models on the control (`T=0`) and treated (`T=1`) arms of
@@ -2080,7 +2022,7 @@ pub(crate) fn fit_outcome_models_weighted(
             &workspace.control_outcome,
             &mut workspace.outcome,
         )
-        .map_err(stats_err)?;
+        .map_err(crate::error::EstimationError::from)?;
     let beta0 = fit0.coefficients;
 
     select_rows_colmajor(design_matrix, nrows, ncols, &treated_idx, &mut workspace.treated_design);
@@ -2102,7 +2044,7 @@ pub(crate) fn fit_outcome_models_weighted(
             &workspace.treated_outcome,
             &mut workspace.outcome,
         )
-        .map_err(stats_err)?;
+        .map_err(crate::error::EstimationError::from)?;
     let beta1 = fit1.coefficients;
 
     Ok((beta0, beta1))

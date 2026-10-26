@@ -103,9 +103,8 @@ pub fn fit_polynomial_candidates(
     if candidates.is_empty()
         || candidates.len() > 256
         || measurements.is_empty()
-        || measurements.len() > 10_000
     {
-        return Err(invalid("constraint candidate/data limits"));
+        return Err(invalid("constraint candidates and measurements must be nonempty"));
     }
     let n = candidates[0].model.variables.len();
     let mut ids = std::collections::BTreeSet::new();

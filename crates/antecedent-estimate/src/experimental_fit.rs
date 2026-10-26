@@ -104,6 +104,7 @@ use antecedent_model::{HardClamp, ILL_CONDITIONED_KAPPA, LinearStructuralMap, as
 use thiserror::Error;
 
 use crate::recovery::CoefficientCovariance;
+use crate::util::dot;
 
 /// Semantic operation of one asymptotic-normal coefficient draw.
 ///
@@ -2670,10 +2671,6 @@ fn identified_posterior(
         mean,
         covariance: chol_inverse(&factor, d),
     }))
-}
-
-fn dot(left: &[f64], right: &[f64]) -> f64 {
-    left.iter().zip(right).map(|(a, b)| a * b).sum()
 }
 
 /// `left' M right` for a square `M` whose side is `left.len()`.

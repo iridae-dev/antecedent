@@ -92,7 +92,8 @@ use crate::error::{EstimationError, ExactF64, RefusalFields};
 use antecedent_core::ExecutionContext;
 use antecedent_core::diagnostic::{RouteCheck, RouteKind, RouteMass, RouteNativeDiagnostic};
 
-/// Observed-variable limit of the pilot.
+/// Observed-variable count the pilot's input checks assume. Not enforced: only the selected
+/// four-variable graph passes `is_selected`.
 pub const MAX_OBSERVED: usize = 6;
 /// Observed variables of the selected graph.
 pub(crate) const PILOT_OBSERVED: usize = 4;
@@ -296,13 +297,10 @@ impl BinaryCells {
 ///
 /// # Errors
 /// `route_not_supported` / `nested_markov.outside_binary_pilot` for another
-/// graph, more than six observed variables, a regime other than the observational
+/// graph, a regime other than the observational
 /// one, a non-binary domain or a table that is not 2x2x2x2; a count error as in
 /// [`BinaryCells::new`]. Never a nonidentification claim.
 pub fn binary_cells(input: &NestedMarkovInput) -> Result<BinaryCells, EstimationError> {
-    if input.graph.variables.len() > MAX_OBSERVED {
-        return Err(outside("more than 6 observed variables"));
-    }
     if !input.graph.is_selected() {
         return Err(outside("the declared ADMG is not the selected pilot graph"));
     }

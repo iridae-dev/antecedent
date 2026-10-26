@@ -34,7 +34,8 @@ use crate::propensity::{
 };
 
 const SUBSAMPLE_FRACTION: f64 = 0.5;
-const MAX_CUTS: usize = 16;
+/// Floor of the candidate cut count per feature; larger nodes scale it with the node size.
+const MIN_CUTS: usize = 16;
 
 /// Native honest causal forest with a cross-fitted AIPW marginal ATE.
 ///
@@ -55,6 +56,10 @@ pub struct CausalForest {
     pub max_depth: usize,
     /// Honest sample split (splitting vs estimation).
     pub honesty: bool,
+    /// Candidate split cut points per feature at every node. `None` scales the count with the
+    /// node size (at least 16, otherwise the square root of the node's rows), so large nodes are
+    /// split on a finer histogram.
+    pub max_cuts: Option<usize>,
     /// Declared independence unit of the rows. Without a declaration rows are the unit.
     pub units: DeclaredUnits,
 }
@@ -74,6 +79,7 @@ impl CausalForest {
             min_leaf: 8,
             max_depth: 8,
             honesty: true,
+            max_cuts: None,
             units: DeclaredUnits {
                 spec: None,
                 first: None,
@@ -124,6 +130,13 @@ impl CausalForest {
     #[must_use]
     pub const fn with_max_depth(mut self, max_depth: usize) -> Self {
         self.max_depth = max_depth;
+        self
+    }
+
+    /// Fix the number of candidate cut points per feature (`None` scales with node size).
+    #[must_use]
+    pub const fn with_max_cuts(mut self, max_cuts: Option<usize>) -> Self {
+        self.max_cuts = max_cuts;
         self
     }
 
@@ -224,7 +237,7 @@ impl CausalForest {
         if self.n_trees == 0 {
             return Err(EstimationError::data_msg("CausalForest requires at least one tree"));
         }
-        if self.min_leaf == 0 || self.max_depth == 0 {
+        if self.min_leaf == 0 || self.max_depth == 0 || self.max_cuts == Some(0) {
             return Err(EstimationError::data_msg(
                 "CausalForest min_leaf and max_depth must be ≥ 1",
             ));
@@ -269,7 +282,11 @@ impl CausalForest {
             t,
             clusters: cluster_rows.as_ref().map(crate::util::ClusterRows::members),
         };
-        let shape = TreeShape { min_leaf: self.min_leaf, max_depth: self.max_depth };
+        let shape = TreeShape {
+            min_leaf: self.min_leaf,
+            max_depth: self.max_depth,
+            max_cuts: self.max_cuts,
+        };
         let honesty = self.honesty;
         let trees = ctx.map_indexed(self.n_trees, |b, inner| {
             let mut rng = inner.rng.stream_for(
@@ -458,6 +475,7 @@ struct ForestData<'a> {
 struct TreeShape {
     min_leaf: usize,
     max_depth: usize,
+    max_cuts: Option<usize>,
 }
 
 fn grow_tree(data: &ForestData<'_>, shape: TreeShape, honesty: bool, rng: &mut CausalRng) -> Node {
@@ -552,11 +570,11 @@ fn grow_from(
     rng: &mut CausalRng,
 ) -> Node {
     let ForestData { p, y, t, .. } = *data;
-    let TreeShape { min_leaf, max_depth } = shape;
+    let TreeShape { min_leaf, max_depth, .. } = shape;
     if depth >= max_depth || rows.len() < min_leaf.saturating_mul(2) || p == 0 {
         return Node::Leaf { cate: leaf_tau(y, t, rows), se: leaf_se(y, t, rows) };
     }
-    let Some((feature, threshold, left_rows, right_rows)) = best_split(rows, data, min_leaf, rng)
+    let Some((feature, threshold, left_rows, right_rows)) = best_split(rows, data, shape, rng)
     else {
         return Node::Leaf { cate: leaf_tau(y, t, rows), se: leaf_se(y, t, rows) };
     };
@@ -571,41 +589,50 @@ fn grow_from(
 fn best_split(
     rows: &[antecedent_data::GlobalId],
     data: &ForestData<'_>,
-    min_leaf: usize,
+    shape: TreeShape,
     rng: &mut CausalRng,
 ) -> Option<(usize, f64, Vec<antecedent_data::GlobalId>, Vec<antecedent_data::GlobalId>)> {
     let ForestData { x, n, p, y, t, .. } = *data;
+    let TreeShape { min_leaf, max_cuts, .. } = shape;
+    let max_cuts = max_cuts.unwrap_or_else(|| MIN_CUTS.max(rows.len().isqrt()));
     let feats = choose_features(p, rng);
     let mut best_score = f64::NEG_INFINITY;
     let mut best: Option<(usize, f64)> = None;
+    // Row indices and their feature values, reused across features and sorted by value only
+    // (a stable sort keeps ties in node-row order, so the scan order is unchanged).
+    let mut keyed: Vec<(f64, usize)> = Vec::with_capacity(rows.len());
     for &feat in &feats {
-        let mut order = rows.to_vec();
-        order.sort_by(|&a, &b| {
-            x[feat * n + usize::try_from(a.get()).expect("row id")]
-                .total_cmp(&x[feat * n + usize::try_from(b.get()).expect("row id")])
-        });
-        let cuts = candidate_thresholds(&order, x, n, feat);
-        let total = arm_sums(y, t, &order);
+        keyed.clear();
+        keyed.extend(rows.iter().map(|&r| {
+            let i = usize::try_from(r.get()).expect("row id");
+            (x[feat * n + i], i)
+        }));
+        keyed.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let cuts = candidate_thresholds(&keyed, max_cuts);
+        let mut total = [0.0; 4];
+        for &(_, i) in &keyed {
+            let arm = if t[i] > 0.5 { 0 } else { 2 };
+            total[arm] += y[i];
+            total[arm + 1] += 1.0;
+        }
         let mut left_sums = [0.0; 4];
         let mut split = 0;
         for thr in cuts {
-            while split < order.len()
-                && x[feat * n + usize::try_from(order[split].get()).expect("row id")] <= thr
-            {
-                let i = usize::try_from(order[split].get()).expect("row id");
+            while split < keyed.len() && keyed[split].0 <= thr {
+                let i = keyed[split].1;
                 let arm = if t[i] > 0.5 { 0 } else { 2 };
                 left_sums[arm] += y[i];
                 left_sums[arm + 1] += 1.0;
                 split += 1;
             }
-            if split < min_leaf || order.len() - split < min_leaf {
+            if split < min_leaf || keyed.len() - split < min_leaf {
                 continue;
             }
             let right_sums = std::array::from_fn(|i| total[i] - left_sums[i]);
             let Some(tl) = tau_from_sums(left_sums) else { continue };
             let Some(tr) = tau_from_sums(right_sums) else { continue };
             let nl = split as f64;
-            let nr = (order.len() - split) as f64;
+            let nr = (keyed.len() - split) as f64;
             let nn = (nl + nr).max(1.0);
             let score = (nl * nr / nn.powi(2)) * (tl - tr).powi(2);
             if score > best_score {
@@ -641,24 +668,18 @@ fn choose_features(p: usize, rng: &mut CausalRng) -> Vec<usize> {
     feats
 }
 
-fn candidate_thresholds(
-    order: &[antecedent_data::GlobalId],
-    x: &[f64],
-    n: usize,
-    feat: usize,
-) -> Vec<f64> {
-    if order.len() < 2 {
+fn candidate_thresholds(sorted: &[(f64, usize)], max_cuts: usize) -> Vec<f64> {
+    if sorted.len() < 2 {
         return Vec::new();
     }
-    let mut vals: Vec<f64> =
-        order.iter().map(|&i| x[feat * n + usize::try_from(i.get()).expect("row id")]).collect();
+    let mut vals: Vec<f64> = sorted.iter().map(|&(v, _)| v).collect();
     vals.dedup_by(|a, b| (*a - *b).abs() <= 1e-12);
     if vals.len() < 2 {
         return Vec::new();
     }
     let mut cuts = Vec::new();
     let gaps = vals.len() - 1;
-    let stride = gaps.div_ceil(MAX_CUTS).max(1);
+    let stride = gaps.div_ceil(max_cuts).max(1);
     let mut i = 0;
     while i < gaps {
         cuts.push(0.5 * vals[i] + 0.5 * vals[i + 1]);

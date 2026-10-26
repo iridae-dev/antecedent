@@ -59,15 +59,13 @@ use antecedent_expr::{
     OutcomeExprId, ProgramLimits, ProgramSchema, ProgramVariable,
 };
 use antecedent_identify::{IdentificationResult, IdentificationStatus};
-use antecedent_stats::{
-    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx, invert_square,
-};
+use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::se::{AnalyticSeKind, require_clusters};
-use crate::util::{BootstrapSeResult, stats_err};
+use crate::util::{BootstrapSeResult};
 
 /// Stable id of the functional-form restriction the product-of-coefficients shortcut relies on.
 pub(crate) const LINEAR_PATH_PRODUCT_ASSUMPTION_ID: &str = "frontdoor.linear_path_product";
@@ -504,15 +502,7 @@ impl FrontDoorTwoStage {
         }
     }
 
-    /// Set the number of bootstrap replicates used for the bootstrap standard error.
-    ///
-    /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic
-    /// stacked-sandwich SE.
-    #[must_use]
-    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.bootstrap_replicates = replicates;
-        self
-    }
+    crate::inference::with_bootstrap_replicates!();
 
     /// Set the overlap policy. Must remain [`OverlapPolicy::ExplicitOverride`] — front-door
     /// is not a propensity-based method.
@@ -522,14 +512,7 @@ impl FrontDoorTwoStage {
         self
     }
 
-    /// Set the analytic SE policy for the stacked path-sum sandwich (default
-    /// [`AnalyticSeKind::Hc0`]). Supports Hc0/Hc1/Cluster only; Homoskedastic is
-    /// refused (it previously aliased HC0 meat).
-    #[must_use]
-    pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
-        self.se_kind = se_kind;
-        self
-    }
+    crate::inference::with_se_kind!();
 
     /// Set cluster ids (length = prepared `nrows`) for [`AnalyticSeKind::Cluster`].
     #[must_use]
@@ -546,14 +529,7 @@ impl FrontDoorTwoStage {
         self
     }
 
-    /// Declare the sampling design of the rows. The bootstrap then refuses a resample that
-    /// design does not allow: a row-level draw under independent subject trajectories, a
-    /// non-block draw of a dependent series, or a draw that ignores a panel's clusters.
-    #[must_use]
-    pub fn with_sampling_design(mut self, design: antecedent_core::DeclaredSamplingDesign) -> Self {
-        self.sampling_design = crate::util::SamplingDeclaration::Declared(design);
-        self
-    }
+    crate::inference::with_sampling_design!();
 
     /// Prepare the treatment/mediator/outcome design.
     ///
@@ -741,7 +717,7 @@ impl FrontDoorTwoStage {
         let x = stage1_matrix(treatment);
         self.backend
             .least_squares(&x, n, STAGE1_NCOLS, mediator, &mut workspace.ols)
-            .map_err(stats_err)
+            .map_err(crate::error::EstimationError::from)
     }
 
     fn fit_stage2<M: AsRef<[f64]>>(
@@ -754,7 +730,7 @@ impl FrontDoorTwoStage {
         let n = treatment.len();
         let ncols = 2 + mediators.len();
         let x = stage2_matrix(treatment, mediators);
-        self.backend.least_squares(&x, n, ncols, outcome, &mut workspace.ols).map_err(stats_err)
+        self.backend.least_squares(&x, n, ncols, outcome, &mut workspace.ols).map_err(crate::error::EstimationError::from)
     }
 
     fn bootstrap_se(
@@ -942,29 +918,19 @@ fn stacked_theta_cov_and_grad(
     }
     let n_params = n_mediators * STAGE1_NCOLS + stages.stage2_ncols;
 
-    // Block-diagonal bread A = diag(X1'X1, …, X1'X1, X2'X2).
-    let mut bread = vec![0.0; n_params * n_params];
-    let mut xtx1 = vec![0.0; STAGE1_NCOLS * STAGE1_NCOLS];
-    form_xtx(stages.x1, n_rows, STAGE1_NCOLS, &mut xtx1);
-    for mediator_idx in 0..n_mediators {
-        let off = mediator_idx * STAGE1_NCOLS;
-        for row in 0..STAGE1_NCOLS {
-            for col in 0..STAGE1_NCOLS {
-                bread[(off + row) * n_params + (off + col)] = xtx1[row * STAGE1_NCOLS + col];
-            }
-        }
-    }
-    let mut xtx2 = vec![0.0; stages.stage2_ncols * stages.stage2_ncols];
-    form_xtx(stages.x2, n_rows, stages.stage2_ncols, &mut xtx2);
-    let stage2_off = n_mediators * STAGE1_NCOLS;
-    for row in 0..stages.stage2_ncols {
-        for col in 0..stages.stage2_ncols {
-            bread[(stage2_off + row) * n_params + (stage2_off + col)] =
-                xtx2[row * stages.stage2_ncols + col];
-        }
-    }
-    let bread_inv = invert_square(&bread, n_params)
+    // Block-diagonal bread A = diag(X1'X1, …, X1'X1, X2'X2). The stages are independent, so
+    // each distinct block is inverted once, from the QR of its own design (the Gram matrix is
+    // never formed), and A⁻¹ is never assembled densely.
+    let inv1 = crate::util::xtx_inverse(stages.x1, n_rows, STAGE1_NCOLS)
         .ok_or_else(|| EstimationError::stats_msg("singular stacked front-door bread"))?;
+    let inv2 = crate::util::xtx_inverse(stages.x2, n_rows, stages.stage2_ncols)
+        .ok_or_else(|| EstimationError::stats_msg("singular stacked front-door bread"))?;
+    let stage2_off = n_mediators * STAGE1_NCOLS;
+    // (offset, width, inverse of the block) for every diagonal block of A.
+    let mut blocks: Vec<(usize, usize, &[f64])> = (0..n_mediators)
+        .map(|mediator_idx| (mediator_idx * STAGE1_NCOLS, STAGE1_NCOLS, inv1.as_slice()))
+        .collect();
+    blocks.push((stage2_off, stages.stage2_ncols, inv2.as_slice()));
 
     let meat = match se_kind {
         AnalyticSeKind::Homoskedastic => {
@@ -994,25 +960,31 @@ fn stacked_theta_cov_and_grad(
         }
     };
 
-    // Σ = A⁻¹ B A⁻¹
-    let mut tmp = vec![0.0; n_params * n_params];
-    for row in 0..n_params {
-        for col in 0..n_params {
-            let mut sum = 0.0;
-            for mid in 0..n_params {
-                sum += bread_inv[row * n_params + mid] * meat[mid * n_params + col];
-            }
-            tmp[row * n_params + col] = sum;
-        }
-    }
+    // Σ = A⁻¹ B A⁻¹, block by block: Σ_ij = inv_i · B_ij · inv_j.
     let mut cov = vec![0.0; n_params * n_params];
-    for row in 0..n_params {
-        for col in 0..n_params {
-            let mut sum = 0.0;
-            for mid in 0..n_params {
-                sum += tmp[row * n_params + mid] * bread_inv[mid * n_params + col];
+    for &(row_off, row_width, row_inv) in &blocks {
+        for &(col_off, col_width, col_inv) in &blocks {
+            // tmp = inv_i · B_ij  (row_width × col_width)
+            let mut tmp = vec![0.0; row_width * col_width];
+            for r in 0..row_width {
+                for mid in 0..row_width {
+                    let weight = row_inv[r * row_width + mid];
+                    for c in 0..col_width {
+                        tmp[r * col_width + c] +=
+                            weight * meat[(row_off + mid) * n_params + col_off + c];
+                    }
+                }
             }
-            cov[row * n_params + col] = sum;
+            // Σ_ij = tmp · inv_j
+            for r in 0..row_width {
+                for c in 0..col_width {
+                    let mut sum = 0.0;
+                    for mid in 0..col_width {
+                        sum += tmp[r * col_width + mid] * col_inv[mid * col_width + c];
+                    }
+                    cov[(row_off + r) * n_params + col_off + c] = sum;
+                }
+            }
         }
     }
 

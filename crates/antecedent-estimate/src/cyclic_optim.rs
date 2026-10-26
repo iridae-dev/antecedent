@@ -2,12 +2,11 @@
 //! Limited-memory inverse-curvature products for local smooth cyclic likelihoods.
 //! The two-loop update is the same standard L-BFGS construction used by the
 //! repository's NOTEARS solver; this helper admits no graph or likelihood claim.
+use crate::util::dot;
+
 #[derive(Default)]
 pub(crate) struct InverseCurvature {
     history: std::collections::VecDeque<(Vec<f64>, Vec<f64>, f64)>,
-}
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 impl InverseCurvature {
     pub(crate) fn update(

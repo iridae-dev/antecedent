@@ -644,9 +644,7 @@ mod tests {
         (state >> 11) as f64 / (1_u64 << 53) as f64
     }
 
-    fn expit(x: f64) -> f64 {
-        1.0 / (1.0 + (-x).exp())
-    }
+    use crate::util::sigmoid as expit;
 
     type Rows = (Vec<usize>, Vec<i64>, Vec<bool>, Vec<bool>, Vec<bool>, Vec<f64>);
 

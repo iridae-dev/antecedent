@@ -37,7 +37,7 @@ use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::sampling_weights::SamplingWeights;
 use crate::se::{AnalyticSeKind, SeSpec};
-use crate::util::{sample_std, stats_err};
+use crate::util::{sample_std};
 
 /// Queries matched between cancellation checks when several donors are searched per query.
 const MATCH_CANCELLATION_CHUNK: usize = 1024;
@@ -166,17 +166,7 @@ impl PropensityMatching {
         self
     }
 
-    /// Record a bootstrap-replicate count without licensing a bootstrap SE.
-    ///
-    /// The nonparametric bootstrap is invalid for nearest-neighbor matching CIs
-    /// (Abadie–Imbens 2008). This setter keeps the field for callers that still set it;
-    /// [`PropensityMatching::fit`] never writes [`EffectEstimate::se_bootstrap`]. Prefer
-    /// the analytic SE.
-    #[must_use]
-    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.bootstrap_replicates = replicates;
-        self
-    }
+    crate::inference::with_bootstrap_replicates!();
 
     /// Set the overlap policy. Positivity is mandatory here:
     /// [`OverlapPolicy::ExplicitOverride`] is refused by `prepare`.
@@ -212,12 +202,7 @@ impl PropensityMatching {
         self
     }
 
-    /// Set the analytic SE kind (only `Homoskedastic`, Abadie–Imbens, is supported).
-    #[must_use]
-    pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
-        self.se_kind = se_kind;
-        self
-    }
+    crate::inference::with_se_kind!();
 
     /// Declare linear arm outcome models and include both residual donor-reuse noise and
     /// population treatment-effect heterogeneity in the analytic variance. The raw
@@ -228,26 +213,11 @@ impl PropensityMatching {
         self
     }
 
-    /// Set cluster ids aligned to prepared complete-case rows.
-    #[must_use]
-    pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
-        self.cluster_ids = Some(cluster_ids);
-        self
-    }
+    crate::inference::with_cluster_ids!();
 
-    /// Set multiway cluster ids (one `Vec<u32>` per clustering dimension).
-    #[must_use]
-    pub fn with_multiway_ids(mut self, multiway_ids: Vec<Vec<u32>>) -> Self {
-        self.multiway_ids = Some(multiway_ids);
-        self
-    }
+    crate::inference::with_multiway_ids!();
 
-    /// Set panel time labels for panel HAC.
-    #[must_use]
-    pub fn with_panel_times(mut self, panel_times: Vec<i64>) -> Self {
-        self.panel_times = Some(panel_times);
-        self
-    }
+    crate::inference::with_panel_times!();
 
     /// Prepare the covariate design.
     ///
@@ -642,7 +612,7 @@ pub(crate) fn match_diffs_with(
                     Ok(boxed) => Some(boxed),
                     // The guard refuses this index: the cached split-plane index answers.
                     Err(StatsError::ResourceLimit { .. }) => None,
-                    Err(error) => return Err(stats_err(error)),
+                    Err(error) => return Err(EstimationError::from(error)),
                 }
             } else {
                 None
@@ -669,7 +639,7 @@ pub(crate) fn match_diffs_with(
                         &mut distances,
                         ctx,
                     )
-                    .map_err(stats_err)?;
+                    .map_err(crate::error::EstimationError::from)?;
             } else {
                 match_nearest_k(
                     index,
@@ -848,15 +818,15 @@ fn match_scalar_sorted(
     ctx: &ExecutionContext,
 ) -> Result<(), EstimationError> {
     if queries.len() != n_queries {
-        return Err(stats_err(StatsError::Shape { message: "queries length != n_queries * dim" }));
+        return Err(EstimationError::from(StatsError::Shape { message: "queries length != n_queries * dim" }));
     }
     let index = SortedScalarIndex::from_donors(donors);
     for (q, &query) in queries.iter().enumerate() {
         if q % MATCH_CANCELLATION_CHUNK == 0 && ctx.cancellation.is_cancelled() {
-            return Err(stats_err(StatsError::Cancelled));
+            return Err(EstimationError::from(StatsError::Cancelled));
         }
         if !query.is_finite() {
-            return Err(stats_err(StatsError::Shape { message: "matching query must be finite" }));
+            return Err(EstimationError::from(StatsError::Shape { message: "matching query must be finite" }));
         }
         if let Some((donor, distance)) = index.nearest(query, caliper) {
             donor_rows[q] = donor;
@@ -885,15 +855,15 @@ fn match_with_box_tree(
     if matches == 1 {
         index
             .match_all_within(query_features, n_queries, caliper, donor_rows, distances, ctx)
-            .map_err(stats_err)?;
+            .map_err(crate::error::EstimationError::from)?;
         return Ok(());
     }
     let mut found = Vec::with_capacity(matches);
     for (q, query) in query_features.chunks_exact(index.dim()).enumerate() {
         if q % MATCH_CANCELLATION_CHUNK == 0 && ctx.cancellation.is_cancelled() {
-            return Err(stats_err(StatsError::Cancelled));
+            return Err(EstimationError::from(StatsError::Cancelled));
         }
-        index.nearest_k(query, matches, &mut found).map_err(stats_err)?;
+        index.nearest_k(query, matches, &mut found).map_err(crate::error::EstimationError::from)?;
         let farthest = found.last().map_or(f64::INFINITY, |&(_, d)| d);
         let within = found.len() == matches
             && farthest.is_finite()
@@ -930,9 +900,9 @@ fn match_nearest_k(
     let mut found = Vec::with_capacity(matches);
     for (q, query) in query_features.chunks_exact(dim).enumerate() {
         if q % MATCH_CANCELLATION_CHUNK == 0 && ctx.cancellation.is_cancelled() {
-            return Err(stats_err(StatsError::Cancelled));
+            return Err(EstimationError::from(StatsError::Cancelled));
         }
-        index.nearest_k(query, matches, &mut found).map_err(stats_err)?;
+        index.nearest_k(query, matches, &mut found).map_err(crate::error::EstimationError::from)?;
         let farthest = found.last().map_or(f64::INFINITY, |&(_, d)| d);
         let within = found.len() == matches
             && farthest.is_finite()

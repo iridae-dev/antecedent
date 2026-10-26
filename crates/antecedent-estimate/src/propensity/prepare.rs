@@ -17,7 +17,6 @@ use antecedent_stats::{
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::propensity::levels::{DeclaredTreatmentLevels, OtherLevels, classify_treatment_levels};
-use crate::util::stats_err;
 
 /// Prepared covariate design + treatment/outcome shared by every propensity estimator.
 ///
@@ -171,8 +170,8 @@ impl PropensityModel {
                 options,
             ),
         }
-        .map_err(stats_err)?;
-        fit.glm.require_ok().map_err(stats_err)?;
+        .map_err(crate::error::EstimationError::from)?;
+        fit.glm.require_ok().map_err(crate::error::EstimationError::from)?;
         let clip = clip_of(problem.overlap);
         let mut clipped_scores = fit.scores.clone();
         if let Some(c) = clip {
@@ -284,7 +283,7 @@ impl PropensityEstimationWorkspace {
         if needs_rebuild {
             let donor_ids: Vec<usize> = (0..n_donors).collect();
             let index = MatchingIndex::exact_within(donor_features, dim, &donor_ids, distance, ctx)
-                .map_err(stats_err)?;
+                .map_err(crate::error::EstimationError::from)?;
             self.matching_index = Some(index);
             self.matching_index_key = key;
             self.matching_index_builds = self.matching_index_builds.saturating_add(1);
@@ -656,13 +655,12 @@ pub(crate) fn split_by_treatment(treatment: &[f64]) -> (Vec<usize>, Vec<usize>) 
 }
 
 pub(crate) fn gather(values: &[f64], idx: &[usize]) -> Vec<f64> {
-    idx.iter().map(|&i| values[i]).collect()
+    crate::util::gather(values, idx)
 }
 
 /// [`gather`] into a reused buffer for replicate loops.
 pub(crate) fn gather_into(out: &mut Vec<f64>, values: &[f64], idx: &[usize]) {
-    out.clear();
-    out.extend(idx.iter().map(|&i| values[i]));
+    crate::util::gather_into(out, values, idx);
 }
 
 pub(crate) fn gather_rowmajor(matrix: &[f64], dim: usize, idx: &[usize]) -> Vec<f64> {

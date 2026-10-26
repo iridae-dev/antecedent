@@ -2,7 +2,7 @@
 //!
 //! # The cell
 //!
-//! The population is a finite mixture of `K` latent regimes (classes), `2 <= K <= 4`. Within
+//! The population is a finite mixture of `K` latent regimes (classes), `K >= 2`. Within
 //! class `k` the outcome follows a Gaussian linear model in the treatment `A` and the observed
 //! covariates `X`:
 //!
@@ -96,10 +96,8 @@
 //! * `latent_class.treatment_constant` (`effect_not_identified`);
 //! * `latent_class.design_support_too_small` (`design_rank_deficient`);
 //! * `latent_class.constant_outcome` (`population_not_estimable`);
-//! * `latent_class.too_many_classes`, `latent_class.invalid_config`,
-//!   `latent_class.length_mismatch`, `latent_class.non_finite_input`,
-//!   `latent_class.too_few_rows`, `latent_class.too_many_covariates`
-//!   (`invalid_argument`).
+//! * `latent_class.invalid_config`, `latent_class.length_mismatch`,
+//!   `latent_class.non_finite_input`, `latent_class.too_few_rows` (`invalid_argument`).
 //!
 //! # What a result does not say
 //!
@@ -126,17 +124,9 @@ use crate::util::dot;
 use crate::util::{count, refuse};
 use crate::vector_treatment::DesignSummary;
 
-/// Most latent classes accepted.
+/// Latent classes the checked routes treat as the default envelope. Not enforced here: the
+/// class count is bounded by the rows-per-class and design-support identifiability checks.
 pub const LATENT_CLASS_MAX_CLASSES: usize = 4;
-
-/// Most restarts accepted.
-pub(crate) const LATENT_CLASS_MAX_RESTARTS: usize = 64;
-
-/// Most covariates accepted.
-pub(crate) const LATENT_CLASS_MAX_COVARIATES: usize = 64;
-
-/// Most bootstrap replicates accepted.
-pub(crate) const LATENT_CLASS_MAX_BOOTSTRAP: usize = 5000;
 
 /// Inference claim of the route.
 pub const LATENT_CLASS_INFERENCE_CLAIM: &str = "point_with_bootstrap_se";
@@ -182,7 +172,7 @@ pub struct LatentClassData<'a> {
 /// Fit configuration.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LatentClassConfig {
-    /// Number of latent classes `K`, `2..=4`.
+    /// Number of latent classes `K`, at least 2.
     pub classes: usize,
     /// Seed of every deterministic stream (initialization, bootstrap).
     pub seed: u64,
@@ -388,13 +378,6 @@ fn validate_config(config: &LatentClassConfig) -> Result<(), EstimationError> {
             "a single class is the ordinary regression, not a mixture; declare at least two classes",
         ));
     }
-    if config.classes > LATENT_CLASS_MAX_CLASSES {
-        return Err(refuse(
-            invalid,
-            "latent_class.too_many_classes",
-            "at most four latent classes are supported",
-        ));
-    }
     if !config.assume_conditional_randomization {
         return Err(refuse(
             reason_code!("required_option_missing"),
@@ -403,9 +386,7 @@ fn validate_config(config: &LatentClassConfig) -> Result<(), EstimationError> {
         ));
     }
     let bad = config.restarts == 0
-        || config.restarts > LATENT_CLASS_MAX_RESTARTS
         || config.max_iterations == 0
-        || config.bootstrap_replicates > LATENT_CLASS_MAX_BOOTSTRAP
         || !(config.tolerance.is_finite() && config.tolerance > 0.0)
         || !(config.min_class_weight >= 0.0 && config.min_class_weight <= 0.5)
         || !(config.min_separation >= 0.0 && config.min_separation <= 1.0)
@@ -453,20 +434,13 @@ fn validate_data(
             "outcome, treatment and covariate columns must share one length",
         ));
     }
-    if p > LATENT_CLASS_MAX_COVARIATES {
-        return Err(refuse(
-            invalid,
-            "latent_class.too_many_covariates",
-            "the covariate count exceeds the supported bound",
-        ));
-    }
     let finite = data.outcome.iter().chain(data.treatment).all(|v| v.is_finite())
         && data.covariates.iter().all(|c| c.iter().all(|v| v.is_finite()));
     if !finite {
         return Err(refuse(invalid, "latent_class.non_finite_input", "inputs must be finite"));
     }
     let d = p + 2;
-    if n < config.classes * (d + 1) {
+    if n < config.classes.saturating_mul(d + 1) {
         return Err(refuse(
             invalid,
             "latent_class.too_few_rows",
@@ -808,6 +782,75 @@ fn permutations(k: usize) -> Vec<Vec<usize>> {
     out
 }
 
+/// Classes up to which the alignment enumerates every permutation (first minimum wins ties);
+/// beyond it the same minimum-cost alignment is solved as an assignment problem.
+const EXHAUSTIVE_ALIGNMENT_CLASSES: usize = 6;
+
+/// Minimum-cost assignment of the rows of a square cost matrix to distinct columns
+/// (Hungarian algorithm with potentials, `O(k^3)`): entry `i` is the column of row `i`.
+/// `None` for a non-finite cost.
+fn min_cost_assignment(cost: &[Vec<f64>]) -> Option<Vec<usize>> {
+    let k = cost.len();
+    if cost.iter().any(|row| row.len() != k || row.iter().any(|v| !v.is_finite())) {
+        return None;
+    }
+    // One-based potentials and matching; column 0 is the virtual start.
+    let mut u = vec![0.0_f64; k + 1];
+    let mut v = vec![0.0_f64; k + 1];
+    let mut matched_row = vec![0_usize; k + 1];
+    let mut way = vec![0_usize; k + 1];
+    for i in 1..=k {
+        matched_row[0] = i;
+        let mut j0 = 0_usize;
+        let mut min_v = vec![f64::INFINITY; k + 1];
+        let mut used = vec![false; k + 1];
+        loop {
+            used[j0] = true;
+            let i0 = matched_row[j0];
+            let mut delta = f64::INFINITY;
+            let mut j1 = 0_usize;
+            for j in 1..=k {
+                if !used[j] {
+                    let reduced = cost[i0 - 1][j - 1] - u[i0] - v[j];
+                    if reduced < min_v[j] {
+                        min_v[j] = reduced;
+                        way[j] = j0;
+                    }
+                    if min_v[j] < delta {
+                        delta = min_v[j];
+                        j1 = j;
+                    }
+                }
+            }
+            for j in 0..=k {
+                if used[j] {
+                    u[matched_row[j]] += delta;
+                    v[j] -= delta;
+                } else {
+                    min_v[j] -= delta;
+                }
+            }
+            j0 = j1;
+            if matched_row[j0] == 0 {
+                break;
+            }
+        }
+        loop {
+            let j1 = way[j0];
+            matched_row[j0] = matched_row[j1];
+            j0 = j1;
+            if j0 == 0 {
+                break;
+            }
+        }
+    }
+    let mut assignment = vec![0_usize; k];
+    for j in 1..=k {
+        assignment[matched_row[j] - 1] = j - 1;
+    }
+    Some(assignment)
+}
+
 fn mixture_average(params: &Params) -> f64 {
     params.weights.iter().zip(&params.beta).map(|(w, b)| w * b[1]).sum()
 }
@@ -833,24 +876,29 @@ fn bootstrap_replicate(
     e_step(&sample, reference, &mut resp);
     let fit = run_em(&sample, resp, config, limits).ok()?;
     let canonical = reorder(&fit.params, &canonical_order(&fit.params));
-    let mut best: Option<(f64, Vec<usize>)> = None;
-    for perm in permutations(k) {
-        let cost: f64 = (0..k)
-            .map(|c| {
-                let rep = &canonical.beta[perm[c]];
-                let reference_beta = &reference.beta[c];
-                (rep[1] - reference_beta[1]).powi(2) + (rep[0] - reference_beta[0]).powi(2)
-            })
-            .sum();
-        let lower = match &best {
-            Some((current, _)) => cost < *current,
-            None => true,
-        };
-        if lower {
-            best = Some((cost, perm));
+    let pair_cost = |c: usize, r: usize| {
+        let rep = &canonical.beta[r];
+        let reference_beta = &reference.beta[c];
+        (rep[1] - reference_beta[1]).powi(2) + (rep[0] - reference_beta[0]).powi(2)
+    };
+    let perm = if k <= EXHAUSTIVE_ALIGNMENT_CLASSES {
+        let mut best: Option<(f64, Vec<usize>)> = None;
+        for perm in permutations(k) {
+            let cost: f64 = (0..k).map(|c| pair_cost(c, perm[c])).sum();
+            let lower = match &best {
+                Some((current, _)) => cost < *current,
+                None => true,
+            };
+            if lower {
+                best = Some((cost, perm));
+            }
         }
-    }
-    let perm = best?.1;
+        best?.1
+    } else {
+        let cost: Vec<Vec<f64>> =
+            (0..k).map(|c| (0..k).map(|r| pair_cost(c, r)).collect()).collect();
+        min_cost_assignment(&cost)?
+    };
     let effects: Vec<f64> = perm.iter().map(|&c| canonical.beta[c][1]).collect();
     let weights: Vec<f64> = perm.iter().map(|&c| canonical.weights[c]).collect();
     let average = effects.iter().zip(&weights).map(|(t, w)| t * w).sum();
@@ -1013,4 +1061,31 @@ fn check_identification(
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod assignment_tests {
+    use super::{min_cost_assignment, permutations};
+
+    #[test]
+    fn hungarian_assignment_matches_exhaustive_minimum() {
+        let cost = vec![
+            vec![4.0, 1.0, 3.0, 9.0, 2.0],
+            vec![2.0, 0.5, 5.0, 3.0, 7.0],
+            vec![3.0, 2.0, 2.0, 1.0, 6.0],
+            vec![5.0, 4.0, 1.0, 8.0, 0.0],
+            vec![1.0, 6.0, 4.0, 2.0, 3.0],
+        ];
+        let total = |perm: &[usize]| -> f64 { perm.iter().enumerate().map(|(r, &c)| cost[r][c]).sum() };
+        let best = permutations(5)
+            .into_iter()
+            .map(|perm| total(&perm))
+            .fold(f64::INFINITY, f64::min);
+        let assignment = min_cost_assignment(&cost).expect("finite costs");
+        let mut seen = assignment.clone();
+        seen.sort_unstable();
+        assert_eq!(seen, vec![0, 1, 2, 3, 4]);
+        assert!((total(&assignment) - best).abs() < 1e-12);
+        assert!(min_cost_assignment(&[vec![f64::NAN]]).is_none());
+    }
 }

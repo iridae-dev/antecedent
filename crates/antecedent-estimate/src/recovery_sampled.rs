@@ -50,13 +50,15 @@ use antecedent_kernels::{norm_cdf, norm_inv};
 use crate::recovery::{RecoveredLaw, evaluate_exact_recovery, evaluate_recovered_effect};
 use crate::splitmix::{mix64, seed_mix, splitmix64};
 
-/// Most bootstrap replicates one request may run.
+/// Replicate count of the measured `BCa` protocol. More replicates are admitted; the count is
+/// bounded by the execution budget, not by this constant.
 pub const SAMPLED_RECOVERY_MAX_REPLICATES: usize = 2000;
 /// Fewest bootstrap replicates required by the supported `BCa` protocol.
 pub const SAMPLED_RECOVERY_MIN_REPLICATES: usize = 2000;
 /// Most observation rows one request may carry.
 pub const SAMPLED_RECOVERY_MAX_ROWS: usize = 1_000_000;
-/// Most binary substantive variables (`X ∪ O`) one request may recover.
+/// Binary substantive variables (`X ∪ O`) every request may carry. Larger requests are admitted
+/// while the dense observed-law cell count stays within the exact recovery's cell bound.
 pub const SAMPLED_RECOVERY_MAX_BINARY_VARIABLES: usize = 6;
 /// Nominal level of the whole-row `BCa` interval.
 pub(crate) const SAMPLED_RECOVERY_INTERVAL_LEVEL: f64 = 0.95;
@@ -292,8 +294,7 @@ pub struct SampledBcaReceipt {
 pub struct SampledRecoveryConfig {
     /// Explicit supported interval procedure.
     pub interval_method: SampledIntervalMethod,
-    /// Bootstrap replicates, from `SAMPLED_RECOVERY_MIN_REPLICATES` to
-    /// `SAMPLED_RECOVERY_MAX_REPLICATES`.
+    /// Bootstrap replicates, at least `SAMPLED_RECOVERY_MIN_REPLICATES`.
     pub replicates: usize,
     /// Bootstrap seed; replicate `r` draws from a stream depending only on
     /// `(seed, r)`.
@@ -652,13 +653,12 @@ impl Layout {
     fn new(query: &ObservationRecoveryQuery) -> Result<Self, SampledRecoveryError> {
         let k = query.partially_observed.len();
         let m = query.fully_observed.len();
-        if k + m > SAMPLED_RECOVERY_MAX_BINARY_VARIABLES {
+        // Pattern bits are `u8` masks, so each role holds at most seven variables; the dense
+        // law is then bounded by its cell count below, not by a variable count.
+        if k > 7 || m > 7 {
             return Err(refusal(
                 SampledRecoveryDetail::BoundsExceeded,
-                format!(
-                    "{} binary variables; at most {SAMPLED_RECOVERY_MAX_BINARY_VARIABLES}",
-                    k + m
-                ),
+                format!("{k} partially and {m} fully observed variables; at most 7 of each"),
             ));
         }
         let mut axes = Vec::new();
@@ -691,7 +691,16 @@ impl Layout {
         let mut cells = 1usize;
         for (axis, card) in cards.iter().enumerate().rev() {
             strides[axis] = cells;
-            cells *= card;
+            cells = cells.saturating_mul(*card);
+        }
+        if cells > antecedent_identify::RECOVERY_MAX_OBSERVED_CELLS {
+            return Err(refusal(
+                SampledRecoveryDetail::BoundsExceeded,
+                format!(
+                    "{cells} observed-law cells; the dense law carries at most {}",
+                    antecedent_identify::RECOVERY_MAX_OBSERVED_CELLS
+                ),
+            ));
         }
         let mut layout = Self { axes, roles, strides, cards, cells, k, m, complete: Vec::new() };
         let responses = mask(k);
@@ -767,16 +776,10 @@ impl Layout {
 
 fn validate_config(config: &SampledRecoveryConfig) -> Result<(), SampledRecoveryError> {
     let invalid = |message: &str| Err(refusal(SampledRecoveryDetail::InvalidInput, message));
-    if config.replicates > SAMPLED_RECOVERY_MAX_REPLICATES {
-        return Err(refusal(
-            SampledRecoveryDetail::BoundsExceeded,
-            format!("{} replicates; at most {SAMPLED_RECOVERY_MAX_REPLICATES}", config.replicates),
-        ));
-    }
     if config.interval_method == SampledIntervalMethod::Bca
-        && (config.replicates != 2000 || config.max_failed_fraction != 0.0)
+        && (config.replicates < SAMPLED_RECOVERY_MIN_REPLICATES || config.max_failed_fraction != 0.0)
     {
-        return invalid("BCa requires exactly 2000 replicates and zero allowed failed replicates");
+        return invalid("BCa requires at least 2000 replicates and zero allowed failed replicates");
     }
     if config.replicates < SAMPLED_RECOVERY_MIN_REPLICATES {
         return invalid("too few replicates to form a 95% BCa interval");

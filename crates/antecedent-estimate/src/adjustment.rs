@@ -299,13 +299,7 @@ impl LinearAdjustmentAte {
         }
     }
 
-    /// Request a bootstrap interval produced by the complete fit/resample/stop/interval
-    /// procedure (see [`Self::bootstrap_interval`]).
-    #[must_use]
-    pub const fn with_bootstrap_interval(mut self, request: crate::util::IntervalRequest) -> Self {
-        self.bootstrap_interval = Some(request);
-        self
-    }
+    crate::inference::with_bootstrap_interval!();
 
     /// Admit preparation only when the resident payload fits `budget`.
     #[must_use]
@@ -349,16 +343,7 @@ impl LinearAdjustmentAte {
         )
     }
 
-    /// Set the number of bootstrap replicates used for the bootstrap standard error.
-    ///
-    /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE
-    /// (`NaN` when [`Self::with_fit_kind`] is [`LinearFitKind::Lasso`] or
-    /// [`LinearFitKind::Ridge`]).
-    #[must_use]
-    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.bootstrap_replicates = replicates;
-        self
-    }
+    crate::inference::with_bootstrap_replicates!();
 
     /// Set the overlap policy. `prepare` requires [`OverlapPolicy::ExplicitOverride`] since
     /// this is a regression (not propensity-based) path.
@@ -368,38 +353,13 @@ impl LinearAdjustmentAte {
         self
     }
 
-    /// Set the analytic standard-error kind (default [`AnalyticSeKind::Homoskedastic`]).
-    #[must_use]
-    pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
-        self.se_kind = se_kind;
-        self
-    }
+    crate::inference::with_se_kind!();
 
-    /// Set cluster ids (length must equal the prepared design's row count) for
-    /// [`AnalyticSeKind::Cluster`] / panel SE.
-    #[must_use]
-    pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
-        self.cluster_ids = Some(cluster_ids);
-        self
-    }
+    crate::inference::with_cluster_ids!();
 
-    /// Set cluster labels for every row of the source table (length must equal its row
-    /// count). Rows dropped as incomplete or outside the target population drop their
-    /// labels with them, so the labels stay with their rows.
-    #[must_use]
-    pub fn with_source_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
-        self.source_cluster_ids = Some(cluster_ids);
-        self
-    }
+    crate::inference::with_source_cluster_ids!();
 
-    /// Declare the sampling design of the rows. The bootstrap then refuses a resample that
-    /// design does not allow: a row-level draw under independent subject trajectories, a
-    /// non-block draw of a dependent series, or a draw that ignores a panel's clusters.
-    #[must_use]
-    pub fn with_sampling_design(mut self, design: antecedent_core::DeclaredSamplingDesign) -> Self {
-        self.sampling_design = crate::util::SamplingDeclaration::Declared(design);
-        self
-    }
+    crate::inference::with_sampling_design!();
 
     /// Declare sampling weights for every row of the source table (OLS only). The classical
     /// homoskedastic SE kind is refused with weights at `prepare`: a model-based variance
@@ -414,21 +374,9 @@ impl LinearAdjustmentAte {
         self
     }
 
-    /// Set multiway cluster ids (one `Vec<u32>` per clustering dimension) for
-    /// [`AnalyticSeKind::Multiway`].
-    #[must_use]
-    pub fn with_multiway_ids(mut self, multiway_ids: Vec<Vec<u32>>) -> Self {
-        self.multiway_ids = Some(multiway_ids);
-        self
-    }
+    crate::inference::with_multiway_ids!();
 
-    /// Set panel time labels (length must equal the prepared design's row count) for
-    /// panel HAC standard errors.
-    #[must_use]
-    pub fn with_panel_times(mut self, panel_times: Vec<i64>) -> Self {
-        self.panel_times = Some(panel_times);
-        self
-    }
+    crate::inference::with_panel_times!();
 
     /// Set the linear fit family (default [`LinearFitKind::Ols`]).
     ///
@@ -1494,13 +1442,19 @@ fn curvature_gram_inverse(
     ncols: usize,
     d: &[f64],
 ) -> Option<Vec<f64>> {
-    let mut scaled = x_colmajor[..nrows * ncols].to_vec();
-    for col in 0..ncols {
-        for (v, w) in scaled[col * nrows..(col + 1) * nrows].iter_mut().zip(d) {
-            *v *= w.sqrt();
+    let rows = nrows.min(d.len());
+    let mut gram = vec![0.0; ncols * ncols];
+    for a in 0..ncols {
+        let col_a = &x_colmajor[a * nrows..a * nrows + rows];
+        for b in a..ncols {
+            let col_b = &x_colmajor[b * nrows..b * nrows + rows];
+            let value: f64 =
+                col_a.iter().zip(col_b).zip(d).map(|((xa, xb), w)| w * xa * xb).sum();
+            gram[a * ncols + b] = value;
+            gram[b * ncols + a] = value;
         }
     }
-    crate::util::xtx_inverse(&scaled, nrows, ncols)
+    antecedent_stats::invert_square(&gram, ncols)
 }
 
 /// Huber (1981, §7.10) homoskedastic-form treatment SE, used when the sandwich is

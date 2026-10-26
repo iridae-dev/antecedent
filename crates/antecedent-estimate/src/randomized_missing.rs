@@ -392,7 +392,7 @@ mod tests {
             // -0.233 (control) and -0.406 (treated), so the complete-case effect is biased by
             // 2 * (-0.406 + 0.233) = -0.35, far outside any sampling error at the sizes used here.
             let eta = 0.8 - (0.8 + 0.8 * f64::from(u8::from(arm))) * x;
-            let p = 1.0 / (1.0 + (-eta).exp());
+            let p = crate::util::sigmoid(eta);
             outcome.push(y);
             observed.push(rng.next() < p);
             treated.push(arm);

@@ -51,7 +51,7 @@ use crate::nuisance_cache::{
 };
 use crate::nuisance_keys::{PROVIDER_VERSION, glm_numerical};
 use crate::propensity::{CategoryTrainingRows, fit_category_probabilities};
-use crate::util::{refuse, stats_err};
+use crate::util::{refuse};
 
 /// Smallest number of rows the value is scored on.
 pub const MIN_EVALUATION_ROWS: usize = 50;
@@ -517,7 +517,7 @@ impl ObservationalPolicyValue {
                     &y_level,
                     &mut workspace.ols,
                 )
-                .map_err(stats_err)?;
+                .map_err(crate::error::EstimationError::from)?;
             predict_colmajor(&design_valid, nv, ncols, &fit.coefficients, &mut prediction);
             mean[c * nv..(c + 1) * nv].copy_from_slice(&prediction);
         }

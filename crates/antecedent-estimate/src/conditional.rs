@@ -299,7 +299,7 @@ impl ConditionalLinearAdjustment {
         let fit = self
             .backend
             .least_squares(&design, n, ncols, &y, &mut ws)
-            .map_err(crate::util::stats_err)?;
+            .map_err(crate::error::EstimationError::from)?;
         // QR residuals are `y − Xβ` in the same order `ols_sigma2` sums, so RSS / (n−p)
         // matches that helper without a second pass over the design.
         let sigma2 = fit.rss / (n.saturating_sub(ncols)).max(1) as f64;

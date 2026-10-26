@@ -55,9 +55,11 @@ use crate::util::SamplingDeclaration;
 pub const SELECTION_RULE: &str = "association_selection_rule";
 /// Level of the percentile spread and of the credible interval.
 pub const SPREAD_LEVEL: f64 = 0.95;
-/// Most strata a conditional law reports.
+/// Strata a conditional law always reports; a larger sample admits `rows / 4` (an average of
+/// four rows per stratum).
 pub const MAX_STRATA: usize = 4096;
-/// Most distinct values of a numeric column that is crossed into strata.
+/// Distinct values of a numeric column crossed into strata as they are; a column with more is
+/// coarsened into this many equal-count bins.
 pub const MAX_STRATUM_LEVELS: usize = 64;
 /// Fewest resampling replicates or posterior draws a spread or interval is formed from.
 pub const MIN_REPLICATES: usize = 20;
@@ -657,16 +659,42 @@ fn read_weights(
 }
 
 /// Distinct sorted values of a numeric column as strata levels.
-fn numeric_levels(name: &str, values: &[f64]) -> Result<(Vec<u32>, Vec<String>), EstimationError> {
+fn numeric_levels(_name: &str, values: &[f64]) -> Result<(Vec<u32>, Vec<String>), EstimationError> {
     let mut distinct: Vec<f64> = values.to_vec();
     distinct.sort_by(f64::total_cmp);
     distinct.dedup_by(|a, b| a.to_bits() == b.to_bits());
     if distinct.len() > MAX_STRATUM_LEVELS {
-        return Err(refuse_invalid(format!(
-            "the column `{name}` has {} distinct values: strata of that many levels are mostly \
-             empty. Next attempt: ask for the regression coefficients, or bin the column",
-            distinct.len()
-        )));
+        // Strata of that many levels are mostly empty: coarsen into equal-count bins whose
+        // labels name their closed value range.
+        let mut sorted = values.to_vec();
+        sorted.sort_by(f64::total_cmp);
+        let total = sorted.len();
+        let edges: Vec<usize> = (0..=MAX_STRATUM_LEVELS)
+            .map(|bin| (bin * total) / MAX_STRATUM_LEVELS)
+            .collect();
+        let mut upper: Vec<f64> = Vec::new();
+        let mut labels: Vec<String> = Vec::new();
+        for bin in 0..MAX_STRATUM_LEVELS {
+            let (lo, hi) = (edges[bin], edges[bin + 1]);
+            if lo >= hi {
+                continue;
+            }
+            let top = sorted[hi - 1];
+            // Equal values never straddle a bin boundary: skip a bin the previous one covers.
+            if upper.last().is_some_and(|last| top <= *last) {
+                continue;
+            }
+            labels.push(format!("[{}, {top}]", sorted[lo]));
+            upper.push(top);
+        }
+        let codes = values
+            .iter()
+            .map(|value| {
+                let position = upper.partition_point(|top| top < value);
+                u32::try_from(position.min(upper.len() - 1)).unwrap_or(u32::MAX)
+            })
+            .collect();
+        return Ok((codes, labels));
     }
     let codes = values
         .iter()
@@ -745,10 +773,10 @@ fn build_strata(
             keys.push(key);
         }
     }
-    if keys.len() > MAX_STRATA {
+    if keys.len() > MAX_STRATA.max(rows / 4) {
         return Err(refuse_invalid(format!(
-            "the predictors cross into {} strata (at most {MAX_STRATA}). Next attempt: ask for \
-             the regression coefficients, or coarsen the columns",
+            "the predictors cross into {} strata (an average of fewer than four rows each). \
+             Next attempt: ask for the regression coefficients, or coarsen the columns",
             keys.len()
         )));
     }
@@ -842,12 +870,7 @@ impl AssociationEstimator {
         }
     }
 
-    /// Set the number of resampling replicates (0 = analytic standard errors only).
-    #[must_use]
-    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.bootstrap_replicates = replicates;
-        self
-    }
+    crate::inference::with_bootstrap_replicates!();
 
     /// Declare the sampling design of the rows.
     #[must_use]

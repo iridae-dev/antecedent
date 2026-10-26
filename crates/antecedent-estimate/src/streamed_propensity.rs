@@ -545,7 +545,7 @@ mod tests {
                     return 2.0;
                 }
                 let eta = 0.6 * z1[i] - 0.4 * z2[i];
-                f64::from(0.5 + noise(i, 3) < 1.0 / (1.0 + (-eta).exp()))
+                f64::from(0.5 + noise(i, 3) < crate::util::sigmoid(eta))
             })
             .collect();
         let y: Vec<f64> = (0..rows)

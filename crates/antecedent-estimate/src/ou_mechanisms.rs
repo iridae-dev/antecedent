@@ -113,22 +113,9 @@ fn invert(mut matrix: Vec<f64>, n: usize) -> Result<Vec<f64>, EquilibriumError> 
     Ok((0..n).flat_map(|i| (0..n).map(move |j| (i, j))).map(|(i, j)| output[j * n + i]).collect())
 }
 fn chol(matrix: &[f64], n: usize) -> Result<Vec<f64>, EquilibriumError> {
-    let mut lower = vec![0.0; n * n];
-    for i in 0..n {
-        for j in 0..=i {
-            let x = matrix[i * n + j]
-                - (0..j).map(|k| lower[i * n + k] * lower[j * n + k]).sum::<f64>();
-            if i == j {
-                if !x.is_finite() || x <= 0.0 {
-                    return Err(EquilibriumError::Singular);
-                }
-                lower[i * n + i] = x.sqrt();
-            } else {
-                lower[i * n + j] = x / lower[j * n + j];
-            }
-        }
-    }
-    Ok(lower)
+    crate::linalg::SpdFactor::new(matrix, n)
+        .map(crate::linalg::SpdFactor::into_lower)
+        .ok_or(EquilibriumError::Singular)
 }
 impl OuMechanisms {
     /// Validate the finite specified mechanism shapes and ids. Stability is a separate law check.
@@ -227,15 +214,10 @@ pub(crate) fn summaries(
         return Err(invalid("OU regime count"));
     }
     let mut ids = std::collections::BTreeSet::new();
-    let mut total = 0usize;
     let mut output = Vec::new();
     for regime in regimes {
         if regime.id.trim().is_empty() || !ids.insert(&regime.id) || regime.values.is_empty() {
             return Err(invalid("OU regime identity/observations"));
-        }
-        total = total.saturating_add(regime.values.len());
-        if total > 1_000_000 {
-            return Err(invalid("OU observation limit"));
         }
         let mut mean = vec![0.0; n];
         let mut scatter = vec![0.0; n * n];

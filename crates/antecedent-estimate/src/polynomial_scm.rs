@@ -403,7 +403,6 @@ impl PolynomialCausalProgram {
             || self.candidates.len() > 32
             || self.worlds.is_empty()
             || self.worlds.len() > 32
-            || self.training.len() > 1000
         {
             return Err(invalid("finite causal program limits"));
         }

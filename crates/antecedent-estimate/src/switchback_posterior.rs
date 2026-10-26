@@ -51,7 +51,7 @@ use crate::gaussian_linear_posterior::{
 };
 use crate::util::refuse;
 
-/// Most periods one sequence may have.
+/// Reference period count of a sequence; not enforced.
 pub const MAX_SEQUENCE_PERIODS: usize = 512;
 
 /// Estimand label for evidence records.
@@ -359,12 +359,6 @@ fn group_sequences<'a>(
         return Err(invalid(
             "switchback_posterior.too_few_sequences",
             "at least two independent sequences are required",
-        ));
-    }
-    if longest > MAX_SEQUENCE_PERIODS {
-        return Err(invalid(
-            "switchback_posterior.too_many_periods",
-            "a sequence has more periods than the supported maximum",
         ));
     }
     if model.periods == PeriodAdjustment::FixedEffects && longest != shortest {

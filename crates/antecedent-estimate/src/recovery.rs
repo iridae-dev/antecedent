@@ -1246,24 +1246,7 @@ fn cholesky_semidefinite(covariance: &[f64], k: usize) -> Option<Vec<f64>> {
         }
     }
     let mut factor = vec![0.0; k * k];
-    for row in 0..k {
-        for col in 0..=row {
-            let mut sum = covariance[row * k + col];
-            for inner in 0..col {
-                sum -= factor[row * k + inner] * factor[col * k + inner];
-            }
-            if row == col {
-                if sum < -tolerance {
-                    return None;
-                }
-                factor[row * k + row] = sum.max(0.0).sqrt();
-            } else if factor[col * k + col] > 0.0 {
-                factor[row * k + col] = sum / factor[col * k + col];
-            } else if sum.abs() > tolerance {
-                return None;
-            }
-        }
-    }
+    antecedent_kernels::cholesky::cholesky_psd_into(covariance, k, 1.0e-12, &mut factor).ok()?;
     Some(factor)
 }
 

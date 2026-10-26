@@ -177,8 +177,6 @@ pub fn fit_cyclic_adam(
     let mut values = parameter_values(template, parameters)?;
     if training.is_empty()
         || validation.is_empty()
-        || training.len() > 1_000_000
-        || validation.len() > 1_000_000
         || !policy.learning_rate.is_finite()
         || policy.learning_rate <= 0.0
         || policy.batch_size == 0

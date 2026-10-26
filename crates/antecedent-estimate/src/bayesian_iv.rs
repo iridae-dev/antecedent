@@ -11,6 +11,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
+use crate::linalg::SpdFactor;
 use crate::util::{DrawSpec, dot, mean};
 
 /// Scoped Bayesian IV output. Intervals are equal-tailed posterior intervals conditional on
@@ -249,7 +250,7 @@ fn fit_bayesian_iv_inner(
         let e: Vec<f64> =
             (0..n).map(|i| treatment[i] - stage[0] - stage[1] * instrument[i]).collect();
         let x: Vec<[f64; 3]> = (0..n).map(|i| [1.0, treatment[i], e[i]]).collect();
-        let (beta, cov, log_evidence) =
+        let NormalPosterior { beta, covariance: cov, log_evidence } =
             normal_posterior(&x, outcome, prior_sd, known_variances.map(|v| v.outcome))?;
         // The effect coordinate's marginal posterior, one seeded draw per first-stage draw.
         let sampled = crate::util::normal_draws(
@@ -293,7 +294,28 @@ fn quantile(sorted: &[f64], p: f64) -> f64 {
     antecedent_stats::quantile_sorted(sorted, p, antecedent_stats::QuantileRule::ExchangeableRank)
 }
 
-type NormalPosterior = ([f64; 3], [[f64; 3]; 3], f64);
+/// Posterior of the control-function outcome regression.
+struct NormalPosterior {
+    /// Posterior mean of `(intercept, effect, control-function loading)`.
+    beta: [f64; 3],
+    /// Posterior covariance of the coefficients.
+    covariance: [[f64; 3]; 3],
+    /// Log marginal likelihood of the outcome under the prior.
+    log_evidence: f64,
+}
+
+/// Plug-in residual variance `rss / df`, floored at a fixed fraction of the sample variance of
+/// the response `y` (so the floor carries the response's units) and never below the smallest
+/// positive `f64`.
+fn plug_in_variance(rss: f64, df: usize, y: &[f64]) -> f64 {
+    let n = y.len() as f64;
+    let centre = mean(y);
+    let y_variance = y.iter().map(|v| (v - centre).powi(2)).sum::<f64>() / (n - 1.0).max(1.0);
+    (rss / df as f64).max((VARIANCE_FLOOR_FRACTION * y_variance).max(f64::MIN_POSITIVE))
+}
+
+/// Fraction of `var(y)` below which a plug-in residual variance is treated as an exact fit.
+const VARIANCE_FLOOR_FRACTION: f64 = 1e-12;
 
 fn normal_posterior(
     x: &[[f64; 3]],
@@ -301,44 +323,44 @@ fn normal_posterior(
     sd: f64,
     known_variance: Option<f64>,
 ) -> Result<NormalPosterior, EstimationError> {
-    let mut gram = [[0.0; 3]; 3];
+    let singular =
+        || EstimationError::stats_msg("Bayesian IV posterior design is singular");
+    let mut gram = [0.0; 9];
     let mut b = [0.0; 3];
     for (row, yi) in x.iter().zip(y) {
         for i in 0..3 {
             b[i] += row[i] * yi;
             for j in 0..3 {
-                gram[i][j] += row[i] * row[j];
+                gram[i * 3 + j] += row[i] * row[j];
             }
         }
     }
-    let ols_inv = invert(gram)?;
-    let ols_beta = mul_vec(ols_inv, b);
+    let ols_beta = SpdFactor::new(&gram, 3).and_then(|f| f.solve(&b)).ok_or_else(singular)?;
     let rss = x.iter().zip(y).map(|(r, yi)| (yi - dot(r, &ols_beta)).powi(2)).sum::<f64>();
-    let variance = known_variance.unwrap_or_else(|| (rss / (y.len() - 3) as f64).max(1e-12));
-    let mut precision = gram;
+    let variance = known_variance.unwrap_or_else(|| plug_in_variance(rss, y.len() - 3, y));
     let ridge = variance / (sd * sd);
-    for (i, row) in precision.iter_mut().enumerate() {
-        row[i] += ridge;
+    let mut precision = gram;
+    for i in 0..3 {
+        precision[i * 4] += ridge;
     }
-    let inv = invert(precision)?;
-    let beta = mul_vec(inv, b);
-    let cov = inv.map(|row| row.map(|v| v * variance));
-    let det = determinant(precision);
+    let factor = SpdFactor::new(&precision, 3).ok_or_else(singular)?;
+    let beta_vec = factor.solve(&b).ok_or_else(singular)?;
+    let beta = [beta_vec[0], beta_vec[1], beta_vec[2]];
+    let inverse = factor.inverse();
+    let cov: [[f64; 3]; 3] =
+        std::array::from_fn(|i| std::array::from_fn(|j| inverse[i * 3 + j] * variance));
     let log_det_covariance =
-        y.len() as f64 * variance.ln() + det.ln() + 3.0 * ((sd * sd) / variance).ln();
-    let quadratic = (y.iter().map(|v| v * v).sum::<f64>()
-        - (0..3).map(|i| b[i] * beta[i]).sum::<f64>())
-        / variance;
+        y.len() as f64 * variance.ln() + factor.log_det() + 3.0 * ((sd * sd) / variance).ln();
+    // `yᵀy − bᵀβ` at the posterior mean is the penalized residual `‖y − Xβ‖² + ridge·‖β‖²`;
+    // the residual form does not cancel a large `yᵀy` against a nearly equal `bᵀβ`.
+    let penalized_rss = x.iter().zip(y).map(|(r, yi)| (yi - dot(r, &beta)).powi(2)).sum::<f64>()
+        + ridge * beta.iter().map(|v| v * v).sum::<f64>();
+    let quadratic = penalized_rss / variance;
     let log_evidence =
         -0.5 * (y.len() as f64 * (std::f64::consts::TAU).ln() + log_det_covariance + quadratic);
-    Ok((beta, cov, log_evidence))
+    Ok(NormalPosterior { beta, covariance: cov, log_evidence })
 }
 
-fn determinant(a: [[f64; 3]; 3]) -> f64 {
-    a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1])
-        - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0])
-        + a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0])
-}
 fn weighted_resample(values: &[f64], log_weights: &[f64], n: usize, seed: u64) -> Vec<f64> {
     let max = log_weights.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     let weights: Vec<f64> = log_weights.iter().map(|v| (v - max).exp()).collect();
@@ -378,7 +400,7 @@ fn first_stage_posterior(
         ols_inv[1][0] * rhs[0] + ols_inv[1][1] * rhs[1],
     ];
     let rss = z.iter().zip(t).map(|(zi, ti)| (ti - ols[0] - ols[1] * zi).powi(2)).sum::<f64>();
-    let variance = known_variance.unwrap_or_else(|| (rss / (z.len() - 2) as f64).max(1e-12));
+    let variance = known_variance.unwrap_or_else(|| plug_in_variance(rss, z.len() - 2, t));
     let ridge = variance / (sd * sd);
     a[0][0] += ridge;
     a[1][1] += ridge;
@@ -407,13 +429,6 @@ fn first_stage_draws(
         EstimationError::stats_msg("Bayesian IV first-stage covariance is not positive definite")
     })?;
     Ok([draws[..n].to_vec(), draws[n..2 * n].to_vec()])
-}
-fn invert(a: [[f64; 3]; 3]) -> Result<[[f64; 3]; 3], EstimationError> {
-    crate::util::invert_fixed(&a)
-        .ok_or_else(|| EstimationError::stats_msg("Bayesian IV posterior design is singular"))
-}
-fn mul_vec(a: [[f64; 3]; 3], b: [f64; 3]) -> [f64; 3] {
-    std::array::from_fn(|i| (0..3).map(|j| a[i][j] * b[j]).sum())
 }
 #[cfg(test)]
 mod tests {
@@ -518,12 +533,28 @@ mod tests {
         assert!(e.to_string().contains("weak_instrument"));
     }
     #[test]
-    fn the_posterior_inverse_is_scale_free_and_still_refuses_collinear_designs() {
-        // Pivots of order 1e-16 were refused by the former absolute 1e-12 cutoff.
-        let tiny = [[1e-16, 0.0, 0.0], [0.0, 4e-16, 0.0], [0.0, 0.0, 9e-16]];
-        assert!(invert(tiny).is_ok());
-        let collinear = [[1.0, 2.0, 0.0], [2.0, 4.0, 0.0], [0.0, 0.0, 1.0]];
-        let e = invert(collinear).unwrap_err();
+    fn the_posterior_is_scale_free_and_still_refuses_collinear_designs() {
+        // Columns in units of 1e-8 are well conditioned once the scale is accounted for.
+        let rows = |scale: f64, collinear: bool| -> Vec<[f64; 3]> {
+            (0..12)
+                .map(|i| {
+                    let u = f64::from(i % 5) - 2.0;
+                    let w = if collinear { 2.0 * u } else { f64::from((i * 7) % 4) - 1.5 };
+                    [scale, scale * u, scale * w]
+                })
+                .collect()
+        };
+        let y: Vec<f64> = (0..12).map(|i| f64::from(i % 3) + 0.1 * f64::from(i)).collect();
+        assert!(normal_posterior(&rows(1e-8, false), &y, 10.0, Some(1.0)).is_ok());
+        let e = normal_posterior(&rows(1.0, true), &y, 10.0, Some(1.0)).unwrap_err();
         assert!(e.to_string().contains("Bayesian IV posterior design is singular"), "{e}");
+    }
+
+    #[test]
+    fn the_plug_in_variance_floor_scales_with_the_response() {
+        let y: Vec<f64> = (0..10).map(|i| 1e6 * f64::from(i)).collect();
+        let floor = plug_in_variance(0.0, 7, &y);
+        let small: Vec<f64> = y.iter().map(|v| v * 1e-12).collect();
+        assert!((floor / plug_in_variance(0.0, 7, &small) - 1e24).abs() / 1e24 < 1e-9);
     }
 }
