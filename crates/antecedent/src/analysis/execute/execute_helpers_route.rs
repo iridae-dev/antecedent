@@ -270,12 +270,26 @@ pub(super) fn is_gcm_route(route: AnalysisRoute) -> bool {
     )
 }
 
-pub(super) fn identify_cached_diagnostic() -> Diagnostic {
+/// Diagnostic code recording that a result reused the prepare-time identification.
+pub(crate) const IDENTIFY_CACHED_CODE: &str = "exec.identify.cached";
+
+pub(crate) fn identify_cached_diagnostic() -> Diagnostic {
     Diagnostic::new(
-        "exec.identify.cached",
+        IDENTIFY_CACHED_CODE,
         DiagnosticKind::Execution,
         DiagnosticSeverity::Info,
         "identification reused from the prepare-time cache".to_string(),
+    )
+}
+
+/// The cached-identification diagnostic of a checked prepared operation, which reports the reuse
+/// under its own wording.
+pub(crate) fn identify_cached_checked_operation_diagnostic() -> Diagnostic {
+    Diagnostic::new(
+        IDENTIFY_CACHED_CODE,
+        DiagnosticKind::Execution,
+        DiagnosticSeverity::Info,
+        "identification reused from the checked prepared operation".to_string(),
     )
 }
 

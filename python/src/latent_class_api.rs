@@ -6,6 +6,7 @@
 //! back as structured JSON for the Python layer to raise as its own exception type; corruption
 //! and unknown versions raise `CausalSerializationError`.
 
+use crate::NumericColumn;
 use crate::bridge::{artifact_refusal_json, check_declared_size};
 use antecedent::analysis::latent_class_effects::{
     LatentClassArtifactError, LatentClassConfigWire, LatentClassDataWire, LatentClassEffects,
@@ -57,7 +58,7 @@ type LatentClassColumns<'py> = (
     PyReadonlyArray1<'py, f64>,
     PyReadonlyArray1<'py, f64>,
     Vec<String>,
-    Vec<PyReadonlyArray1<'py, f64>>,
+    Vec<NumericColumn<'py>>,
 );
 
 /// Fit the mixture on declared columns: `(report json, artifact bytes, refusal json)`; an export
@@ -68,7 +69,7 @@ fn evaluate_latent_class_effects(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     treatment: PyReadonlyArray1<'_, f64>,
-    covariates: Vec<PyReadonlyArray1<'_, f64>>,
+    covariates: Vec<NumericColumn<'_>>,
     covariate_names: Vec<String>,
     config_json: &str,
     artifact_id: &str,
@@ -81,7 +82,10 @@ fn evaluate_latent_class_effects(
             outcome: outcome.as_array().to_vec(),
             treatment: treatment.as_array().to_vec(),
             covariate_names,
-            covariates: covariates.iter().map(|c| c.as_array().to_vec()).collect(),
+            covariates: covariates
+                .iter()
+                .map(|c| c.to_vec("covariate"))
+                .collect::<PyResult<_>>()?,
         },
     };
     let artifact_id = artifact_id.to_owned();
@@ -128,12 +132,19 @@ fn consume_latent_class_artifact(
         Some(text) => Some(parse(&text, "identity")?),
         None => None,
     };
-    let data = data.map(|(outcome, treatment, covariate_names, covariates)| LatentClassDataWire {
-        outcome: outcome.as_array().to_vec(),
-        treatment: treatment.as_array().to_vec(),
-        covariate_names,
-        covariates: covariates.iter().map(|c| c.as_array().to_vec()).collect(),
-    });
+    let data = data
+        .map(|(outcome, treatment, covariate_names, covariates)| -> PyResult<LatentClassDataWire> {
+            Ok(LatentClassDataWire {
+                outcome: outcome.as_array().to_vec(),
+                treatment: treatment.as_array().to_vec(),
+                covariate_names,
+                covariates: covariates
+                    .iter()
+                    .map(|c| c.to_vec("covariate"))
+                    .collect::<PyResult<_>>()?,
+            })
+        })
+        .transpose()?;
     let ctx = crate::measured_inference_api::context(0, memory_limit_bytes, None);
     detach_catch(py, move || {
         match LatentClassEffects::consume_with(&artifact, expected.as_ref(), data.as_ref(), &ctx) {

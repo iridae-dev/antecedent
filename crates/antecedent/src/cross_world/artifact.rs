@@ -3,6 +3,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::sync::Arc;
+
 use antecedent_core::ExecutionContext;
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
@@ -49,7 +51,7 @@ impl CrossWorldEffect {
             query: CrossWorldQueryWire::from_query(&self.query),
             mechanism: self.mechanism.wire_tag().into(),
             estimand: CROSS_WORLD_ESTIMAND.into(),
-            columns: self.columns.clone(),
+            columns: Arc::clone(&self.columns),
             witness: self.witness.clone(),
             point_bits: self.point.to_bits(),
             data_digest: String::new(),

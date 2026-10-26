@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::NumericColumn;
 use antecedent::discovery::{
     BayesianDiscoverParams, CiSoftWeight, GraphMcmcSchedule, GraphPosterior as RustGraphPosterior,
     SamplingSummary, StaticDiscoverParams,
@@ -18,14 +19,13 @@ use antecedent_discovery::{
 use antecedent_graph::Cpdag as RustCpdag;
 use antecedent_prob::InferenceDiagnostics;
 use antecedent_stats::{FdrAdjustment, PartialCorrelation};
-use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyModule};
 
 use crate::compiled_route_api::{DiscoverInput, RouteRecord};
 use crate::discovery_api::compiled_search;
 use crate::{
-    columns_to_batch, detach_catch, py_err, py_execution_context, py_msg, series_from_batch,
+    numeric_columns_to_batch, detach_catch, py_err, py_execution_context, py_msg, series_from_batch,
     tabular_from_batch,
 };
 
@@ -643,12 +643,12 @@ fn parse_soft_weight(name: &str) -> PyResult<CiSoftWeight> {
 fn discover_exact_dag_posterior(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     seed: u64,
     threads: Option<u32>,
     equivalence_classes: bool,
 ) -> PyResult<PyGraphPosterior> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
@@ -674,11 +674,11 @@ fn discover_exact_dag_posterior(
 fn discover_exact_pag_posterior(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<PyGraphPosterior> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
@@ -701,7 +701,7 @@ fn discover_exact_pag_posterior(
 fn discover_pag_mcmc(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     n_chains: u32,
     n_warmup: u32,
     n_draws: u32,
@@ -709,7 +709,7 @@ fn discover_pag_mcmc(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<PyGraphPosterior> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
@@ -735,12 +735,12 @@ fn discover_pag_mcmc(
 fn discover_exact_dag_marginals(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     max_parents: Option<usize>,
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<(Vec<f64>, f64)> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
@@ -781,7 +781,7 @@ fn discover_exact_dag_marginals(
 fn discover_order_mcmc(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     n_chains: u32,
     n_warmup: u32,
     n_draws: u32,
@@ -794,7 +794,7 @@ fn discover_order_mcmc(
     noise: &str,
 ) -> PyResult<PyGraphPosterior> {
     let family = score_family_of(noise)?;
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
@@ -836,7 +836,7 @@ fn discover_order_mcmc(
 fn discover_structure_mcmc(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     n_chains: u32,
     n_warmup: u32,
     n_draws: u32,
@@ -846,7 +846,7 @@ fn discover_structure_mcmc(
     threads: Option<u32>,
     equivalence_classes: bool,
 ) -> PyResult<PyGraphPosterior> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
@@ -888,7 +888,7 @@ fn discover_structure_mcmc(
 fn discover_ci_screened_posterior(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     alpha: f64,
     fdr: bool,
     ci: Option<String>,
@@ -911,7 +911,7 @@ fn discover_ci_screened_posterior(
     } else {
         resolve_ci(&ci_name, None).map_err(py_err)?
     };
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
@@ -966,7 +966,7 @@ fn discover_ci_screened_posterior(
 fn discover_dbn_posterior(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     max_lag: u32,
     force_mcmc: bool,
     n_chains: u32,

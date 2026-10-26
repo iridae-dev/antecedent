@@ -11,8 +11,21 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 const MAGIC: &[u8] = b"ANTE-SENSITIVITY-SOURCE-1\0";
-/// Largest complete source-backed sensitivity envelope.
+/// Largest complete source-backed sensitivity envelope under [`SourceLimits::default`].
 pub const MAX_BYTES: usize = 16 * 1024 * 1024;
+
+/// Byte bound of a source-backed sensitivity envelope, checked before decoding it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SourceLimits {
+    /// Largest complete envelope, and the largest original source inside it.
+    pub max_bytes: usize,
+}
+
+impl Default for SourceLimits {
+    fn default() -> Self {
+        Self { max_bytes: MAX_BYTES }
+    }
+}
 
 fn sensitivity_invalid(detail: &str) -> IoError {
     IoError::Refused { code: reason_code!("invalid_argument"), message: detail.into() }
@@ -39,7 +52,18 @@ impl SourceBackedSensitivity {
         surface: &SensitivityArtifact,
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
-        if source.len() > MAX_BYTES {
+        Self::checked_with_limits(source, surface, ctx, SourceLimits::default())
+    }
+    /// [`Self::checked`] under caller-declared byte limits.
+    /// # Errors
+    /// As [`Self::checked`], with `limits.max_bytes` as the source bound.
+    pub fn checked_with_limits(
+        source: &[u8],
+        surface: &SensitivityArtifact,
+        ctx: &ExecutionContext,
+        limits: SourceLimits,
+    ) -> Result<Self, IoError> {
+        if source.len() > limits.max_bytes {
             return Err(sensitivity_invalid("sensitivity_source.limits_exceeded"));
         }
         let original = JointSensitivityArtifactWire::consume(source, ctx)?;
@@ -144,12 +168,18 @@ impl SourceBackedSensitivity {
     /// # Errors
     /// Original encoding refusal or oversized envelope.
     pub fn export(&self) -> Result<Vec<u8>, IoError> {
+        self.export_with_limits(SourceLimits::default())
+    }
+    /// [`Self::export`] under caller-declared byte limits.
+    /// # Errors
+    /// As [`Self::export`], with `limits.max_bytes` as the envelope bound.
+    pub fn export_with_limits(&self, limits: SourceLimits) -> Result<Vec<u8>, IoError> {
         let mut bytes = MAGIC.to_vec();
         bytes.extend(to_cbor(&Wire {
             source: self.source.to_vec(),
             surface: self.surface.to_bytes("source-backed-sensitivity")?,
         })?);
-        if bytes.len() > MAX_BYTES {
+        if bytes.len() > limits.max_bytes {
             return Err(sensitivity_invalid("sensitivity_source.limits_exceeded"));
         }
         Ok(bytes)
@@ -158,7 +188,17 @@ impl SourceBackedSensitivity {
     /// # Errors
     /// Invalid, oversized or scientifically inconsistent source-backed envelope.
     pub fn consume(bytes: &[u8], ctx: &ExecutionContext) -> Result<Self, IoError> {
-        if bytes.len() > MAX_BYTES {
+        Self::consume_with_limits(bytes, ctx, SourceLimits::default())
+    }
+    /// [`Self::consume`] under caller-declared byte limits.
+    /// # Errors
+    /// As [`Self::consume`], with `limits.max_bytes` as the envelope bound.
+    pub fn consume_with_limits(
+        bytes: &[u8],
+        ctx: &ExecutionContext,
+        limits: SourceLimits,
+    ) -> Result<Self, IoError> {
+        if bytes.len() > limits.max_bytes {
             return Err(sensitivity_invalid("sensitivity_source.limits_exceeded"));
         }
         let payload = bytes
@@ -167,6 +207,6 @@ impl SourceBackedSensitivity {
         let wire: Wire = from_cbor(payload)
             .map_err(|_| sensitivity_invalid("sensitivity_source.invalid_artifact"))?;
         let surface = SensitivityArtifact::from_bytes(&wire.surface, None)?;
-        Self::checked(&wire.source, &surface, ctx)
+        Self::checked_with_limits(&wire.source, &surface, ctx, limits)
     }
 }

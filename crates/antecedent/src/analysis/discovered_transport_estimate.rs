@@ -76,9 +76,11 @@ use super::{
     TransportGridResult, TransportGridState,
 };
 
-/// Most levels one variable may take. Larger domains are refused: the empirical joint of the
-/// factors a formula reads grows with the product of their domains.
-pub const MAX_LEVELS_PER_VARIABLE: u32 = 32;
+/// Most cells the joint domain of the measured variables may have. The empirical joint the
+/// formula reads is a dense table over the product of the domains, so this product, not the
+/// level count of any one variable, is what is held in memory: one variable may take any
+/// number of levels so long as the joint stays within this many cells (`2^25`).
+pub const MAX_JOINT_CELLS: u64 = 1 << 25;
 
 const ESTIMATE_FORMAT: &str = "antecedent.discovered_transport_estimate.v1";
 const IDENTITY_TAG: &str = "antecedent.discovered_transport.estimate.v1";
@@ -626,6 +628,7 @@ fn domain_cardinalities(
     variables: &BTreeSet<VariableId>,
 ) -> Result<BTreeMap<VariableId, u32>, DiscoveredTransportError> {
     let mut out = BTreeMap::new();
+    let mut joint_cells = 1_u64;
     for variable in variables {
         let mut max = 0.0_f64;
         for (name, table) in [("source", &columns.source), ("target", &columns.target)] {
@@ -653,17 +656,25 @@ fn domain_cardinalities(
                 max = max.max(value);
             }
         }
-        // Domains are at most `MAX_LEVELS_PER_VARIABLE`, which fits a `u32` exactly.
+        // A level count must fit the categorical domain's `u32` cardinality.
+        if max >= f64::from(u32::MAX) {
+            return Err(invalid_evidence(format!(
+                "variable v{} has an integer code too large for a categorical domain",
+                variable.raw()
+            )));
+        }
         #[allow(
             clippy::cast_possible_truncation,
             clippy::cast_sign_loss,
-            reason = "validated finite non-negative integer codes are bounded by the supported domain"
+            reason = "validated finite non-negative integer codes below `u32::MAX`"
         )]
         let levels = max as u32 + 1;
-        if levels > MAX_LEVELS_PER_VARIABLE {
+        joint_cells = joint_cells.saturating_mul(u64::from(levels.max(2)));
+        if joint_cells > MAX_JOINT_CELLS {
             return Err(invalid_evidence(format!(
-                "variable v{} takes {levels} levels; at most {MAX_LEVELS_PER_VARIABLE} are \
-                 supported",
+                "the joint domain of the measured variables exceeds {MAX_JOINT_CELLS} cells at \
+                 variable v{} ({levels} levels); the empirical joint is a dense table over the \
+                 product of the domains",
                 variable.raw()
             )));
         }

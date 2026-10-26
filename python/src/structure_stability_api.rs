@@ -11,6 +11,7 @@
 
 #![allow(clippy::too_many_arguments, reason = "one keyword per option of the wrapped search")]
 
+use crate::NumericColumn;
 use std::sync::Arc;
 
 use antecedent::discovery::{
@@ -22,7 +23,6 @@ use antecedent::{DiscoveredStructure, DiscoverySpec};
 use antecedent_core::VariableId;
 use antecedent_discovery::selective::{Mark, StructureEdge, StructureNode};
 use antecedent_stats::{ConditionalIndependence, FdrAdjustment, PartialCorrelation};
-use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
@@ -30,7 +30,7 @@ use crate::compiled_route_api::{DiscoverInput, RouteRecord};
 use crate::discovery_api::{
     compiled_search, knowledge_arg, panel_units_from_unit_batches, tabular_from_ingested,
 };
-use crate::{GraphEdge, columns_to_batch, detach_catch, py_err};
+use crate::{GraphEdge, numeric_columns_to_batch, detach_catch, py_err};
 
 /// How often one pair of endpoint marks appeared on a node pair.
 #[pyclass(skip_from_py_object)]
@@ -328,7 +328,7 @@ fn named_ci(name: Option<&str>) -> PyResult<(SharedCi, String)> {
 fn discover_bootstrap_stability(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     base: &str,
     replicates: u32,
     alpha: f64,
@@ -500,7 +500,7 @@ impl RegimeStabilityResult {
 fn discover_jpcmci_plus_stability(
     py: Python<'_>,
     names: Vec<String>,
-    env_columns: Vec<Vec<PyReadonlyArray1<'_, f64>>>,
+    env_columns: Vec<Vec<NumericColumn<'_>>>,
     replicates: u32,
     max_lag: u32,
     alpha: f64,
@@ -517,7 +517,7 @@ fn discover_jpcmci_plus_stability(
     }
     let mut batches = Vec::with_capacity(env_columns.len());
     for cols in &env_columns {
-        batches.push(columns_to_batch(&names, cols)?);
+        batches.push(numeric_columns_to_batch(&names, cols)?);
     }
     let (ci_impl, ci_label) = named_ci(ci.as_deref())?;
     let context_names = context_names.unwrap_or_default();
@@ -596,7 +596,7 @@ fn discover_jpcmci_plus_stability(
 fn discover_rpcmci_stability(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     regimes: Vec<u32>,
     replicates: u32,
     max_lag: u32,
@@ -610,7 +610,7 @@ fn discover_rpcmci_stability(
     min_regime_len: Option<usize>,
 ) -> PyResult<RegimeStabilityResult> {
     let (ci_impl, ci_label) = named_ci(ci.as_deref())?;
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (series, variables) = crate::series_from_batch(&batch)?;

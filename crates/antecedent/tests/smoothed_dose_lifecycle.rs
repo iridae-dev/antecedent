@@ -654,7 +654,8 @@ fn requests_outside_the_cell_refuse_with_their_details() {
         parse(antecedent_estimate::smoothed_dose::parse_smoothing_kernel("gaussian").map(|_| ())),
         ("route_not_supported", "dose_response.kernel_not_supported".into())
     );
-    // Every bound at its cap is accepted and at cap + 1 refused.
+    // The size bounds are recorded reference points, not ceilings: a request past each one still
+    // validates (the workspace estimate bounds it), while the node set and the degree floor refuse.
     let q = query(&GRID, H);
     let id = identify(&q);
     let validate =
@@ -668,8 +669,8 @@ fn requests_outside_the_cell_refuse_with_their_details() {
     let grid16: Vec<f64> = (0..16).map(|i| 0.5 + 3.0 * f64::from(i) / 15.0).collect();
     let grid17: Vec<f64> = (0..17).map(|i| 0.5 + 3.0 * f64::from(i) / 16.0).collect();
     assert!(validate(&query(&grid16, H), &base, &options()).is_ok());
-    assert!(bounds_refused(validate(&query(&grid17, H), &base, &options())));
-    for (cap, over) in [
+    assert!(validate(&query(&grid17, H), &base, &options()).is_ok());
+    for (at_reference, past_reference) in [
         (
             SmoothedDoseOptions { folds: 20, ..options() },
             SmoothedDoseOptions { folds: 21, ..options() },
@@ -677,10 +678,6 @@ fn requests_outside_the_cell_refuse_with_their_details() {
         (
             SmoothedDoseOptions { bootstrap: 2000, ..options() },
             SmoothedDoseOptions { bootstrap: 2001, ..options() },
-        ),
-        (
-            SmoothedDoseOptions { quadrature_nodes: 32, ..options() },
-            SmoothedDoseOptions { quadrature_nodes: 64, ..options() },
         ),
         (
             SmoothedDoseOptions {
@@ -709,24 +706,31 @@ fn requests_outside_the_cell_refuse_with_their_details() {
             },
         ),
     ] {
-        assert!(validate(&q, &base, &cap).is_ok(), "{cap:?}");
-        assert!(bounds_refused(validate(&q, &base, &over)), "{over:?}");
+        assert!(validate(&q, &base, &at_reference).is_ok(), "{at_reference:?}");
+        assert!(validate(&q, &base, &past_reference).is_ok(), "{past_reference:?}");
     }
-    assert!(bounds_refused(validate(
-        &q,
-        &base,
-        &SmoothedDoseOptions { quadrature_nodes: 8, ..options() }
-    )));
-    // Rows: 200000 accepted, 200001 refused before anything else is read.
+    assert!(validate(&q, &base, &SmoothedDoseOptions { quadrature_nodes: 32, ..options() }).is_ok());
+    for refused in [
+        SmoothedDoseOptions { quadrature_nodes: 64, ..options() },
+        SmoothedDoseOptions { quadrature_nodes: 8, ..options() },
+        SmoothedDoseOptions { folds: 65_536, ..options() },
+        SmoothedDoseOptions {
+            basis: DoseBasis { degree: 0, ..DoseBasis::default() },
+            ..options()
+        },
+    ] {
+        assert!(bounds_refused(validate(&q, &base, &refused)), "{refused:?}");
+    }
+    // Rows: past the reference of 200000 rows the request still validates.
     let rows = |n: usize| {
         let mut big = draw(Design::IndependentSamples, Scenario::Good, n - n / 3, n / 3, 9);
         big.sampling = antecedent_estimate::TrialSampling::IndependentSamples;
         big
     };
     assert!(validate(&q, &rows(200_000), &options()).is_ok());
-    assert!(bounds_refused(validate(&q, &rows(200_001), &options())));
-    // Covariates: a certificate that really standardizes over 256 covariates validates;
-    // one over 257 is refused by the bound.
+    assert!(validate(&q, &rows(200_001), &options()).is_ok());
+    // Covariates: a certificate that really standardizes over 256 covariates validates, and so
+    // does one over 257.
     let wide = |k: usize| {
         let mut graph = antecedent_graph::Admg::with_variables(k as u32 + 2);
         for from in 0..=k {
@@ -753,7 +757,7 @@ fn requests_outside_the_cell_refuse_with_their_details() {
         antecedent_estimate::validate_smoothed_dose(&id, &wide_query, &rows, &options())
     };
     assert!(wide(256).is_ok(), "{:?}", wide(256));
-    assert!(bounds_refused(wide(257)));
+    assert!(wide(257).is_ok(), "{:?}", wide(257));
     // A replicate request below the floor keeps the point and withholds the interval.
     let below = SmoothedDoseOptions { bootstrap: 50, ..options() };
     let result = prepare(query(&GRID, H), base.clone(), below.clone(), 2)
@@ -1438,14 +1442,11 @@ fn a_mutated_artifact_fails_independent_consumption_with_a_typed_error() {
         refused(&mutate(&original, |w| w.options.folds = 4, true)),
         Refusal::UnsupportedSemantics("result shape")
     );
-    assert!(matches!(
+    // A fold count past the recorded reference has no stored models for its folds.
+    assert_eq!(
         refused(&mutate(&original, |w| w.options.folds = 21, true)),
-        Refusal::LimitsExceeded(_)
-    ));
-    assert!(matches!(
-        refused(&mutate(&original, |w| w.bounds.max_grid = 64, true)),
-        Refusal::LimitsExceeded(_)
-    ));
+        Refusal::UnsupportedSemantics("result shape")
+    );
     assert!(matches!(
         refused(&mutate(&original, |w| w.options.bootstrap = 199, true)),
         Refusal::UncertaintyMismatch(_)
@@ -1618,17 +1619,15 @@ fn the_io_wire_consumes_bytes_directly_under_its_own_limits() {
         )
         .is_ok()
     );
-    // Stored bounds are compared field by field with this build's: a looser stored bound
-    // (a larger cap, a lower replicate floor, a node count this build lacks) is a named
+    // The enforced stored bounds are compared field by field with this build's: a lower
+    // replicate floor, a node count this build lacks or a larger workspace cap is a named
     // limits refusal before any replay work.
     for (edit, name) in [
         (
-            (|w: &mut SmoothedDoseArtifactWire| w.bounds.max_rows = 10_000_000)
+            (|w: &mut SmoothedDoseArtifactWire| w.bounds.min_bootstrap = 99)
                 as fn(&mut SmoothedDoseArtifactWire),
-            "stored bound max_rows exceeds this build's",
+            "stored bound min_bootstrap is below this build's floor",
         ),
-        (|w| w.bounds.max_grid = 17, "stored bound max_grid exceeds this build's"),
-        (|w| w.bounds.min_bootstrap = 99, "stored bound min_bootstrap is below this build's floor"),
         (
             |w| w.bounds.quadrature_nodes = [16, 64],
             "stored bound quadrature_nodes offers a node count this build does not",
@@ -1643,8 +1642,8 @@ fn the_io_wire_consumes_bytes_directly_under_its_own_limits() {
             Refusal::LimitsExceeded(name)
         );
     }
-    // A tighter stored bound (a producer built with lower caps) is accepted and replays,
-    // as long as the stored request lies inside it; the bounds stay in the premises digest.
+    // The recorded size bounds (rows, grid, folds, ...) are the producer's measured envelope,
+    // not ceilings: any value replays, and the bounds stay in the premises digest.
     let tighter = mutate(
         &original,
         |w| {
@@ -1659,9 +1658,19 @@ fn the_io_wire_consumes_bytes_directly_under_its_own_limits() {
     let replayed = SmoothedDoseArtifactWire::consume(&tighter, limits, &ctx).unwrap();
     assert_eq!(replayed.wire.result, original.result);
     assert_ne!(replayed.wire.premises_digest, original.premises_digest);
+    let looser = mutate(
+        &original,
+        |w| {
+            w.bounds.max_rows = w.input.source.len() - 1;
+            w.bounds.max_grid = 64;
+            w.bounds.max_rows += 10_000_000;
+        },
+        true,
+    );
+    assert!(SmoothedDoseArtifactWire::consume(&looser, limits, &ctx).is_ok());
     assert_eq!(
         coded(
-            &mutate(&original, |w| w.bounds.max_rows = w.input.source.len() - 1, true),
+            &mutate(&original, |w| w.bounds.quadrature_nodes = [32, 32], true),
             limits,
             &ctx
         ),

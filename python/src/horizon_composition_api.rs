@@ -8,13 +8,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::NumericColumn;
 use std::cell::RefCell;
 
 use antecedent::analysis::horizon_composition::{
     ComposedHorizons, HorizonDraws, compose_horizons, compose_horizons_with,
 };
 use antecedent_contract::PropagationOperation;
-use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use serde_json::json;
 
@@ -47,7 +47,7 @@ fn summary_json(composed: &ComposedHorizons) -> String {
 #[pyo3(signature = (horizons, columns, evidence_id, alignment_id, operation, *, coefficients=None, map=None, seed=0))]
 fn compose_horizon_draws(
     horizons: Vec<u32>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     evidence_id: String,
     alignment_id: String,
     operation: &str,
@@ -60,7 +60,10 @@ fn compose_horizon_draws(
     if horizons.len() != columns.len() {
         return Err(crate::value_err("give one draw column per horizon"));
     }
-    let columns: Vec<Vec<f64>> = columns.iter().map(|c| c.as_array().to_vec()).collect();
+    let columns: Vec<Vec<f64>> = columns
+        .iter()
+        .map(|c| c.owned("draw column").map(|(values, _)| values.to_vec()))
+        .collect::<PyResult<_>>()?;
     let center = columns.iter().map(|c| c.iter().sum::<f64>() / c.len().max(1) as f64).collect();
     let draws = HorizonDraws { horizons, center, columns, alignment_id, evidence_id };
     let refusal = |error: antecedent_contract::ExternalRefusal| {

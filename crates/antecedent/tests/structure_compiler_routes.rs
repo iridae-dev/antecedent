@@ -763,7 +763,7 @@ fn noise_replay_counterfactual_and_rollout_equal_their_engines() {
         else {
             panic!("a counterfactual returns its values");
         };
-        assert_eq!(bits(&values.values[..]), bits(&direct_counterfactual.values[..]));
+        assert_eq!(bits(values.values()), bits(direct_counterfactual.values()));
 
         // A seeded rollout.
         let schedule = antecedent_core::InterventionSequence::new(vec![

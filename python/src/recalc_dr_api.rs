@@ -1,10 +1,13 @@
 //! Checked Python bridge for selective DML AIPW and DR-Learner execution.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::NumericColumn;
 use std::collections::BTreeMap;
 
 use antecedent::analysis::recalc_dr::{DrEstimator, DrRequest, DrSession, execute_dr_with_receipt};
-use antecedent::analysis::recalc_receipt::{RecalcRunError, TargetWeights, UtilitySpec};
+use antecedent::analysis::recalc_receipt::{
+    RecalcRequestCode, RecalcRunError, TargetWeights, UtilitySpec,
+};
 use antecedent_core::recalc::{RecalcCapabilities, ResumeContext, RetargetSupport};
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_estimate::overlap::OverlapPolicy;
@@ -14,7 +17,6 @@ use antecedent_io::recalc_receipt_artifact::{
     identities_to_wire, plan_to_wire,
 };
 use antecedent_learn::fit_counts::count_resolved_fits;
-use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use serde::Deserialize;
 
@@ -25,7 +27,6 @@ use crate::recalc_api::{
 use crate::recalc_bounds::{bounded_prediction_rows, check_columns};
 use crate::{detach_catch, py_msg};
 
-const MAX_FOLDS: usize = 20;
 type ScoreExportPayload = (Option<(String, Vec<u8>)>, Option<String>);
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -72,8 +73,10 @@ fn learner(value: &serde_json::Value) -> PyResult<LearnerSpec> {
 }
 
 fn estimator(kind: &str, config: ConfigWire) -> PyResult<DrEstimator> {
-    if config.folds.is_some_and(|n| !(2..=MAX_FOLDS).contains(&n)) {
-        return Err(invalid("recalc.dr_invalid_folds", "fold count must be in 2..=20"));
+    // Any fold count of at least two is valid; the fold plan refuses a count above the number
+    // of rows when the cross-fit is built.
+    if config.folds.is_some_and(|n| n < 2) {
+        return Err(invalid("recalc.dr_invalid_folds", "fold count must be at least 2"));
     }
     let overlap =
         config.overlap.map(|o| OverlapPolicy::RequireDiagnostics { clip: o.clip, trim: o.trim });
@@ -146,7 +149,7 @@ fn estimator(kind: &str, config: ConfigWire) -> PyResult<DrEstimator> {
 
 fn build_request(
     names: Vec<String>,
-    columns: &[PyReadonlyArray1<'_, f64>],
+    columns: &[NumericColumn<'_>],
     specification: &str,
     ctx: &ExecutionContext,
 ) -> PyResult<DrRequest> {
@@ -191,7 +194,7 @@ fn build_request(
         .transpose()?;
     let estimator = estimator(&wire.kind, wire.config)?;
     Ok(DrRequest {
-        columns: names.into_iter().zip(columns.iter().map(|c| c.as_array().to_vec())).collect(),
+        columns: crate::named_f64_columns(names, columns)?.into(),
         edges,
         treatment,
         outcome,
@@ -214,7 +217,8 @@ fn dr_error_refusal(error: &RecalcRunError) -> String {
             None,
         ),
         RecalcRunError::Request(detail) => {
-            let (code, stage) = match *detail {
+            let detail = detail.as_str();
+            let (code, stage) = match detail {
                 "recalc.dr_prediction_schema_mismatch"
                 | "recalc.dr_fit_counter_mismatch"
                 | "recalc.dr_effect_unavailable" => {
@@ -396,7 +400,7 @@ impl PyDrSession {
     fn plan(
         &self,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         specification: &str,
         seed: u64,
         threads: Option<u32>,
@@ -413,7 +417,7 @@ impl PyDrSession {
         &mut self,
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         specification: &str,
         seed: u64,
         threads: Option<u32>,
@@ -479,7 +483,9 @@ impl PyDrSession {
         if self.inner.fitted_effect().is_none() {
             return Ok((
                 None,
-                Some(dr_error_refusal(&RecalcRunError::Request("recalc.dr_predictor_unavailable"))),
+                Some(dr_error_refusal(&RecalcRunError::Request(
+                    RecalcRequestCode::DrPredictorUnavailable,
+                ))),
             ));
         }
         if let Some(expected) = self.inner.prediction_columns() {
@@ -509,7 +515,9 @@ impl PyDrSession {
                     .iter()
                     .any(|r| r.len() != features.len() || r.iter().any(|v| !v.is_finite()))
                 {
-                    return Err(RecalcRunError::Request("recalc.dr_prediction_schema_mismatch"));
+                    return Err(RecalcRunError::Request(
+                        RecalcRequestCode::DrPredictionSchemaMismatch,
+                    ));
                 }
                 let data = (0..features.len())
                     .map(|c| rows.iter().map(|r| r[c]).collect::<Vec<_>>())

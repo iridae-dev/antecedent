@@ -116,7 +116,7 @@ impl PreparedStudy {
                 "joint Gaussian response requires a complete static mean over the observed population",
             ));
         }
-        let cache = self.analysis.identification_cache.as_ref().ok_or_else(|| {
+        let cache = self.analysis.static_cache().ok_or_else(|| {
             unsupported("joint response compilation requires retained point identification")
         })?;
         if cache.identification.query != self.analysis.query
@@ -190,8 +190,9 @@ impl PreparedJointResponse {
     ) -> Result<Self, CausalError> {
         cancelled(ctx)?;
         let worlds = target_worlds(target)?;
-        if worlds.is_empty() || worlds.len() > 4096 {
-            return Err(unsupported("joint response needs between one and 4096 worlds"));
+        // The world count is bounded by the memory admission below, not by a literal.
+        if worlds.is_empty() {
+            return Err(unsupported("joint response needs at least one world"));
         }
         let bytes = worlds
             .len()
@@ -742,7 +743,6 @@ fn source_treatments(interventions: &[Intervention]) -> Result<Vec<VariableId>, 
 pub(crate) fn joint_target_admission(target: &ScientificTarget) -> Result<(), CausalError> {
     let worlds = target_worlds(target)?;
     if worlds.is_empty()
-        || worlds.len() > 4096
         || worlds.iter().any(|world| {
             !world.time().is_static() || world.action().at_decision_interventions().is_none()
         })
@@ -807,12 +807,8 @@ fn compile_world(
         ));
     }
     let n = problem.design.nrows;
-    let mut weight = problem
-        .design
-        .matrix
-        .chunks(n)
-        .map(antecedent_kernels::mean)
-        .collect::<Vec<_>>();
+    let mut weight =
+        problem.design.matrix.chunks(n).map(antecedent_kernels::mean).collect::<Vec<_>>();
     let mut columns = Vec::with_capacity(interventions.len());
     for intervention in interventions {
         let Intervention::Set { variable, value } = intervention else {

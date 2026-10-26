@@ -6,7 +6,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::recalc_receipt::RecalcRunError;
+use super::recalc_receipt::{RecalcRequestCode, RecalcRunError};
 use crate::graph::{Dag, DenseNodeId};
 use antecedent_core::NodeRef;
 use antecedent_core::recalc::StageIdentity;
@@ -53,7 +53,7 @@ pub(super) fn wire_bytes<T: serde::Serialize>(value: &T) -> Vec<u8> {
 pub(super) fn dag_from_edges(
     columns: usize,
     edges: &[(u32, u32)],
-    code: &'static str,
+    code: RecalcRequestCode,
 ) -> Result<Dag, RecalcRunError> {
     let n = u32::try_from(columns).map_err(|_| RecalcRunError::Request(code))?;
     let mut graph = Dag::with_variables(n);

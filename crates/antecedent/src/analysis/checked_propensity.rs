@@ -256,7 +256,7 @@ impl CheckedPropensityOperation {
             CheckedPropensityFit::Weighting { fitter, .. } => (
                 CheckedPropensityProcedure::HajekWeighting,
                 CheckedPropensityUncertainty::HajekAnalyticAndBootstrap {
-                    bootstrap_replicates: fitter.bootstrap_replicates,
+                    bootstrap_replicates: fitter.inference.bootstrap_replicates,
                 },
             ),
             CheckedPropensityFit::Matching { fitter, .. } => (

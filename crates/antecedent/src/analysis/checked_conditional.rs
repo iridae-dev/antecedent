@@ -105,6 +105,13 @@ impl ConditionalClassProof {
     }
 }
 
+/// Whether the conditional estimator fits an interaction design over `count` effect
+/// modifiers. This is the single place the checked operation reads the estimator's
+/// modifier-set support from; the operation itself carries every modifier as a design role.
+const fn estimator_fits_modifier_set(count: usize) -> bool {
+    count == 1
+}
+
 /// The actual point and uncertainty procedure is determined by the functional and arms.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ConditionalProcedure {
@@ -148,7 +155,7 @@ impl CheckedConditionalOperation {
                 && identification.query != CausalQuery::AverageEffect(query.inner.clone()))
             || !proof_supplies(identification, estimand)
             || !estimand.is_adjustment_shaped()
-            || query.inner.effect_modifiers.len() != 1
+            || !estimator_fits_modifier_set(query.inner.effect_modifiers.len())
             || !matches!(
                 common.structure_source,
                 StructureSource::Explicit | StructureSource::Accepted
@@ -189,10 +196,13 @@ impl CheckedConditionalOperation {
                 ));
             }
         }
-        let Some(&modifier) = query.inner.effect_modifiers.first() else {
+        if query.inner.effect_modifiers.is_empty() {
             return Err(compile_error("conditional effect requires an effect modifier"));
-        };
-        let mut design_roles = vec![query.inner.treatment, query.inner.outcome, modifier];
+        }
+        // Every modifier is a design role, so the complete-case rows of a modifier set are
+        // the rows the interaction design is built on.
+        let mut design_roles = vec![query.inner.treatment, query.inner.outcome];
+        design_roles.extend(query.inner.effect_modifiers.iter().copied());
         design_roles.extend(estimand.adjustment_set.iter().copied());
         design_roles.sort_unstable();
         design_roles.dedup();

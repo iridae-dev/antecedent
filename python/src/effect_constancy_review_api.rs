@@ -89,14 +89,12 @@ fn review_effect_constancy(
                 serde_json::json!({"evidence": out.evidence, "separate_transport_identification_required": out.separate_transport_identification_required, "contrast": {"left": c.left, "right": c.right, "difference": c.difference, "standard_error": c.standard_error, "z": c.z, "p_value": c.p_value, "p_holm": c.p_holm, "rejected": c.rejected}})
             }
             ReviewWire::Prior { sources, target, target_partition, bindings } => {
-                if sources.len() > 1024
-                    || bindings.len() > 1024
-                    || sources.iter().any(|s| {
-                        s.artifact
-                            .as_ref()
-                            .is_some_and(|a| a.len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES)
-                    })
-                {
+                // Catalog and binding counts are bounded by the request byte limit above.
+                if sources.iter().any(|s| {
+                    s.artifact
+                        .as_ref()
+                        .is_some_and(|a| a.len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES)
+                }) {
                     return Err(invalid("prior catalog exceeds bounds"));
                 }
                 let catalog = PriorCatalog::from_sources(

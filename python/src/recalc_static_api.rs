@@ -1,5 +1,6 @@
 //! Checked bindings for finite ADMG response and multi-source transport recalculation.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+use crate::NumericColumn;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -18,7 +19,6 @@ use antecedent_io::recalc_receipt_artifact::{
     CapabilitiesWire, DeclaredStageWire, RecalcReceiptArtifact, ResumeWire, identities_from_wire,
     identities_to_wire, plan_to_wire,
 };
-use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use serde::Deserialize;
 
@@ -34,9 +34,6 @@ use crate::transport_common::{
 use crate::transport_interference_api::parse_catalog;
 use crate::{detach_catch, py_msg};
 
-const MAX_VARIABLES: usize = 12;
-const MAX_GRID: usize = 64;
-const MAX_LAWS: usize = 64;
 const MAX_LAW_CELLS: usize = 1_000_000;
 const MZ_PREFIX: &[u8] = b"ANTECEDENT-MZ-TRANSPORT\x01";
 
@@ -79,20 +76,13 @@ struct TransportWire {
 }
 pub(crate) fn response_request(
     names: Vec<String>,
-    columns: &[PyReadonlyArray1<'_, f64>],
+    columns: &[NumericColumn<'_>],
     graph: &Admg,
     text: &str,
     ctx: &ExecutionContext,
 ) -> PyResult<StaticResponseRequest> {
     check_columns(columns, ctx)?;
     let wire: ResponseWire = parse_json(text, "static response")?;
-    if names.len() > MAX_VARIABLES || wire.support.len() > MAX_GRID || wire.actions.len() > MAX_GRID
-    {
-        return Err(invalid(
-            "recalc.limits_exceeded",
-            "static response exceeds variable/grid limits",
-        ));
-    }
     if names.is_empty()
         || names.len() != columns.len()
         || names.iter().enumerate().any(|(i, n)| n.trim().is_empty() || names[..i].contains(n))
@@ -103,7 +93,7 @@ pub(crate) fn response_request(
         treatment: resolve(&names, &wire.treatment)?,
         outcome: resolve(&names, &wire.outcome)?,
         graph: graph.aligned_to_names(&names)?,
-        columns: names.into_iter().zip(columns.iter().map(|c| c.as_array().to_vec())).collect(),
+        columns: crate::named_f64_columns(names, columns)?.into(),
         support: wire.support,
         actions: wire.actions,
         baseline: wire.baseline,
@@ -113,9 +103,6 @@ pub(crate) fn response_request(
 }
 fn inspect_laws(laws: &Bound<'_, PyAny>, catalog: &Bound<'_, PyAny>) -> PyResult<()> {
     let len = sequence_len(laws, "recalc.static_invalid_data")?;
-    if len > MAX_LAWS {
-        return Err(invalid("recalc.limits_exceeded", "at most64 exact laws"));
-    }
     let mut cells = 0usize;
     for i in 0..len {
         let law = sequence_item(laws, i)?;
@@ -132,23 +119,11 @@ fn inspect_laws(laws: &Bound<'_, PyAny>, catalog: &Bound<'_, PyAny>) -> PyResult
         {
             return Err(invalid("recalc.limits_exceeded", "count cells exceed1million"));
         }
-        let axes = law.getattr("axes")?;
-        let axes_len = sequence_len(&axes, "recalc.static_invalid_data")?;
-        if axes_len > MAX_VARIABLES {
-            return Err(invalid("recalc.limits_exceeded", "too many law axes"));
-        }
-        for a in 0..axes_len {
-            let axis = sequence_item(&axes, a)?;
-            let values = sequence_item(&axis, 1)?;
-            if sequence_len(&values, "recalc.static_invalid_data")? > MAX_GRID {
-                return Err(invalid("recalc.limits_exceeded", "axis levels exceed64"));
-            }
-        }
+        // The probability-cell budget above bounds the axes and their levels: a law holds one
+        // probability per joint cell.
     }
-    for (name, limit) in [("regimes", MAX_LAWS), ("bindings", MAX_LAWS), ("environments", 5)] {
-        if sequence_len(&catalog.getattr(name)?, "recalc.mz_invalid_request")? > limit {
-            return Err(invalid("recalc.limits_exceeded", "catalog exceeds declared limits"));
-        }
+    if sequence_len(&catalog.getattr("environments")?, "recalc.mz_invalid_request")? > 5 {
+        return Err(invalid("recalc.limits_exceeded", "catalog exceeds declared limits"));
     }
     Ok(())
 }
@@ -159,9 +134,6 @@ fn transport_request(
     text: &str,
 ) -> PyResult<MzRecalcRequest> {
     let wire: TransportWire = parse_json(text, "multi-source request")?;
-    if graph.names.len() > MAX_VARIABLES || wire.assignments.len() > MAX_GRID {
-        return Err(invalid("recalc.limits_exceeded", "transport exceeds variable/request limits"));
-    }
     if wire.sources.len() > 4
         || wire.search_operations > 4096
         || wire.search_depth > 24
@@ -266,7 +238,8 @@ pub(crate) fn static_error(error: &RecalcRunError) -> String {
             None,
         ),
         RecalcRunError::Request(detail) => {
-            let (code, stage) = match *detail {
+            let detail = detail.as_str();
+            let (code, stage) = match detail {
                 "recalc.cancelled" => {
                     (antecedent_core::reason_code!("cancelled_no_claim"), "score_artifact")
                 }
@@ -523,7 +496,7 @@ impl PyStaticSession {
     fn plan(
         &self,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         graph: PyRef<'_, Admg>,
         specification: &str,
         seed: u64,
@@ -541,7 +514,7 @@ impl PyStaticSession {
         &mut self,
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         graph: PyRef<'_, Admg>,
         specification: &str,
         seed: u64,

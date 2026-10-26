@@ -17,6 +17,7 @@ use crate::analysis::helpers::{
     stamp_result_context,
 };
 use crate::analysis::missing_data::MissingRoute;
+use crate::analysis::stage::elapsed_ns;
 use crate::analysis::{CheckedConditionalOperation, ConditionalProcedure};
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
@@ -296,7 +297,7 @@ impl PreparedStudy {
                 &operation.cache.estimand,
             ),
             estimate,
-            Some(operation.fitter.bootstrap_replicates),
+            Some(operation.fitter.inference.bootstrap_replicates),
             started,
             ctx,
         )
@@ -510,10 +511,11 @@ impl PreparedStudy {
                 message: "checked static operation requires an average-effect query".into(),
             });
         };
-        let cache =
-            self.analysis.identification_cache.as_deref().ok_or_else(|| CausalError::Compile {
+        let cache = self.analysis.static_cache().map(|cache| &**cache).ok_or_else(|| {
+            CausalError::Compile {
                 message: "checked static operation lost its identification product".into(),
-            })?;
+            }
+        })?;
         Ok((query.clone(), cache.identification.clone(), cache.estimand.clone()))
     }
 
@@ -549,12 +551,7 @@ impl PreparedStudy {
             };
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
-        diagnostics.push(antecedent_core::Diagnostic::new(
-            "exec.identify.cached",
-            antecedent_core::DiagnosticKind::Execution,
-            antecedent_core::DiagnosticSeverity::Info,
-            "identification reused from the checked prepared operation",
-        ));
+        diagnostics.push(crate::analysis::execute::identify_cached_checked_operation_diagnostic());
         diagnostics.append(&mut extra_diagnostics);
         let identifier_id = self.plan.binding().identifier_or(RouteDefaults::STATIC_ATE)?;
         let bootstrap_ok = estimate.uncertainty.bootstrap.replicates_ok;
@@ -585,7 +582,7 @@ impl PreparedStudy {
             provenance,
             treatment: query.treatment,
             outcome: query.outcome,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            wall_time_ns: elapsed_ns(started),
             latency_mode: self.analysis.latency_mode.map(|mode| Arc::from(mode.as_str())),
             stage_timings_ns: Vec::new(),
             bootstrap_replicates_requested: bootstrap_requested,
@@ -653,12 +650,8 @@ impl PreparedStudy {
         let mut diagnostics = metadata.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
         if metadata.identifier != crate::strategy_table::IdentifierId::RdSharp {
-            diagnostics.push(antecedent_core::Diagnostic::new(
-                "exec.identify.cached",
-                antecedent_core::DiagnosticKind::Execution,
-                antecedent_core::DiagnosticSeverity::Info,
-                "identification reused from the checked prepared operation",
-            ));
+            diagnostics
+                .push(crate::analysis::execute::identify_cached_checked_operation_diagnostic());
         }
         diagnostics.append(&mut extra_diagnostics);
         if let Some((tier, configured)) = metadata.latency_bootstrap_not_applied {
@@ -699,7 +692,7 @@ impl PreparedStudy {
             provenance,
             treatment: metadata.query.treatment,
             outcome: metadata.query.outcome,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            wall_time_ns: elapsed_ns(started),
             latency_mode: metadata.latency_mode.map(|mode| Arc::from(mode.as_str())),
             stage_timings_ns: Vec::new(),
             bootstrap_replicates_requested: bootstrap_requested,

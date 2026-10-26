@@ -409,7 +409,7 @@ impl PreparedStudy {
         depends_on: &[antecedent_core::VariableId],
     ) -> Result<StudyResult, CausalError> {
         let cache =
-            self.analysis.identification_cache.as_ref().ok_or(CausalError::Unsupported {
+            self.analysis.static_cache().ok_or(CausalError::Unsupported {
                 message: "retarget requires prepare-time identification",
             })?;
         let table = self
@@ -558,12 +558,7 @@ fn retarget_diagnostics(
         antecedent_core::DiagnosticSeverity::Info,
         "weights are caller-declared fixed functions of certified covariates; inference assumes iid sampling, positivity, and nuisance convergence; selection or weight-estimation uncertainty is excluded",
     ));
-    diagnostics.push(antecedent_core::Diagnostic::new(
-        "exec.identify.cached",
-        antecedent_core::DiagnosticKind::Execution,
-        antecedent_core::DiagnosticSeverity::Info,
-        "identification reused from the prepare-time cache",
-    ));
+    diagnostics.push(crate::analysis::execute::identify_cached_diagnostic());
     diagnostics
 }
 

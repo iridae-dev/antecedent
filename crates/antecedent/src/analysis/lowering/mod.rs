@@ -154,7 +154,7 @@ pub(crate) fn reconfigure_retained(
             message: "configured refresh cannot change retained identification inputs",
         });
     }
-    let cache = study.identification_cache.as_ref().ok_or(CausalError::Unsupported {
+    let cache = study.static_cache().ok_or(CausalError::Unsupported {
         message: "configured refresh requires its retained static proof",
     })?;
     let seal =
@@ -486,7 +486,7 @@ impl Study {
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Option<(Arc<CachedStaticIdentification>, bool)> {
-        prepared_or_retained(self.identification_cache.as_ref(), || {
+        prepared_or_retained(self.static_cache(), || {
             plan_retained_static(self, plan)
         })
     }
@@ -509,7 +509,7 @@ impl Study {
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Option<(Arc<CachedPagIdentification>, bool)> {
-        prepared_or_retained(self.pag_identification_cache.as_ref(), || {
+        prepared_or_retained(self.pag_cache(), || {
             plan_retained_pag(self, plan)
         })
     }
@@ -519,7 +519,7 @@ impl Study {
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Option<(Arc<CachedCpdagIdentification>, bool)> {
-        prepared_or_retained(self.cpdag_identification_cache.as_ref(), || {
+        prepared_or_retained(self.cpdag_cache(), || {
             plan_retained_cpdag(self, plan)
         })
     }
@@ -529,7 +529,7 @@ impl Study {
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Option<(Arc<CachedTemporalIdentification>, bool)> {
-        prepared_or_retained(self.temporal_identification_cache.as_ref(), || {
+        prepared_or_retained(self.temporal_cache(), || {
             plan_retained_temporal(self, plan)
         })
     }
@@ -539,7 +539,7 @@ impl Study {
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Option<(Arc<CachedTemporalClassIdentification>, bool)> {
-        prepared_or_retained(self.temporal_class_identification_cache.as_ref(), || {
+        prepared_or_retained(self.temporal_class_cache(), || {
             plan_retained_temporal_class(self, plan)
         })
     }
@@ -562,7 +562,7 @@ impl Study {
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Option<(Arc<TransportIdentification>, bool)> {
-        prepared_or_retained(self.transport_identification_cache.as_ref(), || {
+        prepared_or_retained(self.transport_cache(), || {
             plan_retained_transport(self, plan)
         })
     }

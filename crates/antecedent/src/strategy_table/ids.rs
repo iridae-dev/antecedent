@@ -8,7 +8,7 @@ use std::sync::OnceLock;
 
 use antecedent_core::{AssumptionRecord, IdentificationStatus};
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
-use antecedent_identify::IdentificationResult;
+use antecedent_identify::{EstimandSelectionError, IdentificationResult};
 
 use crate::error::CausalError;
 
@@ -1668,7 +1668,7 @@ pub fn select_claim(
         identification.narrowed_to(index).unwrap_or(identification)
     };
     if let Some(restriction) = estimator.claim_restriction() {
-        restrict_claim(&mut claim, &restriction);
+        claim.restrict_claim(&restriction);
     }
     Ok((claim, estimand))
 }
@@ -1700,80 +1700,45 @@ impl EstimatorId {
     }
 }
 
-/// Add `restriction` to a claim and weaken a nonparametric status to a parametric one.
-/// Statuses that are already weaker are kept.
-fn restrict_claim(claim: &mut IdentificationResult, restriction: &AssumptionRecord) {
-    let weaken = |status: &mut IdentificationStatus| {
-        if *status == IdentificationStatus::NonparametricallyIdentified {
-            *status = IdentificationStatus::IdentifiedUnderParametricRestrictions;
-        }
-    };
-    weaken(&mut claim.status);
-    claim.required_assumptions.extend_unique([restriction]);
-    for own in &mut claim.estimand_claims {
-        weaken(&mut own.status);
-        own.required_assumptions.extend_unique([restriction]);
-    }
-}
-
+/// Index of the estimand the estimator consumes: the identification result's own selection
+/// rule, with the estimator-to-method compatibility table as the predicate.
 fn select_estimand_index(
     identification: &IdentificationResult,
     estimator: EstimatorId,
 ) -> Result<usize, CausalError> {
-    let estimands = &identification.estimands;
-    if estimands.is_empty() {
-        return Err(CausalError::Compile { message: "no estimand returned".into() });
-    }
-    if estimands.len() == 1 {
-        return Ok(0);
-    }
-    let matches: Vec<usize> = estimands
-        .iter()
-        .enumerate()
-        .filter(|(_, e)| {
-            if e.is_adjustment_shaped() {
+    identification
+        .select_estimand_index(|estimand| {
+            if estimand.is_adjustment_shaped() {
                 return estimand_compatible_with_estimator(
                     EstimandMethod::BackdoorAdjustment,
                     &estimator,
                 );
             }
-            e.method_kind()
-                .map(|m| estimand_compatible_with_estimator(m, &estimator))
+            estimand
+                .method_kind()
+                .map(|method| estimand_compatible_with_estimator(method, &estimator))
                 .unwrap_or(false)
         })
-        .map(|(i, _)| i)
-        .collect();
-    if matches.len() == 1 {
-        return Ok(matches[0]);
-    }
-    // Auto (and the response identifiers) can list a criterion estimand (backdoor adjustment,
-    // front-door, path-specific, ...) beside the general-ID functional for the same query: ID
-    // is the general fallback, so when exactly one estimator-compatible match is criterion-
-    // shaped and the rest are general.id, the criterion match is the more specific claim and
-    // wins. This does not fire when every match is general.id (for example a MeanCurve's one
-    // general-ID estimand per grid level): that is a genuine ambiguity between distinct
-    // functionals, not a criterion-vs-fallback tiebreak, and still errors below.
-    let non_general: Vec<usize> = matches
-        .iter()
-        .copied()
-        .filter(|&i| estimands[i].method_kind() != Ok(EstimandMethod::GeneralId))
-        .collect();
-    if non_general.len() == 1 {
-        return Ok(non_general[0]);
-    }
-    // Auto lists every strategy that identified the query (criterion estimands and the general
-    // ID functional); name them so a caller sees which methods the estimator matched.
-    let methods: Vec<&str> = estimands.iter().map(|e| e.method.as_ref()).collect();
-    Err(CausalError::Compile {
-        message: format!(
-            "identifier returned {} estimands ({}); select an explicit identifier or an estimator \
-             that uniquely matches one method (got estimator {:?}, matching {})",
-            estimands.len(),
-            methods.join(", "),
-            estimator.as_str(),
-            matches.len()
-        ),
-    })
+        .map_err(|error| match error {
+            EstimandSelectionError::NoEstimand => {
+                CausalError::Compile { message: "no estimand returned".into() }
+            }
+            // Auto lists every strategy that identified the query (criterion estimands and the
+            // general ID functional); name them so a caller sees which methods the estimator
+            // matched.
+            EstimandSelectionError::Ambiguous { methods, matched } => CausalError::Compile {
+                message: format!(
+                    "identifier returned {} estimands ({}); select an explicit identifier or an \
+                     estimator that uniquely matches one method (got estimator {:?}, matching {})",
+                    methods.len(),
+                    methods.iter().map(|method| &**method).collect::<Vec<&str>>().join(", "),
+                    estimator.as_str(),
+                    matched
+                ),
+            },
+            // `EstimandSelectionError` is non-exhaustive; a later reason is still a refusal.
+            other => CausalError::Compile { message: format!("estimand selection failed: {other:?}") },
+        })
 }
 
 /// Allowlist for interventional-distribution identify+estimate.

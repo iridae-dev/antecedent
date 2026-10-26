@@ -331,7 +331,7 @@ fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
         .prepare(&ExecutionContext::for_tests(11))
         .unwrap()
         .estimate_retained(&ExecutionContext::for_tests(11));
-    assert!(err.is_err(), "two modifiers are not a one-modifier conditional effect");
+    assert!(err.is_err(), "a modifier that is not a series variable is refused");
     let mapped = Study::series(data)
         .query(CausalQuery::TemporalEffect(conditional_query(false)))
         .graph(TemporalCpdag::from_temporal_dag(&dag))

@@ -11,7 +11,7 @@ use antecedent::analysis::recalc_bayesian::{
     BayesianModel, BayesianRequest, BayesianSession, PosteriorSummarySpec,
     execute_bayesian_with_receipt,
 };
-use antecedent::analysis::recalc_receipt::{RecalcRunError, UtilitySpec};
+use antecedent::analysis::recalc_receipt::{RecalcRequestCode, RecalcRunError, UtilitySpec};
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_io::{PriorMapping, consume_analysis_result};
 use antecedent_prob::{GaussianCoefficientPrior, PosteriorQuantityKind, PriorSet, PriorSpec};
@@ -129,7 +129,7 @@ fn request(t: Vec<f64>, z: Option<Vec<f64>>, y: Vec<f64>, draws: usize) -> Bayes
         (vec![("t".into(), t), ("y".into(), y)], vec![(0, 1)], 1, BayesianModel::Gaussian)
     };
     BayesianRequest {
-        columns,
+        columns: columns.into(),
         edges,
         treatment: VariableId::from_raw(0),
         outcome: VariableId::from_raw(outcome),
@@ -298,7 +298,7 @@ fn mapped_prior_replicate(n: usize, draws: usize, rep: u64) -> Vec<f64> {
         .prior_from_artifact(bytes.clone(), Some(PriorMapping::IdenticalCoefficientSubspace));
     assert!(matches!(
         execute_bayesian_with_receipt(&mut BayesianSession::new(), &same, &context),
-        Err(RecalcRunError::Request("recalc.bayesian_prior_likelihood_double_use"))
+        Err(RecalcRunError::Request(RecalcRequestCode::BayesianPriorLikelihoodDoubleUse))
     ));
     let mut target = request(t, None, target_y, draws);
     target.inference = target

@@ -199,8 +199,7 @@ impl super::Study {
         bound.custom_validators = Vec::new();
         match operation.identification() {
             StaticClassIdentification::Cpdag(cache) => {
-                bound.cpdag_identification_cache = Some(Arc::clone(cache));
-                bound.pag_identification_cache = None;
+                bound.install_identification(crate::analysis::IdentificationCache::Cpdag(Arc::clone(cache)));
                 if bound.graph.as_cpdag().is_none() {
                     return Err(CausalError::Compile {
                         message: "checked CPDAG response requires its retained CPDAG".into(),
@@ -208,8 +207,7 @@ impl super::Study {
                 }
             }
             StaticClassIdentification::Pag(cache) => {
-                bound.pag_identification_cache = Some(Arc::clone(cache));
-                bound.cpdag_identification_cache = None;
+                bound.install_identification(crate::analysis::IdentificationCache::Pag(Arc::clone(cache)));
                 if operation.physical().static_pag().is_none() {
                     return Err(CausalError::Compile {
                         message: "checked PAG response requires its resolved static PAG".into(),

@@ -277,7 +277,7 @@ fn linear_adjustment_lowering(
             DesignColumnRole::Covariate(id) => format!("covariate:{}", id.raw()),
         })
         .collect();
-    let se_kind = operation.fitter.se_kind;
+    let se_kind = operation.fitter.inference.se_kind;
     let wire = CheckedLinearAdjustmentLoweringWire {
         format: 1,
         functional: lowering.source.raw(),
@@ -294,7 +294,7 @@ fn linear_adjustment_lowering(
         backend: "faer".into(),
         se_kind: se_kind.as_str().into(),
         se_lag: se_lag(se_kind),
-        bootstrap_replicates: operation.fitter.bootstrap_replicates,
+        bootstrap_replicates: operation.fitter.inference.bootstrap_replicates,
         interval_method: commitments.interval_method.clone(),
         complete_case_rows: problem.design.nrows as u64,
         arena: antecedent_io::expr_arena_to_wire(checked.program().arena())
@@ -354,8 +354,7 @@ pub(super) fn functional_program(
     let derived = |estimator: EstimatorId| {
         cached
             .map(|identification| {
-                let estimand =
-                    crate::strategy_table::select_estimand(identification, estimator)?;
+                let estimand = crate::strategy_table::select_estimand(identification, estimator)?;
                 let program_schema = antecedent_expr::ProgramSchema::new(
                     data_schema(&study.data).variables().iter().map(|variable| {
                         (

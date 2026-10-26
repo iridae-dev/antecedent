@@ -198,7 +198,7 @@ fn parent_adjustment_removes_the_confounding_the_naive_regression_keeps() {
 fn fit(data: &TimeSeriesData, identified: &TemporalIdentificationResult) -> f64 {
     let ctx = ExecutionContext::for_tests(1);
     let mut estimator = TemporalLinearAdjustment::new();
-    estimator.inner.bootstrap_replicates = 0;
+    estimator.inner.inference.bootstrap_replicates = 0;
     let prepared = estimator
         .prepare(
             data,

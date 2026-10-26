@@ -184,8 +184,6 @@ MAPPING: tuple[Bound, ...] = (
     # ---- estimator and decision cells
     Bound("estimate.matched_case_control_odds_ratio", "max_iterations", rust=(C(MATCHED, "MAX_ITERATIONS"),)),
     Bound("estimate.matched_case_control_odds_ratio", "replay_max_rows", python=(L(MATCHED_PY, r"^_MAX_REPLAY_ROWS = ([\d_]+)"),)),
-    Bound("decision.finite_action_inverse", "max_actions", rust=(C(INVERSE, "MAX_INVERSE_ACTIONS"),)),
-    Bound("decision.finite_action_inverse", "max_forward_points", rust=(C(INVERSE, "MAX_INVERSE_FORWARD_POINTS"),)),
     Bound("estimate.penalized_propensity_aipw", "max_grid", rust=(C(PENALIZED, "MAX_RIDGE_GRID"),)),
     Bound("estimate.penalized_propensity_aipw", "max_inner_folds", rust=(C(PENALIZED, "MAX_RIDGE_INNER_FOLDS"),)),
     Bound("estimate.clustered_dml_aipw", "default_min_clusters", rust=(C(CLUSTER_DML, "DEFAULT_MIN_CLUSTERS"),)),
@@ -816,7 +814,6 @@ NONINT: tuple[NonInt, ...] = (
     NonInt("estimate.tier_diagnostics", "cancellation_check", places=(C(DESCRIPTIVE, "POLL_EVERY_ROWS"),)),
     NonInt("estimate.descriptive_comparison", "work", exclude="2 x 2 names the dimension of the fixed delta-method covariance, not a tunable execution bound"),
     NonInt("estimate.tier_diagnostics", "work", exclude="2 x 2 names the dimension of the fixed delta-method covariance, not a tunable execution bound"),
-    NonInt("estimate.batch_retarget_covariance", "max_t_draws", places=(C(BATCH_RETARGET, "MAX_T_MIN_DRAWS"), C(BATCH_RETARGET, "MAX_T_MAX_DRAWS"))),
     NonInt("estimate.batch_retarget_covariance", "max_t_poll", places=(C(JOINT_IF, "MAX_T_POLL_EVERY"),)),
     NonInt("transport.multi_source_limited_experiment", "memory_limit", exclude=_MEMORY_REASON),
     NonInt("transport.admg_conditional", "memory_limit", exclude=_MEMORY_REASON),

@@ -585,7 +585,7 @@ fn fit_bayesian_horizon(
     ctx: &ExecutionContext,
 ) -> Result<HorizonFit, CausalError> {
     use antecedent_estimate::bayesian_mediation::{
-        compose_temporal_mediation, prepare_temporal_mediation_with_gaps,
+        compose_temporal_mediation_mechanisms, prepare_temporal_mediation_with_gaps,
     };
     let status = click.identification.status;
     let natural_alias = matches!(
@@ -606,9 +606,8 @@ fn fit_bayesian_horizon(
         fit_mediation_mechanisms(estimator, &preparations, (click.horizon, status), scale, ctx)
     };
     let mechanisms = fit(config.prior_scale)?;
-    let mut posterior =
-        compose_temporal_mediation(&mechanisms[0], &mechanisms[1], horizon_query, status)
-            .map_err(CausalError::from)?;
+    let mut posterior = compose_temporal_mediation_mechanisms(&mechanisms, horizon_query, status)
+        .map_err(CausalError::from)?;
     if natural_alias {
         posterior.assumptions.push(antecedent_estimate::linear_no_interaction_restriction());
     }
@@ -692,14 +691,14 @@ fn mediation_prior_sensitivity(
     (antecedent_validate::RefutationReport, antecedent_prob::PriorSensitivitySummary),
     CausalError,
 > {
-    use antecedent_estimate::bayesian_mediation::compose_temporal_mediation;
+    use antecedent_estimate::bayesian_mediation::compose_temporal_mediation_mechanisms;
     let sensitivity = antecedent_validate::PriorSensitivity::standard_grid();
     let mut means = Vec::new();
     let mut sds = Vec::new();
     for &scale in sensitivity.scales.iter() {
         let scaled = fit(scale)?;
         let scaled_posterior =
-            compose_temporal_mediation(&scaled[0], &scaled[1], horizon_query, status)
+            compose_temporal_mediation_mechanisms(&scaled, horizon_query, status)
                 .map_err(CausalError::from)?;
         means.push(scaled_posterior.summaries.mean[0]);
         sds.push(scaled_posterior.summaries.sd[0]);

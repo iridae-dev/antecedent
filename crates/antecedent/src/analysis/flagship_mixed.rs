@@ -99,7 +99,11 @@ pub enum FlagshipError {
     /// Claim withdrawal could not be classified.
     Verification(Box<CompositionVerificationRefusal>),
     /// The claim graph refused.
-    Graph(String),
+    Graph(Box<super::GraphError>),
+    /// The route thread could not start.
+    Thread(Box<std::io::Error>),
+    /// The caller's admission pool refused the decision artifact.
+    Admission(antecedent_core::execution::AdmissionError),
     /// A decision record or cost identity could not be encoded or decoded.
     Serialization(Box<serde_json::Error>),
     /// A route did not return the object this workflow requires.
@@ -125,7 +129,9 @@ impl std::fmt::Display for FlagshipError {
             Self::Joint(error) => write!(f, "{error}"),
             Self::Decision(error) => write!(f, "decision evaluation refused: {error:?}"),
             Self::Verification(error) => write!(f, "{error}"),
-            Self::Graph(detail) => write!(f, "{detail}"),
+            Self::Graph(error) => write!(f, "{error}"),
+            Self::Thread(error) => write!(f, "the route thread could not start: {error}"),
+            Self::Admission(error) => write!(f, "decision artifact admission refused: {error}"),
             Self::Serialization(error) => write!(f, "decision record serialization: {error}"),
             Self::Route(detail) | Self::Dependence(detail) | Self::Policy(detail) => {
                 write!(f, "{detail}")
@@ -138,6 +144,9 @@ impl std::error::Error for FlagshipError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Serialization(error) => Some(error.as_ref()),
+            Self::Graph(error) => Some(error.as_ref()),
+            Self::Thread(error) => Some(error.as_ref()),
+            Self::Admission(error) => Some(error),
             _ => None,
         }
     }
@@ -546,7 +555,7 @@ fn on_route_stack<T: Send>(
         let handle = std::thread::Builder::new()
             .stack_size(ROUTE_STACK_BYTES)
             .spawn_scoped(scope, run)
-            .map_err(|_| FlagshipError::Route("the route thread could not start"))?;
+            .map_err(|error| FlagshipError::Thread(Box::new(error)))?;
         handle.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic))
     })
 }
@@ -1057,7 +1066,7 @@ fn cost_request(benefit: f64, prior_scale: f64) -> BayesianRequest {
         }
     }
     BayesianRequest {
-        columns: vec![("treatment".to_owned(), treatment), ("cost".to_owned(), cost)],
+        columns: vec![("treatment".to_owned(), treatment), ("cost".to_owned(), cost)].into(),
         edges: vec![(0, 1)],
         treatment: VariableId::from_raw(0),
         outcome: VariableId::from_raw(1),
@@ -1308,7 +1317,7 @@ fn claim_graph(workflow: &FlagshipWorkflow) -> Result<CompositionGraph, Flagship
         ("decision", NodeKind::Decision, mean.to_bits()),
     ];
     for (key, kind, bits) in nodes {
-        graph.add_node(claim_node(key, kind, bits)).map_err(|error| graph_error(&error))?;
+        graph.add_node(claim_node(key, kind, bits)).map_err(graph_error)?;
     }
     let edges = [
         ("margin_bridge", "cluster_trial", DependencyKind::Data),
@@ -1317,7 +1326,7 @@ fn claim_graph(workflow: &FlagshipWorkflow) -> Result<CompositionGraph, Flagship
         ("decision", "bayesian_cost", DependencyKind::Evidence),
     ];
     for (downstream, upstream, kind) in edges {
-        graph.add_edge(downstream, upstream, kind).map_err(|error| graph_error(&error))?;
+        graph.add_edge(downstream, upstream, kind).map_err(graph_error)?;
     }
     Ok(graph)
 }
@@ -1328,8 +1337,8 @@ fn claim_node(key: &str, kind: NodeKind, bits: u64) -> CompositionNode {
     CompositionNode::new(key, kind, SemanticDigest::from_bytes(writer.finish()))
 }
 
-fn graph_error(error: &super::GraphError) -> FlagshipError {
-    FlagshipError::Graph(error.to_string())
+fn graph_error(error: super::GraphError) -> FlagshipError {
+    FlagshipError::Graph(Box::new(error))
 }
 
 #[derive(Serialize, Deserialize)]
@@ -1345,6 +1354,49 @@ fn decision_artifact_identity(bytes: &[u8]) -> String {
     CanonicalWriter::digest_bytes_hex("antecedent.flagship_decision.v2", bytes)
 }
 
+/// The identity-free view of a temporal request that names its source: every field of the
+/// request in its serialized order, with the decision parameters (benefit and cost) zeroed, so
+/// the source identity does not move with the decision. It borrows the request instead of
+/// cloning it to clear those fields, and serializes byte-for-byte as the cleared clone does;
+/// the digest of this JSON encoding under `antecedent.flagship_temporal.v1` is the source
+/// identity, so the field set and order are part of that versioned encoding.
+#[derive(Serialize)]
+struct TemporalSourceView<'a> {
+    edges: &'a [(u32, u32)],
+    bidirected: &'a [(u32, u32)],
+    selection_targets: &'a [u32],
+    horizon: usize,
+    lag_alignment: &'a [u8; 5],
+    period: (u64, u64),
+    units: &'a [TemporalUnitWire],
+    snapshot_id: &'a str,
+    initial_state: [f64; 2],
+    initial_state_id: &'a str,
+    functional: &'a TemporalFunctional,
+    benefit_per_unit: f64,
+    cost: f64,
+}
+
+impl<'a> TemporalSourceView<'a> {
+    fn of(request: &'a TemporalRequest) -> Self {
+        Self {
+            edges: &request.edges,
+            bidirected: &request.bidirected,
+            selection_targets: &request.selection_targets,
+            horizon: request.horizon,
+            lag_alignment: &request.lag_alignment,
+            period: request.period,
+            units: &request.units,
+            snapshot_id: &request.snapshot_id,
+            initial_state: request.initial_state,
+            initial_state_id: &request.initial_state_id,
+            functional: &request.functional,
+            benefit_per_unit: 0.0,
+            cost: 0.0,
+        }
+    }
+}
+
 fn source_keys(
     cluster: &ClusterFit,
     temporal: &TemporalRequest,
@@ -1357,10 +1409,7 @@ fn source_keys(
         .real(cluster.variance)
         .text(&cluster.design)
         .text(&cluster.uncertainty);
-    let mut temporal = temporal.clone();
-    temporal.benefit_per_unit = 0.0;
-    temporal.cost = 0.0;
-    let bytes = serde_json::to_vec(&temporal)?;
+    let bytes = serde_json::to_vec(&TemporalSourceView::of(temporal))?;
     let mut posterior = CanonicalWriter::new("antecedent.flagship_cost.v1");
     let identities = cost.identities(ctx);
     for stage in Stage::all() {
@@ -1411,7 +1460,7 @@ fn decode_decision(
     }
     let lease = ctx
         .acquire_admission(0, (bytes.len() as u64).saturating_mul(8))
-        .map_err(|_| FlagshipError::Route("decision artifact admission refused"))?;
+        .map_err(FlagshipError::Admission)?;
     if expected.is_some_and(|id| id != decision_artifact_identity(bytes)) {
         return Err(FlagshipError::Route("decision artifact identity mismatch"));
     }

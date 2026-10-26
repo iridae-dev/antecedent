@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::NumericColumn;
 use std::collections::BTreeMap;
 
 use antecedent::analysis::recalc_adjusted::{
@@ -19,7 +20,6 @@ use antecedent_io::recalc_receipt_artifact::{
     identities_to_wire, plan_to_wire,
 };
 use antecedent_stats::{GlmFamily, GlmOptions};
-use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use serde::Deserialize;
 
@@ -73,8 +73,6 @@ struct RequestWire {
     target_depends_on: Vec<String>,
 }
 
-const MAX_GLM_ITERATIONS: u32 = 1_000;
-
 fn covariance(name: &str) -> PyResult<VectorCovariance> {
     Ok(match name {
         "model_based" => VectorCovariance::ModelBased,
@@ -88,7 +86,7 @@ fn covariance(name: &str) -> PyResult<VectorCovariance> {
 
 fn build_request(
     names: Vec<String>,
-    columns: &[PyReadonlyArray1<'_, f64>],
+    columns: &[NumericColumn<'_>],
     specification: &str,
     ctx: &ExecutionContext,
 ) -> PyResult<AdjustedRequest> {
@@ -145,11 +143,7 @@ fn build_request(
                 "negative_binomial" => GlmFamily::NegativeBinomial,
                 _ => return Err(invalid("recalc.adjusted_invalid_model", "unknown GLM family")),
             };
-            if max_iter == 0
-                || max_iter > MAX_GLM_ITERATIONS
-                || !tolerance.is_finite()
-                || tolerance <= 0.0
-            {
+            if max_iter == 0 || !tolerance.is_finite() || tolerance <= 0.0 {
                 return Err(invalid("recalc.adjusted_invalid_model", "invalid GLM fit options"));
             }
             AdjustedModel::Glm { family, options: GlmOptions::new(max_iter, tolerance) }
@@ -179,7 +173,7 @@ fn build_request(
         ContrastWire::Categorical { from, to } => AdjustedContrast::Categorical { from, to },
     };
     Ok(AdjustedRequest {
-        columns: names.into_iter().zip(columns.iter().map(|c| c.as_array().to_vec())).collect(),
+        columns: crate::named_f64_columns(names, columns)?.into(),
         edges,
         treatments,
         outcome,
@@ -195,7 +189,8 @@ fn adjusted_error_refusal(error: &RecalcRunError) -> String {
     match error {
         RecalcRunError::Refused(plan) => plan_refusal_json(plan),
         RecalcRunError::Request(detail) => {
-            let (code, stage) = match *detail {
+            let detail = detail.as_str();
+            let (code, stage) = match detail {
                 "recalc.adjustment_not_identified" => {
                     (antecedent_core::reason_code!("effect_not_identified"), "identification")
                 }
@@ -411,7 +406,7 @@ impl PyAdjustedSession {
     fn plan(
         &self,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         specification: &str,
         seed: u64,
         threads: Option<u32>,
@@ -429,7 +424,7 @@ impl PyAdjustedSession {
         &mut self,
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         specification: &str,
         seed: u64,
         threads: Option<u32>,

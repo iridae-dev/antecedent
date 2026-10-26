@@ -8861,10 +8861,6 @@ pub const antecedent::BATCH_RETARGET_SCOPE_NOTE: &str
 pub const antecedent::IDENTIFICATION_REFUSAL_CODES: [&str; 2]
 pub const antecedent::INVERSE_SCOPE_NOTE: &str
 pub const antecedent::JOINT_SENSITIVITY_ARTIFACT_VERSION: u32
-pub const antecedent::MAX_INVERSE_ACTIONS: usize
-pub const antecedent::MAX_INVERSE_FORWARD_POINTS: usize
-pub const antecedent::MAX_T_MAX_DRAWS: u32
-pub const antecedent::MAX_T_MIN_DRAWS: u32
 pub const antecedent::PERCENTILE_95_MIN_REPLICATES: u32
 pub const antecedent::analysis::BAYESIAN_REALIZATION: antecedent_core::refusal::NextAttempt
 pub const antecedent::analysis::DECISION_NEXT_ATTEMPTS: [antecedent_core::refusal::NextAttempt; 4]
@@ -16011,10 +16007,6 @@ pub use antecedent::analysis::LearnedTrialState = antecedent::LearnedTrialState
 pub use antecedent::analysis::LedgerExport = antecedent::LedgerExport
 pub use antecedent::analysis::LedgerRefresh = antecedent::LedgerRefresh
 pub use antecedent::analysis::LicensedNeighbor = antecedent_contract::LicensedNeighbor
-pub use antecedent::analysis::MAX_INVERSE_ACTIONS = antecedent::MAX_INVERSE_ACTIONS
-pub use antecedent::analysis::MAX_INVERSE_FORWARD_POINTS = antecedent::MAX_INVERSE_FORWARD_POINTS
-pub use antecedent::analysis::MAX_T_MAX_DRAWS = antecedent::MAX_T_MAX_DRAWS
-pub use antecedent::analysis::MAX_T_MIN_DRAWS = antecedent::MAX_T_MIN_DRAWS
 pub use antecedent::analysis::MeasurementAnalysisBinding = antecedent::MeasurementAnalysisBinding
 pub use antecedent::analysis::MeasurementDetail = antecedent::MeasurementDetail
 pub use antecedent::analysis::MeasurementEstimate = antecedent::MeasurementEstimate
@@ -16352,10 +16344,6 @@ pub use antecedent::analysis::api::LearnedTrialState = antecedent::LearnedTrialS
 pub use antecedent::analysis::api::LedgerExport = antecedent::LedgerExport
 pub use antecedent::analysis::api::LedgerRefresh = antecedent::LedgerRefresh
 pub use antecedent::analysis::api::LicensedNeighbor = super::LicensedNeighbor
-pub use antecedent::analysis::api::MAX_INVERSE_ACTIONS = antecedent::MAX_INVERSE_ACTIONS
-pub use antecedent::analysis::api::MAX_INVERSE_FORWARD_POINTS = antecedent::MAX_INVERSE_FORWARD_POINTS
-pub use antecedent::analysis::api::MAX_T_MAX_DRAWS = antecedent::MAX_T_MAX_DRAWS
-pub use antecedent::analysis::api::MAX_T_MIN_DRAWS = antecedent::MAX_T_MIN_DRAWS
 pub use antecedent::analysis::api::MeasurementAnalysisBinding = antecedent::MeasurementAnalysisBinding
 pub use antecedent::analysis::api::MeasurementDetail = antecedent::MeasurementDetail
 pub use antecedent::analysis::api::MeasurementEstimate = antecedent::MeasurementEstimate

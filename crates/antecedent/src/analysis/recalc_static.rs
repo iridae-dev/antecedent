@@ -3,8 +3,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use super::recalc_common::{Fields, float_bytes, identity, literal, table_from_columns};
 use super::recalc_receipt::{
-    Counter, DecisionValue, LawValue, RecalcReceipt, RecalcRunError, ReceiptRecorder, UtilitySpec,
-    decide,
+    Columns, Counter, DecisionValue, LawValue, NonFinite, RecalcReceipt, RecalcRequestCode,
+    RecalcRunError, ReceiptRecorder, UtilitySpec, decide,
 };
 use crate::{
     CausalError, EstimatorId, IdentifierId, MzTransportResult, PreparedMzTransport, PreparedStudy,
@@ -46,7 +46,7 @@ pub struct StaticRecalcOutcome {
 #[derive(Clone, Debug)]
 pub struct StaticResponseRequest {
     /// Numeric data/schema in stable graph order.
-    pub columns: Vec<(String, Vec<f64>)>,
+    pub columns: Columns,
     /// Explicit static ADMG.
     pub graph: Admg,
     /// Intervention coordinate.
@@ -171,11 +171,12 @@ fn io_error(error: antecedent_io::IoError) -> RecalcRunError {
 }
 fn guards(ctx: &ExecutionContext, values: usize) -> Result<(), RecalcRunError> {
     if ctx.cancellation.is_cancelled() {
-        return Err(RecalcRunError::Request("recalc.cancelled"));
+        return Err(RecalcRunError::Request(RecalcRequestCode::Cancelled));
     }
+    // A saturated estimate is a size no budget admits, whether or not a limit is declared.
     let bytes = (values as u64).saturating_mul(128);
-    if ctx.memory_limit_bytes().into_iter().any(|limit| bytes > limit) {
-        return Err(RecalcRunError::Request("recalc.memory_budget_exceeded"));
+    if values == usize::MAX || ctx.memory_limit_bytes().into_iter().any(|limit| bytes > limit) {
+        return Err(RecalcRunError::Request(RecalcRequestCode::MemoryBudgetExceeded));
     }
     Ok(())
 }
@@ -188,11 +189,11 @@ fn names_valid(names: &[String], n: usize) -> bool {
 }
 fn contrast(means: &[f64], baseline: usize, active: usize) -> Result<f64, RecalcRunError> {
     let (Some(a), Some(b)) = (means.get(active), means.get(baseline)) else {
-        return Err(RecalcRunError::Request("recalc.static_invalid_contrast"));
+        return Err(RecalcRunError::Request(RecalcRequestCode::StaticInvalidContrast));
     };
     let value = a - b;
     if !value.is_finite() {
-        return Err(RecalcRunError::Request("recalc.static_required_factor_missing"));
+        return Err(RecalcRunError::Request(RecalcRequestCode::StaticRequiredFactorMissing));
     }
     Ok(value)
 }
@@ -268,57 +269,35 @@ impl StaticResponseRequest {
     fn validate(&self) -> Result<(), RecalcRunError> {
         self.utility.validate()?;
         if !self.graph.has_bidirected() {
-            return Err(RecalcRunError::Request("recalc.static_graph_unsupported"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::StaticGraphUnsupported));
         }
         let names = self.columns.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>();
-        let n = self.columns.first().map_or(0, |(_, v)| v.len());
+        // The table sizes (rows, distinct values per column) are bounded by the caller's
+        // memory budget through the workspace estimate, not by literals.
         if !names_valid(&names, self.graph.node_count())
-            || n == 0
-            || n > 100_000
-            || n.saturating_mul(names.len()) > 1_000_000
-            || self.columns.iter().any(|(_, values)| {
-                values.len() != n
-                    || values.iter().any(|v| v.is_infinite())
-                    || values
-                        .iter()
-                        .filter(|v| v.is_finite())
-                        .map(|v| v.to_bits())
-                        .collect::<std::collections::BTreeSet<_>>()
-                        .len()
-                        > 64
-            })
+            || !self.columns.is_well_formed(NonFinite::MissingAsNan)
         {
-            return Err(RecalcRunError::Request("recalc.static_invalid_data"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::StaticInvalidData));
         }
         if self.treatment == self.outcome
-            || self.treatment.raw() as usize >= names.len()
-            || self.outcome.raw() as usize >= names.len()
+            || !self.columns.are_distinct_roles(&[self.treatment.raw(), self.outcome.raw()])
             || self.support.len() < 2
-            || self.support.len() > 64
             || self.support.iter().any(|v| !v.is_finite())
             || self.support.windows(2).any(|pair| pair[0] >= pair[1])
-            || self
-                .support
-                .iter()
-                .map(|v| v.to_bits())
-                .collect::<std::collections::BTreeSet<_>>()
-                .len()
-                != self.support.len()
             || self.actions.is_empty()
-            || self.actions.len() > 64
             || self.actions.iter().any(|v| !v.is_finite())
         {
-            return Err(RecalcRunError::Request("recalc.static_invalid_query"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::StaticInvalidQuery));
         }
         if self
             .actions
             .iter()
             .any(|action| !self.support.iter().any(|value| value.to_bits() == action.to_bits()))
         {
-            return Err(RecalcRunError::Request("recalc.static_action_out_of_support"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::StaticActionOutOfSupport));
         }
         if self.baseline >= self.actions.len() || self.active >= self.actions.len() {
-            return Err(RecalcRunError::Request("recalc.static_invalid_contrast"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::StaticInvalidContrast));
         }
         Ok(())
     }
@@ -481,7 +460,7 @@ fn response_means(result: &StudyResult) -> Result<Vec<f64>, RecalcRunError> {
         {
             Ok(mean.to_vec())
         }
-        _ => Err(RecalcRunError::Request("recalc.static_required_factor_missing")),
+        _ => Err(RecalcRunError::Request(RecalcRequestCode::StaticRequiredFactorMissing)),
     }
 }
 /// Static preparation stage: reprepares from the request, rebinds the retained functional, or reuses the live artifact.
@@ -568,7 +547,7 @@ fn static_law(
                     .iter()
                     .position(|v| v.to_bits() == action.to_bits())
                     .and_then(|i| full_means.get(i).copied())
-                    .ok_or(RecalcRunError::Request("recalc.static_action_out_of_support"))
+                    .ok_or(RecalcRunError::Request(RecalcRequestCode::StaticActionOutOfSupport))
             })
             .collect::<Result<Vec<_>, _>>()?;
         let value = if must_evaluate {
@@ -608,7 +587,7 @@ pub fn execute_static_response_with_receipt(
         return Err(RecalcRunError::Refused(Box::new(plan)));
     }
     if ctx.cancellation.is_cancelled() {
-        return Err(RecalcRunError::Request("recalc.cancelled"));
+        return Err(RecalcRunError::Request(RecalcRequestCode::Cancelled));
     }
     let mut recorder = ReceiptRecorder::new();
     let old = session.live.as_ref();
@@ -726,24 +705,15 @@ impl MzRecalcRequest {
         if !names_valid(&self.variable_names, self.graph.node_count())
             || self.query.outcomes.len() != 1
             || self.requests.is_empty()
-            || self.requests.len() > 64
             || self
                 .requests
                 .iter()
                 .any(|request| request.entries().len() != self.query.treatments.len())
-            || self.data.laws().len() > 64
             || self.data.laws().is_empty()
-            || self
-                .data
-                .laws()
-                .iter()
-                .any(|law| law.axes().iter().any(|axis| axis.values.len() > 64))
-            || self.data.laws().iter().map(|law| law.probabilities().len()).sum::<usize>()
-                > 1_000_000
             || self.baseline >= self.requests.len()
             || self.active >= self.requests.len()
         {
-            return Err(RecalcRunError::Request("recalc.mz_invalid_request"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::MzInvalidRequest));
         }
         Ok(())
     }
@@ -916,7 +886,7 @@ pub fn execute_mz_with_receipt(
         return Err(RecalcRunError::Refused(Box::new(plan)));
     }
     if ctx.cancellation.is_cancelled() {
-        return Err(RecalcRunError::Request("recalc.cancelled"));
+        return Err(RecalcRunError::Request(RecalcRequestCode::Cancelled));
     }
     let old = session.live.as_ref();
     let mut recorder = ReceiptRecorder::new();

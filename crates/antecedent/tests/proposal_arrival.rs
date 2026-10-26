@@ -8,7 +8,8 @@ use antecedent_core::{
     SamplingDesign, VariableCoordinate, VariableDomain, VariableId,
 };
 use antecedent_design::{
-    DurableStudyCandidate, ExpectedEvidence, RepairFamilyRef, RepairLimits, RepairObjective,
+    DurableStudyCandidate, ExpectedEvidence, RepairFamily, RepairFamilyRef, RepairLimits,
+    RepairObjective,
     RepairReportArtifact, StudyCostDeclaration, StudyKind, TransportRepairFamily, UnitRules,
     repair,
 };
@@ -79,7 +80,7 @@ fn ranking(id: &str) -> antecedent::analysis::design_ranking::DesignRankingEvalu
         "decision":{"contract_identity":"arrival-ranking","utility_unit":"utility","action_ids":["wait","act"],"intercepts":[0.,-0.5],"slopes":[0.,1.],"prior":{"kind":"draws","states":[0.25,0.75]}},
         "candidates":[{"semantic_id":id,"sample_size":200,"cost":{"amount":1.,"unit":"utility"},"signal":{"prior_id":"decision-prior","state_quantity":q,"observation_quantity":q,"rng_seed":3,"evidence_lineage":["original-study-proposal"],"conditional_independence":"iid_given_state"},"provider":{"kind":"binomial"}}],"rng_seed":3,"source_digests":["original-prior"]
     })).unwrap();
-    evaluate(&rank).unwrap()
+    evaluate(rank).unwrap()
 }
 fn law(rid: antecedent_core::RegimeId, active: bool) -> ExactLawWire {
     let counts = if active { vec![20, 80] } else { vec![80, 20] };

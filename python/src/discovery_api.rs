@@ -6,11 +6,11 @@
     clippy::empty_line_after_doc_comments
 )]
 
+use crate::NumericColumn;
 use crate::compiled_route_api::{DiscoverInput, RouteRecord};
 use crate::*;
 use antecedent::discovery::BackgroundKnowledge;
 use antecedent::{DiscoveredStructure, DiscoverySpec, GraphRef};
-use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
@@ -519,7 +519,7 @@ type SharedCi = std::sync::Arc<dyn antecedent_stats::ConditionalIndependence + S
 fn run_series_discovery<F>(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     seed: u64,
     ci: Option<Bound<'_, PyAny>>,
     weights: Option<Vec<f64>>,
@@ -702,7 +702,7 @@ fn pcmci_result_from_static_cpdag(
 fn discover_pcmci(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     max_lag: u32,
     alpha: f64,
     fdr: bool,
@@ -775,7 +775,7 @@ fn discover_pcmci(
 fn discover_pc(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     alpha: f64,
     fdr: bool,
     seed: u64,
@@ -787,7 +787,7 @@ fn discover_pc(
 ) -> PyResult<PcmciDiscoveryResult> {
     let knowledge = knowledge_arg(background_knowledge.as_deref())?;
     let identity = knowledge_identity(&knowledge);
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
     drop(columns);
     let threads = if is_callback { Some(1) } else { threads };
@@ -840,7 +840,7 @@ fn discover_pc(
 fn discover_ges(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     alpha: f64,
     fdr: bool,
     seed: u64,
@@ -854,7 +854,7 @@ fn discover_ges(
 ) -> PyResult<PcmciDiscoveryResult> {
     let knowledge = knowledge_arg(background_knowledge.as_deref())?;
     let identity = knowledge_identity(&knowledge);
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
     drop(columns);
     let threads = if is_callback { Some(1) } else { threads };
@@ -907,14 +907,14 @@ fn discover_ges(
 fn discover_lingam(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     prune_threshold: f64,
     seed: u64,
     max_cond_size: usize,
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PcmciDiscoveryResult> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
 
     detach_catch(py, move || {
@@ -972,7 +972,7 @@ fn discover_lingam(
 fn discover_notears(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     l1: f64,
     threshold: f64,
     standardize: bool,
@@ -983,7 +983,7 @@ fn discover_notears(
     missing: Option<String>,
 ) -> PyResult<PcmciDiscoveryResult> {
     let missing = missing.as_deref().map(crate::missing_report::parse_policy).transpose()?;
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
 
     detach_catch(py, move || {
@@ -1041,7 +1041,7 @@ fn discover_notears(
 fn discover_fci(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     alpha: f64,
     fdr: bool,
     seed: u64,
@@ -1053,7 +1053,7 @@ fn discover_fci(
 ) -> PyResult<PcmciDiscoveryResult> {
     let knowledge = knowledge_arg(background_knowledge.as_deref())?;
     let identity = knowledge_identity(&knowledge);
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
     drop(columns);
     let threads = if is_callback { Some(1) } else { threads };
@@ -1114,7 +1114,7 @@ fn discover_fci(
 fn discover_rfci(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     alpha: f64,
     fdr: bool,
     seed: u64,
@@ -1126,7 +1126,7 @@ fn discover_rfci(
 ) -> PyResult<PcmciDiscoveryResult> {
     let knowledge = knowledge_arg(background_knowledge.as_deref())?;
     let identity = knowledge_identity(&knowledge);
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
     drop(columns);
     let threads = if is_callback { Some(1) } else { threads };
@@ -1187,7 +1187,7 @@ fn discover_rfci(
 fn discover_pcmci_plus(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     max_lag: u32,
     alpha: f64,
     fdr: bool,
@@ -1265,7 +1265,7 @@ fn discover_pcmci_plus(
 fn discover_lpcmci(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     max_lag: u32,
     alpha: f64,
     fdr: bool,
@@ -1362,7 +1362,7 @@ fn discover_lpcmci(
 fn discover_jpcmci_plus(
     py: Python<'_>,
     names: Vec<String>,
-    env_columns: Vec<Vec<PyReadonlyArray1<'_, f64>>>,
+    env_columns: Vec<Vec<NumericColumn<'_>>>,
     max_lag: u32,
     alpha: f64,
     fdr: bool,
@@ -1384,7 +1384,7 @@ fn discover_jpcmci_plus(
     }
     let mut batches = Vec::with_capacity(env_columns.len());
     for cols in &env_columns {
-        batches.push(columns_to_batch(&names, cols)?);
+        batches.push(numeric_columns_to_batch(&names, cols)?);
     }
     let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
     let context_names = context_names.unwrap_or_default();
@@ -1485,7 +1485,7 @@ fn two_regime_half_split_py(series_len: usize) -> Vec<u32> {
 fn discover_rpcmci(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     regimes: Vec<u32>,
     max_lag: u32,
     alpha: f64,
@@ -1497,7 +1497,7 @@ fn discover_rpcmci(
     cancel: Option<crate::PyCancellationToken>,
     max_cond_size: usize,
 ) -> PyResult<RpcmciDiscoverySummary> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
     drop(columns);
     let threads = if is_callback { Some(1) } else { threads };
@@ -1564,7 +1564,7 @@ fn discover_rpcmci(
 fn accept_rpcmci(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     regimes: Vec<u32>,
     max_lag: u32,
     alpha: f64,
@@ -1577,7 +1577,7 @@ fn accept_rpcmci(
     max_cond_size: usize,
     accept_discovered: bool,
 ) -> PyResult<Py<PyAny>> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
     drop(columns);
     let threads = if is_callback { Some(1) } else { threads };

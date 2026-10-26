@@ -130,9 +130,16 @@ pub fn horizon_draws(
             "compose the horizons of a temporal response",
         ));
     };
-    let (replicates, cells) = (recorded_count(layout[0]), recorded_count(layout[1]));
+    let (replicates, cells) = match layout {
+        [replicates, cells, ..] => (recorded_count(*replicates), recorded_count(*cells)),
+        _ => (0, 0),
+    };
     let n_horizons = horizons.len();
-    if n_horizons == 0 || cells % n_horizons != 0 || values.len() != replicates * cells {
+    if n_horizons == 0
+        || cells == 0
+        || cells % n_horizons != 0
+        || replicates.checked_mul(cells) != Some(values.len())
+    {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
             "joint_law_propagation.horizon_draws_layout",
@@ -150,6 +157,14 @@ pub fn horizon_draws(
         ));
     }
     let center = center_of(response)?;
+    if center.len() < cells {
+        return Err(refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "joint_law_propagation.horizon_draws_layout",
+            "estimate",
+            "the point surface does not match the retained replicate cells",
+        ));
+    }
     let first = dose_index * n_horizons;
     let columns: Vec<Vec<f64>> = (0..n_horizons)
         .map(|k| (0..replicates).map(|r| values[r * cells + first + k]).collect())

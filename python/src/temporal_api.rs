@@ -6,9 +6,9 @@
     clippy::empty_line_after_doc_comments
 )]
 
+use crate::NumericColumn;
 use crate::*;
 use antecedent::StudyBuilder;
-use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 
 #[pyfunction]
@@ -16,14 +16,14 @@ use pyo3::prelude::*;
 fn mediation_effects_summary(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     treatment: String,
     mediator: String,
     outcome: String,
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<MediationEffectsSummary> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (series, _) = series_from_batch(&batch)?;
@@ -60,13 +60,13 @@ fn mediation_effects_summary(
 fn predict_conditional_summary(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     target: String,
     parent: String,
     parent_lag: u32,
     level: f64,
 ) -> PyResult<PredictSummary> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (series, _) = series_from_batch(&batch)?;

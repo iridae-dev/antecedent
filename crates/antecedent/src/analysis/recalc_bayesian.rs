@@ -2,7 +2,10 @@
 //! Calibrated joint-transport publication remains a separate closed route.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use super::recalc_common::{Fields, dag_from_edges, float_bytes, literal, table_from_columns};
-use super::recalc_receipt::{DecisionValue, RecalcReceipt, RecalcRunError, UtilitySpec};
+use super::recalc_receipt::{
+    Columns, DecisionValue, NonFinite, RecalcReceipt, RecalcRequestCode, RecalcRunError,
+    UtilitySpec,
+};
 use crate::BayesianConfig;
 use antecedent_core::{VariableId, recalc::RecalcPlan};
 use antecedent_data::TableView;
@@ -40,7 +43,7 @@ impl PosteriorSummarySpec {
             || self.upper_probability >= 1.0
             || self.lower_probability >= self.upper_probability
         {
-            return Err(RecalcRunError::Request("recalc.bayesian_invalid_summary"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::BayesianInvalidSummary));
         }
         Ok(())
     }
@@ -49,7 +52,7 @@ impl PosteriorSummarySpec {
 #[derive(Clone, Debug)]
 pub struct BayesianRequest {
     /// Graph-order numeric columns, with missing cells retained for checked complete cases.
-    pub columns: Vec<(String, Vec<f64>)>,
+    pub columns: Columns,
     /// Directed edges in that stable graph order.
     pub edges: Vec<(u32, u32)>,
     /// Binary intervention role.
@@ -103,11 +106,11 @@ fn summarize_native_posterior(
     spec.validate()?;
     let column = posterior
         .effect_column()
-        .ok_or(RecalcRunError::Request("recalc.bayesian_effect_unavailable"))?;
+        .ok_or(RecalcRunError::Request(RecalcRequestCode::BayesianEffectUnavailable))?;
     let values = posterior
         .draws
         .column(column)
-        .map_err(|_| RecalcRunError::Request("recalc.bayesian_effect_unavailable"))?;
+        .map_err(|_| RecalcRunError::Request(RecalcRequestCode::BayesianEffectUnavailable))?;
     summarize_issued_values(values, spec)
 }
 #[allow(clippy::cast_precision_loss, reason = "bounded native posterior row counts")]
@@ -119,13 +122,13 @@ pub(super) fn summarize_issued_values(
         antecedent_core::execution_attempt::Operation::LawSummary,
         || {
             if values.len() < 2 || values.iter().any(|v| !v.is_finite()) {
-                return Err(RecalcRunError::Request("recalc.bayesian_effect_unavailable"));
+                return Err(RecalcRunError::Request(RecalcRequestCode::BayesianEffectUnavailable));
             }
             let n = values.len() as f64;
             let mean = antecedent_kernels::mean(values);
             let standard_deviation = antecedent_kernels::sample_std(values);
             if !mean.is_finite() || !standard_deviation.is_finite() {
-                return Err(RecalcRunError::Request("recalc.bayesian_effect_unavailable"));
+                return Err(RecalcRunError::Request(RecalcRequestCode::BayesianEffectUnavailable));
             }
             let probability_below =
                 values.iter().filter(|&&v| v < spec.threshold).count() as f64 / n;
@@ -168,10 +171,10 @@ fn empirical_quantile(scratch: &mut [f64], probability: f64) -> f64 {
 impl BayesianRequest {
     fn data(&self) -> Result<antecedent_data::TabularData, RecalcRunError> {
         table_from_columns(&self.columns)
-            .map_err(|_| RecalcRunError::Request("recalc.bayesian_invalid_data"))
+            .map_err(|_| RecalcRunError::Request(RecalcRequestCode::BayesianInvalidData))
     }
     fn graph(&self) -> Result<antecedent_graph::Dag, RecalcRunError> {
-        dag_from_edges(self.columns.len(), &self.edges, "recalc.bayesian_invalid_graph")
+        dag_from_edges(self.columns.len(), &self.edges, RecalcRequestCode::BayesianInvalidGraph)
     }
     fn study(&self, data: antecedent_data::TabularData) -> Result<crate::Study, RecalcRunError> {
         let builder = crate::Study::tabular(data)
@@ -189,64 +192,56 @@ impl BayesianRequest {
     }
     fn validate(&self) -> Result<(), RecalcRunError> {
         if self.inference.external_compose.is_some() {
-            return Err(RecalcRunError::Request("recalc.bayesian_external_compose_unsupported"));
+            return Err(RecalcRunError::Request(
+                RecalcRequestCode::BayesianExternalComposeUnsupported,
+            ));
         }
         if let Some(bytes) = &self.inference.prior_artifact {
             if !bytes.starts_with(antecedent_io::bayesian_prior_recalc_artifact::BOUND_PRIOR_MAGIC)
             {
-                return Err(RecalcRunError::Request("recalc.bayesian_prior_source_unverified"));
+                return Err(RecalcRunError::Request(
+                    RecalcRequestCode::BayesianPriorSourceUnverified,
+                ));
             }
             if self.inference.prior.is_some() {
-                return Err(RecalcRunError::Request("recalc.bayesian_prior_source_conflict"));
+                return Err(RecalcRunError::Request(
+                    RecalcRequestCode::BayesianPriorSourceConflict,
+                ));
             }
         }
 
         if let Some(prior) = &self.inference.prior {
             source_prior_wire(prior)?;
             if prior.specs.iter().any(|spec| spec.validate().is_err()) {
-                return Err(RecalcRunError::Request("recalc.bayesian_prior_invalid"));
+                return Err(RecalcRunError::Request(RecalcRequestCode::BayesianPriorInvalid));
             }
         }
         self.summary.validate()?;
         self.utility.validate()?;
-        let rows = self.columns.first().map_or(0, |(_, values)| values.len());
-        let names =
-            self.columns.iter().map(|(name, _)| name).collect::<std::collections::BTreeSet<_>>();
-        if rows == 0
-            || rows > 100_000
-            || self.columns.is_empty()
-            || self.columns.len() > 128
-            || rows.saturating_mul(self.columns.len()) > 1_000_000
-            || names.len() != self.columns.len()
-            || self.columns.iter().any(|(name, values)| {
-                name.is_empty()
-                    || values.len() != rows
-                    || values.iter().any(|value| value.is_infinite())
-            })
-        {
-            return Err(RecalcRunError::Request("recalc.bayesian_invalid_data"));
+        // Row and column counts are bounded by the caller's memory budget in
+        // `fit_workspace_guard`, not by a literal.
+        if !self.columns.is_well_formed(NonFinite::MissingAsNan) {
+            return Err(RecalcRunError::Request(RecalcRequestCode::BayesianInvalidData));
         }
         if self.treatment == self.outcome
-            || self.treatment.raw() as usize >= self.columns.len()
-            || self.outcome.raw() as usize >= self.columns.len()
+            || !self.columns.are_distinct_roles(&[self.treatment.raw(), self.outcome.raw()])
         {
-            return Err(RecalcRunError::Request("recalc.bayesian_invalid_query"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::BayesianInvalidQuery));
         }
         if self.inference.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
             || self.inference.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity
-            || !(2..=100_000).contains(&self.inference.n_draws)
+            || self.inference.n_draws < 2
             || !self.inference.prior_scale.is_finite()
             || self.inference.prior_scale <= 0.0
-            || self.inference.prior_artifact.as_ref().is_some_and(|bytes| bytes.len() > 16_000_000)
         {
-            return Err(RecalcRunError::Request("recalc.bayesian_inference_unsupported"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::BayesianInferenceUnsupported));
         }
         if self.model == BayesianModel::QuadraticBasis
             && (self.inference.prior.is_some()
                 || self.inference.prior_artifact.is_some()
                 || self.inference.external_compose.is_some())
         {
-            return Err(RecalcRunError::Request("recalc.bayesian_basis_prior_unsupported"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::BayesianBasisPriorUnsupported));
         }
         self.graph()?;
         Ok(())
@@ -348,7 +343,7 @@ impl BayesianSession {
         ctx: &antecedent_core::ExecutionContext,
     ) -> Result<Vec<u8>, RecalcRunError> {
         if ctx.cancellation.is_cancelled() {
-            return Err(RecalcRunError::Request("recalc.cancelled"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::Cancelled));
         }
         let live = self
             .live
@@ -468,11 +463,10 @@ impl BayesianRequest {
         &self,
         ctx: &antecedent_core::ExecutionContext,
     ) -> Result<(), RecalcRunError> {
-        const MAX_WORKSPACE_VALUES: usize = 16_000_000;
         if ctx.cancellation.is_cancelled() {
-            return Err(RecalcRunError::Request("recalc.cancelled"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::Cancelled));
         }
-        let rows = self.columns.first().map_or(0, |(_, values)| values.len());
+        let rows = self.columns.n_rows();
         // All columns are an upper bound on checked adjustment coordinates.
         let p = match self.model {
             BayesianModel::Gaussian => self.columns.len().saturating_add(2),
@@ -490,12 +484,9 @@ impl BayesianRequest {
             } else {
                 0
             });
-        if values > MAX_WORKSPACE_VALUES {
-            return Err(RecalcRunError::Request("recalc.bayesian_workspace_limit"));
-        }
         let bytes = u64::try_from(values).unwrap_or(u64::MAX).saturating_mul(16);
         if ctx.memory_limit_bytes().into_iter().any(|limit| bytes > limit) {
-            return Err(RecalcRunError::Request("recalc.memory_budget_exceeded"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::MemoryBudgetExceeded));
         }
         Ok(())
     }
@@ -572,7 +563,7 @@ fn bayesian_stage(
                     {
                         if cached.source_snapshot == data.storage().content_digest() {
                             return Err(RecalcRunError::Request(
-                                "recalc.bayesian_prior_likelihood_double_use",
+                                RecalcRequestCode::BayesianPriorLikelihoodDoubleUse,
                             ));
                         }
                         std::sync::Arc::clone(cached)
@@ -634,7 +625,7 @@ pub fn execute_bayesian_with_receipt(
         return Err(RecalcRunError::Refused(Box::new(plan)));
     }
     if ctx.cancellation.is_cancelled() {
-        return Err(RecalcRunError::Request("recalc.cancelled"));
+        return Err(RecalcRunError::Request(RecalcRequestCode::Cancelled));
     }
     let old = session.live.as_ref();
     let mut recorder = ReceiptRecorder::charged_to(ctx);
@@ -645,7 +636,7 @@ pub fn execute_bayesian_with_receipt(
             let posterior = result
                 .posterior
                 .as_ref()
-                .ok_or(RecalcRunError::Request("recalc.bayesian_effect_unavailable"))?;
+                .ok_or(RecalcRunError::Request(RecalcRequestCode::BayesianEffectUnavailable))?;
             let law = summarize_native_posterior(posterior, request.summary)?;
             note_static_work(StaticWork::LawSummary);
             Ok::<_, RecalcRunError>(law)
@@ -686,12 +677,8 @@ fn source_prior_wire(
 ) -> Result<Vec<antecedent_io::bayesian_prior_recalc_artifact::BoundPriorSpecWire>, RecalcRunError>
 {
     use antecedent_io::bayesian_prior_recalc_artifact::BoundPriorSpecWire as Wire;
-    if prior.specs.len() > 16
-        || !prior.restrictions.is_empty()
-        || prior.contrast.is_some()
-        || !prior.categorical.is_empty()
-    {
-        return Err(RecalcRunError::Request("recalc.bayesian_prior_source_unsupported"));
+    if !prior.restrictions.is_empty() || prior.contrast.is_some() || !prior.categorical.is_empty() {
+        return Err(RecalcRunError::Request(RecalcRequestCode::BayesianPriorSourceUnsupported));
     }
     prior
         .specs
@@ -699,11 +686,6 @@ fn source_prior_wire(
         .map(|spec| {
             Ok(match spec {
                 antecedent_prob::PriorSpec::GaussianCoefficients(p) => {
-                    if p.mean.len() > 128 || p.variance.len() > 128 {
-                        return Err(RecalcRunError::Request(
-                            "recalc.bayesian_prior_source_unsupported",
-                        ));
-                    }
                     Wire::Gaussian { mean: p.mean.to_vec(), variance: p.variance.to_vec() }
                 }
                 antecedent_prob::PriorSpec::KnownResidualVariance(v) => Wire::KnownVariance(*v),
@@ -711,11 +693,6 @@ fn source_prior_wire(
                     Wire::InvGamma { shape: p.shape, scale: p.scale }
                 }
                 antecedent_prob::PriorSpec::CoefficientCorrelation(c) => {
-                    if c.dim() > 128 || c.matrix().len() > 16_384 {
-                        return Err(RecalcRunError::Request(
-                            "recalc.bayesian_prior_source_unsupported",
-                        ));
-                    }
                     Wire::Correlation { dim: c.dim(), matrix: c.matrix().to_vec() }
                 }
             })
@@ -726,20 +703,15 @@ fn source_prior_from_wire(
     specs: &[antecedent_io::bayesian_prior_recalc_artifact::BoundPriorSpecWire],
 ) -> Result<antecedent_prob::PriorSet, RecalcRunError> {
     use antecedent_io::bayesian_prior_recalc_artifact::BoundPriorSpecWire as Wire;
-    if specs.len() > 16 {
-        return Err(RecalcRunError::Request("recalc.bayesian_prior_source_unverified"));
-    }
     let mut prior = antecedent_prob::PriorSet::new();
     for spec in specs {
         prior.push(match spec {
-            Wire::Gaussian { mean, variance } if mean.len() <= 128 && variance.len() <= 128 => {
-                antecedent_prob::PriorSpec::GaussianCoefficients(
-                    antecedent_prob::GaussianCoefficientPrior {
-                        mean: mean.clone().into(),
-                        variance: variance.clone().into(),
-                    },
-                )
-            }
+            Wire::Gaussian { mean, variance } => antecedent_prob::PriorSpec::GaussianCoefficients(
+                antecedent_prob::GaussianCoefficientPrior {
+                    mean: mean.clone().into(),
+                    variance: variance.clone().into(),
+                },
+            ),
             Wire::KnownVariance(v) => antecedent_prob::PriorSpec::KnownResidualVariance(*v),
             Wire::InvGamma { shape, scale } => {
                 antecedent_prob::PriorSpec::ResidualInvGamma(antecedent_prob::InvGammaPrior {
@@ -747,14 +719,17 @@ fn source_prior_from_wire(
                     scale: *scale,
                 })
             }
-            Wire::Correlation { dim, matrix } if *dim <= 128 && matrix.len() <= 16_384 => {
+            Wire::Correlation { dim, matrix } => {
                 antecedent_prob::PriorSpec::CoefficientCorrelation(
                     antecedent_prob::CoefficientCorrelation::new(*dim, matrix.clone()).map_err(
-                        |_| RecalcRunError::Request("recalc.bayesian_prior_source_unverified"),
+                        |_| {
+                            RecalcRunError::Request(
+                                RecalcRequestCode::BayesianPriorSourceUnverified,
+                            )
+                        },
                     )?,
                 )
             }
-            _ => return Err(RecalcRunError::Request("recalc.bayesian_prior_source_unverified")),
         });
     }
     Ok(prior)
@@ -772,20 +747,20 @@ impl BayesianSession {
             .as_ref()
             .ok_or(RecalcRunError::NoLiveState(antecedent_core::recalc::Stage::ScoreArtifact))?;
         let crate::InferenceMode::Bayesian(config) = &live.prepared.study().inference else {
-            return Err(RecalcRunError::Request("recalc.bayesian_prior_source_unsupported"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::BayesianPriorSourceUnsupported));
         };
         if live.model != BayesianModel::Gaussian
             || config.prior_artifact.is_some()
             || config.external_compose.is_some()
             || live.context.adaptive_draws != antecedent_core::AdaptiveDrawBudget::disabled()
         {
-            return Err(RecalcRunError::Request("recalc.bayesian_prior_source_unsupported"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::BayesianPriorSourceUnsupported));
         }
         let super::builder::DataInput::Tabular(data) = &live.prepared.study().data else {
-            return Err(RecalcRunError::Request("recalc.bayesian_prior_source_unsupported"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::BayesianPriorSourceUnsupported));
         };
         let antecedent_core::CausalQuery::AverageEffect(query) = live.prepared.query() else {
-            return Err(RecalcRunError::Request("recalc.bayesian_prior_source_unsupported"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::BayesianPriorSourceUnsupported));
         };
         let columns = data
             .schema()
@@ -803,7 +778,7 @@ impl BayesianSession {
             .map_err(crate::CausalError::from)?;
         let posterior = antecedent_io::encode_causal_posterior_bytes(
             self.posterior()
-                .ok_or(RecalcRunError::Request("recalc.bayesian_effect_unavailable"))?,
+                .ok_or(RecalcRunError::Request(RecalcRequestCode::BayesianEffectUnavailable))?,
             "recalc-bound-prior-source",
         )
         .map_err(crate::CausalError::Serialization)?;
@@ -831,7 +806,7 @@ fn verify_bound_bayesian_prior(
 ) -> Result<VerifiedBayesianPrior, RecalcRunError> {
     use antecedent_io::bayesian_prior_recalc_artifact::BoundBayesianPriorWire;
     let wire = BoundBayesianPriorWire::decode(bytes)
-        .map_err(|_| RecalcRunError::Request("recalc.bayesian_prior_source_unverified"))?;
+        .map_err(|_| RecalcRunError::Request(RecalcRequestCode::BayesianPriorSourceUnverified))?;
     let mut config = BayesianConfig::conjugate();
     config.n_draws = wire.draws;
     config.n_draws_explicit = wire.draws_explicit;
@@ -859,22 +834,22 @@ fn verify_bound_bayesian_prior(
     let data = request.data()?;
     let source_snapshot = data.storage().content_digest();
     if source_snapshot != wire.source_snapshot {
-        return Err(RecalcRunError::Request("recalc.bayesian_prior_source_unverified"));
+        return Err(RecalcRunError::Request(RecalcRequestCode::BayesianPriorSourceUnverified));
     }
     if source_snapshot == target.storage().content_digest() {
-        return Err(RecalcRunError::Request("recalc.bayesian_prior_likelihood_double_use"));
+        return Err(RecalcRunError::Request(RecalcRequestCode::BayesianPriorLikelihoodDoubleUse));
     }
     let result =
         request.study(data)?.prepare(&source_context)?.estimate_retained(&source_context)?;
     let posterior = result
         .posterior
         .as_ref()
-        .ok_or(RecalcRunError::Request("recalc.bayesian_effect_unavailable"))?;
+        .ok_or(RecalcRunError::Request(RecalcRequestCode::BayesianEffectUnavailable))?;
     let reproduced =
         antecedent_io::encode_causal_posterior_bytes(posterior, "recalc-bound-prior-source")
             .map_err(crate::CausalError::Serialization)?;
     if reproduced != wire.posterior {
-        return Err(RecalcRunError::Request("recalc.bayesian_prior_source_unverified"));
+        return Err(RecalcRunError::Request(RecalcRequestCode::BayesianPriorSourceUnverified));
     }
     let artifact = antecedent_io::read_and_migrate(reproduced.as_slice())
         .map_err(crate::CausalError::Serialization)?;
@@ -882,8 +857,14 @@ fn verify_bound_bayesian_prior(
         "recalc-bound-prior-source",
         antecedent_io::EstimandFingerprint::new(
             "average_effect",
-            &request.columns[wire.treatment as usize].0,
-            &request.columns[wire.outcome as usize].0,
+            request
+                .columns
+                .name(wire.treatment)
+                .ok_or(RecalcRunError::Request(RecalcRequestCode::BayesianInvalidQuery))?,
+            request
+                .columns
+                .name(wire.outcome)
+                .ok_or(RecalcRunError::Request(RecalcRequestCode::BayesianInvalidQuery))?,
         ),
         "nonparametrically_identified",
     );

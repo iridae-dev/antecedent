@@ -30,42 +30,17 @@ pub enum BatchQuery {
     Response(ResponseQuery),
 }
 
-/// Contrast used for family p-values / FDR on a joint-cell batch.
-///
-/// `estimate.ate` on `cell.aipw` is the requested interventional **level**, not
-/// a contrast. Family tests use a declared score-difference contrast instead.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum CellFamilyContrast {
-    /// Requested cell minus the all-zero control (same contrast as cell.aipw refuters).
-    CellMinusControl,
-    /// 2×2 non-additivity `+μ00 −μ10 −μ01 +μ11`.
-    Interaction,
-}
-
-impl CellFamilyContrast {
-    /// Stable wire name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::CellMinusControl => "cell_minus_control",
-            Self::Interaction => "interaction",
-        }
-    }
-}
-
-impl std::str::FromStr for CellFamilyContrast {
-    type Err = CausalError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "cell_minus_control" => Ok(Self::CellMinusControl),
-            "interaction" => Ok(Self::Interaction),
-            other => Err(CausalError::Compile {
-                message: format!(
-                    "unknown family_contrast={other:?}; use cell_minus_control|interaction"
-                ),
-            }),
-        }
+super::string_enum! {
+    /// Contrast used for family p-values / FDR on a joint-cell batch.
+    ///
+    /// `estimate.ate` on `cell.aipw` is the requested interventional **level**, not
+    /// a contrast. Family tests use a declared score-difference contrast instead.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub enum CellFamilyContrast, lookup = from_name {
+        /// Requested cell minus the all-zero control (same contrast as cell.aipw refuters).
+        CellMinusControl => "cell_minus_control",
+        /// 2×2 non-additivity `+μ00 −μ10 −μ01 +μ11`.
+        Interaction => "interaction",
     }
 }
 use antecedent_data::{TableView, TabularData, ValidityBitmap};
@@ -585,16 +560,19 @@ impl BatchStudy {
     /// under: the structured estimator-spec identity (the same one a study's contract
     /// carries, including a non-default propensity nuisance), or the bare estimator id, or
     /// `"default"` when none was chosen. Equal fingerprints mean one configuration.
-    #[must_use]
-    pub fn estimator_fingerprint(&self) -> String {
+    ///
+    /// # Errors
+    ///
+    /// The estimator-spec identity cannot be encoded; a failure never becomes a fingerprint
+    /// string that could be compared or stored.
+    pub fn estimator_fingerprint(&self) -> Result<String, CausalError> {
         match (&self.estimator_spec, self.estimator) {
-            (Some(spec), _) => antecedent_io::digest_hex(
+            (Some(spec), _) => Ok(antecedent_io::digest_hex(
                 antecedent_core::IdentityDomain::InferenceBinding,
                 &super::contract_identity::estimator_spec_identity(spec),
-            )
-            .unwrap_or_else(|error| format!("unencodable:{error}")),
-            (None, Some(id)) => id.as_str().to_string(),
-            (None, None) => "default".to_string(),
+            )?),
+            (None, Some(id)) => Ok(id.as_str().to_string()),
+            (None, None) => Ok("default".to_string()),
         }
     }
 
@@ -645,6 +623,7 @@ impl BatchStudy {
                 message: "batch estimate_many requires at least one query".into(),
             });
         }
+        let fingerprint = self.estimator_fingerprint()?;
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
         let shared = self.compile_shared_ate(&data, queries, ctx.rng.master_seed())?;
         let nuisances = batch_nuisance_cache(ctx, self.retention);
@@ -667,7 +646,7 @@ impl BatchStudy {
             shared.as_ref(),
             &nuisances,
             &uses,
-            &self.estimator_fingerprint(),
+            &fingerprint,
         );
         Ok(out)
     }
@@ -691,6 +670,7 @@ impl BatchStudy {
                 message: "batch prepare requires at least one query".into(),
             });
         }
+        let fingerprint = self.estimator_fingerprint()?;
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
         let shared = self.compile_shared_ate(&data, queries, ctx.rng.master_seed())?;
         let nuisances = batch_nuisance_cache(ctx, self.retention);
@@ -708,7 +688,7 @@ impl BatchStudy {
             shared_design: shared,
             family_contrast: None,
             family_posterior: None,
-            estimator_fingerprint: Arc::from(self.estimator_fingerprint()),
+            estimator_fingerprint: Arc::from(fingerprint),
         })
     }
 
@@ -749,6 +729,7 @@ impl BatchStudy {
                  with analyze (Study::run)"
             ));
         }
+        let fingerprint = self.estimator_fingerprint()?;
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
         let shared = self.compile_shared_cells(&data, queries, ctx.rng.master_seed())?;
         let mut plans = Vec::with_capacity(queries.len());
@@ -767,7 +748,7 @@ impl BatchStudy {
             shared_design: shared,
             family_contrast: self.family_contrast,
             family_posterior: self.family_posterior,
-            estimator_fingerprint: Arc::from(self.estimator_fingerprint()),
+            estimator_fingerprint: Arc::from(fingerprint),
         })
     }
 
@@ -1215,10 +1196,32 @@ fn withhold_family_inference(results: &mut [StudyResult], message: &str) {
     }
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "aligns every result's influence to the shared row universe, forms the level covariance, then branches on the declared family contrast; each early exit must also record candidate selection, so the phases share one `results` borrow"
-)]
+/// Why a family's joint inference was not published.
+enum FamilyWithheld {
+    /// Fewer than two claims: there is no family to test jointly, and nothing to report.
+    SingleClaim,
+    /// Joint inference could not be formed at all (misaligned rows, singular covariance).
+    Unavailable(String),
+    /// Family-level p-values and contrast were withheld for the stated reason; the level
+    /// covariance and simultaneous band stay published.
+    Inference(String),
+}
+
+/// Result of the family joint-inference pipeline.
+enum FamilyOutcome {
+    /// Family p-values were attached (and candidate selection recorded with them).
+    Published,
+    /// Family inference was withheld.
+    Withheld(FamilyWithheld),
+}
+
+/// Every claim's centred influence embedded on the shared row universe, with the
+/// complete-case rows each claim was scored on.
+struct AlignedLevels {
+    columns: Vec<Vec<f64>>,
+    row_sets: Vec<Vec<usize>>,
+}
+
 fn attach_batch_family_joint_inference(
     results: &mut [StudyResult],
     data: &TabularData,
@@ -1227,40 +1230,100 @@ fn attach_batch_family_joint_inference(
     family_contrast: Option<CellFamilyContrast>,
     posterior: Option<(ScorePosteriorOptions, &ExecutionContext)>,
 ) {
-    if results.len() < 2 {
-        attach_candidate_selection(results, screen, &[], &[], None);
+    let outcome =
+        family_joint_inference(results, data, queries, screen, family_contrast, posterior);
+    // One epilogue for every withheld path: record why, then record the selection without
+    // any ranking statistics.
+    let FamilyOutcome::Withheld(reason) = outcome else {
         return;
+    };
+    match reason {
+        FamilyWithheld::SingleClaim => {}
+        FamilyWithheld::Unavailable(message) => {
+            for result in results.iter_mut() {
+                result.diagnostics.push(antecedent_core::Diagnostic::new(
+                    "batch.joint_if.unavailable",
+                    antecedent_core::DiagnosticKind::Scientific,
+                    antecedent_core::DiagnosticSeverity::Warning,
+                    message.as_str(),
+                ));
+            }
+        }
+        FamilyWithheld::Inference(message) => withhold_family_inference(results, &message),
     }
-    let mut level_aligned = Vec::new();
-    let mut row_sets = Vec::new();
-    let full_n = data.row_count();
+    attach_candidate_selection(results, screen, &[], &[], None);
+}
+
+fn family_joint_inference(
+    results: &mut [StudyResult],
+    data: &TabularData,
+    queries: &[BatchQuery],
+    screen: Option<&CandidateScreen>,
+    family_contrast: Option<CellFamilyContrast>,
+    posterior: Option<(ScorePosteriorOptions, &ExecutionContext)>,
+) -> FamilyOutcome {
+    if results.len() < 2 {
+        return FamilyOutcome::Withheld(FamilyWithheld::SingleClaim);
+    }
+    let aligned = match align_levels(results, data, queries) {
+        Ok(aligned) => aligned,
+        Err(reason) => return FamilyOutcome::Withheld(FamilyWithheld::Unavailable(reason.into())),
+    };
+    let cols: Vec<&[f64]> = aligned.columns.iter().map(Vec::as_slice).collect();
+    let Ok(level_cov) = antecedent_estimate::joint_influence_covariance(&cols, None) else {
+        return FamilyOutcome::Withheld(FamilyWithheld::Unavailable(
+            "batch joint IF covariance could not be formed".into(),
+        ));
+    };
+    let crit = attach_level_intervals(results, &level_cov);
+
+    if queries.iter().any(|q| matches!(q, BatchQuery::Response(_))) {
+        return attach_contrast_family(
+            results,
+            data,
+            queries,
+            &aligned.row_sets,
+            family_contrast,
+            posterior,
+            screen,
+        );
+    }
+    let values: Vec<f64> = results
+        .iter()
+        .filter_map(|result| result.estimate.as_effect().map(|effect| effect.ate))
+        .collect();
+    attach_family_p_values(results, &values, &level_cov, crit, None, screen);
+    FamilyOutcome::Published
+}
+
+/// Align every claim's influence to the shared row universe.
+fn align_levels(
+    results: &[StudyResult],
+    data: &TabularData,
+    queries: &[BatchQuery],
+) -> Result<AlignedLevels, &'static str> {
+    let mut columns = Vec::with_capacity(results.len());
+    let mut row_sets = Vec::with_capacity(results.len());
     for (result, query) in results.iter().zip(queries) {
-        match align_influence_to_rows(
+        let (col, rows) = align_influence_to_rows(
             data,
             result,
             query,
             result.estimate.as_effect().and_then(|effect| effect.scores.influence.as_deref()),
-        ) {
-            Ok((col, rows)) => {
-                level_aligned.push(col);
-                row_sets.push(rows);
-            }
-            Err(reason) => {
-                attach_batch_inference_unavailable(results, screen, reason);
-                return;
-            }
-        }
+        )?;
+        columns.push(col);
+        row_sets.push(rows);
     }
-    let cols: Vec<&[f64]> = level_aligned.iter().map(Vec::as_slice).collect();
-    let Ok(level_cov) = antecedent_estimate::joint_influence_covariance(&cols, None) else {
-        attach_batch_inference_unavailable(
-            results,
-            screen,
-            "batch joint IF covariance could not be formed",
-        );
-        return;
-    };
-    let crit = resolve_max_t_critical(results, &level_cov, "simultaneous interval");
+    Ok(AlignedLevels { columns, row_sets })
+}
+
+/// Record the level covariance on every result and, when the max-t critical value can be
+/// formed, the simultaneous interval on cell levels. Returns the critical value.
+fn attach_level_intervals(
+    results: &mut [StudyResult],
+    level_cov: &antecedent_estimate::JointCovariance,
+) -> Option<f64> {
+    let crit = resolve_max_t_critical(results, level_cov, "simultaneous interval");
     for (i, result) in results.iter_mut().enumerate() {
         let Some(effect) = result.estimate.as_effect_mut() else {
             continue;
@@ -1271,92 +1334,77 @@ fn attach_batch_family_joint_inference(
                 Some((effect.ate - c * level_cov.se(i), effect.ate + c * level_cov.se(i), 0.95));
         }
     }
+    crit
+}
 
-    let cell_family = queries.iter().any(|q| matches!(q, BatchQuery::Response(_)));
-    if cell_family {
-        match family_contrast {
-            None => {
-                withhold_family_inference(
-                    results,
-                    "shared-row joint IF on cell levels; no family contrast declared, p-values omitted",
-                );
-                attach_candidate_selection(results, screen, &[], &[], None);
-                return;
-            }
-            Some(kind) => {
-                let mut contrast_aligned = Vec::new();
-                let mut contrast_values = Vec::new();
-                let mut contrast_scores = Vec::new();
-                let mut contrast_bindings = Vec::new();
-                for ((result, query), rows) in results.iter().zip(queries).zip(&row_sets) {
-                    let CellFamilyClaim { value, scores, binding } =
-                        match cell_family_contrast_claim(data, result, query, kind) {
-                            Ok(claim) => claim,
-                            Err(reason) => {
-                                withhold_family_inference(
-                                    results,
-                                    &format!(
-                                        "shared-row joint IF on cell levels; {} contrast withheld: {reason}; p-values omitted",
-                                        kind.as_str()
-                                    ),
-                                );
-                                attach_candidate_selection(results, screen, &[], &[], None);
-                                return;
-                            }
-                        };
-                    contrast_bindings.push(binding);
-                    if scores.len() != rows.len() {
-                        attach_batch_inference_unavailable(
-                            results,
-                            screen,
-                            "batch family contrast influence length did not match the complete-case row universe",
-                        );
-                        return;
-                    }
-                    contrast_aligned.push(embed_centered_influence(&scores, rows, full_n));
-                    contrast_scores.push(scores);
-                    contrast_values.push(value);
+/// Family p-values, interval and posterior on the declared contrast of a joint-cell family.
+fn attach_contrast_family(
+    results: &mut [StudyResult],
+    data: &TabularData,
+    queries: &[BatchQuery],
+    row_sets: &[Vec<usize>],
+    family_contrast: Option<CellFamilyContrast>,
+    posterior: Option<(ScorePosteriorOptions, &ExecutionContext)>,
+    screen: Option<&CandidateScreen>,
+) -> FamilyOutcome {
+    let Some(kind) = family_contrast else {
+        return FamilyOutcome::Withheld(FamilyWithheld::Inference(
+            "shared-row joint IF on cell levels; no family contrast declared, p-values omitted"
+                .into(),
+        ));
+    };
+    let full_n = data.row_count();
+    let mut contrast_aligned = Vec::with_capacity(results.len());
+    let mut contrast_values = Vec::with_capacity(results.len());
+    let mut contrast_scores = Vec::with_capacity(results.len());
+    let mut contrast_bindings = Vec::with_capacity(results.len());
+    for ((result, query), rows) in results.iter().zip(queries).zip(row_sets) {
+        let CellFamilyClaim { value, scores, binding } =
+            match cell_family_contrast_claim(data, result, query, kind) {
+                Ok(claim) => claim,
+                Err(reason) => {
+                    return FamilyOutcome::Withheld(FamilyWithheld::Inference(format!(
+                        "shared-row joint IF on cell levels; {kind} contrast withheld: {reason}; p-values omitted"
+                    )));
                 }
-                let contrast_cols: Vec<&[f64]> =
-                    contrast_aligned.iter().map(Vec::as_slice).collect();
-                let Ok(contrast_cov) =
-                    antecedent_estimate::joint_influence_covariance(&contrast_cols, None)
-                else {
-                    withhold_family_inference(
-                        results,
-                        "shared-row joint IF on cell levels; family contrast covariance could not be formed, p-values omitted",
-                    );
-                    attach_candidate_selection(results, screen, &[], &[], None);
-                    return;
-                };
-                let contrast_crit =
-                    resolve_max_t_critical(results, &contrast_cov, "family-contrast interval");
-                for (result, binding) in results.iter_mut().zip(contrast_bindings) {
-                    if let Some(effect) = result.estimate.as_effect_mut() {
-                        effect.family.compiled_contrast = Some(binding);
-                    }
-                }
-                if let Some((options, ctx)) = posterior {
-                    attach_family_contrast_posterior(results, &contrast_scores, options, ctx);
-                }
-                attach_family_p_values(
-                    results,
-                    &contrast_values,
-                    &contrast_cov,
-                    contrast_crit,
-                    Some(kind),
-                    screen,
-                );
-                return;
-            }
+            };
+        contrast_bindings.push(binding);
+        if scores.len() != rows.len() {
+            return FamilyOutcome::Withheld(FamilyWithheld::Unavailable(
+                "batch family contrast influence length did not match the complete-case row universe"
+                    .into(),
+            ));
+        }
+        contrast_aligned.push(embed_centered_influence(&scores, rows, full_n));
+        contrast_scores.push(scores);
+        contrast_values.push(value);
+    }
+    let contrast_cols: Vec<&[f64]> = contrast_aligned.iter().map(Vec::as_slice).collect();
+    let Ok(contrast_cov) = antecedent_estimate::joint_influence_covariance(&contrast_cols, None)
+    else {
+        return FamilyOutcome::Withheld(FamilyWithheld::Inference(
+            "shared-row joint IF on cell levels; family contrast covariance could not be formed, p-values omitted"
+                .into(),
+        ));
+    };
+    let contrast_crit = resolve_max_t_critical(results, &contrast_cov, "family-contrast interval");
+    for (result, binding) in results.iter_mut().zip(contrast_bindings) {
+        if let Some(effect) = result.estimate.as_effect_mut() {
+            effect.family.compiled_contrast = Some(binding);
         }
     }
-
-    let values: Vec<f64> = results
-        .iter()
-        .filter_map(|result| result.estimate.as_effect().map(|effect| effect.ate))
-        .collect();
-    attach_family_p_values(results, &values, &level_cov, crit, None, screen);
+    if let Some((options, ctx)) = posterior {
+        attach_family_contrast_posterior(results, &contrast_scores, options, ctx);
+    }
+    attach_family_p_values(
+        results,
+        &contrast_values,
+        &contrast_cov,
+        contrast_crit,
+        Some(kind),
+        screen,
+    );
+    FamilyOutcome::Published
 }
 
 fn align_influence_to_rows(
@@ -1438,7 +1486,13 @@ fn cell_family_contrast_claim(
     Ok(CellFamilyClaim { value: contrast.value, scores, binding })
 }
 
-/// Two-sided p-value for a Wald statistic `value / se`.
+/// Two-sided p-value for a Wald statistic `value / se` against the standard normal.
+///
+/// The reference distribution is the normal one: `se` comes from the shared-row influence
+/// function covariance, an asymptotic standard error with no estimated degrees of freedom,
+/// and the family's max-t band is drawn from the same normal limit, so p-values and
+/// simultaneous intervals agree. The tail is `2 * norm_sf(z)`, which stays accurate until the
+/// true value underflows (near `z = 38`).
 ///
 /// A non-finite or non-positive SE describes a degenerate or broken estimate
 /// (a constant influence column, a negative-variance covariance entry), not
@@ -1450,7 +1504,7 @@ fn two_sided_p(value: f64, se: f64) -> f64 {
         return f64::NAN;
     }
     let z = value.abs() / se;
-    2.0 * antecedent_stats::student_t_sf(z, 1.0e8)
+    2.0 * antecedent_kernels::norm_sf(z)
 }
 
 /// Publish the Bayesian-bootstrap posterior of each member's contrast score mean.
@@ -1567,6 +1621,21 @@ fn attach_family_p_values(
     attach_candidate_selection(results, screen, &bh, &by, Some(&rank_stats));
 }
 
+/// Membership bitmap (little-endian bit order) of `rows` over an `n`-row table, or `None` when a
+/// row is outside the table or repeats.
+fn screen_row_bitmap(rows: &[antecedent_data::GlobalId], n: usize) -> Option<Vec<u8>> {
+    let mut bytes = vec![0u8; n.div_ceil(8)];
+    for &r in rows {
+        let i = usize::try_from(r.get()).ok().filter(|&i| i < n)?;
+        let bit = 1u8 << (i % 8);
+        if bytes[i / 8] & bit != 0 {
+            return None;
+        }
+        bytes[i / 8] |= bit;
+    }
+    Some(bytes)
+}
+
 fn subset_estimate_rows(
     data: &TabularData,
     screen: Option<&CandidateScreen>,
@@ -1585,28 +1654,12 @@ fn subset_estimate_rows(
         });
     }
     let n = data.row_count();
-    for rows in [&screen.screen_rows, &screen.estimate_rows] {
-        let mut seen = std::collections::HashSet::new();
-        for &r in rows.iter() {
-            let pos = usize::try_from(r.get()).unwrap_or(usize::MAX);
-            if pos >= n || !seen.insert(r) {
-                return Err(CausalError::Compile {
-                    message: "candidate-selection row indexes must be unique and within the table"
-                        .into(),
-                });
-            }
-        }
-    }
-    let mut bytes = vec![0u8; n.div_ceil(8)];
-    for &r in screen.estimate_rows.iter() {
-        let i = usize::try_from(r.get()).unwrap_or(usize::MAX);
-        if i >= n {
-            return Err(CausalError::Compile {
-                message: "candidate-selection estimate_rows exceed the table".into(),
-            });
-        }
-        bytes[i / 8] |= 1 << (i % 8);
-    }
+    let invalid = || CausalError::Compile {
+        message: "candidate-selection row indexes must be unique and within the table".into(),
+    };
+    // One pass per row set checks bounds and duplicates while it builds the membership bitmap.
+    screen_row_bitmap(&screen.screen_rows, n).ok_or_else(invalid)?;
+    let bytes = screen_row_bitmap(&screen.estimate_rows, n).ok_or_else(invalid)?;
     let mask = ValidityBitmap::from_bytes(bytes, n).map_err(CausalError::from)?;
     data.with_analysis_mask(mask).map_err(CausalError::from)
 }
@@ -1637,22 +1690,6 @@ fn resolve_max_t_critical(
             None
         }
     }
-}
-
-fn attach_batch_inference_unavailable(
-    results: &mut [StudyResult],
-    screen: Option<&CandidateScreen>,
-    reason: &str,
-) {
-    for result in results.iter_mut() {
-        result.diagnostics.push(antecedent_core::Diagnostic::new(
-            "batch.joint_if.unavailable",
-            antecedent_core::DiagnosticKind::Scientific,
-            antecedent_core::DiagnosticSeverity::Warning,
-            reason,
-        ));
-    }
-    attach_candidate_selection(results, screen, &[], &[], None);
 }
 
 /// Index of the smallest finite value (the first on ties); `None` when no value is finite, so a
@@ -1882,6 +1919,25 @@ mod fail_open_regression_tests {
         // a genuinely testable claim is unaffected.
         let p = two_sided_p(3.0, 1.0);
         assert!(p.is_finite() && p > 0.0 && p < 1.0);
+    }
+
+    #[test]
+    fn wald_p_value_is_the_two_sided_standard_normal_tail() {
+        // Phi^-1(0.975) = 1.959963984540054 gives a two-sided tail of 0.05.
+        assert!((two_sided_p(1.959_963_984_540_054, 1.0) - 0.05).abs() < 1e-12);
+        // Sign of the estimate does not matter and the scale is value / se.
+        assert!((two_sided_p(-3.0, 2.0) - two_sided_p(1.5, 1.0)).abs() < 1e-15);
+        // Far tail stays positive and monotone instead of collapsing early.
+        assert!(two_sided_p(10.0, 1.0) > 0.0 && two_sided_p(10.0, 1.0) < two_sided_p(9.0, 1.0));
+    }
+
+    #[test]
+    fn screen_row_bitmap_rejects_duplicates_and_out_of_range_in_one_pass() {
+        use antecedent_data::GlobalId;
+        let ids = |v: &[u64]| v.iter().map(|&i| GlobalId::new(i)).collect::<Vec<_>>();
+        assert_eq!(screen_row_bitmap(&ids(&[0, 2, 9]), 10), Some(vec![0b0000_0101, 0b0000_0010]));
+        assert_eq!(screen_row_bitmap(&ids(&[1, 1]), 10), None);
+        assert_eq!(screen_row_bitmap(&ids(&[10]), 10), None);
     }
 
     #[test]

@@ -22,8 +22,9 @@ impl super::Study {
         click_analysis.data = DataInput::Tabular(data.clone());
         click_analysis.query = operation.target().causal_query();
         click_analysis.graph_posterior = Some(operation.posterior().clone());
-        click_analysis.graph_posterior_identification_cache =
-            Some(Arc::clone(operation.identification()));
+        click_analysis.install_identification(crate::analysis::IdentificationCache::GraphPosterior(Arc::clone(
+            operation.identification(),
+        )));
         click_analysis.inference = operation.inference().clone();
         click_analysis.estimator_spec = Some(Arc::new(operation.procedure().clone()));
         click_analysis.estimator = Some(operation.procedure().id());
@@ -52,8 +53,9 @@ impl super::Study {
         click_analysis.data = DataInput::Tabular(data.clone());
         click_analysis.query = operation.target().causal_query();
         click_analysis.graph_posterior = Some(operation.posterior().clone());
-        click_analysis.graph_posterior_identification_cache =
-            Some(Arc::clone(operation.identification()));
+        click_analysis.install_identification(crate::analysis::IdentificationCache::GraphPosterior(Arc::clone(
+            operation.identification(),
+        )));
         click_analysis.inference = operation.inference().clone();
         click_analysis.estimator_spec = Some(Arc::new(operation.procedure().clone()));
         click_analysis.estimator = Some(operation.procedure().id());

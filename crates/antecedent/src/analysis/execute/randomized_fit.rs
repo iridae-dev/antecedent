@@ -153,7 +153,7 @@ impl RandomizedMethod {
         match self {
             Self::Ancova => Some((
                 "bernoulli_ancova_hc2_bell_mccaffrey_student_interval",
-                "Bernoulli ANCOVA with pre-assignment covariates in arms below the normal-interval support (30 observed and 40 expected rows): independent-unit HC2 variance with a Bell-McCaffrey Student pointwise 95% interval conditional on the realized arm sizes, an uncalibrated construction until a coverage record covers it",
+                "Bernoulli ANCOVA with pre-assignment covariates in arms below the normal-interval support (30 observed and 40 expected rows) or with more than two covariates: independent-unit HC2 variance with a Bell-McCaffrey Student pointwise 95% interval conditional on the realized arm sizes, an uncalibrated construction until a coverage record covers it (its coverage is measured for up to two covariates)",
             )),
             Self::Complete => Some((
                 "complete_difference_in_means_hc2_bell_mccaffrey_student_interval",
@@ -166,7 +166,7 @@ impl RandomizedMethod {
     pub(super) fn diagnostic(self, interval_published: bool) -> &'static str {
         match (self, interval_published) {
             (Self::Ancova, false) => {
-                "OLS ANCOVA with pre-assignment covariates and independent-row HC0 sandwich variance; no confidence interval: the HC0 interval needs 30 observed and 40 expected rows in each arm, a common assignment probability from 0.2 through 0.8 and at most two covariates, and the small-arm Student interval needs at least 2 observed rows in each arm, 100 rows in all, positive HC2 variance and at most two covariates"
+                "OLS ANCOVA with pre-assignment covariates and independent-row HC0 sandwich variance; no confidence interval: the HC0 interval needs 30 observed and 40 expected rows in each arm, a common assignment probability from 0.2 through 0.8 and at most two covariates, and the uncalibrated HC2 Student interval needs at least 2 observed rows in each arm, 100 rows in all and positive HC2 variance"
             }
             (Self::TreatmentOnTreated, false) => {
                 "Treatment-on-treated among recipients under one-sided noncompliance, exclusion, and independent assignment; Wald point and independent-unit influence variance, no interval"
@@ -490,7 +490,12 @@ fn fit_design_with_missing_outcomes(
 }
 
 /// The small-arm Student interval of a trial whose arms are below the normal interval's support,
-/// for a trial large enough to publish one.
+/// or whose covariate count is outside the normal interval's measured envelope, for a trial
+/// large enough to publish one.
+///
+/// The HC2 Student construction is valid for any covariate count; its coverage is measured only
+/// up to two covariates, which the published label and diagnostic say (it is an uncalibrated
+/// construction until a coverage record covers it).
 fn small_arm_interval(
     query: &RandomizedEffectQuery,
     outcomes: &[f64],
@@ -498,7 +503,7 @@ fn small_arm_interval(
 ) -> Option<antecedent_estimate::ancova::SmallArmInterval> {
     (outcomes.len() >= antecedent_estimate::ancova::MIN_ROWS_FOR_SMALL_ARM_INTERVAL)
         .then(|| {
-            antecedent_estimate::ancova::small_arm_interval_95(
+            antecedent_estimate::ancova::small_arm_interval_any_covariates_95(
                 outcomes,
                 &query.realized_assignment,
                 covariates,
@@ -856,6 +861,21 @@ fn binomial_within(n: usize, k: usize, limit: u128) -> Option<u128> {
         }
     }
     Some(value)
+}
+
+/// Whether the Fisher test of `query` enumerates every fixed-count allocation, so its p-value is
+/// exact, rather than sampling them (a Monte Carlo permutation p-value).
+pub(super) fn randomization_test_is_exhaustive(query: &RandomizedEffectQuery) -> bool {
+    matches!(
+        &query.design,
+        RandomizationDesign::Complete { treated_units }
+            if binomial_within(
+                query.realized_assignment.len(),
+                *treated_units,
+                EXHAUSTIVE_ALLOCATION_LIMIT,
+            )
+            .is_some()
+    )
 }
 
 /// Two-sided Fisher sharp-null p-value of the complete design and the number of allocations it

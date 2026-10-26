@@ -106,7 +106,7 @@ fn shared_functional_ate() {
     );
     let query = AverageEffectQuery::binary_ate(t, y);
 
-    let freq = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+    let freq = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
     let prep = freq.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
     let freq_est = freq

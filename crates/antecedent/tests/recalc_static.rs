@@ -2,7 +2,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 #[path = "../../antecedent-estimate/tests/common/mod.rs"]
 mod common;
-use antecedent::analysis::recalc_receipt::{RecalcRunError, UtilitySpec};
+use antecedent::analysis::recalc_receipt::{RecalcRequestCode, RecalcRunError, UtilitySpec};
 use antecedent::analysis::recalc_static::{
     MzRecalcRequest, MzRecalcSession, StaticResponseRequest, StaticResponseSession,
     execute_mz_with_receipt, execute_static_response_with_receipt,
@@ -46,7 +46,7 @@ fn response() -> StaticResponseRequest {
     graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
     graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
     StaticResponseRequest {
-        columns,
+        columns: columns.into(),
         graph,
         treatment: VariableId::from_raw(0),
         outcome: VariableId::from_raw(2),
@@ -92,7 +92,10 @@ fn frontdoor_actual_components_and_coordinate_reuse() {
             execute_static_response_with_receipt(&mut StaticResponseSession::new(), &invalid, &ctx)
         })
     });
-    assert!(matches!(refusal, Err(RecalcRunError::Request("recalc.static_action_out_of_support"))));
+    assert!(matches!(
+        refusal,
+        Err(RecalcRunError::Request(RecalcRequestCode::StaticActionOutOfSupport))
+    ));
     assert_eq!(checks, 0);
     assert_eq!(work, StaticWorkCounts::default());
     let ((out, checks), work) = count_static_work(|| {
@@ -135,7 +138,7 @@ fn frontdoor_actual_components_and_coordinate_reuse() {
     request.actions[0] = 2.0;
     assert!(matches!(
         execute_static_response_with_receipt(&mut session, &request, &ctx),
-        Err(RecalcRunError::Request("recalc.static_action_out_of_support"))
+        Err(RecalcRunError::Request(RecalcRequestCode::StaticActionOutOfSupport))
     ));
     request.actions[0] = 1.0;
     assert_eq!(
@@ -344,7 +347,7 @@ fn verma_checked_scalar_functionals_match_enumerated_latent_scm() {
     }
     graph.insert_bidirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(3)).unwrap();
     let request = StaticResponseRequest {
-        columns,
+        columns: columns.into(),
         graph,
         treatment: VariableId::from_raw(1),
         outcome: VariableId::from_raw(3),
@@ -497,7 +500,10 @@ fn dense_factor_workspace_respects_budget_before_provider_construction() {
     let (result, work) = count_static_work(|| {
         execute_static_response_with_receipt(&mut StaticResponseSession::new(), &request, &ctx)
     });
-    assert!(matches!(result, Err(RecalcRunError::Request("recalc.memory_budget_exceeded"))));
+    assert!(matches!(
+        result,
+        Err(RecalcRunError::Request(RecalcRequestCode::MemoryBudgetExceeded))
+    ));
     assert_eq!(work.factor_builds, 0);
     assert_eq!(work.provider_bindings, 0);
 }
@@ -509,13 +515,16 @@ fn adjacent_dag_and_unsorted_grid_refuse_before_work() {
     let (result, work) = count_static_work(|| {
         execute_static_response_with_receipt(&mut StaticResponseSession::new(), &request, &ctx)
     });
-    assert!(matches!(result, Err(RecalcRunError::Request("recalc.static_invalid_query"))));
+    assert!(matches!(result, Err(RecalcRunError::Request(RecalcRequestCode::StaticInvalidQuery))));
     assert_eq!(work.factor_builds, 0);
     request = response();
     request.graph = Admg::with_variables(3);
     let (result, work) = count_static_work(|| {
         execute_static_response_with_receipt(&mut StaticResponseSession::new(), &request, &ctx)
     });
-    assert!(matches!(result, Err(RecalcRunError::Request("recalc.static_graph_unsupported"))));
+    assert!(matches!(
+        result,
+        Err(RecalcRunError::Request(RecalcRequestCode::StaticGraphUnsupported))
+    ));
     assert_eq!(work.provider_bindings, 0);
 }

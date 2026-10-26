@@ -102,7 +102,7 @@ other levels, smaller samples and cluster or dyadic dependence coordinates are n
 by this record, even though the corresponding band can be computed.
 
 `c` is a Monte-Carlo quantile on the library's one max-t sampler: a deterministic function of
-`(R, level, seed, draws, reference_df)`, with `draws` bounded to 1000 through 2000000, the stop signal
+`(R, level, seed, draws, reference_df)`, with `draws` at least `level / (1 - level)` (the fewest for which the empirical quantile exists) and within the context's memory budget (8 bytes per draw), the stop signal
 polled every 1024 draws (a cancelled context returns `cancelled_no_claim`, never a value),
 and a matrix that is not a unit-diagonal positive semidefinite correlation refused
 (`batch_retarget.covariance_unavailable`; an invalid level or draw count refuses

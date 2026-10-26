@@ -352,7 +352,7 @@ pub fn transport_cohort_effect_from_result(
             "supply the exported analysis result of a native DR-learner or causal-forest fit",
         )
     })?;
-    let Some(effect) = consumed.body.fitted_effect.clone() else {
+    let Some(effect) = consumed.body.fitted_effect.as_deref().cloned() else {
         return Err(invalid(
             DETAIL_MODEL_NOT_PORTABLE,
             "fitted_effect",

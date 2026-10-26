@@ -89,7 +89,7 @@ fn fixture(posterior: bool) -> RolloutArtifact {
                 "evidence_lineage":["law-1"],"conditional_independence":"iid_given_state"}, "provider":{"kind":"binomial"}}],
         "rng_seed":3,"source_digests":[digest]
     })).unwrap();
-    let ranked = evaluate(&request).unwrap();
+    let ranked = evaluate(request).unwrap();
     let wire = ranked.artifact();
     let expected = RolloutExpectation {
         source: RolloutSource {

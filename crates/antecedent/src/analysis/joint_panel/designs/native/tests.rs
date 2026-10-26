@@ -176,11 +176,20 @@ fn native_structural_iv_compiler_keeps_actual_polynomial_features_and_joint_firs
             raw_feature_indices: prior.raw_feature_indices.clone(),
             powers: prior.structural_features.clone(),
         },
+        &antecedent_core::ExecutionContext::for_tests(1),
     )
     .unwrap();
     assert!((model.world_mean(&[1.0, 1.0]).unwrap().0 - 14.0).abs() < 1e-9);
     units[0].endogenous[2] += 1.0;
-    assert!(instrumented_joint_coefficient_posterior(&design, &units, &prior).is_err());
+    assert!(
+        instrumented_joint_coefficient_posterior(
+            &design,
+            &units,
+            &prior,
+            &antecedent_core::ExecutionContext::for_tests(1)
+        )
+        .is_err()
+    );
 }
 #[test]
 fn native_cohort_compiler_preserves_joint_regime_atts_and_complete_likelihood() {

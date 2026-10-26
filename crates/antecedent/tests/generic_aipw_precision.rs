@@ -34,7 +34,7 @@ fn request(n: usize, seed: u64) -> RecalcRequest {
         y.push(1. + 0.3 * zv + tv * (2. + 0.5 * zv));
     }
     RecalcRequest {
-        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z)],
+        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z)].into(),
         edges: vec![(2, 0), (2, 1), (0, 1)],
         treatment: 0,
         outcome: 1,

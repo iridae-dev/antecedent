@@ -17164,26 +17164,6 @@
       "kind": "reexport",
       "target": "antecedent_contract::LicensedNeighbor"
     },
-    "export:antecedent::analysis::MAX_INVERSE_ACTIONS": {
-      "declaration": "pub use antecedent::analysis::MAX_INVERSE_ACTIONS = antecedent::MAX_INVERSE_ACTIONS",
-      "kind": "reexport",
-      "target": "antecedent::MAX_INVERSE_ACTIONS"
-    },
-    "export:antecedent::analysis::MAX_INVERSE_FORWARD_POINTS": {
-      "declaration": "pub use antecedent::analysis::MAX_INVERSE_FORWARD_POINTS = antecedent::MAX_INVERSE_FORWARD_POINTS",
-      "kind": "reexport",
-      "target": "antecedent::MAX_INVERSE_FORWARD_POINTS"
-    },
-    "export:antecedent::analysis::MAX_T_MAX_DRAWS": {
-      "declaration": "pub use antecedent::analysis::MAX_T_MAX_DRAWS = antecedent::MAX_T_MAX_DRAWS",
-      "kind": "reexport",
-      "target": "antecedent::MAX_T_MAX_DRAWS"
-    },
-    "export:antecedent::analysis::MAX_T_MIN_DRAWS": {
-      "declaration": "pub use antecedent::analysis::MAX_T_MIN_DRAWS = antecedent::MAX_T_MIN_DRAWS",
-      "kind": "reexport",
-      "target": "antecedent::MAX_T_MIN_DRAWS"
-    },
     "export:antecedent::analysis::MeasurementAnalysisBinding": {
       "declaration": "pub use antecedent::analysis::MeasurementAnalysisBinding = antecedent::MeasurementAnalysisBinding",
       "kind": "reexport",
@@ -18868,26 +18848,6 @@
       "declaration": "pub use antecedent::analysis::api::LicensedNeighbor = super::LicensedNeighbor",
       "kind": "reexport",
       "target": "super::LicensedNeighbor"
-    },
-    "export:antecedent::analysis::api::MAX_INVERSE_ACTIONS": {
-      "declaration": "pub use antecedent::analysis::api::MAX_INVERSE_ACTIONS = antecedent::MAX_INVERSE_ACTIONS",
-      "kind": "reexport",
-      "target": "antecedent::MAX_INVERSE_ACTIONS"
-    },
-    "export:antecedent::analysis::api::MAX_INVERSE_FORWARD_POINTS": {
-      "declaration": "pub use antecedent::analysis::api::MAX_INVERSE_FORWARD_POINTS = antecedent::MAX_INVERSE_FORWARD_POINTS",
-      "kind": "reexport",
-      "target": "antecedent::MAX_INVERSE_FORWARD_POINTS"
-    },
-    "export:antecedent::analysis::api::MAX_T_MAX_DRAWS": {
-      "declaration": "pub use antecedent::analysis::api::MAX_T_MAX_DRAWS = antecedent::MAX_T_MAX_DRAWS",
-      "kind": "reexport",
-      "target": "antecedent::MAX_T_MAX_DRAWS"
-    },
-    "export:antecedent::analysis::api::MAX_T_MIN_DRAWS": {
-      "declaration": "pub use antecedent::analysis::api::MAX_T_MIN_DRAWS = antecedent::MAX_T_MIN_DRAWS",
-      "kind": "reexport",
-      "target": "antecedent::MAX_T_MIN_DRAWS"
     },
     "export:antecedent::analysis::api::MeasurementAnalysisBinding": {
       "declaration": "pub use antecedent::analysis::api::MeasurementAnalysisBinding = antecedent::MeasurementAnalysisBinding",

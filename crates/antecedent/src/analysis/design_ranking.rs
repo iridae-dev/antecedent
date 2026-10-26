@@ -332,42 +332,29 @@ pub struct StructuralCandidateDeclWire {
 }
 
 /// Why a declared ranking cannot be evaluated or consumed.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum DesignRankingError {
     /// The declaration is malformed.
+    #[error("design_ranking.invalid_request: {0}")]
     InvalidRequest(String),
     /// The EVSI evaluation refused.
-    Evsi(EvsiError),
+    #[error(transparent)]
+    Evsi(#[from] EvsiError),
     /// The ranking or artifact refused.
-    Artifact(DesignRankingArtifactError),
+    #[error(transparent)]
+    Artifact(#[from] DesignRankingArtifactError),
     /// The structural ordering refused.
-    Ranking(RankingError),
+    #[error(transparent)]
+    Ranking(#[from] RankingError),
     /// Compiling the study for the request refused.
+    #[error(transparent)]
     Compile(CausalError),
-}
-
-impl From<EvsiError> for DesignRankingError {
-    fn from(error: EvsiError) -> Self {
-        Self::Evsi(error)
-    }
 }
 
 impl From<SignalError> for DesignRankingError {
     fn from(error: SignalError) -> Self {
         Self::Evsi(EvsiError::Signal(error))
-    }
-}
-
-impl From<DesignRankingArtifactError> for DesignRankingError {
-    fn from(error: DesignRankingArtifactError) -> Self {
-        Self::Artifact(error)
-    }
-}
-
-impl From<RankingError> for DesignRankingError {
-    fn from(error: RankingError) -> Self {
-        Self::Ranking(error)
     }
 }
 
@@ -412,122 +399,197 @@ fn compile_refusal(error: &CausalError) -> Option<ExternalRefusal> {
     )
 }
 
-impl std::fmt::Display for DesignRankingError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::InvalidRequest(message) => write!(f, "design_ranking.invalid_request: {message}"),
-            Self::Evsi(error) => write!(f, "{error:?}"),
-            Self::Artifact(error) => write!(f, "{error}"),
-            Self::Ranking(error) => write!(f, "{error:?}"),
-            Self::Compile(error) => write!(f, "{error}"),
-        }
-    }
-}
-
-impl std::error::Error for DesignRankingError {}
-
 fn invalid(message: impl Into<String>) -> DesignRankingError {
     DesignRankingError::InvalidRequest(message.into())
 }
 
-fn quantity(wire: &ScientificQuantityWire) -> Result<ScientificQuantity, DesignRankingError> {
-    ScientificQuantity::try_from(wire.clone()).map_err(invalid)
+fn quantity(wire: ScientificQuantityWire) -> Result<ScientificQuantity, DesignRankingError> {
+    ScientificQuantity::try_from(wire).map_err(invalid)
 }
 
-fn signal_request(candidate: &CandidateDeclWire) -> Result<SignalRequest, DesignRankingError> {
-    let defaults = SignalLimits::default();
-    let decl = &candidate.signal;
-    Ok(SignalRequest {
-        candidate_id: candidate.semantic_id.clone(),
-        prior_id: decl.prior_id.clone(),
-        state_quantity: quantity(&decl.state_quantity)?,
-        observation_quantity: quantity(&decl.observation_quantity)?,
-        sample_size: candidate.sample_size,
-        rng_seed: decl.rng_seed,
-        evidence_lineage: decl.evidence_lineage.clone(),
-        conditional_independence: decl.conditional_independence.clone(),
-        limits: SignalLimits {
-            max_sample_size: decl.max_sample_size.unwrap_or(defaults.max_sample_size),
-            max_support: decl.max_support.unwrap_or(defaults.max_support),
-        },
-    })
-}
-
-fn external_provider(
-    request: &SignalRequest,
-    declared: &ExternalDeclWire,
-) -> Result<Arc<dyn SignalProvider>, DesignRankingError> {
-    let (capabilities, law) = match &declared.law {
-        ExternalLawDeclWire::Likelihood { states, statistics, probabilities } => (
-            vec![
+impl ExternalLawDeclWire {
+    /// The operations the declared law supplies.
+    fn capabilities(&self) -> Vec<ExternalCapability> {
+        match self {
+            Self::Likelihood { .. } => vec![
                 ExternalCapability::Sample,
                 ExternalCapability::Factor,
                 ExternalCapability::Update,
             ],
-            ExternalLaw::Likelihood {
-                states: states.clone(),
-                statistics: statistics.clone(),
-                probabilities: probabilities.clone(),
-            },
-        ),
-        ExternalLawDeclWire::Posterior { states, statistics, predictive, posterior } => (
-            vec![ExternalCapability::Sample, ExternalCapability::Update],
-            ExternalLaw::Posterior {
-                states: states.clone(),
-                statistics: statistics.clone(),
-                predictive: predictive.clone(),
-                posterior: posterior.clone(),
-            },
-        ),
-        ExternalLawDeclWire::DecisionValues { branch_probabilities, action_ids, values } => (
-            vec![ExternalCapability::Sample, ExternalCapability::Update],
-            ExternalLaw::DecisionValues(ExternalDecisionValues {
-                branch_probabilities: branch_probabilities.clone(),
-                action_ids: action_ids.clone(),
-                values: values.clone(),
-            }),
-        ),
-    };
+            Self::Posterior { .. } | Self::DecisionValues { .. } => {
+                vec![ExternalCapability::Sample, ExternalCapability::Update]
+            }
+        }
+    }
+}
+
+impl From<ExternalLawDeclWire> for ExternalLaw {
+    fn from(wire: ExternalLawDeclWire) -> Self {
+        match wire {
+            ExternalLawDeclWire::Likelihood { states, statistics, probabilities } => {
+                Self::Likelihood { states, statistics, probabilities }
+            }
+            ExternalLawDeclWire::Posterior { states, statistics, predictive, posterior } => {
+                Self::Posterior { states, statistics, predictive, posterior }
+            }
+            ExternalLawDeclWire::DecisionValues { branch_probabilities, action_ids, values } => {
+                Self::DecisionValues(ExternalDecisionValues {
+                    branch_probabilities,
+                    action_ids,
+                    values,
+                })
+            }
+        }
+    }
+}
+
+fn external_provider(
+    request: &SignalRequest,
+    declared: ExternalDeclWire,
+) -> Result<Arc<dyn SignalProvider>, DesignRankingError> {
+    let ExternalDeclWire {
+        provider_id,
+        object_id,
+        version_id,
+        snapshot_id,
+        attestor,
+        law,
+        attested_candidate_id,
+        attested_prior_id,
+        attested_sample_size,
+    } = declared;
+    let capabilities = law.capabilities();
     // The attested payload is bound to the exact request it is evaluated for: the request
     // fingerprint is computed here, never supplied by the provider.
     let object = ExternalScientificObject::Signal(SignalProviderContract {
         identity: ProviderObjectIdentity {
-            provider_id: declared.provider_id.clone(),
-            object_id: declared.object_id.clone(),
-            version_id: declared.version_id.clone(),
-            snapshot_id: declared.snapshot_id.clone(),
+            provider_id,
+            object_id,
+            version_id,
+            snapshot_id,
             request_id: request.fingerprint(),
         },
-        candidate_id: declared
-            .attested_candidate_id
-            .clone()
-            .unwrap_or_else(|| request.candidate_id.clone()),
-        prior_id: declared.attested_prior_id.clone().unwrap_or_else(|| request.prior_id.clone()),
+        candidate_id: attested_candidate_id.unwrap_or_else(|| request.candidate_id.clone()),
+        prior_id: attested_prior_id.unwrap_or_else(|| request.prior_id.clone()),
         observation: request.observation_quantity.clone(),
         capabilities,
     });
-    let trust = ExternalTrustState::attest(&object, &declared.attestor)
+    let trust = ExternalTrustState::attest(&object, &attestor)
         .map_err(|e| invalid(format!("external provider declaration: {e:?}")))?;
     let body = ExternalSignalBody {
-        sample_size: declared.attested_sample_size.unwrap_or(request.sample_size),
+        sample_size: attested_sample_size.unwrap_or(request.sample_size),
         state_quantity: request.state_quantity.clone(),
         observation_quantity: request.observation_quantity.clone(),
-        law,
+        law: ExternalLaw::from(law),
     };
     Ok(Arc::new(ExternalSignal::new(object, trust, body)?))
 }
 
 fn provider_for(
-    candidate: &CandidateDeclWire,
+    provider: ProviderDeclWire,
     request: &SignalRequest,
 ) -> Result<Arc<dyn SignalProvider>, DesignRankingError> {
-    match &candidate.provider {
+    match provider {
         ProviderDeclWire::GaussianMean { noise_variance } => Ok(Arc::new(
-            NativeGaussianMeanSignal::new(*noise_variance)
+            NativeGaussianMeanSignal::new(noise_variance)
                 .map_err(|e| invalid(format!("gaussian_mean: {e}")))?,
         )),
         ProviderDeclWire::Binomial => Ok(Arc::new(NativeBinomialSignal)),
-        ProviderDeclWire::External(declared) => external_provider(request, declared),
+        ProviderDeclWire::External(declared) => external_provider(request, *declared),
+    }
+}
+
+impl TryFrom<CandidateDeclWire> for EvsiCandidate {
+    type Error = DesignRankingError;
+
+    fn try_from(declared: CandidateDeclWire) -> Result<Self, Self::Error> {
+        let CandidateDeclWire {
+            semantic_id,
+            sample_size,
+            cost,
+            signal,
+            provider,
+            reused_observation_ids,
+        } = declared;
+        let defaults = SignalLimits::default();
+        let signal_request = SignalRequest {
+            candidate_id: semantic_id.clone(),
+            prior_id: signal.prior_id,
+            state_quantity: quantity(signal.state_quantity)?,
+            observation_quantity: quantity(signal.observation_quantity)?,
+            sample_size,
+            rng_seed: signal.rng_seed,
+            evidence_lineage: signal.evidence_lineage,
+            conditional_independence: signal.conditional_independence,
+            limits: SignalLimits {
+                max_sample_size: signal.max_sample_size.unwrap_or(defaults.max_sample_size),
+                max_support: signal.max_support.unwrap_or(defaults.max_support),
+            },
+        };
+        let provider = provider_for(provider, &signal_request)?;
+        Ok(Self {
+            semantic_id,
+            design: CandidateDesign::IncreaseSamplingRate(SamplingPlan {
+                additional_samples: sample_size,
+                cost: DesignCost::zero(),
+                tag: 0,
+            }),
+            signal_request,
+            provider,
+            cost: StudyCostSpec { amount: cost.amount, unit: cost.unit },
+            reused_observation_ids,
+        })
+    }
+}
+
+/// The decision problem and belief of a declaration, with the identities the request carries.
+struct Decision {
+    problem: DecisionProblem<usize, f64>,
+    prior: DecisionPrior<f64>,
+    contract_identity: String,
+    utility_unit: String,
+    action_ids: Vec<String>,
+}
+
+impl TryFrom<DecisionDeclWire> for Decision {
+    type Error = DesignRankingError;
+
+    fn try_from(decision: DecisionDeclWire) -> Result<Self, Self::Error> {
+        let DecisionDeclWire {
+            contract_identity,
+            utility_unit,
+            action_ids,
+            intercepts,
+            slopes,
+            utility_table,
+            prior,
+        } = decision;
+        let actions: Vec<usize> = (0..action_ids.len()).collect();
+        let problem: DecisionProblem<usize, f64> = if let Some(table) = utility_table {
+            if !intercepts.is_empty() || !slopes.is_empty() {
+                return Err(invalid(
+                    "declare the utility as an affine function or as a table, not both",
+                ));
+            }
+            if !matches!(prior, PriorDeclWire::Draws { .. }) {
+                return Err(invalid("a tabulated utility needs a prior of draws on its states"));
+            }
+            if table.rows.len() != action_ids.len() {
+                return Err(invalid("a utility table needs one row per action"));
+            }
+            let utility = GridUtility::new(table.states, table.rows)
+                .map_err(|e| invalid(format!("utility table: {e}")))?;
+            DecisionProblem::new(actions, Arc::new(utility), vec![])
+        } else {
+            let utility = AffineUtility::new(intercepts, slopes)
+                .map_err(|e| invalid(format!("utility: {e}")))?;
+            DecisionProblem::new(actions, Arc::new(utility), vec![])
+        };
+        let prior = match prior {
+            PriorDeclWire::Draws { states } => DecisionPrior::Draws(states),
+            PriorDeclWire::Normal { mean, variance } => DecisionPrior::Normal { mean, variance },
+        };
+        Ok(Self { problem, prior, contract_identity, utility_unit, action_ids })
     }
 }
 
@@ -536,80 +598,58 @@ struct Prepared {
     problem: DecisionProblem<usize, f64>,
     prior: DecisionPrior<f64>,
     request: EvsiRequest,
+    source_digests: Vec<String>,
 }
 
-fn prepare(wire: &DesignRankingRequestWire) -> Result<Prepared, DesignRankingError> {
-    let decision = &wire.decision;
-    let actions: Vec<usize> = (0..decision.action_ids.len()).collect();
-    let problem: DecisionProblem<usize, f64> = if let Some(table) = &decision.utility_table {
-        if !decision.intercepts.is_empty() || !decision.slopes.is_empty() {
-            return Err(invalid(
-                "declare the utility as an affine function or as a table, not both",
-            ));
-        }
-        if !matches!(decision.prior, PriorDeclWire::Draws { .. }) {
-            return Err(invalid("a tabulated utility needs a prior of draws on its states"));
-        }
-        if table.rows.len() != decision.action_ids.len() {
-            return Err(invalid("a utility table needs one row per action"));
-        }
-        let utility = GridUtility::new(table.states.clone(), table.rows.clone())
-            .map_err(|e| invalid(format!("utility table: {e}")))?;
-        DecisionProblem::new(actions, Arc::new(utility), vec![])
-    } else {
-        let utility = AffineUtility::new(decision.intercepts.clone(), decision.slopes.clone())
-            .map_err(|e| invalid(format!("utility: {e}")))?;
-        DecisionProblem::new(actions, Arc::new(utility), vec![])
-    };
-    let prior = match &decision.prior {
-        PriorDeclWire::Draws { states } => DecisionPrior::Draws(states.clone()),
-        PriorDeclWire::Normal { mean, variance } => {
-            DecisionPrior::Normal { mean: *mean, variance: *variance }
-        }
-    };
-    let mut candidates = Vec::with_capacity(wire.candidates.len());
-    for declared in &wire.candidates {
-        let signal_request = signal_request(declared)?;
-        let provider = provider_for(declared, &signal_request)?;
-        candidates.push(EvsiCandidate {
-            semantic_id: declared.semantic_id.clone(),
-            design: CandidateDesign::IncreaseSamplingRate(SamplingPlan {
-                additional_samples: declared.sample_size,
-                cost: DesignCost::zero(),
-                tag: 0,
-            }),
-            signal_request,
-            provider,
-            cost: StudyCostSpec { amount: declared.cost.amount, unit: declared.cost.unit.clone() },
-            reused_observation_ids: declared.reused_observation_ids.clone(),
-        });
-    }
-    let rank_config =
-        wire.monte_carlo.as_ref().map_or_else(DesignRankConfig::default, |mc| DesignRankConfig {
+impl TryFrom<DesignRankingRequestWire> for Prepared {
+    type Error = DesignRankingError;
+
+    fn try_from(wire: DesignRankingRequestWire) -> Result<Self, Self::Error> {
+        let DesignRankingRequestWire {
+            decision,
+            candidates,
+            cost_map,
+            require_net_value,
+            prior_observation_ids,
+            source_digests,
+            rng_seed,
+            mc_error_tolerance,
+            tie_tolerance,
+            max_candidates,
+            monte_carlo,
+        } = wire;
+        let Decision { problem, prior, contract_identity, utility_unit, action_ids } =
+            Decision::try_from(decision)?;
+        let candidates = candidates
+            .into_iter()
+            .map(EvsiCandidate::try_from)
+            .collect::<Result<Vec<_>, _>>()?;
+        let rank_config = monte_carlo.map_or_else(DesignRankConfig::default, |mc| DesignRankConfig {
             min_batches: mc.min_batches,
             max_batches: mc.max_batches,
             batch_size: mc.batch_size,
             rank_uncertainty_threshold: mc.rank_uncertainty_threshold,
         });
-    let request = EvsiRequest {
-        decision_contract_identity: decision.contract_identity.clone(),
-        utility_unit: decision.utility_unit.clone(),
-        action_ids: decision.action_ids.clone(),
-        candidates,
-        cost_map: wire.cost_map.as_ref().map(|m| CostToUtilityMap {
-            cost_unit: m.cost_unit.clone(),
-            utility_unit: m.utility_unit.clone(),
-            utility_per_cost: m.utility_per_cost,
-        }),
-        require_net_value: wire.require_net_value,
-        prior_observation_ids: wire.prior_observation_ids.clone(),
-        rank_config,
-        rng_seed: wire.rng_seed,
-        mc_error_tolerance: wire.mc_error_tolerance,
-        tie_tolerance: wire.tie_tolerance,
-        max_candidates: wire.max_candidates,
-    };
-    Ok(Prepared { problem, prior, request })
+        let request = EvsiRequest {
+            decision_contract_identity: contract_identity,
+            utility_unit,
+            action_ids,
+            candidates,
+            cost_map: cost_map.map(|m| CostToUtilityMap {
+                cost_unit: m.cost_unit,
+                utility_unit: m.utility_unit,
+                utility_per_cost: m.utility_per_cost,
+            }),
+            require_net_value,
+            prior_observation_ids,
+            rank_config,
+            rng_seed,
+            mc_error_tolerance,
+            tie_tolerance,
+            max_candidates,
+        };
+        Ok(Self { problem, prior, request, source_digests })
+    }
 }
 
 /// A finished, sealed EVSI ranking.
@@ -670,14 +710,14 @@ impl DesignRankingEvaluation {
 /// size, request fingerprint or incoherent update), source overlap, incompatible cost units
 /// or a changed action set, a bound violation, or an artifact that cannot be sealed.
 pub fn evaluate(
-    wire: &DesignRankingRequestWire,
+    wire: DesignRankingRequestWire,
 ) -> Result<DesignRankingEvaluation, DesignRankingError> {
-    let prepared = prepare(wire)?;
+    let prepared = Prepared::try_from(wire)?;
     let ctx = ExecutionContext::production(
         prepared.request.rng_seed,
         antecedent_core::default_user_threads(),
     );
-    evaluate_prepared(wire, &prepared, &ctx, None)
+    evaluate_prepared(&prepared, &ctx, None)
 }
 
 /// Compile `study` as the state belief of the declared EVSI evaluation.
@@ -692,10 +732,10 @@ pub fn evaluate(
 /// compile otherwise refuses.
 pub fn compile_for_study(
     study: &Study,
-    wire: &DesignRankingRequestWire,
+    wire: DesignRankingRequestWire,
     ctx: &ExecutionContext,
 ) -> Result<PhysicalExecutionPlan, DesignRankingError> {
-    let prepared = prepare(wire)?;
+    let prepared = Prepared::try_from(wire)?;
     study
         .compile_for_evsi(&prepared.problem, &prepared.request, ctx)
         .map_err(DesignRankingError::Compile)
@@ -712,10 +752,10 @@ pub fn compile_for_study(
 /// As [`compile_for_study`] and [`evaluate`].
 pub fn evaluate_for_study(
     study: &Study,
-    wire: &DesignRankingRequestWire,
+    wire: DesignRankingRequestWire,
     ctx: &ExecutionContext,
 ) -> Result<DesignRankingEvaluation, DesignRankingError> {
-    let prepared = prepare(wire)?;
+    let prepared = Prepared::try_from(wire)?;
     let plan = study
         .compile_for_evsi(&prepared.problem, &prepared.request, ctx)
         .map_err(DesignRankingError::Compile)?;
@@ -733,11 +773,10 @@ pub fn evaluate_for_study(
                 "the plan compiled for an EVSI request carries no value-of-information program"
             ))
         })?;
-    evaluate_prepared(wire, &prepared, ctx, Some(lowered.identity()))
+    evaluate_prepared(&prepared, ctx, Some(lowered.identity()))
 }
 
 fn evaluate_prepared(
-    wire: &DesignRankingRequestWire,
     prepared: &Prepared,
     ctx: &ExecutionContext,
     lowered_program: Option<SemanticDigest>,
@@ -751,12 +790,12 @@ fn evaluate_prepared(
             prior: &prepared.prior,
             request: &prepared.request,
             report,
-            source_digests: &wire.source_digests,
+            source_digests: &prepared.source_digests,
         },
         &evaluation,
         ctx,
     )?;
-    let ranking = RankingRecord::from_evsi(report, &wire.source_digests)?;
+    let ranking = RankingRecord::from_evsi(report, &prepared.source_digests)?;
     Ok(DesignRankingEvaluation {
         report: evaluation.into_report(),
         ranking,

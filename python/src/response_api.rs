@@ -455,7 +455,13 @@ pub(crate) fn wrap_temporal_sequence_steps(
     };
     let offsets: Vec<i32> = if same_var {
         let n = i32::try_from(vars.len()).map_err(|_| crate::value_err("Sequence is too long"))?;
-        (0..n).map(|i| origin - (n - 1 - i)).collect()
+        (0..n)
+            .map(|i| {
+                origin.checked_sub(n - 1 - i).ok_or_else(|| {
+                    crate::value_err("treatment_lag plus Sequence length does not fit in i32")
+                })
+            })
+            .collect::<PyResult<Vec<_>>>()?
     } else if unique {
         vec![origin; vars.len()]
     } else {

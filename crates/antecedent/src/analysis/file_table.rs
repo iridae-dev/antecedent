@@ -56,35 +56,16 @@ const EXACT_INTEGER: i64 = 1 << 53;
 /// Name of the intercept column in [`FileGaussianSummary::design_columns`].
 pub const INTERCEPT_COLUMN: &str = "(intercept)";
 
-/// What the summary route does with a row that misses a required value.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
-pub enum SummaryMissing {
-    /// Refuse the run at the first missing value, naming its column and row.
-    #[default]
-    Refuse,
-    /// Leave out every row that misses a covariate, the response, or the
-    /// weight, and count the rows left out.
-    CompleteCase,
-}
-
-impl SummaryMissing {
-    /// Stable name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Refuse => "refuse",
-            Self::CompleteCase => "complete_case",
-        }
-    }
-
-    /// Policy named `name` (`refuse` or `complete_case`).
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        match name {
-            "refuse" => Some(Self::Refuse),
-            "complete_case" => Some(Self::CompleteCase),
-            _ => None,
-        }
+super::string_enum! {
+    /// What the summary route does with a row that misses a required value.
+    #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
+    pub enum SummaryMissing, lookup = from_name {
+        /// Refuse the run at the first missing value, naming its column and row.
+        #[default]
+        Refuse => "refuse",
+        /// Leave out every row that misses a covariate, the response, or the
+        /// weight, and count the rows left out.
+        CompleteCase => "complete_case",
     }
 }
 

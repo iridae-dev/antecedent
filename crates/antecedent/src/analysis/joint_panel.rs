@@ -10,8 +10,8 @@ mod contracts;
 /// Native design-specific joint functionals and retained Bayesian laws.
 pub mod designs;
 pub use designs::{
-    JointDesignProof, JointDesignResult, JointDesignWorldBinding, PreparedJointDesign,
-    replay_joint_design_artifact,
+    DesignArtifactLimits, JointDesignProof, JointDesignResult, JointDesignWorldBinding,
+    PreparedJointDesign, replay_joint_design_artifact, replay_joint_design_artifact_with_limits,
 };
 mod experiment;
 mod explanation;
@@ -22,10 +22,12 @@ pub use explanation::{
     IdentifiedReferenceAttempt, JointPanelExplanationAttempt, JointPanelExplanationRequest,
     MechanismPeriodMap, NextDesignStep, PanelDecomposition, PanelDecompositionRequest,
     PopulationReferenceAttempt, PopulationReferenceBindings, PopulationReferenceDecomposition,
-    PopulationReferenceTransportProof, ReferenceComponentBindings, ReferenceDecomposition,
-    ReferenceDecompositionCovariance, ReferenceObligation, ScientificReferenceDecomposition,
-    StreamedDecomposition, decompose_population_reference, decompose_scientific_reference,
-    replay_population_reference, replay_reference_decomposition,
+    PopulationReferenceTransportProof, ReferenceArtifactLimits, ReferenceComponentBindings,
+    ReferenceDecomposition, ReferenceDecompositionCovariance, ReferenceObligation,
+    ScientificReferenceDecomposition, StreamedDecomposition, decompose_population_reference,
+    decompose_scientific_reference, replay_population_reference,
+    replay_population_reference_with_limits, replay_reference_decomposition,
+    replay_reference_decomposition_with_limits,
 };
 mod ports;
 mod projection;
@@ -38,6 +40,7 @@ mod streamed;
 pub use experiment::{
     HistoricalJointLawExperiment, HistoricalNativeJointExperiment, JointExperimentAcceptanceMatrix,
     JointExperimentAcceptanceRow, JointLawExperimentRequest, JointLawExperimentResult,
+    LawExperimentLimits,
     LocalRatioGaussianRegularization, NativeExperimentBinding, NativeExperimentDecision,
     NativeJointExperimentResult, PanelExperimentDecisionSource, PanelExperimentDecisionState,
     PanelExperimentEvidence, PanelExperimentMapping, PanelExperimentModularPolicy,

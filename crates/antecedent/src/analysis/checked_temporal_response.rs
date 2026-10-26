@@ -198,17 +198,24 @@ pub(crate) struct CheckedTemporalResponseOperation {
     fitter: antecedent_estimate::TemporalResponseEstimator,
     bootstrap_replicates: u32,
     grid: Arc<[f64]>,
+    /// Dose-by-horizon cells the response surface materializes.
+    surface_cells: usize,
     /// The surface retains its joint horizon replicates (see
     /// [`Self::with_joint_horizons`]).
     retain_joint: bool,
 }
 
-/// The dose grid of a direct temporal response, refusing one that is empty or
-/// exceeds the dose-by-horizon materialization limit.
+/// Bytes one dose-by-horizon cell materializes: mean, lower, upper, dose and horizon.
+const SURFACE_CELL_BYTES: u64 = 5 * std::mem::size_of::<f64>() as u64;
+
+/// The dose grid of a direct temporal response and its dose-by-horizon cell count,
+/// refusing a grid that is empty or whose cell count overflows. The size of the
+/// surface is not capped here: execution admits its bytes against the memory budget
+/// of the context it runs under (see `CheckedTemporalResponseOperation::admit_surface`).
 fn checked_response_grid(
     query: &ResponseQuery,
     spec: &antecedent_core::TemporalResponseSpec,
-) -> Result<Vec<f64>, CausalError> {
+) -> Result<(Vec<f64>, usize), CausalError> {
     let grid = match &query.functional {
         ResponseFunctional::MeanCurve { treatment, .. } => treatment.grid.values()?,
         _ => match antecedent_estimate::plan_from_response_query(query) {
@@ -223,15 +230,20 @@ fn checked_response_grid(
         ResponseFunctional::MeanCurve { .. } => grid.len(),
         _ => 1,
     };
-    if cells_per_horizon == 0
-        || cells_per_horizon.saturating_mul(spec.horizons.len())
-            > antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS
-    {
+    if cells_per_horizon == 0 {
         return Err(CausalError::Unsupported {
-            message: "temporal response dose-by-horizon grid exceeds its materialization limit",
+            message: "temporal response requires a non-empty dose grid",
         });
     }
-    Ok(grid)
+    let cells = cells_per_horizon
+        .checked_mul(spec.horizons.len())
+        .filter(|&cells| {
+            u64::try_from(cells).is_ok_and(|cells| cells.checked_mul(SURFACE_CELL_BYTES).is_some())
+        })
+        .ok_or(CausalError::Unsupported {
+            message: "temporal response dose-by-horizon cell count overflows",
+        })?;
+    Ok((grid, cells))
 }
 
 impl CheckedTemporalResponseOperation {
@@ -255,7 +267,7 @@ impl CheckedTemporalResponseOperation {
             });
         }
         let (treatment, outcome) = require_primary_pair(&query.functional)?;
-        let grid = checked_response_grid(query, spec)?;
+        let (grid, surface_cells) = checked_response_grid(query, spec)?;
         let expected_estimator = EstimatorId::temporal_response_for(inference);
         if identifier != IdentifierId::TemporalBackdoorUnfolded || estimator != expected_estimator {
             return Err(CausalError::Compile {
@@ -328,6 +340,7 @@ impl CheckedTemporalResponseOperation {
             fitter,
             bootstrap_replicates,
             grid: grid.into(),
+            surface_cells,
             retain_joint: false,
         })
     }
@@ -433,6 +446,7 @@ impl CheckedTemporalResponseOperation {
                 stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
             });
         }
+        let _surface = self.admit_surface(ctx)?;
         let pairs = self.horizon_pairs();
         let status = self.primary()?.identification.status;
         self.fitter
@@ -458,6 +472,7 @@ impl CheckedTemporalResponseOperation {
                 stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
             });
         }
+        let _surface = self.admit_surface(ctx)?;
         let pairs = self.horizon_pairs();
         let status = self.primary()?.identification.status;
         if self.retain_joint {
@@ -480,6 +495,32 @@ impl CheckedTemporalResponseOperation {
                 ctx,
             )
             .map_err(CausalError::from)
+    }
+
+    /// Take the bytes of the response surface from the operation's admission budget
+    /// for the duration of the returned lease. The surface is bounded by the memory
+    /// budget the context declares; a context with no declared budget keeps the
+    /// default ceiling of [`antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS`] cells.
+    fn admit_surface(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<antecedent_core::execution::AdmissionLease, CausalError> {
+        if ctx.memory_limit_bytes().is_none()
+            && self.surface_cells > antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS
+        {
+            return Err(CausalError::Resource {
+                message: format!(
+                    "temporal response surface of {} dose-by-horizon cells exceeds the default \
+                     ceiling of {}; declare a memory limit to size the surface by its budget",
+                    self.surface_cells,
+                    antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS
+                ),
+            });
+        }
+        // The cell count was checked against u64 byte overflow when the operation was sealed.
+        let bytes = u64::try_from(self.surface_cells)
+            .map_or(u64::MAX, |cells| cells.saturating_mul(SURFACE_CELL_BYTES));
+        crate::retained_refresh::admit(ctx, bytes, "temporal response surface")
     }
 
     fn horizon_pairs(&self) -> Vec<(&IdentifiedEstimand, &TemporalIndexer)> {
@@ -569,6 +610,22 @@ mod tests {
         )
         .unwrap();
         (operation, data)
+    }
+
+    #[test]
+    fn surface_admission_follows_the_declared_memory_budget() {
+        let (mut operation, _) = operation(0);
+        operation.surface_cells = antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS + 1;
+        let bytes = operation.surface_cells as u64 * SURFACE_CELL_BYTES;
+        let unbudgeted = ExecutionContext::for_tests(41).with_memory_limit(None);
+        assert!(matches!(
+            operation.admit_surface(&unbudgeted),
+            Err(CausalError::Resource { .. })
+        ));
+        let roomy = ExecutionContext::for_tests(41).with_memory_limit(Some(bytes));
+        assert!(operation.admit_surface(&roomy).is_ok());
+        let tight = ExecutionContext::for_tests(41).with_memory_limit(Some(bytes - 1));
+        assert!(matches!(operation.admit_surface(&tight), Err(CausalError::Resource { .. })));
     }
 
     #[test]

@@ -157,46 +157,39 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
             .refute(RefuteSuite::None)
     };
     let study = match test {
-        "linear_adjustment_analytic_ci_coverage" => builder(
-            LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::default() }
+        "linear_adjustment_analytic_ci_coverage" => {
+            builder(LinearAdjustmentAte::default().with_bootstrap_replicates(0).into(), ate_query())
+        }
+        "linear_adjustment_hc1_ci_coverage" => builder(
+            LinearAdjustmentAte::default()
+                .with_bootstrap_replicates(0)
+                .with_se_kind(AnalyticSeKind::Hc1)
                 .into(),
             ate_query(),
         ),
-        "linear_adjustment_hc1_ci_coverage" => builder(
-            LinearAdjustmentAte {
-                bootstrap_replicates: 0,
-                se_kind: AnalyticSeKind::Hc1,
-                ..LinearAdjustmentAte::default()
-            }
-            .into(),
-            ate_query(),
-        ),
         "ipw_hajek_bootstrap_ci_coverage" => builder(
-            PropensityWeighting { bootstrap_replicates: 60, ..PropensityWeighting::new() }.into(),
+            PropensityWeighting::new().with_bootstrap_replicates(60).into(),
             ate_query(),
         ),
         "ipw_hajek_analytic_ci_coverage"
         | "ipw_hajek_analytic_conformance_scm_ci_coverage"
         | "ipw_hajek_weak_overlap_adversarial_ci_coverage" => builder(
-            PropensityWeighting { bootstrap_replicates: 0, ..PropensityWeighting::new() }.into(),
+            PropensityWeighting::new().with_bootstrap_replicates(0).into(),
             ate_query(),
         ),
         "aipw_analytic_ci_coverage" => {
-            builder(AipwAte { bootstrap_replicates: 0, ..AipwAte::new() }.into(), ate_query())
+            builder(AipwAte::new().with_bootstrap_replicates(0).into(), ate_query())
         }
         "aipw_ate_hc1_ci_coverage" => builder(
-            AipwAte { bootstrap_replicates: 0, se_kind: AnalyticSeKind::Hc1, ..AipwAte::new() }
-                .into(),
+            AipwAte::new().with_bootstrap_replicates(0).with_se_kind(AnalyticSeKind::Hc1).into(),
             ate_query(),
         ),
         "aipw_att_hc1_ci_coverage" => builder(
-            AipwAte { bootstrap_replicates: 0, se_kind: AnalyticSeKind::Hc1, ..AipwAte::new() }
-                .into(),
+            AipwAte::new().with_bootstrap_replicates(0).with_se_kind(AnalyticSeKind::Hc1).into(),
             ate_query().with_target_population(TargetPopulation::Treated),
         ),
         "aipw_atc_hc1_boundary_within_band" => builder(
-            AipwAte { bootstrap_replicates: 0, se_kind: AnalyticSeKind::Hc1, ..AipwAte::new() }
-                .into(),
+            AipwAte::new().with_bootstrap_replicates(0).with_se_kind(AnalyticSeKind::Hc1).into(),
             ate_query().with_target_population(TargetPopulation::Untreated),
         ),
         "aipw_ridge_influence_ci_coverage" | "aipw_ridge_refit_bootstrap_ci_coverage" => {
@@ -204,7 +197,8 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
                 PropensityNuisance::ridge_logistic(RidgeTuning::new(&[0.5, 5.0, 50.0], 3).unwrap());
             let replicates = if test.contains("bootstrap") { 20 } else { 0 };
             builder(
-                AipwAte { bootstrap_replicates: replicates, propensity: ridge, ..AipwAte::new() }
+                AipwAte { propensity: ridge, ..AipwAte::new() }
+                    .with_bootstrap_replicates(replicates)
                     .into(),
                 ate_query(),
             )
@@ -214,13 +208,16 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
                 PropensityNuisance::lasso_with(RidgeTuning::new(&[2.0, 10.0, 40.0], 3).unwrap());
             let replicates = if test.contains("bootstrap") { 20 } else { 0 };
             builder(
-                AipwAte { bootstrap_replicates: replicates, propensity: lasso, ..AipwAte::new() }
+                AipwAte { propensity: lasso, ..AipwAte::new() }
+                    .with_bootstrap_replicates(replicates)
                     .into(),
                 ate_query(),
             )
         }
         "aipw_att_cluster_ci_coverage" => builder(
-            AipwAte { bootstrap_replicates: 0, se_kind: AnalyticSeKind::Cluster, ..AipwAte::new() }
+            AipwAte::new()
+                .with_bootstrap_replicates(0)
+                .with_se_kind(AnalyticSeKind::Cluster)
                 .with_cluster_ids(clusters)
                 .into(),
             ate_query().with_target_population(TargetPopulation::Treated),

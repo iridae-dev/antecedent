@@ -1,5 +1,6 @@
 //! Python bridge for standalone format-0.5 causal wire artifacts.
 
+use crate::NumericColumn;
 use crate::bridge::serialization as serialization_error;
 use antecedent_io::executed_functional_labels;
 use antecedent_io::{
@@ -8,7 +9,7 @@ use antecedent_io::{
     decode_analysis_result_artifact, decode_causal_payload_artifact,
     encode_causal_payload_artifact, encode_external_estimate_claim, parse_digest_hex,
 };
-use numpy::{PyArray1, PyReadonlyArray1};
+use numpy::PyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Serialize;
@@ -469,6 +470,8 @@ impl FittedEffectModel {
         let model = consumed
             .body
             .fitted_effect
+            .as_deref()
+            .cloned()
             .ok_or_else(|| serialization_error("this result has no portable fitted effect"))?;
         model.validate().map_err(serialization_error)?;
         let features = model
@@ -488,20 +491,19 @@ impl FittedEffectModel {
     fn predict<'py>(
         &self,
         py: Python<'py>,
-        columns: Vec<PyReadonlyArray1<'py, f64>>,
+        columns: Vec<NumericColumn<'py>>,
         nrows: usize,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
         let ids: Vec<_> =
             self.model.features.iter().map(|v| antecedent_core::VariableId::from_raw(*v)).collect();
-        // The read-only guards in `columns` outlive the detached closure that borrows the slices.
-        let slices: Vec<&[f64]> = columns
+        // Contiguous float64 columns are borrowed; any other column is widened once. Either way the
+        // values outlive the detached closure that borrows the slices.
+        let owned: Vec<std::borrow::Cow<'_, [f64]>> = columns
             .iter()
-            .map(|column| {
-                column.as_slice().map_err(|_| {
-                    crate::value_err("prediction columns must be contiguous float64 arrays")
-                })
-            })
+            .enumerate()
+            .map(|(index, column)| column.values(&format!("prediction column {index}")))
             .collect::<PyResult<_>>()?;
+        let slices: Vec<&[f64]> = owned.iter().map(|column| &column[..]).collect();
         let values = py.detach(|| {
             self.model
                 .predict(

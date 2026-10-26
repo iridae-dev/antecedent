@@ -202,8 +202,7 @@ impl SealedOperation for CheckedBayesianTemporalClassEffectOperation {
         }
         if !call
             .study
-            .temporal_class_identification_cache
-            .as_deref()
+            .temporal_class_cache()
             .is_some_and(|proof| self.matches_class_proof(proof))
         {
             return Err(call.refusal(ENVELOPE_DIFFERS));

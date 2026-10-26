@@ -31,7 +31,6 @@ use antecedent_contract::{
     SlotAvailability,
 };
 use antecedent_core::{AssumptionSource, ExecutionContext, VariableId};
-use serde_json::Value as Json;
 
 use crate::PreparedStudy;
 use crate::analysis::CausalContract;
@@ -39,6 +38,7 @@ use crate::analysis::association::ASSOCIATION_CALIBRATION;
 use crate::analysis::fallback::{AnalysisWithFallback, NONCAUSAL_NOTICE, RankedPlan};
 use crate::error::CausalError;
 use crate::planner::PlanView;
+use crate::planner::fact::Fact;
 use crate::result::StudyResult;
 use crate::support::CellStatus;
 
@@ -340,33 +340,6 @@ impl Names<'_> {
         }
         ids.iter().map(|id| self.of(*id)).collect::<Vec<_>>().join(", ")
     }
-
-    /// A JSON value that holds dense ids under `key`, as names; others unchanged.
-    fn json(self, key: &str, value: &Json) -> Json {
-        if !matches!(
-            key,
-            "adjustment_set"
-                | "instruments"
-                | "mediators"
-                | "query_variables"
-                | "inputs"
-                | "output"
-                | "outcome"
-                | "variables"
-        ) {
-            return value.clone();
-        }
-        let name = |item: &Json| {
-            item.as_u64().and_then(|raw| u32::try_from(raw).ok()).map_or_else(
-                || item.clone(),
-                |raw| Json::String(self.of(VariableId::from_raw(raw))),
-            )
-        };
-        match value {
-            Json::Array(items) => Json::Array(items.iter().map(name).collect()),
-            other => name(other),
-        }
-    }
 }
 
 // --- number and text formatting ------------------------------------------
@@ -442,48 +415,40 @@ fn slug(title: &str) -> String {
         .collect()
 }
 
-// --- JSON flattening ------------------------------------------------------
+// --- fact flattening ------------------------------------------------------
 
-/// A JSON scalar as text.
-fn scalar(value: &Json) -> String {
+/// A scalar fact as text; a variable is its schema name.
+fn scalar(value: &Fact, names: Names<'_>) -> String {
     match value {
-        Json::Null => "none".to_owned(),
-        Json::Bool(flag) => yes_no(*flag).to_owned(),
-        Json::Number(number) => {
-            if let Some(integer) = number.as_i64() {
-                integer.to_string()
-            } else if let Some(integer) = number.as_u64() {
-                integer.to_string()
-            } else {
-                number.as_f64().map_or_else(|| number.to_string(), num)
-            }
-        }
-        Json::String(text) => text.clone(),
-        Json::Array(_) | Json::Object(_) => String::new(),
+        Fact::Null => "none".to_owned(),
+        Fact::Bool(flag) => yes_no(*flag).to_owned(),
+        Fact::Int(integer) => integer.to_string(),
+        Fact::Uint(integer) => integer.to_string(),
+        Fact::Real(real) => num(*real),
+        Fact::Text(text) => text.clone(),
+        Fact::Variable(variable) => names.of(*variable),
+        Fact::List(_) | Fact::Map(_) => String::new(),
     }
 }
 
-/// Key and value pairs for every leaf of `value`, in sorted key order. Nulls
+/// Key and value pairs for every leaf of `value`, in key order. Nulls
 /// are left out: an absent layer is not a statement.
-fn flatten(prefix: &str, value: &Json, names: Names<'_>, out: &mut Vec<(String, String)>) {
+fn flatten(prefix: &str, value: &Fact, names: Names<'_>, out: &mut Vec<(String, String)>) {
     match value {
-        Json::Null => {}
-        Json::Object(map) => {
-            let mut keys: Vec<&String> = map.keys().collect();
-            keys.sort();
-            for key in keys {
-                let child = names.json(key, &map[key]);
+        Fact::Null => {}
+        Fact::Map(map) => {
+            for (key, child) in map {
                 let path = if prefix.is_empty() { key.clone() } else { format!("{prefix}.{key}") };
-                flatten(&path, &child, names, out);
+                flatten(&path, child, names, out);
             }
         }
-        Json::Array(items) => {
+        Fact::List(items) => {
             if items.is_empty() {
                 out.push((prefix.to_owned(), "none".to_owned()));
-            } else if items.iter().all(|item| !item.is_array() && !item.is_object()) {
+            } else if items.iter().all(|item| !matches!(item, Fact::List(_) | Fact::Map(_))) {
                 out.push((
                     prefix.to_owned(),
-                    items.iter().map(scalar).collect::<Vec<_>>().join(", "),
+                    items.iter().map(|item| scalar(item, names)).collect::<Vec<_>>().join(", "),
                 ));
             } else {
                 for (index, item) in items.iter().enumerate() {
@@ -491,11 +456,11 @@ fn flatten(prefix: &str, value: &Json, names: Names<'_>, out: &mut Vec<(String, 
                 }
             }
         }
-        scalar_value => out.push((prefix.to_owned(), scalar(scalar_value))),
+        scalar_value => out.push((prefix.to_owned(), scalar(scalar_value, names))),
     }
 }
 
-fn facts_of(prefix: &str, value: &Json, names: Names<'_>) -> Block {
+fn facts_of(prefix: &str, value: &Fact, names: Names<'_>) -> Block {
     let mut facts = Vec::new();
     flatten(prefix, value, names, &mut facts);
     Block::Facts(facts)
@@ -1094,7 +1059,7 @@ fn uncertainty_section(input: &ReportInput<'_>, names: Names<'_>) -> Section {
     }
     if let Some(plan) = input.plan {
         blocks.push(Block::Subheading("Uncertainty the program must publish".to_owned()));
-        blocks.push(facts_of("", &plan.to_json()["uncertainty"], names));
+        blocks.push(facts_of("", plan.facts().get("uncertainty"), names));
     }
     blocks.push(Block::Subheading("Calibration".to_owned()));
     match input.claim {
@@ -1477,7 +1442,7 @@ fn limits_section(input: &ReportInput<'_>) -> Section {
 }
 
 fn plan_section(plan: &PlanView, names: Names<'_>) -> Section {
-    let json = plan.to_json();
+    let facts = plan.facts();
     let mut head = Vec::new();
     fact(&mut head, "Route", plan.route().as_str());
     fact(&mut head, "Family", plan.family().as_str());
@@ -1485,16 +1450,16 @@ fn plan_section(plan: &PlanView, names: Names<'_>) -> Section {
     fact(&mut head, "Depth", plan.depth().as_str());
     fact(&mut head, "Program identity", plan.identity().to_hex());
     fact(&mut head, "Sealed operation", opt_str(plan.operation()));
-    if let Some(family) = json["cyclic_family"].as_str() {
+    if let Some(family) = facts.get("cyclic_family").as_text() {
         fact(&mut head, "Cyclic family", family);
     }
-    if let Some(design) = json["planned_design"].as_str() {
+    if let Some(design) = facts.get("planned_design").as_text() {
         fact(&mut head, "Planned design", design);
     }
     let mut blocks = vec![Block::Facts(head)];
 
     blocks.push(Block::Subheading("Scientific problem".to_owned()));
-    blocks.push(facts_of("", &json["scientific"], names));
+    blocks.push(facts_of("", facts.get("scientific"), names));
 
     let identification = plan.identification();
     blocks.push(Block::Subheading("Identification product".to_owned()));
@@ -1506,17 +1471,18 @@ fn plan_section(plan: &PlanView, names: Names<'_>) -> Section {
         opt_str(identification.status().map(antecedent_core::IdentificationStatus::as_str)),
     );
     fact(&mut product, "Installed at prepare", yes_no(identification.installed_at_prepare()));
+    let product_facts = facts.get("identification").get("product");
     if let Some(view) = identification.product() {
         fact(&mut product, "Product identity", view.identity().to_hex());
         fact(
             &mut product,
             "Outcome",
-            opt_str(json["identification"]["product"]["outcome"].as_str()),
+            opt_str(product_facts.get("outcome").as_text()),
         );
         fact(
             &mut product,
             "Claim class",
-            opt_str(json["identification"]["product"]["claim_class"].as_str()),
+            opt_str(product_facts.get("claim_class").as_text()),
         );
     }
     blocks.push(Block::Facts(product));
@@ -1552,17 +1518,15 @@ fn plan_section(plan: &PlanView, names: Names<'_>) -> Section {
     retained_blocks(plan, names, &mut blocks);
 
     blocks.push(Block::Subheading("Statistical program".to_owned()));
-    blocks.push(facts_of("", &json["statistical"], names));
+    blocks.push(facts_of("", facts.get("statistical"), names));
     blocks.push(Block::Subheading("Evidence and decision program".to_owned()));
-    blocks.push(facts_of("", &json["evidence"], names));
+    blocks.push(facts_of("", facts.get("evidence"), names));
 
     blocks.push(Block::Subheading("Physical plan".to_owned()));
-    let mut physical = json["physical"].clone();
-    if let Some(map) = physical.as_object_mut() {
-        // The sized record and the kernel policy describe this machine, not the program.
-        map.remove("record");
-        map.remove("kernel_policy");
-    }
+    let mut physical = facts.get("physical").clone();
+    // The sized record and the kernel policy describe this machine, not the program.
+    physical.remove("record");
+    physical.remove("kernel_policy");
     blocks.push(facts_of("", &physical, names));
 
     mixture_blocks(plan, &mut blocks);

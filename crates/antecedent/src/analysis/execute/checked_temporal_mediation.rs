@@ -117,9 +117,9 @@ fn replay_mediation_horizons(
                 });
             }
         }
-        if cached.estimand.mediators.len() != 1 {
+        if cached.estimand.mediators.is_empty() {
             return Err(CausalError::Unsupported {
-                message: "temporal mediation supports exactly one identified mediator",
+                message: "temporal mediation needs at least one identified mediator",
             });
         }
         require_identified(&cached.identification)?;

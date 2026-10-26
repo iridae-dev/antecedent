@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use numpy::PyReadonlyArray1;
+use crate::NumericColumn;
 
 use std::sync::Arc;
 
@@ -500,7 +500,7 @@ impl PyPreparedAnalysis {
         &mut self,
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         suite: Bound<'_, PyAny>,
         seed: u64,
         threads: Option<u32>,

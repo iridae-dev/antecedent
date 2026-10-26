@@ -48,7 +48,7 @@ use antecedent_core::{ExecutionContext, IdentityDomain};
 use antecedent_io::distribution_artifact::{DistributionArtifact, DrawAlignment};
 use antecedent_io::joint_law_propagation_artifact::{
     ConsumedJointLawPropagation, JointLawPropagationArtifactError, JointLawPropagationArtifactWire,
-    PropagationRequestWire, float_bits,
+    PropagationRequestWire, float_bits, verdict_code,
 };
 
 pub use antecedent_io::joint_law_propagation_artifact::{EnvelopeQueryWire, MarginalWire};
@@ -234,7 +234,7 @@ impl PropagationDraws {
             return Err(Refusal::invalid(&id, "the coordinate is unsupported in the artifact"));
         }
         let alignment = input_alignment(artifact)?;
-        let values = (0..rows).map(|row| artifact.draws()[row * width + column]).collect();
+        let values = artifact.draws().iter().skip(column).step_by(width).copied().collect();
         Ok(Self {
             id,
             evidence_id: metadata.identity.snapshot_id.clone(),
@@ -416,27 +416,27 @@ impl PropagationClaim {
     /// A named float value (`mean`, `variance`, `lower`/`upper` pairs ...).
     #[must_use]
     pub fn value(&self, name: &str) -> Option<f64> {
-        if is_count(name) {
-            return None;
-        }
-        self.artifact.result.iter().find(|(n, _)| n == name).map(|(_, b)| f64::from_bits(*b))
+        self.entries().find_map(|entry| match entry {
+            ResultEntry::Value(entry_name, value) if entry_name == name => Some(value),
+            _ => None,
+        })
     }
 
     /// The number of aligned rows, for an aligned route.
     #[must_use]
     pub fn n_rows(&self) -> Option<u64> {
-        self.artifact.result.iter().find(|(n, _)| n == "n_rows").map(|(_, v)| *v)
+        self.entries().find_map(|entry| match entry {
+            ResultEntry::Rows(rows) => Some(rows),
+            _ => None,
+        })
     }
 
     /// Every named float value in stored order.
-    #[must_use]
-    pub fn values(&self) -> Vec<(String, f64)> {
-        self.artifact
-            .result
-            .iter()
-            .filter(|(n, _)| !is_count(n))
-            .map(|(n, b)| (n.clone(), f64::from_bits(*b)))
-            .collect()
+    pub fn values(&self) -> impl Iterator<Item = (&str, f64)> + '_ {
+        self.entries().filter_map(|entry| match entry {
+            ResultEntry::Value(name, value) => Some((name, value)),
+            _ => None,
+        })
     }
 
     /// The decision verdict (`act`, `withhold` or `unresolved`) of a composed
@@ -444,14 +444,25 @@ impl PropagationClaim {
     /// stated probability only; it is not a coverage statement.
     #[must_use]
     pub fn verdict(&self) -> Option<&'static str> {
-        let code = self.artifact.result.iter().find(|(n, _)| n == "verdict_code")?.1;
-        let verdict = match code {
-            0 => DecisionVerdict::Act,
-            1 => DecisionVerdict::Withhold,
-            2 => DecisionVerdict::Unresolved,
-            _ => return None,
-        };
-        Some(verdict.as_str())
+        self.decision_verdict().map(DecisionVerdict::as_str)
+    }
+
+    /// The typed decision verdict of a composed exceedance decision.
+    #[must_use]
+    pub fn decision_verdict(&self) -> Option<DecisionVerdict> {
+        self.entries().find_map(|entry| match entry {
+            ResultEntry::Verdict(verdict) => verdict,
+            _ => None,
+        })
+    }
+
+    /// The stored result, each entry decoded by the kind its name declares.
+    fn entries(&self) -> impl Iterator<Item = ResultEntry<'_>> + '_ {
+        self.artifact.result.iter().map(|(name, stored)| match name.as_str() {
+            ROWS_ENTRY => ResultEntry::Rows(*stored),
+            VERDICT_ENTRY => ResultEntry::Verdict(verdict_of_code(*stored)),
+            _ => ResultEntry::Value(name, f64::from_bits(*stored)),
+        })
     }
 
     /// The composed coordinate a coverage record for this claim must be
@@ -667,9 +678,28 @@ impl ComposedInterval {
     }
 }
 
-/// Result names that hold an integer count or code, not float bits.
-fn is_count(name: &str) -> bool {
-    matches!(name, "n_rows" | "verdict_code")
+/// Stored result name of the aligned row count (an integer, not float bits).
+const ROWS_ENTRY: &str = "n_rows";
+/// Stored result name of the decision verdict code (an integer, not float bits).
+const VERDICT_ENTRY: &str = "verdict_code";
+
+/// One stored result entry, decoded by the kind its name declares. The stored form is a list
+/// of `(name, u64)` pairs because it is part of the sealed artifact identity; this is the typed
+/// reading of it.
+enum ResultEntry<'a> {
+    /// The aligned row count.
+    Rows(u64),
+    /// The decision verdict; `None` for a code the artifact format does not define.
+    Verdict(Option<DecisionVerdict>),
+    /// A named float value.
+    Value(&'a str, f64),
+}
+
+/// The verdict a stored code names, by the artifact format's own coding.
+fn verdict_of_code(code: u64) -> Option<DecisionVerdict> {
+    [DecisionVerdict::Act, DecisionVerdict::Withhold, DecisionVerdict::Unresolved]
+        .into_iter()
+        .find(|verdict| verdict_code(*verdict) == code)
 }
 
 // ------------------------------------------------------------- execution

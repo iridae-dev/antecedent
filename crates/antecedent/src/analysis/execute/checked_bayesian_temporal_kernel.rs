@@ -49,7 +49,7 @@ pub(crate) fn fit_temporal_dag_effect(
     }
 
     let mut temporal = TemporalLinearAdjustment::new();
-    temporal.inner.bootstrap_replicates = 0;
+    temporal.inner.inference.bootstrap_replicates = 0;
     temporal.inner.overlap = OverlapPolicy::ExplicitOverride;
     let prepared = temporal
         .prepare(

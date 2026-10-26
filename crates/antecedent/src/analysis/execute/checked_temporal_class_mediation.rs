@@ -195,7 +195,7 @@ impl CheckedTemporalClassMediationOperation {
         query: &antecedent_core::MediationQuery,
     ) -> Result<CheckedTemporalMediationProof, CausalError> {
         Self::check_plan_record(physical, "temporal_mediation_class", "generalized.adjustment")?;
-        let cache = study.temporal_class_identification_cache.as_ref().ok_or_else(|| {
+        let cache = study.temporal_class_cache().ok_or_else(|| {
             CausalError::Compile {
                 message: "temporal class mediation proof was not prepared".into(),
             }
@@ -235,7 +235,7 @@ impl CheckedTemporalClassMediationOperation {
     ) -> Result<CheckedTemporalMediationProof, CausalError> {
         Self::check_plan_record(physical, "temporal_mediation", "temporal.mediation")?;
         let cache =
-            study.temporal_class_posterior_identification_cache.as_ref().ok_or_else(|| {
+            study.temporal_class_posterior_cache().ok_or_else(|| {
                 CausalError::Compile {
                     message: "temporal class posterior mediation proof was not prepared".into(),
                 }
@@ -271,7 +271,7 @@ impl CheckedTemporalClassMediationOperation {
         posterior: &antecedent_discovery::GraphPosterior,
     ) -> Result<CheckedTemporalMediationProof, CausalError> {
         Self::check_plan_record(physical, "temporal_mediation", "temporal.mediation")?;
-        let cache = study.dbn_posterior_identification_cache.as_ref().ok_or_else(|| {
+        let cache = study.dbn_posterior_cache().ok_or_else(|| {
             CausalError::Compile {
                 message: "DBN posterior mediation proof was not prepared".into(),
             }
@@ -470,10 +470,7 @@ impl CheckedTemporalClassMediationOperation {
         click.custom_validators = Vec::new();
         click.split = None;
         click.tiered = None;
-        click.temporal_identification_cache = None;
-        click.temporal_class_identification_cache = None;
-        click.dbn_posterior_identification_cache = None;
-        click.temporal_class_posterior_identification_cache = None;
+        click.clear_identification();
         match &self.proof {
             CheckedTemporalMediationProof::ClassEnvelope {
                 graph,
@@ -486,13 +483,13 @@ impl CheckedTemporalClassMediationOperation {
                 click.identifier = Some(IdentifierId::GeneralizedAdjustment);
                 click.max_completions = *max_completions;
                 click.class_prior.clone_from(class_prior);
-                click.temporal_class_identification_cache = Some(Arc::clone(cache));
+                click.install_identification(crate::analysis::IdentificationCache::TemporalClass(Arc::clone(cache)));
                 click.execute_temporal_cpdag_mediation(series, &self.query, &self.physical, ctx)
             }
             CheckedTemporalMediationProof::ClassPosterior { posterior, cache, max_completions } => {
                 click.graph_posterior = Some(posterior.clone());
                 click.max_completions = *max_completions;
-                click.temporal_class_posterior_identification_cache = Some(Arc::clone(cache));
+                click.install_identification(crate::analysis::IdentificationCache::TemporalClassPosterior(Arc::clone(cache)));
                 click.execute_temporal_class_graph_posterior_mediation(
                     series,
                     posterior,
@@ -503,7 +500,7 @@ impl CheckedTemporalClassMediationOperation {
             }
             CheckedTemporalMediationProof::DbnPosterior { posterior, cache } => {
                 click.graph_posterior = Some(posterior.clone());
-                click.dbn_posterior_identification_cache = Some(Arc::clone(cache));
+                click.install_identification(crate::analysis::IdentificationCache::DbnPosterior(Arc::clone(cache)));
                 click.execute_dbn_posterior_mediation(
                     series,
                     posterior,

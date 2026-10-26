@@ -58,12 +58,9 @@ pub(super) fn admitted(
         _ => JointPanelError::Engine(super::super::engine::PanelError::Resource(error.to_string())),
     })
 }
+/// Encoded size of an in-memory input; the caller's admission, quoted from this size, is the bound.
 fn encoded_size<T: Serialize>(value: &T) -> Result<usize, JointPanelError> {
-    let bytes = antecedent_io::convert::to_cbor(value).map_err(failure)?;
-    if bytes.len() > super::MAX_DESIGN_ARTIFACT_BYTES {
-        return Err(failure("native joint-design input exceeds bounded portable size"));
-    }
-    Ok(bytes.len())
+    Ok(antecedent_io::convert::to_cbor(value).map_err(failure)?.len())
 }
 pub(super) fn summary(recipe: &JointDesignRecipe) -> NativeJointIdentification {
     use JointDesignRecipe::{
@@ -312,6 +309,15 @@ impl NativeJointDesignResult {
     /// # Errors
     /// Encoding failure or portable size limit.
     pub fn export_artifact(&self) -> Result<Vec<u8>, JointPanelError> {
+        self.export_artifact_with_limits(super::DesignArtifactLimits::default())
+    }
+    /// [`Self::export_artifact`] under a caller-declared byte limit.
+    /// # Errors
+    /// As [`Self::export_artifact`], with `limits.max_bytes` as the size bound.
+    pub fn export_artifact_with_limits(
+        &self,
+        limits: super::DesignArtifactLimits,
+    ) -> Result<Vec<u8>, JointPanelError> {
         let wire = NativeReplay {
             version: 1,
             recipe: self.prepared.recipe.as_ref().clone(),
@@ -320,8 +326,8 @@ impl NativeJointDesignResult {
             law: self.law.as_ref().clone(),
         };
         let bytes = antecedent_io::convert::to_cbor(&wire).map_err(failure)?;
-        if bytes.len() > super::MAX_DESIGN_ARTIFACT_BYTES {
-            return Err(failure("native joint-design artifact exceeds portable size"));
+        if bytes.len() > limits.max_bytes {
+            return Err(failure("native joint-design artifact exceeds the declared portable size"));
         }
         Ok(bytes)
     }
@@ -338,9 +344,10 @@ struct NativeReplay {
 fn decode(
     bytes: &[u8],
     ctx: &ExecutionContext,
+    limits: super::DesignArtifactLimits,
 ) -> Result<(NativeReplay, Arc<antecedent_core::execution::AdmissionLease>), JointPanelError> {
-    if bytes.len() > super::MAX_DESIGN_ARTIFACT_BYTES {
-        return Err(failure("native joint-design artifact exceeds bounded decode size"));
+    if bytes.len() > limits.max_bytes {
+        return Err(failure("native joint-design artifact exceeds the declared decode size"));
     }
     let lease = admitted(
         ctx,
@@ -361,14 +368,27 @@ pub fn replay_native_joint_design(
     bytes: &[u8],
     ctx: &ExecutionContext,
 ) -> Result<JointNativeDesignLaw, JointPanelError> {
-    replay_native_joint_design_execution(bytes, ctx).map(|result| result.law.as_ref().clone())
+    replay_native_joint_design_with_limits(bytes, ctx, super::DesignArtifactLimits::default())
+}
+
+/// [`replay_native_joint_design`] under a caller-declared byte limit.
+/// # Errors
+/// As [`replay_native_joint_design`], with `limits.max_bytes` as the size bound.
+pub fn replay_native_joint_design_with_limits(
+    bytes: &[u8],
+    ctx: &ExecutionContext,
+    limits: super::DesignArtifactLimits,
+) -> Result<JointNativeDesignLaw, JointPanelError> {
+    replay_native_joint_design_execution(bytes, ctx, limits)
+        .map(|result| result.law.as_ref().clone())
 }
 
 pub(crate) fn replay_native_joint_design_execution(
     bytes: &[u8],
     ctx: &ExecutionContext,
+    limits: super::DesignArtifactLimits,
 ) -> Result<NativeJointDesignResult, JointPanelError> {
-    let (wire, _lease) = decode(bytes, ctx)?;
+    let (wire, _lease) = decode(bytes, ctx, limits)?;
     let prepared = PreparedNativeJointDesign::compile(wire.recipe, ctx)?;
     if prepared.identification.as_ref() != &wire.identification {
         return Err(failure("native joint-design artifact changed the scientific target or proof"));
@@ -388,7 +408,18 @@ impl PreparedNativeJointDesign {
         bytes: &[u8],
         ctx: &ExecutionContext,
     ) -> Result<NativeJointDesignResult, JointPanelError> {
-        let (wire, _lease) = decode(bytes, ctx)?;
+        self.consume_current_with_limits(bytes, ctx, super::DesignArtifactLimits::default())
+    }
+    /// [`Self::consume_current`] under a caller-declared byte limit.
+    /// # Errors
+    /// As [`Self::consume_current`], with `limits.max_bytes` as the size bound.
+    pub fn consume_current_with_limits(
+        &self,
+        bytes: &[u8],
+        ctx: &ExecutionContext,
+        limits: super::DesignArtifactLimits,
+    ) -> Result<NativeJointDesignResult, JointPanelError> {
+        let (wire, _lease) = decode(bytes, ctx, limits)?;
         if &wire.recipe != self.recipe.as_ref()
             || &wire.identification != self.identification.as_ref()
         {

@@ -15,7 +15,7 @@ use std::sync::Arc;
 pub(super) fn bayesian_basis_ate(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
     let sealed =
-        match (cx.static_ate_dag(), analysis.identification_cache.as_ref(), &analysis.inference) {
+        match (cx.static_ate_dag(), analysis.static_cache(), &analysis.inference) {
             (Some((data, query)), Some(cache), InferenceMode::Bayesian(_))
                 if analysis.graph_posterior.is_none()
                     && analysis.tiered.is_none()
@@ -48,7 +48,7 @@ pub(super) fn bayesian_basis_ate(cx: &SealContext<'_>) -> SealOutcome {
 pub(super) fn bayesian_basis_cate(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
     let sealed =
-        match (cx.conditional_dag(), analysis.identification_cache.as_ref(), &analysis.inference) {
+        match (cx.conditional_dag(), analysis.static_cache(), &analysis.inference) {
             (Some((data, query)), Some(cache), InferenceMode::Bayesian(_))
                 if analysis.graph_posterior.is_none()
                     && analysis.tiered.is_none()
@@ -81,7 +81,7 @@ pub(super) fn bayesian_basis_cate(cx: &SealContext<'_>) -> SealOutcome {
 pub(super) fn bayesian_robust_ate(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
     let sealed =
-        match (cx.static_ate_dag(), analysis.identification_cache.as_ref(), &analysis.inference) {
+        match (cx.static_ate_dag(), analysis.static_cache(), &analysis.inference) {
             (Some((data, query)), Some(cache), InferenceMode::Bayesian(_))
                 if analysis.graph_posterior.is_none()
                     && analysis.tiered.is_none()
@@ -114,7 +114,7 @@ pub(super) fn bayesian_robust_ate(cx: &SealContext<'_>) -> SealOutcome {
 pub(super) fn bayesian_conditional(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
     let sealed =
-        match (cx.conditional_dag(), analysis.identification_cache.as_ref(), &analysis.inference) {
+        match (cx.conditional_dag(), analysis.static_cache(), &analysis.inference) {
             (Some((_, query)), Some(cache), InferenceMode::Bayesian(_))
                 if analysis.graph_posterior.is_none()
                     && analysis.tiered.is_none()
@@ -159,7 +159,7 @@ pub(super) fn bayesian_conditional(cx: &SealContext<'_>) -> SealOutcome {
 pub(super) fn bayesian_gcomp(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
     let operation =
-        match (cx.static_ate_dag(), analysis.identification_cache.as_ref(), &analysis.inference) {
+        match (cx.static_ate_dag(), analysis.static_cache(), &analysis.inference) {
             (Some((_, query)), Some(cache), InferenceMode::Bayesian(_))
                 if matches!(query.outcome_functional, OutcomeFunctional::Mean)
                     && matches!(

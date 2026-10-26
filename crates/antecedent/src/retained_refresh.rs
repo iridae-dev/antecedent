@@ -450,6 +450,10 @@ impl RetainedRefresh {
     /// Apply one change, then compare the complete result with a fresh reconstruction from the
     /// retained rows. The summary is left as it was when the change or the comparison fails.
     ///
+    /// A failed comparison has no inverse operation, so a snapshot taken before the change is
+    /// the rollback. Its cost is linear in the retained rows, below the comparison's own full
+    /// rebuild from them, so the snapshot does not change the order of the verified path.
+    ///
     /// # Errors
     /// The errors of [`Self::apply`], rows that are not retained (the comparison needs them),
     /// or the first field that disagrees with the rebuild.
@@ -528,9 +532,10 @@ impl RetainedRefresh {
     }
 }
 
-/// The posterior rebuilt from a copy of every block's retained rows.
-fn rebuilt_conjugate(fit: &ConjugateBlockRefresh) -> Result<ConjugateBlockRefresh, CausalError> {
-    let mut fresh = ConjugateBlockRefresh::new(fit.prior().clone());
+/// The posterior summary rebuilt from every block's retained rows, borrowed in place.
+fn rebuilt_conjugate_summary(
+    fit: &ConjugateBlockRefresh,
+) -> Result<antecedent_state::ConjugateOlsSummary, CausalError> {
     for label in fit.labels() {
         let Some(block) = fit.block(label) else { continue };
         block.retention().require(RetainedOperation::RefitFromRetainedRows).map_err(|refusal| {
@@ -538,9 +543,8 @@ fn rebuilt_conjugate(fit: &ConjugateBlockRefresh) -> Result<ConjugateBlockRefres
                 "block {label}: {refusal}; reload the rows of this block and rebuild from them"
             ))
         })?;
-        fresh.add_block(label, block.source(), block.rows().to_vec())?;
     }
-    Ok(fresh)
+    Ok(fit.fresh_summary()?)
 }
 
 /// What a retained refresh needs of one summary family, so a new family is one
@@ -834,9 +838,8 @@ impl RefreshFamilyOps for ConjugateBlockRefresh {
     }
 
     fn rebuilt_result(&self) -> Result<RefreshResult, CausalError> {
-        let rebuilt = rebuilt_conjugate(self)?;
         Ok(RefreshResult::Conjugate {
-            summary: rebuilt.summary()?,
+            summary: rebuilt_conjugate_summary(self)?,
             identity: self.fresh_identity()?,
         })
     }

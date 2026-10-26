@@ -20,7 +20,9 @@ use super::{
 use super::{ResponseIdentification, ResponseValue, VariableId};
 use crate::analysis::prepared::Inspect;
 
-const MAX_DERIVATIVE_CELLS: usize = 1_000_000;
+/// Bytes per materialized derivative coordinate of the frequentist result (value, lower and
+/// upper bound).
+const DERIVATIVE_CELL_BYTES: u64 = 3 * size_of::<f64>() as u64;
 
 /// Sealed static derivative response plan. It retains the scientific query,
 /// identification claim, adjustment basis, selected estimator, and inference
@@ -74,13 +76,11 @@ impl CheckedDerivativeResponseOperation {
             outcome_ids.len().checked_mul(treatment_ids.len()).ok_or_else(|| {
                 CausalError::Compile { message: "derivative response cell count overflow".into() }
             })?;
-        // Bound materialized values even if a future query version admits more
-        // outcome-treatment coordinates. At one million cells the unavoidable
-        // f64 result/lower/upper arrays remain in the same memory class as the
-        // existing response-grid materialization ceiling.
-        if max_derivative_cells == 0 || max_derivative_cells > MAX_DERIVATIVE_CELLS {
+        // The cell count is admitted against the memory budget when the operation executes
+        // (see `admit_cells`); here only an empty derivative is refused.
+        if max_derivative_cells == 0 {
             return Err(CausalError::Unsupported {
-                message: "checked derivative response exceeds the 1000000-cell materialization limit",
+                message: "checked derivative response names no outcome-treatment coordinate",
             });
         }
         if query.temporal.is_some()
@@ -155,6 +155,40 @@ impl CheckedDerivativeResponseOperation {
         self.max_derivative_cells
     }
 
+    /// Lease the bytes of the materialized derivative arrays on the context's memory budget
+    /// for the duration of the returned lease. A context that declares no budget keeps the
+    /// default ceiling of [`antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS`] coordinates; a
+    /// declared budget sizes the derivative by itself.
+    fn admit_cells(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<antecedent_core::execution::AdmissionLease, CausalError> {
+        if ctx.memory_limit_bytes().is_none()
+            && self.max_derivative_cells > antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS
+        {
+            return Err(CausalError::Resource {
+                message: format!(
+                    "derivative response of {} outcome-treatment coordinates exceeds the \
+                     default ceiling of {}; declare a memory limit to size the derivative by \
+                     its budget",
+                    self.max_derivative_cells,
+                    antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS
+                ),
+            });
+        }
+        let per_cell = match &self.inference {
+            InferenceMode::Frequentist => DERIVATIVE_CELL_BYTES,
+            InferenceMode::Bayesian(config) => {
+                let draws = u64::try_from(config.n_draws).unwrap_or(u64::MAX);
+                DERIVATIVE_CELL_BYTES
+                    .saturating_add(draws.saturating_mul(size_of::<f64>() as u64))
+            }
+        };
+        let bytes = u64::try_from(self.max_derivative_cells)
+            .map_or(u64::MAX, |cells| cells.saturating_mul(per_cell));
+        crate::retained_refresh::admit(ctx, bytes, "derivative response")
+    }
+
     /// Execute only the retained target and procedure. This is the common point
     /// at which frequentist and Bayesian derivative procedures diverge.
     pub(crate) fn execute(
@@ -167,6 +201,7 @@ impl CheckedDerivativeResponseOperation {
                 stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
             });
         }
+        let _admitted = self.admit_cells(ctx)?;
         let identification_status = self.cache.identification.status;
         let assumptions = self.cache.identification.required_assumptions.clone();
         let response = match &self.inference {
@@ -941,7 +976,7 @@ mod checked_derivative_operation_tests {
     }
 
     #[test]
-    fn derivative_plan_refuses_materialization_over_resource_ceiling() {
+    fn derivative_plan_defers_cell_ceiling_to_the_memory_budget() {
         let outcomes: Arc<[VariableId]> = (0..1_001).map(VariableId::from_raw).collect();
         let treatments: Arc<[VariableId]> = (1_001..2_002).map(VariableId::from_raw).collect();
         let at: Arc<[f64]> = vec![0.0; treatments.len()].into();
@@ -967,7 +1002,7 @@ mod checked_derivative_operation_tests {
         )
         .unwrap();
         let estimand = identification.estimands.first().unwrap();
-        let error = CheckedDerivativeResponseOperation::checked(
+        let operation = CheckedDerivativeResponseOperation::checked(
             &graph,
             &query,
             &cached(&identification, estimand),
@@ -976,7 +1011,11 @@ mod checked_derivative_operation_tests {
             InferenceMode::Frequentist,
             antecedent_estimate::ContinuousResponseOptions::default(),
         )
-        .unwrap_err();
-        assert!(error.to_string().contains("1000000-cell materialization limit"));
+        .unwrap();
+        assert_eq!(operation.max_derivative_cells(), 1_001 * 1_001);
+        // With no declared budget the grid is over the default ceiling at execution.
+        let data = TabularData::from_f64_columns([("a", [0.0, 1.0].as_slice())]).unwrap();
+        let error = operation.execute(&data, &ExecutionContext::for_tests(9)).unwrap_err();
+        assert!(error.to_string().contains("default ceiling"), "{error}");
     }
 }

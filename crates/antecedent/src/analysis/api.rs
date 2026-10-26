@@ -14,10 +14,10 @@ pub use super::structure_route::{
     SimulationPayload, accept_discovered, accept_discovered_posterior, panel_of_units,
 };
 pub use super::{
-    ActionConstraint, ActionOutcome, ActionSpec, ActionStatus, EnumeratedStatus, ForwardEvaluation,
+    ActionConstraint, ActionOutcome, ActionReason, ActionSpec, ActionStatus, EnumeratedStatus,
+    ForwardEvaluation,
     ForwardInterval, INVERSE_SCOPE_NOTE, IntervalMeta, IntervalScope, InverseOutcomeError,
-    InverseOutcomeReport, InverseQuery, MAX_INVERSE_ACTIONS, MAX_INVERSE_FORWARD_POINTS,
-    SupportBasis, TargetDirection, classify_inverse_outcome,
+    InverseOutcomeReport, InverseQuery, SupportBasis, TargetDirection, classify_inverse_outcome,
 };
 pub use super::{
     ActionRobustness, AdaptedClaims, AdaptedDecision, AdapterError, AdmissibilityError,
@@ -43,7 +43,7 @@ pub use super::{
 };
 pub use super::{
     ArmCount, ArmSpec, ArmWeightEss, BatchCostEstimate, BatchPreflightReport, ColumnMissingness,
-    ColumnPriority, ColumnWeight, CostEstimate, DependentColumn, DroppedColumn, DuplicateGroup,
+    ColumnPriority, ColumnWeight, CostEstimate, CostModel, CostModelError, DependentColumn, DroppedColumn, DuplicateGroup,
     FindingSeverity, FittedPropensity, InferenceDefault, JointCellCostEstimate,
     NuisanceFitDiagnostics, PreflightFinding, PreflightInput, PreflightReport, PropensityOutcome,
     RankDropEstimate, RankDropPlan, RankDropPolicy, RankReport, RetargetCostEstimate,
@@ -53,7 +53,7 @@ pub use super::{
 pub use super::{
     BATCH_RETARGET_SCOPE_NOTE, BandMember, BatchRetargetError, BatchRetargetReport,
     BatchRetargetRequest, BatchScores, ClaimPoint, ClaimReport, ContrastPoint, ContrastReport,
-    FamilyCovariance, MAX_T_MAX_DRAWS, MAX_T_MIN_DRAWS, MemberFailure, RetargetClaim,
+    FamilyCovariance, MemberFailure, RetargetClaim,
     RetargetContrast, ScoreSource, SimultaneousBand, TidyKind, TidyRow, UncertaintyKind,
 };
 pub use super::{
@@ -63,7 +63,8 @@ pub use super::{
     CheckedStaticClassResponseInfo, CheckedTemporalClassMediationInfo,
     CheckedTemporalMediationInfo, CheckedTemporalMediationTargetInfo, CheckedTransportTrialInfo,
     CheckedUnknownTieredAverageInfo, ComputeBudget, ExactFactorRequirement, ExactPreparedState,
-    ExactStudyIdentities, ExactStudyInspection, ExactStudyResult, InterferenceSpec, LatencyMode,
+    ExactStudyIdentities, ExactStudyInspection, ExactStudyResult, IntoSharedPlan, InterferenceSpec,
+    LatencyMode,
     LearnedTrialResult, LearnedTrialState, LicensedNeighbor, NextAction, OperationKind,
     OperationReadiness, OperationReport, PremiseChange, PreparedBatch, PreparedStudy,
     PreparedZTransport, RdConfig, RefuteSuite, SemanticApplicability, SharedBatchDesign,

@@ -3,6 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod binding;
+pub(crate) mod fact;
 mod logical;
 pub mod lowered;
 mod plan;

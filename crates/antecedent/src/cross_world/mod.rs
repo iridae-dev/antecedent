@@ -92,7 +92,7 @@ pub struct CrossWorldEffect {
     /// conditioned beyond the check's floor (replay-verified only).
     pub independently_verified: bool,
     names: Vec<String>,
-    columns: Vec<Vec<f64>>,
+    columns: Arc<[Vec<f64>]>,
 }
 
 /// The refusal's own registered reason code, with its stable detail and explanation.
@@ -237,7 +237,7 @@ fn evaluate_effect_probed(
         data_digest,
         independently_verified: false,
         names,
-        columns,
+        columns: columns.into(),
     })
 }
 

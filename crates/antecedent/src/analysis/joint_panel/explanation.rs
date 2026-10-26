@@ -580,7 +580,9 @@ mod scientific;
 pub use scientific::{
     HistoricalPopulationReference, HistoricalReferenceDecomposition, PopulationReferenceAttempt,
     PopulationReferenceBindings, PopulationReferenceDecomposition,
-    PopulationReferenceTransportProof, ReferenceComponentBindings,
+    PopulationReferenceTransportProof, ReferenceArtifactLimits, ReferenceComponentBindings,
     ScientificReferenceDecomposition, decompose_population_reference,
-    decompose_scientific_reference, replay_population_reference, replay_reference_decomposition,
+    decompose_scientific_reference, replay_population_reference,
+    replay_population_reference_with_limits, replay_reference_decomposition,
+    replay_reference_decomposition_with_limits,
 };

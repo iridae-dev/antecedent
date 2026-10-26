@@ -11,7 +11,9 @@ use crate::analysis::helpers::{
 };
 use crate::analysis::prepared::Inspect;
 use crate::analysis::proof_support::proof_supplies;
-use crate::analysis::stage::{STAGE_ESTIMATE_POINT, STAGE_IDENTIFY, STAGE_VALIDATE, StageClock};
+use crate::analysis::stage::{
+    STAGE_ESTIMATE_POINT, STAGE_IDENTIFY, STAGE_VALIDATE, StageClock, elapsed_ns,
+};
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::planner::PhysicalExecutionPlan;
@@ -123,12 +125,7 @@ impl CheckedPathSpecificEffectOperation {
         )?;
         let mut diagnostics = self.cache.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
-        diagnostics.push(antecedent_core::Diagnostic::new(
-            "exec.identify.cached",
-            antecedent_core::DiagnosticKind::Execution,
-            antecedent_core::DiagnosticSeverity::Info,
-            "identification reused from the prepare-time cache",
-        ));
+        diagnostics.push(crate::analysis::execute::identify_cached_diagnostic());
         if let Some(diagnostic) = crate::analysis::execute::free_variables_averaged(
             &self.cache.identification,
             &self.cache.estimand,
@@ -152,34 +149,20 @@ impl CheckedPathSpecificEffectOperation {
             )
             .map_err(CausalError::from)?
         };
-        let n_draws =
-            posterior.as_ref().map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX));
-        let result = crate::analysis::execute::finish_checked_result(
-            crate::analysis::execute::CheckedResultFinish {
-                common: &self.common,
-                identification: &self.cache.identification,
-                estimand: &self.cache.estimand,
-                estimate_assumptions: estimate.provenance.assumptions.clone(),
-                estimate,
-                diagnostics,
-                refutations,
-                distribution: None,
-                posterior,
-                treatment: self.query.treatment,
-                outcome: self.query.outcome,
-                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-                bootstrap_replicates_requested: Some(self.fitter.bootstrap_replicates),
-                bootstrap_replicates_ok: None,
-                n_draws,
-                cancelled: false,
-                early_stopped: false,
-                certificate_query: CausalQuery::PathSpecific(self.query.clone()),
-                certificate_graph_class: GraphClass::Dag,
-                response: None,
-                mirror_refuted_evalue: true,
-                rebind_bayesian_interval: false,
-            },
-        );
+        let result = crate::analysis::execute::CheckedResultFinish::new(
+            &self.common,
+            &self.cache.identification,
+            &self.cache.estimand,
+            estimate,
+            started,
+            (self.query.treatment, self.query.outcome),
+            (CausalQuery::PathSpecific(self.query.clone()), GraphClass::Dag),
+        )
+        .with_diagnostics(diagnostics)
+        .with_refutations(refutations)
+        .with_posterior(posterior)
+        .with_bootstrap(Some(self.fitter.bootstrap_replicates), None)
+        .finish();
         Ok(result)
     }
 }
@@ -239,12 +222,7 @@ impl CheckedFunctionalEffectOperation {
         )?;
         let mut diagnostics = self.cache.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
-        diagnostics.push(antecedent_core::Diagnostic::new(
-            "exec.identify.cached",
-            antecedent_core::DiagnosticKind::Execution,
-            antecedent_core::DiagnosticSeverity::Info,
-            "identification reused from the prepare-time cache",
-        ));
+        diagnostics.push(crate::analysis::execute::identify_cached_diagnostic());
         if let Some(diagnostic) = crate::analysis::execute::free_variables_averaged(
             &self.cache.identification,
             &self.cache.estimand,
@@ -271,37 +249,24 @@ impl CheckedFunctionalEffectOperation {
             .reports(&mut refute_ws, None, ctx)?
         };
         diagnostics.extend(extra);
-        let n_draws =
-            posterior.as_ref().map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX));
-        let result = crate::analysis::execute::finish_checked_result(
-            crate::analysis::execute::CheckedResultFinish {
-                common: &self.common,
-                identification: &self.cache.identification,
-                estimand: &self.cache.estimand,
-                estimate_assumptions: estimate.provenance.assumptions.clone(),
-                estimate,
-                diagnostics,
-                refutations,
-                distribution: None,
-                posterior,
-                treatment: self.query.treatment,
-                outcome: self.query.outcome,
-                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-                bootstrap_replicates_requested: Some(self.fitter.bootstrap_replicates),
-                bootstrap_replicates_ok: None,
-                n_draws,
-                cancelled: false,
-                early_stopped: false,
-                certificate_query: self.conditional.as_ref().map_or_else(
-                    || CausalQuery::AverageEffect(self.query.clone()),
-                    |conditional| CausalQuery::ConditionalEffect(conditional.clone()),
-                ),
-                certificate_graph_class: self.graph_class,
-                response: None,
-                mirror_refuted_evalue: true,
-                rebind_bayesian_interval: false,
-            },
+        let certificate_query = self.conditional.as_ref().map_or_else(
+            || CausalQuery::AverageEffect(self.query.clone()),
+            |conditional| CausalQuery::ConditionalEffect(conditional.clone()),
         );
+        let result = crate::analysis::execute::CheckedResultFinish::new(
+            &self.common,
+            &self.cache.identification,
+            &self.cache.estimand,
+            estimate,
+            started,
+            (self.query.treatment, self.query.outcome),
+            (certificate_query, self.graph_class),
+        )
+        .with_diagnostics(diagnostics)
+        .with_refutations(refutations)
+        .with_posterior(posterior)
+        .with_bootstrap(Some(self.fitter.bootstrap_replicates), None)
+        .finish();
         Ok(result)
     }
 }
@@ -495,37 +460,30 @@ impl CheckedAdmgResponseCurveOperation {
             } else {
                 Vec::new()
             };
-        let result = crate::analysis::execute::finish_checked_result(
-            crate::analysis::execute::CheckedResultFinish {
-                common: &self.common,
-                identification: &first.identification,
-                estimand: &first.estimand,
-                estimate: EffectEstimate::new(
-                    f64::NAN,
-                    f64::NAN,
-                    first.identification.required_assumptions.clone(),
-                    OverlapPolicy::ExplicitOverride,
-                ),
-                estimate_assumptions: first.prepared.assumptions.clone(),
-                diagnostics,
-                refutations,
-                distribution: None,
-                posterior,
-                treatment,
-                outcome,
-                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-                bootstrap_replicates_requested: Some(0),
-                bootstrap_replicates_ok: None,
-                n_draws,
-                cancelled: false,
-                early_stopped: false,
-                certificate_query: CausalQuery::Response(self.query.clone()),
-                certificate_graph_class: GraphClass::Admg,
-                response: Some(response),
-                mirror_refuted_evalue: false,
-                rebind_bayesian_interval: false,
-            },
+        let estimate = EffectEstimate::new(
+            f64::NAN,
+            f64::NAN,
+            first.identification.required_assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
         );
+        let result = crate::analysis::execute::CheckedResultFinish::new(
+            &self.common,
+            &first.identification,
+            &first.estimand,
+            estimate,
+            started,
+            (treatment, outcome),
+            (CausalQuery::Response(self.query.clone()), GraphClass::Admg),
+        )
+        .with_estimate_assumptions(first.prepared.assumptions.clone())
+        .with_diagnostics(diagnostics)
+        .with_refutations(refutations)
+        .with_posterior(posterior)
+        .with_n_draws(n_draws)
+        .with_bootstrap(Some(0), None)
+        .with_response(response)
+        .without_evalue_mirror()
+        .finish();
         Ok(result)
     }
 
@@ -1062,10 +1020,10 @@ impl CheckedAipwOperation {
             provenance,
             treatment: self.query.treatment,
             outcome: self.query.outcome,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            wall_time_ns: elapsed_ns(started),
             latency_mode: self.latency_mode.map(|mode| Arc::from(mode.as_str())),
             stage_timings_ns: Vec::new(),
-            bootstrap_replicates_requested: Some(self.fitter.bootstrap_replicates),
+            bootstrap_replicates_requested: Some(self.fitter.inference.bootstrap_replicates),
             bootstrap_replicates_ok: bootstrap_ok,
             n_draws: None,
             cancelled,
@@ -1161,12 +1119,7 @@ impl CheckedAipwOperation {
     ) -> Vec<antecedent_core::Diagnostic> {
         let mut diagnostics = self.cache.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
-        diagnostics.push(antecedent_core::Diagnostic::new(
-            "exec.identify.cached",
-            antecedent_core::DiagnosticKind::Execution,
-            antecedent_core::DiagnosticSeverity::Info,
-            "identification reused from the prepare-time cache",
-        ));
+        diagnostics.push(crate::analysis::execute::identify_cached_diagnostic());
         diagnostics.push(if estimate.scores.table.is_some() {
             antecedent_core::Diagnostic::new(
                 "estimate.aipw.crossfit_scores",
@@ -1466,12 +1419,7 @@ impl CheckedLinearOperation {
             self.validate_stage(data, &estimate, cancelled, &mut clock, &mut workspace, ctx)?;
         let mut diagnostics = self.cache.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
-        diagnostics.push(antecedent_core::Diagnostic::new(
-            "exec.identify.cached",
-            antecedent_core::DiagnosticKind::Execution,
-            antecedent_core::DiagnosticSeverity::Info,
-            "identification reused from the prepare-time cache",
-        ));
+        diagnostics.push(crate::analysis::execute::identify_cached_diagnostic());
         diagnostics.append(&mut extra_diagnostics);
         let (identify_artifact, identify_operation) =
             crate::strategy_table::identify_provenance_step(self.identifier);
@@ -1508,7 +1456,7 @@ impl CheckedLinearOperation {
             wall_time_ns: clock.wall_time_ns(),
             latency_mode: self.latency_mode.map(|mode| Arc::from(mode.as_str())),
             stage_timings_ns: clock.timings(),
-            bootstrap_replicates_requested: Some(self.fitter.bootstrap_replicates),
+            bootstrap_replicates_requested: Some(self.fitter.inference.bootstrap_replicates),
             bootstrap_replicates_ok: bootstrap.replicates_ok,
             n_draws: None,
             cancelled,
@@ -1597,7 +1545,7 @@ impl CheckedLinearOperation {
                 .map(Arc::new)
                 .map_err(|error| CausalError::Resource { message: error.to_string() })
         };
-        let estimate = if self.fitter.bootstrap_replicates == 0 {
+        let estimate = if self.fitter.inference.bootstrap_replicates == 0 {
             let mut frozen = self.frozen_fit.lock().map_err(|_| CausalError::Compile {
                 message: "retained linear fit lock poisoned".into(),
             })?;
@@ -1918,35 +1866,24 @@ impl CheckedDistributionOperation {
             )
             .map_err(CausalError::from)?
         };
-        let n_draws = posterior
-            .as_ref()
-            .map(|posterior| u32::try_from(posterior.draws.n_draws).unwrap_or(u32::MAX));
-        let result = crate::analysis::execute::finish_checked_result(
-            crate::analysis::execute::CheckedResultFinish {
-                common: &self.common,
-                identification: &self.cache.identification,
-                estimand: &self.cache.estimand,
-                estimate_assumptions: estimate.provenance.assumptions.clone(),
-                estimate,
-                diagnostics,
-                refutations,
-                distribution: Some(distribution),
-                posterior,
-                treatment,
-                outcome,
-                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-                bootstrap_replicates_requested: Some(self.fitter.bootstrap_replicates),
-                bootstrap_replicates_ok: bootstrap_ok,
-                n_draws,
-                cancelled,
-                early_stopped,
-                certificate_query: CausalQuery::Distribution(self.query.clone()),
-                certificate_graph_class: self.graph_class,
-                response: None,
-                mirror_refuted_evalue: false,
-                rebind_bayesian_interval: true,
-            },
-        );
+        let result = crate::analysis::execute::CheckedResultFinish::new(
+            &self.common,
+            &self.cache.identification,
+            &self.cache.estimand,
+            estimate,
+            started,
+            (treatment, outcome),
+            (CausalQuery::Distribution(self.query.clone()), self.graph_class),
+        )
+        .with_diagnostics(diagnostics)
+        .with_refutations(refutations)
+        .with_distribution(distribution)
+        .with_posterior(posterior)
+        .with_bootstrap(Some(self.fitter.bootstrap_replicates), bootstrap_ok)
+        .with_stop_flags(cancelled, early_stopped)
+        .without_evalue_mirror()
+        .with_rebound_interval()
+        .finish();
         Ok(result)
     }
 
@@ -2009,12 +1946,7 @@ impl CheckedDistributionOperation {
         ) {
             diagnostics.push(diagnostic);
         }
-        diagnostics.push(antecedent_core::Diagnostic::new(
-            "exec.identify.cached",
-            antecedent_core::DiagnosticKind::Execution,
-            antecedent_core::DiagnosticSeverity::Info,
-            "identification reused from the prepare-time cache",
-        ));
+        diagnostics.push(crate::analysis::execute::identify_cached_diagnostic());
         if let Some(posterior) = posterior {
             diagnostics.extend(crate::analysis::execute::posterior_note_diagnostics([posterior]));
         }

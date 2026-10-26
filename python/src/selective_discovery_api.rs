@@ -8,6 +8,7 @@
 //!
 //! No recovery, error-control or interval statement is produced.
 
+use crate::NumericColumn;
 use antecedent::analysis::per_population_discovery::{
     PerPopulationDiscovery, PerPopulationReport, PopulationRows, add_per_population_claims,
     request_selection_targets_from_differences,
@@ -48,7 +49,7 @@ use antecedent_io::selective_discovery_artifact::{
     SelectiveDiscoveryArtifact, SelectiveDiscoveryArtifactError,
 };
 use antecedent_stats::{FdrAdjustment, MultipleTestingMethod, SignificanceMethod};
-use numpy::{PyArray1, PyReadonlyArray1};
+use numpy::PyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
@@ -647,7 +648,7 @@ impl SelectiveDiscoveryHandle {
         py: Python<'_>,
         contract_json: &str,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> Reply {
@@ -661,7 +662,7 @@ impl SelectiveDiscoveryHandle {
         py: Python<'_>,
         contract_json: &str,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> Reply {
@@ -868,7 +869,7 @@ impl SelectiveDiscoveryHandle {
         py: Python<'_>,
         contract_json: &str,
         names: &[String],
-        columns: &[PyReadonlyArray1<'_, f64>],
+        columns: &[NumericColumn<'_>],
         threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
         plan_only: bool,
@@ -876,7 +877,7 @@ impl SelectiveDiscoveryHandle {
         let parsed = parse_json(contract_json)?;
         let map = contract_map(&parsed, self.kind)?;
         let seed = get_u64(map, "seed")?;
-        let batch = crate::columns_to_batch(names, columns)?;
+        let batch = crate::numeric_columns_to_batch(names, columns)?;
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
         let adapter = self.inner.take().ok_or_else(|| input_err("handle is unavailable"))?;
@@ -952,7 +953,7 @@ fn selective_discovery_resume(
     kind: &str,
     contract_json: &str,
     names: Vec<String>,
-    columns: Option<Vec<PyReadonlyArray1<'_, f64>>>,
+    columns: Option<Vec<NumericColumn<'_>>>,
     artifact: &[u8],
     expected_identity: Option<&str>,
     threads: Option<u32>,
@@ -967,7 +968,7 @@ fn selective_discovery_resume(
         Err(error) => return Ok((None, None, Some(artifact_refusal(&error)))),
     };
     let batch = match columns {
-        Some(columns) => Some(crate::columns_to_batch(&names, &columns)?),
+        Some(columns) => Some(crate::numeric_columns_to_batch(&names, &columns)?),
         None => None,
     };
     let ctx =
@@ -1144,7 +1145,7 @@ impl PerPopulationDiscoveryHandle {
         contract_json: &str,
         populations: Vec<String>,
         names: Vec<String>,
-        columns: Vec<Vec<PyReadonlyArray1<'_, f64>>>,
+        columns: Vec<Vec<NumericColumn<'_>>>,
         threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> Reply {
@@ -1157,7 +1158,7 @@ impl PerPopulationDiscoveryHandle {
         }
         let batches = columns
             .iter()
-            .map(|set| crate::columns_to_batch(&names, set))
+            .map(|set| crate::numeric_columns_to_batch(&names, set))
             .collect::<PyResult<Vec<_>>>()?;
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
@@ -1467,7 +1468,7 @@ impl SampleSplitDiscoveryHandle {
     fn verify_source(
         &self,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         weights: Option<Vec<f64>>,
         mask: Option<Vec<bool>>,
     ) -> PyResult<Option<String>> {
@@ -1476,7 +1477,7 @@ impl SampleSplitDiscoveryHandle {
                 "the source table must carry the discovery table's columns in the same order",
             ));
         }
-        let batch = crate::columns_to_batch(&names, &columns)?;
+        let batch = crate::numeric_columns_to_batch(&names, &columns)?;
         let (data, _): (TabularData, _) = crate::discovery_api::tabular_from_batch(&batch)?;
         let data = table_with_rows(data, weights, mask)?;
         match self.inner.verify_against_source(&data) {
@@ -1493,7 +1494,7 @@ impl SampleSplitDiscoveryHandle {
     fn check_analysis_table(
         &self,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         weights: Option<Vec<f64>>,
     ) -> PyResult<(Option<String>, Option<String>)> {
         if names != self.names {
@@ -1501,7 +1502,7 @@ impl SampleSplitDiscoveryHandle {
                 "the analysis table must carry the discovery table's columns in the same order",
             ));
         }
-        let batch = crate::columns_to_batch(&names, &columns)?;
+        let batch = crate::numeric_columns_to_batch(&names, &columns)?;
         let (data, _): (TabularData, _) = crate::discovery_api::tabular_from_batch(&batch)?;
         // A split of a masked source gives each part the all-included mask of rows that passed
         // it, so the table to check carries that mask too.
@@ -1537,7 +1538,7 @@ fn sample_split_discover(
     py: Python<'_>,
     contract_json: &str,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     rule_json: &str,
     weights: Option<Vec<f64>>,
     mask: Option<Vec<bool>>,
@@ -1549,7 +1550,7 @@ fn sample_split_discover(
     let seed = get_u64(map, "seed")?;
     let contract = static_contract(map, names.len())?;
     let rule = rule_of(rule_json)?;
-    let batch = crate::columns_to_batch(&names, &columns)?;
+    let batch = crate::numeric_columns_to_batch(&names, &columns)?;
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
     let result: Result<SplitDiscovery, SelectiveDiscoveryError> =
@@ -1659,7 +1660,7 @@ type Effect = (Option<String>, Option<Vec<u8>>, Option<String>);
 fn sample_split_effect(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     treatment: u32,
     outcome: u32,
     split_seed: u64,
@@ -1667,7 +1668,7 @@ fn sample_split_effect(
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Effect> {
-    let batch = crate::columns_to_batch(&names, &columns)?;
+    let batch = crate::numeric_columns_to_batch(&names, &columns)?;
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
     let result = crate::detach_catch(py, move || {
@@ -1726,7 +1727,7 @@ fn sample_split_effect_measure(
 fn sample_split_parent_set_effect(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     treatment: u32,
     outcome: u32,
     split_seed: u64,
@@ -1749,7 +1750,7 @@ fn sample_split_parent_set_effect(
         Err(error) => return Ok((None, None, Some(effect_refusal(error)?))),
     };
     let options = ParentSetOptions { transformation, max_degree, log_shift };
-    let batch = crate::columns_to_batch(&names, &columns)?;
+    let batch = crate::numeric_columns_to_batch(&names, &columns)?;
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
     let result = crate::detach_catch(py, move || {

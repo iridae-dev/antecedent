@@ -242,7 +242,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<(Arc<CachedTemporalClassPosteriorIdentification>, bool), CausalError> {
         let (identified, identify_cached) =
-            if let Some(cache) = self.temporal_class_posterior_identification_cache.as_ref() {
+            if let Some(cache) = self.temporal_class_posterior_cache() {
                 (Arc::clone(cache), true)
             } else if let Some(cache) =
                 crate::analysis::lowering::plan_retained_temporal_class_posterior(self, physical)
@@ -644,7 +644,7 @@ fn evaluate_temporal_class_atom_bayesian(
     }
     let envelope = &atom.envelope.envelope;
     let mut estimator = TemporalLinearAdjustment::new();
-    estimator.inner.bootstrap_replicates = 0;
+    estimator.inner.inference.bootstrap_replicates = 0;
     estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
     let bayes = bayesian_temporal_gcomp(&cfg, ctx);
     let mut ws = BayesianGCompWorkspace::default();

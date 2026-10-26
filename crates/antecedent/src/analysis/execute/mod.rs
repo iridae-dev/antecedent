@@ -139,9 +139,6 @@ pub struct StudyConfig {
     pub(crate) selection_diagram: Option<antecedent_graph::SelectionDiagram>,
     /// Trial columns frozen for a transport query.
     pub(crate) transport_trial: Option<super::builder::TransportTrialSpec>,
-    /// Prepare-time transport formula + certificate.
-    pub(crate) transport_identification_cache:
-        Option<Arc<antecedent_identify::TransportIdentification>>,
     /// Executable search of a structure-discovery query.
     pub(crate) discovery: Option<Arc<super::structure_route::DiscoverySpec>>,
     /// Mechanism fit of an attribution or simulation query; `None` runs the
@@ -201,32 +198,15 @@ pub struct Study {
     pub(crate) sampling_design: Option<antecedent_core::DeclaredSamplingDesign>,
     pub(crate) custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     pub(crate) latency_mode: Option<super::latency::LatencyMode>,
-    /// Prepare-time identification for the static ATE path (including the
-    /// general-ID result and functional estimand of a bidirected ADMG), set
-    /// only by [`Study::prepare`]. Identification depends solely on
-    /// (identifier, graph, query, rd) — all frozen at prepare — so reusing it
-    /// per estimate click is exact; `None` (every builder-constructed study)
-    /// identifies on each run.
-    pub(crate) identification_cache: Option<Arc<super::prepared::CachedStaticIdentification>>,
-    /// Prepare-time generalized-adjustment envelope for a supplied PAG.
-    pub(crate) pag_identification_cache: Option<Arc<super::prepared::CachedPagIdentification>>,
-    /// Prepare-time MEC envelope for a supplied CPDAG.
-    pub(crate) cpdag_identification_cache: Option<Arc<super::prepared::CachedCpdagIdentification>>,
-    /// Prepare-time temporal-backdoor identification + indexer for temporal response.
-    pub(crate) temporal_identification_cache:
-        Option<Arc<super::prepared::CachedTemporalIdentification>>,
-    /// Prepare-time TemporalCpdag/Pag envelope.
-    pub(crate) temporal_class_identification_cache:
-        Option<Arc<super::prepared::CachedTemporalClassIdentification>>,
-    /// Prepare-time per-atom identification and weights for a static graph posterior.
-    pub(crate) graph_posterior_identification_cache:
-        Option<Arc<super::prepared::CachedGraphPosteriorIdentification>>,
-    /// Prepare-time per-atom identification, indexers, and weights for a DBN posterior.
-    pub(crate) dbn_posterior_identification_cache:
-        Option<Arc<super::prepared::CachedDbnPosteriorIdentification>>,
-    /// Prepare-time TemporalCpdag/Pag graph-posterior class envelopes.
-    pub(crate) temporal_class_posterior_identification_cache:
-        Option<Arc<super::prepared::CachedTemporalClassPosteriorIdentification>>,
+    /// The identification product [`Study::prepare`] installed: the static contrast
+    /// (including the general-ID result and functional estimand of a bidirected
+    /// ADMG), a PAG or CPDAG envelope, the temporal backdoor by horizon, a temporal
+    /// class envelope, a transport formula, or the per-atom products of a graph
+    /// posterior. Identification depends solely on (identifier, graph, query, rd) —
+    /// all frozen at prepare — so reusing it per estimate click is exact; `None`
+    /// (every builder-constructed study) identifies on each run. The kinds are
+    /// mutually exclusive; see the typed accessors in `identification_slot`.
+    pub(crate) identification: Option<super::prepared::IdentificationCache>,
     /// Optional tier-rule background for O(p) closure certification.
     pub(crate) tiered: Option<antecedent_graph::TieredBackground>,
     /// Network + assignment of an interference query, rebound to each click's rows.
@@ -244,6 +224,7 @@ impl std::ops::Deref for Study {
 }
 
 mod admg_posterior;
+mod identification_slot;
 mod admg_posterior_response;
 mod attribution_path;
 mod checked_attribution;
@@ -397,6 +378,8 @@ mod mediation_streams;
 use mediation_streams::{MediationRoute, mediation_block_stream, mediation_mechanism_seed};
 mod checked_static_response;
 mod dispatch;
+pub use dispatch::IntoSharedPlan;
+mod route_call;
 mod identified_set_diagnostics;
 mod interference_refutation;
 mod mediation_mixed;

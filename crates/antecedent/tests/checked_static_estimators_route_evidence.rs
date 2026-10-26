@@ -49,7 +49,7 @@ fn checked_glm_accepted_and_explicit_retain_design_and_dependency_refusal() {
             ] {
                 let mut fitter = antecedent_estimate::GlmAdjustmentAte::new()
                     .with_family(antecedent_stats::GlmFamily::GaussianIdentity);
-                fitter.bootstrap_replicates = 0;
+                fitter.inference.bootstrap_replicates = 0;
                 let builder = if accepted {
                     Study::tabular(data.clone()).graph(AcceptedGraph::from(graph.clone()))
                 } else {

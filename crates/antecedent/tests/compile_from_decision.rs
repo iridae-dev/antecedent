@@ -269,7 +269,7 @@ fn compile_from_an_evsi_request_fills_the_value_of_information_program() {
     let ctx = ExecutionContext::for_tests(1);
     let study = study(true);
     let wire = ranking_wire(&["study-b", "study-a"]);
-    let plan = compile_for_study(&study, &wire, &ctx).unwrap();
+    let plan = compile_for_study(&study, wire.clone(), &ctx).unwrap();
     let decision = plan.lowered().unwrap().evidence().decision().unwrap();
     assert_eq!(decision.carrier(), CarrierDemand::ParameterPosterior);
     assert_eq!(decision.contract_identity(), Some("launch-ranking"));
@@ -292,15 +292,15 @@ fn compile_from_an_evsi_request_fills_the_value_of_information_program() {
 
     // Declaration order does not change the compiled program.
     let reordered =
-        compile_for_study(&study, &ranking_wire(&["study-a", "study-b"]), &ctx).unwrap();
+        compile_for_study(&study, ranking_wire(&["study-a", "study-b"]), &ctx).unwrap();
     assert_eq!(decision_identity(&plan), decision_identity(&reordered));
 
     // The evaluation is bound to that program.
-    let evaluated = evaluate_for_study(&study, &wire, &ctx).unwrap();
+    let evaluated = evaluate_for_study(&study, wire.clone(), &ctx).unwrap();
     assert_eq!(evaluated.lowered_program_identity(), Some(decision_identity(&plan)));
 
     // A sampling realization is not a state belief.
-    let refused = compile_for_study(&self::study(false), &wire, &ctx).unwrap_err();
+    let refused = compile_for_study(&self::study(false), wire.clone(), &ctx).unwrap_err();
     let DesignRankingError::Compile(error) = &refused else {
         panic!("expected a compile refusal, got {refused}");
     };
@@ -314,7 +314,7 @@ fn compile_from_an_evsi_request_fills_the_value_of_information_program() {
 fn evsi_refuses_before_allocation_when_the_pool_cannot_hold_the_store() {
     let ctx = ExecutionContext::for_tests(1).with_memory_limit(Some(64));
     let study = study(true);
-    let refused = compile_for_study(&study, &ranking_wire(&["study-a"]), &ctx).unwrap_err();
+    let refused = compile_for_study(&study, ranking_wire(&["study-a"]), &ctx).unwrap_err();
     let DesignRankingError::Compile(error) = &refused else {
         panic!("expected a compile refusal, got {refused}");
     };
@@ -330,7 +330,7 @@ fn evsi_evaluation_keeps_caller_context_and_exact_ranking_artifact() {
     use antecedent_core::CachePolicy;
     let study = study(true);
     let wire = ranking_wire(&["context-ranking"]);
-    let warm = evaluate_for_study(&study, &wire, &ExecutionContext::production(3, 1)).unwrap();
+    let warm = evaluate_for_study(&study, wire.clone(), &ExecutionContext::production(3, 1)).unwrap();
     let disabled = ExecutionContext::for_tests(999);
     let mut bounded = disabled.clone();
     bounded.cache_policy = CachePolicy::enabled(Some(1024));
@@ -338,7 +338,7 @@ fn evsi_evaluation_keeps_caller_context_and_exact_ranking_artifact() {
     finite.cache_policy = CachePolicy::enabled(None);
     for ctx in [disabled, bounded, finite] {
         let before = ctx.admission().available();
-        let evaluated = evaluate_for_study(&study, &wire, &ctx).unwrap();
+        let evaluated = evaluate_for_study(&study, wire.clone(), &ctx).unwrap();
         assert_eq!(evaluated.report(), warm.report());
         assert_eq!(evaluated.artifact(), warm.artifact());
         assert_eq!(evaluated.lowered_program_identity(), warm.lowered_program_identity());
@@ -346,13 +346,13 @@ fn evsi_evaluation_keeps_caller_context_and_exact_ranking_artifact() {
     }
     let tiny = ExecutionContext::for_tests(3).with_memory_limit(Some(64));
     let before = tiny.admission().available();
-    let error = evaluate_for_study(&study, &wire, &tiny).unwrap_err();
+    let error = evaluate_for_study(&study, wire.clone(), &tiny).unwrap_err();
     assert!(matches!(error, DesignRankingError::Compile(CausalError::Resource { .. })));
     assert_eq!(tiny.admission().available(), before);
 
     let cancelled = ExecutionContext::for_tests(3);
     cancelled.cancellation.cancel();
-    let error = evaluate_for_study(&study, &wire, &cancelled).unwrap_err();
+    let error = evaluate_for_study(&study, wire.clone(), &cancelled).unwrap_err();
     assert!(
         matches!(
             error,

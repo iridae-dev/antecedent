@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 pub(super) fn derivative_response(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, .. } = *cx;
-    let sealed = match (cx.static_response_dag(), analysis.identification_cache.as_ref()) {
+    let sealed = match (cx.static_response_dag(), analysis.static_cache()) {
         (Some((query, graph)), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
@@ -56,7 +56,7 @@ pub(super) fn derivative_response(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn static_dag_response(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, .. } = *cx;
-    let sealed = match (cx.static_response_dag(), analysis.identification_cache.as_ref()) {
+    let sealed = match (cx.static_response_dag(), analysis.static_cache()) {
         (Some((query, graph)), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
@@ -126,7 +126,7 @@ pub(super) fn static_dag_response(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, ctx, .. } = *cx;
-    let sealed = match (cx.route, analysis.identification_cache.as_ref()) {
+    let sealed = match (cx.route, analysis.static_cache()) {
         (Some(RouteInput::StaticResponseDag { query, graph, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
@@ -209,7 +209,7 @@ pub(super) fn cell_aipw_response(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn static_response_curve(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, .. } = *cx;
-    let sealed = match (cx.static_response_dag(), analysis.identification_cache.as_ref()) {
+    let sealed = match (cx.static_response_dag(), analysis.static_cache()) {
         (Some((query, _)), Some(cache))
             if query.temporal.is_none()
                 && query.observation == antecedent_core::ObservationSpec::Complete

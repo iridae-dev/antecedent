@@ -78,7 +78,7 @@ fn utility() -> UtilitySpec {
 
 fn request() -> RecalcRequest {
     RecalcRequest {
-        columns: columns(2.0),
+        columns: columns(2.0).into(),
         edges: base_edges(),
         treatment: T,
         outcome: Y,
@@ -295,7 +295,7 @@ fn recalc_changed_folds_and_new_outcomes_refit_without_reidentifying() {
 
     // New outcomes: same seed, different outcome column.
     let mut fresh = base.clone();
-    fresh.columns = columns(1.5);
+    fresh.columns = columns(1.5).into();
     let outcomes = go(&mut session, &fresh, seed);
     let overrides = [
         (Stage::DataSnapshot, "recomputed(own:data_snapshot:modified)"),

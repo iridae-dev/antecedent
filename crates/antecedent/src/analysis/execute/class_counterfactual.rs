@@ -542,6 +542,11 @@ impl super::Study {
         }
     }
 
+    /// Completions retained: the study's `max_completions`, else the default bound.
+    fn completion_cap(&self) -> usize {
+        self.max_completions.unwrap_or(COMPLETION_CAP)
+    }
+
     /// The completions (or the one ADMG) a latent-confounded structure stands for.
     fn latent_completions(
         &self,
@@ -555,7 +560,7 @@ impl super::Study {
                 };
                 let mut sampler = antecedent_graph::CompletionSampler::with_budget(
                     pag,
-                    self.max_completions.unwrap_or(COMPLETION_CAP),
+                    self.completion_cap(),
                     limits,
                     ctx,
                 )?;
@@ -700,6 +705,7 @@ impl super::Study {
         let started = Instant::now();
         let shape = shape_of(query)?;
         let (completions, order, incomplete) = self.latent_completions(ctx)?;
+        let completions_retained = completions.len();
         let variables = order.len();
         let table = Table::read(data, &order)?;
         let event = event_query(&shape, &order, &table)?;
@@ -967,9 +973,15 @@ impl super::Study {
                 "estimate.counterfactual.completions_incomplete",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
-                "the MAG completion search stopped at its cap or budget before it classified \
-                 every endpoint assignment; the result covers the retained completions only, \
-                 not the whole equivalence class",
+                format!(
+                    "the MAG completion search stopped at its cap or budget before it classified \
+                     every endpoint assignment; the result covers the {} retained completions \
+                     only (cap {}, {}), not the whole equivalence class; raise max_completions \
+                     to retain more",
+                    completions_retained,
+                    self.completion_cap(),
+                    if self.max_completions.is_some() { "set by the study" } else { "the default" },
+                ),
             ));
         }
         if let Some(derivation) = cases.first().map(|case| case.prepared.derivation()) {
@@ -1051,7 +1063,7 @@ impl super::Study {
         };
         let mut sampler = antecedent_graph::CpdagCompletionSampler::with_budget(
             cpdag.clone(),
-            self.max_completions.unwrap_or(COMPLETION_CAP),
+            self.completion_cap(),
             limits,
             ctx,
         )?;
@@ -1073,8 +1085,9 @@ impl super::Study {
             }
             let mut completion = self.clone();
             completion.graph = Arc::new(AcceptedGraph::from(dag.clone()));
-            completion.identification_cache = None;
-            completion.cpdag_identification_cache = None;
+            completion.clear_identification_where(|cache| {
+                matches!(cache, crate::analysis::IdentificationCache::Static(_) | crate::analysis::IdentificationCache::Cpdag(_))
+            });
             results.push(completion.execute_counterfactual(data, dag, query, physical, ctx)?);
         }
         let values: Vec<f64> = results
@@ -1168,8 +1181,14 @@ impl super::Study {
                 "estimate.counterfactual.completions_incomplete",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
-                "the completion search stopped at its cap or budget; the result covers the \
-                 retained completions only, not the whole equivalence class",
+                format!(
+                    "the completion search stopped at its cap or budget; the result covers the \
+                     {} retained completions only (cap {}, {}), not the whole equivalence \
+                     class; raise max_completions to retain more",
+                    dags.len(),
+                    self.completion_cap(),
+                    if self.max_completions.is_some() { "set by the study" } else { "the default" },
+                ),
             ));
         }
         result.structural_response = mixture;

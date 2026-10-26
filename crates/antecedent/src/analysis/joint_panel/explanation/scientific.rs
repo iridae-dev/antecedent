@@ -1280,8 +1280,9 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
 
 mod artifact;
 pub use artifact::{
-    HistoricalPopulationReference, HistoricalReferenceDecomposition, replay_population_reference,
-    replay_reference_decomposition,
+    HistoricalPopulationReference, HistoricalReferenceDecomposition, ReferenceArtifactLimits,
+    replay_population_reference, replay_population_reference_with_limits,
+    replay_reference_decomposition, replay_reference_decomposition_with_limits,
 };
 mod population;
 pub use population::{

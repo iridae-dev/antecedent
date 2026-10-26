@@ -46,7 +46,7 @@ fn request() -> BayesianRequest {
     prior.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(2, 10.0)));
     prior.push(PriorSpec::KnownResidualVariance(1.0));
     BayesianRequest {
-        columns: vec![("t".into(), t), ("y".into(), y)],
+        columns: vec![("t".into(), t), ("y".into(), y)].into(),
         edges: vec![(0, 1)],
         treatment: VariableId::from_raw(0),
         outcome: VariableId::from_raw(1),

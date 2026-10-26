@@ -219,7 +219,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<(Arc<crate::analysis::prepared::CachedDbnPosteriorIdentification>, bool), CausalError>
     {
-        Ok(if let Some(cache) = self.dbn_posterior_identification_cache.as_ref() {
+        Ok(if let Some(cache) = self.dbn_posterior_cache() {
             (Arc::clone(cache), true)
         } else if let Some(cache) =
             crate::analysis::lowering::plan_retained_dbn_posterior(self, physical)
@@ -303,7 +303,7 @@ impl super::Study {
             let identifications: Vec<_> =
                 aligned.iter().map(|entry| (&entry.estimand, &entry.indexer)).collect();
             let mut estimator = TemporalResponseEstimator::new();
-            estimator.inner.bootstrap_replicates = self.bootstrap_replicates;
+            estimator.inner.inference.bootstrap_replicates = self.bootstrap_replicates;
             let (response, conflict) = if let InferenceMode::Bayesian(cfg) = &self.inference {
                 let mut bayes = bayesian_gcomp(cfg, inner);
                 let (resolved, conflict) = resolve_temporal_response_prior(

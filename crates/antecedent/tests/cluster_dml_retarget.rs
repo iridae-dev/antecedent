@@ -69,12 +69,9 @@ fn fixture_with_groups(seed: u64, groups: usize) -> Fixture {
 }
 
 fn estimator(fx: &Fixture) -> AipwAte {
-    AipwAte {
-        bootstrap_replicates: 0,
-        cluster_ids: Some(fx.cluster.clone()),
-        cluster_dml: Some(ClusterDml::new(20).unwrap()),
-        ..AipwAte::new()
-    }
+    AipwAte { cluster_dml: Some(ClusterDml::new(20).unwrap()), ..AipwAte::new() }
+        .with_bootstrap_replicates(0)
+        .with_cluster_ids(fx.cluster.clone())
 }
 
 fn query() -> AverageEffectQuery {
@@ -148,7 +145,7 @@ fn the_published_interval_uses_the_few_cluster_t_reference() {
     let plain = Study::tabular(fx.data.clone())
         .graph(fx.graph.clone())
         .query(query())
-        .estimator(AipwAte { bootstrap_replicates: 0, ..AipwAte::new() })
+        .estimator(AipwAte::new().with_bootstrap_replicates(0))
         .refute(RefuteSuite::None)
         .build()
         .unwrap()

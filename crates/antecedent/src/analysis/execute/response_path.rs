@@ -176,7 +176,7 @@ impl super::Study {
         let (treatment, outcome) = response_primary_pair(&query.functional)?;
         let identification_query = AverageEffectQuery::binary_ate(treatment, outcome);
         let (identified, identify_cached) = if let Some(cache) =
-            self.graph_posterior_identification_cache.as_ref()
+            self.graph_posterior_cache()
         {
             (Arc::clone(cache), true)
         } else {
@@ -1528,7 +1528,7 @@ impl super::Study {
                 || treatments.contains(variable)
             {
                 return Err(CausalError::Unsupported {
-                    message: "cell.aipw requires at most three distinct coordinates",
+                    message: "cell.aipw requires distinct coordinates, at most as many as a cell code addresses",
                 });
             }
             treatments.push(*variable);

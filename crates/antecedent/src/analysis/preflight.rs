@@ -56,9 +56,8 @@ pub const NEAR_COLLINEAR_RATIO: f64 = 1e-3;
 /// threshold, not a verdict.
 pub const NEAR_DETERMINISTIC_R2: f64 = 0.999;
 
-/// Largest table the fit-free checks will copy (rows times columns read). Larger inputs are
-/// refused as a resource limit rather than materialized.
-pub const MAX_PREFLIGHT_CELLS: usize = 100_000_000;
+/// Bytes the fit-free checks copy per table cell read (one `f64`).
+const PREFLIGHT_BYTES_PER_CELL: u64 = 8;
 
 /// Linear-relation coefficients smaller than this (in original column units) are not listed.
 const COEFFICIENT_FLOOR: f64 = 1e-8;
@@ -270,9 +269,19 @@ pub struct PreflightInput<'a> {
     pub protected: Vec<VariableId>,
     /// Arms or cells to count. One arm is a joint cell; two are `[control, active]`.
     pub arms: Vec<ArmSpec>,
+    /// Largest table copy, in bytes, the checks may materialize. `None` defers to the
+    /// execution context's memory limit; with neither set the table is not bounded.
+    pub memory_limit_bytes: Option<u64>,
 }
 
 impl<'a> PreflightInput<'a> {
+    /// The same input with an explicit byte limit on the table copy.
+    #[must_use]
+    pub const fn with_memory_limit_bytes(mut self, limit: Option<u64>) -> Self {
+        self.memory_limit_bytes = limit;
+        self
+    }
+
     /// A binary contrast between two coded levels of one treatment.
     #[must_use]
     pub fn binary_effect(
@@ -293,6 +302,7 @@ impl<'a> PreflightInput<'a> {
                 ArmSpec { role: "control", levels: vec![(treatment, control)] },
                 ArmSpec { role: "active", levels: vec![(treatment, active)] },
             ],
+            memory_limit_bytes: None,
         }
     }
 
@@ -317,6 +327,7 @@ impl<'a> PreflightInput<'a> {
             adjustment: adjustment.to_vec(),
             protected: Vec::new(),
             arms: vec![ArmSpec { role: "cell", levels }],
+            memory_limit_bytes: None,
         }
     }
 }
@@ -379,7 +390,7 @@ fn resolve_arm_indicator(
 }
 
 impl<'a> Frame<'a> {
-    fn new(input: &'a PreflightInput<'a>) -> Result<Self, CausalError> {
+    fn new(input: &'a PreflightInput<'a>, ctx: &ExecutionContext) -> Result<Self, CausalError> {
         if input.treatments.is_empty() || input.arms.is_empty() {
             return Err(crate::compile_reason!(
                 "invalid_argument",
@@ -390,13 +401,19 @@ impl<'a> Frame<'a> {
         let rows_total = data.row_count();
         let nt = input.treatments.len();
         let width = nt + 1 + input.adjustment.len();
-        if rows_total.saturating_mul(width) > MAX_PREFLIGHT_CELLS {
-            return Err(CausalError::Resource {
-                message: format!(
-                    "preflight would read {rows_total} rows x {width} columns, over the \
-                     {MAX_PREFLIGHT_CELLS}-cell limit; run it on a subset or fewer columns"
-                ),
-            });
+        let bytes = (rows_total as u64)
+            .saturating_mul(width as u64)
+            .saturating_mul(PREFLIGHT_BYTES_PER_CELL);
+        if let Some(limit) = input.memory_limit_bytes.or_else(|| ctx.memory_limit_bytes()) {
+            if bytes > limit {
+                return Err(CausalError::Resource {
+                    message: format!(
+                        "preflight would copy {rows_total} rows x {width} columns ({bytes} bytes), \
+                         over the {limit}-byte memory limit; raise the limit, or run it on a \
+                         subset or fewer columns"
+                    ),
+                });
+            }
         }
         let schema = data.schema();
         let mut ids = input.treatments.clone();
@@ -825,12 +842,12 @@ fn rank_findings(
 ///
 /// # Errors
 ///
-/// An unknown or non-numeric column, a table exceeding the preflight cell limit, or cancellation.
+/// An unknown or non-numeric column, a table copy over the memory limit, or cancellation.
 pub fn preflight_design(
     input: &PreflightInput<'_>,
     ctx: &ExecutionContext,
 ) -> Result<PreflightReport, CausalError> {
-    let frame = Frame::new(input)?;
+    let frame = Frame::new(input, ctx)?;
     let mut findings = Vec::new();
     let nt = frame.nt();
 
@@ -1107,12 +1124,12 @@ fn nearest_rank(sorted: &[f64], probability: f64) -> f64 {
 ///
 /// # Errors
 ///
-/// An unknown or non-numeric column, a table exceeding the preflight cell limit, or cancellation.
+/// An unknown or non-numeric column, a table copy over the memory limit, or cancellation.
 pub fn fit_diagnostics_design(
     input: &PreflightInput<'_>,
     ctx: &ExecutionContext,
 ) -> Result<NuisanceFitDiagnostics, CausalError> {
-    let frame = Frame::new(input)?;
+    let frame = Frame::new(input, ctx)?;
     if ctx.cancellation.is_cancelled() {
         return Err(CausalError::Cancelled { stage: STAGE_PREFLIGHT });
     }
@@ -1351,7 +1368,7 @@ pub fn plan_rank_drop(
     policy: &RankDropPolicy,
     ctx: &ExecutionContext,
 ) -> Result<RankDropPlan, CausalError> {
-    let frame = Frame::new(input)?;
+    let frame = Frame::new(input, ctx)?;
     let nt = frame.nt();
     let p = input.adjustment.len();
     let order = column_priority_order(input, policy, &frame)?;
@@ -1506,7 +1523,7 @@ pub(super) fn verify_span_preserved(
     kept: &[VariableId],
     ctx: &ExecutionContext,
 ) -> Result<SpanCheck, CausalError> {
-    let frame = Frame::new(input)?;
+    let frame = Frame::new(input, ctx)?;
     let columns = frame.adjustment_columns();
     let ones = vec![1.0; frame.rows_complete];
     let keep_mask: Vec<bool> = input.adjustment.iter().map(|id| kept.contains(id)).collect();
@@ -1566,7 +1583,7 @@ fn outside_cell() -> CausalError {
 
 /// The certified adjustment set a prepared plan retains, when it retains one.
 pub(super) fn adjustment_of(study: &Study) -> Option<Vec<VariableId>> {
-    if let Some(cache) = &study.identification_cache {
+    if let Some(cache) = study.static_cache() {
         return Some(cache.estimand.adjustment_set.to_vec());
     }
     study.shared_batch_design.as_ref()?.covariate.as_ref().map(|c| c.adjustment_set.to_vec())

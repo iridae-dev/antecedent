@@ -59,9 +59,9 @@ pub(super) const CROSS_WORLD_POSTERIOR_STREAM: u64 = 0x7C05_5BA7;
 pub(super) const DERIVATIVE_BLOCK_STREAM: u64 = 0x7DE2_1B10;
 /// Stream base of the derivative responses' slope posteriors.
 pub(super) const DERIVATIVE_POSTERIOR_STREAM: u64 = 0x7DE2_1BA7;
-/// Stream base of the one-modifier conditional effects' shared block bootstrap.
+/// Stream base of the conditional effects' shared block bootstrap.
 pub(super) const CONDITIONAL_BLOCK_STREAM: u64 = 0x7C0D_1B10;
-/// Stream base of the one-modifier conditional effects' slope posteriors.
+/// Stream base of the conditional effects' slope posteriors.
 pub(super) const CONDITIONAL_POSTERIOR_STREAM: u64 = 0x7C0D_1BA7;
 
 /// A source of fitted intercepts and slopes for the point function of a route.
@@ -79,7 +79,7 @@ pub(super) trait SlopeSource {
         contemporaneous: &[VariableId],
     ) -> Result<(f64, Vec<f64>), CausalError>;
 
-    /// The one-modifier conditional effect `(β_T + β_TW · mean(W)) · (active − control)`.
+    /// The marginal conditional effect `(β_T + Σ_j β_TW_j · mean(W_j)) · (active − control)`.
     ///
     /// # Errors
     ///
@@ -149,7 +149,7 @@ impl<'a> SlopeAtom<'a> {
         }
     }
 
-    /// An atom holding the one-modifier conditional design of `query`, on the intact
+    /// An atom holding the conditional design (every effect modifier) of `query`, on the intact
     /// windows when `allow_gaps` is set.
     ///
     /// # Errors
@@ -587,6 +587,7 @@ pub(super) fn point_posterior_draws(
                 .map(|posterior| SlopeFit {
                     coefficients: posterior.draws[d].clone(),
                     modifier_mean: posterior.modifier_mean,
+                    modifier_means: posterior.modifier_means.clone(),
                 })
                 .collect();
             let Ok(values) = evaluate(index, &atom.source(&fits)) else {

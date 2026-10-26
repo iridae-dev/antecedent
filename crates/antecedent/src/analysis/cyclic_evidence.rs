@@ -257,6 +257,11 @@ fn admission_reserve(source_len: usize, serialized_len: usize, overhead: u64) ->
 fn invalid(s: impl std::fmt::Display) -> CyclicArtifactError {
     CyclicArtifactError::Invalid(s.to_string())
 }
+/// Hex digest of the JSON encoding of `value` under `tag`.
+///
+/// The encoding is versioned by the tag: the digest of a tuple of borrowed parts is the digest
+/// of its `serde_json` array, so the parts, their order and their serialized form are part of
+/// the identity, and nothing is cloned or cleared to build it.
 fn digest<T: Serialize>(tag: &str, value: &T) -> Result<String, CyclicArtifactError> {
     Ok(CanonicalWriter::digest_bytes_hex(tag, &serde_json::to_vec(value).map_err(invalid)?))
 }
@@ -275,28 +280,294 @@ fn licensed_state(outcome: &EquilibriumOutcome, variable: usize) -> Option<f64> 
     }
 }
 
-struct Projection {
+/// The scientific functional a projected coordinate reports. The spelling is the contract's
+/// `functional_id`, so it is part of the quantity identity.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Functional {
+    RecoveredIntervention,
+    RecoveredInterventionalMean,
+    InterventionalOutcome,
+    InterventionalMean,
+    SpecifiedNoiseResponse,
+    FactualCounterfactual,
+    TrajectoryState,
+    NoSolution,
+    DynamicCovariance,
+    DynamicQuantity,
+    ConditionalStructuralResponse,
+    Outcome,
+    PredictiveCovariance,
+    Mean,
+    LogLikelihood,
+    ConditionalTrajectory,
+    SolutionCoordinate,
+    ModelSolutionSet,
+    IdentifiedProbability,
+    IdentifiedDensity,
+    GraphicalEvidence,
+    CounterfactualOutcomeSet,
+}
+
+impl Functional {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::RecoveredIntervention => "recovered_intervention",
+            Self::RecoveredInterventionalMean => "recovered_interventional_mean",
+            Self::InterventionalOutcome => "interventional_outcome",
+            Self::InterventionalMean => "interventional_mean",
+            Self::SpecifiedNoiseResponse => "specified_noise_response",
+            Self::FactualCounterfactual => "factual_counterfactual",
+            Self::TrajectoryState => "trajectory_state",
+            Self::NoSolution => "no_solution",
+            Self::DynamicCovariance => "dynamic_covariance",
+            Self::DynamicQuantity => "dynamic_quantity",
+            Self::ConditionalStructuralResponse => "conditional_structural_response",
+            Self::Outcome => "outcome",
+            Self::PredictiveCovariance => "predictive_covariance",
+            Self::Mean => "mean",
+            Self::LogLikelihood => "log_likelihood",
+            Self::ConditionalTrajectory => "conditional_trajectory",
+            Self::SolutionCoordinate => "solution_coordinate",
+            Self::ModelSolutionSet => "model_solution_set",
+            Self::IdentifiedProbability => "identified_probability",
+            Self::IdentifiedDensity => "identified_density",
+            Self::GraphicalEvidence => "graphical_evidence",
+            Self::CounterfactualOutcomeSet => "counterfactual_outcome_set",
+        }
+    }
+}
+
+/// An independent uncertainty axis of a projected column; the spelling is the column's
+/// `uncertainty_axes` entry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Axis {
+    Predictive,
+    Sampling,
+    Parameter,
+}
+
+impl Axis {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Predictive => "predictive",
+            Self::Sampling => "sampling",
+            Self::Parameter => "parameter",
+        }
+    }
+}
+
+/// The world a projected coordinate belongs to; the rendering is the evidence binding's
+/// `world_id` and enters the regime digest.
+#[derive(Clone, Debug)]
+enum World {
+    /// A world identity the source declared.
+    Declared(String),
+    /// A fixed label of the family.
+    Fixed(&'static str),
+    /// A world by position or scientific id.
+    Indexed(u64),
+    /// One disturbance row of a world.
+    Noise { world: usize, noise_row: usize },
+    /// One recovered draw of a world.
+    Draw { world: usize, draw: usize },
+    /// An equation-replacement world.
+    Equation(usize),
+    /// A certified root enclosure.
+    Root(usize),
+    /// A declared quantity of a dynamic family.
+    Quantity(usize),
+    /// A retained identified-functional assignment.
+    Assignment(usize),
+}
+
+impl std::fmt::Display for World {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Declared(id) => f.write_str(id),
+            Self::Fixed(label) => f.write_str(label),
+            Self::Indexed(world) => write!(f, "world:{world}"),
+            Self::Noise { world, noise_row } => write!(f, "world:{world}:noise:{noise_row}"),
+            Self::Draw { world, draw } => write!(f, "world:{world}:draw:{draw}"),
+            Self::Equation(world) => write!(f, "equation-world:{world}"),
+            Self::Root(root) => write!(f, "root_enclosure:{root}"),
+            Self::Quantity(quantity) => write!(f, "quantity:{quantity}"),
+            Self::Assignment(assignment) => write!(f, "assignment:{assignment}"),
+        }
+    }
+}
+
+impl World {
+    fn indexed(world: usize) -> Self {
+        Self::Indexed(world as u64)
+    }
+}
+
+/// The time of a projected coordinate; the rendering is the evidence binding's `time_id`.
+#[derive(Clone, Copy, Debug)]
+enum Time {
+    Equilibrium,
+    Stationary,
+    Algebraic,
+    Static,
+    Trajectory,
+    Dynamic,
+    /// An observation-time index.
+    Step(usize),
+    /// An observation time.
+    At(f64),
+    /// The evaluation time of an ODE state, rendered as the evidence binding spells it.
+    Instant(f64),
+}
+
+impl std::fmt::Display for Time {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Equilibrium => f.write_str("equilibrium"),
+            Self::Stationary => f.write_str("stationary"),
+            Self::Algebraic => f.write_str("algebraic"),
+            Self::Static => f.write_str("static"),
+            Self::Trajectory => f.write_str("trajectory"),
+            Self::Dynamic => f.write_str("dynamic"),
+            Self::Step(index) => write!(f, "time:{index}"),
+            Self::At(time) => write!(f, "t:{time}"),
+            Self::Instant(time) => write!(f, "time:{time}"),
+        }
+    }
+}
+
+/// Retained details of a projection, serialized once into the column's JSON diagnostics.
+trait Detail {
+    fn to_json(&self) -> Result<serde_json::Value, serde_json::Error>;
+}
+
+impl<T: Serialize + ?Sized> Detail for T {
+    fn to_json(&self) -> Result<serde_json::Value, serde_json::Error> {
+        serde_json::to_value(self)
+    }
+}
+
+fn detail<'a, T: Serialize + 'a>(value: T) -> Option<Box<dyn Detail + 'a>> {
+    Some(Box::new(value))
+}
+
+/// A recovered world together with the draw origin that produced it.
+#[derive(Serialize)]
+struct RecoveredWithOrigin<'a> {
+    world: &'a antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer,
+    origin: &'a antecedent_io::cyclic_family_artifact::RecoveredDrawOriginWire,
+}
+
+/// One recovered draw with the variance of its interventional law.
+#[derive(Serialize)]
+struct WithinDraw<'a> {
+    variance: Option<f64>,
+    draw: &'a antecedent_io::cyclic_family_artifact::RecoveredEvaluatedDraw,
+}
+
+/// The certificate, route and masses of one typed world.
+struct WorldContext<'a>(&'a antecedent_io::cyclic_family_artifact::CyclicWorldAnswer);
+
+impl Serialize for WorldContext<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let world = self.0;
+        let mut map = serializer.serialize_map(Some(5))?;
+        map.serialize_entry("certificate", &world.certificate)?;
+        map.serialize_entry("solved_by", &world.solved_by)?;
+        map.serialize_entry("failed_mass", &world.failed_mass)?;
+        map.serialize_entry("withheld_mass", &world.withheld_mass)?;
+        map.serialize_entry("actions", &world.actions)?;
+        map.end()
+    }
+}
+
+/// A Gaussian world: the variance of the projected coordinate and the world.
+#[derive(Serialize)]
+struct GaussianWorld<'a> {
+    variance: Option<&'a f64>,
+    world: WorldContext<'a>,
+}
+
+/// A world that returned no solution or was withheld.
+#[derive(Serialize)]
+struct UnsolvedWorld<'a> {
+    outcome: &'a antecedent_io::cyclic_family_artifact::CyclicWorldOutcomeAnswer,
+    world: WorldContext<'a>,
+}
+
+/// Diagnostics of a bootstrap sampling law of a dynamic quantity.
+#[derive(Serialize)]
+struct SamplingLawDetail<'a, E: Serialize, S: Serialize, Q: Serialize, R: Serialize, M: Serialize> {
+    estimate: Option<&'a E>,
+    standard_error: Option<&'a S>,
+    failed_mass: Option<&'a Q>,
+    replicate_failed_mass: &'a R,
+    method: &'a M,
+}
+
+/// Diagnostics of the observed information of a dynamic quantity.
+#[derive(Serialize)]
+struct InformationDetail<'a, S: Serialize, G: Serialize> {
+    standard_error: Option<&'a S>,
+    regularity: &'a G,
+}
+
+/// Diagnostics of the posterior of a dynamic quantity.
+#[derive(Serialize)]
+struct PosteriorDetail<'a, Q: Serialize, H: Serialize, B: Serialize, T: Serialize, P: Serialize> {
+    failed_mass: Option<&'a Q>,
+    max_rhat: &'a H,
+    min_bulk_ess: &'a B,
+    min_tail_ess: &'a T,
+    diagnostics_pass: &'a P,
+}
+
+/// A certified root enclosure: no selection law is implied.
+#[derive(Serialize)]
+struct RootDetail {
+    unresolved_regions: usize,
+    selection_law: bool,
+}
+
+/// The outer solution set of a bounded system.
+#[derive(Serialize)]
+struct SolutionSetDetail {
+    certified_roots: usize,
+    unresolved_regions: usize,
+    selection_law: bool,
+    outer_enclosure: bool,
+}
+
+/// The coupled finite-law outcomes of a polynomial causal model.
+#[derive(Serialize)]
+struct PolynomialWorldDetail<'a, W: Serialize> {
+    world_mass: &'a W,
+    positive_evidence_certified: bool,
+}
+
+struct Projection<'a> {
     samples: Vec<Option<f64>>,
     bounds: Vec<Option<Interval>>,
     masses: Option<Vec<antecedent_estimate::polynomial_scm::MassBounds>>,
     port: EvidencePort,
-    axes: Vec<String>,
-    world: String,
-    time: String,
-    functional: &'static str,
+    axes: Vec<Axis>,
+    world: World,
+    time: Time,
+    functional: Functional,
     variable: usize,
     /// Second coordinate of a covariance quantity.
     other: Option<usize>,
-    diagnostics: serde_json::Value,
+    /// Source details retained beside the numbers; `None` serializes as JSON null.
+    diagnostics: Option<Box<dyn Detail + 'a>>,
 }
-fn point(
+fn point<'a>(
     value: Option<f64>,
     variable: usize,
-    world: String,
-    time: String,
-    functional: &'static str,
+    world: World,
+    time: Time,
+    functional: Functional,
     port: EvidencePort,
-) -> Projection {
+) -> Projection<'a> {
     Projection {
         samples: vec![value],
         bounds: vec![],
@@ -308,12 +579,28 @@ fn point(
         functional,
         variable,
         other: None,
-        diagnostics: serde_json::Value::Null,
+        diagnostics: None,
     }
 }
 
 fn selector_mismatch() -> CyclicArtifactError {
     invalid("cyclic evidence selector differs from source family or coordinate bounds")
+}
+
+/// A retained native answer that can project the coordinates a selector names.
+///
+/// Each answer kind reads only its own payload: the dispatch is on the answer, and the
+/// selectors a kind cannot serve are a selector mismatch, never a coerced reading.
+trait EvidenceSource {
+    /// Project the coordinate `selector` names out of this answer, as asked by `request`.
+    ///
+    /// # Errors
+    /// A selector the answer kind or its coordinate bounds do not admit.
+    fn project<'a>(
+        &'a self,
+        request: &'a R,
+        selector: &CyclicEvidenceSelector,
+    ) -> Result<Projection<'a>, CyclicArtifactError>;
 }
 
 /// Draw-aligned projection of one recovered world.
@@ -322,12 +609,12 @@ fn selector_mismatch() -> CyclicArtifactError {
 /// from a declared sampling law or posterior project the per-draw interventional
 /// mean onto that port: parameter uncertainty is not relabelled as outcome
 /// variation, and a sampling law is not read as a posterior.
-fn recovered_response(
-    found: &antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer,
-    origin: &antecedent_io::cyclic_family_artifact::RecoveredDrawOriginWire,
+fn recovered_response<'a>(
+    found: &'a antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer,
+    origin: &'a antecedent_io::cyclic_family_artifact::RecoveredDrawOriginWire,
     world: usize,
     variable: usize,
-) -> Result<Projection, CyclicArtifactError> {
+) -> Result<Projection<'a>, CyclicArtifactError> {
     let mut samples = Vec::with_capacity(found.draws.len());
     let mut masses = Vec::with_capacity(found.draws.len());
     for draw in &found.draws {
@@ -347,21 +634,24 @@ fn recovered_response(
         });
     }
     let (port, axis, functional) = match origin.law_meaning() {
-        None => (EvidencePort::InterventionalLaw, "predictive", "recovered_intervention"),
+        None => (EvidencePort::InterventionalLaw, Axis::Predictive, Functional::RecoveredIntervention),
         Some("sampling_law") => {
-            (EvidencePort::SamplingLaw, "sampling", "recovered_interventional_mean")
+            (EvidencePort::SamplingLaw, Axis::Sampling, Functional::RecoveredInterventionalMean)
         }
-        Some(_) => (EvidencePort::ParameterPosterior, "parameter", "recovered_interventional_mean"),
+        Some(_) => (
+            EvidencePort::ParameterPosterior,
+            Axis::Parameter,
+            Functional::RecoveredInterventionalMean,
+        ),
     };
-    let mut p =
-        point(None, variable, format!("world:{world}"), "equilibrium".into(), functional, port);
+    let mut p = point(None, variable, World::indexed(world), Time::Equilibrium, functional, port);
     p.samples = samples;
     p.masses = Some(masses);
-    p.axes = vec![axis.into()];
+    p.axes = vec![axis];
     p.diagnostics = if origin.is_supplied() {
-        serde_json::to_value(found).map_err(invalid)?
+        detail(found)
     } else {
-        serde_json::json!({ "world": found, "origin": origin })
+        detail(RecoveredWithOrigin { world: found, origin })
     };
     Ok(p)
 }
@@ -372,7 +662,7 @@ fn recovered_within(
     world: usize,
     draw: usize,
     variable: usize,
-) -> Result<Projection, CyclicArtifactError> {
+) -> Result<Projection<'_>, CyclicArtifactError> {
     let item = found.draws.get(draw).ok_or_else(selector_mismatch)?;
     let (value, variance) = match &item.outcome {
         antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer::Equilibrium {
@@ -389,17 +679,17 @@ fn recovered_within(
     let mut p = point(
         value,
         variable,
-        format!("world:{world}:draw:{draw}"),
-        "equilibrium".into(),
-        "interventional_outcome",
+        World::Draw { world, draw },
+        Time::Equilibrium,
+        Functional::InterventionalOutcome,
         EvidencePort::InterventionalLaw,
     );
-    p.axes = vec!["predictive".into()];
+    p.axes = vec![Axis::Predictive];
     p.masses = Some(vec![antecedent_estimate::polynomial_scm::MassBounds {
         lower: item.weight,
         upper: item.weight,
     }]);
-    p.diagnostics = serde_json::json!({ "variance": variance, "draw": item });
+    p.diagnostics = detail(WithinDraw { variance, draw: item });
     Ok(p)
 }
 
@@ -408,19 +698,12 @@ fn typed_world(
     found: &antecedent_io::cyclic_family_artifact::CyclicWorldAnswer,
     variable: usize,
     time: Option<usize>,
-) -> Result<Projection, CyclicArtifactError> {
+) -> Result<Projection<'_>, CyclicArtifactError> {
     use antecedent_io::cyclic_family_artifact::CyclicWorldOutcomeAnswer as O;
     if variable >= found.variables.len() {
         return Err(selector_mismatch());
     }
-    let label = format!("world:{}", found.world);
-    let context = serde_json::json!({
-        "certificate": found.certificate,
-        "solved_by": found.solved_by,
-        "failed_mass": found.failed_mass,
-        "withheld_mass": found.withheld_mass,
-        "actions": found.actions,
-    });
+    let label = World::Indexed(u64::from(found.world));
     let mut p = match (&found.outcome, time) {
         (O::GaussianLaw { mean, covariance, .. }, None) => {
             let n = mean.len();
@@ -428,14 +711,14 @@ fn typed_world(
                 Some(*mean.get(variable).ok_or_else(selector_mismatch)?),
                 variable,
                 label,
-                "equilibrium".into(),
-                "interventional_mean",
+                Time::Equilibrium,
+                Functional::InterventionalMean,
                 EvidencePort::InterventionalLaw,
             );
-            p.axes = vec!["predictive".into()];
-            p.diagnostics = serde_json::json!({
-                "variance": covariance.get(variable * n + variable),
-                "world": context,
+            p.axes = vec![Axis::Predictive];
+            p.diagnostics = detail(GaussianWorld {
+                variance: covariance.get(variable * n + variable),
+                world: WorldContext(found),
             });
             p
         }
@@ -444,12 +727,12 @@ fn typed_world(
                 None,
                 variable,
                 label,
-                "equilibrium".into(),
-                "specified_noise_response",
+                Time::Equilibrium,
+                Functional::SpecifiedNoiseResponse,
                 EvidencePort::Scenario,
             );
             p.samples = outcomes.iter().map(|outcome| state(outcome, variable)).collect();
-            p.diagnostics = context;
+            p.diagnostics = detail(WorldContext(found));
             p
         }
         (O::Trajectory { trajectory }, Some(index)) => {
@@ -463,11 +746,11 @@ fn typed_world(
                 Some(value),
                 variable,
                 label,
-                format!("time:{index}"),
-                "trajectory_state",
+                Time::Step(index),
+                Functional::TrajectoryState,
                 EvidencePort::Scenario,
             );
-            p.diagnostics = context;
+            p.diagnostics = detail(WorldContext(found));
             p
         }
         (O::NoSolution { .. } | O::Withheld, _) => {
@@ -475,11 +758,12 @@ fn typed_world(
                 None,
                 variable,
                 label,
-                "equilibrium".into(),
-                "no_solution",
+                Time::Equilibrium,
+                Functional::NoSolution,
                 EvidencePort::Scenario,
             );
-            p.diagnostics = serde_json::json!({ "outcome": found.outcome, "world": context });
+            p.diagnostics =
+                detail(UnsolvedWorld { outcome: &found.outcome, world: WorldContext(found) });
             p
         }
         _ => return Err(selector_mismatch()),
@@ -503,21 +787,22 @@ const fn quantity_coordinates(
 }
 
 /// Projection of one declared quantity of a fitted continuous-time family.
-fn dynamic_quantity(
+fn dynamic_quantity<'a>(
     quantities: &[antecedent_estimate::cyclic_dynamic_inference::DynamicQuantity],
-    inference: &antecedent_io::cyclic_family_artifact::DynamicInferenceAnswer,
+    inference: &'a antecedent_io::cyclic_family_artifact::DynamicInferenceAnswer,
     quantity: usize,
-) -> Result<Projection, CyclicArtifactError> {
+) -> Result<Projection<'a>, CyclicArtifactError> {
     use antecedent_estimate::cyclic_dynamic_inference::DynamicQuantity as Q;
     use antecedent_io::cyclic_family_artifact::DynamicInferenceAnswer as D;
     let spec = quantities.get(quantity).ok_or_else(selector_mismatch)?;
     let (variable, other) = quantity_coordinates(spec);
     let time = match spec {
-        Q::OdeState { time, .. } => format!("time:{time}"),
-        _ => "stationary".into(),
+        Q::OdeState { time, .. } => Time::Instant(*time),
+        _ => Time::Stationary,
     };
-    let label = format!("quantity:{quantity}");
-    let functional = if other.is_some() { "dynamic_covariance" } else { "dynamic_quantity" };
+    let label = World::Quantity(quantity);
+    let functional =
+        if other.is_some() { Functional::DynamicCovariance } else { Functional::DynamicQuantity };
     let mut p = match inference {
         D::SamplingLaw(law) => {
             let mut p = point(None, variable, label, time, functional, EvidencePort::SamplingLaw);
@@ -535,13 +820,13 @@ fn dynamic_quantity(
                     })
                     .collect(),
             );
-            p.axes = vec!["sampling".into()];
-            p.diagnostics = serde_json::json!({
-                "estimate": law.quantity_estimates.get(quantity),
-                "standard_error": law.quantity_standard_errors.get(quantity),
-                "failed_mass": law.quantity_failed_mass.get(quantity),
-                "replicate_failed_mass": law.failed_mass,
-                "method": law.method,
+            p.axes = vec![Axis::Sampling];
+            p.diagnostics = detail(SamplingLawDetail {
+                estimate: law.quantity_estimates.get(quantity),
+                standard_error: law.quantity_standard_errors.get(quantity),
+                failed_mass: law.quantity_failed_mass.get(quantity),
+                replicate_failed_mass: &law.failed_mass,
+                method: &law.method,
             });
             p
         }
@@ -554,10 +839,10 @@ fn dynamic_quantity(
                 functional,
                 EvidencePort::CovarianceInfluence,
             );
-            p.axes = vec!["sampling".into()];
-            p.diagnostics = serde_json::json!({
-                "standard_error": information.quantity_standard_errors.get(quantity),
-                "regularity": information.regularity,
+            p.axes = vec![Axis::Sampling];
+            p.diagnostics = detail(InformationDetail {
+                standard_error: information.quantity_standard_errors.get(quantity),
+                regularity: &information.regularity,
             });
             p
         }
@@ -569,13 +854,13 @@ fn dynamic_quantity(
                 .iter()
                 .map(|draw| draw.get(quantity).copied().flatten())
                 .collect();
-            p.axes = vec!["parameter".into()];
-            p.diagnostics = serde_json::json!({
-                "failed_mass": posterior.quantity_failed_mass.get(quantity),
-                "max_rhat": posterior.max_rhat,
-                "min_bulk_ess": posterior.min_bulk_ess,
-                "min_tail_ess": posterior.min_tail_ess,
-                "diagnostics_pass": posterior.diagnostics_pass,
+            p.axes = vec![Axis::Parameter];
+            p.diagnostics = detail(PosteriorDetail {
+                failed_mass: posterior.quantity_failed_mass.get(quantity),
+                max_rhat: &posterior.max_rhat,
+                min_bulk_ess: &posterior.min_bulk_ess,
+                min_tail_ess: &posterior.min_tail_ess,
+                diagnostics_pass: &posterior.diagnostics_pass,
             });
             p
         }
@@ -583,251 +868,319 @@ fn dynamic_quantity(
     p.other = other;
     Ok(p)
 }
-#[allow(
-    clippy::too_many_lines,
-    reason = "typed family dispatch preserves distinct uncertainty ports and explicit failure slots"
-)]
-fn project(
-    request: &R,
-    answer: &A,
+
+/// The fitted log likelihood, the only coordinate a point fit offers.
+fn log_likelihood<'a>(
+    value: f64,
+    time: Time,
     selector: &CyclicEvidenceSelector,
-) -> Result<Projection, CyclicArtifactError> {
-    let bad =
-        || invalid("cyclic evidence selector differs from source family or coordinate bounds");
-    Ok(match (request, answer, selector) {
-        (
-            _,
-            A::EquilibriumActions(worlds),
-            CyclicEvidenceSelector::Action { world, noise_row, variable, counterfactual },
-        ) => {
-            let w = worlds.get(*world).ok_or_else(bad)?;
-            let value =
-                if *counterfactual { w.counterfactual.as_ref() } else { w.rows.get(*noise_row) }
-                    .ok_or_else(bad)?;
-            let mut p = point(
-                state(value, *variable),
-                *variable,
-                w.id.clone(),
-                "equilibrium".into(),
-                if *counterfactual { "factual_counterfactual" } else { "specified_noise_response" },
-                EvidencePort::Scenario,
-            );
-            // A residual-checked numeric state is not an outer enclosure of all solutions.
-            p.bounds.clear();
-            p.diagnostics = serde_json::to_value(value).map_err(invalid)?;
-            p
-        }
-        (
-            _,
-            A::ParameterPosterior { worlds, .. },
-            CyclicEvidenceSelector::Response { world, noise_row, variable },
-        ) => {
-            let draws = worlds.get(*world).ok_or_else(bad)?;
-            let values = draws
-                .iter()
-                .map(|draw| {
-                    draw.get(*noise_row)
-                        .map(|value| licensed_state(value, *variable))
-                        .ok_or_else(bad)
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let mut p = point(
-                None,
-                *variable,
-                format!("world:{world}:noise:{noise_row}"),
-                "equilibrium".into(),
-                "conditional_structural_response",
-                EvidencePort::ParameterPosterior,
-            );
-            p.samples = values;
-            p.axes = vec!["parameter".into()];
-            p
-        }
-        (
-            _,
-            A::JointCounterfactual { worlds, .. } | A::PartialCounterfactual { worlds, .. },
-            CyclicEvidenceSelector::Response { world, noise_row, variable },
-        ) => {
-            if *noise_row != 0 {
-                return Err(bad());
-            }
-            let draws = worlds.get(*world).ok_or_else(bad)?;
-            let mut p = point(
-                None,
-                *variable,
-                format!("world:{world}"),
-                "equilibrium".into(),
-                "outcome",
-                EvidencePort::InterventionalLaw,
-            );
-            p.samples = draws.iter().map(|v| licensed_state(v, *variable)).collect();
-            p.axes = vec!["predictive".into()];
-            if matches!(answer, A::JointCounterfactual { .. }) {
-                p.axes.push("parameter".into());
-            }
-            p
-        }
-        (
-            _,
-            A::FrequentistBootstrap { worlds, .. },
-            CyclicEvidenceSelector::Response { world, noise_row, variable },
-        ) => {
-            let draws = worlds.get(*world).ok_or_else(bad)?;
-            let mut p = point(
-                None,
-                *variable,
-                format!("world:{world}:noise:{noise_row}"),
-                "equilibrium".into(),
-                "conditional_structural_response",
-                EvidencePort::SamplingLaw,
-            );
-            p.samples = draws
-                .iter()
-                .map(|draw| match draw {
-                    Some(rows) => {
-                        rows.get(*noise_row).map(|v| licensed_state(v, *variable)).ok_or_else(bad)
-                    }
-                    None => Ok(None),
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            p.axes = vec!["sampling".into()];
-            p
-        }
-        (
-            _,
-            A::OuMechanisms { laws, .. },
-            CyclicEvidenceSelector::OuRegime { world, variable, other },
-        ) => {
-            let outcome = laws.get(*world).ok_or_else(bad)?;
+) -> Result<Projection<'a>, CyclicArtifactError> {
+    let CyclicEvidenceSelector::Likelihood { candidate: None } = selector else {
+        return Err(selector_mismatch());
+    };
+    Ok(point(
+        Some(value),
+        0,
+        World::Fixed("training"),
+        time,
+        Functional::LogLikelihood,
+        EvidencePort::Likelihood,
+    ))
+}
+
+/// Named structural-action worlds: the supplied-noise rows or the abducted factual response.
+fn actions<'a>(
+    worlds: &'a [antecedent_io::cyclic_family_artifact::CyclicActionWorldReport],
+    selector: &CyclicEvidenceSelector,
+) -> Result<Projection<'a>, CyclicArtifactError> {
+    let CyclicEvidenceSelector::Action { world, noise_row, variable, counterfactual } = selector
+    else {
+        return Err(selector_mismatch());
+    };
+    let w = worlds.get(*world).ok_or_else(selector_mismatch)?;
+    let value = if *counterfactual { w.counterfactual.as_ref() } else { w.rows.get(*noise_row) }
+        .ok_or_else(selector_mismatch)?;
+    let mut p = point(
+        state(value, *variable),
+        *variable,
+        World::Declared(w.id.clone()),
+        Time::Equilibrium,
+        if *counterfactual {
+            Functional::FactualCounterfactual
+        } else {
+            Functional::SpecifiedNoiseResponse
+        },
+        EvidencePort::Scenario,
+    );
+    // A residual-checked numeric state is not an outer enclosure of all solutions.
+    p.bounds.clear();
+    p.diagnostics = detail(value);
+    Ok(p)
+}
+
+/// Parameter posterior responses, `(world, parameter_draw, noise_row)`.
+fn parameter_posterior<'a>(
+    worlds: &[Vec<Vec<EquilibriumOutcome>>],
+    selector: &CyclicEvidenceSelector,
+) -> Result<Projection<'a>, CyclicArtifactError> {
+    let CyclicEvidenceSelector::Response { world, noise_row, variable } = selector else {
+        return Err(selector_mismatch());
+    };
+    let draws = worlds.get(*world).ok_or_else(selector_mismatch)?;
+    let values = draws
+        .iter()
+        .map(|draw| {
+            draw.get(*noise_row)
+                .map(|value| licensed_state(value, *variable))
+                .ok_or_else(selector_mismatch)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut p = point(
+        None,
+        *variable,
+        World::Noise { world: *world, noise_row: *noise_row },
+        Time::Equilibrium,
+        Functional::ConditionalStructuralResponse,
+        EvidencePort::ParameterPosterior,
+    );
+    p.samples = values;
+    p.axes = vec![Axis::Parameter];
+    Ok(p)
+}
+
+/// Counterfactual predictions sharing each factual disturbance across worlds.
+/// `joint` marks the joint parameter/factual posterior, which adds the parameter axis.
+fn counterfactual_responses<'a>(
+    worlds: &[Vec<EquilibriumOutcome>],
+    joint: bool,
+    selector: &CyclicEvidenceSelector,
+) -> Result<Projection<'a>, CyclicArtifactError> {
+    let CyclicEvidenceSelector::Response { world, noise_row, variable } = selector else {
+        return Err(selector_mismatch());
+    };
+    if *noise_row != 0 {
+        return Err(selector_mismatch());
+    }
+    let draws = worlds.get(*world).ok_or_else(selector_mismatch)?;
+    let mut p = point(
+        None,
+        *variable,
+        World::indexed(*world),
+        Time::Equilibrium,
+        Functional::Outcome,
+        EvidencePort::InterventionalLaw,
+    );
+    p.samples = draws.iter().map(|v| licensed_state(v, *variable)).collect();
+    p.axes = vec![Axis::Predictive];
+    if joint {
+        p.axes.push(Axis::Parameter);
+    }
+    Ok(p)
+}
+
+/// Conditional frequentist bootstrap responses; a failed fit keeps its slot.
+fn bootstrap<'a>(
+    worlds: &[Vec<Option<Vec<EquilibriumOutcome>>>],
+    selector: &CyclicEvidenceSelector,
+) -> Result<Projection<'a>, CyclicArtifactError> {
+    let CyclicEvidenceSelector::Response { world, noise_row, variable } = selector else {
+        return Err(selector_mismatch());
+    };
+    let draws = worlds.get(*world).ok_or_else(selector_mismatch)?;
+    let mut p = point(
+        None,
+        *variable,
+        World::Noise { world: *world, noise_row: *noise_row },
+        Time::Equilibrium,
+        Functional::ConditionalStructuralResponse,
+        EvidencePort::SamplingLaw,
+    );
+    p.samples = draws
+        .iter()
+        .map(|draw| match draw {
+            Some(rows) => rows
+                .get(*noise_row)
+                .map(|v| licensed_state(v, *variable))
+                .ok_or_else(selector_mismatch),
+            None => Ok(None),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    p.axes = vec![Axis::Sampling];
+    Ok(p)
+}
+
+/// Stationary laws of the shared-mechanism family in the requested equation worlds.
+fn ou_mechanisms<'a>(
+    laws: &'a [antecedent_estimate::ou_mechanisms::OuMechanismOutcome],
+    fit_log_likelihood: Option<f64>,
+    selector: &CyclicEvidenceSelector,
+) -> Result<Projection<'a>, CyclicArtifactError> {
+    match selector {
+        CyclicEvidenceSelector::OuRegime { world, variable, other } => {
+            let outcome = laws.get(*world).ok_or_else(selector_mismatch)?;
+            let functional = if other.is_some() {
+                Functional::PredictiveCovariance
+            } else {
+                Functional::Mean
+            };
+            let port =
+                if other.is_some() { EvidencePort::Likelihood } else { EvidencePort::Mean };
             let antecedent_estimate::ou_mechanisms::OuMechanismOutcome::Stationary(law) = outcome
             else {
                 let mut p = point(
                     None,
                     *variable,
-                    format!("equation-world:{world}"),
-                    "stationary".into(),
-                    if other.is_some() { "predictive_covariance" } else { "mean" },
-                    if other.is_some() { EvidencePort::Likelihood } else { EvidencePort::Mean },
+                    World::Equation(*world),
+                    Time::Stationary,
+                    functional,
+                    port,
                 );
-                p.diagnostics = serde_json::to_value(outcome).map_err(invalid)?;
+                p.diagnostics = detail(outcome);
                 return Ok(p);
             };
             let n = law.mean.len();
             if *variable >= n || other.is_some_and(|j| j >= n) {
-                return Err(bad());
+                return Err(selector_mismatch());
             }
-            point(
+            Ok(point(
                 Some(other.map_or(law.mean[*variable], |j| law.covariance[*variable * n + j])),
                 *variable,
-                format!("equation-world:{world}"),
-                "stationary".into(),
-                if other.is_some() { "predictive_covariance" } else { "mean" },
-                if other.is_some() { EvidencePort::Likelihood } else { EvidencePort::Mean },
-            )
+                World::Equation(*world),
+                Time::Stationary,
+                functional,
+                port,
+            ))
         }
-        (
-            _,
-            A::OuMechanisms { fit: Some(fit), .. },
-            CyclicEvidenceSelector::Likelihood { candidate: None },
-        ) => point(
-            Some(fit.log_likelihood),
-            0,
-            "training".into(),
-            "stationary".into(),
-            "log_likelihood",
-            EvidencePort::Likelihood,
-        ),
-        (_, A::Ode(path), CyclicEvidenceSelector::Ode { time, variable }) => point(
-            Some(*path.states.get(*time).and_then(|s| s.get(*variable)).ok_or_else(bad)?),
+        CyclicEvidenceSelector::Likelihood { candidate: None } => {
+            let value = fit_log_likelihood.ok_or_else(selector_mismatch)?;
+            log_likelihood(value, Time::Stationary, selector)
+        }
+        _ => Err(selector_mismatch()),
+    }
+}
+
+/// Deterministic ODE path.
+fn ode_path<'a>(
+    path: &antecedent_model::continuous_cyclic::OdeTrajectory,
+    selector: &CyclicEvidenceSelector,
+) -> Result<Projection<'a>, CyclicArtifactError> {
+    let CyclicEvidenceSelector::Ode { time, variable } = selector else {
+        return Err(selector_mismatch());
+    };
+    Ok(point(
+        Some(*path.states.get(*time).and_then(|s| s.get(*variable)).ok_or_else(selector_mismatch)?),
+        *variable,
+        World::Fixed("initial_value_world"),
+        Time::At(*path.times.get(*time).ok_or_else(selector_mismatch)?),
+        Functional::ConditionalTrajectory,
+        EvidencePort::Mean,
+    ))
+}
+
+/// Stationary OU moments, read from the declared model and the stored covariance.
+fn ou_stationary<'a>(
+    request: &R,
+    covariance: &[f64],
+    selector: &CyclicEvidenceSelector,
+) -> Result<Projection<'a>, CyclicArtifactError> {
+    let R::OuStationary { model } = request else {
+        return Err(selector_mismatch());
+    };
+    match selector {
+        CyclicEvidenceSelector::OuMean { time: None, variable } => Ok(point(
+            Some(*model.center.get(*variable).ok_or_else(selector_mismatch)?),
             *variable,
-            "initial_value_world".into(),
-            format!("t:{}", path.times[*time]),
-            "conditional_trajectory",
+            World::Fixed("stationary"),
+            Time::Stationary,
+            Functional::Mean,
             EvidencePort::Mean,
-        ),
-        (
-            R::OuStationary { model },
-            A::OuStationary(_),
-            CyclicEvidenceSelector::OuMean { time: None, variable },
-        ) => point(
-            Some(*model.center.get(*variable).ok_or_else(bad)?),
-            *variable,
-            "stationary".into(),
-            "stationary".into(),
-            "mean",
-            EvidencePort::Mean,
-        ),
-        (
-            R::OuStationary { model },
-            A::OuStationary(cov),
-            CyclicEvidenceSelector::OuCovariance { time: None, variable, other },
-        ) => {
+        )),
+        CyclicEvidenceSelector::OuCovariance { time: None, variable, other } => {
             let n = model.center.len();
             if *variable >= n || *other >= n {
-                return Err(bad());
+                return Err(selector_mismatch());
             }
-            point(
-                Some(cov[*variable * n + other]),
+            Ok(point(
+                Some(covariance[*variable * n + other]),
                 *variable,
-                "stationary".into(),
-                "stationary".into(),
-                "predictive_covariance",
+                World::Fixed("stationary"),
+                Time::Stationary,
+                Functional::PredictiveCovariance,
                 EvidencePort::Likelihood,
-            )
+            ))
         }
-        (
-            _,
-            A::OuTransient(path),
-            CyclicEvidenceSelector::OuMean { time: Some(time), variable },
-        ) => point(
-            Some(*path.means.get(*time).and_then(|s| s.get(*variable)).ok_or_else(bad)?),
+        _ => Err(selector_mismatch()),
+    }
+}
+
+/// Finite-horizon OU mean and covariance.
+fn ou_transient<'a>(
+    path: &antecedent_model::continuous_cyclic::OuMoments,
+    selector: &CyclicEvidenceSelector,
+) -> Result<Projection<'a>, CyclicArtifactError> {
+    match selector {
+        CyclicEvidenceSelector::OuMean { time: Some(time), variable } => Ok(point(
+            Some(*path.means.get(*time).and_then(|s| s.get(*variable)).ok_or_else(selector_mismatch)?),
             *variable,
-            "initial_law_world".into(),
-            format!("t:{}", path.times[*time]),
-            "mean",
+            World::Fixed("initial_law_world"),
+            Time::At(*path.times.get(*time).ok_or_else(selector_mismatch)?),
+            Functional::Mean,
             EvidencePort::Mean,
-        ),
-        (
-            _,
-            A::OuTransient(path),
-            CyclicEvidenceSelector::OuCovariance { time: Some(time), variable, other },
-        ) => {
-            let row = path.means.get(*time).ok_or_else(bad)?;
+        )),
+        CyclicEvidenceSelector::OuCovariance { time: Some(time), variable, other } => {
+            let row = path.means.get(*time).ok_or_else(selector_mismatch)?;
             let n = row.len();
             if *variable >= n || *other >= n {
-                return Err(bad());
+                return Err(selector_mismatch());
             }
-            point(
-                Some(path.covariances[*time][*variable * n + other]),
+            let covariance = path.covariances.get(*time).ok_or_else(selector_mismatch)?;
+            Ok(point(
+                Some(*covariance.get(*variable * n + other).ok_or_else(selector_mismatch)?),
                 *variable,
-                "initial_law_world".into(),
-                format!("t:{}", path.times[*time]),
-                "predictive_covariance",
+                World::Fixed("initial_law_world"),
+                Time::At(*path.times.get(*time).ok_or_else(selector_mismatch)?),
+                Functional::PredictiveCovariance,
                 EvidencePort::Likelihood,
-            )
+            ))
         }
-        (_, A::Polynomial(solutions), CyclicEvidenceSelector::Root { root, variable }) => {
-            let enclosure =
-                *solutions.roots.get(*root).and_then(|s| s.get(*variable)).ok_or_else(bad)?;
+        _ => Err(selector_mismatch()),
+    }
+}
+
+/// Certified roots and unresolved regions of a bounded polynomial system.
+fn polynomial_solutions<'a>(
+    solutions: &antecedent_model::equation_system::IsolatedSolutions,
+    selector: &CyclicEvidenceSelector,
+) -> Result<Projection<'a>, CyclicArtifactError> {
+    match selector {
+        CyclicEvidenceSelector::Root { root, variable } => {
+            let enclosure = *solutions
+                .roots
+                .get(*root)
+                .and_then(|s| s.get(*variable))
+                .ok_or_else(selector_mismatch)?;
             let mut p = point(
                 None,
                 *variable,
-                format!("root_enclosure:{root}"),
-                "algebraic".into(),
-                "solution_coordinate",
+                World::Root(*root),
+                Time::Algebraic,
+                Functional::SolutionCoordinate,
                 EvidencePort::Scenario,
             );
             p.bounds = vec![Some(enclosure)];
-            p.diagnostics = serde_json::json!({"unresolved_regions":solutions.unresolved.len(),"selection_law":false});
-            p
+            p.diagnostics = detail(RootDetail {
+                unresolved_regions: solutions.unresolved.len(),
+                selection_law: false,
+            });
+            Ok(p)
         }
-        (_, A::Polynomial(solutions), CyclicEvidenceSelector::SolutionSet { variable }) => {
+        CyclicEvidenceSelector::SolutionSet { variable } => {
             let mut p = point(
                 None,
                 *variable,
-                "all_model_solutions".into(),
-                "algebraic".into(),
-                "model_solution_set",
+                World::Fixed("all_model_solutions"),
+                Time::Algebraic,
+                Functional::ModelSolutionSet,
                 EvidencePort::Scenario,
             );
             p.samples.clear();
@@ -835,258 +1188,273 @@ fn project(
                 .roots
                 .iter()
                 .chain(&solutions.unresolved)
-                .map(|region| region.get(*variable).copied().map(Some).ok_or_else(bad))
+                .map(|region| region.get(*variable).copied().map(Some).ok_or_else(selector_mismatch))
                 .collect::<Result<Vec<_>, _>>()?;
-            p.diagnostics = serde_json::json!({"certified_roots":solutions.roots.len(),"unresolved_regions":solutions.unresolved.len(),"selection_law":false,"outer_enclosure":true});
-            p
+            p.diagnostics = detail(SolutionSetDetail {
+                certified_roots: solutions.roots.len(),
+                unresolved_regions: solutions.unresolved.len(),
+                selection_law: false,
+                outer_enclosure: true,
+            });
+            Ok(p)
         }
-        (
-            R::Functional { source, .. },
-            A::Functional(report),
-            CyclicEvidenceSelector::Functional { assignment },
-        ) => {
-            use antecedent_io::cyclic_graph::CyclicGraphRequest as G;
-            let outcomes = match source {
-                G::Identify { outcomes, .. } | G::Adjust { outcomes, .. } => outcomes,
-                G::Calculus { y, .. } => y,
-                _ => return Err(bad()),
-            };
-            if outcomes.len() != 1 {
-                return Err(invalid(
-                    "scalar evidence projection requires a single outcome; joint events retain the full functional report",
-                ));
-            }
+        _ => Err(selector_mismatch()),
+    }
+}
 
-            let value = report.values.get(*assignment).ok_or_else(bad)?;
-            let mut p = point(
-                value.value,
-                outcomes[0],
-                format!("assignment:{assignment}"),
-                "static".into(),
-                "identified_probability",
-                EvidencePort::Mean,
-            );
-            p.diagnostics = serde_json::to_value(value).map_err(invalid)?;
-            p
-        }
-        (
-            R::GaussianFunctional { source, .. },
-            A::GaussianFunctional(report),
-            CyclicEvidenceSelector::Functional { assignment },
-        ) => {
-            use antecedent_io::cyclic_graph::CyclicGraphRequest as G;
-            let outcomes = match source {
-                G::Identify { outcomes, .. } | G::Adjust { outcomes, .. } => outcomes,
-                G::Calculus { y, .. } => y,
-                _ => return Err(bad()),
-            };
-            if outcomes.len() != 1 {
-                return Err(invalid("scalar Gaussian density evidence requires one outcome"));
+/// The single outcome a scalar functional projection reads.
+fn single_outcome(
+    source: &antecedent_io::cyclic_graph::CyclicGraphRequest,
+    message: &'static str,
+) -> Result<usize, CyclicArtifactError> {
+    use antecedent_io::cyclic_graph::CyclicGraphRequest as G;
+    let outcomes = match source {
+        G::Identify { outcomes, .. } | G::Adjust { outcomes, .. } => outcomes,
+        G::Calculus { y, .. } => y,
+        _ => return Err(selector_mismatch()),
+    };
+    if outcomes.len() != 1 {
+        return Err(invalid(message));
+    }
+    Ok(outcomes[0])
+}
+
+/// One typed world of a specified model, by scientific world id.
+fn world_of<'a>(
+    worlds: &'a [antecedent_io::cyclic_family_artifact::CyclicWorldAnswer],
+    selector: &CyclicEvidenceSelector,
+) -> Result<Projection<'a>, CyclicArtifactError> {
+    let CyclicEvidenceSelector::World { world, variable, time } = selector else {
+        return Err(selector_mismatch());
+    };
+    let found = worlds.iter().find(|item| item.world == *world).ok_or_else(selector_mismatch)?;
+    typed_world(found, *variable, *time)
+}
+
+impl EvidenceSource for A {
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one dispatch per answer kind keeps each kind's selectors and uncertainty port explicit"
+    )]
+    fn project<'a>(
+        &'a self,
+        request: &'a R,
+        selector: &CyclicEvidenceSelector,
+    ) -> Result<Projection<'a>, CyclicArtifactError> {
+        use CyclicEvidenceSelector as S;
+        match self {
+            A::EquilibriumActions(worlds) => actions(worlds, selector),
+            A::ParameterPosterior { worlds, .. } => parameter_posterior(worlds, selector),
+            A::JointCounterfactual { worlds, .. } => {
+                counterfactual_responses(worlds, true, selector)
             }
-            let value = report.values.get(*assignment).ok_or_else(bad)?;
-            let mut p = point(
-                value.value,
-                outcomes[0],
-                format!("assignment:{assignment}"),
-                "static".into(),
-                "identified_density",
-                EvidencePort::Likelihood,
-            );
-            p.diagnostics = serde_json::to_value(value).map_err(invalid)?;
-            p
-        }
-        (_, A::AdamFit(fit), CyclicEvidenceSelector::Likelihood { candidate: None }) => point(
-            Some(fit.training_log_likelihood),
-            0,
-            "training".into(),
-            "equilibrium".into(),
-            "log_likelihood",
-            EvidencePort::Likelihood,
-        ),
-        (_, A::GradientFit(fit), CyclicEvidenceSelector::Likelihood { candidate: None }) => point(
-            Some(fit.log_likelihood),
-            0,
-            "training".into(),
-            "static".into(),
-            "log_likelihood",
-            EvidencePort::Likelihood,
-        ),
-        (_, A::OdeFit(fit), CyclicEvidenceSelector::Likelihood { candidate: None }) => point(
-            Some(fit.log_likelihood),
-            0,
-            "training".into(),
-            "trajectory".into(),
-            "log_likelihood",
-            EvidencePort::Likelihood,
-        ),
-        (_, A::OuFit(fit), CyclicEvidenceSelector::Likelihood { candidate: None }) => point(
-            Some(fit.log_likelihood),
-            0,
-            "training".into(),
-            "stationary".into(),
-            "log_likelihood",
-            EvidencePort::Likelihood,
-        ),
-        (
-            _,
-            A::StructureFit { fit, .. },
-            CyclicEvidenceSelector::Likelihood { candidate: None },
-        ) => point(
-            Some(fit.fit.log_likelihood),
-            0,
-            "training".into(),
-            "equilibrium".into(),
-            "log_likelihood",
-            EvidencePort::Likelihood,
-        ),
-        (
-            _,
-            A::PolynomialFit(fit),
-            CyclicEvidenceSelector::Likelihood { candidate: Some(candidate) },
-        ) => {
-            let c = fit.candidates.get(*candidate).ok_or_else(bad)?;
-            let mut p = point(
-                None,
-                0,
-                c.candidate.clone(),
-                "algebraic".into(),
-                "log_likelihood",
-                EvidencePort::Likelihood,
-            );
-            p.bounds = vec![c.lower.zip(c.upper).map(|(lower, upper)| Interval { lower, upper })];
-            p.diagnostics = serde_json::to_value(c).map_err(invalid)?;
-            p
-        }
-        (
-            R::RecoveredLinear { uncertainty, .. },
-            A::RecoveredLinear(report),
-            CyclicEvidenceSelector::Response { world, noise_row, variable },
-        ) => {
-            if *noise_row != 0 {
-                return Err(bad());
+            A::PartialCounterfactual { worlds, .. } => {
+                counterfactual_responses(worlds, false, selector)
             }
-            let found = report.worlds.get(*world).ok_or_else(bad)?;
-            recovered_response(found, uncertainty, *world, *variable)?
-        }
-        (
-            _,
-            A::ExperimentalRecovery(report),
-            CyclicEvidenceSelector::Response { world, noise_row, variable },
-        ) => {
-            if *noise_row != 0 {
-                return Err(bad());
+            A::FrequentistBootstrap { worlds, .. } => bootstrap(worlds, selector),
+            A::OuMechanisms { laws, fit } => {
+                ou_mechanisms(laws, fit.as_ref().map(|fit| fit.log_likelihood), selector)
             }
-            let found = &report.worlds.get(*world).ok_or_else(bad)?.answer;
-            recovered_response(found, &report.law.origin, *world, *variable)?
-        }
-        (
-            _,
-            A::RecoveredLinear(report),
-            CyclicEvidenceSelector::RecoveredDraw { world, draw, variable },
-        ) => {
-            recovered_within(report.worlds.get(*world).ok_or_else(bad)?, *world, *draw, *variable)?
-        }
-        (
-            _,
-            A::ExperimentalRecovery(report),
-            CyclicEvidenceSelector::RecoveredDraw { world, draw, variable },
-        ) => recovered_within(
-            &report.worlds.get(*world).ok_or_else(bad)?.answer,
-            *world,
-            *draw,
-            *variable,
-        )?,
-        (_, A::Worlds(worlds), CyclicEvidenceSelector::World { world, variable, time }) => {
-            let found = worlds.iter().find(|item| item.world == *world).ok_or_else(bad)?;
-            typed_world(found, *variable, *time)?
-        }
-        (
-            R::DynamicInference { quantities, .. },
-            A::DynamicInference { inference, .. },
-            CyclicEvidenceSelector::DynamicQuantity { quantity },
-        ) => dynamic_quantity(quantities, inference, *quantity)?,
-        (
-            _,
-            A::DynamicInference { fit, .. },
-            CyclicEvidenceSelector::Likelihood { candidate: None },
-        ) => point(
-            Some(fit.log_likelihood()),
-            0,
-            "training".into(),
-            "dynamic".into(),
-            "log_likelihood",
-            EvidencePort::Likelihood,
-        ),
-        (
-            _,
-            A::System(report),
-            CyclicEvidenceSelector::Action { world, noise_row, variable, counterfactual },
-        ) => {
-            let value = if *counterfactual {
-                report.counterfactuals.as_ref().and_then(|rows| rows.get(*world))
-            } else {
-                report.worlds.get(*world).and_then(|rows| rows.get(*noise_row))
-            }
-            .ok_or_else(bad)?;
-            let mut p = point(
-                Some(*value.values.get(*variable).ok_or_else(bad)?),
-                *variable,
-                format!("world:{world}"),
-                "equilibrium".into(),
-                if *counterfactual { "factual_counterfactual" } else { "specified_noise_response" },
-                EvidencePort::Scenario,
-            );
-            p.diagnostics = serde_json::to_value(value).map_err(invalid)?;
-            p
-        }
-        (_, A::Graph(graph), CyclicEvidenceSelector::Graph) => {
-            let mut p = point(
-                None,
-                0,
-                "graphical".into(),
-                "static".into(),
-                "graphical_evidence",
-                EvidencePort::Scenario,
-            );
-            p.diagnostics = serde_json::to_value(graph).map_err(invalid)?;
-            p
-        }
-        (
-            _,
-            A::PolynomialCausal(report),
-            CyclicEvidenceSelector::PolynomialWorld { world, variable },
-        ) => {
-            let mut p = point(
-                None,
-                *variable,
-                world.clone(),
-                "algebraic".into(),
-                "counterfactual_outcome_set",
-                EvidencePort::Scenario,
-            );
-            p.samples.clear();
-            p.bounds.clear();
-            let mut masses = Vec::new();
-            for atom in &report.atoms {
-                let bound = match atom.states.get(world).ok_or_else(bad)? {
-                    antecedent_estimate::polynomial_scm::PolynomialSelectedState::Selected {
-                        enclosure,
-                    } => Some(*enclosure.get(*variable).ok_or_else(bad)?),
-                    _ => None,
+            A::Ode(path) => ode_path(path, selector),
+            A::OuStationary(covariance) => ou_stationary(request, covariance, selector),
+            A::OuTransient(path) => ou_transient(path, selector),
+            A::Polynomial(solutions) => polynomial_solutions(solutions, selector),
+            A::Functional(report) => {
+                let (R::Functional { source, .. }, S::Functional { assignment }) =
+                    (request, selector)
+                else {
+                    return Err(selector_mismatch());
                 };
-                p.samples.push(None);
-                p.bounds.push(bound);
-                if let Some(mass) = atom.posterior_mass {
-                    masses.push(mass);
-                }
+                let outcome = single_outcome(
+                    source,
+                    "scalar evidence projection requires a single outcome; joint events retain the full functional report",
+                )?;
+                let value = report.values.get(*assignment).ok_or_else(selector_mismatch)?;
+                let mut p = point(
+                    value.value,
+                    outcome,
+                    World::Assignment(*assignment),
+                    Time::Static,
+                    Functional::IdentifiedProbability,
+                    EvidencePort::Mean,
+                );
+                p.diagnostics = detail(value);
+                Ok(p)
             }
-            p.diagnostics = serde_json::json!({"world_mass":report.world_mass,"positive_evidence_certified":masses.len()==report.atoms.len() && masses.iter().any(|m|m.lower>0.0)});
-            p.masses = Some(masses);
-            p.axes = vec!["predictive".into(), "parameter".into()];
-            p
+            A::GaussianFunctional(report) => {
+                let (R::GaussianFunctional { source, .. }, S::Functional { assignment }) =
+                    (request, selector)
+                else {
+                    return Err(selector_mismatch());
+                };
+                let outcome = single_outcome(
+                    source,
+                    "scalar Gaussian density evidence requires one outcome",
+                )?;
+                let value = report.values.get(*assignment).ok_or_else(selector_mismatch)?;
+                let mut p = point(
+                    value.value,
+                    outcome,
+                    World::Assignment(*assignment),
+                    Time::Static,
+                    Functional::IdentifiedDensity,
+                    EvidencePort::Likelihood,
+                );
+                p.diagnostics = detail(value);
+                Ok(p)
+            }
+            A::AdamFit(fit) => log_likelihood(fit.training_log_likelihood, Time::Equilibrium, selector),
+            A::GradientFit(fit) => log_likelihood(fit.log_likelihood, Time::Static, selector),
+            A::OdeFit(fit) => log_likelihood(fit.log_likelihood, Time::Trajectory, selector),
+            A::OuFit(fit) => log_likelihood(fit.log_likelihood, Time::Stationary, selector),
+            A::StructureFit { fit, .. } => {
+                log_likelihood(fit.fit.log_likelihood, Time::Equilibrium, selector)
+            }
+            A::PolynomialFit(fit) => {
+                let S::Likelihood { candidate: Some(candidate) } = selector else {
+                    return Err(selector_mismatch());
+                };
+                let c = fit.candidates.get(*candidate).ok_or_else(selector_mismatch)?;
+                let mut p = point(
+                    None,
+                    0,
+                    World::Declared(c.candidate.clone()),
+                    Time::Algebraic,
+                    Functional::LogLikelihood,
+                    EvidencePort::Likelihood,
+                );
+                p.bounds =
+                    vec![c.lower.zip(c.upper).map(|(lower, upper)| Interval { lower, upper })];
+                p.diagnostics = detail(c);
+                Ok(p)
+            }
+            A::RecoveredLinear(report) => match selector {
+                S::Response { world, noise_row, variable } => {
+                    let R::RecoveredLinear { uncertainty, .. } = request else {
+                        return Err(selector_mismatch());
+                    };
+                    if *noise_row != 0 {
+                        return Err(selector_mismatch());
+                    }
+                    let found = report.worlds.get(*world).ok_or_else(selector_mismatch)?;
+                    recovered_response(found, uncertainty, *world, *variable)
+                }
+                S::RecoveredDraw { world, draw, variable } => recovered_within(
+                    report.worlds.get(*world).ok_or_else(selector_mismatch)?,
+                    *world,
+                    *draw,
+                    *variable,
+                ),
+                _ => Err(selector_mismatch()),
+            },
+            A::ExperimentalRecovery(report) => match selector {
+                S::Response { world, noise_row, variable } => {
+                    if *noise_row != 0 {
+                        return Err(selector_mismatch());
+                    }
+                    let found = &report.worlds.get(*world).ok_or_else(selector_mismatch)?.answer;
+                    recovered_response(found, &report.law.origin, *world, *variable)
+                }
+                S::RecoveredDraw { world, draw, variable } => recovered_within(
+                    &report.worlds.get(*world).ok_or_else(selector_mismatch)?.answer,
+                    *world,
+                    *draw,
+                    *variable,
+                ),
+                _ => Err(selector_mismatch()),
+            },
+            A::Worlds(worlds) => world_of(worlds, selector),
+            A::DynamicInference { fit, inference } => match selector {
+                S::DynamicQuantity { quantity } => {
+                    let R::DynamicInference { quantities, .. } = request else {
+                        return Err(selector_mismatch());
+                    };
+                    dynamic_quantity(quantities, inference, *quantity)
+                }
+                S::Likelihood { candidate: None } => {
+                    log_likelihood(fit.log_likelihood(), Time::Dynamic, selector)
+                }
+                _ => Err(selector_mismatch()),
+            },
+            A::System(report) => {
+                let S::Action { world, noise_row, variable, counterfactual } = selector else {
+                    return Err(selector_mismatch());
+                };
+                let value = if *counterfactual {
+                    report.counterfactuals.as_ref().and_then(|rows| rows.get(*world))
+                } else {
+                    report.worlds.get(*world).and_then(|rows| rows.get(*noise_row))
+                }
+                .ok_or_else(selector_mismatch)?;
+                let mut p = point(
+                    Some(*value.values.get(*variable).ok_or_else(selector_mismatch)?),
+                    *variable,
+                    World::indexed(*world),
+                    Time::Equilibrium,
+                    if *counterfactual {
+                        Functional::FactualCounterfactual
+                    } else {
+                        Functional::SpecifiedNoiseResponse
+                    },
+                    EvidencePort::Scenario,
+                );
+                p.diagnostics = detail(value);
+                Ok(p)
+            }
+            A::Graph(graph) => {
+                let S::Graph = selector else {
+                    return Err(selector_mismatch());
+                };
+                let mut p = point(
+                    None,
+                    0,
+                    World::Fixed("graphical"),
+                    Time::Static,
+                    Functional::GraphicalEvidence,
+                    EvidencePort::Scenario,
+                );
+                p.diagnostics = detail(graph);
+                Ok(p)
+            }
+            A::PolynomialCausal(report) => {
+                let S::PolynomialWorld { world, variable } = selector else {
+                    return Err(selector_mismatch());
+                };
+                let mut p = point(
+                    None,
+                    *variable,
+                    World::Declared(world.clone()),
+                    Time::Algebraic,
+                    Functional::CounterfactualOutcomeSet,
+                    EvidencePort::Scenario,
+                );
+                p.samples.clear();
+                p.bounds.clear();
+                let mut masses = Vec::new();
+                for atom in &report.atoms {
+                    let bound = match atom.states.get(world).ok_or_else(selector_mismatch)? {
+                        antecedent_estimate::polynomial_scm::PolynomialSelectedState::Selected {
+                            enclosure,
+                        } => Some(*enclosure.get(*variable).ok_or_else(selector_mismatch)?),
+                        _ => None,
+                    };
+                    p.samples.push(None);
+                    p.bounds.push(bound);
+                    if let Some(mass) = atom.posterior_mass {
+                        masses.push(mass);
+                    }
+                }
+                p.diagnostics = detail(PolynomialWorldDetail {
+                    world_mass: &report.world_mass,
+                    positive_evidence_certified: masses.len() == report.atoms.len()
+                        && masses.iter().any(|m| m.lower > 0.0),
+                });
+                p.masses = Some(masses);
+                p.axes = vec![Axis::Predictive, Axis::Parameter];
+                Ok(p)
+            }
         }
-        _ => return Err(bad()),
-    })
+    }
 }
 fn source_order(request: &R) -> usize {
     use antecedent_io::cyclic_graph::CyclicGraphRequest as G;
@@ -1246,9 +1614,15 @@ impl CyclicEvidence {
         let mut columns = Vec::new();
         let mut envelopes = Vec::new();
         for selector in &selectors {
-            let p = project(request, &source.answer, selector)?;
+            let p = source.answer.project(request, selector)?;
+            // The typed details are serialized once, here, into the column's JSON diagnostics.
+            let diagnostics = match &p.diagnostics {
+                Some(detail) => detail.to_json().map_err(invalid)?,
+                None => serde_json::Value::Null,
+            };
+            let (world, time) = (p.world.to_string(), p.time.to_string());
             let projection_bytes = cyclic_serialized_size(
-                &(&p.diagnostics, &p.samples, &p.bounds, &p.masses, &p.world, &p.time),
+                &(&diagnostics, &p.samples, &p.bounds, &p.masses, &world, &time),
                 ctx,
             )? as u64;
             retention.push(
@@ -1259,17 +1633,18 @@ impl CyclicEvidence {
                 .variables
                 .get(p.variable)
                 .ok_or_else(|| invalid("evidence variable outside declared schema"))?;
-            let regime = digest(
-                "antecedent.cyclic_evidence.regime.v1",
-                &(&source.identity, &p.world, &p.time),
-            )?;
+            let regime =
+                digest("antecedent.cyclic_evidence.regime.v1", &(&source.identity, &world, &time))?;
             let quantity = ScientificQuantity {
                 variable_id: format!("{}:{name}", schema.id),
                 variable_name: name.clone(),
                 role: QuantityRole::Outcome,
-                units: if p.functional == "identified_density" {
+                units: if p.functional == Functional::IdentifiedDensity {
                     format!("1/({units})")
-                } else if matches!(p.functional, "log_likelihood" | "identified_probability") {
+                } else if matches!(
+                    p.functional,
+                    Functional::LogLikelihood | Functional::IdentifiedProbability
+                ) {
                     "dimensionless".into()
                 } else if let Some(other) = p.other {
                     let second = schema
@@ -1291,7 +1666,7 @@ impl CyclicEvidence {
                 population_id: schema.population.clone(),
                 regime_id: regime,
                 horizon: 0,
-                functional_id: p.functional.into(),
+                functional_id: p.functional.as_str().into(),
                 conditioning: vec![],
                 transform_id: "identity".into(),
             };
@@ -1303,7 +1678,7 @@ impl CyclicEvidence {
             let envelope = EvidenceEnvelope::try_new(
                 EvidenceBinding::try_new(
                     quantity.clone(),
-                    WorldTime { world_id: p.world.clone().into(), time_id: p.time.clone().into() },
+                    WorldTime { world_id: world.as_str().into(), time_id: time.as_str().into() },
                     premises,
                     EvidenceOrigins {
                         source: Some(source.identity.clone().into()),
@@ -1341,7 +1716,7 @@ impl CyclicEvidence {
                         } else {
                             None
                         },
-                        prior: if p.axes.iter().any(|a| a == "parameter") {
+                        prior: if p.axes.contains(&Axis::Parameter) {
                             Some(source.identity.clone().into())
                         } else {
                             None
@@ -1361,13 +1736,13 @@ impl CyclicEvidence {
                 quantity: ScientificQuantityWire::from(&quantity),
                 envelope_identity: envelope.identity().to_hex(),
                 port: p.port.as_str().into(),
-                uncertainty_axes: p.axes,
+                uncertainty_axes: p.axes.iter().map(|axis| axis.as_str().to_owned()).collect(),
                 samples: p.samples,
                 numerical_enclosures: p.bounds,
                 mass_bounds: p.masses,
-                world: p.world,
-                time: p.time,
-                diagnostics: p.diagnostics,
+                world,
+                time,
+                diagnostics,
             });
             envelopes.push(envelope);
         }
@@ -1749,6 +2124,22 @@ fn enclose_utility(
 mod tests {
     use super::*;
     use crate::analysis::Study;
+    #[test]
+    fn world_and_time_labels_keep_their_identity_spellings() {
+        assert_eq!(World::Noise { world: 2, noise_row: 3 }.to_string(), "world:2:noise:3");
+        assert_eq!(World::Draw { world: 1, draw: 4 }.to_string(), "world:1:draw:4");
+        assert_eq!(World::indexed(5).to_string(), "world:5");
+        assert_eq!(World::Equation(0).to_string(), "equation-world:0");
+        assert_eq!(World::Root(2).to_string(), "root_enclosure:2");
+        assert_eq!(World::Quantity(1).to_string(), "quantity:1");
+        assert_eq!(World::Assignment(7).to_string(), "assignment:7");
+        assert_eq!(Time::Step(3).to_string(), "time:3");
+        assert_eq!(Time::At(0.5).to_string(), "t:0.5");
+        assert_eq!(Time::Equilibrium.to_string(), "equilibrium");
+        assert_eq!(Functional::IdentifiedDensity.as_str(), "identified_density");
+        assert_eq!(Axis::Parameter.as_str(), "parameter");
+    }
+
     #[test]
     fn retained_evidence_preserves_ports_identity_and_replay_without_calibration_gate() {
         let ctx = ExecutionContext::for_tests(8);

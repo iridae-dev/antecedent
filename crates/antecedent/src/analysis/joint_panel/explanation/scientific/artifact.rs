@@ -7,7 +7,29 @@ use super::{
     SemanticDigest, VariableId, invalid,
 };
 use serde::{Deserialize, Serialize};
-const MAX_BYTES: usize = 24 * 1024 * 1024;
+/// Largest reference-decomposition or population-reference artifact under
+/// [`ReferenceArtifactLimits::default`].
+pub const MAX_BYTES: usize = 24 * 1024 * 1024;
+
+/// Byte bound of a reference-decomposition or population-reference artifact, checked before
+/// decoding and after encoding. The embedded original design is bounded by the same value.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ReferenceArtifactLimits {
+    /// Largest artifact body.
+    pub max_bytes: usize,
+}
+
+impl Default for ReferenceArtifactLimits {
+    fn default() -> Self {
+        Self { max_bytes: MAX_BYTES }
+    }
+}
+
+impl ReferenceArtifactLimits {
+    fn design(self) -> crate::analysis::joint_panel::designs::DesignArtifactLimits {
+        crate::analysis::joint_panel::designs::DesignArtifactLimits { max_bytes: self.max_bytes }
+    }
+}
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct BindingsWire {
@@ -124,9 +146,10 @@ fn numerical_digest(
 fn decode(
     bytes: &[u8],
     ctx: &ExecutionContext,
+    limits: ReferenceArtifactLimits,
 ) -> Result<(ReferenceArtifact, antecedent_core::execution::AdmissionLease), JointPanelError> {
-    if bytes.is_empty() || bytes.len() > MAX_BYTES {
-        return Err(invalid("reference artifact exceeds bounded decode size"));
+    if bytes.is_empty() || bytes.len() > limits.max_bytes {
+        return Err(invalid("reference artifact exceeds the declared decode size"));
     }
     let quote = (bytes.len() as u64)
         .checked_mul(8)
@@ -152,18 +175,35 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
         scope: ScientificConsumptionScope,
         ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, JointPanelError> {
+        self.export_reference_decomposition_with_limits(
+            bindings,
+            scope,
+            ctx,
+            ReferenceArtifactLimits::default(),
+        )
+    }
+    /// [`Self::export_reference_decomposition`] under a caller-declared byte limit.
+    /// # Errors
+    /// As [`Self::export_reference_decomposition`], with `limits.max_bytes` as the size bound.
+    pub fn export_reference_decomposition_with_limits(
+        &self,
+        bindings: &ReferenceComponentBindings,
+        scope: ScientificConsumptionScope,
+        ctx: &ExecutionContext,
+        limits: ReferenceArtifactLimits,
+    ) -> Result<Vec<u8>, JointPanelError> {
         let result = self.decompose_reference_components(bindings, scope, ctx)?;
         let wire = ReferenceArtifact {
             version: 1,
-            design: self.export_artifact()?,
+            design: self.export_artifact_with_limits(limits.design())?,
             bindings: BindingsWire::from_domain(bindings),
             identified: scope == ScientificConsumptionScope::IdentifiedCausal,
             digest: digest(&result, ctx)?,
         };
         let bytes =
             antecedent_io_core::convert::to_cbor(&wire).map_err(JointPanelError::compile)?;
-        if bytes.len() > MAX_BYTES {
-            return Err(invalid("reference decomposition artifact exceeds size ceiling"));
+        if bytes.len() > limits.max_bytes {
+            return Err(invalid("reference decomposition artifact exceeds the declared size"));
         }
         Ok(bytes)
     }
@@ -178,7 +218,27 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
         scope: ScientificConsumptionScope,
         ctx: &ExecutionContext,
     ) -> Result<ScientificReferenceDecomposition, JointPanelError> {
-        let (wire, _lease) = decode(bytes, ctx)?;
+        self.consume_reference_decomposition_current_with_limits(
+            bytes,
+            bindings,
+            scope,
+            ctx,
+            ReferenceArtifactLimits::default(),
+        )
+    }
+    /// [`Self::consume_reference_decomposition_current`] under a caller-declared byte limit.
+    /// # Errors
+    /// As [`Self::consume_reference_decomposition_current`], with `limits.max_bytes` as the
+    /// size bound.
+    pub fn consume_reference_decomposition_current_with_limits(
+        &self,
+        bytes: &[u8],
+        bindings: &ReferenceComponentBindings,
+        scope: ScientificConsumptionScope,
+        ctx: &ExecutionContext,
+        limits: ReferenceArtifactLimits,
+    ) -> Result<ScientificReferenceDecomposition, JointPanelError> {
+        let (wire, _lease) = decode(bytes, ctx, limits)?;
         if wire.bindings != BindingsWire::from_domain(bindings)
             || wire.identified != (scope == ScientificConsumptionScope::IdentifiedCausal)
         {
@@ -186,8 +246,11 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
                 "reference artifact differs from caller-current component question or scope",
             ));
         }
-        let current = self.prepared().consume_current(&wire.design, ctx)?;
-        if current.export_artifact()? != self.export_artifact()? {
+        let current =
+            self.prepared().consume_current_with_limits(&wire.design, ctx, limits.design())?;
+        if current.export_artifact_with_limits(limits.design())?
+            != self.export_artifact_with_limits(limits.design())?
+        {
             return Err(invalid(
                 "reference artifact differs from the caller-current statistical execution, prior, draw law or seed",
             ));
@@ -224,9 +287,22 @@ pub fn replay_reference_decomposition(
     bytes: &[u8],
     ctx: &ExecutionContext,
 ) -> Result<HistoricalReferenceDecomposition, JointPanelError> {
-    let (wire, _lease) = decode(bytes, ctx)?;
-    let original =
-        crate::analysis::joint_panel::designs::replay_joint_design_execution(&wire.design, ctx)?;
+    replay_reference_decomposition_with_limits(bytes, ctx, ReferenceArtifactLimits::default())
+}
+/// [`replay_reference_decomposition`] under a caller-declared byte limit.
+/// # Errors
+/// As [`replay_reference_decomposition`], with `limits.max_bytes` as the size bound.
+pub fn replay_reference_decomposition_with_limits(
+    bytes: &[u8],
+    ctx: &ExecutionContext,
+    limits: ReferenceArtifactLimits,
+) -> Result<HistoricalReferenceDecomposition, JointPanelError> {
+    let (wire, _lease) = decode(bytes, ctx, limits)?;
+    let original = crate::analysis::joint_panel::designs::replay_joint_design_execution(
+        &wire.design,
+        ctx,
+        limits.design(),
+    )?;
     let bindings = wire.bindings.to_domain();
     let scope = if wire.identified {
         ScientificConsumptionScope::IdentifiedCausal
@@ -321,9 +397,10 @@ struct PopulationArtifact {
 fn decode_population(
     bytes: &[u8],
     ctx: &ExecutionContext,
+    limits: ReferenceArtifactLimits,
 ) -> Result<(PopulationArtifact, antecedent_core::execution::AdmissionLease), JointPanelError> {
-    if bytes.is_empty() || bytes.len() > MAX_BYTES {
-        return Err(invalid("population-reference artifact exceeds bounded decode size"));
+    if bytes.is_empty() || bytes.len() > limits.max_bytes {
+        return Err(invalid("population-reference artifact exceeds the declared decode size"));
     }
     let quote = (bytes.len() as u64)
         .checked_mul(8)
@@ -349,10 +426,29 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
         scope: ScientificConsumptionScope,
         ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, JointPanelError> {
+        self.export_population_reference_with_limits(
+            bindings,
+            diagram,
+            scope,
+            ctx,
+            ReferenceArtifactLimits::default(),
+        )
+    }
+    /// [`Self::export_population_reference`] under a caller-declared byte limit.
+    /// # Errors
+    /// As [`Self::export_population_reference`], with `limits.max_bytes` as the size bound.
+    pub fn export_population_reference_with_limits(
+        &self,
+        bindings: &PopulationReferenceBindings,
+        diagram: &antecedent_graph::SelectionDiagram,
+        scope: ScientificConsumptionScope,
+        ctx: &ExecutionContext,
+        limits: ReferenceArtifactLimits,
+    ) -> Result<Vec<u8>, JointPanelError> {
         let result = self.decompose_population_reference(bindings, diagram, scope, ctx)?;
         let wire = PopulationArtifact {
             version: 1,
-            design: self.export_artifact()?,
+            design: self.export_artifact_with_limits(limits.design())?,
             bindings: PopulationBindingsWire::from_domain(bindings),
             diagram: DiagramWire::from_domain(diagram)?,
             identified: scope == ScientificConsumptionScope::IdentifiedCausal,
@@ -365,8 +461,8 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
         };
         let bytes =
             antecedent_io_core::convert::to_cbor(&wire).map_err(JointPanelError::compile)?;
-        if bytes.len() > MAX_BYTES {
-            return Err(invalid("population reference artifact exceeds size ceiling"));
+        if bytes.len() > limits.max_bytes {
+            return Err(invalid("population reference artifact exceeds the declared size"));
         }
         Ok(bytes)
     }
@@ -382,7 +478,29 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
         scope: ScientificConsumptionScope,
         ctx: &ExecutionContext,
     ) -> Result<PopulationReferenceDecomposition, JointPanelError> {
-        let (wire, _lease) = decode_population(bytes, ctx)?;
+        self.consume_population_reference_current_with_limits(
+            bytes,
+            bindings,
+            diagram,
+            scope,
+            ctx,
+            ReferenceArtifactLimits::default(),
+        )
+    }
+    /// [`Self::consume_population_reference_current`] under a caller-declared byte limit.
+    /// # Errors
+    /// As [`Self::consume_population_reference_current`], with `limits.max_bytes` as the size
+    /// bound.
+    pub fn consume_population_reference_current_with_limits(
+        &self,
+        bytes: &[u8],
+        bindings: &PopulationReferenceBindings,
+        diagram: &antecedent_graph::SelectionDiagram,
+        scope: ScientificConsumptionScope,
+        ctx: &ExecutionContext,
+        limits: ReferenceArtifactLimits,
+    ) -> Result<PopulationReferenceDecomposition, JointPanelError> {
+        let (wire, _lease) = decode_population(bytes, ctx, limits)?;
         if wire.bindings != PopulationBindingsWire::from_domain(bindings)
             || wire.diagram != DiagramWire::from_domain(diagram)?
             || wire.identified != (scope == ScientificConsumptionScope::IdentifiedCausal)
@@ -391,8 +509,11 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
                 "population-reference artifact differs from caller-current transport question",
             ));
         }
-        let current = self.prepared().consume_current(&wire.design, ctx)?;
-        if current.export_artifact()? != self.export_artifact()? {
+        let current =
+            self.prepared().consume_current_with_limits(&wire.design, ctx, limits.design())?;
+        if current.export_artifact_with_limits(limits.design())?
+            != self.export_artifact_with_limits(limits.design())?
+        {
             return Err(invalid(
                 "reference artifact differs from the caller-current statistical execution, prior, draw law or seed",
             ));
@@ -429,9 +550,22 @@ pub fn replay_population_reference(
     bytes: &[u8],
     ctx: &ExecutionContext,
 ) -> Result<HistoricalPopulationReference, JointPanelError> {
-    let (wire, _lease) = decode_population(bytes, ctx)?;
-    let native =
-        crate::analysis::joint_panel::designs::replay_joint_design_execution(&wire.design, ctx)?;
+    replay_population_reference_with_limits(bytes, ctx, ReferenceArtifactLimits::default())
+}
+/// [`replay_population_reference`] under a caller-declared byte limit.
+/// # Errors
+/// As [`replay_population_reference`], with `limits.max_bytes` as the size bound.
+pub fn replay_population_reference_with_limits(
+    bytes: &[u8],
+    ctx: &ExecutionContext,
+    limits: ReferenceArtifactLimits,
+) -> Result<HistoricalPopulationReference, JointPanelError> {
+    let (wire, _lease) = decode_population(bytes, ctx, limits)?;
+    let native = crate::analysis::joint_panel::designs::replay_joint_design_execution(
+        &wire.design,
+        ctx,
+        limits.design(),
+    )?;
     let scope = if wire.identified {
         ScientificConsumptionScope::IdentifiedCausal
     } else {

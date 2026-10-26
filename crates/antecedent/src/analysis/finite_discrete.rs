@@ -22,11 +22,8 @@ use std::sync::Arc;
 use antecedent_contract::{DecisionRequest, EvidencePort, EvidencePortError};
 use antecedent_core::execution::{AdmissionError, AdmissionLease};
 use antecedent_core::{
-    CausalSchemaBuilder, EncodedWidth, ExecutionContext, RegimeId, RouteBudget,
-    RouteMemoryDeclaration, Value, VariableId,
-};
-use antecedent_data::{
-    DiscreteColumn, Int64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+    EncodedWidth, ExecutionContext, RegimeId, RouteBudget, RouteMemoryDeclaration, Value,
+    VariableId,
 };
 use antecedent_expr::{
     Assignment, CausalExprArena, DiscreteAxis, DomainRef, ExactDiscreteLaw, ExactEvaluationLimits,
@@ -34,6 +31,7 @@ use antecedent_expr::{
     FactorRequirement, FunctionalProgram, InterventionAssignment, LawOrigin, LawTolerance,
     ProgramLimits, ProgramSchema, ProgramVariable,
 };
+use antecedent_io::IoError;
 use antecedent_io::exact_law_wire::ExactLawWire;
 use serde::{Deserialize, Serialize};
 
@@ -54,8 +52,8 @@ const DEPTH: usize = 32;
 const SUPPORT_ROWS: usize = 8;
 const STATIC_REGIME: u32 = 0;
 const HORIZON_REGIME: u32 = 1;
-/// Most rows one count table may expand into when it is read back through the data seam.
-const MAX_TABLE_ROWS: u64 = 1 << 22;
+/// Largest count-table total whose counts convert to `f64` exactly (`2^53`).
+const MAX_EXACT_COUNT: u64 = 1 << 53;
 /// Tail mass of the equal-tailed posterior interval.
 const POSTERIOR_TAIL: f64 = 0.025;
 /// Largest departure of the posterior weights from one.
@@ -82,7 +80,7 @@ impl DiscreteInputs {
     ///
     /// # Errors
     ///
-    /// A table has no mass or is too large to read back, there is no draw, or a weight is
+    /// A table has no mass or a total beyond exact `f64` range, there is no draw, or a weight is
     /// negative, not finite, or the weights do not sum to one.
     pub(crate) fn new(
         counts: [u64; 8],
@@ -98,8 +96,8 @@ impl DiscreteInputs {
             if total == 0 {
                 return Err(compile("a finite-discrete table has no mass"));
             }
-            if total > MAX_TABLE_ROWS {
-                return Err(compile("a finite-discrete table is too large to read back"));
+            if total > MAX_EXACT_COUNT {
+                return Err(compile("a finite-discrete table total is not exactly representable"));
             }
         }
         if draws.iter().any(|draw| !(draw.weight.is_finite() && draw.weight >= 0.0)) {
@@ -538,7 +536,8 @@ impl FiniteDiscreteSlice {
             outcome_probabilities: fitted.active_probabilities.to_vec(),
             law: ExactLawWire::from_law(&self.frequency),
         };
-        serde_json::to_vec(&exported).map_err(|err| compile(err.to_string()))
+        serde_json::to_vec(&exported)
+            .map_err(|err| crate::CausalError::Serialization(IoError::Convert(err.to_string())))
     }
 }
 
@@ -575,7 +574,8 @@ pub(crate) fn confidence_interval_as_posterior() -> Result<EvidencePort, Evidenc
 ///
 /// `bytes` is not that export.
 pub(crate) fn load_exported(bytes: &[u8]) -> Result<ExportedDiscreteResult, crate::CausalError> {
-    serde_json::from_slice(bytes).map_err(|err| compile(err.to_string()))
+    serde_json::from_slice(bytes)
+        .map_err(|err| crate::CausalError::Serialization(IoError::Convert(err.to_string())))
 }
 
 /// Plan the loaded joint and return the active-minus-control contrast.
@@ -702,14 +702,14 @@ pub struct FiniteDiscreteContrast {
 /// Plan the finite-discrete adjustment `sum_z P(z) P(y | t, z)` over a caller's frequency
 /// table `counts` (index `4t + 2z + y`) and weighted posterior draws of the same joint.
 ///
-/// The table is read back through the data seam under `ctx`'s admission pool, each exact
+/// The laws are built directly from the counts, each exact
 /// plan observes `ctx`'s cancellation, and the plug-in and posterior cells come from one
 /// exact plan of the expression.
 ///
 /// # Errors
 ///
-/// The table has no mass, is too large, or the weights do not sum to one; the exact plan
-/// refuses; the pool cannot hold the table; or `ctx` is cancelled.
+/// The table has no mass, its total is beyond exact `f64` range, or the weights do not sum to one; the exact plan
+/// refuses; the pool cannot hold the support enumeration; or `ctx` is cancelled.
 pub fn finite_discrete_contrast(
     counts: [u64; 8],
     draws: impl IntoIterator<Item = ([u64; 8], f64)>,
@@ -940,13 +940,13 @@ fn plan_world(
         data.clone(),
         ctx,
     )
-    .map_err(|err| compile(err.to_string()))?;
+    .map_err(crate::CausalError::from)?;
     *compilations += 1;
-    let distribution = plan.evaluate(ctx).map_err(|err| compile(err.to_string()))?;
+    let distribution = plan.evaluate(ctx).map_err(crate::CausalError::from)?;
     if distribution.probabilities.len() != 2 || distribution.atoms.len() != 2 {
         return Err(compile("outcome enumeration was not the binary domain"));
     }
-    let mean = distribution.mean(variable(OUTCOME)).map_err(|err| compile(err.to_string()))?;
+    let mean = distribution.mean(variable(OUTCOME)).map_err(crate::CausalError::from)?;
     let levels = [outcome_level(&distribution.atoms[0])?, outcome_level(&distribution.atoms[1])?];
     let probabilities = [distribution.probabilities[0], distribution.probabilities[1]];
     Ok(AtomLaw { mean, probabilities, levels })
@@ -1000,7 +1000,7 @@ fn program(arena: CausalExprArena, root: ExprId) -> Result<FunctionalProgram, cr
         (variable(OUTCOME), ProgramVariable { name: Arc::from("outcome") }),
     ]);
     FunctionalProgram::new(arena, schema, root, root, ProgramLimits::default())
-        .map_err(|err| compile(err.to_string()))
+        .map_err(crate::CausalError::from)
 }
 
 fn expression_kinds(program: &FunctionalProgram) -> Result<Vec<String>, crate::CausalError> {
@@ -1028,19 +1028,17 @@ fn frequency_law(
     counts: &[u64; 8],
     ctx: &ExecutionContext,
 ) -> Result<ExactDiscreteLaw, crate::CausalError> {
-    let observed = histogram(&counted_table(counts, ctx)?)?;
-    ExactDiscreteLaw::try_empirical(
+    let probabilities = probability_table(counts, ctx)?;
+    Ok(ExactDiscreteLaw::try_empirical(
         POPULATION,
         regime,
         no_intervention(),
         axes(),
-        probability_table(&observed)?,
+        probabilities,
         "frequency",
         LawTolerance::default(),
-    )
-    .map_err(|err| compile(err.to_string()))?
-    .with_empirical_counts(observed.to_vec())
-    .map_err(|err| compile(err.to_string()))
+    )?
+    .with_empirical_counts(counts.to_vec())?)
 }
 
 fn posterior_law(
@@ -1049,114 +1047,16 @@ fn posterior_law(
     snapshot: &str,
     ctx: &ExecutionContext,
 ) -> Result<ExactDiscreteLaw, crate::CausalError> {
-    let observed = histogram(&counted_table(counts, ctx)?)?;
-    ExactDiscreteLaw::try_bayesian_posterior(
+    let probabilities = probability_table(counts, ctx)?;
+    Ok(ExactDiscreteLaw::try_bayesian_posterior(
         POPULATION,
         regime,
         no_intervention(),
         axes(),
-        probability_table(&observed)?,
+        probabilities,
         snapshot,
         LawTolerance::default(),
-    )
-    .map_err(|err| compile(err.to_string()))
-}
-
-/// Expand `counts` into binary columns and read them back as the joint.
-///
-/// The exact plan consumes this histogram. The count array is only the row source.
-fn counted_table(
-    counts: &[u64; 8],
-    ctx: &ExecutionContext,
-) -> Result<TabularData, crate::CausalError> {
-    let total = table_total(counts)?;
-    if total > MAX_TABLE_ROWS {
-        return Err(compile("a finite-discrete table is too large to read back"));
-    }
-    // The expanded columns and the sealed copy of each are charged before they are built.
-    let _lease = admit_rows(ctx, total)?;
-    let capacity = usize::try_from(total)
-        .map_err(|_| compile("a finite-discrete table does not fit in usize"))?;
-    let mut treatment = Vec::with_capacity(capacity);
-    let mut confounder = Vec::with_capacity(capacity);
-    let mut outcome = Vec::with_capacity(capacity);
-    for (index, &count) in counts.iter().enumerate() {
-        if ctx.cancellation.is_cancelled() {
-            return Err(cancelled());
-        }
-        let (treatment_level, confounder_level, outcome_level) = cell_levels(index)?;
-        let copies = usize::try_from(count)
-            .map_err(|_| compile("a finite-discrete cell count does not fit in usize"))?;
-        for _ in 0..copies {
-            treatment.push(treatment_level);
-            confounder.push(confounder_level);
-            outcome.push(outcome_level);
-        }
-    }
-    let rows = treatment.len();
-    let schema = CausalSchemaBuilder::new()
-        .binary("treatment")
-        .treatment()
-        .binary("confounder")
-        .context()
-        .binary("outcome")
-        .outcome()
-        .build()
-        .map_err(|err| compile(err.to_string()))?;
-    let validity = ValidityBitmap::all_valid(rows);
-    let column = |raw, values: Vec<i64>| {
-        Int64Column::new(variable(raw), values, validity.clone())
-            .map(OwnedColumn::Int64)
-            .map_err(|err| compile(err.to_string()))
-    };
-    let storage = OwnedColumnarStorage::try_new(
-        schema,
-        vec![
-            column(TREATMENT, treatment)?,
-            column(CONFOUNDER, confounder)?,
-            column(OUTCOME, outcome)?,
-        ],
-        None,
-        None,
-    )
-    .map_err(|err| compile(err.to_string()))?;
-    Ok(TabularData::new(storage))
-}
-
-fn histogram(table: &TabularData) -> Result<[u64; 8], crate::CausalError> {
-    let treatment =
-        table.discrete_column(variable(TREATMENT)).map_err(|err| compile(err.to_string()))?;
-    let confounder =
-        table.discrete_column(variable(CONFOUNDER)).map_err(|err| compile(err.to_string()))?;
-    let outcome =
-        table.discrete_column(variable(OUTCOME)).map_err(|err| compile(err.to_string()))?;
-    let mut counts = [0_u64; 8];
-    for row in 0..treatment.codes.len() {
-        let index = binary_level(&treatment, row)? * 4
-            + binary_level(&confounder, row)? * 2
-            + binary_level(&outcome, row)?;
-        let cell =
-            counts.get_mut(index).ok_or_else(|| compile("discrete cell is outside the joint"))?;
-        *cell += 1;
-    }
-    Ok(counts)
-}
-
-fn cell_levels(index: usize) -> Result<(i64, i64, i64), crate::CausalError> {
-    let level = |value: usize| {
-        u8::try_from(value)
-            .map(i64::from)
-            .map_err(|_| compile("a finite-discrete axis level does not fit in u8"))
-    };
-    Ok((level(index / 4)?, level((index / 2) % 2)?, level(index % 2)?))
-}
-
-fn binary_level(column: &DiscreteColumn, row: usize) -> Result<usize, crate::CausalError> {
-    match column.value(row) {
-        Some(Value::Int64(0)) => Ok(0),
-        Some(Value::Int64(1)) => Ok(1),
-        _ => Err(compile("discrete seam row is not a binary level")),
-    }
+    )?)
 }
 
 fn admit_discrete(ctx: &ExecutionContext) -> Result<AdmissionLease, crate::CausalError> {
@@ -1202,12 +1102,25 @@ fn cancelled() -> crate::CausalError {
     crate::CausalError::Cancelled { stage: super::stage::STAGE_ESTIMATE_POINT }
 }
 
-fn probability_table(counts: &[u64; 8]) -> Result<Vec<f64>, crate::CausalError> {
-    let total = counts.iter().sum::<u64>();
+/// Cell probabilities `count / total` of a count table, read directly from the counts.
+///
+/// The law is the normalised joint itself, so the table is never expanded into rows. The
+/// total is bounded by [`MAX_EXACT_COUNT`], which keeps every count and the total exactly
+/// representable as an `f64`.
+fn probability_table(
+    counts: &[u64; 8],
+    ctx: &ExecutionContext,
+) -> Result<Vec<f64>, crate::CausalError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(cancelled());
+    }
+    let total = table_total(counts)?;
     if total == 0 {
         return Err(compile("a finite-discrete table has no mass"));
     }
-    // Counts are bounded by `MAX_TABLE_ROWS`, so the integer-to-float conversion is exact.
+    if total > MAX_EXACT_COUNT {
+        return Err(compile("a finite-discrete table total is not exactly representable"));
+    }
     let denominator = total as f64;
     Ok(counts.iter().map(|count| *count as f64 / denominator).collect())
 }
@@ -1223,7 +1136,7 @@ fn transport(
     laws: impl Into<Arc<[ExactDiscreteLaw]>>,
     support_rows: usize,
 ) -> Result<ExactTransportData, crate::CausalError> {
-    ExactTransportData::try_new(laws, support_rows).map_err(|err| compile(err.to_string()))
+    ExactTransportData::try_new(laws, support_rows).map_err(crate::CausalError::from)
 }
 
 fn no_intervention() -> Arc<[InterventionAssignment]> {
@@ -1253,7 +1166,7 @@ mod tests {
     use antecedent_expr::{DomainRef, ExactEvaluationLimits, LawOrigin};
 
     use super::{
-        DecisionDemand, DiscreteAction, DiscreteCell, DiscreteInputs, MAX_TABLE_ROWS,
+        DecisionDemand, DiscreteAction, DiscreteCell, DiscreteInputs, MAX_EXACT_COUNT,
         MissingCarrier, confidence_interval_as_posterior, effect_of_exported_law, enumerated_atoms,
         finite_discrete_origin, finite_discrete_slice, finite_discrete_slice_over, load_exported,
     };
@@ -1661,9 +1574,23 @@ mod tests {
         assert!(refused(DiscreteInputs::new(SUPPLIED, std::iter::empty())));
         assert!(refused(DiscreteInputs::new(SUPPLIED, [([0; 8], 1.0)])));
         let mut huge = SUPPLIED;
-        huge[0] = MAX_TABLE_ROWS;
+        huge[0] = MAX_EXACT_COUNT;
         assert!(refused(DiscreteInputs::new(huge, [(DRAW_A, 1.0)])));
         assert!(refused(DiscreteInputs::new([u64::MAX, 1, 0, 0, 0, 0, 0, 0], [(DRAW_A, 1.0)])));
+    }
+
+    #[test]
+    fn a_table_beyond_any_row_expansion_plans_from_its_counts() {
+        const SCALE: u64 = 10_000_000;
+        let ctx = ExecutionContext::for_tests(1);
+        let scaled = SUPPLIED.map(|count| count * SCALE);
+        let draw = DRAW_A.map(|count| count * SCALE);
+        let inputs = DiscreteInputs::new(scaled, [(draw, 1.0)]).unwrap();
+        let slice = finite_discrete_slice_over(&inputs, &ctx).unwrap();
+        let (active, control) = hand_contrast(&SUPPLIED);
+        let fitted = slice.cell(DiscreteCell::StaticFrequentist);
+        assert!((fitted.effect() - (active - control)).abs() < 1e-12);
+        assert_eq!(fitted.sample_size(), Some(SUPPLIED.iter().sum::<u64>() * SCALE));
     }
 
     #[test]
@@ -1682,14 +1609,14 @@ mod tests {
     }
 
     #[test]
-    fn a_table_the_pool_cannot_hold_is_refused_before_it_is_built() {
+    fn a_pool_that_cannot_hold_the_support_enumeration_is_refused_before_planning() {
         use antecedent_core::execution::AdmissionPool;
         let inputs = DiscreteInputs::new(SUPPLIED, [(DRAW_A, 1.0)]).unwrap();
-        let pool = AdmissionPool::fixed(2, 512);
+        let pool = AdmissionPool::fixed(2, 64);
         let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
         let refused = finite_discrete_slice_over(&inputs, &ctx).err().unwrap();
         assert!(matches!(refused, crate::CausalError::Resource { .. }), "{refused:?}");
-        assert_eq!(pool.available().bytes(), 512, "a refused admission holds nothing");
+        assert_eq!(pool.available().bytes(), 64, "a refused admission holds nothing");
 
         let enough = AdmissionPool::fixed(2, 1 << 30);
         let ctx = ExecutionContext::for_tests(1).with_admission(enough.clone());

@@ -244,11 +244,11 @@ fn estimator_coverage(
 }
 
 fn linear(se_kind: AnalyticSeKind) -> LinearAdjustmentAte {
-    LinearAdjustmentAte { bootstrap_replicates: 0, se_kind, ..LinearAdjustmentAte::default() }
+    LinearAdjustmentAte::default().with_bootstrap_replicates(0).with_se_kind(se_kind)
 }
 
 fn aipw(se_kind: AnalyticSeKind) -> AipwAte {
-    AipwAte { bootstrap_replicates: 0, se_kind, ..AipwAte::new() }
+    AipwAte::new().with_bootstrap_replicates(0).with_se_kind(se_kind)
 }
 
 // ================================================================== static estimators

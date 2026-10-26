@@ -463,13 +463,11 @@ struct FitTarget<'a> {
 /// workspace the estimator's `fit` takes.
 macro_rules! prepare_fit {
     ($est:expr, $target:expr, $assumptions:expr) => {{
-        let prep =
-            $est.prepare($target.data, $target.estimand, $target.query).map_err(est_err)?;
+        let prep = $est.prepare($target.data, $target.estimand, $target.query).map_err(est_err)?;
         $est.fit(&prep, $target.ctx, $assumptions).map_err(est_err)
     }};
     ($est:expr, $target:expr, $assumptions:expr, $workspace:expr) => {{
-        let prep =
-            $est.prepare($target.data, $target.estimand, $target.query).map_err(est_err)?;
+        let prep = $est.prepare($target.data, $target.estimand, $target.query).map_err(est_err)?;
         $est.fit(&prep, $workspace, $target.ctx, $assumptions).map_err(est_err)
     }};
 }
@@ -482,6 +480,7 @@ macro_rules! prepare_fit {
 /// |----------------|-----------------------------------------------------------------|
 /// | `sampling`     | the study's declared sampling design                            |
 /// | `bootstrap`    | the requested bootstrap replicates                              |
+/// | `inference_sampling`, `inference_bootstrap` | the same two knobs for an estimator that embeds an `InferenceSpec` |
 /// | `no_bootstrap` | zero replicates (matching and IV do not take the facade bootstrap) |
 /// | `overlap`      | the overlap policy, when one is set                             |
 /// | `registry`     | the population registry                                         |
@@ -494,6 +493,13 @@ macro_rules! apply_knobs {
     };
     (@one $est:ident, $input:ident, bootstrap) => {
         $est.bootstrap_replicates = $input.bootstrap_replicates;
+    };
+    (@one $est:ident, $input:ident, inference_sampling) => {
+        $est.inference.sampling_design =
+            crate::estimator_spec::declared_sampling($input.sampling_design);
+    };
+    (@one $est:ident, $input:ident, inference_bootstrap) => {
+        $est.inference.bootstrap_replicates = $input.bootstrap_replicates;
     };
     (@one $est:ident, $input:ident, no_bootstrap) => {
         $est.bootstrap_replicates = 0;
@@ -619,8 +625,9 @@ fn streamed_weighting_estimator(
             EstimatorId::PropensityWeighting,
         ) => {
             let mut est = PropensityWeighting::new();
-            est.sampling_design = crate::estimator_spec::declared_sampling(input.sampling_design);
-            est.bootstrap_replicates = input.bootstrap_replicates;
+            est.inference.sampling_design =
+                crate::estimator_spec::declared_sampling(input.sampling_design);
+            est.inference.bootstrap_replicates = input.bootstrap_replicates;
             if let Some(policy) = input.overlap_policy {
                 est.overlap = policy;
             }
@@ -642,8 +649,9 @@ fn streamed_aipw_estimator(
         (EstimatorSpec::Aipw(cfg), EstimatorId::Aipw) => Some((**cfg).clone()),
         (EstimatorSpec::Default(EstimatorId::Aipw), EstimatorId::Aipw) => {
             let mut est = AipwAte::new();
-            est.sampling_design = crate::estimator_spec::declared_sampling(input.sampling_design);
-            est.bootstrap_replicates = input.bootstrap_replicates;
+            est.inference.sampling_design =
+                crate::estimator_spec::declared_sampling(input.sampling_design);
+            est.inference.bootstrap_replicates = input.bootstrap_replicates;
             if let Some(policy) = input.overlap_policy {
                 est.overlap = policy;
             }
@@ -742,13 +750,13 @@ fn estimate_static_effect_default(
     match estimator {
         EstimatorId::LinearAdjustmentAte => {
             let mut est = LinearAdjustmentAte::new();
-            apply_knobs!(est, input; sampling, bootstrap);
+            apply_knobs!(est, input; inference_sampling, inference_bootstrap);
             est.overlap = OverlapPolicy::ExplicitOverride;
             prepare_fit!(est, target, assumptions, &mut workspaces.linear)
         }
         EstimatorId::PropensityWeighting => {
             let mut est = PropensityWeighting::new();
-            apply_knobs!(est, input; sampling, bootstrap, overlap, registry);
+            apply_knobs!(est, input; inference_sampling, inference_bootstrap, overlap, registry);
             prepare_fit!(est, target, assumptions, &mut workspaces.propensity)
         }
         EstimatorId::PropensityMatching => {
@@ -759,7 +767,7 @@ fn estimate_static_effect_default(
         }
         EstimatorId::PropensityStratification => {
             let mut est = PropensityStratification::new();
-            apply_knobs!(est, input; sampling, bootstrap, overlap, registry);
+            apply_knobs!(est, input; inference_sampling, inference_bootstrap, overlap, registry);
             prepare_fit!(est, target, assumptions, &mut workspaces.propensity)
         }
         EstimatorId::DistanceMatching => {
@@ -770,12 +778,12 @@ fn estimate_static_effect_default(
         }
         EstimatorId::Aipw => {
             let mut est = AipwAte::new();
-            apply_knobs!(est, input; sampling, bootstrap, overlap, registry);
+            apply_knobs!(est, input; inference_sampling, inference_bootstrap, overlap, registry);
             prepare_fit!(est, target, assumptions, &mut workspaces.aipw)
         }
         EstimatorId::GlmAdjustment => {
             let mut est = GlmAdjustmentAte::new();
-            apply_knobs!(est, input; sampling, bootstrap);
+            apply_knobs!(est, input; inference_sampling, inference_bootstrap);
             prepare_fit!(est, target, assumptions, &mut GlmAdjustmentWorkspace::default())
         }
         EstimatorId::FrontDoorTwoStage => {
@@ -851,8 +859,9 @@ pub fn attach_static_bootstrap(
     match estimator {
         EstimatorId::PropensityWeighting => {
             let mut est = PropensityWeighting::new();
-            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
-            est.bootstrap_replicates = bootstrap_replicates;
+            est.inference.sampling_design =
+                crate::estimator_spec::declared_sampling(sampling_design);
+            est.inference.bootstrap_replicates = bootstrap_replicates;
             if let Some(policy) = overlap_policy {
                 est.overlap = policy;
             }
@@ -862,8 +871,9 @@ pub fn attach_static_bootstrap(
         }
         EstimatorId::PropensityStratification => {
             let mut est = PropensityStratification::new();
-            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
-            est.bootstrap_replicates = bootstrap_replicates;
+            est.inference.sampling_design =
+                crate::estimator_spec::declared_sampling(sampling_design);
+            est.inference.bootstrap_replicates = bootstrap_replicates;
             if let Some(policy) = overlap_policy {
                 est.overlap = policy;
             }
@@ -873,8 +883,9 @@ pub fn attach_static_bootstrap(
         }
         EstimatorId::Aipw => {
             let mut est = AipwAte::new();
-            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
-            est.bootstrap_replicates = bootstrap_replicates;
+            est.inference.sampling_design =
+                crate::estimator_spec::declared_sampling(sampling_design);
+            est.inference.bootstrap_replicates = bootstrap_replicates;
             if let Some(policy) = overlap_policy {
                 est.overlap = policy;
             }
@@ -884,8 +895,9 @@ pub fn attach_static_bootstrap(
         }
         EstimatorId::GlmAdjustment => {
             let mut est = GlmAdjustmentAte::new();
-            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
-            est.bootstrap_replicates = bootstrap_replicates;
+            est.inference.sampling_design =
+                crate::estimator_spec::declared_sampling(sampling_design);
+            est.inference.bootstrap_replicates = bootstrap_replicates;
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = GlmAdjustmentWorkspace::default();
             est.attach_bootstrap(&prep, &mut ws, ctx, point).map_err(est_err)

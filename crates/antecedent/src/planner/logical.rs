@@ -30,9 +30,9 @@ use super::LogicalAnalysisPlan;
 
 /// Inputs shared by the static tabular compiles.
 ///
-/// Each route alias parses `identifier` and `estimator` once inside its compile
-/// and keeps that route's refusal text. The structure field is `graph` for a
-/// DAG, a PAG, and a CPDAG.
+/// The identifier and estimator are the closed-set ids; a route alias validates the pair inside
+/// its compile and keeps that route's refusal text, and the plan record carries their wire
+/// names. The structure field is `graph` for a DAG, a PAG, and a CPDAG.
 #[derive(Clone, Debug)]
 pub(crate) struct StaticCompileInput<'a, G, Q> {
     /// Tabular data (classification + row count).
@@ -43,10 +43,10 @@ pub(crate) struct StaticCompileInput<'a, G, Q> {
     pub query: &'a Q,
     /// Validation suite id.
     pub validation_suite: Option<Arc<str>>,
-    /// Identifier id selected by the builder, still a string until this compile parses it.
-    pub identifier: Arc<str>,
-    /// Estimator id selected by the builder, still a string until this compile parses it.
-    pub estimator: Arc<str>,
+    /// Identifier selected by the builder.
+    pub identifier: IdentifierId,
+    /// Estimator selected by the builder.
+    pub estimator: EstimatorId,
 }
 
 /// Static DAG average-effect compile input.
@@ -107,8 +107,8 @@ pub(crate) fn compile_logical_static_ate(
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     input.query.validate()?;
     validate_query_vars_in_dag(input.graph, input.query.treatment, input.query.outcome)?;
-    let identifier: IdentifierId = input.identifier.parse()?;
-    let estimator: EstimatorId = input.estimator.parse()?;
+    let identifier = input.identifier;
+    let estimator = input.estimator;
     validate_static_pair(identifier, estimator)?;
     refuse_linear_adjustment_population(estimator, input.query)?;
     finish_static_ate(
@@ -142,8 +142,8 @@ fn finish_plan(
 /// Record for a tabular plan with no discovery stage and no graph review.
 fn tabular_record(
     plan_id: &'static str,
-    identifier: Arc<str>,
-    estimator: Arc<str>,
+    identifier: IdentifierId,
+    estimator: EstimatorId,
     validation_suite: Option<Arc<str>>,
     query_variables: Arc<[VariableId]>,
 ) -> LogicalAnalysisPlanRecord {
@@ -152,8 +152,8 @@ fn tabular_record(
         data_classification: DataClassification::Tabular,
         discovery_algorithm: None,
         graph_review_required: false,
-        identifier: Some(identifier),
-        estimator: Some(estimator),
+        identifier: Some(Arc::from(identifier.as_str())),
+        estimator: Some(Arc::from(estimator.as_str())),
         validation_suite,
         query_variables,
     }
@@ -165,8 +165,8 @@ fn finish_static_ate(
     data: &TabularData,
     query: &AverageEffectQuery,
     validation_suite: Option<Arc<str>>,
-    identifier: Arc<str>,
-    estimator: Arc<str>,
+    identifier: IdentifierId,
+    estimator: EstimatorId,
     plan_id: &'static str,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     let record = tabular_record(
@@ -188,8 +188,8 @@ pub(crate) fn compile_logical_static_response(
     input: StaticResponseCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     input.query.validate()?;
-    let identifier: IdentifierId = input.identifier.parse()?;
-    let estimator: EstimatorId = input.estimator.parse()?;
+    let identifier = input.identifier;
+    let estimator = input.estimator;
     validate_response_pair(identifier, estimator)?;
     let expected = match &input.query.functional {
         ResponseFunctional::MeanCurve { .. } | ResponseFunctional::PointDerivative { .. } => {
@@ -294,13 +294,13 @@ fn compile_logical_static_class_ate(
     data: &TabularData,
     query: &AverageEffectQuery,
     validation_suite: Option<Arc<str>>,
-    identifier: Arc<str>,
-    estimator: Arc<str>,
+    identifier: IdentifierId,
+    estimator: EstimatorId,
     plan_id: &'static str,
     label: &str,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    let identifier_id: IdentifierId = identifier.parse()?;
-    let estimator_id: EstimatorId = estimator.parse()?;
+    let identifier_id = identifier;
+    let estimator_id = estimator;
     if !matches!(identifier_id, IdentifierId::GeneralizedAdjustment) {
         return Err(CausalError::Compile {
             message: format!(
@@ -395,8 +395,8 @@ struct ClassResponseCompile<'a> {
     data: &'a TabularData,
     query: &'a ResponseQuery,
     validation_suite: Option<Arc<str>>,
-    identifier: Arc<str>,
-    estimator: Arc<str>,
+    identifier: IdentifierId,
+    estimator: EstimatorId,
 }
 
 fn compile_logical_class_response(
@@ -406,8 +406,8 @@ fn compile_logical_class_response(
     outcomes: &[VariableId],
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     let ClassResponseCompile { data, query, validation_suite, identifier, estimator } = input;
-    let identifier_id: IdentifierId = identifier.parse()?;
-    let estimator_id: EstimatorId = estimator.parse()?;
+    let identifier_id = identifier;
+    let estimator_id = estimator;
     if !matches!(identifier_id, IdentifierId::GeneralizedAdjustment) {
         return Err(CausalError::Compile {
             message: format!(
@@ -470,8 +470,8 @@ pub(crate) fn compile_logical_distribution(
         message: "distribution query requires at least one outcome".into(),
     })?;
     validate_query_vars_in_dag(input.graph, treatment, outcome)?;
-    let identifier: IdentifierId = input.identifier.parse()?;
-    let estimator: EstimatorId = input.estimator.parse()?;
+    let identifier = input.identifier;
+    let estimator = input.estimator;
     validate_distribution_pair(identifier, estimator)?;
     let mut qvars = vec![treatment, outcome];
     for &z in input.query.conditioning.iter() {
@@ -509,8 +509,8 @@ pub(crate) fn compile_logical_path_specific(
         });
     }
     validate_query_vars_in_dag(input.graph, input.query.treatment, input.query.outcome)?;
-    let identifier: IdentifierId = input.identifier.parse()?;
-    let estimator: EstimatorId = input.estimator.parse()?;
+    let identifier = input.identifier;
+    let estimator = input.estimator;
     validate_path_specific_pair(identifier, estimator)?;
     let mut qvars = vec![input.query.treatment, input.query.outcome];
     for &m in input.query.path_nodes.iter() {
@@ -582,8 +582,8 @@ struct PathSpecificParts<'a> {
     data: &'a TabularData,
     query: &'a antecedent_core::PathSpecificEffectQuery,
     validation_suite: Option<Arc<str>>,
-    identifier: Arc<str>,
-    estimator: Arc<str>,
+    identifier: IdentifierId,
+    estimator: EstimatorId,
 }
 
 impl<'a, G> StaticCompileInput<'a, G, antecedent_core::PathSpecificEffectQuery> {
@@ -611,8 +611,8 @@ fn compile_logical_path_specific_on(
         });
     }
     validate_query_vars_in_static_nodes(nodes, label, parts.query.treatment, parts.query.outcome)?;
-    let identifier: IdentifierId = parts.identifier.parse()?;
-    let estimator: EstimatorId = parts.estimator.parse()?;
+    let identifier = parts.identifier;
+    let estimator = parts.estimator;
     validate_path_specific_pair(identifier, estimator)?;
     let mut qvars = vec![parts.query.treatment, parts.query.outcome];
     for &m in parts.query.path_nodes.iter() {
@@ -644,12 +644,12 @@ pub(crate) fn compile_logical_codetermined_joint(
     admg: &Admg,
     query: &ResponseQuery,
     validation_suite: Option<Arc<str>>,
-    identifier: Arc<str>,
-    estimator: Arc<str>,
+    identifier: IdentifierId,
+    estimator: EstimatorId,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     query.validate()?;
-    let identifier_id: IdentifierId = identifier.parse()?;
-    let estimator_id: EstimatorId = estimator.parse()?;
+    let identifier_id = identifier;
+    let estimator_id = estimator;
     if identifier_id != IdentifierId::GeneralizedAdjustment
         || !matches!(estimator_id, EstimatorId::CellAipw | EstimatorId::ResponseBayesian)
     {
@@ -919,9 +919,9 @@ pub(crate) struct TemporalClassEffectCompileInput<'a> {
     /// Plan id recorded on the plan.
     pub plan_id: &'static str,
     /// Identifier (must be generalized.adjustment).
-    pub identifier: Arc<str>,
+    pub identifier: IdentifierId,
     /// Estimator id.
-    pub estimator: Arc<str>,
+    pub estimator: EstimatorId,
 }
 
 /// Pulse or Sustained on an incomplete `TemporalCpdag` or `TemporalPag`.
@@ -953,8 +953,8 @@ pub(crate) fn compile_logical_temporal_class_effect(
             ),
         });
     }
-    let identifier_id: IdentifierId = identifier.parse()?;
-    let estimator_id: EstimatorId = estimator.parse()?;
+    let identifier_id = identifier;
+    let estimator_id = estimator;
     if !matches!(identifier_id, IdentifierId::GeneralizedAdjustment) {
         return Err(CausalError::Compile {
             message: format!(
@@ -997,8 +997,8 @@ pub(crate) fn compile_logical_temporal_class_effect(
         data_classification,
         discovery_algorithm: None,
         graph_review_required: false,
-        identifier: Some(identifier),
-        estimator: Some(estimator),
+        identifier: Some(Arc::from(identifier.as_str())),
+        estimator: Some(Arc::from(estimator.as_str())),
         validation_suite: None,
         query_variables: Arc::from([query.treatment, query.outcome]),
     };

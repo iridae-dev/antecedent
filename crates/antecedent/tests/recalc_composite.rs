@@ -37,7 +37,7 @@ fn fixture() -> (CompositeSession, CompositeRequest, reference::Provider, refere
     graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
     graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
     let request = StaticResponseRequest {
-        columns,
+        columns: columns.into(),
         graph,
         treatment: VariableId::from_raw(0),
         outcome: VariableId::from_raw(2),

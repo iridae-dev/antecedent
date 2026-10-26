@@ -13,7 +13,22 @@ use antecedent_io::temporal_interval_artifact::{IntervalConfigWire, IntervalResu
 use antecedent_io::temporal_recalc_artifact::{TemporalFunctionalWire, TemporalRecalcArtifactWire};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+/// Largest original source a measured temporal artifact carries under
+/// [`MeasuredLimits::default`].
 const MAX_SOURCE_BYTES: usize = 16 * 1024 * 1024;
+
+/// Byte bound of the original source inside a measured temporal artifact.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MeasuredLimits {
+    /// Largest original source proof, in bytes.
+    pub max_source_bytes: usize,
+}
+
+impl Default for MeasuredLimits {
+    fn default() -> Self {
+        Self { max_source_bytes: MAX_SOURCE_BYTES }
+    }
+}
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -123,9 +138,20 @@ impl CheckedMeasuredTemporal {
         config: &DependentIntervalConfig,
         ctx: &ExecutionContext,
     ) -> Result<Self, TemporalRunError> {
+        Self::produce_with_limits(session, config, ctx, MeasuredLimits::default())
+    }
+    /// [`Self::produce`] under caller-declared byte limits.
+    /// # Errors
+    /// As [`Self::produce`], with `limits.max_source_bytes` as the source bound.
+    pub fn produce_with_limits(
+        session: &TemporalSession,
+        config: &DependentIntervalConfig,
+        ctx: &ExecutionContext,
+        limits: MeasuredLimits,
+    ) -> Result<Self, TemporalRunError> {
         let original = session.export_result()?;
-        if original.len() > MAX_SOURCE_BYTES {
-            return Err(refused("original source exceeds 16 MiB"));
+        if original.len() > limits.max_source_bytes {
+            return Err(refused("original source exceeds the declared source byte limit"));
         }
         let source = TemporalRecalcArtifactWire::decode(&original)?;
         let name = preflight(&source, config, ctx, original.len())?;
@@ -177,12 +203,23 @@ impl CheckedMeasuredTemporal {
         expected: &MeasuredExpectation,
         ctx: &ExecutionContext,
     ) -> Result<Self, TemporalRunError> {
+        Self::consume_with_limits(bytes, expected, ctx, MeasuredLimits::default())
+    }
+    /// [`Self::consume`] under caller-declared byte limits.
+    /// # Errors
+    /// As [`Self::consume`], with `limits.max_source_bytes` as the source bound.
+    pub fn consume_with_limits(
+        bytes: &[u8],
+        expected: &MeasuredExpectation,
+        ctx: &ExecutionContext,
+        limits: MeasuredLimits,
+    ) -> Result<Self, TemporalRunError> {
         let wire = decode(bytes, expected)?;
         let bundle: CheckedSource = antecedent_io::from_cbor(&wire.source)?;
         if bundle.version != 1
             || bundle.required_features != ["checked_temporal_measured_source_v1"]
             || bundle.calibration != "unmeasured"
-            || bundle.source.len() > MAX_SOURCE_BYTES
+            || bundle.source.len() > limits.max_source_bytes
             || antecedent_io::to_cbor(&bundle)? != wire.source
         {
             return Err(refused("foreign or noncanonical checked source bundle"));
@@ -193,7 +230,7 @@ impl CheckedMeasuredTemporal {
         let mut producing = ctx.clone();
         producing.rng = RngFactory::from_seed(original.seed);
         let (session, _) = consume_temporal_recalc_artifact(&bundle.source, &producing)?;
-        let measured = Self::produce(&session, &config, &producing)?;
+        let measured = Self::produce_with_limits(&session, &config, &producing, limits)?;
         if measured.export() != bytes {
             return Err(refused(
                 "original proof, complete interval receipt or calibrated scalar differs on independent replay",

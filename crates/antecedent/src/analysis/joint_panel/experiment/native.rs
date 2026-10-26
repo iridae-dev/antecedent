@@ -447,6 +447,17 @@ impl NativeJointExperimentResult {
         ledger: &EvidenceLedger,
         ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, JointPanelError> {
+        self.export_with_limits(ledger, ctx, super::law::LawExperimentLimits::default())
+    }
+    /// [`Self::export`] under a caller-declared byte limit.
+    /// # Errors
+    /// As [`Self::export`], with `limits.max_bytes` as the size bound.
+    pub fn export_with_limits(
+        &self,
+        ledger: &EvidenceLedger,
+        ctx: &ExecutionContext,
+        limits: super::law::LawExperimentLimits,
+    ) -> Result<Vec<u8>, JointPanelError> {
         self.validate(ledger)?;
         source::check_cancelled(ctx)?;
         let mut source_quote = super::law::WireCounter(0);
@@ -467,7 +478,9 @@ impl NativeJointExperimentResult {
                 .map_err(JointPanelError::compile)?;
         let wire = NativeExperimentWire {
             version: 1,
-            native: self.original.export_artifact()?,
+            native: self.original.export_artifact_with_limits(
+                super::super::designs::DesignArtifactLimits { max_bytes: limits.max_bytes },
+            )?,
             binding: self.binding.clone(),
             bridge: antecedent_io::bridge_artifact::FullBridgeContractWire::from_domain(
                 &self.update.bridge,
@@ -488,9 +501,9 @@ impl NativeJointExperimentResult {
             dependency: *self.dependency.as_bytes(),
         };
         let bytes = antecedent_io::convert::to_cbor(&wire).map_err(JointPanelError::compile)?;
-        if bytes.len() > 32 * 1024 * 1024 {
+        if bytes.len() > limits.max_bytes {
             return Err(JointPanelError::compile(
-                "native experiment artifact exceeds bounded size",
+                "native experiment artifact exceeds the declared byte limit",
             ));
         }
         Ok(bytes)
@@ -502,10 +515,20 @@ impl NativeJointExperimentResult {
         bytes: &[u8],
         ctx: &ExecutionContext,
     ) -> Result<HistoricalNativeJointExperiment, JointPanelError> {
+        Self::replay_with_limits(bytes, ctx, super::law::LawExperimentLimits::default())
+    }
+    /// [`Self::replay`] under a caller-declared byte limit.
+    /// # Errors
+    /// As [`Self::replay`], with `limits.max_bytes` as the size bound.
+    pub fn replay_with_limits(
+        bytes: &[u8],
+        ctx: &ExecutionContext,
+        limits: super::law::LawExperimentLimits,
+    ) -> Result<HistoricalNativeJointExperiment, JointPanelError> {
         source::check_cancelled(ctx)?;
-        if bytes.len() > 32 * 1024 * 1024 {
+        if bytes.len() > limits.max_bytes {
             return Err(JointPanelError::compile(
-                "native experiment artifact exceeds bounded size",
+                "native experiment artifact exceeds the declared byte limit",
             ));
         }
         let _lease = admit(
@@ -520,7 +543,11 @@ impl NativeJointExperimentResult {
             return Err(JointPanelError::compile("unknown native experiment artifact version"));
         }
         let original =
-            super::super::designs::replay_native_joint_design_execution(&wire.native, ctx)?;
+            super::super::designs::replay_native_joint_design_execution(
+                &wire.native,
+                ctx,
+                super::super::designs::DesignArtifactLimits { max_bytes: limits.max_bytes },
+            )?;
         let history = antecedent_io::evidence_ledger_artifact::EvidenceLedgerArtifact::from_meta(
             &wire.ledger,
             None,
@@ -571,8 +598,20 @@ impl NativeJointExperimentResult {
         ledger: &EvidenceLedger,
         ctx: &ExecutionContext,
     ) -> Result<(), JointPanelError> {
+        self.consume_current_with_limits(bytes, ledger, ctx, super::law::LawExperimentLimits::default())
+    }
+    /// [`Self::consume_current`] under a caller-declared byte limit.
+    /// # Errors
+    /// As [`Self::consume_current`], with `limits.max_bytes` as the size bound.
+    pub fn consume_current_with_limits(
+        &self,
+        bytes: &[u8],
+        ledger: &EvidenceLedger,
+        ctx: &ExecutionContext,
+        limits: super::law::LawExperimentLimits,
+    ) -> Result<(), JointPanelError> {
         self.validate(ledger)?;
-        let replay = Self::replay(bytes, ctx)?;
+        let replay = Self::replay_with_limits(bytes, ctx, limits)?;
         if replay.result.original.prepared().dependency() != self.original.prepared().dependency()
             || replay.result.binding != self.binding
             || replay.result.dependency != self.dependency

@@ -628,8 +628,26 @@ mod repack_tests {
     }
 }
 
-/// Most DAG members of one class the common-cause refuter enumerates.
-const WITHIN_CLASS_MEMBER_CAP: usize = 512;
+/// Interventional means one derivative coordinate reads: the evaluation point and one step each way.
+const DERIVATIVE_POINTS_PER_COORDINATE: usize = 3;
+
+/// DAG members of one class the common-cause refuter enumerates when the context declares no
+/// memory limit.
+const DEFAULT_WITHIN_CLASS_MEMBERS: usize = 512;
+
+/// Bytes budgeted per enumerated DAG member of an `n`-node class: its edge set, the augmented
+/// copy with the common cause, and the bookkeeping of both.
+const fn within_class_member_bytes(n: usize) -> u64 {
+    16 * (n as u64 * n as u64 + 64)
+}
+
+/// Most DAG members of one `n`-node class the common-cause refuter enumerates: as many as the
+/// context's memory limit holds, or [`DEFAULT_WITHIN_CLASS_MEMBERS`] when it declares none.
+fn within_class_member_cap(ctx: &ExecutionContext, n: usize) -> usize {
+    ctx.memory_limit_bytes().map_or(DEFAULT_WITHIN_CLASS_MEMBERS, |limit| {
+        usize::try_from(limit / within_class_member_bytes(n)).unwrap_or(usize::MAX).max(1)
+    })
+}
 
 impl Default for TargetRefitOptions {
     fn default() -> Self {
@@ -774,57 +792,16 @@ struct PreparedRefit<'a> {
     curve: std::cell::OnceCell<Vec<(f64, Vec<f64>)>>,
 }
 
-/// Lower Cholesky factor `L` (row-major `p x p`) of the Gram matrix `XᵀX` of a column-major
-/// `n x p` design.
-///
-/// The factorisation runs on the column-equilibrated Gram (unit diagonal, pivots read as the
-/// share of each column the preceding ones leave unexplained), so a column's scale cannot hide
-/// or fake a rank loss; a pivot at or below `max(n, p) · ε`, or any non-finite entry, refuses the
-/// design as rank deficient. The factor is rescaled back to the original columns before it is
-/// returned.
+/// [`antecedent_kernels::design_gram_cholesky`] with a rank-deficient design reported as the
+/// refit refusal `rank_deficient`.
 fn gram_cholesky_factor(
     design: &[f64],
     n: usize,
     p: usize,
     rank_deficient: &'static str,
 ) -> Result<Vec<f64>, TargetRefitError> {
-    let refuse = || unsupported(rank_deficient, "a full-rank adjustment");
-    let norms: Vec<f64> = (0..p)
-        .map(|c| design[c * n..(c + 1) * n].iter().map(|v| v * v).sum::<f64>().sqrt())
-        .collect();
-    if norms.iter().any(|norm| !(norm.is_finite() && *norm > 0.0)) {
-        return Err(refuse());
-    }
-    let mut l = vec![0.0; p * p];
-    let floor = n.max(p) as f64 * f64::EPSILON;
-    for i in 0..p {
-        for j in 0..=i {
-            let dot: f64 = (0..n)
-                .map(|r| (design[i * n + r] / norms[i]) * (design[j * n + r] / norms[j]))
-                .sum();
-            let mut acc = dot;
-            for q in 0..j {
-                acc -= l[i * p + q] * l[j * p + q];
-            }
-            if i == j {
-                if !(acc.is_finite() && acc > floor) {
-                    return Err(refuse());
-                }
-                l[i * p + i] = acc.sqrt();
-            } else {
-                l[i * p + j] = acc / l[j * p + j];
-            }
-        }
-    }
-    for i in 0..p {
-        for j in 0..=i {
-            l[i * p + j] *= norms[i];
-        }
-    }
-    if l.iter().any(|v| !v.is_finite()) {
-        return Err(refuse());
-    }
-    Ok(l)
+    antecedent_kernels::design_gram_cholesky(design, n, p)
+        .ok_or_else(|| unsupported(rank_deficient, "a full-rank adjustment"))
 }
 
 fn unsupported(reason: impl Into<Arc<str>>, next_attempt: &str) -> TargetRefitError {
@@ -1241,7 +1218,7 @@ impl PreparedRefit<'_> {
     /// of the class is meant: an added parent can create a collider with a parent the treatment
     /// already has. The posterior does not say how a class's mass divides among its members, so
     /// this needs the declared assumption `WithinClassDistribution::UniformOverMembers`: every
-    /// atom's DAG members are enumerated (at most [`WITHIN_CLASS_MEMBER_CAP`], else the class is
+    /// atom's DAG members are enumerated (at most [`within_class_member_cap`], else the class is
     /// refused), each member gets an equal share of the atom's mass, the common cause is added to
     /// each, and the shares are collapsed to the classes of the augmented DAGs. The assumption is
     /// written into the posterior's diagnostics. A PAG atom or a lagged class posterior is
@@ -1306,6 +1283,7 @@ impl PreparedRefit<'_> {
                          WithinClassDistribution::UniformOverMembers to assume an even division",
                     ));
                 }
+                let member_cap = within_class_member_cap(ctx, n);
                 for (&atom, &weight) in posterior.atoms.iter().zip(posterior.weights.iter()) {
                     let cpdag =
                         antecedent_discovery::adjacency_mask::cpdag_from_adjacency_mask(atom, n)
@@ -1314,7 +1292,7 @@ impl PreparedRefit<'_> {
                             })?;
                     let mut members = antecedent_graph::CpdagCompletionSampler::with_budget(
                         cpdag,
-                        WITHIN_CLASS_MEMBER_CAP + 1,
+                        member_cap.saturating_add(1),
                         antecedent_core::SearchLimits {
                             operations: antecedent_graph::DEFAULT_COMPLETION_OPERATIONS,
                             depth: usize::MAX,
@@ -1328,10 +1306,10 @@ impl PreparedRefit<'_> {
                         members.by_ref().map(|completion| completion.graph).collect();
                     crate::strategy_table::check_class_search_stop(members.search_stop())
                         .map_err(|error| failed(&error))?;
-                    if dags.is_empty() || dags.len() > WITHIN_CLASS_MEMBER_CAP {
+                    if dags.is_empty() || dags.len() > member_cap {
                         return Err(refuse(
-                            "a class has no enumerated DAG members or more than the cap, so an \
-                             even division of its mass is not defined",
+                            "a class has no enumerated DAG members or more than the memory limit \
+                             holds, so an even division of its mass is not defined",
                         ));
                     }
                     let share = weight / dags.len() as f64;
@@ -2948,7 +2926,6 @@ impl PreparedRefit<'_> {
         kind: TargetRefuterKind,
         ctx: &ExecutionContext,
     ) -> Result<TargetRefutationReport, TargetRefitError> {
-        const MAX_COORDINATES: usize = 6;
         let Some(response) = self.result.response() else {
             return Err(unsupported(
                 "the derivative diagnostics read a response result",
@@ -2982,13 +2959,15 @@ impl PreparedRefit<'_> {
         };
         let coordinates: Vec<(usize, usize)> =
             (0..outcomes.len()).flat_map(|o| (0..directions.len()).map(move |d| (o, d))).collect();
-        if coordinates.len() != self.original.len() || coordinates.len() > MAX_COORDINATES {
+        if coordinates.len() != self.original.len() {
             return Err(unsupported(
-                "the reported derivative vector does not match its outcomes and directions, or \
-                 has more coordinates than the check refits",
-                "check a smaller set of outcomes and treatments",
+                "the reported derivative vector does not match its outcomes and directions",
+                "check the derivative query's outcomes and directions",
             ));
         }
+        // Each coordinate reads a few interventional means; the cache and check buffers are
+        // admitted against the context's budget instead of a coordinate count.
+        let _lease = admit_target_cells(ctx, coordinates.len(), DERIVATIVE_POINTS_PER_COORDINATE)?;
         // The step along a direction: a share of the smallest treatment spread it crosses.
         let spread = |variable: VariableId| -> f64 {
             let column: Vec<f64> = match self.data {

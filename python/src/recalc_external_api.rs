@@ -1,5 +1,6 @@
 //! Bounded executing external mean callbacks, retaining attested output only.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+use crate::NumericColumn;
 use crate::program_claims_api::{ClaimWire, claim_from, parse_binding};
 use crate::recalc_api::{bounded_context, parse_json, plan_refusal_json, refusal_value};
 use crate::recalc_bounds::check_columns;
@@ -14,7 +15,7 @@ use antecedent_io::external_binding_wire::{
     ContractWire, ProviderWire, RefusalWire, ResponseWire, core_contract, response_from_wire,
 };
 use antecedent_io::external_claim_artifact::ExternalClaimArtifact;
-use numpy::{PyArray1, PyReadonlyArray1};
+use numpy::PyArray1;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString};
 use pyo3::{PyTraverseError, PyVisit};
@@ -74,7 +75,7 @@ struct RequestWire {
 }
 pub(crate) fn request(
     names: Vec<String>,
-    columns: &[PyReadonlyArray1<'_, f64>],
+    columns: &[NumericColumn<'_>],
     text: &str,
     ctx: &ExecutionContext,
 ) -> PyResult<ExternalCallbackRequest> {
@@ -91,10 +92,7 @@ pub(crate) fn request(
     let branch = Branch::new(wire.branch)
         .ok_or_else(|| invalid("external_recalc.invalid_request", "branch exceeds bound"))?;
     Ok(ExternalCallbackRequest {
-        columns: names
-            .into_iter()
-            .zip(columns.iter().map(|array| array.as_array().to_vec()))
-            .collect(),
+        columns: crate::named_f64_columns(names, columns)?.into(),
         program,
         claim,
         contract,
@@ -270,7 +268,7 @@ impl PyCallbackSession {
     fn plan(
         &self,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         text: &str,
         supplied_provider: bool,
         memory_limit_bytes: Option<u64>,
@@ -295,7 +293,7 @@ impl PyCallbackSession {
         &mut self,
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         text: &str,
         provider: Option<PyRef<'_, PyCallbackProvider>>,
         threads: Option<u32>,
@@ -352,7 +350,7 @@ impl PyCallbackSession {
     fn resume(
         data: &[u8],
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         text: &str,
         memory_limit_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,

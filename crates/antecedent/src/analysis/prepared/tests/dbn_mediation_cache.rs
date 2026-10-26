@@ -150,6 +150,10 @@ fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
     assert_eq!(first.identify_demotion.identify_failed, 0);
     assert_eq!(second.identify_demotion.identify_failed, 1);
     assert!(cache.mediation_horizon(3).is_err());
+    let again = cache.mediation_horizon(2).unwrap();
+    assert!((again.graphs.unidentified_mass() - second.graphs.unidentified_mass()).abs() < 1e-15);
+    assert_eq!(again.identify_demotion, second.identify_demotion);
+    assert_eq!(again.atoms.len(), second.atoms.len());
 
     // The periodic "noise" of this fixture drives the long-run-variance tempering
     // factor to its n/(p+2) cap; the prior keeps full weight under tempering, so a
@@ -178,7 +182,7 @@ fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
     // synthetic certificate failure is exercised through the executor the
     // sealed operation composes over, with the injected cache in force.
     let mut injected = study.clone();
-    injected.dbn_posterior_identification_cache = Some(Arc::new(cache));
+    injected.install_identification(crate::analysis::IdentificationCache::DbnPosterior(Arc::new(cache)));
     let injected_plan = injected.compile(&ctx).unwrap();
     let checked = CheckedTemporalClassMediationOperation::checked(
         &injected,
@@ -253,7 +257,7 @@ fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
         },
     )
     .unwrap();
-    injected.dbn_posterior_identification_cache = Some(Arc::new(all_missing));
+    injected.install_identification(crate::analysis::IdentificationCache::DbnPosterior(Arc::new(all_missing)));
     let partial_grid = injected.execute(&injected_plan, &ctx).unwrap();
     let slices = &partial_grid.mediation_grid().unwrap().slices;
     assert!(
@@ -308,7 +312,7 @@ fn dbn_posterior_mediation_refuses_a_proof_over_other_posterior_weights() {
     )
     .unwrap();
     let mut injected = sealed.clone();
-    injected.dbn_posterior_identification_cache = Some(Arc::new(foreign));
+    injected.install_identification(crate::analysis::IdentificationCache::DbnPosterior(Arc::new(foreign)));
     let error = CheckedTemporalClassMediationOperation::checked(&injected, &series, plan)
         .expect_err("a proof over other posterior weights must not seal");
     assert!(
@@ -354,7 +358,7 @@ fn dbn_mediation_refuses_a_retained_proof_for_other_intervention_levels() {
     )
     .unwrap();
     let mut injected = prepared.analysis.clone();
-    injected.dbn_posterior_identification_cache = Some(Arc::new(foreign));
+    injected.install_identification(crate::analysis::IdentificationCache::DbnPosterior(Arc::new(foreign)));
     let error = CheckedTemporalClassMediationOperation::checked(&injected, &series, &prepared.plan)
         .expect_err("a proof with the same graph weights must still match the intervention levels");
     assert!(error.to_string().contains("another query or horizon"), "{error}");

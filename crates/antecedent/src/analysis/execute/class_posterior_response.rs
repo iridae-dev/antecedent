@@ -163,7 +163,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<(Arc<CachedGraphPosteriorIdentification>, bool), CausalError> {
         let (identified, identify_cached) = if let Some(cache) =
-            self.graph_posterior_identification_cache.as_ref()
+            self.graph_posterior_cache()
         {
             (Arc::clone(cache), true)
         } else {

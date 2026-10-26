@@ -71,7 +71,7 @@ fn prepare(data: TabularData) -> PreparedStudy {
 /// The adjusted-regression recalculation request of the same rows and roles.
 fn adjusted(columns: &[(String, Vec<f64>)]) -> AdjustedRequest {
     AdjustedRequest {
-        columns: columns.to_vec(),
+        columns: columns.to_vec().into(),
         edges: vec![(2, 0), (2, 1), (0, 1)],
         treatments: vec![0],
         outcome: 1,

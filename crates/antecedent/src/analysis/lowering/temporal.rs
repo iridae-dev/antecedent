@@ -305,7 +305,9 @@ fn dose_time_target(
     for &level in grid.levels {
         for &horizon in grid.horizons {
             let raw = u32::try_from(cells.len()).map_err(|_| {
-                ScientificTargetError::NotADoseTimeGrid { reason: "dose-time grid is too large" }
+                ScientificTargetError::NotADoseTimeGrid {
+                    reason: antecedent_core::DoseGridFault::TooLarge,
+                }
             })?;
             let id = ScientificWorldId::from_raw(raw);
             let time =

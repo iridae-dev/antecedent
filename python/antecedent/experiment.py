@@ -618,10 +618,9 @@ class RandomizedEffect:
             or self.cuped is not None
             or self.ancova_covariates
             or not isinstance(self.design.assignment, CompleteRandomization)
-            or (not deferred and len(self.design.realized_assignment) > 20)
         ):
             raise CausalValueError(
-                "exact randomization inference requires an unadjusted complete two-arm design with at most 20 units"
+                "randomization inference requires an unadjusted complete two-arm design"
             )
 
     def to_interference_query(self) -> InterferenceQuery:

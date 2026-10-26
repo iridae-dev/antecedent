@@ -164,6 +164,12 @@ pub enum CompileCause {
     /// An estimator refused its input.
     #[error(transparent)]
     Estimation(#[from] EstimationError),
+    /// An exact discrete law or its transport data failed validation.
+    #[error(transparent)]
+    ExactLaw(#[from] antecedent_expr::ExactLawError),
+    /// An exact expression plan failed to compile or evaluate.
+    #[error(transparent)]
+    ExactEvaluation(#[from] antecedent_expr::EvalError),
     /// An identification routine refused its input.
     #[error(transparent)]
     Identification(#[from] IdentificationError),
@@ -586,6 +592,18 @@ impl From<StatsError> for CausalError {
 
 impl From<ProgramError> for CausalError {
     fn from(error: ProgramError) -> Self {
+        Self::rejected(error)
+    }
+}
+
+impl From<antecedent_expr::ExactLawError> for CausalError {
+    fn from(error: antecedent_expr::ExactLawError) -> Self {
+        Self::rejected(error)
+    }
+}
+
+impl From<antecedent_expr::EvalError> for CausalError {
+    fn from(error: antecedent_expr::EvalError) -> Self {
         Self::rejected(error)
     }
 }

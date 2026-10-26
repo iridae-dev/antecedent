@@ -12,6 +12,7 @@ use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind};
 use antecedent_prob::WeightedGraphSamples;
 
 use super::builder::{DataInput, RefuteSuite};
+use super::checked_route_frozen::{CheckedRouteFrozen, PlanBindingScope};
 use super::execute::Study;
 use super::posterior_binding::{
     CacheKeys, PosteriorProof, identified_key_set, validate_posterior_cache,
@@ -43,14 +44,8 @@ pub(crate) struct CheckedTemporalGraphPosteriorEffect {
     posterior: Arc<GraphPosterior>,
     query: TemporalEffectQuery,
     proof: CheckedTemporalGraphPosteriorProof,
-    inference: InferenceMode,
-    identifier: IdentifierId,
-    estimator: EstimatorId,
-    bootstrap_replicates: u32,
     split: Option<DiscoveryEstimationSplit>,
-    max_completions: Option<usize>,
-    validation: RefuteSuite,
-    physical: std::sync::Arc<PhysicalExecutionPlan>,
+    frozen: CheckedRouteFrozen,
 }
 
 /// The frozen premises of [`CheckedTemporalGraphPosteriorEffect::prepare`], carried together.
@@ -150,27 +145,33 @@ impl CheckedTemporalGraphPosteriorEffect {
             });
         }
         let target = CausalQuery::TemporalEffect(query.clone());
-        if physical.logical.query != target || !physical.binding().names(identifier, estimator) {
-            return Err(CausalError::Compile {
-                message:
-                    "temporal graph-posterior physical plan disagrees with its retained procedure"
-                        .into(),
-            });
-        }
+        let frozen = CheckedRouteFrozen::new(
+            identifier,
+            estimator,
+            inference,
+            bootstrap_replicates,
+            validation,
+            physical,
+            max_completions,
+        );
+        frozen.validate_plan_binding(
+            &target,
+            PlanBindingScope::Procedure,
+            "temporal graph-posterior physical plan disagrees with its retained procedure",
+        )?;
         validate_proof_binding(&posterior, &target, &proof)?;
         Ok(Self {
             posterior: Arc::new(posterior),
             query,
             proof,
-            inference,
-            identifier,
-            estimator,
-            bootstrap_replicates,
             split,
-            max_completions,
-            validation,
-            physical,
+            frozen,
         })
+    }
+
+    /// The frozen procedure settings sealed with the proof.
+    pub(crate) fn frozen(&self) -> &CheckedRouteFrozen {
+        &self.frozen
     }
 
     #[must_use]
@@ -190,22 +191,22 @@ impl CheckedTemporalGraphPosteriorEffect {
 
     #[must_use]
     pub(crate) fn inference(&self) -> &InferenceMode {
-        &self.inference
+        self.frozen.inference()
     }
 
     #[must_use]
     pub(crate) const fn identifier(&self) -> IdentifierId {
-        self.identifier
+        self.frozen.identifier()
     }
 
     #[must_use]
     pub(crate) const fn estimator(&self) -> EstimatorId {
-        self.estimator
+        self.frozen.estimator()
     }
 
     #[must_use]
     pub(crate) const fn bootstrap_replicates(&self) -> u32 {
-        self.bootstrap_replicates
+        self.frozen.bootstrap_replicates()
     }
 
     #[must_use]
@@ -214,18 +215,13 @@ impl CheckedTemporalGraphPosteriorEffect {
     }
 
     #[must_use]
-    pub(crate) const fn max_completions(&self) -> Option<usize> {
-        self.max_completions
-    }
-
-    #[must_use]
     pub(crate) const fn validation(&self) -> RefuteSuite {
-        self.validation
+        self.frozen.validation()
     }
 
     #[must_use]
     pub(crate) fn physical(&self) -> &PhysicalExecutionPlan {
-        &self.physical
+        self.frozen.physical()
     }
 
     #[must_use]

@@ -125,9 +125,6 @@ fn contrast_cells(
     {
         return Err("family contrast treatment coordinates differ from the frozen scores".into());
     }
-    if kind == CellFamilyContrast::Interaction && treatments.len() != 2 {
-        return Err("interaction requires exactly two declared treatment factors; a three-factor table is not its first four cells".into());
-    }
     let mut arm = 0_u32;
     for (index, variable) in treatments.iter().enumerate() {
         if requested
@@ -142,7 +139,7 @@ fn contrast_cells(
         CellFamilyContrast::CellMinusControl => {
             return Err("control minus itself is not a distinct-world contrast".into());
         }
-        CellFamilyContrast::Interaction => vec![0, 1, 2, 3],
+        CellFamilyContrast::Interaction => (0..1_u32 << treatments.len()).collect(),
     };
     Ok(ContrastCells { outcome: *outcome, treatments, arm, world_arms })
 }
@@ -210,8 +207,21 @@ fn scientific_target(
         CellFamilyContrast::CellMinusControl => {
             InterventionContrast::difference(worlds, id(cells.arm), id(0), id(0))
         }
-        CellFamilyContrast::Interaction => {
+        CellFamilyContrast::Interaction if cells.treatments.len() == 2 => {
             InterventionContrast::interaction(worlds, id(3), id(1), id(2), id(0))
+        }
+        // The highest-order interaction of `k` factors: cell `a` carries `(-1)^(k - |a|)`,
+        // the same coefficients the estimator reduces the score table with.
+        CellFamilyContrast::Interaction => {
+            let factors = u32::try_from(cells.treatments.len()).map_err(|error| error.to_string())?;
+            InterventionContrast::linear(
+                worlds,
+                cells.world_arms.iter().map(|&arm| {
+                    let sign = if (factors - arm.count_ones()) % 2 == 0 { 1.0 } else { -1.0 };
+                    (id(arm), sign)
+                }),
+                id(0),
+            )
         }
     }
     .map_err(|error| error.to_string())?;

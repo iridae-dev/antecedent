@@ -808,53 +808,19 @@ fn temporal_class(cache: Option<CachedTemporalClassIdentification>) -> Option<Id
     cache.map(|cache| IdentificationCache::TemporalClass(Arc::new(cache)))
 }
 
-/// Empty every identification slot a prepare installs, so a retained or freshly
-/// identified set replaces whatever the source study carried.
+/// Empty the identification slot a prepare installs, so a retained or freshly
+/// identified product replaces whatever the source study carried.
 fn clear_identification_caches(analysis: &mut Study) {
-    analysis.identification_cache = None;
-    analysis.pag_identification_cache = None;
-    analysis.cpdag_identification_cache = None;
-    analysis.temporal_identification_cache = None;
-    analysis.temporal_class_identification_cache = None;
-    analysis.graph_posterior_identification_cache = None;
-    analysis.dbn_posterior_identification_cache = None;
-    analysis.temporal_class_posterior_identification_cache = None;
-    if analysis.config.transport_identification_cache.is_some() {
-        Arc::make_mut(&mut analysis.config).transport_identification_cache = None;
-    }
+    analysis.clear_identification();
 }
 
-/// Install one identified cache into the study slot that holds it.
+/// Install one identified cache as the study's identification product.
+///
+/// The kinds are mutually exclusive, and a prepare produces one. Should a plan
+/// ever hand over several, the first stands and the rest are dropped.
 fn install_cache(analysis: &mut Study, cache: &IdentificationCache) {
-    match cache {
-        IdentificationCache::Static(cache) => {
-            analysis.identification_cache = Some(Arc::clone(cache));
-        }
-        IdentificationCache::Pag(cache) => {
-            analysis.pag_identification_cache = Some(Arc::clone(cache));
-        }
-        IdentificationCache::Cpdag(cache) => {
-            analysis.cpdag_identification_cache = Some(Arc::clone(cache));
-        }
-        IdentificationCache::Temporal(cache) => {
-            analysis.temporal_identification_cache = Some(Arc::clone(cache));
-        }
-        IdentificationCache::TemporalClass(cache) => {
-            analysis.temporal_class_identification_cache = Some(Arc::clone(cache));
-        }
-        IdentificationCache::Transport(cache) => {
-            Arc::make_mut(&mut analysis.config).transport_identification_cache =
-                Some(Arc::clone(cache));
-        }
-        IdentificationCache::GraphPosterior(cache) => {
-            analysis.graph_posterior_identification_cache = Some(Arc::clone(cache));
-        }
-        IdentificationCache::DbnPosterior(cache) => {
-            analysis.dbn_posterior_identification_cache = Some(Arc::clone(cache));
-        }
-        IdentificationCache::TemporalClassPosterior(cache) => {
-            analysis.temporal_class_posterior_identification_cache = Some(Arc::clone(cache));
-        }
+    if analysis.identification.is_none() {
+        analysis.install_identification(cache.clone());
     }
 }
 

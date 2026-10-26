@@ -31,9 +31,6 @@ use super::{
 /// Two-sided level of the predictive-check pass/fail rule (as the Bayesian ATE route).
 const PPC_ALPHA: f64 = 0.05;
 
-/// Draw cap of each refit on the prior-sensitivity grid (as the Bayesian ATE route).
-const SENSITIVITY_MAX_DRAWS: usize = 200;
-
 /// Borrowed inputs of one Bayesian intervention-level refutation.
 pub(super) struct BayesianLevelRefutationInput<'a> {
     /// Rows the response was estimated on.
@@ -269,14 +266,14 @@ fn level_prior_sensitivity(
                 message: "level prior sensitivity lost the prior in force".into(),
             })?;
             BayesianGComputationAte {
-                n_draws: input.estimator.n_draws.min(SENSITIVITY_MAX_DRAWS),
+                n_draws: input.estimator.n_draws,
                 prior: Some(scale_coefficient_variances(prior, point)?),
                 ..input.estimator.clone()
             }
         } else {
             BayesianGComputationAte {
                 prior_scale: point,
-                n_draws: input.estimator.n_draws.min(SENSITIVITY_MAX_DRAWS),
+                n_draws: input.estimator.n_draws,
                 prior: None,
                 ..input.estimator.clone()
             }

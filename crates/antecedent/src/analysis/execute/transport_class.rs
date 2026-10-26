@@ -34,7 +34,7 @@ use super::transport_interference_path::{
 };
 use super::transport_posterior::ipw_estimable;
 use super::transport_refutation::{
-    MAX_CLASS_MEMBERS, TransportRefutationInput, refute_transport, refute_transport_members,
+    TransportRefutationInput, refute_transport, refute_transport_members,
 };
 use super::{
     Arc, CausalError, CausalQuery, ClassAtomOutcome, Diagnostic, DiagnosticKind,
@@ -352,7 +352,7 @@ impl super::Study {
         let mut members = Vec::new();
         for (index, each) in estimates.iter().enumerate() {
             let Some(each) = each else { continue };
-            if index == representative || members.len() + 1 >= MAX_CLASS_MEMBERS {
+            if index == representative {
                 continue;
             }
             if seen

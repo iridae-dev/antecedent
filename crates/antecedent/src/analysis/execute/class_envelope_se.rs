@@ -129,7 +129,7 @@ impl TemporalAtomDesign {
         ctx: &ExecutionContext,
     ) -> Result<Self, CausalError> {
         let mut estimator = TemporalLinearAdjustment::new();
-        estimator.inner.bootstrap_replicates = 0;
+        estimator.inner.inference.bootstrap_replicates = 0;
         estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
         let (prep, rows, selection) = if gaps && split.is_none() {
             let (prep, selection) = estimator

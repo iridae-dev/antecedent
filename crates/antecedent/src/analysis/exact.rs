@@ -52,12 +52,14 @@ pub struct ExactStudyIdentities {
 /// Native retained exact-law state. No mutable display object is execution authority.
 #[derive(Clone, Debug)]
 pub struct ExactPreparedState {
-    diagram: SelectionDiagram,
-    functional: BoundTransportFunctional,
+    // The checked proof inputs and compiled plan are immutable and shared by every
+    // handle derived from one grid or branch, so they are held behind `Arc`.
+    diagram: Arc<SelectionDiagram>,
+    functional: Arc<BoundTransportFunctional>,
     data: ExactTransportData,
     request: Assignment,
     limits: ExactEvaluationLimits,
-    plan: ExactEvaluationPlan,
+    plan: Arc<ExactEvaluationPlan>,
     identities: ExactStudyIdentities,
     shape: String,
     legacy_law_identity: bool,
@@ -216,12 +218,20 @@ impl PreparedStudy<ExactPreparedState> {
         limits: ExactEvaluationLimits,
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
-        Self::build_with_identity(diagram, functional, data, request, limits, ctx, false)
+        Self::build_with_identity(
+            Arc::new(diagram),
+            Arc::new(functional),
+            data,
+            request,
+            limits,
+            ctx,
+            false,
+        )
     }
     // Identity encoding is retained independently of numerical execution settings.
     fn build_with_identity(
-        diagram: SelectionDiagram,
-        functional: BoundTransportFunctional,
+        diagram: Arc<SelectionDiagram>,
+        functional: Arc<BoundTransportFunctional>,
         data: ExactTransportData,
         request: Assignment,
         limits: ExactEvaluationLimits,
@@ -258,19 +268,19 @@ impl PreparedStudy<ExactPreparedState> {
             data,
             request,
             limits,
-            plan,
+            Arc::new(plan),
             legacy_law_identity,
         )
     }
 
     // Only the facade calls this after graph verification and compilation against these inputs.
     pub(super) fn from_checked_plan(
-        diagram: SelectionDiagram,
-        functional: BoundTransportFunctional,
+        diagram: Arc<SelectionDiagram>,
+        functional: Arc<BoundTransportFunctional>,
         data: ExactTransportData,
         request: Assignment,
         limits: ExactEvaluationLimits,
-        plan: ExactEvaluationPlan,
+        plan: Arc<ExactEvaluationPlan>,
         legacy_law_identity: bool,
     ) -> Result<Self, IoError> {
         let proof = TransportProofWire::from_checked(functional.derivation())?;
@@ -593,8 +603,8 @@ impl PreparedStudy<ExactPreparedState> {
         })?;
         let functional = self.state.functional.derivation().bind_catalog(&catalog).map_err(err)?;
         Self::build_with_identity(
-            self.state.diagram.clone(),
-            functional,
+            Arc::clone(&self.state.diagram),
+            Arc::new(functional),
             data,
             self.state.request.clone(),
             self.state.limits,
@@ -879,8 +889,8 @@ impl PreparedStudy<ExactPreparedState> {
             return Err(err("duplicate request coordinate"));
         }
         let prepared = Self::build_with_identity(
-            diagram,
-            functional,
+            Arc::new(diagram),
+            Arc::new(functional),
             data,
             request,
             ExactEvaluationLimits { operations: wire.operations, depth: wire.depth },
@@ -1038,8 +1048,8 @@ mod tests {
         let state = prepared.state;
         assert!(
             StudyBuilder::exact_transport(
-                state.diagram,
-                state.functional,
+                (*state.diagram).clone(),
+                (*state.functional).clone(),
                 empirical,
                 state.request,
                 state.limits,

@@ -56,7 +56,7 @@ impl LinearResources {
         ctx: &ExecutionContext,
     ) -> Result<Self, CausalError> {
         let design = &prepared.problem().design;
-        Self::new(design.nrows, design.ncols, fitter.bootstrap_replicates, ctx)
+        Self::new(design.nrows, design.ncols, fitter.inference.bootstrap_replicates, ctx)
     }
     pub(crate) fn execution_bytes(self) -> Result<u64, CausalError> {
         add(self.workspace, self.output)
@@ -89,8 +89,12 @@ pub(crate) fn source_layout(
         direct,
         ..
     } = quote_width(data, adjustment, fitter)?;
-    let resources =
-        LinearResources::new(data.row_count(), columns, fitter.bootstrap_replicates, ctx)?;
+    let resources = LinearResources::new(
+        data.row_count(),
+        columns,
+        fitter.inference.bootstrap_replicates,
+        ctx,
+    )?;
     let materialized_columns = if direct {
         0
     } else {

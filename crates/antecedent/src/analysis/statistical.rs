@@ -22,7 +22,8 @@ use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData};
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{BoundTransportFunctional, ClassicalTransportQuery, SidLimits};
 use antecedent_io::transport_grid_wire::{
-    BayesianTransportPosteriorWire, SampleSummary, StatisticalOptionsWire,
+    BayesianTransportPosteriorWire, PosteriorIntervalMethodWire, SampleSummary,
+    StatisticalOptionsWire,
 };
 use antecedent_io::{
     IoError, exact_law_wire::ExactLawWire, query_wire::ValueWire,
@@ -42,28 +43,49 @@ use super::transport_common::{
 /// Why a statistical transport estimate carries no (or no licensed) uncertainty interval.
 ///
 /// The wire spelling of each reason is what artifacts and reasoning slots carry; this names
-/// the closed set so a comparison against a wire string cannot drift from the producer.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// the closed set so a comparison against a wire string cannot drift from the producer, and a
+/// serialized artifact naming any other reason fails at deserialisation.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 enum IntervalWithholdReason {
     /// No interval was computed for this estimate.
+    #[serde(rename = "uncertainty_unavailable")]
     UncertaintyUnavailable,
     /// Fewer replicates than the facade's licensing floor.
+    #[serde(rename = "insufficient_bootstrap_replicates")]
     InsufficientBootstrapReplicates,
     /// The declared bootstrap exceeded its failure budget.
+    #[serde(rename = "bootstrap_failure_fraction")]
     BootstrapFailureFraction,
     /// A replicate failed numerically.
+    #[serde(rename = "bootstrap_numerical_failure")]
     NumericalFailure,
     /// The evidence's dependence structure licenses no resampling.
+    #[serde(rename = "transport.unsupported_dependence")]
     UnsupportedDependence,
     /// The catalog binds no estimated regime to resample.
+    #[serde(rename = "no_estimated_regime")]
     NoEstimatedRegime,
     /// No bootstrap was requested.
+    #[serde(rename = "bootstrap_not_requested")]
     BootstrapNotRequested,
     /// Supplied laws only: there is no sample to bound.
+    #[serde(rename = "exact_supplied_law_no_sampling_uncertainty")]
     ExactSuppliedLaw,
 }
 
 impl IntervalWithholdReason {
+    /// Every reason, in declaration order.
+    const ALL: [Self; 8] = [
+        Self::UncertaintyUnavailable,
+        Self::InsufficientBootstrapReplicates,
+        Self::BootstrapFailureFraction,
+        Self::NumericalFailure,
+        Self::UnsupportedDependence,
+        Self::NoEstimatedRegime,
+        Self::BootstrapNotRequested,
+        Self::ExactSuppliedLaw,
+    ];
+
     const fn as_str(self) -> &'static str {
         match self {
             Self::UncertaintyUnavailable => "uncertainty_unavailable",
@@ -78,23 +100,23 @@ impl IntervalWithholdReason {
     }
 
     fn parse(wire: &str) -> Option<Self> {
-        [
-            Self::UncertaintyUnavailable,
-            Self::InsufficientBootstrapReplicates,
-            Self::BootstrapFailureFraction,
-            Self::NumericalFailure,
-            Self::UnsupportedDependence,
-            Self::NoEstimatedRegime,
-            Self::BootstrapNotRequested,
-            Self::ExactSuppliedLaw,
-        ]
-        .into_iter()
-        .find(|reason| reason.as_str() == wire)
+        Self::ALL.into_iter().find(|reason| reason.as_str() == wire)
     }
 
-    /// Whether `wire` is exactly this reason.
-    fn is(self, wire: Option<&str>) -> bool {
-        wire == Some(self.as_str())
+    /// The dependence structure licenses no resampling, so no draws exist at all.
+    const fn is_dependence_refusal(self) -> bool {
+        matches!(self, Self::UnsupportedDependence | Self::NoEstimatedRegime)
+    }
+
+    /// The reason withholds the posterior summary (draws may still be carried).
+    const fn withholds_posterior_summary(self) -> bool {
+        self.is_dependence_refusal()
+            || matches!(
+                self,
+                Self::BootstrapFailureFraction
+                    | Self::InsufficientBootstrapReplicates
+                    | Self::NumericalFailure
+            )
     }
 }
 
@@ -1803,11 +1825,17 @@ impl PreparedStudy<StatisticalPreparedState> {
                 .map(|row| row.iter().map(ValueWire::from_value).collect())
                 .collect(),
             probabilities: result.distribution().probabilities.to_vec(),
-            uncertainty: result.estimate.uncertainty.as_ref().map(UncertaintyRowWire::from_row),
+            uncertainty: result
+                .estimate
+                .uncertainty
+                .as_ref()
+                .map(UncertaintyRowWire::from_row)
+                .transpose()?,
             bayesian_posterior: result.bayesian_estimate.as_ref().map(|posterior| {
-                BayesianTransportPosteriorWire {
+                Ok::<_, IoError>(BayesianTransportPosteriorWire {
                     estimator: posterior.estimator.to_string(),
-                    interval_method: posterior.interval_method.to_string(),
+                    interval_method: PosteriorIntervalMethodWire::parse(&posterior.interval_method)
+                        .ok_or_else(|| err("transport artifact uncertainty mismatch"))?,
                     draws_requested: posterior.draws_requested,
                     draws_ok: posterior.draws_ok,
                     draws_failed: posterior.draws_failed,
@@ -1823,8 +1851,8 @@ impl PreparedStudy<StatisticalPreparedState> {
                         .iter()
                         .map(|(variable, lower, upper)| (variable.raw(), *lower, *upper))
                         .collect(),
-                }
-            }),
+                })
+            }).transpose()?,
             atom_intervals: result.estimate.atom_intervals.as_ref().map(|rows| rows.to_vec()),
             mean_intervals: result
                 .estimate
@@ -1835,8 +1863,12 @@ impl PreparedStudy<StatisticalPreparedState> {
             uncertainty_reason: result
                 .estimate
                 .uncertainty_reason
-                .as_ref()
-                .map(ToString::to_string),
+                .as_deref()
+                .map(|reason| {
+                    IntervalWithholdReason::parse(reason)
+                        .ok_or_else(|| err("transport artifact uncertainty mismatch"))
+                })
+                .transpose()?,
             atom_replicates: result
                 .estimate
                 .atom_replicates
@@ -2132,15 +2164,76 @@ pub(super) fn statistical_shape_wires(mut laws: Vec<ExactLawWire>) -> Result<Str
     digest(IdentityDomain::Observation, &canonical)
 }
 
+/// The one interval construction a statistical transport artifact may carry.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+enum UncertaintyMethodWire {
+    /// Percentile intervals over bootstrap replicates.
+    #[serde(rename = "percentile_bootstrap")]
+    PercentileBootstrap,
+}
+
+impl UncertaintyMethodWire {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::PercentileBootstrap => antecedent_estimate::PERCENTILE_BOOTSTRAP,
+        }
+    }
+
+    fn parse(wire: &str) -> Option<Self> {
+        (wire == Self::PercentileBootstrap.as_str()).then_some(Self::PercentileBootstrap)
+    }
+}
+
+/// The one interval scope a statistical transport artifact may carry.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+enum IntervalScopeWire {
+    /// Each atom probability and outcome mean is bounded on its own.
+    #[serde(rename = "pointwise")]
+    Pointwise,
+}
+
+impl IntervalScopeWire {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Pointwise => "pointwise",
+        }
+    }
+
+    fn parse(wire: &str) -> Option<Self> {
+        (wire == Self::Pointwise.as_str()).then_some(Self::Pointwise)
+    }
+}
+
+/// The one support regime a statistical transport artifact may carry.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+enum SupportRegimeWire {
+    /// Complete cases over the observed support, with no smoothing.
+    #[serde(rename = "empirical_complete_case_no_smoothing")]
+    EmpiricalCompleteCaseNoSmoothing,
+}
+
+impl SupportRegimeWire {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::EmpiricalCompleteCaseNoSmoothing => "empirical_complete_case_no_smoothing",
+        }
+    }
+
+    fn parse(wire: &str) -> Option<Self> {
+        (wire == Self::EmpiricalCompleteCaseNoSmoothing.as_str())
+            .then_some(Self::EmpiricalCompleteCaseNoSmoothing)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 struct UncertaintyRowWire {
     estimator: String,
-    method: String,
+    method: UncertaintyMethodWire,
     coverage_target: f64,
-    interval_scope: String,
+    interval_scope: IntervalScopeWire,
     sample_sizes: Vec<(String, u32)>,
-    support_regime: String,
+    support_regime: SupportRegimeWire,
     replicates_requested: u32,
     replicates_ok: u32,
     replicates_failed: u32,
@@ -2149,20 +2242,25 @@ struct UncertaintyRowWire {
 }
 
 impl UncertaintyRowWire {
-    fn from_row(row: &TransportUncertaintyRow) -> Self {
-        Self {
+    /// # Errors
+    /// The row carries a method, scope or support regime this artifact format cannot name.
+    fn from_row(row: &TransportUncertaintyRow) -> Result<Self, IoError> {
+        let unsupported = || err("transport artifact uncertainty mismatch");
+        Ok(Self {
             estimator: row.estimator.to_string(),
-            method: row.method.to_string(),
+            method: UncertaintyMethodWire::parse(&row.method).ok_or_else(unsupported)?,
             coverage_target: row.coverage_target,
-            interval_scope: row.interval_scope.to_string(),
+            interval_scope: IntervalScopeWire::parse(&row.interval_scope)
+                .ok_or_else(unsupported)?,
             sample_sizes: row.sample_sizes.iter().map(|(name, n)| (name.to_string(), *n)).collect(),
-            support_regime: row.support_regime.to_string(),
+            support_regime: SupportRegimeWire::parse(&row.support_regime)
+                .ok_or_else(unsupported)?,
             replicates_requested: row.replicates_requested,
             replicates_ok: row.replicates_ok,
             replicates_failed: row.replicates_failed,
             seed: row.seed,
             calibration_binding: row.calibration_binding.as_ref().map(ToString::to_string),
-        }
+        })
     }
     fn to_row(&self) -> TransportUncertaintyRow {
         TransportUncertaintyRow {
@@ -2212,7 +2310,7 @@ struct StatisticalExecutionWire {
     atom_intervals: Option<Vec<(f64, f64)>>,
     mean_intervals: Option<Vec<(u32, f64, f64)>>,
     replicate_ids: Option<Vec<u32>>,
-    uncertainty_reason: Option<String>,
+    uncertainty_reason: Option<IntervalWithholdReason>,
     atom_replicates: Option<Vec<Vec<f64>>>,
     reasoning: antecedent_io::ReasoningSectionWire,
 }
@@ -2291,17 +2389,69 @@ pub(super) fn validate_sample_summaries(
     Ok(())
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "checks the wire's uncertainty row against the prepared study stage by stage (budget, replicate means, failure policy, intervals) building one estimate"
-)]
+/// Why a statistical artifact's uncertainty section fails to match its prepared study.
+///
+/// Each variant names one concern; [`Self::into_error`] maps it to the refusal published to
+/// callers, so the checks stay small and the observable messages stay the same.
+#[derive(Debug)]
+enum UncertaintyFault {
+    /// The absent-row artifact claims intervals, replicates or a reason the study cannot earn.
+    AbsentRowClaims,
+    /// The row's estimator, coverage, seed, sample sizes or replicate counts disagree.
+    RowMetadata,
+    /// The evidence catalog does not license iid resampling of the sampled regimes.
+    UnlicensedDependence,
+    /// The replicate matrix or its ids are missing or malformed.
+    ReplicateShape,
+    /// A replicate row is not a probability law over the fitted atoms.
+    ReplicateLaw,
+    /// The replicates exceed the artifact's operation budget.
+    OperationBudget,
+    /// The withheld or published intervals and reason disagree with the replicates.
+    IntervalClaims,
+    /// A lower-level conversion failure, published unchanged.
+    Propagated(IoError),
+}
+
+impl UncertaintyFault {
+    fn into_error(self) -> IoError {
+        match self {
+            Self::AbsentRowClaims
+            | Self::RowMetadata
+            | Self::UnlicensedDependence
+            | Self::ReplicateShape
+            | Self::ReplicateLaw
+            | Self::IntervalClaims => err("transport artifact uncertainty mismatch"),
+            Self::OperationBudget => err("transport artifact operation budget"),
+            Self::Propagated(error) => error,
+        }
+    }
+}
+
+impl From<IoError> for UncertaintyFault {
+    fn from(error: IoError) -> Self {
+        Self::Propagated(error)
+    }
+}
+
+/// `Ok` when `holds`, otherwise the named fault.
+fn ensure<F>(holds: bool, fault: F) -> Result<(), F> {
+    if holds { Ok(()) } else { Err(fault) }
+}
+
 fn validate_uncertainty(
     wire: &StatisticalExecutionWire,
     point: antecedent_expr::ExactDistribution,
     prepared: &PreparedStudy<StatisticalPreparedState>,
 ) -> Result<StatisticalTransportEstimate, IoError> {
-    use antecedent_estimate::percentile_interval;
-    let bad = || err("transport artifact uncertainty mismatch");
+    check_uncertainty(wire, point, prepared).map_err(UncertaintyFault::into_error)
+}
+
+fn check_uncertainty(
+    wire: &StatisticalExecutionWire,
+    point: antecedent_expr::ExactDistribution,
+    prepared: &PreparedStudy<StatisticalPreparedState>,
+) -> Result<StatisticalTransportEstimate, UncertaintyFault> {
     let mut estimate = StatisticalTransportEstimate {
         distribution: point,
         uncertainty: None,
@@ -2310,146 +2460,34 @@ fn validate_uncertainty(
         atom_replicates: None,
         mean_replicates: None,
         replicate_ids: None,
-        uncertainty_reason: wire.uncertainty_reason.as_deref().map(Arc::from),
+        uncertainty_reason: wire.uncertainty_reason.map(|reason| Arc::from(reason.as_str())),
     };
     let Some(row) = &wire.uncertainty else {
-        let expected = if wire.samples.is_empty() {
-            IntervalWithholdReason::ExactSuppliedLaw.as_str()
-        } else if is_bayesian_provider(wire.options.to_options()?.estimator)
-            || wire.options.bootstrap_replicates == 0
-        {
-            IntervalWithholdReason::BootstrapNotRequested.as_str()
-        } else {
-            IntervalWithholdReason::UnsupportedDependence.as_str()
-        };
-        if wire.atom_intervals.is_some()
-            || wire.mean_intervals.is_some()
-            || wire.atom_replicates.is_some()
-            || wire.replicate_ids.is_some()
-            || wire.uncertainty_reason.as_deref() != Some(expected)
-            || prepared.licensed_interval()
-        {
-            return Err(bad());
-        }
+        check_absent_uncertainty(wire, prepared)?;
         return Ok(estimate);
     };
-    let sizes: Vec<_> = wire.samples.iter().map(|s| (s.snapshot.clone(), s.n)).collect();
-    if row.estimator != wire.options.estimator
-        || row.method != antecedent_estimate::PERCENTILE_BOOTSTRAP
-        || row.interval_scope != "pointwise"
-        || row.coverage_target.to_bits() != wire.options.coverage_level.to_bits()
-        || row.replicates_requested != wire.options.bootstrap_replicates
-        || row.seed != wire.seed
-        || row.sample_sizes != sizes
-        || row.calibration_binding.is_some()
-        || row.support_regime != "empirical_complete_case_no_smoothing"
-        || row.replicates_ok.checked_add(row.replicates_failed) != Some(row.replicates_requested)
-        || wire.samples.is_empty()
-        || row.replicates_requested == 0
-    {
-        return Err(bad());
-    }
-    if !antecedent_estimate::licensed_iid_regimes(
-        prepared.evidence_catalog(),
-        wire.samples.iter().map(|sample| antecedent_core::RegimeId::from_raw(sample.regime)),
-    ) {
-        return Err(bad());
-    }
-    let rows = wire.atom_replicates.as_ref().ok_or_else(bad)?;
-    let ids = wire.replicate_ids.as_ref().ok_or_else(bad)?;
-    if rows.len() != row.replicates_ok as usize
-        || ids.len() != rows.len()
-        || ids.windows(2).any(|pair| pair[0] >= pair[1])
-        || ids.iter().any(|id| *id >= row.replicates_requested)
-    {
-        return Err(bad());
-    }
+    check_uncertainty_row(wire, row)?;
+    ensure(
+        antecedent_estimate::licensed_iid_regimes(
+            prepared.evidence_catalog(),
+            wire.samples.iter().map(|sample| antecedent_core::RegimeId::from_raw(sample.regime)),
+        ),
+        UncertaintyFault::UnlicensedDependence,
+    )?;
+    let rows = wire.atom_replicates.as_ref().ok_or(UncertaintyFault::ReplicateShape)?;
+    let ids = wire.replicate_ids.as_ref().ok_or(UncertaintyFault::ReplicateShape)?;
+    check_replicate_ids(row, rows.len(), ids)?;
     let width = estimate.distribution.atoms.len();
-    if rows.len().checked_mul(width).is_none_or(|n| n > wire.operations) {
-        return Err(err("transport artifact operation budget"));
-    }
-    let mut means: Vec<(VariableId, Vec<f64>)> =
-        estimate.distribution.outcomes.iter().map(|v| (*v, Vec::new())).collect();
-    for row in rows {
-        if row.len() != width
-            || !is_probability_vector(row)
-        {
-            return Err(bad());
-        }
-        let mut distribution = estimate.distribution.clone();
-        distribution.probabilities = row.clone().into();
-        for (v, values) in &mut means {
-            values.push(distribution.mean(*v).map_err(err)?);
-        }
-    }
-    // Two distinct reasons withhold the percentile edges: the estimator's own
-    // failure-fraction refusal (too few successful replicates or too many failed
-    // ones to trust the resample), and the facade's licensing floor (enough
-    // replicates ran clean, but fewer than the nominal-0.95 percentile requires).
-    // `withhold_unearned_percentile` never overwrites an existing failure-fraction
-    // reason, so the two are mutually exclusive and must be told apart here too.
-    let bootstrap_failed = ReplicatePolicy::BOOTSTRAP
-        .decide(row.replicates_requested, row.replicates_ok, row.replicates_failed)
-        .err();
-    let unlicensed = bootstrap_failed.is_none()
-        && PERCENTILE_FLOOR
-            .decide(row.replicates_requested, row.replicates_ok, row.replicates_failed)
-            .is_err();
-    if let Some(reason) = bootstrap_failed {
-        if wire.uncertainty_reason.as_deref() != Some(reason)
-            || wire.atom_intervals.is_some()
-            || wire.mean_intervals.is_some()
-        {
-            return Err(bad());
-        }
-    } else if unlicensed {
-        if !IntervalWithholdReason::InsufficientBootstrapReplicates
-            .is(wire.uncertainty_reason.as_deref())
-            || wire.atom_intervals.is_some()
-            || wire.mean_intervals.is_some()
-        {
-            return Err(bad());
-        }
-    } else {
-        let atoms = (0..width)
-            .map(|i| {
-                percentile_interval(
-                    &rows.iter().map(|r| r[i]).collect::<Vec<_>>(),
-                    row.coverage_target,
-                )
-            })
-            .collect::<Option<Vec<_>>>();
-        let intervals = means
-            .iter()
-            .map(|(v, reps)| {
-                percentile_interval(reps, row.coverage_target).map(|(lo, hi)| (v.raw(), lo, hi))
-            })
-            .collect::<Option<Vec<_>>>();
-        match (atoms, intervals) {
-            (Some(atoms), Some(intervals)) => {
-                if wire.uncertainty_reason.is_some()
-                    || wire.atom_intervals.as_ref() != Some(&atoms)
-                    || wire.mean_intervals.as_ref() != Some(&intervals)
-                {
-                    return Err(bad());
-                }
-                estimate.atom_intervals = Some(atoms.into());
-                estimate.mean_intervals = Some(
-                    intervals
-                        .into_iter()
-                        .map(|(v, lo, hi)| (VariableId::from_raw(v), lo, hi))
-                        .collect(),
-                );
-            }
-            _ => {
-                if wire.uncertainty_reason.as_deref() != Some(INTERVAL_NUMERICAL_FAILURE)
-                    || wire.atom_intervals.is_some()
-                    || wire.mean_intervals.is_some()
-                {
-                    return Err(bad());
-                }
-            }
-        }
+    ensure(
+        rows.len().checked_mul(width).is_some_and(|n| n <= wire.operations),
+        UncertaintyFault::OperationBudget,
+    )?;
+    let means = replicate_means(&estimate.distribution, rows)?;
+    if let Some((atoms, intervals)) = check_interval_claims(wire, row, rows, &means, width)? {
+        estimate.atom_intervals = Some(atoms.into());
+        estimate.mean_intervals = Some(
+            intervals.into_iter().map(|(v, lo, hi)| (VariableId::from_raw(v), lo, hi)).collect(),
+        );
     }
     estimate.uncertainty = Some(row.to_row());
     estimate.atom_replicates = Some(rows.iter().map(|row| Arc::from(row.clone())).collect());
@@ -2458,10 +2496,213 @@ fn validate_uncertainty(
     Ok(estimate)
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "checks the Bayesian posterior wire's metadata, draw rows and intervals against the point distribution, building one posterior estimate"
-)]
+/// The reason a study without an uncertainty row must carry.
+fn absent_uncertainty_reason(
+    wire: &StatisticalExecutionWire,
+) -> Result<IntervalWithholdReason, IoError> {
+    Ok(if wire.samples.is_empty() {
+        IntervalWithholdReason::ExactSuppliedLaw
+    } else if is_bayesian_provider(wire.options.to_options()?.estimator)
+        || wire.options.bootstrap_replicates == 0
+    {
+        IntervalWithholdReason::BootstrapNotRequested
+    } else {
+        IntervalWithholdReason::UnsupportedDependence
+    })
+}
+
+/// No uncertainty row: no intervals or replicates may ride along, the study must carry the
+/// reason its kind implies, and the facade must not have licensed an interval.
+fn check_absent_uncertainty(
+    wire: &StatisticalExecutionWire,
+    prepared: &PreparedStudy<StatisticalPreparedState>,
+) -> Result<(), UncertaintyFault> {
+    let expected = absent_uncertainty_reason(wire)?;
+    ensure(
+        wire.atom_intervals.is_none()
+            && wire.mean_intervals.is_none()
+            && wire.atom_replicates.is_none()
+            && wire.replicate_ids.is_none()
+            && wire.uncertainty_reason == Some(expected)
+            && !prepared.licensed_interval(),
+        UncertaintyFault::AbsentRowClaims,
+    )
+}
+
+/// The row's provenance and replicate bookkeeping against the study's declared options.
+///
+/// The interval method, scope and support regime are single-variant wire types, so a row
+/// naming any other value never reaches this check.
+fn check_uncertainty_row(
+    wire: &StatisticalExecutionWire,
+    row: &UncertaintyRowWire,
+) -> Result<(), UncertaintyFault> {
+    let sizes: Vec<_> = wire.samples.iter().map(|s| (s.snapshot.clone(), s.n)).collect();
+    ensure(
+        row.estimator == wire.options.estimator
+            && row.coverage_target.to_bits() == wire.options.coverage_level.to_bits()
+            && row.seed == wire.seed
+            && row.sample_sizes == sizes
+            && row.calibration_binding.is_none()
+            && !wire.samples.is_empty(),
+        UncertaintyFault::RowMetadata,
+    )?;
+    ensure(
+        row.replicates_requested == wire.options.bootstrap_replicates
+            && row.replicates_requested != 0
+            && row.replicates_ok.checked_add(row.replicates_failed)
+                == Some(row.replicates_requested),
+        UncertaintyFault::RowMetadata,
+    )
+}
+
+/// Replicate ids are the strictly increasing requested indices of the successful replicates.
+fn check_replicate_ids(
+    row: &UncertaintyRowWire,
+    replicate_rows: usize,
+    ids: &[u32],
+) -> Result<(), UncertaintyFault> {
+    ensure(
+        replicate_rows == row.replicates_ok as usize
+            && ids.len() == replicate_rows
+            && ids.windows(2).all(|pair| pair[0] < pair[1])
+            && ids.iter().all(|id| *id < row.replicates_requested),
+        UncertaintyFault::ReplicateShape,
+    )
+}
+
+/// Each replicate row as a law over the fitted atoms, and its outcome means.
+fn replicate_means(
+    distribution: &antecedent_expr::ExactDistribution,
+    rows: &[Vec<f64>],
+) -> Result<Vec<(VariableId, Vec<f64>)>, UncertaintyFault> {
+    let width = distribution.atoms.len();
+    let mut means: Vec<(VariableId, Vec<f64>)> =
+        distribution.outcomes.iter().map(|v| (*v, Vec::new())).collect();
+    for row in rows {
+        ensure(row.len() == width && is_probability_vector(row), UncertaintyFault::ReplicateLaw)?;
+        let mut replicate = distribution.clone();
+        replicate.probabilities = row.clone().into();
+        for (v, values) in &mut means {
+            values.push(replicate.mean(*v).map_err(err)?);
+        }
+    }
+    Ok(means)
+}
+
+/// The recomputed per-atom intervals and per-outcome mean intervals (raw variable id).
+type PublishedIntervals = (Vec<(f64, f64)>, Vec<(u32, f64, f64)>);
+
+/// Check the intervals and withholding reason against the replicates.
+///
+/// Two distinct reasons withhold the percentile edges: the estimator's own failure-fraction
+/// refusal (too few successful replicates or too many failed ones to trust the resample),
+/// and the facade's licensing floor (enough replicates ran clean, but fewer than the
+/// nominal-0.95 percentile requires). `withhold_unearned_percentile` never overwrites an
+/// existing failure-fraction reason, so the two are mutually exclusive and must be told apart
+/// here too. Returns the recomputed intervals when they are published.
+fn check_interval_claims(
+    wire: &StatisticalExecutionWire,
+    row: &UncertaintyRowWire,
+    rows: &[Vec<f64>],
+    means: &[(VariableId, Vec<f64>)],
+    width: usize,
+) -> Result<Option<PublishedIntervals>, UncertaintyFault> {
+    use antecedent_estimate::percentile_interval;
+    let no_intervals = wire.atom_intervals.is_none() && wire.mean_intervals.is_none();
+    let counts = (row.replicates_requested, row.replicates_ok, row.replicates_failed);
+    if let Err(reason) = ReplicatePolicy::BOOTSTRAP.decide(counts.0, counts.1, counts.2) {
+        let expected = IntervalWithholdReason::parse(reason);
+        return ensure(
+            expected.is_some() && wire.uncertainty_reason == expected && no_intervals,
+            UncertaintyFault::IntervalClaims,
+        )
+        .map(|()| None);
+    }
+    if PERCENTILE_FLOOR.decide(counts.0, counts.1, counts.2).is_err() {
+        let floor = Some(IntervalWithholdReason::InsufficientBootstrapReplicates);
+        return ensure(
+            wire.uncertainty_reason == floor && no_intervals,
+            UncertaintyFault::IntervalClaims,
+        )
+        .map(|()| None);
+    }
+    let atoms = (0..width)
+        .map(|i| {
+            percentile_interval(&rows.iter().map(|r| r[i]).collect::<Vec<_>>(), row.coverage_target)
+        })
+        .collect::<Option<Vec<_>>>();
+    let intervals = means
+        .iter()
+        .map(|(v, reps)| {
+            percentile_interval(reps, row.coverage_target).map(|(lo, hi)| (v.raw(), lo, hi))
+        })
+        .collect::<Option<Vec<_>>>();
+    match (atoms, intervals) {
+        (Some(atoms), Some(intervals)) => {
+            ensure(
+                wire.uncertainty_reason.is_none()
+                    && wire.atom_intervals.as_ref() == Some(&atoms)
+                    && wire.mean_intervals.as_ref() == Some(&intervals),
+                UncertaintyFault::IntervalClaims,
+            )?;
+            Ok(Some((atoms, intervals)))
+        }
+        _ => ensure(
+            wire.uncertainty_reason == Some(IntervalWithholdReason::NumericalFailure)
+                && no_intervals,
+            UncertaintyFault::IntervalClaims,
+        )
+        .map(|()| None),
+    }
+}
+
+/// Most draw-by-atom probabilities a Bayesian posterior artifact may carry.
+const MAX_POSTERIOR_DRAW_CELLS: usize = 10_000_000;
+
+/// Why a Bayesian posterior section fails to match its prepared study.
+///
+/// Each variant names one concern; [`Self::into_error`] maps it to the refusal published to
+/// callers.
+#[derive(Debug)]
+enum PosteriorFault {
+    /// The study uses a Bayesian provider but the artifact carries no draws.
+    MissingDraws,
+    /// Estimator, method, draw counts or size disagree with the study's declaration.
+    DrawMetadata,
+    /// The reason withholds an interval the draw counts have earned.
+    WithholdsEarnedInterval,
+    /// A draw is not a probability law over the fitted atoms.
+    InvalidDrawLaw,
+    /// The published intervals disagree with the draws.
+    SummaryMismatch,
+    /// A lower-level conversion failure, published unchanged.
+    Propagated(IoError),
+}
+
+impl PosteriorFault {
+    fn into_error(self) -> IoError {
+        match self {
+            Self::MissingDraws => err("Bayesian transport artifact lacks posterior draws"),
+            Self::DrawMetadata => err("Bayesian transport artifact draw metadata mismatch"),
+            Self::WithholdsEarnedInterval => {
+                err("Bayesian transport artifact withholds an earned posterior interval")
+            }
+            Self::InvalidDrawLaw => err("Bayesian transport artifact has invalid draw law"),
+            Self::SummaryMismatch => {
+                err("Bayesian transport artifact posterior summary mismatch")
+            }
+            Self::Propagated(error) => error,
+        }
+    }
+}
+
+impl From<IoError> for PosteriorFault {
+    fn from(error: IoError) -> Self {
+        Self::Propagated(error)
+    }
+}
+
 fn validate_bayesian_posterior(
     wire: Option<&BayesianTransportPosteriorWire>,
     point: &antecedent_expr::ExactDistribution,
@@ -2469,72 +2710,36 @@ fn validate_bayesian_posterior(
     requested: u32,
     coverage: f64,
 ) -> Result<Option<antecedent_estimate::BayesianStatisticalTransportEstimate>, IoError> {
+    check_bayesian_posterior(wire, point, estimator, requested, coverage)
+        .map_err(PosteriorFault::into_error)
+}
+
+fn check_bayesian_posterior(
+    wire: Option<&BayesianTransportPosteriorWire>,
+    point: &antecedent_expr::ExactDistribution,
+    estimator: &str,
+    requested: u32,
+    coverage: f64,
+) -> Result<Option<antecedent_estimate::BayesianStatisticalTransportEstimate>, PosteriorFault> {
     let expected = matches!(
         estimator,
         antecedent_estimate::EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP
             | antecedent_estimate::STATE_SPACE_DIRICHLET
     );
     let Some(wire) = wire else {
-        return if expected {
-            Err(err("Bayesian transport artifact lacks posterior draws"))
-        } else {
-            Ok(None)
-        };
+        return if expected { Err(PosteriorFault::MissingDraws) } else { Ok(None) };
     };
-    if !expected
-        || wire.estimator != estimator
-        || wire.interval_method != antecedent_estimate::POSTERIOR_EQUAL_TAIL
-        || wire.draws_requested != requested
-        || wire.probabilities.len() != wire.draws_ok as usize
-        || wire.probabilities.len().checked_mul(point.atoms.len()).is_none_or(|n| n > 10_000_000)
-    {
-        return Err(err("Bayesian transport artifact draw metadata mismatch"));
-    }
+    check_posterior_metadata(wire, point, estimator, requested, expected)?;
     let reason = wire.interval_reason.as_deref();
     let parsed = reason.and_then(IntervalWithholdReason::parse);
-    let dependence = matches!(
-        parsed,
-        Some(
-            IntervalWithholdReason::UnsupportedDependence
-                | IntervalWithholdReason::NoEstimatedRegime
-        )
-    );
-    let withheld = dependence
-        || matches!(
-            parsed,
-            Some(
-                IntervalWithholdReason::BootstrapFailureFraction
-                    | IntervalWithholdReason::InsufficientBootstrapReplicates
-                    | IntervalWithholdReason::NumericalFailure
-            )
-        );
-    if IntervalWithholdReason::InsufficientBootstrapReplicates.is(reason)
-        && PERCENTILE_FLOOR.decide(wire.draws_requested, wire.draws_ok, wire.draws_failed).is_ok()
-    {
-        return Err(err("Bayesian transport artifact withholds an earned posterior interval"));
-    }
-    if dependence {
-        if wire.draws_ok != 0 || wire.draws_failed != 0 || !wire.probabilities.is_empty() {
-            return Err(err("Bayesian transport artifact draw metadata mismatch"));
-        }
-    } else if wire.draws_ok.checked_add(wire.draws_failed) != Some(wire.draws_requested) {
-        return Err(err("Bayesian transport artifact draw metadata mismatch"));
-    }
-    if withheld && (!wire.atom_intervals.is_empty() || !wire.mean_intervals.is_empty()) {
-        return Err(err("Bayesian transport artifact posterior summary mismatch"));
-    }
-    let mut distributions = Vec::with_capacity(wire.probabilities.len());
-    for probabilities in &wire.probabilities {
-        if probabilities.len() != point.atoms.len() || !is_probability_vector(probabilities) {
-            return Err(err("Bayesian transport artifact has invalid draw law"));
-        }
-        distributions.push(antecedent_expr::ExactDistribution {
-            outcomes: point.outcomes.clone(),
-            atoms: point.atoms.clone(),
-            probabilities: probabilities.clone().into(),
-            support: point.support.clone(),
-        });
-    }
+    let dependence = parsed.is_some_and(IntervalWithholdReason::is_dependence_refusal);
+    let withheld = parsed.is_some_and(IntervalWithholdReason::withholds_posterior_summary);
+    check_posterior_draw_counts(wire, parsed, dependence)?;
+    ensure(
+        !withheld || (wire.atom_intervals.is_empty() && wire.mean_intervals.is_empty()),
+        PosteriorFault::SummaryMismatch,
+    )?;
+    let distributions = draw_distributions(wire, point)?;
     if withheld {
         return Ok(Some(antecedent_estimate::BayesianStatisticalTransportEstimate {
             estimator: Arc::from(wire.estimator.as_str()),
@@ -2550,11 +2755,110 @@ fn validate_bayesian_posterior(
     }
     // A published posterior interval must have earned the facade's draw floor;
     // the producer withholds it below the floor, and so does the consumer.
-    if reason != Some(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED)
-        || PERCENTILE_FLOOR.decide(wire.draws_requested, wire.draws_ok, wire.draws_failed).is_err()
+    ensure(
+        reason == Some(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED)
+            && PERCENTILE_FLOOR
+                .decide(wire.draws_requested, wire.draws_ok, wire.draws_failed)
+                .is_ok(),
+        PosteriorFault::DrawMetadata,
+    )?;
+    let (atom_intervals, mean_intervals) = posterior_intervals(&distributions, point, coverage)?;
+    ensure(
+        same_intervals(&atom_intervals, &wire.atom_intervals)
+            && mean_intervals.len() == wire.mean_intervals.len()
+            && mean_intervals.iter().zip(&wire.mean_intervals).all(
+                |((v, lo, hi), (wv, wlo, whi))| {
+                    v.raw() == *wv && lo.to_bits() == wlo.to_bits() && hi.to_bits() == whi.to_bits()
+                },
+            ),
+        PosteriorFault::SummaryMismatch,
+    )?;
+    Ok(Some(antecedent_estimate::BayesianStatisticalTransportEstimate {
+        estimator: Arc::from(wire.estimator.as_str()),
+        interval_method: Arc::from(wire.interval_method.as_str()),
+        distributions: distributions.into(),
+        atom_intervals: atom_intervals.into(),
+        mean_intervals: mean_intervals.into(),
+        draws_requested: wire.draws_requested,
+        draws_ok: wire.draws_ok,
+        draws_failed: wire.draws_failed,
+        interval_reason: Some(Arc::from(
+            reason.unwrap_or(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED),
+        )),
+    }))
+}
+
+/// The artifact's declared estimator, interval method, draw request and size.
+fn check_posterior_metadata(
+    wire: &BayesianTransportPosteriorWire,
+    point: &antecedent_expr::ExactDistribution,
+    estimator: &str,
+    requested: u32,
+    estimator_is_bayesian: bool,
+) -> Result<(), PosteriorFault> {
+    ensure(
+        estimator_is_bayesian
+            && wire.estimator == estimator
+            && wire.interval_method == PosteriorIntervalMethodWire::EqualTail
+            && wire.draws_requested == requested
+            && wire.probabilities.len() == wire.draws_ok as usize
+            && wire
+                .probabilities
+                .len()
+                .checked_mul(point.atoms.len())
+                .is_some_and(|cells| cells <= MAX_POSTERIOR_DRAW_CELLS),
+        PosteriorFault::DrawMetadata,
+    )
+}
+
+/// Draw counts: a dependence refusal carries no draws at all, otherwise the successful and
+/// failed draws partition the request. An insufficient-draws reason must not name a request
+/// that has in fact earned the floor.
+fn check_posterior_draw_counts(
+    wire: &BayesianTransportPosteriorWire,
+    reason: Option<IntervalWithholdReason>,
+    dependence: bool,
+) -> Result<(), PosteriorFault> {
+    if reason == Some(IntervalWithholdReason::InsufficientBootstrapReplicates)
+        && PERCENTILE_FLOOR.decide(wire.draws_requested, wire.draws_ok, wire.draws_failed).is_ok()
     {
-        return Err(err("Bayesian transport artifact draw metadata mismatch"));
+        return Err(PosteriorFault::WithholdsEarnedInterval);
     }
+    let counts_hold = if dependence {
+        wire.draws_ok == 0 && wire.draws_failed == 0 && wire.probabilities.is_empty()
+    } else {
+        wire.draws_ok.checked_add(wire.draws_failed) == Some(wire.draws_requested)
+    };
+    ensure(counts_hold, PosteriorFault::DrawMetadata)
+}
+
+/// Each carried draw as an exact law over the point distribution's atoms.
+fn draw_distributions(
+    wire: &BayesianTransportPosteriorWire,
+    point: &antecedent_expr::ExactDistribution,
+) -> Result<Vec<antecedent_expr::ExactDistribution>, PosteriorFault> {
+    let mut distributions = Vec::with_capacity(wire.probabilities.len());
+    for probabilities in &wire.probabilities {
+        ensure(
+            probabilities.len() == point.atoms.len() && is_probability_vector(probabilities),
+            PosteriorFault::InvalidDrawLaw,
+        )?;
+        distributions.push(antecedent_expr::ExactDistribution {
+            outcomes: point.outcomes.clone(),
+            atoms: point.atoms.clone(),
+            probabilities: probabilities.clone().into(),
+            support: point.support.clone(),
+        });
+    }
+    Ok(distributions)
+}
+
+/// Equal-tail posterior intervals for every atom probability and outcome mean.
+fn posterior_intervals(
+    distributions: &[antecedent_expr::ExactDistribution],
+    point: &antecedent_expr::ExactDistribution,
+    coverage: f64,
+) -> Result<(Vec<(f64, f64)>, Vec<(VariableId, f64, f64)>), PosteriorFault> {
     let mut atom_intervals = Vec::with_capacity(point.atoms.len());
     for atom in 0..point.atoms.len() {
         let mut values =
@@ -2580,27 +2884,7 @@ fn validate_bayesian_posterior(
         );
         mean_intervals.push((outcome, lower, upper));
     }
-    if !same_intervals(&atom_intervals, &wire.atom_intervals)
-        || mean_intervals.len() != wire.mean_intervals.len()
-        || mean_intervals.iter().zip(&wire.mean_intervals).any(|((v, lo, hi), (wv, wlo, whi))| {
-            v.raw() != *wv || lo.to_bits() != wlo.to_bits() || hi.to_bits() != whi.to_bits()
-        })
-    {
-        return Err(err("Bayesian transport artifact posterior summary mismatch"));
-    }
-    Ok(Some(antecedent_estimate::BayesianStatisticalTransportEstimate {
-        estimator: Arc::from(wire.estimator.as_str()),
-        interval_method: Arc::from(wire.interval_method.as_str()),
-        distributions: distributions.into(),
-        atom_intervals: atom_intervals.into(),
-        mean_intervals: mean_intervals.into(),
-        draws_requested: wire.draws_requested,
-        draws_ok: wire.draws_ok,
-        draws_failed: wire.draws_failed,
-        interval_reason: Some(Arc::from(
-            reason.unwrap_or(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED),
-        )),
-    }))
+    Ok((atom_intervals, mean_intervals))
 }
 
 fn same_intervals(left: &[(f64, f64)], right: &[(f64, f64)]) -> bool {
@@ -3123,7 +3407,7 @@ mod tests {
         wire.uncertainty.as_mut().unwrap().replicates_failed = 1;
         variants.push(wire);
         let mut wire = original.clone();
-        wire.uncertainty.as_mut().unwrap().method = "calibrated_magic".into();
+        wire.uncertainty_reason = Some(IntervalWithholdReason::BootstrapNotRequested);
         variants.push(wire);
         let mut wire = original.clone();
         wire.atom_replicates.as_mut().unwrap()[0][0] = -1.0;
@@ -3156,6 +3440,38 @@ mod tests {
         assert_eq!(loaded.export(&result).unwrap(), bytes);
         assert_eq!(loaded.seed(), 7);
         assert!(loaded.estimate(&ctx).unwrap_err().to_string().contains("samples_not_embedded"));
+    }
+
+    #[test]
+    fn typed_wire_fields_keep_their_spelling_and_refuse_unknown_values() {
+        fn spelled<T: Serialize + serde::de::DeserializeOwned + PartialEq + std::fmt::Debug>(
+            value: &T,
+            wire: &str,
+        ) {
+            let bytes = antecedent_io::to_cbor(&wire).unwrap();
+            assert_eq!(antecedent_io::to_cbor(value).unwrap(), bytes);
+            let decoded: T = antecedent_io::from_cbor(&bytes).unwrap();
+            assert_eq!(&decoded, value);
+        }
+        for reason in IntervalWithholdReason::ALL {
+            spelled(&reason, reason.as_str());
+            assert_eq!(IntervalWithholdReason::parse(reason.as_str()), Some(reason));
+        }
+        spelled(
+            &UncertaintyMethodWire::PercentileBootstrap,
+            antecedent_estimate::PERCENTILE_BOOTSTRAP,
+        );
+        spelled(&IntervalScopeWire::Pointwise, "pointwise");
+        spelled(
+            &SupportRegimeWire::EmpiricalCompleteCaseNoSmoothing,
+            "empirical_complete_case_no_smoothing",
+        );
+        let unknown = antecedent_io::to_cbor(&"calibrated_magic").unwrap();
+        assert!(antecedent_io::from_cbor::<UncertaintyMethodWire>(&unknown).is_err());
+        assert!(antecedent_io::from_cbor::<IntervalScopeWire>(&unknown).is_err());
+        assert!(antecedent_io::from_cbor::<SupportRegimeWire>(&unknown).is_err());
+        assert!(antecedent_io::from_cbor::<IntervalWithholdReason>(&unknown).is_err());
+        assert_eq!(UncertaintyMethodWire::parse("calibrated_magic"), None);
     }
 
     #[test]

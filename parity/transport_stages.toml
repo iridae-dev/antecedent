@@ -2591,7 +2591,7 @@ evidence = "randomized_continuous_dose_known_density_and_iid_trial_and_target_ro
 functional = "fixed_bandwidth_smoothed_dose_response_grid"
 guarantee = "certificate_derived_once_request_validated_before_any_fit"
 reference = "https://arxiv.org/abs/1507.00747"
-limits = "Rust facade. At most 16 grid doses, windows inside the declared dose support (dose_response.grid_outside_dose_support), known density only (dose_response.estimated_dose_density), density floor, local ESS and distinct-dose gates, Q in {16, 32}, at most 20 folds, 2000 replicates, 200000 rows, 256 covariates (dose_response.bounds_exceeded). No interval is computed."
+limits = "Rust facade. Windows inside the declared dose support (dose_response.grid_outside_dose_support), known density only (dose_response.estimated_dose_density), density floor, local ESS and distinct-dose gates, Q in {16, 32}, at most 65535 folds and a basis degree of at least 1 (dose_response.bounds_exceeded); the sizes (grid, rows, covariates, knots, replicates) are bounded by the workspace estimate against the memory cap. No interval is computed."
 evidence_test = "crates/antecedent/tests/smoothed_dose_lifecycle.rs"
 evidence_assertion = "estimate_reuses_the_prepared_certificate_and_refresh_keeps_it"
 

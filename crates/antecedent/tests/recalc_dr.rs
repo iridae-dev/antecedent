@@ -117,7 +117,7 @@ fn request(dr: bool) -> antecedent::analysis::recalc_dr::DrRequest {
     use antecedent_learn::{LearnerSpec, LinearSpec};
     let outcome = LearnerSpec::Linear(LinearSpec::default());
     DrRequest {
-        columns: columns(),
+        columns: columns().into(),
         edges: vec![(2, 0), (2, 1), (0, 1)],
         treatment: 0,
         outcome: 1,
@@ -244,7 +244,7 @@ fn dr_cate_predictions_reuse_portable_final_model_and_validate_feature_schema() 
     assert!(matches!(
         session.predict(&[VariableId::from_raw(2)], &[&[2.0]], 1, &ctx()),
         Err(antecedent::analysis::recalc_receipt::RecalcRunError::Request(
-            "recalc.dr_prediction_out_of_support"
+            antecedent::analysis::recalc_receipt::RecalcRequestCode::DrPredictionOutOfSupport
         ))
     ));
     assert_eq!(run(&mut session, &request(true)).receipt.totals().total(), 0);
@@ -433,7 +433,7 @@ fn dr_plr_target_cancellation_and_invalid_refits_cannot_reuse_an_aipw_law() {
     assert!(matches!(
         error,
         antecedent::analysis::recalc_receipt::RecalcRunError::Request(
-            "recalc.invalid_target_weights"
+            antecedent::analysis::recalc_receipt::RecalcRequestCode::InvalidTargetWeights
         )
     ));
     invalid = original.clone();

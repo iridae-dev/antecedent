@@ -6,8 +6,8 @@ use super::recalc_common::{
     Fields, canonical_bits, dag_from_edges, float_bytes, identity, literal,
 };
 use super::recalc_receipt::{
-    Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRunError, ReceiptRecorder,
-    TargetWeights, UtilitySpec, decide,
+    Columns, Counter, DecisionValue, LawValue, NonFinite, RecalcOutcome, RecalcRequestCode,
+    RecalcRunError, ReceiptRecorder, TargetWeights, UtilitySpec, decide,
 };
 use crate::graph::Dag;
 use antecedent_core::ExecutionContext;
@@ -16,7 +16,9 @@ use antecedent_core::recalc::{
     Boundary, RecalcCapabilities, RecalcPlan, RequestSupport, ResumeContext, RetargetSupport,
     Stage, StageIdentities, StageIdentity, StageStatus,
 };
-use antecedent_estimate::adjustment_resume::{AdjustedFit, count_adjusted_model_fits};
+use antecedent_estimate::adjustment_resume::{
+    AdjustedFit, PredictionRefusal, count_adjusted_model_fits,
+};
 use antecedent_estimate::categorical_treatment::{
     CategoricalTreatmentInput, CategoricalTreatmentSpec, LevelScale, MonotonicityDirection,
 };
@@ -25,7 +27,6 @@ use antecedent_estimate::vector_treatment::{
 };
 use antecedent_identify::backdoor::{CheckedJointAdjustment, check_joint_adjustment};
 use antecedent_stats::{GlmFamily, GlmOptions};
-use std::collections::BTreeSet;
 use std::sync::Arc;
 
 /// Declared adjusted model and inference configuration.
@@ -73,7 +74,7 @@ pub enum AdjustedContrast {
 #[derive(Clone, Debug)]
 pub struct AdjustedRequest {
     /// Variables in stable id order.
-    pub columns: Vec<(String, Vec<f64>)>,
+    pub columns: Columns,
     /// Directed graph edges.
     pub edges: Vec<(u32, u32)>,
     /// Joint treatment roles.
@@ -200,10 +201,7 @@ impl AdjustedRequest {
         ids.set(Stage::DataSnapshot, identity("adjusted.snapshot", &data));
         ids.set(
             Stage::RowDesign,
-            literal(
-                "adjusted.rows",
-                &format!("complete.rows={}", self.columns.first().map_or(0, |(_, v)| v.len())),
-            ),
+            literal("adjusted.rows", &format!("complete.rows={}", self.columns.n_rows())),
         );
         // Numeric models declare their finite continuous parametric support. Categorical
         // level/reference changes are model-design changes, never just a selected contrast.
@@ -248,16 +246,17 @@ impl AdjustedRequest {
     fn support(&self) -> RequestSupport {
         match self.validate() {
             Err(RecalcRunError::Request(
-                "recalc.contrast_out_of_support" | "recalc.invalid_categorical_contrast",
+                RecalcRequestCode::ContrastOutOfSupport
+                | RecalcRequestCode::InvalidCategoricalContrast,
             )) => RequestSupport::OffGrid { licensed_route: None },
-            Err(RecalcRunError::Request("recalc.incompatible_contrast")) => {
+            Err(RecalcRunError::Request(RecalcRequestCode::IncompatibleContrast)) => {
                 RequestSupport::Unsupported { licensed_route: None }
             }
             _ => RequestSupport::OnGrid,
         }
     }
     fn graph(&self) -> Result<Dag, RecalcRunError> {
-        dag_from_edges(self.columns.len(), &self.edges, "recalc.invalid_graph")
+        dag_from_edges(self.columns.len(), &self.edges, RecalcRequestCode::InvalidGraph)
     }
     #[allow(
         clippy::float_cmp,
@@ -265,31 +264,20 @@ impl AdjustedRequest {
     )]
     fn validate(&self) -> Result<(), RecalcRunError> {
         self.utility.validate()?;
-        let n = self.columns.first().map_or(0, |(_, v)| v.len());
-        let names: BTreeSet<_> = self.columns.iter().map(|(name, _)| name).collect();
-        if n == 0
-            || names.len() != self.columns.len()
-            || self.columns.iter().any(|(name, v)| {
-                name.is_empty() || v.len() != n || v.iter().any(|x| !x.is_finite())
-            })
-        {
-            return Err(RecalcRunError::Request("recalc.invalid_data"));
+        let n = self.columns.n_rows();
+        if !self.columns.is_well_formed(NonFinite::Reject) {
+            return Err(RecalcRunError::Request(RecalcRequestCode::InvalidData));
         }
-        let distinct: BTreeSet<_> = self.treatments.iter().collect();
-        let adjustment: BTreeSet<_> = self.adjustment.iter().collect();
-        if self.treatments.is_empty()
-            || distinct.len() != self.treatments.len()
-            || adjustment.len() != self.adjustment.len()
-            || self.outcome as usize >= self.columns.len()
-            || self
-                .treatments
-                .iter()
-                .chain(&self.adjustment)
-                .any(|&id| id as usize >= self.columns.len())
-            || self.treatments.contains(&self.outcome)
-            || self.adjustment.iter().any(|id| self.treatments.contains(id) || *id == self.outcome)
-        {
-            return Err(RecalcRunError::Request("recalc.invalid_adjustment_set"));
+        // Treatments, adjustment and outcome must name distinct existing columns.
+        let roles: Vec<u32> = self
+            .treatments
+            .iter()
+            .chain(&self.adjustment)
+            .copied()
+            .chain(std::iter::once(self.outcome))
+            .collect();
+        if self.treatments.is_empty() || !self.columns.are_distinct_roles(&roles) {
+            return Err(RecalcRunError::Request(RecalcRequestCode::InvalidAdjustmentSet));
         }
         match (&self.model, &self.contrast) {
             (
@@ -301,9 +289,14 @@ impl AdjustedRequest {
                     || !spec.declared_levels.contains(from)
                     || !spec.declared_levels.contains(to)
                 {
-                    return Err(RecalcRunError::Request("recalc.invalid_categorical_contrast"));
+                    return Err(RecalcRunError::Request(
+                        RecalcRequestCode::InvalidCategoricalContrast,
+                    ));
                 }
-                let values = &self.columns[self.treatments[0] as usize].1;
+                let values = self
+                    .columns
+                    .values(self.treatments[0])
+                    .ok_or(RecalcRunError::Request(RecalcRequestCode::InvalidAdjustmentSet))?;
                 let mut code_to_label = std::collections::BTreeMap::new();
                 let mut label_to_code = std::collections::BTreeMap::new();
                 for (value, label) in values.iter().zip(levels) {
@@ -311,7 +304,9 @@ impl AdjustedRequest {
                     if code_to_label.insert(code, label).is_some_and(|old| old != label)
                         || label_to_code.insert(label, code).is_some_and(|old| old != code)
                     {
-                        return Err(RecalcRunError::Request("recalc.categorical_role_mismatch"));
+                        return Err(RecalcRunError::Request(
+                            RecalcRequestCode::CategoricalRoleMismatch,
+                        ));
                     }
                 }
             }
@@ -323,59 +318,70 @@ impl AdjustedRequest {
                     || control.len() != self.treatments.len()
                     || active.iter().chain(control).any(|x| !x.is_finite())
                 {
-                    return Err(RecalcRunError::Request("recalc.invalid_contrast"));
+                    return Err(RecalcRunError::Request(RecalcRequestCode::InvalidContrast));
                 }
                 for ((a, b), t) in active.iter().zip(control).zip(&self.treatments) {
-                    let values = &self.columns[*t as usize].1;
+                    let values = self
+                        .columns
+                        .values(*t)
+                        .ok_or(RecalcRunError::Request(RecalcRequestCode::InvalidAdjustmentSet))?;
                     let lo = values.iter().copied().fold(f64::INFINITY, f64::min);
                     let hi = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
                     let binary = values.iter().all(|x| *x == 0. || *x == 1.);
                     if [*a, *b].iter().any(|x| *x < lo || *x > hi || binary && *x != 0. && *x != 1.)
                     {
-                        return Err(RecalcRunError::Request("recalc.contrast_out_of_support"));
+                        return Err(RecalcRunError::Request(
+                            RecalcRequestCode::ContrastOutOfSupport,
+                        ));
                     }
                 }
             }
-            _ => return Err(RecalcRunError::Request("recalc.incompatible_contrast")),
+            _ => return Err(RecalcRunError::Request(RecalcRequestCode::IncompatibleContrast)),
         }
         if let Some(target) = &self.target {
-            let weight_mass = target.weights.iter().sum::<f64>();
-            if target.weights.len() != n
-                || target.weights.iter().any(|x| !x.is_finite() || *x < 0.)
-                || !weight_mass.is_finite()
-                || weight_mass <= 0.
+            if !target.are_valid(Some(n))
                 || target.depends_on.iter().any(|id| !self.adjustment.contains(&id.raw()))
             {
-                return Err(RecalcRunError::Request("recalc.invalid_target_weights"));
+                return Err(RecalcRunError::Request(RecalcRequestCode::InvalidTargetWeights));
             }
         }
         Ok(())
     }
-    fn input(&self, snapshot: &str) -> VectorTreatmentInput {
-        let adjustment: Vec<_> = self
+    /// The column of role `id`; validation has already refused roles outside the table.
+    fn role(&self, id: u32) -> Result<&(String, Vec<f64>), RecalcRunError> {
+        self.columns
+            .column(id)
+            .ok_or(RecalcRunError::Request(RecalcRequestCode::InvalidAdjustmentSet))
+    }
+    fn input(&self, snapshot: &str) -> Result<VectorTreatmentInput, RecalcRunError> {
+        let adjustment = self
             .adjustment
             .iter()
-            .map(|&id| NamedColumn {
-                name: self.columns[id as usize].0.clone(),
-                values: self.columns[id as usize].1.clone(),
+            .map(|&id| {
+                let (name, values) = self.role(id)?;
+                Ok::<_, RecalcRunError>(NamedColumn { name: name.clone(), values: values.clone() })
             })
-            .collect();
+            .collect::<Result<Vec<_>, RecalcRunError>>()?;
         let names = adjustment.iter().map(|z| z.name.clone()).collect::<Vec<_>>();
-        VectorTreatmentInput {
-            outcome: self.columns[self.outcome as usize].1.clone(),
-            row_snapshot: snapshot.to_owned(),
-            adjustment,
-            treatments: self
-                .treatments
-                .iter()
-                .map(|&id| TreatmentColumn {
-                    name: self.columns[id as usize].0.clone(),
-                    values: self.columns[id as usize].1.clone(),
+        let treatments = self
+            .treatments
+            .iter()
+            .map(|&id| {
+                let (name, values) = self.role(id)?;
+                Ok::<_, RecalcRunError>(TreatmentColumn {
+                    name: name.clone(),
+                    values: values.clone(),
                     adjustment_set: names.clone(),
                     row_snapshot: snapshot.to_owned(),
                 })
-                .collect(),
-        }
+            })
+            .collect::<Result<Vec<_>, RecalcRunError>>()?;
+        Ok(VectorTreatmentInput {
+            outcome: self.role(self.outcome)?.1.clone(),
+            row_snapshot: snapshot.to_owned(),
+            adjustment,
+            treatments,
+        })
     }
 }
 fn identify(request: &AdjustedRequest) -> Result<CheckedJointAdjustment, RecalcRunError> {
@@ -385,8 +391,8 @@ fn identify(request: &AdjustedRequest) -> Result<CheckedJointAdjustment, RecalcR
     let adjustment: Vec<_> =
         request.adjustment.iter().map(|&id| VariableId::from_raw(id)).collect();
     check_joint_adjustment(&graph, &treatments, VariableId::from_raw(request.outcome), &adjustment)
-        .map_err(|_| RecalcRunError::Request("recalc.invalid_adjustment_set"))?
-        .ok_or(RecalcRunError::Request("recalc.adjustment_not_identified"))
+        .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidAdjustmentSet))?
+        .ok_or(RecalcRunError::Request(RecalcRequestCode::AdjustmentNotIdentified))
 }
 struct Live {
     checked: Arc<CheckedJointAdjustment>,
@@ -464,8 +470,15 @@ impl AdjustedSession {
     /// Numerical failure is returned without changing the held fit.
     pub fn predict(&self, rows: &[Vec<f64>]) -> Result<Vec<f64>, RecalcRunError> {
         let fit = &self.live.as_ref().ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?.fit;
-        if let Some(detail) = fit.prediction_refusal(rows) {
-            return Err(RecalcRunError::Request(detail));
+        if let Some(refusal) = fit.prediction_refusal(rows) {
+            return Err(RecalcRunError::Request(match refusal {
+                PredictionRefusal::SchemaMismatch => {
+                    RecalcRequestCode::AdjustedPredictionSchemaMismatch
+                }
+                PredictionRefusal::OutOfSupport => {
+                    RecalcRequestCode::AdjustedPredictionOutOfSupport
+                }
+            }));
         }
         fit.predict(rows).map_err(|e| RecalcRunError::Execution(e.into()))
     }
@@ -478,7 +491,7 @@ fn guard_adjusted_memory(
     request: &AdjustedRequest,
     ctx: &ExecutionContext,
 ) -> Result<(), RecalcRunError> {
-    let n = request.columns.first().map_or(0, |(_, values)| values.len()) as u64;
+    let n = request.columns.n_rows() as u64;
     let k = match &request.model {
         AdjustedModel::Categorical { spec, .. } => spec.declared_levels.len().saturating_sub(1),
         _ => request.treatments.len(),
@@ -489,7 +502,7 @@ fn guard_adjusted_memory(
         .saturating_mul(64)
         .saturating_add(p.saturating_mul(p).saturating_mul(64));
     if ctx.memory_limit_bytes().into_iter().any(|limit| bytes > limit) {
-        return Err(RecalcRunError::Request("recalc.memory_budget_exceeded"));
+        return Err(RecalcRunError::Request(RecalcRequestCode::MemoryBudgetExceeded));
     }
     Ok(())
 }
@@ -503,7 +516,7 @@ fn adjusted_fit(
     recorder: &mut ReceiptRecorder,
 ) -> Result<Arc<AdjustedFit>, RecalcRunError> {
     Ok(if recomputed(plan, Stage::ScoreArtifact) {
-        let input = request.input(&requested.own(Stage::DataSnapshot).to_hex());
+        let input = request.input(&requested.own(Stage::DataSnapshot).to_hex())?;
         let (fit, n) = count_adjusted_model_fits(|| match &request.model {
             AdjustedModel::Linear { covariance } => AdjustedFit::linear(
                 &input,
@@ -528,30 +541,29 @@ fn adjusted_fit(
 }
 
 /// Names the design columns the fitted model predicts from: adjustment, then treatment or level indicators.
-fn prediction_columns(request: &AdjustedRequest) -> Vec<String> {
-    request
-        .adjustment
-        .iter()
-        .map(|id| request.columns[*id as usize].0.clone())
-        .chain(match &request.model {
-            AdjustedModel::Categorical { spec, .. } => {
-                let mut levels = spec.declared_levels.clone();
-                if spec.scale == antecedent_estimate::categorical_treatment::LevelScale::Unordered {
-                    levels.sort();
-                }
+fn prediction_columns(request: &AdjustedRequest) -> Result<Vec<String>, RecalcRunError> {
+    let name_of = |id: &u32| request.role(*id).map(|(name, _)| name.clone());
+    let mut names = request.adjustment.iter().map(name_of).collect::<Result<Vec<_>, _>>()?;
+    match &request.model {
+        AdjustedModel::Categorical { spec, .. } => {
+            let mut levels = spec.declared_levels.clone();
+            if spec.scale == antecedent_estimate::categorical_treatment::LevelScale::Unordered {
+                levels.sort();
+            }
+            names.extend(
                 levels
                     .into_iter()
                     .filter(|level| level != &spec.reference)
-                    .map(|level| format!("level:{level}"))
-                    .collect::<Vec<_>>()
+                    .map(|level| format!("level:{level}")),
+            );
+        }
+        _ => {
+            for id in &request.treatments {
+                names.push(name_of(id)?);
             }
-            _ => request
-                .treatments
-                .iter()
-                .map(|id| request.columns[*id as usize].0.clone())
-                .collect(),
-        })
-        .collect()
+        }
+    }
+    Ok(names)
 }
 
 /// Execute the shared plan, measuring actual completed model solves inside numeric kernels.
@@ -571,7 +583,7 @@ pub fn execute_adjusted_with_receipt(
         return Err(error);
     }
     if ctx.cancellation.is_cancelled() {
-        return Err(RecalcRunError::Request("recalc.cancelled"));
+        return Err(RecalcRunError::Request(RecalcRequestCode::Cancelled));
     }
     let requested = request.identities(ctx);
     let plan = RecalcPlan::plan(
@@ -622,7 +634,7 @@ pub fn execute_adjusted_with_receipt(
         };
         // Keep the checked graph in live state; it is the proof context bound by identities.
         let _ = checked.graph();
-        let prediction_columns = prediction_columns(request);
+        let prediction_columns = prediction_columns(request)?;
         Ok(Live { checked, fit, law, decision, prediction_columns: Arc::from(prediction_columns) })
     };
     let live = execute()?;

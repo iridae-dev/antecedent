@@ -5,7 +5,7 @@ use antecedent::analysis::recalc_bayesian::{
     BayesianModel, BayesianRequest, BayesianSession, PosteriorSummarySpec,
     execute_bayesian_with_receipt,
 };
-use antecedent::analysis::recalc_receipt::{RecalcRunError, UtilitySpec};
+use antecedent::analysis::recalc_receipt::{RecalcRequestCode, RecalcRunError, UtilitySpec};
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_identify::execution_counts::count_checked_identifications;
 use antecedent_io::consume_analysis_result;
@@ -35,7 +35,7 @@ fn request() -> BayesianRequest {
     prior.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(2, 10.0)));
     prior.push(PriorSpec::KnownResidualVariance(1.0));
     BayesianRequest {
-        columns: vec![("t".into(), t), ("y".into(), y)],
+        columns: vec![("t".into(), t), ("y".into(), y)].into(),
         edges: vec![(0, 1)],
         treatment: VariableId::from_raw(0),
         outcome: VariableId::from_raw(1),
@@ -129,7 +129,7 @@ fn configuration_rebind_preserves_causal_proof_and_errors_are_transactional_body
     request.inference.n_draws = 256;
     let (refusal, work) =
         count_bayesian_work(|| execute_bayesian_with_receipt(&mut session, &request, &cancelled));
-    assert!(matches!(refusal, Err(RecalcRunError::Request("recalc.cancelled"))));
+    assert!(matches!(refusal, Err(RecalcRunError::Request(RecalcRequestCode::Cancelled))));
     assert_eq!(work.model_fits + work.posterior_draws, 0);
     request.inference.n_draws = 128;
     assert_eq!(
@@ -210,7 +210,7 @@ fn quadratic_basis_matches_independent_nig_contrast_body() {
             < 1e-12
     );
     let mut request = BayesianRequest {
-        columns: vec![("t".into(), treatment), ("z".into(), z), ("y".into(), outcome)],
+        columns: vec![("t".into(), treatment), ("z".into(), z), ("y".into(), outcome)].into(),
         edges: vec![(0, 2), (1, 0), (1, 2)],
         treatment: VariableId::from_raw(0),
         outcome: VariableId::from_raw(2),
@@ -234,7 +234,7 @@ fn quadratic_basis_matches_independent_nig_contrast_body() {
         count_bayesian_work(|| execute_bayesian_with_receipt(&mut session, &request, &ctx));
     assert!(matches!(
         failure,
-        Err(RecalcRunError::Request("recalc.bayesian_basis_prior_unsupported"))
+        Err(RecalcRunError::Request(RecalcRequestCode::BayesianBasisPriorUnsupported))
     ));
     assert_eq!(work.model_fits + work.posterior_draws, 0);
     request.inference.prior = None;
@@ -292,7 +292,7 @@ fn independently_bound_prior_transfer_body() {
         count_bayesian_work(|| execute_bayesian_with_receipt(&mut refused, &same, &ctx));
     assert!(matches!(
         failure,
-        Err(RecalcRunError::Request("recalc.bayesian_prior_likelihood_double_use"))
+        Err(RecalcRunError::Request(RecalcRequestCode::BayesianPriorLikelihoodDoubleUse))
     ));
     assert_eq!(work.model_fits + work.posterior_draws, 0);
     let mut target = same.clone();
@@ -390,7 +390,7 @@ fn assert_corrupted_source_refused(
         count_bayesian_work(|| execute_bayesian_with_receipt(session, &invalid, ctx));
     assert!(matches!(
         failure,
-        Err(RecalcRunError::Request("recalc.bayesian_prior_source_unverified"))
+        Err(RecalcRunError::Request(RecalcRequestCode::BayesianPriorSourceUnverified))
     ));
     assert_eq!(work.model_fits + work.posterior_draws, 0);
     // Updating the raw-data seal does not authenticate stale posterior bytes:
@@ -409,7 +409,7 @@ fn assert_corrupted_source_refused(
         count_bayesian_work(|| execute_bayesian_with_receipt(session, &invalid, ctx));
     assert!(matches!(
         failure,
-        Err(RecalcRunError::Request("recalc.bayesian_prior_source_unverified"))
+        Err(RecalcRunError::Request(RecalcRequestCode::BayesianPriorSourceUnverified))
     ));
     assert_eq!(work.model_fits, 1);
     assert_eq!(work.posterior_draws, 512);

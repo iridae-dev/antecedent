@@ -105,7 +105,7 @@ fn checked_aipw_click_uses_retained_fitter_after_study_config_changes() {
     let PreparedExecution::CheckedAipw(operation) = &prepared.execution else {
         panic!("expected retained checked AIPW operation")
     };
-    assert_eq!(operation.fitter.bootstrap_replicates, 0);
+    assert_eq!(operation.fitter.inference.bootstrap_replicates, 0);
     assert_eq!(operation.preparation.lowering().bootstrap_replicates, 0);
     let first = prepared.estimate(&data, &context).unwrap();
     assert!((first.effect() - 2.0).abs() < 0.2);
@@ -114,7 +114,7 @@ fn checked_aipw_click_uses_retained_fitter_after_study_config_changes() {
     // If a click reconstructed AIPW from it, the changed replicate count
     // would conflict with the checked receipt and reject the click.
     let mut changed_fitter = AipwAte::new();
-    changed_fitter.bootstrap_replicates = 7;
+    changed_fitter.inference.bootstrap_replicates = 7;
     prepared.analysis.estimator_spec =
         Some(Arc::new(EstimatorSpec::Aipw(Box::new(changed_fitter))));
     let second = prepared.estimate(&data, &context).unwrap();
@@ -154,7 +154,7 @@ fn checked_linear_click_uses_retained_default_uncertainty_after_study_changes() 
         panic!("expected retained checked linear operation")
     };
     assert!(operation.default_id);
-    assert_eq!(operation.fitter.bootstrap_replicates, 0);
+    assert_eq!(operation.fitter.inference.bootstrap_replicates, 0);
     let rebound = operation.rebind(&data).unwrap();
     assert!(Arc::ptr_eq(
         &operation.preparation.problem().design.matrix,
@@ -204,7 +204,7 @@ fn checked_glm_adjustment_survives_builder_drop_and_refresh() {
         1.0,
     );
     let mut fitter = GlmAdjustmentAte::new().with_family(GlmFamily::GaussianIdentity);
-    fitter.bootstrap_replicates = 0;
+    fitter.inference.bootstrap_replicates = 0;
     let context = ExecutionContext::for_tests(28);
     let study = Study::tabular(data.clone())
         .graph(graph)
@@ -756,7 +756,7 @@ fn unsealed_bayesian_basis_proof_replay_uses_the_construction_context() {
         .unwrap();
     let ctx = ExecutionContext::for_tests(87);
     let prepared = study.prepare(&ctx).unwrap();
-    let cache = prepared.study().identification_cache.as_ref().unwrap();
+    let cache = prepared.study().static_cache().unwrap();
     let mut physical = (*prepared.plan).clone();
     physical.lowered = None;
     let physical = Arc::new(physical);
@@ -811,8 +811,8 @@ fn deferred_preparation_keeps_statistical_operations_and_scores_unmaterialized()
     assert!(!branch.materialized);
     assert!(branch.score_table.is_none());
     assert!(Arc::ptr_eq(
-        compiled.analysis.identification_cache.as_ref().unwrap(),
-        branch.analysis.identification_cache.as_ref().unwrap(),
+        compiled.analysis.static_cache().unwrap(),
+        branch.analysis.static_cache().unwrap(),
     ));
     assert!(!Arc::ptr_eq(&compiled.plan, &branch.plan));
     let branch_answer = branch.materialize(&ctx).unwrap().estimate_retained(&ctx).unwrap();

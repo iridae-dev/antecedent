@@ -9,6 +9,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::NumericColumn;
 use antecedent::analysis::discovered_transport::{
     DEFAULT_ENVELOPE_MEMBER_BOUND, DiscoveredTransportError, DiscoveredTransportReport,
     DiscoveredTransportRun, discover_and_transport,
@@ -24,7 +25,6 @@ use antecedent::analysis::discovered_transport_trial::{
 };
 use antecedent_core::{ExecutionContext, TransportQuery, VariableId};
 use antecedent_discovery::selective::SelectiveDiscoveryError;
-use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Value as Json, json};
@@ -105,13 +105,13 @@ fn run_trial<T, F>(
     py: Python<'_>,
     contract_json: &str,
     names: &[String],
-    source_columns: &[PyReadonlyArray1<'_, f64>],
-    target_columns: &[PyReadonlyArray1<'_, f64>],
+    source_columns: &[NumericColumn<'_>],
+    target_columns: &[NumericColumn<'_>],
     query_json: &str,
     selection_targets: Vec<u32>,
     member_bound: Option<usize>,
     bootstrap_replicates: u32,
-    discovery_columns: Option<&[PyReadonlyArray1<'_, f64>]>,
+    discovery_columns: Option<&[NumericColumn<'_>]>,
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
     work: F,
@@ -133,10 +133,10 @@ where
     let query = query_of(query_json)?;
     let ids: Vec<VariableId> = selection_targets.into_iter().map(VariableId::from_raw).collect();
     let bound = member_bound.unwrap_or(DEFAULT_ENVELOPE_MEMBER_BOUND);
-    let source_batch = crate::columns_to_batch(names, source_columns)?;
-    let target_batch = crate::columns_to_batch(names, target_columns)?;
+    let source_batch = crate::numeric_columns_to_batch(names, source_columns)?;
+    let target_batch = crate::numeric_columns_to_batch(names, target_columns)?;
     let discovery_batch =
-        discovery_columns.map(|columns| crate::columns_to_batch(names, columns)).transpose()?;
+        discovery_columns.map(|columns| crate::numeric_columns_to_batch(names, columns)).transpose()?;
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
     let ran: Result<(DiscoveredTransportRun, Option<TrialWorkResult<T>>), SelectiveDiscoveryError> =
@@ -220,14 +220,14 @@ fn discovered_transport_trial_estimate_run(
     py: Python<'_>,
     contract_json: &str,
     names: Vec<String>,
-    source_columns: Vec<PyReadonlyArray1<'_, f64>>,
-    target_columns: Vec<PyReadonlyArray1<'_, f64>>,
+    source_columns: Vec<NumericColumn<'_>>,
+    target_columns: Vec<NumericColumn<'_>>,
     query_json: &str,
     selection_targets: Vec<u32>,
     alpha: f64,
     member_bound: Option<usize>,
     bootstrap_replicates: u32,
-    discovery_columns: Option<Vec<PyReadonlyArray1<'_, f64>>>,
+    discovery_columns: Option<Vec<NumericColumn<'_>>>,
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<ArtifactReply> {
@@ -297,8 +297,8 @@ fn discovered_transport_trial_confidence_set_run(
     py: Python<'_>,
     contract_json: &str,
     names: Vec<String>,
-    source_columns: Vec<PyReadonlyArray1<'_, f64>>,
-    target_columns: Vec<PyReadonlyArray1<'_, f64>>,
+    source_columns: Vec<NumericColumn<'_>>,
+    target_columns: Vec<NumericColumn<'_>>,
     query_json: &str,
     selection_targets: Vec<u32>,
     alpha: f64,
@@ -306,7 +306,7 @@ fn discovered_transport_trial_confidence_set_run(
     support_upper: f64,
     member_bound: Option<usize>,
     bootstrap_replicates: u32,
-    discovery_columns: Option<Vec<PyReadonlyArray1<'_, f64>>>,
+    discovery_columns: Option<Vec<NumericColumn<'_>>>,
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<ArtifactReply> {
@@ -345,8 +345,8 @@ fn verify_trial_confidence_set_against_inputs(
     receipt: Vec<u8>,
     contract_json: &str,
     names: Vec<String>,
-    source_columns: Vec<PyReadonlyArray1<'_, f64>>,
-    target_columns: Vec<PyReadonlyArray1<'_, f64>>,
+    source_columns: Vec<NumericColumn<'_>>,
+    target_columns: Vec<NumericColumn<'_>>,
     query_json: &str,
     selection_targets: Vec<u32>,
     alpha: f64,
@@ -354,7 +354,7 @@ fn verify_trial_confidence_set_against_inputs(
     support_upper: f64,
     member_bound: Option<usize>,
     bootstrap_replicates: u32,
-    discovery_columns: Option<Vec<PyReadonlyArray1<'_, f64>>>,
+    discovery_columns: Option<Vec<NumericColumn<'_>>>,
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<ArtifactReply> {

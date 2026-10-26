@@ -540,10 +540,15 @@ impl super::Study {
         atom.graph = Arc::new(accepted);
         atom.refute = if keep_refute { self.refute } else { RefuteSuite::None };
         atom.custom_validators.clear();
-        atom.graph_posterior_identification_cache = None;
-        atom.identification_cache = None;
-        atom.pag_identification_cache = None;
-        atom.cpdag_identification_cache = None;
+        atom.clear_identification_where(|cache| {
+            matches!(
+                cache,
+                crate::analysis::IdentificationCache::GraphPosterior(_)
+                    | crate::analysis::IdentificationCache::Static(_)
+                    | crate::analysis::IdentificationCache::Pag(_)
+                    | crate::analysis::IdentificationCache::Cpdag(_)
+            )
+        });
         Some(atom)
     }
 

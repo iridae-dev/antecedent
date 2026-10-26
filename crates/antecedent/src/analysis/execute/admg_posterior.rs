@@ -89,7 +89,7 @@ impl super::Study {
         }
         let (identified, identify_cached) = if let Some(cache) = checked {
             (Arc::clone(cache), true)
-        } else if let Some(cache) = self.graph_posterior_identification_cache.as_ref() {
+        } else if let Some(cache) = self.graph_posterior_cache() {
             (Arc::clone(cache), true)
         } else if let Some(cache) =
             crate::analysis::lowering::plan_retained_graph_posterior(self, physical)

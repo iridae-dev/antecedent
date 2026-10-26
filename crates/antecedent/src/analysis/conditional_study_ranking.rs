@@ -38,7 +38,8 @@ pub struct ConditionalBranch {
 pub struct ConditionalStudyPolicy {
     /// Caller-owned rule/version identity.
     pub policy_id: String,
-    /// At most64 action branches, at most512 total candidates.
+    /// One branch per actual terminal action. The table is bounded by the artifact byte
+    /// budget (it is part of the sealed payload), not by a count of branches or candidates.
     pub branches: Vec<ConditionalBranch>,
 }
 /// Registered checked request/source/artifact refusal.
@@ -181,12 +182,19 @@ fn validate(
     source: &Source,
 ) -> Result<(), ConditionalRankingError> {
     let valid_name = |s: &str| !s.trim().is_empty() && s.len() <= 256;
-    if !valid_name(&policy.policy_id)
-        || policy.branches.is_empty()
-        || policy.branches.len() > 64
-        || policy.branches.iter().map(|b| b.candidates.len()).sum::<usize>() > 512
-    {
+    if !valid_name(&policy.policy_id) || policy.branches.is_empty() {
         return Err(refuse("conditional_study_ranking.invalid_policy"));
+    }
+    // The policy is sealed into the payload, so its identifiers alone already cost this many
+    // bytes of the artifact budget; refuse before any per-candidate work when they cannot fit.
+    let identifier_bytes: usize = policy.policy_id.len()
+        + policy
+            .branches
+            .iter()
+            .map(|b| b.action.len() + b.candidates.iter().map(|c| c.semantic_id.len()).sum::<usize>())
+            .sum::<usize>();
+    if identifier_bytes > MAX_BYTES {
+        return Err(refuse("conditional_study_ranking.resource_limit"));
     }
     let expected: BTreeSet<_> = source.actions.iter().map(|a| a.id.as_str()).collect();
     let mut actual = BTreeSet::new();
@@ -194,7 +202,6 @@ fn validate(
         if !valid_name(&branch.action)
             || !actual.insert(branch.action.as_str())
             || branch.candidates.is_empty()
-            || branch.candidates.len() > 128
         {
             return Err(refuse("conditional_study_ranking.invalid_policy"));
         }
@@ -246,10 +253,35 @@ fn rank(
         })
         .collect())
 }
+/// The payload as the identity digest sees it: every field of [`Payload`] in declaration order,
+/// borrowed, with `identity` fixed to the empty string. Serialising it yields exactly the bytes
+/// of the payload with its identity cleared, without cloning the source and receipt bytes.
+#[derive(Serialize)]
+struct IdentityFreeView<'a> {
+    version: u16,
+    source: &'a Source,
+    historical_receipt: &'a [u8],
+    policy: &'a ConditionalStudyPolicy,
+    entries: &'a [ConditionalRankingEntry],
+    identity: &'static str,
+}
+
+/// Identity of a payload (encoding version 1): the lowercase hex BLAKE3 digest of the compact
+/// `serde_json` encoding of the payload with its `identity` field set to `""`. Fields are
+/// written in declaration order (`version`, `source`, `historical_receipt`, `policy`,
+/// `entries`, `identity`); byte strings are JSON arrays of numbers. The digest binds the
+/// encoding version through the leading `version` field, so a change of encoding is a new
+/// version, never a silent change of identity.
 fn identity(payload: &Payload) -> Result<String, ConditionalRankingError> {
-    let mut canonical = payload.clone();
-    canonical.identity.clear();
-    let bytes = serde_json::to_vec(&canonical)
+    let view = IdentityFreeView {
+        version: payload.version,
+        source: &payload.source,
+        historical_receipt: &payload.historical_receipt,
+        policy: &payload.policy,
+        entries: &payload.entries,
+        identity: "",
+    };
+    let bytes = serde_json::to_vec(&view)
         .map_err(|_| refuse("conditional_study_ranking.artifact_invalid"))?;
     if bytes.len() > MAX_BYTES {
         return Err(refuse("conditional_study_ranking.resource_limit"));
@@ -378,5 +410,88 @@ impl ConditionalStudyRanking {
             return Err(refuse("conditional_study_ranking.artifact_invalid"));
         }
         Ok(Self { payload })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn source(actions: &[String]) -> Source {
+        Source {
+            contract_identity: "contract".into(),
+            requested: Vec::new(),
+            input_order: vec!["native".into()],
+            actions: actions
+                .iter()
+                .map(|id| Action {
+                    id: id.clone(),
+                    status: "Optimal".into(),
+                    input_id: None,
+                    expected_utility: Some(1.0),
+                })
+                .collect(),
+            selected_action: actions[0].clone(),
+            native_response: vec![1, 2, 3],
+            callback_claims: vec![vec![4, 5]],
+        }
+    }
+
+    fn candidates(prefix: &str, count: usize, width: usize) -> Vec<ConditionalCandidate> {
+        (0..count)
+            .map(|i| ConditionalCandidate {
+                semantic_id: format!("{prefix}-{i:0>width$}"),
+                verified_sufficient: i % 2 == 0,
+                cost_units: i as u64,
+                sample_budget: 10,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_identity_view_encodes_exactly_the_payload_with_its_identity_cleared() {
+        let actions = vec!["wait".to_string(), "treat".to_string()];
+        let policy = ConditionalStudyPolicy {
+            policy_id: "rule".into(),
+            branches: actions
+                .iter()
+                .map(|a| ConditionalBranch { action: a.clone(), candidates: candidates(a, 3, 2) })
+                .collect(),
+        };
+        let source = source(&actions);
+        let entries = rank(&policy, &source).unwrap();
+        let payload = Payload {
+            version: 1,
+            source,
+            historical_receipt: vec![9, 8, 7],
+            policy,
+            entries,
+            identity: "stale".into(),
+        };
+        let mut cleared = payload.clone();
+        cleared.identity.clear();
+        let expected = antecedent_core::blake3_hex(&serde_json::to_vec(&cleared).unwrap());
+        assert_eq!(identity(&payload).unwrap(), expected);
+    }
+
+    #[test]
+    fn a_policy_is_bounded_by_the_byte_budget_and_not_by_counts() {
+        let actions: Vec<String> = (0..100).map(|i| format!("action-{i}")).collect();
+        let source = source(&actions);
+        let branches = |count: usize, width: usize| {
+            actions
+                .iter()
+                .map(|a| ConditionalBranch { action: a.clone(), candidates: candidates(a, count, width) })
+                .collect::<Vec<_>>()
+        };
+        // 100 actions and 20_000 candidates: far past the former count caps, well inside the budget.
+        let wide = ConditionalStudyPolicy { policy_id: "rule".into(), branches: branches(200, 4) };
+        assert!(validate(&wide, &source).is_ok());
+        // The same shape with 250-byte identifiers cannot fit the artifact budget.
+        let heavy = ConditionalStudyPolicy { policy_id: "rule".into(), branches: branches(200, 250) };
+        assert_eq!(
+            validate(&heavy, &source).unwrap_err().detail,
+            "conditional_study_ranking.resource_limit"
+        );
     }
 }

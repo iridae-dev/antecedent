@@ -120,8 +120,9 @@ pub(crate) fn checked_aipw_fitter(study: &Study) -> AipwAte {
         return (**config).clone();
     }
     let mut fitter = AipwAte::new();
-    fitter.sampling_design = crate::estimator_spec::declared_sampling(study.sampling_design);
-    fitter.bootstrap_replicates = study.bootstrap_replicates;
+    fitter.inference.sampling_design =
+        crate::estimator_spec::declared_sampling(study.sampling_design);
+    fitter.inference.bootstrap_replicates = study.bootstrap_replicates;
     if let Some(overlap) = study.overlap_policy {
         fitter.overlap = overlap;
     }

@@ -26,7 +26,7 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
-use antecedent_kernels::shuffle;
+use antecedent_kernels::{mean, shuffle};
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 use antecedent_validate::target_native::{
     RefutationTarget, TargetQuadrant, TargetRefuterKind, joint_mahalanobis, target_refuter_stream,
@@ -48,8 +48,6 @@ use crate::result::StudyResult;
 const RHO_BAR: f64 = 0.1;
 /// Fewest permutation replicates per attribution block.
 const MIN_BLOCK_REPLICATES: u32 = 8;
-/// Most permutation replicates per attribution block.
-const MAX_BLOCK_REPLICATES: u32 = 20;
 /// Largest mean alignment of a permuted block's unit contributions with the original ones.
 const ALIGNMENT_BAR: f64 = 0.5;
 
@@ -267,13 +265,6 @@ fn cross_world_range(input: &ExtraInput<'_>) -> Extras {
     publish_cross_world_range(input, effect, &range, notes)
 }
 
-fn mean_and_sd(values: &[f64]) -> (f64, f64) {
-    let n = values.len() as f64;
-    let mean = values.iter().sum::<f64>() / n;
-    let var = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0).max(1.0);
-    (mean, var.sqrt())
-}
-
 /// The cross-world placebo: permute the mediator. The effect through it must vanish; the natural
 /// direct effect must move to the total effect of the treatment on the outcome.
 fn mediator_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
@@ -323,18 +314,18 @@ fn mediator_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
     };
     let replicates = input.replicates;
     let mut values = Vec::with_capacity(replicates as usize);
+    // The permuted column is rebuilt in one scratch buffer; each replicate starts from the
+    // original order, exactly as a fresh copy would.
+    let mut scratch = vec![0.0; cols[2].len()];
     for replicate in 0..replicates {
         if input.ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_VALIDATE });
         }
         let mut rng =
             target_refuter_stream(TargetRefuterKind::RandomCommonCause, replicate, input.ctx);
-        let mut permuted = cols[2].clone();
-        shuffle(&mut rng, &mut permuted);
-        let data = input
-            .data
-            .with_replaced_float(mediator, permuted.into())
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        scratch.copy_from_slice(&cols[2]);
+        shuffle(&mut rng, &mut scratch);
+        let data = input.data.with_replaced_float(mediator, Arc::from(scratch.as_slice()))?;
         let refit = input.prepared.estimate(&data, input.ctx)?;
         if let Some(value) = first_value(input.study, &refit) {
             values.push(value);
@@ -351,7 +342,7 @@ fn mediator_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
             return Ok((Vec::new(), notes));
         }
     };
-    let (mean, _) = mean_and_sd(&values);
+    let mean = mean(&values);
     let p = statistic.p_value.unwrap_or(0.0);
     // The linear total effect is a reference for the nonparametric route, not its twin.
     let near = expected_total.is_some() && (mean - expected).abs() <= 0.25 * expected.abs();
@@ -386,16 +377,27 @@ fn distribution_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
     let Some(distribution) = input.result.distribution() else {
         return Ok((Vec::new(), notes));
     };
-    let Some(treatment) = input.result.treatment else {
+    if query.interventions.is_empty() {
         return Ok((Vec::new(), notes));
-    };
-    if query.interventions.len() != 1 || !query.conditioning.is_empty() {
+    }
+    if !query.conditioning.is_empty() {
         notes.push(not_applicable(
             NAME,
-            "the observed marginal is the placebo law of one unconditional intervention",
-            "a single unconditional intervention",
+            "the observed marginal is the placebo law of an unconditional intervention",
+            "an unconditional intervention",
         ));
         return Ok((Vec::new(), notes));
+    }
+    // Every intervened variable is permuted on its own stream, so under the placebo the
+    // intervened variables are independent of the outcome and of each other and the
+    // interventional law of all of them together is the observed marginal law of the outcome.
+    let mut treatments: Vec<VariableId> = Vec::new();
+    for intervention in query.interventions.iter() {
+        for variable in intervention.target_variables() {
+            if !treatments.contains(&variable) {
+                treatments.push(variable);
+            }
+        }
     }
     let atoms = &distribution.atoms;
     if atoms.len() < 2 {
@@ -414,10 +416,10 @@ fn distribution_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
     };
     let expected =
         observed_atom_probabilities(input.data.row_count(), &atoms[..kept], &outcome_ids, &cols);
-    let Some(column) = columns(input.data, &[treatment]) else {
+    let Some(treatment_columns) = columns(input.data, &treatments) else {
         notes.push(not_applicable(
             NAME,
-            "the intervened variable is not a float64 column",
+            "an intervened variable is not a complete float64 column",
             "float64",
         ));
         return Ok((Vec::new(), notes));
@@ -429,7 +431,13 @@ fn distribution_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
             }
         })?;
     let replicates = input.replicates.max(required);
-    let rows = distribution_placebo_replicates(input, treatment, &column[0], kept, replicates)?;
+    let rows = distribution_placebo_replicates(
+        input,
+        &treatments,
+        &treatment_columns,
+        kept,
+        replicates,
+    )?;
     let statistic = match joint_mahalanobis(&expected, &rows, kept) {
         Ok(statistic) => statistic,
         Err(error) => {
@@ -517,11 +525,12 @@ impl LinearScm {
         Some(Self { order, parents, coefficients, residuals, columns, descendants })
     }
 
-    /// The table with the residuals of `block` permuted by `permutation` and the block and its
-    /// descendants regenerated from the fitted mechanisms.
-    fn permuted(&self, block: usize, permutation: &[usize]) -> Vec<Vec<f64>> {
-        let mut out = self.columns.clone();
+    /// The columns the permutation of `block`'s residuals changes: the block and its
+    /// descendants, regenerated from the fitted mechanisms, in variable order. Untouched
+    /// columns are read from the fitted table and never copied.
+    fn permuted(&self, block: usize, permutation: &[usize]) -> Vec<(usize, Vec<f64>)> {
         let n = permutation.len();
+        let mut regenerated: Vec<Option<Vec<f64>>> = vec![None; self.columns.len()];
         for &v in &self.order {
             if v != block && !self.descendants[block][v] {
                 continue;
@@ -529,22 +538,21 @@ impl LinearScm {
             let mut fitted = vec![self.coefficients[v][0]; n];
             for (slot, &parent) in self.parents[v].iter().enumerate() {
                 let beta = self.coefficients[v][1 + slot];
-                for (f, x) in fitted.iter_mut().zip(&out[parent]) {
+                let source = regenerated[parent].as_deref().unwrap_or(&self.columns[parent]);
+                for (f, x) in fitted.iter_mut().zip(source) {
                     *f += beta * x;
                 }
             }
-            out[v] = (0..n)
-                .map(|row| {
-                    let residual = if v == block {
-                        self.residuals[v][permutation[row]]
-                    } else {
-                        self.residuals[v][row]
-                    };
-                    fitted[row] + residual
-                })
-                .collect();
+            for (row, f) in fitted.iter_mut().enumerate() {
+                *f += if v == block {
+                    self.residuals[v][permutation[row]]
+                } else {
+                    self.residuals[v][row]
+                };
+            }
+            regenerated[v] = Some(fitted);
         }
-        out
+        regenerated.into_iter().enumerate().filter_map(|(v, column)| Some((v, column?))).collect()
     }
 }
 
@@ -553,7 +561,7 @@ fn pearson(a: &[f64], b: &[f64]) -> Option<f64> {
     if n < 3 || b.len() != n {
         return None;
     }
-    let (ma, mb) = (a.iter().sum::<f64>() / n as f64, b.iter().sum::<f64>() / n as f64);
+    let (ma, mb) = (mean(a), mean(b));
     let (mut sab, mut saa, mut sbb) = (0.0, 0.0, 0.0);
     for (x, y) in a.iter().zip(b) {
         sab += (x - ma) * (y - mb);
@@ -571,20 +579,18 @@ fn permutation(n: usize, rng: &mut antecedent_core::CausalRng) -> Vec<usize> {
 
 fn with_columns(
     data: &TabularData,
-    new: &[Vec<f64>],
-    blocks: &[usize],
+    new: Vec<(usize, Vec<f64>)>,
 ) -> Result<TabularData, CausalError> {
-    let replacements: Vec<(VariableId, Arc<[f64]>)> = blocks
-        .iter()
-        .map(|&v| {
+    let replacements: Vec<(VariableId, Arc<[f64]>)> = new
+        .into_iter()
+        .map(|(v, column)| {
             let id = u32::try_from(v).map_err(|_| CausalError::Compile {
                 message: "a replacement column index exceeds the variable id range".into(),
             })?;
-            Ok((VariableId::from_raw(id), Arc::from(new[v].clone())))
+            Ok((VariableId::from_raw(id), Arc::from(column)))
         })
         .collect::<Result<_, CausalError>>()?;
-    data.with_replaced_floats(&replacements)
-        .map_err(|e| CausalError::Compile { message: e.to_string() })
+    Ok(data.with_replaced_floats(&replacements)?)
 }
 
 /// The noise-block permutation of an attribution.
@@ -613,7 +619,9 @@ fn noise_block_permutation(input: &ExtraInput<'_>) -> Result<Extras, CausalError
         return Ok((Vec::new(), notes));
     };
     let n = scm.columns[0].len();
-    let replicates = (input.replicates / 3).clamp(MIN_BLOCK_REPLICATES, MAX_BLOCK_REPLICATES);
+    // A third of the requested replicates per block, never fewer than the minimum; the
+    // request is honoured and the report carries the executed count.
+    let replicates = (input.replicates / 3).max(MIN_BLOCK_REPLICATES);
     let anomaly = input.result.anomaly().and_then(|scores| scores.first());
     let change = input.result.change_attribution();
     // Blocks: the noise components of the first scored target, or the change components.
@@ -643,11 +651,7 @@ fn noise_block_permutation(input: &ExtraInput<'_>) -> Result<Extras, CausalError
                 replicate + 1000 * u32::try_from(block).unwrap_or(0),
                 input.ctx,
             );
-            let columns = scm.permuted(block, &permutation(n, &mut rng));
-            let touched: Vec<usize> = (0..scm.columns.len())
-                .filter(|&v| v == block || scm.descendants[block][v])
-                .collect();
-            let data = with_columns(input.data, &columns, &touched)?;
+            let data = with_columns(input.data, scm.permuted(block, &permutation(n, &mut rng)))?;
             let refit = input.prepared.estimate(&data, input.ctx)?;
             if let Some(scores) = anomaly {
                 let Some(refit_scores) = refit.anomaly().and_then(|s| s.first()) else {
@@ -696,7 +700,7 @@ fn noise_block_permutation(input: &ExtraInput<'_>) -> Result<Extras, CausalError
             continue;
         }
         tested += 1;
-        let (mean, _) = mean_and_sd(&statistic);
+        let mean = mean(&statistic);
         // Anomaly: the alignment of unit contributions; change: the permuted block's share of
         // the change relative to its original share.
         let (score, shown) = if anomaly.is_some() {
@@ -839,26 +843,41 @@ fn observed_atom_probabilities(
     expected
 }
 
+/// Replicate-stream index of the `slot`-th intervened variable: the first keeps the
+/// replicate's own stream, each further variable draws from a disjoint block of streams.
+fn placebo_stream_index(replicate: u32, slot: usize) -> u32 {
+    let offset = u32::try_from(slot).unwrap_or(u32::MAX).saturating_mul(1 << 20);
+    replicate.saturating_add(offset)
+}
+
 fn distribution_placebo_replicates(
     input: &ExtraInput<'_>,
-    treatment: VariableId,
-    column: &[f64],
+    treatments: &[VariableId],
+    columns: &[Vec<f64>],
     kept: usize,
     replicates: u32,
 ) -> Result<Vec<f64>, CausalError> {
     let mut rows = Vec::with_capacity(replicates as usize * kept);
+    let mut scratch: Vec<Vec<f64>> =
+        columns.iter().map(|column| vec![0.0; column.len()]).collect();
     for replicate in 0..replicates {
         if input.ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_VALIDATE });
         }
-        let mut rng =
-            target_refuter_stream(TargetRefuterKind::PlaceboTreatment, replicate, input.ctx);
-        let mut permuted = column.to_vec();
-        shuffle(&mut rng, &mut permuted);
-        let data = input
-            .data
-            .with_replaced_float(treatment, permuted.into())
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let mut replacements: Vec<(VariableId, Arc<[f64]>)> = Vec::with_capacity(treatments.len());
+        for (slot, ((&treatment, column), permuted)) in
+            treatments.iter().zip(columns).zip(&mut scratch).enumerate()
+        {
+            let mut rng = target_refuter_stream(
+                TargetRefuterKind::PlaceboTreatment,
+                placebo_stream_index(replicate, slot),
+                input.ctx,
+            );
+            permuted.copy_from_slice(column);
+            shuffle(&mut rng, permuted);
+            replacements.push((treatment, Arc::from(permuted.as_slice())));
+        }
+        let data = input.data.with_replaced_floats(&replacements)?;
         let refit = input.prepared.estimate(&data, input.ctx)?;
         let (_, _, values) = result_target_values(&refit)?;
         if values.len() != kept {
@@ -869,4 +888,24 @@ fn distribution_placebo_replicates(
         rows.extend_from_slice(&values);
     }
     Ok(rows)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{pearson, placebo_stream_index};
+
+    #[test]
+    fn the_first_intervened_variable_keeps_the_replicate_stream() {
+        assert_eq!(placebo_stream_index(7, 0), 7);
+        assert_ne!(placebo_stream_index(7, 1), placebo_stream_index(7, 2));
+        assert_ne!(placebo_stream_index(7, 1), placebo_stream_index(8, 0));
+    }
+
+    #[test]
+    fn pearson_needs_three_rows_and_a_varying_column() {
+        assert_eq!(pearson(&[1.0, 2.0], &[1.0, 2.0]), None);
+        assert_eq!(pearson(&[1.0, 1.0, 1.0], &[1.0, 2.0, 3.0]), None);
+        let rho = pearson(&[1.0, 2.0, 3.0], &[2.0, 4.0, 6.0]).unwrap();
+        assert!((rho - 1.0).abs() < 1e-12);
+    }
 }

@@ -50,7 +50,7 @@ impl super::Study {
         let conditional = matches!(self.query, CausalQuery::ConditionalEffect(_));
         let class_tag = gp.atom_kind.as_str().to_ascii_lowercase();
         let (identified, identify_cached) = if let Some(cache) =
-            self.graph_posterior_identification_cache.as_ref()
+            self.graph_posterior_cache()
         {
             (Arc::clone(cache), true)
         } else if let Some(cache) =

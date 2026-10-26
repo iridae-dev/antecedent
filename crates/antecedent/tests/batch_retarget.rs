@@ -218,7 +218,7 @@ fn a_configuration_decides_nuisance_sharing_and_has_a_canonical_fingerprint() {
 
     // Every declared choice changes the canonical fingerprint; equal declarations agree
     // (a penalty grid is canonical under order and duplicates).
-    let print = |est: AipwAte| study(est).estimator_fingerprint();
+    let print = |est: AipwAte| study(est).estimator_fingerprint().unwrap();
     let base = AipwAte::new().with_bootstrap_replicates(0);
     let different = [
         print(base.clone()),
@@ -237,10 +237,13 @@ fn a_configuration_decides_nuisance_sharing_and_has_a_canonical_fingerprint() {
         }
     }
     assert_eq!(print(ridge(&[1.0, 0.1, 1.0], 3)), print(ridge(&[0.1, 1.0], 3)));
-    assert_ne!(print(base), plain_batch(&fx).estimator_fingerprint());
+    assert_ne!(print(base), plain_batch(&fx).estimator_fingerprint().unwrap());
     // The fingerprint is on every result's shared-design diagnostic.
     let results = plain.estimate_many(&queries[..1], &ctx).unwrap();
-    assert_eq!(shared_field(&results[0], "estimator_config"), plain.estimator_fingerprint());
+    assert_eq!(
+        shared_field(&results[0], "estimator_config"),
+        plain.estimator_fingerprint().unwrap()
+    );
 }
 
 #[test]

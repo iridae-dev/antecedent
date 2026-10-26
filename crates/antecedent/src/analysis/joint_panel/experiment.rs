@@ -21,7 +21,10 @@ mod native;
 pub use future_regime::{
     PanelFutureRegime, PanelFutureStudy, PanelFutureStudyUpdate, PanelFutureStudyValue,
 };
-pub use law::{HistoricalJointLawExperiment, JointLawExperimentRequest, JointLawExperimentResult};
+pub use law::{
+    HistoricalJointLawExperiment, JointLawExperimentRequest, JointLawExperimentResult,
+    LawExperimentLimits,
+};
 pub use matrix::{
     JointExperimentAcceptanceMatrix, JointExperimentAcceptanceRow,
     joint_experiment_acceptance_matrix,
@@ -755,9 +758,10 @@ fn validate_future_sample_catalog(
     candidates: &[PanelFutureSample],
     replicates: usize,
 ) -> Result<(), JointPanelError> {
+    // Candidate and replicate counts are the caller's work budget: retention is admitted
+    // against the memory limit and every replicate checks cancellation.
     if candidates.is_empty()
-        || candidates.len() > 512
-        || !(2..=100_000).contains(&replicates)
+        || replicates < 2
         || candidates.iter().any(|candidate| {
             candidate.id.trim().is_empty()
                 || candidate.sample_size == 0
@@ -768,7 +772,7 @@ fn validate_future_sample_catalog(
         })
     {
         return Err(JointPanelError::compile(
-            "invalid bounded future-sample catalog, Gaussian model, declared utility cost or integration budget",
+            "invalid future-sample catalog, Gaussian model, declared utility cost or integration budget",
         ));
     }
     let mut ids = std::collections::BTreeSet::new();
@@ -1177,4 +1181,27 @@ fn future_study_action_identity<A: serde::Serialize>(
                 .map_err(|error| JointPanelError::compile(error.to_string()))?,
         );
     Ok(SemanticDigest::from_bytes(action_writer.finish()))
+}
+
+#[cfg(test)]
+mod catalog_size_tests {
+    use super::{PanelFutureSample, validate_future_sample_catalog};
+
+    fn candidates(count: usize) -> Vec<PanelFutureSample> {
+        (0..count)
+            .map(|i| PanelFutureSample {
+                id: format!("study-{i}"),
+                sample_size: 10,
+                observation_variance: 1.0,
+                cost_utility: None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn catalog_and_replicate_counts_are_not_capped_by_literals() {
+        assert!(validate_future_sample_catalog(&candidates(2_000), 250_000).is_ok());
+        assert!(validate_future_sample_catalog(&candidates(0), 1_000).is_err());
+        assert!(validate_future_sample_catalog(&candidates(3), 1).is_err());
+    }
 }

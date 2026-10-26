@@ -16,7 +16,7 @@ pub(super) fn bayesian_static_mediation(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
     let sealed = match (
         cx.static_mediation_dag(),
-        analysis.identification_cache.as_ref(),
+        analysis.static_cache(),
         &analysis.inference,
     ) {
         (Some(data), Some(cache), InferenceMode::Bayesian(_)) => Some(Box::new(
@@ -31,7 +31,7 @@ pub(super) fn bayesian_static_mediation(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn static_mediation(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.static_mediation_dag(), analysis.identification_cache.as_ref()) {
+    let sealed = match (cx.static_mediation_dag(), analysis.static_cache()) {
         (Some(data), Some(cache))
             if matches!(analysis.inference, InferenceMode::Frequentist)
                 && matches!(
@@ -55,7 +55,7 @@ pub(super) fn attribution(cx: &SealContext<'_>) -> SealOutcome {
     let sealed = match (
         &source.data,
         &source.query,
-        analysis.identification_cache.as_ref(),
+        analysis.static_cache(),
         analysis.graph.class(),
         &analysis.inference,
     ) {
@@ -113,7 +113,7 @@ pub(super) fn counterfactual(cx: &SealContext<'_>) -> SealOutcome {
     let Some(operation) = counterfactual else {
         return Ok(None);
     };
-    let cache = analysis.identification_cache.as_ref().ok_or_else(|| CausalError::Compile {
+    let cache = analysis.static_cache().ok_or_else(|| CausalError::Compile {
         message: "counterfactual preparation lost its identification product".into(),
     })?;
     let inference = analysis.inference.clone();

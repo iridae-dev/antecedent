@@ -18,6 +18,75 @@ macro_rules! checked_ref {
 }
 pub(crate) use checked_ref;
 
+/// Declare a fieldless enum with a stable string spelling per variant.
+///
+/// Generates the enum (attributes and variant docs pass through), `ALL`, `as_str`, a lookup
+/// function named by `lookup = ...` returning `Option<Self>`, `Display` (the same spelling)
+/// and `FromStr` (a `CausalError::Compile` naming the accepted spellings), so the spelling
+/// is written once per variant and the four conversions cannot drift apart.
+macro_rules! string_enum {
+    (
+        $(#[$meta:meta])*
+        $vis:vis enum $name:ident, lookup = $lookup:ident {
+            $(
+                $(#[$vmeta:meta])*
+                $variant:ident => $text:literal,
+            )+
+        }
+    ) => {
+        $(#[$meta])*
+        $vis enum $name {
+            $(
+                $(#[$vmeta])*
+                $variant,
+            )+
+        }
+
+        impl $name {
+            /// Every variant, in declaration order.
+            pub const ALL: &'static [Self] = &[$(Self::$variant),+];
+
+            /// Stable spelling.
+            #[must_use]
+            pub const fn as_str(self) -> &'static str {
+                match self {
+                    $(Self::$variant => $text,)+
+                }
+            }
+
+            /// Variant with the stable spelling `name`.
+            #[must_use]
+            pub fn $lookup(name: &str) -> Option<Self> {
+                match name {
+                    $($text => Some(Self::$variant),)+
+                    _ => None,
+                }
+            }
+        }
+
+        impl ::std::fmt::Display for $name {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                f.write_str(self.as_str())
+            }
+        }
+
+        impl ::std::str::FromStr for $name {
+            type Err = $crate::error::CausalError;
+
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                Self::$lookup(s).ok_or_else(|| $crate::error::CausalError::Compile {
+                    message: format!(
+                        "unknown {} {s:?}; use {}",
+                        stringify!($name),
+                        [$($text),+].join("|"),
+                    ),
+                })
+            }
+        }
+    };
+}
+pub(crate) use string_enum;
+
 pub mod api;
 
 pub mod adaptive_inference;
@@ -42,6 +111,7 @@ mod checked_class_graph_posterior_effect;
 mod checked_conditional;
 mod checked_graph_posterior;
 mod checked_propensity;
+mod checked_route_frozen;
 mod checked_temporal_class_effect;
 mod checked_temporal_class_response;
 mod checked_temporal_effect;
@@ -239,8 +309,8 @@ pub use composition_verification::{
 };
 pub use continuous_measurement::{ContinuousErrorInput, ContinuousMeasurementEstimate};
 pub use cost::{
-    BatchCostEstimate, CostEstimate, InferenceDefault, JointCellCostEstimate, RetargetCostEstimate,
-    estimate_joint_cell_cost,
+    BatchCostEstimate, CostEstimate, CostModel, CostModelError, InferenceDefault,
+    JointCellCostEstimate, RetargetCostEstimate, estimate_joint_cell_cost,
 };
 pub use counterfactual_transport::{
     CounterfactualTransportConsumption, CounterfactualTransportObstructionReport,
@@ -280,10 +350,9 @@ pub use interface_contract::{
     inspect_interface_contract_artifact,
 };
 pub use inverse_outcome::{
-    ActionConstraint, ActionOutcome, ActionSpec, ActionStatus, EnumeratedStatus, ForwardEvaluation,
-    ForwardInterval, INVERSE_SCOPE_NOTE, IntervalMeta, IntervalScope, InverseOutcomeError,
-    InverseOutcomeReport, InverseQuery, MAX_INVERSE_ACTIONS, MAX_INVERSE_FORWARD_POINTS,
-    SupportBasis, TargetDirection, classify_inverse_outcome,
+    ActionConstraint, ActionOutcome, ActionReason, ActionSpec, ActionStatus, EnumeratedStatus,
+    ForwardEvaluation, ForwardInterval, INVERSE_SCOPE_NOTE, IntervalMeta, IntervalScope, InverseOutcomeError,
+    InverseOutcomeReport, InverseQuery, SupportBasis, TargetDirection, classify_inverse_outcome,
 };
 pub use joint_law_propagation::{
     ComposedInterval, CorrelationRangeSummary, ExceedanceQuery, JointLawPropagationRefusal,
@@ -416,7 +485,7 @@ pub use batch_export::{TidyKind, TidyRow};
 pub use batch_retarget::{
     BATCH_RETARGET_SCOPE_NOTE, BandMember, BatchRetargetError, BatchRetargetReport,
     BatchRetargetRequest, BatchScores, ClaimPoint, ClaimReport, ContrastPoint, ContrastReport,
-    FamilyCovariance, MAX_T_MAX_DRAWS, MAX_T_MIN_DRAWS, MemberFailure, RetargetClaim,
+    FamilyCovariance, MemberFailure, RetargetClaim,
     RetargetContrast, ScoreSource, SimultaneousBand, UncertaintyKind,
 };
 // Max-t evaluator entries kept for the calibration wiring (the published route is
@@ -444,6 +513,7 @@ pub use decision_contract_facade::{
     utility_interval,
 };
 pub use execute::DagResponseOrigin;
+pub use execute::IntoSharedPlan;
 pub use execute::Study;
 pub use execute::{
     BAYESIAN_REALIZATION, DECISION_NEXT_ATTEMPTS, DISTRIBUTIONAL_CARRIER, DecisionCarrierError,

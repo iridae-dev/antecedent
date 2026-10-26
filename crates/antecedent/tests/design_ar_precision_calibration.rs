@@ -35,7 +35,7 @@ fn request(n: usize, seed: u64, strength: f64) -> DesignRequest {
         y.push(outcome);
     }
     DesignRequest {
-        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z), ("u".into(), u)],
+        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z), ("u".into(), u)].into(),
         edges: vec![(2, 0), (3, 0), (3, 1), (0, 1)],
         treatment: 0,
         outcome: 1,

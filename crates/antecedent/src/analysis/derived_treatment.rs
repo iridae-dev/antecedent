@@ -20,8 +20,8 @@
 use antecedent_core::{ExecutionContext, VariableId, reason_code};
 use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::{
-    EstimationError, FactorizedJointConfig, FactorizedJointFit, MAX_FACTORIZED_COMPONENTS,
-    RefusalFields, fit_factorized_joint_cells,
+    EstimationError, FactorizedJointConfig, FactorizedJointFit, MAX_JOINT_BINARY, RefusalFields,
+    fit_factorized_joint_cells,
 };
 use serde::{Deserialize, Serialize};
 
@@ -70,7 +70,8 @@ pub struct SourceColumn {
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Transformation {
-    /// The joint cell of up to three binary components; bit `j` is the `j`-th construction
+    /// The joint cell of binary components (at most the 31 a `u32` cell code addresses, and no
+    /// more than the complete-case rows can populate); bit `j` is the `j`-th construction
     /// source. Injective: setting the cell sets every component.
     JointCell,
     /// Product of the components. Many-to-one: it does not fix the components.
@@ -195,7 +196,7 @@ impl DerivedTreatmentDeclaration {
     /// # Errors
     ///
     /// `derived_treatment_invalid` for an empty or duplicated name, a role that contradicts its
-    /// measurement time, no construction source (or more than three for a joint cell),
+    /// measurement time, no construction source (or more than 31 for a joint cell),
     /// invalid legal values, a many-to-one transformation declared as a joint-component
     /// intervention, or an exclusion without a justification or whose rule does not match the
     /// column's role.
@@ -235,7 +236,7 @@ impl DerivedTreatmentDeclaration {
         }
         let components = self.construction().len();
         let max_components = if self.transformation == Transformation::JointCell {
-            MAX_FACTORIZED_COMPONENTS
+            MAX_JOINT_BINARY
         } else {
             usize::MAX
         };
@@ -243,7 +244,7 @@ impl DerivedTreatmentDeclaration {
             return Err(invalid(
                 name,
                 "a derived treatment needs at least one treatment-construction source (at most \
-                 three binary components for a joint cell)",
+                 31 binary components for a joint cell; the rows must populate every joint cell)",
             ));
         }
         if self.transformation != Transformation::JointCell
@@ -548,6 +549,7 @@ pub fn check_derived_treatment(
         adjustment: adjustment_ids,
         protected: Vec::new(),
         arms: vec![ArmSpec { role: "cell", levels: Vec::new() }],
+        memory_limit_bytes: None,
     };
     let report = preflight_design(&input, ctx)?;
 
@@ -614,9 +616,9 @@ pub fn check_derived_treatment(
 
 /// Check the declaration, then estimate its joint cells with factorized propensities.
 ///
-/// The declaration must be a [`Transformation::JointCell`] of at most three binary
-/// components. The check runs first; its refusals are returned unchanged. The point estimates
-/// and aligned scores of the supported cells come back with the plan; no interval is licensed.
+/// The declaration must be a [`Transformation::JointCell`] of at most 31 binary
+/// components (the fit refuses when the rows cannot populate every joint cell). The check runs
+/// first; its refusals are returned unchanged. The point estimates and aligned scores of the supported cells come back with the plan; no interval is licensed.
 ///
 /// # Errors
 ///

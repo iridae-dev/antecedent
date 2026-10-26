@@ -21,7 +21,6 @@ use pyo3::types::{PyBytes, PyDict, PyList};
 use serde::Deserialize;
 
 const MAX_BYTES: usize = MAX_DECLARED_ARTIFACT_BYTES;
-const MAX_SOURCES: usize = 64;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -124,15 +123,9 @@ pub(crate) fn adapt_prior_signal(
     sources: &Bound<'_, PyList>,
     request_json: &str,
 ) -> PyResult<(Option<CheckedPriorSignal>, Option<String>)> {
-    if sources.len() > MAX_SOURCES {
-        return Err(value_err("too many prior signal sources"));
-    }
     check_declared_size(request_json, MAX_BYTES, "prior signal")?;
     let wire: RequestWire = serde_json::from_str(request_json)
         .map_err(|e| value_err(format!("prior_signal.invalid_request: {e}")))?;
-    if wire.sources.len() > MAX_SOURCES {
-        return Err(value_err("too many prior signal sources"));
-    }
     if wire.state.population_id != wire.target_population {
         return Ok((
             None,

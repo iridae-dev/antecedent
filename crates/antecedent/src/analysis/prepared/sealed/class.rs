@@ -15,7 +15,7 @@ use crate::analysis::{
     CheckedAdmgGraphPosteriorResponse, CheckedBayesianClassConditional,
     CheckedBayesianGraphPosteriorAte, CheckedClassGraphPosteriorEffect,
     CheckedGraphPosteriorEffect, CheckedStaticClassEffect, StaticClassGraph,
-    StaticClassIdentification,
+    IdentificationCache, StaticClassIdentification,
 };
 use crate::error::CausalError;
 use crate::result::StudyResult;
@@ -119,11 +119,12 @@ impl SealedOperation for CheckedStaticClassEffect {
         click_analysis.overlap_policy = Some(self.overlap());
         let result = match (self.graph(), self.identification()) {
             (StaticClassGraph::Cpdag(graph), StaticClassIdentification::Cpdag(cache)) => {
-                click_analysis.cpdag_identification_cache = Some(Arc::clone(cache));
+                click_analysis
+                    .install_identification(IdentificationCache::Cpdag(Arc::clone(cache)));
                 click_analysis.execute_cpdag(data, graph, self.query(), self.physical(), ctx)?
             }
             (StaticClassGraph::Pag(graph), StaticClassIdentification::Pag(cache)) => {
-                click_analysis.pag_identification_cache = Some(Arc::clone(cache));
+                click_analysis.install_identification(IdentificationCache::Pag(Arc::clone(cache)));
                 click_analysis.execute_pag(data, graph, self.query(), self.physical(), ctx)?
             }
             _ => {

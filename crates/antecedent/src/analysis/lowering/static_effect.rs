@@ -646,24 +646,27 @@ fn resampling_request(
         SamplingDeclaration::Undeclared => study.sampling_design,
     };
     if let Some(linear) = linear {
-        return (linear.fitter.bootstrap_replicates, declared(linear.fitter.sampling_design));
+        return (
+            linear.fitter.inference.bootstrap_replicates,
+            declared(linear.fitter.inference.sampling_design),
+        );
     }
     if let Some(spec) = spec {
         return match spec {
             EstimatorSpec::LinearAdjustmentAte(config) => {
-                (config.bootstrap_replicates, declared(config.sampling_design))
+                (config.inference.bootstrap_replicates, declared(config.inference.sampling_design))
             }
             EstimatorSpec::PropensityWeighting(config) => {
-                (config.bootstrap_replicates, declared(config.sampling_design))
+                (config.inference.bootstrap_replicates, declared(config.inference.sampling_design))
             }
             EstimatorSpec::PropensityStratification(config) => {
-                (config.bootstrap_replicates, declared(config.sampling_design))
+                (config.inference.bootstrap_replicates, declared(config.inference.sampling_design))
             }
             EstimatorSpec::Aipw(config) => {
-                (config.bootstrap_replicates, declared(config.sampling_design))
+                (config.inference.bootstrap_replicates, declared(config.inference.sampling_design))
             }
             EstimatorSpec::GlmAdjustment(config) => {
-                (config.bootstrap_replicates, declared(config.sampling_design))
+                (config.inference.bootstrap_replicates, declared(config.inference.sampling_design))
             }
             EstimatorSpec::FrontDoorTwoStage(config) => {
                 (config.bootstrap_replicates, declared(config.sampling_design))

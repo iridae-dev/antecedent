@@ -32,7 +32,7 @@ pub(super) fn checked_linear(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { source, analysis, plan, .. } = *cx;
     let sealed = match (
         cx.static_ate_dag(),
-        analysis.identification_cache.as_ref(),
+        analysis.static_cache(),
         source.graph_posterior.is_none(),
         source.tiered.is_none(),
     ) {
@@ -72,11 +72,7 @@ pub(super) fn checked_linear(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn checked_glm_adjustment(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (
-        cx.static_ate_dag(),
-        analysis.identification_cache.as_ref(),
-        &analysis.inference,
-    ) {
+    let sealed = match (cx.static_ate_dag(), analysis.static_cache(), &analysis.inference) {
         (Some((data, query)), Some(cache), InferenceMode::Frequentist)
             if matches!(query.outcome_functional, OutcomeFunctional::Mean)
                 && !matches!(query.active, Intervention::Set { variable, .. } if variable != query.treatment)
@@ -105,9 +101,9 @@ pub(super) fn checked_glm_adjustment(cx: &SealContext<'_>) -> SealOutcome {
                     (**config).clone()
                 } else {
                     let mut fitter = antecedent_estimate::GlmAdjustmentAte::new();
-                    fitter.sampling_design =
+                    fitter.inference.sampling_design =
                         crate::estimator_spec::declared_sampling(analysis.sampling_design);
-                    fitter.bootstrap_replicates = analysis.bootstrap_replicates;
+                    fitter.inference.bootstrap_replicates = analysis.bootstrap_replicates;
                     fitter
                 };
             if fitter.population_registry.is_none() {
@@ -157,10 +153,8 @@ pub(super) fn checked_rd(cx: &SealContext<'_>) -> SealOutcome {
             // that retained none (a design that does not identify) identifies here and
             // reports the refusal.
             let target = CausalQuery::AverageEffect(query.clone());
-            let retained = analysis
-                .identification_cache
-                .as_ref()
-                .filter(|cache| cache.identification.query == target);
+            let retained =
+                analysis.static_cache().filter(|cache| cache.identification.query == target);
             let (identification, estimand) = if let Some(cache) = retained {
                 (cache.identification.clone(), cache.estimand.clone())
             } else {
@@ -285,8 +279,7 @@ fn conditional_class_proof(
     let SealContext { analysis, plan, .. } = *cx;
     Ok(match graph_class {
         GraphClass::Cpdag => {
-            let (Some(graph), Some(cache)) =
-                (analysis.graph.as_cpdag(), analysis.cpdag_identification_cache.as_ref())
+            let (Some(graph), Some(cache)) = (analysis.graph.as_cpdag(), analysis.cpdag_cache())
             else {
                 return Err(CausalError::Compile {
                     message: "conditional CPDAG preparation lost its graph proof".into(),
@@ -298,9 +291,7 @@ fn conditional_class_proof(
             })
         }
         GraphClass::Pag => {
-            let (Some(graph), Some(cache)) =
-                (plan.static_pag(), analysis.pag_identification_cache.as_ref())
-            else {
+            let (Some(graph), Some(cache)) = (plan.static_pag(), analysis.pag_cache()) else {
                 return Err(CausalError::Compile {
                     message: "conditional PAG preparation lost its graph proof".into(),
                 });
@@ -322,7 +313,7 @@ fn conditional_class_target(
     graph_class: GraphClass,
 ) -> Option<Arc<crate::analysis::prepared::CachedStaticIdentification>> {
     match (class_proof, graph_class) {
-        (None, GraphClass::Dag) => analysis.identification_cache.clone(),
+        (None, GraphClass::Dag) => analysis.static_cache().cloned(),
         (
             Some(crate::analysis::checked_conditional::ConditionalClassProof::Cpdag {
                 cache, ..
@@ -396,82 +387,79 @@ pub(super) fn checked_propensity(cx: &SealContext<'_>) -> SealOutcome {
     if plan.streams_design() {
         return Ok(None);
     }
-    let sealed =
-        match (cx.static_ate_dag(), analysis.identification_cache.as_ref(), &analysis.inference) {
-            (Some((data, query)), Some(cache), InferenceMode::Frequentist)
-                if matches!(query.outcome_functional, OutcomeFunctional::Mean)
-                    && analysis.graph_posterior.is_none()
-                    && analysis.tiered.is_none()
-                    && matches!(
-                        analysis.structure_source,
-                        crate::support::StructureSource::Explicit
-                            | crate::support::StructureSource::Accepted
-                    )
-                    && analysis.custom_validators.is_empty()
-                    && matches!(
-                        analysis.refute,
-                        RefuteSuite::None
-                            | RefuteSuite::Cheap
-                            | RefuteSuite::PlaceboAndRcc
-                            | RefuteSuite::Full
-                    )
-                    && matches!(
-                        cx.binding.estimator.named(),
-                        Some(EstimatorId::PropensityWeighting | EstimatorId::PropensityMatching)
-                    )
-                    && !analysis.estimator_spec.as_deref().is_some_and(
-                        crate::estimator_spec::EstimatorSpec::excludes_undeclared_levels,
-                    ) =>
-            {
-                let estimator = cx.binding.estimator.named().ok_or(CausalError::Unsupported {
-                    message: "the propensity route names no estimator",
+    let sealed = match (cx.static_ate_dag(), analysis.static_cache(), &analysis.inference) {
+        (Some((data, query)), Some(cache), InferenceMode::Frequentist)
+            if matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                && analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && matches!(
+                    analysis.structure_source,
+                    crate::support::StructureSource::Explicit
+                        | crate::support::StructureSource::Accepted
+                )
+                && analysis.custom_validators.is_empty()
+                && matches!(
+                    analysis.refute,
+                    RefuteSuite::None
+                        | RefuteSuite::Cheap
+                        | RefuteSuite::PlaceboAndRcc
+                        | RefuteSuite::Full
+                )
+                && matches!(
+                    cx.binding.estimator.named(),
+                    Some(EstimatorId::PropensityWeighting | EstimatorId::PropensityMatching)
+                )
+                && !analysis.estimator_spec.as_deref().is_some_and(
+                    crate::estimator_spec::EstimatorSpec::excludes_undeclared_levels,
+                ) =>
+        {
+            let estimator = cx.binding.estimator.named().ok_or(CausalError::Unsupported {
+                message: "the propensity route names no estimator",
+            })?;
+            let identifier = cx.binding.identifier_or(RouteDefaults::STATIC_ATE)?;
+            let estimand_index = cache
+                .identification
+                .estimands
+                .iter()
+                .position(|candidate| candidate.same_claim(&cache.estimand))
+                .ok_or_else(|| CausalError::Compile {
+                    message:
+                        "selected propensity estimand is absent from its identification product"
+                            .into(),
                 })?;
-                let identifier = cx.binding.identifier_or(RouteDefaults::STATIC_ATE)?;
-                let estimand_index = cache
-                    .identification
-                    .estimands
-                    .iter()
-                    .position(|candidate| candidate.same_claim(&cache.estimand))
-                    .ok_or_else(|| CausalError::Compile {
-                        message:
-                            "selected propensity estimand is absent from its identification product"
-                                .into(),
-                    })?;
-                let fitter = match (analysis.estimator_spec.as_deref(), estimator) {
-                    (
-                        Some(crate::estimator_spec::EstimatorSpec::PropensityWeighting(config)),
-                        crate::strategy_table::EstimatorId::PropensityWeighting,
-                    ) => CheckedPropensityEstimator::Weighting((**config).clone()),
-                    (
-                        Some(crate::estimator_spec::EstimatorSpec::PropensityMatching(config)),
-                        crate::strategy_table::EstimatorId::PropensityMatching,
-                    ) => CheckedPropensityEstimator::Matching((**config).clone()),
-                    (_, crate::strategy_table::EstimatorId::PropensityWeighting) => {
-                        let mut fitter = antecedent_estimate::PropensityWeighting::new();
-                        fitter.sampling_design =
-                            crate::estimator_spec::declared_sampling(analysis.sampling_design);
-                        fitter.bootstrap_replicates = analysis.bootstrap_replicates;
-                        CheckedPropensityEstimator::Weighting(fitter)
-                    }
-                    (_, crate::strategy_table::EstimatorId::PropensityMatching) => {
-                        let mut fitter = antecedent_estimate::PropensityMatching::new();
-                        fitter.bootstrap_replicates = analysis.bootstrap_replicates;
-                        CheckedPropensityEstimator::Matching(fitter)
-                    }
-                    _ => unreachable!(),
-                };
-                let context = CheckedPropensityContext {
-                    source_query: analysis.query.clone(),
-                    cache: Arc::clone(cache),
-                    estimand_index,
-                    common: CheckedStaticCommon::from_analysis(
-                        analysis, plan, identifier, estimator,
-                    ),
-                };
-                Some(CheckedPropensityOperation::prepare(data, context, estimator, fitter)?)
-            }
-            _ => None,
-        };
+            let fitter = match (analysis.estimator_spec.as_deref(), estimator) {
+                (
+                    Some(crate::estimator_spec::EstimatorSpec::PropensityWeighting(config)),
+                    crate::strategy_table::EstimatorId::PropensityWeighting,
+                ) => CheckedPropensityEstimator::Weighting((**config).clone()),
+                (
+                    Some(crate::estimator_spec::EstimatorSpec::PropensityMatching(config)),
+                    crate::strategy_table::EstimatorId::PropensityMatching,
+                ) => CheckedPropensityEstimator::Matching((**config).clone()),
+                (_, crate::strategy_table::EstimatorId::PropensityWeighting) => {
+                    let mut fitter = antecedent_estimate::PropensityWeighting::new();
+                    fitter.inference.sampling_design =
+                        crate::estimator_spec::declared_sampling(analysis.sampling_design);
+                    fitter.inference.bootstrap_replicates = analysis.bootstrap_replicates;
+                    CheckedPropensityEstimator::Weighting(fitter)
+                }
+                (_, crate::strategy_table::EstimatorId::PropensityMatching) => {
+                    let mut fitter = antecedent_estimate::PropensityMatching::new();
+                    fitter.bootstrap_replicates = analysis.bootstrap_replicates;
+                    CheckedPropensityEstimator::Matching(fitter)
+                }
+                _ => unreachable!(),
+            };
+            let context = CheckedPropensityContext {
+                source_query: analysis.query.clone(),
+                cache: Arc::clone(cache),
+                estimand_index,
+                common: CheckedStaticCommon::from_analysis(analysis, plan, identifier, estimator),
+            };
+            Some(CheckedPropensityOperation::prepare(data, context, estimator, fitter)?)
+        }
+        _ => None,
+    };
     Ok(sealed.map(PreparedExecution::CheckedPropensity))
 }
 
@@ -484,7 +472,7 @@ pub(super) fn checked_aipw(cx: &SealContext<'_>) -> SealOutcome {
     }
     let sealed = match (
         cx.route,
-        analysis.identification_cache.as_ref(),
+        analysis.static_cache(),
         &analysis.inference,
         source.graph.class(),
         source.graph_posterior.is_none(),
@@ -539,29 +527,28 @@ pub(super) fn checked_aipw(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn frontdoor_linear(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, .. } = *cx;
-    let sealed =
-        match (cx.static_ate_dag(), analysis.identification_cache.as_ref(), &analysis.inference) {
-            (Some((data, query)), Some(cache), InferenceMode::Frequentist)
-                if matches!(query.outcome_functional, OutcomeFunctional::Mean)
-                    && matches!(query.target_population, TargetPopulation::AllObserved)
-                    && cx.binding.estimator.is(EstimatorId::FrontDoorTwoStage) =>
-            {
-                let fitter =
-                    if let Some(crate::estimator_spec::EstimatorSpec::FrontDoorTwoStage(config)) =
-                        analysis.estimator_spec.as_deref()
-                    {
-                        (**config).clone()
-                    } else {
-                        let mut fitter = antecedent_estimate::FrontDoorTwoStage::new();
-                        fitter.sampling_design =
-                            crate::estimator_spec::declared_sampling(analysis.sampling_design);
-                        fitter
-                    };
-                let preparation = fitter.prepare_checked(data, &cache.identification, 0)?;
-                Some(CheckedFrontDoorOperation { fitter, preparation })
-            }
-            _ => None,
-        };
+    let sealed = match (cx.static_ate_dag(), analysis.static_cache(), &analysis.inference) {
+        (Some((data, query)), Some(cache), InferenceMode::Frequentist)
+            if matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                && matches!(query.target_population, TargetPopulation::AllObserved)
+                && cx.binding.estimator.is(EstimatorId::FrontDoorTwoStage) =>
+        {
+            let fitter =
+                if let Some(crate::estimator_spec::EstimatorSpec::FrontDoorTwoStage(config)) =
+                    analysis.estimator_spec.as_deref()
+                {
+                    (**config).clone()
+                } else {
+                    let mut fitter = antecedent_estimate::FrontDoorTwoStage::new();
+                    fitter.sampling_design =
+                        crate::estimator_spec::declared_sampling(analysis.sampling_design);
+                    fitter
+                };
+            let preparation = fitter.prepare_checked(data, &cache.identification, 0)?;
+            Some(CheckedFrontDoorOperation { fitter, preparation })
+        }
+        _ => None,
+    };
     Ok(sealed.map(PreparedExecution::FrontDoorLinear))
 }
 
@@ -572,11 +559,7 @@ pub(super) fn iv(cx: &SealContext<'_>) -> SealOutcome {
     if plan.streams_design() {
         return Ok(None);
     }
-    let sealed = match (
-        cx.static_ate_dag(),
-        analysis.identification_cache.as_ref(),
-        &analysis.inference,
-    ) {
+    let sealed = match (cx.static_ate_dag(), analysis.static_cache(), &analysis.inference) {
         (Some((data, _)), Some(cache), InferenceMode::Frequentist) => {
             match (analysis.estimator_spec.as_deref(), cx.binding.estimator.named()) {
                 (
@@ -638,7 +621,7 @@ pub(super) fn unknown_tiered_average(cx: &SealContext<'_>) -> SealOutcome {
     let sealed = match (
         cx.static_ate(),
         analysis.tiered.as_ref(),
-        analysis.identification_cache.as_ref(),
+        analysis.static_cache(),
         &analysis.inference,
     ) {
         (Some(query), Some(background), Some(cache), inference)

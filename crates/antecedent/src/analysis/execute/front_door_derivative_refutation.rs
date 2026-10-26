@@ -35,8 +35,6 @@ use antecedent_validate::RefutationReport;
 
 /// Replicates of the resampling check when the study requested none.
 const DEFAULT_STABILITY_REPLICATES: u32 = 49;
-/// Upper bound on the resampling replicates.
-const MAX_STABILITY_REPLICATES: u32 = 199;
 /// Relative tolerance of the smoothness-sensitivity check (plus two standard errors).
 const SENSITIVITY_RELATIVE_TOLERANCE: f64 = 0.25;
 /// Penalty multiplier of the stiff refit and divisor of the flexible refit.
@@ -239,10 +237,8 @@ fn bootstrap_stability(
     if !value.is_finite() {
         return Ok(Err("the derivative has no finite first component to resample".to_owned()));
     }
-    let replicates = match input.replicates {
-        0 => DEFAULT_STABILITY_REPLICATES,
-        requested => requested.min(MAX_STABILITY_REPLICATES),
-    };
+    let replicates =
+        if input.replicates == 0 { DEFAULT_STABILITY_REPLICATES } else { input.replicates };
     let n = input.data.row_count();
     let ids: Vec<VariableId> =
         input.data.schema().variables().iter().map(|variable| variable.id).collect();

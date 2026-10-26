@@ -270,7 +270,7 @@ impl<'a> StaticAteExecution<'a> {
         let fitter = match spec {
             EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte) => {
                 let mut fitter = LinearAdjustmentAte::new();
-                fitter.sampling_design =
+                fitter.inference.sampling_design =
                     crate::estimator_spec::declared_sampling(self.study.sampling_design);
                 Some(fitter)
             }
@@ -354,7 +354,7 @@ impl<'a> StaticAteExecution<'a> {
             EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte) => {
                 let mut fitter = LinearAdjustmentAte::new()
                     .with_bootstrap_replicates(self.study.bootstrap_replicates);
-                fitter.sampling_design =
+                fitter.inference.sampling_design =
                     crate::estimator_spec::declared_sampling(self.study.sampling_design);
                 Some(fitter)
             }
@@ -652,7 +652,8 @@ impl<'a> StaticAteExecution<'a> {
         execution.aipw_operation().is_some()
             || execution.frontdoor_linear().is_some()
             || prepared_linear.is_some_and(|operation| !operation.default_id)
-            || prepared_linear.is_some_and(|operation| operation.fitter.bootstrap_replicates == 0)
+            || prepared_linear
+                .is_some_and(|operation| operation.fitter.inference.bootstrap_replicates == 0)
             || (prepared_linear.is_none() && study.bootstrap_replicates == 0)
             || (prepared_linear.is_none()
                 && study
@@ -750,8 +751,9 @@ impl<'a> StaticAteExecution<'a> {
         let mut est = prepared_linear
             .map_or_else(LinearAdjustmentAte::new, |operation| operation.fitter.clone());
         if prepared_linear.is_none() {
-            est.sampling_design = crate::estimator_spec::declared_sampling(study.sampling_design);
-            est.bootstrap_replicates = study.bootstrap_replicates;
+            est.inference.sampling_design =
+                crate::estimator_spec::declared_sampling(study.sampling_design);
+            est.inference.bootstrap_replicates = study.bootstrap_replicates;
             est.overlap = OverlapPolicy::ExplicitOverride;
         }
         let prep = if let Some((_, receipt)) = &checked.linear {

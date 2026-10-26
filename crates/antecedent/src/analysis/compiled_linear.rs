@@ -59,7 +59,7 @@ impl CompiledLinearExecution {
             ),
         };
         if default_id {
-            fitter.sampling_design =
+            fitter.inference.sampling_design =
                 crate::estimator_spec::declared_sampling(source.sampling_design);
         }
         if fitter.population_registry.is_none() {
@@ -148,7 +148,7 @@ impl CompiledLinearExecution {
             direct,
             quoted.rows,
             quoted.columns,
-            fitter.bootstrap_replicates,
+            fitter.inference.bootstrap_replicates,
             ctx,
         )?;
         let backend = plan.choice.selected();
@@ -184,7 +184,7 @@ impl CompiledLinearExecution {
             &identification.identification,
             &preparation,
             plan,
-            fitter.bootstrap_replicates > 0,
+            fitter.inference.bootstrap_replicates > 0,
             data,
         )?);
         Ok(Some(Self {

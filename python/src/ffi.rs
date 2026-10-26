@@ -291,6 +291,14 @@ fn move_array_capsules(
         return Err(CausalDataError::new_err("null Arrow C Data capsule pointer"));
     }
 
+    // SAFETY: the capsule exports a valid CDI array struct; the shared borrow ends here. A
+    // capsule whose array was already moved out holds the released empty left behind by the
+    // first consumer, and a second import of it would read a dead struct.
+    if unsafe { &*array_ptr }.is_released() {
+        return Err(CausalDataError::new_err(
+            "the Arrow C Data capsule was already consumed; export the column again",
+        ));
+    }
     // SAFETY: capsules export valid CDI structs; we move them out and leave released empties
     // so the capsule destructor is a no-op.
     let schema = unsafe { std::ptr::read(schema_ptr) };

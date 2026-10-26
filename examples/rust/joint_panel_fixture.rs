@@ -255,7 +255,7 @@ pub fn whole_program_randomization() -> antecedent_core::RandomizedEffectQuery {
     antecedent_core::RandomizedEffectQuery::with_design(
         antecedent_core::RandomizationDesign::MultiArm {
             assignment: Arc::from([0, 1, 2, 3]),
-            probabilities: Arc::from(vec![vec![0.25; 4]; 4]),
+            probabilities: vec![vec![0.25; 4]; 4].into(),
             arms,
         },
         VariableId::from_raw(2),

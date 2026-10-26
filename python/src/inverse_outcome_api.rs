@@ -126,7 +126,7 @@ fn report_json(report: &InverseOutcomeReport) -> serde_json::Value {
                 "point": outcome.point,
                 "cost": outcome.cost,
                 "status": outcome.status.as_str(),
-                "reason": outcome.reason,
+                "reason": outcome.reason.as_str(),
                 "violated_constraints": outcome.violated_constraints,
                 "estimate": outcome.estimate,
                 "margin": outcome.margin,

@@ -561,7 +561,8 @@ def test_shared_exogenous_execution_replays_and_the_bound_is_not_unidentificatio
     assert consumed.result.value == sealed.value == pytest.approx(1.0, abs=1e-12)
     assert sealed.result.matrix_row == "counterfactual.finite_shared_exogenous_scm.marginal"
 
-    # A declared model whose joint exogenous enumeration is too large is unsupported here.
+    # A declared model whose joint exogenous space is too large to enumerate is executed exactly
+    # by variable elimination, which enumerates no joint state.
     terms = tuple(cw.ExogenousTerm(f"u{k}", (0.125,) * 8) for k in range(6))
     oversized = cw.FiniteSCM(
         population="pop-a",
@@ -571,16 +572,16 @@ def test_shared_exogenous_execution_replays_and_the_bound_is_not_unidentificatio
             cw.FiniteVariable(f"v{k}", 2, (), f"u{k}", (0, 1, 0, 1, 0, 1, 0, 1)) for k in range(6)
         ),
     )
-    with pytest.raises(R) as error:
-        require_success(
-            cw.CrossWorldExecutor().execute(
-                cw.CrossWorldRequest(
-                    scm=oversized,
-                    units=(cw.FactualUnit("u"),),
-                    worlds=(cw.World("w", {"v0": 0}),),
-                    quantity=cw.probability("w", "v1", 1),
-                )
+    eliminated = require_success(
+        cw.CrossWorldExecutor().execute(
+            cw.CrossWorldRequest(
+                scm=oversized,
+                units=(cw.FactualUnit("u"),),
+                worlds=(cw.World("w", {"v0": 0}),),
+                quantity=cw.probability("w", "v1", 1),
             )
         )
-    assert error.value.reason_code == "route_not_supported"
-    assert error.value.detail == "cross_world_execution.joint_state_bound_exceeded"
+    )
+    assert eliminated.value == pytest.approx(0.5, abs=1e-12)
+    assert eliminated.work["abduction_states_enumerated"] == 0
+    assert eliminated.receipt["exogenous_method"] == "variable_elimination"

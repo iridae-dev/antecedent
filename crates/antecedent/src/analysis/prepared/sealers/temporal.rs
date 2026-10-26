@@ -14,7 +14,7 @@ use antecedent_core::{OutcomeFunctional, TargetPopulation, TemporalEffectQuery};
 
 pub(super) fn temporal_mediation(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.route, analysis.temporal_identification_cache.as_deref()) {
+    let sealed = match (cx.route, analysis.temporal_cache().map(|cache| &**cache)) {
         (Some(RouteInput::TemporalMediationDag { data, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
@@ -45,9 +45,9 @@ pub(super) fn temporal_class_mediation(cx: &SealContext<'_>) -> SealOutcome {
         DataInput::Temporal(data) | DataInput::Event(data)
             if crate::analysis::execute::CheckedTemporalClassMediationOperation::admits(
                 analysis,
-            ) && (analysis.temporal_class_identification_cache.is_some()
-                || analysis.temporal_class_posterior_identification_cache.is_some()
-                || analysis.dbn_posterior_identification_cache.is_some()) =>
+            ) && (analysis.temporal_class_cache().is_some()
+                || analysis.temporal_class_posterior_cache().is_some()
+                || analysis.dbn_posterior_cache().is_some()) =>
         {
             Some(Box::new(
                 crate::analysis::execute::CheckedTemporalClassMediationOperation::checked(
@@ -62,7 +62,7 @@ pub(super) fn temporal_class_mediation(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.route, analysis.temporal_identification_cache.as_deref()) {
+    let sealed = match (cx.route, analysis.temporal_cache().map(|cache| &**cache)) {
         (Some(RouteInput::TemporalEffectDag { query, graph, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
@@ -116,7 +116,7 @@ pub(super) fn temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn bayesian_temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, .. } = *cx;
-    let sealed = match (cx.route, analysis.temporal_identification_cache.as_deref()) {
+    let sealed = match (cx.route, analysis.temporal_cache().map(|cache| &**cache)) {
         (Some(RouteInput::TemporalEffectDag { query, graph, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
@@ -168,7 +168,7 @@ pub(super) fn bayesian_temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome 
 
 pub(super) fn temporal_class_effect(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.route, analysis.temporal_class_identification_cache.as_ref()) {
+    let sealed = match (cx.route, analysis.temporal_class_cache()) {
         (Some(RouteInput::TemporalEffectClass { query, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
@@ -214,7 +214,7 @@ pub(super) fn temporal_class_effect(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn temporal_dag_response(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.route, analysis.temporal_identification_cache.as_deref()) {
+    let sealed = match (cx.route, analysis.temporal_cache().map(|cache| &**cache)) {
         (Some(RouteInput::TemporalResponseDag { query, graph, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()

@@ -36,8 +36,6 @@ const SIGNIFICANCE: f64 = 0.05;
 const MIN_EFFECTIVE_SHARE: f64 = 0.1;
 /// Bootstrap replicates when the study requested none.
 const DEFAULT_BOOTSTRAP_REPLICATES: u32 = 49;
-/// Upper bound on the bootstrap replicates.
-const MAX_BOOTSTRAP_REPLICATES: u32 = 199;
 
 /// Borrowed inputs of one transport refutation.
 pub(super) struct TransportRefutationInput<'a> {
@@ -113,7 +111,7 @@ fn sum_variance(residuals: &[f64], independent: f64, block: Option<usize>) -> f6
         Some(length) => {
             let length = length.clamp(1, residuals.len().max(1));
             residuals
-                .chunks_exact(length)
+                .chunks(length)
                 .map(|chunk| {
                     let sum: f64 = chunk.iter().sum();
                     sum * sum
@@ -281,9 +279,6 @@ fn bootstrap_range(
     })
 }
 
-/// Most class members whose certificates are refitted one by one.
-pub(super) const MAX_CLASS_MEMBERS: usize = 8;
-
 /// Member-specific checks of a class: the members of a Cpdag or a Pag may certify different
 /// formulas, and each is read by the trial-to-target weighting through its own certificate, so
 /// its transported contrast is bootstrapped on its own. Every member is refitted on the same
@@ -320,15 +315,12 @@ fn bootstrap_ranges(
     ctx: &ExecutionContext,
 ) -> Result<Vec<RefutationReport>, CausalError> {
     let n = input.outcomes.len();
-    let replicates = if input.replicates == 0 {
-        DEFAULT_BOOTSTRAP_REPLICATES
-    } else {
-        input.replicates.min(MAX_BOOTSTRAP_REPLICATES)
-    };
+    let replicates =
+        if input.replicates == 0 { DEFAULT_BOOTSTRAP_REPLICATES } else { input.replicates };
     let width = n.checked_mul(6).ok_or_else(|| CausalError::Resource {
         message: "transport bootstrap size overflow".to_owned(),
     })?;
-    let _admitted = super::gcm_bootstrap::admit_replicates(ctx, replicates, 1, width)?;
+    let _admitted = super::gcm_bootstrap::admit_replicates(ctx, replicates, members.len(), width)?;
     let mut values: Vec<Vec<f64>> = members
         .iter()
         .map(|_| Vec::with_capacity(usize::try_from(replicates).unwrap_or(0)))

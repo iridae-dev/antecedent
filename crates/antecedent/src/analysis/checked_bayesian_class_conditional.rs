@@ -138,14 +138,14 @@ impl CheckedBayesianClassConditional {
         }
         let proof = match analysis.graph.graph_ref() {
             crate::GraphRef::Cpdag(graph) => {
-                let Some(cache) = analysis.cpdag_identification_cache.as_ref() else {
+                let Some(cache) = analysis.cpdag_cache() else {
                     return Ok(None);
                 };
                 ConditionalClassProof::Cpdag { graph: graph.clone(), cache: cache.clone() }
             }
             crate::GraphRef::Pag(_) => {
                 let (Some(graph), Some(cache)) =
-                    (plan.static_pag(), analysis.pag_identification_cache.as_ref())
+                    (plan.static_pag(), analysis.pag_cache())
                 else {
                     return Ok(None);
                 };
@@ -207,16 +207,14 @@ impl CheckedBayesianClassConditional {
             Some(Arc::new(crate::EstimatorSpec::Default(EstimatorId::BayesianConditional)));
         click.refute = self.validation;
         click.latency_mode = self.latency_mode;
-        click.cpdag_identification_cache = None;
-        click.pag_identification_cache = None;
-        match &self.proof {
+        click.install_identification(match &self.proof {
             ConditionalClassProof::Cpdag { cache, .. } => {
-                click.cpdag_identification_cache = Some(std::sync::Arc::clone(cache));
+                crate::analysis::IdentificationCache::Cpdag(std::sync::Arc::clone(cache))
             }
             ConditionalClassProof::Pag { cache, .. } => {
-                click.pag_identification_cache = Some(std::sync::Arc::clone(cache));
+                crate::analysis::IdentificationCache::Pag(std::sync::Arc::clone(cache))
             }
-        }
+        });
         let mut result = click.execute_class_conditional(data, &self.query, &self.physical, ctx)?;
         super::execute::push_gaussian_likelihood_disclosure(
             &mut result,

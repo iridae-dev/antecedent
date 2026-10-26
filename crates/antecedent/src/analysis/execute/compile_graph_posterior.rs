@@ -134,7 +134,7 @@ impl super::Study {
             let stub = Dag::with_variables(n_vars);
             if matches!(atom_kind, Some(antecedent_discovery::GraphPosteriorAtomKind::Cpdag)) {
                 let cpdag = antecedent_graph::Cpdag::from_dag(&stub);
-                let (identifier, estimator) = self.resolve_class_response_pair(q);
+                let (identifier, estimator) = self.resolve_class_response_ids(q);
                 compile_logical_static_cpdag_response(StaticCpdagResponseCompileInput {
                     data,
                     graph: &cpdag,
@@ -145,7 +145,7 @@ impl super::Study {
                 })?
             } else if matches!(atom_kind, Some(antecedent_discovery::GraphPosteriorAtomKind::Pag)) {
                 let pag = Pag::with_variables(n_vars);
-                let (identifier, estimator) = self.resolve_class_response_pair(q);
+                let (identifier, estimator) = self.resolve_class_response_ids(q);
                 compile_logical_static_pag_response(StaticPagResponseCompileInput {
                     data,
                     graph: &pag,
@@ -155,7 +155,7 @@ impl super::Study {
                     estimator,
                 })?
             } else {
-                let (identifier, estimator) = self.resolve_response_pair(q);
+                let (identifier, estimator) = self.resolve_response_ids(q);
                 compile_logical_static_response(StaticResponseCompileInput {
                     data,
                     graph: &stub,
@@ -187,29 +187,22 @@ impl super::Study {
             Some(
                 antecedent_discovery::GraphPosteriorAtomKind::Admg
                 | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg,
-            ) => (
-                Arc::from(IdentifierId::GeneralId.as_str()),
-                Arc::from(EstimatorId::FunctionalEffect.as_str()),
-            ),
+            ) => (IdentifierId::GeneralId, EstimatorId::FunctionalEffect),
             Some(
                 antecedent_discovery::GraphPosteriorAtomKind::Cpdag
                 | antecedent_discovery::GraphPosteriorAtomKind::Pag,
             ) => (
-                Arc::from(IdentifierId::GeneralizedAdjustment.as_str()),
+                IdentifierId::GeneralizedAdjustment,
                 match &self.inference {
-                    InferenceMode::Frequentist => {
-                        Arc::from(EstimatorId::LinearAdjustmentAte.as_str())
-                    }
-                    InferenceMode::Bayesian(_) => Arc::from(EstimatorId::BayesianGcomp.as_str()),
+                    InferenceMode::Frequentist => EstimatorId::LinearAdjustmentAte,
+                    InferenceMode::Bayesian(_) => EstimatorId::BayesianGcomp,
                 },
             ),
             _ => (
-                Arc::from(IdentifierId::BackdoorAdjustment.as_str()),
+                IdentifierId::BackdoorAdjustment,
                 match &self.inference {
-                    InferenceMode::Frequentist => {
-                        Arc::from(EstimatorId::LinearAdjustmentAte.as_str())
-                    }
-                    InferenceMode::Bayesian(_) => Arc::from(EstimatorId::BayesianGcomp.as_str()),
+                    InferenceMode::Frequentist => EstimatorId::LinearAdjustmentAte,
+                    InferenceMode::Bayesian(_) => EstimatorId::BayesianGcomp,
                 },
             ),
         };
@@ -242,25 +235,18 @@ impl super::Study {
             Some(
                 antecedent_discovery::GraphPosteriorAtomKind::Cpdag
                 | antecedent_discovery::GraphPosteriorAtomKind::Pag,
-            ) => self.resolve_class_conditional_pair(),
+            ) => self.resolve_class_conditional_ids(),
             // A latent-confounded atom is decided by the IDC contrast of its own ADMG and
             // evaluated by the finite-discrete plug-in, as a supplied ADMG is.
             Some(
                 antecedent_discovery::GraphPosteriorAtomKind::Admg
                 | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg,
-            ) => (
-                Arc::from(IdentifierId::GeneralId.as_str()),
-                Arc::from(EstimatorId::FunctionalEffect.as_str()),
-            ),
+            ) => (IdentifierId::GeneralId, EstimatorId::FunctionalEffect),
             _ => (
-                Arc::from(IdentifierId::BackdoorAdjustment.as_str()),
+                IdentifierId::BackdoorAdjustment,
                 match &self.inference {
-                    InferenceMode::Frequentist => {
-                        Arc::from(EstimatorId::ConditionalLinearAdjustment.as_str())
-                    }
-                    InferenceMode::Bayesian(_) => {
-                        Arc::from(EstimatorId::BayesianConditional.as_str())
-                    }
+                    InferenceMode::Frequentist => EstimatorId::ConditionalLinearAdjustment,
+                    InferenceMode::Bayesian(_) => EstimatorId::BayesianConditional,
                 },
             ),
         };

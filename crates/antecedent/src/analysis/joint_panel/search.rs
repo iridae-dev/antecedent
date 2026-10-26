@@ -414,7 +414,9 @@ fn map_search_error(
     match error {
         ProgramSearchError::Resource(error) => engine::PanelError::Resource(error).into(),
         ProgramSearchError::Cancelled => engine::PanelError::Cancelled.into(),
-        error @ ProgramSearchError::Invalid(_) => JointPanelError::compile(error),
+        error @ (ProgramSearchError::Invalid(_) | ProgramSearchError::Upstream { .. }) => {
+            JointPanelError::compile(error)
+        }
     }
 }
 

@@ -434,14 +434,10 @@ def test_actual_selected_decision_routes_original_structural_ranking_and_source_
     assert result.receipt.totals.factor_builds > 0
     assert require_success(session.rank_studies(policy)).selected_action == "treat"
     count = [len(x) for x in calls]
-    # Declared resource bounds reject before any provider or native work.
-    for oversized in (
-        replace(policy, policy_id="x" * 257),
-        replace(policy, branches={f"a{i}": policy.branches["wait"] for i in range(65)}),
-        replace(policy, branches={"wait": policy.branches["wait"] * 43}),
-    ):
-        with pytest.raises(ac.errors.CausalValueError):
-            require_success(session.rank_studies(oversized))
+    # Declared identifier bounds reject before any provider or native work; the number of
+    # actions and candidates is bounded only by the artifact byte budget.
+    with pytest.raises(ac.errors.CausalValueError):
+        require_success(session.rank_studies(replace(policy, policy_id="x" * 257)))
     with pytest.raises(ac.errors.CausalValueError):
         session._handle.rank_conditional_studies(" " * (256 * 1024 + 1))
     with pytest.raises(ConditionalStudyRankingRefusal, match="invalid_policy"):

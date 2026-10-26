@@ -457,7 +457,7 @@ fn class_response_uncertainty(
     ))
 }
 
-/// Every identified completion's one-modifier conditional design and point.
+/// Every identified completion's conditional design (over the modifier set) and point.
 fn collect_class_conditional<'a>(
     data: &'a TimeSeriesData,
     query: &TemporalEffectQuery,
@@ -484,12 +484,12 @@ pub(super) fn assemble_temporal_class_conditional(
     (inference, bootstrap_replicates): (&InferenceMode, u32),
     ctx: &ExecutionContext,
 ) -> Result<ClassConditionalFit, CausalError> {
-    if query.effect_modifiers.len() != 1
+    if query.effect_modifiers.is_empty()
         || query.is_multi_step_sustained()
         || matches!(query.policy, antecedent_core::TemporalPolicy::Dynamic { .. })
     {
         return Err(CausalError::Unsupported {
-            message: "temporal conditional effect fits one modifier on a single-step pulse or sustained policy",
+            message: "temporal conditional effect fits a modifier set on a single-step pulse or sustained policy",
         });
     }
     if refute != RefuteSuite::None {
@@ -507,8 +507,11 @@ pub(super) fn assemble_temporal_class_conditional(
         "estimate.temporal.conditional_marginal",
         DiagnosticKind::Execution,
         DiagnosticSeverity::Info,
-        "published value is the completion-weighted one-modifier marginal effect; its interval \
-         refits every completion's interaction regression and modifier mean",
+        "published value is the completion-weighted marginal effect over the modifier set; its \
+         interval refits every completion's interaction regression and modifier means",
+    ));
+    diagnostics.extend(super::temporal_effect_core::modifier_set_coverage_note(
+        query.effect_modifiers.len(),
     ));
     let mut structural = super::temporal_path::temporal_class_structural_mixture(
         envelope,
@@ -1037,12 +1040,12 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let CausalQuery::TemporalEffect(query) = &self.query else { unreachable!() };
-        if query.effect_modifiers.len() != 1
+        if query.effect_modifiers.is_empty()
             || query.is_multi_step_sustained()
             || matches!(query.policy, antecedent_core::TemporalPolicy::Dynamic { .. })
         {
             return Err(CausalError::Unsupported {
-                message: "temporal conditional effect fits one modifier on a single-step pulse or sustained policy",
+                message: "temporal conditional effect fits a modifier set on a single-step pulse or sustained policy",
             });
         }
         if self.refute != RefuteSuite::None {
@@ -1084,8 +1087,12 @@ impl super::Study {
                     "estimate.temporal.conditional_marginal",
                     DiagnosticKind::Execution,
                     DiagnosticSeverity::Info,
-                    "published value is the completion-weighted one-modifier marginal effect; its \
-                     interval refits every completion's interaction regression and modifier mean",
+                    "published value is the completion-weighted marginal effect over the modifier \
+                     set; its interval refits every completion's interaction regression and \
+                     modifier means",
+                ));
+                diagnostics.extend(super::temporal_effect_core::modifier_set_coverage_note(
+                    query.effect_modifiers.len(),
                 ));
                 chosen = Some((
                     fitted.assumptions.clone(),
@@ -1649,15 +1656,11 @@ pub(super) fn cross_world_endpoints(
             Ok((q.treatment, q.outcome, Some(q.mediator), q.active_value(), q.control_value()))
         }
         CausalQuery::PathSpecific(q) => {
-            if q.path_nodes.len() != 1 {
-                return Err(CausalError::Unsupported {
-                    message: "temporal path-specific effect is the one-mediator edge product",
-                });
-            }
+            let first = super::temporal_path::require_path_nodes(&q.path_nodes)?;
             Ok((
                 q.treatment,
                 q.outcome,
-                Some(q.path_nodes[0]),
+                Some(first),
                 super::temporal_path::temporal_cross_world_hard_level(&q.active)?,
                 super::temporal_path::temporal_cross_world_hard_level(&q.control)?,
             ))
@@ -1711,7 +1714,7 @@ pub(super) fn cross_world_endpoints(
 
 pub(super) fn temporal_class_point_family(query: &CausalQuery) -> bool {
     match query {
-        CausalQuery::TemporalEffect(effect) => effect.effect_modifiers.len() == 1,
+        CausalQuery::TemporalEffect(effect) => !effect.effect_modifiers.is_empty(),
         CausalQuery::Response(response) => {
             response.temporal.is_some()
                 && matches!(
@@ -1747,7 +1750,7 @@ fn load_class_posterior_cache(
     (Arc<crate::analysis::prepared::CachedTemporalClassPosteriorIdentification>, bool),
     CausalError,
 > {
-    if let Some(cache) = study.temporal_class_posterior_identification_cache.as_ref() {
+    if let Some(cache) = study.temporal_class_posterior_cache() {
         return Ok((Arc::clone(cache), true));
     }
     let variables =

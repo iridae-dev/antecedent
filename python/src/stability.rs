@@ -4,6 +4,7 @@
 
 #![allow(clippy::too_many_arguments)]
 
+use crate::NumericColumn;
 use std::sync::Arc;
 
 use antecedent::discovery::RegimeAssignment;
@@ -20,11 +21,10 @@ use antecedent_validate::{
     FalsePositiveCheck, LagWindowSensitivity, NullTransform, OrientationStability, RegimeStability,
     SyntheticNullCalibration,
 };
-use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-use crate::{columns_to_batch, detach_catch, py_err, py_execution_context, series_from_batch};
+use crate::{numeric_columns_to_batch, detach_catch, py_err, py_execution_context, series_from_batch};
 
 fn pcmci_from_params(max_lag: u32, alpha: f64, fdr: bool, ci: &str) -> PyResult<Pcmci> {
     let ci_impl = resolve_ci(ci, None).map_err(py_err)?;
@@ -45,7 +45,7 @@ fn pcmci_plus_from_params(max_lag: u32, alpha: f64, fdr: bool, ci: &str) -> PyRe
 fn with_pcmci_series<F>(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     max_lag: u32,
     alpha: f64,
     fdr: bool,
@@ -64,7 +64,7 @@ where
         ) -> PyResult<Py<PyDict>>
         + Send,
 {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     let ci = ci.to_string();
     drop(columns);
     detach_catch(py, move || {
@@ -124,7 +124,7 @@ fn discovery_stability_dict(
 fn validate_pcmci_block_bootstrap(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     max_lag: u32,
     alpha: f64,
     fdr: bool,
@@ -162,7 +162,7 @@ fn validate_pcmci_block_bootstrap(
 fn validate_pcmci_false_positive(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     max_lag: u32,
     alpha: f64,
     fdr: bool,
@@ -172,7 +172,7 @@ fn validate_pcmci_false_positive(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<Py<PyDict>> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     let ci = ci.to_string();
     let transform = transform.to_ascii_lowercase();
     drop(columns);
@@ -218,7 +218,7 @@ fn validate_pcmci_false_positive(
 fn validate_pcmci_alpha_sensitivity(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     alphas: Vec<f64>,
     max_lag: u32,
     fdr: bool,
@@ -254,7 +254,7 @@ fn validate_pcmci_alpha_sensitivity(
 fn validate_pcmci_lag_sensitivity(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     max_lags: Vec<u32>,
     alpha: f64,
     fdr: bool,
@@ -290,7 +290,7 @@ fn validate_pcmci_lag_sensitivity(
 fn validate_pcmci_ci_sensitivity(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     ci_names: Vec<String>,
     max_lag: u32,
     alpha: f64,
@@ -298,7 +298,7 @@ fn validate_pcmci_ci_sensitivity(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<Py<PyDict>> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (series, variables) = series_from_batch(&batch)?;
@@ -323,7 +323,7 @@ fn validate_pcmci_ci_sensitivity(
 fn validate_pcmci_plus_orientation(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     max_lag: u32,
     alpha: f64,
     fdr: bool,
@@ -333,7 +333,7 @@ fn validate_pcmci_plus_orientation(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<Py<PyDict>> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     let ci = ci.to_string();
     drop(columns);
     detach_catch(py, move || {
@@ -438,7 +438,7 @@ fn multi_env_from_batches(
 fn validate_environment_holdout(
     py: Python<'_>,
     names: Vec<String>,
-    env_columns: Vec<Vec<PyReadonlyArray1<'_, f64>>>,
+    env_columns: Vec<Vec<NumericColumn<'_>>>,
     max_lag: u32,
     alpha: f64,
     fdr: bool,
@@ -452,7 +452,7 @@ fn validate_environment_holdout(
     }
     let mut batches = Vec::with_capacity(env_columns.len());
     for cols in &env_columns {
-        batches.push(columns_to_batch(&names, cols)?);
+        batches.push(numeric_columns_to_batch(&names, cols)?);
     }
     let ci = ci.to_string();
     drop(env_columns);
@@ -509,7 +509,7 @@ fn validate_environment_holdout(
 fn validate_regime_stability(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     regimes: Vec<u32>,
     max_lag: u32,
     alpha: f64,
@@ -520,7 +520,7 @@ fn validate_regime_stability(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<Py<PyDict>> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     let ci = ci.to_string();
     drop(columns);
     detach_catch(py, move || {

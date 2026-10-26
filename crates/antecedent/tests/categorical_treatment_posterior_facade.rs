@@ -13,7 +13,7 @@
 
 use antecedent::analysis::categorical_treatment::{
     CategoricalPosteriorDeclaration, CategoricalSpecWire, CategoricalTreatment,
-    CategoricalTreatmentRequest,
+    CategoricalTreatmentRequest, CovarianceKindWire, LevelScaleWire, MonotonicityDirectionWire,
 };
 use antecedent_io::categorical_treatment_artifact::{decode_parts, encode_parts};
 
@@ -54,12 +54,12 @@ fn abc_request() -> CategoricalTreatmentRequest {
         levels: rows.iter().map(|r| r.0.to_owned()).collect(),
         spec: CategoricalSpecWire {
             declared_levels: names(&["a", "b", "c"]),
-            scale: "unordered".into(),
+            scale: LevelScaleWire::Unordered,
             reference: "a".into(),
             min_level_rows: 2,
             pairwise: vec![("b".into(), "c".into())],
             monotonicity: None,
-            covariance: "model_based".into(),
+            covariance: CovarianceKindWire::ModelBased,
         },
     }
 }
@@ -82,12 +82,12 @@ fn ordered_request() -> CategoricalTreatmentRequest {
         levels,
         spec: CategoricalSpecWire {
             declared_levels: names(&["lo", "mid", "hi"]),
-            scale: "ordered".into(),
+            scale: LevelScaleWire::Ordered,
             reference: "lo".into(),
             min_level_rows: 2,
             pairwise: vec![],
-            monotonicity: Some("non_decreasing".into()),
-            covariance: "model_based".into(),
+            monotonicity: Some(MonotonicityDirectionWire::NonDecreasing),
+            covariance: CovarianceKindWire::ModelBased,
         },
     }
 }

@@ -52,8 +52,6 @@ const SIGNIFICANCE: f64 = 0.05;
 const MIN_EXPOSURE_PROBABILITY: f64 = 0.01;
 /// Re-randomizations when the study requested no replicates.
 const DEFAULT_REDRAWS: u32 = 199;
-/// Upper bound on the re-randomizations.
-const MAX_REDRAWS: u32 = 999;
 
 /// Borrowed inputs of one interference refutation.
 pub(super) struct InterferenceRefutationInput<'a> {
@@ -437,11 +435,9 @@ fn randomization_unbiasedness(
             ));
         }
     }
-    let redraws = if input.replicates == 0 {
-        DEFAULT_REDRAWS
-    } else {
-        input.replicates.clamp(2, MAX_REDRAWS)
-    };
+    // The request is honoured; a mean test needs two draws, so a smaller request is raised to it.
+    let redraws = if input.replicates == 0 { DEFAULT_REDRAWS } else { input.replicates.max(2) };
+    let _admitted = super::gcm_bootstrap::admit_replicates(ctx, redraws, 1, units)?;
     let mut contrasts = Vec::with_capacity(redraws as usize);
     let mut failed = 0_u32;
     for draw in 0..redraws {

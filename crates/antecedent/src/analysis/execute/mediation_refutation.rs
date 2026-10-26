@@ -10,8 +10,8 @@
 //! jointly under subsets and, under full validation, a joint bootstrap.
 //!
 //! Over a CPDAG or a PAG the class does not determine one functional, so the suite runs on
-//! every distinct identified member (distinct by the value of the requested contrast, capped
-//! at [`MAX_CLASS_MEMBERS`]), each member read through its own proofs of the three components.
+//! every distinct identified member (distinct by the value of the requested contrast), each
+//! member read through its own proofs of the three components.
 //!
 //! The state executes under both inference modes and is unlicensed: its verdicts are checks,
 //! not a calibration claim, and no coverage record names it.
@@ -34,9 +34,6 @@ use super::{
     identification_status_ok_for_case, select_estimand,
 };
 use crate::planner::RouteDefaults;
-
-/// Most distinct class members the suite refits one by one.
-const MAX_CLASS_MEMBERS: usize = 8;
 
 /// The three contrasts, in the order the suite reads them.
 const CONTRASTS: [MediationContrast; 3] = [
@@ -213,9 +210,6 @@ impl super::Study {
         let mut members: Vec<(usize, [Option<IdentifiedComponent>; 3])> = Vec::new();
         let mut seen: Vec<f64> = Vec::new();
         for index in 0..requested_cases.len() {
-            if members.len() == MAX_CLASS_MEMBERS {
-                break;
-            }
             // The requested contrast decides whether the case is a new member; the other
             // components are only fitted for a case that is.
             let Some(requested_result) = per_slot[requested]

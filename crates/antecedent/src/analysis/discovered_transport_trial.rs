@@ -43,6 +43,25 @@ fn legacy_estimation_strategy() -> String {
 const MAX_TRIAL_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 const MAX_TRIAL_ARTIFACT_MEMBERS: usize = 4096;
 
+/// What a verifier will decode: the largest artifact it reads and the most original members
+/// it replays.
+///
+/// The defaults bound artifacts of hostile origin; a caller replaying its own larger receipts
+/// (a wide class, a long trial) raises them through the `_within` verifiers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TrialArtifactBudget {
+    /// Largest artifact, in bytes, that is decoded.
+    pub max_bytes: usize,
+    /// Most original members that are replayed.
+    pub max_members: usize,
+}
+
+impl Default for TrialArtifactBudget {
+    fn default() -> Self {
+        Self { max_bytes: MAX_TRIAL_ARTIFACT_BYTES, max_members: MAX_TRIAL_ARTIFACT_MEMBERS }
+    }
+}
+
 /// Actual assignment design asserted for the source trial.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TrialRandomization {
@@ -145,9 +164,13 @@ pub struct TrialCompatibilityProof {
 }
 
 impl TrialCompatibilityProof {
-    fn validate_replay_budget(&self, limits: ExactEvaluationLimits) -> Result<usize, IoError> {
+    fn validate_replay_budget(
+        &self,
+        limits: ExactEvaluationLimits,
+        budget: TrialArtifactBudget,
+    ) -> Result<usize, IoError> {
         let exceeded = || IoError::Convert("trial compatibility replay budget exceeded".into());
-        if self.members.len() > MAX_TRIAL_ARTIFACT_MEMBERS {
+        if self.members.len() > budget.max_members {
             return Err(exceeded());
         }
         let mut work = self
@@ -295,7 +318,7 @@ impl TrialCompatibilityProof {
         }
         // Counts must first be reconstructed from the bounded rows. Untrusted
         // u64 counts must never reach Fisher's margin additions or mass loop.
-        if fisher_exact(counts)? != self.p_value {
+        if fisher_exact(counts).map_err(IoError::from)? != self.p_value {
             return Err(bad());
         }
         for (index, member) in self.members.iter().enumerate() {
@@ -365,19 +388,39 @@ struct TrialEstimateWire {
 /// # Errors
 /// An artifact above 16 MiB or 4096 original members, a proof exceeding the
 /// caller's operation budget, or a test, decision, identity or grid that does not replay.
+/// See [`verify_trial_compatible_transport_estimate_within`] to set the artifact budget.
 pub fn verify_trial_compatible_transport_estimate(
     bytes: &[u8],
     limits: ExactEvaluationLimits,
     ctx: &ExecutionContext,
 ) -> Result<(TrialCompatibilityProof, VerifiedEstimate), IoError> {
-    if bytes.len() > MAX_TRIAL_ARTIFACT_BYTES {
+    verify_trial_compatible_transport_estimate_within(
+        bytes,
+        limits,
+        TrialArtifactBudget::default(),
+        ctx,
+    )
+}
+
+/// [`verify_trial_compatible_transport_estimate`] under a caller-chosen artifact budget.
+///
+/// # Errors
+/// As [`verify_trial_compatible_transport_estimate`], with the artifact bytes and original
+/// members bounded by `budget`.
+pub fn verify_trial_compatible_transport_estimate_within(
+    bytes: &[u8],
+    limits: ExactEvaluationLimits,
+    budget: TrialArtifactBudget,
+    ctx: &ExecutionContext,
+) -> Result<(TrialCompatibilityProof, VerifiedEstimate), IoError> {
+    if bytes.len() > budget.max_bytes {
         return Err(IoError::Convert("trial compatibility artifact byte budget exceeded".into()));
     }
     let wire: TrialEstimateWire = antecedent_io::from_cbor(bytes)?;
     if wire.format != ESTIMATE_FORMAT {
         return Err(IoError::Convert("unsupported trial estimate format".into()));
     }
-    wire.proof.validate_replay_budget(limits)?;
+    wire.proof.validate_replay_budget(limits, budget)?;
     wire.proof.validate()?;
     let retained = wire.proof.retained_members();
     let mut verified = verify_trial_member_estimate(&wire.estimate, limits, ctx, retained.len())?;
@@ -524,8 +567,8 @@ fn trial_compatibility_proof(
         counts[x * 2 + y] += 1;
         source_trial_rows.push([u8::from(x == 1), u8::from(y == 1)]);
     }
-    let p_value =
-        fisher_exact(counts).map_err(|e| DiscoveredTransportError::Estimation(e.to_string()))?;
+    let p_value = fisher_exact(counts)
+        .map_err(|error| DiscoveredTransportError::Estimation(error.to_string()))?;
     let members = report
         .envelope()
         .members()
@@ -713,8 +756,16 @@ impl TrialCompatibleTransportConfidenceSet {
     /// # Errors
     /// Encoding failure or the shared 16 MiB artifact bound is exceeded.
     pub fn export(&self) -> Result<Vec<u8>, IoError> {
+        self.export_within(TrialArtifactBudget::default())
+    }
+
+    /// [`Self::export`] under a caller-chosen artifact budget.
+    ///
+    /// # Errors
+    /// Encoding failure or `budget.max_bytes` is exceeded.
+    pub fn export_within(&self, budget: TrialArtifactBudget) -> Result<Vec<u8>, IoError> {
         let bytes = antecedent_io::to_cbor(&self.wire)?;
-        if bytes.len() > MAX_TRIAL_ARTIFACT_BYTES {
+        if bytes.len() > budget.max_bytes {
             return Err(IoError::Convert(
                 "trial confidence-set artifact byte budget exceeded".into(),
             ));
@@ -821,11 +872,7 @@ fn confidence_set_input_identity(
                 if ctx.cancellation.is_cancelled() {
                     return Err(cancelled());
                 }
-                if value < 0.0
-                    || value.fract() != 0.0
-                    || value
-                        >= f64::from(super::discovered_transport_estimate::MAX_LEVELS_PER_VARIABLE)
-                {
+                if value < 0.0 || value.fract() != 0.0 || value >= f64::from(u32::MAX) {
                     return Err(confidence_set_invalid(
                         "confidence-set evidence requires supported nonnegative integer codes",
                     ));
@@ -885,7 +932,7 @@ pub fn estimate_trial_compatible_transport_confidence_set(
         return Err(cancelled());
     }
     proof
-        .validate_replay_budget(evidence.limits)
+        .validate_replay_budget(evidence.limits, TrialArtifactBudget::default())
         .and_then(|_| proof.validate_with_empty(true))
         .map_err(|e| confidence_set_invalid(e.to_string()))?;
     let retained = proof.retained_members();
@@ -982,12 +1029,44 @@ pub fn verify_trial_compatible_transport_confidence_set_against(
     support: TransportOutcomeSupport,
     ctx: &ExecutionContext,
 ) -> Result<TrialCompatibleTransportConfidenceSet, IoError> {
+    verify_trial_compatible_transport_confidence_set_against_within(
+        bytes,
+        report,
+        query,
+        evidence,
+        options,
+        support,
+        TrialArtifactBudget::default(),
+        ctx,
+    )
+}
+
+/// [`verify_trial_compatible_transport_confidence_set_against`] under a caller-chosen
+/// artifact budget for the receipt and its embedded estimate.
+///
+/// # Errors
+/// As [`verify_trial_compatible_transport_confidence_set_against`], with the artifact bytes
+/// and original members bounded by `budget`.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "replay requires the complete original scientific request, caller bounds and decode budget"
+)]
+pub fn verify_trial_compatible_transport_confidence_set_against_within(
+    bytes: &[u8],
+    report: &DiscoveredTransportReport,
+    query: &TransportQuery,
+    evidence: &TransportEvidence<'_>,
+    options: TrialCompatibilityOptions,
+    support: TransportOutcomeSupport,
+    budget: TrialArtifactBudget,
+    ctx: &ExecutionContext,
+) -> Result<TrialCompatibleTransportConfidenceSet, IoError> {
     let bad = || {
         IoError::Convert(
             "trial confidence-set receipt does not replay against supplied inputs".into(),
         )
     };
-    if bytes.len() > MAX_TRIAL_ARTIFACT_BYTES {
+    if bytes.len() > budget.max_bytes {
         return Err(bad());
     }
     let wire: TrialConfidenceSetWire = antecedent_io::from_cbor(bytes)?;
@@ -999,11 +1078,15 @@ pub fn verify_trial_compatible_transport_confidence_set_against(
     if wire.input_identity != input || wire.support != support {
         return Err(bad());
     }
-    wire.proof.validate_replay_budget(evidence.limits)?;
+    wire.proof.validate_replay_budget(evidence.limits, budget)?;
     wire.proof.validate_with_empty(true)?;
     if let Some(estimate) = &wire.estimate {
-        let (proof, _) =
-            verify_trial_compatible_transport_estimate(estimate, evidence.limits, ctx)?;
+        let (proof, _) = verify_trial_compatible_transport_estimate_within(
+            estimate,
+            evidence.limits,
+            budget,
+            ctx,
+        )?;
         if proof != wire.proof {
             return Err(bad());
         }
@@ -1012,7 +1095,7 @@ pub fn verify_trial_compatible_transport_confidence_set_against(
         report, query, evidence, options, support, ctx,
     )
     .map_err(|_| bad())?;
-    if replay.wire != wire || replay.export()?.as_slice() != bytes {
+    if replay.wire != wire || replay.export_within(budget)?.as_slice() != bytes {
         return Err(bad());
     }
     Ok(replay)
@@ -1047,37 +1130,99 @@ fn trial_identity(treatment: u32, outcome: u32, rows: &[[u8; 2]]) -> [u8; 32] {
     writer.finish()
 }
 
+/// Relative tolerance with which a table counts as exactly as probable as the observed one.
+///
+/// Masses are generated from the mode by the hypergeometric ratio recurrence, each step of
+/// which carries a few ulps of relative error: at the one-million-row capacity the
+/// accumulated relative error stays below `5e-10`. Two masses within `1e-7` of each other are
+/// therefore indistinguishable at this precision, and counting them as ties errs on the side
+/// of the conservative (larger) p-value, as exact-arithmetic ties such as a symmetric table
+/// require.
+const TIE_RELATIVE_SLACK: f64 = 1e-7;
+
+/// A contingency table the exact test cannot evaluate.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct InvalidContingencyTable;
+
+impl std::fmt::Display for InvalidContingencyTable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("invalid binary trial contingency table")
+    }
+}
+
+impl std::error::Error for InvalidContingencyTable {}
+
+impl From<InvalidContingencyTable> for IoError {
+    fn from(error: InvalidContingencyTable) -> Self {
+        Self::Convert(error.to_string())
+    }
+}
+
+/// Two-sided Fisher exact p-value of the 2x2 table `[[a, b], [c, d]]` flattened row-major.
+///
+/// The probability of each table with the observed margins is proportional to
+/// `C(K, k) C(N - K, draws - k)`. Rather than evaluating each through log-gamma differences,
+/// the masses are generated relative to the mode (mass one there) by the exact ratio
+/// recurrence `m(k + 1) / m(k) = (K - k)(draws - k) / ((k + 1)(N - K - draws + k + 1))`, whose
+/// factors are integers below `2^53` here. The p-value is the compensated sum of the masses
+/// not exceeding the observed one (within [`TIE_RELATIVE_SLACK`]) over the compensated sum of
+/// all masses, so no normalising constant is evaluated. Masses far from the mode underflow to
+/// zero, which only drops terms below the working precision.
 #[allow(
     clippy::cast_precision_loss,
     reason = "all counts are bounded by one million and exactly represented as f64"
 )]
-fn fisher_exact(counts: [u64; 4]) -> Result<f64, IoError> {
-    let invalid = || IoError::Convert("invalid binary trial contingency table".into());
-    let n = counts.iter().try_fold(0u64, |sum, c| sum.checked_add(*c)).ok_or_else(invalid)?;
+fn fisher_exact(counts: [u64; 4]) -> Result<f64, InvalidContingencyTable> {
+    use antecedent_kernels::numeric::CompensatedSum;
+    let n = counts
+        .iter()
+        .try_fold(0u64, |sum, c| sum.checked_add(*c))
+        .ok_or(InvalidContingencyTable)?;
     if n == 0 || n > 1_000_000 {
-        return Err(invalid());
+        return Err(InvalidContingencyTable);
     }
     let draws = counts[2] + counts[3];
     let successes = counts[1] + counts[3];
-    let choose = |n: u64, k: u64| {
-        antecedent_stats::ln_gamma(n as f64 + 1.0)
-            - antecedent_stats::ln_gamma(k as f64 + 1.0)
-            - antecedent_stats::ln_gamma((n - k) as f64 + 1.0)
-    };
-    let log_probability =
-        |k| choose(successes, k) + choose(n - successes, draws - k) - choose(n, draws);
-    let observed = log_probability(counts[3]);
     let lo = draws.saturating_sub(n - successes);
     let hi = draws.min(successes);
-    let mut probability = 0.0;
-    for k in lo..=hi {
-        let log_p = log_probability(k);
-        // Include numerical ties conservatively even at the one-million-row capacity.
-        if log_p <= observed + 1e-7 {
-            probability += log_p.exp();
+    let mode = (((draws + 1) * (successes + 1)) / (n + 2)).clamp(lo, hi);
+    // Mass of the table with `k + 1` successes relative to the table with `k`.
+    let up = |k: u64| {
+        ((successes - k) as f64 * (draws - k) as f64)
+            / ((k + 1) as f64 * (n - successes + k + 1 - draws) as f64)
+    };
+    let observed_k = counts[3];
+    let mut observed = 1.0_f64;
+    if observed_k >= mode {
+        for k in mode..observed_k {
+            observed *= up(k);
+        }
+    } else {
+        for k in observed_k..mode {
+            observed /= up(k);
         }
     }
-    Ok(probability.min(1.0))
+    let threshold = observed * (1.0 + TIE_RELATIVE_SLACK);
+    let mut total = CompensatedSum::default();
+    let mut tail = CompensatedSum::default();
+    let mut take = |mass: f64| {
+        total.add(mass);
+        if mass <= threshold {
+            tail.add(mass);
+        }
+    };
+    let mut mass = 1.0_f64;
+    take(mass);
+    for k in mode..hi {
+        mass *= up(k);
+        take(mass);
+    }
+    mass = 1.0;
+    for k in (lo..mode).rev() {
+        mass /= up(k);
+        take(mass);
+    }
+    Ok((tail.total() / total.total()).min(1.0))
 }
 
 #[cfg(test)]
@@ -1829,12 +1974,36 @@ mod tests {
         assert!(error.to_string().contains("byte budget"));
     }
     #[test]
+    fn a_smaller_caller_budget_refuses_before_decoding() {
+        let budget = TrialArtifactBudget { max_bytes: 8, max_members: 1 };
+        let error = verify_trial_compatible_transport_estimate_within(
+            &[0; 9],
+            ExactEvaluationLimits::default(),
+            budget,
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("byte budget"));
+        assert_eq!(TrialArtifactBudget::default().max_bytes, MAX_TRIAL_ARTIFACT_BYTES);
+    }
+    #[test]
     fn fisher_exact_matches_hand_enumerated_margin_conditioning() {
         // Margins (2,2),(2,2): masses 1/6,4/6,1/6. Extreme two-sided p=1/3.
         assert!((fisher_exact([2, 0, 0, 2]).unwrap() - 1.0 / 3.0).abs() < 1e-12);
         assert!((fisher_exact([1, 1, 1, 1]).unwrap() - 1.0).abs() < 1e-12);
         assert_eq!(fisher_exact([10, 0, 10, 0]).unwrap().to_bits(), 1.0_f64.to_bits());
         assert!(fisher_exact([0, 0, 0, 0]).is_err());
+    }
+
+    #[test]
+    fn fisher_exact_is_stable_at_the_row_capacity() {
+        let balanced = fisher_exact([250_000, 250_000, 250_000, 250_000]).unwrap();
+        assert!((balanced - 1.0).abs() < 1e-9, "{balanced}");
+        let separated = fisher_exact([500_000, 0, 0, 500_000]).unwrap();
+        assert!((0.0..1e-12).contains(&separated), "{separated}");
+        let skewed = fisher_exact([499_000, 1_000, 1_000, 499_000]).unwrap();
+        assert!((0.0..1e-12).contains(&skewed), "{skewed}");
+        assert!(fisher_exact([1_000_000, 1, 0, 0]).is_err());
     }
 
     #[test]

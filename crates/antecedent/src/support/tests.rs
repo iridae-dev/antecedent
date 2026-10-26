@@ -1450,3 +1450,146 @@ fn functional_queries_execute_unlicensed_under_cheap_and_full_validation() {
         assert!(super::executes_unlicensed(c), "{c:?}");
     }
 }
+
+/// How a query kind meets the matrix query axis.
+#[derive(Clone, Copy)]
+enum AxisRole {
+    /// Classified onto these axis names (for some graph class).
+    On(&'static [&'static str]),
+    /// Declared off the axis (`is_declared_off_axis`) with no cell to license.
+    OffAxis,
+    /// A graphless design, licensed by its own design key rather than a graph class.
+    Design,
+}
+
+/// The exhaustive kind-to-axis table: `CausalQueryKind` has no wildcard here, so a new query kind
+/// fails to compile until its role is written, which is what `query_axis`'s own wildcard cannot
+/// enforce for the non-exhaustive `CausalQuery`.
+fn axis_role(kind: antecedent_core::CausalQueryKind) -> AxisRole {
+    use antecedent_core::CausalQueryKind as K;
+    match kind {
+        K::AverageEffect => AxisRole::On(&["AverageEffect"]),
+        K::TemporalEffect => AxisRole::On(&[
+            "PulseEffect",
+            "SustainedEffect",
+            "TemporalConditionalPulse",
+            "TemporalConditionalSustained",
+        ]),
+        K::Counterfactual => AxisRole::On(&["Counterfactual"]),
+        K::NestedCounterfactual => AxisRole::On(&["NestedCounterfactualEffect"]),
+        K::AnomalyAttribution => AxisRole::On(&["AnomalyAttribution"]),
+        K::ChangeAttribution => AxisRole::On(&["ChangeAttribution"]),
+        K::Mediation => AxisRole::On(&["MediationEffect", "TemporalMediationEffect"]),
+        K::ConditionalEffect => AxisRole::On(&["ConditionalEffect"]),
+        K::Distribution => AxisRole::On(&["InterventionalDistribution"]),
+        K::PathSpecific => AxisRole::On(&["PathSpecificEffect"]),
+        K::Response => AxisRole::On(&[
+            "ResponseCurve",
+            "AverageDerivative",
+            "PointDerivative",
+            "SemiElasticity",
+            "Elasticity",
+            "DirectionalDerivative",
+            "ResponseJacobian",
+            "InterventionResponse",
+        ]),
+        K::Transport => AxisRole::On(&["TransportQuery"]),
+        K::Interference => AxisRole::On(&["InterferenceQuery"]),
+        K::MechanismChange
+        | K::UnitChange
+        | K::Discover
+        | K::Attribute
+        | K::Simulate => AxisRole::OffAxis,
+        K::RandomizedEffect
+        | K::PolicyValue
+        | K::ContinuousDoseResponse
+        | K::PanelDid
+        | K::SyntheticControl
+        | K::LocalPolynomialRatio
+        | K::Survival
+        | K::LongitudinalRegime
+        | K::SequentialContrast
+        | K::HistoryMatch
+        | K::TemporalDesign
+        | K::IvBounds
+        | K::Association => AxisRole::Design,
+    }
+}
+
+const ALL_QUERY_KINDS: [antecedent_core::CausalQueryKind; 31] = {
+    use antecedent_core::CausalQueryKind as K;
+    [
+        K::AverageEffect,
+        K::TemporalEffect,
+        K::Counterfactual,
+        K::NestedCounterfactual,
+        K::AnomalyAttribution,
+        K::ChangeAttribution,
+        K::MechanismChange,
+        K::UnitChange,
+        K::Mediation,
+        K::ConditionalEffect,
+        K::Distribution,
+        K::PathSpecific,
+        K::Response,
+        K::Transport,
+        K::Interference,
+        K::RandomizedEffect,
+        K::PolicyValue,
+        K::ContinuousDoseResponse,
+        K::PanelDid,
+        K::SyntheticControl,
+        K::LocalPolynomialRatio,
+        K::Survival,
+        K::LongitudinalRegime,
+        K::SequentialContrast,
+        K::HistoryMatch,
+        K::Discover,
+        K::Attribute,
+        K::Simulate,
+        K::TemporalDesign,
+        K::IvBounds,
+        K::Association,
+    ]
+};
+
+/// The `queries` list of `parity/support_axes.toml`.
+fn declared_axis_queries() -> std::collections::BTreeSet<&'static str> {
+    let text = include_str!("../../../../parity/support_axes.toml");
+    let body = text.split("queries = [").nth(1).and_then(|rest| rest.split(']').next());
+    body.unwrap_or_default()
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix('"')?.split('"').next())
+        .collect()
+}
+
+#[test]
+fn every_query_kind_has_an_axis_role_and_the_axis_names_match_the_declared_list() {
+    let mut reached = std::collections::BTreeSet::new();
+    let mut seen = std::collections::BTreeSet::new();
+    for kind in ALL_QUERY_KINDS {
+        assert!(seen.insert(format!("{kind:?}")), "{kind:?} listed twice");
+        if let AxisRole::On(names) = axis_role(kind) {
+            for name in names {
+                assert!(
+                    SupportQuery::parse(name).is_some_and(|query| query.as_str() == *name),
+                    "{kind:?} names `{name}`, which is not a support-matrix query"
+                );
+                reached.insert(*name);
+            }
+        }
+    }
+    let declared = declared_axis_queries();
+    assert!(!declared.is_empty(), "parity/support_axes.toml lists no queries");
+    assert_eq!(
+        reached, declared,
+        "the query axis names reachable from the query kinds and the declared list differ"
+    );
+    // The kinds off the axis are exactly the closed allow-list, and none of them has a name.
+    let off_axis: Vec<_> =
+        ALL_QUERY_KINDS.iter().filter(|kind| matches!(axis_role(**kind), AxisRole::OffAxis)).collect();
+    assert_eq!(off_axis.len(), 5);
+    let designs =
+        ALL_QUERY_KINDS.iter().filter(|kind| matches!(axis_role(**kind), AxisRole::Design)).count();
+    assert_eq!(designs, 13);
+}

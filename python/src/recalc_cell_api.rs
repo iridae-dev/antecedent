@@ -15,6 +15,7 @@
 //!   the frozen scores, with zero fits.
 #![allow(clippy::too_many_arguments)]
 
+use crate::NumericColumn;
 use std::collections::BTreeMap;
 
 use antecedent::analysis::recalc_cell::{
@@ -108,7 +109,7 @@ fn classify(result: Result<RecalcOutcome, RecalcRunError>, planned: Option<&Reca
         Ok(outcome) => Ran::Done(Box::new(outcome)),
         Err(RecalcRunError::Refused(plan)) => Ran::Refused(plan_refusal_json(&plan)),
         Err(RecalcRunError::NoLiveState(stage)) => Ran::Refused(no_live_state_json(stage, planned)),
-        Err(RecalcRunError::Request(detail)) => Ran::Refused(request_refusal_json(detail)),
+        Err(RecalcRunError::Request(detail)) => Ran::Refused(request_refusal_json(detail.as_str())),
         Err(RecalcRunError::Execution(error)) => Ran::Failed(py_err(error)),
         Err(RecalcRunError::Receipt(error)) => Ran::Failed(py_msg(error)),
     }
@@ -118,7 +119,7 @@ fn export_refusal(error: RecalcRunError) -> PyResult<ExportPayload> {
     match error {
         RecalcRunError::Refused(plan) => Ok((None, Some(plan_refusal_json(&plan)))),
         RecalcRunError::NoLiveState(stage) => Ok((None, Some(no_live_state_json(stage, None)))),
-        RecalcRunError::Request(detail) => Ok((None, Some(request_refusal_json(detail)))),
+        RecalcRunError::Request(detail) => Ok((None, Some(request_refusal_json(detail.as_str())))),
         RecalcRunError::Execution(error) => Err(py_err(error)),
         RecalcRunError::Receipt(error) => Err(py_msg(error)),
     }
@@ -163,7 +164,7 @@ struct Frame {
 }
 
 impl Frame {
-    fn new(names: &[String], columns: &[PyReadonlyArray1<'_, f64>]) -> PyResult<Self> {
+    fn new(names: &[String], columns: &[NumericColumn<'_>]) -> PyResult<Self> {
         if names.is_empty() || names.len() != columns.len() {
             return Err(invalid(
                 "recalc.invalid_data",
@@ -178,7 +179,7 @@ impl Frame {
                 ));
             }
         }
-        let columns: Columns = names.iter().cloned().zip(columns.iter().map(column_vec)).collect();
+        let columns: Columns = crate::named_f64_columns(names.iter().cloned(), columns)?;
         let rows = columns[0].1.len();
         if rows == 0
             || columns.iter().any(|(_, v)| v.len() != rows || v.iter().any(|x| !x.is_finite()))
@@ -360,7 +361,7 @@ impl PyCellSession {
 
 fn cell_request(
     names: &[String],
-    columns: &[PyReadonlyArray1<'_, f64>],
+    columns: &[NumericColumn<'_>],
     edges: &[(String, String)],
     treatments: &[String],
     outcome: &str,
@@ -437,7 +438,7 @@ impl PyCellSession {
     fn plan(
         &self,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         edges: Vec<(String, String)>,
         treatments: Vec<String>,
         outcome: &str,
@@ -480,7 +481,7 @@ impl PyCellSession {
         &mut self,
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         edges: Vec<(String, String)>,
         treatments: Vec<String>,
         outcome: &str,
@@ -578,7 +579,7 @@ impl PyCrossfitSession {
         &mut self,
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         edges: Vec<(String, String)>,
         treatment: &str,
         outcome: &str,
@@ -603,7 +604,7 @@ impl PyCrossfitSession {
             target: frame
                 .target(target_weights.as_ref(), &target_depends_on.unwrap_or_default())?,
             utility: utility_of(benefit_per_unit, cost)?,
-            columns: frame.columns,
+            columns: frame.columns.into(),
         };
         let rows = u64::try_from(frame.rows).unwrap_or(u64::MAX);
         drop(columns);
@@ -798,7 +799,9 @@ impl PyScoreResume {
                 Ok((Some(serde_json::to_string(&plan_to_wire(&plan)).map_err(py_msg)?), None))
             }
             Err(RecalcRunError::Refused(plan)) => Ok((None, Some(plan_refusal_json(&plan)))),
-            Err(RecalcRunError::Request(detail)) => Ok((None, Some(request_refusal_json(detail)))),
+            Err(RecalcRunError::Request(detail)) => {
+                Ok((None, Some(request_refusal_json(detail.as_str()))))
+            }
             Err(other) => Err(py_msg(other)),
         }
     }

@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::NumericColumn;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -14,11 +15,11 @@ use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
     AverageEffectQuery, CacheBudget, CausalQuery, QueryId, VariableId,
 };
-use numpy::{PyArray1, PyReadonlyArray1};
+use numpy::PyArray1;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 
-use crate::{catch_ffi, columns_to_batch, py_err};
+use crate::{catch_ffi, numeric_columns_to_batch, py_err};
 
 type BatchColumnsPy<'py> = (Vec<String>, Vec<Bound<'py, PyArray1<f64>>>);
 
@@ -48,18 +49,18 @@ impl PyCausalState {
     fn store_batch(
         &mut self,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
     ) -> PyResult<(Arc<str>, u64, u64)> {
         if names.len() != columns.len() {
             return Err(crate::value_err("names/columns length mismatch"));
         }
-        let batch = columns_to_batch(&names, &columns)?;
+        let batch = numeric_columns_to_batch(&names, &columns)?;
         let nrows = u64::try_from(batch.num_rows()).unwrap_or(u64::MAX);
         let bytes = u64::try_from(batch.get_array_memory_size()).unwrap_or(u64::MAX);
         let id_str = format!("b{}", self.next_batch);
         let mut owned = Vec::with_capacity(columns.len());
-        for col in &columns {
-            owned.push(col.as_slice()?.to_vec());
+        for (name, col) in names.iter().zip(&columns) {
+            owned.push(col.to_vec(name)?);
         }
         // Advance the public batch-id sequence only after every fallible
         // conversion has succeeded. Rejected appends/replacements must not
@@ -116,7 +117,7 @@ impl PyCausalState {
     fn append_data(
         &mut self,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
     ) -> PyResult<u64> {
         let (id, nrows, bytes) = self.store_batch(names, columns)?;
         self.apply(StateEvent::AppendData(DataBatchRef { id, nrows, bytes }))
@@ -129,7 +130,7 @@ impl PyCausalState {
     fn replace_data(
         &mut self,
         names: Option<Vec<String>>,
-        columns: Option<Vec<PyReadonlyArray1<'_, f64>>>,
+        columns: Option<Vec<NumericColumn<'_>>>,
     ) -> PyResult<u64> {
         let replacement = match (names, columns) {
             (Some(names), Some(columns)) => Some(self.store_batch(names, columns)?),

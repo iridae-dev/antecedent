@@ -107,25 +107,14 @@ class ConditionalStudyPolicy:
     def _wire(self):
         if not isinstance(self.policy_id, str) or len(self.policy_id.encode()) > 256:
             raise CausalValueError("bounded policy_id required", reason_code="invalid_argument")
-        if not isinstance(self.branches, Mapping) or not 1 <= len(self.branches) <= 64:
-            raise CausalValueError(
-                "one to 64 action tables required", reason_code="invalid_argument"
-            )
+        if not isinstance(self.branches, Mapping) or not self.branches:
+            raise CausalValueError("an action table is required", reason_code="invalid_argument")
         tables = []
-        total = 0
         for action, candidates in self.branches.items():
-            if (
-                not isinstance(action, str)
-                or len(action.encode()) > 256
-                or not 1 <= len(candidates) <= 128
-            ):
+            if not isinstance(action, str) or len(action.encode()) > 256 or not candidates:
                 raise CausalValueError(
-                    "bounded action/candidate table required", reason_code="invalid_argument"
-                )
-            total += len(candidates)
-            if total > 512:
-                raise CausalValueError(
-                    "at most 512 candidates required", reason_code="invalid_argument"
+                    "a named action with at least one candidate is required",
+                    reason_code="invalid_argument",
                 )
             rows = []
             for candidate in candidates:

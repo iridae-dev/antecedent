@@ -73,7 +73,7 @@ use antecedent_contract::{
     ExternalCapabilityRequest, ExternalRefusal, ExternalScientificObject, ProviderObjectIdentity,
     ProviderVerificationReceipt,
 };
-use antecedent_core::{CancellationToken, CausalRng, ExecutionContext};
+use antecedent_core::{CancellationToken, CausalRng, ExecutionContext, SemanticDigest};
 pub use antecedent_io::callback_result_artifact::{
     CallbackOutcome, CallbackResultArtifact, CallbackResultArtifactError, CallbackResultMeta,
     CallbackResultRecord, MAX_CALLBACK_RESULT_ARTIFACT_BYTES, output_values_digest,
@@ -286,13 +286,50 @@ pub enum CallbackResume {
 /// The slot of a request: component, query and seed. Excludes the declaration
 /// version and the input digests so a changed dependency or input is seen as a
 /// change of an answer, not as a different question.
-fn slot_of(declaration: &CallbackDeclaration, request: &CallbackRequest) -> String {
+fn slot_of(declaration: &CallbackDeclaration, request: &CallbackRequest) -> [u8; 32] {
     let mut writer =
         antecedent_core::CanonicalWriter::new("antecedent.callback_protocol.session_slot");
     writer.text(&declaration.component);
     request.query.write_canonical(&mut writer);
     writer.word(request.seed);
-    writer.finish_hex()
+    writer.finish()
+}
+
+/// The two identities a history record is keyed by, computed once when the
+/// record is stored so a later call never rebuilds them from the record.
+#[derive(Clone, Copy, Debug)]
+struct RecordIdentities {
+    declaration: SemanticDigest,
+    request: SemanticDigest,
+}
+
+impl RecordIdentities {
+    fn of(declaration: &CallbackDeclaration, request: &CallbackRequest) -> Self {
+        Self {
+            declaration: declaration.canonical_identity(),
+            request: request.identity(declaration),
+        }
+    }
+}
+
+/// One `execute` call: the caller's arguments and the identities and attempt
+/// count the staged checks share.
+struct Call<'a> {
+    declaration: &'a CallbackDeclaration,
+    request: &'a CallbackRequest,
+    inputs: &'a BTreeMap<String, ValidatedOutput>,
+    policy: &'a CallbackExecutionPolicy,
+    ids: RecordIdentities,
+    /// Provider invocations of this request before the call.
+    attempts: u64,
+}
+
+/// What the planning stage decided.
+enum Decision {
+    /// The stored result answers the request.
+    Reuse(Box<CallbackExecution>),
+    /// The provider is invoked, for this reason.
+    Recompute(RecomputeReason),
 }
 
 /// Execution state of one process: the append-only history of results and the
@@ -300,8 +337,10 @@ fn slot_of(declaration: &CallbackDeclaration, request: &CallbackRequest) -> Stri
 #[derive(Clone, Debug, Default)]
 pub struct CallbackSession {
     history: Vec<CallbackResultRecord>,
-    latest: BTreeMap<String, usize>,
-    attempts: BTreeMap<String, u64>,
+    /// The identities of each history record, aligned with `history`.
+    identities: Vec<RecordIdentities>,
+    latest: BTreeMap<[u8; 32], usize>,
+    attempts: BTreeMap<SemanticDigest, u64>,
     invocations: u64,
     state_probes: u64,
     ledger: EvidenceLedger,
@@ -422,7 +461,22 @@ impl CallbackSession {
     /// Provider invocations of one request identity (hex).
     #[must_use]
     pub fn request_attempts(&self, request_identity: &str) -> u64 {
+        antecedent_core::digest_from_lower_hex(request_identity)
+            .map_or(0, |bytes| self.attempts_of(&SemanticDigest::from_bytes(bytes)))
+    }
+
+    /// Provider invocations of one request identity.
+    #[must_use]
+    pub fn attempts_of(&self, request_identity: &SemanticDigest) -> u64 {
         self.attempts.get(request_identity).copied().unwrap_or(0)
+    }
+
+    /// Append `record` to the history under its precomputed identities and
+    /// return its index.
+    fn push_record(&mut self, record: CallbackResultRecord, ids: RecordIdentities) -> usize {
+        self.history.push(record);
+        self.identities.push(ids);
+        self.history.len() - 1
     }
 
     fn stored_for(
@@ -432,14 +486,15 @@ impl CallbackSession {
     ) -> Option<(usize, StoredCallback)> {
         let index = *self.latest.get(&slot_of(declaration, request))?;
         let record = self.history.get(index)?;
+        let ids = self.identities.get(index)?;
         let CallbackOutcome::Computed { state_identity, .. } = &record.outcome else {
             return None;
         };
         Some((
             index,
             StoredCallback {
-                declaration_identity: record.declaration.canonical_identity(),
-                request_identity: record.request.identity(&record.declaration),
+                declaration_identity: ids.declaration,
+                request_identity: ids.request,
                 dependencies: record
                     .declaration
                     .dependencies
@@ -488,7 +543,7 @@ impl CallbackSession {
                     matches!(&input.supplier, InputSupplier::Callback { identity: inner, .. } if *inner == current)
                 });
                 if consumes && affected.insert(index) {
-                    frontier.push(record.declaration.canonical_identity().to_hex());
+                    frontier.push(self.identities[index].declaration.to_hex());
                 }
             }
         }
@@ -527,20 +582,17 @@ impl CallbackSession {
     /// Answer `request` from the stored result or by invoking `provider`.
     ///
     /// The order of checks, each before any invocation: the declaration, the
-    /// phase, negotiation of exactly the requested operation through the one
-    /// provider contract, the provider's identity, the inputs, the overlap of
-    /// the callback inputs in the session's evidence ledger (shared or unknown
-    /// overlap is refused), the reuse plan,
-    /// the side-effect policy, the invocation bound and cancellation. After an
-    /// invocation: cancellation, the wall-clock bound and the checked output.
+    /// phase (`authorize`), negotiation of exactly the requested
+    /// operation through the one provider contract and the provider's identity
+    /// (`negotiate`), the inputs and the overlap of the callback inputs
+    /// in the session's evidence ledger (shared or unknown overlap is refused),
+    /// the reuse plan (`plan_execution`), the side-effect policy, the
+    /// invocation bound and cancellation. After an invocation: cancellation,
+    /// the wall-clock bound and the checked output.
     ///
     /// # Errors
     /// A [`CallbackExecutionError`] carrying the typed refusal and the actual
     /// invocation counts. A failed call is not retried.
-    #[allow(
-        clippy::too_many_lines,
-        reason = "one linear sequence of checks, each before the invocation it guards"
-    )]
     #[allow(
         clippy::result_large_err,
         reason = "a refusal is the cold path of a once-per-call check; boxing the error would change the public error type"
@@ -554,26 +606,59 @@ impl CallbackSession {
         policy: &CallbackExecutionPolicy,
         ctx: &ExecutionContext,
     ) -> Result<CallbackExecution, CallbackExecutionError> {
-        let request_hex = request.identity(declaration).to_hex();
-        let attempts = self.request_attempts(&request_hex);
+        let ids = RecordIdentities::of(declaration, request);
+        let attempts = self.attempts_of(&ids.request);
+        let call = Call { declaration, request, inputs, policy, ids, attempts };
         let fail = |refusal: ExternalRefusal| CallbackExecutionError::before(refusal, attempts);
-        declaration.validate().map_err(fail)?;
-        request.query.validate().map_err(fail)?;
-        match policy.phase {
-            CallbackPhase::Planning => {
-                return Err(fail(refusal::invocation_outside_execution(policy.phase.as_str())));
-            }
-            CallbackPhase::Verification => {
+        Self::authorize(&call).map_err(fail)?;
+        Self::negotiate(&*provider, &call).map_err(fail)?;
+        Self::check_inputs(declaration, request, inputs).map_err(fail)?;
+        let evidence_state_digest = self.check_nested_evidence(declaration).map_err(fail)?;
+        let reason = match self
+            .plan_execution(provider, &call, evidence_state_digest.clone())
+            .map_err(fail)?
+        {
+            Decision::Reuse(execution) => return Ok(*execution),
+            Decision::Recompute(reason) => reason,
+        };
+        Self::guard_invocation(&call, ctx).map_err(fail)?;
+        self.invoke_and_accept(provider, &call, ctx, reason, evidence_state_digest)
+    }
+
+    /// The declaration and query are well formed and the phase may invoke the
+    /// callback: planning never does, and verification never runs a stateful or
+    /// side-effecting one.
+    #[allow(
+        clippy::result_large_err,
+        reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+    )]
+    fn authorize(call: &Call<'_>) -> Result<(), ExternalRefusal> {
+        call.declaration.validate()?;
+        call.request.query.validate()?;
+        let phase = call.policy.phase;
+        match phase {
+            CallbackPhase::Planning => Err(refusal::invocation_outside_execution(phase.as_str())),
+            CallbackPhase::Verification
                 if matches!(
-                    declaration.replay,
+                    call.declaration.replay,
                     ReplayContract::SideEffecting { .. } | ReplayContract::Stateful { .. }
-                ) {
-                    return Err(fail(refusal::invocation_outside_execution(policy.phase.as_str())));
-                }
+                ) =>
+            {
+                Err(refusal::invocation_outside_execution(phase.as_str()))
             }
-            CallbackPhase::Execution => {}
+            CallbackPhase::Verification | CallbackPhase::Execution => Ok(()),
         }
-        let operation = request.query.operation();
+    }
+
+    /// The declared object answers exactly the requested operation through the
+    /// one provider contract, and `provider` is that object.
+    #[allow(
+        clippy::result_large_err,
+        reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+    )]
+    fn negotiate(provider: &dyn ProviderCallback, call: &Call<'_>) -> Result<(), ExternalRefusal> {
+        let declaration = call.declaration;
+        let operation = call.request.query.operation();
         let object = if operation == CallbackOperation::PosteriorUpdate {
             declaration.update_object()
         } else {
@@ -604,8 +689,7 @@ impl CallbackSession {
                     .map_err(|_| {
                         refusal::operation_not_declared(operation.capability(), "contract")
                     })
-            })
-            .map_err(fail)?;
+            })?;
         if provider.identity() != negotiated.identity() {
             let expected = identity_label(
                 &declaration.identity.object_id,
@@ -617,10 +701,24 @@ impl CallbackSession {
                 &provider.identity().version_id,
                 &provider.identity().snapshot_id,
             );
-            return Err(fail(refusal::provider_identity_mismatch(&expected, &supplied)));
+            return Err(refusal::provider_identity_mismatch(&expected, &supplied));
         }
-        Self::check_inputs(declaration, request, inputs).map_err(fail)?;
-        let evidence_state_digest = self.check_nested_evidence(declaration).map_err(fail)?;
+        Ok(())
+    }
+
+    /// Probe the provider's state when it exposes one, then decide from the
+    /// stored result whether to reuse it or to invoke the provider.
+    #[allow(
+        clippy::result_large_err,
+        reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+    )]
+    fn plan_execution(
+        &mut self,
+        provider: &mut dyn ProviderCallback,
+        call: &Call<'_>,
+        evidence_state_digest: Option<String>,
+    ) -> Result<Decision, ExternalRefusal> {
+        let declaration = call.declaration;
         let exposes_state =
             matches!(declaration.replay, ReplayContract::Stateful { exposes_state_identity: true });
         let current_state = if exposes_state {
@@ -629,14 +727,14 @@ impl CallbackSession {
         } else {
             None
         };
-        let stored = self.stored_for(declaration, request);
+        let stored = self.stored_for(declaration, call.request);
         let plan = plan_reuse(
             declaration,
-            request,
+            call.request,
             stored.as_ref().map(|(_, stored)| stored),
             current_state.as_deref(),
         );
-        let reason = match plan {
+        match plan {
             CallbackPlan::Reuse => {
                 if let Some((index, _)) = stored {
                     if let CallbackOutcome::Computed { output, state_identity, .. } =
@@ -645,48 +743,47 @@ impl CallbackSession {
                         // A cached output was checked against the policy of
                         // its original execution. The current caller may
                         // impose a tighter bound, which reuse must respect.
-                        if output.output().value_count() > policy.max_output_values {
-                            return Err(fail(refusal::output_too_large(policy.max_output_values)));
+                        if output.output().value_count() > call.policy.max_output_values {
+                            return Err(refusal::output_too_large(call.policy.max_output_values));
                         }
-                        return Ok(CallbackExecution {
+                        return Ok(Decision::Reuse(Box::new(CallbackExecution {
                             output: output.clone(),
                             invocations: 0,
                             reused: true,
                             recomputed_because: None,
                             standing: standing_label(declaration, false),
-                            declaration_identity: declaration.canonical_identity().to_hex(),
-                            request_identity: request_hex,
+                            declaration_identity: call.ids.declaration.to_hex(),
+                            request_identity: call.ids.request.to_hex(),
                             state_identity: state_identity.clone(),
                             evidence_state_digest,
-                        });
+                        })));
                     }
                 }
-                RecomputeReason::NoPriorResult
+                Ok(Decision::Recompute(RecomputeReason::NoPriorResult))
             }
-            CallbackPlan::Refuse(refused) => return Err(fail(refused)),
-            CallbackPlan::Recompute(reason) => reason,
-        };
-        Self::guard_effects(declaration, request, policy, attempts).map_err(fail)?;
-        if policy.max_invocations == 0 {
-            return Err(fail(refusal::invocation_limit(0)));
+            CallbackPlan::Refuse(refused) => Err(refused),
+            CallbackPlan::Recompute(reason) => Ok(Decision::Recompute(reason)),
         }
-        if attempts == u64::MAX {
-            return Err(fail(refusal::invocation_limit(u64::MAX)));
+    }
+
+    /// The side-effect policy, the invocation bound and cancellation, checked
+    /// immediately before the provider is invoked.
+    #[allow(
+        clippy::result_large_err,
+        reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+    )]
+    fn guard_invocation(call: &Call<'_>, ctx: &ExecutionContext) -> Result<(), ExternalRefusal> {
+        Self::guard_effects(call.declaration, call.request, call.policy, call.attempts)?;
+        if call.policy.max_invocations == 0 {
+            return Err(refusal::invocation_limit(0));
+        }
+        if call.attempts == u64::MAX {
+            return Err(refusal::invocation_limit(u64::MAX));
         }
         if ctx.cancellation.is_cancelled() {
-            return Err(fail(refusal::cancelled("before_invocation")));
+            return Err(refusal::cancelled("before_invocation"));
         }
-        self.invoke_and_accept(
-            provider,
-            declaration,
-            request,
-            inputs,
-            policy,
-            ctx,
-            request_hex,
-            reason,
-            evidence_state_digest,
-        )
+        Ok(())
     }
 
     #[allow(
@@ -721,34 +818,30 @@ impl CallbackSession {
     }
 
     #[allow(
-        clippy::too_many_arguments,
-        reason = "the second half of execute, split to keep each function one sequence of checks"
-    )]
-    #[allow(
         clippy::result_large_err,
         reason = "a refusal is the cold path of a once-per-call check; boxing the error would change the public error type"
     )]
     fn invoke_and_accept(
         &mut self,
         provider: &mut dyn ProviderCallback,
-        declaration: &CallbackDeclaration,
-        request: &CallbackRequest,
-        inputs: &BTreeMap<String, ValidatedOutput>,
-        policy: &CallbackExecutionPolicy,
+        call: &Call<'_>,
         ctx: &ExecutionContext,
-        request_hex: String,
         reason: RecomputeReason,
         evidence_state_digest: Option<String>,
     ) -> Result<CallbackExecution, CallbackExecutionError> {
+        let Call { declaration, request, inputs, policy, ids, .. } = *call;
         let rng = match &declaration.replay {
             ReplayContract::SeededStochastic { stream_id } => {
                 Some(semantic_stream(request.seed, stream_id))
             }
             _ => None,
         };
-        *self.attempts.entry(request_hex.clone()).or_insert(0) += 1;
+        let attempt = {
+            let count = self.attempts.entry(ids.request).or_insert(0);
+            *count += 1;
+            *count
+        };
         self.invocations += 1;
-        let attempt = self.request_attempts(&request_hex);
         let mut callback_ctx = CallbackContext {
             rng,
             cancellation: &ctx.cancellation,
@@ -787,24 +880,27 @@ impl CallbackSession {
             None
         };
         let slot = slot_of(declaration, request);
-        self.history.push(CallbackResultRecord {
-            declaration: declaration.clone(),
-            request: request.clone(),
-            outcome: CallbackOutcome::Computed {
-                output: accepted.clone(),
-                invocations: attempt,
-                state_identity: state_identity.clone(),
+        let index = self.push_record(
+            CallbackResultRecord {
+                declaration: declaration.clone(),
+                request: request.clone(),
+                outcome: CallbackOutcome::Computed {
+                    output: accepted.clone(),
+                    invocations: attempt,
+                    state_identity: state_identity.clone(),
+                },
             },
-        });
-        self.latest.insert(slot, self.history.len() - 1);
+            ids,
+        );
+        self.latest.insert(slot, index);
         Ok(CallbackExecution {
             output: accepted,
             invocations: 1,
             reused: false,
             recomputed_because: Some(reason),
             standing: standing_label(declaration, false),
-            declaration_identity: declaration.canonical_identity().to_hex(),
-            request_identity: request_hex,
+            declaration_identity: ids.declaration.to_hex(),
+            request_identity: ids.request.to_hex(),
             state_identity,
             evidence_state_digest,
         })
@@ -886,17 +982,17 @@ impl CallbackSession {
         // The historical result is imported as it was; it is inspectable and a
         // later identical request may reuse it under the replay contract.
         let slot = slot_of(&record.declaration, &record.request);
-        let request_hex = record.request.identity(&record.declaration).to_hex();
+        let ids = RecordIdentities::of(&record.declaration, &record.request);
         if let CallbackOutcome::Computed { invocations, .. } = &record.outcome {
             self.attempts
-                .entry(request_hex)
+                .entry(ids.request)
                 .and_modify(|attempts| *attempts = (*attempts).max(*invocations))
                 .or_insert(*invocations);
         }
         let imported_computed = matches!(record.outcome, CallbackOutcome::Computed { .. });
-        self.history.push(record.clone());
+        let index = self.push_record(record.clone(), ids);
         if imported_computed {
-            self.latest.insert(slot, self.history.len() - 1);
+            self.latest.insert(slot, index);
         }
         let Some(provider) = provider else {
             let refusal = refusal::provider_unavailable(&format!(
@@ -906,12 +1002,15 @@ impl CallbackSession {
                 record.declaration.identity.version_id,
                 record.declaration.identity.snapshot_id
             ));
-            self.history.push(CallbackResultRecord {
-                declaration: record.declaration.clone(),
-                request: record.request.clone(),
-                outcome: CallbackOutcome::Unavailable { reason: refusal.detail.clone() },
-            });
-            return Ok(CallbackResume::Unavailable { record: self.history.len() - 1, refusal });
+            let unavailable = self.push_record(
+                CallbackResultRecord {
+                    declaration: record.declaration.clone(),
+                    request: record.request.clone(),
+                    outcome: CallbackOutcome::Unavailable { reason: refusal.detail.clone() },
+                },
+                ids,
+            );
+            return Ok(CallbackResume::Unavailable { record: unavailable, refusal });
         };
         let execution =
             self.execute(provider, &record.declaration, &record.request, inputs, policy, ctx)?;

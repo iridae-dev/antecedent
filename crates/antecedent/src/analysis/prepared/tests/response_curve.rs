@@ -109,7 +109,7 @@ fn prepared_curve_refuses_a_tampered_grid() {
             GridSpec::Values(Arc::from([-0.5, 0.25, 0.5])),
         ),
     });
-    prepared.study_mut().query = changed.into();
+    prepared.study_mut().unwrap().query = changed.into();
     let err = prepared.estimate(&data(0.2), &context).unwrap_err();
     assert!(
         err.to_string().contains(

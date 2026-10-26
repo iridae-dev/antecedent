@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::route_call::{RouteCall, TabularCall, route_mismatch, route_unsupported};
 use super::{
     AnalysisRoute, Arc, CausalError, CausalQuery, CheckedInterferenceOperation,
     DEFAULT_ADMG_ESTIMATOR_ID, DEFAULT_ADMG_IDENTIFIER_ID, DEFAULT_CONDITIONAL_ESTIMATOR_ID,
@@ -11,9 +12,8 @@ use super::{
     GraphPosterior, GraphRef, IdentificationResult, IdentifierId, InferenceMode, OverlapPolicy,
     PhysicalExecutionPlan, RefuteSuite, ResponseQuery, RouteInput, StaticMediationSource, Strategy,
     StudyResult, TableView, TabularData, TimeSeriesData, VariableId, admg_has_bidirected,
-    admg_without_latents_to_dag, classify_analysis_route, classify_route, data_modality,
-    graph_posterior_response_supported, is_class_atom, reject_dag_only_on_pag,
-    response_functional_is_derivative, temporal_admg_projection,
+    admg_without_latents_to_dag, classify_route, graph_posterior_response_supported, is_class_atom,
+    reject_dag_only_on_pag, response_functional_is_derivative, temporal_admg_projection,
 };
 use crate::analysis::prepared::ExecutionKind;
 use crate::analysis::route_guards::{
@@ -31,12 +31,88 @@ pub(super) const GRAPH_POSTERIOR_QUERY_REFUSAL: &str = concat!(
     "response queries only",
 );
 
-/// The refusal for a route whose data or query kind disagrees with the one the route was
-/// classified from. Classification reads both, so reaching this means a caller swapped the
-/// study's data or query between planning and execution.
-fn route_mismatch() -> CausalError {
-    CausalError::Compile {
-        message: "execution route does not match the study's data or query kind".into(),
+/// A physical plan the executor shares behind an `Arc`.
+///
+/// A borrowed plan is copied into a new `Arc`; a plan the caller owns or already shares is
+/// not copied.
+pub trait IntoSharedPlan {
+    /// The plan behind an `Arc`.
+    fn into_shared(self) -> Arc<PhysicalExecutionPlan>;
+}
+
+impl IntoSharedPlan for Arc<PhysicalExecutionPlan> {
+    fn into_shared(self) -> Arc<PhysicalExecutionPlan> {
+        self
+    }
+}
+
+impl IntoSharedPlan for &Arc<PhysicalExecutionPlan> {
+    fn into_shared(self) -> Arc<PhysicalExecutionPlan> {
+        Arc::clone(self)
+    }
+}
+
+impl IntoSharedPlan for PhysicalExecutionPlan {
+    fn into_shared(self) -> Arc<PhysicalExecutionPlan> {
+        Arc::new(self)
+    }
+}
+
+impl IntoSharedPlan for &PhysicalExecutionPlan {
+    fn into_shared(self) -> Arc<PhysicalExecutionPlan> {
+        Arc::new(self.clone())
+    }
+}
+
+/// A route family that names its own validation suites.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ValidationFamily {
+    PathSpecific,
+    Distribution,
+    TemporalMediation,
+    MediationDecomposition,
+}
+
+impl ValidationFamily {
+    /// The family whose suites validate a study of this query and graph class, if any.
+    fn of(query: &CausalQuery, class: GraphClass) -> Option<Self> {
+        match query {
+            CausalQuery::PathSpecific(_) => Some(Self::PathSpecific),
+            CausalQuery::Distribution(_) => Some(Self::Distribution),
+            CausalQuery::Mediation(_) if class == GraphClass::TemporalDag => {
+                Some(Self::TemporalMediation)
+            }
+            CausalQuery::Mediation(_)
+                if matches!(
+                    class,
+                    GraphClass::Admg
+                        | GraphClass::TemporalAdmg
+                        | GraphClass::Cpdag
+                        | GraphClass::Pag
+                        | GraphClass::TemporalPag
+                ) =>
+            {
+                Some(Self::MediationDecomposition)
+            }
+            _ => None,
+        }
+    }
+
+    /// The id of the family's suite for `refute`; `None` when no validation runs.
+    fn suite_id(self, refute: RefuteSuite) -> Option<Arc<str>> {
+        let (full, cheap) = match self {
+            Self::PathSpecific => ("path.full", "path.cheap"),
+            Self::Distribution => ("distribution.full", "distribution.cheap"),
+            Self::TemporalMediation => ("temporal.mediation.full", "temporal.mediation.cheap"),
+            Self::MediationDecomposition => {
+                ("mediation.decomposition.full", "mediation.decomposition.cheap")
+            }
+        };
+        match refute {
+            RefuteSuite::None => None,
+            RefuteSuite::Full => Some(Arc::from(full)),
+            _ => Some(Arc::from(cheap)),
+        }
     }
 }
 
@@ -62,34 +138,10 @@ impl super::Study {
     }
 
     pub(super) fn validation_suite_id(&self) -> Option<Arc<str>> {
-        let family = match self.query {
-            CausalQuery::PathSpecific(_) => Some("path"),
-            CausalQuery::Distribution(_) => Some("distribution"),
-            CausalQuery::Mediation(_) if self.graph.class() == GraphClass::TemporalDag => {
-                Some("temporal.mediation")
-            }
-            CausalQuery::Mediation(_)
-                if matches!(
-                    self.graph.class(),
-                    GraphClass::Admg
-                        | GraphClass::TemporalAdmg
-                        | GraphClass::Cpdag
-                        | GraphClass::Pag
-                        | GraphClass::TemporalPag
-                ) =>
-            {
-                Some("mediation.decomposition")
-            }
-            _ => None,
-        };
-        if let Some(family) = family {
-            return match self.refute {
-                RefuteSuite::None => None,
-                RefuteSuite::Full => Some(Arc::from(format!("{family}.full"))),
-                _ => Some(Arc::from(format!("{family}.cheap"))),
-            };
+        match ValidationFamily::of(&self.query, self.graph.class()) {
+            Some(family) => family.suite_id(self.refute),
+            None => self.refute.validation_suite_id().map(Arc::from),
         }
-        self.refute.validation_suite_id().map(Arc::from)
     }
 
     pub(super) fn ensure_supported_combination(&self) -> Result<(), CausalError> {
@@ -429,15 +481,6 @@ impl super::Study {
     }
 
     /// Resolve builder-selected identifier/estimator ids against modality defaults.
-    pub(super) fn resolve_id_est_pair(
-        &self,
-        default_identifier: IdentifierId,
-        default_estimator: EstimatorId,
-    ) -> (Arc<str>, Arc<str>) {
-        wire_pair(self.resolve_id_est_ids(default_identifier, default_estimator))
-    }
-
-    /// [`Self::resolve_id_est_pair`] as typed ids.
     fn resolve_id_est_ids(
         &self,
         default_identifier: IdentifierId,
@@ -462,11 +505,6 @@ impl super::Study {
     }
 
     /// Resolve identifier/estimator for PAG ATE (generalized adjustment).
-    pub(super) fn resolve_pag_pair(&self) -> (Arc<str>, Arc<str>) {
-        wire_pair(self.resolve_pag_ids())
-    }
-
-    /// [`Self::resolve_pag_pair`] as typed ids.
     pub(super) fn resolve_pag_ids(&self) -> (IdentifierId, EstimatorId) {
         let estimator = if self.inference.is_bayesian() {
             EstimatorId::BayesianGcomp
@@ -477,11 +515,8 @@ impl super::Study {
     }
 
     /// Incomplete TemporalCpdag/Pag pulse: envelope identifier + temporal linear estimator.
-    pub(super) fn resolve_temporal_class_pair(&self) -> (Arc<str>, Arc<str>) {
-        self.resolve_id_est_pair(
-            DEFAULT_PAG_IDENTIFIER_ID,
-            crate::strategy_table::EstimatorId::TemporalLinearAdjustment,
-        )
+    pub(super) fn resolve_temporal_class_ids(&self) -> (IdentifierId, EstimatorId) {
+        self.resolve_id_est_ids(DEFAULT_PAG_IDENTIFIER_ID, EstimatorId::TemporalLinearAdjustment)
     }
 
     /// Resolve identifier/estimator for ADMG ATE (general ID + functional effect).
@@ -527,74 +562,71 @@ impl super::Study {
     }
 
     /// Resolve identifier/estimator for Distribution queries.
-    pub(super) fn resolve_distribution_pair(&self) -> (Arc<str>, Arc<str>) {
+    pub(super) fn resolve_distribution_ids(&self) -> (IdentifierId, EstimatorId) {
         let identifier = self.identifier.unwrap_or(DEFAULT_DISTRIBUTION_IDENTIFIER_ID);
         let estimator = self
             .estimator
             .filter(|id| *id != EstimatorId::BayesianGcomp || self.estimator_spec.is_some())
             .unwrap_or(DEFAULT_DISTRIBUTION_ESTIMATOR_ID);
-        (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
+        (identifier, estimator)
     }
 
     /// Resolve the response estimator from the functional when the caller did not override it.
-    pub(super) fn resolve_response_pair(&self, query: &ResponseQuery) -> (Arc<str>, Arc<str>) {
+    pub(super) fn resolve_response_ids(
+        &self,
+        query: &ResponseQuery,
+    ) -> (IdentifierId, EstimatorId) {
         if self.inference.is_bayesian() && !response_functional_is_derivative(&query.functional) {
             return (
-                Arc::from(self.identifier.unwrap_or(DEFAULT_RESPONSE_IDENTIFIER_ID).as_str()),
-                Arc::from(
-                    self.estimator_spec
-                        .as_deref()
-                        .map_or(EstimatorId::ResponseBayesian, crate::EstimatorSpec::id)
-                        .as_str(),
-                ),
+                self.identifier.unwrap_or(DEFAULT_RESPONSE_IDENTIFIER_ID),
+                self.estimator_spec
+                    .as_deref()
+                    .map_or(EstimatorId::ResponseBayesian, crate::EstimatorSpec::id),
             );
         }
-        self.resolve_id_est_pair(
+        self.resolve_id_est_ids(
             DEFAULT_RESPONSE_IDENTIFIER_ID,
             EstimatorId::default_for_response(&query.functional),
         )
     }
 
-    pub(super) fn resolve_codetermined_joint_pair(&self) -> (Arc<str>, Arc<str>) {
+    /// [`Self::resolve_response_ids`] as wire names, as a plan binding carries them.
+    pub(super) fn resolve_response_pair(&self, query: &ResponseQuery) -> (Arc<str>, Arc<str>) {
+        wire_pair(self.resolve_response_ids(query))
+    }
+
+    pub(super) fn resolve_codetermined_joint_ids(&self) -> (IdentifierId, EstimatorId) {
         // The Bayesian joint level runs response.bayesian over the same closure set; a
         // builder placeholder estimator does not override it, a caller selection does.
         if self.inference.is_bayesian() {
-            return wire_pair((
+            return (
                 self.identifier.unwrap_or(IdentifierId::GeneralizedAdjustment),
                 self.caller_selected_estimator().unwrap_or(EstimatorId::ResponseBayesian),
-            ));
+            );
         }
-        self.resolve_id_est_pair(IdentifierId::GeneralizedAdjustment, EstimatorId::CellAipw)
+        self.resolve_id_est_ids(IdentifierId::GeneralizedAdjustment, EstimatorId::CellAipw)
     }
 
     /// Resolve identifier/estimator for Cpdag/Pag response (generalized adjustment).
-    pub(super) fn resolve_class_response_pair(
+    pub(super) fn resolve_class_response_ids(
         &self,
         query: &ResponseQuery,
-    ) -> (Arc<str>, Arc<str>) {
+    ) -> (IdentifierId, EstimatorId) {
         if self.inference.is_bayesian() && !response_functional_is_derivative(&query.functional) {
             return (
-                Arc::from(self.identifier.unwrap_or(DEFAULT_PAG_IDENTIFIER_ID).as_str()),
-                Arc::from(
-                    self.estimator_spec
-                        .as_deref()
-                        .map_or(EstimatorId::ResponseBayesian, crate::EstimatorSpec::id)
-                        .as_str(),
-                ),
+                self.identifier.unwrap_or(DEFAULT_PAG_IDENTIFIER_ID),
+                self.estimator_spec
+                    .as_deref()
+                    .map_or(EstimatorId::ResponseBayesian, crate::EstimatorSpec::id),
             );
         }
-        self.resolve_id_est_pair(
+        self.resolve_id_est_ids(
             DEFAULT_PAG_IDENTIFIER_ID,
             EstimatorId::default_for_response(&query.functional),
         )
     }
 
     /// Resolve identifier/estimator for Cpdag/Pag `ConditionalEffect`.
-    pub(super) fn resolve_class_conditional_pair(&self) -> (Arc<str>, Arc<str>) {
-        wire_pair(self.resolve_class_conditional_ids())
-    }
-
-    /// [`Self::resolve_class_conditional_pair`] as typed ids.
     pub(super) fn resolve_class_conditional_ids(&self) -> (IdentifierId, EstimatorId) {
         let estimator = if self.inference.is_bayesian() {
             EstimatorId::BayesianConditional
@@ -608,13 +640,13 @@ impl super::Study {
     }
 
     /// Resolve identifier/estimator for `PathSpecific` queries.
-    pub(super) fn resolve_path_pair(&self) -> (Arc<str>, Arc<str>) {
+    pub(super) fn resolve_path_ids(&self) -> (IdentifierId, EstimatorId) {
         let identifier = self.identifier.unwrap_or(DEFAULT_PATH_IDENTIFIER_ID);
         let estimator = self
             .estimator
             .filter(|id| *id != EstimatorId::BayesianGcomp || self.estimator_spec.is_some())
             .unwrap_or(DEFAULT_PATH_ESTIMATOR_ID);
-        (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
+        (identifier, estimator)
     }
 
     pub(super) fn ensure_rd_config_present(
@@ -643,13 +675,13 @@ impl super::Study {
     /// `AcceptedGraph::class`/accessor invariant applies here.
     pub fn execute(
         &self,
-        physical: &PhysicalExecutionPlan,
+        physical: impl IntoSharedPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         if crate::analysis::functional_validation::requested(self) {
             return crate::analysis::functional_validation::run_validated(self, ctx);
         }
-        self.execute_shared(&std::sync::Arc::new(physical.clone()), None, ctx)
+        self.execute_shared(&physical.into_shared(), None, ctx)
     }
 
     /// [`Self::execute`] for a plan the caller already holds behind an `Arc`.
@@ -694,14 +726,7 @@ impl super::Study {
                     self,
                     tabular,
                     ctx,
-                    |table, ctx| {
-                        self.execute_on_inner(
-                            &DataInput::Tabular(table.clone()),
-                            physical,
-                            execution,
-                            ctx,
-                        )
-                    },
+                    |table, ctx| self.execute_on_table(table, physical, execution, ctx),
                 )?
             }
             DataInput::Temporal(series)
@@ -711,14 +736,7 @@ impl super::Study {
                     self,
                     series,
                     ctx,
-                    |table, ctx| {
-                        self.execute_on_inner(
-                            &DataInput::Temporal(table.clone()),
-                            physical,
-                            execution,
-                            ctx,
-                        )
-                    },
+                    |series, ctx| self.execute_on_series(series, physical, execution, ctx),
                 )?
             }
             _ => self.execute_on_inner(data, physical, execution, ctx)?,
@@ -743,28 +761,39 @@ impl super::Study {
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if let (DataInput::Temporal(series) | DataInput::Event(series), true) = (
-            data,
-            is_class_atom(gp.atom_kind)
-                && super::temporal_class_point::temporal_class_point_family(&self.query),
-        ) {
-            return self.execute_temporal_class_graph_posterior_family(series, gp, physical, ctx);
+        match data {
+            DataInput::Tabular(table) => {
+                self.execute_graph_posterior_tabular(table, gp, physical, ctx)
+            }
+            DataInput::Temporal(series) | DataInput::Event(series) => {
+                self.execute_graph_posterior_series(series, gp, physical, ctx)
+            }
+            DataInput::Panel(_) | DataInput::MultiEnv(_) => {
+                Err(CausalError::Unsupported { message: GRAPH_POSTERIOR_QUERY_REFUSAL })
+            }
+        }
+    }
+
+    /// Series graph-posterior dispatch over query and posterior atom kind.
+    fn execute_graph_posterior_series(
+        &self,
+        data: &TimeSeriesData,
+        gp: &GraphPosterior,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        if is_class_atom(gp.atom_kind)
+            && super::temporal_class_point::temporal_class_point_family(&self.query)
+        {
+            return self.execute_temporal_class_graph_posterior_family(data, gp, physical, ctx);
         }
         // A one-modifier conditional effect or a cross-world contrast over `TemporalDag` atoms is
         // answered atom by atom, with the shared interval of the whole procedure.
-        if let (DataInput::Temporal(series) | DataInput::Event(series), true) =
-            (data, super::dbn_atoms(gp) && super::dbn_route_query(&self.query))
-        {
-            return self.execute_dbn_route_graph_posterior(series, gp, physical, ctx);
+        if super::dbn_atoms(gp) && super::dbn_route_query(&self.query) {
+            return self.execute_dbn_route_graph_posterior(data, gp, physical, ctx);
         }
-        match (data, &self.query) {
-            (DataInput::Tabular(data), _) => {
-                self.execute_graph_posterior_tabular(data, gp, physical, ctx)
-            }
-            (
-                DataInput::Temporal(data) | DataInput::Event(data),
-                CausalQuery::TemporalEffect(q),
-            ) => match gp.atom_kind {
+        match &self.query {
+            CausalQuery::TemporalEffect(q) => match gp.atom_kind {
                 antecedent_discovery::GraphPosteriorAtomKind::Cpdag
                 | antecedent_discovery::GraphPosteriorAtomKind::Pag => {
                     self.execute_temporal_class_graph_posterior(data, gp, q, physical, ctx)
@@ -781,35 +810,27 @@ impl super::Study {
                     }
                 },
             },
-            (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::Mediation(q)) => {
-                match gp.atom_kind {
-                    antecedent_discovery::GraphPosteriorAtomKind::Cpdag => self
-                        .execute_temporal_class_graph_posterior_mediation(
-                            data, gp, q, physical, ctx,
-                        ),
-                    antecedent_discovery::GraphPosteriorAtomKind::Pag => self
-                        .execute_temporal_pag_graph_posterior_mediation(data, gp, q, physical, ctx),
-                    antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg => self
-                        .execute_temporal_admg_graph_posterior_mediation(
-                            data, gp, q, physical, ctx,
-                        ),
-                    _ => self.execute_dbn_posterior_mediation(data, gp, q, physical, ctx),
+            CausalQuery::Mediation(q) => match gp.atom_kind {
+                antecedent_discovery::GraphPosteriorAtomKind::Cpdag => self
+                    .execute_temporal_class_graph_posterior_mediation(data, gp, q, physical, ctx),
+                antecedent_discovery::GraphPosteriorAtomKind::Pag => {
+                    self.execute_temporal_pag_graph_posterior_mediation(data, gp, q, physical, ctx)
                 }
-            }
-            (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::Response(q)) => {
-                match gp.atom_kind {
-                    antecedent_discovery::GraphPosteriorAtomKind::Cpdag
-                    | antecedent_discovery::GraphPosteriorAtomKind::Pag => self
-                        .execute_temporal_class_graph_posterior_response(
-                            data, gp, q, physical, ctx,
-                        ),
-                    _ => self.execute_dbn_posterior_response(data, gp, q, physical, ctx),
+                antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg => {
+                    self.execute_temporal_admg_graph_posterior_mediation(data, gp, q, physical, ctx)
                 }
+                _ => self.execute_dbn_posterior_mediation(data, gp, q, physical, ctx),
+            },
+            CausalQuery::Response(q) => match gp.atom_kind {
+                antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+                | antecedent_discovery::GraphPosteriorAtomKind::Pag => {
+                    self.execute_temporal_class_graph_posterior_response(data, gp, q, physical, ctx)
+                }
+                _ => self.execute_dbn_posterior_response(data, gp, q, physical, ctx),
+            },
+            CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_) => {
+                self.execute_series_attribution_graph_posterior(data, gp, physical, ctx)
             }
-            (
-                DataInput::Temporal(data) | DataInput::Event(data),
-                CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_),
-            ) => self.execute_series_attribution_graph_posterior(data, gp, physical, ctx),
             _ => Err(CausalError::Unsupported { message: GRAPH_POSTERIOR_QUERY_REFUSAL }),
         }
     }
@@ -818,13 +839,12 @@ impl super::Study {
     /// plan's lowered program here.
     fn execute_tabular_prepared_or_fresh(
         &self,
-        route: AnalysisRoute,
-        data: &DataInput,
+        call: TabularCall<'_>,
+        data: &TabularData,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         execution: Option<&super::super::prepared::PreparedExecution>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let DataInput::Tabular(data) = data else { return Err(route_mismatch()) };
         // A fresh run holds no prepared handle: its operation is sealed to the
         // plan's lowered program here, and stamps nothing as a prepared click.
         let fresh;
@@ -836,7 +856,7 @@ impl super::Study {
             );
             &fresh
         };
-        self.execute_tabular_route(route, data, physical, execution, ctx)
+        self.execute_tabular_route(call, data, physical, execution, ctx)
     }
 
     fn execute_on_inner(
@@ -846,108 +866,121 @@ impl super::Study {
         execution: Option<&super::super::prepared::PreparedExecution>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        if let DataInput::Tabular(table) = data {
+            return self.execute_on_table(table, physical, execution, ctx);
+        }
         if let Some(gp) = &self.graph_posterior {
             return self.execute_graph_posterior_route(data, gp, physical, ctx);
         }
         if matches!(self.query, CausalQuery::Discover(_)) {
             return self.execute_discover(data, physical, ctx);
         }
-        match classify_analysis_route(data, &self.query) {
-            Some(route) if matches!(data_modality(data), DataModality::Tabular) => {
-                self.execute_tabular_prepared_or_fresh(route, data, physical, execution, ctx)
+        self.execute_route_call(self.route_call(data)?, physical, execution, ctx)
+    }
+
+    /// [`Self::execute_on_inner`] on tabular rows held by reference, such as the completed
+    /// table of one multiple-imputation pass, without wrapping them in a new `DataInput`.
+    fn execute_on_table(
+        &self,
+        table: &TabularData,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        execution: Option<&super::super::prepared::PreparedExecution>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        if let Some(gp) = &self.graph_posterior {
+            return self.execute_graph_posterior_tabular(table, gp, physical, ctx);
+        }
+        if matches!(self.query, CausalQuery::Discover(_)) {
+            return self.execute_discover_tabular(table, physical, ctx);
+        }
+        self.execute_route_call(self.tabular_route_call(table)?, physical, execution, ctx)
+    }
+
+    /// [`Self::execute_on_inner`] on a series held by reference, such as the completed
+    /// series of one multiple-imputation pass.
+    fn execute_on_series(
+        &self,
+        series: &TimeSeriesData,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        execution: Option<&super::super::prepared::PreparedExecution>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        if let Some(gp) = &self.graph_posterior {
+            return self.execute_graph_posterior_series(series, gp, physical, ctx);
+        }
+        // A structure search is no imputation route, so a completed series never carries one:
+        // `series_route_call` refuses it as an unserved combination.
+        self.execute_route_call(self.series_route_call(series)?, physical, execution, ctx)
+    }
+
+    /// Run the executor a classified route names.
+    fn execute_route_call(
+        &self,
+        call: RouteCall<'_>,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        execution: Option<&super::super::prepared::PreparedExecution>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        match call {
+            RouteCall::Tabular(call, table) => {
+                self.execute_tabular_prepared_or_fresh(call, table, physical, execution, ctx)
             }
-            Some(AnalysisRoute::TemporalCrossWorld) => {
-                let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
-                    return Err(route_mismatch());
-                };
+            RouteCall::CrossWorld(series) => {
                 if self.graph.class().is_incomplete_temporal() {
-                    return self.execute_temporal_class_cross_world(data, physical, ctx);
+                    return self.execute_temporal_class_cross_world(series, physical, ctx);
                 }
                 let graph = physical.temporal_graph().ok_or_else(|| CausalError::Compile {
                     message: "temporal cross-world plan is missing its TemporalDag".into(),
                 })?;
-                self.execute_temporal_cross_world(data, graph, physical, ctx)
+                self.execute_temporal_cross_world(series, graph, physical, ctx)
             }
-            Some(AnalysisRoute::TemporalMediation) => {
-                self.execute_series_mediation_route(data, physical, ctx)
+            RouteCall::SeriesMediation { series, query } => {
+                self.execute_series_mediation_route(series, query, physical, ctx)
             }
-            Some(AnalysisRoute::TemporalEffect) => {
-                let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
-                    return Err(route_mismatch());
-                };
-                let CausalQuery::TemporalEffect(q) = &self.query else {
-                    return Err(route_mismatch());
-                };
+            RouteCall::SeriesEffect { series, query } => {
                 if self.graph.class() == GraphClass::TemporalAdmg {
-                    return self.execute_temporal_admg_contrast(data, q, physical, ctx);
+                    return self.execute_temporal_admg_contrast(series, query, physical, ctx);
                 }
                 if self.graph.class().is_incomplete_temporal() {
-                    return self.execute_temporal_class(data, q, physical, ctx);
+                    return self.execute_temporal_class(series, query, physical, ctx);
                 }
                 let graph = physical.temporal_graph().ok_or(CausalError::Compile {
                     message: "Ready temporal plan missing resolved graph".into(),
                 })?;
-                self.execute_temporal(data, graph, q, physical, ctx, None)
+                self.execute_temporal(series, graph, query, physical, ctx, None)
             }
-            Some(AnalysisRoute::TemporalResponse) => {
-                self.execute_series_response_route(data, physical, ctx)
+            RouteCall::SeriesResponse { series, query } => {
+                self.execute_series_response_route(series, query, physical, ctx)
             }
-            Some(AnalysisRoute::Association) => {
-                let (DataInput::Temporal(series) | DataInput::Event(series)) = data else {
-                    return Err(route_mismatch());
-                };
+            RouteCall::SeriesAssociation(series) => {
                 self.execute_association_series(series, physical, ctx)
             }
-            Some(AnalysisRoute::PanelTemporalEffect) => {
-                self.execute_panel_effect_route(data, physical, ctx)
+            RouteCall::PanelEffect { panel, query } => {
+                self.execute_panel_effect_route(panel, query, physical, ctx)
             }
-            Some(AnalysisRoute::PanelTemporalResponse) => {
-                self.execute_panel_response_route(data, physical, ctx)
+            RouteCall::PanelResponse { panel, query } => {
+                self.execute_panel_response_route(panel, query, physical, ctx)
             }
-            Some(AnalysisRoute::MultiEnvTemporalEffect) => {
-                self.execute_multi_env_effect_route(data, physical, ctx)
+            RouteCall::MultiEnvEffect { multi, query } => {
+                self.execute_multi_env_effect_route(multi, query, physical, ctx)
             }
-            Some(AnalysisRoute::Anomaly | AnalysisRoute::ChangeAttribution)
-                if matches!(
-                    self.graph.class(),
-                    GraphClass::TemporalCpdag | GraphClass::TemporalPag | GraphClass::TemporalAdmg
-                ) =>
-            {
-                let (DataInput::Temporal(series) | DataInput::Event(series)) = data else {
-                    return Err(route_mismatch());
-                };
+            RouteCall::ClassAttribution(series) => {
                 self.execute_temporal_class_attribution(series, physical, ctx)
             }
-            Some(
-                AnalysisRoute::Anomaly
-                | AnalysisRoute::ChangeAttribution
-                | AnalysisRoute::Attribute
-                | AnalysisRoute::UnitChange
-                | AnalysisRoute::MechanismChange
-                | AnalysisRoute::Simulate,
-            ) if self.graph.class() == GraphClass::TemporalDag => {
-                let (DataInput::Temporal(series) | DataInput::Event(series)) = data else {
-                    return Err(route_mismatch());
-                };
+            RouteCall::SeriesAttribution(series) => {
                 self.execute_series_attribution(series, physical, ctx)
             }
-            _ => Err(CausalError::Unsupported {
-                message: "execute path unsupported for this configuration",
-            }),
         }
     }
 
     /// Resolve the temporal response's graph family before its numerical executor.
     fn execute_series_response_route(
         &self,
-        data: &DataInput,
+        data: &TimeSeriesData,
+        q: &ResponseQuery,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
-            return Err(route_mismatch());
-        };
-        let CausalQuery::Response(q) = &self.query else { return Err(route_mismatch()) };
         if self.graph.class() == GraphClass::TemporalAdmg {
             return self.execute_temporal_admg_derivative(data, q, physical, ctx);
         }
@@ -962,14 +995,11 @@ impl super::Study {
 
     fn execute_series_mediation_route(
         &self,
-        data: &DataInput,
+        data: &TimeSeriesData,
+        q: &antecedent_core::MediationQuery,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
-            return Err(route_mismatch());
-        };
-        let CausalQuery::Mediation(q) = &self.query else { return Err(route_mismatch()) };
         if self.graph.class() == GraphClass::TemporalCpdag {
             return self.execute_temporal_cpdag_mediation(data, q, physical, ctx);
         }
@@ -1012,12 +1042,11 @@ impl super::Study {
     /// Panel temporal-effect execution: class graphs or the resolved `TemporalDag`.
     fn execute_panel_effect_route(
         &self,
-        data: &DataInput,
+        panel: &antecedent_data::PanelData,
+        q: &antecedent_core::TemporalEffectQuery,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let DataInput::Panel(panel) = data else { return Err(route_mismatch()) };
-        let CausalQuery::TemporalEffect(q) = &self.query else { return Err(route_mismatch()) };
         if self.graph.class().is_incomplete_temporal() {
             return self.execute_panel_class(panel, q, physical, ctx);
         }
@@ -1038,12 +1067,11 @@ impl super::Study {
     /// Panel temporal-response execution: class graphs or the resolved `TemporalDag`.
     fn execute_panel_response_route(
         &self,
-        data: &DataInput,
+        panel: &antecedent_data::PanelData,
+        q: &ResponseQuery,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let DataInput::Panel(panel) = data else { return Err(route_mismatch()) };
-        let CausalQuery::Response(q) = &self.query else { return Err(route_mismatch()) };
         if self.graph.class().is_incomplete_temporal() {
             return self.execute_panel_class_response(panel, q, physical, ctx);
         }
@@ -1056,12 +1084,11 @@ impl super::Study {
     /// Multi-environment temporal-effect execution, which admits only a resolved `TemporalDag`.
     fn execute_multi_env_effect_route(
         &self,
-        data: &DataInput,
+        multi: &antecedent_data::MultiEnvironmentData,
+        q: &antecedent_core::TemporalEffectQuery,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let DataInput::MultiEnv(multi) = data else { return Err(route_mismatch()) };
-        let CausalQuery::TemporalEffect(q) = &self.query else { return Err(route_mismatch()) };
         if self.graph.class().is_incomplete_temporal() {
             return Err(CausalError::Unsupported {
                 message: "multi-environment data supports only a supplied TemporalDag",
@@ -1087,12 +1114,10 @@ impl super::Study {
         let mut result = if let Some(gp) = &self.graph_posterior {
             self.execute_graph_posterior_tabular(data, gp, physical, ctx)?
         } else {
-            let route = classify_route(DataModality::Tabular, &self.query).ok_or(
-                CausalError::Unsupported {
-                    message: "execute path unsupported for this configuration",
-                },
-            )?;
-            self.execute_tabular_route(route, data, physical, execution, ctx)?
+            let route =
+                classify_route(DataModality::Tabular, &self.query).ok_or_else(route_unsupported)?;
+            let call = TabularCall::of(route, &self.query)?;
+            self.execute_tabular_route(call, data, physical, execution, ctx)?
         };
         result.lowered_identity = Some(lowered);
         crate::analysis::target_validation::stamp_route_refutations(&mut result);
@@ -1179,29 +1204,29 @@ impl super::Study {
 
     fn execute_tabular_route(
         &self,
-        route: AnalysisRoute,
+        call: TabularCall<'_>,
         data: &TabularData,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let mut result = self.execute_tabular_route_rows(route, data, physical, execution, ctx)?;
-        self.report_missing_data(route, data, &mut result)?;
+        let mut result = self.execute_tabular_route_rows(call, data, physical, execution, ctx)?;
+        self.report_missing_data(call.route(), data, &mut result)?;
         Ok(result)
     }
 
     /// The attribution and change routes over a supplied static DAG.
     fn execute_tabular_attribution_route(
         &self,
-        route: AnalysisRoute,
+        call: TabularCall<'_>,
         data: &TabularData,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        match route {
+        match call {
             // A structure that stands for several (a CPDAG, a PAG) or that carries latent
             // confounding (an ADMG) is attributed member by member.
-            AnalysisRoute::Anomaly | AnalysisRoute::ChangeAttribution
+            TabularCall::Anomaly(_) | TabularCall::ChangeAttribution(_)
                 if self.graph.as_dag().is_none() =>
             {
                 self.execute_class_attribution(data, physical, ctx)
@@ -1209,7 +1234,7 @@ impl super::Study {
             // The Frequentist mechanism-refit row bootstrap lives on the sealed
             // attribution operation; a requested replicate count on an explicit static
             // DAG runs that operation so the interval does not depend on the entry.
-            AnalysisRoute::Anomaly | AnalysisRoute::ChangeAttribution
+            TabularCall::Anomaly(_) | TabularCall::ChangeAttribution(_)
                 if self.structure_source == crate::support::StructureSource::Explicit
                     && self.inference.is_frequentist()
                     && self.bootstrap_replicates > 0
@@ -1228,28 +1253,19 @@ impl super::Study {
                 super::CheckedAttributionOperation::checked(self, physical, &cache)?
                     .execute(data, ctx)
             }
-            AnalysisRoute::Anomaly => {
-                let CausalQuery::AnomalyAttribution(q) = &self.query else {
-                    return Err(route_mismatch());
-                };
+            TabularCall::Anomaly(q) => {
                 let graph = self.require_execute_dag(
                     "AnomalyAttribution execute requires a supplied static DAG",
                 )?;
                 self.execute_anomaly(data, graph, q, physical, ctx)
             }
-            AnalysisRoute::ChangeAttribution => {
-                let CausalQuery::ChangeAttribution(q) = &self.query else {
-                    return Err(route_mismatch());
-                };
+            TabularCall::ChangeAttribution(q) => {
                 let graph = self.require_execute_dag(
                     "ChangeAttribution execute requires a supplied static DAG",
                 )?;
                 self.execute_change_attribution(data, graph, q, physical, ctx)
             }
-            AnalysisRoute::MechanismChange => {
-                let CausalQuery::MechanismChange(q) = &self.query else {
-                    return Err(route_mismatch());
-                };
+            TabularCall::MechanismChange(q) => {
                 let graph = self.require_execute_dag(
                     "MechanismChange execute requires a supplied static DAG",
                 )?;
@@ -1274,8 +1290,7 @@ impl super::Study {
                 }
                 self.execute_mechanism_change(data, graph, q, physical, ctx)
             }
-            AnalysisRoute::UnitChange => {
-                let CausalQuery::UnitChange(q) = &self.query else { return Err(route_mismatch()) };
+            TabularCall::UnitChange(q) => {
                 let graph =
                     self.require_execute_dag("UnitChange execute requires a supplied static DAG")?;
                 self.execute_unit_change(data, graph, q, physical, ctx)
@@ -1324,38 +1339,32 @@ impl super::Study {
 
     fn execute_tabular_route_rows(
         &self,
-        route: AnalysisRoute,
+        call: TabularCall<'_>,
         data: &TabularData,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        match route {
-            AnalysisRoute::TemporalCrossWorld => Err(CausalError::Unsupported {
-                message: "temporal cross-world effect requires series data and a TemporalDag",
-            }),
-            AnalysisRoute::Response => {
-                self.execute_tabular_response_route(data, physical, execution, ctx)
+        match call {
+            TabularCall::Response(q) => {
+                self.execute_tabular_response_route(data, q, physical, execution, ctx)
             }
-            AnalysisRoute::StaticAte => {
-                self.execute_tabular_static_ate_route(data, physical, execution, ctx)
+            TabularCall::StaticAte(q) => {
+                self.execute_tabular_static_ate_route(data, q, physical, execution, ctx)
             }
-            AnalysisRoute::Distribution => {
-                self.execute_tabular_distribution_route(data, physical, execution, ctx)
+            TabularCall::Distribution(q) => {
+                self.execute_tabular_distribution_route(data, q, physical, execution, ctx)
             }
-            AnalysisRoute::PathSpecific => {
-                self.execute_tabular_path_specific_route(data, physical, ctx)
+            TabularCall::PathSpecific(q) => {
+                self.execute_tabular_path_specific_route(data, q, physical, ctx)
             }
-            AnalysisRoute::Conditional => {
-                self.execute_tabular_conditional_route(data, physical, ctx)
+            TabularCall::Conditional(q) => {
+                self.execute_tabular_conditional_route(data, q, physical, ctx)
             }
-            AnalysisRoute::StaticMediation => {
-                self.execute_tabular_static_mediation_route(data, physical, execution, ctx)
+            TabularCall::StaticMediation(source) => {
+                self.execute_tabular_static_mediation_route(data, source, physical, execution, ctx)
             }
-            AnalysisRoute::Counterfactual => {
-                let CausalQuery::Counterfactual(q) = &self.query else {
-                    return Err(route_mismatch());
-                };
+            TabularCall::Counterfactual(q) => {
                 if matches!(
                     self.graph.graph_ref(),
                     GraphRef::Admg(_)
@@ -1369,19 +1378,34 @@ impl super::Study {
                     .require_execute_dag("Counterfactual execute requires a supplied static DAG")?;
                 self.execute_counterfactual(data, graph, q, physical, ctx)
             }
-            AnalysisRoute::Anomaly
-            | AnalysisRoute::ChangeAttribution
-            | AnalysisRoute::MechanismChange
-            | AnalysisRoute::UnitChange => {
-                self.execute_tabular_attribution_route(route, data, physical, ctx)
+            TabularCall::Anomaly(_)
+            | TabularCall::ChangeAttribution(_)
+            | TabularCall::MechanismChange(_)
+            | TabularCall::UnitChange(_) => {
+                self.execute_tabular_attribution_route(call, data, physical, ctx)
             }
-            AnalysisRoute::Transport => {
-                let CausalQuery::Transport(q) = &self.query else { return Err(route_mismatch()) };
-                self.execute_transport(data, q, physical, ctx)
+            TabularCall::Transport(q) => self.execute_transport(data, q, physical, ctx),
+            TabularCall::Interference(q) => {
+                self.execute_tabular_interference_route(data, q, physical, ctx)
             }
-            AnalysisRoute::Interference => {
-                self.execute_tabular_interference_route(data, physical, ctx)
+            TabularCall::Other(route) => {
+                self.execute_tabular_other_route(route, data, physical, ctx)
             }
+        }
+    }
+
+    /// The tabular routes whose executors read the study's query themselves.
+    fn execute_tabular_other_route(
+        &self,
+        route: AnalysisRoute,
+        data: &TabularData,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        match route {
+            AnalysisRoute::TemporalCrossWorld => Err(CausalError::Unsupported {
+                message: "temporal cross-world effect requires series data and a TemporalDag",
+            }),
             AnalysisRoute::RandomizedEffect => self.execute_randomized(data, physical, ctx),
             AnalysisRoute::PolicyValue => self.execute_policy_value(data, physical, ctx),
             AnalysisRoute::ContinuousDoseResponse => {
@@ -1412,21 +1436,31 @@ impl super::Study {
             | AnalysisRoute::TemporalResponse
             | AnalysisRoute::PanelTemporalEffect
             | AnalysisRoute::PanelTemporalResponse
-            | AnalysisRoute::MultiEnvTemporalEffect => Err(CausalError::Unsupported {
-                message: "execute path unsupported for this configuration",
-            }),
+            | AnalysisRoute::MultiEnvTemporalEffect => Err(route_unsupported()),
+            // These routes arrive with their query payload, never as `Other`.
+            AnalysisRoute::Response
+            | AnalysisRoute::StaticAte
+            | AnalysisRoute::Distribution
+            | AnalysisRoute::PathSpecific
+            | AnalysisRoute::Conditional
+            | AnalysisRoute::StaticMediation
+            | AnalysisRoute::Counterfactual
+            | AnalysisRoute::Anomaly
+            | AnalysisRoute::ChangeAttribution
+            | AnalysisRoute::MechanismChange
+            | AnalysisRoute::UnitChange
+            | AnalysisRoute::Transport
+            | AnalysisRoute::Interference => Err(route_mismatch()),
         }
     }
 
     fn execute_tabular_path_specific_route(
         &self,
         data: &TabularData,
+        q: &antecedent_core::PathSpecificEffectQuery,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let CausalQuery::PathSpecific(q) = &self.query else {
-            return Err(route_mismatch());
-        };
         match self.graph.graph_ref() {
             GraphRef::Admg(admg) => self.execute_path_specific_mixed(
                 data,
@@ -1472,11 +1506,11 @@ impl super::Study {
     fn execute_tabular_response_route(
         &self,
         data: &TabularData,
+        q: &ResponseQuery,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let CausalQuery::Response(q) = &self.query else { return Err(route_mismatch()) };
         match self.graph.graph_ref() {
             GraphRef::Dag(graph) => {
                 self.execute_response(data, graph, q, physical, execution.response_curve(), ctx)
@@ -1535,11 +1569,11 @@ impl super::Study {
     fn execute_tabular_static_ate_route(
         &self,
         data: &TabularData,
+        q: &antecedent_core::AverageEffectQuery,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let CausalQuery::AverageEffect(q) = &self.query else { return Err(route_mismatch()) };
         if let Some(background) = &self.tiered {
             if self.inference.is_bayesian() {
                 return self.execute_tiered_bayesian_average(data, q, physical, ctx, background);
@@ -1601,11 +1635,11 @@ impl super::Study {
     fn execute_tabular_distribution_route(
         &self,
         data: &TabularData,
+        q: &antecedent_core::InterventionalDistributionQuery,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let CausalQuery::Distribution(q) = &self.query else { return Err(route_mismatch()) };
         match self.graph.graph_ref() {
             GraphRef::Dag(graph) => self.execute_distribution(
                 data,
@@ -1658,10 +1692,10 @@ impl super::Study {
     fn execute_tabular_conditional_route(
         &self,
         data: &TabularData,
+        q: &antecedent_core::ConditionalEffectQuery,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let CausalQuery::ConditionalEffect(q) = &self.query else { return Err(route_mismatch()) };
         match self.graph.class() {
             GraphClass::Dag => {
                 let graph = self.require_execute_dag(
@@ -1716,11 +1750,12 @@ impl super::Study {
     fn execute_tabular_static_mediation_route(
         &self,
         data: &TabularData,
+        source: StaticMediationSource<'_>,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if let CausalQuery::NestedCounterfactual(q) = &self.query {
+        if let StaticMediationSource::Nested(q) = source {
             match self.graph.graph_ref() {
                 GraphRef::Admg(admg) => {
                     return self.execute_path_specific_mixed(
@@ -1762,7 +1797,7 @@ impl super::Study {
                 _ => {}
             }
         }
-        if let CausalQuery::Mediation(q) = &self.query {
+        if let StaticMediationSource::Mediation(q) = source {
             use super::mediation_mixed::ClassStructure;
             match self.graph.graph_ref() {
                 GraphRef::Admg(admg) => {
@@ -1795,14 +1830,13 @@ impl super::Study {
         }
         let graph =
             self.require_execute_dag("static Mediation execute requires a supplied static DAG")?;
-        match &self.query {
-            CausalQuery::Mediation(q) => {
+        match source {
+            StaticMediationSource::Mediation(q) => {
                 self.execute_static_mediation_total(data, graph, q, physical, ctx)
             }
-            CausalQuery::NestedCounterfactual(q) => {
+            StaticMediationSource::Nested(q) => {
                 self.execute_nested_counterfactual(data, graph, q, physical, execution, ctx)
             }
-            _ => Err(route_mismatch()),
         }
     }
 
@@ -1810,10 +1844,10 @@ impl super::Study {
     fn execute_tabular_interference_route(
         &self,
         data: &TabularData,
+        q: &antecedent_core::InterferenceQuery,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let CausalQuery::Interference(q) = &self.query else { return Err(route_mismatch()) };
         if matches!(
             q.assignment,
             antecedent_core::AssignmentDesign::ClusterRandomization { .. }
@@ -3262,5 +3296,33 @@ fn discrete_outcome_kind<'a>(
         Some("count")
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod validation_family_tests {
+    use super::{RefuteSuite, ValidationFamily};
+
+    #[test]
+    fn a_family_names_its_full_and_cheap_suites_and_none_when_validation_is_off() {
+        for (family, full, cheap) in [
+            (ValidationFamily::PathSpecific, "path.full", "path.cheap"),
+            (ValidationFamily::Distribution, "distribution.full", "distribution.cheap"),
+            (
+                ValidationFamily::TemporalMediation,
+                "temporal.mediation.full",
+                "temporal.mediation.cheap",
+            ),
+            (
+                ValidationFamily::MediationDecomposition,
+                "mediation.decomposition.full",
+                "mediation.decomposition.cheap",
+            ),
+        ] {
+            assert_eq!(family.suite_id(RefuteSuite::Full).as_deref(), Some(full));
+            assert_eq!(family.suite_id(RefuteSuite::Cheap).as_deref(), Some(cheap));
+            assert_eq!(family.suite_id(RefuteSuite::PlaceboAndRcc).as_deref(), Some(cheap));
+            assert!(family.suite_id(RefuteSuite::None).is_none());
+        }
     }
 }

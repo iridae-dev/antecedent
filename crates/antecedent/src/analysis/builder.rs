@@ -31,6 +31,9 @@ use super::execute::Study;
 use super::latency::{ComputeBudget, LatencyMode};
 
 mod finish;
+mod settings;
+
+use settings::{Declarations, ExecutionSettings, ExposureInputs, InferenceSettings};
 
 /// Which refuters to run (static ATE path).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -599,82 +602,26 @@ pub(super) fn validate_schema_binding(
 
 /// Builder for static or temporal analysis.
 #[derive(Clone, Debug)]
-#[allow(
-    clippy::struct_excessive_bools,
-    reason = "the explicit-versus-defaulted markers and the joint-horizon retention flag are independent facts the builder records one for one"
-)]
 pub struct StudyBuilder {
     data: DataInput,
     graph: Option<AcceptedGraph>,
     /// Alternative to [`Self::graph`]: a posterior over structures rather than one
     /// accepted structure. Mutually exclusive with `graph` (checked at [`Self::build`]).
     graph_posterior: Option<GraphPosterior>,
-    /// Caller-supplied mass over incomplete-temporal class members.
-    class_prior: Option<crate::ClassPrior>,
-    /// Optional cap on `TemporalCpdag` / `TemporalPag` completion search.
-    max_completions: Option<usize>,
-    /// Set by [`Self::graph`]: `Accepted` vs `Explicit`. Posterior overrides at build.
-    structure_source: Option<crate::support::StructureSource>,
     query: Option<CausalQuery>,
-    refute: RefuteSuite,
-    /// Whether [`Self::refute`] was set explicitly (wins over latency mode).
-    refute_explicit: bool,
-    bootstrap_replicates: u32,
-    /// Whether [`Self::bootstrap_replicates`] was set explicitly.
-    bootstrap_explicit: bool,
     /// A requested bootstrap interval, set by [`Self::bootstrap_interval`].
     bootstrap_interval: Option<antecedent_estimate::IntervalRequest>,
-    /// Whether the temporal response retains its joint horizon replicates.
-    retain_joint_horizons: bool,
-    split: Option<DiscoveryEstimationSplit>,
-    identifier: Option<IdentifierId>,
-    estimator: Option<EstimatorId>,
-    /// Caller-configured estimator (superset of [`Self::estimator`]); `Some` only when
-    /// [`StudyBuilder::estimator`] was called with a configured estimator rather
-    /// than a bare [`EstimatorId`].
-    estimator_spec: Option<EstimatorSpec>,
-    /// Numerical/inference options for response-family estimators.
-    response_options: Option<ContinuousResponseOptions>,
-    observation_options: antecedent_estimate::ObservationEstimatorOptions,
-    /// Numerical controls on the Bayesian posterior draws behind the interval.
-    draw_controls: Option<crate::PosteriorDrawControls>,
-    observation_delayed_entry: Option<antecedent_core::VariableId>,
-    rd: Option<RdConfig>,
-    inference: InferenceMode,
-    /// Whether Bayesian `n_draws` were set via [`ComputeBudget`] (mode draw map skipped).
-    n_draws_explicit: bool,
-    /// Optional override for propensity / AIPW overlap (clip/trim). `None` keeps estimator defaults.
-    overlap_policy: Option<OverlapPolicy>,
-    /// Optional bindings for named predicates / custom target distributions.
-    population_registry: Option<PopulationRegistry>,
-    /// Participant labels bound to the rows of the data (digests only).
-    participants: Option<antecedent_io::ParticipantBindingWire>,
-    /// Declared handling of missing values; `None` leaves each route on its own default.
-    missing: Option<antecedent_data::MissingDeclaration>,
-    /// Declared sampling design of the rows; `None` leaves each estimator on the design its
-    /// row grouping implies.
-    sampling_design: Option<antecedent_core::DeclaredSamplingDesign>,
-    /// Custom slow-path validators appended after the built-in refute suite.
-    custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
-    /// Optional tier-rule background (fast-path generalized adjustment).
-    tiered: Option<antecedent_graph::TieredBackground>,
     /// Set when [`Self::graph`] is called. A caller graph and a tier background
     /// are two sources of truth for one structure; build refuses the pair.
     caller_graph: Option<CallerGraph>,
-    /// Refused at build: coarsened continuous coordinate is not a point CDE.
-    continuous_cell: Option<(antecedent_core::VariableId, std::sync::Arc<[f64]>)>,
-    /// Optional latency tier (maps to known-equivalent budgets unless overridden).
-    latency_mode: Option<LatencyMode>,
-    /// Optional field-level compute budget overrides.
-    compute_budget: ComputeBudget,
-    /// Optional progressive stage-result sink (Identify → Point → Uncertainty → Validate).
-    stage_sink: Option<Arc<dyn super::stage::StageResultSink>>,
-    /// Selection-node targets for a transport query (empty = Direct).
-    selection_targets: Option<Arc<[VariableId]>>,
-    /// Trial columns for a transport query.
-    transport_trial: Option<TransportTrialSpec>,
-    /// Network + assignment for an interference query.
-    interference: Option<InterferenceSpec>,
+    /// Structure, procedure and population declarations.
+    declared: Declarations,
+    /// Transport trial and interference network inputs.
+    exposure: ExposureInputs,
+    /// Inference mode, validation suite and bootstrap budget.
+    settings: InferenceSettings,
+    /// Latency tier, compute budget and progressive result sink.
+    execution: ExecutionSettings,
     /// Executable search of a structure-discovery query.
     discovery: Option<Arc<super::structure_route::DiscoverySpec>>,
     /// Mechanism fit of an attribution or simulation query.
@@ -1250,42 +1197,13 @@ impl StudyBuilder {
             data,
             graph: None,
             graph_posterior: None,
-            class_prior: None,
-            max_completions: None,
-            structure_source: None,
             query: None,
-            refute: Self::OMITTED_REFUTE,
-            refute_explicit: false,
-            bootstrap_replicates: Self::OMITTED_BOOTSTRAP,
-            bootstrap_explicit: false,
             bootstrap_interval: None,
-            retain_joint_horizons: false,
-            split: None,
-            identifier: None,
-            estimator: None,
-            estimator_spec: None,
-            response_options: None,
-            observation_options: antecedent_estimate::ObservationEstimatorOptions::default(),
-            draw_controls: None,
-            observation_delayed_entry: None,
-            rd: None,
-            inference: InferenceMode::Frequentist,
-            n_draws_explicit: false,
-            overlap_policy: None,
-            population_registry: None,
-            participants: None,
-            missing: None,
-            sampling_design: None,
-            custom_validators: Vec::new(),
-            tiered: None,
             caller_graph: None,
-            continuous_cell: None,
-            latency_mode: None,
-            compute_budget: ComputeBudget::new(),
-            stage_sink: None,
-            selection_targets: None,
-            transport_trial: None,
-            interference: None,
+            declared: Declarations::default(),
+            exposure: ExposureInputs::default(),
+            settings: InferenceSettings::omitted(Self::OMITTED_REFUTE, Self::OMITTED_BOOTSTRAP),
+            execution: ExecutionSettings::default(),
             discovery: None,
             mechanisms: None,
             posterior_provenance: None,
@@ -1413,7 +1331,7 @@ impl StudyBuilder {
     pub fn graph(mut self, structure: impl crate::IntoGraphInput) -> Self {
         let (graph, source) = structure.into_graph_input();
         self.graph = Some(graph);
-        self.structure_source = Some(source);
+        self.declared.structure_source = Some(source);
         self.caller_graph = Some(CallerGraph);
         self
     }
@@ -1457,8 +1375,8 @@ impl StudyBuilder {
             }
         };
         self.graph = Some(graph);
-        self.structure_source = Some(crate::support::StructureSource::Explicit);
-        self.tiered = Some(background);
+        self.declared.structure_source = Some(crate::support::StructureSource::Explicit);
+        self.declared.tiered = Some(background);
         Ok(self)
     }
 
@@ -1484,7 +1402,7 @@ impl StudyBuilder {
     /// mixture requires this; without it the result is an identified set.
     #[must_use]
     pub fn class_prior(mut self, prior: crate::ClassPrior) -> Self {
-        self.class_prior = Some(prior);
+        self.declared.class_prior = Some(prior);
         self
     }
 
@@ -1494,7 +1412,7 @@ impl StudyBuilder {
     /// identification (`full_mass_scope`, `truncated_atoms`).
     #[must_use]
     pub fn max_completions(mut self, n: usize) -> Self {
-        self.max_completions = Some(n);
+        self.declared.max_completions = Some(n);
         self
     }
 
@@ -1509,9 +1427,9 @@ impl StudyBuilder {
     #[must_use]
     pub fn query(mut self, query: impl Into<CausalQuery>) -> Self {
         let q = query.into();
-        if self.estimator_spec.is_none()
+        if self.declared.estimator_spec.is_none()
             && matches!(
-                self.estimator,
+                self.declared.estimator,
                 Some(EstimatorId::BayesianGcomp | EstimatorId::BayesianBasisGcomp)
             )
         {
@@ -1521,11 +1439,11 @@ impl StudyBuilder {
             match &q {
                 CausalQuery::AverageEffect(_) => {}
                 CausalQuery::TemporalEffect(_) => {
-                    self.estimator = Some(EstimatorId::TemporalLinearAdjustment);
+                    self.declared.estimator = Some(EstimatorId::TemporalLinearAdjustment);
                 }
                 _ => {
                     // Remainder cells keep their identifier-native estimators.
-                    self.estimator = None;
+                    self.declared.estimator = None;
                 }
             }
         }
@@ -1542,23 +1460,23 @@ impl StudyBuilder {
     /// Discovery / estimation temporal-gap split.
     #[must_use]
     pub fn split(mut self, split: DiscoveryEstimationSplit) -> Self {
-        self.split = Some(split);
+        self.declared.split = Some(split);
         self
     }
 
     /// Configure refutation suite (static path).
     #[must_use]
     pub fn refute(mut self, suite: RefuteSuite) -> Self {
-        self.refute = suite;
-        self.refute_explicit = true;
+        self.settings.refute = suite;
+        self.settings.refute_explicit = true;
         self
     }
 
     /// Bootstrap replicates for the primary estimate.
     #[must_use]
     pub fn bootstrap_replicates(mut self, n: u32) -> Self {
-        self.bootstrap_replicates = n;
-        self.bootstrap_explicit = true;
+        self.settings.bootstrap_replicates = n;
+        self.settings.bootstrap_explicit = true;
         self
     }
 
@@ -1594,7 +1512,7 @@ impl StudyBuilder {
     /// unlicensed.
     #[must_use]
     pub fn retain_joint_horizons(mut self, on: bool) -> Self {
-        self.retain_joint_horizons = on;
+        self.settings.retain_joint_horizons = on;
         self
     }
 
@@ -1605,7 +1523,7 @@ impl StudyBuilder {
     /// field overrides always win.
     #[must_use]
     pub fn latency_mode(mut self, mode: LatencyMode) -> Self {
-        self.latency_mode = Some(mode);
+        self.execution.latency_mode = Some(mode);
         self
     }
 
@@ -1617,15 +1535,15 @@ impl StudyBuilder {
     #[must_use]
     pub fn compute_budget(mut self, budget: ComputeBudget) -> Self {
         if budget.bootstrap.is_some() {
-            self.bootstrap_explicit = true;
+            self.settings.bootstrap_explicit = true;
         }
         if budget.validators.is_some() {
-            self.refute_explicit = true;
+            self.settings.refute_explicit = true;
         }
         if budget.n_draws.is_some() {
-            self.n_draws_explicit = true;
+            self.settings.n_draws_explicit = true;
         }
-        self.compute_budget = budget;
+        self.execution.compute_budget = budget;
         self
     }
 
@@ -1638,7 +1556,7 @@ impl StudyBuilder {
     /// [`IdentifierId::TemporalBackdoorUnfolded`]).
     #[must_use]
     pub fn identifier(mut self, id: IdentifierId) -> Self {
-        self.identifier = Some(id);
+        self.declared.identifier = Some(id);
         self
     }
 
@@ -1650,7 +1568,7 @@ impl StudyBuilder {
     /// Bayesian g-computation enforces them; any other route refuses them at build.
     #[must_use]
     pub fn draw_controls(mut self, controls: crate::PosteriorDrawControls) -> Self {
-        self.draw_controls = Some(controls);
+        self.declared.draw_controls = Some(controls);
         self
     }
 
@@ -1672,7 +1590,7 @@ impl StudyBuilder {
         variable: antecedent_core::VariableId,
         grid: impl Into<std::sync::Arc<[f64]>>,
     ) -> Self {
-        self.continuous_cell = Some((variable, grid.into()));
+        self.declared.continuous_cell = Some((variable, grid.into()));
         self
     }
 
@@ -1685,8 +1603,8 @@ impl StudyBuilder {
     #[must_use]
     pub fn estimator(mut self, spec: impl Into<EstimatorSpec>) -> Self {
         let spec = spec.into();
-        self.estimator = Some(spec.id());
-        self.estimator_spec = Some(spec);
+        self.declared.estimator = Some(spec.id());
+        self.declared.estimator_spec = Some(spec);
         self
     }
 
@@ -1696,7 +1614,7 @@ impl StudyBuilder {
     /// bandwidth; the estimator refuses an implicit undersmoothing rule.
     #[must_use]
     pub fn response_options(mut self, options: ContinuousResponseOptions) -> Self {
-        self.response_options = Some(options);
+        self.declared.response_options = Some(options);
         self
     }
 
@@ -1706,35 +1624,35 @@ impl StudyBuilder {
         mut self,
         options: antecedent_estimate::ObservationEstimatorOptions,
     ) -> Self {
-        self.observation_options = options;
+        self.declared.observation_options = options;
         self
     }
 
     /// Delayed-entry column for marginal right-censoring IPCW.
     #[must_use]
     pub fn observation_delayed_entry(mut self, variable: antecedent_core::VariableId) -> Self {
-        self.observation_delayed_entry = Some(variable);
+        self.declared.observation_delayed_entry = Some(variable);
         self
     }
 
     /// Selection-node targets for [`CausalQuery::Transport`] (empty = Direct formula).
     #[must_use]
     pub fn selection_targets(mut self, targets: impl Into<Arc<[VariableId]>>) -> Self {
-        self.selection_targets = Some(targets.into());
+        self.exposure.selection_targets = Some(targets.into());
         self
     }
 
     /// Trial membership and known probabilities for [`CausalQuery::Transport`].
     #[must_use]
     pub fn transport_trial(mut self, spec: TransportTrialSpec) -> Self {
-        self.transport_trial = Some(spec);
+        self.exposure.transport_trial = Some(spec);
         self
     }
 
     /// Fixed network and realized assignment for [`CausalQuery::Interference`].
     #[must_use]
     pub fn interference(mut self, spec: InterferenceSpec) -> Self {
-        self.interference = Some(spec);
+        self.exposure.interference = Some(spec);
         self
     }
 
@@ -1748,31 +1666,31 @@ impl StudyBuilder {
     #[must_use]
     pub fn inference(mut self, mode: InferenceMode) -> Self {
         if matches!(mode, InferenceMode::Bayesian(_))
-            && self.estimator_spec.is_none()
-            && !matches!(self.estimator, Some(EstimatorId::BayesianBasisGcomp))
+            && self.declared.estimator_spec.is_none()
+            && !matches!(self.declared.estimator, Some(EstimatorId::BayesianBasisGcomp))
         {
             match &self.query {
                 None | Some(CausalQuery::AverageEffect(_)) => {
-                    self.estimator = Some(EstimatorId::BayesianGcomp);
+                    self.declared.estimator = Some(EstimatorId::BayesianGcomp);
                 }
                 Some(CausalQuery::TemporalEffect(_)) => {}
                 Some(_) => {
-                    if matches!(self.estimator, Some(EstimatorId::BayesianGcomp)) {
-                        self.estimator = None;
+                    if matches!(self.declared.estimator, Some(EstimatorId::BayesianGcomp)) {
+                        self.declared.estimator = None;
                     }
                 }
             }
         }
         if matches!(mode, InferenceMode::Frequentist)
-            && self.estimator_spec.is_none()
+            && self.declared.estimator_spec.is_none()
             && matches!(
-                self.estimator,
+                self.declared.estimator,
                 Some(EstimatorId::BayesianGcomp | EstimatorId::BayesianBasisGcomp)
             )
         {
-            self.estimator = None;
+            self.declared.estimator = None;
         }
-        self.inference = mode;
+        self.settings.inference = mode;
         self
     }
 
@@ -1785,7 +1703,7 @@ impl StudyBuilder {
         mut self,
         gate: antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate,
     ) -> Self {
-        if let InferenceMode::Bayesian(cfg) = &mut self.inference {
+        if let InferenceMode::Bayesian(cfg) = &mut self.settings.inference {
             cfg.white_innovation = Some(gate);
         }
         self
@@ -1798,7 +1716,7 @@ impl StudyBuilder {
     /// estimators that need it refuse its absence.
     #[must_use]
     pub fn bayesian_design_model(mut self, model: crate::DesignPosteriorModel) -> Self {
-        if let InferenceMode::Bayesian(cfg) = &mut self.inference {
+        if let InferenceMode::Bayesian(cfg) = &mut self.settings.inference {
             cfg.design_model = Some(model);
         }
         self
@@ -1811,7 +1729,7 @@ impl StudyBuilder {
     /// front-door, RD).
     #[must_use]
     pub fn overlap_policy(mut self, policy: OverlapPolicy) -> Self {
-        self.overlap_policy = Some(policy);
+        self.declared.overlap_policy = Some(policy);
         self
     }
 
@@ -1819,7 +1737,7 @@ impl StudyBuilder {
     /// identity only when set; it labels rows and changes no estimate.
     #[must_use]
     pub fn participants(mut self, binding: antecedent_io::ParticipantBindingWire) -> Self {
-        self.participants = Some(binding);
+        self.declared.participants = Some(binding);
         self
     }
 
@@ -1831,7 +1749,7 @@ impl StudyBuilder {
     /// would behave differently for it.
     #[must_use]
     pub fn missing(mut self, declaration: antecedent_data::MissingDeclaration) -> Self {
-        self.missing = Some(declaration);
+        self.declared.missing = Some(declaration);
         self
     }
 
@@ -1845,21 +1763,21 @@ impl StudyBuilder {
     /// data-snapshot identity. Without it each estimator takes the design its grouping implies.
     #[must_use]
     pub fn sampling_design(mut self, design: antecedent_core::DeclaredSamplingDesign) -> Self {
-        self.sampling_design = Some(design);
+        self.declared.sampling_design = Some(design);
         self
     }
 
     /// Bindings for named predicates and custom target-distribution weights.
     #[must_use]
     pub fn population_registry(mut self, registry: PopulationRegistry) -> Self {
-        self.population_registry = Some(registry);
+        self.declared.population_registry = Some(registry);
         self
     }
 
     /// Append custom effect validators ( slow path).
     #[must_use]
     pub fn custom_validators(mut self, validators: Vec<Arc<dyn CustomEffectValidator>>) -> Self {
-        self.custom_validators = validators;
+        self.declared.custom_validators = validators;
         self
     }
 
@@ -1867,7 +1785,7 @@ impl StudyBuilder {
     /// estimator. `compile` refuses `rd.sharp` without this.
     #[must_use]
     pub fn rd_config(mut self, running_variable: VariableId, cutoff: f64, bandwidth: f64) -> Self {
-        self.rd = Some(RdConfig::new(running_variable, cutoff, bandwidth));
+        self.declared.rd = Some(RdConfig::new(running_variable, cutoff, bandwidth));
         self
     }
 
@@ -1875,7 +1793,7 @@ impl StudyBuilder {
     /// ([`RdConfig::with_se_kind`]). Replaces any earlier [`Self::rd_config`].
     #[must_use]
     pub fn rd_design(mut self, config: RdConfig) -> Self {
-        self.rd = Some(config);
+        self.declared.rd = Some(config);
         self
     }
 
@@ -1884,7 +1802,7 @@ impl StudyBuilder {
     /// Final [`super::execute::Study::run`] still returns the complete result.
     #[must_use]
     pub fn stage_sink(mut self, sink: Arc<dyn super::stage::StageResultSink>) -> Self {
-        self.stage_sink = Some(sink);
+        self.execution.stage_sink = Some(sink);
         self
     }
 
@@ -1912,7 +1830,7 @@ impl StudyBuilder {
         let Some(request) = self.bootstrap_interval.take() else {
             return Ok(());
         };
-        let Some(spec) = self.estimator_spec.take() else {
+        let Some(spec) = self.declared.estimator_spec.take() else {
             return Err(CausalError::Conflict {
                 what: "bootstrap_interval",
                 detail: "name the estimator that produces the interval (estimator(..)); the \
@@ -1920,7 +1838,7 @@ impl StudyBuilder {
             });
         };
         let was_default = !spec.is_configured();
-        if was_default && !self.bootstrap_explicit {
+        if was_default && !self.settings.bootstrap_explicit {
             return Err(CausalError::Conflict {
                 what: "bootstrap_interval",
                 detail: "set bootstrap_replicates(..) explicitly: it is the replicate cap of the \
@@ -1928,15 +1846,15 @@ impl StudyBuilder {
             });
         }
         let defaults = crate::estimator_spec::BuildDefaults {
-            bootstrap_replicates: self.bootstrap_replicates,
-            overlap_policy: self.overlap_policy,
-            population_registry: self.population_registry.as_ref(),
-            sampling_design: self.sampling_design,
+            bootstrap_replicates: self.settings.bootstrap_replicates,
+            overlap_policy: self.declared.overlap_policy,
+            population_registry: self.declared.population_registry.as_ref(),
+            sampling_design: self.declared.sampling_design,
         };
-        self.estimator_spec = Some(spec.with_bootstrap_interval(request, defaults)?);
+        self.declared.estimator_spec = Some(spec.with_bootstrap_interval(request, defaults)?);
         if was_default {
-            self.bootstrap_explicit = false;
-            self.overlap_policy = None;
+            self.settings.bootstrap_explicit = false;
+            self.declared.overlap_policy = None;
         }
         Ok(())
     }
@@ -1951,41 +1869,12 @@ impl StudyBuilder {
             data: self.data,
             graph: self.graph,
             graph_posterior: self.graph_posterior,
-            class_prior: self.class_prior,
-            max_completions: self.max_completions,
-            structure_source: self.structure_source,
             query: self.query,
-            refute: self.refute,
-            refute_explicit: self.refute_explicit,
-            bootstrap_replicates: self.bootstrap_replicates,
-            bootstrap_explicit: self.bootstrap_explicit,
-            retain_joint_horizons: self.retain_joint_horizons,
-            split: self.split,
-            identifier: self.identifier,
-            estimator: self.estimator,
-            estimator_spec: self.estimator_spec,
-            response_options: self.response_options,
-            observation_options: self.observation_options,
-            draw_controls: self.draw_controls,
-            observation_delayed_entry: self.observation_delayed_entry,
-            rd: self.rd,
-            inference: self.inference,
-            n_draws_explicit: self.n_draws_explicit,
-            overlap_policy: self.overlap_policy,
-            population_registry: self.population_registry,
-            participants: self.participants,
-            missing: self.missing,
-            sampling_design: self.sampling_design,
-            custom_validators: self.custom_validators,
-            tiered: self.tiered,
             caller_graph: self.caller_graph.is_some(),
-            continuous_cell: self.continuous_cell,
-            latency_mode: self.latency_mode,
-            compute_budget: self.compute_budget,
-            stage_sink: self.stage_sink,
-            selection_targets: self.selection_targets,
-            transport_trial: self.transport_trial,
-            interference: self.interference,
+            declared: self.declared,
+            exposure: self.exposure,
+            settings: self.settings,
+            execution: self.execution,
         })?;
         super::structure_route::attach_specifications(
             &mut study,

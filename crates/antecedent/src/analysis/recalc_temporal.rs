@@ -6,8 +6,8 @@ mod studentized;
 
 use super::recalc_common::Fields;
 use super::recalc_receipt::{
-    Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRunError, ReceiptRecorder, UtilitySpec,
-    decide,
+    Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRequestCode, RecalcRunError,
+    ReceiptRecorder, UtilitySpec, decide,
 };
 use antecedent_core::recalc::{
     Boundary, RecalcCapabilities, RecalcPlan, RequestSupport, ResumeContext, RetargetSupport,
@@ -100,7 +100,7 @@ fn refusal(detail: &str) -> TemporalRunError {
 fn validate(r: &TemporalRequest, ctx: &ExecutionContext) -> Result<(), TemporalRunError> {
     UtilitySpec { benefit_per_unit: r.benefit_per_unit, cost: r.cost }.validate()?;
     if ctx.cancellation.is_cancelled() {
-        return Err(RecalcRunError::Request("recalc.cancelled").into());
+        return Err(RecalcRunError::Request(RecalcRequestCode::Cancelled).into());
     }
     if r.horizon != 2 {
         return Err(refusal("temporal_transport.horizon: only two-step histories are supported"));
@@ -119,17 +119,30 @@ fn validate(r: &TemporalRequest, ctx: &ExecutionContext) -> Result<(), TemporalR
         || r.snapshot_id.len() > 4096
         || r.initial_state_id.len() > 4096
         || r.units.is_empty()
-        || r.units.len() > 8192
-        || r.units.iter().map(|u| u.histories.len()).sum::<usize>() > 131_072
         || r.units.iter().flat_map(|u| &u.histories).any(|h| {
             h.time_id < r.period.0 || h.time_id.checked_add(2).is_none_or(|end| end >= r.period.1)
         })
         || r.functional.sequences().iter().flatten().any(|a| *a > 1)
     {
-        return Err(RecalcRunError::Request("recalc.invalid_temporal_window").into());
+        return Err(RecalcRunError::Request(RecalcRequestCode::InvalidTemporalWindow).into());
+    }
+    // The panel is bounded by the caller's memory budget, not by a literal count.
+    let histories: usize = r.units.iter().map(|u| u.histories.len()).sum();
+    let bytes = u64::try_from(histories)
+        .unwrap_or(u64::MAX)
+        .saturating_mul(PANEL_BYTES_PER_HISTORY)
+        .saturating_add(
+            u64::try_from(r.units.len()).unwrap_or(u64::MAX).saturating_mul(PANEL_BYTES_PER_UNIT),
+        );
+    if ctx.memory_limit_bytes().into_iter().any(|limit| bytes > limit) {
+        return Err(RecalcRunError::Request(RecalcRequestCode::MemoryBudgetExceeded).into());
     }
     Ok(())
 }
+/// Bytes one history occupies across the request, the decoded panel and the fitted support.
+const PANEL_BYTES_PER_HISTORY: u64 = 256;
+/// Bytes one unit occupies across the request and the decoded panel.
+const PANEL_BYTES_PER_UNIT: u64 = 128;
 fn initial_law(r: &TemporalRequest) -> Result<InitialStateLaw, TemporalRunError> {
     Ok(InitialStateLaw::new(
         InitialStatePopulation::Target,
@@ -167,18 +180,18 @@ fn spec(r: &TemporalRequest) -> Result<TemporalSequenceSpec, TemporalRunError> {
     for &(a, b) in &r.edges {
         graph
             .insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
-            .map_err(|_| RecalcRunError::Request("recalc.invalid_graph"))?;
+            .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidGraph))?;
     }
     for &(a, b) in &r.bidirected {
         graph
             .insert_bidirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
-            .map_err(|_| RecalcRunError::Request("recalc.invalid_graph"))?;
+            .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidGraph))?;
     }
     let diagram = SelectionDiagram::try_new(
         graph,
         r.selection_targets.iter().copied().map(v).collect::<Vec<_>>(),
     )
-    .map_err(|_| RecalcRunError::Request("recalc.invalid_graph"))?;
+    .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidGraph))?;
     let coordinates = NAMES
         .iter()
         .zip(0..5)
@@ -213,7 +226,7 @@ fn catalog(r: &TemporalRequest) -> Result<EvidenceCatalog, TemporalRunError> {
         "source",
         DistributionAvailability::Joint,
     )
-    .map_err(|_| RecalcRunError::Request("recalc.invalid_evidence"))?;
+    .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidEvidence))?;
     let target = EvidenceRegime::try_new(
         RegimeId::from_raw(1),
         RegimeKind::Observational,
@@ -224,7 +237,7 @@ fn catalog(r: &TemporalRequest) -> Result<EvidenceCatalog, TemporalRunError> {
         "target",
         DistributionAvailability::Joint,
     )
-    .map_err(|_| RecalcRunError::Request("recalc.invalid_evidence"))?;
+    .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidEvidence))?;
     let bindings = [
         (0, &r.snapshot_id, SamplingDesign::Clustered),
         (1, &r.initial_state_id, SamplingDesign::Unknown),
@@ -245,7 +258,7 @@ fn catalog(r: &TemporalRequest) -> Result<EvidenceCatalog, TemporalRunError> {
     })
     .collect::<Vec<_>>();
     EvidenceCatalog::try_new([], vec![source, target], bindings, None)
-        .map_err(|_| RecalcRunError::Request("recalc.invalid_evidence").into())
+        .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidEvidence).into())
 }
 fn source_identity(r: &TemporalRequest) -> StageIdentity {
     Fields::new().text(&r.snapshot_id).wire(&r.period).wire(&r.units).identity("temporal.source")
@@ -475,7 +488,9 @@ impl TemporalSession {
     {
         let live = self.live.as_ref().ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?;
         if live.seed != ctx.rng.master_seed() {
-            return Err(RecalcRunError::Request("recalc.temporal_artifact_seed_mismatch").into());
+            return Err(
+                RecalcRunError::Request(RecalcRequestCode::TemporalArtifactSeedMismatch).into()
+            );
         }
         if config.method
             == antecedent_estimate::temporal_dependent_interval::IntervalMethod::Studentized
@@ -555,7 +570,7 @@ fn checked_unit_draw(
 }
 fn data(joint: &ExactDiscreteLaw) -> Result<ExactTransportData, TemporalRunError> {
     ExactTransportData::try_new(vec![joint.clone()], 4096)
-        .map_err(|_| RecalcRunError::Request("recalc.invalid_temporal_provider").into())
+        .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidTemporalProvider).into())
 }
 struct PreparedInitialShift {
     proof: Arc<CheckedInitialShiftSource>,
@@ -594,7 +609,7 @@ fn fit_guard(r: &TemporalRequest, ctx: &ExecutionContext) -> Result<(), Temporal
         .fold(0_u64, u64::saturating_add);
     let bytes = n.saturating_mul(256).saturating_add(4096 * 256);
     if ctx.memory_limit_bytes().into_iter().any(|lim| bytes > lim) {
-        return Err(RecalcRunError::Request("recalc.memory_budget_exceeded").into());
+        return Err(RecalcRunError::Request(RecalcRequestCode::MemoryBudgetExceeded).into());
     }
     Ok(())
 }
@@ -854,13 +869,13 @@ pub fn consume_temporal_recalc_artifact(
 ) -> Result<(TemporalSession, TemporalOutcome), TemporalRunError> {
     let wire = TemporalRecalcArtifactWire::decode(bytes)?;
     if wire.seed != ctx.rng.master_seed() {
-        return Err(RecalcRunError::Request("recalc.temporal_artifact_seed_mismatch").into());
+        return Err(RecalcRunError::Request(RecalcRequestCode::TemporalArtifactSeedMismatch).into());
     }
     let mut session = TemporalSession::new();
     let outcome = execute_temporal_with_receipt(&mut session, &wire.request, ctx)?;
     let reports = &session.live.as_ref().ok_or(RecalcRunError::NoLiveState(Stage::Law))?.reports;
     if !wire.matches_reports(reports, outcome.recalc.law.ate)? {
-        return Err(RecalcRunError::Request("recalc.temporal_artifact_mismatch").into());
+        return Err(RecalcRunError::Request(RecalcRequestCode::TemporalArtifactMismatch).into());
     }
     Ok((session, outcome))
 }

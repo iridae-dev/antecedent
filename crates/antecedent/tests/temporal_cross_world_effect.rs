@@ -292,3 +292,72 @@ fn cross_world_artifacts_are_consumed_with_the_point_they_publish() {
         }
     }
 }
+
+/// `x → m1 → m2 → y` with a direct `x → y` edge: `m1 = 0.5 x_{t-1} + shock`, `m2 = 2 m1 +
+/// shock`, `y = 1.5 x_{t-1} + 3 m2`, so the path through both mediators is `0.5 · 2 · 3`.
+fn chain_series() -> TimeSeriesData {
+    let n = 400;
+    let mut x = vec![0.0; n];
+    let mut m1 = vec![0.0; n];
+    let mut m2 = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for t in 0..n {
+        x[t] = ((t as f64) * 0.37).sin();
+        if t > 0 {
+            let first_shock = if t % 2 == 0 { 0.3 } else { -0.3 };
+            m1[t] = 0.5 * x[t - 1] + first_shock;
+            m2[t] = 2.0 * m1[t] + 0.2 * ((t as f64) * 1.3).cos();
+            y[t] = 1.5 * x[t - 1] + 3.0 * m2[t];
+        }
+    }
+    TimeSeriesData::from_f64_columns(
+        [("x", x.as_slice()), ("m1", m1.as_slice()), ("m2", m2.as_slice()), ("y", y.as_slice())],
+        1,
+    )
+    .unwrap()
+}
+
+fn chain_graph() -> TemporalDag {
+    let mut graph = TemporalDag::empty();
+    let x1 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let m1 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let m2 = ensure_lagged(&mut graph, VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = ensure_lagged(&mut graph, VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(x1, m1).unwrap();
+    graph.insert_directed(m1, m2).unwrap();
+    graph.insert_directed(m2, y0).unwrap();
+    graph.insert_directed(x1, y0).unwrap();
+    graph
+}
+
+#[test]
+fn a_multi_node_path_is_the_product_of_the_edge_coefficients_along_it() {
+    let ids = [1, 2].map(VariableId::from_raw);
+    let query = |nodes: [VariableId; 2]| {
+        CausalQuery::PathSpecific(
+            PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(3))
+                .with_path_nodes(nodes),
+        )
+    };
+    let ctx = ExecutionContext::for_tests(13);
+    let run = |nodes: [VariableId; 2]| {
+        Study::series(chain_series())
+            .query(query(nodes))
+            .graph(chain_graph())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .and_then(|prepared| prepared.estimate_retained(&ctx))
+    };
+    let result = run(ids).unwrap();
+    let ate = result.estimate.as_effect().unwrap().ate;
+    assert!((ate - 3.0).abs() < 0.15, "two-node path product {ate}");
+    assert_eq!(result.estimand.mediators.as_ref(), &ids);
+    assert!(matches!(
+        result.identification.arena.node(result.estimand.functional),
+        antecedent_expr::ExprNode::Product(_)
+    ));
+    // Listed against the graph's causal order, the nodes are not a directed chain.
+    assert!(run([ids[1], ids[0]]).is_err());
+}

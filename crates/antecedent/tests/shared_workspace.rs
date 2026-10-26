@@ -65,7 +65,7 @@ fn shared_workspace_placebo_parity_and_capacity() {
 
     let mut warmed = EstimationWorkspace::default();
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     est.overlap = OverlapPolicy::ExplicitOverride;
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let _ = est

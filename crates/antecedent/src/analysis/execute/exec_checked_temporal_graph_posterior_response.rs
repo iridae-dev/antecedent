@@ -19,20 +19,11 @@ impl super::Study {
         bound.query = CausalQuery::Response(operation.query().clone());
         bound.graph_posterior = Some(operation.posterior().clone());
         bound.tiered = None;
-        bound.inference = operation.inference().clone();
-        bound.identifier = Some(operation.identifier());
-        bound.estimator = Some(operation.estimator());
-        bound.refute = operation.validation();
-        bound.custom_validators.clear();
-        bound.bootstrap_replicates = operation.bootstrap_replicates();
-        bound.max_completions = operation.max_completions();
+        operation.frozen().bind_study(&mut bound);
         bound.class_prior = operation.class_prior().cloned();
-        bound.temporal_identification_cache = None;
-        bound.temporal_class_identification_cache = None;
         match operation.proof() {
             TemporalPosteriorResponseProof::Dbn(cache) => {
-                bound.dbn_posterior_identification_cache = Some(Arc::clone(cache));
-                bound.temporal_class_posterior_identification_cache = None;
+                bound.install_identification(crate::analysis::IdentificationCache::DbnPosterior(Arc::clone(cache)));
                 bound.execute_dbn_posterior_response(
                     data,
                     operation.posterior(),
@@ -42,8 +33,7 @@ impl super::Study {
                 )
             }
             TemporalPosteriorResponseProof::Class(cache) => {
-                bound.dbn_posterior_identification_cache = None;
-                bound.temporal_class_posterior_identification_cache = Some(Arc::clone(cache));
+                bound.install_identification(crate::analysis::IdentificationCache::TemporalClassPosterior(Arc::clone(cache)));
                 bound.execute_temporal_class_graph_posterior_response(
                     data,
                     operation.posterior(),

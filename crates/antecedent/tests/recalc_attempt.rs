@@ -31,7 +31,7 @@ fn adjusted(logit: bool) -> AdjustedRequest {
         }
     }
     AdjustedRequest {
-        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z)],
+        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z)].into(),
         edges: vec![(2, 0), (2, 1), (0, 1)],
         treatments: vec![0],
         outcome: 1,
@@ -139,7 +139,7 @@ fn response() -> antecedent::analysis::recalc_static::StaticResponseRequest {
     graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
     graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
     antecedent::analysis::recalc_static::StaticResponseRequest {
-        columns,
+        columns: columns.into(),
         graph,
         treatment: VariableId::from_raw(0),
         outcome: VariableId::from_raw(2),
@@ -423,7 +423,8 @@ fn configurable_aipw_request() -> RecalcRequest {
         }
     }
     RecalcRequest {
-        columns: vec![("t".into(), treatment), ("y".into(), outcome), ("z".into(), confounder)],
+        columns: vec![("t".into(), treatment), ("y".into(), outcome), ("z".into(), confounder)]
+            .into(),
         edges: vec![(2, 0), (2, 1), (0, 1)],
         treatment: 0,
         outcome: 1,
@@ -475,7 +476,7 @@ fn recalc_rejects_unrepresentable_aipw_uncertainty_and_preserves_live_state() {
     let original_scores = session.score_table().unwrap().clone();
 
     let mut robust = request.clone();
-    robust.estimator.se_kind = AnalyticSeKind::Hc3;
+    robust.estimator.inference.se_kind = AnalyticSeKind::Hc3;
     let warm_error = execute_with_receipt(&mut session, &robust, &ctx).unwrap_err();
     let fresh_error = execute_with_receipt(&mut RecalcSession::new(), &robust, &ctx).unwrap_err();
     assert!(warm_error.to_string().contains("recalc.unsupported_aipw_score_configuration"));
@@ -498,7 +499,7 @@ fn recalc_rejects_unrepresentable_aipw_uncertainty_and_preserves_live_state() {
     assert_eq!(warm_error.to_string(), fresh_error.to_string());
 
     let mut bootstrapped = request.clone();
-    bootstrapped.estimator.bootstrap_replicates = 10;
+    bootstrapped.estimator.inference.bootstrap_replicates = 10;
     let bootstrap_error = execute_with_receipt(&mut session, &bootstrapped, &ctx).unwrap_err();
     assert!(bootstrap_error.to_string().contains("recalc.bootstrap_replicates_unsupported"));
 

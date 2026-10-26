@@ -189,7 +189,7 @@ fn fit_inner(n: usize, seed: u64, mode: u8) -> Result<Sample, FitFailure> {
             )
         };
         let mut req = DrRequest {
-            columns,
+            columns: columns.into(),
             edges: edges.clone(),
             treatment: 0,
             outcome: 1,

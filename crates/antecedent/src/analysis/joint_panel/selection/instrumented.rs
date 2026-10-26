@@ -212,15 +212,17 @@ impl InstrumentedSelectionRequest {
         let _data = ctx
             .acquire_admission(0, bytes)
             .map_err(|e| ProgramSearchError::Resource(e.to_string()))?;
-        let blocks = |units: &[JointInstrumentedUnit]| {
+        fn blocks(
+            units: &[JointInstrumentedUnit],
+        ) -> Vec<SelectionDataBlock<'_, JointInstrumentedUnit>> {
             units
                 .iter()
                 .map(|u| SelectionDataBlock {
                     span: ObservationalSpan { unit: u.id.clone(), first: 0, last: 0 },
-                    observations: u.clone(),
+                    observations: std::borrow::Cow::Borrowed(u),
                 })
-                .collect::<Vec<_>>()
-        };
+                .collect()
+        }
         let procedure = execute_heldout_selection(
             self,
             &blocks(&self.training),
@@ -230,7 +232,7 @@ impl InstrumentedSelectionRequest {
             tie_tolerance,
             ctx,
         )?;
-        let encoded = antecedent_io::convert::to_cbor(self).map_err(invalid)?;
+        let encoded = antecedent_io::convert::to_cbor(self).map_err(super::codec)?;
         let identity = SemanticDigest::from_bytes(CanonicalWriter::digest_bytes(
             "antecedent.structural_dose_selection.v1",
             &encoded,
@@ -247,6 +249,7 @@ impl InstrumentedSelectionRequest {
     fn fit_view(
         &self,
         data: &[&JointInstrumentedUnit],
+        ctx: &ExecutionContext,
     ) -> Result<JointInstrumentedModelFit, ProgramSearchError> {
         let copies = data
             .iter()
@@ -257,7 +260,7 @@ impl InstrumentedSelectionRequest {
                 copy
             })
             .collect::<Vec<_>>();
-        fit_instrumented_joint_polynomial(&self.design, &copies, self.features.clone())
+        fit_instrumented_joint_polynomial(&self.design, &copies, self.features.clone(), ctx)
             .map_err(invalid)
     }
     fn value(
@@ -333,9 +336,9 @@ impl ProgramSelectionProcedure<JointInstrumentedUnit> for InstrumentedSelectionR
         data: &[&JointInstrumentedUnit],
         _: &Self::Candidates,
         _: usize,
-        _: &ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Result<Self::Fit, ProgramSearchError> {
-        self.fit_view(data)
+        self.fit_view(data, ctx)
     }
     fn feasible(
         &self,
@@ -353,7 +356,11 @@ impl ProgramSelectionProcedure<JointInstrumentedUnit> for InstrumentedSelectionR
         ctx: &ExecutionContext,
     ) -> Result<Vec<RankedProgram<Self::Action>>, ProgramSearchError> {
         let variables = (0..bounds.len())
-            .map(|i| u32::try_from(i).map(VariableId::from_raw).map_err(invalid))
+            .map(|i| {
+                u32::try_from(i)
+                    .map(VariableId::from_raw)
+                    .map_err(|e| ProgramSearchError::upstream("raw-dose feature index", e))
+            })
             .collect::<Result<Vec<_>, _>>()?;
         let mut terms = Vec::new();
         for (powers, beta) in self.features.powers.iter().zip(&fit.coefficients) {
@@ -397,7 +404,7 @@ impl ProgramSelectionProcedure<JointInstrumentedUnit> for InstrumentedSelectionR
                 "selected structural utility disagrees with its compiler-derived objective",
             ));
         }
-        let bytes = antecedent_io::convert::to_cbor(&c.controls).map_err(invalid)?;
+        let bytes = antecedent_io::convert::to_cbor(&c.controls).map_err(super::codec)?;
         let id = SemanticDigest::from_bytes(CanonicalWriter::digest_bytes(
             "antecedent.selected_raw_doses.v1",
             &bytes,
@@ -419,9 +426,9 @@ impl ProgramSelectionProcedure<JointInstrumentedUnit> for InstrumentedSelectionR
         data: &[&JointInstrumentedUnit],
         action: &Self::Action,
         _: usize,
-        _: &ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Result<HeldoutProgramValue, ProgramSearchError> {
-        let fit = self.fit_view(data)?;
+        let fit = self.fit_view(data, ctx)?;
         let (value, variance) = self.value(&fit, &action.controls)?;
         Ok(HeldoutProgramValue {
             target: format!(
@@ -457,7 +464,7 @@ impl InstrumentedSelectionResult {
             tie_tolerance: self.tie_tolerance,
             report: self.report(),
         })
-        .map_err(invalid)
+        .map_err(super::codec)
     }
 }
 #[derive(Serialize, Deserialize)]
@@ -487,13 +494,13 @@ pub fn replay_instrumented_selection(
     let _input = ctx
         .acquire_admission(0, (bytes.len() as u64).saturating_mul(16))
         .map_err(|e| ProgramSearchError::Resource(e.to_string()))?;
-    let d: Document = antecedent_io::convert::from_cbor(bytes).map_err(invalid)?;
+    let d: Document = antecedent_io::convert::from_cbor(bytes).map_err(super::codec)?;
     if d.version != 1 {
         return Err(invalid("unsupported structural selection artifact version"));
     }
     if let Some(expected) = expected {
-        if antecedent_io::convert::to_cbor(expected).map_err(invalid)?
-            != antecedent_io::convert::to_cbor(&d.request).map_err(invalid)?
+        if antecedent_io::convert::to_cbor(expected).map_err(super::codec)?
+            != antecedent_io::convert::to_cbor(&d.request).map_err(super::codec)?
         {
             return Err(invalid("current structural selection data/moments/domain changed"));
         }

@@ -251,7 +251,7 @@ impl super::Study {
     {
         let reused = match physical {
             Some(physical) => self.reuse_temporal_identification(physical),
-            None => self.temporal_identification_cache.clone().map(|cache| (cache, true)),
+            None => self.temporal_cache().cloned().map(|cache| (cache, true)),
         };
         if let Some((cache, prepared)) = reused {
             let entry = cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
@@ -1046,7 +1046,7 @@ impl super::Study {
         temporal: &antecedent_core::TemporalResponseSpec,
     ) -> Result<bool, CausalError> {
         let identify_cached = self.temporal_class_cache_covers(&temporal.horizons);
-        if self.temporal_class_identification_cache.is_some() && !identify_cached {
+        if self.temporal_class_cache().is_some() && !identify_cached {
             return Err(CausalError::Compile {
                 message: "prepared panel class identification cache missing a requested horizon"
                     .into(),
@@ -1948,7 +1948,7 @@ fn fit_unit_panel_responses(
     let identifications: Vec<_> =
         entries.iter().map(|entry| (&entry.estimand, &entry.indexer)).collect();
     let mut estimator = TemporalResponseEstimator::new();
-    estimator.inner.bootstrap_replicates = 0;
+    estimator.inner.inference.bootstrap_replicates = 0;
     let mut unit_responses = Vec::with_capacity(panel.unit_count());
     match inference {
         InferenceMode::Bayesian(cfg) => {
@@ -2777,7 +2777,7 @@ const PANEL_INTERVAL_LEVEL: f64 = crate::result::REPORTED_SE_INTERVAL_LEVEL;
 /// bootstrap below resamples whole units) and the declared overlap policy.
 pub(super) fn pooled_panel_estimator() -> TemporalLinearAdjustment {
     let mut estimator = TemporalLinearAdjustment::new();
-    estimator.inner.bootstrap_replicates = 0;
+    estimator.inner.inference.bootstrap_replicates = 0;
     estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
     estimator
 }
@@ -2848,9 +2848,9 @@ fn panel_cluster_se_fit(
 ) -> Result<EffectEstimate, CausalError> {
     let clusters = distinct_clusters(&cluster_ids);
     let mut estimator = pooled_panel_estimator();
-    estimator.inner.cluster_ids = Some(cluster_ids);
-    estimator.inner.panel_times = Some(panel_times);
-    estimator.inner.se_kind = AnalyticSeKind::PanelClusterHac { lag: 0 };
+    estimator.inner.inference.cluster_ids = Some(cluster_ids);
+    estimator.inner.inference.panel_times = Some(panel_times);
+    estimator.inner.inference.se_kind = AnalyticSeKind::PanelClusterHac { lag: 0 };
     let mut workspace = EstimationWorkspace::default();
     let mut estimate =
         estimator.fit(prep, &mut workspace, ctx, assumptions).map_err(CausalError::from)?;

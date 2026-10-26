@@ -377,7 +377,7 @@ fn a_composed_exceedance_reports_the_probability_band_and_verdict() {
     assert_eq!(decide(0.25).verdict(), Some("withhold"));
     // The verdict code is not a float value.
     assert_eq!(claim.value("verdict_code"), None);
-    assert!(claim.values().iter().all(|(name, _)| name != "verdict_code"));
+    assert!(claim.values().all(|(name, _)| name != "verdict_code"));
 
     // Ten rows: the band is wide and the same cutoff is unresolved.
     let (sx, sy) = pair("snap-enum", 1);

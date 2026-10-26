@@ -65,7 +65,8 @@ pub(crate) fn run_error(error: &RecalcRunError, fallback: &'static str) -> Strin
             None,
         ),
         RecalcRunError::Request(detail) => {
-            let (code, stage) = match *detail {
+            let detail = detail.as_str();
+            let (code, stage) = match detail {
                 "recalc.cancelled" => {
                     (antecedent_core::reason_code!("cancelled_no_claim"), "score_artifact")
                 }

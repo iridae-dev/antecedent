@@ -99,11 +99,11 @@ impl EstimatorSpec {
     ) -> Result<(), crate::CausalError> {
         use antecedent_estimate::util::SamplingDeclaration;
         let slot: &mut SamplingDeclaration = match self {
-            Self::LinearAdjustmentAte(cfg) => &mut cfg.sampling_design,
-            Self::PropensityWeighting(cfg) => &mut cfg.sampling_design,
-            Self::PropensityStratification(cfg) => &mut cfg.sampling_design,
-            Self::Aipw(cfg) => &mut cfg.sampling_design,
-            Self::GlmAdjustment(cfg) => &mut cfg.sampling_design,
+            Self::LinearAdjustmentAte(cfg) => &mut cfg.inference.sampling_design,
+            Self::PropensityWeighting(cfg) => &mut cfg.inference.sampling_design,
+            Self::PropensityStratification(cfg) => &mut cfg.inference.sampling_design,
+            Self::Aipw(cfg) => &mut cfg.inference.sampling_design,
+            Self::GlmAdjustment(cfg) => &mut cfg.inference.sampling_design,
             Self::FrontDoorTwoStage(cfg) => &mut cfg.sampling_design,
             _ => return Ok(()),
         };
@@ -163,11 +163,11 @@ impl EstimatorSpec {
         };
         let mut spec = spec;
         match &mut spec {
-            Self::LinearAdjustmentAte(cfg) => claim(&mut cfg.bootstrap_interval)?,
-            Self::PropensityWeighting(cfg) => claim(&mut cfg.bootstrap_interval)?,
-            Self::PropensityStratification(cfg) => claim(&mut cfg.bootstrap_interval)?,
-            Self::Aipw(cfg) => claim(&mut cfg.bootstrap_interval)?,
-            Self::GlmAdjustment(cfg) => claim(&mut cfg.bootstrap_interval)?,
+            Self::LinearAdjustmentAte(cfg) => claim(&mut cfg.inference.bootstrap_interval)?,
+            Self::PropensityWeighting(cfg) => claim(&mut cfg.inference.bootstrap_interval)?,
+            Self::PropensityStratification(cfg) => claim(&mut cfg.inference.bootstrap_interval)?,
+            Self::Aipw(cfg) => claim(&mut cfg.inference.bootstrap_interval)?,
+            Self::GlmAdjustment(cfg) => claim(&mut cfg.inference.bootstrap_interval)?,
             _ => return Err(refuse()),
         }
         Ok(spec)
@@ -177,11 +177,11 @@ impl EstimatorSpec {
     #[must_use]
     pub fn bootstrap_interval(&self) -> Option<antecedent_estimate::IntervalRequest> {
         match self {
-            Self::LinearAdjustmentAte(cfg) => cfg.bootstrap_interval,
-            Self::PropensityWeighting(cfg) => cfg.bootstrap_interval,
-            Self::PropensityStratification(cfg) => cfg.bootstrap_interval,
-            Self::Aipw(cfg) => cfg.bootstrap_interval,
-            Self::GlmAdjustment(cfg) => cfg.bootstrap_interval,
+            Self::LinearAdjustmentAte(cfg) => cfg.inference.bootstrap_interval,
+            Self::PropensityWeighting(cfg) => cfg.inference.bootstrap_interval,
+            Self::PropensityStratification(cfg) => cfg.inference.bootstrap_interval,
+            Self::Aipw(cfg) => cfg.inference.bootstrap_interval,
+            Self::GlmAdjustment(cfg) => cfg.inference.bootstrap_interval,
             _ => None,
         }
     }
@@ -208,13 +208,13 @@ impl EstimatorSpec {
     pub fn bootstrap_replicates(&self) -> Option<u32> {
         match self {
             Self::Default(_) | Self::Dml(_) | Self::DrLearner(_) | Self::CausalForest(_) => None,
-            Self::LinearAdjustmentAte(cfg) => Some(cfg.bootstrap_replicates),
-            Self::PropensityWeighting(cfg) => Some(cfg.bootstrap_replicates),
+            Self::LinearAdjustmentAte(cfg) => Some(cfg.inference.bootstrap_replicates),
+            Self::PropensityWeighting(cfg) => Some(cfg.inference.bootstrap_replicates),
             Self::PropensityMatching(cfg) => Some(cfg.bootstrap_replicates),
-            Self::PropensityStratification(cfg) => Some(cfg.bootstrap_replicates),
+            Self::PropensityStratification(cfg) => Some(cfg.inference.bootstrap_replicates),
             Self::DistanceMatching(cfg) => Some(cfg.bootstrap_replicates),
-            Self::Aipw(cfg) => Some(cfg.bootstrap_replicates),
-            Self::GlmAdjustment(cfg) => Some(cfg.bootstrap_replicates),
+            Self::Aipw(cfg) => Some(cfg.inference.bootstrap_replicates),
+            Self::GlmAdjustment(cfg) => Some(cfg.inference.bootstrap_replicates),
             Self::FrontDoorTwoStage(cfg) => Some(cfg.bootstrap_replicates),
             Self::IvWald(cfg) => Some(cfg.bootstrap_replicates),
             Self::Iv2Sls(cfg) => Some(cfg.bootstrap_replicates),
@@ -335,15 +335,15 @@ impl BuildDefaults<'_> {
         Some(match id {
             EstimatorId::LinearAdjustmentAte => {
                 let mut est = LinearAdjustmentAte::new();
-                est.sampling_design = sampling;
-                est.bootstrap_replicates = self.bootstrap_replicates;
+                est.inference.sampling_design = sampling;
+                est.inference.bootstrap_replicates = self.bootstrap_replicates;
                 est.overlap = antecedent_estimate::OverlapPolicy::ExplicitOverride;
                 EstimatorSpec::LinearAdjustmentAte(Box::new(est))
             }
             EstimatorId::PropensityWeighting => {
                 let mut est = PropensityWeighting::new();
-                est.sampling_design = sampling;
-                est.bootstrap_replicates = self.bootstrap_replicates;
+                est.inference.sampling_design = sampling;
+                est.inference.bootstrap_replicates = self.bootstrap_replicates;
                 if let Some(policy) = self.overlap_policy {
                     est.overlap = policy;
                 }
@@ -352,8 +352,8 @@ impl BuildDefaults<'_> {
             }
             EstimatorId::PropensityStratification => {
                 let mut est = PropensityStratification::new();
-                est.sampling_design = sampling;
-                est.bootstrap_replicates = self.bootstrap_replicates;
+                est.inference.sampling_design = sampling;
+                est.inference.bootstrap_replicates = self.bootstrap_replicates;
                 if let Some(policy) = self.overlap_policy {
                     est.overlap = policy;
                 }
@@ -362,8 +362,8 @@ impl BuildDefaults<'_> {
             }
             EstimatorId::Aipw => {
                 let mut est = AipwAte::new();
-                est.sampling_design = sampling;
-                est.bootstrap_replicates = self.bootstrap_replicates;
+                est.inference.sampling_design = sampling;
+                est.inference.bootstrap_replicates = self.bootstrap_replicates;
                 if let Some(policy) = self.overlap_policy {
                     est.overlap = policy;
                 }
@@ -372,8 +372,8 @@ impl BuildDefaults<'_> {
             }
             EstimatorId::GlmAdjustment => {
                 let mut est = GlmAdjustmentAte::new();
-                est.sampling_design = sampling;
-                est.bootstrap_replicates = self.bootstrap_replicates;
+                est.inference.sampling_design = sampling;
+                est.inference.bootstrap_replicates = self.bootstrap_replicates;
                 EstimatorSpec::GlmAdjustment(Box::new(est))
             }
             _ => return None,
@@ -453,6 +453,6 @@ mod tests {
         let EstimatorSpec::LinearAdjustmentAte(cfg) = &spec else {
             panic!("expected EstimatorSpec::LinearAdjustmentAte");
         };
-        assert_eq!(cfg.bootstrap_replicates, 500);
+        assert_eq!(cfg.inference.bootstrap_replicates, 500);
     }
 }

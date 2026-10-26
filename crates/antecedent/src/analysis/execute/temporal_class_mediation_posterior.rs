@@ -57,7 +57,7 @@ impl super::Study {
         let mut witness = TemporalEffectQuery::pulse(query.treatment, query.outcome, 1.0);
         witness.horizon_steps = horizon;
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
-        Ok(if let Some(cache) = self.temporal_class_posterior_identification_cache.as_ref() {
+        Ok(if let Some(cache) = self.temporal_class_posterior_cache() {
             (Arc::clone(cache), true)
         } else {
             (
@@ -528,7 +528,7 @@ fn fit_class_mediation_case_posterior(
     ctx: &ExecutionContext,
 ) -> Result<CausalPosterior, CausalError> {
     use antecedent_estimate::bayesian_mediation::{
-        compose_temporal_mediation, prepare_temporal_mediation_adjusted,
+        compose_temporal_mediation_mechanisms, prepare_temporal_mediation_adjusted,
     };
     let preparations =
         prepare_temporal_mediation_adjusted(data, estimand, horizon_query, adjustment, ctx)
@@ -551,12 +551,8 @@ fn fit_class_mediation_case_posterior(
         mediation_mechanism_seed(bayes.seed, horizon, preparations.len()),
         ctx,
     );
-    let [natural_direct, natural_indirect] = mechanisms.as_slice() else {
-        return Err(CausalError::Compile {
-            message: "temporal mediation must fit exactly two mechanisms".into(),
-        });
-    };
-    compose_temporal_mediation(natural_direct, natural_indirect, horizon_query, status)
+    // One mechanism per mediator, then the outcome mechanism last.
+    compose_temporal_mediation_mechanisms(&mechanisms, horizon_query, status)
         .map_err(CausalError::from)
 }
 

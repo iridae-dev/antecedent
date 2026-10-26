@@ -208,7 +208,7 @@ pub(crate) fn value_batch_to_sample_result(
         means.push(m);
     }
     let flat = samples.values.as_ref().to_vec();
-    let draws = PyArray1::from_vec(py, flat).reshape([n_nodes, n_rows])?.unbind();
+    let draws = crate::attribution_api::reshape_draws(py, flat, n_nodes, n_rows)?;
     Ok(GcmSampleResult { column_means: means, n_draws: n_rows, n_nodes, draws, route: None })
 }
 

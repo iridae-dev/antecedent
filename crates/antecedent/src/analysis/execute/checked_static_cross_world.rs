@@ -59,7 +59,7 @@ impl CheckedStaticCrossWorldOperation {
         physical: &Arc<PhysicalExecutionPlan>,
         cell: RouteCell,
     ) -> Result<Self, CausalError> {
-        let functional = match (&study.query, &study.data, study.identification_cache.as_ref()) {
+        let functional = match (&study.query, &study.data, study.static_cache()) {
             (
                 CausalQuery::PathSpecific(_) | CausalQuery::NestedCounterfactual(_),
                 crate::analysis::builder::DataInput::Tabular(data),

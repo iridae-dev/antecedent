@@ -1061,7 +1061,7 @@ fn prepared_score_failure_is_visible_and_refresh_keeps_previous_scores() {
 fn prepared_and_fresh_scores_honor_configured_propensity_fit() {
     let (data, graph, query, _, _) = confounded_hetero(400, 181);
     let mut estimator = antecedent_estimate::AipwAte::new();
-    estimator.bootstrap_replicates = 0;
+    estimator.inference.bootstrap_replicates = 0;
     estimator.glm_options.max_iter = 0;
     let study = Study::tabular(data)
         .graph(graph)
@@ -3431,8 +3431,9 @@ fn unknown_tier_joint_has_no_single_admg() {
     assert!(batch_err.to_string().contains("no single ADMG"), "{batch_err}");
 }
 
-/// 45 same-tier co-facets. Generic subset search caps at 40 candidates; the
-/// O(p) closure shortcut must still identify with Z = closure minus treatments.
+/// 45 same-tier co-facets. The generic subset search for a smaller set stops at its budget
+/// and returns the certified maximal set; the O(p) closure shortcut identifies with the same
+/// Z = closure minus treatments, without any search.
 #[test]
 fn codetermined_joint_many_cofacets_uses_closure_shortcut() {
     const COFACETS: usize = 45;
@@ -3468,10 +3469,15 @@ fn codetermined_joint_many_cofacets_uses_closure_shortcut() {
         .unwrap();
     assert_eq!(
         generic.status,
-        IdentificationStatus::NotIdentified,
-        "cap keeps NotIdentified, honesty is the Execution diagnostic: {:?}",
+        IdentificationStatus::NonparametricallyIdentified,
+        "the budget ends the search for a smaller set, not the decision: {:?}",
         generic.diagnostics
     );
+    let mut generic_set = generic.estimands[0].adjustment_set.to_vec();
+    generic_set.sort_unstable();
+    let mut expected_set = expected.to_vec();
+    expected_set.sort_unstable();
+    assert_eq!(generic_set, expected_set, "the certified maximal set is the tier closure");
     assert!(
         generic.diagnostics.iter().any(|d| {
             d.kind == antecedent_core::DiagnosticKind::Execution
@@ -3570,8 +3576,9 @@ fn drawn_treatment_outcome_joint_is_scientific_not_a_budget_miss() {
     );
 }
 
-/// Cap vs scientific refuse stay distinct on the artifact wire: same
-/// `not_identified` status, different diagnostic kind/code/text. No new enum value.
+/// A bounded search and a scientific refuse stay distinct on the artifact wire: the ceiling
+/// keeps the certified maximal set (identified, with an execution diagnostic), the proved
+/// absence of a set is `not_identified` with a scientific one. No new enum value.
 #[test]
 fn joint_cap_and_scientific_refuse_are_distinct_on_the_wire() {
     let mut capped = antecedent_graph::Admg::with_variables(20);
@@ -3620,12 +3627,12 @@ fn joint_cap_and_scientific_refuse_are_distinct_on_the_wire() {
 
     let cap_wire = antecedent_io::identification_to_wire(&cap).unwrap();
     let sci_wire = antecedent_io::identification_to_wire(&sci).unwrap();
-    assert_eq!(cap_wire.status, "not_identified");
+    assert_eq!(cap_wire.status, "nonparametrically_identified");
     assert_eq!(sci_wire.status, "not_identified");
     assert!(
         cap_wire.diagnostics.iter().any(|d| {
             d.kind == "execution"
-                && d.code == antecedent_identify::CAPPED_COMPLETION_DIAGNOSTIC_CODE
+                && d.code == antecedent_identify::JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE
         }),
         "cap wire: {:?}",
         cap_wire.diagnostics
@@ -4230,7 +4237,7 @@ fn batch_family_posterior_draws_the_whole_interaction_on_shared_row_weights() {
 }
 
 #[test]
-fn three_factor_interaction_batch_withholds_instead_of_using_first_four_cells() {
+fn three_factor_interaction_batch_publishes_the_three_way_contrast() {
     let mut columns = [Vec::new(), Vec::new(), Vec::new(), Vec::new()];
     for i in 0_u32..1024 {
         let a = f64::from(i & 1);
@@ -4266,18 +4273,26 @@ fn three_factor_interaction_batch_withholds_instead_of_using_first_four_cells() 
         .unwrap()
         .estimate(&data, &ctx)
         .unwrap();
-    for result in results {
-        let family = &result.estimate.as_effect().unwrap().family;
-        assert!(family.contrast.is_none());
-        assert!(family.contrast_interval.is_none());
-        assert!(family.adjusted_p_values.is_none());
-        assert!(family.compiled_contrast.is_none());
-        assert!(result.diagnostics.iter().any(|diagnostic| {
-            diagnostic.message.contains("exactly two declared treatment factors")
-        }));
+    let mut identities = Vec::new();
+    for result in &results {
+        let effect = result.estimate.as_effect().unwrap();
+        let family = &effect.family;
+        assert!(family.contrast.is_some(), "{:?}", result.diagnostics);
+        let binding = family.compiled_contrast.as_ref().expect("checked three-way target");
+        identities.push(binding.target().identity());
+        let table = effect.scores.table.as_ref().unwrap();
+        let (expected, _) =
+            antecedent_estimate::family_cell_contrast(table, 7, "interaction").unwrap();
+        assert_eq!(family.contrast.unwrap().0.to_bits(), expected.value.to_bits());
+        // The generating law has no three-way term.
+        assert!(expected.value.abs() < 0.5, "three-way interaction {}", expected.value);
         assert!(
             result.response().is_some(),
             "the independently supported cell level remains usable"
         );
     }
+    assert_eq!(
+        identities[0], identities[1],
+        "the complete interaction is independent of the requested member level"
+    );
 }

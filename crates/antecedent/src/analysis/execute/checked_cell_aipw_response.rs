@@ -112,7 +112,7 @@ impl CheckedCellAipwResponseOperation {
             || interventions.len() > antecedent_estimate::cell_aipw::MAX_JOINT_BINARY
         {
             return Err(CausalError::Unsupported {
-                message: "checked cell AIPW requires two or three joint binary interventions",
+                message: "checked cell AIPW requires two or more joint binary interventions within a cell code's coordinates",
             });
         }
         let (treatments, requested_arm) = joint_binary_interventions(interventions)?;

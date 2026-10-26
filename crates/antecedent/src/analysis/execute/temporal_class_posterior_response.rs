@@ -133,8 +133,7 @@ impl super::Study {
 
     /// Whether the prepared handle retains an identification for this posterior.
     fn class_posterior_cache_retained(&self, gp: &GraphPosterior) -> bool {
-        self.temporal_class_posterior_identification_cache
-            .as_deref()
+        self.temporal_class_posterior_cache()
             .is_some_and(|cache| cache.graphs.n_samples == gp.n_graphs)
     }
 
@@ -159,8 +158,7 @@ impl super::Study {
         // envelope marked unidentified keep their mass without re-enumeration,
         // and evaluable atoms reuse their retained proof for that horizon.
         let retained = self
-            .temporal_class_posterior_identification_cache
-            .as_deref()
+            .temporal_class_posterior_cache()
             .filter(|cache| cache.graphs.n_samples == gp.n_graphs);
         let first_horizon = query.temporal.as_ref().and_then(|spec| spec.horizons.first().copied());
         ctx.map_indexed(gp.n_graphs, |i, inner| {
@@ -203,8 +201,7 @@ impl super::Study {
             atom_study.graph = Arc::new(graph);
             atom_study.refute = RefuteSuite::None;
             atom_study.custom_validators.clear();
-            atom_study.temporal_class_identification_cache = retained_atom;
-            atom_study.temporal_class_posterior_identification_cache = None;
+            atom_study.identification = retained_atom.map(crate::analysis::IdentificationCache::TemporalClass);
             match atom_study.execute_temporal_class_response(data, query, physical, inner) {
                 Ok(result) => Ok((key, weight, Some(Ok(result)))),
                 Err(err @ CausalError::Unsupported { .. }) => Err(err),
@@ -809,8 +806,7 @@ fn identify_posterior_atom_pulse(
     atom_study.graph_posterior = None;
     atom_study.graph = Arc::new(graph);
     atom_study.query = CausalQuery::TemporalEffect(pulse.clone());
-    atom_study.temporal_class_identification_cache = None;
-    atom_study.temporal_class_posterior_identification_cache = None;
+    atom_study.clear_identification();
     match atom_study.identify_temporal_class(IdentifierId::GeneralizedAdjustment, pulse, ctx) {
         Ok(bundle) => Ok(Some(bundle)),
         Err(error @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => Err(error),

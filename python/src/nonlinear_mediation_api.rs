@@ -6,6 +6,7 @@
 //! A refusal comes back as structured JSON for the Python layer to raise as its own exception
 //! type; corruption and unknown versions raise `CausalSerializationError`.
 
+use crate::NumericColumn;
 use crate::bridge::{artifact_refusal_json, check_declared_size};
 use antecedent::analysis::nonlinear_mediation::{
     MediationConfigWire, MediationDataWire, MediationPremisesWire, NonlinearMediation,
@@ -62,7 +63,7 @@ type MediationColumns<'py> = (
     PyReadonlyArray1<'py, f64>,
     PyReadonlyArray1<'py, f64>,
     Vec<String>,
-    Vec<PyReadonlyArray1<'py, f64>>,
+    Vec<NumericColumn<'py>>,
 );
 
 /// Estimate the natural effects on declared columns:
@@ -90,7 +91,7 @@ fn evaluate_nonlinear_mediation(
     treatment: PyReadonlyArray1<'_, f64>,
     mediator: PyReadonlyArray1<'_, f64>,
     outcome: PyReadonlyArray1<'_, f64>,
-    covariates: Vec<PyReadonlyArray1<'_, f64>>,
+    covariates: Vec<NumericColumn<'_>>,
     covariate_names: Vec<String>,
     premises_json: &str,
     config_json: &str,
@@ -107,7 +108,10 @@ fn evaluate_nonlinear_mediation(
             mediator: mediator.as_array().to_vec(),
             outcome: outcome.as_array().to_vec(),
             covariate_names,
-            covariates: covariates.iter().map(|c| c.as_array().to_vec()).collect(),
+            covariates: covariates
+                .iter()
+                .map(|c| c.to_vec("covariate"))
+                .collect::<PyResult<_>>()?,
         },
     };
     let artifact_id = artifact_id.to_owned();
@@ -154,14 +158,22 @@ fn consume_nonlinear_mediation_artifact(
         Some(text) => Some(parse(&text, "identity")?),
         None => None,
     };
-    let data =
-        data.map(|(treatment, mediator, outcome, covariate_names, covariates)| MediationDataWire {
-            treatment: treatment.as_array().to_vec(),
-            mediator: mediator.as_array().to_vec(),
-            outcome: outcome.as_array().to_vec(),
-            covariate_names,
-            covariates: covariates.iter().map(|c| c.as_array().to_vec()).collect(),
-        });
+    let data = data
+        .map(
+            |(treatment, mediator, outcome, covariate_names, covariates)| -> PyResult<MediationDataWire> {
+                Ok(MediationDataWire {
+                    treatment: treatment.as_array().to_vec(),
+                    mediator: mediator.as_array().to_vec(),
+                    outcome: outcome.as_array().to_vec(),
+                    covariate_names,
+                    covariates: covariates
+                        .iter()
+                        .map(|c| c.to_vec("covariate"))
+                        .collect::<PyResult<_>>()?,
+                })
+            },
+        )
+        .transpose()?;
     let ctx = crate::measured_inference_api::context(0, memory_limit_bytes, None);
     detach_catch(py, move || {
         match NonlinearMediation::consume_with(&artifact, expected.as_ref(), data.as_ref(), &ctx) {

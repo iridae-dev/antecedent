@@ -108,18 +108,18 @@ pub fn evaluate_graph(
 ///
 /// Propagates model fit / assignment failures.
 pub fn fit_gcm(graph: Dag, data: &TabularData) -> Result<FittedGcm, CausalError> {
-    fit_with_registry(&MechanismRegistry::standard(), graph, data, CausalError::from)
+    fit_with_registry(&MechanismRegistry::standard(), Arc::new(graph), data, CausalError::from)
 }
 
 /// Compile `graph` and fit `registry` to `data`; `fit_error` maps a failure of the
 /// fit itself (compile failures always convert plainly).
 fn fit_with_registry(
     registry: &MechanismRegistry,
-    graph: Dag,
+    graph: Arc<Dag>,
     data: &TabularData,
     fit_error: fn(ModelError) -> CausalError,
 ) -> Result<FittedGcm, CausalError> {
-    let compiled = CompiledCausalModel::compile(graph)?;
+    let compiled = CompiledCausalModel::compile_shared(graph)?;
     let (store, assignments) =
         registry.assign_and_fit(&compiled, data, SelectionPolicy::BestScore).map_err(fit_error)?;
     Ok(FittedGcm { model: compiled.with_mechanisms(store), assignments })
@@ -137,10 +137,16 @@ fn fit_with_registry(
 ///
 /// Propagates model fit / assignment failures; a mechanism that does not
 /// converge is refused with reason `mechanism_fit_not_converged`.
-pub fn fit_gcm_counterfactual(graph: Dag, data: &TabularData) -> Result<FittedGcm, CausalError> {
+///
+/// The graph is shared, not copied: the fitted model keeps a handle to the same frozen
+/// graph, so refitting one frozen target costs no graph clone.
+pub fn fit_gcm_counterfactual(
+    graph: &Arc<Dag>,
+    data: &TabularData,
+) -> Result<FittedGcm, CausalError> {
     fit_with_registry(
         &MechanismRegistry::with_heterogeneity_families(),
-        graph,
+        Arc::clone(graph),
         data,
         map_mechanism_fit,
     )
@@ -316,7 +322,7 @@ pub fn registry_from_candidates(tokens: &[&str]) -> Result<MechanismRegistry, Ca
 /// mechanism selection and shared abducted disturbances for both worlds.
 #[derive(Clone, Debug)]
 pub struct CheckedCounterfactualOperation {
-    graph: Dag,
+    graph: Arc<Dag>,
     edges: crate::graph_identity::FrozenEdges,
     query: CounterfactualQuery,
     treatment: VariableId,
@@ -331,7 +337,7 @@ impl CheckedCounterfactualOperation {
         query.validate()?;
         if query.allow_nested || query.outcomes.len() != 1 || query.interventions.len() != 1 {
             return Err(CausalError::Unsupported {
-                message: "Study counterfactual path currently supports a single hard intervention for ITE (use gcm helpers for multi-world predict)",
+                message: "Study counterfactual path currently supports one outcome and a single hard intervention for ITE (use gcm::counterfactual_contrasts for several outcomes or simultaneous interventions)",
             });
         }
         let Intervention::Set { variable: treatment, value } = &query.interventions[0] else {
@@ -371,7 +377,7 @@ impl CheckedCounterfactualOperation {
             });
         }
         let edges = crate::graph_identity::FrozenEdges::of(&graph);
-        Ok(Self { graph, edges, query, treatment, outcome, active, control })
+        Ok(Self { graph: Arc::new(graph), edges, query, treatment, outcome, active, control })
     }
 
     /// The frozen semantic target.
@@ -382,12 +388,12 @@ impl CheckedCounterfactualOperation {
 
     /// The frozen graph and mechanism assignment scope.
     #[must_use]
-    pub const fn graph(&self) -> &Dag {
+    pub fn graph(&self) -> &Dag {
         &self.graph
     }
 
     pub(crate) fn matches(&self, graph: &Dag, query: &CounterfactualQuery) -> bool {
-        self.query == *query && self.edges.matches(&self.graph, graph)
+        self.query == *query && self.edges.matches(&*self.graph, graph)
     }
 
     /// Fit mechanisms under the frozen graph, then abduct once for both worlds.
@@ -396,7 +402,7 @@ impl CheckedCounterfactualOperation {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<(FittedGcm, IteResult), CausalError> {
-        let FittedGcm { model, assignments } = fit_gcm_counterfactual(self.graph.clone(), data)?;
+        let FittedGcm { model, assignments } = fit_gcm_counterfactual(&self.graph, data)?;
         // The engine shares the model through an `Arc`; once it is dropped the fitted model
         // is moved back out without a copy.
         let model = Arc::new(model);
@@ -463,7 +469,7 @@ impl NestedOutcomeMechanism {
 /// and shared-exogenous execution procedure at preparation time.
 #[derive(Clone, Debug)]
 pub struct NestedCounterfactualOperation {
-    graph: Dag,
+    graph: Arc<Dag>,
     query: NestedCounterfactualQuery,
     mediation_query: antecedent_core::MediationQuery,
     outer_world: Intervention,
@@ -482,7 +488,7 @@ impl NestedCounterfactualOperation {
 
     /// The three-node Markovian mediation graph required by this operation.
     #[must_use]
-    pub const fn graph(&self) -> &Dag {
+    pub fn graph(&self) -> &Dag {
         &self.graph
     }
 
@@ -505,7 +511,7 @@ impl NestedCounterfactualOperation {
             ));
         }
         Ok(Self {
-            graph,
+            graph: Arc::new(graph),
             query,
             mediation_query: query.as_mediation_query(),
             outer_world: Intervention::set(query.treatment, Value::f64(query.control_value())),
@@ -544,7 +550,7 @@ impl NestedCounterfactualOperation {
     }
 
     pub(crate) fn matches(&self, graph: &Dag, query: &NestedCounterfactualQuery) -> bool {
-        self.query == *query && crate::graph_identity::same_dag_structure(graph, &self.graph)
+        self.query == *query && crate::graph_identity::same_dag_structure(graph, &*self.graph)
     }
 
     pub(crate) fn mediation_query(&self) -> &antecedent_core::MediationQuery {
@@ -556,7 +562,7 @@ impl NestedCounterfactualOperation {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<f64, CausalError> {
-        let compiled = CompiledCausalModel::compile(self.graph.clone())?;
+        let compiled = CompiledCausalModel::compile_shared(Arc::clone(&self.graph))?;
         let store =
             fit_nested_mechanisms(&compiled, data, self.outcome_mechanism, self.query.outcome)?;
         let engine = CounterfactualEngine::new(compiled.with_mechanisms(store));
@@ -1184,6 +1190,105 @@ fn ite_from_abduction(
     })
 }
 
+/// Abduction once, then the unit-level contrast of every listed outcome between two worlds,
+/// each world a *set* of simultaneous interventions applied in one mutilated model.
+///
+/// The single-treatment [`counterfactual_ite`] is the case of one outcome and one `Set` per
+/// world. Here `active` and `control` may each hold several interventions (a joint treatment
+/// and its joint baseline), and every outcome is read from the same two replays, so the
+/// contrasts share one abduced noise state.
+///
+/// # Errors
+///
+/// An empty outcome or world, an outcome that is not in the model, or abduction / prediction
+/// failures.
+#[doc(hidden)]
+pub fn counterfactual_contrasts(
+    model: CompiledCausalModel,
+    data: &TabularData,
+    outcomes: &[VariableId],
+    worlds: (&[Intervention], &[Intervention]),
+    ctx: &ExecutionContext,
+) -> Result<ContrastSetResult, CausalError> {
+    let (active, control) = worlds;
+    if outcomes.is_empty() || active.is_empty() || control.is_empty() {
+        return Err(CausalError::Compile {
+            message: "a contrast set needs at least one outcome and a non-empty active and \
+                      control world"
+                .into(),
+        });
+    }
+    let dense = outcomes
+        .iter()
+        .map(|&outcome| {
+            model.dense_of(outcome).ok_or_else(|| CausalError::Compile {
+                message: format!("contrast outcome {outcome} is not in the model"),
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let engine = CounterfactualEngine::new(model);
+    let exo = engine.abduct(data, AbductionMissingPolicy::Error, ctx)?;
+    let worlds = [
+        CounterfactualWorld { unit_rows: None, interventions: Arc::from(active) },
+        CounterfactualWorld { unit_rows: None, interventions: Arc::from(control) },
+    ];
+    let mut ws = MechanismWorkspace::default();
+    let replay = engine.predict_retaining_outcomes(&exo, &worlds, outcomes, false, &mut ws, ctx)?;
+    let mut contrasts = Vec::with_capacity(outcomes.len());
+    for (&outcome, &node) in outcomes.iter().zip(&dense) {
+        let treated = replay.outcome_column(0, node)?;
+        let baseline = replay.outcome_column(1, node)?;
+        let effects: Vec<f64> = treated.iter().zip(baseline).map(|(a, c)| a - c).collect();
+        let mean_ite = effects.iter().sum::<f64>() / effects.len().max(1) as f64;
+        contrasts.push(OutcomeContrast { outcome, unit_effects: Arc::from(effects), mean_ite });
+    }
+    Ok(ContrastSetResult { contrasts, noise_inference: exo.kind, exogenous: exo })
+}
+
+/// The unit-level contrast of one outcome in a [`ContrastSetResult`].
+#[derive(Clone, Debug)]
+pub struct OutcomeContrast {
+    /// The outcome the contrast reads.
+    pub outcome: VariableId,
+    /// Per-unit effects, aligned with the factual rows.
+    pub unit_effects: Arc<[f64]>,
+    /// Mean of the unit effects.
+    pub mean_ite: f64,
+}
+
+/// Contrasts of several outcomes between two worlds that share one abduced noise state.
+#[derive(Clone, Debug)]
+pub struct ContrastSetResult {
+    /// One contrast per requested outcome, in the order requested.
+    pub contrasts: Vec<OutcomeContrast>,
+    /// How noise was obtained.
+    pub noise_inference: NoiseInferenceKind,
+    /// Shared exogenous state.
+    pub exogenous: ExogenousPosterior,
+}
+
+impl ContrastSetResult {
+    /// The contrast of `outcome`, when it was requested.
+    #[must_use]
+    pub fn contrast(&self, outcome: VariableId) -> Option<&OutcomeContrast> {
+        self.contrasts.iter().find(|contrast| contrast.outcome == outcome)
+    }
+
+    /// The contrast of `outcome` as a single-contrast [`IteResult`] (no unit intervals and no
+    /// extrapolation flags), when it was requested.
+    #[must_use]
+    pub fn ite_result(&self, outcome: VariableId) -> Option<IteResult> {
+        self.contrast(outcome).map(|contrast| IteResult {
+            unit_effects: Arc::clone(&contrast.unit_effects),
+            mean_ite: contrast.mean_ite,
+            noise_inference: self.noise_inference,
+            exogenous: self.exogenous.clone(),
+            unit_effect_intervals: None,
+            unit_extrapolative: None,
+        })
+    }
+}
+
 /// ITE summary with visible noise-inference kind.
 #[derive(Clone, Debug)]
 pub struct IteResult {
@@ -1277,124 +1382,150 @@ pub fn anomaly_attribution_with(
     score_anomalies_with(model, data, &q, ctx).map_err(CausalError::from)
 }
 
-/// [`anomaly_attribution_with`] against a full [`AnomalyAttributionQuery`], so the
-/// query's reference (`Empirical` / `Fixed`) is honored rather than reconstructed.
-///
-/// # Errors
-///
-/// Attribution failures.
-#[doc(hidden)]
-pub fn anomaly_attribution_query_with(
-    model: &CompiledCausalModel,
-    data: &TabularData,
-    query: &AnomalyAttributionQuery,
-    ctx: &antecedent_core::ExecutionContext,
-) -> Result<Vec<AnomalyScores>, CausalError> {
-    score_anomalies_with(model, data, query, ctx).map_err(CausalError::from)
+/// Forwards sub-crate attribution entry points through the one error mapping the facade owns:
+/// every forwarded function keeps its arguments and returns the sub-crate's value with the
+/// failure converted by `CausalError::from`.
+macro_rules! forward_mapped {
+    ($(
+        $(#[$meta:meta])*
+        $name:ident($($arg:ident: $ty:ty),* $(,)?) -> $ret:ty => $target:path;
+    )+) => {
+        $(
+            $(#[$meta])*
+            #[doc(hidden)]
+            pub fn $name($($arg: $ty),*) -> Result<$ret, CausalError> {
+                $target($($arg),*).map_err(CausalError::from)
+            }
+        )+
+    };
 }
 
-/// Intrinsic causal influence: the Shapley split of `query.target`'s variance among the
-/// exogenous noise terms of its ancestors and itself, with permutation-sampling, simulation and
-/// mechanism-fit uncertainty reported as separate components.
-///
-/// `noise` must declare the noise terms independent (or pass a structure without bidirected
-/// edges); `data`, when supplied with a requested bootstrap, is resampled to quantify
-/// mechanism-fitting uncertainty, which is otherwise marked unquantified.
-///
-/// # Errors
-///
-/// Coded refusals for undeclared or correlated noise, unsupported mechanisms, oversized plans
-/// and invalid settings; model or replay failures; cancellation.
-#[doc(hidden)]
-pub fn attribute_intrinsic_influence(
-    model: &CompiledCausalModel,
-    noise: NoiseIndependence<'_>,
-    data: Option<&TabularData>,
-    query: &IntrinsicInfluenceQuery,
-    ctx: &ExecutionContext,
-) -> Result<IntrinsicInfluenceResult, CausalError> {
-    intrinsic_influence(model, noise, data, query, ctx).map_err(CausalError::from)
-}
+forward_mapped! {
+    /// [`anomaly_attribution_with`] against a full [`AnomalyAttributionQuery`], so the
+    /// query's reference (`Empirical` / `Fixed`) is honored rather than reconstructed.
+    ///
+    /// # Errors
+    ///
+    /// Attribution failures.
+    anomaly_attribution_query_with(
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        query: &AnomalyAttributionQuery,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Vec<AnomalyScores> => score_anomalies_with;
 
-/// Distribution-change attribution (pinned baseline-GCM parity).
-///
-/// # Errors
-///
-/// Attribution failures.
-#[doc(hidden)]
-pub fn attribute_distribution_change(
-    model: &CompiledCausalModel,
-    data: &TabularData,
-    query: &ChangeAttributionQuery,
-    options: &DistributionChangeOptions,
-    ctx: &ExecutionContext,
-) -> Result<ChangeAttributionResult, CausalError> {
-    distribution_change(model, data, query, options, ctx).map_err(CausalError::from)
-}
+    /// Intrinsic causal influence: the Shapley split of `query.target`'s variance among the
+    /// exogenous noise terms of its ancestors and itself, with permutation-sampling, simulation
+    /// and mechanism-fit uncertainty reported as separate components.
+    ///
+    /// `noise` must declare the noise terms independent (or pass a structure without bidirected
+    /// edges); `data`, when supplied with a requested bootstrap, is resampled to quantify
+    /// mechanism-fitting uncertainty, which is otherwise marked unquantified.
+    ///
+    /// # Errors
+    ///
+    /// Coded refusals for undeclared or correlated noise, unsupported mechanisms, oversized
+    /// plans and invalid settings; model or replay failures; cancellation.
+    attribute_intrinsic_influence(
+        model: &CompiledCausalModel,
+        noise: NoiseIndependence<'_>,
+        data: Option<&TabularData>,
+        query: &IntrinsicInfluenceQuery,
+        ctx: &ExecutionContext,
+    ) -> IntrinsicInfluenceResult => intrinsic_influence;
 
-/// Robust distribution-change attribution.
-///
-/// # Errors
-///
-/// Attribution failures.
-#[doc(hidden)]
-pub fn attribute_distribution_change_robust(
-    model: &CompiledCausalModel,
-    data: &TabularData,
-    query: &ChangeAttributionQuery,
-    options: &RobustChangeOptions,
-    ctx: &ExecutionContext,
-) -> Result<ChangeAttributionResult, CausalError> {
-    distribution_change_robust(model, data, query, options, ctx).map_err(CausalError::from)
-}
+    /// Distribution-change attribution (pinned baseline-GCM parity).
+    ///
+    /// # Errors
+    ///
+    /// Attribution failures.
+    attribute_distribution_change(
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        query: &ChangeAttributionQuery,
+        options: &DistributionChangeOptions,
+        ctx: &ExecutionContext,
+    ) -> ChangeAttributionResult => distribution_change;
 
-/// Structure-change attribution between two DAGs (parent-set Shapley).
-///
-/// # Errors
-///
-/// Attribution failures.
-#[doc(hidden)]
-pub fn attribute_structure_change(
-    baseline_model: &CompiledCausalModel,
-    comparison_model: &CompiledCausalModel,
-    data: &TabularData,
-    query: &ChangeAttributionQuery,
-    options: &StructureChangeOptions,
-    ctx: &ExecutionContext,
-) -> Result<ChangeAttributionResult, CausalError> {
-    structure_change(baseline_model, comparison_model, data, query, options, ctx)
-        .map_err(CausalError::from)
-}
+    /// Robust distribution-change attribution.
+    ///
+    /// # Errors
+    ///
+    /// Attribution failures.
+    attribute_distribution_change_robust(
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        query: &ChangeAttributionQuery,
+        options: &RobustChangeOptions,
+        ctx: &ExecutionContext,
+    ) -> ChangeAttributionResult => distribution_change_robust;
 
-/// Mechanism-change detection (not attribution).
-///
-/// # Errors
-///
-/// Detection failures.
-#[doc(hidden)]
-pub fn mechanism_change_detection(
-    model: &CompiledCausalModel,
-    data: &TabularData,
-    query: &MechanismChangeQuery,
-    method: MechanismChangeMethod,
-    ctx: &ExecutionContext,
-) -> Result<Vec<antecedent_attribution::MechanismChangeDetection>, CausalError> {
-    detect_mechanism_changes(model, data, query, method, ctx).map_err(CausalError::from)
-}
+    /// Structure-change attribution between two DAGs (parent-set Shapley).
+    ///
+    /// # Errors
+    ///
+    /// Attribution failures.
+    attribute_structure_change(
+        baseline_model: &CompiledCausalModel,
+        comparison_model: &CompiledCausalModel,
+        data: &TabularData,
+        query: &ChangeAttributionQuery,
+        options: &StructureChangeOptions,
+        ctx: &ExecutionContext,
+    ) -> ChangeAttributionResult => structure_change;
 
-/// Unit-change attribution.
-///
-/// # Errors
-///
-/// Attribution failures.
-#[doc(hidden)]
-pub fn attribute_unit_change(
-    model: &CompiledCausalModel,
-    data: &TabularData,
-    query: &UnitChangeQuery,
-    ctx: &ExecutionContext,
-) -> Result<UnitChangeResult, CausalError> {
-    unit_change(model, data, query, ctx).map_err(CausalError::from)
+    /// Mechanism-change detection (not attribution).
+    ///
+    /// # Errors
+    ///
+    /// Detection failures.
+    mechanism_change_detection(
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        query: &MechanismChangeQuery,
+        method: MechanismChangeMethod,
+        ctx: &ExecutionContext,
+    ) -> Vec<antecedent_attribution::MechanismChangeDetection> => detect_mechanism_changes;
+
+    /// Unit-change attribution.
+    ///
+    /// # Errors
+    ///
+    /// Attribution failures.
+    attribute_unit_change(
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        query: &UnitChangeQuery,
+        ctx: &ExecutionContext,
+    ) -> UnitChangeResult => unit_change;
+
+    /// Path decomposition.
+    ///
+    /// # Errors
+    ///
+    /// Path / model failures.
+    attribute_paths(
+        model: &CompiledCausalModel,
+        sources: &[VariableId],
+        outcome: VariableId,
+        max_paths: usize,
+        max_len: usize,
+        ctx: &ExecutionContext,
+    ) -> ChangeAttributionResult => path_decompose;
+
+    /// Feature relevance under interventions, with the sampling options as one value.
+    ///
+    /// # Errors
+    ///
+    /// Sampling failures.
+    attribute_feature_relevance_with(
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        outcome: VariableId,
+        features: &[VariableId],
+        options: &antecedent_attribution::FeatureRelevanceOptions,
+        ctx: &ExecutionContext,
+    ) -> Vec<FeatureRelevance> => feature_relevance;
 }
 
 /// Sample an interventional distribution under [`InterventionalDistributionQuery`].
@@ -1462,40 +1593,6 @@ pub fn attribute_path_specific(
         result.path_breakdown = Arc::from(filtered);
     }
     Ok(result)
-}
-
-/// Path decomposition.
-///
-/// # Errors
-///
-/// Path / model failures.
-#[doc(hidden)]
-pub fn attribute_paths(
-    model: &CompiledCausalModel,
-    sources: &[VariableId],
-    outcome: VariableId,
-    max_paths: usize,
-    max_len: usize,
-    ctx: &ExecutionContext,
-) -> Result<ChangeAttributionResult, CausalError> {
-    path_decompose(model, sources, outcome, max_paths, max_len, ctx).map_err(CausalError::from)
-}
-
-/// Feature relevance under interventions, with the sampling options as one value.
-///
-/// # Errors
-///
-/// Sampling failures.
-#[doc(hidden)]
-pub fn attribute_feature_relevance_with(
-    model: &CompiledCausalModel,
-    data: &TabularData,
-    outcome: VariableId,
-    features: &[VariableId],
-    options: &antecedent_attribution::FeatureRelevanceOptions,
-    ctx: &ExecutionContext,
-) -> Result<Vec<FeatureRelevance>, CausalError> {
-    feature_relevance(model, data, outcome, features, options, ctx).map_err(CausalError::from)
 }
 
 /// Feature relevance under interventions.
@@ -1584,6 +1681,53 @@ mod tests {
         let (_, ite) = operation.execute(&data, &ExecutionContext::for_tests(3)).unwrap();
         assert!((ite.mean_ite - 2.0).abs() < 0.1, "mean_ite={}", ite.mean_ite);
         assert_eq!(ite.unit_effects.len(), data.row_count());
+    }
+
+    #[test]
+    fn a_contrast_set_reads_every_outcome_from_one_abduction() {
+        let (_, data) = chain_xy(50);
+        let mut graph = Dag::with_variables(2);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let (x, y) = (VariableId::from_raw(0), VariableId::from_raw(1));
+        let query = CounterfactualQuery::new(y, vec![Intervention::set(x, Value::f64(1.0))]);
+        let operation = CheckedCounterfactualOperation::compile(graph, query).unwrap();
+        let ctx = ExecutionContext::for_tests(3);
+        let (fitted, single) = operation.execute(&data, &ctx).unwrap();
+        let active = [Intervention::set(x, Value::f64(1.0))];
+        let control = [Intervention::set(x, Value::f64(0.0))];
+        let set =
+            counterfactual_contrasts(fitted.model, &data, &[y, x], (&active, &control), &ctx)
+                .unwrap();
+        // The outcome shared with the single-contrast route reads the same effects.
+        let from_set = set.ite_result(y).unwrap();
+        assert_eq!(from_set.unit_effects.as_ref(), single.unit_effects.as_ref());
+        assert!((from_set.mean_ite - single.mean_ite).abs() < 1e-12);
+        // The intervened variable moves by exactly the contrast between the worlds.
+        let own = set.contrast(x).unwrap();
+        assert!(own.unit_effects.iter().all(|effect| (effect - 1.0).abs() < 1e-12));
+        assert_eq!(set.contrasts.iter().map(|c| c.outcome).collect::<Vec<_>>(), [y, x]);
+        assert!(set.contrast(VariableId::from_raw(7)).is_none());
+    }
+
+    #[test]
+    fn a_contrast_set_refuses_an_empty_request_and_an_unknown_outcome() {
+        let (_, data) = chain_xy(20);
+        let mut graph = Dag::with_variables(2);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let (x, y) = (VariableId::from_raw(0), VariableId::from_raw(1));
+        let ctx = ExecutionContext::for_tests(3);
+        let query = CounterfactualQuery::new(y, vec![Intervention::set(x, Value::f64(1.0))]);
+        let operation = CheckedCounterfactualOperation::compile(graph, query).unwrap();
+        let model = operation.execute(&data, &ctx).unwrap().0.model;
+        let active = [Intervention::set(x, Value::f64(1.0))];
+        let control = [Intervention::set(x, Value::f64(0.0))];
+        let run = |outcomes: &[VariableId], active: &[Intervention]| {
+            counterfactual_contrasts(model.clone(), &data, outcomes, (active, &control), &ctx)
+        };
+        assert!(run(&[], &active).is_err());
+        assert!(run(&[y], &[]).is_err());
+        assert!(run(&[VariableId::from_raw(9)], &active).is_err());
+        assert!(run(&[y], &active).is_ok());
     }
 
     #[test]

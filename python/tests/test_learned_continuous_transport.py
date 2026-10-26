@@ -86,13 +86,10 @@ def test_weak_overlap_refuses_rather_than_extrapolating():
 
 def test_declared_bounds_designs_and_targets_refuse_with_their_details():
     query, data = fixture()
-    with pytest.raises(CausalUnsupportedError, match="learned_transport.bounds_exceeded") as info:
-        advanced.prepare_learned_continuous(query, data, options=options().__class__(folds=21))
-    assert info.value.reason_code == "route_not_supported"
-    with pytest.raises(CausalUnsupportedError, match="learned_transport.bounds_exceeded"):
-        advanced.prepare_learned_continuous(
-            query, data, options=advanced.LearnedContinuousOptions(folds=3, bootstrap=2001)
-        )
+    advanced.prepare_learned_continuous(query, data, options=options().__class__(folds=21))
+    advanced.prepare_learned_continuous(
+        query, data, options=advanced.LearnedContinuousOptions(folds=3, bootstrap=2001)
+    )
     with pytest.raises(CausalUnsupportedError, match="learned_transport.non_iid_design") as info:
         advanced.prepare_learned_continuous(
             query, dataclasses.replace(data, sampling="clustered"), options=options()

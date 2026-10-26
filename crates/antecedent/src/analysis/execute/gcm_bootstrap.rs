@@ -84,7 +84,12 @@ pub(super) fn admit_replicates(
         antecedent_core::execution::AdmissionError::Cancelled => {
             CausalError::Cancelled { stage: super::super::stage::STAGE_UNCERTAINTY }
         }
-        other => CausalError::Resource { message: other.to_string() },
+        other => CausalError::Resource {
+            message: format!(
+                "the requested {replicates} bootstrap replicates are refused: {other}; lower \
+                 the replicate count or raise the execution budget"
+            ),
+        },
     })
 }
 

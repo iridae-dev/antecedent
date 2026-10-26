@@ -58,7 +58,7 @@ fn one_shot_trimmed_aipw_is_sealed_and_matches_the_ordinary_dispatcher_bitwise()
         let ctx = ExecutionContext::for_tests(31);
         let (data, dag, query) = confounded_scm(512, 73);
         let mut fitter = antecedent_estimate::AipwAte::new();
-        fitter.bootstrap_replicates = replicates;
+        fitter.inference.bootstrap_replicates = replicates;
         fitter.overlap = overlap;
         let study = Study::tabular(data.clone())
             .graph(dag)

@@ -143,7 +143,7 @@ class SmoothedDoseOptions:
 class SmoothedDoseQuery:
     """The graph, the dose and outcome, and the smoothed estimand's identity.
 
-    ``grid`` holds at most 16 distinct doses in any order; ``bandwidth`` and ``kernel``
+    ``grid`` holds distinct doses in any order; ``bandwidth`` and ``kernel``
     define the estimand; ``dose_support`` is the randomized dose range; the density
     provenance must be ``known`` (an estimated density is refused).
     """

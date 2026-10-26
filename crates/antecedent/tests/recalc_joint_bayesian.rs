@@ -149,7 +149,7 @@ fn actual_checked_joint_posterior_retention_and_independent_replay() {
     assert!(matches!(
         failure,
         Err(antecedent::analysis::recalc_receipt::RecalcRunError::Request(
-            "recalc.bayesian_workspace_limit"
+            antecedent::analysis::recalc_receipt::RecalcRequestCode::BayesianWorkspaceLimit
         ))
     ));
     assert_eq!(work.model_fits + work.posterior_draws, 0);

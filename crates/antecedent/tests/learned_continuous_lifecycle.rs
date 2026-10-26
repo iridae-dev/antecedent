@@ -191,21 +191,16 @@ fn weak_overlap_refuses_rather_than_extrapolating() {
 
 #[test]
 fn declared_bounds_and_designs_refuse_with_their_details() {
-    let too_many_folds = LearnedContinuousOptions { folds: 21, ..options() };
-    let (code, message) = refused_code(
-        prepare(Design::IndependentSamples, Scenario::Good, (400, 300), too_many_folds, 1)
-            .unwrap_err(),
+    // The measured envelope (20 folds, 2000 replicates) is a recorded reference, not a ceiling:
+    // a larger fold count runs when the strata can hold it, and a larger replicate request is
+    // only recorded because the public route runs no replicates.
+    let more_folds = LearnedContinuousOptions { folds: 21, ..options() };
+    assert!(
+        prepare(Design::IndependentSamples, Scenario::Good, (400, 300), more_folds, 1).is_ok()
     );
-    assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("learned_transport.bounds_exceeded"), "{message}");
-    let too_many_replicates = LearnedContinuousOptions { bootstrap: 2001, ..options() };
-    let (code, message) = refused_code(
-        prepare(Design::NestedCohort, Scenario::Good, (400, 300), too_many_replicates, 1)
-            .unwrap_err(),
-    );
-    assert_eq!(
-        (code, message.starts_with("learned_transport.bounds_exceeded")),
-        ("route_not_supported", true)
+    let more_replicates = LearnedContinuousOptions { bootstrap: 2001, ..options() };
+    assert!(
+        prepare(Design::NestedCohort, Scenario::Good, (400, 300), more_replicates, 1).is_ok()
     );
     // Clustered or undeclared sampling and heterogeneous targets are refused by name.
     let error = antecedent_estimate::parse_learned_continuous_sampling("clustered").unwrap_err();
@@ -922,18 +917,15 @@ fn the_estimator_layer_returns_the_point_with_recorded_diagnostics_and_refuses_d
         "{error:?}"
     );
     let input = draw(Design::NestedCohort, Scenario::Good, 400, 300, 1);
-    let too_many = LearnedContinuousOptions { folds: 21, ..options() };
-    let error = antecedent_estimate::estimate_learned_continuous(
+    let more_folds = LearnedContinuousOptions { folds: 21, ..options() };
+    let run = antecedent_estimate::estimate_learned_continuous(
         &id,
         &input,
-        &too_many,
+        &more_folds,
         &ExecutionContext::for_tests(1),
     )
-    .unwrap_err();
-    assert!(
-        matches!(&error, EstimationError::Refused { code: "route_not_supported", message } if message.starts_with("learned_transport.bounds_exceeded")),
-        "{error:?}"
-    );
+    .unwrap();
+    assert_eq!(run.folds.count, 21);
 }
 
 #[test]

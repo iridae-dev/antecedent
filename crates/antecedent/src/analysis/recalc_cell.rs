@@ -58,7 +58,7 @@ use crate::graph::{Dag, DenseNodeId};
 
 use super::recalc_common::{Fields, float_bytes, identity as digest, literal, table_from_columns};
 use super::recalc_receipt::{
-    Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRunError, RecalcSession,
+    Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRequestCode, RecalcRunError, RecalcSession,
     ReceiptRecorder, TargetWeights, UtilitySpec, decide,
 };
 
@@ -82,7 +82,8 @@ pub enum ScoreQuantity {
         /// The requested cell mask.
         arm: u32,
     },
-    /// The 2x2 interaction contrast `mu00 - mu10 - mu01 + mu11`.
+    /// The highest-order interaction contrast of the `2^k` cell table (`mu00 - mu10 - mu01 +
+    /// mu11` on a 2x2 table).
     Interaction,
 }
 
@@ -223,7 +224,7 @@ impl CellRequest {
 
     fn data(&self) -> Result<TabularData, RecalcRunError> {
         table_from_columns(&self.columns)
-            .map_err(|_| RecalcRunError::Request("recalc.invalid_data"))
+            .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidData))
     }
 }
 
@@ -237,7 +238,7 @@ fn dag_of(n_variables: u32, edges: &[(u32, u32)]) -> Result<Dag, RecalcRunError>
     for (from, to) in edges {
         graph
             .insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
-            .map_err(|_| RecalcRunError::Request("recalc.invalid_graph"))?;
+            .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidGraph))?;
     }
     Ok(graph)
 }
@@ -264,7 +265,7 @@ fn screen_adjustment(
     outcome: Option<u32>,
     adjustment: &[u32],
 ) -> Result<(), RecalcRunError> {
-    let invalid = RecalcRunError::Request("recalc.invalid_adjustment_set");
+    let invalid = RecalcRunError::Request(RecalcRequestCode::InvalidAdjustmentSet);
     let in_range = |v: &u32| *v < n_variables;
     if treatments.is_empty()
         || !treatments.iter().all(in_range)
@@ -290,7 +291,7 @@ fn quantity_value(
             return result
                 .contrast
                 .map(|c| (c.value, c.se))
-                .ok_or(RecalcRunError::Request("recalc.contrast_unavailable"));
+                .ok_or(RecalcRunError::Request(RecalcRequestCode::ContrastUnavailable));
         }
         ScoreQuantity::CellMinusControl { arm } => {
             cell_minus_control_coefficients(table, arm).map_err(estimation)?
@@ -321,7 +322,7 @@ fn score_law(
         antecedent_estimate::retarget(table, weights, depends_on, Some(ancestry), None, None)
             .map_err(estimation)?;
     if overlap_failed {
-        return Err(RecalcRunError::Request("recalc.weighted_overlap_failed"));
+        return Err(RecalcRunError::Request(RecalcRequestCode::WeightedOverlapFailed));
     }
     recorder.record(Counter::Reweight, 1);
     let (ate, std_error) = quantity_value(table, &result, quantity)?;
@@ -345,13 +346,13 @@ pub(crate) fn freeze(
     retarget: RetargetSupport,
 ) -> Result<FrozenScoreTable, RecalcRunError> {
     if retarget != RetargetSupport::Licensed {
-        return Err(RecalcRunError::Request("recalc.retarget_not_licensed"));
+        return Err(RecalcRunError::Request(RecalcRequestCode::RetargetNotLicensed));
     }
     let fit_identity = declared
         .effective(RetargetSupport::Licensed)
         .get(&Stage::ScoreArtifact)
         .copied()
-        .ok_or(RecalcRunError::Request("recalc.score_stage_undeclared"))?;
+        .ok_or(RecalcRunError::Request(RecalcRequestCode::ScoreStageUndeclared))?;
     FrozenScoreTable::seal(FrozenScoreParts {
         estimator: table.nuisance_provenance.to_string(),
         fit_identity,
@@ -359,7 +360,7 @@ pub(crate) fn freeze(
         input_rows,
         table: table.to_wire(),
     })
-    .map_err(|_| RecalcRunError::Request("recalc.frozen_scores_rejected"))
+    .map_err(|_| RecalcRunError::Request(RecalcRequestCode::FrozenScoresRejected))
 }
 
 /// Export the frozen cross-fit AIPW scores of a live [`RecalcSession`] as a portable
@@ -491,7 +492,7 @@ fn fit_cells(
 
 fn cell_n_variables(request: &CellRequest) -> Result<u32, RecalcRunError> {
     u32::try_from(request.columns.len())
-        .map_err(|_| RecalcRunError::Request("recalc.invalid_graph"))
+        .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidGraph))
 }
 
 fn identify_cells(
@@ -501,7 +502,7 @@ fn identify_cells(
     let n = cell_n_variables(request)?;
     let spec = &request.spec;
     if spec.treatments.len() > antecedent_estimate::MAX_JOINT_BINARY {
-        return Err(RecalcRunError::Request("recalc.invalid_adjustment_set"));
+        return Err(RecalcRunError::Request(RecalcRequestCode::InvalidAdjustmentSet));
     }
     let graph = dag_of(n, &spec.edges)?;
     screen_adjustment(&graph, n, &spec.treatments, Some(spec.outcome), &spec.adjustment)?;
@@ -707,7 +708,7 @@ impl ScoreResumeSession {
                 || matches!(stage, Stage::Graph | Stage::TargetPopulation | Stage::Utility)
                 || !changed.insert(*stage)
             {
-                return Err(RecalcRunError::Request("recalc.invalid_changed_input"));
+                return Err(RecalcRunError::Request(RecalcRequestCode::InvalidChangedInput));
             }
             ids.set(*stage, *own);
         }
@@ -781,12 +782,12 @@ impl ScoreResumeSession {
         if let Some(ids) = &request.target_row_ids {
             let stored: Vec<u64> = self.table.row_index.iter().map(|id| id.get()).collect();
             if ids.as_slice() != stored.as_slice() {
-                return Err(RecalcRunError::Request("recalc.row_ids_mismatch"));
+                return Err(RecalcRunError::Request(RecalcRequestCode::RowIdsMismatch));
             }
         }
         if let Some(target) = &request.target {
             if target.weights.len() != self.table.n_rows {
-                return Err(RecalcRunError::Request("recalc.row_count_mismatch"));
+                return Err(RecalcRunError::Request(RecalcRequestCode::RowCountMismatch));
             }
         }
         Ok(())

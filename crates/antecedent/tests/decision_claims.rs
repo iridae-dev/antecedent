@@ -49,7 +49,14 @@ use antecedent_identify::{
 #[path = "fixtures_common/mod.rs"]
 mod common;
 
-use antecedent_test_support::near_lt_1e9 as near;
+use antecedent_test_support::within;
+
+const NEAR_TOLERANCE: f64 = 1e-9;
+
+fn near(a: f64, b: f64) -> bool {
+    within(a, b, NEAR_TOLERANCE)
+}
+
 use common::fixtures::confounded_scm;
 
 const Z: u32 = 0;

@@ -10,6 +10,7 @@
 //! The result is labelled `structural_envelope`: the structural verdict of each member of the
 //! class, never a point, an interval or a probability over members.
 
+use crate::NumericColumn;
 use std::sync::Arc;
 
 use antecedent::analysis::discovered_transport::{
@@ -30,7 +31,6 @@ use antecedent_core::{
     ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TransportQuery, VariableId,
 };
 use antecedent_discovery::selective::{DiscoveryOutcome, SelectiveDiscoveryError};
-use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
@@ -222,7 +222,7 @@ fn discovered_transport_run(
     py: Python<'_>,
     contract_json: &str,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     query_json: &str,
     selection_targets: Vec<u32>,
     member_bound: Option<usize>,
@@ -236,7 +236,7 @@ fn discovered_transport_run(
     let query = query_of(query_json)?;
     let ids: Vec<VariableId> = selection_targets.into_iter().map(VariableId::from_raw).collect();
     let bound = member_bound.unwrap_or(DEFAULT_ENVELOPE_MEMBER_BOUND);
-    let batch = crate::columns_to_batch(&names, &columns)?;
+    let batch = crate::numeric_columns_to_batch(&names, &columns)?;
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
     let ran: Result<DiscoveredTransportRun, SelectiveDiscoveryError> =
@@ -337,8 +337,8 @@ fn discovered_transport_estimate_run(
     py: Python<'_>,
     contract_json: &str,
     names: Vec<String>,
-    source_columns: Vec<PyReadonlyArray1<'_, f64>>,
-    target_columns: Vec<PyReadonlyArray1<'_, f64>>,
+    source_columns: Vec<NumericColumn<'_>>,
+    target_columns: Vec<NumericColumn<'_>>,
     query_json: &str,
     selection_targets: Vec<u32>,
     member_bound: Option<usize>,
@@ -360,8 +360,8 @@ fn discovered_transport_estimate_run(
     let query = query_of(query_json)?;
     let ids: Vec<VariableId> = selection_targets.into_iter().map(VariableId::from_raw).collect();
     let bound = member_bound.unwrap_or(DEFAULT_ENVELOPE_MEMBER_BOUND);
-    let source_batch = crate::columns_to_batch(&names, &source_columns)?;
-    let target_batch = crate::columns_to_batch(&names, &target_columns)?;
+    let source_batch = crate::numeric_columns_to_batch(&names, &source_columns)?;
+    let target_batch = crate::numeric_columns_to_batch(&names, &target_columns)?;
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
     let ran: Ran = crate::detach_catch(py, move || {
@@ -567,8 +567,8 @@ fn discovered_temporal_transport_estimate_run(
     py: Python<'_>,
     contract_json: &str,
     names: Vec<String>,
-    source_columns: Vec<PyReadonlyArray1<'_, f64>>,
-    target_columns: Vec<PyReadonlyArray1<'_, f64>>,
+    source_columns: Vec<NumericColumn<'_>>,
+    target_columns: Vec<NumericColumn<'_>>,
     query_json: &str,
     selection_targets: Vec<u32>,
     horizon_steps: u32,
@@ -595,8 +595,8 @@ fn discovered_temporal_transport_estimate_run(
     let query = query_of(query_json)?;
     let ids: Vec<VariableId> = selection_targets.into_iter().map(VariableId::from_raw).collect();
     let bound = member_bound.unwrap_or(DEFAULT_ENVELOPE_MEMBER_BOUND);
-    let source_batch = crate::columns_to_batch(&names, &source_columns)?;
-    let target_batch = crate::columns_to_batch(&names, &target_columns)?;
+    let source_batch = crate::numeric_columns_to_batch(&names, &source_columns)?;
+    let target_batch = crate::numeric_columns_to_batch(&names, &target_columns)?;
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
     let ran: Ran = crate::detach_catch(py, move || {

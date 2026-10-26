@@ -101,6 +101,10 @@ impl RandomizedSelectionResult {
 fn invalid(e: impl std::fmt::Display) -> ProgramSearchError {
     ProgramSearchError::Invalid(e.to_string())
 }
+/// Artifact encode/decode failure, keeping the typed codec error as the source.
+fn codec(e: antecedent_io::IoError) -> ProgramSearchError {
+    ProgramSearchError::upstream("selection artifact codec", e)
+}
 impl PreparedRandomizedSelection {
     /// Bind actual distinct observational units, known randomization and common
     /// sampling/utility premises. Held-out units are never passed to selection.
@@ -145,7 +149,7 @@ impl PreparedRandomizedSelection {
         randomized_joint_means(&design, &training).map_err(invalid)?;
         randomized_joint_means(&design, &validation).map_err(invalid)?;
         let recipe = Recipe { design, training, validation, policy };
-        let bytes = antecedent_io::convert::to_cbor(&recipe).map_err(invalid)?;
+        let bytes = antecedent_io::convert::to_cbor(&recipe).map_err(codec)?;
         let identity = SemanticDigest::from_bytes(CanonicalWriter::digest_bytes(
             "antecedent.joint_panel.randomized_selection.v1",
             &bytes,
@@ -162,15 +166,17 @@ impl PreparedRandomizedSelection {
         tie_tolerance: f64,
         ctx: &ExecutionContext,
     ) -> Result<RandomizedSelectionResult, ProgramSearchError> {
-        let blocks = |units: &[JointRandomizedUnit]| {
+        fn blocks(
+            units: &[JointRandomizedUnit],
+        ) -> Vec<SelectionDataBlock<'_, JointRandomizedUnit>> {
             units
                 .iter()
                 .map(|u| SelectionDataBlock {
                     span: ObservationalSpan { unit: u.id.clone(), first: 0, last: 0 },
-                    observations: u.clone(),
+                    observations: std::borrow::Cow::Borrowed(u),
                 })
-                .collect::<Vec<_>>()
-        };
+                .collect()
+        }
         let training = blocks(&self.recipe.training);
         let validation = blocks(&self.recipe.validation);
         let procedure = execute_heldout_selection(
@@ -412,7 +418,7 @@ impl RandomizedSelectionResult {
             tie_tolerance: self.tie_tolerance,
             report: self.report(),
         })
-        .map_err(invalid)
+        .map_err(codec)
     }
 }
 #[derive(Serialize, Deserialize)]
@@ -439,7 +445,7 @@ pub fn replay_randomized_selection(
     let _input = ctx
         .acquire_admission(0, (bytes.len() as u64).saturating_mul(16))
         .map_err(|e| ProgramSearchError::Resource(e.to_string()))?;
-    let d: Document = antecedent_io::convert::from_cbor(bytes).map_err(invalid)?;
+    let d: Document = antecedent_io::convert::from_cbor(bytes).map_err(codec)?;
     if d.version != 1 {
         return Err(invalid("unsupported selection artifact version"));
     }

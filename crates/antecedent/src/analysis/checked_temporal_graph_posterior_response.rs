@@ -18,6 +18,7 @@ use crate::strategy_table::{EstimatorId, IdentifierId};
 use crate::{ClassPrior, InferenceMode};
 
 use super::builder::{DataInput, RefuteSuite};
+use super::checked_route_frozen::{CheckedRouteFrozen, PlanBindingScope};
 use super::checked_temporal_graph_posterior_effect::CheckedTemporalGraphPosteriorProof;
 use super::checked_temporal_response::temporal_response_is_direct;
 use super::execute::Study;
@@ -41,14 +42,8 @@ pub(crate) struct CheckedTemporalGraphPosteriorResponse {
     posterior: Arc<GraphPosterior>,
     query: ResponseQuery,
     proof: TemporalPosteriorResponseProof,
-    physical: std::sync::Arc<PhysicalExecutionPlan>,
-    inference: InferenceMode,
-    identifier: IdentifierId,
-    estimator: EstimatorId,
-    validation: RefuteSuite,
-    bootstrap_replicates: u32,
-    max_completions: Option<usize>,
     class_prior: Option<ClassPrior>,
+    frozen: CheckedRouteFrozen,
 }
 
 /// The frozen premises of [`CheckedTemporalGraphPosteriorResponse::prepare`], carried together.
@@ -157,13 +152,20 @@ impl CheckedTemporalGraphPosteriorResponse {
             });
         }
         let estimator = EstimatorId::temporal_response_for(&inference);
-        if physical.logical.query != CausalQuery::Response(query.clone())
-            || !physical.binding().estimator.is(estimator)
-        {
-            return Err(CausalError::Compile {
-                message: "temporal graph-posterior response plan disagrees with its retained query or estimator".into(),
-            });
-        }
+        let frozen = CheckedRouteFrozen::new(
+            identifier,
+            estimator,
+            inference,
+            bootstrap_replicates,
+            validation,
+            physical,
+            max_completions,
+        );
+        frozen.validate_plan_binding(
+            &CausalQuery::Response(query.clone()),
+            PlanBindingScope::Estimator,
+            "temporal graph-posterior response plan disagrees with its retained query or estimator",
+        )?;
         validate_posterior_cache(
             &posterior,
             &proof,
@@ -174,15 +176,14 @@ impl CheckedTemporalGraphPosteriorResponse {
             posterior: Arc::new(posterior),
             query,
             proof,
-            physical,
-            inference,
-            identifier,
-            estimator,
-            validation,
-            bootstrap_replicates,
-            max_completions,
             class_prior,
+            frozen,
         })
+    }
+
+    /// The frozen procedure settings sealed with the proof.
+    pub(crate) fn frozen(&self) -> &CheckedRouteFrozen {
+        &self.frozen
     }
 
     pub(crate) fn posterior(&self) -> &GraphPosterior {
@@ -195,25 +196,19 @@ impl CheckedTemporalGraphPosteriorResponse {
         &self.proof
     }
     pub(crate) fn physical(&self) -> &PhysicalExecutionPlan {
-        &self.physical
+        self.frozen.physical()
     }
     pub(crate) const fn inference(&self) -> &InferenceMode {
-        &self.inference
+        self.frozen.inference()
     }
     pub(crate) const fn identifier(&self) -> IdentifierId {
-        self.identifier
+        self.frozen.identifier()
     }
     pub(crate) const fn estimator(&self) -> EstimatorId {
-        self.estimator
+        self.frozen.estimator()
     }
     pub(crate) const fn validation(&self) -> RefuteSuite {
-        self.validation
-    }
-    pub(crate) const fn bootstrap_replicates(&self) -> u32 {
-        self.bootstrap_replicates
-    }
-    pub(crate) const fn max_completions(&self) -> Option<usize> {
-        self.max_completions
+        self.frozen.validation()
     }
     pub(crate) fn class_prior(&self) -> Option<&ClassPrior> {
         self.class_prior.as_ref()

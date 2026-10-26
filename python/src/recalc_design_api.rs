@@ -1,5 +1,6 @@
 //! Checked public adapter for IV, sharp RD and linear front-door recalculation.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+use crate::NumericColumn;
 use std::collections::BTreeMap;
 
 use antecedent::analysis::recalc_design::{
@@ -15,7 +16,6 @@ use antecedent_io::recalc_receipt_artifact::{
     CapabilitiesWire, DeclaredStageWire, RecalcReceiptArtifact, ResumeWire, identities_from_wire,
     identities_to_wire, plan_to_wire,
 };
-use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use serde::Deserialize;
 
@@ -48,7 +48,7 @@ struct RequestWire {
 }
 fn request(
     names: Vec<String>,
-    columns: &[PyReadonlyArray1<'_, f64>],
+    columns: &[NumericColumn<'_>],
     text: &str,
     ctx: &ExecutionContext,
 ) -> PyResult<DesignRequest> {
@@ -83,7 +83,7 @@ fn request(
         .map(|(a, b)| Ok((position(a)?, position(b)?)))
         .collect::<PyResult<Vec<_>>>()?;
     Ok(DesignRequest {
-        columns: names.into_iter().zip(columns.iter().map(|c| c.as_array().to_vec())).collect(),
+        columns: crate::named_f64_columns(names, columns)?.into(),
         edges,
         treatment,
         outcome,
@@ -133,7 +133,8 @@ fn design_error(error: &DesignRunError) -> String {
             None,
         ),
         DesignRunError::Recalc(RecalcRunError::Request(detail)) => {
-            let (code, stage) = match *detail {
+            let detail = detail.as_str();
+            let (code, stage) = match detail {
                 "recalc.cancelled" => {
                     (antecedent_core::reason_code!("cancelled_no_claim"), "score_artifact")
                 }
@@ -298,7 +299,7 @@ impl PyDesignSession {
     fn plan(
         &self,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         specification: &str,
         seed: u64,
         threads: Option<u32>,
@@ -315,7 +316,7 @@ impl PyDesignSession {
         &mut self,
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         specification: &str,
         seed: u64,
         threads: Option<u32>,
@@ -345,7 +346,7 @@ impl PyDesignSession {
         py: Python<'_>,
         artifact: &[u8],
         names: Option<Vec<String>>,
-        columns: Option<Vec<PyReadonlyArray1<'_, f64>>>,
+        columns: Option<Vec<NumericColumn<'_>>>,
         specification: Option<&str>,
         seed: u64,
         threads: Option<u32>,

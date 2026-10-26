@@ -68,7 +68,7 @@ fn request(n: usize, seed: u64, logistic: bool) -> AdjustedRequest {
         y.push(if logistic { rng.binary(p) as f64 } else { 1. + 2. * a + 0.3 * b + rng.normal() });
     }
     AdjustedRequest {
-        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z)],
+        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z)].into(),
         edges: vec![(2, 0), (2, 1), (0, 1)],
         treatments: vec![0],
         outcome: 1,

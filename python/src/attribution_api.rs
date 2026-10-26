@@ -6,12 +6,13 @@
     clippy::empty_line_after_doc_comments
 )]
 
+use crate::NumericColumn;
 use crate::compiled_route_api::{ModelSource, RouteRecord, outcome_mismatch};
 use crate::*;
 use antecedent::{AttributionOutcome, MechanismProgram, SimulationOutcome};
 use antecedent_core::{AnomalyAttributionQuery, AttributeTarget, ChangeEstimator, ChangeMeasure};
 use antecedent_core::{CausalQuery, MechanismChangeTest, SimulationTarget};
-use numpy::PyReadonlyArray1;
+use antecedent::gcm::NoiseInferenceKind;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
@@ -26,6 +27,60 @@ fn model_source(
         accepted: None,
         program: MechanismProgram::standard(),
     })
+}
+
+/// The table, graph and run settings every fitted-model entry point takes.
+///
+/// The NumPy columns are ingested once here and their borrows released before the GIL is, so
+/// the entry point holds one value instead of repeating the `names/columns/edges/seed/threads`
+/// plumbing: variable lookup, the compiled-route source and the execution context all come
+/// from it.
+struct GcmInput {
+    data: antecedent_data::TabularData,
+    edges: Vec<(String, String)>,
+    seed: u64,
+    threads: Option<u32>,
+}
+
+impl GcmInput {
+    /// Ingest `columns` (consumed, so their NumPy borrows end here) under `names`.
+    fn load(
+        names: &[String],
+        columns: Vec<NumericColumn<'_>>,
+        edges: Vec<(String, String)>,
+        seed: u64,
+        threads: Option<u32>,
+    ) -> PyResult<Self> {
+        let loaded = tabular_from_numpy_receipt(names, &columns)?;
+        drop(columns);
+        Ok(Self { data: loaded.data, edges, seed, threads })
+    }
+
+    /// The variable named `name` in the table.
+    fn id(&self, name: &str) -> PyResult<VariableId> {
+        self.data.schema().id_of(name).map_err(py_err)
+    }
+
+    /// The execution context of this run.
+    fn context(&self) -> ExecutionContext {
+        py_execution_context(self.seed, crate::resolve_user_threads(self.threads))
+    }
+
+    /// The compiled-route source over the table and graph, with the run's context.
+    fn into_source(self) -> PyResult<(ModelSource, ExecutionContext)> {
+        let ctx = self.context();
+        Ok((model_source(self.data, &self.edges)?, ctx))
+    }
+}
+
+/// The `[n_nodes, n_rows]` draw matrix of a flat column-major draw buffer.
+pub(crate) fn reshape_draws(
+    py: Python<'_>,
+    flat: Vec<f64>,
+    n_nodes: usize,
+    n_rows: usize,
+) -> PyResult<Py<numpy::PyArray2<f64>>> {
+    Ok(PyArray1::from_vec(py, flat).reshape([n_nodes, n_rows])?.unbind())
 }
 
 /// The change attribution of a compiled route, with the route attached.
@@ -82,7 +137,7 @@ fn sample_route(
 fn counterfactual_ite(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     edges: Vec<(String, String)>,
     treatment: String,
     outcome: String,
@@ -91,16 +146,12 @@ fn counterfactual_ite(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<GcmIteResult> {
-    let batch = tabular_from_numpy_receipt(&names, &columns)?;
-    drop(columns);
+    let input = GcmInput::load(&names, columns, edges, seed, threads)?;
     let (mean_ite, n_units, noise_inference, n_assignments, unit_vec, route) =
         detach_catch(py, move || {
-            let loaded = batch;
-            let data = loaded.data;
-            let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
-            let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-            let source = model_source(data, &edges)?;
-            let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+            let t_id = input.id(&treatment)?;
+            let y_id = input.id(&outcome)?;
+            let (source, ctx) = input.into_source()?;
             let target =
                 SimulationTarget::UnitEffects { treatment: t_id, outcome: y_id, active, control };
             let (outcome, route) = source.simulate(target, &ctx)?;
@@ -112,7 +163,7 @@ fn counterfactual_ite(
             Ok::<_, PyErr>((
                 ite.mean_ite,
                 ite.unit_effects.len(),
-                format!("{:?}", ite.noise_inference),
+                noise_inference_label(ite.noise_inference),
                 n_assignments,
                 ite.unit_effects.as_ref().to_vec(),
                 route,
@@ -138,7 +189,7 @@ fn counterfactual_ite(
 fn sample_do_py(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     edges: Vec<(String, String)>,
     treatment: String,
     do_value: f64,
@@ -148,25 +199,23 @@ fn sample_do_py(
     mechanism_wrappers: Option<Bound<'_, PyDict>>,
     shift: bool,
 ) -> PyResult<GcmSampleResult> {
-    let batch = tabular_from_numpy_receipt(&names, &columns)?;
-    drop(columns);
     let wrappers = mechanism_wrappers.map(Bound::unbind);
     let threads = if wrappers.is_some() { Some(1) } else { threads };
+    let input = GcmInput::load(&names, columns, edges, seed, threads)?;
     let ((means, n_rows, n_nodes, flat), route) = detach_catch(py, move || {
-        let loaded = batch;
-        let data = loaded.data;
-        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let t_id = input.id(&treatment)?;
+        let ctx = input.context();
         let iv = if shift {
             Intervention::shift(t_id, Value::f64(do_value))
         } else {
             Intervention::set(t_id, Value::f64(do_value))
         };
         let Some(w) = wrappers else {
-            let source = model_source(data, &edges)?;
+            let (source, _) = input.into_source()?;
             let (parts, route) = sample_route(&source, iv, n_draws, seed, &ctx)?;
             return Ok::<_, PyErr>((parts, Some(route)));
         };
+        let GcmInput { data, edges, .. } = input;
         // Python mechanism wrappers replace fitted mechanisms with caller code. The wrapped
         // model runs through the compiled simulation route as a prefit the program names:
         // its label lists the wrapped variables, so the contract states that caller code, not
@@ -192,7 +241,7 @@ fn sample_do_py(
         let (parts, route) = sample_route(&source, iv, n_draws, seed, &ctx)?;
         Ok((parts, Some(route)))
     })?;
-    let draws = PyArray1::from_vec(py, flat).reshape([n_nodes, n_rows])?.unbind();
+    let draws = reshape_draws(py, flat, n_nodes, n_rows)?;
     Ok(GcmSampleResult { column_means: means, n_draws: n_rows, n_nodes, draws, route })
 }
 
@@ -201,12 +250,23 @@ fn sample_do_py(
 /// Same return shape as [`gcm_sample_do`]; builds the typed query then samples.
 /// `do_value` is a hard set (`do(treatment := do_value)`) unless `shift=True`, in
 /// which case it is an additive delta (`do(treatment := treatment + do_value)`).
+/// Stable label of how the noise of an individual treatment effect was obtained. An explicit
+/// mapping, so renaming the Rust variant never changes the string Python callers see.
+fn noise_inference_label(kind: NoiseInferenceKind) -> String {
+    match kind {
+        NoiseInferenceKind::Invertible => "Invertible",
+        NoiseInferenceKind::PosteriorNoise => "PosteriorNoise",
+        NoiseInferenceKind::AssumedNoise => "AssumedNoise",
+    }
+    .to_owned()
+}
+
 #[pyfunction]
 #[pyo3(signature = (names, columns, edges, treatment, do_value, n_draws, outcome=None, *, seed=0, threads=None, shift=false))]
 fn sample_interventional_distribution(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     edges: Vec<(String, String)>,
     treatment: String,
     do_value: f64,
@@ -216,30 +276,25 @@ fn sample_interventional_distribution(
     threads: Option<u32>,
     shift: bool,
 ) -> PyResult<GcmSampleResult> {
-    let batch = tabular_from_numpy_receipt(&names, &columns)?;
-    drop(columns);
+    let input = GcmInput::load(&names, columns, edges, seed, threads)?;
     let ((means, n_rows, n_nodes, flat), route) = detach_catch(py, move || {
-        let loaded = batch;
-        let data = loaded.data;
-        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+        let t_id = input.id(&treatment)?;
         let y_name = match &outcome {
             Some(o) => o.as_str(),
             None => names.last().map_or("y", String::as_str),
         };
-        let y_id = data.schema().id_of(y_name).map_err(py_err)?;
+        // The interventional distribution of the outcome is read off the interventional sample
+        // of its interventions; the outcome only has to name a column of the table.
+        input.id(y_name)?;
         let iv = if shift {
             Intervention::shift(t_id, Value::f64(do_value))
         } else {
             Intervention::set(t_id, Value::f64(do_value))
         };
-        // The interventional distribution of `y_id` is read off the interventional sample of
-        // its interventions; the outcome only has to name a column.
-        let _ = y_id;
-        let source = model_source(data, &edges)?;
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let (source, ctx) = input.into_source()?;
         sample_route(&source, iv, n_draws, seed, &ctx)
     })?;
-    let draws = PyArray1::from_vec(py, flat).reshape([n_nodes, n_rows])?.unbind();
+    let draws = reshape_draws(py, flat, n_nodes, n_rows)?;
     let route = Some(route);
     Ok(GcmSampleResult { column_means: means, n_draws: n_rows, n_nodes, draws, route })
 }
@@ -250,7 +305,7 @@ fn sample_interventional_distribution(
 fn attribute_path_specific(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     edges: Vec<(String, String)>,
     treatment: String,
     outcome: String,
@@ -260,21 +315,17 @@ fn attribute_path_specific(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
-    let batch = tabular_from_numpy_receipt(&names, &columns)?;
-    drop(columns);
+    let input = GcmInput::load(&names, columns, edges, seed, threads)?;
     detach_catch(py, move || {
-        let loaded = batch;
-        let data = loaded.data;
-        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
-        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+        let t_id = input.id(&treatment)?;
+        let y_id = input.id(&outcome)?;
         let mut intermediates = Vec::new();
         if let Some(nodes) = &path_nodes {
             for n in nodes {
-                intermediates.push(data.schema().id_of(n).map_err(py_err)?);
+                intermediates.push(input.id(n)?);
             }
         }
-        let source = model_source(data, &edges)?;
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let (source, ctx) = input.into_source()?;
         let target = AttributeTarget::Paths {
             sources: Arc::from([t_id]),
             outcome: y_id,
@@ -305,7 +356,7 @@ fn quantity_wire_name(q: &PosteriorQuantityWire) -> String {
 fn attribute_distribution_change(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     edges: Vec<(String, String)>,
     outcome: String,
     baseline_start: usize,
@@ -316,13 +367,10 @@ fn attribute_distribution_change(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
-    let batch = tabular_from_numpy_receipt(&names, &columns)?;
-    drop(columns);
+    let input = GcmInput::load(&names, columns, edges, seed, threads)?;
     detach_catch(py, move || {
-        let loaded = batch;
-        let data = loaded.data;
-        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let source = model_source(data, &edges)?;
+        let y_id = input.id(&outcome)?;
+        let (source, ctx) = input.into_source()?;
         let query = ChangeAttributionQuery::new(
             y_id,
             PopulationSelector::TimeRange { start: baseline_start, end: baseline_end },
@@ -332,7 +380,6 @@ fn attribute_distribution_change(
         .with_allocation(AllocationMethod::Shapley {
             approximation: ShapleyConfig::monte_carlo(n_samples).with_seed(seed),
         });
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let target = AttributeTarget::DistributionChange {
             change: query,
             estimator: ChangeEstimator::Sampled {
@@ -352,7 +399,7 @@ fn attribute_distribution_change(
 fn attribute_structure_change(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     baseline_edges: Vec<(String, String)>,
     comparison_edges: Vec<(String, String)>,
     outcome: String,
@@ -364,19 +411,16 @@ fn attribute_structure_change(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
-    let batch = tabular_from_numpy_receipt(&names, &columns)?;
-    drop(columns);
+    let input = GcmInput::load(&names, columns, baseline_edges, seed, threads)?;
     detach_catch(py, move || {
-        let loaded = batch;
-        let data = loaded.data;
-        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let g1 = dag_from_named_edges(data.schema(), &comparison_edges)?;
+        let y_id = input.id(&outcome)?;
+        let g1 = dag_from_named_edges(input.data.schema(), &comparison_edges)?;
         let comparison: Arc<[(VariableId, VariableId)]> = g1
             .directed_edge_pairs_sorted()
             .into_iter()
             .map(|(from, to)| (VariableId::from_raw(from), VariableId::from_raw(to)))
             .collect();
-        let source = model_source(data, &baseline_edges)?;
+        let (source, ctx) = input.into_source()?;
         let query = ChangeAttributionQuery::new(
             y_id,
             PopulationSelector::TimeRange { start: baseline_start, end: baseline_end },
@@ -386,7 +430,6 @@ fn attribute_structure_change(
         .with_allocation(AllocationMethod::Shapley {
             approximation: ShapleyConfig::monte_carlo(n_samples).with_seed(seed),
         });
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let target = AttributeTarget::StructureChange {
             change: query,
             comparison,
@@ -476,7 +519,7 @@ fn change_query(
 fn attribution_uncertainty(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     edges: Vec<(String, String)>,
     kind: String,
     params_json: String,
@@ -493,12 +536,9 @@ fn attribution_uncertainty(
     }
     let params: serde_json::Value = serde_json::from_str(&params_json)
         .map_err(|error| crate::value_err(format!("attribution parameters: {error}")))?;
-    let batch = tabular_from_numpy_receipt(&names, &columns)?;
-    drop(columns);
+    let input = GcmInput::load(&names, columns, edges, seed, threads)?;
     detach_catch(py, move || {
-        let loaded = batch;
-        let data = loaded.data;
-        let schema = data.schema().clone();
+        let schema = input.data.schema().clone();
         let ids = |list: &[String]| -> PyResult<Vec<VariableId>> {
             list.iter().map(|name| schema.id_of(name).map_err(py_err)).collect()
         };
@@ -579,7 +619,7 @@ fn attribution_uncertainty(
             "anomaly" => {
                 let targets = ids(&json_names(&params, "outcomes"))?;
                 let max_units = match json_usize(&params, "max_units", 0) {
-                    0 => data.row_count(),
+                    0 => input.data.row_count(),
                     given => given,
                 };
                 AttributeTarget::Anomaly(AnomalyAttributionQuery::new(targets, max_units))
@@ -587,7 +627,7 @@ fn attribution_uncertainty(
             "unit_change" => {
                 let outcome = schema.id_of(&json_str(&params, "outcome")?).map_err(py_err)?;
                 let max_units = match json_usize(&params, "max_units", 0) {
-                    0 => data.row_count(),
+                    0 => input.data.row_count(),
                     given => given,
                 };
                 AttributeTarget::UnitChange(UnitChangeQuery::new(outcome, max_units))
@@ -600,8 +640,7 @@ fn attribution_uncertainty(
                 )));
             }
         };
-        let source = model_source(data, &edges)?;
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let (source, ctx) = input.into_source()?;
         let inference = if posterior_draws > 0 {
             antecedent::InferenceMode::Bayesian(
                 antecedent::BayesianConfig::conjugate().n_draws(posterior_draws),
@@ -709,7 +748,7 @@ fn mechanism_test(name: &str) -> PyResult<MechanismChangeTest> {
 fn temporal_model_query(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     lagged_edges: Vec<(String, u32, String, u32)>,
     kind: String,
     params_json: String,
@@ -1059,23 +1098,17 @@ fn encode_posterior_artifact(artifact: &PosteriorArtifact) -> PyResult<Vec<u8>> 
 fn anomaly_attribution(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     edges: Vec<(String, String)>,
     outcomes: Vec<String>,
     max_units: usize,
 ) -> PyResult<Vec<gcm_api::AnomalyScores>> {
-    let batch = tabular_from_numpy_receipt(&names, &columns)?;
-    drop(columns);
+    let input = GcmInput::load(&names, columns, edges, 0, None)?;
     detach_catch(py, move || {
-        let loaded = batch;
-        let data = loaded.data;
-        let outcome_ids: Vec<VariableId> = outcomes
-            .iter()
-            .map(|n| data.schema().id_of(n).map_err(py_err))
-            .collect::<PyResult<_>>()?;
-        let max_u = if max_units == 0 { data.row_count() } else { max_units };
-        let source = model_source(data, &edges)?;
-        let ctx = py_execution_context(0, crate::resolve_user_threads(None));
+        let outcome_ids: Vec<VariableId> =
+            outcomes.iter().map(|n| input.id(n)).collect::<PyResult<_>>()?;
+        let max_u = if max_units == 0 { input.data.row_count() } else { max_units };
+        let (source, ctx) = input.into_source()?;
         let target = AttributeTarget::Anomaly(AnomalyAttributionQuery::new(outcome_ids, max_u));
         let (outcome, _route) = source.attribute(target, &ctx)?;
         let AttributionOutcome::Anomaly(scores) = outcome else {
@@ -1091,22 +1124,18 @@ fn anomaly_attribution(
 fn attribute_unit_change(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     edges: Vec<(String, String)>,
     outcome: String,
     max_units: usize,
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
-    let batch = tabular_from_numpy_receipt(&names, &columns)?;
-    drop(columns);
+    let input = GcmInput::load(&names, columns, edges, seed, threads)?;
     detach_catch(py, move || {
-        let loaded = batch;
-        let data = loaded.data;
-        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let max_u = if max_units == 0 { data.row_count() } else { max_units };
-        let source = model_source(data, &edges)?;
+        let y_id = input.id(&outcome)?;
+        let max_u = if max_units == 0 { input.data.row_count() } else { max_units };
+        let (source, ctx) = input.into_source()?;
         let target = AttributeTarget::UnitChange(UnitChangeQuery::new(y_id, max_u));
         let (outcome, route) = source.attribute(target, &ctx)?;
         let AttributionOutcome::UnitChange(result) = outcome else {
@@ -1129,7 +1158,7 @@ fn attribute_unit_change(
 fn attribute_feature_relevance(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     edges: Vec<(String, String)>,
     outcome: String,
     delta: f64,
@@ -1137,21 +1166,17 @@ fn attribute_feature_relevance(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<Vec<gcm_api::FeatureRelevance>> {
-    let batch = tabular_from_numpy_receipt(&names, &columns)?;
-    drop(columns);
+    let input = GcmInput::load(&names, columns, edges, seed, threads)?;
     detach_catch(py, move || {
-        let loaded = batch;
-        let data = loaded.data;
-        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let y_id = input.id(&outcome)?;
         let mut features = Vec::new();
-        for i in 0..data.schema().len() {
+        for i in 0..input.data.schema().len() {
             let id = VariableId::from_raw(crate::fit_u32(i)?);
             if id != y_id {
                 features.push(id);
             }
         }
-        let source = model_source(data, &edges)?;
+        let (source, ctx) = input.into_source()?;
         let max_features = features.len();
         let target = AttributeTarget::FeatureRelevance {
             outcome: y_id,
@@ -1183,7 +1208,7 @@ fn attribute_feature_relevance(
 fn attribute_distribution_change_robust(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     edges: Vec<(String, String)>,
     outcome: String,
     baseline_start: usize,
@@ -1194,13 +1219,10 @@ fn attribute_distribution_change_robust(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
-    let batch = tabular_from_numpy_receipt(&names, &columns)?;
-    drop(columns);
+    let input = GcmInput::load(&names, columns, edges, seed, threads)?;
     detach_catch(py, move || {
-        let loaded = batch;
-        let data = loaded.data;
-        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let source = model_source(data, &edges)?;
+        let y_id = input.id(&outcome)?;
+        let (source, ctx) = input.into_source()?;
         let query = ChangeAttributionQuery {
             outcome: y_id,
             baseline: PopulationSelector::TimeRange { start: baseline_start, end: baseline_end },
@@ -1218,7 +1240,6 @@ fn attribute_distribution_change_robust(
         // fields to thread through (unlike `DistributionChangeOptions`), so the fix
         // above (Shapley `ShapleyConfig`) is the only place these two params can flow.
         let opts = antecedent::gcm::RobustChangeOptions::default();
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let target = AttributeTarget::DistributionChange {
             change: query,
             estimator: ChangeEstimator::Robust {
@@ -1238,7 +1259,7 @@ fn attribute_distribution_change_robust(
 fn mechanism_change_detection(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     edges: Vec<(String, String)>,
     baseline_start: usize,
     baseline_end: usize,
@@ -1247,14 +1268,11 @@ fn mechanism_change_detection(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<Vec<gcm_api::MechanismChangeDetection>> {
-    let batch = tabular_from_numpy_receipt(&names, &columns)?;
-    drop(columns);
+    let input = GcmInput::load(&names, columns, edges, seed, threads)?;
     detach_catch(py, move || {
-        let loaded = batch;
-        let data = loaded.data;
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let mut targets = Vec::with_capacity(data.schema().len());
-        for i in 0..data.schema().len() {
+        let n_variables = input.data.schema().len();
+        let mut targets = Vec::with_capacity(n_variables);
+        for i in 0..n_variables {
             targets.push(VariableId::from_raw(crate::fit_u32(i)?));
         }
         let query = MechanismChangeQuery::new(
@@ -1262,9 +1280,9 @@ fn mechanism_change_detection(
             PopulationSelector::TimeRange { start: baseline_start, end: baseline_end },
             PopulationSelector::TimeRange { start: comparison_start, end: comparison_end },
             0.05,
-            data.schema().len(),
+            n_variables,
         );
-        let source = model_source(data, &edges)?;
+        let (source, ctx) = input.into_source()?;
         let target =
             AttributeTarget::MechanismChange { query, test: MechanismChangeTest::MeanDifference };
         let (outcome, _route) = source.attribute(target, &ctx)?;

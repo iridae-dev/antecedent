@@ -6,8 +6,8 @@ use super::recalc_common::{
     Fields, dag_from_edges, float_bytes, identity, literal, table_from_columns,
 };
 use super::recalc_receipt::{
-    Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRunError, ReceiptRecorder,
-    TargetWeights, UtilitySpec, decide,
+    Columns, Counter, DecisionValue, LawValue, NonFinite, RecalcOutcome, RecalcRequestCode,
+    RecalcRunError, ReceiptRecorder, TargetWeights, UtilitySpec, decide,
 };
 use crate::estimator_spec::EstimatorSpec;
 use crate::graph::Dag;
@@ -26,7 +26,6 @@ use antecedent_estimate::{
 use antecedent_io::frozen_scores_artifact::FrozenScoreTable;
 use antecedent_learn::LearnerSpec;
 use antecedent_learn::fit_counts::count_resolved_fits;
-use std::collections::BTreeSet;
 use std::sync::Arc;
 
 /// Existing estimator configuration. PLR and trimmed score reuse are explicitly unlicensed.
@@ -88,7 +87,7 @@ impl DrEstimator {
 #[derive(Clone, Debug)]
 pub struct DrRequest {
     /// Stable variable ids are positions in this schema.
-    pub columns: Vec<(String, Vec<f64>)>,
+    pub columns: Columns,
     /// Directed edges in stable id space.
     pub edges: Vec<(u32, u32)>,
     /// Binary treatment role.
@@ -129,10 +128,7 @@ impl DrRequest {
         ids.set(Stage::DataSnapshot, identity("dr.snapshot", &parts));
         ids.set(
             Stage::RowDesign,
-            literal(
-                "dr.rows",
-                &format!("complete_case.raw={}", self.columns.first().map_or(0, |(_, v)| v.len())),
-            ),
+            literal("dr.rows", &format!("complete_case.raw={}", self.columns.n_rows())),
         );
         ids.set(Stage::TreatmentGrid, literal("dr.grid", "binary.0_1"));
         ids.set(
@@ -156,11 +152,11 @@ impl DrRequest {
         ids
     }
     fn graph(&self) -> Result<Dag, RecalcRunError> {
-        dag_from_edges(self.columns.len(), &self.edges, "recalc.invalid_graph")
+        dag_from_edges(self.columns.len(), &self.edges, RecalcRequestCode::InvalidGraph)
     }
     fn data(&self) -> Result<TabularData, RecalcRunError> {
         table_from_columns(&self.columns)
-            .map_err(|_| RecalcRunError::Request("recalc.invalid_data"))
+            .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidData))
     }
     fn study(&self, data: TabularData) -> Result<Study, RecalcRunError> {
         Ok(Study::tabular(data)
@@ -175,35 +171,23 @@ impl DrRequest {
     }
     fn validate(&self) -> Result<(), RecalcRunError> {
         self.utility.validate()?;
-        let rows = self.columns.first().map_or(0, |(_, v)| v.len());
-        let names: BTreeSet<_> = self.columns.iter().map(|(name, _)| name).collect();
-        if rows == 0
-            || names.len() != self.columns.len()
-            || self.columns.iter().any(|(name, v)| {
-                name.is_empty() || v.len() != rows || v.iter().any(|x| x.is_infinite())
-            })
-        {
-            return Err(RecalcRunError::Request("recalc.invalid_data"));
+        if !self.columns.is_well_formed(NonFinite::MissingAsNan) {
+            return Err(RecalcRunError::Request(RecalcRequestCode::InvalidData));
         }
         if self.treatment == self.outcome
-            || self.treatment as usize >= self.columns.len()
-            || self.outcome as usize >= self.columns.len()
+            || !self.columns.are_distinct_roles(&[self.treatment, self.outcome])
         {
-            return Err(RecalcRunError::Request("recalc.invalid_query"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::InvalidQuery));
         }
         if let Some(target) = &self.target {
-            let mass = target.weights.iter().sum::<f64>();
-            if target.weights.is_empty()
-                || target.weights.iter().any(|x| !x.is_finite() || *x < 0.)
-                || !mass.is_finite()
-                || mass <= 0.
+            if !target.are_valid(None)
                 || target.depends_on.iter().any(|id| {
                     id.raw() == self.treatment
                         || id.raw() == self.outcome
-                        || id.raw() as usize >= self.columns.len()
+                        || self.columns.column(id.raw()).is_none()
                 })
             {
-                return Err(RecalcRunError::Request("recalc.invalid_target_weights"));
+                return Err(RecalcRunError::Request(RecalcRequestCode::InvalidTargetWeights));
             }
         }
         Ok(())
@@ -332,16 +316,16 @@ impl DrSession {
         let live = self.live.as_ref().ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?;
         let model = self
             .fitted_effect()
-            .ok_or(RecalcRunError::Request("recalc.dr_predictor_unavailable"))?;
+            .ok_or(RecalcRunError::Request(RecalcRequestCode::DrPredictorUnavailable))?;
         if features.iter().map(|id| id.raw()).collect::<Vec<_>>() != model.features
             || columns.len() != features.len()
             || columns.iter().any(|col| col.len() != nrows || col.iter().any(|x| !x.is_finite()))
         {
-            return Err(RecalcRunError::Request("recalc.dr_prediction_schema_mismatch"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::DrPredictionSchemaMismatch));
         }
         for (col, (_, lo, hi)) in columns.iter().zip(&live.bounds) {
             if col.iter().any(|x| x < lo || x > hi) {
-                return Err(RecalcRunError::Request("recalc.dr_prediction_out_of_support"));
+                return Err(RecalcRunError::Request(RecalcRequestCode::DrPredictionOutOfSupport));
             }
         }
         model.predict(features, columns, nrows, ctx).map_err(|e| {
@@ -369,7 +353,7 @@ impl DrSession {
     ) -> Result<Vec<u8>, RecalcRunError> {
         let live = self.live.as_ref().ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?;
         if self.fitted_effect().is_none() {
-            return Err(RecalcRunError::Request("recalc.dr_predictor_unavailable"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::DrPredictorUnavailable));
         }
         Ok(live.prepared.encode_contracted_result(
             &live.result,
@@ -421,7 +405,7 @@ fn dr_stage(
                             };
                             if prepared.score_table().is_none() {
                                 return Err(RecalcRunError::Request(
-                                    "recalc.dr_scores_unavailable",
+                                    RecalcRequestCode::DrScoresUnavailable,
                                 ));
                             }
                             let bounds = feature_bounds(request, &prepared, &result)?;
@@ -435,7 +419,7 @@ fn dr_stage(
             Counter::FoldFit,
             all_fits
                 .checked_sub(final_fits)
-                .ok_or(RecalcRunError::Request("recalc.dr_fit_counter_mismatch"))?,
+                .ok_or(RecalcRunError::Request(RecalcRequestCode::DrFitCounterMismatch))?,
         );
         recorder.record(Counter::ModelFit, final_fits);
         recorder.record(Counter::ScoreComputation, score_builds);
@@ -463,19 +447,23 @@ fn feature_bounds(
     {
         let table = prepared
             .score_table()
-            .ok_or(RecalcRunError::Request("recalc.dr_scores_unavailable"))?;
+            .ok_or(RecalcRunError::Request(RecalcRequestCode::DrScoresUnavailable))?;
         // Convert the row ids once, then take both bounds of each feature in a single pass.
         let rows: Vec<usize> = table
             .row_index
             .iter()
             .map(|row| usize::try_from(row.get()))
             .collect::<Result<_, _>>()
-            .map_err(|_| RecalcRunError::Request("recalc.dr_scores_unavailable"))?;
+            .map_err(|_| RecalcRunError::Request(RecalcRequestCode::DrScoresUnavailable))?;
         for &id in &model.features {
-            let values = &request.columns[id as usize].1;
-            let (lo, hi) = rows.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &row| {
-                (lo.min(values[row]), hi.max(values[row]))
-            });
+            let values = request
+                .columns
+                .values(id)
+                .ok_or(RecalcRunError::Request(RecalcRequestCode::InvalidData))?;
+            let (lo, hi) =
+                rows.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &row| {
+                    (lo.min(values[row]), hi.max(values[row]))
+                });
             bounds.push((VariableId::from_raw(id), lo, hi));
         }
     }
@@ -498,7 +486,7 @@ pub fn execute_dr_with_receipt(
         return Err(RecalcRunError::Refused(Box::new(plan)));
     }
     if ctx.cancellation.is_cancelled() {
-        return Err(RecalcRunError::Request("recalc.cancelled"));
+        return Err(RecalcRunError::Request(RecalcRequestCode::Cancelled));
     }
     if let (Some(target), Some(table)) = (&request.target, session.score_table()) {
         if !recomputed(&plan, Stage::Identification)
@@ -506,18 +494,18 @@ pub fn execute_dr_with_receipt(
             && (target.weights.len() != table.n_rows
                 || target.depends_on.iter().any(|id| !table.adjustment_set.contains(id)))
         {
-            return Err(RecalcRunError::Request("recalc.invalid_target_weights"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::InvalidTargetWeights));
         }
     }
     if recomputed(&plan, Stage::ScoreArtifact) {
-        let n = request.columns.first().map_or(0, |(_, v)| v.len()) as u64;
+        let n = request.columns.n_rows() as u64;
         let p = request.columns.len() as u64;
         let bytes = n
             .saturating_mul(p.saturating_add(32))
             .saturating_mul(128)
             .saturating_add(p.saturating_mul(p).saturating_mul(128));
         if ctx.memory_limit_bytes().into_iter().any(|limit| bytes > limit) {
-            return Err(RecalcRunError::Request("recalc.memory_budget_exceeded"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::MemoryBudgetExceeded));
         }
     }
     let mut recorder = ReceiptRecorder::new();
@@ -527,7 +515,7 @@ pub fn execute_dr_with_receipt(
     let law = if recomputed(&plan, Stage::Law) {
         let table = prepared
             .score_table()
-            .ok_or(RecalcRunError::Request("recalc.dr_scores_unavailable"))?;
+            .ok_or(RecalcRunError::Request(RecalcRequestCode::DrScoresUnavailable))?;
         let ones;
         let (weights, parents) = if let Some(target) = &request.target {
             (target.weights.as_slice(), target.depends_on.as_slice())
@@ -539,7 +527,7 @@ pub fn execute_dr_with_receipt(
         let effect = retarget
             .estimate
             .as_effect()
-            .ok_or(RecalcRunError::Request("recalc.dr_effect_unavailable"))?;
+            .ok_or(RecalcRunError::Request(RecalcRequestCode::DrEffectUnavailable))?;
         recorder.record(Counter::Reweight, 1);
         LawValue { ate: effect.ate, std_error: effect.se_analytic() }
     } else {
@@ -554,6 +542,6 @@ pub fn execute_dr_with_receipt(
     session.live = Some(Live { prepared, result, fit_context, law, decision, bounds });
     session.previous = requested;
     session.boundary = Boundary::InProcess;
-    session.input_rows = request.columns.first().map_or(0, |(_, v)| v.len()) as u64;
+    session.input_rows = request.columns.n_rows() as u64;
     Ok(RecalcOutcome { plan, receipt, law, decision })
 }

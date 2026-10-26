@@ -62,12 +62,9 @@ fn replicate(groups: usize, seed: u64) -> Option<((f64, f64), u64)> {
     for (from, to) in [(Z0, T), (Z1, T), (Z0, Y), (Z1, Y), (T, Y)] {
         graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).ok()?;
     }
-    let estimator = AipwAte {
-        bootstrap_replicates: 0,
-        cluster_ids: Some(cluster),
-        cluster_dml: Some(ClusterDml::new(20).ok()?),
-        ..AipwAte::new()
-    };
+    let estimator = AipwAte { cluster_dml: Some(ClusterDml::new(20).ok()?), ..AipwAte::new() }
+        .with_bootstrap_replicates(0)
+        .with_cluster_ids(cluster);
     let result = Study::tabular(data)
         .graph(graph)
         .query(AverageEffectQuery::binary_ate(VariableId::from_raw(T), VariableId::from_raw(Y)))

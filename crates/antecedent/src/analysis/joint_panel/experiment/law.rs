@@ -352,7 +352,21 @@ struct LawExperimentWire {
     intercepts: Vec<u64>,
     slopes: Vec<u64>,
 }
-const MAX_LAW_EXPERIMENT_BYTES: usize = 32 * 1024 * 1024;
+/// Largest native experiment artifact under [`LawExperimentLimits::default`].
+pub const MAX_LAW_EXPERIMENT_BYTES: usize = 32 * 1024 * 1024;
+
+/// Byte bound of a native experiment artifact, checked before decoding and after encoding.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LawExperimentLimits {
+    /// Largest artifact body; the embedded original design is bounded by the same value.
+    pub max_bytes: usize,
+}
+
+impl Default for LawExperimentLimits {
+    fn default() -> Self {
+        Self { max_bytes: MAX_LAW_EXPERIMENT_BYTES }
+    }
+}
 
 impl JointLawExperimentResult {
     /// Retain the complete prior law, paired translation, likelihood and historical origins.
@@ -362,6 +376,18 @@ impl JointLawExperimentResult {
         &self,
         ledger: &EvidenceLedger,
         ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, JointPanelError> {
+        self.export_with_limits(ledger, ctx, LawExperimentLimits::default())
+    }
+
+    /// [`Self::export`] under a caller-declared byte limit.
+    /// # Errors
+    /// As [`Self::export`], with `limits.max_bytes` as the size bound.
+    pub fn export_with_limits(
+        &self,
+        ledger: &EvidenceLedger,
+        ctx: &ExecutionContext,
+        limits: LawExperimentLimits,
     ) -> Result<Vec<u8>, JointPanelError> {
         let _current = self.law_source(ledger)?;
         source::check_cancelled(ctx)?;
@@ -415,9 +441,9 @@ impl JointLawExperimentResult {
             slopes: self.update.mapping.slopes.iter().map(|v| v.to_bits()).collect(),
         };
         let bytes = serde_json::to_vec(&wire).map_err(JointPanelError::compile)?;
-        if bytes.len() > MAX_LAW_EXPERIMENT_BYTES {
+        if bytes.len() > limits.max_bytes {
             return Err(JointPanelError::compile(
-                "native experiment artifact exceeds bounded wire",
+                "native experiment artifact exceeds the declared byte limit",
             ));
         }
         source::check_cancelled(ctx)?;
@@ -431,7 +457,18 @@ impl JointLawExperimentResult {
         bytes: &[u8],
         ctx: &ExecutionContext,
     ) -> Result<HistoricalJointLawExperiment, JointPanelError> {
-        let (wire, retention) = decode_wire(bytes, ctx)?;
+        Self::replay_with_limits(bytes, ctx, LawExperimentLimits::default())
+    }
+
+    /// [`Self::replay`] under a caller-declared byte limit.
+    /// # Errors
+    /// As [`Self::replay`], with `limits.max_bytes` as the size bound.
+    pub fn replay_with_limits(
+        bytes: &[u8],
+        ctx: &ExecutionContext,
+        limits: LawExperimentLimits,
+    ) -> Result<HistoricalJointLawExperiment, JointPanelError> {
+        let (wire, retention) = decode_wire(bytes, ctx, limits)?;
         let history = antecedent_io::evidence_ledger_artifact::EvidenceLedgerArtifact::from_meta(
             &wire.ledger,
             None,
@@ -442,7 +479,11 @@ impl JointLawExperimentResult {
         let source_dependency = SemanticDigest::from_bytes(wire.source_dependency);
         validate_model_dependency(source_dependency, &update, history.ledger())?;
         let native_design_replayed = if let Some(bytes) = &wire.native_design {
-            let native = super::super::designs::replay_joint_design_execution(bytes, ctx)?;
+            let native = super::super::designs::replay_joint_design_execution(
+                bytes,
+                ctx,
+                super::super::designs::DesignArtifactLimits { max_bytes: limits.max_bytes },
+            )?;
             let original = native.posterior_source()?;
             let ScientificSourcePayload::Law(law) = original.as_numerical_source() else {
                 return Err(JointPanelError::compile(
@@ -539,8 +580,21 @@ impl JointLawExperimentResult {
         ledger: &EvidenceLedger,
         ctx: &ExecutionContext,
     ) -> Result<PanelExperimentDecisionSource, JointPanelError> {
+        self.consume_current_with_limits(bytes, ledger, ctx, LawExperimentLimits::default())
+    }
+
+    /// [`Self::consume_current`] under a caller-declared byte limit.
+    /// # Errors
+    /// As [`Self::consume_current`], with `limits.max_bytes` as the size bound.
+    pub fn consume_current_with_limits(
+        &self,
+        bytes: &[u8],
+        ledger: &EvidenceLedger,
+        ctx: &ExecutionContext,
+        limits: LawExperimentLimits,
+    ) -> Result<PanelExperimentDecisionSource, JointPanelError> {
         let current = self.law_source(ledger)?;
-        let (wire, _lease) = decode_wire(bytes, ctx)?;
+        let (wire, _lease) = decode_wire(bytes, ctx, limits)?;
         let ScientificSourcePayload::Law(prior) = self.original.as_numerical_source() else {
             return Err(JointPanelError::compile("missing original native law"));
         };
@@ -570,10 +624,13 @@ impl JointLawExperimentResult {
 fn decode_wire(
     bytes: &[u8],
     ctx: &ExecutionContext,
+    limits: LawExperimentLimits,
 ) -> Result<(LawExperimentWire, Arc<antecedent_core::execution::AdmissionLease>), JointPanelError> {
     source::check_cancelled(ctx)?;
-    if bytes.is_empty() || bytes.len() > MAX_LAW_EXPERIMENT_BYTES {
-        return Err(JointPanelError::compile("native experiment artifact exceeds bounded wire"));
+    if bytes.is_empty() || bytes.len() > limits.max_bytes {
+        return Err(JointPanelError::compile(
+            "native experiment artifact is empty or exceeds the declared byte limit",
+        ));
     }
     let quote = bytes
         .len()

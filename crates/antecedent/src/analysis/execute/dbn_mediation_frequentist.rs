@@ -112,7 +112,7 @@ impl super::Study {
         }
         let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
         let (identified, identify_cached) =
-            if let Some(cache) = self.dbn_posterior_identification_cache.as_ref() {
+            if let Some(cache) = self.dbn_posterior_cache() {
                 (Arc::clone(cache), true)
             } else if let Some(cache) =
                 crate::analysis::lowering::plan_retained_dbn_posterior(self, physical)

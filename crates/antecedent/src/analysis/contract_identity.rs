@@ -60,33 +60,35 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
         EstimatorSpec::Default(id) => EstimatorSpecWire::Default(id.as_str().into()),
         EstimatorSpec::LinearAdjustmentAte(cfg) => {
             EstimatorSpecWire::LinearAdjustmentAte(EstimatorConfigWire {
-                bootstrap_interval: interval_key(cfg.bootstrap_interval),
-                se_kind: Some(se_kind(cfg.se_kind)),
+                bootstrap_interval: interval_key(cfg.inference.bootstrap_interval),
+                se_kind: Some(se_kind(cfg.inference.se_kind)),
                 fit_kind: Some(fit_kind(cfg.fit_kind)),
                 cluster_ids: declared_clusters(
-                    cfg.cluster_ids.as_deref(),
-                    cfg.source_cluster_ids.as_deref(),
+                    cfg.inference.cluster_ids.as_deref(),
+                    cfg.inference.source_cluster_ids.as_deref(),
                 ),
+                multiway_ids: cfg.inference.multiway_ids.as_deref().map(multiway_ids),
+                panel_times: cfg.inference.panel_times.as_deref().map(panel_times),
                 ..grouped!(
                     cfg,
-                    base(cfg.bootstrap_replicates, cfg.overlap);
-                    multiway_ids, panel_times, population_registry, sampling_weights
+                    base(cfg.inference.bootstrap_replicates, cfg.overlap);
+                    population_registry, sampling_weights
                 )
             })
         }
         EstimatorSpec::PropensityWeighting(cfg) => {
             EstimatorSpecWire::PropensityWeighting(EstimatorConfigWire {
-                bootstrap_interval: interval_key(cfg.bootstrap_interval),
+                bootstrap_interval: interval_key(cfg.inference.bootstrap_interval),
                 outcome: cfg.covariate_balance.then(|| "covariate_balanced_linear_hc3".into()),
                 glm: Some(glm_options(&cfg.glm_options)),
                 other_levels: other_levels_key(cfg.other_levels),
                 cluster_ids: declared_clusters(
-                    cfg.cluster_ids.as_deref(),
-                    cfg.source_cluster_ids.as_deref(),
+                    cfg.inference.cluster_ids.as_deref(),
+                    cfg.inference.source_cluster_ids.as_deref(),
                 ),
                 ..grouped!(
                     cfg,
-                    base(cfg.bootstrap_replicates, cfg.overlap);
+                    base(cfg.inference.bootstrap_replicates, cfg.overlap);
                     population_registry, sampling_weights
                 )
             })
@@ -115,18 +117,18 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
         }
         EstimatorSpec::PropensityStratification(cfg) => {
             EstimatorSpecWire::PropensityStratification(EstimatorConfigWire {
-                bootstrap_interval: interval_key(cfg.bootstrap_interval),
+                bootstrap_interval: interval_key(cfg.inference.bootstrap_interval),
                 glm: Some(glm_options(&cfg.glm_options)),
                 other_levels: other_levels_key(cfg.other_levels),
                 n_strata: Some(cfg.n_strata),
                 outcome: cfg.regression_adjustment.then(|| "stratum_intercepts_linear_hc3".into()),
                 cluster_ids: declared_clusters(
-                    cfg.cluster_ids.as_deref(),
-                    cfg.source_cluster_ids.as_deref(),
+                    cfg.inference.cluster_ids.as_deref(),
+                    cfg.inference.source_cluster_ids.as_deref(),
                 ),
                 ..grouped!(
                     cfg,
-                    base(cfg.bootstrap_replicates, cfg.overlap);
+                    base(cfg.inference.bootstrap_replicates, cfg.overlap);
                     population_registry, sampling_weights
                 )
             })
@@ -146,7 +148,7 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
             })
         }
         EstimatorSpec::Aipw(cfg) => EstimatorSpecWire::Aipw(EstimatorConfigWire {
-            bootstrap_interval: interval_key(cfg.bootstrap_interval),
+            bootstrap_interval: interval_key(cfg.inference.bootstrap_interval),
             glm: Some(glm_options(&cfg.glm_options)),
             other_levels: other_levels_key(cfg.other_levels),
             // The declared propensity nuisance (penalty grid, inner folds, fallback) changes
@@ -163,31 +165,35 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
                     cfg.source_cluster_ids_second.as_deref(),
                 )
             }),
-            se_kind: Some(se_kind(cfg.se_kind)),
+            se_kind: Some(se_kind(cfg.inference.se_kind)),
             cluster_ids: declared_clusters(
-                cfg.cluster_ids.as_deref(),
-                cfg.source_cluster_ids.as_deref(),
+                cfg.inference.cluster_ids.as_deref(),
+                cfg.inference.source_cluster_ids.as_deref(),
             ),
+            multiway_ids: cfg.inference.multiway_ids.as_deref().map(multiway_ids),
+            panel_times: cfg.inference.panel_times.as_deref().map(panel_times),
             ..grouped!(
                 cfg,
-                base(cfg.bootstrap_replicates, cfg.overlap);
-                multiway_ids, panel_times, population_registry, sampling_weights
+                base(cfg.inference.bootstrap_replicates, cfg.overlap);
+                population_registry, sampling_weights
             )
         }),
         EstimatorSpec::GlmAdjustment(cfg) => {
             EstimatorSpecWire::GlmAdjustment(EstimatorConfigWire {
-                bootstrap_interval: interval_key(cfg.bootstrap_interval),
+                bootstrap_interval: interval_key(cfg.inference.bootstrap_interval),
                 glm: Some(glm_options(&cfg.glm_options)),
-                se_kind: Some(se_kind(cfg.se_kind)),
+                se_kind: Some(se_kind(cfg.inference.se_kind)),
                 family: Some(glm_family(cfg.family).into()),
                 cluster_ids: declared_clusters(
-                    cfg.cluster_ids.as_deref(),
-                    cfg.source_cluster_ids.as_deref(),
+                    cfg.inference.cluster_ids.as_deref(),
+                    cfg.inference.source_cluster_ids.as_deref(),
                 ),
+                multiway_ids: cfg.inference.multiway_ids.as_deref().map(multiway_ids),
+                panel_times: cfg.inference.panel_times.as_deref().map(panel_times),
                 ..grouped!(
                     cfg,
-                    base(cfg.bootstrap_replicates, cfg.overlap);
-                    multiway_ids, panel_times, population_registry, sampling_weights
+                    base(cfg.inference.bootstrap_replicates, cfg.overlap);
+                    population_registry, sampling_weights
                 )
             })
         }

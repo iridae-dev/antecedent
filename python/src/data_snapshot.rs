@@ -127,7 +127,7 @@ impl TableSnapshot {
         let numeric = if arrow {
             None
         } else {
-            Some(columns.iter().map(crate::NumericColumn::extract).collect::<PyResult<Vec<_>>>()?)
+            Some(columns.iter().map(crate::NumericColumn::from_object).collect::<PyResult<Vec<_>>>()?)
         };
         let shared = numeric
             .as_ref()

@@ -121,21 +121,22 @@ fn invalid(detail: &'static str, message: impl Into<String>) -> ConstancyConsume
     }
 }
 
+/// Deepest utility expression the consumer walks: the decision engine evaluates expressions
+/// recursively, so this is a stack-safety bound on nesting, not a bound on policy size. The
+/// number of actions, inputs and expression nodes is bounded by the caller's own contract.
+const MAX_UTILITY_NESTING: usize = 64;
+
 fn bounded_policy(contract: &DecisionContract) -> Result<(), ConstancyConsumerError> {
-    let refuse =
-        || invalid("effect_constancy_consumer.limits_exceeded", "bounded affine policy required");
-    if contract.actions.len() > 64 || !contract.constraints.is_empty() {
+    let refuse = || {
+        invalid("effect_constancy_consumer.limits_exceeded", "bounded affine policy required")
+    };
+    if !contract.constraints.is_empty() {
         return Err(refuse());
     }
-    let mut nodes = 0usize;
     for action in &contract.actions {
-        if action.inputs.len() > 16 {
-            return Err(refuse());
-        }
         let mut pending = vec![(&action.utility, 0usize)];
         while let Some((expr, depth)) = pending.pop() {
-            nodes += 1;
-            if nodes > 2048 || depth > 64 {
+            if depth > MAX_UTILITY_NESTING {
                 return Err(refuse());
             }
             match expr {
@@ -240,7 +241,7 @@ impl ConstancyConsumers {
     /// artifact, overlap and causal compatibility checks.
     ///
     /// # Errors
-    /// Unbounded catalog, duplicate/missing source bindings or unsupported partitions.
+    /// Duplicate/missing source bindings or unsupported partitions.
     pub fn rank_prior_sources(
         &self,
         catalog: &PriorCatalog,
@@ -248,13 +249,18 @@ impl ConstancyConsumers {
         target_partition: &str,
         bindings: &[PriorPartitionBinding],
     ) -> Result<ConstancyPriorRanking, ConstancyConsumerError> {
-        if catalog.sources.len() > 1024 || bindings.len() != catalog.sources.len() {
+        if bindings.len() != catalog.sources.len() {
             return Err(invalid(
                 "effect_constancy_consumer.catalog_binding_invalid",
-                "one explicit partition binding per bounded catalog entry is required",
+                "one explicit partition binding per catalog entry is required",
             ));
         }
         let target_effect = self.partition(target_partition)?.effect;
+        // Index the bindings once so matching is linear in the catalog size.
+        let mut by_artifact = std::collections::BTreeMap::<&str, Vec<&PriorPartitionBinding>>::new();
+        for binding in bindings {
+            by_artifact.entry(binding.artifact_id.as_str()).or_default().push(binding);
+        }
         let mut seen = BTreeSet::new();
         let mut scores = Vec::with_capacity(bindings.len());
         for source in &catalog.sources {
@@ -264,19 +270,19 @@ impl ConstancyConsumers {
                     "duplicate catalog identity",
                 ));
             }
-            let mut matching = bindings.iter().filter(|b| b.artifact_id == source.meta.artifact_id);
-            let binding = matching.next().ok_or_else(|| {
-                invalid(
-                    "effect_constancy_consumer.catalog_binding_invalid",
-                    "missing source partition",
-                )
-            })?;
-            if matching.next().is_some() {
+            let matching = by_artifact
+                .get(source.meta.artifact_id.as_str())
+                .map_or(&[][..], Vec::as_slice);
+            let [binding] = matching else {
                 return Err(invalid(
                     "effect_constancy_consumer.catalog_binding_invalid",
-                    "duplicate source binding",
+                    if matching.is_empty() {
+                        "missing source partition"
+                    } else {
+                        "duplicate source binding"
+                    },
                 ));
-            }
+            };
             let score = -(self.partition(&binding.partition)?.effect - target_effect).abs();
             if !score.is_finite() {
                 return Err(invalid(

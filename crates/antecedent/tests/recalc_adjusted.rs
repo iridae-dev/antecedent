@@ -70,7 +70,7 @@ fn linear() -> AdjustedRequest {
         }
     }
     AdjustedRequest {
-        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z)],
+        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z)].into(),
         edges: vec![(2, 0), (2, 1), (0, 1)],
         treatments: vec![0],
         outcome: 1,
@@ -99,7 +99,7 @@ fn glm() -> AdjustedRequest {
         }
     }
     AdjustedRequest {
-        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z)],
+        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z)].into(),
         edges: vec![(2, 0), (2, 1), (0, 1)],
         treatments: vec![0],
         outcome: 1,
@@ -175,7 +175,8 @@ fn vector() -> AdjustedRequest {
         }
     }
     AdjustedRequest {
-        columns: vec![("t1".into(), t1), ("t2".into(), t2), ("y".into(), y), ("z".into(), z)],
+        columns: vec![("t1".into(), t1), ("t2".into(), t2), ("y".into(), y), ("z".into(), z)]
+            .into(),
         edges: vec![(3, 0), (3, 1), (3, 2), (0, 2), (1, 2)],
         treatments: vec![0, 1],
         outcome: 2,
@@ -201,7 +202,7 @@ fn categorical() -> AdjustedRequest {
         }
     }
     AdjustedRequest {
-        columns: vec![("t".into(), codes), ("y".into(), y)],
+        columns: vec![("t".into(), codes), ("y".into(), y)].into(),
         edges: vec![(0, 1)],
         treatments: vec![0],
         outcome: 1,

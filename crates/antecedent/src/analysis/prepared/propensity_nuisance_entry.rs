@@ -67,7 +67,7 @@ impl PreparedStudy {
                 message: "a treatment score product needs a prepared AverageEffect study",
             });
         };
-        let Some(cache) = self.analysis.identification_cache.as_deref() else {
+        let Some(cache) = self.analysis.static_cache().map(|cache| &**cache) else {
             return Err(CausalError::Unsupported {
                 message: "a treatment score product needs the retained adjustment set of a \
                           static average effect",

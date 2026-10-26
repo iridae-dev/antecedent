@@ -1112,3 +1112,20 @@ mod envelope_validation_diagnostic_tests {
         assert!(!cheap[0].message.contains("prior-sensitivity"));
     }
 }
+
+mod identify_cached_diagnostic_tests {
+    //! The cached-identification diagnostics share one code and differ only in wording.
+    use super::*;
+
+    #[test]
+    fn both_wordings_share_the_cached_code() {
+        let prepared = identify_cached_diagnostic();
+        let checked = identify_cached_checked_operation_diagnostic();
+        assert_eq!(prepared.code.as_ref(), IDENTIFY_CACHED_CODE);
+        assert_eq!(checked.code.as_ref(), IDENTIFY_CACHED_CODE);
+        assert_eq!(prepared.severity, DiagnosticSeverity::Info);
+        assert_eq!(checked.severity, DiagnosticSeverity::Info);
+        assert!(prepared.message.contains("prepare-time cache"));
+        assert!(checked.message.contains("checked prepared operation"));
+    }
+}

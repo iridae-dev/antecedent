@@ -43,7 +43,7 @@ fn gaussian_adapter_posterior_summary_precision() {
                 )));
                 prior.push(PriorSpec::KnownResidualVariance(1.));
                 let mut request = BayesianRequest {
-                    columns: vec![("t".into(), t), ("y".into(), y)],
+                    columns: vec![("t".into(), t), ("y".into(), y)].into(),
                     edges: vec![(0, 1)],
                     treatment: VariableId::from_raw(0),
                     outcome: VariableId::from_raw(1),

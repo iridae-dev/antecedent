@@ -57,6 +57,45 @@ fn check_len(what: &str, got: usize, expected: usize) -> Result<(), ModelError> 
     }
 }
 
+/// The parent columns as a list of float64 arrays, one per parent.
+fn parent_list<'py>(
+    py: Python<'py>,
+    parents: ParentBatch<'_>,
+) -> Result<Bound<'py, PyList>, ModelError> {
+    let list = PyList::empty(py);
+    for p in 0..parents.n_parents {
+        let col = parents.column(p).map_err(|e| ModelError::Shape { message: e.to_string() })?;
+        list.append(PyArray1::from_slice(py, col)).map_err(|e| ModelError::Unsupported {
+            message: format!("failed to build parent columns: {e}"),
+        })?;
+    }
+    Ok(list)
+}
+
+/// The typed error of a user method `name` that raised.
+fn method_failure(name: &str, err: PyErr) -> ModelError {
+    ModelError::Unsupported { message: callback_failure(&format!("Python {name} failed"), err) }
+}
+
+/// Copy the float64 ndarray `out` returned by the user's `name` into `output[..n]`, requiring
+/// a contiguous array of exactly `n` values.
+fn copy_column_result(
+    out: &Bound<'_, PyAny>,
+    name: &str,
+    n: usize,
+    output: &mut [f64],
+) -> Result<(), ModelError> {
+    let arr: PyReadonlyArray1<'_, f64> = out.extract().map_err(|e| ModelError::Shape {
+        message: format!("{name} must return float64 ndarray: {e}"),
+    })?;
+    let slice = arr
+        .as_slice()
+        .map_err(|_| ModelError::Shape { message: format!("{name} ndarray must be contiguous") })?;
+    check_len(name, slice.len(), n)?;
+    output[..n].copy_from_slice(slice);
+    Ok(())
+}
+
 /// Whether the user's `sample_noise` takes an `rng` keyword (a NumPy `Generator` seeded from the
 /// run's stream). Without it the draws come from the user's own source and `seed=` does not
 /// govern them.
@@ -105,7 +144,8 @@ impl ConditionalIndependenceTest for PyConditionalIndependence {
             }
             let queries = PyList::empty(py);
             for q in bound.queries {
-                let z: Vec<usize> = bound.z_flat[q.z_start..q.z_start + q.z_len].to_vec();
+                // The conditioning set converts straight from the request's flat buffer.
+                let z: &[usize] = &bound.z_flat[q.z_start..q.z_start + q.z_len];
                 queries.append((q.x, q.y, z)).map_err(|e| StatsError::Backend(e.to_string()))?;
             }
             let out = self.callback.bind(py).call1((cols, queries)).map_err(|e| {
@@ -216,15 +256,7 @@ impl DynamicMechanism for PyDynamicMechanism {
             .map_err(|e| ModelError::Unsupported {
                 message: callback_failure("Python sample_noise failed", e),
             })?;
-            let arr: PyReadonlyArray1<'_, f64> = out.extract().map_err(|e| ModelError::Shape {
-                message: format!("sample_noise must return float64 ndarray: {e}"),
-            })?;
-            let slice = arr.as_slice().map_err(|_| ModelError::Shape {
-                message: "sample_noise ndarray must be contiguous".into(),
-            })?;
-            check_len("sample_noise", slice.len(), n_rows)?;
-            output[..n_rows].copy_from_slice(slice);
-            Ok(())
+            copy_column_result(&out, "sample_noise", n_rows, output)
         })
     }
 
@@ -237,32 +269,14 @@ impl DynamicMechanism for PyDynamicMechanism {
     ) -> Result<(), ModelError> {
         let n = parents.n_rows;
         Python::attach(|py| -> Result<(), ModelError> {
-            let parent_cols = PyList::empty(py);
-            for p in 0..parents.n_parents {
-                let col =
-                    parents.column(p).map_err(|e| ModelError::Shape { message: e.to_string() })?;
-                parent_cols.append(PyArray1::from_slice(py, col)).map_err(|e| {
-                    ModelError::Unsupported {
-                        message: format!("failed to build parent columns: {e}"),
-                    }
-                })?;
-            }
+            let parent_cols = parent_list(py, parents)?;
             let noise_arr = PyArray1::from_slice(py, &noise[..n]);
-            let out =
-                self.obj.bind(py).call_method1("evaluate", (parent_cols, noise_arr)).map_err(
-                    |e| ModelError::Unsupported {
-                        message: callback_failure("Python evaluate failed", e),
-                    },
-                )?;
-            let arr: PyReadonlyArray1<'_, f64> = out.extract().map_err(|e| ModelError::Shape {
-                message: format!("evaluate must return float64 ndarray: {e}"),
-            })?;
-            let slice = arr.as_slice().map_err(|_| ModelError::Shape {
-                message: "evaluate ndarray must be contiguous".into(),
-            })?;
-            check_len("evaluate", slice.len(), n)?;
-            output[..n].copy_from_slice(slice);
-            Ok(())
+            let out = self
+                .obj
+                .bind(py)
+                .call_method1("evaluate", (parent_cols, noise_arr))
+                .map_err(|e| method_failure("evaluate", e))?;
+            copy_column_result(&out, "evaluate", n, output)
         })
     }
 
@@ -297,34 +311,12 @@ impl DynamicMechanism for PyDynamicMechanism {
                 }
             }
             Some((|| {
-                let parent_cols = PyList::empty(py);
-                for p in 0..parents.n_parents {
-                    let col = parents
-                        .column(p)
-                        .map_err(|e| ModelError::Shape { message: e.to_string() })?;
-                    parent_cols.append(PyArray1::from_slice(py, col)).map_err(|e| {
-                        ModelError::Unsupported {
-                            message: format!("failed to build parent columns: {e}"),
-                        }
-                    })?;
-                }
+                let parent_cols = parent_list(py, parents)?;
                 let value_arr = PyArray1::from_slice(py, &value[..n]);
-                let out =
-                    bound.call_method1("infer_noise", (value_arr, parent_cols)).map_err(|e| {
-                        ModelError::Unsupported {
-                            message: callback_failure("Python infer_noise failed", e),
-                        }
-                    })?;
-                let arr: PyReadonlyArray1<'_, f64> =
-                    out.extract().map_err(|e| ModelError::Shape {
-                        message: format!("infer_noise must return float64 ndarray: {e}"),
-                    })?;
-                let slice = arr.as_slice().map_err(|_| ModelError::Shape {
-                    message: "infer_noise ndarray must be contiguous".into(),
-                })?;
-                check_len("infer_noise", slice.len(), n)?;
-                output[..n].copy_from_slice(slice);
-                Ok(())
+                let out = bound
+                    .call_method1("infer_noise", (value_arr, parent_cols))
+                    .map_err(|e| method_failure("infer_noise", e))?;
+                copy_column_result(&out, "infer_noise", n, output)
             })())
         });
         if let Some(r) = py_result {
@@ -332,11 +324,10 @@ impl DynamicMechanism for PyDynamicMechanism {
         } else {
             // Additive default: noise = y − f(pa, 0).
             let zeros = vec![0.0; n];
-            let mut mean = vec![0.0; n];
             let mut ws = MechanismWorkspace::default();
-            self.evaluate_column(parents, &zeros, &mut mean, &mut ws)?;
-            for i in 0..n {
-                output[i] = value[i] - mean[i];
+            self.evaluate_column(parents, &zeros, &mut output[..n], &mut ws)?;
+            for (slot, &observed) in output[..n].iter_mut().zip(value) {
+                *slot = observed - *slot;
             }
             Ok(())
         }
@@ -361,46 +352,22 @@ impl DynamicMechanism for PyDynamicMechanism {
                 }
             }
             Some((|| {
-                let parent_cols = PyList::empty(py);
-                for p in 0..parents.n_parents {
-                    let col = parents
-                        .column(p)
-                        .map_err(|e| ModelError::Shape { message: e.to_string() })?;
-                    parent_cols.append(PyArray1::from_slice(py, col)).map_err(|e| {
-                        ModelError::Unsupported {
-                            message: format!("failed to build parent columns: {e}"),
-                        }
-                    })?;
-                }
+                let parent_cols = parent_list(py, parents)?;
                 let value_arr = PyArray1::from_slice(py, &values[..n]);
-                let out =
-                    bound.call_method1("log_prob", (value_arr, parent_cols)).map_err(|e| {
-                        ModelError::Unsupported {
-                            message: callback_failure("Python log_prob failed", e),
-                        }
-                    })?;
-                let arr: PyReadonlyArray1<'_, f64> =
-                    out.extract().map_err(|e| ModelError::Shape {
-                        message: format!("log_prob must return float64 ndarray: {e}"),
-                    })?;
-                let slice = arr.as_slice().map_err(|_| ModelError::Shape {
-                    message: "log_prob ndarray must be contiguous".into(),
-                })?;
-                check_len("log_prob", slice.len(), n)?;
-                output[..n].copy_from_slice(slice);
-                Ok(())
+                let out = bound
+                    .call_method1("log_prob", (value_arr, parent_cols))
+                    .map_err(|e| method_failure("log_prob", e))?;
+                copy_column_result(&out, "log_prob", n, output)
             })())
         });
         if let Some(r) = py_result {
             r
         } else {
+            // Convention: the inferred additive noise is scored as a standard normal draw.
+            // A mechanism whose noise is not N(0, 1) should define `log_prob` itself.
             let mut resid = vec![0.0; n];
             self.infer_noise_column(values, parents, &mut resid)?;
-            let log_norm = -0.5 * (2.0 * std::f64::consts::PI).ln();
-            for i in 0..n {
-                output[i] = log_norm - 0.5 * resid[i] * resid[i];
-            }
-            Ok(())
+            antecedent_model::standard_normal_log_density(&resid, &mut output[..n])
         }
     }
 }

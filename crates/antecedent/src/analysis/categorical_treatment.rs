@@ -30,7 +30,8 @@ pub use antecedent_io::categorical_treatment_artifact::{
     CATEGORICAL_TREATMENT_CALIBRATION, CategoricalPosteriorDeclaration, CategoricalPosteriorWire,
     CategoricalResultWire, CategoricalSpecWire, CategoricalTreatmentArtifact,
     CategoricalTreatmentArtifactError, CategoricalTreatmentIdentity,
-    CategoricalTreatmentReportWire, CategoricalTreatmentRequest, LevelContrastWire, LevelCountWire,
+    CategoricalTreatmentReportWire, CategoricalTreatmentRequest, CovarianceKindWire,
+    LevelContrastWire, LevelCountWire, LevelScaleWire, MonotonicityDirectionWire,
     MonotonicityWire, PairContrastWire, PosteriorContrastWire, PosteriorMonotonicityWire,
 };
 

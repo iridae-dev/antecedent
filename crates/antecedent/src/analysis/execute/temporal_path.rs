@@ -1686,7 +1686,7 @@ impl super::Study {
                 estimator = estimator.with_white_innovation(gate);
             }
         }
-        estimator.inner.bootstrap_replicates =
+        estimator.inner.inference.bootstrap_replicates =
             if observation_adjusted.is_some() { 0 } else { self.bootstrap_replicates };
         // Retain the joint replicates of the surface: the bootstrap's under Frequentist
         // inference, the block-weight posterior's draws (which replace the per-horizon
@@ -2351,7 +2351,7 @@ impl super::Study {
                 // observation-adjusted series keeps the analytic fit: a
                 // naive resample would not refit the nuisance mechanism.
                 let mut estimator = TemporalResponseEstimator::new();
-                estimator.inner.bootstrap_replicates =
+                estimator.inner.inference.bootstrap_replicates =
                     if series_adjusted { 0 } else { self.bootstrap_replicates };
                 // An observation-adjusted series is built per completion
                 // from its own adjustment, so only the unadjusted series
@@ -3211,7 +3211,7 @@ impl super::Study {
     ) -> Result<ClassBayesianFits, CausalError> {
         let ClassBayesianInputs { data, query, cfg, ctx } = *inputs;
         let mut estimator = TemporalLinearAdjustment::new();
-        estimator.inner.bootstrap_replicates = 0;
+        estimator.inner.inference.bootstrap_replicates = 0;
         estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
         let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
         let mut fits = ClassBayesianFits {
@@ -3445,7 +3445,7 @@ impl super::Study {
 
     /// Whether the prepared class cache holds a certificate for every horizon.
     pub(crate) fn temporal_class_cache_covers(&self, horizons: &[u32]) -> bool {
-        self.temporal_class_identification_cache.as_deref().is_some_and(|cache| {
+        self.temporal_class_cache().map(|cache| &**cache).is_some_and(|cache| {
             horizons
                 .iter()
                 .all(|horizon| cache.by_horizon.iter().any(|(cached, _)| cached == horizon))
@@ -3459,7 +3459,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         horizon: u32,
     ) -> Option<Arc<crate::analysis::prepared::CachedTemporalClassIdentification>> {
-        if self.temporal_class_identification_cache.is_some() {
+        if self.temporal_class_cache().is_some() {
             return None;
         }
         let retained = crate::analysis::lowering::plan_retained_temporal_class(self, physical)?;
@@ -3497,7 +3497,7 @@ impl super::Study {
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
         }
-        if let Some(cache) = self.temporal_class_identification_cache.as_ref() {
+        if let Some(cache) = self.temporal_class_cache() {
             if let Some((_, envelope)) =
                 cache.by_horizon.iter().find(|(horizon, _)| *horizon == query.horizon_steps)
             {
@@ -5821,6 +5821,9 @@ impl super::Study {
         let prior_scale = self.cross_world_prior_scale()?;
         let CrossWorldContrast { treatment, outcome, mediator, active, control } =
             cross_world_contrast(&self.query)?;
+        if let CausalQuery::PathSpecific(path) = &self.query {
+            require_path_chain(graph, &path.path_nodes)?;
+        }
         let probe = TemporalEffectQuery::pulse(treatment, outcome, 1.0)
             .with_policy(antecedent_core::TemporalPolicy::pulse(-1))
             .with_horizon_steps(1)
@@ -6106,7 +6109,7 @@ impl super::Study {
             ));
         };
         let mut temporal = TemporalLinearAdjustment::new();
-        temporal.inner.bootstrap_replicates = 0;
+        temporal.inner.inference.bootstrap_replicates = 0;
         temporal.inner.overlap = OverlapPolicy::ExplicitOverride;
         let prepared = temporal
             .prepare(data, estimand, contrast_query, indexer, None, &ctx.kernel_policy)
@@ -6155,22 +6158,81 @@ impl super::Study {
     }
 }
 
+/// The first node of a temporal path-specific effect's path, or the refusal when the path
+/// names no node (every directed path is the total effect, not a path product) or names a node
+/// twice.
+pub(super) fn require_path_nodes(path: &[VariableId]) -> Result<VariableId, CausalError> {
+    let Some(&first) = path.first() else {
+        return Err(CausalError::Unsupported {
+            message: "temporal path-specific effect needs at least one path node",
+        });
+    };
+    if path.iter().enumerate().any(|(index, node)| path[..index].contains(node)) {
+        return Err(CausalError::Unsupported {
+            message: "temporal path-specific effect names a path node twice",
+        });
+    }
+    Ok(first)
+}
+
+/// Refuses a multi-node path whose nodes are not a contemporaneous directed chain of `graph` in
+/// the order listed. The temporal product reads the nodes as one path from the treatment to the
+/// outcome in listed order, so an order the graph contradicts would multiply the wrong edges.
+fn require_path_chain(graph: &TemporalDag, path: &[VariableId]) -> Result<(), CausalError> {
+    let dense = |variable: VariableId| {
+        (0..graph.node_count()).map(antecedent_graph::DenseNodeId::from_index).find(|&id| {
+            graph.temporal_key(id).is_some_and(|key| key.variable == variable && key.offset == 0)
+        })
+    };
+    for pair in path.windows(2) {
+        let reaches = match (dense(pair[0]), dense(pair[1])) {
+            (Some(from), Some(to)) => graph.reaches(from, to),
+            _ => false,
+        };
+        if !reaches {
+            return Err(CausalError::Unsupported {
+                message: "temporal path-specific path nodes must be listed in causal order, each contemporaneous node reaching the next in the graph",
+            });
+        }
+    }
+    Ok(())
+}
+
+/// The product of the structural edge coefficients along a treatment-to-outcome path, from the
+/// regressions `fit` returns: the first node on the treatment, then each node's successor (the
+/// outcome after the last) on the treatment and every path node up to it.
+fn path_edge_product(
+    fit: &impl Fn(VariableId, &[VariableId], &[VariableId]) -> Result<(f64, Vec<f64>), CausalError>,
+    treatment: VariableId,
+    outcome: VariableId,
+    path: &[VariableId],
+) -> Result<f64, CausalError> {
+    let first = require_path_nodes(path)?;
+    let (_, through) = fit(first, &[treatment], &[])?;
+    let mut product = through[0];
+    for index in 0..path.len() {
+        let child = path.get(index + 1).copied().unwrap_or(outcome);
+        let mut regressors = Vec::with_capacity(index + 2);
+        regressors.push(treatment);
+        regressors.extend_from_slice(&path[..=index]);
+        let (_, slopes) = fit(child, &regressors, &path[..=index])?;
+        product *= slopes[index + 1];
+    }
+    Ok(product)
+}
+
 /// The treatment, outcome, mediator and levels of a cross-world query, or the
-/// refusal when the query is not a one-mediator or hard-intervention contrast.
+/// refusal when the query is not a mediated or hard-intervention contrast.
 fn cross_world_contrast(query: &CausalQuery) -> Result<CrossWorldContrast, CausalError> {
     let (treatment, outcome, mediator, active, control) = match query {
         CausalQuery::NestedCounterfactual(q) => {
             (q.treatment, q.outcome, Some(q.mediator), q.active_value(), q.control_value())
         }
         CausalQuery::PathSpecific(q) => {
-            if q.path_nodes.len() != 1 {
-                return Err(CausalError::Unsupported {
-                    message: "temporal path-specific effect is the one-mediator edge product",
-                });
-            }
+            let first = require_path_nodes(&q.path_nodes)?;
             let active = hard_level(&q.active)?;
             let control = hard_level(&q.control)?;
-            (q.treatment, q.outcome, Some(q.path_nodes[0]), active, control)
+            (q.treatment, q.outcome, Some(first), active, control)
         }
         CausalQuery::Counterfactual(q) => {
             let treatment =
@@ -6225,11 +6287,9 @@ pub(super) fn cross_world_point(
             let (_, slopes) = fit(outcome, &[treatment, mediator], &[mediator])?;
             slopes[0] * delta
         }
-        CausalQuery::PathSpecific(_) => {
-            let mediator = mediator.ok_or_else(missing_cross_world_mediator)?;
-            let (_, through) = fit(mediator, &[treatment], &[])?;
-            let (_, onward) = fit(outcome, &[treatment, mediator], &[mediator])?;
-            through[0] * onward[1] * delta
+        CausalQuery::PathSpecific(path) => {
+            let _ = mediator.ok_or_else(missing_cross_world_mediator)?;
+            path_edge_product(fit, treatment, outcome, &path.path_nodes)? * delta
         }
         CausalQuery::Counterfactual(_) => {
             let (_, slopes) = fit(outcome, &[treatment], &[])?;
@@ -6296,12 +6356,15 @@ pub(super) fn template_scoped_cross_world(
             Arc::from([mediator]),
             direct_slope_functional(&mut arena, treatment, mediator, outcome, active, control),
         ),
-        (CausalQuery::PathSpecific(_), Some(mediator)) => (
+        (CausalQuery::PathSpecific(path), Some(_)) => (
             Arc::from(EstimandMethod::PathSpecificNatural.as_str()),
             Arc::from([]),
-            Arc::from([mediator]),
-            mediator_edge_product_functional(
-                &mut arena, treatment, mediator, outcome, active, control,
+            Arc::clone(&path.path_nodes),
+            path_edge_product_functional(
+                &mut arena,
+                (treatment, outcome),
+                &path.path_nodes,
+                (active, control),
             ),
         ),
         (CausalQuery::Distribution(_), _) => {
@@ -6380,71 +6443,78 @@ fn held_mediator_mean(
     arena.intern(ExprNode::Expectation { function: OutcomeExprId::identity(outcome), distribution })
 }
 
-/// Product of the treatment-to-mediator edge over the level gap and the
-/// mediator-to-outcome partial slope.
-fn mediator_edge_product_functional(
+/// Product of the treatment-to-first-node edge over the level gap and, along the path, each
+/// node's partial slope on its successor (the outcome after the last node) holding the
+/// treatment and the earlier path nodes.
+fn path_edge_product_functional(
     arena: &mut CausalExprArena,
-    treatment: VariableId,
-    mediator: VariableId,
-    outcome: VariableId,
-    active: f64,
-    control: f64,
+    (treatment, outcome): (VariableId, VariableId),
+    path: &[VariableId],
+    (active, control): (f64, f64),
 ) -> antecedent_expr::ExprId {
-    let through = arena.backdoor_ate(
+    let mut factors = Vec::with_capacity(path.len() + 1);
+    factors.push(arena.backdoor_ate(
         treatment,
-        mediator,
+        path[0],
         &[],
         antecedent_core::Value::f64(active),
         antecedent_core::Value::f64(control),
-    );
-    let onward_high = held_treatment_mean(arena, treatment, mediator, outcome, control, 1.0);
-    let onward_low = held_treatment_mean(arena, treatment, mediator, outcome, control, 0.0);
-    let onward = arena.intern(ExprNode::Contrast {
-        left: onward_high,
-        right: onward_low,
-        op: antecedent_expr::ContrastOp::Difference,
-    });
-    let factors = arena.intern_list([through, onward]);
+    ));
+    for index in 0..path.len() {
+        let child = path.get(index + 1).copied().unwrap_or(outcome);
+        let held = &path[..=index];
+        let high = held_path_mean(arena, (treatment, control), held, (child, 1.0));
+        let low = held_path_mean(arena, (treatment, control), held, (child, 0.0));
+        factors.push(arena.intern(ExprNode::Contrast {
+            left: high,
+            right: low,
+            op: antecedent_expr::ContrastOp::Difference,
+        }));
+    }
+    let factors = arena.intern_list(factors);
     let product = arena.intern(ExprNode::Product(factors));
     arena.set_derivation(
         product,
         DerivationMeta::rule(
             "temporal.cross_world.mediator_edge_product",
-            Some(Arc::from(
-                "product of the treatment-to-mediator slope and the mediator-to-outcome slope, times the level gap",
-            )),
+            Some(Arc::from(if path.len() == 1 {
+                "product of the treatment-to-mediator slope and the mediator-to-outcome slope, times the level gap"
+            } else {
+                "product of the treatment-to-first-node slope and each path node's slope on its successor along the path, times the level gap"
+            })),
         ),
     );
     product
 }
 
-fn held_treatment_mean(
+/// `E[child | do(treatment = treatment_level, earlier path nodes = 0, last held node = level)]`.
+fn held_path_mean(
     arena: &mut CausalExprArena,
-    treatment: VariableId,
-    mediator: VariableId,
-    outcome: VariableId,
-    treatment_level: f64,
-    mediator_level: f64,
+    (treatment, treatment_level): (VariableId, f64),
+    held: &[VariableId],
+    (child, level): (VariableId, f64),
 ) -> antecedent_expr::ExprId {
-    let variables = arena.intern_var_set([outcome]);
-    let conditioned_on = arena.intern_var_set([treatment, mediator]);
-    let intervention = arena.intern_intervention_assignments([
+    let variables = arena.intern_var_set([child]);
+    let conditioned_on = arena.intern_var_set(std::iter::once(treatment).chain(held.iter().copied()));
+    let last = held.len().saturating_sub(1);
+    let assignments = std::iter::once(antecedent_expr::InterventionAssignment::concrete(
+        treatment,
+        antecedent_core::Value::f64(treatment_level),
+    ))
+    .chain(held.iter().enumerate().map(|(index, &node)| {
         antecedent_expr::InterventionAssignment::concrete(
-            treatment,
-            antecedent_core::Value::f64(treatment_level),
-        ),
-        antecedent_expr::InterventionAssignment::concrete(
-            mediator,
-            antecedent_core::Value::f64(mediator_level),
-        ),
-    ]);
+            node,
+            antecedent_core::Value::f64(if index == last { level } else { 0.0 }),
+        )
+    }));
+    let intervention = arena.intern_intervention_assignments(assignments);
     let distribution = arena.intern_distribution(
         variables,
         conditioned_on,
         intervention,
         DomainRef::Interventional,
     );
-    arena.intern(ExprNode::Expectation { function: OutcomeExprId::identity(outcome), distribution })
+    arena.intern(ExprNode::Expectation { function: OutcomeExprId::identity(child), distribution })
 }
 
 fn hard_level(intervention: &Intervention) -> Result<f64, CausalError> {
@@ -7749,9 +7819,8 @@ fn fit_class_bayesian_mediation(
         mediation_mechanism_seed(bayes.seed, horizon, preparations.len()),
         ctx,
     );
-    let composed = antecedent_estimate::bayesian_mediation::compose_temporal_mediation(
-        &mechanisms[0],
-        &mechanisms[1],
+    let composed = antecedent_estimate::bayesian_mediation::compose_temporal_mediation_mechanisms(
+        &mechanisms,
         query,
         status,
     )

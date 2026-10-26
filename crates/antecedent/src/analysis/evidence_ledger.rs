@@ -470,6 +470,27 @@ pub struct PooledInterval {
     pub report: antecedent_io::measured_inference::MeasuredInferenceReport,
 }
 
+/// The numbers and calibration-key labels one synthesis variant contributes to a pooled
+/// interval: the centred half-width construction before the coverage basis is formed.
+struct IntervalConstruction {
+    /// Pooled point value.
+    estimate: f64,
+    /// Half-width of the interval about `estimate`.
+    half: f64,
+    /// Number of pooled studies.
+    studies: usize,
+    /// Estimator label of the calibration key.
+    estimator: &'static str,
+    /// Interval-method label of the calibration key.
+    interval_method: &'static str,
+    /// Standard-error kind label of the calibration key.
+    se_kind: &'static str,
+    /// Synthesis variant named in the functional label.
+    variant: &'static str,
+    /// Dependence label of the calibration key.
+    dependence: &'static str,
+}
+
 /// A pooled interval construction before a coverage record is consulted.
 #[doc(hidden)]
 #[derive(Clone, Debug, PartialEq)]
@@ -1207,37 +1228,45 @@ impl EvidenceLedgerSession {
         let level = POOLED_INTERVAL_LEVEL;
         let dependence =
             if record.dependence_declared { "declared_covariance" } else { "independent" };
-        let (estimate, half, studies, estimator, interval_method, se_kind, variant, dependence) =
-            match value {
+        let IntervalConstruction {
+            estimate,
+            half,
+            studies,
+            estimator,
+            interval_method,
+            se_kind,
+            variant,
+            dependence,
+        } = match value {
                 SynthesisValue::EqualStudyGaussian(p) => {
                     #[allow(clippy::cast_precision_loss, reason = "bounded study count")]
                     let t = antecedent_stats::special::student_t_ppf(
                         0.5 + level / 2.0,
                         p.degrees_of_freedom as f64,
                     );
-                    (
-                        p.estimate,
-                        t * p.variance.sqrt(),
-                        p.degrees_of_freedom + 1,
-                        "evidence.synthesis.equal_study_gaussian",
-                        "independent_gaussian_study_t",
-                        "empirical_study_variance",
-                        "equal_study_gaussian",
-                        "independent",
-                    )
+                    IntervalConstruction {
+                        estimate: p.estimate,
+                        half: t * p.variance.sqrt(),
+                        studies: p.degrees_of_freedom + 1,
+                        estimator: "evidence.synthesis.equal_study_gaussian",
+                        interval_method: "independent_gaussian_study_t",
+                        se_kind: "empirical_study_variance",
+                        variant: "equal_study_gaussian",
+                        dependence: "independent",
+                    }
                 }
                 SynthesisValue::FixedEffect(p) => {
                     let z = antecedent_stats::special::normal_ppf(0.5 + level / 2.0);
-                    (
-                        p.estimate,
-                        z * p.variance.sqrt(),
-                        p.degrees_of_freedom + 1,
-                        "evidence.synthesis.fixed_effect_gls",
-                        "wald_z",
-                        "model_variance",
-                        "fixed_effect",
+                    IntervalConstruction {
+                        estimate: p.estimate,
+                        half: z * p.variance.sqrt(),
+                        studies: p.degrees_of_freedom + 1,
+                        estimator: "evidence.synthesis.fixed_effect_gls",
+                        interval_method: "wald_z",
+                        se_kind: "model_variance",
+                        variant: "fixed_effect",
                         dependence,
-                    )
+                    }
                 }
                 SynthesisValue::RandomEffects(r) => {
                     let (estimates, variances, variant) = match self.records.get(&result) {
@@ -1276,16 +1305,16 @@ impl EvidenceLedgerSession {
                     #[allow(clippy::cast_precision_loss, reason = "bounded study count")]
                     let t =
                         antecedent_stats::special::student_t_ppf(0.5 + level / 2.0, (k - 1) as f64);
-                    (
-                        r.estimate,
-                        t * variance.sqrt(),
-                        k,
-                        "evidence.synthesis.random_effects",
-                        "hksj_t",
-                        "hartung_knapp",
+                    IntervalConstruction {
+                        estimate: r.estimate,
+                        half: t * variance.sqrt(),
+                        studies: k,
+                        estimator: "evidence.synthesis.random_effects",
+                        interval_method: "hksj_t",
+                        se_kind: "hartung_knapp",
                         variant,
-                        "independent",
-                    )
+                        dependence: "independent",
+                    }
                 }
                 SynthesisValue::Hierarchical(_) => {
                     return Err(unmeasured("a hierarchical borrowing posterior"));

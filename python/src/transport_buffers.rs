@@ -1,4 +1,5 @@
 //! Bulk numeric transport inputs bypass JSON; Rust owns each detached snapshot.
+use crate::NumericColumn;
 use antecedent_estimate::{SmoothedDoseInput, TrialAipwInput};
 use numpy::PyReadonlyArray1;
 use pyo3::{prelude::*, types::PyDict};
@@ -18,8 +19,8 @@ fn booleans(data: &Bound<'_, PyDict>, name: &str) -> PyResult<Vec<bool>> {
 }
 fn covariates(data: &Bound<'_, PyDict>) -> PyResult<Vec<Vec<f64>>> {
     let item = required(data, "covariates")?;
-    let arrays: Vec<PyReadonlyArray1<'_, f64>> = item.extract()?;
-    Ok(arrays.iter().map(|a| a.as_array().iter().copied().collect()).collect())
+    let arrays: Vec<NumericColumn<'_>> = item.extract()?;
+    arrays.iter().map(|a| a.owned("covariates").map(|(values, _)| values.to_vec())).collect()
 }
 
 pub(crate) fn trial(

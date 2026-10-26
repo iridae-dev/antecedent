@@ -14,8 +14,8 @@ use antecedent::analysis::recalc_cell::{
     execute_cell_with_receipt, execute_resumed_retarget, freeze_crossfit_scores,
 };
 use antecedent::analysis::recalc_receipt::{
-    RecalcOutcome, RecalcRequest, RecalcRunError, RecalcSession, TargetWeights, UtilitySpec,
-    execute_with_receipt,
+    RecalcOutcome, RecalcRequest, RecalcRequestCode, RecalcRunError, RecalcSession, TargetWeights,
+    UtilitySpec, execute_with_receipt,
 };
 use antecedent_core::recalc::{
     MissingDependency, RecalcPlan, RefusalReason, RetargetSupport, Stage, StageIdentity,
@@ -203,7 +203,7 @@ fn refused_plan(error: RecalcRunError) -> RecalcPlan {
 
 fn request_detail(error: &RecalcRunError) -> &'static str {
     match error {
-        RecalcRunError::Request(detail) => detail,
+        RecalcRunError::Request(detail) => detail.as_str(),
         other => panic!("expected a request refusal, got {other:?}"),
     }
 }
@@ -601,7 +601,7 @@ fn cell_resume_rejects_overridden_request_identities_without_changing_live_state
         request.changed_inputs = vec![(stage, before.own(stage))];
         assert!(matches!(
             execute_resumed_retarget(&mut resumed, &request),
-            Err(RecalcRunError::Request("recalc.invalid_changed_input"))
+            Err(RecalcRunError::Request(RecalcRequestCode::InvalidChangedInput))
         ));
         assert_eq!(resumed.identities(), &before);
         assert!(resumed.has_run());
@@ -610,13 +610,13 @@ fn cell_resume_rejects_overridden_request_identities_without_changing_live_state
         vec![(Stage::Query, before.own(Stage::Query)), (Stage::Query, before.own(Stage::Query))];
     assert!(matches!(
         resumed.plan(&request),
-        Err(RecalcRunError::Request("recalc.invalid_changed_input"))
+        Err(RecalcRunError::Request(RecalcRequestCode::InvalidChangedInput))
     ));
     request.changed_inputs.clear();
     request.utility.cost = f64::NAN;
     assert!(matches!(
         execute_resumed_retarget(&mut resumed, &request),
-        Err(RecalcRunError::Request("recalc.invalid_request"))
+        Err(RecalcRunError::Request(RecalcRequestCode::InvalidRequest))
     ));
     assert_eq!(resumed.identities(), &before);
     assert!(resumed.has_run());
@@ -770,7 +770,7 @@ fn cell_crossfit_scores_resume_the_same_way() {
     // Columns t=0, y=1, z=2; edges z->t, z->y, t->y.
     let edges = vec![(2, 0), (2, 1), (0, 1)];
     let base = RecalcRequest {
-        columns: crossfit_columns(),
+        columns: crossfit_columns().into(),
         edges: edges.clone(),
         treatment: 0,
         outcome: 1,

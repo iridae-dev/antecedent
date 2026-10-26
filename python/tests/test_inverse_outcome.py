@@ -330,12 +330,8 @@ def test_malformed_actions_and_targets_are_invalid_arguments():
         inverse_outcome(forward, query=TargetMean(3.0), actions=_actions(), tolerance=-1.0)
     with pytest.raises(CausalTypeError):
         inverse_outcome(forward, query=TargetMean(3.0), actions=[(0.0, 1.0)])  # type: ignore[list-item]
-    too_many = [Action(f"a{i}", 0.0) for i in range(4097)]
-    _refused(
-        "route_not_supported",
-        "inverse.bounds_exceeded",
-        lambda: inverse_outcome(forward, query=TargetMean(3.0), actions=too_many),
-    )
+    many = [Action(f"a{i}", 0.0) for i in range(4097)]
+    assert len(inverse_outcome(forward, query=TargetMean(3.0), actions=many).actions) == 4097
 
 
 def test_a_published_interval_adds_only_a_robustly_feasible_flag():

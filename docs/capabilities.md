@@ -1805,7 +1805,7 @@ Sensitivity methods:
 
 * linear sensitivity;
 * partial-linear sensitivity;
-* nonparametric sensitivity (at most 20000 complete cases);
+* nonparametric sensitivity (exact kernel smoother to 20000 complete cases, then the nearest-neighbour construction, reported as `sensitivity.nonparametric_neighborhood`);
 * nonparametric sensitivity with a nearest-neighbour-truncated kernel (`NeighborhoodSensitivity`, validator `neighborhood_sensitivity`; any sample size, a separate construction that equals the exact smoother only when its neighbours cover every row);
 * Riesz sensitivity;
 * E-values on the risk-ratio, odds-ratio, hazard-ratio and standardized-mean-difference

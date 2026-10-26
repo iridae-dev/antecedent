@@ -2,7 +2,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
-use numpy::PyReadonlyArray1;
+use crate::NumericColumn;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyTuple};
 
@@ -39,11 +39,11 @@ pub(crate) fn check_values(
 /// Admit the caller's columns: the copy the bridge will make is checked against the memory
 /// budget of `ctx`.
 pub(crate) fn check_columns(
-    columns: &[PyReadonlyArray1<'_, f64>],
+    columns: &[NumericColumn<'_>],
     ctx: &ExecutionContext,
 ) -> PyResult<()> {
     let values =
-        columns.iter().try_fold(0usize, |n, c| c.len().ok().and_then(|len| n.checked_add(len)));
+        columns.iter().try_fold(0usize, |n, c| n.checked_add(c.len()));
     check_values(values, 0, ctx)
 }
 

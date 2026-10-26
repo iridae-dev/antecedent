@@ -99,12 +99,49 @@ pub(crate) struct CachedDbnPosteriorIdentification {
     pub identify_demotion: DbnIdentifyDemotion,
     /// Mediation failure counts for each requested horizon. Empty for contrasts.
     pub horizon_demotions: Arc<[(u32, DbnIdentifyDemotion)]>,
+    /// Horizon projections already built from this cache, so repeated
+    /// projections of one horizon copy shared handles instead of every atom's
+    /// identification products.
+    projections: HorizonProjections,
+}
+
+/// Memo of [`CachedDbnPosteriorIdentification::mediation_horizon`] results.
+///
+/// A clone starts empty: the memo belongs to the cache value that built it, so
+/// a clone whose atoms are later replaced can never serve a stale projection.
+#[derive(Debug, Default)]
+struct HorizonProjections(
+    std::sync::Mutex<std::collections::HashMap<u32, CachedDbnPosteriorIdentification>>,
+);
+
+impl Clone for HorizonProjections {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
 }
 
 impl CachedDbnPosteriorIdentification {
     /// Project the cached union of eligible mediation atoms onto one horizon.
     /// An atom's failure at another horizon never changes this horizon's mass.
+    ///
+    /// The first projection of a horizon builds it; later calls clone the
+    /// memoised projection, whose atoms and weights are shared handles.
     pub fn mediation_horizon(&self, horizon: u32) -> Result<Self, CausalError> {
+        fn memo(
+            projections: &HorizonProjections,
+        ) -> std::sync::MutexGuard<'_, std::collections::HashMap<u32, CachedDbnPosteriorIdentification>>
+        {
+            projections.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+        }
+        if let Some(found) = memo(&self.projections).get(&horizon) {
+            return Ok(found.clone());
+        }
+        let projected = self.project_mediation_horizon(horizon)?;
+        memo(&self.projections).entry(horizon).or_insert_with(|| projected.clone());
+        Ok(projected)
+    }
+
+    fn project_mediation_horizon(&self, horizon: u32) -> Result<Self, CausalError> {
         let identify_demotion = self
             .horizon_demotions
             .iter()
@@ -117,13 +154,15 @@ impl CachedDbnPosteriorIdentification {
             .atoms
             .iter()
             .filter_map(|atom| {
-                let entry = atom.horizons.as_ref()?.get(horizon)?.clone();
+                let entry = atom.horizons.as_ref()?.get(horizon)?;
                 Some(CachedDbnPosteriorAtomIdentification {
                     key: atom.key,
                     estimand: entry.estimand.clone(),
                     identification: entry.identification.clone(),
                     indexer: entry.indexer.clone(),
-                    horizons: Some(CachedTemporalIdentification { by_horizon: Arc::from([entry]) }),
+                    horizons: Some(CachedTemporalIdentification {
+                        by_horizon: Arc::from([entry.clone()]),
+                    }),
                 })
             })
             .collect();
@@ -146,7 +185,13 @@ impl CachedDbnPosteriorIdentification {
             Arc::clone(&self.graphs.graph_keys),
         )?;
         let horizon_demotions = Arc::from([(horizon, identify_demotion.clone())]);
-        Ok(Self { graphs, atoms: atoms.into(), identify_demotion, horizon_demotions })
+        Ok(Self {
+            graphs,
+            atoms: atoms.into(),
+            identify_demotion,
+            horizon_demotions,
+            projections: HorizonProjections::default(),
+        })
     }
 }
 
@@ -259,6 +304,7 @@ pub(crate) fn build_dbn_posterior_identification_cache(
         atoms: Arc::from(atoms),
         identify_demotion,
         horizon_demotions: Arc::from([]),
+        projections: HorizonProjections::default(),
     })
 }
 
@@ -386,6 +432,7 @@ pub(crate) fn build_dbn_posterior_response_identification_cache(
         atoms: Arc::from(atoms),
         identify_demotion,
         horizon_demotions: Arc::from([]),
+        projections: HorizonProjections::default(),
     })
 }
 
@@ -512,6 +559,7 @@ pub(crate) fn build_dbn_mediation_cache_with_identifier(
         atoms: atoms.into(),
         identify_demotion: DbnIdentifyDemotion::default(),
         horizon_demotions: horizon_demotions.into(),
+        projections: HorizonProjections::default(),
     })
 }
 

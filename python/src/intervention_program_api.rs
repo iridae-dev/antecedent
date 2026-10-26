@@ -114,7 +114,7 @@ fn run_counterfactual<'py>(
                     .model
                     .dense_of(*id)
                     .ok_or_else(|| value_err(format!("outcome {id} is not in the model")))?;
-                Ok((0..result.n_units).map(|unit| result.get(0, dense, unit)).collect::<Vec<_>>())
+                Ok((0..result.n_units()).map(|unit| result.get(0, dense, unit)).collect::<Vec<_>>())
             })
             .collect::<PyResult<Vec<_>>>()?;
         Ok((columns, route))

@@ -32,8 +32,24 @@ use antecedent_io::{IoError, admg_from_wire};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, sync::Arc};
 
-/// Maximum self-contained input/result body, checked before decoding.
+/// Maximum self-contained input/result body under [`ArrivalLimits::default`], checked before
+/// decoding.
 pub const MAX_ARRIVAL_BYTES: usize = 32 * 1024 * 1024;
+
+/// Byte bounds of an arrival request and artifact, checked before decoding.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ArrivalLimits {
+    /// Largest self-contained artifact body.
+    pub max_bytes: usize,
+    /// Largest repair or ranking artifact carried by a request.
+    pub max_source_artifact_bytes: usize,
+}
+
+impl Default for ArrivalLimits {
+    fn default() -> Self {
+        Self { max_bytes: MAX_ARRIVAL_BYTES, max_source_artifact_bytes: 8 * 1024 * 1024 }
+    }
+}
 /// Actual arrived-study input, retaining the original proposal-producing artifacts.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -138,29 +154,39 @@ fn native_error(e: impl std::fmt::Display) -> IoError {
         message: format!("proposal_arrival.original_consumer_refused: {e}"),
     }
 }
-fn bounds(r: &ArrivalRequest) -> Result<(), IoError> {
-    if r.repair_artifact.len() > 8 * 1024 * 1024
-        || r.ranking_artifact.len() > 8 * 1024 * 1024
-        || r.base_laws.len() > 64
+/// Deepest evaluation recursion a request may declare; the evaluator recurses on it.
+const MAX_EVALUATION_DEPTH: usize = 256;
+/// Structural bounds of a request: nonempty evaluation bounds, an arrived study, a bounded
+/// recursion depth and bounded source artifacts. Sizes of laws, catalogs and assignments are
+/// not bounded by literals; [`budget`] admits them against the caller's memory limit.
+fn bounds(r: &ArrivalRequest, limits: ArrivalLimits) -> Result<(), IoError> {
+    if r.repair_artifact.len() > limits.max_source_artifact_bytes
+        || r.ranking_artifact.len() > limits.max_source_artifact_bytes
         || r.arrived_laws.is_empty()
-        || r.arrived_laws.len() > 64
-        || r.catalog.regimes.len() > 128
-        || r.catalog.environments.len() > 64
-        || r.catalog.bindings.len() > 128
-        || r.assignment.len() > 12
         || r.operations == 0
-        || r.operations > 1_000_000
         || r.depth == 0
-        || r.depth > 256
+        || r.depth > MAX_EVALUATION_DEPTH
         || r.support_rows == 0
-        || r.support_rows > 65_536
-        || r.base_laws.iter().chain(&r.arrived_laws).any(|l| {
-            l.axes.len() > 12
-                || l.probabilities.len() > 65_536
-                || l.empirical_counts.as_ref().is_some_and(|c| c.len() > 65_536)
-                || l.axes.iter().any(|(_, v)| v.len() > 65_536)
-        })
     {
+        return Err(unsupported("proposal_arrival.bounds_exceeded"));
+    }
+    Ok(())
+}
+/// Admit the request's tables against the context memory limit: every law cell is read as
+/// a probability and a count, and every axis value is retained.
+fn budget(r: &ArrivalRequest, ctx: &ExecutionContext) -> Result<(), IoError> {
+    let cells = r.base_laws.iter().chain(&r.arrived_laws).fold(0_u64, |total, law| {
+        let axes: usize = law.axes.iter().map(|(_, values)| values.len()).sum();
+        let counts = law.empirical_counts.as_ref().map_or(0, Vec::len);
+        total.saturating_add(
+            u64::try_from(law.probabilities.len().saturating_add(counts).saturating_add(axes))
+                .unwrap_or(u64::MAX),
+        )
+    });
+    let rows = u64::try_from(r.support_rows).unwrap_or(u64::MAX);
+    // Eight bytes per value, doubled for the decoded copy and the evaluation's own table.
+    let bytes = cells.saturating_add(rows).saturating_mul(16);
+    if ctx.memory_limit_bytes().into_iter().any(|limit| bytes > limit) {
         return Err(unsupported("proposal_arrival.bounds_exceeded"));
     }
     Ok(())
@@ -394,7 +420,18 @@ fn bind_arrival_program(
 /// # Errors
 /// Original consumer/proof failures, changed premises, sample/provider mismatch, support and bounds.
 pub fn execute(r: &ArrivalRequest, ctx: &ExecutionContext) -> Result<ArrivalPoint, IoError> {
-    bounds(r)?;
+    execute_with_limits(r, ctx, ArrivalLimits::default())
+}
+/// [`execute`] under caller-declared byte limits.
+/// # Errors
+/// As [`execute`], with `limits.max_source_artifact_bytes` as the source artifact bound.
+pub fn execute_with_limits(
+    r: &ArrivalRequest,
+    ctx: &ExecutionContext,
+    limits: ArrivalLimits,
+) -> Result<ArrivalPoint, IoError> {
+    bounds(r, limits)?;
+    budget(r, ctx)?;
     if ctx.cancellation.is_cancelled() {
         return Err(unsupported("proposal_arrival.cancelled"));
     }
@@ -486,7 +523,17 @@ impl ArrivalArtifact {
     /// # Errors
     /// The original execution or bounded serialization refuses.
     pub fn produce(request: ArrivalRequest, ctx: &ExecutionContext) -> Result<Self, IoError> {
-        let result = execute(&request, ctx)?;
+        Self::produce_with_limits(request, ctx, ArrivalLimits::default())
+    }
+    /// [`Self::produce`] under caller-declared byte limits.
+    /// # Errors
+    /// As [`Self::produce`].
+    pub fn produce_with_limits(
+        request: ArrivalRequest,
+        ctx: &ExecutionContext,
+        limits: ArrivalLimits,
+    ) -> Result<Self, IoError> {
+        let result = execute_with_limits(&request, ctx, limits)?;
         let mut artifact = Self { version: 1, request, result, identity: String::new() };
         artifact.identity = artifact.digest()?;
         Ok(artifact)
@@ -499,9 +546,15 @@ impl ArrivalArtifact {
     /// # Errors
     /// Oversized/invalid artifacts refuse.
     pub fn to_bytes(&self) -> Result<Vec<u8>, IoError> {
-        bounds(&self.request)?;
+        self.to_bytes_with_limits(ArrivalLimits::default())
+    }
+    /// [`Self::to_bytes`] under caller-declared byte limits.
+    /// # Errors
+    /// As [`Self::to_bytes`].
+    pub fn to_bytes_with_limits(&self, limits: ArrivalLimits) -> Result<Vec<u8>, IoError> {
+        bounds(&self.request, limits)?;
         let bytes = to_cbor(self)?;
-        if bytes.len() > MAX_ARRIVAL_BYTES {
+        if bytes.len() > limits.max_bytes {
             return Err(IoError::TooLarge);
         }
         Ok(bytes)
@@ -514,18 +567,30 @@ impl ArrivalArtifact {
         expected_proposal: &str,
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
-        if bytes.len() > MAX_ARRIVAL_BYTES {
+        Self::consume_with_limits(bytes, expected_proposal, ctx, ArrivalLimits::default())
+    }
+    /// [`Self::consume`] under caller-declared byte limits.
+    /// # Errors
+    /// As [`Self::consume`].
+    pub fn consume_with_limits(
+        bytes: &[u8],
+        expected_proposal: &str,
+        ctx: &ExecutionContext,
+        limits: ArrivalLimits,
+    ) -> Result<Self, IoError> {
+        if bytes.len() > limits.max_bytes {
             return Err(IoError::TooLarge);
         }
         let artifact: Self = from_cbor(bytes)?;
-        bounds(&artifact.request)?;
+        bounds(&artifact.request, limits)?;
+        budget(&artifact.request, ctx)?;
         if artifact.version != 1 || artifact.identity != artifact.digest()? {
             return Err(refused("proposal_arrival.identity_mismatch"));
         }
         if artifact.result.proposal_identity != expected_proposal {
             return Err(refused("proposal_arrival.expected_proposal_mismatch"));
         }
-        let replay = execute(&artifact.request, ctx)?;
+        let replay = execute_with_limits(&artifact.request, ctx, limits)?;
         if to_cbor(&artifact.result)? != to_cbor(&replay)? {
             return Err(refused("proposal_arrival.replay_mismatch"));
         }

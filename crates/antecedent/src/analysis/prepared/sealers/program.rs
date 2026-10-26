@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 pub(super) fn distribution(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.distribution(), analysis.identification_cache.as_ref()) {
+    let sealed = match (cx.distribution(), analysis.static_cache()) {
         (Some((data, query)), Some(cache)) => {
             let (identifier, estimator) = cx.binding.resolve(RouteDefaults::DISTRIBUTION)?;
             let mut fitter = antecedent_estimate::FunctionalDistribution::new();
@@ -74,7 +74,7 @@ pub(super) fn functional_effect(cx: &SealContext<'_>) -> SealOutcome {
         }
         _ => None,
     };
-    let sealed = match (target, analysis.identification_cache.as_ref()) {
+    let sealed = match (target, analysis.static_cache()) {
         (Some((data, query, conditional)), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
@@ -119,7 +119,7 @@ pub(super) fn functional_effect(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn path_specific_effect(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.route, analysis.identification_cache.as_ref()) {
+    let sealed = match (cx.route, analysis.static_cache()) {
         (Some(RouteInput::PathSpecificDag { data, query, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()

@@ -387,7 +387,7 @@ impl super::Study {
         q: &ResponseQuery,
         graph: &Dag,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        let (identifier, estimator) = self.resolve_response_pair(q);
+        let (identifier, estimator) = self.resolve_response_ids(q);
         compile_logical_static_response(StaticResponseCompileInput {
             data,
             graph,
@@ -404,7 +404,7 @@ impl super::Study {
         q: &ResponseQuery,
         pag: &Pag,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        let (identifier, estimator) = self.resolve_class_response_pair(q);
+        let (identifier, estimator) = self.resolve_class_response_ids(q);
         compile_logical_static_pag_response(StaticPagResponseCompileInput {
             data,
             graph: pag,
@@ -421,7 +421,7 @@ impl super::Study {
         q: &ResponseQuery,
         cpdag: &Cpdag,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        let (identifier, estimator) = self.resolve_class_response_pair(q);
+        let (identifier, estimator) = self.resolve_class_response_ids(q);
         compile_logical_static_cpdag_response(StaticCpdagResponseCompileInput {
             data,
             graph: cpdag,
@@ -438,7 +438,7 @@ impl super::Study {
         q: &ResponseQuery,
         admg: &Admg,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        let (identifier, estimator) = self.resolve_codetermined_joint_pair();
+        let (identifier, estimator) = self.resolve_codetermined_joint_ids();
         compile_logical_codetermined_joint(
             data,
             admg,
@@ -459,7 +459,7 @@ impl super::Study {
             compile_logical_admg_response(data, q, self.validation_suite_id(), self)
         } else {
             let dag = admg_without_latents_to_dag(&admg)?;
-            let (identifier, estimator) = self.resolve_response_pair(q);
+            let (identifier, estimator) = self.resolve_response_ids(q);
             compile_logical_static_response(StaticResponseCompileInput {
                 data,
                 graph: &dag,
@@ -479,14 +479,13 @@ impl super::Study {
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         let (identifier_id, estimator_id) = self.resolve_static_ids();
         self.ensure_rd_config_present(estimator_id)?;
-        let (identifier, estimator) = wire_pair((identifier_id, estimator_id));
         compile_logical_static_ate(StaticAteCompileInput {
             data,
             graph,
             query: q,
             validation_suite: self.validation_suite_id(),
-            identifier,
-            estimator,
+            identifier: identifier_id,
+            estimator: estimator_id,
         })
     }
 
@@ -496,7 +495,7 @@ impl super::Study {
         q: &InterventionalDistributionQuery,
         graph: &Dag,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        let (identifier, estimator) = self.resolve_distribution_pair();
+        let (identifier, estimator) = self.resolve_distribution_ids();
         compile_logical_distribution(StaticDistributionCompileInput {
             data,
             graph,
@@ -513,7 +512,7 @@ impl super::Study {
         q: &InterventionalDistributionQuery,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         super::static_path::ensure_admg_distribution_licensed(q, self.refute)?;
-        let (identifier, estimator) = self.resolve_distribution_pair();
+        let (identifier, estimator) = wire_pair(self.resolve_distribution_ids());
         let treatment =
             q.interventions.first().and_then(Intervention::primary_variable).ok_or_else(|| {
                 CausalError::Compile {
@@ -554,7 +553,7 @@ impl super::Study {
             super::static_path::ensure_admg_path_specific_licensed(self.refute)?;
         }
         let admg = mixed_admg(self)?;
-        let (identifier, estimator) = self.resolve_path_pair();
+        let (identifier, estimator) = self.resolve_path_ids();
         let (path, query) = path_specific_source_queries(source)?;
         let mut plan = compile_logical_path_specific_admg(
             StaticAdmgPathSpecificCompileInput {
@@ -586,7 +585,7 @@ impl super::Study {
                 message: "class path-specific effect requires a Cpdag".into(),
             });
         };
-        let (identifier, estimator) = self.resolve_path_pair();
+        let (identifier, estimator) = self.resolve_path_ids();
         let (path, query) = path_specific_source_queries(source)?;
         let mut plan = compile_logical_path_specific_cpdag(
             StaticCpdagPathSpecificCompileInput {
@@ -618,7 +617,7 @@ impl super::Study {
                 message: "PAG path-specific effect requires a Pag".into(),
             });
         };
-        let (identifier, estimator) = self.resolve_path_pair();
+        let (identifier, estimator) = self.resolve_path_ids();
         let (path, query) = path_specific_source_queries(source)?;
         let mut plan = compile_logical_path_specific_pag(
             StaticPagPathSpecificCompileInput {
@@ -641,7 +640,7 @@ impl super::Study {
         q: &PathSpecificEffectQuery,
         graph: &Dag,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        let (identifier, estimator) = self.resolve_path_pair();
+        let (identifier, estimator) = self.resolve_path_ids();
         compile_logical_path_specific(StaticPathSpecificCompileInput {
             data,
             graph,
@@ -970,14 +969,13 @@ impl super::Study {
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         let (identifier_id, estimator_id) = self.resolve_pag_ids();
         reject_dag_only_on_pag(&self.graph, identifier_id)?;
-        let (identifier, estimator) = wire_pair((identifier_id, estimator_id));
         compile_logical_static_pag_ate(StaticPagAteCompileInput {
             data,
             graph: pag,
             query: q,
             validation_suite: self.validation_suite_id(),
-            identifier,
-            estimator,
+            identifier: identifier_id,
+            estimator: estimator_id,
         })
     }
 
@@ -987,7 +985,7 @@ impl super::Study {
         q: &AverageEffectQuery,
         cpdag: &Cpdag,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        let (identifier, estimator) = self.resolve_pag_pair();
+        let (identifier, estimator) = self.resolve_pag_ids();
         compile_logical_static_cpdag_ate(crate::planner::StaticCpdagAteCompileInput {
             data,
             graph: cpdag,
@@ -1004,7 +1002,7 @@ impl super::Study {
         q: &ConditionalEffectQuery,
         graph: &Dag,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        let (identifier, estimator) = self.resolve_conditional_pair();
+        let (identifier, estimator) = self.resolve_conditional_ids();
         // Logical plan reuses static ATE metadata with conditional estimator.
         let mut plan = compile_logical_static_ate(StaticAteCompileInput {
             data,
@@ -1025,7 +1023,7 @@ impl super::Study {
         q: &ConditionalEffectQuery,
         cpdag: &Cpdag,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        let (identifier, estimator) = self.resolve_class_conditional_pair();
+        let (identifier, estimator) = self.resolve_class_conditional_ids();
         let mut plan =
             compile_logical_static_cpdag_ate(crate::planner::StaticCpdagAteCompileInput {
                 data,
@@ -1046,7 +1044,7 @@ impl super::Study {
         q: &ConditionalEffectQuery,
         pag: &Pag,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        let (identifier, estimator) = self.resolve_class_conditional_pair();
+        let (identifier, estimator) = self.resolve_class_conditional_ids();
         let mut plan = compile_logical_static_pag_ate(StaticPagAteCompileInput {
             data,
             graph: pag,
@@ -1328,8 +1326,8 @@ impl super::Study {
             graph,
             query: &path,
             validation_suite: self.validation_suite_id(),
-            identifier: Arc::from("path_specific.natural"),
-            estimator: Arc::from("functional.effect"),
+            identifier: IdentifierId::PathSpecificNatural,
+            estimator: EstimatorId::FunctionalEffect,
         })?;
         plan.record.plan_id = Arc::from(PlanId::StaticMediation.as_str());
         plan.record.estimator = Some(Arc::from("mediation.linear"));
@@ -2222,14 +2220,13 @@ impl super::Study {
             let dag = admg_without_latents_to_dag(&admg)?;
             let (identifier_id, estimator_id) = self.resolve_static_ids();
             self.ensure_rd_config_present(estimator_id)?;
-            let (identifier, estimator) = wire_pair((identifier_id, estimator_id));
             let logical = compile_logical_static_ate(StaticAteCompileInput {
                 data,
                 graph: &dag,
                 query: q,
                 validation_suite: self.validation_suite_id(),
-                identifier,
-                estimator,
+                identifier: identifier_id,
+                estimator: estimator_id,
             })?;
             logical.compile_physical_with_graphs(ctx, None, Some(dag))
         }
@@ -2304,7 +2301,7 @@ impl super::Study {
                 });
             }
         };
-        let (identifier, estimator) = self.resolve_temporal_class_pair();
+        let (identifier, estimator) = self.resolve_temporal_class_ids();
         let mut logical = compile_logical_temporal_class_effect(TemporalClassEffectCompileInput {
             data,
             nodes,

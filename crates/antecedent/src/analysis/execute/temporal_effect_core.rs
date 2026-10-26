@@ -350,11 +350,11 @@ fn fit_conditional(
     ctx: &ExecutionContext,
 ) -> Result<TemporalEffectFit, CausalError> {
     let query = inputs.query;
-    if query.effect_modifiers.len() != 1
+    if query.effect_modifiers.is_empty()
         || matches!(query.policy, antecedent_core::TemporalPolicy::Dynamic { .. })
     {
         return Err(CausalError::Unsupported {
-            message: "temporal conditional effect fits one modifier on a single-step pulse or sustained policy",
+            message: "temporal conditional effect fits a modifier set on a single-step pulse or sustained policy",
         });
     }
     if inputs.refute != RefuteSuite::None {
@@ -408,9 +408,10 @@ fn fit_conditional(
         "estimate.temporal.conditional_marginal",
         DiagnosticKind::Execution,
         DiagnosticSeverity::Info,
-        "published value is the one-modifier marginal effect on the unfolded temporal design; its \
-         interval refits the interaction regression and the modifier mean",
+        "published value is the marginal effect over the modifier set on the unfolded temporal \
+         design; its interval refits the interaction regression and every modifier mean",
     )];
+    diagnostics.extend(modifier_set_coverage_note(query.effect_modifiers.len()));
     diagnostics.extend(uncertainty.diagnostics);
     let point_only = uncertainty.posterior.is_none() && uncertainty.replicates_ok.is_none();
     Ok(TemporalEffectFit {
@@ -428,7 +429,24 @@ fn fit_conditional(
     })
 }
 
-/// The whole-procedure uncertainty of a `TemporalDag` one-modifier conditional
+/// The disclosure a conditional effect over several modifiers carries: its interval is the same
+/// whole-procedure construction, but the coverage record behind the interval was measured for
+/// one modifier.
+pub(super) fn modifier_set_coverage_note(modifiers: usize) -> Option<Diagnostic> {
+    (modifiers > 1).then(|| {
+        Diagnostic::new(
+            "estimate.temporal.conditional_modifier_set",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "the interval of a conditional effect over several modifiers refits the whole \
+             interaction regression and every modifier mean on shared blocks (or draws its \
+             tempered slope posterior), the construction measured for one modifier; its coverage \
+             with a modifier set has not been measured",
+        )
+    })
+}
+
+/// The whole-procedure uncertainty of a `TemporalDag` conditional
 /// effect: the interaction regression (and the modifier mean) refit on shared
 /// circular blocks of series times, or drawn from its tempered slope posterior.
 fn conditional_uncertainty(
@@ -872,7 +890,7 @@ fn fit_single_window(
     let TemporalEffectInputs { data, query, identification, estimand, indexer, refute, .. } =
         *inputs;
     let mut estimator = TemporalLinearAdjustment::new();
-    estimator.inner.bootstrap_replicates = inputs.bootstrap_replicates;
+    estimator.inner.inference.bootstrap_replicates = inputs.bootstrap_replicates;
     estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
     let variables = single_window_variables(inputs)?;
     let first_gap = antecedent_data::first_missing_cell(data, &variables)?;

@@ -3,7 +3,7 @@
 use crate::recalc_api::{RunPayload, bounded_context, context, invalid, parse_json, refusal_json};
 use crate::recalc_bounds::check_values;
 use crate::recalc_family_api::{caps, payload, resume, run_error};
-use antecedent::analysis::recalc_receipt::RecalcRunError;
+use antecedent::analysis::recalc_receipt::{RecalcRequestCode, RecalcRunError};
 use antecedent::analysis::recalc_temporal::{
     TemporalOutcome, TemporalRequest, TemporalRunError, TemporalSession,
     consume_temporal_recalc_artifact, execute_temporal_with_receipt,
@@ -405,7 +405,7 @@ impl PyTemporalSession {
                 return Ok((
                     None,
                     Some(run_error(
-                        &RecalcRunError::Request("recalc.cancelled"),
+                        &RecalcRunError::Request(RecalcRequestCode::Cancelled),
                         "recalc.temporal_fit_refused",
                     )),
                 ));

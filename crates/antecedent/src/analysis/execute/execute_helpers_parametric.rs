@@ -73,8 +73,9 @@ pub(super) fn binary_cf_interventions(
 ) -> Result<(VariableId, f64, f64), CausalError> {
     if query.allow_nested || query.outcomes.len() != 1 || query.interventions.len() != 1 {
         return Err(CausalError::Unsupported {
-            message: "Study counterfactual path currently supports a single hard \
-                 intervention for ITE (use gcm helpers for multi-world predict)",
+            message: "Study counterfactual path currently supports one outcome and a \
+                 single hard intervention for ITE (use gcm::counterfactual_contrasts for \
+                 several outcomes or simultaneous interventions)",
         });
     }
     let Intervention::Set { variable, value } = &query.interventions[0] else {

@@ -74,12 +74,12 @@ fn study(
 
 fn ridge(grid: &[f64], inner_folds: usize) -> AipwAte {
     AipwAte {
-        bootstrap_replicates: 0,
         propensity: PropensityNuisance::ridge_logistic(
             RidgeTuning::new(grid, inner_folds).unwrap(),
         ),
         ..AipwAte::new()
     }
+    .with_bootstrap_replicates(0)
 }
 
 /// 3 penalties x (4 inner folds + 1 refit) = 15 propensity fits per outer fold, over 5 folds:
@@ -133,13 +133,10 @@ fn study_cost(
 fn clustered_dml_cost_counts_folds_and_whole_clusters() {
     let (data, graph) = data_and_graph(400, 4);
     let clusters: Vec<u32> = (0..400_u32).map(|i| i / 10).collect();
-    let plain = study_cost(&data, &graph, AipwAte { bootstrap_replicates: 0, ..AipwAte::new() });
-    let declared = AipwAte {
-        bootstrap_replicates: 0,
-        cluster_ids: Some(clusters),
-        cluster_dml: Some(ClusterDml::new(20).unwrap()),
-        ..AipwAte::new()
-    };
+    let plain = study_cost(&data, &graph, AipwAte::new().with_bootstrap_replicates(0));
+    let declared = AipwAte { cluster_dml: Some(ClusterDml::new(20).unwrap()), ..AipwAte::new() }
+        .with_bootstrap_replicates(0)
+        .with_cluster_ids(clusters);
     let cost = study_cost(&data, &graph, declared);
     assert_eq!(cost.fit_route, "aipw.cluster_dml(unit=cluster)");
     assert_eq!(cost.cluster_labels, Some(40));

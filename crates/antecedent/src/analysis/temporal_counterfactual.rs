@@ -36,6 +36,16 @@ pub use temporal_counterfactual_wire::{
     UnitOutcomeWire, WitnessWire,
 };
 
+pub use antecedent_counterfactual::temporal_cross_world::general::{
+    GeneralAbductionReceipt, GeneralTemporalResult,
+};
+pub use antecedent_io::temporal_counterfactual_general_artifact::{
+    GENERAL_TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION, GeneralFactualUnitWire, GeneralFitWire,
+    GeneralMechanismWire, GeneralTemporalCounterfactualArtifact,
+    GeneralTemporalCounterfactualArtifactError, GeneralTemporalIdentity,
+    GeneralTemporalReportWire, GeneralTemporalRequestWire, GeneralWorldWire,
+};
+
 use crate::error::CausalError;
 
 /// Stage id reported on a cancellation raised by this cell.
@@ -122,6 +132,82 @@ impl TemporalCounterfactual {
     }
 }
 
+/// A sealed or consumed temporal counterfactual answer for any horizon and any number of named
+/// action histories (the general counterpart of [`TemporalCounterfactual`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct GeneralTemporalCounterfactual {
+    artifact: GeneralTemporalCounterfactualArtifact,
+}
+
+impl GeneralTemporalCounterfactual {
+    /// Abduce each unit once, replay every named action history against that history, and seal
+    /// the answer with its shared-abduction receipt.
+    ///
+    /// # Errors
+    /// The refusals of [`TemporalCounterfactual::evaluate`] for the general layout, or
+    /// cancellation. A refusal retains its witness in the refusal wire.
+    pub fn evaluate(
+        request: &GeneralTemporalRequestWire,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, GeneralTemporalCounterfactualArtifactError> {
+        Ok(Self { artifact: GeneralTemporalCounterfactualArtifact::seal(request, ctx)? })
+    }
+
+    /// Consume an exported artifact by recomputing every world.
+    ///
+    /// # Errors
+    /// Corruption, an unknown major version, a changed identity, a stored outcome or receipt
+    /// that does not replay, cancellation or a core refusal.
+    pub fn consume(
+        bytes: &[u8],
+        expected: Option<&GeneralTemporalIdentity>,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, GeneralTemporalCounterfactualArtifactError> {
+        Ok(Self { artifact: GeneralTemporalCounterfactualArtifact::from_bytes(bytes, expected, ctx)? })
+    }
+
+    /// Export the checksummed artifact.
+    ///
+    /// # Errors
+    /// An empty id or an oversized payload.
+    pub fn export(
+        &self,
+        artifact_id: &str,
+    ) -> Result<Vec<u8>, GeneralTemporalCounterfactualArtifactError> {
+        self.artifact.to_bytes(artifact_id)
+    }
+
+    /// The core result.
+    #[must_use]
+    pub fn result(&self) -> &GeneralTemporalResult {
+        self.artifact.result()
+    }
+
+    /// The shared-abduction receipt.
+    #[must_use]
+    pub fn receipt(&self) -> &GeneralAbductionReceipt {
+        &self.artifact.result().receipt
+    }
+
+    /// The identity digests.
+    #[must_use]
+    pub fn identity(&self) -> &GeneralTemporalIdentity {
+        self.artifact.identity()
+    }
+
+    /// The self-describing report.
+    #[must_use]
+    pub fn report(&self) -> GeneralTemporalReportWire {
+        self.artifact.report()
+    }
+
+    /// The underlying artifact.
+    #[must_use]
+    pub fn artifact(&self) -> &GeneralTemporalCounterfactualArtifact {
+        &self.artifact
+    }
+}
+
 /// The closed transported path-specific counterfactual route.
 ///
 /// Always refuses: `transported_counterfactual.route_frozen` (`cell_not_licensed`) while a
@@ -162,6 +248,33 @@ impl From<TemporalCounterfactualArtifactError> for CausalError {
             }
             None => match error {
                 TemporalCounterfactualArtifactError::LimitsExceeded(_) => {
+                    CausalError::Compile { message: error.to_string() }
+                }
+                other => {
+                    CausalError::Serialization(antecedent_io::IoError::Convert(other.to_string()))
+                }
+            },
+        }
+    }
+}
+
+impl From<GeneralTemporalCounterfactualArtifactError> for CausalError {
+    fn from(error: GeneralTemporalCounterfactualArtifactError) -> Self {
+        if matches!(error, GeneralTemporalCounterfactualArtifactError::Cancelled) {
+            return CausalError::Cancelled { stage: STAGE_TEMPORAL_COUNTERFACTUAL };
+        }
+        match error.refusal() {
+            Some(refusal) => {
+                let mut message =
+                    format!("{}{}: {}", crate::error::REASON_PREFIX, refusal.code, refusal.detail);
+                if let Some(offending) = &refusal.offending {
+                    message.push_str(": ");
+                    message.push_str(offending);
+                }
+                CausalError::Compile { message }
+            }
+            None => match error {
+                GeneralTemporalCounterfactualArtifactError::LimitsExceeded(_) => {
                     CausalError::Compile { message: error.to_string() }
                 }
                 other => {

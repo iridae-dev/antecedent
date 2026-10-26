@@ -545,9 +545,9 @@ pub fn discover_exact_dag_posterior(
 ) -> Result<GraphPosterior, CausalError> {
     let eng = ExactDagPosterior::new();
     let mut ws = DiscoveryWorkspace::default();
-    Ok(eng
-        .run(data, variables, &params.prior, params.score_family, &mut ws, ctx)?
-        .with_algorithm("exact_dag_posterior"))
+    // The engine labels the posterior with the algorithm that produced it: a problem above the
+    // enumeration cap is routed to order MCMC and keeps that label.
+    Ok(eng.run(data, variables, &params.prior, params.score_family, &mut ws, ctx)?)
 }
 
 /// Exact posterior over PAG classes of the Gaussian maximal ancestral graphs of at most four

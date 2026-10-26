@@ -1,5 +1,6 @@
 //! Python boundary for explicit outcome-observation mechanisms.
 
+use crate::NumericColumn;
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -10,10 +11,9 @@ use antecedent_data::TableView;
 use antecedent_estimate::{
     ObservationEstimatorOptions, ObservationMechanismEstimator, SelectedOutcomeCorrection,
 };
-use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 
-use crate::{columns_to_batch, dag_from_named_edges, detach_catch, py_err};
+use crate::{numeric_columns_to_batch, dag_from_named_edges, detach_catch, py_err};
 
 #[pyclass(skip_from_py_object)]
 pub(crate) struct ObservationAdjustedOutcomeResult {
@@ -108,7 +108,7 @@ pub(crate) struct ObservationArgs {
 fn observation_adjusted_outcome(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     treatment: String,
     outcome: String,
     observation_kind: String,
@@ -128,7 +128,7 @@ fn observation_adjusted_outcome(
     censoring_survival_floor: f64,
     crossfit_folds: usize,
 ) -> PyResult<ObservationAdjustedOutcomeResult> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     let correction = parse_correction(correction)?;
     let args = ObservationArgs {
@@ -181,7 +181,7 @@ fn observation_adjusted_outcome(
 fn prepare_observation_response(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     edges: Vec<(String, String)>,
     treatment: String,
     outcome: String,
@@ -208,7 +208,7 @@ fn prepare_observation_response(
     options: Option<Bound<'_, pyo3::types::PyDict>>,
 ) -> PyResult<crate::prepared_api::PyPreparedAnalysis> {
     let mut opts = crate::prepared_options::PrepareOptions::parse(options.as_ref())?;
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     let correction = parse_correction(correction)?;
     let args = ObservationArgs {
@@ -269,7 +269,7 @@ fn prepare_observation_response(
 fn gaussian_observation_log_likelihood(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     treatment: String,
     outcome: String,
     observation_kind: String,
@@ -286,7 +286,7 @@ fn gaussian_observation_log_likelihood(
     assumption_variables: Vec<String>,
     structural_model: Option<String>,
 ) -> PyResult<f64> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     let args = ObservationArgs {
         kind: observation_kind,

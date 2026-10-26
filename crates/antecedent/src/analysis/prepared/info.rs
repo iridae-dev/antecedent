@@ -435,12 +435,12 @@ impl PreparedStudy {
                 .map_err(CausalError::from)
         };
         let study = self.study();
-        if let Some(cache) = &study.cpdag_identification_cache {
+        if let Some(cache) = study.cpdag_cache() {
             let cases = cache.envelope.cases.iter().map(|case| {
                 Ok(serde_json::json!({"identification": encode(&case.result)?, "weight": case.weight.0}))
             }).collect::<Result<Vec<_>, CausalError>>()?;
             details["cases"] = serde_json::json!(cases);
-        } else if let Some(cache) = &study.pag_identification_cache {
+        } else if let Some(cache) = study.pag_cache() {
             let cases = cache.envelope.cases.iter().map(|case| {
                 Ok(serde_json::json!({"identification": encode(&case.result)?, "weight": case.weight.0}))
             }).collect::<Result<Vec<_>, CausalError>>()?;
@@ -572,7 +572,7 @@ impl PreparedStudy {
             _ => None,
         };
         if let (PreparedExecution::EstimatorRoute(_), Some(extra), Some(cache)) =
-            (&self.execution, route_roles, self.analysis.identification_cache.as_ref())
+            (&self.execution, route_roles, self.analysis.static_cache())
         {
             if cache.estimand.method_kind().ok()
                 == Some(antecedent_expr::EstimandMethod::PathSpecificNatural)
@@ -652,7 +652,7 @@ impl PreparedStudy {
     }
 
     #[cfg(test)]
-    pub(crate) fn study_mut(&mut self) -> &mut Study {
+    pub(crate) fn study_mut(&mut self) -> Result<&mut Study, CausalError> {
         self.program_cache = std::sync::OnceLock::new();
         self.contract_cache = std::sync::OnceLock::new();
         if self.execution.kind() == ExecutionKind::CheckedLinear {
@@ -660,11 +660,10 @@ impl PreparedStudy {
                 crate::analysis::execute::CheckedRouteOperation::lowered(
                     &self.analysis,
                     &self.plan,
-                )
-                .expect("a prepared handle's plan carries its lowered program"),
+                )?,
             );
         }
-        &mut self.analysis
+        Ok(&mut self.analysis)
     }
 
     /// Replace the frozen study after a successful refresh.

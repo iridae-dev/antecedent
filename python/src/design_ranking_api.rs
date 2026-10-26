@@ -109,7 +109,7 @@ fn evaluate_design_ranking(
         }
     }
     let artifact_id = artifact_id.to_owned();
-    detach_catch(py, move || match evaluate(&request) {
+    detach_catch(py, move || match evaluate(request) {
         Ok(done) => {
             let bytes = done.export(&artifact_id).map_err(serialization)?;
             let body = serde_json::to_string(done.artifact()).map_err(serialization)?;
@@ -345,7 +345,7 @@ fn compile_design_ranking_for_study(
             prior_scale,
         )?;
         let ctx = crate::transport_common::execution_context(0, memory_bytes, cancel);
-        match compile_for_study(&study, &request, &ctx) {
+        match compile_for_study(&study, request, &ctx) {
             Ok(plan) => {
                 let lowered = plan.lowered().ok_or_else(|| {
                     value_err("the compiled plan carries no lowered program for the request")
@@ -432,7 +432,7 @@ fn evaluate_design_ranking_for_study(
             prior_scale,
         )?;
         let ctx = crate::transport_common::execution_context(0, memory_bytes, cancel);
-        match evaluate_for_study(&study, &request, &ctx) {
+        match evaluate_for_study(&study, request, &ctx) {
             Ok(done) => {
                 let bytes = done.export(&artifact_id).map_err(serialization)?;
                 let body = serde_json::to_string(done.artifact()).map_err(serialization)?;

@@ -193,7 +193,7 @@ fn source_projection_bundle_requires_actual_checked_execution_and_reuses_one_opa
         SourceResolution::execute(&evidence, &prepared, &ctx).unwrap()
     });
     assert_eq!(fits, 0, "this original local-polynomial response does not execute a learner fit");
-    let consumer = source_resolved_consumer(vec![receipt]).unwrap();
+    let consumer = source_resolved_consumer(vec![receipt]);
     let (consumed, fits) = antecedent_learn::fit_counts::observe_resolved_fits(|| {
         consumer.consume(&bytes, &limits, bundle.identity(), &SuppliedSources::default()).unwrap()
     });
@@ -296,7 +296,6 @@ fn source_projection_original_artifact_replay_refuses_resealed_numerical_changes
     let (_, actual, ctx) = source();
     let receipt = SourceResolution::execute(&evidence, &actual, &ctx).unwrap();
     let imported = source_resolved_consumer(vec![receipt])
-        .unwrap()
         .consume(
             &bundle(&evidence).to_bytes("replay", &BundleLimits::default()).unwrap(),
             &BundleLimits::default(),

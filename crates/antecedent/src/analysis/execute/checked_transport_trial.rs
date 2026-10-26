@@ -77,7 +77,7 @@ impl CheckedTransportTrialOperation {
             return Ok(None);
         };
         let (Some(trial), Some(transport)) =
-            (study.transport_trial.as_ref(), study.transport_identification_cache.as_deref())
+            (study.transport_trial.as_ref(), study.transport_cache().map(|cache| &**cache))
         else {
             return Ok(None);
         };

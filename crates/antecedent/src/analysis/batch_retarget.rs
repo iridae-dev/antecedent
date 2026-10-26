@@ -1026,12 +1026,29 @@ pub(crate) fn retarget_family(
     })
 }
 
-/// Fewest Monte-Carlo draws the unpublished max-t evaluator accepts.
-pub const MAX_T_MIN_DRAWS: u32 = 1_000;
+/// Bytes held per draw while the evaluator takes the empirical quantile: the draw's maximum.
+const MAX_T_BYTES_PER_DRAW: u64 = 8;
 
-/// Most Monte-Carlo draws the unpublished max-t evaluator accepts (the draws' maxima are
-/// held in memory to take their empirical quantile).
-pub const MAX_T_MAX_DRAWS: u32 = 2_000_000;
+/// Slack the empirical-quantile rank tolerates before it rounds up (the sampler's own rule).
+const QUANTILE_RANK_SLACK: f64 = 1e-9;
+
+/// Fewest draws for which the empirical `level` quantile of the maxima exists.
+///
+/// The rank `ceil(level * (B + 1))` must not exceed `B`, which holds exactly when
+/// `B >= level / (1 - level)`: the bound grows like `1 / (1 - level)` with the level, so a
+/// fixed floor would refuse legitimate small-level requests and admit unusable high-level
+/// ones. A level at which the rank does not exist is reported as infinite by the sampler,
+/// which the evaluator also refuses as a final guard.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    reason = "the bound is a positive finite ceiling saturated at u64::MAX before the cast"
+)]
+fn min_draws_for_level(level: f64) -> u64 {
+    let bound = ((level - QUANTILE_RANK_SLACK) / (1.0 - level)).ceil().max(1.0);
+    if bound >= u64::MAX as f64 { u64::MAX } else { bound as u64 }
+}
 
 /// Slack on a correlation matrix's unit diagonal and unit bound.
 const CORRELATION_SLACK: f64 = 1e-9;
@@ -1071,9 +1088,9 @@ fn correlation_of(family: &FamilyCovariance) -> Result<JointCovariance, BatchRet
 /// # Errors
 ///
 /// `invalid_argument` (`batch_retarget.max_t_invalid_level`) for a level outside (0, 1);
-/// `invalid_argument` (`batch_retarget.max_t_draws_out_of_range`) for fewer than
-/// [`MAX_T_MIN_DRAWS`] or more than [`MAX_T_MAX_DRAWS`] draws, or too few for the level's
-/// empirical quantile to exist; `route_not_supported`
+/// `invalid_argument` (`batch_retarget.max_t_draws_out_of_range`) for too few draws for the
+/// level's empirical quantile to exist (`level / (1 - level)` at least) or more draws than the
+/// context's memory budget admits for holding their maxima; `route_not_supported`
 /// (`batch_retarget.covariance_unavailable`) when `correlation` is not a symmetric positive
 /// semidefinite matrix with a unit diagonal; `cancelled_no_claim`
 /// (`batch_retarget.cancelled`) when the context is cancelled before every draw is made.
@@ -1103,15 +1120,27 @@ fn max_t_critical_value_with_df(
             format!("the max-t level must lie strictly between 0 and 1, got {level}"),
         ));
     }
-    if !(MAX_T_MIN_DRAWS..=MAX_T_MAX_DRAWS).contains(&draws) {
+    let min_draws = min_draws_for_level(level);
+    if u64::from(draws) < min_draws {
         return Err(invalid(
             "batch_retarget.max_t_draws_out_of_range",
             format!(
-                "the max-t evaluator takes between {MAX_T_MIN_DRAWS} and {MAX_T_MAX_DRAWS} \
-                 draws, got {draws}"
+                "{draws} draws are too few for an empirical {level} quantile; it needs at \
+                 least {min_draws}"
             ),
         ));
     }
+    // The draws' maxima are held to take their empirical quantile: charge them to the
+    // context's memory budget instead of capping the count by a literal.
+    let _maxima = ctx.acquire_admission_product(0, u64::from(draws), MAX_T_BYTES_PER_DRAW).map_err(
+        |error| match error {
+            antecedent_core::execution::AdmissionError::Cancelled => cancelled(),
+            other => invalid(
+                "batch_retarget.max_t_draws_out_of_range",
+                format!("{draws} draws exceed the execution context's memory budget: {other}"),
+            ),
+        },
+    )?;
     let dim = correlation.dim;
     let well_formed = dim > 0
         && correlation.values.len() == dim * dim
@@ -1641,19 +1670,22 @@ mod tests {
         for level in [0.0, 1.0, -0.5, 1.5, f64::NAN] {
             assert_eq!(detail(level, 5_000, &corr), "batch_retarget.max_t_invalid_level");
         }
-        assert_eq!(
-            detail(0.95, MAX_T_MIN_DRAWS - 1, &corr),
-            "batch_retarget.max_t_draws_out_of_range"
-        );
-        assert_eq!(
-            detail(0.95, MAX_T_MAX_DRAWS + 1, &corr),
-            "batch_retarget.max_t_draws_out_of_range"
-        );
+        // The floor follows the level: 0.95 needs 19 draws, 0.9999 needs 9999.
+        assert_eq!(min_draws_for_level(0.95), 19);
+        assert_eq!(min_draws_for_level(0.9999), 9_999);
+        assert_eq!(detail(0.95, 18, &corr), "batch_retarget.max_t_draws_out_of_range");
+        assert_eq!(detail(0.95, 0, &corr), "batch_retarget.max_t_draws_out_of_range");
+        assert!(max_t_critical_value(&corr, 0.95, 1, 19, &ctx()).unwrap().is_finite());
         // 1000 draws cannot hold a 0.9999 empirical quantile.
+        assert_eq!(detail(0.9999, 1_000, &corr), "batch_retarget.max_t_draws_out_of_range");
+        // The draws' maxima are charged to the context's memory budget, not a literal count.
+        let tight = ExecutionContext::for_tests(1).with_memory_limit(Some(8 * 5_000 - 1));
         assert_eq!(
-            detail(0.9999, MAX_T_MIN_DRAWS, &corr),
+            max_t_critical_value(&corr, 0.95, 1, 5_000, &tight).unwrap_err().detail,
             "batch_retarget.max_t_draws_out_of_range"
         );
+        let roomy = ExecutionContext::for_tests(1).with_memory_limit(Some(8 * 5_000));
+        assert!(max_t_critical_value(&corr, 0.95, 1, 5_000, &roomy).unwrap().is_finite());
         let not_unit = JointCovariance { dim: 1, values: Arc::from(vec![2.0]) };
         let not_psd = JointCovariance { dim: 2, values: Arc::from(vec![1.0, 2.0, 2.0, 1.0]) };
         let empty = JointCovariance { dim: 0, values: Arc::from(Vec::<f64>::new()) };

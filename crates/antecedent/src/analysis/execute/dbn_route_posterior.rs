@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! One-modifier conditional effects, single-horizon derivatives and cross-world contrasts over a
+//! Conditional effects, single-horizon derivatives and cross-world contrasts over a
 //! supplied dynamic-Bayesian graph posterior on a series.
 //!
 //! Every atom of the posterior is a `TemporalDag`: a contemporaneous DAG with lagged parents.
@@ -70,8 +70,8 @@ pub(crate) fn dbn_atoms(posterior: &GraphPosterior) -> bool {
         && posterior.max_lag.is_some()
 }
 
-/// Whether a series query is answered atom by atom over `TemporalDag` atoms: a one-modifier
-/// conditional pulse or sustained contrast, the slope of a derivative at one or several horizons, or a
+/// Whether a series query is answered atom by atom over `TemporalDag` atoms: a
+/// conditional (modifier-set) pulse or sustained contrast, the slope of a derivative at one or several horizons, or a
 /// cross-world contrast.
 #[must_use]
 pub(crate) fn dbn_route_query(query: &CausalQuery) -> bool {
@@ -143,12 +143,12 @@ impl<'a> DbnPoint<'a> {
     fn of(query: &'a CausalQuery) -> Result<Self, CausalError> {
         match query {
             CausalQuery::TemporalEffect(effect) => {
-                if effect.effect_modifiers.len() != 1
+                if effect.effect_modifiers.is_empty()
                     || effect.is_multi_step_sustained()
                     || matches!(effect.policy, antecedent_core::TemporalPolicy::Dynamic { .. })
                 {
                     return Err(CausalError::Unsupported {
-                        message: "a temporal conditional effect fits one modifier on a single-step \
+                        message: "a temporal conditional effect fits a modifier set on a single-step \
                                   pulse or sustained policy",
                     });
                 }
@@ -170,7 +170,7 @@ impl<'a> DbnPoint<'a> {
                 })
             }
             _ => Err(CausalError::Compile {
-                message: "a dynamic graph-posterior point answers a one-modifier conditional \
+                message: "a dynamic graph-posterior point answers a conditional \
                           effect, a derivative or a cross-world contrast"
                     .into(),
             }),
@@ -626,7 +626,7 @@ impl super::Study {
         Ok(states.finish())
     }
 
-    /// Mix a one-modifier conditional effect, a derivative (at one or several horizons) or a
+    /// Mix a conditional effect, a derivative (at one or several horizons) or a
     /// cross-world contrast over the `TemporalDag` atoms of a dynamic graph posterior.
     ///
     /// Several horizons are fitted separately (each has its own identification, atoms and
@@ -793,6 +793,11 @@ impl super::Study {
             }
         };
         let mut diagnostics: Vec<Diagnostic> = Vec::new();
+        if let DbnPoint::Conditional(effect) = point_kind {
+            diagnostics.extend(super::temporal_effect_core::modifier_set_coverage_note(
+                effect.effect_modifiers.len(),
+            ));
+        }
         let (block_stream, posterior_stream) = match point_kind {
             DbnPoint::Conditional(_) => (
                 point_uncertainty::CONDITIONAL_BLOCK_STREAM,

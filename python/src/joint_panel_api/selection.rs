@@ -14,7 +14,9 @@ fn error(e: ProgramSearchError) -> PyErr {
     match e {
         ProgramSearchError::Cancelled => crate::CausalCancelledError::new_err(e.to_string()),
         ProgramSearchError::Resource(_) => crate::CausalResourceError::new_err(e.to_string()),
-        ProgramSearchError::Invalid(_) => crate::value_err(e.to_string()),
+        ProgramSearchError::Invalid(_) | ProgramSearchError::Upstream { .. } => {
+            crate::value_err(e.to_string())
+        }
     }
 }
 #[derive(serde::Deserialize)]

@@ -4,6 +4,7 @@ use super::native_claims::{NativeDecisionSource, NativeResponseClaim, NativeResp
 use super::recalc_common::Fields;
 use super::recalc_external::{
     ExternalCallbackError, ExternalCallbackRequest, ExternalCallbackSession, ExternalMeanProvider,
+    ExternalMetadataLimits,
 };
 use super::recalc_receipt::{Counter, RecalcReceipt, RecalcRunError, ReceiptRecorder};
 use super::recalc_static::{
@@ -162,8 +163,6 @@ impl CompositeSession {
         request.native_program.validate().map_err(|e| CompositeError::Binding(Box::new(e)))?;
         if request.externals.len() != 2
             || request.externals[0].branch == request.externals[1].branch
-            || request.decision_contract.actions.len() > 64
-            || request.decision_contract.constraints.len() > 128
         {
             return Err(CompositeError::Request("composite_recalc.request_unsupported"));
         }
@@ -200,7 +199,7 @@ impl CompositeSession {
         let mut ids = request.native.identities();
         for external in &request.externals {
             external
-                .validate()
+                .validate(&ExternalMetadataLimits::default())
                 .map_err(|cause| CompositeError::External { branch: external.branch, cause })?;
             if external.program != request.native_program {
                 return Err(CompositeError::Request("external_recalc.contract_mismatch"));
@@ -512,10 +511,15 @@ fn add_receipt(recorder: &mut ReceiptRecorder, receipt: &RecalcReceipt) {
     }
 }
 
+/// Deepest utility expression the evaluators, which recurse on the expression, admit.
+const MAX_UTILITY_DEPTH: usize = 64;
+
 fn decision_bounded(contract: &DecisionContract) -> bool {
     use antecedent_design::decision_contract::UtilityExpr;
-    if contract.actions.len() > 64
-        || !contract.constraints.is_empty()
+    // Action and input counts and the size of a utility expression are not bounded here: the
+    // work is linear in them and the caller owns that budget. Expression depth is bounded
+    // because the evaluators recurse on it.
+    if !contract.constraints.is_empty()
         || contract.utility_units.len() > 256
         || contract.target_population.len() > 256
     {
@@ -523,16 +527,16 @@ fn decision_bounded(contract: &DecisionContract) -> bool {
     }
     for action in &contract.actions {
         if action.id.len() > 256
-            || action.inputs.len() > 64
-            || action.inputs.iter().any(|q| !super::recalc_external::quantity_bounded(q))
+            || action
+                .inputs
+                .iter()
+                .any(|q| !super::recalc_external::quantity_bounded(q, &Default::default()))
         {
             return false;
         }
         let mut stack = vec![(&action.utility, 0_usize)];
-        let mut nodes = 0;
         while let Some((expr, depth)) = stack.pop() {
-            nodes += 1;
-            if depth >= 64 || nodes > 2048 {
+            if depth >= MAX_UTILITY_DEPTH {
                 return false;
             }
             match expr {

@@ -187,7 +187,7 @@ impl super::Study {
         bound.data = DataInput::Tabular(data.clone());
         bound.query = CausalQuery::Response(operation.query().clone());
         bound.graph_posterior = Some(operation.posterior().clone());
-        bound.graph_posterior_identification_cache = Some(Arc::clone(operation.identification()));
+        bound.install_identification(crate::analysis::IdentificationCache::GraphPosterior(Arc::clone(operation.identification())));
         bound.inference = operation.inference().clone();
         bound.refute = operation.validation();
         bound.latency_mode = operation.latency_mode();

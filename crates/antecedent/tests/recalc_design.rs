@@ -5,7 +5,9 @@ use antecedent::analysis::recalc_design::{
     DesignModel, DesignRequest, DesignRunError, DesignSession, consume_design_with_data,
     execute_design_with_receipt,
 };
-use antecedent::analysis::recalc_receipt::{RecalcOutcome, RecalcRunError, UtilitySpec};
+use antecedent::analysis::recalc_receipt::{
+    RecalcOutcome, RecalcRequestCode, RecalcRunError, UtilitySpec,
+};
 use antecedent_core::ExecutionContext;
 use antecedent_core::recalc::{ResumeContext, Stage};
 use antecedent_stats::fit_counts::count_least_squares_solves;
@@ -24,7 +26,14 @@ fn request(
     columns: Vec<(String, Vec<f64>)>,
     edges: Vec<(u32, u32)>,
 ) -> DesignRequest {
-    DesignRequest { columns, edges, treatment: 0, outcome: 1, model, utility: utility() }
+    DesignRequest {
+        columns: columns.into(),
+        edges,
+        treatment: 0,
+        outcome: 1,
+        model,
+        utility: utility(),
+    }
 }
 fn iv(strength: f64) -> DesignRequest {
     let (mut z, mut t, mut y) = (Vec::new(), Vec::new(), Vec::new());
@@ -211,7 +220,9 @@ fn assert_source_backed_replay(
         count_least_squares_solves(|| consume_design_with_data(bytes, None, &ctx()));
     assert!(matches!(
         missing,
-        Err(DesignRunError::Recalc(RecalcRunError::Request("recalc.design_data_unavailable")))
+        Err(DesignRunError::Recalc(RecalcRunError::Request(
+            RecalcRequestCode::DesignDataUnavailable
+        )))
     ));
     assert_eq!(solves, 0);
     for changed in [
@@ -228,12 +239,16 @@ fn assert_source_backed_replay(
     ] {
         assert!(matches!(
             consume_design_with_data(bytes, Some(&changed), &ctx()),
-            Err(DesignRunError::Recalc(RecalcRunError::Request("recalc.design_artifact_mismatch")))
+            Err(DesignRunError::Recalc(RecalcRunError::Request(
+                RecalcRequestCode::DesignArtifactMismatch
+            )))
         ));
     }
     assert!(matches!(
         consume_design_with_data(bytes, Some(r), &ExecutionContext::for_tests(120)),
-        Err(DesignRunError::Recalc(RecalcRunError::Request("recalc.design_artifact_mismatch")))
+        Err(DesignRunError::Recalc(RecalcRunError::Request(
+            RecalcRequestCode::DesignArtifactMismatch
+        )))
     ));
     if let DesignModel::Rd { .. } = r.model {
         let mut changed = r.clone();
@@ -244,7 +259,9 @@ fn assert_source_backed_replay(
         // but the original checked-program binding must still reject it.
         assert!(matches!(
             consume_design_with_data(bytes, Some(&changed), &ctx()),
-            Err(DesignRunError::Recalc(RecalcRunError::Request("recalc.design_artifact_mismatch")))
+            Err(DesignRunError::Recalc(RecalcRunError::Request(
+                RecalcRequestCode::DesignArtifactMismatch
+            )))
         ));
     }
 }

@@ -588,14 +588,15 @@ pub(crate) fn attach_average_functional_grid(
         _ => AipwAte::new(),
     };
     if let Some(design) = study.sampling_design {
-        config.sampling_design = antecedent_estimate::util::SamplingDeclaration::Declared(design);
+        config.inference.sampling_design =
+            antecedent_estimate::util::SamplingDeclaration::Declared(design);
     }
     if let Some(overlap) = study.overlap_policy {
         config.overlap = overlap;
     }
     if !matches!(query.outcome_functional, OutcomeFunctional::Mean)
         && (matches!(config.overlap, OverlapPolicy::RequireDiagnostics { trim: Some(_), .. })
-            || config.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic)
+            || config.inference.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic)
     {
         return Err(CausalError::Unsupported {
             message: "cross-fitted functional scores require iid inference without propensity trimming",
@@ -687,7 +688,7 @@ pub(crate) fn requested_joint_arm(
         let v = value.as_f64();
         if j >= antecedent_estimate::cell_aipw::MAX_JOINT_BINARY || !matches!(v, Some(0.0 | 1.0)) {
             return Err(CausalError::Unsupported {
-                message: "joint-cell response requires at most three binary Set levels",
+                message: "joint-cell response requires binary Set levels on a joint cell code's coordinates",
             });
         }
         arm |= u32::from(v == Some(1.0)) << j;

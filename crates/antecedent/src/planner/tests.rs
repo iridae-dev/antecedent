@@ -9,7 +9,7 @@ use antecedent_graph::{Dag, TemporalDag};
 
 use crate::accepted::AcceptedGraph;
 use crate::error::CausalError;
-use crate::strategy_table::IdentifierId;
+use crate::strategy_table::{EstimatorId, IdentifierId};
 
 use super::*;
 
@@ -186,8 +186,8 @@ fn refuses_iv_estimator_with_backdoor_identifier() {
         graph: &graph,
         query: &query,
         validation_suite: None,
-        identifier: Arc::from("backdoor.adjustment"),
-        estimator: Arc::from("iv.2sls"),
+        identifier: IdentifierId::BackdoorAdjustment,
+        estimator: EstimatorId::Iv2Sls,
     })
     .unwrap_err();
     assert!(matches!(err, CausalError::Compile { .. }));
@@ -201,26 +201,20 @@ fn refuses_propensity_estimator_with_frontdoor_identifier() {
         graph: &graph,
         query: &query,
         validation_suite: None,
-        identifier: Arc::from("frontdoor"),
-        estimator: Arc::from("propensity.weighting"),
+        identifier: IdentifierId::Frontdoor,
+        estimator: EstimatorId::PropensityWeighting,
     })
     .unwrap_err();
     assert!(matches!(err, CausalError::Compile { .. }));
 }
 
 #[test]
-fn refuses_unknown_identifier_and_estimator() {
-    let (data, graph, query) = toy_static_input();
-    let err = compile_logical_static_ate(StaticAteCompileInput {
-        data: &data,
-        graph: &graph,
-        query: &query,
-        validation_suite: None,
-        identifier: Arc::from("backdoor.adjustment"),
-        estimator: Arc::from("not.a.real.estimator"),
-    })
-    .unwrap_err();
-    assert!(matches!(err, CausalError::Compile { .. }));
+fn closed_ids_refuse_unknown_wire_names_before_a_compile_input_exists() {
+    // The compile inputs carry the closed ids, so an unknown wire name is refused where it is
+    // parsed, not inside the compile.
+    assert!("not.a.real.estimator".parse::<EstimatorId>().is_err());
+    assert!("not.a.real.identifier".parse::<IdentifierId>().is_err());
+    assert_eq!("linear.adjustment.ate".parse::<EstimatorId>(), Ok(EstimatorId::LinearAdjustmentAte));
 }
 
 #[test]
@@ -233,8 +227,8 @@ fn refuses_att_target_population_with_linear_adjustment() {
         graph: &graph,
         query: &att_query,
         validation_suite: None,
-        identifier: Arc::from("backdoor.adjustment"),
-        estimator: Arc::from("linear.adjustment.ate"),
+        identifier: IdentifierId::BackdoorAdjustment,
+        estimator: EstimatorId::LinearAdjustmentAte,
     })
     .unwrap_err();
     let message = err.to_string();
@@ -395,8 +389,8 @@ fn accepts_default_pair() {
         graph: &graph,
         query: &query,
         validation_suite: None,
-        identifier: Arc::from("backdoor.adjustment"),
-        estimator: Arc::from("linear.adjustment.ate"),
+        identifier: IdentifierId::BackdoorAdjustment,
+        estimator: EstimatorId::LinearAdjustmentAte,
     })
     .unwrap();
     assert_eq!(plan.record.identifier.as_deref(), Some("backdoor.adjustment"));
@@ -411,8 +405,8 @@ fn accepts_propensity_weighting_with_backdoor_adjustment() {
         graph: &graph,
         query: &query,
         validation_suite: None,
-        identifier: Arc::from("backdoor.adjustment"),
-        estimator: Arc::from("propensity.weighting"),
+        identifier: IdentifierId::BackdoorAdjustment,
+        estimator: EstimatorId::PropensityWeighting,
     })
     .unwrap();
     assert_eq!(plan.record.estimator.as_deref(), Some("propensity.weighting"));

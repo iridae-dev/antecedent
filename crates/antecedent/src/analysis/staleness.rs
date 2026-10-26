@@ -60,8 +60,7 @@ impl PreparedStudy {
             _ => (None, None),
         };
         let adjustment: Vec<String> = study
-            .identification_cache
-            .as_ref()
+            .static_cache()
             .map(|cache| cache.estimand.adjustment_set.iter().filter_map(|id| name(*id)).collect())
             .unwrap_or_default();
         let bayesian = matches!(study.inference, InferenceMode::Bayesian(_));

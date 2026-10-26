@@ -147,7 +147,7 @@ fn checked_iv_survives_builder_drop_and_refresh_with_selected_fitter() {
             result.estimate.as_effect().unwrap().uncertainty.analytic.kind,
             Some(AnalyticSeKind::Hc1)
         );
-        prepared.study_mut().estimator_spec = Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(
+        prepared.study_mut().unwrap().estimator_spec = Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(
             Box::new(antecedent_estimate::LinearAdjustmentAte::new()),
         )));
         let refreshed = prepared.refresh(data(0.4), &context).unwrap();
@@ -161,7 +161,7 @@ fn checked_iv_survives_builder_drop_and_refresh_with_selected_fitter() {
             Some(AnalyticSeKind::Hc1)
         );
         assert!(matches!(prepared.execution, PreparedExecution::Iv(_)));
-        prepared.study_mut().query =
+        prepared.study_mut().unwrap().query =
             crate::CausalQuery::AverageEffect(AverageEffectQuery::with_levels(
                 VariableId::from_raw(0),
                 VariableId::from_raw(1),

@@ -47,13 +47,14 @@ use antecedent_identify::{
     IdentificationResult, IdentificationStatus, TransportIdentification,
 };
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
-use serde_json::{Value as Json, json};
+use serde_json::Value as Json;
 
 pub use crate::analysis::lowering::{GraphPosteriorCell, PlanRoute};
 
 use crate::analysis::IdentificationCache;
 use crate::error::CausalError;
 use crate::planner::PhysicalExecutionPlan;
+use crate::planner::fact::{Fact, fact};
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, IdentificationLayer,
     LoweredProgram, LoweringDepth, NonGraphicalIdentification, ProblemTarget, ProgramCell,
@@ -178,12 +179,12 @@ impl EstimandView {
         &self.mediators
     }
 
-    fn to_json(&self) -> Json {
-        json!({
+    fn facts(&self) -> Fact {
+        fact!({
             "method": &*self.method,
-            "adjustment_set": ids(&self.adjustment_set),
-            "instruments": ids(&self.instruments),
-            "mediators": ids(&self.mediators),
+            "adjustment_set": Fact::variables(&self.adjustment_set),
+            "instruments": Fact::variables(&self.instruments),
+            "mediators": Fact::variables(&self.mediators),
         })
     }
 }
@@ -208,8 +209,8 @@ impl AssumptionView {
         self.status
     }
 
-    fn to_json(&self) -> Json {
-        json!({"label": self.label, "status": self.status.as_str()})
+    fn facts(&self) -> Fact {
+        fact!({"label": self.label, "status": self.status.as_str()})
     }
 }
 
@@ -326,22 +327,22 @@ impl ProductView {
         &self.unresolved
     }
 
-    fn to_json(&self) -> Json {
-        json!({
+    fn facts(&self) -> Fact {
+        fact!({
             "identity": self.identity.to_hex(),
             "outcome": outcome_name(self.outcome),
             "claim_class": claim_class_name(self.claim_class),
-            "estimands": self.estimands.iter().map(EstimandView::to_json).collect::<Vec<_>>(),
-            "assumptions": self.assumptions.iter().map(AssumptionView::to_json).collect::<Vec<_>>(),
+            "estimands": self.estimands.iter().map(EstimandView::facts).collect::<Vec<_>>(),
+            "assumptions": self.assumptions.iter().map(AssumptionView::facts).collect::<Vec<_>>(),
             "required_factors": self
                 .required_factors
                 .iter()
-                .map(|(name, variables)| json!({"name": &**name, "variables": ids(variables)}))
+                .map(|(name, variables)| fact!({"name": &**name, "variables": Fact::variables(variables)}))
                 .collect::<Vec<_>>(),
             "unresolved_obligations": self
                 .unresolved
                 .iter()
-                .map(|obligation| json!({"code": &*obligation.code, "detail": &*obligation.detail}))
+                .map(|obligation| fact!({"code": &*obligation.code, "detail": &*obligation.detail}))
                 .collect::<Vec<_>>(),
         })
     }
@@ -550,12 +551,12 @@ impl RetainedProductView {
         self.transport
     }
 
-    fn to_json(&self) -> Json {
-        json!({
+    fn facts(&self) -> Fact {
+        fact!({
             "kind": self.kind,
             "status": self.status.map(IdentificationStatus::as_str),
-            "estimands": self.estimands.iter().map(EstimandView::to_json).collect::<Vec<_>>(),
-            "assumptions": self.assumptions.iter().map(AssumptionView::to_json).collect::<Vec<_>>(),
+            "estimands": self.estimands.iter().map(EstimandView::facts).collect::<Vec<_>>(),
+            "assumptions": self.assumptions.iter().map(AssumptionView::facts).collect::<Vec<_>>(),
             "horizons": self.horizons,
             "completions": self.completions,
             "truncated_completions": self.truncated_completions,
@@ -751,16 +752,16 @@ impl IdentificationView {
         self.product.as_ref().map_or(&[][..], |product| product.unresolved.as_slice())
     }
 
-    fn to_json(&self) -> Json {
-        json!({
+    fn facts(&self) -> Fact {
+        fact!({
             "kind": self.kind.as_str(),
             "status": self.status().map(IdentificationStatus::as_str),
             "reason": self.reason,
             "refusal": self.refusal.as_deref(),
             "non_graphical": self.non_graphical,
             "unresolved_directions": self.unresolved_directions,
-            "product": self.product.as_ref().map(ProductView::to_json),
-            "retained": self.retained.iter().map(RetainedProductView::to_json).collect::<Vec<_>>(),
+            "product": self.product.as_ref().map(ProductView::facts),
+            "retained": self.retained.iter().map(RetainedProductView::facts).collect::<Vec<_>>(),
             "installed_at_prepare": self.installed_at_prepare,
             "retention_key": self.retention_key.map(|key| SemanticDigest::from_bytes(key).to_hex()),
         })
@@ -834,14 +835,14 @@ impl BackendView {
         self.budget_bytes
     }
 
-    fn to_json(&self) -> Json {
-        json!({
+    fn facts(&self) -> Fact {
+        fact!({
             "selected": self.selected.as_str(),
             "selected_cost": self.selected_cost,
             "rejected": self
                 .rejected
                 .iter()
-                .map(|rejected| json!({
+                .map(|rejected| fact!({
                     "alternative": rejected.alternative().as_str(),
                     "reason": rejected.reason().to_string(),
                 }))
@@ -849,7 +850,7 @@ impl BackendView {
             "quotes": self
                 .quotes
                 .iter()
-                .map(|quote| json!({
+                .map(|quote| fact!({
                     "alternative": quote.alternative().as_str(),
                     "work_cells": quote.work_cells(),
                     "resident_bytes": quote.resident_bytes(),
@@ -948,13 +949,13 @@ impl PhysicalView {
         self.operator_bytes(|operator| operator.estimates().output())
     }
 
-    fn to_json(&self) -> Json {
-        let operators: Vec<Json> = self
+    fn facts(&self) -> Fact {
+        let operators: Vec<Fact> = self
             .operators
             .iter()
             .map(|operator| {
                 let estimates = operator.estimates();
-                json!({
+                fact!({
                     "effect": operator.effect().as_str(),
                     "sources": operator.sources().len(),
                     "designs": operator.designs().len(),
@@ -967,20 +968,20 @@ impl PhysicalView {
             })
             .collect();
         let record = self.record.as_ref().map(|record| {
-            json!({
+            fact!({
                 "plan_id": &*record.plan_id,
                 "materializations": record
                     .materializations
                     .iter()
                     .map(|(buffer, materialization)| {
-                        json!({"buffer": &**buffer, "materialization": format!("{materialization:?}")})
+                        fact!({"buffer": &**buffer, "materialization": format!("{materialization:?}")})
                     })
                     .collect::<Vec<_>>(),
                 "kernels": record
                     .kernels
                     .iter()
                     .map(|(kernel, selection)| {
-                        json!({"kernel": &**kernel, "selection": format!("{selection:?}")})
+                        fact!({"kernel": &**kernel, "selection": format!("{selection:?}")})
                     })
                     .collect::<Vec<_>>(),
                 "batch_size": record.batch_size,
@@ -990,7 +991,7 @@ impl PhysicalView {
                 "task_schedule": record
                     .task_schedule
                     .iter()
-                    .map(|task| json!({"dimension": &*task.dimension, "units": task.units}))
+                    .map(|task| fact!({"dimension": &*task.dimension, "units": task.units}))
                     .collect::<Vec<_>>(),
                 "worker_threads": record.worker_threads,
                 "deterministic_reductions": record.deterministic_reductions,
@@ -998,11 +999,11 @@ impl PhysicalView {
             })
         });
         let memory = self.memory.map(|memory| {
-            json!({
+            fact!({
                 "components": memory
                     .components()
                     .iter()
-                    .map(|(component, bytes)| json!({
+                    .map(|(component, bytes)| fact!({
                         "component": component.as_str(),
                         "bytes": bytes,
                     }))
@@ -1012,16 +1013,16 @@ impl PhysicalView {
                 "workers": memory.worker_count(),
             })
         });
-        json!({
+        fact!({
             "operators": operators,
             "design": design_json(self.design),
-            "backend": self.backend.as_ref().map(BackendView::to_json),
+            "backend": self.backend.as_ref().map(BackendView::facts),
             "memory": memory,
             "scratch_bytes": self.scratch_bytes(),
             "retained_bytes": self.retained_bytes(),
             "output_bytes": self.output_bytes(),
             "record": record,
-            "kernel_policy": self.kernel_policy.map(|policy| json!({
+            "kernel_policy": self.kernel_policy.map(|policy| fact!({
                 "allow_portable_optimized": policy.allow_portable_optimized,
                 "allow_arch_simd": policy.allow_arch_simd,
                 "force_scalar": policy.force_scalar,
@@ -1095,8 +1096,8 @@ impl UncertaintyDemand {
         self.decision_request
     }
 
-    fn to_json(&self) -> Json {
-        json!({
+    fn facts(&self) -> Fact {
+        fact!({
             "reading": self.reading.as_str(),
             "claim_kind": self.claim_kind.map(ClaimKind::as_str),
             "realization": self.realization,
@@ -1135,8 +1136,8 @@ impl SupportView {
         self.status
     }
 
-    fn to_json(&self) -> Json {
-        json!({
+    fn facts(&self) -> Fact {
+        fact!({
             "coordinate": self.coordinate.as_deref(),
             "licensed": self.licensed,
             "status": self.status.map(CellStatus::as_str),
@@ -1207,14 +1208,14 @@ impl MixtureAtomView {
         self.envelope_identified_weight
     }
 
-    fn to_json(&self) -> Json {
-        json!({
+    fn facts(&self) -> Fact {
+        fact!({
             "key": self.key,
             "weight": self.weight,
             "samples": self.samples,
             "identified": self.identified,
             "status": self.status.map(IdentificationStatus::as_str),
-            "estimand": self.estimand.as_ref().map(EstimandView::to_json),
+            "estimand": self.estimand.as_ref().map(EstimandView::facts),
             "completions": self.completions,
             "envelope_identified_weight": self.envelope_identified_weight,
         })
@@ -1416,10 +1417,10 @@ impl MixtureView {
         self.identification_retained
     }
 
-    fn to_json(&self) -> Json {
-        json!({
+    fn facts(&self) -> Fact {
+        fact!({
             "atom_kind": self.atom_kind,
-            "atoms": self.atoms.iter().map(MixtureAtomView::to_json).collect::<Vec<_>>(),
+            "atoms": self.atoms.iter().map(MixtureAtomView::facts).collect::<Vec<_>>(),
             "total_weight": self.total_weight,
             "identified_mass": self.identified_mass,
             "unidentified_mass": self.unidentified_mass,
@@ -1521,15 +1522,15 @@ impl ReuseView {
         self.retained_operation
     }
 
-    fn to_json(&self) -> Json {
-        json!({
+    fn facts(&self) -> Fact {
+        fact!({
             "identification_retained": self.identification_retained,
             "installed_at_prepare": self.installed_at_prepare,
             "retention_key": self.retention_key.as_ref().map(hex),
             "frozen_fit_reuse": self
                 .frozen_fit_reuse
                 .iter()
-                .map(|(effect, reuse)| json!({"effect": effect, "reuse": reuse}))
+                .map(|(effect, reuse)| fact!({"effect": effect, "reuse": reuse}))
                 .collect::<Vec<_>>(),
             "source_dependencies": self.source_dependencies,
             "design_dependencies": self.design_dependencies,
@@ -1606,8 +1607,8 @@ impl OperationView {
         &self.outputs
     }
 
-    fn to_json(&self) -> Json {
-        json!({
+    fn facts(&self) -> Fact {
+        fact!({
             "layer": self.layer.as_str(),
             "name": self.name,
             "subject": self.subject,
@@ -1890,7 +1891,13 @@ impl PlanView {
     /// as lowercase hex.
     #[must_use]
     pub fn to_json(&self) -> Json {
-        json!({
+        Json::from(&self.facts())
+    }
+
+    /// The whole view as a typed fact tree: the one statement [`Self::to_json`] and the report
+    /// are both derived from.
+    pub(crate) fn facts(&self) -> Fact {
+        fact!({
             "route": self.route.as_str(),
             "family": self.family().as_str(),
             "cyclic_family": self.program.cyclic_family(),
@@ -1899,20 +1906,20 @@ impl PlanView {
             "identity": self.identity().to_hex(),
             "depth": self.depth().as_str(),
             "scientific": scientific_json(self.scientific()),
-            "identification": self.identification.to_json(),
+            "identification": self.identification.facts(),
             "statistical": statistical_json(self.statistical()),
             "evidence": evidence_json(self.evidence()),
-            "physical": self.physical.to_json(),
-            "uncertainty": self.uncertainty.to_json(),
-            "support": self.support.to_json(),
-            "mixture": self.mixture.as_ref().map(MixtureView::to_json),
+            "physical": self.physical.facts(),
+            "uncertainty": self.uncertainty.facts(),
+            "support": self.support.facts(),
+            "mixture": self.mixture.as_ref().map(MixtureView::facts),
             "assumptions": self
                 .assumptions()
                 .iter()
-                .map(AssumptionView::to_json)
+                .map(AssumptionView::facts)
                 .collect::<Vec<_>>(),
-            "reuse": self.reuse.to_json(),
-            "operations": self.operations().iter().map(OperationView::to_json).collect::<Vec<_>>(),
+            "reuse": self.reuse.facts(),
+            "operations": self.operations().iter().map(OperationView::facts).collect::<Vec<_>>(),
             "operation": self.operation,
         })
     }
@@ -1958,38 +1965,9 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
     }
 }
 
-/// The identification products preparation installed into `study`, in the
-/// order preparation installs them.
+/// The identification product preparation installed into `study`.
 fn installed_caches(study: &crate::Study) -> Vec<IdentificationCache> {
-    let mut caches = Vec::new();
-    if let Some(cache) = &study.identification_cache {
-        caches.push(IdentificationCache::Static(Arc::clone(cache)));
-    }
-    if let Some(cache) = &study.pag_identification_cache {
-        caches.push(IdentificationCache::Pag(Arc::clone(cache)));
-    }
-    if let Some(cache) = &study.cpdag_identification_cache {
-        caches.push(IdentificationCache::Cpdag(Arc::clone(cache)));
-    }
-    if let Some(cache) = &study.temporal_identification_cache {
-        caches.push(IdentificationCache::Temporal(Arc::clone(cache)));
-    }
-    if let Some(cache) = &study.temporal_class_identification_cache {
-        caches.push(IdentificationCache::TemporalClass(Arc::clone(cache)));
-    }
-    if let Some(cache) = &study.transport_identification_cache {
-        caches.push(IdentificationCache::Transport(Arc::clone(cache)));
-    }
-    if let Some(cache) = &study.graph_posterior_identification_cache {
-        caches.push(IdentificationCache::GraphPosterior(Arc::clone(cache)));
-    }
-    if let Some(cache) = &study.dbn_posterior_identification_cache {
-        caches.push(IdentificationCache::DbnPosterior(Arc::clone(cache)));
-    }
-    if let Some(cache) = &study.temporal_class_posterior_identification_cache {
-        caches.push(IdentificationCache::TemporalClassPosterior(Arc::clone(cache)));
-    }
-    caches
+    study.identification.iter().cloned().collect()
 }
 
 /// The weaker of an optional status and `status`, by evidential strength.
@@ -2041,10 +2019,6 @@ const fn realization_name(realization: &Realization) -> &'static str {
         Realization::Envelope(_) => "envelope",
         Realization::ExactPoint { .. } => "exact_point",
     }
-}
-
-fn ids(variables: &[VariableId]) -> Vec<u32> {
-    variables.iter().map(|variable| variable.raw()).collect()
 }
 
 fn hex(digest: &[u8; 32]) -> String {
@@ -2202,75 +2176,75 @@ fn physical_operations(physical: &PhysicalView) -> Vec<OperationView> {
     operations
 }
 
-fn design_json(design: DesignShape) -> Json {
+fn design_json(design: DesignShape) -> Fact {
     match design.source() {
-        WidthSource::Quoted => json!({
+        WidthSource::Quoted => fact!({
             "source": "quoted",
             "rows": design.rows(),
             "columns": design.columns(),
             "direct": design.direct(),
         }),
-        WidthSource::NotDesignBased(reason) => json!({
+        WidthSource::NotDesignBased(reason) => fact!({
             "source": "not_design_based",
             "reason": reason,
         }),
     }
 }
 
-fn composition_json(composition: Composition) -> Json {
+fn composition_json(composition: Composition) -> Fact {
     match composition {
-        Composition::Single => json!({"kind": "single"}),
-        Composition::AtomMixture { atoms } => json!({"kind": "atom_mixture", "atoms": atoms}),
-        Composition::Transported => json!({"kind": "transported"}),
-        Composition::Pooled { sources } => json!({"kind": "pooled", "sources": sources}),
-        Composition::Chained { stages } => json!({"kind": "chained", "stages": stages}),
+        Composition::Single => fact!({"kind": "single"}),
+        Composition::AtomMixture { atoms } => fact!({"kind": "atom_mixture", "atoms": atoms}),
+        Composition::Transported => fact!({"kind": "transported"}),
+        Composition::Pooled { sources } => fact!({"kind": "pooled", "sources": sources}),
+        Composition::Chained { stages } => fact!({"kind": "chained", "stages": stages}),
     }
 }
 
-fn resampling_json(plan: ResamplingPlan) -> Json {
-    json!({
+fn resampling_json(plan: ResamplingPlan) -> Fact {
+    fact!({
         "method": plan.method().as_str(),
         "replicates": plan.replicates(),
         "unit": plan.unit().as_str(),
     })
 }
 
-fn posterior_json(plan: &PosteriorPlan) -> Json {
-    json!({
+fn posterior_json(plan: &PosteriorPlan) -> Fact {
+    fact!({
         "algorithm": plan.algorithm().as_str(),
         "draws": plan.draws(),
         "prior": plan.prior().name(),
     })
 }
 
-fn scientific_json(problem: &ScientificProblem) -> Json {
+fn scientific_json(problem: &ScientificProblem) -> Fact {
     let target = match problem.target() {
         ProblemTarget::Target(target) => {
-            json!({"form": "target", "identity": target.identity().to_hex()})
+            fact!({"form": "target", "identity": target.identity().to_hex()})
         }
-        ProblemTarget::Targets(targets) => json!({
+        ProblemTarget::Targets(targets) => fact!({
             "form": "targets",
             "identities": targets.iter().map(|target| target.identity().to_hex()).collect::<Vec<_>>(),
         }),
-        ProblemTarget::QueryFunctional { kind, outcome, query } => json!({
+        ProblemTarget::QueryFunctional { kind, outcome, query } => fact!({
             "form": "query_functional",
             "kind": kind.as_str(),
-            "outcome": outcome.map(VariableId::raw),
+            "outcome": outcome.map(Fact::Variable),
             "query": hex(query),
         }),
     };
-    json!({
+    fact!({
         "target": target,
         "plan_id": problem.plan_id(),
         "data": crate::planner::lowered::data_classification_name(problem.data()),
         "graph_class": problem.graph_class(),
-        "query_variables": ids(problem.query_variables()),
+        "query_variables": Fact::variables(problem.query_variables()),
         "source_digest": problem.source_digest().as_ref().map(hex),
     })
 }
 
-fn statistical_json(program: &StatisticalProgram) -> Json {
-    json!({
+fn statistical_json(program: &StatisticalProgram) -> Fact {
+    fact!({
         "identity": program.identity().to_hex(),
         "identifier": program.identifier().as_ref().map(crate::IdentifierId::as_str),
         "estimator": program.estimator().as_ref().map(crate::EstimatorId::as_str),
@@ -2278,14 +2252,14 @@ fn statistical_json(program: &StatisticalProgram) -> Json {
         "models": program
             .models()
             .iter()
-            .map(|model| json!({
+            .map(|model| fact!({
                 "role": model.role().as_str(),
                 "family": model.family(),
-                "inputs": ids(model.inputs()),
-                "output": model.output().map(VariableId::raw),
+                "inputs": Fact::variables(model.inputs()),
+                "output": model.output().map(Fact::Variable),
             }))
             .collect::<Vec<_>>(),
-        "folds": program.folds().map(|folds| json!({
+        "folds": program.folds().map(|folds| fact!({
             "folds": folds.folds(),
             "unit": folds.unit().as_str(),
             "embargo": folds.embargo(),
@@ -2297,11 +2271,11 @@ fn statistical_json(program: &StatisticalProgram) -> Json {
     })
 }
 
-fn evidence_json(program: &EvidenceDecisionProgram) -> Json {
+fn evidence_json(program: &EvidenceDecisionProgram) -> Fact {
     let decision = program.decision().map(|decision| {
         let evsi = decision.information_value().map(|evsi| {
             let tasks = evsi.monte_carlo();
-            json!({
+            fact!({
                 "candidates": evsi.candidates().iter().map(|candidate| &**candidate).collect::<Vec<_>>(),
                 "prior_observations": evsi.prior_observation_ids().len(),
                 "rng_seed": evsi.rng_seed(),
@@ -2312,7 +2286,7 @@ fn evidence_json(program: &EvidenceDecisionProgram) -> Json {
                 "cost_map": evsi.cost_map().is_some(),
             })
         });
-        json!({
+        fact!({
             "carrier": decision.carrier().as_str(),
             "affine_utility": decision.utility().is_affine(),
             "actions": decision.actions(),
@@ -2324,9 +2298,9 @@ fn evidence_json(program: &EvidenceDecisionProgram) -> Json {
         })
     });
     let planning = program.planning().map(|planning| {
-        json!({
+        fact!({
             "request_identity": planning.request_identity().to_hex(),
-            "simulation": planning.simulation().map(|quote| json!({
+            "simulation": planning.simulation().map(|quote| fact!({
                 "replicates": quote.replicates(),
                 "record_bytes": quote.record_bytes(),
                 "scratch_bytes": quote.scratch_bytes(),
@@ -2336,7 +2310,7 @@ fn evidence_json(program: &EvidenceDecisionProgram) -> Json {
         })
     });
     let chain = program.chain().map(|chain| {
-        json!({
+        fact!({
             "label": chain.plan().label,
             "output": chain.plan().output,
             "declaration_identity": chain.declaration_identity(),
@@ -2344,7 +2318,7 @@ fn evidence_json(program: &EvidenceDecisionProgram) -> Json {
                 .plan()
                 .stages
                 .iter()
-                .map(|stage| json!({
+                .map(|stage| fact!({
                     "id": stage.id,
                     "kind": stage.kind.as_str(),
                     "representation": stage.representation.as_str(),
@@ -2353,12 +2327,12 @@ fn evidence_json(program: &EvidenceDecisionProgram) -> Json {
                 .collect::<Vec<_>>(),
         })
     });
-    json!({
+    fact!({
         "identity": program.identity().to_hex(),
         "sources": program
             .sources()
             .iter()
-            .map(|source| json!({
+            .map(|source| fact!({
                 "role": source.role().as_str(),
                 "digest": source.digest().as_ref().map(hex),
             }))

@@ -109,7 +109,7 @@ fn consume_source_projection_bundle(
                     .map_err(|e| invalid("source_projection.source_binding_mismatch", e))
             })
             .collect::<PyResult<Vec<_>>>()?;
-        let consumer = source_resolved_consumer(receipts).map_err(error)?;
+        let consumer = source_resolved_consumer(receipts);
         Ok(match consumer.consume(&data, &limits, &expected_identity, &supplied) {
             Ok(result) => (Some(crate::composition_bundle_api::consumed_json(&result)), None),
             Err(error) => (None, Some(crate::composition_bundle_api::error_refusal(&error))),

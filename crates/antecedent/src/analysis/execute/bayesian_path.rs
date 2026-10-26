@@ -2025,7 +2025,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<(Arc<super::super::prepared::CachedGraphPosteriorIdentification>, bool), CausalError>
     {
-        Ok(if let Some(cache) = self.graph_posterior_identification_cache.as_ref() {
+        Ok(if let Some(cache) = self.graph_posterior_cache() {
             (Arc::clone(cache), true)
         } else if let Some(cache) =
             crate::analysis::lowering::plan_retained_graph_posterior(self, physical)
@@ -2350,7 +2350,7 @@ impl super::Study {
         let run = EffectRunConfig::resolve(self, checked, estimator_id);
         let (identified, identify_cached) = if let Some(operation) = checked {
             (operation.identification().clone(), true)
-        } else if let Some(cache) = self.graph_posterior_identification_cache.as_ref() {
+        } else if let Some(cache) = self.graph_posterior_cache() {
             (Arc::clone(cache), true)
         } else if let Some(cache) =
             crate::analysis::lowering::plan_retained_graph_posterior(self, physical)
@@ -2655,7 +2655,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<(Arc<super::super::prepared::CachedDbnPosteriorIdentification>, bool), CausalError>
     {
-        Ok(if let Some(cache) = self.dbn_posterior_identification_cache.as_ref() {
+        Ok(if let Some(cache) = self.dbn_posterior_cache() {
             (Arc::clone(cache), true)
         } else if let Some(cache) =
             crate::analysis::lowering::plan_retained_dbn_posterior(self, physical)
@@ -3346,7 +3346,7 @@ impl super::Study {
         let (cache, _) =
             self.dbn_posterior_mediation_identification(data, gp, query, physical, ctx)?;
         let mut horizon_study = self.clone();
-        horizon_study.dbn_posterior_identification_cache = Some(Arc::clone(&cache));
+        horizon_study.install_identification(crate::analysis::IdentificationCache::DbnPosterior(Arc::clone(&cache)));
 
         let mut slices = Vec::with_capacity(query.horizons.len());
         let mut first = None;
@@ -3418,7 +3418,7 @@ impl super::Study {
                 query.treatment,
                 query.outcome,
             )
-            .identify_cached(self.dbn_posterior_identification_cache.is_some())
+            .identify_cached(self.dbn_posterior_cache().is_some())
             .refutations(refutations)
             .wall_time_ns(elapsed_ns(started))
             .extras(IdentifiedExecuteExtras {
@@ -3444,7 +3444,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<(Arc<super::super::prepared::CachedDbnPosteriorIdentification>, bool), CausalError>
     {
-        Ok(if let Some(cache) = self.dbn_posterior_identification_cache.as_ref() {
+        Ok(if let Some(cache) = self.dbn_posterior_cache() {
             (Arc::clone(cache), true)
         } else if let Some(cache) =
             crate::analysis::lowering::plan_retained_dbn_posterior(self, physical)
@@ -3688,7 +3688,7 @@ impl super::Study {
         published: DbnPublishedClick,
         ctx: &ExecutionContext,
     ) {
-        use antecedent_estimate::bayesian_mediation::compose_temporal_mediation;
+        use antecedent_estimate::bayesian_mediation::compose_temporal_mediation_mechanisms;
 
         let DbnMediationRun { cfg, estimator, .. } = *run;
         let DbnPublishedClick { click, qh, preparations } = published;
@@ -3724,9 +3724,8 @@ impl super::Study {
                 return;
             }
         };
-        let composed = match compose_temporal_mediation(
-            &mechanisms[0],
-            &mechanisms[1],
+        let composed = match compose_temporal_mediation_mechanisms(
+            &mechanisms,
             &qh,
             click.identification.status,
         ) {
@@ -3810,7 +3809,7 @@ struct DbnMediationRun<'a> {
 struct DbnPublishedClick {
     click: super::temporal_path::MediationHorizonClick,
     qh: antecedent_core::MediationQuery,
-    preparations: [PreparedBayesianProblem; 2],
+    preparations: Vec<PreparedBayesianProblem>,
 }
 
 /// Mutable state threaded through the DBN Bayesian mediation per-atom fits.
@@ -4170,7 +4169,7 @@ struct DbnMediationAtom {
     estimand: IdentifiedEstimand,
     adjustment: Arc<[antecedent_data::LaggedColumn]>,
     query: antecedent_core::MediationQuery,
-    preparations: [PreparedBayesianProblem; 2],
+    preparations: Vec<PreparedBayesianProblem>,
     mechanisms: Vec<CausalPosterior>,
     composed: CausalPosterior,
 }
@@ -4423,8 +4422,8 @@ fn compose_temporal_mediation_for_atom(
     atom: &DbnMediationAtom,
     posts: &[CausalPosterior],
 ) -> Result<CausalPosterior, CausalError> {
-    use antecedent_estimate::bayesian_mediation::compose_temporal_mediation;
-    compose_temporal_mediation(&posts[0], &posts[1], &atom.query, atom.composed.identification)
+    use antecedent_estimate::bayesian_mediation::compose_temporal_mediation_mechanisms;
+    compose_temporal_mediation_mechanisms(posts, &atom.query, atom.composed.identification)
         .map_err(CausalError::from)
 }
 

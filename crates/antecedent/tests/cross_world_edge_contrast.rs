@@ -847,7 +847,9 @@ fn a_mutated_artifact_fails_consumption_with_a_typed_error() {
     // The table is bound by its own digest: an edited value (or a stale digest)
     // is a data identity mismatch, not a premises mismatch.
     let mut w = base.clone();
-    w.columns[2][5] += 1.0;
+    let mut table = w.columns.to_vec();
+    table[2][5] += 1.0;
+    w.columns = table.into();
     assert_eq!(consume(&w), CrossWorldArtifactError::DataIdentityMismatch, "table value");
     let mut w = base.clone();
     w.data_digest = "0".repeat(w.data_digest.len());
@@ -1154,7 +1156,9 @@ fn resealed_semantic_mutations_fail_replay_for_the_right_reason() {
 
     // Table: another factual value changes the fitted model and the point.
     let mut w = base.clone();
-    w.columns[2][5] += 1.0;
+    let mut table = w.columns.to_vec();
+    table[2][5] += 1.0;
+    w.columns = table.into();
     assert_eq!(replay(w).unwrap_err(), CrossWorldArtifactError::PointMismatch, "table");
 
     // Query level: the stored witness names the original query.
@@ -1267,7 +1271,7 @@ fn the_row_bound_is_enforced_at_export_and_at_consumption() {
     let (bytes, _) = artifact_bytes();
     let base = CrossWorldArtifactWire::decode(&bytes).unwrap();
     let mut over = base.clone();
-    over.columns = vec![x.clone(), m.clone(), y.clone()];
+    over.columns = vec![x.clone(), m.clone(), y.clone()].into();
     assert_eq!(over.clone().sealed().unwrap_err(), CrossWorldArtifactError::LimitsExceeded("rows"));
     assert_eq!(over.export().unwrap_err(), CrossWorldArtifactError::LimitsExceeded("rows"));
     over.data_digest = cross_world_data_digest(&over.variable_names, &over.columns).unwrap();

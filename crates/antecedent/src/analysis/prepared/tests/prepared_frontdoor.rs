@@ -116,7 +116,7 @@ fn prepared_frontdoor_keeps_checked_procedure_through_estimate_and_refresh() {
     assert!(first_consumed.acceptance.accepts_as_verified_program());
     assert_eq!(first_consumed.body.estimate, Some(first.effect()));
 
-    prepared.study_mut().estimator_spec = Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(
+    prepared.study_mut().unwrap().estimator_spec = Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(
         Box::new(antecedent_estimate::LinearAdjustmentAte::new()),
     )));
 
@@ -140,7 +140,7 @@ fn prepared_frontdoor_keeps_checked_procedure_through_estimate_and_refresh() {
 
     let treatment = prepared.schema.id_of("t").unwrap();
     let outcome = prepared.schema.id_of("y").unwrap();
-    prepared.study_mut().query =
+    prepared.study_mut().unwrap().query =
         CausalQuery::AverageEffect(AverageEffectQuery::with_levels(treatment, outcome, 0.0, 2.0));
     let error = prepared.estimate(&data(0.35), &context).unwrap_err();
     assert!(error.to_string().contains("retained checked front-door operation"), "{error}");

@@ -65,7 +65,7 @@ pub(crate) struct FitCoefficients {
 
 /// A fitted cost model with the benchmark and machine it was measured on.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct CostModel {
+pub struct CostModel {
     pub(crate) benchmark: String,
     pub(crate) platform: String,
     pub(crate) cpu_count: u64,
@@ -83,84 +83,324 @@ pub(crate) enum ModelSource {
     Loaded(CostModel),
 }
 
-fn unquote(value: &str) -> Result<String, String> {
-    let inner = value
-        .strip_prefix('"')
-        .and_then(|v| v.strip_suffix('"'))
-        .filter(|v| !v.is_empty() && !v.contains(['"', '\\']))
-        .ok_or_else(|| format!("{value} is not a plain non-empty quoted string"))?;
-    Ok(inner.to_string())
+/// A cost-model file or description that cannot back a time estimate, and why.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("{0}")]
+pub struct CostModelError(String);
+
+impl CostModelError {
+    fn new(message: impl Into<String>) -> Self {
+        Self(message.into())
+    }
+}
+
+/// A scalar value in the cost-model file. Arrays and inline tables (the informational grid)
+/// are carried as [`Scalar::Other`] and never read.
+#[derive(Clone, Debug, PartialEq)]
+enum Scalar {
+    Text(String),
+    Integer(u64),
+    Float(f64),
+    Other,
+}
+
+/// One `key = value` table with the 1-based line each entry was declared on.
+#[derive(Debug, Default)]
+struct Entries(Vec<(String, Scalar, usize)>);
+
+impl Entries {
+    fn find(&self, key: &str) -> Option<&(String, Scalar, usize)> {
+        self.0.iter().find(|(name, _, _)| name == key)
+    }
+
+    fn text(&self, key: &str) -> Result<Option<&str>, CostModelError> {
+        match self.find(key) {
+            None => Ok(None),
+            Some((_, Scalar::Text(text), _)) => Ok(Some(text.as_str())),
+            Some((_, _, line)) => {
+                Err(CostModelError::new(format!("line {line}: `{key}` must be a quoted string")))
+            }
+        }
+    }
+
+    fn integer(&self, key: &str) -> Result<Option<u64>, CostModelError> {
+        match self.find(key) {
+            None => Ok(None),
+            Some((_, Scalar::Integer(value), _)) => Ok(Some(*value)),
+            Some((_, _, line)) => Err(CostModelError::new(format!(
+                "line {line}: `{key}` must be a non-negative integer"
+            ))),
+        }
+    }
+
+    fn float(&self, key: &str) -> Result<Option<f64>, CostModelError> {
+        match self.find(key) {
+            None => Ok(None),
+            Some((_, Scalar::Float(value), _)) => Ok(Some(*value)),
+            #[allow(
+                clippy::cast_precision_loss,
+                reason = "an integer coefficient literal sits far below 2^53"
+            )]
+            Some((_, Scalar::Integer(value), _)) => Ok(Some(*value as f64)),
+            Some((_, _, line)) => {
+                Err(CostModelError::new(format!("line {line}: `{key}` must be a number")))
+            }
+        }
+    }
+}
+
+/// The file as typed tables: the top-level entries and each `[a.b]` table by key path.
+#[derive(Debug, Default)]
+struct Document {
+    root: Entries,
+    tables: Vec<(Vec<String>, Entries)>,
+}
+
+/// Split a dotted key (`coefficients."linear.adjustment.ate"`) into its bare or quoted parts.
+fn key_path(text: &str, line: usize) -> Result<Vec<String>, CostModelError> {
+    let mut parts = Vec::new();
+    let mut rest = text.trim();
+    loop {
+        if let Some(quoted) = rest.strip_prefix('"') {
+            let (name, after) = quoted.split_once('"').ok_or_else(|| {
+                CostModelError::new(format!("line {line}: unterminated quoted key"))
+            })?;
+            if name.is_empty() || name.contains('\\') {
+                return Err(CostModelError::new(format!(
+                    "line {line}: a quoted key must be a plain non-empty string"
+                )));
+            }
+            parts.push(name.to_string());
+            rest = after.trim_start();
+        } else {
+            let end = rest.find(['.', ' ', '\t']).unwrap_or(rest.len());
+            let (name, after) = rest.split_at(end);
+            if name.is_empty()
+                || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+            {
+                return Err(CostModelError::new(format!("line {line}: `{text}` is not a valid key")));
+            }
+            parts.push(name.to_string());
+            rest = after.trim_start();
+        }
+        match rest.strip_prefix('.') {
+            Some(next) => rest = next.trim_start(),
+            None if rest.is_empty() => return Ok(parts),
+            None => {
+                return Err(CostModelError::new(format!("line {line}: `{text}` is not a valid key")));
+            }
+        }
+    }
+}
+
+/// Type one value: a quoted string, an integer, a float, or anything else (an array or inline
+/// table, skipped). A trailing `# comment` is allowed after the value.
+fn scalar(value: &str, line: usize) -> Result<Scalar, CostModelError> {
+    let value = value.trim();
+    if let Some(quoted) = value.strip_prefix('"') {
+        let (text, after) = quoted
+            .split_once('"')
+            .ok_or_else(|| CostModelError::new(format!("line {line}: unterminated string")))?;
+        let after = after.trim();
+        if text.is_empty() || text.contains('\\') || !(after.is_empty() || after.starts_with('#')) {
+            return Err(CostModelError::new(format!(
+                "line {line}: {value} is not a plain non-empty quoted string"
+            )));
+        }
+        return Ok(Scalar::Text(text.to_string()));
+    }
+    if value.starts_with(['[', '{']) {
+        return Ok(Scalar::Other);
+    }
+    let token = value.split('#').next().unwrap_or("").trim();
+    if let Ok(integer) = token.parse::<u64>() {
+        return Ok(Scalar::Integer(integer));
+    }
+    if let Ok(float) = token.parse::<f64>() {
+        return Ok(Scalar::Float(float));
+    }
+    Ok(Scalar::Other)
+}
+
+/// Net `[`/`]` and `{`/`}` depth of a value, outside quoted strings and comments.
+fn bracket_depth(text: &str) -> i64 {
+    let mut depth = 0;
+    let mut quoted = false;
+    for c in text.chars() {
+        match c {
+            '"' => quoted = !quoted,
+            '#' if !quoted => break,
+            '[' | '{' if !quoted => depth += 1,
+            ']' | '}' if !quoted => depth -= 1,
+            _ => {}
+        }
+    }
+    depth
+}
+
+impl Document {
+    /// Read the TOML subset `scripts/bench_cost_model.py` writes: comments, `[table]` headers
+    /// with dotted and quoted parts, and `key = value` lines whose values are strings,
+    /// numbers, or (multi-line) arrays and inline tables, which are skipped.
+    fn read(text: &str) -> Result<Self, CostModelError> {
+        let mut document = Self::default();
+        let mut current: Option<usize> = None;
+        let mut lines = text.lines().enumerate();
+        while let Some((index, raw)) = lines.next() {
+            let line = index + 1;
+            let trimmed = raw.trim();
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                continue;
+            }
+            if trimmed.starts_with("[[") {
+                return Err(CostModelError::new(format!(
+                    "line {line}: arrays of tables are not part of the cost-model format"
+                )));
+            }
+            if let Some(header) = trimmed.strip_prefix('[') {
+                let name = header.split_once(']').map(|(name, _)| name).ok_or_else(|| {
+                    CostModelError::new(format!("line {line}: unterminated table header"))
+                })?;
+                let path = key_path(name, line)?;
+                if document.tables.iter().any(|(existing, _)| *existing == path) {
+                    return Err(CostModelError::new(format!(
+                        "line {line}: table [{name}] is declared twice"
+                    )));
+                }
+                document.tables.push((path, Entries::default()));
+                current = Some(document.tables.len() - 1);
+                continue;
+            }
+            let (key, value) = trimmed.split_once('=').ok_or_else(|| {
+                CostModelError::new(format!("line {line}: not a key = value pair"))
+            })?;
+            let key = key_path(key, line)?;
+            let [key] = key.as_slice() else {
+                return Err(CostModelError::new(format!(
+                    "line {line}: dotted keys are not part of the cost-model format"
+                )));
+            };
+            let mut value = value.trim().to_string();
+            let mut depth = bracket_depth(&value);
+            while depth > 0 {
+                let Some((_, more)) = lines.next() else {
+                    return Err(CostModelError::new(format!("line {line}: unterminated array")));
+                };
+                depth += bracket_depth(more);
+                value.push(' ');
+                value.push_str(more.trim());
+            }
+            let entries = match current {
+                Some(table) => &mut document.tables[table].1,
+                None => &mut document.root,
+            };
+            if entries.find(key).is_some() {
+                return Err(CostModelError::new(format!("line {line}: `{key}` is declared twice")));
+            }
+            entries.0.push((key.clone(), scalar(&value, line)?, line));
+        }
+        Ok(document)
+    }
+
+    fn table(&self, path: &[&str]) -> Option<&Entries> {
+        self.tables
+            .iter()
+            .find(|(existing, _)| existing.iter().map(String::as_str).eq(path.iter().copied()))
+            .map(|(_, entries)| entries)
+    }
 }
 
 impl CostModel {
-    /// Parse the strict TOML subset `scripts/bench_cost_model.py` writes: top-level
+    /// Parse the TOML subset `scripts/bench_cost_model.py` writes into a typed model: top-level
     /// `benchmark`, `[machine]` with `platform` and `cpu_count`, and one
     /// `[coefficients."<estimator id>"]` table per estimator with `a` and `b`. Other keys (the
     /// grid, sample counts) are informational. A model without a declared machine, or with a
     /// negative or non-finite coefficient (which would not be monotone), is refused.
-    pub(crate) fn parse(text: &str) -> Result<Self, String> {
-        let mut section = String::new();
-        let mut benchmark = None;
-        let mut platform = None;
-        let mut cpu_count = None;
-        let mut rows: Vec<(String, Option<f64>, Option<f64>)> = Vec::new();
-        for (number, raw) in text.lines().enumerate() {
-            let line = raw.trim();
-            if line.is_empty() || line.starts_with('#') {
+    ///
+    /// The model is a value: build one here (or with [`Self::new`]) and hand it to
+    /// [`PreparedStudy::estimate_cost_with`] to get seconds that do not depend on the working
+    /// directory or `ANTECEDENT_COST_MODEL`.
+    ///
+    /// # Errors
+    ///
+    /// Malformed text, or a model that declares no benchmark, machine or coefficients, or a
+    /// coefficient pair that is missing, negative or non-finite.
+    pub fn from_toml(text: &str) -> Result<Self, CostModelError> {
+        let document = Document::read(text)?;
+        let benchmark = document
+            .root
+            .text("benchmark")?
+            .ok_or_else(|| CostModelError::new("no benchmark name is declared"))?;
+        let machine = document.table(&["machine"]);
+        let platform = machine
+            .map(|entries| entries.text("platform"))
+            .transpose()?
+            .flatten()
+            .ok_or_else(|| CostModelError::new("no machine platform is declared"))?;
+        let cpu_count = machine
+            .map(|entries| entries.integer("cpu_count"))
+            .transpose()?
+            .flatten()
+            .filter(|&n| n > 0)
+            .ok_or_else(|| CostModelError::new("no machine CPU count is declared"))?;
+        let mut coefficients = Vec::new();
+        for (path, entries) in &document.tables {
+            let [head, id] = path.as_slice() else {
                 continue;
-            }
-            if let Some(name) = line.strip_prefix('[').and_then(|l| l.strip_suffix(']')) {
-                name.trim().clone_into(&mut section);
-                if let Some(id) = section.strip_prefix("coefficients.") {
-                    rows.push((id.trim_matches('"').to_string(), None, None));
-                }
-                continue;
-            }
-            let (key, value) = line
-                .split_once('=')
-                .map(|(k, v)| (k.trim(), v.trim()))
-                .ok_or_else(|| format!("line {}: not a key = value pair", number + 1))?;
-            let float = |v: &str| {
-                v.parse::<f64>().map_err(|_| format!("line {}: {v} is not a number", number + 1))
             };
-            match (section.as_str(), key) {
-                ("", "benchmark") => benchmark = Some(unquote(value)?),
-                ("machine", "platform") => platform = Some(unquote(value)?),
-                ("machine", "cpu_count") => {
-                    cpu_count =
-                        Some(value.parse::<u64>().map_err(|_| {
-                            format!("line {}: {value} is not a CPU count", number + 1)
-                        })?);
-                }
-                (table, "a" | "b") if table.starts_with("coefficients.") => {
-                    if let Some(row) = rows.last_mut() {
-                        if key == "a" {
-                            row.1 = Some(float(value)?);
-                        } else {
-                            row.2 = Some(float(value)?);
-                        }
-                    }
-                }
-                _ => {}
+            if head != "coefficients" {
+                continue;
             }
+            let (Some(a), Some(b)) = (entries.float("a")?, entries.float("b")?) else {
+                return Err(CostModelError::new(format!(
+                    "coefficients for {id} need both a and b"
+                )));
+            };
+            coefficients.push((id.clone(), a, b));
         }
-        let benchmark = benchmark.ok_or("no benchmark name is declared")?;
-        let platform = platform.ok_or("no machine platform is declared")?;
-        let cpu_count = cpu_count.filter(|&n| n > 0).ok_or("no machine CPU count is declared")?;
-        let mut coefficients = Vec::with_capacity(rows.len());
-        for (id, a, b) in rows {
-            let (Some(a), Some(b)) = (a, b) else {
-                return Err(format!("coefficients for {id} need both a and b"));
-            };
+        Self::new(benchmark, platform, cpu_count, coefficients)
+    }
+
+    /// A model from its parts: the benchmark and machine it was measured on, and per estimator
+    /// id the coefficients `(id, a, b)` of `seconds per counted fit = a + b * rows * columns^2`.
+    ///
+    /// # Errors
+    ///
+    /// An empty benchmark or platform, a zero CPU count, no coefficients, or a coefficient that
+    /// is negative or non-finite (the model would not be monotone).
+    pub fn new(
+        benchmark: &str,
+        platform: &str,
+        cpu_count: u64,
+        coefficients: impl IntoIterator<Item = (String, f64, f64)>,
+    ) -> Result<Self, CostModelError> {
+        if benchmark.is_empty() {
+            return Err(CostModelError::new("no benchmark name is declared"));
+        }
+        if platform.is_empty() {
+            return Err(CostModelError::new("no machine platform is declared"));
+        }
+        if cpu_count == 0 {
+            return Err(CostModelError::new("no machine CPU count is declared"));
+        }
+        let mut checked = Vec::new();
+        for (id, a, b) in coefficients {
             if !(a.is_finite() && b.is_finite() && a >= 0.0 && b >= 0.0) {
-                return Err(format!("coefficients for {id} must be finite and non-negative"));
+                return Err(CostModelError::new(format!(
+                    "coefficients for {id} must be finite and non-negative"
+                )));
             }
-            coefficients.push((id, FitCoefficients { a, b }));
+            checked.push((id, FitCoefficients { a, b }));
         }
-        if coefficients.is_empty() {
-            return Err("no estimator coefficients are present".to_string());
+        if checked.is_empty() {
+            return Err(CostModelError::new("no estimator coefficients are present"));
         }
-        Ok(Self { benchmark, platform, cpu_count, coefficients })
+        Ok(Self {
+            benchmark: benchmark.to_string(),
+            platform: platform.to_string(),
+            cpu_count,
+            coefficients: checked,
+        })
     }
 
     /// `fits * (a + b * rows * columns^2)` for the estimator, when the model covers it.
@@ -192,13 +432,18 @@ fn load_model() -> ModelSource {
     let path = std::env::var_os(COST_MODEL_ENV)
         .map_or_else(|| PathBuf::from(COST_MODEL_FILE), PathBuf::from);
     match std::fs::read_to_string(&path) {
-        Ok(text) => match CostModel::parse(&text) {
+        Ok(text) => match CostModel::from_toml(&text) {
             Ok(model) => ModelSource::Loaded(model),
             Err(why) => ModelSource::Unusable(format!("{}: {why}", path.display())),
         },
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => ModelSource::Absent,
         Err(error) => ModelSource::Unusable(format!("{}: {error}", path.display())),
     }
+}
+
+/// The injected model as a source: absent means counts only.
+fn source_of(model: Option<&CostModel>) -> ModelSource {
+    model.map_or(ModelSource::Absent, |model| ModelSource::Loaded(model.clone()))
 }
 
 /// The process-wide cost model, read once.
@@ -571,9 +816,10 @@ fn inputs_of(study: &Study) -> CostInputs {
         study.estimator_spec.as_deref().or(default_spec.as_ref()).and_then(shape_of).unzip();
     let cluster_labels = match study.estimator_spec.as_deref() {
         Some(EstimatorSpec::Aipw(aipw)) if aipw.cluster_dml.is_some() => aipw
+            .inference
             .cluster_ids
             .as_deref()
-            .or(aipw.source_cluster_ids.as_deref())
+            .or(aipw.inference.source_cluster_ids.as_deref())
             .map(|labels| labels.iter().collect::<std::collections::BTreeSet<_>>().len()),
         Some(EstimatorSpec::Dml(dml)) => units_cluster_count(&dml.units),
         Some(EstimatorSpec::DrLearner(dr)) => units_cluster_count(&dr.units),
@@ -615,6 +861,20 @@ impl PreparedStudy {
     pub fn estimate_cost(&self) -> Result<CostEstimate, CausalError> {
         Ok(cost_of(&inputs_of(self.study()), default_model()))
     }
+
+    /// [`Self::estimate_cost`] with the seconds taken from `model` instead of the process-wide
+    /// file, so the estimate is reproducible and independent of the working directory and
+    /// `ANTECEDENT_COST_MODEL`. `None` reports counts only.
+    ///
+    /// # Errors
+    ///
+    /// Never today; see [`Self::estimate_cost`].
+    pub fn estimate_cost_with(
+        &self,
+        model: Option<&CostModel>,
+    ) -> Result<CostEstimate, CausalError> {
+        Ok(cost_of(&inputs_of(self.study()), &source_of(model)))
+    }
 }
 
 impl PreparedBatch {
@@ -628,6 +888,24 @@ impl PreparedBatch {
     pub fn estimate_cost(&self) -> Result<BatchCostEstimate, CausalError> {
         let plans: Vec<CostEstimate> =
             self.plans().iter().map(PreparedStudy::estimate_cost).collect::<Result<_, _>>()?;
+        Ok(total_cost(plans))
+    }
+
+    /// [`Self::estimate_cost`] with the seconds taken from `model` (see
+    /// [`PreparedStudy::estimate_cost_with`]).
+    ///
+    /// # Errors
+    ///
+    /// Never today; see [`PreparedStudy::estimate_cost`].
+    pub fn estimate_cost_with(
+        &self,
+        model: Option<&CostModel>,
+    ) -> Result<BatchCostEstimate, CausalError> {
+        let plans: Vec<CostEstimate> = self
+            .plans()
+            .iter()
+            .map(|plan| plan.estimate_cost_with(model))
+            .collect::<Result<_, _>>()?;
         Ok(total_cost(plans))
     }
 }
@@ -995,7 +1273,7 @@ b = 1.0e-10
     /// non-negative finite coefficients.
     #[test]
     fn the_file_format_parses_and_refuses_undeclared_or_non_monotone_models() {
-        let parsed = CostModel::parse(FILE).unwrap();
+        let parsed = CostModel::from_toml(FILE).unwrap();
         assert_eq!(parsed.benchmark, "scripts/bench_cost_model.py");
         assert_eq!(parsed.platform, "macOS-15-arm64");
         assert_eq!(parsed.cpu_count, 10);
@@ -1010,12 +1288,26 @@ b = 1.0e-10
 
         let no_machine =
             FILE.replace("[machine]\nplatform = \"macOS-15-arm64\"\ncpu_count = 10\n", "");
-        assert!(CostModel::parse(&no_machine).unwrap_err().contains("platform"));
+        assert!(CostModel::from_toml(&no_machine).unwrap_err().to_string().contains("platform"));
         let zero_cpus = FILE.replace("cpu_count = 10", "cpu_count = 0");
-        assert!(CostModel::parse(&zero_cpus).unwrap_err().contains("CPU count"));
+        assert!(CostModel::from_toml(&zero_cpus).unwrap_err().to_string().contains("CPU count"));
         let negative = FILE.replace("b = 3.0e-10", "b = -3.0e-10");
-        assert!(CostModel::parse(&negative).unwrap_err().contains("non-negative"));
-        assert!(CostModel::parse("").is_err());
+        assert!(CostModel::from_toml(&negative).unwrap_err().to_string().contains("non-negative"));
+        assert!(CostModel::from_toml("").is_err());
+        // Typed values: a trailing comment, an integer coefficient, and a multi-line array parse;
+        // a wrongly typed value is refused with its line.
+        let commented = FILE
+            .replace("cpu_count = 10", "cpu_count = 10  # logical cores")
+            .replace("rows = [200, 400]", "rows = [\n  200,\n  400,\n]")
+            .replace("b = 3.0e-10", "b = 0");
+        let parsed = CostModel::from_toml(&commented).unwrap();
+        assert_eq!(parsed.cpu_count, 10);
+        assert_eq!(parsed.coefficients[0].1, FitCoefficients { a: 2.5e-4, b: 0.0 });
+        let text_cpus = FILE.replace("cpu_count = 10", "cpu_count = \"ten\"");
+        let error = CostModel::from_toml(&text_cpus).unwrap_err().to_string();
+        assert!(error.contains("`cpu_count` must be a non-negative integer"), "{error}");
+        let twice = format!("{FILE}\n[machine]\nplatform = \"x\"\n");
+        assert!(CostModel::from_toml(&twice).unwrap_err().to_string().contains("declared twice"));
     }
     // ---- configured cross-fitted routes: counts follow the declared configuration ----------
 
@@ -1025,11 +1317,9 @@ b = 1.0e-10
     }
 
     fn aipw_with(propensity: PropensityNuisance) -> EstimatorSpec {
-        EstimatorSpec::Aipw(Box::new(AipwAte {
-            propensity,
-            bootstrap_replicates: 0,
-            ..AipwAte::new()
-        }))
+        EstimatorSpec::Aipw(Box::new(
+            AipwAte { propensity, ..AipwAte::new() }.with_bootstrap_replicates(0),
+        ))
     }
 
     fn ridge(grid: &[f64], inner_folds: usize) -> PropensityNuisance {
@@ -1105,12 +1395,11 @@ b = 1.0e-10
         let source = ModelSource::Loaded(model(0.01, 1e-9));
         let with_model = |spec: &EstimatorSpec| super::cost_of(&routed(spec, 0), &source);
         let plain = with_model(&aipw_with(PropensityNuisance::default()));
-        let cluster = with_model(&EstimatorSpec::Aipw(Box::new(AipwAte {
-            bootstrap_replicates: 0,
-            cluster_ids: Some(vec![0; 40]),
-            cluster_dml: Some(ClusterDml::new(10).unwrap()),
-            ..AipwAte::new()
-        })));
+        let cluster = with_model(&EstimatorSpec::Aipw(Box::new(
+            AipwAte { cluster_dml: Some(ClusterDml::new(10).unwrap()), ..AipwAte::new() }
+                .with_bootstrap_replicates(0)
+                .with_cluster_ids(vec![0; 40]),
+        )));
         assert_eq!(cluster.fit_route, "aipw.cluster_dml(unit=cluster)");
         assert_eq!(cluster.nuisance_fits_per_pass, plain.nuisance_fits_per_pass);
         assert_eq!(cluster.seconds, plain.seconds);

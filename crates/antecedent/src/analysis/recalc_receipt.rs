@@ -35,7 +35,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::sync::Arc;
 
@@ -112,9 +112,7 @@ impl Counter {
         Self::ProviderCall,
         Self::LawSummary,
         Self::PosteriorDraw,
-        Self::ExternalInvocation(
-            branch_zero(),
-        ),
+        Self::ExternalInvocation(antecedent_core::recalc::Branch::ZERO),
     ];
 
     /// The one stage this work belongs to.
@@ -463,91 +461,98 @@ impl RecalcReceipt {
     }
 }
 
-fn verify_entry(entry: &ReceiptEntry) -> Result<(), ReceiptError> {
+fn entry_recomputed(entry: &ReceiptEntry) -> bool {
+    matches!(entry.status, StageStatus::Recomputed { .. })
+}
+
+/// Work counted at a stage that does not own it: only a recomputed stage may carry work, and
+/// only of its own counters (a provider request also carries its branch's invocations).
+fn reject_foreign_work(entry: &ReceiptEntry) -> Result<(), ReceiptError> {
     let stage = entry.stage;
-    let required = match entry.status {
-        StageStatus::Recomputed { .. } => required_work(stage),
-        StageStatus::Reused { .. } | StageStatus::Refused { .. } => &[],
-    };
     for counter in Counter::ALL.into_iter().chain([Counter::ModelFit]).chain(Counter::EXTENDED) {
-        let n = entry.counts.get(counter);
-        let allowed = matches!(entry.status, StageStatus::Recomputed { .. })
+        let allowed = entry_recomputed(entry)
             && (counter.stage() == stage
                 || matches!(
                     (counter, stage),
                     (Counter::ExternalInvocation(_), Stage::ProviderRequest(_))
                 ));
-        if n > 0 && !allowed {
+        if entry.counts.get(counter) > 0 && !allowed {
             return Err(ReceiptError::UnexpectedWork { stage });
         }
     }
-    let callback_required = [Counter::ExternalInvocation(match stage {
-        Stage::ProviderRequest(branch) => branch,
-        _ => branch_zero(),
-    })];
-    let required = if matches!(stage, Stage::ProviderRequest(_))
-        && matches!(entry.status, StageStatus::Recomputed { .. })
-    {
-        &callback_required[..]
-    } else if stage == Stage::ScoreArtifact
-        && matches!(entry.status, StageStatus::Recomputed { .. })
-    {
-        if entry.counts.posterior_draws > 0 {
-            if entry.counts.fold_fits > 0
-                || entry.counts.score_computations > 0
-                || entry.counts.provider_bindings > 0
-                || entry.counts.factor_builds > 0
-                || entry.counts.program_compilations > 0
-            {
-                return Err(ReceiptError::UnexpectedWork { stage });
-            }
-            &[Counter::ModelFit, Counter::PosteriorDraw][..]
-        } else if entry.counts.provider_bindings > 0 {
-            if entry.counts.fold_fits > 0
-                || entry.counts.model_fits > 0
-                || entry.counts.score_computations > 0
-            {
-                return Err(ReceiptError::UnexpectedWork { stage });
-            }
-            &[Counter::ProviderBinding][..]
-        } else if entry.counts.factor_builds > 0 || entry.counts.program_compilations > 0 {
-            return Err(ReceiptError::MissingWork { stage, counter: Counter::ProviderBinding });
-        } else if entry.counts.score_computations == 0 && entry.counts.model_fits > 0 {
-            if entry.counts.fold_fits > 0 {
-                return Err(ReceiptError::UnexpectedWork { stage });
-            }
-            &[Counter::ModelFit][..]
-        } else {
-            &[Counter::FoldFit, Counter::ScoreComputation][..]
+    Ok(())
+}
+
+/// The work a recomputed score-artifact stage must show, which depends on which route ran.
+fn score_artifact_required(entry: &ReceiptEntry) -> Result<Vec<Counter>, ReceiptError> {
+    let stage = entry.stage;
+    let c = &entry.counts;
+    let unexpected = Err(ReceiptError::UnexpectedWork { stage });
+    if c.posterior_draws > 0 {
+        if c.fold_fits > 0
+            || c.score_computations > 0
+            || c.provider_bindings > 0
+            || c.factor_builds > 0
+            || c.program_compilations > 0
+        {
+            return unexpected;
         }
-    } else if stage == Stage::Law
-        && matches!(entry.status, StageStatus::Recomputed { .. })
-        && entry.counts.law_summaries > 0
-    {
-        if entry.counts.reweights > 0
-            || entry.counts.integrations > 0
-            || entry.counts.factor_evaluations > 0
-            || entry.counts.provider_calls > 0
+        Ok(vec![Counter::ModelFit, Counter::PosteriorDraw])
+    } else if c.provider_bindings > 0 {
+        if c.fold_fits > 0 || c.model_fits > 0 || c.score_computations > 0 {
+            return unexpected;
+        }
+        Ok(vec![Counter::ProviderBinding])
+    } else if c.factor_builds > 0 || c.program_compilations > 0 {
+        Err(ReceiptError::MissingWork { stage, counter: Counter::ProviderBinding })
+    } else if c.score_computations == 0 && c.model_fits > 0 {
+        if c.fold_fits > 0 {
+            return unexpected;
+        }
+        Ok(vec![Counter::ModelFit])
+    } else {
+        Ok(vec![Counter::FoldFit, Counter::ScoreComputation])
+    }
+}
+
+/// The work a recomputed law stage must show: a summary, an integration, or a reweight.
+fn law_required(entry: &ReceiptEntry) -> Result<Vec<Counter>, ReceiptError> {
+    let stage = entry.stage;
+    let c = &entry.counts;
+    if c.law_summaries > 0 {
+        if c.reweights > 0 || c.integrations > 0 || c.factor_evaluations > 0 || c.provider_calls > 0
         {
             return Err(ReceiptError::UnexpectedWork { stage });
         }
-        &[Counter::LawSummary][..]
-    } else if stage == Stage::Law
-        && matches!(entry.status, StageStatus::Recomputed { .. })
-        && (entry.counts.integrations > 0
-            || entry.counts.factor_evaluations > 0
-            || entry.counts.provider_calls > 0)
-    {
-        if entry.counts.reweights > 0 {
+        Ok(vec![Counter::LawSummary])
+    } else if c.integrations > 0 || c.factor_evaluations > 0 || c.provider_calls > 0 {
+        if c.reweights > 0 {
             return Err(ReceiptError::UnexpectedWork { stage });
         }
-        &[Counter::Integration][..]
+        Ok(vec![Counter::Integration])
     } else {
-        required
-    };
-    for &counter in required {
+        Ok(required_work(stage).to_vec())
+    }
+}
+
+/// The counters a stage's entry must show, given its status and the route its counts reveal.
+fn required_counters(entry: &ReceiptEntry) -> Result<Vec<Counter>, ReceiptError> {
+    if !entry_recomputed(entry) {
+        return Ok(Vec::new());
+    }
+    match entry.stage {
+        Stage::ProviderRequest(branch) => Ok(vec![Counter::ExternalInvocation(branch)]),
+        Stage::ScoreArtifact => score_artifact_required(entry),
+        Stage::Law => law_required(entry),
+        stage => Ok(required_work(stage).to_vec()),
+    }
+}
+
+fn verify_entry(entry: &ReceiptEntry) -> Result<(), ReceiptError> {
+    reject_foreign_work(entry)?;
+    for counter in required_counters(entry)? {
         if entry.counts.get(counter) == 0 {
-            return Err(ReceiptError::MissingWork { stage, counter });
+            return Err(ReceiptError::MissingWork { stage: entry.stage, counter });
         }
     }
     Ok(())
@@ -562,6 +567,152 @@ pub struct TargetWeights {
     pub depends_on: Vec<VariableId>,
 }
 
+impl TargetWeights {
+    /// Whether the weights can declare a population: every weight finite and non-negative,
+    /// positive finite total mass, and one weight per row when `rows` is given.
+    #[must_use]
+    pub fn are_valid(&self, rows: Option<usize>) -> bool {
+        let mass = self.weights.iter().sum::<f64>();
+        rows.is_none_or(|n| self.weights.len() == n)
+            && self.weights.iter().all(|w| w.is_finite() && *w >= 0.)
+            && mass.is_finite()
+            && mass > 0.
+    }
+}
+
+/// How a [`Columns`] table treats non-finite entries.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NonFinite {
+    /// Every entry must be finite.
+    Reject,
+    /// `NaN` marks a missing entry (complete-case routes drop such rows); infinities are
+    /// still refused.
+    MissingAsNan,
+}
+
+/// Named numeric columns of a request; the variable id of a column is its position.
+///
+/// The table is not validated on construction: [`Columns::is_well_formed`] and
+/// [`Columns::are_distinct_roles`] are the shared checks every route's validator applies, and
+/// [`Columns::column`] is the checked access by role id.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Columns(Vec<(String, Vec<f64>)>);
+
+impl Columns {
+    /// Wrap named columns in stable id order.
+    #[must_use]
+    pub const fn new(columns: Vec<(String, Vec<f64>)>) -> Self {
+        Self(columns)
+    }
+
+    /// Number of rows of the first column; zero for an empty table.
+    #[must_use]
+    pub fn n_rows(&self) -> usize {
+        self.0.first().map_or(0, |(_, values)| values.len())
+    }
+
+    /// Number of columns.
+    #[must_use]
+    pub fn n_cols(&self) -> usize {
+        self.0.len()
+    }
+
+    /// The `(name, values)` pair of role `id`, or `None` when no such column exists.
+    #[must_use]
+    pub fn column(&self, id: u32) -> Option<&(String, Vec<f64>)> {
+        self.0.get(usize::try_from(id).ok()?)
+    }
+
+    /// The values of role `id`.
+    #[must_use]
+    pub fn values(&self, id: u32) -> Option<&[f64]> {
+        self.column(id).map(|(_, values)| values.as_slice())
+    }
+
+    /// The name of role `id`.
+    #[must_use]
+    pub fn name(&self, id: u32) -> Option<&str> {
+        self.column(id).map(|(name, _)| name.as_str())
+    }
+
+    /// The columns as a slice.
+    #[must_use]
+    pub fn as_slice(&self) -> &[(String, Vec<f64>)] {
+        &self.0
+    }
+
+    /// Append a column; its id is the previous column count.
+    pub fn push(&mut self, column: (String, Vec<f64>)) {
+        self.0.push(column);
+    }
+
+    /// The underlying columns.
+    #[must_use]
+    pub fn into_inner(self) -> Vec<(String, Vec<f64>)> {
+        self.0
+    }
+
+    /// At least one row, unique non-empty names, equal column lengths, and entries finite
+    /// according to `policy`.
+    #[must_use]
+    pub fn is_well_formed(&self, policy: NonFinite) -> bool {
+        let rows = self.n_rows();
+        let names: BTreeSet<&str> = self.0.iter().map(|(name, _)| name.as_str()).collect();
+        rows > 0
+            && names.len() == self.0.len()
+            && self.0.iter().all(|(name, values)| {
+                !name.is_empty()
+                    && values.len() == rows
+                    && values.iter().all(|x| match policy {
+                        NonFinite::Reject => x.is_finite(),
+                        NonFinite::MissingAsNan => !x.is_infinite(),
+                    })
+            })
+    }
+
+    /// Whether every role names a column and no two roles coincide.
+    #[must_use]
+    pub fn are_distinct_roles(&self, roles: &[u32]) -> bool {
+        let distinct: BTreeSet<u32> = roles.iter().copied().collect();
+        distinct.len() == roles.len() && roles.iter().all(|&id| self.column(id).is_some())
+    }
+}
+
+impl std::ops::Deref for Columns {
+    type Target = [(String, Vec<f64>)];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for Columns {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<'a> IntoIterator for &'a Columns {
+    type Item = &'a (String, Vec<f64>);
+    type IntoIter = std::slice::Iter<'a, (String, Vec<f64>)>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl From<Vec<(String, Vec<f64>)>> for Columns {
+    fn from(columns: Vec<(String, Vec<f64>)>) -> Self {
+        Self(columns)
+    }
+}
+
+impl FromIterator<(String, Vec<f64>)> for Columns {
+    fn from_iter<I: IntoIterator<Item = (String, Vec<f64>)>>(iter: I) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
 /// A net-benefit rule: `benefit_per_unit * ate - cost`, treat when positive.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct UtilitySpec {
@@ -574,7 +725,7 @@ pub struct UtilitySpec {
 impl UtilitySpec {
     pub(crate) fn validate(self) -> Result<(), RecalcRunError> {
         if !self.benefit_per_unit.is_finite() || !self.cost.is_finite() {
-            return Err(RecalcRunError::Request("recalc.invalid_request"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::InvalidRequest));
         }
         Ok(())
     }
@@ -602,7 +753,7 @@ pub struct DecisionValue {
 #[derive(Clone, Debug)]
 pub struct RecalcRequest {
     /// Named data columns; the variable id of a column is its position.
-    pub columns: Vec<(String, Vec<f64>)>,
+    pub columns: Columns,
     /// Directed edges `(from, to)` over column positions.
     pub edges: Vec<(u32, u32)>,
     /// Treatment column position.
@@ -621,185 +772,253 @@ pub struct RecalcRequest {
     pub utility: UtilitySpec,
 }
 
-fn estimator_identity_bytes(estimator: &AipwAte) -> Vec<u8> {
-    let mut out = b"aipw.v1".to_vec();
-    out.extend_from_slice(&estimator.bootstrap_replicates.to_le_bytes());
-    match estimator.overlap {
-        antecedent_estimate::OverlapPolicy::ExplicitOverride => out.push(0),
-        antecedent_estimate::OverlapPolicy::RequireDiagnostics { clip, trim } => {
-            out.push(1);
-            push_opt_f64(&mut out, clip);
-            push_opt_f64(&mut out, trim);
+/// Append-only builder of an estimator's identity bytes.
+///
+/// Integers are little endian at their declared width, floats are bit patterns, every sum
+/// type starts with a one-byte tag and every sequence with its length, so unequal
+/// configurations cannot share bytes. The layout is part of the stage identities that resume
+/// and reuse key on: changing it changes every retained identity.
+struct IdentityBytes(Vec<u8>);
+
+impl IdentityBytes {
+    fn new(domain: &[u8]) -> Self {
+        Self(domain.to_vec())
+    }
+
+    fn raw(&mut self, bytes: &[u8]) -> &mut Self {
+        self.0.extend_from_slice(bytes);
+        self
+    }
+
+    fn tag(&mut self, tag: u8) -> &mut Self {
+        self.0.push(tag);
+        self
+    }
+
+    fn u32(&mut self, value: u32) -> &mut Self {
+        self.raw(&value.to_le_bytes())
+    }
+
+    fn usize(&mut self, value: usize) -> &mut Self {
+        self.raw(&u64::try_from(value).unwrap_or(u64::MAX).to_le_bytes())
+    }
+
+    fn f64(&mut self, value: f64) -> &mut Self {
+        self.raw(&value.to_bits().to_le_bytes())
+    }
+
+    fn opt_f64(&mut self, value: Option<f64>) -> &mut Self {
+        match value {
+            None => self.tag(0),
+            Some(value) => self.tag(1).f64(value),
         }
     }
-    push_u32(&mut out, estimator.glm_options.max_iter);
-    push_f64(&mut out, estimator.glm_options.tol);
-    match estimator.glm_options.nb_alpha {
-        antecedent_stats::NbAlphaPolicy::Fixed(alpha) => {
-            out.push(0);
-            push_f64(&mut out, alpha);
+
+    fn f64s(&mut self, values: &[f64]) -> &mut Self {
+        self.usize(values.len());
+        for value in values {
+            self.f64(*value);
         }
-        antecedent_stats::NbAlphaPolicy::MethodOfMoments => out.push(1),
-        antecedent_stats::NbAlphaPolicy::NestedMle { max_outer, tol_alpha } => {
-            out.push(2);
-            push_u32(&mut out, max_outer);
-            push_f64(&mut out, tol_alpha);
+        self
+    }
+
+    fn u32s(&mut self, values: &[u32]) -> &mut Self {
+        self.usize(values.len());
+        for value in values {
+            self.u32(*value);
+        }
+        self
+    }
+
+    fn opt_u32s(&mut self, values: Option<&[u32]>) -> &mut Self {
+        match values {
+            None => self.tag(0),
+            Some(values) => self.tag(1).u32s(values),
         }
     }
-    push_opt_f64(&mut out, estimator.glm_options.ridge_on_separation);
-    match estimator.se_kind {
-        antecedent_estimate::AnalyticSeKind::Homoskedastic => out.push(0),
-        antecedent_estimate::AnalyticSeKind::Hc0 => out.push(1),
-        antecedent_estimate::AnalyticSeKind::Hc1 => out.push(2),
-        antecedent_estimate::AnalyticSeKind::Hc2 => out.push(3),
-        antecedent_estimate::AnalyticSeKind::Hc3 => out.push(4),
-        antecedent_estimate::AnalyticSeKind::Cluster => out.push(5),
-        antecedent_estimate::AnalyticSeKind::Multiway => out.push(6),
-        antecedent_estimate::AnalyticSeKind::NeweyWest { lag } => {
-            out.push(7);
-            push_usize(&mut out, lag);
-        }
-        antecedent_estimate::AnalyticSeKind::PanelClusterHac { lag } => {
-            out.push(8);
-            push_usize(&mut out, lag);
-        }
-    }
-    push_opt_u32s(&mut out, estimator.cluster_ids.as_deref());
-    push_opt_u32s(&mut out, estimator.cluster_ids_second.as_deref());
-    push_opt_panel(&mut out, estimator.panel_times.as_deref());
-    match estimator.multiway_ids.as_deref() {
-        None => out.push(0),
-        Some(groups) => {
-            out.push(1);
-            push_usize(&mut out, groups.len());
-            for group in groups {
-                push_u32s(&mut out, group);
+
+    fn opt_panel(&mut self, values: Option<&[i64]>) -> &mut Self {
+        match values {
+            None => self.tag(0),
+            Some(values) => {
+                self.tag(1).usize(values.len());
+                for value in values {
+                    self.raw(&value.to_le_bytes());
+                }
+                self
             }
         }
     }
-    out.extend_from_slice(&estimator.propensity.identity_digest());
+
+    fn write(&mut self, part: &impl CanonicalIdentity) -> &mut Self {
+        part.write_identity(self);
+        self
+    }
+}
+
+/// A part of an estimator specification with a canonical identity encoding.
+trait CanonicalIdentity {
+    fn write_identity(&self, out: &mut IdentityBytes);
+}
+
+impl CanonicalIdentity for antecedent_estimate::OverlapPolicy {
+    fn write_identity(&self, out: &mut IdentityBytes) {
+        match *self {
+            Self::ExplicitOverride => {
+                out.tag(0);
+            }
+            Self::RequireDiagnostics { clip, trim } => {
+                out.tag(1).opt_f64(clip).opt_f64(trim);
+            }
+        }
+    }
+}
+
+impl CanonicalIdentity for antecedent_stats::NbAlphaPolicy {
+    fn write_identity(&self, out: &mut IdentityBytes) {
+        match *self {
+            Self::Fixed(alpha) => {
+                out.tag(0).f64(alpha);
+            }
+            Self::MethodOfMoments => {
+                out.tag(1);
+            }
+            Self::NestedMle { max_outer, tol_alpha } => {
+                out.tag(2).u32(max_outer).f64(tol_alpha);
+            }
+        }
+    }
+}
+
+impl CanonicalIdentity for antecedent_stats::GlmOptions {
+    fn write_identity(&self, out: &mut IdentityBytes) {
+        out.u32(self.max_iter)
+            .f64(self.tol)
+            .write(&self.nb_alpha)
+            .opt_f64(self.ridge_on_separation);
+    }
+}
+
+impl CanonicalIdentity for antecedent_estimate::AnalyticSeKind {
+    fn write_identity(&self, out: &mut IdentityBytes) {
+        use antecedent_estimate::AnalyticSeKind as Kind;
+        match *self {
+            Kind::Homoskedastic => {
+                out.tag(0);
+            }
+            Kind::Hc0 => {
+                out.tag(1);
+            }
+            Kind::Hc1 => {
+                out.tag(2);
+            }
+            Kind::Hc2 => {
+                out.tag(3);
+            }
+            Kind::Hc3 => {
+                out.tag(4);
+            }
+            Kind::Cluster => {
+                out.tag(5);
+            }
+            Kind::Multiway => {
+                out.tag(6);
+            }
+            Kind::NeweyWest { lag } => {
+                out.tag(7).usize(lag);
+            }
+            Kind::PanelClusterHac { lag } => {
+                out.tag(8).usize(lag);
+            }
+        }
+    }
+}
+
+impl CanonicalIdentity for antecedent_core::PopulationRegistry {
+    fn write_identity(&self, out: &mut IdentityBytes) {
+        for (name, rows) in self.predicates() {
+            out.raw(name.as_bytes()).tag(0).usize(rows.len());
+            for row in rows {
+                out.usize(*row);
+            }
+        }
+        out.tag(0xff);
+        for (id, weights, parents) in self.distributions() {
+            out.u32(id.raw()).f64s(weights).usize(parents.len());
+            for parent in parents {
+                out.u32(parent.raw());
+            }
+        }
+    }
+}
+
+fn estimator_identity_bytes(estimator: &AipwAte) -> Vec<u8> {
+    let mut out = IdentityBytes::new(b"aipw.v1");
+    out.raw(&estimator.inference.bootstrap_replicates.to_le_bytes());
+    out.write(&estimator.overlap).write(&estimator.glm_options).write(&estimator.inference.se_kind);
+    out.opt_u32s(estimator.inference.cluster_ids.as_deref())
+        .opt_u32s(estimator.cluster_ids_second.as_deref())
+        .opt_panel(estimator.inference.panel_times.as_deref());
+    match estimator.inference.multiway_ids.as_deref() {
+        None => {
+            out.tag(0);
+        }
+        Some(groups) => {
+            out.tag(1).usize(groups.len());
+            for group in groups {
+                out.u32s(group);
+            }
+        }
+    }
+    out.raw(&estimator.propensity.identity_digest());
     match estimator.cluster_dml.as_ref() {
-        None => out.push(0),
+        None => {
+            out.tag(0);
+        }
         Some(cluster) => {
-            out.push(1);
-            out.extend_from_slice(cluster.canonical_key().as_bytes());
+            out.tag(1).raw(cluster.canonical_key().as_bytes());
         }
     }
     match estimator.population_registry.as_ref() {
-        None => out.push(0),
+        None => {
+            out.tag(0);
+        }
         Some(registry) => {
-            out.push(1);
-            for (name, rows) in registry.predicates() {
-                out.extend_from_slice(name.as_bytes());
-                out.push(0);
-                push_usize(&mut out, rows.len());
-                for row in rows {
-                    push_usize(&mut out, *row);
-                }
-            }
-            out.push(0xff);
-            for (id, weights, parents) in registry.distributions() {
-                push_u32(&mut out, id.raw());
-                push_f64s(&mut out, weights);
-                push_usize(&mut out, parents.len());
-                for parent in parents {
-                    push_u32(&mut out, parent.raw());
-                }
-            }
+            out.tag(1).write(registry);
         }
     }
     // Labels per source row are appended only when declared, so a configuration without
     // them keeps its earlier encoding.
-    if let Some(labels) = estimator.source_cluster_ids.as_deref() {
-        out.push(2);
-        push_u32s(&mut out, labels);
+    if let Some(labels) = estimator.inference.source_cluster_ids.as_deref() {
+        out.tag(2).u32s(labels);
     }
     if let Some(labels) = estimator.source_cluster_ids_second.as_deref() {
-        out.push(3);
-        push_u32s(&mut out, labels);
+        out.tag(3).u32s(labels);
     }
     if let Some(weights) = estimator.sampling_weights.as_ref() {
-        out.push(4);
-        push_f64s(&mut out, weights.source());
+        out.tag(4).f64s(weights.source());
     }
-    out
-}
-
-fn push_u32(out: &mut Vec<u8>, value: u32) {
-    out.extend_from_slice(&value.to_le_bytes());
-}
-
-fn push_usize(out: &mut Vec<u8>, value: usize) {
-    out.extend_from_slice(&u64::try_from(value).unwrap_or(u64::MAX).to_le_bytes());
-}
-
-fn push_f64(out: &mut Vec<u8>, value: f64) {
-    out.extend_from_slice(&value.to_bits().to_le_bytes());
-}
-
-fn push_opt_f64(out: &mut Vec<u8>, value: Option<f64>) {
-    match value {
-        None => out.push(0),
-        Some(value) => {
-            out.push(1);
-            push_f64(out, value);
-        }
-    }
-}
-
-fn push_u32s(out: &mut Vec<u8>, values: &[u32]) {
-    push_usize(out, values.len());
-    for value in values {
-        push_u32(out, *value);
-    }
-}
-
-fn push_opt_u32s(out: &mut Vec<u8>, values: Option<&[u32]>) {
-    match values {
-        None => out.push(0),
-        Some(values) => {
-            out.push(1);
-            push_u32s(out, values);
-        }
-    }
-}
-
-fn push_opt_panel(out: &mut Vec<u8>, values: Option<&[i64]>) {
-    match values {
-        None => out.push(0),
-        Some(values) => {
-            out.push(1);
-            push_usize(out, values.len());
-            for value in values {
-                out.extend_from_slice(&value.to_le_bytes());
-            }
-        }
-    }
-}
-
-fn push_f64s(out: &mut Vec<u8>, values: &[f64]) {
-    push_usize(out, values.len());
-    for value in values {
-        push_f64(out, *value);
-    }
+    out.0
 }
 
 impl RecalcRequest {
     fn validate(&self) -> Result<(), RecalcRunError> {
         self.utility.validate()?;
-        if self.estimator.bootstrap_replicates != 0 {
-            return Err(RecalcRunError::Request("recalc.bootstrap_replicates_unsupported"));
+        if self.estimator.inference.bootstrap_replicates != 0 {
+            return Err(RecalcRunError::Request(RecalcRequestCode::BootstrapReplicatesUnsupported));
         }
         if self.estimator.overlap == antecedent_estimate::OverlapPolicy::ExplicitOverride {
-            return Err(RecalcRunError::Request("recalc.aipw_requires_overlap_diagnostics"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::AipwRequiresOverlapDiagnostics));
         }
-        if self.estimator.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic
+        if self.estimator.inference.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic
             || matches!(
                 self.estimator.overlap,
                 antecedent_estimate::OverlapPolicy::RequireDiagnostics { trim: Some(_), .. }
             )
         {
-            return Err(RecalcRunError::Request("recalc.unsupported_aipw_score_configuration"));
+            return Err(RecalcRunError::Request(
+                RecalcRequestCode::UnsupportedAipwScoreConfiguration,
+            ));
         }
         Ok(())
     }
@@ -817,7 +1036,7 @@ impl RecalcRequest {
             data_parts.push(name.as_bytes().to_vec());
             data_parts.push(float_bytes(values));
         }
-        let rows = self.columns.first().map_or(0, |(_, v)| v.len());
+        let rows = self.columns.n_rows();
         let folds = to_u64(DEFAULT_AIPW_FOLDS);
         let target = self.target.as_ref().map_or_else(
             || literal("target_population", "all_observed"),
@@ -870,12 +1089,12 @@ impl RecalcRequest {
 
     fn graph(&self) -> Result<Dag, RecalcRunError> {
         let n = u32::try_from(self.columns.len())
-            .map_err(|_| RecalcRunError::Request("recalc.invalid_graph"))?;
+            .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidGraph))?;
         let mut graph = Dag::with_variables(n);
         for &(from, to) in &self.edges {
             graph
                 .insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
-                .map_err(|_| RecalcRunError::Request("recalc.invalid_graph"))?;
+                .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidGraph))?;
         }
         Ok(graph)
     }
@@ -884,7 +1103,7 @@ impl RecalcRequest {
         let borrowed: Vec<(&str, &[f64])> =
             self.columns.iter().map(|(n, v)| (n.as_str(), v.as_slice())).collect();
         TabularData::from_f64_columns(borrowed)
-            .map_err(|_| RecalcRunError::Request("recalc.invalid_data"))
+            .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidData))
     }
 
     fn study(&self, data: TabularData) -> Result<Study, RecalcRunError> {
@@ -901,13 +1120,131 @@ impl RecalcRequest {
     }
 }
 
+/// Why a recalculation request was refused, as a closed set.
+///
+/// The wire spelling (`recalc.<snake_case>`) is [`as_str`](Self::as_str); matching on the
+/// variant keeps every producer and consumer of a code checked at compile time.
+macro_rules! recalc_request_codes {
+    ($($variant:ident => $text:literal,)*) => {
+        /// A refused-request code of the recalculation routes.
+        #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+        pub enum RecalcRequestCode {
+            $(
+                #[doc = $text]
+                $variant,
+            )*
+        }
+
+        impl RecalcRequestCode {
+            /// Every code, in declaration order.
+            pub const ALL: &'static [Self] = &[$(Self::$variant,)*];
+
+            /// The `recalc.<snake_case>` spelling of the code.
+            #[must_use]
+            pub const fn as_str(self) -> &'static str {
+                match self {
+                    $(Self::$variant => $text,)*
+                }
+            }
+        }
+    };
+}
+
+recalc_request_codes! {
+    AdjustedPredictionOutOfSupport => "recalc.adjusted_prediction_out_of_support",
+    AdjustedPredictionSchemaMismatch => "recalc.adjusted_prediction_schema_mismatch",
+    AdjustmentNotIdentified => "recalc.adjustment_not_identified",
+    AipwRequiresOverlapDiagnostics => "recalc.aipw_requires_overlap_diagnostics",
+    BayesianBasisPriorUnsupported => "recalc.bayesian_basis_prior_unsupported",
+    BayesianEffectUnavailable => "recalc.bayesian_effect_unavailable",
+    BayesianExternalComposeUnsupported => "recalc.bayesian_external_compose_unsupported",
+    BayesianInferenceUnsupported => "recalc.bayesian_inference_unsupported",
+    BayesianInvalidData => "recalc.bayesian_invalid_data",
+    BayesianInvalidGraph => "recalc.bayesian_invalid_graph",
+    BayesianInvalidQuery => "recalc.bayesian_invalid_query",
+    BayesianInvalidSummary => "recalc.bayesian_invalid_summary",
+    BayesianPriorInvalid => "recalc.bayesian_prior_invalid",
+    BayesianPriorLikelihoodDoubleUse => "recalc.bayesian_prior_likelihood_double_use",
+    BayesianPriorSourceConflict => "recalc.bayesian_prior_source_conflict",
+    BayesianPriorSourceUnsupported => "recalc.bayesian_prior_source_unsupported",
+    BayesianPriorSourceUnverified => "recalc.bayesian_prior_source_unverified",
+    BayesianWorkspaceLimit => "recalc.bayesian_workspace_limit",
+    BootstrapReplicatesUnsupported => "recalc.bootstrap_replicates_unsupported",
+    Cancelled => "recalc.cancelled",
+    CategoricalRoleMismatch => "recalc.categorical_role_mismatch",
+    ContrastOutOfSupport => "recalc.contrast_out_of_support",
+    ContrastUnavailable => "recalc.contrast_unavailable",
+    DesignArtifactMismatch => "recalc.design_artifact_mismatch",
+    DesignArtifactUnverified => "recalc.design_artifact_unverified",
+    DesignDataUnavailable => "recalc.design_data_unavailable",
+    DesignEffectUnavailable => "recalc.design_effect_unavailable",
+    DesignNotChecked => "recalc.design_not_checked",
+    DesignPointUnavailable => "recalc.design_point_unavailable",
+    DrEffectUnavailable => "recalc.dr_effect_unavailable",
+    DrFitCounterMismatch => "recalc.dr_fit_counter_mismatch",
+    DrPredictionOutOfSupport => "recalc.dr_prediction_out_of_support",
+    DrPredictionSchemaMismatch => "recalc.dr_prediction_schema_mismatch",
+    DrPredictorUnavailable => "recalc.dr_predictor_unavailable",
+    DrScoresUnavailable => "recalc.dr_scores_unavailable",
+    FrozenScoresRejected => "recalc.frozen_scores_rejected",
+    IncompatibleContrast => "recalc.incompatible_contrast",
+    InvalidAdjustmentSet => "recalc.invalid_adjustment_set",
+    InvalidCategoricalContrast => "recalc.invalid_categorical_contrast",
+    InvalidChangedInput => "recalc.invalid_changed_input",
+    InvalidContrast => "recalc.invalid_contrast",
+    InvalidData => "recalc.invalid_data",
+    InvalidDesignArtifact => "recalc.invalid_design_artifact",
+    InvalidDesignRoles => "recalc.invalid_design_roles",
+    InvalidEvidence => "recalc.invalid_evidence",
+    InvalidGraph => "recalc.invalid_graph",
+    InvalidQuery => "recalc.invalid_query",
+    InvalidRdWindow => "recalc.invalid_rd_window",
+    InvalidRequest => "recalc.invalid_request",
+    InvalidTargetWeights => "recalc.invalid_target_weights",
+    InvalidTemporalProvider => "recalc.invalid_temporal_provider",
+    InvalidTemporalWindow => "recalc.invalid_temporal_window",
+    IvDiagnosticsUnavailable => "recalc.iv_diagnostics_unavailable",
+    JointBayesianGraphUnsupported => "recalc.joint_bayesian_graph_unsupported",
+    JointBayesianInvalidData => "recalc.joint_bayesian_invalid_data",
+    MemoryBudgetExceeded => "recalc.memory_budget_exceeded",
+    MzInvalidRequest => "recalc.mz_invalid_request",
+    PrimaryResultIsNotAnEffect => "recalc.primary_result_is_not_an_effect",
+    RetargetNotLicensed => "recalc.retarget_not_licensed",
+    RowCountMismatch => "recalc.row_count_mismatch",
+    RowIdsMismatch => "recalc.row_ids_mismatch",
+    ScoreStageUndeclared => "recalc.score_stage_undeclared",
+    ScoreTableUnavailable => "recalc.score_table_unavailable",
+    StaticActionOutOfSupport => "recalc.static_action_out_of_support",
+    StaticGraphUnsupported => "recalc.static_graph_unsupported",
+    StaticInvalidContrast => "recalc.static_invalid_contrast",
+    StaticInvalidData => "recalc.static_invalid_data",
+    StaticInvalidQuery => "recalc.static_invalid_query",
+    StaticRequiredFactorMissing => "recalc.static_required_factor_missing",
+    TemporalArtifactMismatch => "recalc.temporal_artifact_mismatch",
+    TemporalArtifactSeedMismatch => "recalc.temporal_artifact_seed_mismatch",
+    UnsupportedAipwScoreConfiguration => "recalc.unsupported_aipw_score_configuration",
+    WeightedOverlapFailed => "recalc.weighted_overlap_failed",
+}
+
+impl fmt::Display for RecalcRequestCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl From<RecalcRequestCode> for &'static str {
+    fn from(code: RecalcRequestCode) -> Self {
+        code.as_str()
+    }
+}
+
 /// Why a recalculation did not run.
 #[derive(Debug)]
 pub enum RecalcRunError {
     /// The plan contains a refused stage; nothing was executed.
     Refused(Box<RecalcPlan>),
-    /// The request itself is malformed (plain `recalc.<snake_case>` detail).
-    Request(&'static str),
+    /// The request itself is malformed.
+    Request(RecalcRequestCode),
     /// The session holds no live artifact for a stage the plan says to reuse.
     NoLiveState(Stage),
     /// A study operation failed.
@@ -923,7 +1260,7 @@ impl fmt::Display for RecalcRunError {
                 Some((stage, reason)) => write!(f, "recalculation refused at {stage}: {reason}"),
                 None => f.write_str("recalculation refused"),
             },
-            Self::Request(detail) => f.write_str(detail),
+            Self::Request(detail) => f.write_str(detail.as_str()),
             Self::NoLiveState(stage) => write!(f, "no live artifact to reuse for stage {stage}"),
             Self::Execution(error) => write!(f, "{error}"),
             Self::Receipt(error) => write!(f, "{error}"),
@@ -1104,7 +1441,7 @@ fn law_stage(
         let rows = prepared
             .score_table()
             .map(|t| t.n_rows)
-            .ok_or(RecalcRunError::Request("recalc.score_table_unavailable"))?;
+            .ok_or(RecalcRunError::Request(RecalcRequestCode::ScoreTableUnavailable))?;
         (vec![1.0; rows], Vec::new())
     };
     let result = prepared.retarget(&weights, &depends_on, ctx)?;
@@ -1112,7 +1449,7 @@ fn law_stage(
     let effect = result
         .estimate
         .as_effect()
-        .ok_or(RecalcRunError::Request("recalc.primary_result_is_not_an_effect"))?;
+        .ok_or(RecalcRunError::Request(RecalcRequestCode::PrimaryResultIsNotAnEffect))?;
     Ok(LawValue { ate: effect.ate, std_error: effect.se_analytic() })
 }
 
@@ -1127,7 +1464,7 @@ pub(crate) fn decide(
             utility.validate()?;
             let net_benefit = utility.benefit_per_unit.mul_add(law.ate, -utility.cost);
             if !net_benefit.is_finite() {
-                return Err(RecalcRunError::Request("recalc.invalid_request"));
+                return Err(RecalcRunError::Request(RecalcRequestCode::InvalidRequest));
             }
             recorder.record(Counter::Decision, 1);
             Ok(DecisionValue { net_benefit, treat: net_benefit > 0.0 })
@@ -1176,7 +1513,7 @@ pub fn execute_with_receipt(
     request.validate()?;
     // A cancelled run stops before any stage runs and leaves the session as it was.
     if ctx.cancellation.is_cancelled() {
-        return Err(RecalcRunError::Request("recalc.cancelled"));
+        return Err(RecalcRunError::Request(RecalcRequestCode::Cancelled));
     }
     let plan = session.plan(request, ctx);
     if !plan.is_executable() {
@@ -1325,11 +1662,6 @@ impl RecalcSessionKind {
     }
 }
 
-/// The first external-study branch, which every layout admits.
-const fn branch_zero() -> antecedent_core::recalc::Branch {
-    antecedent_core::recalc::Branch::new(0).expect("branch zero is below the branch limit")
-}
-
 #[cfg(test)]
 mod estimator_identity_tests {
     use super::{RecalcRequest, UtilitySpec};
@@ -1339,7 +1671,7 @@ mod estimator_identity_tests {
 
     fn request(estimator: AipwAte) -> RecalcRequest {
         RecalcRequest {
-            columns: vec![("t".into(), vec![0.0, 1.0]), ("y".into(), vec![0.0, 2.0])],
+            columns: vec![("t".into(), vec![0.0, 1.0]), ("y".into(), vec![0.0, 2.0])].into(),
             edges: vec![(0, 1)],
             treatment: 0,
             outcome: 1,
@@ -1360,5 +1692,56 @@ mod estimator_identity_tests {
         clipped.overlap = OverlapPolicy::RequireDiagnostics { clip: Some(1e-13), trim: None };
         let changed = request(clipped).identities(&ctx).own(stage);
         assert_ne!(base, changed);
+    }
+}
+
+#[cfg(test)]
+mod request_code_tests {
+    use super::{Columns, NonFinite, RecalcRequestCode, TargetWeights};
+    use std::collections::BTreeSet;
+
+    #[test]
+    fn request_codes_are_unique_recalc_spellings() {
+        let spellings: BTreeSet<_> = RecalcRequestCode::ALL.iter().map(|c| c.as_str()).collect();
+        assert_eq!(spellings.len(), RecalcRequestCode::ALL.len());
+        assert!(spellings.iter().all(|s| s.starts_with("recalc.")));
+        assert_eq!(RecalcRequestCode::Cancelled.to_string(), "recalc.cancelled");
+    }
+
+    fn table(columns: &[(&str, &[f64])]) -> Columns {
+        columns.iter().map(|(name, values)| ((*name).to_owned(), values.to_vec())).collect()
+    }
+
+    #[test]
+    fn columns_validation_is_shared_and_policy_aware() {
+        let ok = table(&[("a", &[1., 2.]), ("b", &[3., 4.])]);
+        assert!(ok.is_well_formed(NonFinite::Reject));
+        assert_eq!((ok.n_rows(), ok.n_cols()), (2, 2));
+        assert_eq!(ok.name(1), Some("b"));
+        assert!(ok.column(2).is_none());
+        let missing = table(&[("a", &[1., f64::NAN])]);
+        assert!(!missing.is_well_formed(NonFinite::Reject));
+        assert!(missing.is_well_formed(NonFinite::MissingAsNan));
+        let infinite = table(&[("a", &[1., f64::INFINITY])]);
+        assert!(!infinite.is_well_formed(NonFinite::MissingAsNan));
+        assert!(!table(&[("a", &[1.]), ("a", &[2.])]).is_well_formed(NonFinite::Reject));
+        assert!(!table(&[("a", &[1.]), ("b", &[2., 3.])]).is_well_formed(NonFinite::Reject));
+        assert!(!table(&[("", &[1.])]).is_well_formed(NonFinite::Reject));
+        assert!(!Columns::default().is_well_formed(NonFinite::Reject));
+        assert!(ok.are_distinct_roles(&[0, 1]));
+        assert!(!ok.are_distinct_roles(&[0, 0]));
+        assert!(!ok.are_distinct_roles(&[0, 2]));
+    }
+
+    #[test]
+    fn target_weights_need_positive_finite_mass_and_matching_rows() {
+        let weights = |w: &[f64]| TargetWeights { weights: w.to_vec(), depends_on: Vec::new() };
+        assert!(weights(&[1., 0.]).are_valid(Some(2)));
+        assert!(!weights(&[1., 0.]).are_valid(Some(3)));
+        assert!(weights(&[1., 0.]).are_valid(None));
+        assert!(!weights(&[0., 0.]).are_valid(None));
+        assert!(!weights(&[1., -1.]).are_valid(None));
+        assert!(!weights(&[1., f64::NAN]).are_valid(None));
+        assert!(!weights(&[]).are_valid(None));
     }
 }

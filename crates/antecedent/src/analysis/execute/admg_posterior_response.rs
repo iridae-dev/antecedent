@@ -80,7 +80,7 @@ impl super::Study {
         let mut bound = self.clone();
         bound.query = CausalQuery::Response(operation.query().clone());
         bound.graph_posterior = Some(operation.posterior().clone());
-        bound.graph_posterior_identification_cache = Some(Arc::clone(operation.identification()));
+        bound.install_identification(crate::analysis::IdentificationCache::GraphPosterior(Arc::clone(operation.identification())));
         bound.inference = operation.inference().clone();
         bound.refute = operation.validation();
         bound.execute_admg_graph_posterior_response(
@@ -211,7 +211,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<(Arc<CachedGraphPosteriorIdentification>, bool), CausalError> {
-        if let Some(cache) = self.graph_posterior_identification_cache.as_ref() {
+        if let Some(cache) = self.graph_posterior_cache() {
             Ok((Arc::clone(cache), true))
         } else if let Some(cache) =
             crate::analysis::lowering::plan_retained_graph_posterior(self, physical)

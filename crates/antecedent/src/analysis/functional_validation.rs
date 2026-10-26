@@ -54,9 +54,6 @@ use crate::result::StudyResult;
 const CHEAP_REPLICATES: u32 = 30;
 /// Replicates of a full refuter.
 const FULL_REPLICATES: u32 = 60;
-/// Most replicates a refuter runs; a target with more coordinates cannot estimate its
-/// covariance and the refuter is recorded as refused.
-const MAX_REPLICATES: u32 = 400;
 
 /// Whether `study` requests a validation suite whose native suite is the functional one.
 ///
@@ -123,9 +120,10 @@ fn replicates(suite: TargetSuite, dimension: usize) -> u32 {
         TargetSuite::Full => FULL_REPLICATES,
         TargetSuite::Cheap | TargetSuite::Placebo => CHEAP_REPLICATES,
     };
-    // The covariance of a `k`-coordinate vector needs at least `k + 2` replicates.
-    let floor = u32::try_from(dimension.saturating_add(8)).unwrap_or(MAX_REPLICATES);
-    base.max(floor).min(MAX_REPLICATES)
+    // The covariance of a `k`-coordinate vector needs at least `k + 2` replicates, so the count
+    // grows with the dimension of the target rather than being cut below that floor.
+    let floor = u32::try_from(dimension.saturating_add(8)).unwrap_or(u32::MAX);
+    base.max(floor)
 }
 
 /// One target-native report as a result refutation: the first coordinate of the original and
@@ -151,6 +149,9 @@ fn as_refutation(report: &TargetRefutationReport, program: Option<[u8; 32]>) -> 
 
 /// [`run_validated`] over `data`, the rows a prepared handle was asked to estimate.
 ///
+/// The study is cloned once, to prepare the route at validation none over `data`; the
+/// refuters read the requested suite and the query from `study` itself.
+///
 /// # Errors
 ///
 /// As [`run_validated`].
@@ -159,9 +160,10 @@ pub(crate) fn validate_data(
     data: DataInput,
     ctx: &ExecutionContext,
 ) -> Result<StudyResult, CausalError> {
-    let mut study = study.clone();
-    study.data = data;
-    run_validated(&study, ctx)
+    let mut base = study.clone();
+    base.refute = RefuteSuite::None;
+    base.data = data;
+    validate_over(study, &base, ctx)
 }
 
 /// Run `study` at validation none and refute the whole target vector of its result.
@@ -177,8 +179,18 @@ pub(crate) fn run_validated(
 ) -> Result<StudyResult, CausalError> {
     let mut base = study.clone();
     base.refute = RefuteSuite::None;
+    validate_over(study, &base, ctx)
+}
+
+/// Estimate `base` (the study at validation none) on its own data and refute the result
+/// against the suite `study` requests.
+fn validate_over(
+    study: &Study,
+    base: &Study,
+    ctx: &ExecutionContext,
+) -> Result<StudyResult, CausalError> {
     let prepared = base.prepare(ctx)?;
-    match &study.data {
+    match &base.data {
         DataInput::Tabular(data) => {
             let result = prepared.estimate(data, ctx)?;
             validate(study, &prepared, result, PreparedTargetData::Tabular(data), ctx)

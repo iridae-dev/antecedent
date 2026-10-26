@@ -39,7 +39,7 @@ impl Study {
         }
         let (graph, identification) = match analysis.graph.graph_ref() {
             GraphRef::Cpdag(graph) => {
-                let Some(cache) = analysis.cpdag_identification_cache.as_ref() else {
+                let Some(cache) = analysis.cpdag_cache() else {
                     return Ok(None);
                 };
                 (
@@ -49,7 +49,7 @@ impl Study {
             }
             GraphRef::Pag(_) => {
                 let (Some(graph), Some(cache)) =
-                    (plan.static_pag(), analysis.pag_identification_cache.as_ref())
+                    (plan.static_pag(), analysis.pag_cache())
                 else {
                     return Ok(None);
                 };
@@ -106,7 +106,7 @@ impl Study {
     ) -> Result<Option<CheckedGraphPosteriorEffect>, CausalError> {
         let (Some(posterior), Some(identification), Some(target)) = (
             analysis.graph_posterior.as_ref(),
-            analysis.graph_posterior_identification_cache.as_ref(),
+            analysis.graph_posterior_cache(),
             crate::analysis::GraphPosteriorEffectTarget::from_query(&analysis.query),
         ) else {
             return Ok(None);
@@ -184,7 +184,7 @@ impl Study {
     ) -> Result<Option<CheckedClassGraphPosteriorEffect>, CausalError> {
         let (Some(posterior), Some(identification), Some(target)) = (
             analysis.graph_posterior.as_ref(),
-            analysis.graph_posterior_identification_cache.as_ref(),
+            analysis.graph_posterior_cache(),
             crate::analysis::GraphPosteriorEffectTarget::from_query(&analysis.query),
         ) else {
             return Ok(None);
@@ -235,7 +235,7 @@ impl Study {
     ) -> Result<Option<Box<CheckedBayesianGraphPosteriorAte>>, CausalError> {
         let (Some(posterior), Some(identification), Some(target), InferenceMode::Bayesian(_)) = (
             analysis.graph_posterior.as_ref(),
-            analysis.graph_posterior_identification_cache.as_ref(),
+            analysis.graph_posterior_cache(),
             crate::analysis::GraphPosteriorEffectTarget::from_query(&analysis.query),
             &analysis.inference,
         ) else {
@@ -280,7 +280,7 @@ impl Study {
         let (Some(posterior), CausalQuery::Response(query), Some(identification)) = (
             analysis.graph_posterior.as_ref(),
             &analysis.query,
-            analysis.graph_posterior_identification_cache.as_ref(),
+            analysis.graph_posterior_cache(),
         ) else {
             return Ok(None);
         };
@@ -331,7 +331,7 @@ impl Study {
         ) = (
             &analysis.data,
             &analysis.query,
-            analysis.temporal_class_identification_cache.as_ref(),
+            analysis.temporal_class_cache(),
             analysis.graph.class(),
         )
         else {
@@ -390,14 +390,14 @@ impl Study {
         }
         let proof = match posterior.atom_kind {
             antecedent_discovery::GraphPosteriorAtomKind::Dag => {
-                let Some(cache) = analysis.dbn_posterior_identification_cache.as_ref() else {
+                let Some(cache) = analysis.dbn_posterior_cache() else {
                     return Ok(None);
                 };
                 crate::analysis::TemporalPosteriorResponseProof::Dbn(Arc::clone(cache))
             }
             antecedent_discovery::GraphPosteriorAtomKind::Cpdag
             | antecedent_discovery::GraphPosteriorAtomKind::Pag => {
-                let Some(cache) = analysis.temporal_class_posterior_identification_cache.as_ref()
+                let Some(cache) = analysis.temporal_class_posterior_cache()
                 else {
                     return Ok(None);
                 };
@@ -438,7 +438,7 @@ impl Study {
         ) = (
             &analysis.data,
             &analysis.query,
-            analysis.temporal_class_identification_cache.as_ref(),
+            analysis.temporal_class_cache(),
             analysis.graph.class(),
             &analysis.inference,
         )
@@ -499,13 +499,13 @@ impl Study {
         }
         let proof = match posterior.atom_kind {
             antecedent_discovery::GraphPosteriorAtomKind::Dag => analysis
-                .dbn_posterior_identification_cache
-                .clone()
+                .dbn_posterior_cache()
+                .cloned()
                 .map(crate::analysis::CheckedTemporalGraphPosteriorProof::Dbn),
             antecedent_discovery::GraphPosteriorAtomKind::Cpdag
             | antecedent_discovery::GraphPosteriorAtomKind::Pag => analysis
-                .temporal_class_posterior_identification_cache
-                .clone()
+                .temporal_class_posterior_cache()
+                .cloned()
                 .map(crate::analysis::CheckedTemporalGraphPosteriorProof::Class),
             _ => None,
         };
@@ -548,7 +548,7 @@ impl Study {
         }
         let (graph, identification) = match analysis.graph.graph_ref() {
             GraphRef::Cpdag(graph) => {
-                let Some(cache) = analysis.cpdag_identification_cache.as_ref() else {
+                let Some(cache) = analysis.cpdag_cache() else {
                     return Ok(None);
                 };
                 (
@@ -558,7 +558,7 @@ impl Study {
             }
             GraphRef::Pag(_) => {
                 let (Some(graph), Some(cache)) =
-                    (plan.static_pag(), analysis.pag_identification_cache.as_ref())
+                    (plan.static_pag(), analysis.pag_cache())
                 else {
                     return Ok(None);
                 };
@@ -603,7 +603,7 @@ impl Study {
         let (Some(posterior), CausalQuery::Response(query), Some(identification)) = (
             analysis.graph_posterior.as_ref(),
             &analysis.query,
-            analysis.graph_posterior_identification_cache.as_ref(),
+            analysis.graph_posterior_cache(),
         ) else {
             return Ok(None);
         };

@@ -36,10 +36,11 @@ the declaration that would open it; it is not a cache miss.
 | natural / path-specific contrast, finite Markovian SCM | executed (shared exogenous coupling) |
 | the same three quantities, fully declared finite SCM with an exogenous term shared by several mechanisms | executed (one joint exogenous state per unit) |
 | fixed-population two-slice temporal counterfactual | executed, staged with abduction reuse |
+| fixed-population temporal counterfactual, any horizon and any number of named action histories | executed, staged with abduction reuse (`GeneralTemporalExecutor`); sealed as `temporal_counterfactual_general_v1`. The two-slice, two-history route keeps its stable `temporal_counterfactual_v1` layout |
 | transported static additive linear path-specific | keeps its own theorem-scoped route |
 | transported cross-world execution | closed: `cell_not_licensed`, prerequisites named |
 | latent confounding without declared mechanisms, nonparametric ADMG | closed: `cross_world_not_identified` |
-| declared model whose joint exogenous enumeration exceeds the bound | `route_not_supported` (`cross_world_execution.joint_state_bound_exceeded`) |
+| declared model whose joint exogenous space exceeds the enumeration bound | executed by exact variable elimination (`exogenous_method = variable_elimination`); `route_not_supported` (`cross_world_execution.elimination_bound_exceeded`) only when the elimination order needs a table above its bound |
 | incompatible history, soft interventions, fitting a finite SCM from data | closed |
 
 ## The finite SCM rows
@@ -53,6 +54,19 @@ normalizes; every world evaluates the same equations with its hard interventions
 and routes under the same posterior state, so worlds are coupled by construction
 (Pearl 2009, chapter 7; Balke and Pearl 1994). Nothing is sampled: `shared_draws`
 is zero.
+
+Past 65536 joint exogenous states the joint space is never formed. The same
+quantity is computed exactly by variable elimination over the factor graph of the
+exogenous terms and the per-world variables: one indicator factor per mechanism
+and world (reading the same exogenous variable in every world, which is the
+coupling), the factual evidence and the interventions as constants, every
+variable summed out except the ones the quantity reads, smallest induced table
+first. Its cost is exponential in the width of the elimination order, not in the
+product of the term sizes, so a model with many weakly connected terms is cheap.
+The receipt records `exogenous_method = variable_elimination`, the units, the
+largest table, the multiply-accumulate count and a digest of every unit's
+elimination order; nothing is retained for reuse, because the elimination depends
+on the worlds and the quantity as well as the evidence.
 
 A shared exogenous term is latent confounding in the structural sense. When the
 model is fully declared there is no identification question: the term takes one
@@ -69,9 +83,10 @@ Three situations are kept apart in refusals:
   cross-world law: `cross_world_not_identified`
   (`cross_world_execution.mechanisms_not_declared`,
   `cross_world_execution.latent_confounding_not_identified`).
-- A declared model whose joint exogenous enumeration exceeds the bound, or a
-  request outside an executed row, is unsupported execution, not
-  non-identification: `route_not_supported`.
+- A declared model whose elimination order needs a table above the documented
+  bound (`cross_world_execution.elimination_bound_exceeded`), or a request outside
+  an executed row, is unsupported execution, not non-identification:
+  `route_not_supported`.
 - Intervals are not extended to shared terms: the measured whole-path coverage
   record covers one exogenous term per variable, so a shared-term model reads a
   point only.
@@ -87,11 +102,14 @@ Bounds (registered in `parity/limits.toml`):
 - Variables: 12
 - Worlds: 8
 - Units: 1024
-- Joint exogenous states: 65536 per unit (the product of every exogenous term's states, shared or not)
+- Joint exogenous states: 65536 per unit (the product of every exogenous term's states, shared or not); larger models are eliminated, not refused
+- Elimination table entries: 4194304 per table
+- Elimination variables: 8192 per unit
+- Elimination work: 4294967296 multiply-accumulate operations per request
 
 ## Readings and calibration
 
-Every result is `point_only` from exact enumeration of a declared model; model
+Every result is `point_only` from an exact computation (enumeration or variable elimination) on a declared model; model
 adequacy is a premise, not a check. A posterior reading and a sampled posterior
 (`ExogenousInference::PosteriorSampling`) are closed with `cell_not_licensed`:
 the mechanisms are declared and the exogenous posterior is enumerated exactly, so

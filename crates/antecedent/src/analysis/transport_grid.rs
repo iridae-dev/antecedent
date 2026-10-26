@@ -465,14 +465,33 @@ fn point_evidence(point: &TransportGridPoint) -> Result<String, IoError> {
         }
     }
 }
+/// The checked diagram and bound functional every grid point shares. Held behind `Arc` so a
+/// point's prepared study borrows them by reference count instead of copying the proof
+/// arena and evidence catalog once per coordinate.
+#[derive(Clone, Debug)]
+struct SharedProof {
+    diagram: Arc<SelectionDiagram>,
+    functional: Arc<BoundTransportFunctional>,
+}
+impl SharedProof {
+    fn of(query: &TransportGridQuery) -> Self {
+        Self {
+            diagram: Arc::new(query.diagram.clone()),
+            functional: Arc::new(query.functional.clone()),
+        }
+    }
+}
+/// One compiled grid point: the shared evaluation plan or the local failure that replaced it.
+type CompiledPoint = Result<Arc<antecedent_expr::ExactEvaluationPlan>, TransportGridFailure>;
 /// Retained common prepared-study state for a finite grid.
 #[derive(Clone, Debug)]
 pub struct TransportGridState {
     query: TransportGridQuery,
+    proof: SharedProof,
     input: Option<Arc<RetainedGridData>>,
     data: ExactTransportData,
     seed: u64,
-    plans: Vec<Result<antecedent_expr::ExactEvaluationPlan, TransportGridFailure>>,
+    plans: Vec<CompiledPoint>,
     template: GridWire,
     retention: Vec<Arc<antecedent_core::execution::AdmissionLease>>,
 }
@@ -737,7 +756,7 @@ fn compile_grid(
     query: &TransportGridQuery,
     data: &ExactTransportData,
     ctx: &ExecutionContext,
-) -> Result<Vec<Result<antecedent_expr::ExactEvaluationPlan, TransportGridFailure>>, IoError> {
+) -> Result<Vec<CompiledPoint>, IoError> {
     let limits = ExactEvaluationLimits {
         operations: query.limits.operations / query.at.len() / 8,
         depth: query.limits.depth,
@@ -746,6 +765,8 @@ fn compile_grid(
         .at
         .iter()
         .map(|at| {
+            // `prepare_exact_transport` takes its providers by value; `ExactTransportData`
+            // is a bundle of `Arc`s, so each point shares the laws rather than copying them.
             match antecedent_estimate::prepare_exact_transport(
                 &query.functional,
                 data.clone(),
@@ -753,7 +774,7 @@ fn compile_grid(
                 limits,
                 ctx,
             ) {
-                Ok(plan) => Ok(Ok(plan)),
+                Ok(plan) => Ok(Ok(Arc::new(plan))),
                 Err(error) => local_failure(error, &query.functional).map(Err),
             }
         })
@@ -900,9 +921,11 @@ fn build_grid(
             false,
         ),
     };
+    let proof = SharedProof::of(&query);
     Ok(PreparedStudy {
         state: TransportGridState {
             query,
+            proof,
             input: Some(input),
             data,
             seed: ctx.rng.master_seed(),
@@ -1100,12 +1123,12 @@ impl PreparedStudy<TransportGridState> {
             match input {
                 RetainedGridData::Exact(_) => {
                     let mut study = PreparedStudy::<ExactPreparedState>::from_checked_plan(
-                        query.diagram.clone(),
-                        query.functional.clone(),
+                        Arc::clone(&self.state.proof.diagram),
+                        Arc::clone(&self.state.proof.functional),
                         self.state.data.clone(),
                         at.clone(),
                         limits,
-                        plan.as_ref().map_err(|_| err("missing compiled grid point"))?.clone(),
+                        Arc::clone(plan.as_ref().map_err(|_| err("missing compiled grid point"))?),
                         false,
                     )?;
                     study.state.provider_retention = self.state.retention.clone();
@@ -1381,31 +1404,32 @@ impl PreparedStudy<TransportGridState> {
                 }
             }
         }
+        // The template is the wire without its points; take them out so they are not copied
+        // only to be dropped.
+        let retained_points = std::mem::take(&mut wire.points);
+        let template = wire.clone();
+        wire.points = retained_points;
         let input = if wire.statistical {
             None
         } else {
             Some(Arc::new(RetainedGridData::Exact(data.clone())))
         };
-        let compiled_query = TransportGridQuery {
-            diagram: diagram.clone(),
-            functional: functional.clone(),
-            at: at.clone(),
+        let query = TransportGridQuery {
+            diagram,
+            functional,
+            at,
             limits: ExactEvaluationLimits { operations: wire.operations, depth: wire.depth },
         };
-        let plans = compile_grid(&compiled_query, &data, ctx)?;
+        let plans = compile_grid(&query, &data, ctx)?;
         let state = TransportGridState {
             plans,
             retention: Vec::new(),
-            query: TransportGridQuery {
-                diagram,
-                functional,
-                at,
-                limits: ExactEvaluationLimits { operations: wire.operations, depth: wire.depth },
-            },
+            proof: SharedProof::of(&query),
+            query,
             input,
             data,
             seed: wire.seed,
-            template: GridWire { points: vec![], ..wire.clone() },
+            template,
         };
         Ok((
             PreparedStudy { state },

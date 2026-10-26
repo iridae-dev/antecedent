@@ -31,7 +31,7 @@ use antecedent_io::{
 use crate::graphs::Admg;
 use crate::response_api::build_functional;
 use crate::transport_common::{error, serialization_error};
-use crate::{CausalIdentifyError, columns_to_batch, detach_catch, py_err};
+use crate::{CausalIdentifyError, numeric_columns_to_batch, detach_catch, py_err};
 
 #[pyclass(skip_from_py_object)]
 pub(crate) struct TransportIdentificationResult {
@@ -1235,7 +1235,7 @@ fn estimate_network_interference(
     seed: u64,
 ) -> PyResult<InterferenceAnalysisResult> {
     let names = vec!["outcome".to_owned()];
-    let batch = columns_to_batch(&names, &[outcome])?;
+    let batch = numeric_columns_to_batch(&names, &[crate::NumericColumn::F64(outcome)])?;
     let query = interference_query(
         InterferenceArgs {
             assignment_kind,

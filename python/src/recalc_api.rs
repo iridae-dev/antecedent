@@ -8,12 +8,13 @@
 //! `CausalSerializationError`.
 #![allow(clippy::too_many_arguments)]
 
+use crate::NumericColumn;
 use std::collections::BTreeMap;
 
 use crate::bridge::check_declared_size;
 use antecedent::analysis::recalc_receipt::{
-    RecalcOutcome, RecalcRequest, RecalcRunError, RecalcSession, TargetWeights, UtilitySpec,
-    execute_with_receipt,
+    RecalcOutcome, RecalcRequest, RecalcRequestCode, RecalcRunError, RecalcSession, TargetWeights,
+    UtilitySpec, execute_with_receipt,
 };
 use antecedent_core::recalc::{
     Boundary, RecalcCapabilities, RecalcPlan, RefusalReason, ResumeContext, RetargetSupport, Stage,
@@ -252,7 +253,7 @@ fn column_vec(array: &PyReadonlyArray1<'_, f64>) -> Vec<f64> {
 /// Validate and assemble one cross-fitted AIPW average-effect request.
 fn build_request(
     names: &[String],
-    columns: &[PyReadonlyArray1<'_, f64>],
+    columns: &[NumericColumn<'_>],
     edges: &[(String, String)],
     treatment: &str,
     outcome: &str,
@@ -283,8 +284,7 @@ fn build_request(
             ));
         }
     }
-    let columns: Vec<(String, Vec<f64>)> =
-        names.iter().cloned().zip(columns.iter().map(column_vec)).collect();
+    let columns: Vec<(String, Vec<f64>)> = crate::named_f64_columns(names.iter().cloned(), columns)?;
     let rows = columns[0].1.len();
     if rows == 0 || columns.iter().any(|(_, v)| v.len() != rows || v.iter().any(|x| !x.is_finite()))
     {
@@ -328,7 +328,7 @@ fn build_request(
         return Err(invalid("recalc.invalid_request", "utility must be finite"));
     }
     Ok(RecalcRequest {
-        columns,
+        columns: columns.into(),
         edges,
         treatment,
         outcome,
@@ -508,7 +508,7 @@ impl PyRecalcSession {
     fn plan(
         &self,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         edges: Vec<(String, String)>,
         treatment: &str,
         outcome: &str,
@@ -548,7 +548,7 @@ impl PyRecalcSession {
         &mut self,
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         edges: Vec<(String, String)>,
         treatment: &str,
         outcome: &str,
@@ -588,9 +588,9 @@ impl PyRecalcSession {
                 Ok(outcome) => Ran::Done(Box::new(outcome)),
                 Err(RecalcRunError::Refused(plan)) => Ran::Refused(plan),
                 Err(RecalcRunError::NoLiveState(stage)) => Ran::NoLiveState(stage),
-                Err(RecalcRunError::Request("recalc.cancelled")) => Ran::Cancelled,
+                Err(RecalcRunError::Request(RecalcRequestCode::Cancelled)) => Ran::Cancelled,
                 Err(RecalcRunError::Request(detail)) => {
-                    Ran::Failed(invalid(detail, "the request is malformed"))
+                    Ran::Failed(invalid(detail.as_str(), "the request is malformed"))
                 }
                 Err(RecalcRunError::Execution(error)) => Ran::Failed(py_err(error)),
                 Err(RecalcRunError::Receipt(error)) => Ran::Failed(py_msg(error)),

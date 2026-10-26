@@ -36,7 +36,7 @@ impl super::Study {
         click.data = series_input(&self.data, data.clone());
         click.query = CausalQuery::TemporalEffect(target.query().clone());
         click.graph_posterior = None;
-        click.temporal_class_identification_cache = Some(Arc::clone(target.bundle()));
+        click.install_identification(crate::analysis::IdentificationCache::TemporalClass(Arc::clone(target.bundle())));
         click.inference = InferenceMode::Bayesian(operation.config().clone());
         click.refute = operation.validation();
         click.class_prior = operation.class_prior().cloned();

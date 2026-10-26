@@ -4,7 +4,7 @@
 use super::randomized_fit::{
     RandomizedMethod, SAMPLING_WEIGHTED_DIAGNOSTIC, SAMPLING_WEIGHTED_UNCERTAINTY,
     assignment_probability_floor, exact_randomization_test, expected_arm_units,
-    fit_missing_outcomes, fit_randomized,
+    fit_missing_outcomes, fit_randomized, randomization_test_is_exhaustive,
 };
 use super::{
     Arc, CausalError, CausalExprArena, CausalQuery, DerivationTrace, Diagnostic, DiagnosticKind,
@@ -363,7 +363,7 @@ impl CheckedRandomizedOperation {
                 antecedent_estimate::missing_policy::policy_not_applicable(
                     declaration.policy,
                     missing_data::MissingRoute::Randomized.label(),
-                    "exact randomization inference enumerates assignments of fully observed outcomes",
+                    "randomization inference permutes the assignments of fully observed outcomes",
                     supported,
                 ),
             ));
@@ -1278,7 +1278,11 @@ fn push_randomized_core_assumptions(
         assumptions.push(AssumptionRecord {
             assumption: Assumption::Custom {
                 id: Arc::from("fisher_sharp_null_two_sided"),
-                description: Arc::from("the reported exact p-value tests the sharp null of no unit-level assignment effect using the absolute difference in means over every fixed-count assignment"),
+                description: Arc::from(if randomization_test_is_exhaustive(query) {
+                    "the reported exact p-value tests the sharp null of no unit-level assignment effect using the absolute difference in means over every fixed-count assignment"
+                } else {
+                    "the reported p-value tests the sharp null of no unit-level assignment effect using the absolute difference in means over uniformly sampled fixed-count assignments (a Monte Carlo permutation p-value with a fixed stream, valid and never zero, not an exact one)"
+                }),
             },
             source: AssumptionSource::UserDeclared,
             scope: AssumptionScope::Estimation,

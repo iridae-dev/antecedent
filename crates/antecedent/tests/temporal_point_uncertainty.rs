@@ -385,3 +385,63 @@ fn conditional_marginal_effect_interval_refits_the_interaction_and_the_modifier_
     let summaries = &draws.summaries;
     assert!((summaries.mean[column] - truth).abs() < 4.0 * summaries.sd[column]);
 }
+
+/// `y_t = 1.5 x_{t-1} + 0.2 w_t + 0.8 x_{t-1} w_t + 0.6 x_{t-1} v_t + e_t` with a binary
+/// modifier `w` and a continuous modifier `v`: the marginal effect is
+/// `1.5 + 0.8 mean(w) + 0.6 mean(v)`.
+fn two_modifier_series(seed: u64) -> (TimeSeriesData, f64) {
+    let mut draw = Normals(seed | 1);
+    let mut x = vec![0.0; N];
+    let mut w = vec![0.0; N];
+    let mut v = vec![0.0; N];
+    let mut y = vec![0.0; N];
+    for t in 0..N {
+        x[t] = draw.next();
+        w[t] = if draw.uniform() < 0.4 { 1.0 } else { 0.0 };
+        v[t] = 0.5 + draw.next();
+        if t > 0 {
+            y[t] = 1.5 * x[t - 1]
+                + 0.2 * w[t]
+                + 0.8 * x[t - 1] * w[t]
+                + 0.6 * x[t - 1] * v[t]
+                + draw.next();
+        }
+    }
+    let rows = (N - 1) as f64;
+    let mean_w = w[1..].iter().sum::<f64>() / rows;
+    let mean_v = v[1..].iter().sum::<f64>() / rows;
+    let data = TimeSeriesData::from_f64_columns(
+        [("x", x.as_slice()), ("y", y.as_slice()), ("w", w.as_slice()), ("v", v.as_slice())],
+        1,
+    )
+    .unwrap();
+    (data, 1.5 + 0.8 * mean_w + 0.6 * mean_v)
+}
+
+#[test]
+fn conditional_marginal_effect_over_a_modifier_set_recovers_the_averaged_slope() {
+    let (data, truth) = two_modifier_series(41);
+    let mut graph = TemporalDag::empty();
+    let x1 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let y0 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let w0 = ensure_lagged(&mut graph, VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    let v0 = ensure_lagged(&mut graph, VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(x1, y0).unwrap();
+    graph.insert_directed(w0, y0).unwrap();
+    graph.insert_directed(v0, y0).unwrap();
+    let query = CausalQuery::TemporalEffect(
+        TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+            .with_horizon_steps(1)
+            .with_max_history_lag(Some(1))
+            .with_effect_modifiers([VariableId::from_raw(2), VariableId::from_raw(3)])
+            .with_policy(TemporalPolicy::pulse(-1)),
+    );
+    let ctx = ExecutionContext::for_tests(7);
+    let frequentist = run_series(&data, &graph, query, None, 199, &ctx).unwrap();
+    let se = block_se(&frequentist);
+    let point = frequentist.estimate.as_effect().unwrap().ate;
+    assert!(se > 0.0 && (point - truth).abs() < 4.0 * se, "{point} vs {truth} (se {se})");
+    assert!(frequentist.diagnostics.iter().any(|d| {
+        d.code.as_ref() == "estimate.temporal.conditional_modifier_set"
+    }));
+}

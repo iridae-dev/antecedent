@@ -1,5 +1,6 @@
 //! Native-issued ordinary Gaussian Bayesian selective adapter.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+use crate::NumericColumn;
 use crate::recalc_api::{RunPayload, bounded_context, context, invalid, parse_json};
 use crate::recalc_bounds::check_columns;
 use crate::recalc_family_api::{caps, payload, resume, run_error};
@@ -11,7 +12,6 @@ use antecedent::analysis::recalc_bayesian::{
 use antecedent::analysis::recalc_receipt::UtilitySpec;
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_io::recalc_receipt_artifact::{CapabilitiesWire, identities_to_wire, plan_to_wire};
-use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
 use serde::Deserialize;
@@ -87,7 +87,7 @@ fn inference(dict: &Bound<'_, PyDict>, features: usize) -> PyResult<BayesianConf
 }
 fn request(
     names: Vec<String>,
-    columns: &[PyReadonlyArray1<'_, f64>],
+    columns: &[NumericColumn<'_>],
     specification: &str,
     config: &Bound<'_, PyDict>,
     ctx: &ExecutionContext,
@@ -121,12 +121,9 @@ fn request(
         }
     };
     let inference = inference(config, names.len() + 1)?;
-    let columns = names
-        .into_iter()
-        .zip(columns.iter().map(|c| c.as_array().iter().copied().collect()))
-        .collect();
+    let columns = crate::named_f64_columns(names, columns)?;
     Ok(BayesianRequest {
-        columns,
+        columns: columns.into(),
         edges,
         treatment,
         outcome,
@@ -170,7 +167,7 @@ impl PyBayesianSession {
     fn plan(
         &self,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         specification: &str,
         inference: Bound<'_, PyDict>,
         seed: u64,
@@ -189,7 +186,7 @@ impl PyBayesianSession {
         &mut self,
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         specification: &str,
         inference: Bound<'_, PyDict>,
         seed: u64,

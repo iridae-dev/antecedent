@@ -310,7 +310,10 @@ fn parse_model_loglik(raw: Option<Bound<'_, PyAny>>) -> PyResult<Option<ModelLog
         .get_item("n_draws")?
         .ok_or_else(|| crate::value_err("model_loglik requires n_draws"))?
         .extract()?;
-    if models.is_empty() || n_draws == 0 || loglik.len() != models.len() * n_draws {
+    if models.is_empty()
+        || n_draws == 0
+        || models.len().checked_mul(n_draws) != Some(loglik.len())
+    {
         return Err(crate::value_err("model_loglik loglik length must equal len(models)*n_draws"));
     }
     Ok(Some(ModelLoglikDraws {

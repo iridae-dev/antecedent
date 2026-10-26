@@ -25,7 +25,7 @@ use std::sync::Arc;
 
 use antecedent_core::{CalibrationBasis, ExecutionContext};
 use antecedent_io::calibration::{
-    CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
+    CalibrationBasisWire, CalibrationInference, CalibrationStructure, calibration_slot,
 };
 
 use super::cross_world_execution::{
@@ -41,9 +41,45 @@ pub const CROSS_WORLD_ESTIMATOR: &str = "cross_world.finite_scm.whole_path";
 pub const CROSS_WORLD_CONSTRUCTION: &str = "normal_approximation";
 /// Nominal level.
 pub const CROSS_WORLD_LEVEL: f64 = 0.95;
-/// Most variables and levels the design measured.
+/// Most variables the whole-path coverage records measured.
+///
+/// This is the measured model class of the records `cov.counterfactual.*.cross_world_interval_*`
+/// (`parity/coverage_records.toml`), not a performance limit: the calibration key carries no
+/// variable-count axis, so this bound is what keeps an interval from being reported for a model
+/// larger than any the coverage was measured on. It lifts only by measuring coverage on a
+/// larger design and recording it.
 const MEASURED_VARIABLES: usize = 3;
+/// Most levels per variable the whole-path coverage records measured (see
+/// [`MEASURED_VARIABLES`]).
 const MEASURED_LEVELS: usize = 4;
+
+super::string_enum! {
+    /// What closed the whole-path interval route, named on the refusal as its `offending` part.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum RouteClosure, lookup = from_name {
+        /// The abduction is sampled, not exact enumeration.
+        Exogenous => "exogenous",
+        /// The target population is not the population the mechanisms were declared for.
+        TargetPopulation => "target_population",
+        /// More variables or levels than the coverage records measured.
+        Scm => "scm",
+        /// An exogenous term is shared by several variables.
+        SharedExogenous => "shared_exogenous",
+        /// The declared unit sampling determines no variance for these units.
+        UnitSampling => "unit_sampling",
+    }
+}
+
+super::string_enum! {
+    /// The scalar a whole-path interval is a statement about.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum IntervalScalar, lookup = from_name {
+        /// Mean of the realized counterfactual outcomes of the fixed units.
+        RealizedCounterfactualMean => "realized_counterfactual_mean",
+        /// Population mean of the counterfactual probability.
+        PopulationMeanCounterfactualProbability => "population_mean_counterfactual_probability",
+    }
+}
 
 fn refused(detail: &str, offending: &str, remedy: &str) -> CrossWorldExecutionRefusalWire {
     CrossWorldExecutionRefusalWire {
@@ -96,23 +132,23 @@ pub fn whole_path_interval_basis(
     request: &FiniteExecutionRequest,
     unit_sampling: UnitSampling,
 ) -> Result<CalibrationBasis, CrossWorldExecutionRefusalWire> {
-    let outside = |what: &str| {
+    let outside = |closure: RouteClosure| {
         refused(
             "cross_world_execution.interval_route_closed",
-            what,
+            closure.as_str(),
             "only exact enumeration of a declared finite Markovian SCM with at most three variables of two to four levels, in the population the mechanisms were declared for, has a measured whole-path coverage record; use the point value",
         )
     };
     if request.exogenous != ExogenousInference::ExactEnumeration {
-        return Err(outside("exogenous"));
+        return Err(outside(RouteClosure::Exogenous));
     }
     if request.target_population.as_ref().is_some_and(|t| t != &request.scm.population) {
-        return Err(outside("target_population"));
+        return Err(outside(RouteClosure::TargetPopulation));
     }
     if request.scm.variables.len() > MEASURED_VARIABLES
         || request.scm.variables.iter().any(|v| v.levels > MEASURED_LEVELS)
     {
-        return Err(outside("scm"));
+        return Err(outside(RouteClosure::Scm));
     }
     // The measured design drew one exogenous term per variable; a shared term
     // is a different model class with no coverage record.
@@ -123,16 +159,16 @@ pub fn whole_path_interval_basis(
         }
     }
     if users.iter().any(|count| *count > 1) {
-        return Err(outside("shared_exogenous"));
+        return Err(outside(RouteClosure::SharedExogenous));
     }
     let a = |text: &str| Arc::<str>::from(text);
     Ok(CalibrationBasis::new(
         [
             a(CROSS_WORLD_QUERY),
             a("Dag"),
-            a("fixed"),
+            a(CalibrationStructure::Fixed.as_str()),
             a("tabular"),
-            a("Frequentist"),
+            a(CalibrationInference::Frequentist.as_str()),
             a(CROSS_WORLD_ESTIMATOR),
             a(CROSS_WORLD_CONSTRUCTION),
             a(""),
@@ -157,7 +193,7 @@ pub fn whole_path_interval_basis(
 pub fn whole_path_interval(
     uncertainty: &WholePathUncertainty,
     level: f64,
-) -> Option<(f64, (f64, f64), &'static str)> {
+) -> Option<(f64, (f64, f64), IntervalScalar)> {
     if !(level > 0.0 && level < 1.0) {
         return None;
     }
@@ -167,10 +203,13 @@ pub fn whole_path_interval(
     )]
     let (variance, scalar) = match uncertainty.unit_sampling {
         UnitSampling::FixedUnits => {
-            (uncertainty.realized_mean_predictive_variance, "realized_counterfactual_mean")
+            (uncertainty.realized_mean_predictive_variance, IntervalScalar::RealizedCounterfactualMean)
         }
         UnitSampling::IndependentSample => {
-            (uncertainty.unit_mean_sampling_variance?, "population_mean_counterfactual_probability")
+            (
+                uncertainty.unit_mean_sampling_variance?,
+                IntervalScalar::PopulationMeanCounterfactualProbability,
+            )
         }
         _ => return None,
     };
@@ -195,9 +234,8 @@ pub fn whole_path_interval(
 /// A whole-path interval bound to its governing coverage record.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CrossWorldInterval {
-    /// The reported scalar: `population_mean_counterfactual_probability` or
-    /// `realized_counterfactual_mean`.
-    pub scalar: &'static str,
+    /// The reported scalar.
+    pub scalar: IntervalScalar,
     /// The point value.
     pub point: f64,
     /// Lower end.
@@ -215,30 +253,7 @@ pub struct CrossWorldInterval {
 }
 
 fn resolve(basis: &CalibrationBasis) -> (Option<String>, bool, Option<String>) {
-    let wire = CalibrationBasisWire {
-        key: CalibrationKeyWire {
-            query: basis.query.to_string(),
-            graph_class: basis.graph_class.to_string(),
-            structure: basis.structure.to_string(),
-            modality: basis.modality.to_string(),
-            inference: basis.inference.to_string(),
-            estimator: basis.estimator.to_string(),
-            interval_method: basis.interval_method.to_string(),
-            se_kind: basis.se_kind.to_string(),
-            dependence: basis.dependence.to_string(),
-            posterior: basis.posterior.to_string(),
-            functional: basis.functional.to_string(),
-            level: basis.level,
-            identification: basis.identification.to_string(),
-        },
-        scope: CalibrationScopeWire {
-            row_count: basis.row_count,
-            replicates_ok: basis.replicates_ok,
-            posterior_draws: basis.posterior_draws,
-            unidentified_mass: basis.unidentified_mass,
-        },
-    };
-    let slot = calibration_slot(&wire);
+    let slot = calibration_slot(&CalibrationBasisWire::from(basis));
     (slot.record_id, slot.status == "calibrated", slot.reason)
 }
 
@@ -273,7 +288,7 @@ impl CrossWorldExecution {
         else {
             return Err(refused(
                 "cross_world_execution.interval_route_closed",
-                "unit_sampling",
+                RouteClosure::UnitSampling.as_str(),
                 "the declared sampling determines no variance for these units (an independent sample needs at least two units); use the point value",
             ));
         };

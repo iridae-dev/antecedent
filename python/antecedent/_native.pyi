@@ -7314,6 +7314,12 @@ def evaluate_temporal_counterfactual(
 def consume_temporal_counterfactual_artifact(
     artifact: bytes, expected_identity_json: str | None = None, *, seed: int = 0
 ) -> tuple[str | None, str | None]: ...
+def evaluate_general_temporal_counterfactual(
+    request_json: str, artifact_id: str, *, seed: int = 0
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_general_temporal_counterfactual_artifact(
+    artifact: bytes, expected_identity_json: str | None = None, *, seed: int = 0
+) -> tuple[str | None, str | None]: ...
 def transported_path_specific_refusal(
     transport_license: bool,
     fixed_population_license: bool,

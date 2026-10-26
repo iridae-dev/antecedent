@@ -194,8 +194,6 @@ fn audit_identification_inputs(study: &Study) {
         lag_zero_average_effect: _,
         // A built study never carries this: the build refuses it.
         continuous_cell: _,
-        // Products of identification, not inputs to it.
-        transport_identification_cache: _,
         // A structure search and a mechanism fit are executed after identification and neither
         // changes the estimand it selects.
         discovery: _,
@@ -236,14 +234,7 @@ fn audit_identification_inputs(study: &Study) {
         sampling_design: _,
         interference: _,
         shared_batch_design: _,
-        // Products of identification, not inputs to it.
-        identification_cache: _,
-        pag_identification_cache: _,
-        cpdag_identification_cache: _,
-        temporal_identification_cache: _,
-        temporal_class_identification_cache: _,
-        graph_posterior_identification_cache: _,
-        dbn_posterior_identification_cache: _,
-        temporal_class_posterior_identification_cache: _,
+        // The product of identification, not an input to it.
+        identification: _,
     } = study;
 }

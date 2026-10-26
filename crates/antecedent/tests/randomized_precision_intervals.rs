@@ -96,6 +96,43 @@ fn supported_ancova_and_fixed_cuped_intervals_round_trip_and_refuse_forgery() {
     }
 }
 
+/// More covariates than the normal interval's measured envelope publish the HC2 Student interval
+/// instead of withholding one, and the stored result states it is the uncalibrated construction.
+#[test]
+fn an_ancova_beyond_the_measured_covariates_publishes_the_flagged_student_interval() {
+    let n = 400;
+    let x1 = (0..n).map(|i| (0.17 * i as f64).sin()).collect::<Vec<_>>();
+    let x2 = (0..n).map(|i| (0.11 * i as f64).cos()).collect::<Vec<_>>();
+    let x3 = (0..n).map(|i| (0.23 * i as f64 + 0.4).sin()).collect::<Vec<_>>();
+    let y = (0..n)
+        .map(|i| {
+            2.0 + 1.2 * x1[i] - 0.7 * x2[i]
+                + 0.4 * x3[i]
+                + 0.5 * (0.29 * i as f64).sin()
+                + 1.4 * f64::from(i % 2 == 0)
+        })
+        .collect::<Vec<_>>();
+    let data = TabularData::from_f64_columns([
+        ("outcome", y.as_slice()),
+        ("baseline_a", x1.as_slice()),
+        ("baseline_b", x2.as_slice()),
+        ("baseline_c", x3.as_slice()),
+    ])
+    .unwrap();
+    let ctx = ExecutionContext::for_tests(0xA11C_0A);
+    let query = query(n).with_ancova(vec![
+        VariableId::from_raw(1),
+        VariableId::from_raw(2),
+        VariableId::from_raw(3),
+    ]);
+    let result = Study::tabular(data).query(query).build().unwrap().run(&ctx).unwrap();
+    let fit = result.randomized_effect().unwrap();
+    let [lower, upper] = fit.interval_95.expect("flagged interval beyond two covariates");
+    assert!(lower < fit.effect && fit.effect < upper);
+    assert_eq!(fit.uncertainty.as_ref(), "bernoulli_ancova_hc2_bell_mccaffrey_student_interval");
+    assert!(result.support_status.is_none());
+}
+
 #[test]
 fn sparse_ancova_and_fixed_cuped_remain_point_only() {
     let n = 40;

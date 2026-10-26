@@ -134,7 +134,7 @@ impl PreparedStudy {
 
         if self.analysis.estimator != Some(EstimatorId::Aipw)
             || !matches!(self.analysis.query, CausalQuery::AverageEffect(_))
-            || self.analysis.identification_cache.is_none()
+            || self.analysis.static_cache().is_none()
             || !matches!(
                 self.execution,
                 PreparedExecution::EstimatorRoute(_) | PreparedExecution::CheckedAipw(_)
@@ -393,7 +393,7 @@ impl PreparedStudy {
         if !matches!(spec.id(), EstimatorId::Dml | EstimatorId::DrLearner)
             || self.analysis.estimator != Some(spec.id())
             || !self.execution.runs_shared_dispatch()
-            || self.analysis.identification_cache.is_none()
+            || self.analysis.static_cache().is_none()
         {
             return Err(CausalError::Unsupported {
                 message: "DML/DR configuration refresh requires the same checked estimator family",

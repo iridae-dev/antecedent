@@ -1,7 +1,7 @@
 //! Checked whole-history recalculation against an independently enumerated longitudinal SCM.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent::analysis::recalc_receipt::RecalcRunError;
+use antecedent::analysis::recalc_receipt::{RecalcRequestCode, RecalcRunError};
 use antecedent::analysis::recalc_temporal::{
     TemporalFunctional, TemporalHistoryWire, TemporalOutcome, TemporalRequest, TemporalRunError,
     TemporalSession, TemporalUnitWire, consume_temporal_recalc_artifact,
@@ -231,7 +231,7 @@ fn temporal_history_resource_window_and_support_refusals_preserve_previous_fit()
         count_static_work(|| execute_temporal_with_receipt(&mut session, &r, &cancelled));
     assert!(matches!(
         result,
-        Err(TemporalRunError::Recalc(RecalcRunError::Request("recalc.cancelled")))
+        Err(TemporalRunError::Recalc(RecalcRunError::Request(RecalcRequestCode::Cancelled)))
     ));
     assert_eq!(work.factor_builds, 0);
     let mut changed = r.clone();
@@ -292,7 +292,9 @@ fn temporal_history_artifact_rechecks_resealed_data_and_binds_unit_ownership() {
     let (result, work) = count_static_work(|| consume_temporal_recalc_artifact(&forged, &ctx()));
     assert!(matches!(
         result,
-        Err(TemporalRunError::Recalc(RecalcRunError::Request("recalc.temporal_artifact_mismatch")))
+        Err(TemporalRunError::Recalc(RecalcRunError::Request(
+            RecalcRequestCode::TemporalArtifactMismatch
+        )))
     ));
     assert_eq!(
         work.factor_builds, 3,

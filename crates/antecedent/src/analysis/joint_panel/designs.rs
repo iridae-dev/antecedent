@@ -30,7 +30,7 @@ use antecedent_io::quantity_wire::DistributionMeaningWire;
 pub(crate) use native::replay_native_joint_design_execution;
 pub use native::{
     NativeJointDesignResult, NativeJointIdentification, PreparedNativeJointDesign,
-    replay_native_joint_design,
+    replay_native_joint_design, replay_native_joint_design_with_limits,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -285,12 +285,12 @@ impl PreparedJointDesign {
                 WorldAction,
             };
             let arms = &proof.longitudinal_arms;
+            // The dictionary's size is the proof's own; the admission below charges for it.
+            let mut seen_arms = std::collections::BTreeSet::new();
             if arms.is_empty()
-                || arms.len() > 256
-                || arms.iter().enumerate().any(|(i, a)| {
+                || arms.iter().any(|a| {
                     a.levels.is_empty()
-                        || a.levels.len() > 256
-                        || arms[..i].iter().any(|b| b.arm == a.arm)
+                        || !seen_arms.insert(a.arm)
                         || a.levels.iter().any(|(_, v)| !v.is_finite())
                         || a.levels.windows(2).any(|w| w[0].0 >= w[1].0)
                 })
@@ -848,7 +848,21 @@ impl JointDesignResult {
     }
 }
 
-const MAX_DESIGN_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
+/// Largest portable design artifact under [`DesignArtifactLimits::default`].
+pub const MAX_DESIGN_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
+
+/// Byte bound of a portable design artifact, checked before decoding and after encoding.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DesignArtifactLimits {
+    /// Largest artifact body.
+    pub max_bytes: usize,
+}
+
+impl Default for DesignArtifactLimits {
+    fn default() -> Self {
+        Self { max_bytes: MAX_DESIGN_ARTIFACT_BYTES }
+    }
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct DesignReplay {
@@ -865,6 +879,15 @@ impl JointDesignResult {
     /// # Errors
     /// Encoding failure or a portable artifact exceeding the bounded size.
     pub fn export_artifact(&self) -> Result<Vec<u8>, JointPanelError> {
+        self.export_artifact_with_limits(DesignArtifactLimits::default())
+    }
+    /// [`Self::export_artifact`] under a caller-declared byte limit.
+    /// # Errors
+    /// As [`Self::export_artifact`], with `limits.max_bytes` as the size bound.
+    pub fn export_artifact_with_limits(
+        &self,
+        limits: DesignArtifactLimits,
+    ) -> Result<Vec<u8>, JointPanelError> {
         let wire = DesignReplay {
             version: 1,
             target: antecedent_io::scientific_target_wire::ScientificTargetWire::from_domain(
@@ -876,8 +899,8 @@ impl JointDesignResult {
             law: self.law.as_ref().clone(),
         };
         let bytes = antecedent_io::convert::to_cbor(&wire).map_err(failure)?;
-        if bytes.len() > MAX_DESIGN_ARTIFACT_BYTES {
-            return Err(failure("joint-design artifact exceeds bounded portable size"));
+        if bytes.len() > limits.max_bytes {
+            return Err(failure("joint-design artifact exceeds the declared portable size"));
         }
         Ok(bytes)
     }
@@ -885,10 +908,11 @@ impl JointDesignResult {
 fn decode_replay(
     bytes: &[u8],
     ctx: &ExecutionContext,
+    limits: DesignArtifactLimits,
 ) -> Result<(DesignReplay, Arc<antecedent_core::execution::AdmissionLease>), JointPanelError> {
     check_cancel(ctx)?;
-    if bytes.len() > MAX_DESIGN_ARTIFACT_BYTES {
-        return Err(failure("joint-design artifact exceeds decode size limit"));
+    if bytes.len() > limits.max_bytes {
+        return Err(failure("joint-design artifact exceeds the declared decode size limit"));
     }
     let quote = u64::try_from(bytes.len())
         .ok()
@@ -909,14 +933,26 @@ pub fn replay_joint_design_artifact(
     bytes: &[u8],
     ctx: &ExecutionContext,
 ) -> Result<JointDesignLaw, JointPanelError> {
-    replay_joint_design_execution(bytes, ctx).map(|result| result.law.as_ref().clone())
+    replay_joint_design_artifact_with_limits(bytes, ctx, DesignArtifactLimits::default())
+}
+
+/// [`replay_joint_design_artifact`] under a caller-declared byte limit.
+/// # Errors
+/// As [`replay_joint_design_artifact`], with `limits.max_bytes` as the size bound.
+pub fn replay_joint_design_artifact_with_limits(
+    bytes: &[u8],
+    ctx: &ExecutionContext,
+    limits: DesignArtifactLimits,
+) -> Result<JointDesignLaw, JointPanelError> {
+    replay_joint_design_execution(bytes, ctx, limits).map(|result| result.law.as_ref().clone())
 }
 
 pub(crate) fn replay_joint_design_execution(
     bytes: &[u8],
     ctx: &ExecutionContext,
+    limits: DesignArtifactLimits,
 ) -> Result<JointDesignResult, JointPanelError> {
-    let (wire, _lease) = decode_replay(bytes, ctx)?;
+    let (wire, _lease) = decode_replay(bytes, ctx, limits)?;
     let target = wire.target.to_domain().map_err(failure)?;
     let prepared = PreparedJointDesign::compile(target, wire.proof, ctx)?;
     let result = prepared.execute(wire.inference, ctx)?;
@@ -937,7 +973,18 @@ impl PreparedJointDesign {
         bytes: &[u8],
         ctx: &ExecutionContext,
     ) -> Result<JointDesignResult, JointPanelError> {
-        let (wire, _lease) = decode_replay(bytes, ctx)?;
+        self.consume_current_with_limits(bytes, ctx, DesignArtifactLimits::default())
+    }
+    /// [`Self::consume_current`] under a caller-declared byte limit.
+    /// # Errors
+    /// As [`Self::consume_current`], with `limits.max_bytes` as the size bound.
+    pub fn consume_current_with_limits(
+        &self,
+        bytes: &[u8],
+        ctx: &ExecutionContext,
+        limits: DesignArtifactLimits,
+    ) -> Result<JointDesignResult, JointPanelError> {
+        let (wire, _lease) = decode_replay(bytes, ctx, limits)?;
         let target = wire.target.to_domain().map_err(failure)?;
         if identity(&target, &wire.proof)? != self.dependency {
             return Err(failure(

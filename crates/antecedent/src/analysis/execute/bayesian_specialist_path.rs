@@ -12,7 +12,8 @@ use super::{
 };
 use antecedent_estimate::DrawSpec;
 use antecedent_estimate::bayesian_iv::{
-    IvSample, StageVariances, fit_bayesian_iv_joint_fixed_loading,
+    IvDesignSample, IvSample, StageVariances, fit_bayesian_iv_joint_fixed_loading,
+    fit_bayesian_iv_joint_fixed_loading_design,
 };
 use antecedent_estimate::bayesian_rd::{RdSample, fit_bayesian_sharp_rd};
 use antecedent_prob::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
@@ -22,8 +23,10 @@ pub(super) fn check_bayesian_iv_scope(
     estimand: &IdentifiedEstimand,
     config: &BayesianConfig,
 ) -> Result<(), CausalError> {
-    if estimand.instruments.len() != 1 || !estimand.adjustment_set.is_empty() {
-        return Err(CausalError::Compile{message:"iv.bayesian_joint_linear currently supports exactly one instrument and no exogenous adjustment covariates".into()});
+    if estimand.instruments.is_empty() {
+        return Err(CausalError::Compile {
+            message: "iv.bayesian_joint_linear requires at least one instrument".into(),
+        });
     }
     if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
         || config.has_transfer()
@@ -154,14 +157,34 @@ impl Study {
         let frequentist = antecedent_estimate::TwoStageLeastSquares::new();
         let prep = frequentist.prepare(data, estimand, query).map_err(CausalError::from)?;
         let n = prep.nrows;
-        let z: Vec<f64> = (0..n).map(|r| prep.instruments_matrix[n + r]).collect();
-        let result = fit_bayesian_iv_joint_fixed_loading(
-            &IvSample { instrument: &z, treatment: &prep.treatment, outcome: &prep.outcome },
-            config.prior_scale,
-            StageVariances { treatment: 1.0, outcome: 1.0 },
-            DrawSpec::new(config.n_draws, ctx.rng.master_seed()),
-            10.0,
-        )
+        let (instrument_count, covariate_count) = (prep.z_ncols - 1, prep.x_ncols - 1);
+        let stage_variances = StageVariances { treatment: 1.0, outcome: 1.0 };
+        let draw_spec = DrawSpec::new(config.n_draws, ctx.rng.master_seed());
+        let result = if instrument_count == 1 && covariate_count == 0 {
+            let z: Vec<f64> = (0..n).map(|r| prep.instruments_matrix[n + r]).collect();
+            fit_bayesian_iv_joint_fixed_loading(
+                &IvSample { instrument: &z, treatment: &prep.treatment, outcome: &prep.outcome },
+                config.prior_scale,
+                stage_variances,
+                draw_spec,
+                10.0,
+            )
+        } else {
+            fit_bayesian_iv_joint_fixed_loading_design(
+                &IvDesignSample {
+                    instruments: &prep.instruments_matrix[n..],
+                    n_instruments: instrument_count,
+                    covariates: &prep.exogenous_matrix[n..],
+                    n_covariates: covariate_count,
+                    treatment: &prep.treatment,
+                    outcome: &prep.outcome,
+                },
+                config.prior_scale,
+                stage_variances,
+                draw_spec,
+                10.0,
+            )
+        }
         .map_err(CausalError::from)?;
         let effect_draws: Vec<f64> =
             result.effect_draws.iter().map(|v| v * prep.treatment_delta).collect();
@@ -186,7 +209,9 @@ impl Study {
             "bayesian_iv.model_scope",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
-            "joint linear Gaussian structural model; fixed unit disturbance loading and declared stage variances of 1.0; one instrument; no adjustment covariates",
+            format!(
+                "joint linear Gaussian structural model; fixed unit disturbance loading and declared stage variances of 1.0; {instrument_count} instrument(s) with a joint partial first-stage F; {covariate_count} exogenous adjustment covariate(s) entering both equations"
+            ),
         )];
         Ok(self.finish_identified_execute(
             IdentifiedExecuteFinish::new(

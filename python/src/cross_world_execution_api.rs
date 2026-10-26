@@ -128,8 +128,16 @@ fn result_json(result: &FiniteExecutionResult) -> Json {
             "world_predictions": w.world_predictions,
             "posterior_states_predicted": w.posterior_states_predicted,
             "summaries": w.summaries,
+            "elimination_units": result.elimination.as_ref().map_or(0, |e| e.units),
+            "elimination_multiplications":
+                result.elimination.as_ref().map_or(0, |e| e.multiplications),
+            "elimination_peak_table_entries":
+                result.elimination.as_ref().map_or(0, |e| e.peak_table_entries),
         },
         "receipt": {
+            "exogenous_method": result.method.name(),
+            "elimination_plan_digest":
+                result.elimination.as_ref().map_or("", |e| e.plan_digest.as_str()),
             "mechanism_digest": result.receipt.mechanism_digest,
             "abduction_digest": result.receipt.abduction_digest,
             "exogenous_digest": result.receipt.exogenous_digest,
@@ -615,7 +623,7 @@ fn cross_world_measured_interval(
         Ok(interval) => (
             Some(
                 json!({
-                    "scalar": interval.scalar,
+                    "scalar": interval.scalar.as_str(),
                     "point": interval.point,
                     "lower": interval.lower,
                     "upper": interval.upper,

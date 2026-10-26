@@ -105,74 +105,59 @@ fn ppc_fields_from_checks(checks: &[antecedent_validate::PredictiveCheckReport])
     fields
 }
 
-type PosteriorSummary = (
-    Option<f64>,
-    Option<f64>,
-    Option<f64>,
-    Option<f64>,
-    Option<usize>,
-    Option<f64>,
-    Option<String>,
-    Option<Vec<u8>>,
-);
+/// The encoded posterior artifact of a Bayesian study result, when one was produced.
+fn posterior_artifact_from_result(result: &antecedent::StudyResult) -> PyResult<Option<Vec<u8>>> {
+    result
+        .posterior
+        .as_ref()
+        .map(|post| encode_causal_posterior_bytes(post, "ate-analysis").map_err(py_err))
+        .transpose()
+}
 
-fn posterior_summary_from_result(
-    result: &antecedent::StudyResult,
-    include_artifact: bool,
-) -> PyResult<PosteriorSummary> {
-    if let Some(post) = result.posterior.as_ref() {
-        let eq = post.effect_column();
-        let artifact = if include_artifact {
-            Some(encode_causal_posterior_bytes(post, "ate-analysis").map_err(py_err)?)
-        } else {
-            None
-        };
-        let p_below = eq.map(|_| post.probability_below(0.0)).transpose().map_err(py_err)?;
-        Ok((
-            eq.map(|i| post.summaries.mean[i]),
-            eq.map(|i| post.summaries.sd[i]),
-            eq.map(|i| post.summaries.q025[i]),
-            eq.map(|i| post.summaries.q975[i]),
-            Some(post.draws.n_draws),
-            p_below,
-            Some(post.diagnostics.backend_id.to_string()),
-            artifact,
-        ))
-    } else {
-        Ok((None, None, None, None, None, None, None, None))
-    }
+/// Prior-sensitivity sweep of a posterior, as the fields of the Python result.
+#[derive(Default)]
+struct PriorSensitivityFields {
+    scales: Option<Vec<f64>>,
+    alphas: Option<Vec<f64>>,
+    means: Option<Vec<f64>>,
+    sds: Option<Vec<f64>>,
+    family: Option<String>,
+    variance_multipliers: Option<Vec<f64>>,
 }
 
 fn prior_sensitivity_from_result(result: &antecedent::StudyResult) -> PriorSensitivityFields {
-    if let Some(post) = result.posterior.as_ref() {
-        if let Some(sens) = post.prior_sensitivity.as_ref() {
-            let scales = sens.prior_scales.iter().copied().collect::<Vec<_>>();
-            let alphas = sens.alphas.iter().copied().collect::<Vec<_>>();
-            let multipliers = sens.variance_multipliers.iter().copied().collect::<Vec<_>>();
-            return (
-                if scales.is_empty() { None } else { Some(scales) },
-                if alphas.is_empty() { None } else { Some(alphas) },
-                Some(sens.effect_means.iter().copied().collect()),
-                Some(sens.effect_sds.iter().copied().collect()),
-                Some(sens.family.as_str().to_string()),
-                if multipliers.is_empty() { None } else { Some(multipliers) },
-            );
-        }
+    let Some(sens) = result.posterior.as_ref().and_then(|post| post.prior_sensitivity.as_ref())
+    else {
+        return PriorSensitivityFields::default();
+    };
+    let non_empty = |values: Vec<f64>| if values.is_empty() { None } else { Some(values) };
+    PriorSensitivityFields {
+        scales: non_empty(sens.prior_scales.iter().copied().collect()),
+        alphas: non_empty(sens.alphas.iter().copied().collect()),
+        means: Some(sens.effect_means.iter().copied().collect()),
+        sds: Some(sens.effect_sds.iter().copied().collect()),
+        family: Some(sens.family.as_str().to_string()),
+        variance_multipliers: non_empty(sens.variance_multipliers.iter().copied().collect()),
     }
-    (None, None, None, None, None, None)
+}
+
+/// Source-conflict summary of a posterior, as the fields of the Python result.
+#[derive(Default)]
+struct ConflictSummaryFields {
+    source_ids: Option<Vec<String>>,
+    alphas_requested: Option<Vec<f64>>,
+    alphas_applied: Option<Vec<f64>>,
 }
 
 fn conflict_summary_from_result(result: &antecedent::StudyResult) -> ConflictSummaryFields {
-    if let Some(post) = result.posterior.as_ref() {
-        if let Some(cs) = post.conflict_summary.as_ref() {
-            return (
-                Some(cs.source_ids.iter().map(std::string::ToString::to_string).collect()),
-                Some(cs.alphas_requested.iter().copied().collect()),
-                Some(cs.alphas_applied.iter().copied().collect()),
-            );
-        }
+    let Some(cs) = result.posterior.as_ref().and_then(|post| post.conflict_summary.as_ref()) else {
+        return ConflictSummaryFields::default();
+    };
+    ConflictSummaryFields {
+        source_ids: Some(cs.source_ids.iter().map(std::string::ToString::to_string).collect()),
+        alphas_requested: Some(cs.alphas_requested.iter().copied().collect()),
+        alphas_applied: Some(cs.alphas_applied.iter().copied().collect()),
     }
-    (None, None, None)
 }
 
 // Python batch query: treatment, outcome, control, active, functional specification,
@@ -656,23 +641,26 @@ pub(crate) fn ate_result_from_analysis(
     let certificate_json = crate::identification_details::analysis_to_json(result, names)?;
     let estimator_id = result.logical_plan.estimator.as_deref().unwrap_or("").to_string();
     let posterior_artifact = if include_posterior_artifact {
-        posterior_summary_from_result(result, true)?.7
+        posterior_artifact_from_result(result)?
     } else {
         None
     };
     let sections = crate::shared_study_sections(names, result, estimator_id)?
         .with_posterior_artifact(posterior_artifact);
     let ppc = ppc_fields_from_checks(&result.predictive_checks);
-    let (
-        prior_sensitivity_scales,
-        prior_sensitivity_alphas,
-        prior_sensitivity_means,
-        prior_sensitivity_sds,
-        prior_sensitivity_family,
-        prior_sensitivity_variance_multipliers,
-    ) = prior_sensitivity_from_result(result);
-    let (conflict_source_ids, conflict_alphas_requested, conflict_alphas_applied) =
-        conflict_summary_from_result(result);
+    let PriorSensitivityFields {
+        scales: prior_sensitivity_scales,
+        alphas: prior_sensitivity_alphas,
+        means: prior_sensitivity_means,
+        sds: prior_sensitivity_sds,
+        family: prior_sensitivity_family,
+        variance_multipliers: prior_sensitivity_variance_multipliers,
+    } = prior_sensitivity_from_result(result);
+    let ConflictSummaryFields {
+        source_ids: conflict_source_ids,
+        alphas_requested: conflict_alphas_requested,
+        alphas_applied: conflict_alphas_applied,
+    } = conflict_summary_from_result(result);
     let SharedStudySections {
         identification,
         estimate,

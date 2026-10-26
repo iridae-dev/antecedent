@@ -971,7 +971,7 @@ impl Study {
         {
             return Ok(None);
         }
-        let Some(cache) = self.identification_cache.as_ref() else {
+        let Some(cache) = self.static_cache() else {
             return Ok(None);
         };
         let method = cache.estimand.method.as_ref();
@@ -1078,7 +1078,7 @@ impl Study {
         {
             return Ok(None);
         }
-        let Some(cache) = self.identification_cache.as_ref() else {
+        let Some(cache) = self.static_cache() else {
             return Ok(None);
         };
         let method = cache.estimand.method.as_ref();
@@ -1093,13 +1093,14 @@ impl Study {
             _ => AipwAte::new(),
         };
         if let Some(design) = self.sampling_design {
-            est.sampling_design = antecedent_estimate::util::SamplingDeclaration::Declared(design);
+            est.inference.sampling_design =
+                antecedent_estimate::util::SamplingDeclaration::Declared(design);
         }
         if let Some(overlap) = self.overlap_policy {
             est.overlap = overlap;
         }
         if matches!(est.overlap, OverlapPolicy::RequireDiagnostics { trim: Some(_), .. })
-            || est.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic
+            || est.inference.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic
         {
             // Frozen cross-fitted scores are untrimmed iid influence
             // values. A mean estimate under trimming or a non-iid SE is
@@ -1155,7 +1156,7 @@ impl Study {
         if self.estimator != Some(crate::strategy_table::EstimatorId::CellAipw) {
             return Ok(None);
         }
-        let Some(cache) = self.identification_cache.as_ref() else {
+        let Some(cache) = self.static_cache() else {
             return Ok(None);
         };
         let antecedent_core::ResponseFunctional::InterventionResponse { outcome, interventions } =
@@ -1194,9 +1195,7 @@ impl Study {
                         .iter()
                         .enumerate()
                         .filter_map(|(i, &keep)| {
-                            keep.then_some(antecedent_data::GlobalId::new(
-                                i as u64,
-                            ))
+                            keep.then_some(antecedent_data::GlobalId::new(i as u64))
                         })
                         .collect::<Vec<_>>(),
                     Err(_) => Vec::new(),

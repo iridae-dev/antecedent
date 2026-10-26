@@ -618,7 +618,7 @@ impl super::Study {
         let (variables, variable_count) = window_variables(series, gp)?;
         let max_lag = gp.max_lag.unwrap_or(0);
         let (identified, identify_cached): (Arc<CachedGraphPosteriorIdentification>, bool) =
-            if let Some(cache) = self.graph_posterior_identification_cache.as_ref() {
+            if let Some(cache) = self.graph_posterior_cache() {
                 (Arc::clone(cache), true)
             } else if let Some(cache) =
                 crate::analysis::lowering::plan_retained_graph_posterior(self, physical)

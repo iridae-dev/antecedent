@@ -1,4 +1,5 @@
 //! One actual held native response and two executing original attested mean callbacks.
+use crate::NumericColumn;
 use crate::recalc_api::{bounded_context, context, invalid, plan_refusal_json, refusal_json};
 use crate::recalc_bounds::{sequence_item, sequence_len};
 use antecedent::analysis::recalc_composite::{CompositeError, CompositeRequest, CompositeSession};
@@ -6,7 +7,6 @@ use antecedent::analysis::recalc_external::ExternalMeanProvider;
 use antecedent_core::recalc::Branch;
 use antecedent_design::composition_boundary::{SupportPolicy, UnsupportedActionPolicy};
 use antecedent_design::decision_artifact::contract_from_json;
-use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString};
 use std::collections::BTreeMap;
@@ -54,7 +54,7 @@ fn native_request(
         return Err(invalid("composite_recalc.invalid_request", "too many native columns"));
     }
     let names = bounded_names(&names, 12)?;
-    let columns: Vec<PyReadonlyArray1<'_, f64>> = columns.extract()?;
+    let columns: Vec<NumericColumn<'_>> = columns.extract()?;
     let graph = field(payload, "graph")?.extract::<PyRef<'_, crate::graphs::Admg>>()?;
     crate::recalc_static_api::response_request(
         names,
@@ -84,7 +84,7 @@ fn request(
             return Err(invalid("composite_recalc.invalid_request", "too many callback columns"));
         }
         let names = bounded_names(&names, 64)?;
-        let columns: Vec<PyReadonlyArray1<'_, f64>> = columns.extract()?;
+        let columns: Vec<NumericColumn<'_>> = columns.extract()?;
         externals.push(crate::recalc_external_api::request(
             names,
             &columns,
