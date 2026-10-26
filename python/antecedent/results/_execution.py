@@ -8,7 +8,7 @@ import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, fields, is_dataclass, replace
 from math import isfinite
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 if TYPE_CHECKING:
     from .._artifact_protocol import ExportedArtifact
@@ -967,7 +967,10 @@ class ResultAPI:
         return FittedEffectModel.load(bytes(self.export()))
 
     @describe_refusal
-    def export(self, *, artifact_id: str = "analysis-result") -> ExportedArtifact[LoadedResult]:
+    def export(
+        self, *, artifact_id: str | None = None,
+        quantity: Literal["result", "posterior", "query"] = "result",
+    ) -> ExportedArtifact[LoadedResult]:
         """Export this exact execution, even after another estimate or refresh."""
         execution = getattr(self, "_execution", None)
         if execution is None:
@@ -976,6 +979,30 @@ class ResultAPI:
                 reason_code="not_executed",
             )
         from .._artifact_protocol import artifact_from_receipt
+
+        if quantity not in ("result", "posterior", "query"):
+            from ..errors import CausalValueError
+
+            raise CausalValueError("quantity must be result, posterior or query")
+        if quantity == "posterior":
+            if getattr(self, "posterior", None) is None or getattr(self, "response", None) is not None:
+                raise CausalUnsupportedError(
+                    "posterior export requires draws of a single scalar estimand",
+                    reason_code="option_not_applicable",
+                )
+            if getattr(self, "structural_unidentified_mass", None) is not None or getattr(
+                self, "structural_identified_set", None
+            ):
+                raise CausalUnsupportedError(
+                    "draws mixing structural completions are not a transferable single-estimand prior",
+                    reason_code="option_not_applicable",
+                )
+        if quantity in ("posterior", "query"):
+            return artifact_from_receipt(self, execution.export_artifact(
+                artifact_id="prepared-result" if artifact_id is None else artifact_id,
+                payload="query" if quantity == "query" else "result",
+            ))
+        artifact_id = "analysis-result" if artifact_id is None else artifact_id
 
         quantities = getattr(self, "quantities", None)
         if quantities is not None:

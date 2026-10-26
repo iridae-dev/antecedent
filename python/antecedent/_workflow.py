@@ -297,7 +297,19 @@ class LoadedResult(ResultAPI):
             }
         )
 
-    def export(self, *, artifact_id: str | None = None) -> ExportedArtifact[LoadedResult]:
+    def export(
+        self,
+        *,
+        artifact_id: str | None = None,
+        quantity: Literal["result", "posterior", "query"] = "result",
+    ) -> ExportedArtifact[LoadedResult]:
+        if quantity != "result":
+            from .errors import CausalUnsupportedError
+
+            raise CausalUnsupportedError(
+                "a consumed result forwards its retained artifact; it has no live posterior export",
+                reason_code="not_executed",
+            )
         if artifact_id is not None and artifact_id != self.decoded_artifact.artifact_id:
             raise CausalSerializationError(
                 "A loaded execution is immutable; its artifact ID cannot be rewritten by forwarding."

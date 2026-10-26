@@ -378,6 +378,13 @@ def artifact_from_receipt(source: Any, receipt: Any) -> ExportedArtifact[Any]:
             name: getattr(source, name, None)
             for name in ("program_id", "claim_id", "data_snapshot_id")
         }
+    if view.kind == "causal_posterior":
+        # Historical posterior records contain distributions and their declared
+        # parameter semantics, but no executed causal claim. Bind their actual
+        # encoding instead of attaching an unrelated producing claim identity.
+        from hashlib import sha256
+
+        identity = {"expected_encoding_sha256": sha256(data).hexdigest()}
     if callable(identity):
         identity = identity()
     return ExportedArtifact(
@@ -390,6 +397,7 @@ def artifact_from_receipt(source: Any, receipt: Any) -> ExportedArtifact[Any]:
 
 # No consumer is selected by trying families until one accepts. The native manifest is the discriminator.
 _CONSUMERS: dict[str, tuple[str, str]] = {
+    "causal_posterior": ("_posterior_artifact", "consume_posterior"),
     "policy_program_v1": ("intervention_programs", "consume_policy_program"),
     "cyclic_equilibrium": ("cyclic", "consume_artifact"),
     "cyclic_family": ("cyclic", "consume_family_artifact"),
