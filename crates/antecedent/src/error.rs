@@ -397,58 +397,157 @@ const STAGE_MODEL: &str = "model";
 /// Stage id reported on a [`CausalError::Cancelled`] raised by counterfactual evaluation.
 const STAGE_COUNTERFACTUAL: &str = "counterfactual";
 
-/// Cooperative cancellation and resource refusals are non-scientific facade
-/// outcomes, not refutation/discovery/attribution findings, so they are
-/// pulled out of the blanket stage conversion before it wraps everything else.
-/// [`CausalError::blocker_id`] relies on this to mark them correctly.
-impl From<ValidationError> for CausalError {
-    fn from(error: ValidationError) -> Self {
-        match error {
-            ValidationError::Cancelled => Self::Cancelled { stage: STAGE_VALIDATE },
-            ValidationError::Resource { message } => Self::Resource { message },
-            ValidationError::Discovery(DiscoveryError::Cancelled) => {
-                Self::Cancelled { stage: STAGE_VALIDATE }
+/// How a stage error classifies at the facade: cancellation and resource exhaustion are
+/// non-scientific outcomes, not findings of the stage, so they are peeled off before the stage
+/// error is wrapped in its own [`CausalError`] variant. [`CausalError::blocker_id`] relies on
+/// this to mark them correctly.
+enum Classified<E> {
+    /// Cooperative cancellation.
+    Cancelled,
+    /// A memory, budget or other resource refusal.
+    Resource(String),
+    /// A finding of the stage itself.
+    Finding(E),
+}
+
+/// A stage error that reaches the facade through [`lift_stage_error`].
+trait StageError: Sized {
+    /// Stage id a cancellation of this stage reports.
+    const STAGE: &'static str;
+
+    /// Separate cancellation and resource exhaustion from findings.
+    fn classify(self) -> Classified<Self>;
+
+    /// The facade variant that carries a finding of this stage.
+    fn wrap(self) -> CausalError;
+}
+
+/// The one path every [`StageError`] takes into a [`CausalError`].
+fn lift_stage_error<E: StageError>(error: E) -> CausalError {
+    match error.classify() {
+        Classified::Cancelled => CausalError::Cancelled { stage: E::STAGE },
+        Classified::Resource(message) => CausalError::Resource { message },
+        Classified::Finding(finding) => finding.wrap(),
+    }
+}
+
+impl StageError for ValidationError {
+    const STAGE: &'static str = STAGE_VALIDATE;
+
+    fn classify(self) -> Classified<Self> {
+        match self {
+            Self::Cancelled | Self::Discovery(DiscoveryError::Cancelled) => Classified::Cancelled,
+            Self::Resource { message } | Self::Discovery(DiscoveryError::Resource(message)) => {
+                Classified::Resource(message)
             }
-            ValidationError::Discovery(DiscoveryError::Resource(message)) => {
-                Self::Resource { message }
+            other => Classified::Finding(other),
+        }
+    }
+
+    fn wrap(self) -> CausalError {
+        CausalError::Validate(self)
+    }
+}
+
+impl StageError for IdentificationError {
+    const STAGE: &'static str = STAGE_IDENTIFY;
+
+    fn classify(self) -> Classified<Self> {
+        match self {
+            Self::Cancelled => Classified::Cancelled,
+            Self::Budget { .. } => Classified::Resource(self.to_string()),
+            other => Classified::Finding(other),
+        }
+    }
+
+    fn wrap(self) -> CausalError {
+        CausalError::Identify(self)
+    }
+}
+
+impl StageError for DiscoveryError {
+    const STAGE: &'static str = STAGE_DISCOVER;
+
+    fn classify(self) -> Classified<Self> {
+        match self {
+            Self::Cancelled => Classified::Cancelled,
+            Self::Resource(message) => Classified::Resource(message),
+            other => Classified::Finding(other),
+        }
+    }
+
+    fn wrap(self) -> CausalError {
+        CausalError::Discovery(self)
+    }
+}
+
+impl StageError for ModelError {
+    const STAGE: &'static str = STAGE_MODEL;
+
+    fn classify(self) -> Classified<Self> {
+        match self {
+            Self::Cancelled => Classified::Cancelled,
+            Self::ResourceLimit { .. } => Classified::Resource(self.to_string()),
+            other => Classified::Finding(other),
+        }
+    }
+
+    fn wrap(self) -> CausalError {
+        CausalError::Model(self)
+    }
+}
+
+impl StageError for CounterfactualError {
+    const STAGE: &'static str = STAGE_COUNTERFACTUAL;
+
+    fn classify(self) -> Classified<Self> {
+        match self {
+            Self::Cancelled => Classified::Cancelled,
+            other => Classified::Finding(other),
+        }
+    }
+
+    fn wrap(self) -> CausalError {
+        CausalError::Counterfactual(self)
+    }
+}
+
+impl StageError for AttributionError {
+    const STAGE: &'static str = STAGE_ATTRIBUTE;
+
+    fn classify(self) -> Classified<Self> {
+        match self {
+            Self::Cancelled => Classified::Cancelled,
+            Self::Budget { .. } => Classified::Resource(self.to_string()),
+            other => Classified::Finding(other),
+        }
+    }
+
+    fn wrap(self) -> CausalError {
+        CausalError::Attribution(self)
+    }
+}
+
+macro_rules! lift_from_stage_error {
+    ($($error:ty),+ $(,)?) => {
+        $(
+            impl From<$error> for CausalError {
+                fn from(error: $error) -> Self {
+                    lift_stage_error(error)
+                }
             }
-            other => Self::Validate(other),
-        }
-    }
+        )+
+    };
 }
 
-/// Identification cancellation and budget exhaustion are non-scientific
-/// outcomes: they reach the facade as [`CausalError::Cancelled`] and
-/// [`CausalError::Resource`], never as an identification finding.
-impl From<IdentificationError> for CausalError {
-    fn from(error: IdentificationError) -> Self {
-        match error {
-            IdentificationError::Cancelled => Self::Cancelled { stage: STAGE_IDENTIFY },
-            IdentificationError::Budget { .. } => Self::Resource { message: error.to_string() },
-            other => Self::Identify(other),
-        }
-    }
-}
-
-impl From<DiscoveryError> for CausalError {
-    fn from(error: DiscoveryError) -> Self {
-        match error {
-            DiscoveryError::Cancelled => Self::Cancelled { stage: STAGE_DISCOVER },
-            DiscoveryError::Resource(message) => Self::Resource { message },
-            other => Self::Discovery(other),
-        }
-    }
-}
-
-impl From<ModelError> for CausalError {
-    fn from(error: ModelError) -> Self {
-        match error {
-            ModelError::Cancelled => Self::Cancelled { stage: STAGE_MODEL },
-            ModelError::ResourceLimit { .. } => Self::Resource { message: error.to_string() },
-            other => Self::Model(other),
-        }
-    }
-}
+lift_from_stage_error!(
+    ValidationError,
+    IdentificationError,
+    DiscoveryError,
+    ModelError,
+    CounterfactualError,
+    AttributionError,
+);
 
 /// A typed cause refuses compilation. Not provided for [`SchemaError`],
 /// [`DataError`], [`GraphError`], [`ModelError`], [`CounterfactualError`],
@@ -488,25 +587,6 @@ impl From<StatsError> for CausalError {
 impl From<ProgramError> for CausalError {
     fn from(error: ProgramError) -> Self {
         Self::rejected(error)
-    }
-}
-
-impl From<CounterfactualError> for CausalError {
-    fn from(error: CounterfactualError) -> Self {
-        match error {
-            CounterfactualError::Cancelled => Self::Cancelled { stage: STAGE_COUNTERFACTUAL },
-            other => Self::Counterfactual(other),
-        }
-    }
-}
-
-impl From<AttributionError> for CausalError {
-    fn from(error: AttributionError) -> Self {
-        match error {
-            AttributionError::Cancelled => Self::Cancelled { stage: STAGE_ATTRIBUTE },
-            AttributionError::Budget { .. } => Self::Resource { message: error.to_string() },
-            other => Self::Attribution(other),
-        }
     }
 }
 

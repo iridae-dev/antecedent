@@ -471,12 +471,11 @@ pub(crate) fn batch_nuisance_cache(
 }
 
 impl BatchStudy {
-    /// Start a batch over `data` and a static DAG.
-    #[must_use]
-    pub fn new(data: TabularData, graph: Dag) -> Self {
+    /// A batch over `data` and `graph` with every option at its default.
+    fn with_graph(data: TabularData, graph: BatchGraph) -> Self {
         Self {
             data,
-            graph: BatchGraph::Dag(graph),
+            graph,
             bootstrap_replicates: None,
             refute: None,
             latency_mode: None,
@@ -490,26 +489,19 @@ impl BatchStudy {
         }
     }
 
+    /// Start a batch over `data` and a static DAG.
+    #[must_use]
+    pub fn new(data: TabularData, graph: Dag) -> Self {
+        Self::with_graph(data, BatchGraph::Dag(graph))
+    }
+
     /// Start a batch over a declared [`TieredBackground`].
     ///
     /// `CoDetermined` materializes as an ADMG; Unknown as a PAG. Identification
     /// uses the same [`crate::StudyBuilder::tiered_background`] path as a single-query study.
     #[must_use]
     pub fn tiered(data: TabularData, background: TieredBackground) -> Self {
-        Self {
-            data,
-            graph: BatchGraph::Tiered(background),
-            bootstrap_replicates: None,
-            refute: None,
-            latency_mode: None,
-            identifier: None,
-            estimator: None,
-            estimator_spec: None,
-            screen: None,
-            family_contrast: Some(CellFamilyContrast::CellMinusControl),
-            family_posterior: None,
-            retention: antecedent_state::retention::RetentionMode::FullReusable,
-        }
+        Self::with_graph(data, BatchGraph::Tiered(background))
     }
 
     /// Record a screen/estimate split for candidate-selection provenance.
@@ -779,12 +771,13 @@ impl BatchStudy {
         })
     }
 
-    fn study_for_response_on(
+    /// The per-query builder with this batch's refutation, bootstrap, latency, identifier and
+    /// estimator settings applied. `default_estimator` stands in when the batch names none.
+    fn configure(
         &self,
-        data: &TabularData,
-        query: &ResponseQuery,
-    ) -> Result<Study, CausalError> {
-        let mut builder = self.bind_graph(Study::tabular(data.clone()))?.query(query.clone());
+        mut builder: StudyBuilder,
+        default_estimator: Option<EstimatorId>,
+    ) -> StudyBuilder {
         if let Some(suite) = self.refute {
             builder = builder.refute(suite);
         }
@@ -797,11 +790,21 @@ impl BatchStudy {
         if let Some(id) = self.identifier {
             builder = builder.identifier(id);
         }
-        builder = match &self.estimator_spec {
-            Some(spec) => builder.estimator(spec.clone()),
-            None => builder.estimator(self.estimator.unwrap_or(EstimatorId::CellAipw)),
-        };
-        builder.build()
+        if let Some(spec) = &self.estimator_spec {
+            builder = builder.estimator(spec.clone());
+        } else if let Some(est) = self.estimator.or(default_estimator) {
+            builder = builder.estimator(est);
+        }
+        builder
+    }
+
+    fn study_for_response_on(
+        &self,
+        data: &TabularData,
+        query: &ResponseQuery,
+    ) -> Result<Study, CausalError> {
+        let builder = self.bind_graph(Study::tabular(data.clone()))?.query(query.clone());
+        self.configure(builder, Some(EstimatorId::CellAipw)).build()
     }
 
     fn compile_shared_ate(
@@ -810,16 +813,7 @@ impl BatchStudy {
         queries: &[AverageEffectQuery],
         fold_seed: u64,
     ) -> Result<Option<Arc<SharedBatchDesign>>, CausalError> {
-        let mut sets = Vec::with_capacity(queries.len());
-        for query in queries {
-            sets.push(self.ate_adjustment_set(query)?);
-        }
-        Ok(Some(Arc::new(SharedBatchDesign::compile(
-            data,
-            &sets,
-            u32::try_from(DEFAULT_AIPW_FOLDS).unwrap_or(5),
-            fold_seed,
-        )?)))
+        self.compile_shared(data, queries, fold_seed, Self::ate_adjustment_set)
     }
 
     fn compile_shared_cells(
@@ -828,9 +822,21 @@ impl BatchStudy {
         queries: &[ResponseQuery],
         fold_seed: u64,
     ) -> Result<Option<Arc<SharedBatchDesign>>, CausalError> {
+        self.compile_shared(data, queries, fold_seed, Self::cell_adjustment_set)
+    }
+
+    /// The shared cross-fit design over the adjustment sets `adjustment_set` selects for each
+    /// of `queries`.
+    fn compile_shared<Q>(
+        &self,
+        data: &TabularData,
+        queries: &[Q],
+        fold_seed: u64,
+        adjustment_set: fn(&Self, &Q) -> Result<Arc<[VariableId]>, CausalError>,
+    ) -> Result<Option<Arc<SharedBatchDesign>>, CausalError> {
         let mut sets = Vec::with_capacity(queries.len());
         for query in queries {
-            sets.push(self.cell_adjustment_set(query)?);
+            sets.push(adjustment_set(self, query)?);
         }
         Ok(Some(Arc::new(SharedBatchDesign::compile(
             data,
@@ -857,25 +863,8 @@ impl BatchStudy {
         data: &TabularData,
         query: &AverageEffectQuery,
     ) -> Result<Study, CausalError> {
-        let mut builder = self.bind_graph(Study::tabular(data.clone()))?.query(query.clone());
-        if let Some(suite) = self.refute {
-            builder = builder.refute(suite);
-        }
-        if let Some(replicates) = self.bootstrap_replicates {
-            builder = builder.bootstrap_replicates(replicates);
-        }
-        if let Some(mode) = self.latency_mode {
-            builder = builder.latency_mode(mode);
-        }
-        if let Some(id) = self.identifier {
-            builder = builder.identifier(id);
-        }
-        if let Some(spec) = &self.estimator_spec {
-            builder = builder.estimator(spec.clone());
-        } else if let Some(est) = self.estimator {
-            builder = builder.estimator(est);
-        }
-        builder.build()
+        let builder = self.bind_graph(Study::tabular(data.clone()))?.query(query.clone());
+        self.configure(builder, None).build()
     }
 
     fn bind_graph(&self, builder: StudyBuilder) -> Result<StudyBuilder, CausalError> {
@@ -1537,23 +1526,20 @@ fn attach_family_p_values(
             "batch.joint_if",
             antecedent_core::DiagnosticKind::Scientific,
             antecedent_core::DiagnosticSeverity::Info,
-            match contrast {
-                Some(kind) => format!(
-                    "shared-row joint IF; family contrast {}={:.4} (se={:.4}); BH={:.4} BY={:.4}{}",
-                    kind.as_str(),
-                    values[i],
-                    cov.se(i),
-                    bh.get(i).copied().unwrap_or(f64::NAN),
-                    by.get(i).copied().unwrap_or(f64::NAN),
-                    crit.map(|c| format!(" max-t_0.95={c:.3}")).unwrap_or_default()
-                ),
-                None => format!(
-                    "shared-row joint IF; BH={:.4} BY={:.4}{}",
-                    bh.get(i).copied().unwrap_or(f64::NAN),
-                    by.get(i).copied().unwrap_or(f64::NAN),
-                    crit.map(|c| format!(" max-t_0.95={c:.3}")).unwrap_or_default()
-                ),
-            },
+            format!(
+                "shared-row joint IF;{} BH={:.4} BY={:.4}{}",
+                contrast
+                    .map(|kind| format!(
+                        " family contrast {}={:.4} (se={:.4});",
+                        kind.as_str(),
+                        values[i],
+                        cov.se(i)
+                    ))
+                    .unwrap_or_default(),
+                bh.get(i).copied().unwrap_or(f64::NAN),
+                by.get(i).copied().unwrap_or(f64::NAN),
+                crit.map(|c| format!(" max-t_0.95={c:.3}")).unwrap_or_default()
+            ),
         );
         let mut fields = vec![
             (
@@ -1669,6 +1655,17 @@ fn attach_batch_inference_unavailable(
     attach_candidate_selection(results, screen, &[], &[], None);
 }
 
+/// Index of the smallest finite value (the first on ties); `None` when no value is finite, so a
+/// NaN q-value can never be chosen or make the choice depend on the order of the slice.
+fn argmin_finite(values: &[f64]) -> Option<usize> {
+    values
+        .iter()
+        .enumerate()
+        .filter(|(_, value)| value.is_finite())
+        .min_by(|a, b| a.1.total_cmp(b.1))
+        .map(|(index, _)| index)
+}
+
 fn rows_disjoint(a: &[antecedent_data::GlobalId], b: &[antecedent_data::GlobalId]) -> bool {
     let mut left = a.to_vec();
     let mut right = b.to_vec();
@@ -1716,16 +1713,8 @@ fn attach_candidate_selection(
         Some(screen) => {
             let disjoint = rows_disjoint(&screen.screen_rows, &screen.estimate_rows);
             let winner_index = match screen.procedure {
-                CandidateProcedure::BenjaminiHochberg => bh
-                    .iter()
-                    .enumerate()
-                    .min_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
-                    .map(|(i, _)| i),
-                CandidateProcedure::BenjaminiYekutieli => by
-                    .iter()
-                    .enumerate()
-                    .min_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
-                    .map(|(i, _)| i),
+                CandidateProcedure::BenjaminiHochberg => argmin_finite(bh),
+                CandidateProcedure::BenjaminiYekutieli => argmin_finite(by),
                 CandidateProcedure::Unrecorded => None,
                 CandidateProcedure::MaxT => rank_stats.map_or_else(
                     || {
@@ -1875,6 +1864,13 @@ fn batch_map_error(
 #[cfg(test)]
 mod fail_open_regression_tests {
     use super::*;
+
+    #[test]
+    fn a_nan_q_value_is_never_the_winner_and_order_does_not_matter() {
+        assert_eq!(argmin_finite(&[f64::NAN, 0.3, 0.1, f64::NAN]), Some(2));
+        assert_eq!(argmin_finite(&[0.1, f64::NAN, 0.3]), Some(0));
+        assert_eq!(argmin_finite(&[f64::NAN, f64::INFINITY]), None);
+    }
 
     #[test]
     fn degenerate_se_is_undefined_not_a_discovery() {

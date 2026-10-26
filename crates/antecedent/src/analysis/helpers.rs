@@ -419,7 +419,10 @@ pub(crate) fn apply_outcome_functional(
         OutcomeFunctional::ExceedanceGrid(_) => Err(CausalError::Unsupported {
             message: "exceedance grids cannot be reduced to the first threshold; use the score-table or per-threshold path",
         }),
-        OutcomeFunctional::Quantile(_) | OutcomeFunctional::Mean | _ => Ok(data.clone()),
+        OutcomeFunctional::Quantile(_) | OutcomeFunctional::Mean => Ok(data.clone()),
+        _ => Err(CausalError::Unsupported {
+            message: "this outcome functional has no data reduction on this path",
+        }),
     }
 }
 

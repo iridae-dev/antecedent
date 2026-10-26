@@ -367,7 +367,7 @@ impl CheckedPanelDidOperation {
             data.storage().analysis_mask(),
             policy,
             &[self.query.outcome],
-            keep,
+            &antecedent_data::ValidityBitmap::from_bools(keep),
         )?;
         let labels: Vec<Arc<str>> = self
             .query

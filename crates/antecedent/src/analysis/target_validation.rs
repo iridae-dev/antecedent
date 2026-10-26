@@ -25,7 +25,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::cmp::Ordering;
 use std::sync::Arc;
 
 use antecedent_contract::DataClassification;
@@ -179,15 +178,20 @@ fn attribution_values(result: &StudyResult) -> Result<(Vec<Arc<str>>, Vec<f64>),
             let target = score.target.raw();
             labels.push(Arc::from(format!("anomaly[{target}].score")));
             values.push(score.scores.iter().sum::<f64>() / rows as f64);
-            for (j, component) in score.noise_components.iter().enumerate() {
+            // One row-major pass accumulates every component's sum (same per-component
+            // addition order as a column walk, without the strided access).
+            let mut component_sums = vec![0.0_f64; width];
+            for row in score.noise_contributions.chunks_exact(width.max(1)) {
+                for (sum, value) in component_sums.iter_mut().zip(row) {
+                    *sum += value;
+                }
+            }
+            for (component, sum) in score.noise_components.iter().zip(&component_sums) {
                 labels.push(Arc::from(format!(
                     "anomaly[{target}].component[{}]",
                     component.variable().raw()
                 )));
-                values.push(
-                    (0..rows).map(|row| score.noise_contributions[row * width + j]).sum::<f64>()
-                        / rows as f64,
-                );
+                values.push(sum / rows as f64);
             }
         }
     } else if let Some(change) = result.change_attribution() {
@@ -768,6 +772,59 @@ struct PreparedRefit<'a> {
     alpha: f64,
     /// Fitted response curve of a derivative, `(point, value per horizon)`, computed once.
     curve: std::cell::OnceCell<Vec<(f64, Vec<f64>)>>,
+}
+
+/// Lower Cholesky factor `L` (row-major `p x p`) of the Gram matrix `XᵀX` of a column-major
+/// `n x p` design.
+///
+/// The factorisation runs on the column-equilibrated Gram (unit diagonal, pivots read as the
+/// share of each column the preceding ones leave unexplained), so a column's scale cannot hide
+/// or fake a rank loss; a pivot at or below `max(n, p) · ε`, or any non-finite entry, refuses the
+/// design as rank deficient. The factor is rescaled back to the original columns before it is
+/// returned.
+fn gram_cholesky_factor(
+    design: &[f64],
+    n: usize,
+    p: usize,
+    rank_deficient: &'static str,
+) -> Result<Vec<f64>, TargetRefitError> {
+    let refuse = || unsupported(rank_deficient, "a full-rank adjustment");
+    let norms: Vec<f64> = (0..p)
+        .map(|c| design[c * n..(c + 1) * n].iter().map(|v| v * v).sum::<f64>().sqrt())
+        .collect();
+    if norms.iter().any(|norm| !(norm.is_finite() && *norm > 0.0)) {
+        return Err(refuse());
+    }
+    let mut l = vec![0.0; p * p];
+    let floor = n.max(p) as f64 * f64::EPSILON;
+    for i in 0..p {
+        for j in 0..=i {
+            let dot: f64 = (0..n)
+                .map(|r| (design[i * n + r] / norms[i]) * (design[j * n + r] / norms[j]))
+                .sum();
+            let mut acc = dot;
+            for q in 0..j {
+                acc -= l[i * p + q] * l[j * p + q];
+            }
+            if i == j {
+                if !(acc.is_finite() && acc > floor) {
+                    return Err(refuse());
+                }
+                l[i * p + i] = acc.sqrt();
+            } else {
+                l[i * p + j] = acc / l[j * p + j];
+            }
+        }
+    }
+    for i in 0..p {
+        for j in 0..=i {
+            l[i * p + j] *= norms[i];
+        }
+    }
+    if l.iter().any(|v| !v.is_finite()) {
+        return Err(refuse());
+    }
+    Ok(l)
 }
 
 fn unsupported(reason: impl Into<Arc<str>>, next_attempt: &str) -> TargetRefitError {
@@ -2343,35 +2400,12 @@ impl PreparedRefit<'_> {
         let fit = FaerBackend
             .least_squares(&design, n, p, y, &mut LeastSquaresWorkspace::default())
             .map_err(|error| TargetRefitError::Failed(ValidationError::from(error)))?;
-        // Cholesky factor of X'X.
-        let mut xtx = vec![0.0; p * p];
-        for i in 0..p {
-            for j in 0..=i {
-                let s: f64 = (0..n).map(|r| design[i * n + r] * design[j * n + r]).sum();
-                xtx[i * p + j] = s;
-                xtx[j * p + i] = s;
-            }
-        }
-        let mut l = xtx;
-        for i in 0..p {
-            for j in 0..=i {
-                let mut s = l[i * p + j];
-                for q in 0..j {
-                    s -= l[i * p + q] * l[j * p + q];
-                }
-                if i == j {
-                    if s.partial_cmp(&0.0) != Some(Ordering::Greater) {
-                        return Err(unsupported(
-                            "the treatment and adjustment design is rank deficient",
-                            "a full-rank adjustment",
-                        ));
-                    }
-                    l[i * p + i] = s.sqrt();
-                } else {
-                    l[i * p + j] = s / l[j * p + j];
-                }
-            }
-        }
+        let l = gram_cholesky_factor(
+            &design,
+            n,
+            p,
+            "the treatment and adjustment design is rank deficient",
+        )?;
         let k = self.target.dimension();
         let draws_wanted = (self.replicates as usize).max(k + 2);
         let _lease = admit_target_cells(ctx, draws_wanted.saturating_mul(2), n)?;
@@ -2516,27 +2550,12 @@ impl PreparedRefit<'_> {
         let fit = FaerBackend
             .least_squares(&design, rows, p, &response, &mut LeastSquaresWorkspace::default())
             .map_err(|error| TargetRefitError::Failed(ValidationError::from(error)))?;
-        let mut l = vec![0.0; p * p];
-        for i in 0..p {
-            for j in 0..=i {
-                let mut acc: f64 =
-                    (0..rows).map(|r| design[i * rows + r] * design[j * rows + r]).sum();
-                for q in 0..j {
-                    acc -= l[i * p + q] * l[j * p + q];
-                }
-                if i == j {
-                    if acc.partial_cmp(&0.0) != Some(Ordering::Greater) {
-                        return Err(unsupported(
-                            "the lagged reference design is rank deficient",
-                            "a full-rank adjustment",
-                        ));
-                    }
-                    l[i * p + i] = acc.sqrt();
-                } else {
-                    l[i * p + j] = acc / l[j * p + j];
-                }
-            }
-        }
+        let l = gram_cholesky_factor(
+            &design,
+            rows,
+            p,
+            "the lagged reference design is rank deficient",
+        )?;
         let k = self.target.dimension();
         let draws_wanted = (self.replicates as usize).max(k + 2);
         let _lease = admit_target_cells(ctx, draws_wanted.saturating_mul(2), rows)?;

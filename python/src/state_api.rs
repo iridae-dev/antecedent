@@ -452,9 +452,9 @@ impl PyCausalState {
             .ok_or_else(|| crate::value_err(format!("unknown particle filter `{key}`")))?;
         let d = PyDict::new(py);
         d.set_item("n_obs", pf.n_obs)?;
-        d.set_item("n_particles", pf.n_particles)?;
-        d.set_item("particles", pf.particles.clone())?;
-        d.set_item("log_weights", pf.log_weights.clone())?;
+        d.set_item("n_particles", pf.n_particles())?;
+        d.set_item("particles", pf.particles().to_vec())?;
+        d.set_item("log_weights", pf.log_weights().to_vec())?;
         Ok(d)
     }
 

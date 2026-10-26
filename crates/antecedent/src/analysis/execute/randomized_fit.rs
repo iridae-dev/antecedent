@@ -835,7 +835,39 @@ fn fit_switchback(
     Ok(out)
 }
 
-/// Exhaustive two-sided Fisher sharp-null p-value and allocation count.
+/// Largest number of fixed-count allocations the Fisher test enumerates exhaustively; a design
+/// with more allocations is tested by uniform random sampling of allocations instead.
+const EXHAUSTIVE_ALLOCATION_LIMIT: u128 = 1 << 22;
+
+/// Allocations sampled by the Monte Carlo Fisher test (the observed allocation is added).
+const MONTE_CARLO_ALLOCATIONS: u64 = 100_000;
+
+/// Fixed stream of the Monte Carlo test, so the same table always gives the same p-value.
+const RANDOMIZATION_TEST_SEED: u64 = 0x6a09_e667_f3bc_c908;
+
+/// `C(n, k)`, or `None` when it exceeds `limit`.
+fn binomial_within(n: usize, k: usize, limit: u128) -> Option<u128> {
+    let k = k.min(n - k.min(n));
+    let mut value: u128 = 1;
+    for i in 0..k {
+        value = value.checked_mul((n - i) as u128)? / (i as u128 + 1);
+        if value > limit {
+            return None;
+        }
+    }
+    Some(value)
+}
+
+/// Two-sided Fisher sharp-null p-value of the complete design and the number of allocations it
+/// averages over.
+///
+/// When the fixed-count allocations are few enough (`C(n, treated)` at most
+/// `EXHAUSTIVE_ALLOCATION_LIMIT`) every one is enumerated and the p-value is exact, with the
+/// allocation count `C(n, treated)`. Beyond that the p-value is the Monte Carlo
+/// permutation p-value `(1 + #{draws at least as extreme}) / (1 + draws)` over
+/// `MONTE_CARLO_ALLOCATIONS` uniformly sampled allocations (valid, never zero), and the
+/// allocation count is `MONTE_CARLO_ALLOCATIONS + 1`: it differs from `C(n, treated)`, which is
+/// how a reader tells the two apart.
 pub(super) fn exact_randomization_test(
     query: &RandomizedEffectQuery,
     outcomes: &[f64],
@@ -844,27 +876,69 @@ pub(super) fn exact_randomization_test(
     let RandomizationDesign::Complete { treated_units } = &query.design else {
         unreachable!("validated exact test requires complete randomization")
     };
+    fisher_p_value(outcomes, *treated_units, effect)
+}
+
+/// [`exact_randomization_test`] over `treated` treated units of `outcomes.len()`.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the sampled position is below the unit count, which is a usize"
+)]
+fn fisher_p_value(outcomes: &[f64], treated: usize, effect: f64) -> (f64, u64) {
     let n = outcomes.len();
+    let k = treated;
     let observed = effect.abs();
-    let mut extreme = 0_u64;
-    let mut allocations = 0_u64;
     let total = outcomes.iter().sum::<f64>();
-    for mask in 0..(1_u64 << n) {
-        if mask.count_ones() as usize != *treated_units {
-            continue;
+    let contrast_of = |treated_sum: f64| {
+        treated_sum / k as f64 - (total - treated_sum) / (n - k) as f64
+    };
+    let at_least_observed = |treated_sum: f64| contrast_of(treated_sum).abs() + 1e-12 >= observed;
+    if let Some(allocations) = binomial_within(n, k, EXHAUSTIVE_ALLOCATION_LIMIT) {
+        // Every k-subset in lexicographic order; the treated sum accumulates in index order.
+        let mut chosen: Vec<usize> = (0..k).collect();
+        let mut extreme = 0_u64;
+        let mut count = 0_u64;
+        loop {
+            let treated_sum = chosen.iter().map(|&i| outcomes[i]).sum::<f64>();
+            count += 1;
+            if at_least_observed(treated_sum) {
+                extreme += 1;
+            }
+            // Advance to the next combination.
+            let mut position = k;
+            while position > 0 && chosen[position - 1] == n - k + position - 1 {
+                position -= 1;
+            }
+            if position == 0 {
+                break;
+            }
+            chosen[position - 1] += 1;
+            for j in position..k {
+                chosen[j] = chosen[j - 1] + 1;
+            }
         }
-        let treated_sum = outcomes
-            .iter()
-            .enumerate()
-            .filter_map(|(i, value)| ((mask >> i) & 1 == 1).then_some(*value))
-            .sum::<f64>();
-        let contrast = treated_sum / *treated_units as f64
-            - (total - treated_sum) / (n - *treated_units) as f64;
-        allocations += 1;
-        if contrast.abs() + 1e-12 >= observed {
+        debug_assert_eq!(u128::from(count), allocations);
+        return (extreme as f64 / count as f64, count);
+    }
+    let mut rng = antecedent_core::CausalRng::from_seed(
+        RANDOMIZATION_TEST_SEED ^ ((n as u64) << 32) ^ k as u64,
+    );
+    let mut order: Vec<usize> = (0..n).collect();
+    // The observed allocation is one of the allocations, so it always counts.
+    let mut extreme = 1_u64;
+    for _ in 0..MONTE_CARLO_ALLOCATIONS {
+        // Partial Fisher-Yates: the first k entries are a uniform k-subset whatever the
+        // permutation held before.
+        for i in 0..k {
+            let j = i + (rng.next_u64() % (n - i) as u64) as usize;
+            order.swap(i, j);
+        }
+        let treated_sum = order[..k].iter().map(|&i| outcomes[i]).sum::<f64>();
+        if at_least_observed(treated_sum) {
             extreme += 1;
         }
     }
+    let allocations = MONTE_CARLO_ALLOCATIONS + 1;
     (extreme as f64 / allocations as f64, allocations)
 }
 
@@ -949,4 +1023,41 @@ fn fit_sampling_weighted(
         weight_sum: weights.iter().sum(),
     });
     Ok(out)
+}
+
+#[cfg(test)]
+mod fisher_tests {
+    use super::{MONTE_CARLO_ALLOCATIONS, binomial_within, fisher_p_value};
+
+    fn contrast(outcomes: &[f64], treated: &[usize]) -> f64 {
+        let total: f64 = outcomes.iter().sum();
+        let sum: f64 = treated.iter().map(|&i| outcomes[i]).sum();
+        sum / treated.len() as f64 - (total - sum) / (outcomes.len() - treated.len()) as f64
+    }
+
+    #[test]
+    fn binomial_stops_at_the_limit() {
+        assert_eq!(binomial_within(6, 3, 100), Some(20));
+        assert_eq!(binomial_within(6, 5, 100), Some(6));
+        assert_eq!(binomial_within(40, 20, 1 << 22), None);
+    }
+
+    #[test]
+    fn small_designs_are_enumerated_exactly() {
+        let outcomes = [1.0, 2.0, 3.0, 10.0, 11.0, 12.0];
+        let observed = contrast(&outcomes, &[3, 4, 5]);
+        let (p, allocations) = fisher_p_value(&outcomes, 3, observed);
+        assert_eq!(allocations, 20);
+        // Only the observed split and its mirror are as extreme.
+        assert!((p - 2.0 / 20.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn large_designs_use_a_deterministic_monte_carlo_p_value() {
+        let outcomes: Vec<f64> = (0..40).map(|i| f64::from(i % 7) + 0.1 * f64::from(i)).collect();
+        let (p, allocations) = fisher_p_value(&outcomes, 20, 0.25);
+        assert_eq!(allocations, MONTE_CARLO_ALLOCATIONS + 1);
+        assert!(p > 0.0 && p <= 1.0);
+        assert_eq!(fisher_p_value(&outcomes, 20, 0.25), (p, allocations));
+    }
 }

@@ -696,7 +696,10 @@ impl BatchScores {
     pub fn estimate_retarget_cost(&self, request: &BatchRetargetRequest) -> RetargetCostEstimate {
         let claims = request.claims.len();
         let snapshot_rows = self.common_rows().ok().flatten().map(|rows| rows.len());
-        let pairs = u64::try_from(claims * (claims + 1) / 2).ok();
+        let pairs = claims
+            .checked_add(1)
+            .and_then(|next| claims.checked_mul(next))
+            .and_then(|product| u64::try_from(product / 2).ok());
         let rows = snapshot_rows.and_then(|rows| u64::try_from(rows).ok());
         RetargetCostEstimate {
             planning_hint: true,

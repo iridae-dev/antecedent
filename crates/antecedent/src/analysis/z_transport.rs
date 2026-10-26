@@ -21,7 +21,7 @@ use antecedent_io::IoError;
 use antecedent_io::z_transport_artifact::{ZTransportArtifactWire, ZTransportConsumeLimits};
 use std::sync::Arc;
 
-use super::transport_common::{PERCENTILE_FLOOR, err, estimate_err};
+use super::transport_common::{PERCENTILE_FLOOR, err, estimate_err, is_valid_exact_law};
 
 /// Prepared exact or empirical evaluation of a checked z-transport formula.
 #[derive(Clone, Debug)]
@@ -109,14 +109,8 @@ impl ZTransportResult {
         let second = &right.distribution;
         if max_atoms == 0
             || first.outcomes.iter().any(|outcome| second.outcomes.contains(outcome))
-            || first.atoms.len() != first.probabilities.len()
-            || second.atoms.len() != second.probabilities.len()
-            || first.atoms.iter().any(|atom| atom.len() != first.outcomes.len())
-            || second.atoms.iter().any(|atom| atom.len() != second.outcomes.len())
-            || first.probabilities.iter().any(|p| !p.is_finite() || *p < 0.0)
-            || second.probabilities.iter().any(|p| !p.is_finite() || *p < 0.0)
-            || (first.probabilities.iter().sum::<f64>() - 1.0).abs() > 1e-10
-            || (second.probabilities.iter().sum::<f64>() - 1.0).abs() > 1e-10
+            || !is_valid_exact_law(first)
+            || !is_valid_exact_law(second)
         {
             return Err(err("z_transport.invalid_independent_component_law"));
         }
@@ -134,9 +128,9 @@ impl ZTransportResult {
             for (right_atom, right_probability) in
                 second.atoms.iter().zip(second.probabilities.iter())
             {
-                let mut atom = left_atom.to_vec();
-                atom.extend(right_atom.iter().cloned());
-                atoms.push(Arc::from(atom));
+                // Built straight into the shared allocation: the chained slice iterators have an
+                // exact length, so no intermediate vector is grown and copied.
+                atoms.push(left_atom.iter().chain(right_atom.iter()).cloned().collect::<Arc<[_]>>());
                 probabilities.push(left_probability * right_probability);
             }
         }

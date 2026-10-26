@@ -22,6 +22,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use antecedent_contract::{
@@ -372,23 +373,29 @@ impl Names<'_> {
 
 /// A value as the input holds it, to at most twelve significant digits.
 fn num(value: f64) -> String {
+    use std::fmt::Write as _;
     if value.is_nan() {
         return "NaN".to_owned();
     }
     if value.is_infinite() {
         return if value > 0.0 { "inf" } else { "-inf" }.to_owned();
     }
-    let rounded: f64 = format!("{value:.11e}").parse().unwrap_or(value);
+    let mut text = String::with_capacity(24);
+    // Writing into a `String` cannot fail.
+    let _ = write!(text, "{value:.11e}");
+    let rounded: f64 = text.parse().unwrap_or(value);
+    text.clear();
     // Adding zero turns a negative zero into zero.
-    (rounded + 0.0).to_string()
+    let _ = write!(text, "{}", rounded + 0.0);
+    text
 }
 
-fn opt_num(value: Option<f64>) -> String {
-    value.map_or_else(|| "none".to_owned(), num)
+fn opt_num(value: Option<f64>) -> Cow<'static, str> {
+    value.map_or(Cow::Borrowed("none"), |value| Cow::Owned(num(value)))
 }
 
-fn opt_str(value: Option<&str>) -> String {
-    value.map_or_else(|| "none".to_owned(), ToOwned::to_owned)
+fn opt_str(value: Option<&str>) -> Cow<'_, str> {
+    Cow::Borrowed(value.unwrap_or("none"))
 }
 
 const fn yes_no(value: bool) -> &'static str {
@@ -525,7 +532,7 @@ fn obligation_row(record: &ObligationRecord) -> Vec<String> {
         record.kind.as_str().to_owned(),
         record.status.as_str().to_owned(),
         source_text(&record.source),
-        opt_str(record.required_check.as_deref()),
+        opt_str(record.required_check.as_deref()).into_owned(),
         record.description.to_string(),
     ]
 }
@@ -539,12 +546,12 @@ fn attested_row(evidence: &AttestedEvidence) -> Vec<String> {
         evidence.kind.to_string(),
         yes_no(evidence.passed).to_owned(),
         yes_no(evidence.informative).to_owned(),
-        opt_num(evidence.refuted_ate),
-        opt_num(evidence.comparison),
-        opt_str(evidence.failure_condition.as_deref()),
+        opt_num(evidence.refuted_ate).into_owned(),
+        opt_num(evidence.comparison).into_owned(),
+        opt_str(evidence.failure_condition.as_deref()).into_owned(),
         yes_no(evidence.reverifiable).to_owned(),
-        opt_str(evidence.config_digest.as_deref()),
-        opt_str(evidence.payload_digest.as_deref()),
+        opt_str(evidence.config_digest.as_deref()).into_owned(),
+        opt_str(evidence.payload_digest.as_deref()).into_owned(),
     ]
 }
 
@@ -1115,10 +1122,10 @@ fn uncertainty_section(input: &ReportInput<'_>, names: Names<'_>) -> Section {
                         .map(|slot| {
                             vec![
                                 slot.status.to_string(),
-                                opt_str(slot.record_id.as_deref()),
-                                opt_str(slot.reason.as_deref()),
-                                opt_num(slot.nominal),
-                                opt_num(slot.observed),
+                                opt_str(slot.record_id.as_deref()).into_owned(),
+                                opt_str(slot.reason.as_deref()).into_owned(),
+                                opt_num(slot.nominal).into_owned(),
+                                opt_num(slot.observed).into_owned(),
                             ]
                         })
                         .collect(),
@@ -1201,7 +1208,7 @@ fn mixture_blocks(plan: &PlanView, blocks: &mut Vec<Block>) {
                                 .map_or_else(|| "none".to_owned(), |flag| yes_no(flag).to_owned()),
                             opt_str(
                                 atom.status().map(antecedent_core::IdentificationStatus::as_str),
-                            ),
+                            ).into_owned(),
                             atom.completions().to_string(),
                         ]
                     })
@@ -1234,7 +1241,7 @@ fn retained_blocks(plan: &PlanView, names: Names<'_>, blocks: &mut Vec<Block>) {
                         retained.kind().to_owned(),
                         opt_str(
                             retained.status().map(antecedent_core::IdentificationStatus::as_str),
-                        ),
+                        ).into_owned(),
                         retained
                             .estimands()
                             .iter()
@@ -1250,8 +1257,8 @@ fn retained_blocks(plan: &PlanView, names: Names<'_>, blocks: &mut Vec<Block>) {
                         retained.completions().to_string(),
                         retained.truncated_completions().to_string(),
                         retained.atoms().to_string(),
-                        opt_num(retained.identified_mass()),
-                        opt_num(retained.unidentified_mass()),
+                        opt_num(retained.identified_mass()).into_owned(),
+                        opt_num(retained.unidentified_mass()).into_owned(),
                     ]
                 })
                 .collect(),

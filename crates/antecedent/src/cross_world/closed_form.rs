@@ -17,6 +17,23 @@ use crate::gcm::NestedOutcomeMechanism;
 /// Relative tolerance of the closed-form cross-check against the replayed point.
 const CLOSED_FORM_TOLERANCE: f64 = 1e-6;
 
+/// Standardized-scale distance below which two knots or two values are one: values are in
+/// units of the parent's standard deviation, so the tolerance is relative to the column's
+/// scale, not an absolute amount of the raw variable.
+const STANDARDIZED_MERGE_TOLERANCE: f64 = 1e-9;
+
+/// Neumaier-compensated sum, so a column's mean, variance and the final contrast do not
+/// lose digits to the order or the length of the accumulation.
+fn compensated_sum(values: impl IntoIterator<Item = f64>) -> f64 {
+    let (mut sum, mut compensation) = (0.0_f64, 0.0_f64);
+    for x in values {
+        let next = sum + x;
+        compensation += if sum.abs() >= x.abs() { (sum - next) + x } else { (x - next) + sum };
+        sum = next;
+    }
+    sum + compensation
+}
+
 /// Ordinary least squares of `columns[v]` on `columns[parents]` with an intercept,
 /// by column-pivoted QR of the centered, column-equilibrated design
 /// ([`FaerBackend`]): `(intercept, slopes)`, or `None` when the design is
@@ -28,7 +45,7 @@ pub(super) fn ols_on_parents(
 ) -> Option<(f64, Vec<f64>)> {
     let rows = columns[v].len();
     let p = parents.len();
-    let mean = |c: &[f64]| c.iter().sum::<f64>() / rows as f64;
+    let mean = |c: &[f64]| compensated_sum(c.iter().copied()) / rows as f64;
     let ybar = mean(&columns[v]);
     if p == 0 {
         return Some((ybar, Vec::new()));
@@ -137,7 +154,7 @@ fn spline_knots(
             columns[j].iter().map(|x| (x - centers[a]) / scales[a]).collect();
         sorted.sort_by(f64::total_cmp);
         let mut distinct = sorted.clone();
-        distinct.dedup_by(|x, y| (*x - *y).abs() < 1e-9);
+        distinct.dedup_by(|x, y| (*x - *y).abs() < STANDARDIZED_MERGE_TOLERANCE);
         if distinct.len() < SPLINE_MIN_DISTINCT {
             knots.push(Vec::new());
             continue;
@@ -146,7 +163,7 @@ fn spline_knots(
             .iter()
             .map(|q| sorted[((sorted.len() - 1) as f64 * q).round() as usize])
             .collect();
-        chosen.dedup_by(|x, y| (*x - *y).abs() < 1e-9);
+        chosen.dedup_by(|x, y| (*x - *y).abs() < STANDARDIZED_MERGE_TOLERANCE);
         knots.push(chosen);
     }
     knots
@@ -170,8 +187,9 @@ fn fit_spline_mean(columns: &[Vec<f64>], v: usize, parents: &[usize]) -> Option<
     let mut centers = Vec::with_capacity(p);
     let mut scales = Vec::with_capacity(p);
     for &j in parents {
-        let mean = columns[j].iter().sum::<f64>() / nf;
-        let sd = (columns[j].iter().map(|x| (x - mean) * (x - mean)).sum::<f64>() / nf).sqrt();
+        let mean = compensated_sum(columns[j].iter().copied()) / nf;
+        let sd =
+            (compensated_sum(columns[j].iter().map(|x| (x - mean) * (x - mean))) / nf).sqrt();
         centers.push(mean);
         scales.push(if sd.is_finite() && sd > 1e-12 { sd } else { 1.0 });
     }
@@ -317,21 +335,26 @@ pub(super) fn closed_form_point(
     {
         return None;
     }
-    let parents: Vec<Vec<usize>> = (0..n)
-        .map(|v| edges.iter().filter(|e| e.1 as usize == v).map(|e| e.0 as usize).collect())
-        .collect();
+    // Adjacency built once, in edge order, so parent order is the edge order.
+    let mut parents: Vec<Vec<usize>> = vec![Vec::new(); n];
+    let mut children: Vec<Vec<usize>> = vec![Vec::new(); n];
+    for &(a, b) in edges {
+        if a as usize >= n || b as usize >= n {
+            return None;
+        }
+        parents[b as usize].push(a as usize);
+        children[a as usize].push(b as usize);
+    }
     // Topological order (Kahn).
     let mut indegree: Vec<usize> = parents.iter().map(Vec::len).collect();
     let mut order = Vec::with_capacity(n);
     let mut ready: Vec<usize> = (0..n).filter(|&v| indegree[v] == 0).collect();
     while let Some(v) = ready.pop() {
         order.push(v);
-        for &(a, b) in edges {
-            if a as usize == v {
-                indegree[b as usize] -= 1;
-                if indegree[b as usize] == 0 {
-                    ready.push(b as usize);
-                }
+        for &child in &children[v] {
+            indegree[child] -= 1;
+            if indegree[child] == 0 {
+                ready.push(child);
             }
         }
     }
@@ -397,7 +420,7 @@ pub(super) fn closed_form_point(
     let read =
         |o: antecedent_core::WorldObservation| &values[o.world.index()][o.variable.raw() as usize];
     let (plus, minus) = (read(query.plus()), read(query.minus()));
-    Some(plus.iter().zip(minus).map(|(a, b)| a - b).sum::<f64>() / rows_f)
+    Some(compensated_sum(plus.iter().zip(minus).map(|(a, b)| a - b)) / rows_f)
 }
 
 impl NodeMean {

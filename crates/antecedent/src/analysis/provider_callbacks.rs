@@ -607,17 +607,15 @@ impl CallbackSession {
             })
             .map_err(fail)?;
         if provider.identity() != negotiated.identity() {
-            let expected = format!(
-                "{}/{}/{}",
-                declaration.identity.object_id,
-                declaration.identity.version_id,
-                declaration.identity.snapshot_id
+            let expected = identity_label(
+                &declaration.identity.object_id,
+                &declaration.identity.version_id,
+                &declaration.identity.snapshot_id,
             );
-            let supplied = format!(
-                "{}/{}/{}",
-                provider.identity().object_id,
-                provider.identity().version_id,
-                provider.identity().snapshot_id
+            let supplied = identity_label(
+                &provider.identity().object_id,
+                &provider.identity().version_id,
+                &provider.identity().snapshot_id,
             );
             return Err(fail(refusal::provider_identity_mismatch(&expected, &supplied)));
         }
@@ -1146,4 +1144,13 @@ pub fn forecast_law_from_sample(output: &ValidatedOutput) -> Result<ForecastLaw,
         }
         _ => Err(refusal::request_mismatch("sample")),
     }
+}
+
+/// The `object/version/snapshot` spelling of a provider identity in a mismatch refusal.
+fn identity_label(
+    object: &impl std::fmt::Display,
+    version: &impl std::fmt::Display,
+    snapshot: &impl std::fmt::Display,
+) -> String {
+    format!("{object}/{version}/{snapshot}")
 }

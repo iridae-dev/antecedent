@@ -723,6 +723,11 @@ impl TrialCompatibleTransportConfidenceSet {
     }
 }
 
+/// Cancellation, kept distinct from an invalid-evidence failure so a caller can tell them apart.
+fn cancelled() -> DiscoveredTransportError {
+    DiscoveredTransportError::Identification(antecedent_identify::IdentificationError::Cancelled)
+}
+
 fn confidence_set_invalid(message: impl Into<String>) -> DiscoveredTransportError {
     DiscoveredTransportError::Estimation(message.into())
 }
@@ -746,7 +751,7 @@ fn confidence_set_input_identity(
     query.validate().map_err(|e| confidence_set_invalid(e.to_string()))?;
     validate_evidence_query(query)?;
     if ctx.cancellation.is_cancelled() {
-        return Err(confidence_set_invalid("cancelled"));
+        return Err(cancelled());
     }
     let ResponseFunctional::MeanCurve { outcome, treatment } = &query.response.functional else {
         return Err(confidence_set_invalid(
@@ -814,7 +819,7 @@ fn confidence_set_input_identity(
                     confidence_set_invalid("confidence-set evidence requires complete finite rows")
                 })?;
                 if ctx.cancellation.is_cancelled() {
-                    return Err(confidence_set_invalid("cancelled"));
+                    return Err(cancelled());
                 }
                 if value < 0.0
                     || value.fract() != 0.0
@@ -877,7 +882,7 @@ pub fn estimate_trial_compatible_transport_confidence_set(
         confidence_set_input_identity(report, query, evidence, options, support, ctx)?;
     let proof = trial_compatibility_proof(report, query, evidence, options)?;
     if ctx.cancellation.is_cancelled() {
-        return Err(confidence_set_invalid("cancelled"));
+        return Err(cancelled());
     }
     proof
         .validate_replay_budget(evidence.limits)
@@ -1014,21 +1019,23 @@ pub fn verify_trial_compatible_transport_confidence_set_against(
 }
 
 fn has_directed_path(edges: &[(u32, u32)], treatment: u32, outcome: u32) -> bool {
+    let mut children: std::collections::BTreeMap<u32, Vec<u32>> = std::collections::BTreeMap::new();
+    for (from, to) in edges {
+        children.entry(*from).or_default().push(*to);
+    }
     let mut reached = std::collections::BTreeSet::from([treatment]);
-    loop {
-        let before = reached.len();
-        for (from, to) in edges {
-            if reached.contains(from) {
-                reached.insert(*to);
-            }
-        }
-        if reached.contains(&outcome) {
+    let mut stack = vec![treatment];
+    while let Some(node) = stack.pop() {
+        if node == outcome {
             return true;
         }
-        if reached.len() == before {
-            return false;
+        for child in children.get(&node).into_iter().flatten() {
+            if reached.insert(*child) {
+                stack.push(*child);
+            }
         }
     }
+    false
 }
 
 fn trial_identity(treatment: u32, outcome: u32, rows: &[[u8; 2]]) -> [u8; 32] {

@@ -129,13 +129,12 @@ pub(super) fn summarize_issued_values(
             }
             let probability_below =
                 values.iter().filter(|&&v| v < spec.threshold).count() as f64 / n;
-            let mut ordered = values.to_vec();
-            ordered.sort_by(f64::total_cmp);
+            let mut scratch = values.to_vec();
             Ok(BayesianLaw {
                 mean,
                 standard_deviation,
-                lower_quantile: empirical_quantile(&ordered, spec.lower_probability),
-                upper_quantile: empirical_quantile(&ordered, spec.upper_probability),
+                lower_quantile: empirical_quantile(&mut scratch, spec.lower_probability),
+                upper_quantile: empirical_quantile(&mut scratch, spec.upper_probability),
                 probability_below,
                 draws: values.len(),
             })
@@ -148,11 +147,22 @@ pub(super) fn summarize_issued_values(
     clippy::cast_sign_loss,
     reason = "validated probability inside (0,1) selects a bounded native draw index"
 )]
-fn empirical_quantile(ordered: &[f64], probability: f64) -> f64 {
-    let position = probability * (ordered.len() - 1) as f64;
+fn empirical_quantile(scratch: &mut [f64], probability: f64) -> f64 {
+    // Linear interpolation between the two neighbouring order statistics, found by selection
+    // (linear expected time) rather than by sorting every draw. Selection permutes the scratch
+    // buffer but keeps it a rearrangement of the same draws, so repeated calls stay valid.
+    let last = scratch.len() - 1;
+    let position = probability * last as f64;
     let index = position.floor() as usize;
     let fraction = position - index as f64;
-    ordered[index] + fraction * (ordered[(index + 1).min(ordered.len() - 1)] - ordered[index])
+    let (_, lower, upper) = scratch.select_nth_unstable_by(index, f64::total_cmp);
+    let lower = *lower;
+    let next = if index < last {
+        upper.iter().copied().min_by(f64::total_cmp).unwrap_or(lower)
+    } else {
+        lower
+    };
+    lower + fraction * (next - lower)
 }
 
 impl BayesianRequest {
@@ -890,4 +900,25 @@ fn verify_bound_bayesian_prior(
         source_snapshot,
         posterior: encoded.into(),
     })
+}
+
+#[cfg(test)]
+mod quantile_selection_tests {
+    use super::empirical_quantile;
+
+    #[test]
+    fn selected_quantiles_match_the_sorted_interpolation() {
+        let draws = [9.0, 1.0, 4.0, 7.0, 2.0, 8.0, 3.0];
+        let mut sorted = draws;
+        sorted.sort_by(f64::total_cmp);
+        let mut scratch = draws;
+        for probability in [0.025, 0.5, 0.975, 1.0] {
+            let position = probability * (sorted.len() - 1) as f64;
+            let index = position.floor() as usize;
+            let next = sorted[(index + 1).min(sorted.len() - 1)];
+            let expected = sorted[index] + (position - index as f64) * (next - sorted[index]);
+            let got = empirical_quantile(&mut scratch, probability);
+            assert!((got - expected).abs() < 1e-12, "{probability}: {got} vs {expected}");
+        }
+    }
 }

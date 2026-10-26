@@ -1419,10 +1419,13 @@ pub(crate) fn simulation_quantities(
     outcome: &SimulationOutcome,
     nodes: usize,
 ) -> Option<Vec<(String, f64)>> {
-    let mean = |column: &[f64]| column.iter().sum::<f64>() / column.len().max(1) as f64;
+    // An empty column has no mean: summarising it is unavailable rather than a zero mean.
+    let mean = |column: &[f64]| -> Option<f64> {
+        (!column.is_empty()).then(|| antecedent_kernels::mean(column))
+    };
     let batch_means = |batch: &ValueBatch| -> Option<Vec<(String, f64)>> {
         (0..batch.n_nodes)
-            .map(|node| Some((format!("draw_mean[{node}]"), mean(batch.column(node).ok()?))))
+            .map(|node| Some((format!("draw_mean[{node}]"), mean(batch.column(node).ok()?)?)))
             .collect()
     };
     match outcome {
@@ -1441,7 +1444,7 @@ pub(crate) fn simulation_quantities(
                     let column = result.outcome_column(world, outcome).ok()?;
                     out.push((
                         format!("world[{world}].outcome[{}]", outcome.as_usize()),
-                        mean(column),
+                        mean(column)?,
                     ));
                 }
             }
@@ -1454,7 +1457,7 @@ pub(crate) fn simulation_quantities(
                 for node in 0..limit {
                     out.push((
                         format!("step[{step}].node[{node}]"),
-                        mean(batch.column(node).ok()?),
+                        mean(batch.column(node).ok()?)?,
                     ));
                 }
             }

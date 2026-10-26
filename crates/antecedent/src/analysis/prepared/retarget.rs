@@ -177,7 +177,15 @@ impl PreparedStudy {
             });
         }
         let n = table.n_rows as f64;
-        let total: f64 = weights.iter().sum();
+        // Max-scaled normalisation: the raw weight sum may overflow although every weight is finite.
+        let scale = weights.iter().copied().fold(0.0_f64, f64::max);
+        let scaled: Vec<f64> = weights.iter().map(|w| w / scale).collect();
+        let total: f64 = scaled.iter().sum();
+        if !(scale.is_finite() && scale > 0.0 && total.is_finite() && total > 0.0) {
+            return Err(CausalError::Unsupported {
+                message: "cluster retarget weights have no finite positive mass",
+            });
+        }
         let mut columns: Vec<Vec<f64>> = Vec::with_capacity(table.n_columns());
         for j in 0..table.n_columns() {
             let theta = out.summary.means[j];
@@ -185,10 +193,15 @@ impl PreparedStudy {
                 table
                     .column(j)?
                     .iter()
-                    .zip(weights)
+                    .zip(&scaled)
                     .map(|(phi, w)| n * (w / total) * (phi - theta))
                     .collect(),
             );
+        }
+        if columns.iter().flatten().any(|v| !v.is_finite()) {
+            return Err(CausalError::Unsupported {
+                message: "cluster retarget influence is not finite",
+            });
         }
         let refs: Vec<&[f64]> = columns.iter().map(Vec::as_slice).collect();
         let covariance =
@@ -199,6 +212,16 @@ impl PreparedStudy {
         {
             let variance = covariance.get(active, active) + covariance.get(control, control)
                 - 2.0 * covariance.get(active, control);
+            let magnitude = covariance.get(active, active).abs()
+                + covariance.get(control, control).abs()
+                + 2.0 * covariance.get(active, control).abs();
+            // Cancellation noise is clamped; a materially negative variance means the
+            // inclusion-exclusion covariance is invalid and no uncertainty is reported.
+            if !variance.is_finite() || variance < -1e-9 * magnitude {
+                return Err(CausalError::Unsupported {
+                    message: "cluster contrast variance is materially negative",
+                });
+            }
             contrast.se = variance.max(0.0).sqrt();
         }
         out.summary.covariance = covariance.clone();

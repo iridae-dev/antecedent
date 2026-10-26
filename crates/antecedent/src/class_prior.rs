@@ -111,7 +111,7 @@ impl ClassPrior {
                         ),
                     });
                 }
-                Ok(normalized(masses.to_vec()))
+                normalized(masses.to_vec())
             }
             ClassPriorInner::Pairs(pairs) => {
                 let mut by_key: HashMap<u64, f64> = pairs.iter().copied().collect();
@@ -137,7 +137,7 @@ impl ClassPrior {
                         ),
                     });
                 }
-                Ok(normalized(out))
+                normalized(out)
             }
         }
     }
@@ -214,12 +214,41 @@ impl ClassPriorBinding {
     }
 }
 
-fn normalized(mut masses: Vec<f64>) -> Vec<f64> {
-    let total: f64 = masses.iter().sum();
-    for mass in &mut masses {
+/// Masses divided through by their maximum, with the compensated sum of the scaled masses.
+///
+/// Scaling by the maximum keeps every term in `[0, 1]`, so neither the sum nor the later
+/// division can overflow however large the finite masses are, and the compensated sum makes
+/// the result independent of summation order to the last bit or two.
+fn scaled_masses(masses: &[f64]) -> Option<(Vec<f64>, f64)> {
+    let max = masses.iter().copied().fold(0.0_f64, f64::max);
+    if !max.is_finite() || max <= 0.0 {
+        return None;
+    }
+    let scaled: Vec<f64> = masses.iter().map(|mass| mass / max).collect();
+    let (mut sum, mut compensation) = (0.0_f64, 0.0_f64);
+    for &term in &scaled {
+        let next = sum + term;
+        compensation +=
+            if sum.abs() >= term.abs() { (sum - next) + term } else { (term - next) + sum };
+        sum = next;
+    }
+    Some((scaled, sum + compensation))
+}
+
+fn normalized(masses: Vec<f64>) -> Result<Vec<f64>, CausalError> {
+    let Some((mut scaled, total)) = scaled_masses(&masses) else {
+        return Err(non_positive_total());
+    };
+    for mass in &mut scaled {
         *mass /= total;
     }
-    masses
+    Ok(scaled)
+}
+
+fn non_positive_total() -> CausalError {
+    CausalError::Compile {
+        message: "class prior total mass must be finite and strictly positive".into(),
+    }
 }
 
 fn validate_mass(mass: f64) -> Result<(), CausalError> {
@@ -232,13 +261,8 @@ fn validate_mass(mass: f64) -> Result<(), CausalError> {
 }
 
 fn ensure_positive_total(masses: impl IntoIterator<Item = f64>) -> Result<(), CausalError> {
-    let total: f64 = masses.into_iter().sum();
-    if !total.is_finite() || total <= 0.0 {
-        return Err(CausalError::Compile {
-            message: "class prior total mass must be finite and strictly positive".into(),
-        });
-    }
-    Ok(())
+    let masses: Vec<f64> = masses.into_iter().collect();
+    scaled_masses(&masses).map(|_| ()).ok_or_else(non_positive_total)
 }
 
 #[cfg(test)]
@@ -251,6 +275,14 @@ mod tests {
         assert!(ClassPrior::from_ordered([1.0, -0.1]).is_err());
         assert!(ClassPrior::from_ordered([f64::NAN]).is_err());
         assert!(ClassPrior::from_ordered([0.0, 0.0]).is_err());
+    }
+
+    #[test]
+    fn huge_finite_masses_normalise_without_overflow() {
+        let prior = ClassPrior::from_ordered([f64::MAX, f64::MAX]).unwrap();
+        let ClassPriorInner::Ordered(masses) = &prior.inner else { unreachable!() };
+        let out = normalized(masses.to_vec()).unwrap();
+        assert!((out[0] - 0.5).abs() < 1e-15 && (out[1] - 0.5).abs() < 1e-15);
     }
 
     #[test]

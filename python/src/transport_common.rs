@@ -73,8 +73,7 @@ impl TransportPyErr for antecedent_identify::IdentificationError {
             | E::SustainedPolicyUnsupported
             | E::NotCertified { .. }
             | E::ResultLimitExceeded { .. }
-            | E::InvariantViolated { .. }
-            | E::Message(_) => {
+            | E::InvariantViolated { .. } => {
                 crate::refusal(reason_code!("transport_not_certified"), self.to_string())
             }
             // `IdentificationError` is `#[non_exhaustive]`; a new variant lands on

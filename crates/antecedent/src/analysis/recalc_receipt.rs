@@ -113,7 +113,7 @@ impl Counter {
         Self::LawSummary,
         Self::PosteriorDraw,
         Self::ExternalInvocation(
-            antecedent_core::recalc::Branch::new(0).expect("branch zero is valid"),
+            branch_zero(),
         ),
     ];
 
@@ -483,7 +483,7 @@ fn verify_entry(entry: &ReceiptEntry) -> Result<(), ReceiptError> {
     }
     let callback_required = [Counter::ExternalInvocation(match stage {
         Stage::ProviderRequest(branch) => branch,
-        _ => antecedent_core::recalc::Branch::new(0).expect("branch zero is valid"),
+        _ => branch_zero(),
     })];
     let required = if matches!(stage, Stage::ProviderRequest(_))
         && matches!(entry.status, StageStatus::Recomputed { .. })
@@ -1323,6 +1323,11 @@ impl RecalcSessionKind {
             },
         }
     }
+}
+
+/// The first external-study branch, which every layout admits.
+fn branch_zero() -> antecedent_core::recalc::Branch {
+    antecedent_core::recalc::Branch::new(0).expect("branch zero is below the branch limit")
 }
 
 #[cfg(test)]

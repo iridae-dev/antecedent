@@ -35,8 +35,8 @@ use crate::result::PERCENTILE_95_MIN_REPLICATES;
 
 use super::transport_common::{
     GraphFields, PERCENTILE_FLOOR, apply_posterior_draw_floor, assignments, digest, err,
-    estimate_err, law_wires, rebind_snapshots, rebuild_checked_proof, requirements,
-    sort_axis_values,
+    estimate_err, is_probability_vector, law_wires, rebind_snapshots, rebuild_checked_proof,
+    requirements, sort_axis_values,
 };
 
 /// Why a statistical transport estimate carries no (or no licensed) uncertainty interval.
@@ -2372,8 +2372,7 @@ fn validate_uncertainty(
         estimate.distribution.outcomes.iter().map(|v| (*v, Vec::new())).collect();
     for row in rows {
         if row.len() != width
-            || row.iter().any(|p| !p.is_finite() || !(0.0..=1.0).contains(p))
-            || (row.iter().sum::<f64>() - 1.0).abs() > 1e-9
+            || !is_probability_vector(row)
         {
             return Err(bad());
         }
@@ -2526,12 +2525,7 @@ fn validate_bayesian_posterior(
     }
     let mut distributions = Vec::with_capacity(wire.probabilities.len());
     for probabilities in &wire.probabilities {
-        let mass: f64 = probabilities.iter().sum();
-        if probabilities.len() != point.atoms.len()
-            || probabilities.iter().any(|p| !p.is_finite() || *p < 0.0)
-            || !mass.is_finite()
-            || (mass - 1.0).abs() > 1e-10
-        {
+        if probabilities.len() != point.atoms.len() || !is_probability_vector(probabilities) {
             return Err(err("Bayesian transport artifact has invalid draw law"));
         }
         distributions.push(antecedent_expr::ExactDistribution {

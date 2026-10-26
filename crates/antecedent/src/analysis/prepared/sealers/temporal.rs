@@ -243,7 +243,9 @@ pub(super) fn temporal_dag_response(cx: &SealContext<'_>) -> SealOutcome {
             let identifier = crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded;
             let estimator = EstimatorId::temporal_response_for(&analysis.inference);
             if cx.binding.names(identifier, estimator) {
-                let temporal = query.temporal.as_ref().expect("guarded temporal response");
+                let temporal = query.temporal.as_ref().ok_or(CausalError::Unsupported {
+                    message: "a temporal response query carries no temporal specification",
+                })?;
                 let (treatment, outcome) =
                     crate::analysis::proof_support::require_primary_pair(&query.functional)?;
                 let dose = single_step_dose(query)?.unwrap_or(1.0);

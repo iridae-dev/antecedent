@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::OnceLock;
 
@@ -23,20 +24,31 @@ fn estimator_names() -> &'static [&'static str] {
     NAMES.get_or_init(|| EstimatorId::ALL.iter().map(EstimatorId::as_str).collect()).as_slice()
 }
 
-/// Parse a closed-set id by walking [`ALL`] / [`as_str`] so a new variant cannot
-/// compile into `estimator_data` / `identifier_data` and still miss `FromStr`.
-fn parse_closed<T: Copy + PartialEq>(
+/// Parse a closed-set id through a name index built once from [`ALL`] / [`as_str`], so a new
+/// variant cannot compile into `estimator_data` / `identifier_data` and still miss `FromStr`.
+fn parse_closed<T: Copy>(
     s: &str,
-    all: &'static [T],
-    as_str: fn(&T) -> &'static str,
+    index: &'static HashMap<&'static str, T>,
     kind: &'static str,
     expected: &'static [&'static str],
 ) -> Result<T, UnknownStrategy> {
-    all.iter().copied().find(|id| as_str(id) == s).ok_or_else(|| UnknownStrategy {
+    index.get(s).copied().ok_or_else(|| UnknownStrategy {
         kind,
         got: s.to_string(),
         expected,
     })
+}
+
+/// Name -> id for every identifier, built once.
+fn identifier_index() -> &'static HashMap<&'static str, IdentifierId> {
+    static INDEX: OnceLock<HashMap<&'static str, IdentifierId>> = OnceLock::new();
+    INDEX.get_or_init(|| IdentifierId::ALL.iter().map(|id| (id.as_str(), *id)).collect())
+}
+
+/// Name -> id for every estimator, built once.
+fn estimator_index() -> &'static HashMap<&'static str, EstimatorId> {
+    static INDEX: OnceLock<HashMap<&'static str, EstimatorId>> = OnceLock::new();
+    INDEX.get_or_init(|| EstimatorId::ALL.iter().map(|id| (id.as_str(), *id)).collect())
 }
 
 /// Declare a closed-set id enum together with its `ALL` catalog, both
@@ -236,7 +248,7 @@ impl FromStr for IdentifierId {
     ///
     /// [`UnknownStrategy`] when `s` does not match any closed-set identifier name.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        parse_closed(s, Self::ALL, Self::as_str, "identifier", identifier_names())
+        parse_closed(s, identifier_index(), "identifier", identifier_names())
     }
 }
 
@@ -1324,7 +1336,7 @@ impl FromStr for EstimatorId {
     ///
     /// [`UnknownStrategy`] when `s` does not match any closed-set estimator name.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        parse_closed(s, Self::ALL, Self::as_str, "estimator", estimator_names())
+        parse_closed(s, estimator_index(), "estimator", estimator_names())
     }
 }
 
@@ -1655,34 +1667,36 @@ pub fn select_claim(
     } else {
         identification.narrowed_to(index).unwrap_or(identification)
     };
-    if let Some(restriction) = estimator_claim_restriction(estimator) {
+    if let Some(restriction) = estimator.claim_restriction() {
         restrict_claim(&mut claim, &restriction);
     }
     Ok((claim, estimand))
 }
 
-/// Restriction under which `estimator`'s target equals the identified functional.
-///
-/// An estimator that evaluates the identified functional keeps the identifier's claim; how
-/// it models a regression inside that functional is an estimation-scope record, because the
-/// regression is a feature of the observed law that a richer model can fit without changing
-/// the target. An estimator that computes a *different* functional of the observed law is
-/// the queried effect only under a restriction on the structural model, and that
-/// restriction is part of the identification claim: the constant-effect (or monotonicity)
-/// restriction of a Wald ratio, recorded by the IV identifier, the restriction under
-/// which a product of regression coefficients is the front-door effect, and the restriction
-/// under which `total − direct` is the pure natural indirect effect the path-specific
-/// identifier certifies, recorded here because those identifiers cannot know which estimator
-/// will run.
-fn estimator_claim_restriction(estimator: EstimatorId) -> Option<AssumptionRecord> {
-    match estimator {
-        EstimatorId::FrontDoorTwoStage => {
-            Some(antecedent_estimate::linear_path_product_restriction())
+impl EstimatorId {
+    /// Restriction under which this estimator's target equals the identified functional, when
+    /// it needs one.
+    ///
+    /// An estimator that evaluates the identified functional keeps the identifier's claim; how
+    /// it models a regression inside that functional is an estimation-scope record, because the
+    /// regression is a feature of the observed law that a richer model can fit without changing
+    /// the target. An estimator that computes a *different* functional of the observed law is
+    /// the queried effect only under a restriction on the structural model, and that
+    /// restriction is part of the identification claim: the constant-effect (or monotonicity)
+    /// restriction of a Wald ratio, recorded by the IV identifier, the restriction under
+    /// which a product of regression coefficients is the front-door effect, and the restriction
+    /// under which `total − direct` is the pure natural indirect effect the path-specific
+    /// identifier certifies, recorded here because those identifiers cannot know which
+    /// estimator will run.
+    #[must_use]
+    pub fn claim_restriction(self) -> Option<AssumptionRecord> {
+        match self {
+            Self::FrontDoorTwoStage => Some(antecedent_estimate::linear_path_product_restriction()),
+            Self::StaticMediationLinear => {
+                Some(antecedent_estimate::linear_no_interaction_restriction())
+            }
+            _ => None,
         }
-        EstimatorId::StaticMediationLinear => {
-            Some(antecedent_estimate::linear_no_interaction_restriction())
-        }
-        _ => None,
     }
 }
 

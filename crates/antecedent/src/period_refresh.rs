@@ -88,6 +88,14 @@ pub struct RefreshBlock {
     pub rows: Vec<RefreshRow>,
 }
 
+/// How many of the fit's rows one period contributed, in the order the periods entered. The
+/// rows themselves live once, in the least-squares fit.
+#[derive(Clone, Debug)]
+struct BlockSpan {
+    snapshot_id: String,
+    len: usize,
+}
+
 /// One period applied to the mechanism, in order.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RefreshEvent {
@@ -104,7 +112,7 @@ pub struct RefreshEvent {
 /// An autoregressive mechanism kept across observation periods.
 #[derive(Clone, Debug)]
 pub struct PeriodRefresh {
-    blocks: Vec<RefreshBlock>,
+    spans: Vec<BlockSpan>,
     events: Vec<RefreshEvent>,
     lags: usize,
     standing: MechanismStanding,
@@ -187,15 +195,15 @@ fn lagged_rows(
     first_time: i64,
     lags: usize,
 ) -> Result<Vec<RefreshRow>, StateError> {
-    let mut rows = Vec::new();
+    let mut rows = Vec::with_capacity(series.len().saturating_sub(lags));
     for target in lags..series.len() {
         let mut x = Vec::with_capacity(lags + 1);
         x.push(1.0);
         for lag in 1..=lags {
-            let earlier = target - lag;
-            x.push(series.get(earlier).copied().unwrap_or(f64::NAN));
+            // `target >= lags >= lag`, so the index is in range.
+            x.push(series[target - lag]);
         }
-        let y = series.get(target).copied().unwrap_or(f64::NAN);
+        let y = series[target];
         let offset = i64::try_from(target).map_err(|_| invalid("series too long"))?;
         let time = first_time.checked_add(offset).ok_or_else(|| invalid("time overflow"))?;
         let id = u64::try_from(time).map_err(|_| invalid("time indices must be nonnegative"))?;
@@ -284,12 +292,13 @@ impl PeriodRefresh {
         }
         let rows = lagged_rows(values, window.period.start, lags)?;
         let source = format!("{series_id}@{}", window.snapshot_id);
-        let fit = OlsRefresh::from_rows(source.as_str(), lags + 1, rows.clone())?;
+        let stats = window_stats(lags + 1, &rows)?;
+        let span = BlockSpan { snapshot_id: window.snapshot_id.clone(), len: rows.len() };
+        let fit = OlsRefresh::from_rows(source.as_str(), lags + 1, rows)?;
         let mut posterior = ConjugateOlsPosterior::new(prior);
-        posterior.update(prior, &window.snapshot_id, &window_stats(lags + 1, &rows)?)?;
-        let block = RefreshBlock { snapshot_id: window.snapshot_id.clone(), rows };
+        posterior.update(prior, &window.snapshot_id, &stats)?;
         Ok(Self {
-            blocks: vec![block],
+            spans: vec![span],
             events: vec![RefreshEvent {
                 window: window.clone(),
                 cadence,
@@ -350,10 +359,26 @@ impl PeriodRefresh {
         &self.series_id
     }
 
-    /// The blocks the live posterior used, in the order they entered.
+    /// The blocks the live posterior used, in the order they entered, with copies of their
+    /// retained rows (the rows are stored once, in [`Self::fit`]).
     #[must_use]
-    pub fn blocks(&self) -> &[RefreshBlock] {
-        &self.blocks
+    pub fn blocks(&self) -> Vec<RefreshBlock> {
+        self.block_rows()
+            .map(|(snapshot_id, rows)| RefreshBlock {
+                snapshot_id: snapshot_id.to_owned(),
+                rows: rows.to_vec(),
+            })
+            .collect()
+    }
+
+    /// Each block's snapshot id with its slice of the fit's retained rows.
+    fn block_rows(&self) -> impl Iterator<Item = (&str, &[RefreshRow])> {
+        let mut rest = self.fit.rows();
+        self.spans.iter().map(move |span| {
+            let (block, tail) = rest.split_at(span.len.min(rest.len()));
+            rest = tail;
+            (span.snapshot_id.as_str(), block)
+        })
     }
 
     /// Every period applied so far, in order.
@@ -474,7 +499,7 @@ impl PeriodRefresh {
             posterior.update(&self.prior, &window.snapshot_id, &block)?;
             self.fit.append_window(&self.source, &rows)?;
             self.posterior = posterior;
-            self.blocks.push(RefreshBlock { snapshot_id: window.snapshot_id.clone(), rows });
+            self.spans.push(BlockSpan { snapshot_id: window.snapshot_id.clone(), len: rows.len() });
         }
         self.tail =
             if contiguous { tail_of(&series, self.lags) } else { tail_of(values, self.lags) };
@@ -492,8 +517,9 @@ impl PeriodRefresh {
         let mut posterior = ConjugateOlsPosterior::new(&self.prior);
         posterior.update(&self.prior, &window.snapshot_id, &block)?;
         let source = format!("{}@{}", self.series_id, window.snapshot_id);
-        self.fit.replace_source(source.as_str(), rows.clone())?;
-        self.blocks = vec![RefreshBlock { snapshot_id: window.snapshot_id.clone(), rows }];
+        let span = BlockSpan { snapshot_id: window.snapshot_id.clone(), len: rows.len() };
+        self.fit.replace_source(source.as_str(), rows)?;
+        self.spans = vec![span];
         self.source = source;
         self.posterior = posterior;
         self.tail = tail_of(values, self.lags);
@@ -521,7 +547,7 @@ impl PeriodRefresh {
         if prior.ncols() != self.lags + 1 {
             return Err(invalid("a prior of width lags + 1"));
         }
-        self.posterior = self.posterior_of_blocks(&self.blocks, prior)?;
+        self.posterior = self.posterior_of_spans(prior, None)?;
         self.prior = prior.clone();
         Ok(())
     }
@@ -533,38 +559,62 @@ impl PeriodRefresh {
     /// # Errors
     /// An unknown id, or the last remaining row. Nothing changes.
     pub fn evict_row(&mut self, id: u64) -> Result<RefreshOutcome, StateError> {
-        let mut blocks = self.blocks.clone();
-        let mut found = false;
-        for block in &mut blocks {
-            let before = block.rows.len();
-            block.rows.retain(|row| row.id != id);
-            found |= block.rows.len() != before;
+        let position = self
+            .fit
+            .rows()
+            .iter()
+            .position(|row| row.id == id)
+            .ok_or_else(|| StateError::UnknownId(format!("row {id}")))?;
+        let mut spans = self.spans.clone();
+        let mut cursor = 0;
+        for span in &mut spans {
+            if position < cursor + span.len {
+                span.len -= 1;
+                break;
+            }
+            cursor += span.len;
         }
-        blocks.retain(|block| !block.rows.is_empty());
-        if !found {
-            return Err(StateError::UnknownId(format!("row {id}")));
-        }
-        if blocks.is_empty() {
+        spans.retain(|span| span.len > 0);
+        if spans.is_empty() {
             return Err(invalid(
                 "the last retained row cannot be evicted; apply a new period instead",
             ));
         }
-        let posterior = self.posterior_of_blocks(&blocks, &self.prior)?;
+        // The posterior is rebuilt from every retained row but the evicted one, before the fit
+        // is touched, so a failure changes nothing.
+        let posterior = self.posterior_of_spans(&self.prior, Some(position))?;
         let outcome = self.fit.evict_row(id)?;
-        self.blocks = blocks;
+        self.spans = spans;
         self.posterior = posterior;
         Ok(outcome)
     }
 
-    fn posterior_of_blocks(
+    /// The posterior of the blocks' rows under `prior`, left in the order the periods entered,
+    /// without the row at `skip` (an index into the fit's retained rows). When a row is
+    /// skipped, a block left empty is not applied.
+    fn posterior_of_spans(
         &self,
-        blocks: &[RefreshBlock],
         prior: &ConjugateOlsPrior,
+        skip: Option<usize>,
     ) -> Result<ConjugateOlsPosterior, StateError> {
+        let rows = self.fit.rows();
         let mut posterior = ConjugateOlsPosterior::new(prior);
-        for block in blocks {
-            let stats = window_stats(self.lags + 1, &block.rows)?;
-            posterior.update(prior, &block.snapshot_id, &stats)?;
+        let mut cursor = 0;
+        for span in &self.spans {
+            let end = (cursor + span.len).min(rows.len());
+            let mut stats = LinearOlsSuffStats::new(self.lags + 1)?;
+            let mut used = 0_usize;
+            for (offset, row) in rows[cursor..end].iter().enumerate() {
+                if skip == Some(cursor + offset) {
+                    continue;
+                }
+                stats.append_row(&row.x, row.y)?;
+                used += 1;
+            }
+            if skip.is_none() || used > 0 {
+                posterior.update(prior, &span.snapshot_id, &stats)?;
+            }
+            cursor = end;
         }
         Ok(posterior)
     }
@@ -587,15 +637,13 @@ impl PeriodRefresh {
         };
         let events = self.events.iter().map(event_wire).collect();
         let blocks = self
-            .blocks
-            .iter()
-            .map(|block| {
-                let rows = block
-                    .rows
+            .block_rows()
+            .map(|(snapshot_id, block_rows)| {
+                let rows = block_rows
                     .iter()
                     .map(|row| RowWire { id: row.id, x: row.x.clone(), y: row.y })
                     .collect();
-                BlockWire::new(block.snapshot_id.clone(), rows)
+                BlockWire::new(snapshot_id.to_owned(), rows)
             })
             .collect();
         let lags = u32::try_from(self.lags).map_err(|_| invalid("lag order too large"))?;

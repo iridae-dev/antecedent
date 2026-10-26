@@ -618,8 +618,10 @@ fn scan_rank(cols: &[&[f64]], tol: f64, ctx: &ExecutionContext) -> Result<RankSc
 /// `1 - R²` of `values` regressed on the scanned basis (which spans the intercept first),
 /// as the square root: the unexplained share of the centered norm. `None` for a constant.
 fn unexplained_ratio(basis: &[Vec<f64>], values: &[f64]) -> Option<f64> {
-    let n = values.len() as f64;
-    let mean = values.iter().sum::<f64>() / n;
+    if values.is_empty() {
+        return None;
+    }
+    let mean = antecedent_kernels::mean(values);
     let centered: f64 = values.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>().sqrt();
     if !(centered.is_finite() && centered > 0.0) {
         return None;
@@ -638,9 +640,11 @@ fn unexplained_ratio(basis: &[Vec<f64>], values: &[f64]) -> Option<f64> {
 
 /// Squared Pearson correlation; `None` when either side is constant.
 fn r_squared(a: &[f64], b: &[f64]) -> Option<f64> {
-    let n = a.len() as f64;
-    let ma = a.iter().sum::<f64>() / n;
-    let mb = b.iter().sum::<f64>() / n;
+    if a.is_empty() || b.is_empty() {
+        return None;
+    }
+    let ma = antecedent_kernels::mean(a);
+    let mb = antecedent_kernels::mean(b);
     let (mut saa, mut sbb, mut sab) = (0.0, 0.0, 0.0);
     for (x, y) in a.iter().zip(b) {
         saa += (x - ma) * (x - ma);
@@ -652,41 +656,34 @@ fn r_squared(a: &[f64], b: &[f64]) -> Option<f64> {
 
 /// Normalized bit pattern of a value (`-0.0` equals `0.0`).
 fn bits(value: f64) -> u64 {
-    (value + 0.0).to_bits()
+    super::recalc_common::canonical_bits(value)
 }
 
-#[allow(clippy::needless_range_loop, reason = "index pairs walk several parallel arrays")]
 fn duplicate_groups(columns: &[Vec<f64>]) -> Vec<Vec<usize>> {
-    let hashes: Vec<u64> = columns
-        .iter()
-        .map(|col| {
-            let mut hasher = DefaultHasher::new();
-            for &v in col {
-                bits(v).hash(&mut hasher);
-            }
-            hasher.finish()
-        })
-        .collect();
-    let mut seen = vec![false; columns.len()];
-    let mut groups = Vec::new();
-    for j in 0..columns.len() {
-        if seen[j] {
-            continue;
+    // Bucket columns by an in-process hash, then verify bit equality only against the
+    // representative of each group in the bucket: linear in the columns for distinct data.
+    let mut buckets: std::collections::HashMap<u64, Vec<usize>> = std::collections::HashMap::new();
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    for (j, col) in columns.iter().enumerate() {
+        let mut hasher = DefaultHasher::new();
+        for &v in col {
+            bits(v).hash(&mut hasher);
         }
-        let mut group = vec![j];
-        for k in (j + 1)..columns.len() {
-            if !seen[k]
-                && hashes[k] == hashes[j]
-                && columns[k].iter().zip(&columns[j]).all(|(a, b)| bits(*a) == bits(*b))
-            {
-                seen[k] = true;
-                group.push(k);
+        let bucket = buckets.entry(hasher.finish()).or_default();
+        let found = bucket.iter().copied().find(|&group| {
+            let first = groups[group][0];
+            columns[first].len() == col.len()
+                && columns[first].iter().zip(col).all(|(a, b)| bits(*a) == bits(*b))
+        });
+        match found {
+            Some(group) => groups[group].push(j),
+            None => {
+                bucket.push(groups.len());
+                groups.push(vec![j]);
             }
-        }
-        if group.len() > 1 {
-            groups.push(group);
         }
     }
+    groups.retain(|group| group.len() > 1);
     groups
 }
 
@@ -1085,10 +1082,10 @@ impl NuisanceFitDiagnostics {
     }
 }
 
+/// Kish effective sample size, rescaled by the largest weight so large finite weights do not
+/// overflow; zero mass is `0.0` and a non-finite weight is `NaN` (an explicit unavailable value).
 fn kish_ess(weights: &[f64]) -> f64 {
-    let sum: f64 = weights.iter().sum();
-    let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
-    if sum_sq > 0.0 { sum * sum / sum_sq } else { 0.0 }
+    antecedent_kernels::kish_ess(weights)
 }
 
 #[allow(

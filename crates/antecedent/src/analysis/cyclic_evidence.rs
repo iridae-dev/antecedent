@@ -243,6 +243,17 @@ pub struct CyclicEvidence {
     envelopes: Vec<EvidenceEnvelope>,
     _retention: Arc<Vec<antecedent_core::execution::AdmissionLease>>,
 }
+
+/// Bytes an artifact admission reserves: four copies of the source, eight of the serialised
+/// projection and a fixed overhead, saturating so an oversized request is refused by the pool
+/// instead of wrapping.
+fn admission_reserve(source_len: usize, serialized_len: usize, overhead: u64) -> u64 {
+    (source_len as u64)
+        .saturating_mul(4)
+        .saturating_add((serialized_len as u64).saturating_mul(8))
+        .saturating_add(overhead)
+}
+
 fn invalid(s: impl std::fmt::Display) -> CyclicArtifactError {
     CyclicArtifactError::Invalid(s.to_string())
 }
@@ -1223,9 +1234,11 @@ impl CyclicEvidence {
         if selectors.len().saturating_mul(draws) > 1_000_000 {
             return Err(invalid("cyclic evidence projection cell limit"));
         }
-        let reserve = (artifact.len() as u64) * 4
-            + (cyclic_serialized_size(&(source, &schema, &selectors), ctx)? as u64) * 8
-            + 4096;
+        let reserve = admission_reserve(
+            artifact.len(),
+            cyclic_serialized_size(&(source, &schema, &selectors), ctx)?,
+            4096,
+        );
         let mut retention =
             vec![ctx.acquire_admission(0, reserve).map_err(CyclicArtifactError::Admission)?];
         let identity =
@@ -1239,7 +1252,7 @@ impl CyclicEvidence {
                 ctx,
             )? as u64;
             retention.push(
-                ctx.acquire_admission(0, projection_bytes * 8 + 4096)
+                ctx.acquire_admission(0, projection_bytes.saturating_mul(8).saturating_add(4096))
                     .map_err(CyclicArtifactError::Admission)?,
             );
             let (name, units) = schema
@@ -1405,11 +1418,11 @@ impl CyclicEvidence {
         let _admission = ctx
             .acquire_admission(
                 0,
-                (self.source.len() as u64) * 4
-                    + (cyclic_serialized_size(&(&self.report, &self.schema, &self.selectors), ctx)?
-                        as u64)
-                        * 8
-                    + 65536,
+                admission_reserve(
+                    self.source.len(),
+                    cyclic_serialized_size(&(&self.report, &self.schema, &self.selectors), ctx)?,
+                    65536,
+                ),
             )
             .map_err(CyclicArtifactError::Admission)?;
         let bytes = antecedent_io::to_cbor(&Record {

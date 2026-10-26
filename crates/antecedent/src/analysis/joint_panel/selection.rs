@@ -65,21 +65,39 @@ struct Recipe {
 /// Original observations, target and complete algorithm retained for execution/replay.
 #[derive(Clone, Debug)]
 pub struct PreparedRandomizedSelection {
-    recipe: Recipe,
+    recipe: std::sync::Arc<Recipe>,
     identity: SemanticDigest,
 }
 /// Actual selected program with held-out observational uncertainty and bootstrap diagnostics.
 #[derive(Debug)]
 pub struct RandomizedSelectionResult {
-    /// Generation, fitting, feasibility, search, selection, and evaluation receipt.
-    pub procedure: WholeProcedureSelection<usize>,
-    /// Complete original data/target/policy identity, rather than a simulation seed.
-    pub identity: SemanticDigest,
+    procedure: WholeProcedureSelection<usize>,
+    identity: SemanticDigest,
     prepared: PreparedRandomizedSelection,
     seed: u64,
     repetitions: usize,
     tie_tolerance: f64,
 }
+/// Fewest complete programs a randomized selection compares.
+const MIN_PROGRAMS: usize = 2;
+/// Most complete programs a randomized selection compares: the held-out procedure refits and
+/// ranks every program on every resample, so the count bounds the per-repetition work.
+const MAX_PROGRAMS: usize = 256;
+
+impl RandomizedSelectionResult {
+    /// Generation, fitting, feasibility, search, selection, and evaluation receipt.
+    #[must_use]
+    pub const fn procedure(&self) -> &WholeProcedureSelection<usize> {
+        &self.procedure
+    }
+
+    /// Complete original data/target/policy identity, rather than a simulation seed.
+    #[must_use]
+    pub const fn identity(&self) -> SemanticDigest {
+        self.identity
+    }
+}
+
 fn invalid(e: impl std::fmt::Display) -> ProgramSearchError {
     ProgramSearchError::Invalid(e.to_string())
 }
@@ -95,8 +113,10 @@ impl PreparedRandomizedSelection {
         policy: RandomizedSelectionPolicy,
     ) -> Result<Self, ProgramSearchError> {
         let k = design.worlds.len();
-        if !(2..=256).contains(&k) {
-            return Err(invalid("randomized selection admits 2..256 complete programs"));
+        if !(MIN_PROGRAMS..=MAX_PROGRAMS).contains(&k) {
+            return Err(invalid(format!(
+                "randomized selection admits {MIN_PROGRAMS}..{MAX_PROGRAMS} complete programs"
+            )));
         }
         if policy.independent_sampling_frame.trim().is_empty()
             || policy.utility_units.trim().is_empty()
@@ -130,7 +150,7 @@ impl PreparedRandomizedSelection {
             "antecedent.joint_panel.randomized_selection.v1",
             &bytes,
         ));
-        Ok(Self { recipe, identity })
+        Ok(Self { recipe: std::sync::Arc::new(recipe), identity })
     }
     /// Execute complete selection on training units and fixed-action evaluation
     /// on independent held-out units. Original clusters resample as whole units.
@@ -386,7 +406,7 @@ impl RandomizedSelectionResult {
     pub fn export(&self) -> Result<Vec<u8>, ProgramSearchError> {
         antecedent_io::convert::to_cbor(&Document {
             version: 1,
-            recipe: self.prepared.recipe.clone(),
+            recipe: Recipe::clone(&self.prepared.recipe),
             seed: self.seed,
             repetitions: self.repetitions,
             tie_tolerance: self.tie_tolerance,
@@ -539,10 +559,15 @@ mod tests {
         };
         let training = units("train");
         let validation = units("validation");
-        let mut policy = base.recipe.policy;
+        let mut policy = base.recipe.policy.clone();
         policy.resource_costs = vec![1.0; 3];
         let prepared =
-            PreparedRandomizedSelection::compile(base.recipe.design, training, validation, policy)
+            PreparedRandomizedSelection::compile(
+                base.recipe.design.clone(),
+                training,
+                validation,
+                policy,
+            )
                 .unwrap();
         let result =
             prepared.execute(repetitions, 0.01, &ExecutionContext::for_tests(seed)).unwrap();

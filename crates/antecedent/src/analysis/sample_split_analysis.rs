@@ -464,8 +464,9 @@ impl SplitAnalysisEffect {
                 "the effective sample size does not exceed the regression's coefficients",
             ));
         }
-        let quantile =
-            antecedent_stats::student_t_ppf(1.0 - (1.0 - level) / 2.0, degrees_of_freedom);
+        // By symmetry the upper quantile is minus the lower one at `(1 - level) / 2`; evaluating
+        // the small tail directly avoids `1 - tiny` rounding to exactly one.
+        let quantile = -antecedent_stats::student_t_ppf((1.0 - level) / 2.0, degrees_of_freedom);
         Ok(SplitEffectInterval {
             level,
             lower: self.effect - quantile * self.standard_error,

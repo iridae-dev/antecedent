@@ -59,7 +59,7 @@ pub(super) fn score_table_treatment_col(analysis: &Study, table: &ScoreTable) ->
     let values = data.float64_values(table.treatment).ok()?;
     let mut col = Vec::with_capacity(table.n_rows);
     for &idx in table.row_index.iter() {
-        col.push(*values.get(usize::try_from(idx.get()).expect("row id"))?);
+        col.push(*values.get(usize::try_from(idx.get()).ok()?)?);
     }
     Some(col)
 }

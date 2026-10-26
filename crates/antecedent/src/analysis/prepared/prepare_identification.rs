@@ -88,17 +88,17 @@ pub(crate) fn identify_temporal_response_horizons(
     }
     let origin = temporal.treatment_offset()?;
     let sequential = schedule
-        .is_some_and(|nodes| nodes.len() != 1 || (nodes[0].0, nodes[0].1) != (treatment, origin));
+        .filter(|nodes| nodes.len() != 1 || (nodes[0].0, nodes[0].1) != (treatment, origin));
     let mut by_horizon = Vec::with_capacity(temporal.horizons.len());
     for &horizon in temporal.horizons.iter() {
-        let id_res = if sequential {
+        let id_res = if let Some(nodes) = sequential {
             let outcome_at = i32::try_from(horizon.saturating_sub(1)).unwrap_or(i32::MAX);
             TemporalBackdoorIdentifier::new()
                 .identify_temporal_schedule(
                     graph,
                     outcome,
                     outcome_at,
-                    schedule.expect("sequential schedule"),
+                    nodes,
                     temporal.max_history_lag,
                     target_population.clone(),
                 )
@@ -914,7 +914,7 @@ impl Study {
         )?);
         let horizons: &[u32] = match &self.query {
             CausalQuery::Response(response) => {
-                &response.temporal.as_ref().expect("temporal query").horizons
+                response.temporal.as_ref().map_or(&[][..], |temporal| &temporal.horizons[..])
             }
             CausalQuery::Mediation(mediation) => &mediation.horizons,
             _ => &[],
@@ -1195,7 +1195,7 @@ impl Study {
                         .enumerate()
                         .filter_map(|(i, &keep)| {
                             keep.then_some(antecedent_data::GlobalId::new(
-                                u64::try_from(i).expect("row id"),
+                                i as u64,
                             ))
                         })
                         .collect::<Vec<_>>(),

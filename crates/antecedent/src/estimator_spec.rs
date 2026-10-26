@@ -400,82 +400,33 @@ impl From<EstimatorId> for EstimatorSpec {
     }
 }
 
-impl From<LinearAdjustmentAte> for EstimatorSpec {
-    fn from(cfg: LinearAdjustmentAte) -> Self {
-        Self::LinearAdjustmentAte(Box::new(cfg))
-    }
+/// `From<Cfg> for EstimatorSpec` for each configured estimator, boxing it into its variant.
+macro_rules! spec_from_config {
+    ($($cfg:ident => $variant:ident),+ $(,)?) => {
+        $(
+            impl From<$cfg> for EstimatorSpec {
+                fn from(cfg: $cfg) -> Self {
+                    Self::$variant(Box::new(cfg))
+                }
+            }
+        )+
+    };
 }
 
-impl From<PropensityWeighting> for EstimatorSpec {
-    fn from(cfg: PropensityWeighting) -> Self {
-        Self::PropensityWeighting(Box::new(cfg))
-    }
-}
-
-impl From<PropensityMatching> for EstimatorSpec {
-    fn from(cfg: PropensityMatching) -> Self {
-        Self::PropensityMatching(Box::new(cfg))
-    }
-}
-
-impl From<PropensityStratification> for EstimatorSpec {
-    fn from(cfg: PropensityStratification) -> Self {
-        Self::PropensityStratification(Box::new(cfg))
-    }
-}
-
-impl From<DistanceMatching> for EstimatorSpec {
-    fn from(cfg: DistanceMatching) -> Self {
-        Self::DistanceMatching(Box::new(cfg))
-    }
-}
-
-impl From<AipwAte> for EstimatorSpec {
-    fn from(cfg: AipwAte) -> Self {
-        Self::Aipw(Box::new(cfg))
-    }
-}
-
-impl From<GlmAdjustmentAte> for EstimatorSpec {
-    fn from(cfg: GlmAdjustmentAte) -> Self {
-        Self::GlmAdjustment(Box::new(cfg))
-    }
-}
-
-impl From<FrontDoorTwoStage> for EstimatorSpec {
-    fn from(cfg: FrontDoorTwoStage) -> Self {
-        Self::FrontDoorTwoStage(Box::new(cfg))
-    }
-}
-
-impl From<WaldIv> for EstimatorSpec {
-    fn from(cfg: WaldIv) -> Self {
-        Self::IvWald(Box::new(cfg))
-    }
-}
-
-impl From<TwoStageLeastSquares> for EstimatorSpec {
-    fn from(cfg: TwoStageLeastSquares) -> Self {
-        Self::Iv2Sls(Box::new(cfg))
-    }
-}
-
-impl From<DmlAte> for EstimatorSpec {
-    fn from(cfg: DmlAte) -> Self {
-        Self::Dml(Box::new(cfg))
-    }
-}
-
-impl From<DrLearner> for EstimatorSpec {
-    fn from(cfg: DrLearner) -> Self {
-        Self::DrLearner(Box::new(cfg))
-    }
-}
-
-impl From<CausalForest> for EstimatorSpec {
-    fn from(cfg: CausalForest) -> Self {
-        Self::CausalForest(Box::new(cfg))
-    }
+spec_from_config! {
+    LinearAdjustmentAte => LinearAdjustmentAte,
+    PropensityWeighting => PropensityWeighting,
+    PropensityMatching => PropensityMatching,
+    PropensityStratification => PropensityStratification,
+    DistanceMatching => DistanceMatching,
+    AipwAte => Aipw,
+    GlmAdjustmentAte => GlmAdjustment,
+    FrontDoorTwoStage => FrontDoorTwoStage,
+    WaldIv => IvWald,
+    TwoStageLeastSquares => Iv2Sls,
+    DmlAte => Dml,
+    DrLearner => DrLearner,
+    CausalForest => CausalForest,
 }
 
 #[cfg(test)]

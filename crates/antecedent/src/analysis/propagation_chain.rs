@@ -462,8 +462,9 @@ pub fn independent_product_table(
 
 // ------------------------------------------------------------ family adapters
 
-/// Most estimates one family table may join.
-pub const MAX_FAMILY_ESTIMATES: usize = 64;
+/// Most cells of the `k` by `k` joint covariance one family table may hold (a memory budget on
+/// the joint table, not a count of estimates: 1024 estimates fit).
+pub const MAX_FAMILY_TABLE_CELLS: usize = 1 << 20;
 
 fn family_refusal(
     detail: &'static str,
@@ -707,10 +708,10 @@ pub fn family_table(
     seed: u64,
 ) -> Result<FamilyTable, ChainRefusal> {
     let k = estimates.len();
-    if k == 0 || k > MAX_FAMILY_ESTIMATES {
+    if k == 0 || k.checked_mul(k).is_none_or(|cells| cells > MAX_FAMILY_TABLE_CELLS) {
         return Err(family_refusal(
             "propagation_chain.family_shape",
-            "a family table joins between one and 64 estimates",
+            "a family table joins at least one estimate and a joint table within the cell budget",
             None,
         ));
     }

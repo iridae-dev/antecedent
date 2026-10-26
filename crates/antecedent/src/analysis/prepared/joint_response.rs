@@ -811,7 +811,7 @@ fn compile_world(
         .design
         .matrix
         .chunks(n)
-        .map(|column| column.iter().sum::<f64>() / n as f64)
+        .map(antecedent_kernels::mean)
         .collect::<Vec<_>>();
     let mut columns = Vec::with_capacity(interventions.len());
     for intervention in interventions {

@@ -317,6 +317,7 @@ pub fn registry_from_candidates(tokens: &[&str]) -> Result<MechanismRegistry, Ca
 #[derive(Clone, Debug)]
 pub struct CheckedCounterfactualOperation {
     graph: Dag,
+    edges: crate::graph_identity::FrozenEdges,
     query: CounterfactualQuery,
     treatment: VariableId,
     outcome: VariableId,
@@ -369,7 +370,8 @@ impl CheckedCounterfactualOperation {
                 message: "counterfactual target variable is absent from the graph".into(),
             });
         }
-        Ok(Self { graph, query, treatment, outcome, active, control })
+        let edges = crate::graph_identity::FrozenEdges::of(&graph);
+        Ok(Self { graph, edges, query, treatment, outcome, active, control })
     }
 
     /// The frozen semantic target.
@@ -385,7 +387,7 @@ impl CheckedCounterfactualOperation {
     }
 
     pub(crate) fn matches(&self, graph: &Dag, query: &CounterfactualQuery) -> bool {
-        self.query == *query && crate::graph_identity::same_dag_structure(graph, &self.graph)
+        self.query == *query && self.edges.matches(&self.graph, graph)
     }
 
     /// Fit mechanisms under the frozen graph, then abduct once for both worlds.
@@ -394,17 +396,23 @@ impl CheckedCounterfactualOperation {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<(FittedGcm, IteResult), CausalError> {
-        let fitted = fit_gcm_counterfactual(self.graph.clone(), data)?;
-        let ite = counterfactual_ite(
-            fitted.model.clone(),
-            data,
+        let FittedGcm { model, assignments } = fit_gcm_counterfactual(self.graph.clone(), data)?;
+        // The engine shares the model through an `Arc`; once it is dropped the fitted model
+        // is moved back out without a copy.
+        let model = Arc::new(model);
+        let engine = CounterfactualEngine::shared(Arc::clone(&model));
+        let exo = engine.abduct(data, AbductionMissingPolicy::Error, ctx)?;
+        let ite = ite_from_abduction(
+            &engine,
+            exo,
             self.treatment,
             self.outcome,
-            self.active,
-            self.control,
+            (self.active, self.control),
             ctx,
         )?;
-        Ok((fitted, ite))
+        drop(engine);
+        let model = Arc::try_unwrap(model).unwrap_or_else(|shared| (*shared).clone());
+        Ok((FittedGcm { model, assignments }, ite))
     }
 }
 
@@ -1227,6 +1235,14 @@ pub struct UnitEffectIntervals {
     pub method: &'static str,
 }
 
+/// The anomaly query over `outcomes` with the default reference.
+fn anomaly_query(
+    outcomes: impl IntoIterator<Item = VariableId>,
+    max_units: usize,
+) -> AnomalyAttributionQuery {
+    AnomalyAttributionQuery::new(outcomes.into_iter().collect::<Arc<[VariableId]>>(), max_units)
+}
+
 /// Score anomalies for listed outcome variables.
 ///
 /// # Errors
@@ -1239,8 +1255,7 @@ pub fn anomaly_attribution(
     outcomes: impl IntoIterator<Item = VariableId>,
     max_units: usize,
 ) -> Result<Vec<AnomalyScores>, CausalError> {
-    let targets: Arc<[VariableId]> = outcomes.into_iter().collect::<Vec<_>>().into();
-    let q = AnomalyAttributionQuery::new(targets, max_units);
+    let q = anomaly_query(outcomes, max_units);
     score_anomalies(model, data, &q).map_err(CausalError::from)
 }
 
@@ -1258,8 +1273,7 @@ pub fn anomaly_attribution_with(
     max_units: usize,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Vec<AnomalyScores>, CausalError> {
-    let targets: Arc<[VariableId]> = outcomes.into_iter().collect::<Vec<_>>().into();
-    let q = AnomalyAttributionQuery::new(targets, max_units);
+    let q = anomaly_query(outcomes, max_units);
     score_anomalies_with(model, data, &q, ctx).map_err(CausalError::from)
 }
 

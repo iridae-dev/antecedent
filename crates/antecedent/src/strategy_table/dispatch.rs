@@ -450,6 +450,64 @@ pub fn estimate_provenance_step(estimator: EstimatorId) -> (&'static str, &'stat
     estimator_data(estimator).provenance
 }
 
+/// What every static estimator prepares against and fits under.
+#[derive(Clone, Copy)]
+struct FitTarget<'a> {
+    data: &'a TabularData,
+    estimand: &'a IdentifiedEstimand,
+    query: &'a AverageEffectQuery,
+    ctx: &'a ExecutionContext,
+}
+
+/// `prepare` then `fit` one estimator, lifting both errors; the optional last argument is the
+/// workspace the estimator's `fit` takes.
+macro_rules! prepare_fit {
+    ($est:expr, $target:expr, $assumptions:expr) => {{
+        let prep =
+            $est.prepare($target.data, $target.estimand, $target.query).map_err(est_err)?;
+        $est.fit(&prep, $target.ctx, $assumptions).map_err(est_err)
+    }};
+    ($est:expr, $target:expr, $assumptions:expr, $workspace:expr) => {{
+        let prep =
+            $est.prepare($target.data, $target.estimand, $target.query).map_err(est_err)?;
+        $est.fit(&prep, $workspace, $target.ctx, $assumptions).map_err(est_err)
+    }};
+}
+
+/// Apply the facade knobs a default-built estimator accepts. Each estimator names the knobs
+/// it takes, so which estimators bootstrap, and which take an overlap policy or a population
+/// registry, is stated once per estimator in [`estimate_static_effect_default`]:
+///
+/// | knob           | effect                                                          |
+/// |----------------|-----------------------------------------------------------------|
+/// | `sampling`     | the study's declared sampling design                            |
+/// | `bootstrap`    | the requested bootstrap replicates                              |
+/// | `no_bootstrap` | zero replicates (matching and IV do not take the facade bootstrap) |
+/// | `overlap`      | the overlap policy, when one is set                             |
+/// | `registry`     | the population registry                                         |
+macro_rules! apply_knobs {
+    ($est:ident, $input:ident; $($knob:ident),* $(,)?) => {
+        $( apply_knobs!(@one $est, $input, $knob); )*
+    };
+    (@one $est:ident, $input:ident, sampling) => {
+        $est.sampling_design = crate::estimator_spec::declared_sampling($input.sampling_design);
+    };
+    (@one $est:ident, $input:ident, bootstrap) => {
+        $est.bootstrap_replicates = $input.bootstrap_replicates;
+    };
+    (@one $est:ident, $input:ident, no_bootstrap) => {
+        $est.bootstrap_replicates = 0;
+    };
+    (@one $est:ident, $input:ident, overlap) => {
+        if let Some(policy) = $input.overlap_policy {
+            $est.overlap = policy;
+        }
+    };
+    (@one $est:ident, $input:ident, registry) => {
+        $est.population_registry = $input.population_registry.cloned();
+    };
+}
+
 /// The data, estimand, query and estimator settings a static estimate runs against.
 ///
 /// `bootstrap_replicates`, `overlap_policy` and `population_registry` configure a fresh
@@ -494,65 +552,40 @@ pub(crate) fn estimate_static_effect(
     workspaces: &mut StaticEstimateWorkspaces,
 ) -> Result<EffectEstimate, CausalError> {
     let StaticEstimateInput { data, estimand, query, .. } = input;
+    let target = FitTarget { data, estimand, query, ctx };
     match spec {
         EstimatorSpec::Default(id) => {
             estimate_static_effect_default(*id, input, assumptions, ctx, workspaces)
         }
         EstimatorSpec::LinearAdjustmentAte(cfg) => {
-            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
-            cfg.fit(&prep, &mut workspaces.linear, ctx, assumptions).map_err(est_err)
+            prepare_fit!(cfg, target, assumptions, &mut workspaces.linear)
         }
         EstimatorSpec::PropensityWeighting(cfg) => {
-            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
-            cfg.fit(&prep, &mut workspaces.propensity, ctx, assumptions).map_err(est_err)
+            prepare_fit!(cfg, target, assumptions, &mut workspaces.propensity)
         }
         EstimatorSpec::PropensityMatching(cfg) => {
-            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
-            cfg.fit(&prep, &mut workspaces.propensity, ctx, assumptions).map_err(est_err)
+            prepare_fit!(cfg, target, assumptions, &mut workspaces.propensity)
         }
         EstimatorSpec::PropensityStratification(cfg) => {
-            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
-            cfg.fit(&prep, &mut workspaces.propensity, ctx, assumptions).map_err(est_err)
+            prepare_fit!(cfg, target, assumptions, &mut workspaces.propensity)
         }
         EstimatorSpec::DistanceMatching(cfg) => {
-            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
-            cfg.fit(&prep, &mut workspaces.propensity, ctx, assumptions).map_err(est_err)
+            prepare_fit!(cfg, target, assumptions, &mut workspaces.propensity)
         }
-        EstimatorSpec::Aipw(cfg) => {
-            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
-            cfg.fit(&prep, &mut workspaces.aipw, ctx, assumptions).map_err(est_err)
-        }
+        EstimatorSpec::Aipw(cfg) => prepare_fit!(cfg, target, assumptions, &mut workspaces.aipw),
         EstimatorSpec::GlmAdjustment(cfg) => {
-            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
-            let mut ws = GlmAdjustmentWorkspace::default();
-            cfg.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
+            prepare_fit!(cfg, target, assumptions, &mut GlmAdjustmentWorkspace::default())
         }
         EstimatorSpec::FrontDoorTwoStage(cfg) => {
-            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
-            let mut ws = FrontDoorWorkspace::default();
-            cfg.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
+            prepare_fit!(cfg, target, assumptions, &mut FrontDoorWorkspace::default())
         }
-        EstimatorSpec::IvWald(cfg) => {
-            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
-            cfg.fit(&prep, ctx, assumptions).map_err(est_err)
-        }
+        EstimatorSpec::IvWald(cfg) => prepare_fit!(cfg, target, assumptions),
         EstimatorSpec::Iv2Sls(cfg) => {
-            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
-            let mut ws = TwoStageLeastSquaresWorkspace::default();
-            cfg.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
+            prepare_fit!(cfg, target, assumptions, &mut TwoStageLeastSquaresWorkspace::default())
         }
-        EstimatorSpec::Dml(cfg) => {
-            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
-            cfg.fit(&prep, ctx, assumptions).map_err(est_err)
-        }
-        EstimatorSpec::DrLearner(cfg) => {
-            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
-            cfg.fit(&prep, ctx, assumptions).map_err(est_err)
-        }
-        EstimatorSpec::CausalForest(cfg) => {
-            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
-            cfg.fit(&prep, ctx, assumptions).map_err(est_err)
-        }
+        EstimatorSpec::Dml(cfg) => prepare_fit!(cfg, target, assumptions),
+        EstimatorSpec::DrLearner(cfg) => prepare_fit!(cfg, target, assumptions),
+        EstimatorSpec::CausalForest(cfg) => prepare_fit!(cfg, target, assumptions),
     }
 }
 
@@ -704,138 +737,85 @@ fn estimate_static_effect_default(
     ctx: &ExecutionContext,
     workspaces: &mut StaticEstimateWorkspaces,
 ) -> Result<EffectEstimate, CausalError> {
-    let StaticEstimateInput {
-        data,
-        estimand,
-        query,
-        bootstrap_replicates,
-        overlap_policy,
-        population_registry,
-        sampling_design,
-    } = input;
+    let StaticEstimateInput { data, estimand, query, .. } = input;
+    let target = FitTarget { data, estimand, query, ctx };
     match estimator {
         EstimatorId::LinearAdjustmentAte => {
             let mut est = LinearAdjustmentAte::new();
-            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
-            est.bootstrap_replicates = bootstrap_replicates;
+            apply_knobs!(est, input; sampling, bootstrap);
             est.overlap = OverlapPolicy::ExplicitOverride;
-            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
-            est.fit(&prep, &mut workspaces.linear, ctx, assumptions).map_err(est_err)
+            prepare_fit!(est, target, assumptions, &mut workspaces.linear)
         }
         EstimatorId::PropensityWeighting => {
             let mut est = PropensityWeighting::new();
-            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
-            est.bootstrap_replicates = bootstrap_replicates;
-            if let Some(policy) = overlap_policy {
-                est.overlap = policy;
-            }
-            est.population_registry = population_registry.cloned();
-            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
-            est.fit(&prep, &mut workspaces.propensity, ctx, assumptions).map_err(est_err)
+            apply_knobs!(est, input; sampling, bootstrap, overlap, registry);
+            prepare_fit!(est, target, assumptions, &mut workspaces.propensity)
         }
         EstimatorId::PropensityMatching => {
             let mut est = PropensityMatching::new();
             // NN matching bootstrap is not a valid CI (Abadie–Imbens 2008).
-            est.bootstrap_replicates = 0;
-            if let Some(policy) = overlap_policy {
-                est.overlap = policy;
-            }
-            est.population_registry = population_registry.cloned();
-            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
-            est.fit(&prep, &mut workspaces.propensity, ctx, assumptions).map_err(est_err)
+            apply_knobs!(est, input; no_bootstrap, overlap, registry);
+            prepare_fit!(est, target, assumptions, &mut workspaces.propensity)
         }
         EstimatorId::PropensityStratification => {
             let mut est = PropensityStratification::new();
-            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
-            est.bootstrap_replicates = bootstrap_replicates;
-            if let Some(policy) = overlap_policy {
-                est.overlap = policy;
-            }
-            est.population_registry = population_registry.cloned();
-            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
-            est.fit(&prep, &mut workspaces.propensity, ctx, assumptions).map_err(est_err)
+            apply_knobs!(est, input; sampling, bootstrap, overlap, registry);
+            prepare_fit!(est, target, assumptions, &mut workspaces.propensity)
         }
         EstimatorId::DistanceMatching => {
             let mut est = DistanceMatching::new();
             // NN matching bootstrap is not a valid CI (Abadie–Imbens 2008).
-            est.bootstrap_replicates = 0;
-            if let Some(policy) = overlap_policy {
-                est.overlap = policy;
-            }
-            est.population_registry = population_registry.cloned();
-            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
-            est.fit(&prep, &mut workspaces.propensity, ctx, assumptions).map_err(est_err)
+            apply_knobs!(est, input; no_bootstrap, overlap, registry);
+            prepare_fit!(est, target, assumptions, &mut workspaces.propensity)
         }
         EstimatorId::Aipw => {
             let mut est = AipwAte::new();
-            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
-            est.bootstrap_replicates = bootstrap_replicates;
-            if let Some(policy) = overlap_policy {
-                est.overlap = policy;
-            }
-            est.population_registry = population_registry.cloned();
-            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
-            est.fit(&prep, &mut workspaces.aipw, ctx, assumptions).map_err(est_err)
+            apply_knobs!(est, input; sampling, bootstrap, overlap, registry);
+            prepare_fit!(est, target, assumptions, &mut workspaces.aipw)
         }
         EstimatorId::GlmAdjustment => {
             let mut est = GlmAdjustmentAte::new();
-            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
-            est.bootstrap_replicates = bootstrap_replicates;
-            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
-            let mut ws = GlmAdjustmentWorkspace::default();
-            est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
+            apply_knobs!(est, input; sampling, bootstrap);
+            prepare_fit!(est, target, assumptions, &mut GlmAdjustmentWorkspace::default())
         }
         EstimatorId::FrontDoorTwoStage => {
             let mut est = FrontDoorTwoStage::new();
-            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
-            est.bootstrap_replicates = bootstrap_replicates;
-            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
-            let mut ws = FrontDoorWorkspace::default();
-            est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
+            apply_knobs!(est, input; sampling, bootstrap);
+            prepare_fit!(est, target, assumptions, &mut FrontDoorWorkspace::default())
         }
         EstimatorId::FrontDoorFunctional => {
-            let est = FrontDoorFunctional::new().with_bootstrap_replicates(bootstrap_replicates);
-            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
-            est.fit(&prep, ctx, assumptions).map_err(est_err)
+            let est =
+                FrontDoorFunctional::new().with_bootstrap_replicates(input.bootstrap_replicates);
+            prepare_fit!(est, target, assumptions)
         }
         EstimatorId::IvWald => {
             let mut est = WaldIv::new();
             // Do not arm IV with the facade bootstrap; that bypasses the weak-instrument gate.
-            est.bootstrap_replicates = 0;
-            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
-            est.fit(&prep, ctx, assumptions).map_err(est_err)
+            apply_knobs!(est, input; no_bootstrap);
+            prepare_fit!(est, target, assumptions)
         }
         EstimatorId::Iv2Sls => {
             let mut est = TwoStageLeastSquares::new();
             // Do not arm IV with the facade bootstrap; that bypasses the weak-instrument gate.
-            est.bootstrap_replicates = 0;
-            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
-            let mut ws = TwoStageLeastSquaresWorkspace::default();
-            est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
+            apply_knobs!(est, input; no_bootstrap);
+            prepare_fit!(est, target, assumptions, &mut TwoStageLeastSquaresWorkspace::default())
         }
         EstimatorId::GcmFit | EstimatorId::GcmFitBayesian | EstimatorId::GcmAttributionBayesian => {
             Err(CausalError::Unsupported { message: "gcm.fit is not a static ATE estimator" })
         }
         EstimatorId::Dml => {
             let mut est = DmlAte::new();
-            if let Some(overlap) = overlap_policy {
-                est.overlap = overlap;
-            }
-            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
-            est.fit(&prep, ctx, assumptions).map_err(est_err)
+            apply_knobs!(est, input; overlap);
+            prepare_fit!(est, target, assumptions)
         }
         EstimatorId::DrLearner => {
             let mut est = DrLearner::new();
-            if let Some(overlap) = overlap_policy {
-                est.overlap = overlap;
-            }
-            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
-            est.fit(&prep, ctx, assumptions).map_err(est_err)
+            apply_knobs!(est, input; overlap);
+            prepare_fit!(est, target, assumptions)
         }
         EstimatorId::CausalForest => {
             let est = CausalForest::new();
-            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
-            est.fit(&prep, ctx, assumptions).map_err(est_err)
+            prepare_fit!(est, target, assumptions)
         }
         _ => Err(CausalError::Unsupported { message: "unknown static estimator" }),
     }

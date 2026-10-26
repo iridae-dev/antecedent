@@ -775,48 +775,77 @@ pub fn hydrate_prior_from_posterior_bytes(
     )
 }
 
-/// Transfer an aligned parameter posterior into a known-variance Gaussian prior.
-///
-/// The caller supplies the source identity independently of the bytes and one
-/// stable source-variable-ID to target-variable-ID pair per coefficient. Target
-/// quantities are in design-column order. This route requires a complete
-/// bijection, a constant residual-variance coordinate equal to the target's
-/// known variance, and identical non-name quantity coordinates. The finite
-/// artifact's full covariance is retained under the named permutation.
-///
-/// # Errors
-/// Incompatible meaning, source identity, mapping, scale, or draw alignment.
-#[allow(
-    clippy::too_many_lines,
-    reason = "keep the complete refusal and transfer boundary together"
-)]
-pub fn mapped_posterior_transfer(
-    bytes: &[u8],
-    expected_source: &DistributionIdentity,
-    source_to_target: &[(String, String)],
-    target_quantities: &[ScientificQuantityWire],
-    target_snapshot_id: &str,
-    target_contract_id: &str,
-    baseline: &PriorSet,
-) -> Result<PriorSet, CausalError> {
-    use antecedent_io::IoError;
-    let map_refuse = |message: &str| IoError::Refused {
-        code: antecedent_core::reason_code!("quantity_semantics_mismatch"),
-        message: format!("mapped_posterior_transfer.coefficient_map: {message}"),
-    };
-    let meaning_refuse = |message: &str| IoError::Refused {
-        code: antecedent_core::reason_code!("distribution_meaning_mismatch"),
-        message: format!("mapped_posterior_transfer.parameter_posterior: {message}"),
-    };
-    let variance_refuse = |message: &str| IoError::Refused {
-        code: antecedent_core::reason_code!("prior_transfer_not_hydrated"),
-        message: format!("mapped_posterior_transfer.residual_variance: {message}"),
-    };
-    let source = DistributionArtifact::from_bytes(bytes, expected_source)?;
-    if target_snapshot_id.trim().is_empty() || target_contract_id.trim().is_empty() {
-        return Err(
-            map_refuse("mapped transfer requires target snapshot and causal contract IDs").into()
-        );
+/// What a mapped posterior transfer targets: the independently supplied source identity, the
+/// stable-ID map and the target's quantities, snapshot, contract and baseline prior.
+#[derive(Clone, Copy, Debug)]
+pub struct MappedTransferSpec<'a> {
+    /// Source identity, supplied independently of the artifact bytes.
+    pub expected_source: &'a DistributionIdentity,
+    /// One stable source-variable-ID to target-variable-ID pair per coefficient.
+    pub source_to_target: &'a [(String, String)],
+    /// Target quantities in design-column order.
+    pub target_quantities: &'a [ScientificQuantityWire],
+    /// Snapshot id of the target.
+    pub target_snapshot_id: &'a str,
+    /// Causal-contract id of the target.
+    pub target_contract_id: &'a str,
+    /// Baseline prior carrying the target's known residual variance.
+    pub baseline: &'a PriorSet,
+}
+
+/// Relative tolerance, floored at an absolute `1e-12`, within which a source draw's
+/// residual variance equals the target's known variance.
+const RESIDUAL_VARIANCE_TOLERANCE: f64 = 1e-12;
+
+fn transfer_refusal(code: &'static str, scope: &str, message: &str) -> CausalError {
+    antecedent_io::IoError::Refused {
+        code,
+        message: format!("mapped_posterior_transfer.{scope}: {message}"),
+    }
+    .into()
+}
+
+fn map_refuse(message: &str) -> CausalError {
+    transfer_refusal(
+        antecedent_core::reason_code!("quantity_semantics_mismatch"),
+        "coefficient_map",
+        message,
+    )
+}
+
+fn meaning_refuse(message: &str) -> CausalError {
+    transfer_refusal(
+        antecedent_core::reason_code!("distribution_meaning_mismatch"),
+        "parameter_posterior",
+        message,
+    )
+}
+
+fn variance_refuse(message: &str) -> CausalError {
+    transfer_refusal(
+        antecedent_core::reason_code!("prior_transfer_not_hydrated"),
+        "residual_variance",
+        message,
+    )
+}
+
+/// One mapped coefficient: its column in the source artifact and in the target, and the stable
+/// ids on both sides.
+struct MappedCoefficient {
+    source_col: usize,
+    target_col: usize,
+    source_id: String,
+    target_id: String,
+}
+
+/// The source must be complete, unweighted, joint parameter-posterior draws; returns the
+/// target's known residual variance, which must be a finite positive number.
+fn check_source_meaning(
+    source: &DistributionArtifact,
+    spec: &MappedTransferSpec<'_>,
+) -> Result<f64, CausalError> {
+    if spec.target_snapshot_id.trim().is_empty() || spec.target_contract_id.trim().is_empty() {
+        return Err(map_refuse("mapped transfer requires target snapshot and causal contract IDs"));
     }
     if source.semantic() != DistributionMeaningWire::ParameterPosterior
         || source.metadata().identity.alignment != DrawAlignment::Joint
@@ -825,26 +854,43 @@ pub fn mapped_posterior_transfer(
     {
         return Err(meaning_refuse(
             "mapped transfer requires complete, unweighted joint parameter-posterior draws",
-        )
-        .into());
+        ));
     }
-    let sigma2 = baseline.known_residual_variance().ok_or_else(|| {
+    let sigma2 = spec.baseline.known_residual_variance().ok_or_else(|| {
         variance_refuse("mapped transfer requires a target known residual variance")
     })?;
-    if source_to_target.len() != target_quantities.len()
-        || baseline
+    // The getter returns the stored value unchecked, so the comparison below must not rely on
+    // later prior validation to reject a non-finite or non-positive variance.
+    if !sigma2.is_finite() || sigma2 <= 0.0 {
+        return Err(variance_refuse(
+            "mapped transfer requires the target known residual variance to be finite and positive",
+        ));
+    }
+    Ok(sigma2)
+}
+
+/// The complete bijection between the source's and the target's coefficient coordinates, in the
+/// order of `source_to_target`.
+fn build_coefficient_map(
+    source: &DistributionArtifact,
+    spec: &MappedTransferSpec<'_>,
+) -> Result<Vec<MappedCoefficient>, CausalError> {
+    let target_quantities = spec.target_quantities;
+    if spec.source_to_target.len() != target_quantities.len()
+        || spec
+            .baseline
             .gaussian_coefficients()
             .is_none_or(|prior| prior.len() != target_quantities.len())
         || target_quantities.is_empty()
     {
-        return Err(map_refuse("mapped transfer requires a complete coefficient bijection").into());
+        return Err(map_refuse("mapped transfer requires a complete coefficient bijection"));
     }
     let mut used_source = std::collections::HashSet::new();
     let mut used_target = std::collections::HashSet::new();
-    let mut coefficient_columns = Vec::with_capacity(target_quantities.len());
-    for (source_id, target_id) in source_to_target {
+    let mut columns = Vec::with_capacity(target_quantities.len());
+    for (source_id, target_id) in spec.source_to_target {
         if !used_source.insert(source_id) || !used_target.insert(target_id) {
-            return Err(map_refuse("mapped transfer reuses a coefficient identity").into());
+            return Err(map_refuse("mapped transfer reuses a coefficient identity"));
         }
         let source_matches: Vec<_> = source
             .quantities()
@@ -858,7 +904,7 @@ pub fn mapped_posterior_transfer(
             .filter(|(_, q)| q.variable_id == *target_id && q.functional_id == "coefficient")
             .collect();
         if source_matches.len() != 1 || target_matches.len() != 1 {
-            return Err(map_refuse("mapped transfer needs unique stable coefficient IDs").into());
+            return Err(map_refuse("mapped transfer needs unique stable coefficient IDs"));
         }
         let (source_col, source_q) = source_matches[0];
         let (target_col, target_q) = target_matches[0];
@@ -870,89 +916,162 @@ pub fn mapped_posterior_transfer(
             || source_q.transform_id != target_q.transform_id
             || source_q.role != target_q.role
         {
-            return Err(map_refuse("mapped transfer coefficient coordinates differ").into());
+            return Err(map_refuse("mapped transfer coefficient coordinates differ"));
         }
-        coefficient_columns.push((source_col, target_col, source_id.clone(), target_id.clone()));
+        columns.push(MappedCoefficient {
+            source_col,
+            target_col,
+            source_id: source_id.clone(),
+            target_id: target_id.clone(),
+        });
     }
+    Ok(columns)
+}
+
+/// The source's one residual-variance coordinate must sit at the target's coordinates and equal
+/// the target's known variance in every draw (see [`RESIDUAL_VARIANCE_TOLERANCE`]).
+fn check_residual_variance(
+    source: &DistributionArtifact,
+    spec: &MappedTransferSpec<'_>,
+    coefficient_count: usize,
+    sigma2: f64,
+) -> Result<(), CausalError> {
     let residuals: Vec<_> = source
         .quantities()
         .iter()
         .enumerate()
         .filter(|(_, q)| q.functional_id == "residual_variance")
         .collect();
-    if residuals.len() != 1 || source.quantities().len() != coefficient_columns.len() + 1 {
+    if residuals.len() != 1 || source.quantities().len() != coefficient_count + 1 {
         return Err(variance_refuse(
             "mapped transfer requires one residual-variance coordinate and no extra parameters",
-        )
-        .into());
+        ));
     }
     let (residual_col, residual_q) = residuals[0];
-    if residual_q.population_id != target_quantities[0].population_id
-        || residual_q.regime_id != target_quantities[0].regime_id
-        || residual_q.horizon != target_quantities[0].horizon
-        || residual_q.conditioning != target_quantities[0].conditioning
+    let target = &spec.target_quantities[0];
+    if residual_q.population_id != target.population_id
+        || residual_q.regime_id != target.regime_id
+        || residual_q.horizon != target.horizon
+        || residual_q.conditioning != target.conditioning
     {
-        return Err(variance_refuse("mapped transfer residual-variance coordinate differs").into());
+        return Err(variance_refuse("mapped transfer residual-variance coordinate differs"));
     }
     if source
         .draws()
         .chunks_exact(source.shape()[1])
-        .any(|row| (row[residual_col] - sigma2).abs() > 1e-12 * sigma2.max(1.0))
+        .any(|row| (row[residual_col] - sigma2).abs() > RESIDUAL_VARIANCE_TOLERANCE * sigma2.max(1.0))
     {
         return Err(variance_refuse(
             "mapped transfer residual variance differs from target known variance",
-        )
-        .into());
+        ));
     }
-    coefficient_columns.sort_by_key(|(_, target, _, _)| *target);
+    Ok(())
+}
+
+/// Hydrate the target prior from the source's mapped coefficient moments and full covariance.
+fn hydrate_mapped_prior(
+    source: &DistributionArtifact,
+    spec: &MappedTransferSpec<'_>,
+    mut coefficients: Vec<MappedCoefficient>,
+    sigma2: f64,
+) -> Result<PriorSet, CausalError> {
+    coefficients.sort_by_key(|coefficient| coefficient.target_col);
     let mut quantities = Vec::with_capacity(source.quantities().len());
     let mut mean = Vec::with_capacity(source.quantities().len());
     let mut sd = Vec::with_capacity(source.quantities().len());
-    for (index, (_, _, source_id, _)) in coefficient_columns.iter().enumerate() {
-        let source_col = coefficient_columns[index].0;
+    for (index, coefficient) in coefficients.iter().enumerate() {
         quantities.push(PosteriorQuantityKind::Coefficient {
             index,
-            name: Some(Arc::from(source_id.as_str())),
+            name: Some(Arc::from(coefficient.source_id.as_str())),
         });
-        mean.push(source.mean(source_col)?);
-        sd.push(source.covariance(source_col, source_col)?.sqrt());
+        mean.push(source.mean(coefficient.source_col)?);
+        sd.push(source.covariance(coefficient.source_col, coefficient.source_col)?.sqrt());
     }
     quantities.push(PosteriorQuantityKind::ResidualVariance);
     mean.push(sigma2);
     sd.push(0.0);
-    let n = coefficient_columns.len();
+    let n = coefficients.len();
     let mut covariance = vec![0.0; n * n];
-    for (i, (source_i, _, _, _)) in coefficient_columns.iter().enumerate() {
-        for (j, (source_j, _, _, _)) in coefficient_columns.iter().enumerate() {
-            covariance[i * n + j] = source.covariance(*source_i, *source_j)?;
+    for (i, row) in coefficients.iter().enumerate() {
+        for (j, column) in coefficients.iter().enumerate() {
+            covariance[i * n + j] = source.covariance(row.source_col, column.source_col)?;
         }
     }
     let names: Vec<Arc<str>> =
-        target_quantities.iter().map(|q| Arc::from(q.variable_id.as_str())).collect();
+        spec.target_quantities.iter().map(|q| Arc::from(q.variable_id.as_str())).collect();
     let mapping = HydrateMapping::NamedParameters {
-        pairs: coefficient_columns
+        pairs: coefficients
             .iter()
-            .map(|(_, _, source, target)| (source.clone(), target.clone()))
+            .map(|coefficient| (coefficient.source_id.clone(), coefficient.target_id.clone()))
             .collect(),
     };
     let mut prior = hydrate_prior(
         &mapping,
         &HydrateSource::summaries(&quantities, &mean, &sd)
             .with_coefficient_covariance(Some(&covariance)),
-        &HydrateTarget { baseline, coef_names: &names, treatment_col: None },
+        &HydrateTarget { baseline: spec.baseline, coef_names: &names, treatment_col: None },
     )
     .map_err(CausalError::from)?;
     prior.restrictions.push(antecedent_core::PriorAssumption {
         id: Arc::from("mapped_posterior_transfer"),
         description: Arc::from(format!(
             "source={} snapshot={} contract={}; target snapshot={} contract={}; complete stable-ID map={:?}; known residual variance={sigma2}",
-            expected_source.source_id,
-            expected_source.snapshot_id,
-            expected_source.causal_contract_id,
-            target_snapshot_id,
-            target_contract_id,
-            source_to_target,
+            spec.expected_source.source_id,
+            spec.expected_source.snapshot_id,
+            spec.expected_source.causal_contract_id,
+            spec.target_snapshot_id,
+            spec.target_contract_id,
+            spec.source_to_target,
         )),
     });
     Ok(prior)
+}
+
+/// Transfer an aligned parameter posterior into a known-variance Gaussian prior.
+///
+/// The caller supplies the source identity independently of the bytes and one
+/// stable source-variable-ID to target-variable-ID pair per coefficient. Target
+/// quantities are in design-column order. This route requires a complete
+/// bijection, a constant residual-variance coordinate equal to the target's
+/// known variance (finite and positive), and identical non-name quantity
+/// coordinates. The finite artifact's full covariance is retained under the
+/// named permutation.
+///
+/// # Errors
+/// Incompatible meaning, source identity, mapping, scale, or draw alignment.
+pub fn mapped_posterior_transfer_with(
+    bytes: &[u8],
+    spec: &MappedTransferSpec<'_>,
+) -> Result<PriorSet, CausalError> {
+    let source = DistributionArtifact::from_bytes(bytes, spec.expected_source)?;
+    let sigma2 = check_source_meaning(&source, spec)?;
+    let coefficients = build_coefficient_map(&source, spec)?;
+    check_residual_variance(&source, spec, coefficients.len(), sigma2)?;
+    hydrate_mapped_prior(&source, spec, coefficients, sigma2)
+}
+
+/// [`mapped_posterior_transfer_with`] with the target described by positional arguments.
+///
+/// # Errors
+/// As [`mapped_posterior_transfer_with`].
+pub fn mapped_posterior_transfer(
+    bytes: &[u8],
+    expected_source: &DistributionIdentity,
+    source_to_target: &[(String, String)],
+    target_quantities: &[ScientificQuantityWire],
+    target_snapshot_id: &str,
+    target_contract_id: &str,
+    baseline: &PriorSet,
+) -> Result<PriorSet, CausalError> {
+    mapped_posterior_transfer_with(
+        bytes,
+        &MappedTransferSpec {
+            expected_source,
+            source_to_target,
+            target_quantities,
+            target_snapshot_id,
+            target_contract_id,
+            baseline,
+        },
+    )
 }

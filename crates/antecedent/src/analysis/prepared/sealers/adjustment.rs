@@ -423,7 +423,9 @@ pub(super) fn checked_propensity(cx: &SealContext<'_>) -> SealOutcome {
                         crate::estimator_spec::EstimatorSpec::excludes_undeclared_levels,
                     ) =>
             {
-                let estimator = cx.binding.estimator.named().expect("checked propensity estimator");
+                let estimator = cx.binding.estimator.named().ok_or(CausalError::Unsupported {
+                    message: "the propensity route names no estimator",
+                })?;
                 let identifier = cx.binding.identifier_or(RouteDefaults::STATIC_ATE)?;
                 let estimand_index = cache
                     .identification

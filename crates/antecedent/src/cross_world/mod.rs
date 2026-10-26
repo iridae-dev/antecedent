@@ -95,22 +95,15 @@ pub struct CrossWorldEffect {
     columns: Vec<Vec<f64>>,
 }
 
+/// The refusal's own registered reason code, with its stable detail and explanation.
+///
+/// The code travels with the refusal, so a renamed detail string cannot change the error
+/// class; a code that is not a registered runtime refusal is reported as `invalid_argument`.
 fn refusal_error(refusal: CrossWorldRefusal) -> CausalError {
-    let CrossWorldRefusal { detail, message, .. } = refusal;
-    match detail {
-        "cross_world.query_outside_contract" => crate::compile_reason!(
-            "route_not_supported",
-            "cross_world.query_outside_contract: {message}"
-        ),
-        "cross_world.recanting_witness" => crate::compile_reason!(
-            "cross_world_not_identified",
-            "cross_world.recanting_witness: {message}"
-        ),
-        "cross_world.graph_outside_contract" => crate::compile_reason!(
-            "cell_not_licensed",
-            "cross_world.graph_outside_contract: {message}"
-        ),
-        _ => crate::compile_reason!("invalid_argument", "cross_world.invalid_query: {message}"),
+    let CrossWorldRefusal { code, detail, message } = refusal;
+    let code = if crate::error::is_runtime_refusal_code(code) { code } else { "invalid_argument" };
+    CausalError::Compile {
+        message: format!("{}{code}: {detail}: {message}", crate::error::REASON_PREFIX),
     }
 }
 

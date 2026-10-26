@@ -435,12 +435,15 @@ impl WireCells {
         let Some((first, rest)) = summed.split_first() else {
             // A zero factor ends the product: a later factor on a null event is
             // not read (the compiled evaluation's convention).
+            // The short-circuit is keyed on the factor itself being a null event, never on
+            // the running product, which can also reach zero by underflow.
             let mut product = 1.0;
             for factor in factors {
-                product *= self.functional(factor, symbols)?;
-                if product == 0.0 {
-                    break;
+                let value = self.functional(factor, symbols)?;
+                if value == 0.0 {
+                    return Some(0.0);
                 }
+                product *= value;
             }
             return Some(product);
         };

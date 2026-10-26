@@ -167,6 +167,17 @@ fn constrained(
     constraints
 }
 
+/// A temporal discoverer configured from `params`: its FDR adjustment, the given
+/// `constraints` and the conditional-independence test.
+macro_rules! temporal_discoverer {
+    ($algorithm:expr, $params:expr, $constraints:expr) => {
+        $algorithm
+            .with_fdr_adjustment($params.fdr)
+            .with_constraints($constraints)
+            .with_ci(Arc::clone(&$params.ci))
+    };
+}
+
 /// Run lagged PCMCI.
 ///
 /// # Errors
@@ -184,13 +195,14 @@ pub fn discover_pcmci(
 }
 
 fn pcmci_for(params: &DiscoverParams) -> Pcmci {
-    Pcmci::new()
-        .with_fdr_adjustment(params.fdr)
-        .with_constraints(constrained(
+    temporal_discoverer!(
+        Pcmci::new(),
+        params,
+        constrained(
             pcmci_constraints(params.max_lag, params.alpha, params.max_cond_size),
             &params.knowledge,
-        ))
-        .with_ci(Arc::clone(&params.ci))
+        )
+    )
 }
 
 /// Run PCMCI over the units of a panel.
@@ -230,13 +242,14 @@ pub fn discover_pcmci_plus(
 }
 
 fn pcmci_plus_for(params: &DiscoverParams) -> PcmciPlus {
-    PcmciPlus::new()
-        .with_fdr_adjustment(params.fdr)
-        .with_constraints(constrained(
+    temporal_discoverer!(
+        PcmciPlus::new(),
+        params,
+        constrained(
             contemporaneous_constraints(params.max_lag, params.alpha, params.max_cond_size),
             &params.knowledge,
-        ))
-        .with_ci(Arc::clone(&params.ci))
+        )
+    )
 }
 
 /// Run PCMCI+ over the units of a panel (see [`discover_pcmci_panel`]).
@@ -272,14 +285,11 @@ pub fn discover_lpcmci(
 }
 
 fn lpcmci_for(params: &DiscoverParams) -> Lpcmci {
-    Lpcmci::new()
-        .with_fdr_adjustment(params.fdr)
-        .with_constraints(contemporaneous_constraints(
-            params.max_lag,
-            params.alpha,
-            params.max_cond_size,
-        ))
-        .with_ci(Arc::clone(&params.ci))
+    temporal_discoverer!(
+        Lpcmci::new(),
+        params,
+        contemporaneous_constraints(params.max_lag, params.alpha, params.max_cond_size)
+    )
 }
 
 /// Run LPCMCI over the units of a panel (see [`discover_pcmci_panel`]).
@@ -310,15 +320,16 @@ pub fn discover_jpcmci_plus(
     params: &DiscoverParams,
     ctx: &ExecutionContext,
 ) -> Result<CpdagDiscoveryResult, CausalError> {
-    let alg = JpcmciPlus::new()
-        .with_fdr_adjustment(params.fdr)
-        .with_constraints(jpcmci_constraints(
+    let alg = temporal_discoverer!(
+        JpcmciPlus::new(),
+        params,
+        jpcmci_constraints(
             params.max_lag,
             params.alpha,
             params.max_cond_size,
             params.multi_dataset.clone(),
-        ))
-        .with_ci(Arc::clone(&params.ci));
+        )
+    );
     let mut ws = DiscoveryWorkspace::default();
     Ok(alg.run(data, variables, &mut ws, ctx)?)
 }
@@ -337,14 +348,11 @@ pub fn discover_rpcmci(
     min_regime_len: Option<usize>,
     ctx: &ExecutionContext,
 ) -> Result<RpcmciDiscoveryResult, CausalError> {
-    let plus = PcmciPlus::new()
-        .with_fdr_adjustment(params.fdr)
-        .with_constraints(contemporaneous_constraints(
-            params.max_lag,
-            params.alpha,
-            params.max_cond_size,
-        ))
-        .with_ci(Arc::clone(&params.ci));
+    let plus = temporal_discoverer!(
+        PcmciPlus::new(),
+        params,
+        contemporaneous_constraints(params.max_lag, params.alpha, params.max_cond_size)
+    );
     let alg = Rpcmci::new()
         .with_min_regime_len(min_regime_len.unwrap_or(DEFAULT_RPCMCI_MIN_REGIME_LEN))
         .with_pcmci_plus(plus);

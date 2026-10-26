@@ -69,9 +69,13 @@ pub struct RandomizedEffectEstimate {
     pub first_stage_effect: Option<f64>,
     /// Row-aligned treatment receipt when estimating CACE/LATE.
     pub received_treatment: Option<Arc<[bool]>>,
-    /// Exact two-sided Fisher sharp-null p-value for a complete design.
+    /// Two-sided Fisher sharp-null p-value for a complete design: exact when every fixed-count
+    /// assignment was enumerated, a Monte Carlo permutation p-value otherwise (see
+    /// [`Self::randomization_allocations`]).
     pub randomization_p_value: Option<f64>,
-    /// Number of fixed-count assignments exhaustively enumerated.
+    /// Number of fixed-count assignments the p-value averages over: all `C(n, treated)` of them
+    /// when they were exhaustively enumerated, otherwise the sampled assignments plus the
+    /// observed one.
     pub randomization_allocations: Option<u64>,
     /// Second-factor marginal assignment effect in a fixed 2×2 factorial design.
     pub second_factor_effect: Option<f64>,
@@ -792,19 +796,38 @@ pub struct ImputationVectorReport {
     pub extras: std::sync::Arc<[ImputationExtra]>,
 }
 
-fn bits(values: &[f64]) -> Vec<u64> {
-    values.iter().map(|v| v.to_bits()).collect()
+/// Bitwise equality of two number slices, without building either side's bit vector.
+fn same_bits(left: &[f64], right: &[f64]) -> bool {
+    left.len() == right.len() && left.iter().zip(right).all(|(a, b)| a.to_bits() == b.to_bits())
 }
 
-fn option_bits(values: &[Option<f64>]) -> Vec<Option<u64>> {
-    values.iter().map(|v| v.map(f64::to_bits)).collect()
+/// Bitwise equality of two optional numbers.
+fn same_option_bits(left: Option<f64>, right: Option<f64>) -> bool {
+    left.map(f64::to_bits) == right.map(f64::to_bits)
 }
+
+/// Bitwise equality of two slices of optional numbers.
+fn same_option_slice_bits(left: &[Option<f64>], right: &[Option<f64>]) -> bool {
+    left.len() == right.len() && left.iter().zip(right).all(|(a, b)| same_option_bits(*a, *b))
+}
+
+// The `PartialEq` impls below destructure both sides without `..`, so a field added to a
+// report is a compile error here until the comparison names it.
 
 impl PartialEq for ImputationWald {
     fn eq(&self, other: &Self) -> bool {
-        bits(&self.null) == bits(&other.null)
-            && bits(&[self.statistic, self.df_numerator, self.df_denominator])
-                == bits(&[other.statistic, other.df_numerator, other.df_denominator])
+        let Self { null, statistic, df_numerator, df_denominator } = self;
+        let Self {
+            null: other_null,
+            statistic: other_statistic,
+            df_numerator: other_df_numerator,
+            df_denominator: other_df_denominator,
+        } = other;
+        same_bits(null, other_null)
+            && same_bits(
+                &[*statistic, *df_numerator, *df_denominator],
+                &[*other_statistic, *other_df_numerator, *other_df_denominator],
+            )
     }
 }
 
@@ -812,9 +835,16 @@ impl Eq for ImputationWald {}
 
 impl PartialEq for ImputationExtra {
     fn eq(&self, other: &Self) -> bool {
-        self.label == other.label
-            && bits(&self.points) == bits(&other.points)
-            && bits(&[self.point, self.between]) == bits(&[other.point, other.between])
+        let Self { label, points, point, between } = self;
+        let Self {
+            label: other_label,
+            points: other_points,
+            point: other_point,
+            between: other_between,
+        } = other;
+        label == other_label
+            && same_bits(points, other_points)
+            && same_bits(&[*point, *between], &[*other_point, *other_between])
     }
 }
 
@@ -822,21 +852,47 @@ impl Eq for ImputationExtra {}
 
 impl PartialEq for ImputationVectorReport {
     fn eq(&self, other: &Self) -> bool {
-        self.labels == other.labels
-            && self.covariance_basis == other.covariance_basis
-            && self.points.len() == other.points.len()
-            && self.points.iter().zip(other.points.iter()).all(|(a, b)| bits(a) == bits(b))
-            && bits(&self.point) == bits(&other.point)
-            && bits(&self.within) == bits(&other.within)
-            && bits(&self.between) == bits(&other.between)
-            && bits(&self.total) == bits(&other.total)
-            && option_bits(&self.coordinate_df) == option_bits(&other.coordinate_df)
-            && option_bits(&self.coordinate_fraction_missing_information)
-                == option_bits(&other.coordinate_fraction_missing_information)
-            && self.average_relative_increase.map(f64::to_bits)
-                == other.average_relative_increase.map(f64::to_bits)
-            && self.wald == other.wald
-            && self.extras == other.extras
+        let Self {
+            labels,
+            covariance_basis,
+            points,
+            point,
+            within,
+            between,
+            total,
+            coordinate_df,
+            coordinate_fraction_missing_information,
+            average_relative_increase,
+            wald,
+            extras,
+        } = self;
+        let Self {
+            labels: other_labels,
+            covariance_basis: other_covariance_basis,
+            points: other_points,
+            point: other_point,
+            within: other_within,
+            between: other_between,
+            total: other_total,
+            coordinate_df: other_coordinate_df,
+            coordinate_fraction_missing_information: other_fraction,
+            average_relative_increase: other_average_relative_increase,
+            wald: other_wald,
+            extras: other_extras,
+        } = other;
+        labels == other_labels
+            && covariance_basis == other_covariance_basis
+            && points.len() == other_points.len()
+            && points.iter().zip(other_points.iter()).all(|(a, b)| same_bits(a, b))
+            && same_bits(point, other_point)
+            && same_bits(within, other_within)
+            && same_bits(between, other_between)
+            && same_bits(total, other_total)
+            && same_option_slice_bits(coordinate_df, other_coordinate_df)
+            && same_option_slice_bits(coordinate_fraction_missing_information, other_fraction)
+            && same_option_bits(*average_relative_increase, *other_average_relative_increase)
+            && wald == other_wald
+            && extras == other_extras
     }
 }
 
@@ -846,25 +902,59 @@ impl Eq for ImputationVectorReport {}
 /// with: two reports are equal when they would serialize identically.
 impl PartialEq for ImputationReport {
     fn eq(&self, other: &Self) -> bool {
-        let bits = |values: &[f64]| values.iter().map(|v| v.to_bits()).collect::<Vec<_>>();
-        let option = |value: Option<f64>| value.map(f64::to_bits);
-        self.spec == other.spec
-            && self.unit == other.unit
-            && self.units == other.units
-            && self.imputed_cells == other.imputed_cells
-            && self.estimator == other.estimator
-            && self.pooling == other.pooling
-            && bits(&self.points) == bits(&other.points)
-            && bits(&[self.within, self.between, self.total])
-                == bits(&[other.within, other.between, other.total])
-            && option(self.df) == option(other.df)
-            && option(self.df_complete) == option(other.df_complete)
-            && option(self.fraction_missing_information)
-                == option(other.fraction_missing_information)
-            && option(self.relative_increase) == option(other.relative_increase)
-            && self.assumptions_digest == other.assumptions_digest
-            && self.lags == other.lags
-            && self.vector == other.vector
+        let Self {
+            spec,
+            unit,
+            units,
+            imputed_cells,
+            estimator,
+            pooling,
+            points,
+            within,
+            between,
+            total,
+            df,
+            df_complete,
+            fraction_missing_information,
+            relative_increase,
+            assumptions_digest,
+            lags,
+            vector,
+        } = self;
+        let Self {
+            spec: other_spec,
+            unit: other_unit,
+            units: other_units,
+            imputed_cells: other_imputed_cells,
+            estimator: other_estimator,
+            pooling: other_pooling,
+            points: other_points,
+            within: other_within,
+            between: other_between,
+            total: other_total,
+            df: other_df,
+            df_complete: other_df_complete,
+            fraction_missing_information: other_fraction,
+            relative_increase: other_relative_increase,
+            assumptions_digest: other_assumptions_digest,
+            lags: other_lags,
+            vector: other_vector,
+        } = other;
+        spec == other_spec
+            && unit == other_unit
+            && units == other_units
+            && imputed_cells == other_imputed_cells
+            && estimator == other_estimator
+            && pooling == other_pooling
+            && same_bits(points, other_points)
+            && same_bits(&[*within, *between, *total], &[*other_within, *other_between, *other_total])
+            && same_option_bits(*df, *other_df)
+            && same_option_bits(*df_complete, *other_df_complete)
+            && same_option_bits(*fraction_missing_information, *other_fraction)
+            && same_option_bits(*relative_increase, *other_relative_increase)
+            && assumptions_digest == other_assumptions_digest
+            && lags == other_lags
+            && vector == other_vector
     }
 }
 
@@ -1143,60 +1233,6 @@ pub enum ResultPayload {
 }
 
 impl ResultPayload {
-    /// The structure a compiled search returned.
-    #[must_use]
-    pub fn discovery(&self) -> Option<&crate::analysis::structure_route::DiscoveryPayload> {
-        match self {
-            Self::Discovery(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The structure a compiled search returned, consuming the payload.
-    #[must_use]
-    pub fn into_discovery(self) -> Option<crate::analysis::structure_route::DiscoveryPayload> {
-        match self {
-            Self::Discovery(value) => Some(*value),
-            _ => None,
-        }
-    }
-
-    /// The attribution a compiled fitted-model route returned.
-    #[must_use]
-    pub fn attribution(&self) -> Option<&crate::analysis::structure_route::AttributionPayload> {
-        match self {
-            Self::Attribution(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The attribution a compiled fitted-model route returned, consuming the payload.
-    #[must_use]
-    pub fn into_attribution(self) -> Option<crate::analysis::structure_route::AttributionPayload> {
-        match self {
-            Self::Attribution(value) => Some(*value),
-            _ => None,
-        }
-    }
-
-    /// The simulation a compiled fitted-model route returned.
-    #[must_use]
-    pub fn simulation(&self) -> Option<&crate::analysis::structure_route::SimulationPayload> {
-        match self {
-            Self::Simulation(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The simulation a compiled fitted-model route returned, consuming the payload.
-    #[must_use]
-    pub fn into_simulation(self) -> Option<crate::analysis::structure_route::SimulationPayload> {
-        match self {
-            Self::Simulation(value) => Some(*value),
-            _ => None,
-        }
-    }
-
     /// A mediation payload, or [`Self::Scalar`] when neither part is present.
     #[must_use]
     pub fn from_mediation(
@@ -1235,204 +1271,6 @@ impl ResultPayload {
         payload
     }
 
-    /// Function-valued response.
-    #[must_use]
-    pub const fn response(&self) -> Option<&CausalResponse> {
-        match self {
-            Self::Response(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The function-valued response, consuming the payload.
-    #[must_use]
-    pub fn into_response(self) -> Option<CausalResponse> {
-        match self {
-            Self::Response(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `distribution` payload by value.
-    #[must_use]
-    pub fn into_distribution(self) -> Option<InterventionalDistributionEstimate> {
-        match self {
-            Self::Distribution(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `counterfactual` payload by value.
-    #[must_use]
-    pub fn into_counterfactual(self) -> Option<IteResult> {
-        match self {
-            Self::Counterfactual(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `change_attribution` payload by value.
-    #[must_use]
-    pub fn into_change_attribution(self) -> Option<ChangeAttributionResult> {
-        match self {
-            Self::ChangeAttribution(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `unit_change` payload by value.
-    #[must_use]
-    pub fn into_unit_change(self) -> Option<UnitChangeResult> {
-        match self {
-            Self::UnitChange(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `transport` payload by value.
-    #[must_use]
-    pub fn into_transport(self) -> Option<TransportEffectEstimate> {
-        match self {
-            Self::Transport(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `randomized_effect` payload by value.
-    #[must_use]
-    pub fn into_randomized_effect(self) -> Option<RandomizedEffectEstimate> {
-        match self {
-            Self::RandomizedEffect(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `panel_did` payload by value.
-    #[must_use]
-    pub fn into_panel_did(self) -> Option<PanelDidEstimate> {
-        match self {
-            Self::PanelDid(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `synthetic_control` payload by value.
-    #[must_use]
-    pub fn into_synthetic_control(self) -> Option<SyntheticControlEstimate> {
-        match self {
-            Self::SyntheticControl(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `synthetic_did` payload by value.
-    #[must_use]
-    pub fn into_synthetic_did(self) -> Option<SyntheticDidEstimate> {
-        match self {
-            Self::SyntheticDid(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `local_polynomial_ratio` payload by value.
-    #[must_use]
-    pub fn into_local_polynomial_ratio(self) -> Option<LocalPolynomialRatioEstimate> {
-        match self {
-            Self::LocalPolynomialRatio(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `policy_value` payload by value.
-    #[must_use]
-    pub fn into_policy_value(self) -> Option<PolicyValueEstimate> {
-        match self {
-            Self::PolicyValue(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `continuous_dose_response` payload by value.
-    #[must_use]
-    pub fn into_continuous_dose_response(self) -> Option<ContinuousDoseResponseEstimate> {
-        match self {
-            Self::ContinuousDoseResponse(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `posterior_row` payload by value.
-    #[must_use]
-    pub fn into_posterior_row(self) -> Option<PosteriorRowEstimate> {
-        match self {
-            Self::PosteriorRow(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `survival` payload by value.
-    #[must_use]
-    pub fn into_survival(self) -> Option<SurvivalEstimate> {
-        match self {
-            Self::Survival(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `longitudinal_regime` payload by value.
-    #[must_use]
-    pub fn into_longitudinal_regime(self) -> Option<LongitudinalRegimeEstimate> {
-        match self {
-            Self::LongitudinalRegime(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `history_match` payload by value.
-    #[must_use]
-    pub fn into_history_match(self) -> Option<HistoryMatchEstimate> {
-        match self {
-            Self::HistoryMatch(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `temporal_design` payload by value.
-    #[must_use]
-    pub fn into_temporal_design(self) -> Option<TemporalDesignEstimate> {
-        match self {
-            Self::TemporalDesign(value) => Some(*value),
-            _ => None,
-        }
-    }
-
-    /// The `iv_bounds` payload by value.
-    #[must_use]
-    pub fn into_iv_bounds(self) -> Option<antecedent_estimate::IvBoundsEstimate> {
-        match self {
-            Self::IvBounds(value) => Some(*value),
-            _ => None,
-        }
-    }
-
-    /// The `quasi_rollout` payload by value.
-    #[must_use]
-    pub fn into_quasi_rollout(self) -> Option<QuasiRolloutEstimate> {
-        match self {
-            Self::QuasiRollout(value) => Some(*value),
-            _ => None,
-        }
-    }
-
-    /// The `sequential_contrast` payload by value.
-    #[must_use]
-    pub fn into_sequential_contrast(self) -> Option<SequentialContrastEstimate> {
-        match self {
-            Self::SequentialContrast(value) => Some(value),
-            _ => None,
-        }
-    }
-
     /// The mediation decomposition by value.
     #[must_use]
     pub fn into_mediation(self) -> Option<TemporalMediationEstimate> {
@@ -1467,15 +1305,6 @@ impl ResultPayload {
         }
     }
 
-    /// Interventional distribution.
-    #[must_use]
-    pub const fn distribution(&self) -> Option<&InterventionalDistributionEstimate> {
-        match self {
-            Self::Distribution(value) => Some(value),
-            _ => None,
-        }
-    }
-
     /// Mediation decomposition.
     #[must_use]
     pub const fn mediation(&self) -> Option<&TemporalMediationEstimate> {
@@ -1494,15 +1323,6 @@ impl ResultPayload {
         }
     }
 
-    /// Unit-level ITE.
-    #[must_use]
-    pub const fn counterfactual(&self) -> Option<&IteResult> {
-        match self {
-            Self::Counterfactual(value) => Some(value),
-            _ => None,
-        }
-    }
-
     /// Anomaly scores.
     #[must_use]
     pub fn anomaly(&self) -> Option<&[AnomalyScores]> {
@@ -1512,38 +1332,11 @@ impl ResultPayload {
         }
     }
 
-    /// Change-attribution result.
-    #[must_use]
-    pub const fn change_attribution(&self) -> Option<&ChangeAttributionResult> {
-        match self {
-            Self::ChangeAttribution(value) => Some(value),
-            _ => None,
-        }
-    }
-
     /// Mechanism-change detections.
     #[must_use]
     pub fn mechanism_change(&self) -> Option<&[MechanismChangeDetection]> {
         match self {
             Self::MechanismChange(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Unit-change attribution.
-    #[must_use]
-    pub const fn unit_change(&self) -> Option<&UnitChangeResult> {
-        match self {
-            Self::UnitChange(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Transport estimate.
-    #[must_use]
-    pub const fn transport(&self) -> Option<&TransportEffectEstimate> {
-        match self {
-            Self::Transport(value) => Some(value),
             _ => None,
         }
     }
@@ -1562,159 +1355,6 @@ impl ResultPayload {
     pub const fn interference_inference(&self) -> Option<&InterferenceInference> {
         match self {
             Self::Interference { inference, .. } => inference.as_ref(),
-            _ => None,
-        }
-    }
-
-    /// Randomized-experiment result.
-    #[must_use]
-    pub const fn randomized_effect(&self) -> Option<&RandomizedEffectEstimate> {
-        match self {
-            Self::RandomizedEffect(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Panel difference-in-differences result.
-    #[must_use]
-    pub const fn panel_did(&self) -> Option<&PanelDidEstimate> {
-        match self {
-            Self::PanelDid(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Synthetic-control result.
-    #[must_use]
-    pub const fn synthetic_control(&self) -> Option<&SyntheticControlEstimate> {
-        match self {
-            Self::SyntheticControl(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Synthetic `DiD` result.
-    #[must_use]
-    pub const fn synthetic_did(&self) -> Option<&SyntheticDidEstimate> {
-        match self {
-            Self::SyntheticDid(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Fuzzy RD or regression-kink result.
-    #[must_use]
-    pub const fn local_polynomial_ratio(&self) -> Option<&LocalPolynomialRatioEstimate> {
-        match self {
-            Self::LocalPolynomialRatio(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Held-out policy value.
-    #[must_use]
-    pub const fn policy_value(&self) -> Option<&PolicyValueEstimate> {
-        match self {
-            Self::PolicyValue(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Continuous-dose response grid.
-    #[must_use]
-    pub const fn continuous_dose_response(&self) -> Option<&ContinuousDoseResponseEstimate> {
-        match self {
-            Self::ContinuousDoseResponse(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Posterior of an unlicensed Bayesian randomized-design row.
-    #[must_use]
-    pub const fn posterior_row(&self) -> Option<&PosteriorRowEstimate> {
-        match self {
-            Self::PosteriorRow(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Survival or competing-risk curve.
-    #[must_use]
-    pub const fn survival(&self) -> Option<&SurvivalEstimate> {
-        match self {
-            Self::Survival(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Longitudinal regime value.
-    #[must_use]
-    pub const fn longitudinal_regime(&self) -> Option<&LongitudinalRegimeEstimate> {
-        match self {
-            Self::LongitudinalRegime(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Within-period history-matched contrast.
-    #[must_use]
-    pub const fn history_match(&self) -> Option<&HistoryMatchEstimate> {
-        match self {
-            Self::HistoryMatch(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Excursion contrasts of a sequentially randomized design, or regime survival.
-    #[must_use]
-    pub fn temporal_design(&self) -> Option<&TemporalDesignEstimate> {
-        match self {
-            Self::TemporalDesign(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Sharp bounds on the average effect under a binary instrument.
-    #[must_use]
-    pub fn iv_bounds(&self) -> Option<&antecedent_estimate::IvBoundsEstimate> {
-        match self {
-            Self::IvBounds(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The noncausal association a compiled association route returned.
-    #[must_use]
-    pub fn association(&self) -> Option<&crate::analysis::association::AssociationPayload> {
-        match self {
-            Self::Association(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The noncausal association a compiled association route returned, consuming the payload.
-    #[must_use]
-    pub fn into_association(self) -> Option<crate::analysis::association::AssociationPayload> {
-        match self {
-            Self::Association(value) => Some(*value),
-            _ => None,
-        }
-    }
-
-    /// Rollout design effects with whole-procedure uncertainty.
-    #[must_use]
-    pub fn quasi_rollout(&self) -> Option<&QuasiRolloutEstimate> {
-        match self {
-            Self::QuasiRollout(value) => Some(value.as_ref()),
-            _ => None,
-        }
-    }
-
-    /// Observational two-decision regime contrast.
-    #[must_use]
-    pub const fn sequential_contrast(&self) -> Option<&SequentialContrastEstimate> {
-        match self {
-            Self::SequentialContrast(value) => Some(value),
             _ => None,
         }
     }
@@ -1847,20 +1487,81 @@ impl StudyResult {
     }
 }
 
+/// Reference and by-value accessors of every single-variant payload on [`ResultPayload`], and
+/// the matching delegates on [`StudyResult`], from one list.
+///
+/// `plain` variants hold the value directly; `boxed` variants hold it behind a `Box`.
 macro_rules! payload_accessors {
-    ($($name:ident, $into:ident: $ty:ty),* $(,)?) => {
-        impl StudyResult {
+    (
+        plain: $($pvariant:ident => $pname:ident, $pinto:ident: $pty:ty;)*
+        boxed: $($bvariant:ident => $bname:ident, $binto:ident: $bty:ty;)*
+    ) => {
+        impl ResultPayload {
             $(
-                #[doc = concat!("The `", stringify!($name), "` payload, when the query produced one.")]
+                #[doc = concat!("The `", stringify!($pname), "` payload, when the answer is one.")]
                 #[must_use]
-                pub fn $name(&self) -> Option<&$ty> {
-                    self.payload.$name()
+                pub const fn $pname(&self) -> Option<&$pty> {
+                    match self {
+                        Self::$pvariant(value) => Some(value),
+                        _ => None,
+                    }
                 }
 
-                #[doc = concat!("The `", stringify!($name), "` payload by value, consuming the result.")]
+                #[doc = concat!("The `", stringify!($pname), "` payload by value.")]
                 #[must_use]
-                pub fn $into(self) -> Option<$ty> {
-                    self.payload.$into()
+                pub fn $pinto(self) -> Option<$pty> {
+                    match self {
+                        Self::$pvariant(value) => Some(value),
+                        _ => None,
+                    }
+                }
+            )*
+            $(
+                #[doc = concat!("The `", stringify!($bname), "` payload, when the answer is one.")]
+                #[must_use]
+                pub fn $bname(&self) -> Option<&$bty> {
+                    match self {
+                        Self::$bvariant(value) => Some(value),
+                        _ => None,
+                    }
+                }
+
+                #[doc = concat!("The `", stringify!($bname), "` payload by value.")]
+                #[must_use]
+                pub fn $binto(self) -> Option<$bty> {
+                    match self {
+                        Self::$bvariant(value) => Some(*value),
+                        _ => None,
+                    }
+                }
+            )*
+        }
+
+        impl StudyResult {
+            $(
+                #[doc = concat!("The `", stringify!($pname), "` payload, when the query produced one.")]
+                #[must_use]
+                pub fn $pname(&self) -> Option<&$pty> {
+                    self.payload.$pname()
+                }
+
+                #[doc = concat!("The `", stringify!($pname), "` payload by value, consuming the result.")]
+                #[must_use]
+                pub fn $pinto(self) -> Option<$pty> {
+                    self.payload.$pinto()
+                }
+            )*
+            $(
+                #[doc = concat!("The `", stringify!($bname), "` payload, when the query produced one.")]
+                #[must_use]
+                pub fn $bname(&self) -> Option<&$bty> {
+                    self.payload.$bname()
+                }
+
+                #[doc = concat!("The `", stringify!($bname), "` payload by value, consuming the result.")]
+                #[must_use]
+                pub fn $binto(self) -> Option<$bty> {
+                    self.payload.$binto()
                 }
             )*
         }
@@ -1868,60 +1569,70 @@ macro_rules! payload_accessors {
 }
 
 payload_accessors! {
-    response, into_response: CausalResponse,
-    distribution, into_distribution: InterventionalDistributionEstimate,
-    mediation, into_mediation: TemporalMediationEstimate,
-    mediation_grid, into_mediation_grid: TemporalMediationGrid,
-    counterfactual, into_counterfactual: IteResult,
-    change_attribution, into_change_attribution: ChangeAttributionResult,
-    unit_change, into_unit_change: UnitChangeResult,
-    transport, into_transport: TransportEffectEstimate,
-    randomized_effect, into_randomized_effect: RandomizedEffectEstimate,
-    panel_did, into_panel_did: PanelDidEstimate,
-    synthetic_control, into_synthetic_control: SyntheticControlEstimate,
-    synthetic_did, into_synthetic_did: SyntheticDidEstimate,
-    local_polynomial_ratio, into_local_polynomial_ratio: LocalPolynomialRatioEstimate,
-    policy_value, into_policy_value: PolicyValueEstimate,
-    continuous_dose_response, into_continuous_dose_response: ContinuousDoseResponseEstimate,
-    survival, into_survival: SurvivalEstimate,
-    posterior_row, into_posterior_row: PosteriorRowEstimate,
-    longitudinal_regime, into_longitudinal_regime: LongitudinalRegimeEstimate,
-    sequential_contrast, into_sequential_contrast: SequentialContrastEstimate,
-    history_match, into_history_match: HistoryMatchEstimate,
-    temporal_design, into_temporal_design: TemporalDesignEstimate,
-    iv_bounds, into_iv_bounds: antecedent_estimate::IvBoundsEstimate,
-    quasi_rollout, into_quasi_rollout: QuasiRolloutEstimate,
+    plain:
+    Response => response, into_response: CausalResponse;
+    Distribution => distribution, into_distribution: InterventionalDistributionEstimate;
+    Counterfactual => counterfactual, into_counterfactual: IteResult;
+    ChangeAttribution => change_attribution, into_change_attribution: ChangeAttributionResult;
+    UnitChange => unit_change, into_unit_change: UnitChangeResult;
+    Transport => transport, into_transport: TransportEffectEstimate;
+    RandomizedEffect => randomized_effect, into_randomized_effect: RandomizedEffectEstimate;
+    PanelDid => panel_did, into_panel_did: PanelDidEstimate;
+    SyntheticControl => synthetic_control, into_synthetic_control: SyntheticControlEstimate;
+    SyntheticDid => synthetic_did, into_synthetic_did: SyntheticDidEstimate;
+    LocalPolynomialRatio => local_polynomial_ratio, into_local_polynomial_ratio:
+        LocalPolynomialRatioEstimate;
+    PolicyValue => policy_value, into_policy_value: PolicyValueEstimate;
+    ContinuousDoseResponse => continuous_dose_response, into_continuous_dose_response:
+        ContinuousDoseResponseEstimate;
+    Survival => survival, into_survival: SurvivalEstimate;
+    PosteriorRow => posterior_row, into_posterior_row: PosteriorRowEstimate;
+    LongitudinalRegime => longitudinal_regime, into_longitudinal_regime:
+        LongitudinalRegimeEstimate;
+    SequentialContrast => sequential_contrast, into_sequential_contrast:
+        SequentialContrastEstimate;
+    HistoryMatch => history_match, into_history_match: HistoryMatchEstimate;
+    boxed:
+    TemporalDesign => temporal_design, into_temporal_design: TemporalDesignEstimate;
+    IvBounds => iv_bounds, into_iv_bounds: antecedent_estimate::IvBoundsEstimate;
+    Association => association, into_association:
+        crate::analysis::association::AssociationPayload;
+    QuasiRollout => quasi_rollout, into_quasi_rollout: QuasiRolloutEstimate;
+    Discovery => discovery, into_discovery: crate::analysis::structure_route::DiscoveryPayload;
+    Attribution => attribution, into_attribution:
+        crate::analysis::structure_route::AttributionPayload;
+    Simulation => simulation, into_simulation: crate::analysis::structure_route::SimulationPayload;
 }
 
 impl StudyResult {
-    /// The noncausal association when the query was an association.
+    /// The mediation decomposition, when the query produced one.
     #[must_use]
-    pub fn association(&self) -> Option<&crate::analysis::association::AssociationPayload> {
-        self.payload.association()
+    pub fn mediation(&self) -> Option<&TemporalMediationEstimate> {
+        self.payload.mediation()
+    }
+
+    /// The mediation decomposition by value, consuming the result.
+    #[must_use]
+    pub fn into_mediation(self) -> Option<TemporalMediationEstimate> {
+        self.payload.into_mediation()
+    }
+
+    /// The horizon-indexed mediation grid, when the query produced one.
+    #[must_use]
+    pub fn mediation_grid(&self) -> Option<&TemporalMediationGrid> {
+        self.payload.mediation_grid()
+    }
+
+    /// The mediation grid by value, consuming the result.
+    #[must_use]
+    pub fn into_mediation_grid(self) -> Option<TemporalMediationGrid> {
+        self.payload.into_mediation_grid()
     }
 
     /// Anomaly scores when the query was anomaly attribution.
     #[must_use]
     pub fn anomaly(&self) -> Option<&[AnomalyScores]> {
         self.payload.anomaly()
-    }
-
-    /// The structure a compiled search returned, when the query was a discovery.
-    #[must_use]
-    pub fn discovery(&self) -> Option<&crate::analysis::structure_route::DiscoveryPayload> {
-        self.payload.discovery()
-    }
-
-    /// The attribution a compiled fitted-model route returned.
-    #[must_use]
-    pub fn attribution(&self) -> Option<&crate::analysis::structure_route::AttributionPayload> {
-        self.payload.attribution()
-    }
-
-    /// The simulation a compiled fitted-model route returned.
-    #[must_use]
-    pub fn simulation(&self) -> Option<&crate::analysis::structure_route::SimulationPayload> {
-        self.payload.simulation()
     }
 
     /// Mechanism-change detections.

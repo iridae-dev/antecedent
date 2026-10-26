@@ -19,8 +19,9 @@ use antecedent_validate::predictive_assessment::{
 
 /// Calibration label of every association result.
 pub const ASSOCIATION_CALIBRATION: &str = "unmeasured";
-/// Most atoms a count forecast's finite law keeps.
-const MAX_COUNT_ATOMS: usize = 20_000;
+/// Most atoms a count forecast's finite law keeps; the window `rate +- (12 sd + 20)` fits this
+/// bound for every rate below about 2.7e10.
+const MAX_COUNT_ATOMS: usize = 4_000_000;
 
 /// Mean held-out proper score of a predictive model and of the training-mean baseline.
 #[derive(Clone, Debug, PartialEq)]
@@ -75,9 +76,9 @@ fn weighted_mean(values: impl Iterator<Item = (f64, f64)>) -> f64 {
     sum / total
 }
 
-/// `ln(k!)` for a small non-negative integer.
+/// `ln(k!)`, through the log-gamma function so the cost does not grow with `k`.
 fn ln_factorial(k: u64) -> f64 {
-    (2..=k).map(|j| (j as f64).ln()).sum()
+    if k < 2 { 0.0 } else { antecedent_stats::ln_gamma(k as f64 + 1.0) }
 }
 
 #[allow(
@@ -93,25 +94,31 @@ fn poisson_log_score(rate: f64, outcome: f64) -> f64 {
     rate - outcome * rate.ln() + ln_factorial(count_of(outcome))
 }
 
-/// The finite law of a Poisson forecast: atoms `(k, P(K = k))` up to the point the tail mass is
-/// negligible, renormalised to sum to one.
+/// The finite law of a Poisson forecast: atoms `(k, P(K = k))` over a window around the mean
+/// that holds all but a negligible tail mass, renormalised to sum to one.
+///
+/// Each probability is evaluated from its logarithm, `-rate + k ln(rate) - ln(k!)`, relative to
+/// the mode, so a large rate neither underflows the starting probability nor loses the mass
+/// to a zero normaliser. A zero rate is the point mass at zero.
 #[allow(
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
-    reason = "the upper atom is a small positive count bounded by MAX_COUNT_ATOMS"
+    reason = "the window ends are small non-negative counts bounded by MAX_COUNT_ATOMS"
 )]
-fn poisson_atoms(rate: f64, outcome: f64) -> Vec<(f64, f64)> {
-    let upper = ((rate + 12.0 * rate.sqrt() + 20.0).ceil() as usize)
-        .max(count_of(outcome) as usize + 1)
-        .min(MAX_COUNT_ATOMS);
-    let mut probability = (-rate).exp();
-    let mut atoms = Vec::with_capacity(upper);
-    let mut total = 0.0;
-    for k in 0..upper {
-        atoms.push((k as f64, probability));
-        total += probability;
-        probability *= rate / (k as f64 + 1.0);
+fn poisson_atoms(rate: f64) -> Vec<(f64, f64)> {
+    if rate <= 0.0 {
+        return vec![(0.0, 1.0)];
     }
+    let half_width = 12.0 * rate.sqrt() + 20.0;
+    let lower = (rate - half_width).floor().max(0.0) as u64;
+    let mut upper = (rate + half_width).ceil() as u64;
+    upper = upper.min(lower.saturating_add(MAX_COUNT_ATOMS as u64 - 1));
+    let log_pmf = |k: u64| -rate + k as f64 * rate.ln() - ln_factorial(k);
+    let mode = rate.floor() as u64;
+    let reference = log_pmf(mode.clamp(lower, upper));
+    let mut atoms: Vec<(f64, f64)> =
+        (lower..=upper).map(|k| (k as f64, (log_pmf(k) - reference).exp())).collect();
+    let total: f64 = atoms.iter().map(|atom| atom.1).sum();
     for atom in &mut atoms {
         atom.1 /= total;
     }
@@ -132,7 +139,7 @@ fn score_case(kind: OutcomeKind, case: &HeldOutCase, baseline: bool) -> (f64, Op
         OutcomeKind::Binary => (brier_binary(mean, case.outcome > 0.5), None),
         OutcomeKind::Count => (
             poisson_log_score(mean, case.outcome),
-            Some(crps_weighted_atoms(&poisson_atoms(mean, case.outcome), case.outcome)),
+            Some(crps_weighted_atoms(&poisson_atoms(mean), case.outcome)),
         ),
     }
 }
@@ -200,5 +207,17 @@ mod tests {
         assert!((scores.mean_score - expected).abs() < 1e-12);
         assert!(scores.mean_crps.unwrap() > 0.0);
         assert_eq!(scores.score, "poisson_log_score");
+    }
+
+    #[test]
+    fn a_large_rate_poisson_law_is_normalised_and_centred_on_the_rate() {
+        for rate in [1_000.0, 50_000.0] {
+            let atoms = poisson_atoms(rate);
+            let total: f64 = atoms.iter().map(|a| a.1).sum();
+            let mean: f64 = atoms.iter().map(|a| a.0 * a.1).sum();
+            assert!((total - 1.0).abs() < 1e-12);
+            assert!((mean - rate).abs() < 1e-6 * rate);
+        }
+        assert_eq!(poisson_atoms(0.0), vec![(0.0, 1.0)]);
     }
 }

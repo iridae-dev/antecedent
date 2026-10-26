@@ -273,13 +273,7 @@ fn design_cell(
                     query.source_population, query.target_population
                 ),
             ));
-            let family = match class {
-                GraphClass::TemporalAdmg => GraphFamily::TemporalAdmg,
-                GraphClass::Dag => GraphFamily::Dag,
-                GraphClass::Cpdag => GraphFamily::Cpdag,
-                GraphClass::Pag => GraphFamily::Pag,
-                _ => GraphFamily::Admg,
-            };
+            let family = graph_family_of(class);
             let binding = binding(data, query.response.target_population.clone(), "row", outcome)?;
             let target = binary_contrast(
                 &binding,
@@ -1199,4 +1193,20 @@ pub(super) fn retained_assumptions(
         .retained_identification()
         .and_then(|retained| retained.product.as_ref())
         .map(|product| product.assumptions().clone())
+}
+
+/// The graph family a target is stated under for an accepted graph class. Exhaustive, so a new
+/// class must choose its family here.
+const fn graph_family_of(class: GraphClass) -> GraphFamily {
+    match class {
+        GraphClass::Dag => GraphFamily::Dag,
+        GraphClass::Admg => GraphFamily::Admg,
+        GraphClass::Cpdag => GraphFamily::Cpdag,
+        GraphClass::Pag => GraphFamily::Pag,
+        GraphClass::TemporalDag => GraphFamily::TemporalDag,
+        GraphClass::TemporalCpdag => GraphFamily::TemporalCpdag,
+        GraphClass::TemporalPag => GraphFamily::TemporalPag,
+        GraphClass::TemporalAdmg => GraphFamily::TemporalAdmg,
+        GraphClass::RandomizedTrial => GraphFamily::Graphless,
+    }
 }

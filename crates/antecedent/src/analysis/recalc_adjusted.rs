@@ -2,7 +2,9 @@
 //! The model-support query is distinct from the requested contrast: changing causal roles
 //! invalidates identification and fit; selecting another finite contrast reuses coefficients.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-use super::recalc_common::{Fields, dag_from_edges, float_bytes, identity, literal};
+use super::recalc_common::{
+    Fields, canonical_bits, dag_from_edges, float_bytes, identity, literal,
+};
 use super::recalc_receipt::{
     Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRunError, ReceiptRecorder,
     TargetWeights, UtilitySpec, decide,
@@ -305,7 +307,7 @@ impl AdjustedRequest {
                 let mut code_to_label = std::collections::BTreeMap::new();
                 let mut label_to_code = std::collections::BTreeMap::new();
                 for (value, label) in values.iter().zip(levels) {
-                    let code = if *value == 0. { 0.0f64.to_bits() } else { value.to_bits() };
+                    let code = canonical_bits(*value);
                     if code_to_label.insert(code, label).is_some_and(|old| old != label)
                         || label_to_code.insert(label, code).is_some_and(|old| old != code)
                     {
@@ -337,10 +339,11 @@ impl AdjustedRequest {
             _ => return Err(RecalcRunError::Request("recalc.incompatible_contrast")),
         }
         if let Some(target) = &self.target {
+            let weight_mass = target.weights.iter().sum::<f64>();
             if target.weights.len() != n
                 || target.weights.iter().any(|x| !x.is_finite() || *x < 0.)
-                || !target.weights.iter().sum::<f64>().is_finite()
-                || target.weights.iter().sum::<f64>() <= 0.
+                || !weight_mass.is_finite()
+                || weight_mass <= 0.
                 || target.depends_on.iter().any(|id| !self.adjustment.contains(&id.raw()))
             {
                 return Err(RecalcRunError::Request("recalc.invalid_target_weights"));

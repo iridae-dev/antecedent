@@ -461,28 +461,45 @@ fn active_candidates(
     (active, index_map)
 }
 
+/// Rewrite each ranked candidate's index through `map`, in place when the slice is not shared.
+fn remap_ranked(ranked: &mut Arc<[RankedCandidate]>, map: impl Fn(usize) -> usize) {
+    let remap = |item: &mut RankedCandidate| item.candidate_index = map(item.candidate_index);
+    if let Some(items) = Arc::get_mut(ranked) {
+        items.iter_mut().for_each(remap);
+    } else {
+        let mut items = ranked.to_vec();
+        items.iter_mut().for_each(remap);
+        *ranked = items.into();
+    }
+}
+
+/// `leading` followed by `trailing` with each trailing violation's candidate index mapped.
+fn remap_violations(
+    leading: Vec<ConstraintViolation>,
+    trailing: &[ConstraintViolation],
+    map: impl Fn(usize) -> usize,
+) -> Arc<[ConstraintViolation]> {
+    let mut violations = leading;
+    violations.reserve(trailing.len());
+    violations.extend(trailing.iter().cloned().map(|mut item| {
+        item.candidate_index = map(item.candidate_index);
+        item
+    }));
+    violations.into()
+}
+
 fn remap_ranking(
-    ranking: ScoredDesignRanking,
+    mut ranking: ScoredDesignRanking,
     index_map: &[usize],
     preview_violations: &[ConstraintViolation],
 ) -> ScoredDesignRanking {
-    let ranked: Vec<RankedCandidate> = ranking
-        .ranked
-        .iter()
-        .cloned()
-        .map(|mut item| {
-            item.candidate_index = index_map[item.candidate_index];
-            item
-        })
-        .collect();
-    let mut violations = preview_violations.to_vec();
-    violations.extend(ranking.violations.iter().cloned().map(|mut item| {
-        item.candidate_index = index_map[item.candidate_index];
-        item
-    }));
+    remap_ranked(&mut ranking.ranked, |index| index_map[index]);
+    let violations = remap_violations(preview_violations.to_vec(), &ranking.violations, |index| {
+        index_map[index]
+    });
     ScoredDesignRanking {
-        ranked: ranked.into(),
-        violations: violations.into(),
+        ranked: ranking.ranked,
+        violations,
         budget: ranking.budget,
         early_stopped: ranking.early_stopped,
     }
@@ -585,7 +602,7 @@ where
     };
     let preview =
         preview_design_rank(contract, objective, &candidates, &derived_eval, decision_target)?;
-    let ranking = if preview.unresolved {
+    let mut ranking = if preview.unresolved {
         incomplete_ranking(&preview.violations)
     } else {
         let (active, index_map) = active_candidates(&candidates, &preview.violations);
@@ -599,24 +616,12 @@ where
     // Candidate indices are positions among the verified designs; report them as
     // positions in the declared slice, violations included.
     let to_declared = |index: usize| indices[index];
-    let ranked: Vec<RankedCandidate> = ranking
-        .ranked
-        .iter()
-        .cloned()
-        .map(|mut item| {
-            item.candidate_index = to_declared(item.candidate_index);
-            item
-        })
-        .collect();
-    let mut violations = not_verified;
-    violations.extend(ranking.violations.iter().cloned().map(|mut item| {
-        item.candidate_index = to_declared(item.candidate_index);
-        item
-    }));
+    remap_ranked(&mut ranking.ranked, to_declared);
+    let violations = remap_violations(not_verified, &ranking.violations, to_declared);
     Ok(StudyDesignRanking {
         ranking: ScoredDesignRanking {
-            ranked: ranked.into(),
-            violations: violations.into(),
+            ranked: ranking.ranked,
+            violations,
             budget: ranking.budget,
             early_stopped: ranking.early_stopped,
         },

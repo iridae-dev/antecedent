@@ -464,18 +464,18 @@ fn feature_bounds(
         let table = prepared
             .score_table()
             .ok_or(RecalcRunError::Request("recalc.dr_scores_unavailable"))?;
+        // Convert the row ids once, then take both bounds of each feature in a single pass.
+        let rows: Vec<usize> = table
+            .row_index
+            .iter()
+            .map(|row| usize::try_from(row.get()))
+            .collect::<Result<_, _>>()
+            .map_err(|_| RecalcRunError::Request("recalc.dr_scores_unavailable"))?;
         for &id in &model.features {
             let values = &request.columns[id as usize].1;
-            let lo = table
-                .row_index
-                .iter()
-                .map(|&row| values[usize::try_from(row.get()).expect("row id")])
-                .fold(f64::INFINITY, f64::min);
-            let hi = table
-                .row_index
-                .iter()
-                .map(|&row| values[usize::try_from(row.get()).expect("row id")])
-                .fold(f64::NEG_INFINITY, f64::max);
+            let (lo, hi) = rows.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &row| {
+                (lo.min(values[row]), hi.max(values[row]))
+            });
             bounds.push((VariableId::from_raw(id), lo, hi));
         }
     }

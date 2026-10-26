@@ -100,6 +100,8 @@ pub enum FlagshipError {
     Verification(Box<CompositionVerificationRefusal>),
     /// The claim graph refused.
     Graph(String),
+    /// A decision record or cost identity could not be encoded or decoded.
+    Serialization(Box<serde_json::Error>),
     /// A route did not return the object this workflow requires.
     Route(&'static str),
     /// Current evidence authority refused consumption.
@@ -124,6 +126,7 @@ impl std::fmt::Display for FlagshipError {
             Self::Decision(error) => write!(f, "decision evaluation refused: {error:?}"),
             Self::Verification(error) => write!(f, "{error}"),
             Self::Graph(detail) => write!(f, "{detail}"),
+            Self::Serialization(error) => write!(f, "decision record serialization: {error}"),
             Self::Route(detail) | Self::Dependence(detail) | Self::Policy(detail) => {
                 write!(f, "{detail}")
             }
@@ -131,7 +134,21 @@ impl std::fmt::Display for FlagshipError {
     }
 }
 
-impl std::error::Error for FlagshipError {}
+impl std::error::Error for FlagshipError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Serialization(error) => Some(error.as_ref()),
+            _ => None,
+        }
+    }
+}
+
+impl From<serde_json::Error> for FlagshipError {
+    fn from(error: serde_json::Error) -> Self {
+        Self::Serialization(Box::new(error))
+    }
+}
+
 impl From<antecedent_contract::evidence_ledger::LedgerError> for FlagshipError {
     fn from(error: antecedent_contract::evidence_ledger::LedgerError) -> Self {
         Self::Authority(Box::new(error))
@@ -828,7 +845,7 @@ impl FlagshipWorkflow {
             payload_identity: self.decision.joint.identity().to_owned(),
             payload: self.decision.joint.export()?,
         };
-        let bytes = serde_json::to_vec(&record).map_err(|e| FlagshipError::Graph(e.to_string()))?;
+        let bytes = serde_json::to_vec(&record)?;
         let identity = decision_artifact_identity(&bytes);
         Ok(DecisionArtifact { bytes, identity })
     }
@@ -1343,7 +1360,7 @@ fn source_keys(
     let mut temporal = temporal.clone();
     temporal.benefit_per_unit = 0.0;
     temporal.cost = 0.0;
-    let bytes = serde_json::to_vec(&temporal).map_err(|e| FlagshipError::Graph(e.to_string()))?;
+    let bytes = serde_json::to_vec(&temporal)?;
     let mut posterior = CanonicalWriter::new("antecedent.flagship_cost.v1");
     let identities = cost.identities(ctx);
     for stage in Stage::all() {
@@ -1399,7 +1416,7 @@ fn decode_decision(
         return Err(FlagshipError::Route("decision artifact identity mismatch"));
     }
     let record: DecisionRecord =
-        serde_json::from_slice(bytes).map_err(|e| FlagshipError::Graph(e.to_string()))?;
+        serde_json::from_slice(bytes)?;
     if record.version != 2 {
         return Err(FlagshipError::Route("unsupported decision artifact version"));
     }

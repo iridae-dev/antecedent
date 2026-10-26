@@ -333,7 +333,7 @@ fn identify_source_temporal_cpdag(
     strategy: IdentifierId,
     structure_version: u32,
 ) -> Result<Identification, CausalError> {
-    let q = temporal_class_identify_query(query, "TemporalCpdag")?;
+    let q = temporal_class_identify_query(query, GraphClass::TemporalCpdag)?;
     let mut envelope = identify_temporal_cpdag(strategy, cpdag, &q)?;
     refine_temporal_class_identification(&mut envelope, query, q.horizon_steps)?;
     audit_temporal_class_horizons(&mut envelope, structure, query, strategy, &q)?;
@@ -350,7 +350,7 @@ fn identify_source_temporal_pag(
     if let CausalQuery::Mediation(mediation) = query {
         return identify_temporal_pag_mediation(pag, mediation, strategy, structure_version);
     }
-    let q = temporal_class_identify_query(query, "TemporalPag")?;
+    let q = temporal_class_identify_query(query, GraphClass::TemporalPag)?;
     let mut envelope = identify_temporal_pag(strategy, pag, &q)?;
     refine_temporal_class_identification(&mut envelope, query, q.horizon_steps)?;
     audit_temporal_class_horizons(&mut envelope, structure, query, strategy, &q)?;
@@ -407,7 +407,7 @@ fn static_identify_query(query: &CausalQuery) -> CausalQuery {
 
 fn temporal_class_identify_query(
     query: &CausalQuery,
-    class_tag: &str,
+    class: GraphClass,
 ) -> Result<TemporalEffectQuery, CausalError> {
     match query {
         CausalQuery::TemporalEffect(q) => Ok(q.clone()),
@@ -429,7 +429,7 @@ fn temporal_class_identify_query(
                 effect_modifiers: std::sync::Arc::from([]),
             })
         }
-        CausalQuery::Mediation(q) if class_tag == "TemporalCpdag" => {
+        CausalQuery::Mediation(q) if class == GraphClass::TemporalCpdag => {
             let mut witness = TemporalEffectQuery::pulse(q.treatment, q.outcome, 1.0);
             witness.horizon_steps = q.horizons.first().copied().unwrap_or(1);
             Ok(witness)
@@ -537,10 +537,11 @@ fn audit_temporal_class_horizons(
             }
         }
     }
-    let mut rebuilt = IdentificationEnvelope::from_cases(primary.envelope.cases.clone());
-    rebuilt.truncated_completions =
-        rebuilt.truncated_completions.max(primary.envelope.truncated_completions);
-    rebuilt.push_features(primary.envelope.critical_graph_features.clone());
+    let truncated = primary.envelope.truncated_completions;
+    let mut rebuilt =
+        IdentificationEnvelope::from_cases(std::mem::take(&mut primary.envelope.cases));
+    rebuilt.truncated_completions = rebuilt.truncated_completions.max(truncated);
+    rebuilt.push_features(std::mem::take(&mut primary.envelope.critical_graph_features));
     if rebuilt.truncated_completions > 0 {
         rebuilt.invariant = None;
         if rebuilt.status == antecedent_core::IdentificationStatus::NonparametricallyIdentified {
@@ -551,6 +552,20 @@ fn audit_temporal_class_horizons(
     Ok(())
 }
 
+/// The requested functional a temporal class case is re-certified against, decoded once
+/// before the per-case loop.
+enum RefineKind<'a> {
+    /// A response with a sequence schedule.
+    Schedule {
+        response: &'a antecedent_core::ResponseQuery,
+        outcome: antecedent_core::VariableId,
+        max_history_lag: Option<u32>,
+        schedule: Vec<(antecedent_core::VariableId, i32, Option<f64>)>,
+    },
+    /// A temporal mediation contrast.
+    Mediation(&'a antecedent_core::MediationQuery),
+}
+
 /// Replace the enumeration witness with the actual requested functional.
 /// Enumeration supplies structures, never an identification certificate for a
 /// different intervention schedule or mediation contrast.
@@ -559,22 +574,33 @@ pub(crate) fn refine_temporal_class_identification(
     query: &CausalQuery,
     horizon: u32,
 ) -> Result<(), CausalError> {
-    let schedule = if let CausalQuery::Response(response) = query {
-        match antecedent_estimate::plan_from_response_query(response).map_err(CausalError::from)? {
-            Some(plan) if plan.mechanism_overlays().is_some() => {
-                let temporal = response.temporal.as_ref().ok_or_else(|| CausalError::Compile {
-                    message: "sequence schedule requires TemporalResponseSpec".into(),
-                })?;
-                Some(plan.identification_schedule(temporal))
+    // Decode the requested functional once, with everything each case needs.
+    let refine = match query {
+        CausalQuery::Response(response) => {
+            match antecedent_estimate::plan_from_response_query(response)
+                .map_err(CausalError::from)?
+            {
+                Some(plan) if plan.mechanism_overlays().is_some() => {
+                    let temporal =
+                        response.temporal.as_ref().ok_or_else(|| CausalError::Compile {
+                            message: "sequence schedule requires TemporalResponseSpec".into(),
+                        })?;
+                    let (_, outcome) = response.functional.primary_pair().ok_or_else(|| {
+                        CausalError::Compile { message: "response requires primary pair".into() }
+                    })?;
+                    RefineKind::Schedule {
+                        response,
+                        outcome,
+                        max_history_lag: temporal.max_history_lag,
+                        schedule: plan.identification_schedule(temporal),
+                    }
+                }
+                _ => return Ok(()),
             }
-            _ => None,
         }
-    } else {
-        None
+        CausalQuery::Mediation(mediation) => RefineKind::Mediation(mediation),
+        _ => return Ok(()),
     };
-    if schedule.is_none() && !matches!(query, CausalQuery::Mediation(_)) {
-        return Ok(());
-    }
     for (case, indexer) in envelope.envelope.cases.iter_mut().zip(&mut envelope.indexers) {
         let Some(dag) = case.graph.sequential_dag() else {
             // The enumeration witness certified Pulse/Sustained adjustment, not the
@@ -592,30 +618,27 @@ pub(crate) fn refine_temporal_class_identification(
             ));
             continue;
         };
-        let identified = match query {
-            CausalQuery::Response(response) => {
-                let temporal = response.temporal.as_ref().expect("temporal response");
-                let (_, outcome) = response.functional.primary_pair().ok_or_else(|| {
-                    CausalError::Compile { message: "response requires primary pair".into() }
-                })?;
+        let identified = match &refine {
+            RefineKind::Schedule { response, outcome, max_history_lag, schedule } => {
                 TemporalBackdoorIdentifier::new()
                     .identify_temporal_schedule(
                         &dag,
-                        outcome,
+                        *outcome,
                         i32::try_from(horizon.saturating_sub(1)).unwrap_or(i32::MAX),
-                        schedule.as_deref().expect("schedule"),
-                        temporal.max_history_lag,
+                        schedule,
+                        *max_history_lag,
                         response.target_population.clone(),
                     )
                     .map(|identified| (identified.result, identified.indexer))
             }
-            CausalQuery::Mediation(mediation) => antecedent_identify::TemporalMediationIdentifier {
-                allow_natural_controlled_alias: true,
-                ..antecedent_identify::TemporalMediationIdentifier::new()
+            RefineKind::Mediation(mediation) => {
+                antecedent_identify::TemporalMediationIdentifier {
+                    allow_natural_controlled_alias: true,
+                    ..antecedent_identify::TemporalMediationIdentifier::new()
+                }
+                .identify_with_horizon(&dag, mediation, horizon)
+                .map(|(result, temporal)| (result, temporal.indexer))
             }
-            .identify_with_horizon(&dag, mediation, horizon)
-            .map(|(result, temporal)| (result, temporal.indexer)),
-            _ => unreachable!(),
         };
         match identified {
             Ok((result, coordinates)) => {
@@ -629,10 +652,11 @@ pub(crate) fn refine_temporal_class_identification(
             Err(error) => return Err(error.into()),
         }
     }
-    let old = &envelope.envelope;
-    let mut rebuilt = IdentificationEnvelope::from_cases(old.cases.clone());
-    rebuilt.truncated_completions = rebuilt.truncated_completions.max(old.truncated_completions);
-    rebuilt.push_features(old.critical_graph_features.clone());
+    let old = &mut envelope.envelope;
+    let truncated = old.truncated_completions;
+    let mut rebuilt = IdentificationEnvelope::from_cases(std::mem::take(&mut old.cases));
+    rebuilt.truncated_completions = rebuilt.truncated_completions.max(truncated);
+    rebuilt.push_features(std::mem::take(&mut old.critical_graph_features));
     if rebuilt.truncated_completions > 0 {
         rebuilt.invariant = None;
         if rebuilt.status == antecedent_core::IdentificationStatus::NonparametricallyIdentified {

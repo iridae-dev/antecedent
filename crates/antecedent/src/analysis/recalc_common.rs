@@ -29,6 +29,11 @@ pub(super) fn float_bytes(values: &[f64]) -> Vec<u8> {
     values.iter().flat_map(|v| v.to_bits().to_le_bytes()).collect()
 }
 
+/// Bit pattern of a value with `-0.0` identified with `0.0`, for keying and equality on levels.
+pub(super) fn canonical_bits(value: f64) -> u64 {
+    (value + 0.0).to_bits()
+}
+
 /// Canonical CBOR of a wire value.
 ///
 /// A value that cannot be encoded gets a process-unique marker, so it never shares an

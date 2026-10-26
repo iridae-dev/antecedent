@@ -12,24 +12,26 @@ use super::cell::{
     CellStatus, SupportCell, SupportGraphClass, SupportInference, SupportQuery, SupportRefusal,
     SupportStructure, SupportValidation,
 };
-use super::matrix_data::{self, Axis, CLOSED_RULES, LICENSED, LicensedCell, NA_RULES};
+use super::matrix_data::{self, Axis, CLOSED_RULES, LICENSED, LicensedCell, NA_RULES, NaRule};
 
 fn axis_in(allowed: Option<&[&str]>, value: &str) -> bool {
     allowed.is_none_or(|xs| xs.contains(&value))
 }
 
+/// Whether every axis of `cell` is admitted by `rule` (an absent axis admits all).
+fn rule_matches(rule: &NaRule, cell: SupportCell) -> bool {
+    axis_in(rule.queries, cell.query.as_str())
+        && axis_in(rule.graph_classes, cell.graph_class.as_str())
+        && axis_in(rule.structures, cell.structure.as_str())
+        && axis_in(rule.inferences, cell.inference.as_str())
+        && axis_in(rule.validations, cell.validation.as_str())
+}
+
 /// Classify `cell` against the generated n/a rules and licensed set.
 #[must_use]
 pub fn classify(cell: SupportCell) -> CellStatus {
-    for rule in NA_RULES {
-        if axis_in(rule.queries, cell.query.as_str())
-            && axis_in(rule.graph_classes, cell.graph_class.as_str())
-            && axis_in(rule.structures, cell.structure.as_str())
-            && axis_in(rule.inferences, cell.inference.as_str())
-            && axis_in(rule.validations, cell.validation.as_str())
-        {
-            return CellStatus::NotApplicable { reason: rule.reason };
-        }
+    if let Some(rule) = NA_RULES.iter().find(|rule| rule_matches(rule, cell)) {
+        return CellStatus::NotApplicable { reason: rule.reason };
     }
     if licensed_row(cell).is_some() {
         return CellStatus::Licensed;
@@ -95,17 +97,7 @@ pub fn refused_message(cell: SupportCell) -> &'static str {
 }
 
 pub(super) fn refusal_reason(cell: SupportCell) -> Option<&'static str> {
-    for rule in CLOSED_RULES {
-        if axis_in(rule.queries, cell.query.as_str())
-            && axis_in(rule.graph_classes, cell.graph_class.as_str())
-            && axis_in(rule.structures, cell.structure.as_str())
-            && axis_in(rule.inferences, cell.inference.as_str())
-            && axis_in(rule.validations, cell.validation.as_str())
-        {
-            return Some(rule.reason);
-        }
-    }
-    None
+    CLOSED_RULES.iter().find(|rule| rule_matches(rule, cell)).map(|rule| rule.reason)
 }
 
 /// Whether a refused cell executes and stays unlicensed.
@@ -121,16 +113,7 @@ pub(crate) fn executes_unlicensed(cell: SupportCell) -> bool {
     if !matches!(classify(cell), CellStatus::Refused) {
         return false;
     }
-    CLOSED_RULES
-        .iter()
-        .find(|rule| {
-            axis_in(rule.queries, cell.query.as_str())
-                && axis_in(rule.graph_classes, cell.graph_class.as_str())
-                && axis_in(rule.structures, cell.structure.as_str())
-                && axis_in(rule.inferences, cell.inference.as_str())
-                && axis_in(rule.validations, cell.validation.as_str())
-        })
-        .is_some_and(|rule| rule.executes_unlicensed)
+    CLOSED_RULES.iter().find(|rule| rule_matches(rule, cell)).is_some_and(|rule| rule.executes_unlicensed)
 }
 
 /// The single static message every unmatched `Refused` cell reports. Cell
@@ -172,26 +155,24 @@ pub fn support_cell_from_coordinate(coordinate: &str) -> Option<SupportCell> {
     Some(SupportCell { query, graph_class, structure, inference, validation })
 }
 
-const MAX_LICENSED_NEIGHBORS: usize = 8;
-
 /// Licensed alternatives that keep the requested graph class.
 ///
 /// Neighbors are explicit changed-premise suggestions, never automatic
 /// fallbacks. Relabeling a class (`Cpdag` → `Dag`) is not a neighbor. An
-/// already-licensed cell has no neighbors.
+/// already-licensed cell has no neighbors. Every alternative is returned, nearest
+/// first (fewest changed premises), in a deterministic order.
 #[must_use]
 pub fn licensed_neighbors(cell: SupportCell) -> Vec<LicensedNeighbor> {
     if matches!(classify(cell), CellStatus::Licensed) {
         return Vec::new();
     }
-    let mut scored: Vec<(Vec<PremiseChange>, LicensedCell)> = LICENSED
+    let mut scored: Vec<(Vec<PremiseChange>, &'static LicensedCell)> = LICENSED
         .iter()
-        .copied()
         .filter_map(|row| {
             if row.graph_class != cell.graph_class.as_str() {
                 return None;
             }
-            let changed = neighbor_changes(cell, &row);
+            let changed = neighbor_changes(cell, row);
             (!changed.is_empty()).then_some((changed, row))
         })
         .collect();
@@ -212,11 +193,10 @@ pub fn licensed_neighbors(cell: SupportCell) -> Vec<LicensedNeighbor> {
     });
     scored
         .into_iter()
-        .take(MAX_LICENSED_NEIGHBORS)
         .map(|(changed, row)| {
             let required_action = neighbor_action(&changed);
             LicensedNeighbor::new(
-                cell_coordinate(support_cell_from_licensed(&row)),
+                cell_coordinate(support_cell_from_licensed(row)),
                 changed,
                 required_action,
             )

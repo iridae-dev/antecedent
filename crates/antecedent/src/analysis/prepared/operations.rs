@@ -447,7 +447,9 @@ impl CheckedAdmgResponseCurveOperation {
             .first()
             .map(|posterior| u32::try_from(posterior.draws.n_draws).unwrap_or(u32::MAX));
         let posterior = self.joint_posterior(member_posteriors)?;
-        let first = self.members.first().expect("nonempty checked member array");
+        let first = self.members.first().ok_or(CausalError::Unsupported {
+            message: "a general-identification response needs at least one member",
+        })?;
         let mut support = self.response_support(support_status, point_status, &support_warnings)?;
         let scalar_intervention = matches!(
             self.query.functional,
@@ -481,7 +483,9 @@ impl CheckedAdmgResponseCurveOperation {
         };
         let mut diagnostics = general_id_diagnostics(first, support_warnings);
         let (treatment, outcome) =
-            first.query.functional.primary_pair().expect("checked member roles");
+            first.query.functional.primary_pair().ok_or(CausalError::Unsupported {
+                message: "the response functional names no treatment and outcome pair",
+            })?;
         let refutations =
             if scalar_intervention && scalar.is_finite() && self.refute != RefuteSuite::None {
                 let (reports, refute_diags) =
@@ -587,7 +591,9 @@ impl CheckedAdmgResponseCurveOperation {
                 InferenceMode::Bayesian(_) => {
                     let n_draws =
                         crate::analysis::execute::functional_bayesian_draws(&self.inference)?
-                            .expect("Bayesian inference selects a draw count");
+                            .ok_or(CausalError::Unsupported {
+                                message: "Bayesian inference selects no draw count",
+                            })?;
                     let fit = self
                         .fitter
                         .estimate_bayesian(
@@ -1969,7 +1975,9 @@ impl CheckedDistributionOperation {
             }
             InferenceMode::Bayesian(_) => {
                 let n_draws = crate::analysis::execute::functional_bayesian_draws(&self.inference)?
-                    .expect("Bayesian inference selects a draw count");
+                    .ok_or(CausalError::Unsupported {
+                        message: "Bayesian inference selects no draw count",
+                    })?;
                 let (distribution, posterior) = self
                     .fitter
                     .estimate_bayesian(

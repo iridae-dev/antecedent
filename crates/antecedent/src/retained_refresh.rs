@@ -259,34 +259,32 @@ fn count_of(weight: f64) -> Result<u32, CausalError> {
     )))
 }
 
-fn ols_rows(rows: &[RefreshObservation]) -> Result<Vec<RefreshRow>, CausalError> {
-    rows.iter()
+fn ols_rows(
+    rows: impl IntoIterator<Item = RefreshObservation>,
+) -> Result<Vec<RefreshRow>, CausalError> {
+    rows.into_iter()
         .map(|row| {
             Ok(RefreshRow {
                 id: row.id,
-                x: row.x.clone(),
-                y: row.y,
                 count: count_of(row.weight)?,
+                x: row.x,
+                y: row.y,
                 masked: row.masked,
             })
         })
         .collect()
 }
 
-fn weighted_rows(rows: &[RefreshObservation]) -> Vec<WeightedRow> {
-    rows.iter()
-        .map(|row| WeightedRow {
-            id: row.id,
-            x: row.x.clone(),
-            y: row.y,
-            weight: row.weight,
-            masked: row.masked,
-        })
+fn weighted_rows(rows: impl IntoIterator<Item = RefreshObservation>) -> Vec<WeightedRow> {
+    rows.into_iter()
+        .map(|row| WeightedRow::weighted(row.id, row.x, row.y, row.weight).with_masked(row.masked))
         .collect()
 }
 
-fn covariance_rows(rows: &[RefreshObservation]) -> Result<Vec<CovarianceRow>, CausalError> {
-    rows.iter()
+fn covariance_rows(
+    rows: impl IntoIterator<Item = RefreshObservation>,
+) -> Result<Vec<CovarianceRow>, CausalError> {
+    rows.into_iter()
         .map(|row| {
             if row.weight.to_bits() != 1.0f64.to_bits() {
                 return Err(invalid(format!(
@@ -295,7 +293,7 @@ fn covariance_rows(rows: &[RefreshObservation]) -> Result<Vec<CovarianceRow>, Ca
                     row.id, row.weight
                 )));
             }
-            Ok(CovarianceRow { id: row.id, z: row.x.clone(), masked: row.masked })
+            Ok(CovarianceRow { id: row.id, z: row.x, masked: row.masked })
         })
         .collect()
 }
@@ -336,17 +334,17 @@ impl RetainedRefresh {
     ) -> Result<Self, CausalError> {
         let summary = match family {
             RefreshFamily::Ols => {
-                Summary::Ols(OlsRefresh::from_rows(source, width, ols_rows(rows)?)?)
+                Summary::Ols(OlsRefresh::from_rows(source, width, ols_rows(rows.iter().cloned())?)?)
             }
             RefreshFamily::WeightedOls => Summary::Weighted(WeightedOlsRefresh::from_rows(
                 source,
                 width,
-                weighted_rows(rows),
+                weighted_rows(rows.iter().cloned()),
             )?),
             RefreshFamily::Covariance => Summary::Covariance(CovarianceRefresh::from_rows(
                 source,
                 width,
-                covariance_rows(rows)?,
+                covariance_rows(rows.iter().cloned())?,
             )?),
             RefreshFamily::ConjugateBlocks => {
                 let Some((prior, label)) = conjugate else {
@@ -361,7 +359,7 @@ impl RetainedRefresh {
                     ))));
                 }
                 let mut fit = ConjugateBlockRefresh::new(prior.clone());
-                fit.add_block(label, source, ols_rows(rows)?)?;
+                fit.add_block(label, source, ols_rows(rows.iter().cloned())?)?;
                 Summary::Conjugate(fit)
             }
         };
@@ -430,17 +428,23 @@ impl RetainedRefresh {
     /// Apply one change. An append updates in place; everything else recomputes from the
     /// retained rows.
     ///
+    /// The rows of the mutation are copied; [`Self::apply_owned`] moves them instead.
+    ///
     /// # Errors
     /// A mutation the family cannot carry, a refusal of the retention mode (naming the next
     /// attempt), a malformed row, a repeated or unknown id, or a source change on an append.
     /// The summary is unchanged on an error.
     pub fn apply(&mut self, mutation: &RefreshMutation) -> Result<RefreshOutcome, CausalError> {
-        match &mut self.summary {
-            Summary::Ols(fit) => apply_ols(fit, mutation),
-            Summary::Weighted(fit) => apply_weighted(fit, mutation),
-            Summary::Covariance(fit) => apply_covariance(fit, mutation),
-            Summary::Conjugate(fit) => apply_conjugate(fit, mutation),
-        }
+        self.apply_owned(mutation.clone())
+    }
+
+    /// [`Self::apply`] taking the mutation by value, so its rows move into the summary
+    /// without a copy.
+    ///
+    /// # Errors
+    /// As [`Self::apply`].
+    pub fn apply_owned(&mut self, mutation: RefreshMutation) -> Result<RefreshOutcome, CausalError> {
+        self.summary.ops_mut().apply_mutation(mutation)
     }
 
     /// Apply one change, then compare the complete result with a fresh reconstruction from the
@@ -453,8 +457,19 @@ impl RetainedRefresh {
         &mut self,
         mutation: &RefreshMutation,
     ) -> Result<RefreshOutcome, CausalError> {
+        self.apply_verified_owned(mutation.clone())
+    }
+
+    /// [`Self::apply_verified`] taking the mutation by value.
+    ///
+    /// # Errors
+    /// As [`Self::apply_verified`].
+    pub fn apply_verified_owned(
+        &mut self,
+        mutation: RefreshMutation,
+    ) -> Result<RefreshOutcome, CausalError> {
         let before = self.clone();
-        let outcome = self.apply(mutation).and_then(|outcome| {
+        let outcome = self.apply_owned(mutation).and_then(|outcome| {
             self.check_against_fresh()?;
             Ok(outcome)
         });
@@ -469,14 +484,7 @@ impl RetainedRefresh {
     /// # Errors
     /// A singular conjugate posterior precision.
     pub fn result(&self) -> Result<RefreshResult, CausalError> {
-        Ok(match &self.summary {
-            Summary::Ols(fit) => RefreshResult::Ols(fit.snapshot()),
-            Summary::Weighted(fit) => RefreshResult::Weighted(fit.snapshot()),
-            Summary::Covariance(fit) => RefreshResult::Covariance(fit.snapshot()),
-            Summary::Conjugate(fit) => {
-                RefreshResult::Conjugate { summary: fit.summary()?, identity: fit.identity() }
-            }
-        })
+        self.summary.ops().current_result()
     }
 
     /// The complete result rebuilt from the retained rows alone.
@@ -484,18 +492,7 @@ impl RetainedRefresh {
     /// # Errors
     /// Rows are not retained.
     pub fn fresh_result(&self) -> Result<RefreshResult, CausalError> {
-        Ok(match &self.summary {
-            Summary::Ols(fit) => RefreshResult::Ols(fit.fresh_snapshot()?),
-            Summary::Weighted(fit) => RefreshResult::Weighted(fit.fresh_snapshot()?),
-            Summary::Covariance(fit) => RefreshResult::Covariance(fit.fresh_snapshot()?),
-            Summary::Conjugate(fit) => {
-                let rebuilt = rebuilt_conjugate(fit)?;
-                RefreshResult::Conjugate {
-                    summary: rebuilt.summary()?,
-                    identity: fit.fresh_identity()?,
-                }
-            }
-        })
+        self.summary.ops().rebuilt_result()
     }
 
     /// Compare the cached result with a fresh reconstruction from the retained rows.
@@ -503,38 +500,14 @@ impl RetainedRefresh {
     /// # Errors
     /// Rows are not retained, or the first field that disagrees.
     pub fn check_against_fresh(&self) -> Result<(), CausalError> {
-        match &self.summary {
-            Summary::Ols(fit) => fit.check_against_fresh()?,
-            Summary::Weighted(fit) => fit.check_against_fresh()?,
-            Summary::Covariance(fit) => fit.check_against_fresh()?,
-            Summary::Conjugate(fit) => fit.check_against_fresh()?,
-        }
-        Ok(())
+        self.summary.ops().verify_fresh()
     }
 
     /// Bytes the frame of this summary is expected to take: what a spill or a reload asks the
     /// admission pool for.
     #[must_use]
     pub fn frame_bytes(&self) -> u64 {
-        match &self.summary {
-            Summary::Ols(fit) => ols_frame_bytes(fit.rows(), fit.source()),
-            Summary::Weighted(fit) => {
-                fit.rows().iter().map(|row| 8 * row.x.len() as u64 + 56).sum::<u64>()
-                    + fit.source().len() as u64
-                    + 256
-            }
-            Summary::Covariance(fit) => {
-                fit.rows().iter().map(|row| 8 * row.z.len() as u64 + 40).sum::<u64>()
-                    + fit.source().len() as u64
-                    + 256
-            }
-            Summary::Conjugate(fit) => fit
-                .labels()
-                .filter_map(|label| fit.block(label))
-                .map(|block| ols_frame_bytes(block.rows(), block.source()))
-                .sum::<u64>()
-                .saturating_add(256),
-        }
+        self.summary.ops().frame_size()
     }
 
     /// Write the rows under `registry` as a disk-backed result, after admitting the frame
@@ -550,12 +523,7 @@ impl RetainedRefresh {
         key: &str,
     ) -> Result<SpilledRefresh, CausalError> {
         let _lease = admit(ctx, self.frame_bytes(), "spilling a prepared refresh")?;
-        let handle = match &self.summary {
-            Summary::Ols(fit) => fit.spill(registry, key)?,
-            Summary::Weighted(fit) => fit.spill(registry, key)?,
-            Summary::Covariance(fit) => fit.spill(registry, key)?,
-            Summary::Conjugate(fit) => fit.spill(registry, key)?,
-        };
+        let handle = self.summary.ops().spill_frame(registry, key)?;
         Ok(SpilledRefresh { handle, family: self.family() })
     }
 }
@@ -575,100 +543,323 @@ fn rebuilt_conjugate(fit: &ConjugateBlockRefresh) -> Result<ConjugateBlockRefres
     Ok(fresh)
 }
 
-fn apply_ols(
-    fit: &mut OlsRefresh,
-    mutation: &RefreshMutation,
-) -> Result<RefreshOutcome, CausalError> {
-    Ok(match mutation {
-        RefreshMutation::Append { source, rows } => fit.append_window(source, &ols_rows(rows)?)?,
-        RefreshMutation::Window { max_rows } => fit.retain_last(*max_rows)?,
-        RefreshMutation::Evict { id } => fit.evict_row(*id)?,
-        RefreshMutation::SetWeight { id, weight } => fit.set_count(*id, count_of(*weight)?)?,
-        RefreshMutation::SetMask { id, masked } => fit.set_mask(*id, *masked)?,
-        RefreshMutation::Replace { source, rows } => {
-            fit.replace_source(Arc::clone(source), ols_rows(rows)?)?
-        }
-        RefreshMutation::Block { .. } => return Err(block_unexpected()),
-    })
+/// What a retained refresh needs of one summary family, so a new family is one
+/// implementation instead of an edit to every operation.
+trait RefreshFamilyOps {
+    /// Apply one change; the summary is unchanged on an error.
+    fn apply_mutation(&mut self, mutation: RefreshMutation) -> Result<RefreshOutcome, CausalError>;
+    /// The complete cached result.
+    fn current_result(&self) -> Result<RefreshResult, CausalError>;
+    /// The complete result rebuilt from the retained rows alone.
+    fn rebuilt_result(&self) -> Result<RefreshResult, CausalError>;
+    /// Compare the cached result with a fresh reconstruction.
+    fn verify_fresh(&self) -> Result<(), CausalError>;
+    /// Bytes the frame of this summary is expected to take.
+    fn frame_size(&self) -> u64;
+    /// Write the retained rows under `registry`.
+    fn spill_frame(
+        &self,
+        registry: &Arc<SpillRegistry>,
+        key: &str,
+    ) -> Result<SpillHandle, CausalError>;
 }
 
-fn apply_weighted(
-    fit: &mut WeightedOlsRefresh,
-    mutation: &RefreshMutation,
-) -> Result<RefreshOutcome, CausalError> {
-    Ok(match mutation {
-        RefreshMutation::Append { source, rows } => {
-            fit.append_window(source, &weighted_rows(rows))?
+impl Summary {
+    fn ops(&self) -> &dyn RefreshFamilyOps {
+        match self {
+            Self::Ols(fit) => fit,
+            Self::Weighted(fit) => fit,
+            Self::Covariance(fit) => fit,
+            Self::Conjugate(fit) => fit,
         }
-        RefreshMutation::Window { max_rows } => fit.retain_last(*max_rows)?,
-        RefreshMutation::Evict { id } => fit.evict_row(*id)?,
-        RefreshMutation::SetWeight { id, weight } => fit.set_weight(*id, *weight)?,
-        RefreshMutation::SetMask { id, masked } => fit.set_mask(*id, *masked)?,
-        RefreshMutation::Replace { source, rows } => {
-            fit.replace_source(Arc::clone(source), weighted_rows(rows))?
+    }
+
+    fn ops_mut(&mut self) -> &mut dyn RefreshFamilyOps {
+        match self {
+            Self::Ols(fit) => fit,
+            Self::Weighted(fit) => fit,
+            Self::Covariance(fit) => fit,
+            Self::Conjugate(fit) => fit,
         }
-        RefreshMutation::Block { .. } => return Err(block_unexpected()),
-    })
+    }
 }
 
-fn apply_covariance(
-    fit: &mut CovarianceRefresh,
-    mutation: &RefreshMutation,
-) -> Result<RefreshOutcome, CausalError> {
-    Ok(match mutation {
-        RefreshMutation::Append { source, rows } => {
-            fit.append_window(source, &covariance_rows(rows)?)?
-        }
-        RefreshMutation::Window { max_rows } => fit.retain_last(*max_rows)?,
-        RefreshMutation::Evict { id } => fit.evict_row(*id)?,
-        RefreshMutation::SetWeight { id, weight } => {
-            return Err(invalid(format!(
-                "observation {id} cannot take weight {weight}; a scatter carries no weights, so \
-                 mask the row or use an estimator whose family keeps real weights"
-            )));
-        }
-        RefreshMutation::SetMask { id, masked } => fit.set_mask(*id, *masked)?,
-        RefreshMutation::Replace { source, rows } => {
-            fit.replace_source(Arc::clone(source), covariance_rows(rows)?)?
-        }
-        RefreshMutation::Block { .. } => return Err(block_unexpected()),
-    })
+/// A family with one flat row source: the three least-squares and scatter summaries differ
+/// only in their row type, how a weight change is carried, and their snapshot.
+trait FlatFamily {
+    type Row;
+
+    fn rows_of(rows: Vec<RefreshObservation>) -> Result<Vec<Self::Row>, CausalError>;
+    fn flat_append(&mut self, source: &str, rows: &[Self::Row]) -> Result<RefreshOutcome, StateError>;
+    fn flat_retain_last(&mut self, max_rows: usize) -> Result<RefreshOutcome, StateError>;
+    fn flat_evict(&mut self, id: u64) -> Result<RefreshOutcome, StateError>;
+    fn flat_set_weight(&mut self, id: u64, weight: f64) -> Result<RefreshOutcome, CausalError>;
+    fn flat_set_mask(&mut self, id: u64, masked: bool) -> Result<RefreshOutcome, StateError>;
+    fn flat_replace(
+        &mut self,
+        source: Arc<str>,
+        rows: Vec<Self::Row>,
+    ) -> Result<RefreshOutcome, StateError>;
+    fn flat_result(&self) -> RefreshResult;
+    fn flat_fresh_result(&self) -> Result<RefreshResult, StateError>;
+    fn flat_check(&self) -> Result<(), StateError>;
+    fn flat_frame_bytes(&self) -> u64;
+    fn flat_spill(&self, registry: &Arc<SpillRegistry>, key: &str) -> Result<SpillHandle, StateError>;
 }
 
-fn apply_conjugate(
-    fit: &mut ConjugateBlockRefresh,
-    mutation: &RefreshMutation,
-) -> Result<RefreshOutcome, CausalError> {
-    let RefreshMutation::Block { label, mutation } = mutation else {
-        return Err(block_required());
-    };
-    Ok(match &**mutation {
-        RefreshMutation::Append { source, rows } => {
-            let rows = ols_rows(rows)?;
-            if fit.block(label).is_some() {
-                fit.extend_block(label, source, &rows)?
-            } else {
-                fit.add_block(label, source, rows)?
+impl<F: FlatFamily> RefreshFamilyOps for F {
+    fn apply_mutation(&mut self, mutation: RefreshMutation) -> Result<RefreshOutcome, CausalError> {
+        Ok(match mutation {
+            RefreshMutation::Append { source, rows } => {
+                self.flat_append(&source, &F::rows_of(rows)?)?
             }
-        }
-        RefreshMutation::Window { max_rows } => fit.retain_last(label, *max_rows)?,
-        RefreshMutation::Evict { id } => fit.evict_row(label, *id)?,
-        RefreshMutation::SetWeight { id, weight } => {
-            fit.set_count(label, *id, count_of(*weight)?)?
-        }
-        RefreshMutation::SetMask { id, masked } => fit.set_mask(label, *id, *masked)?,
-        RefreshMutation::Replace { source, rows } => {
-            let rows = ols_rows(rows)?;
-            let mut fresh = ConjugateBlockRefresh::new(fit.prior().clone());
-            if fit.retention() != RetentionMode::FullReusable {
-                fresh = fresh.into_summary_only();
+            RefreshMutation::Window { max_rows } => self.flat_retain_last(max_rows)?,
+            RefreshMutation::Evict { id } => self.flat_evict(id)?,
+            RefreshMutation::SetWeight { id, weight } => self.flat_set_weight(id, weight)?,
+            RefreshMutation::SetMask { id, masked } => self.flat_set_mask(id, masked)?,
+            RefreshMutation::Replace { source, rows } => {
+                self.flat_replace(source, F::rows_of(rows)?)?
             }
-            fresh.add_block(label, source, rows)?;
-            *fit = fresh;
-            RefreshOutcome::Recomputed
-        }
-        RefreshMutation::Block { .. } => return Err(block_unexpected()),
-    })
+            RefreshMutation::Block { .. } => return Err(block_unexpected()),
+        })
+    }
+
+    fn current_result(&self) -> Result<RefreshResult, CausalError> {
+        Ok(self.flat_result())
+    }
+
+    fn rebuilt_result(&self) -> Result<RefreshResult, CausalError> {
+        Ok(self.flat_fresh_result()?)
+    }
+
+    fn verify_fresh(&self) -> Result<(), CausalError> {
+        Ok(self.flat_check()?)
+    }
+
+    fn frame_size(&self) -> u64 {
+        self.flat_frame_bytes()
+    }
+
+    fn spill_frame(
+        &self,
+        registry: &Arc<SpillRegistry>,
+        key: &str,
+    ) -> Result<SpillHandle, CausalError> {
+        Ok(self.flat_spill(registry, key)?)
+    }
+}
+
+impl FlatFamily for OlsRefresh {
+    type Row = RefreshRow;
+
+    fn rows_of(rows: Vec<RefreshObservation>) -> Result<Vec<RefreshRow>, CausalError> {
+        ols_rows(rows)
+    }
+    fn flat_append(&mut self, source: &str, rows: &[RefreshRow]) -> Result<RefreshOutcome, StateError> {
+        OlsRefresh::append_window(self, source, rows)
+    }
+    fn flat_retain_last(&mut self, max_rows: usize) -> Result<RefreshOutcome, StateError> {
+        OlsRefresh::retain_last(self, max_rows)
+    }
+    fn flat_evict(&mut self, id: u64) -> Result<RefreshOutcome, StateError> {
+        OlsRefresh::evict_row(self, id)
+    }
+    fn flat_set_weight(&mut self, id: u64, weight: f64) -> Result<RefreshOutcome, CausalError> {
+        Ok(OlsRefresh::set_count(self, id, count_of(weight)?)?)
+    }
+    fn flat_set_mask(&mut self, id: u64, masked: bool) -> Result<RefreshOutcome, StateError> {
+        OlsRefresh::set_mask(self, id, masked)
+    }
+    fn flat_replace(
+        &mut self,
+        source: Arc<str>,
+        rows: Vec<RefreshRow>,
+    ) -> Result<RefreshOutcome, StateError> {
+        OlsRefresh::replace_source(self, source, rows)
+    }
+    fn flat_result(&self) -> RefreshResult {
+        RefreshResult::Ols(self.snapshot())
+    }
+    fn flat_fresh_result(&self) -> Result<RefreshResult, StateError> {
+        Ok(RefreshResult::Ols(self.fresh_snapshot()?))
+    }
+    fn flat_check(&self) -> Result<(), StateError> {
+        OlsRefresh::check_against_fresh(self)
+    }
+    fn flat_frame_bytes(&self) -> u64 {
+        ols_frame_bytes(self.rows(), self.source())
+    }
+    fn flat_spill(&self, registry: &Arc<SpillRegistry>, key: &str) -> Result<SpillHandle, StateError> {
+        OlsRefresh::spill(self, registry, key)
+    }
+}
+
+impl FlatFamily for WeightedOlsRefresh {
+    type Row = WeightedRow;
+
+    fn rows_of(rows: Vec<RefreshObservation>) -> Result<Vec<WeightedRow>, CausalError> {
+        Ok(weighted_rows(rows))
+    }
+    fn flat_append(&mut self, source: &str, rows: &[WeightedRow]) -> Result<RefreshOutcome, StateError> {
+        WeightedOlsRefresh::append_window(self, source, rows)
+    }
+    fn flat_retain_last(&mut self, max_rows: usize) -> Result<RefreshOutcome, StateError> {
+        WeightedOlsRefresh::retain_last(self, max_rows)
+    }
+    fn flat_evict(&mut self, id: u64) -> Result<RefreshOutcome, StateError> {
+        WeightedOlsRefresh::evict_row(self, id)
+    }
+    fn flat_set_weight(&mut self, id: u64, weight: f64) -> Result<RefreshOutcome, CausalError> {
+        Ok(WeightedOlsRefresh::set_weight(self, id, weight)?)
+    }
+    fn flat_set_mask(&mut self, id: u64, masked: bool) -> Result<RefreshOutcome, StateError> {
+        WeightedOlsRefresh::set_mask(self, id, masked)
+    }
+    fn flat_replace(
+        &mut self,
+        source: Arc<str>,
+        rows: Vec<WeightedRow>,
+    ) -> Result<RefreshOutcome, StateError> {
+        WeightedOlsRefresh::replace_source(self, source, rows)
+    }
+    fn flat_result(&self) -> RefreshResult {
+        RefreshResult::Weighted(self.snapshot())
+    }
+    fn flat_fresh_result(&self) -> Result<RefreshResult, StateError> {
+        Ok(RefreshResult::Weighted(self.fresh_snapshot()?))
+    }
+    fn flat_check(&self) -> Result<(), StateError> {
+        WeightedOlsRefresh::check_against_fresh(self)
+    }
+    fn flat_frame_bytes(&self) -> u64 {
+        self.rows().iter().map(|row| 8 * row.x().len() as u64 + 56).sum::<u64>()
+            + self.source().len() as u64
+            + 256
+    }
+    fn flat_spill(&self, registry: &Arc<SpillRegistry>, key: &str) -> Result<SpillHandle, StateError> {
+        WeightedOlsRefresh::spill(self, registry, key)
+    }
+}
+
+impl FlatFamily for CovarianceRefresh {
+    type Row = CovarianceRow;
+
+    fn rows_of(rows: Vec<RefreshObservation>) -> Result<Vec<CovarianceRow>, CausalError> {
+        covariance_rows(rows)
+    }
+    fn flat_append(
+        &mut self,
+        source: &str,
+        rows: &[CovarianceRow],
+    ) -> Result<RefreshOutcome, StateError> {
+        CovarianceRefresh::append_window(self, source, rows)
+    }
+    fn flat_retain_last(&mut self, max_rows: usize) -> Result<RefreshOutcome, StateError> {
+        CovarianceRefresh::retain_last(self, max_rows)
+    }
+    fn flat_evict(&mut self, id: u64) -> Result<RefreshOutcome, StateError> {
+        CovarianceRefresh::evict_row(self, id)
+    }
+    fn flat_set_weight(&mut self, id: u64, weight: f64) -> Result<RefreshOutcome, CausalError> {
+        Err(invalid(format!(
+            "observation {id} cannot take weight {weight}; a scatter carries no weights, so \
+             mask the row or use an estimator whose family keeps real weights"
+        )))
+    }
+    fn flat_set_mask(&mut self, id: u64, masked: bool) -> Result<RefreshOutcome, StateError> {
+        CovarianceRefresh::set_mask(self, id, masked)
+    }
+    fn flat_replace(
+        &mut self,
+        source: Arc<str>,
+        rows: Vec<CovarianceRow>,
+    ) -> Result<RefreshOutcome, StateError> {
+        CovarianceRefresh::replace_source(self, source, rows)
+    }
+    fn flat_result(&self) -> RefreshResult {
+        RefreshResult::Covariance(self.snapshot())
+    }
+    fn flat_fresh_result(&self) -> Result<RefreshResult, StateError> {
+        Ok(RefreshResult::Covariance(self.fresh_snapshot()?))
+    }
+    fn flat_check(&self) -> Result<(), StateError> {
+        CovarianceRefresh::check_against_fresh(self)
+    }
+    fn flat_frame_bytes(&self) -> u64 {
+        self.rows().iter().map(|row| 8 * row.z.len() as u64 + 40).sum::<u64>()
+            + self.source().len() as u64
+            + 256
+    }
+    fn flat_spill(&self, registry: &Arc<SpillRegistry>, key: &str) -> Result<SpillHandle, StateError> {
+        CovarianceRefresh::spill(self, registry, key)
+    }
+}
+
+impl RefreshFamilyOps for ConjugateBlockRefresh {
+    fn apply_mutation(&mut self, mutation: RefreshMutation) -> Result<RefreshOutcome, CausalError> {
+        let RefreshMutation::Block { label, mutation } = mutation else {
+            return Err(block_required());
+        };
+        Ok(match *mutation {
+            RefreshMutation::Append { source, rows } => {
+                let rows = ols_rows(rows)?;
+                if self.block(&label).is_some() {
+                    self.extend_block(&label, &source, &rows)?
+                } else {
+                    self.add_block(&label, &source, rows)?
+                }
+            }
+            RefreshMutation::Window { max_rows } => self.retain_last(&label, max_rows)?,
+            RefreshMutation::Evict { id } => self.evict_row(&label, id)?,
+            RefreshMutation::SetWeight { id, weight } => {
+                self.set_count(&label, id, count_of(weight)?)?
+            }
+            RefreshMutation::SetMask { id, masked } => self.set_mask(&label, id, masked)?,
+            RefreshMutation::Replace { source, rows } => {
+                let rows = ols_rows(rows)?;
+                let mut fresh = ConjugateBlockRefresh::new(self.prior().clone());
+                if self.retention() != RetentionMode::FullReusable {
+                    fresh = fresh.into_summary_only();
+                }
+                fresh.add_block(&label, &source, rows)?;
+                *self = fresh;
+                RefreshOutcome::Recomputed
+            }
+            RefreshMutation::Block { .. } => return Err(block_unexpected()),
+        })
+    }
+
+    fn current_result(&self) -> Result<RefreshResult, CausalError> {
+        Ok(RefreshResult::Conjugate { summary: self.summary()?, identity: self.identity() })
+    }
+
+    fn rebuilt_result(&self) -> Result<RefreshResult, CausalError> {
+        let rebuilt = rebuilt_conjugate(self)?;
+        Ok(RefreshResult::Conjugate {
+            summary: rebuilt.summary()?,
+            identity: self.fresh_identity()?,
+        })
+    }
+
+    fn verify_fresh(&self) -> Result<(), CausalError> {
+        Ok(self.check_against_fresh()?)
+    }
+
+    fn frame_size(&self) -> u64 {
+        self.labels()
+            .filter_map(|label| self.block(label))
+            .map(|block| ols_frame_bytes(block.rows(), block.source()))
+            .sum::<u64>()
+            .saturating_add(256)
+    }
+
+    fn spill_frame(
+        &self,
+        registry: &Arc<SpillRegistry>,
+        key: &str,
+    ) -> Result<SpillHandle, CausalError> {
+        Ok(self.spill(registry, key)?)
+    }
 }
 
 /// Take `bytes` of the operation's admission pool for the duration of the returned lease.

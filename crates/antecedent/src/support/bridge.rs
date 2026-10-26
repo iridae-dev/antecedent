@@ -15,10 +15,10 @@ use crate::analysis::RefuteSuite;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
 
-use super::axis::{naming_class, query_axis_name};
+use super::axis::{naming_class, query_axis};
 use super::cell::{
-    StructureSource, SupportCell, SupportGraphClass, SupportInference, SupportQuery,
-    SupportRefusal, SupportValidation,
+    StructureSource, SupportCell, SupportGraphClass, SupportInference, SupportRefusal,
+    SupportValidation,
 };
 
 /// Query kinds that intentionally sit off the matrix axes: the mechanism- and unit-change
@@ -54,8 +54,8 @@ pub fn is_declared_off_axis(query: &CausalQuery) -> bool {
 /// [`CausalError::Support`] ([`SupportRefusal::Refused`]) for an unlisted off-axis kind.
 pub fn refuse_undeclared_off_axis(query: &CausalQuery) -> Result<(), CausalError> {
     if is_declared_off_axis(query)
-        || query_axis_name(query, GraphClass::Dag).is_some()
-        || query_axis_name(query, GraphClass::TemporalDag).is_some()
+        || query_axis(query, GraphClass::Dag).is_some()
+        || query_axis(query, GraphClass::TemporalDag).is_some()
     {
         return Ok(());
     }
@@ -103,7 +103,7 @@ pub fn support_cell_named(
     refute: RefuteSuite,
 ) -> Option<SupportCell> {
     Some(SupportCell {
-        query: SupportQuery::parse(query_axis_name(query, naming_class(graph_class)?)?)?,
+        query: query_axis(query, naming_class(graph_class)?)?,
         graph_class: SupportGraphClass::parse(graph_class)?,
         structure: structure.into(),
         inference: inference_axis(inference),

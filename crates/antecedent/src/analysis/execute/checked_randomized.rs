@@ -390,7 +390,7 @@ impl CheckedRandomizedOperation {
             mask,
             policy,
             &[self.query.outcome],
-            observed,
+            &antecedent_data::ValidityBitmap::from_bools(observed),
         )?;
         let arms = [&self.query.treatment_arms.0, &self.query.treatment_arms.1];
         let labels: Vec<Arc<str>> = self
