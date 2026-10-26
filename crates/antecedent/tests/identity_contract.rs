@@ -5262,9 +5262,11 @@ fn matching_missing_row_padding_does_not_upgrade_calibration() {
                 VariableId::from_raw(0),
                 VariableId::from_raw(1),
             )))
-            .estimator(antecedent_estimate::PropensityMatching::new()
-                .with_bootstrap_replicates(0)
-                .with_se_kind(antecedent_estimate::AnalyticSeKind::Homoskedastic))
+            .estimator(
+                antecedent_estimate::PropensityMatching::new()
+                    .with_bootstrap_replicates(0)
+                    .with_se_kind(antecedent_estimate::AnalyticSeKind::Homoskedastic),
+            )
             .refute(RefuteSuite::None)
             .build()
             .unwrap()
@@ -6084,6 +6086,71 @@ fn row_weights_reexecute_only_on_their_own_snapshot() {
     // holding another snapshot of the same shape.
     let err = refreshed.encode_contracted_result(&retargeted, "stale", &ctx).unwrap_err();
     assert!(format!("{err}").contains("reason=row_weights_bound_to_snapshot"), "{err}");
+}
+
+#[test]
+fn replay_dependency_buffers_are_admitted_and_released_on_identity_refusal() {
+    let ctx = ExecutionContext::for_tests(17);
+    let (data, dag, query) = confounded_scm(96, 17);
+    let prepared = aipw_prepared(&data, dag, query);
+    let dependencies = [VariableId::from_raw(2)];
+    let weights = z_weights(&data, 3.0);
+    let result = prepared.retarget(&weights, &dependencies, &ctx).unwrap();
+    let bytes = prepared.encode_contracted_result(&result, "reweight", &ctx).unwrap();
+    let mut carried = contract_of(&bytes).target_weights.unwrap();
+    carried.identity.data_snapshot[0] ^= 0xff;
+    let required = u64::try_from(size_of::<VariableId>() + size_of::<u32>()).unwrap();
+    let short = ExecutionContext::for_tests(17).with_memory_limit(Some(required - 1));
+    assert!(matches!(
+        prepared.reexecute_retarget(&carried, &short),
+        Err(antecedent::CausalError::Resource { .. })
+    ));
+    assert_eq!(short.admission().available().bytes(), required - 1);
+    // Exactly enough for these two transient dependency representations reaches
+    // the real identity check; this is not an assertion about whole replay memory.
+    let exact = ExecutionContext::for_tests(17).with_memory_limit(Some(required));
+    let refusal = prepared.reexecute_retarget(&carried, &exact).unwrap_err();
+    assert!(refusal.to_string().contains("reason=row_weights_bound_to_snapshot"));
+    assert_eq!(exact.admission().available().bytes(), required);
+}
+
+#[test]
+fn retarget_output_admission_follows_the_shared_native_result_owner() {
+    let (data, dag, query) = confounded_scm(96, 17);
+    let prepared = aipw_prepared(&data, dag, query);
+    let dependencies = [VariableId::from_raw(2)];
+    let weights = z_weights(&data, 3.0);
+    let limit = 1_000_000;
+    let ctx = ExecutionContext::for_tests(17).with_memory_limit(Some(limit));
+    let result = std::sync::Arc::new(prepared.retarget(&weights, &dependencies, &ctx).unwrap());
+    let effect = result.estimate.as_effect().unwrap();
+    let inference = effect.scores.inference.as_ref().unwrap();
+    let real_buffers =
+        [&inference.raw_means, &inference.lower, &inference.upper, &inference.event_n_eff];
+    assert!(real_buffers.iter().all(|buffer| buffer.len() == buffer.capacity()));
+    assert_eq!(inference.threshold_supported.capacity(), inference.threshold_supported.len());
+    assert_eq!(inference.support.n_eff_by_arm.capacity(), inference.support.n_eff_by_arm.len());
+    let inference_bytes =
+        real_buffers.iter().map(|buffer| buffer.capacity() * size_of::<f64>()).sum::<usize>()
+            + inference.threshold_supported.capacity() * size_of::<bool>()
+            + inference.support.n_eff_by_arm.capacity() * size_of::<f64>();
+    let covariance_bytes =
+        effect.joint.covariance.as_ref().unwrap().values.len() * size_of::<f64>();
+    let binding = result.row_weights.as_ref().unwrap();
+    let weight_bytes = binding.weights.len() * size_of::<f64>()
+        + binding.depends_on.len() * size_of::<VariableId>()
+        + binding.identity.depends_on.capacity() * size_of::<u32>();
+    // Only these named output payloads are accounted here, not a claim that
+    // every metadata, support, quantile or cluster allocation is yet admitted.
+    let retained = u64::try_from(inference_bytes + covariance_bytes + weight_bytes).unwrap();
+    assert_eq!(result.retained_admitted_bytes(), Some(retained));
+    assert_eq!(ctx.admission().available().bytes(), limit - retained);
+    let view_owner = std::sync::Arc::clone(&result);
+    drop(result);
+    assert_eq!(ctx.admission().available().bytes(), limit - retained);
+    assert!(view_owner.effect().is_finite());
+    drop(view_owner);
+    assert_eq!(ctx.admission().available().bytes(), limit);
 }
 
 #[test]

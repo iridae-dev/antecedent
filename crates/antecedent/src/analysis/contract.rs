@@ -1029,13 +1029,7 @@ impl PreparedStudy {
         weights: &[f64],
         depends_on: &[antecedent_core::VariableId],
     ) -> Result<RowWeightsBinding, CausalError> {
-        let identities = self.contract()?.identities;
-        let score = self.score_reuse_wire(&identities).ok_or(CausalError::Unsupported {
-            message: "row-weight target requires a prepared score table",
-        })?;
-        let score = score_reuse_digest(&score).map_err(|err| io_err(&err))?;
-        let identity =
-            TargetWeightsIdentityWire::new(weights, identities.data_snapshot, score, depends_on);
+        let identity = self.row_weights_identity(weights, depends_on)?;
         let target_weights = target_weights_digest(&identity).map_err(|err| io_err(&err))?;
         Ok(RowWeightsBinding {
             weights: Arc::from(weights),
@@ -1043,6 +1037,19 @@ impl PreparedStudy {
             identity,
             target_weights,
         })
+    }
+
+    fn row_weights_identity(
+        &self,
+        weights: &[f64],
+        depends_on: &[antecedent_core::VariableId],
+    ) -> Result<TargetWeightsIdentityWire, CausalError> {
+        let identities = self.contract()?.identities;
+        let score = self.score_reuse_wire(&identities).ok_or(CausalError::Unsupported {
+            message: "row-weight target requires a prepared score table",
+        })?;
+        let score = score_reuse_digest(&score).map_err(|err| io_err(&err))?;
+        Ok(TargetWeightsIdentityWire::new(weights, identities.data_snapshot, score, depends_on))
     }
 
     /// Re-execute the row-weight retarget an exported contract carries.
@@ -1063,6 +1070,26 @@ impl PreparedStudy {
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: "reexecute_retarget" });
         }
+        // Both representations are live while the expected identity is compared:
+        // native VariableIds and the raw-u32 dependencies in the identity payload.
+        // The artifact's weights are borrowed rather than copied for this check.
+        let _dependencies = ctx
+            .acquire_admission_product(
+                0,
+                u64::try_from(section.identity.depends_on.len()).map_err(|_| {
+                    CausalError::Resource { message: "retarget dependency count overflow".into() }
+                })?,
+                u64::try_from(size_of::<antecedent_core::VariableId>() + size_of::<u32>())
+                    .map_err(|_| CausalError::Resource {
+                        message: "retarget dependency width overflow".into(),
+                    })?,
+            )
+            .map_err(|error| match error {
+                antecedent_core::execution::AdmissionError::Cancelled => {
+                    CausalError::Cancelled { stage: "reexecute_retarget" }
+                }
+                error => CausalError::Resource { message: error.to_string() },
+            })?;
         let depends_on: Vec<antecedent_core::VariableId> = section
             .identity
             .depends_on
@@ -1070,8 +1097,8 @@ impl PreparedStudy {
             .copied()
             .map(antecedent_core::VariableId::from_raw)
             .collect();
-        let bound = self.row_weights_binding(&section.values, &depends_on)?;
-        if bound.identity != section.identity {
+        let identity = self.row_weights_identity(&section.values, &depends_on)?;
+        if identity != section.identity {
             return Err(row_weights_bound_to_snapshot!());
         }
         self.retarget(&section.values, &depends_on, ctx)
