@@ -97,13 +97,14 @@ fn status_json(status: &NodeStatus) -> Value {
     }
 }
 
-fn consumed_node_json(node: &ConsumedNode) -> Value {
+fn consumed_node_json(node: &ConsumedNode, replayed: bool) -> Value {
     json!({
         "id": node.id,
         "kind": node.kind.as_str(),
         "identity": node.identity,
         "chain_digest": node.chain_digest,
         "status": status_json(&node.status),
+        "replayed": replayed,
         "facts": node.facts,
         "values": numbers_json(&node.values),
         "inspected": numbers_json(&node.inspected),
@@ -115,7 +116,8 @@ pub(crate) fn consumed_json(consumed: &ConsumedBundle) -> String {
     json!({
         "identity": consumed.identity(),
         "all_verified": consumed.all_verified(),
-        "nodes": consumed.nodes().iter().map(consumed_node_json).collect::<Vec<_>>(),
+        "all_replayed": consumed.all_replayed(),
+        "nodes": consumed.nodes().iter().map(|node| consumed_node_json(node, consumed.node_replayed(&node.id))).collect::<Vec<_>>(),
         "edges": consumed
             .edges()
             .iter()

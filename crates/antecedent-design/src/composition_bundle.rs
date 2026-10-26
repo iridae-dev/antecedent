@@ -1260,6 +1260,9 @@ pub struct ConsumedBundle {
     identity: String,
     nodes: Vec<ConsumedNode>,
     edges: Vec<BundleEdge>,
+    // Runtime receipt only: encoded bundles and their canonical identities do not
+    // contain this set. Resolved references have no embedded consumer to replay.
+    replayed: BTreeSet<String>,
 }
 
 impl ConsumedBundle {
@@ -1301,6 +1304,22 @@ impl ConsumedBundle {
     #[must_use]
     pub fn all_verified(&self) -> bool {
         self.nodes.iter().all(|n| n.status == NodeStatus::Verified)
+    }
+
+    /// Whether an embedded node passed its own independent artifact consumer.
+    ///
+    /// A supplied reference can verify its binding without replaying an artifact.
+    /// Replay here concerns the represented artifact, not refitting its source model
+    /// or regenerating observations or draws that the artifact carries as inputs.
+    #[must_use]
+    pub fn node_replayed(&self, id: &str) -> bool {
+        self.replayed.contains(id)
+    }
+
+    /// Whether every node passed an embedded artifact consumer, with no reference.
+    #[must_use]
+    pub fn all_replayed(&self) -> bool {
+        self.replayed.len() == self.nodes.len()
     }
 
     /// Require every node to have verified.
@@ -1532,6 +1551,16 @@ impl BundleConsumer {
             ));
         }
         let states = self.evaluate(&decoded.nodes, &derived, supplied);
+        let replayed = decoded
+            .nodes
+            .iter()
+            .zip(&states)
+            .filter(|(node, state)| {
+                matches!(node.source, NodeSource::Embedded { .. })
+                    && state.status == NodeStatus::Verified
+            })
+            .map(|(node, _)| node.id.clone())
+            .collect();
         let nodes = decoded
             .nodes
             .iter()
@@ -1549,7 +1578,7 @@ impl BundleConsumer {
                 claim_label: state.label,
             })
             .collect();
-        Ok(ConsumedBundle { identity, nodes, edges: derived.edges })
+        Ok(ConsumedBundle { identity, nodes, edges: derived.edges, replayed })
     }
 
     fn evaluate(
@@ -1598,5 +1627,118 @@ impl BundleConsumer {
             }
         }
         states
+    }
+}
+
+#[cfg(test)]
+mod replay_receipt_tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct EmbeddedVerifier(Arc<AtomicUsize>);
+
+    impl NodeVerifier for EmbeddedVerifier {
+        fn kind(&self) -> NodeKind {
+            NodeKind::Distribution
+        }
+
+        fn verify(
+            &self,
+            _node_id: &str,
+            bytes: &[u8],
+            _upstream: &[UpstreamNode<'_>],
+        ) -> Result<VerifiedNode, NodeFailure> {
+            self.0.fetch_add(1, Ordering::Relaxed);
+            if bytes != b"verified embedded" {
+                return Err(NodeFailure {
+                    stage: BundleStage::TamperedQuantity,
+                    reason: "the represented embedded input changed".to_owned(),
+                });
+            }
+            Ok(VerifiedNode {
+                identity: "embedded-identity".to_owned(),
+                facts: BTreeMap::new(),
+                values: vec![("mean".to_owned(), 3.0)],
+            })
+        }
+    }
+
+    fn bundle(embedded: &[u8], reference: bool) -> CompositionBundle {
+        let mut nodes = vec![BundleNode::embedded(
+            "embedded",
+            NodeKind::Distribution,
+            "embedded-identity",
+            embedded.to_vec(),
+        )];
+        if reference {
+            nodes.push(BundleNode::reference(
+                "provider",
+                NodeKind::ExternalClaim,
+                "provider-identity",
+                ProviderOrData::Provider {
+                    provider_id: "service".to_owned(),
+                    snapshot_id: "snapshot".to_owned(),
+                    request_fingerprint: "request".to_owned(),
+                },
+            ));
+        }
+        CompositionBundle::new(nodes, &[], &BundleLimits::default()).unwrap()
+    }
+
+    #[test]
+    fn a_resolved_reference_verifies_without_becoming_a_replayed_artifact() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let consumer =
+            BundleConsumer::new().register(Box::new(EmbeddedVerifier(Arc::clone(&calls))));
+        let bundle = bundle(b"verified embedded", true);
+        let limits = BundleLimits::default();
+        let bytes = bundle.to_bytes("receipt", &limits).unwrap();
+        let unresolved = consumer
+            .consume(&bytes, &limits, bundle.identity(), &SuppliedSources::default())
+            .unwrap();
+        assert!(unresolved.node_replayed("embedded"));
+        assert!(!unresolved.node_replayed("provider"));
+        assert!(!unresolved.all_verified());
+        assert!(!unresolved.all_replayed());
+        // Supplying provider metadata cannot call it: this structure contains
+        // identities only, and only the embedded artifact's verifier executes.
+        let supplied = SuppliedSources::default().with_provider("service", "snapshot", "request");
+        let resolved = consumer.consume(&bytes, &limits, bundle.identity(), &supplied).unwrap();
+        assert!(resolved.all_verified());
+        assert!(!resolved.all_replayed());
+        assert!(resolved.node_replayed("embedded"));
+        assert!(!resolved.node_replayed("provider"));
+        assert!(!resolved.node_replayed("unknown"));
+        assert_eq!(resolved.value("embedded", "mean").map(f64::to_bits), Some(3.0_f64.to_bits()));
+        assert_eq!(calls.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn only_successful_embedded_consumption_issues_a_replay_receipt() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let consumer =
+            BundleConsumer::new().register(Box::new(EmbeddedVerifier(Arc::clone(&calls))));
+        let limits = BundleLimits::default();
+        let supplied = SuppliedSources::default();
+        let original = bundle(b"verified embedded", false);
+        let bytes = original.to_bytes("receipt", &limits).unwrap();
+        let accepted = consumer.consume(&bytes, &limits, original.identity(), &supplied).unwrap();
+        assert!(accepted.all_verified());
+        assert!(accepted.all_replayed());
+        assert_eq!(bytes, original.to_bytes("receipt", &limits).unwrap());
+        assert_eq!(accepted.identity(), original.identity());
+        let mut corrupt = bytes;
+        *corrupt.last_mut().unwrap() ^= 1;
+        assert!(consumer.consume(&corrupt, &limits, original.identity(), &supplied).is_err());
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+        let changed = bundle(b"mutated embedded", false);
+        let resealed = changed.to_bytes("receipt", &limits).unwrap();
+        let refused = consumer.consume(&resealed, &limits, changed.identity(), &supplied).unwrap();
+        assert!(matches!(refused.node("embedded").unwrap().status, NodeStatus::Failed { .. }));
+        assert!(!refused.node_replayed("embedded"));
+        assert!(!refused.all_verified());
+        assert!(!refused.all_replayed());
+        assert_eq!(calls.load(Ordering::Relaxed), 2);
     }
 }

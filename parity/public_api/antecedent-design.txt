@@ -11004,10 +11004,12 @@ pub fn <antecedent_design::composition_bundle::CompositionBundle>::fn identity(&
 pub fn <antecedent_design::composition_bundle::CompositionBundle>::fn new(nodes: alloc::vec::Vec<antecedent_design::composition_bundle::BundleNode>, dependencies: &[(alloc::string::String, alloc::string::String)], limits: &antecedent_design::composition_bundle::BundleLimits) -> core::result::Result<Self, antecedent_design::composition_bundle::BundleError>
 pub fn <antecedent_design::composition_bundle::CompositionBundle>::fn nodes(&self) -> &[antecedent_design::composition_bundle::BundleNode]
 pub fn <antecedent_design::composition_bundle::CompositionBundle>::fn to_bytes(&self, artifact_id: &str, limits: &antecedent_design::composition_bundle::BundleLimits) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_design::composition_bundle::BundleError>
+pub fn <antecedent_design::composition_bundle::ConsumedBundle>::fn all_replayed(&self) -> bool
 pub fn <antecedent_design::composition_bundle::ConsumedBundle>::fn all_verified(&self) -> bool
 pub fn <antecedent_design::composition_bundle::ConsumedBundle>::fn edges(&self) -> &[antecedent_design::composition_bundle::BundleEdge]
 pub fn <antecedent_design::composition_bundle::ConsumedBundle>::fn identity(&self) -> &str
 pub fn <antecedent_design::composition_bundle::ConsumedBundle>::fn node(&self, id: &str) -> core::option::Option<&antecedent_design::composition_bundle::ConsumedNode>
+pub fn <antecedent_design::composition_bundle::ConsumedBundle>::fn node_replayed(&self, id: &str) -> bool
 pub fn <antecedent_design::composition_bundle::ConsumedBundle>::fn nodes(&self) -> &[antecedent_design::composition_bundle::ConsumedNode]
 pub fn <antecedent_design::composition_bundle::ConsumedBundle>::fn require_verified(&self) -> core::result::Result<(), antecedent_design::composition_bundle::BundleError>
 pub fn <antecedent_design::composition_bundle::ConsumedBundle>::fn value(&self, id: &str, key: &str) -> core::option::Option<f64>
