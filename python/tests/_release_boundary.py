@@ -25,7 +25,7 @@ from antecedent import interface_contract as ic
 from antecedent import measurement_models as mm
 from antecedent import mechanism_composition as mc
 from antecedent.joint_distribution import ScientificQuantity
-from antecedent.outcomes import require_success
+from antecedent.outcomes import Outcome, require_success
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 FIXTURE_DIR = ROOT / "conformance" / "composition" / "release_boundary"
@@ -233,7 +233,7 @@ def contract(d: dict[str, Any]) -> decision.Contract:
     )
 
 
-def decide(d: dict[str, Any], mean: float, snapshot: str, plan: str) -> decision.Decision:
+def decide(d: dict[str, Any], mean: float, snapshot: str, plan: str) -> Outcome[decision.Decision]:
     """Evaluate through a caller-declared mean source built from the licensed mean."""
     source = decision.MeanSource(
         coordinates=(excess_quantity(d["mean_units"]),),
@@ -245,7 +245,8 @@ def decide(d: dict[str, Any], mean: float, snapshot: str, plan: str) -> decision
     return contract(d).evaluate(source)
 
 
-def value_of(result: decision.Decision, action: str) -> float:
+def value_of(result: decision.Decision | Outcome[decision.Decision], action: str) -> float:
+    result = require_success(result)
     return next(a.expected_utility for a in result.actions if a.id == action)
 
 
@@ -515,7 +516,7 @@ class World:
             "reported": {
                 "act": value_of(self.result, "act"),
                 "hold": value_of(self.result, "hold"),
-                "selected": self.result.selected[0],
+                "selected": require_success(self.result).selected[0],
             },
             "studies": studies if studies is not None else self.studies(),
             "decision": self.declaration,

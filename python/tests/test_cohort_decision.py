@@ -23,7 +23,7 @@ from antecedent import inverse_query as iq
 from antecedent.compact_export import CompactExport, Intercept, Linear, Numeric, Quantity
 from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.estimators import DRLearner
-from antecedent.outcomes import require_success
+from antecedent.outcomes import Outcome, require_success
 from antecedent.prediction import FittedEffectModel
 
 Z = [-0.8, 0.0, 0.5]
@@ -117,14 +117,20 @@ def test_producer_to_cohort_to_affine_contract_matches_the_hand_calculation(mode
 
     # Affine utilities: 5 x - 2 and the do-nothing action; computed by hand from the mean.
     contract = affine_contract(source, 5.0, -2.0)
-    for evaluated in (contract.evaluate(source), contract.evaluate(source.mean_source)):
+    for declared_source in (
+        source,
+        source.mean_source,
+        Outcome(value=source),
+        Outcome(value=source.mean_source),
+    ):
+        evaluated = require_success(contract.evaluate(declared_source))
         by_id = {a.id: a for a in evaluated.actions}
         assert by_id["treat"].expected_utility == pytest.approx(5.0 * expected_mean - 2.0, abs=1e-8)
         assert by_id["wait"].expected_utility == pytest.approx(0.0, abs=1e-12)
         assert by_id["treat"].standard_error is None and evaluated.evpi is None
         assert evaluated.selected == ("treat",)
     # A loss-making utility waits.
-    hold = affine_contract(source, 1.0, -10.0).evaluate(source)
+    hold = require_success(affine_contract(source, 1.0, -10.0).evaluate(source))
     assert hold.selected == ("wait",)
     # A pure Rust-issued mean source: a hand-edited one is refused.
     tampered = decision.MeanSource(
@@ -136,7 +142,7 @@ def test_producer_to_cohort_to_affine_contract_matches_the_hand_calculation(mode
         _original_cohort=source,
     )
     with pytest.raises(CausalValueError):
-        contract.evaluate(tampered)
+        require_success(contract.evaluate(tampered))
 
 
 def test_probability_quantile_nonlinear_and_joint_law_requests_are_refused(model) -> None:
@@ -154,7 +160,7 @@ def test_probability_quantile_nonlinear_and_joint_law_requests_are_refused(model
         target_population="target",
     )
     with pytest.raises(decision.DecisionRefusal) as nonlinear:
-        squared.evaluate(source)
+        require_success(squared.evaluate(source))
     assert nonlinear.value.reason_code == "decision_contract_unsatisfied"
     for criterion in (
         decision.Criterion.threshold_probability(1.0),
@@ -167,7 +173,7 @@ def test_probability_quantile_nonlinear_and_joint_law_requests_are_refused(model
             target_population="target",
         )
         with pytest.raises(decision.DecisionRefusal) as law:
-            asked.evaluate(source)
+            require_success(asked.evaluate(source))
         assert law.value.reason_code == "decision_contract_unsatisfied"
     for kind, code, detail in (
         ("probability", "decision_contract_unsatisfied", "cohort_decision.law_not_supplied"),
@@ -315,9 +321,9 @@ def test_a_declared_shift_is_extrapolative_and_must_be_accepted(model) -> None:
     assert any("declared covariate shift" in line for line in source.assumptions)
     contract = affine_contract(source, 5.0, -2.0)
     with pytest.raises(cd.CohortDecisionRefusal) as unaccepted:
-        contract.evaluate(source)
+        require_success(contract.evaluate(source))
     assert unaccepted.value.detail == "cohort_decision.extrapolative_not_accepted"
-    accepted = contract.evaluate(source.accept_extrapolative())
+    accepted = require_success(contract.evaluate(source.accept_extrapolative()))
     assert accepted.selected == ("treat",)
     # The shifted cohort must still lie inside the fitted support.
     with pytest.raises(cd.CohortDecisionRefusal) as beyond:
@@ -420,7 +426,7 @@ def test_a_declared_compact_model_carries_the_uncalibrated_variance_and_is_never
     total = sum(W[i] * W[j] * phi[i] @ v @ phi[j] for i in range(len(Z)) for j in range(len(Z)))
     assert diagnostic.value == pytest.approx(float(total) ** 0.5, abs=1e-12)
     # It never reaches the decision, and the interval route is closed.
-    decided = affine_contract(source, 5.0, -2.0).evaluate(source)
+    decided = require_success(affine_contract(source, 5.0, -2.0).evaluate(source))
     assert all(a.standard_error is None for a in decided.actions)
     with pytest.raises(cd.CohortDecisionRefusal) as closed:
         source.interval()
@@ -447,17 +453,23 @@ def test_a_portable_model_has_no_variance_diagnostic_and_feeds_an_inverse_query(
     assert source.uncalibrated_standard_error is None
     contract = affine_contract(source, 5.0, -2.0)
     target = 5.0 * source.mean_contrast - 2.0 - 0.5
-    answered = iq.InverseQuery(contract, ("wait", "treat"), (iq.target_mean(target),)).evaluate(
-        source.forward_claim()
+    answered = require_success(
+        iq.InverseQuery(contract, ("wait", "treat"), (iq.target_mean(target),)).evaluate(
+            source.forward_claim()
+        )
     )
     assert answered.feasible_actions == ("treat",)
     with pytest.raises(iq.InverseQueryRefusal) as refused:
-        iq.InverseQuery(contract, ("wait", "treat"), (iq.target_quantile(0.5, 1.0),)).evaluate(
-            source.forward_claim()
+        require_success(
+            iq.InverseQuery(contract, ("wait", "treat"), (iq.target_quantile(0.5, 1.0),)).evaluate(
+                source.forward_claim()
+            )
         )
     assert refused.value.detail == "decision_evaluation.mean_source_insufficient"
     with pytest.raises(CausalTypeError):
-        iq.InverseQuery(contract, ("wait", "treat"), (iq.target_mean(target),)).evaluate(source)
+        require_success(
+            iq.InverseQuery(contract, ("wait", "treat"), (iq.target_mean(target),)).evaluate(source)
+        )
 
 
 def _native_fit(n: int = 400):

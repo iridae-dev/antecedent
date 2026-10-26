@@ -35,6 +35,7 @@ from antecedent import decision, external
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError
 from antecedent.extensibility import ProviderTrust
 from antecedent.joint_distribution import JointDistributionArtifact
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -100,7 +101,7 @@ def test_joint_draw_round_trips_and_reproduces_covariance_utility_and_summary() 
     assert np.asarray(py_source)[:, 1].tolist() == gen.Q
     twins = ((py_source, "py_decision_result.bin"), (rust_source, "rust_decision_result.bin"))
     for source, result_name in twins:
-        computed = contract.evaluate(source)
+        computed = require_success(contract.evaluate(source))
         assert computed.selected == ("safe",)
         assert computed.verdict == decision.Verdict("uniquely_optimal", ("safe",))
         assert computed.evpi == pytest.approx(0.5, abs=TOLERANCE)
@@ -108,7 +109,9 @@ def test_joint_draw_round_trips_and_reproduces_covariance_utility_and_summary() 
         assert risky.expected_utility == pytest.approx(2.0, abs=TOLERANCE)
         assert safe.expected_utility == pytest.approx(3.0, abs=TOLERANCE)
         # Published summary: the stored result replays to the same verdict from stored inputs.
-        replayed = decision.replay(_read(result_name), contract=contract, source=source)
+        replayed = require_success(
+            decision.replay(_read(result_name), contract=contract, source=source)
+        )
         assert replayed.selected == computed.selected
         assert replayed.evpi == pytest.approx(computed.evpi, abs=TOLERANCE)
         assert replayed.contract_identity == contract.identity
@@ -138,8 +141,10 @@ def test_joint_draw_refuses_independent_marginals_and_wrong_meaning() -> None:
     )
     draws = np.array([[a, b, 3.0] for a, b in zip(gen.P, gen.Q, strict=True)], dtype=np.float64)
     with pytest.raises(decision.DecisionRefusal) as joint:
-        gen.decision_contract().evaluate(
-            JointDistributionArtifact(decision_marginals, draws, calibration="exact")
+        require_success(
+            gen.decision_contract().evaluate(
+                JointDistributionArtifact(decision_marginals, draws, calibration="exact")
+            )
         )
     assert joint.value.reason_code == "joint_law_required"
     assert joint.value.detail == "decision_evaluation.joint_law_required"

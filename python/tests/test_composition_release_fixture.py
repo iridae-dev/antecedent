@@ -63,7 +63,7 @@ def assert_refusal(error: StructuredRefusal, entry: dict[str, Any]) -> None:
 
 def refused(call: Any, kind: type[StructuredRefusal] = StructuredRefusal) -> StructuredRefusal:
     with pytest.raises(kind) as caught:
-        call()
+        require_success(call())
     return caught.value
 
 
@@ -276,7 +276,7 @@ def test_unpaired_marginals_are_never_paired_by_index_and_an_enumerated_joint_la
 
 def test_the_decision_reads_the_licensed_mean_and_matches_the_hand_computed_utilities():
     world = World.build()
-    result = world.result
+    result = require_success(world.result)
     # 1000 * 0.045 - 30 = 15 for act; the hold action is worth 0.
     assert rb.value_of(result, "act") == pytest.approx(VALUES["act"], abs=DECISION)
     assert rb.value_of(result, "hold") == pytest.approx(VALUES["hold"], abs=DECISION)
@@ -287,8 +287,13 @@ def test_the_decision_reads_the_licensed_mean_and_matches_the_hand_computed_util
     assert result.n_draws == 0
 
     # The decision follows the declaration: a programme costing 50 is worth 1000 * 0.045 - 50 = -5.
-    dearer = rb.decide(
-        rb.declaration(cost=50.0), world.excess_risk, world.ledger.state_digest, world.plan_identity
+    dearer = require_success(
+        rb.decide(
+            rb.declaration(cost=50.0),
+            world.excess_risk,
+            world.ledger.state_digest,
+            world.plan_identity,
+        )
     )
     assert rb.value_of(dearer, "act") == pytest.approx(-5.0, abs=DECISION)
     assert dearer.selected == ("hold",)
@@ -347,7 +352,7 @@ def test_new_observations_revalidate_the_claim_graph_and_the_decision_is_reevalu
     assert rb.value_of(revised.result, "act") == pytest.approx(REVISED["act"], abs=DECISION)
     assert rb.value_of(revised.result, "hold") == pytest.approx(REVISED["hold"], abs=DECISION)
     # The decision flips: the programme no longer pays for itself.
-    assert revised.result.selected == (REVISED["selected"],)
+    assert require_success(revised.result).selected == (REVISED["selected"],)
     assert revised.plan_identity != world.plan_identity
 
     # The classification against the earlier graph: what rested on study B is recomputed;
@@ -699,4 +704,4 @@ def test_every_stage_is_point_only_and_no_interval_or_posterior_decision_ships()
     assert refusal.reason_code == "decision_contract_unsatisfied"
     assert FIXTURE["calibration"] == "unmeasured"
     assert FIXTURE["label"] == "point_only"
-    assert world.result.evpi is None
+    assert require_success(world.result).evpi is None
