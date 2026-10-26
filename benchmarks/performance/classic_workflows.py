@@ -42,15 +42,15 @@ def build(args):
         supports_workers = "threads" in inspect.signature(dose_functional).parameters
         if supports_workers:
             kwargs["threads"] = args.threads
-        call = lambda: dose_functional(dose, outcome, **kwargs)
+
+        def call():
+            return dose_functional(dose, outcome, **kwargs)
 
         def check(result):
             if args.functional == "contrast":
                 assert abs(result.contrast.estimate - 3.0) < 1e-5
                 return {"estimate": result.contrast.estimate}
-            points = (
-                result.derivatives if args.functional == "derivative" else result.levels
-            )
+            points = result.derivatives if args.functional == "derivative" else result.levels
             assert len(points) == args.grid
             values = [point.value for point in points]
             for point in points:
@@ -70,9 +70,11 @@ def build(args):
         for i in range(1, args.columns):
             z[i] += 0.55 * z[i - 1]
         data = {f"v{i}": column for i, column in enumerate(z)}
-        call = lambda: PC(alpha=0.01, fdr=False, max_cond_size=2).run(
-            data, seed=18, threads=args.threads
-        )
+
+        def call():
+            return PC(alpha=0.01, fdr=False, max_cond_size=2).run(
+                data, seed=18, threads=args.threads
+            )
 
         def decisions(result):
             links = [
@@ -136,17 +138,16 @@ def build(args):
         noise_input = noise if args.strided else noise.tolist()
         typed_available = hasattr(PreparedCyclicSystem, "_from_request")
         worlds = [[], [{"variable": 0, "value": 1.0}]]
-        prepare = lambda: model.prepare(
-            worlds,
-            noise_input
-            if typed_available or not args.strided
-            else noise_input.tolist(),
-            factual=[0.0] * d,
-        )
+
+        def prepare():
+            return model.prepare(
+                worlds,
+                noise_input if typed_available or not args.strided else noise_input.tolist(),
+                factual=[0.0] * d,
+            )
+
         prepared = prepare()
-        call = (
-            (lambda: prepare().execute()) if args.mode == "cold" else prepared.execute
-        )
+        call = (lambda: prepare().execute()) if args.mode == "cold" else prepared.execute
 
         def check(result):
             answer = result.report
@@ -163,9 +164,7 @@ def build(args):
                         max(
                             abs(
                                 values[j]
-                                - clamps.get(
-                                    j, math.tanh(0.2 * values[(j - 1) % d]) + u[j]
-                                )
+                                - clamps.get(j, math.tanh(0.2 * values[(j - 1) % d]) + u[j])
                             )
                             for j in range(d)
                         ),
@@ -180,18 +179,16 @@ def build(args):
         return call, check, {"workers": 1}
     z = rng.normal(size=(args.columns, args.rows))
     t = (rng.random(args.rows) < 0.5).astype(float)
-    y = (
-        2 * t
-        + z.sum(axis=0) / math.sqrt(args.columns)
-        + rng.normal(scale=0.3, size=args.rows)
-    )
+    y = 2 * t + z.sum(axis=0) / math.sqrt(args.columns) + rng.normal(scale=0.3, size=args.rows)
     truth = 2.0
     if args.case in ("logit", "probit", "poisson"):
         baseline = 0.2 + 0.3 * z.sum(axis=0) / math.sqrt(args.columns)
         if args.case == "probit":
             link = np.vectorize(lambda x: 0.5 * (1.0 + math.erf(x / math.sqrt(2.0))))
         elif args.case == "logit":
-            link = lambda x: 1.0 / (1.0 + np.exp(-x))
+
+            def link(x):
+                return 1.0 / (1.0 + np.exp(-x))
         else:
             link = np.exp
         delta = 0.4 if args.case == "poisson" else 1.0
@@ -209,9 +206,7 @@ def build(args):
     if args.strided:
         data = {name: np.repeat(column, 2)[::2] for name, column in data.items()}
     kwargs = {
-        "graph": [
-            (f"z{i}", target) for i in range(args.columns) for target in ("t", "y")
-        ]
+        "graph": [(f"z{i}", target) for i in range(args.columns) for target in ("t", "y")]
         + [("t", "y")],
         "query": ant.AverageEffect("t", "y"),
         "bootstrap": 0,
@@ -224,11 +219,7 @@ def build(args):
             backend="laplace", likelihood=args.case, n_draws=400
         )
     prepared = ant.prepare(data, **kwargs)
-    call = (
-        (lambda: ant.analyze(data, **kwargs))
-        if args.mode == "cold"
-        else prepared.estimate
-    )
+    call = (lambda: ant.analyze(data, **kwargs)) if args.mode == "cold" else prepared.estimate
 
     def check(result):
         assert abs(result.effect - truth) < 0.3
@@ -286,9 +277,7 @@ def main():
         "specification": {k: v for k, v in vars(args).items() if k != "output"},
         "execution": execution,
         "native": _native.__file__,
-        "native_sha256": hashlib.sha256(
-            Path(_native.__file__).read_bytes()
-        ).hexdigest(),
+        "native_sha256": hashlib.sha256(Path(_native.__file__).read_bytes()).hexdigest(),
         # macOS reports bytes. This process includes fixture + preparation + execution.
         "process_peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
         "samples": samples,
@@ -296,9 +285,7 @@ def main():
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
-    print(
-        json.dumps({"case": args.case, "timed": args.measure, "samples": len(samples)})
-    )
+    print(json.dumps({"case": args.case, "timed": args.measure, "samples": len(samples)}))
 
 
 if __name__ == "__main__":

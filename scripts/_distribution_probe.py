@@ -16,8 +16,7 @@ from pathlib import Path
 
 import antecedent as ac
 import numpy as np
-from antecedent.estimators import DML
-from antecedent.estimators import DRLearner
+from antecedent.estimators import DML, DRLearner
 from antecedent.learners import Logistic, NeuralNet
 from antecedent.prediction import FittedEffectModel
 
@@ -38,9 +37,7 @@ def analyze(device: str, *, n: int = 160, hidden: int = 4, epochs: int = 3):
         graph=[("z", "t"), ("z", "y"), ("t", "y")],
         query=ac.AverageEffect(treatment="t", outcome="y"),
         estimator=DML(
-            outcome=NeuralNet(
-                hidden=hidden, epochs=epochs, learning_rate=0.01, device=device
-            ),
+            outcome=NeuralNet(hidden=hidden, epochs=epochs, learning_rate=0.01, device=device),
             treatment=Logistic(),
             folds=2,
         ),
@@ -68,11 +65,7 @@ def analyze_portable(device: str):
 
 
 def labels(result) -> set[str]:
-    return {
-        impl
-        for spec, impl, _ in result.estimate.learner_provenance
-        if spec == "neural_net"
-    }
+    return {impl for spec, impl, _ in result.estimate.learner_provenance if spec == "neural_net"}
 
 
 def refusal(device: str) -> str | None:
@@ -99,7 +92,9 @@ def common_checks(report: Report, expect: str, version: str) -> None:
     root = Path(sys.prefix).resolve()
     where = Path(ac.__file__).resolve()
     report.check("imports_from_the_clean_environment", root in where.parents, where)
-    report.check("version_matches_the_wheel", ac.__version__ == version.split("+")[0], ac.__version__)
+    report.check(
+        "version_matches_the_wheel", ac.__version__ == version.split("+")[0], ac.__version__
+    )
     cpu = analyze("cpu")
     report.check("cpu_default_label_is_plain", labels(cpu) == {"burn"}, labels(cpu))
     auto = analyze("auto")
@@ -138,9 +133,7 @@ def accelerator_checks(report: Report) -> None:
         report.check("auto_records_no_device", "fallback=no_device" in label, label)
         return
     if error is not None and "no_device" in error:
-        report.check(
-            "adapter_present", False, f"accelerator wheel but no adapter: {error}"
-        )
+        report.check("adapter_present", False, f"accelerator wheel but no adapter: {error}")
         return
     report.check("gpu_fit_runs", error is None, error)
     cpu = analyze("cpu", n=2000, hidden=16, epochs=20)
@@ -165,17 +158,14 @@ def accelerator_checks(report: Report) -> None:
     )
     report.check(
         "both_estimates_cover_the_known_effect",
-        abs(cpu.estimate.ate - 2.0) < 3 * se_cpu
-        and abs(gpu.estimate.ate - 2.0) < 3 * se_gpu,
+        abs(cpu.estimate.ate - 2.0) < 3 * se_cpu and abs(gpu.estimate.ate - 2.0) < 3 * se_gpu,
         {"truth": 2.0},
     )
     big = analyze("auto", n=200000, hidden=128, epochs=15)
     (big_label,) = labels(big)
     report.check(
         "auto_selects_the_device_for_a_large_fit",
-        "burn-wgpu" in big_label
-        and "requested=auto" in big_label
-        and "fallback" not in big_label,
+        "burn-wgpu" in big_label and "requested=auto" in big_label and "fallback" not in big_label,
         big_label,
     )
 
@@ -187,20 +177,14 @@ def write_artifact(path: Path) -> None:
     body = base64.b64encode(exported).decode() if binary else exported
     expected = model.predict({k: np.array(v) for k, v in PREDICT_AT.items()})
     path.write_text(
-        json.dumps(
-            {"binary": binary, "artifact": body, "expected": list(expected.values)}
-        ),
+        json.dumps({"binary": binary, "artifact": body, "expected": list(expected.values)}),
         encoding="utf-8",
     )
 
 
 def consume_artifact(report: Report, path: Path) -> None:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    raw = (
-        base64.b64decode(payload["artifact"])
-        if payload["binary"]
-        else payload["artifact"]
-    )
+    raw = base64.b64decode(payload["artifact"]) if payload["binary"] else payload["artifact"]
     model = FittedEffectModel.load(raw)
     got = list(model.predict({k: np.array(v) for k, v in PREDICT_AT.items()}).values)
     report.check(

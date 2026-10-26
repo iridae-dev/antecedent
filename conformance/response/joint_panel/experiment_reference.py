@@ -26,7 +26,7 @@ def translated_panel_mean(groups, doses, duration, population_weights, time_weig
     if min(population_weights) < 0 or sum(population_weights) <= 0:
         raise ValueError("invalid target population weights")
     total = 0.0
-    for group, mass in zip(groups, population_weights):
+    for group, mass in zip(groups, population_weights, strict=False):
         a = list(group["initial_a"])
         b = list(group["initial_b"])
         for t in range(duration):
@@ -52,14 +52,11 @@ def posterior(prior, targets, intercepts, slopes, observed, variance, sample_siz
     """Likelihood ratios expanded independently of the production log-density."""
     if variance <= 0 or sample_size <= 0 or any(s == 0 for s in slopes):
         raise ValueError("invalid Gaussian experiment or noninvertible translation")
-    means = [(v - a) / b for v, a, b in zip(targets, intercepts, slopes)]
+    means = [(v - a) / b for v, a, b in zip(targets, intercepts, slopes, strict=False)]
     anchor = min(means, key=lambda m: abs(m - observed))
     mass = [
-        p
-        * math.exp(
-            (m - anchor) * (2 * observed - m - anchor) * sample_size / (2 * variance)
-        )
-        for p, m in zip(prior, means)
+        p * math.exp((m - anchor) * (2 * observed - m - anchor) * sample_size / (2 * variance))
+        for p, m in zip(prior, means, strict=False)
     ]
     normalizer = math.fsum(mass)
     return [p / normalizer for p in mass]
@@ -67,14 +64,12 @@ def posterior(prior, targets, intercepts, slopes, observed, variance, sample_siz
 
 def decision(weights, utilities, feasible):
     """Enumerate all feasible action values; feasibility is not a utility penalty."""
-    values = [math.fsum(w * u for w, u in zip(weights, row)) for row in utilities]
+    values = [math.fsum(w * u for w, u in zip(weights, row, strict=False)) for row in utilities]
     admitted = [i for i, ok in enumerate(feasible) if ok]
     if not admitted:
         raise ValueError("no feasible terminal action")
     best = max(values[i] for i in admitted)
-    perfect = math.fsum(
-        w * max(utilities[a][i] for a in admitted) for i, w in enumerate(weights)
-    )
+    perfect = math.fsum(w * max(utilities[a][i] for a in admitted) for i, w in enumerate(weights))
     return {
         "values": values,
         "chosen": [i for i in admitted if values[i] == best],
@@ -83,9 +78,7 @@ def decision(weights, utilities, feasible):
     }
 
 
-def future_value(
-    weights, means, utilities, feasible, variance, sample_size, cells=4096
-):
+def future_value(weights, means, utilities, feasible, variance, sample_size, cells=4096):
     """Nested predictive Gaussian integration with total-variation and Mills bounds.
 
     Integrate each action's unnormalized posterior utility, then take its maximum.
@@ -96,8 +89,7 @@ def future_value(
     if not admitted or cells < 1 or variance <= 0 or sample_size <= 0:
         raise ValueError("invalid future study or action set")
     shifted = [
-        [utilities[a][i] - utilities[admitted[0]][i] for i in range(len(weights))]
-        for a in admitted
+        [utilities[a][i] - utilities[admitted[0]][i] for i in range(len(weights))] for a in admitted
     ]
     sigma = math.sqrt(variance / sample_size)
     lower, upper = min(means) - 8 * sigma, max(means) + 8 * sigma
@@ -106,14 +98,14 @@ def future_value(
     integrated = 0.0
     for cell in range(cells):
         y = lower + (cell + 0.5) * step
-        likelihood = [
-            density_scale * math.exp(-0.5 * ((y - m) / sigma) ** 2) for m in means
-        ]
+        likelihood = [density_scale * math.exp(-0.5 * ((y - m) / sigma) ** 2) for m in means]
         integrated += step * max(
-            math.fsum(w * l * u for w, l, u in zip(weights, likelihood, row))
+            math.fsum(
+                w * density * u for w, density, u in zip(weights, likelihood, row, strict=False)
+            )
             for row in shifted
         )
-    current = max(math.fsum(w * u for w, u in zip(weights, row)) for row in shifted)
+    current = max(math.fsum(w * u for w, u in zip(weights, row, strict=False)) for row in shifted)
     absolute_utility = math.fsum(
         max(abs(row[i]) for row in shifted) * w for i, w in enumerate(weights)
     )
@@ -135,7 +127,7 @@ def reference_artifact():
     weights = posterior(prior, targets, intercepts, slopes, 0.7, 0.6, 3)
     utilities = [[0.0] * 3, [v - 0.6 for v in targets], [v - 0.2 for v in targets]]
     feasible = [True, True, False]
-    means = [(v - a) / b for v, a, b in zip(targets, intercepts, slopes)]
+    means = [(v - a) / b for v, a, b in zip(targets, intercepts, slopes, strict=False)]
     future = future_value(weights, means, utilities, feasible, 1.0, 4)
     truth = json.loads((HERE / "expected.json").read_text(encoding="utf-8"))
     groups = truth["variants"]["interaction"]["latent_truth"]
@@ -174,6 +166,4 @@ if __name__ == "__main__":
     if args.write:
         target.write_text(rendered, encoding="utf-8")
     elif json.loads(target.read_text(encoding="utf-8")) != json.loads(rendered):
-        raise SystemExit(
-            "independent experiment reference differs; review and regenerate"
-        )
+        raise SystemExit("independent experiment reference differs; review and regenerate")

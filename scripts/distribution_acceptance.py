@@ -60,13 +60,9 @@ DEVICE_LIBRARIES = (
 DEVICE_SYMBOLS = (b"wgpu_core", b"wgpu_hal")
 
 
-def run(
-    cmd: list[str], *, cwd: Path | None = None, env: dict[str, str] | None = None
-) -> str:
+def run(cmd: list[str], *, cwd: Path | None = None, env: dict[str, str] | None = None) -> str:
     """Run ``cmd`` and return stdout. A failing command raises with its output."""
-    done = subprocess.run(
-        cmd, cwd=cwd, env=env, text=True, capture_output=True, check=False
-    )  # noqa: S603
+    done = subprocess.run(cmd, cwd=cwd, env=env, text=True, capture_output=True, check=False)  # noqa: S603
     if done.returncode != 0:
         raise SystemExit(
             f"command failed ({done.returncode}): {shlex.join(cmd)}\n{done.stdout}\n{done.stderr}"
@@ -84,9 +80,7 @@ def wheel_version(wheel: Path) -> str:
 
 
 def record_line(path: str, data: bytes) -> str:
-    digest = (
-        base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode()
-    )
+    digest = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode()
     return f"{path},sha256={digest},{len(data)}"
 
 
@@ -131,9 +125,7 @@ def relabel_wheel(src: Path, out_dir: Path, local: str = ACCELERATOR_LOCAL) -> P
 
 
 def native_module(zf: zipfile.ZipFile) -> str:
-    return next(
-        n for n in zf.namelist() if "/_native" in n and n.endswith((".so", ".pyd"))
-    )
+    return next(n for n in zf.namelist() if "/_native" in n and n.endswith((".so", ".pyd")))
 
 
 def linked_libraries(blob: bytes, suffix: str) -> list[str] | None:
@@ -178,24 +170,23 @@ def inspect_wheel(wheel: Path, expect: str) -> list[str]:
                     problems.append(f"cpu wheel links a device library: {lib}")
     else:
         if not version.endswith(f"+{ACCELERATOR_LOCAL}"):
-            problems.append(
-                f"accelerator wheel version is not labelled +{ACCELERATOR_LOCAL}"
-            )
+            problems.append(f"accelerator wheel version is not labelled +{ACCELERATOR_LOCAL}")
         if not has_device:
             problems.append("accelerator wheel does not contain the device library")
         libs = linked_libraries(blob, Path(member).suffix)
-        if libs is not None and platform.system() == "Darwin":
-            if not any("Metal" in lib for lib in libs):
-                problems.append("accelerator wheel does not link Metal on macOS")
+        if (
+            libs is not None
+            and platform.system() == "Darwin"
+            and not any("Metal" in lib for lib in libs)
+        ):
+            problems.append("accelerator wheel does not link Metal on macOS")
     return problems
 
 
 def maturin_command(maturin: str) -> list[str]:
     cmd = shlex.split(maturin)
     if shutil.which(cmd[0]) is None:
-        raise SystemExit(
-            f"{cmd[0]} not found; pass --maturin 'uvx maturin' or install maturin"
-        )
+        raise SystemExit(f"{cmd[0]} not found; pass --maturin 'uvx maturin' or install maturin")
     return cmd
 
 
@@ -218,9 +209,7 @@ def build_wheel(maturin: str, out: Path, *, accelerator: bool) -> Path:
     run(cmd, cwd=REPO_ROOT)
     built = sorted(set(out.glob("*.whl")) - before)
     if len(built) != 1:
-        raise SystemExit(
-            f"expected one new wheel in {out}, found {[p.name for p in built]}"
-        )
+        raise SystemExit(f"expected one new wheel in {out}, found {[p.name for p in built]}")
     return built[0]
 
 
@@ -268,9 +257,7 @@ def venv_probe(
     env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
     env.pop("ANTECEDENT_DISABLE_DEVICE", None)
     env.update(env_extra or {})
-    done = subprocess.run(
-        cmd, cwd=work, env=env, text=True, capture_output=True, check=False
-    )  # noqa: S603
+    done = subprocess.run(cmd, cwd=work, env=env, text=True, capture_output=True, check=False)  # noqa: S603
     try:
         report = json.loads(done.stdout.strip().splitlines()[-1])
     except (IndexError, json.JSONDecodeError):
@@ -328,9 +315,7 @@ def selftest() -> int:
             zf.writestr(f"{info}/RECORD", "stale\n")
         assert wheel_version(src) == "1.2.3"
         out = relabel_wheel(src, root / "out")
-        assert out.name == "antecedent-1.2.3+wgpu-cp313-cp313-macosx_11_0_arm64.whl", (
-            out.name
-        )
+        assert out.name == "antecedent-1.2.3+wgpu-cp313-cp313-macosx_11_0_arm64.whl", out.name
         assert wheel_version(out) == "1.2.3+wgpu"
         with zipfile.ZipFile(out) as zf:
             names = zf.namelist()
@@ -341,9 +326,7 @@ def selftest() -> int:
                     continue
                 assert record_line(name, zf.read(name)) in record, name
             assert (
-                zf.getinfo("antecedent/_native.cpython-313-darwin.so").external_attr
-                >> 16
-                == 0o755
+                zf.getinfo("antecedent/_native.cpython-313-darwin.so").external_attr >> 16 == 0o755
             )
             assert zf.testzip() is None
         assert inspect_wheel(out, "accelerator") == [] or platform.system() == "Darwin"
@@ -371,9 +354,7 @@ def main() -> int:
     all_p.add_argument("--report", type=Path, required=True)
     all_p.add_argument("--cpu-wheel", type=Path)
     all_p.add_argument("--accelerator-wheel", type=Path)
-    all_p.add_argument(
-        "--pip-arg", action="append", default=[], help="extra pip install argument"
-    )
+    all_p.add_argument("--pip-arg", action="append", default=[], help="extra pip install argument")
     ins = sub.add_parser("inspect")
     ins.add_argument("wheel", type=Path)
     ins.add_argument("--expect", choices=("cpu", "accelerator"), required=True)

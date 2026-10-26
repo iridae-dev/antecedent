@@ -51,7 +51,9 @@ _CFG_TEST = re.compile(r"#\s*\[\s*cfg\s*\(\s*(?:test|all\s*\(\s*test\b[^\]]*)\)\
 # them: (file, function). The executor must require its lowered program for the cell itself.
 WRAPPER_FAMILY_EXECUTORS: dict[str, tuple[str, str]] = {}
 # What proves an executor refuses a plan with no lowered program for its cell.
-LOWERED_GUARD = re.compile(r"\b(?:require_lowered|retained_refusal|lowered_analysis|expected_cell)\b")
+LOWERED_GUARD = re.compile(
+    r"\b(?:require_lowered|retained_refusal|lowered_analysis|expected_cell)\b"
+)
 
 # A manifest route that matches here records exactly this operation when several operations
 # serve its cell. First match wins.
@@ -65,8 +67,14 @@ OPERATION_BY_ROUTE = (
 
 # What a cited test must do. Each pattern is searched in the function body.
 TEST_REQUIRES = (
-    ("prepare or run the route", re.compile(r"\.(?:prepare|run|estimate)\w*\s*\(|\bfn\s+run\b|\brun\s*\(")),
-    ("assert the retained program", re.compile(r"assert_retained_graphless_program\s*\(|retained_operation\s*\(")),
+    (
+        "prepare or run the route",
+        re.compile(r"\.(?:prepare|run|estimate)\w*\s*\(|\bfn\s+run\b|\brun\s*\("),
+    ),
+    (
+        "assert the retained program",
+        re.compile(r"assert_retained_graphless_program\s*\(|retained_operation\s*\("),
+    ),
     (
         "assert a number or interval of the result",
         re.compile(
@@ -82,13 +90,13 @@ def _read(root: Path, rel: str) -> str:
     return path.read_text(encoding="utf-8") if path.is_file() else ""
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _masked(path: Path) -> str:
     """`rust_mask` of a file, computed once per process and path."""
     return rust_mask(path.read_text(encoding="utf-8"))
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _live_path(path: Path) -> str:
     return _blank_tests(_masked(path))
 
@@ -126,7 +134,7 @@ _CALLED = re.compile(
 )
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _index(path: Path) -> tuple[frozenset[str], frozenset[str], frozenset[str]]:
     """Type names, function names and called execute/run/fit names of one file."""
     text = _masked(path)
@@ -136,7 +144,7 @@ def _index(path: Path) -> tuple[frozenset[str], frozenset[str], frozenset[str]]:
     return types, functions, called
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _definitions(files: tuple[Path, ...]) -> dict[str, tuple[Path, ...]]:
     found: dict[str, list[Path]] = {}
     for path in files:
@@ -164,7 +172,8 @@ def wrapper_kinds(payloads: dict[str, str]) -> set[str]:
 
 def _source_files(root: Path) -> list[Path]:
     return [
-        path for path in sorted((root / SRC).rglob("*.rs"))
+        path
+        for path in sorted((root / SRC).rglob("*.rs"))
         if not _is_test_file(path.relative_to(root))
     ]
 
@@ -215,7 +224,9 @@ def _module_files(
 def family_computation_problems(root: Path) -> list[str]:
     payloads = sealed_payloads(root)
     if not payloads:
-        return [f"{EXECUTION}: sealed_executions! block not found; update the family-computation gate"]
+        return [
+            f"{EXECUTION}: sealed_executions! block not found; update the family-computation gate"
+        ]
     wrappers = wrapper_kinds(payloads)
     files = _source_files(root)
     problems: list[str] = []
@@ -224,16 +235,23 @@ def family_computation_problems(root: Path) -> list[str]:
             continue
         defining = _defining_files(files, type_name)
         if not defining:
-            problems.append(f"sealed operation {kind}: the module defining {type_name} was not found")
+            problems.append(
+                f"sealed operation {kind}: the module defining {type_name} was not found"
+            )
             continue
         impl_text = _impl_text(root, type_name)
         module = _module_files(root, files, defining, impl_text)
         # The generic dispatcher is checked in the operation's own files; the family
         # computation is searched through the functions it calls.
-        own = [path for path in module if path in set(defining) or any(
-            parent == path.parent or parent in path.parents for parent in
-            [d.with_suffix("") for d in defining if d.with_suffix("").is_dir()]
-        )]
+        own = [
+            path
+            for path in module
+            if path in set(defining)
+            or any(
+                parent == path.parent or parent in path.parents
+                for parent in [d.with_suffix("") for d in defining if d.with_suffix("").is_dir()]
+            )
+        ]
         own_live = "\n".join(_live(root, str(path.relative_to(root))) for path in own) + impl_text
         live = "\n".join(_live(root, str(path.relative_to(root))) for path in module) + impl_text
         names = ", ".join(str(path.relative_to(root)) for path in defining)
@@ -325,9 +343,7 @@ def owning_module_problems(
     return problems
 
 
-def _served_operations(
-    cell: str, served: dict[str, set[str]], names: dict[str, str]
-) -> list[str]:
+def _served_operations(cell: str, served: dict[str, set[str]], names: dict[str, str]) -> list[str]:
     return sorted(names[kind] for kind, cells in served.items() if cell in cells and kind in names)
 
 
@@ -402,7 +418,9 @@ def wrapper_executor_problems(root: Path) -> list[str]:
             )
         files = _source_files(root)
         module = _module_files(root, files, [root / rel])
-        if not any(FAMILY_COMPUTE.search(_live(root, str(path.relative_to(root)))) for path in module):
+        if not any(
+            FAMILY_COMPUTE.search(_live(root, str(path.relative_to(root)))) for path in module
+        ):
             problems.append(f"{cell}: {rel} reaches no computation crate")
     return problems
 
@@ -473,11 +491,17 @@ def axis_problems(root: Path, routes: list[dict], today: str) -> list[str]:
             for rid in axis.get("routes", []):
                 route = by_id.get(rid)
                 if route is None:
-                    problems.append(f"{GRAPHLESS}: {key} names {rid}, which is not a manifest route")
+                    problems.append(
+                        f"{GRAPHLESS}: {key} names {rid}, which is not a manifest route"
+                    )
                 elif route["status"] not in executing:
-                    problems.append(f"{GRAPHLESS}: {key} names {rid}, whose status is {route['status']}")
+                    problems.append(
+                        f"{GRAPHLESS}: {key} names {rid}, whose status is {route['status']}"
+                    )
         elif not axis.get("reason") or not axis.get("exit_by"):
-            problems.append(f"{GRAPHLESS}: {key} records neither counterpart routes nor a reason and a dated exit")
+            problems.append(
+                f"{GRAPHLESS}: {key} records neither counterpart routes nor a reason and a dated exit"
+            )
         if axis.get("exit_by") and str(axis["exit_by"]) < today:
             problems.append(f"{GRAPHLESS}: {key} exit_by {axis['exit_by']} has passed")
     families = {license["family"] for license in data.get("license", [])}

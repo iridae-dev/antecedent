@@ -31,7 +31,10 @@ from pathlib import Path
 
 from _rust_source import lex, rust_mask
 from retained_computation import (
-    WRAPPER_FAMILY_EXECUTORS, retained_computation_problems, sealed_payloads, wrapper_kinds,
+    WRAPPER_FAMILY_EXECUTORS,
+    retained_computation_problems,
+    sealed_payloads,
+    wrapper_kinds,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -93,41 +96,75 @@ ROUTE_CELLS = (
 # either its contemporaneous tabular projection or its unfolded series; check
 # both actual cells where the public matrix coordinate represents both.
 _CLOSED_DERIVATIVES = (
-    "AverageDerivative", "DirectionalDerivative", "Elasticity", "PointDerivative",
-    "ResponseJacobian", "SemiElasticity",
+    "AverageDerivative",
+    "DirectionalDerivative",
+    "Elasticity",
+    "PointDerivative",
+    "ResponseJacobian",
+    "SemiElasticity",
 )
 CLOSED_ROUTE_CELLS = {
-    **{(target, graph): (cell,)
-       for target in ("AnomalyAttribution", "ChangeAttribution")
-       for graph, cell in (("Admg", "GcmClass"), ("Cpdag", "GcmClass"),
-                           ("Pag", "GcmClass"), ("TemporalCpdag", "GcmTemporalClass"),
-                           ("TemporalPag", "GcmTemporalClass"))},
-    **{(target, "TemporalAdmg"): ("GcmClass", "GcmTemporalClass")
-       for target in ("AnomalyAttribution", "ChangeAttribution")},
-    **{(target, graph): (cell,)
-       for target in _CLOSED_DERIVATIVES
-       for graph, cell in (("Admg", "MixedAdmgResponse"),
-                           ("Cpdag", "StaticResponseCpdag"), ("Pag", "StaticResponsePag"))},
-    **{(target, "TemporalAdmg"): ("MixedAdmgResponse", "TemporalResponseAdmg")
-       for target in _CLOSED_DERIVATIVES},
-    **{("Counterfactual", graph): ("CounterfactualClass",)
-       for graph in ("Admg", "Cpdag", "Pag", "TemporalAdmg")},
-    **{("InterventionalDistribution", graph): ("DistributionMixed",)
-       for graph in ("Cpdag", "Pag")},
-    **{(target, graph): (cell,)
-       for target in ("MediationEffect", "NestedCounterfactualEffect", "PathSpecificEffect")
-       for graph, cell in (("Admg", "PathSpecificMixed"), ("Cpdag", "PathSpecificCpdag"),
-                           ("Pag", "PathSpecificPag"), ("TemporalAdmg", "PathSpecificMixed"))},
+    **{
+        (target, graph): (cell,)
+        for target in ("AnomalyAttribution", "ChangeAttribution")
+        for graph, cell in (
+            ("Admg", "GcmClass"),
+            ("Cpdag", "GcmClass"),
+            ("Pag", "GcmClass"),
+            ("TemporalCpdag", "GcmTemporalClass"),
+            ("TemporalPag", "GcmTemporalClass"),
+        )
+    },
+    **{
+        (target, "TemporalAdmg"): ("GcmClass", "GcmTemporalClass")
+        for target in ("AnomalyAttribution", "ChangeAttribution")
+    },
+    **{
+        (target, graph): (cell,)
+        for target in _CLOSED_DERIVATIVES
+        for graph, cell in (
+            ("Admg", "MixedAdmgResponse"),
+            ("Cpdag", "StaticResponseCpdag"),
+            ("Pag", "StaticResponsePag"),
+        )
+    },
+    **{
+        (target, "TemporalAdmg"): ("MixedAdmgResponse", "TemporalResponseAdmg")
+        for target in _CLOSED_DERIVATIVES
+    },
+    **{
+        ("Counterfactual", graph): ("CounterfactualClass",)
+        for graph in ("Admg", "Cpdag", "Pag", "TemporalAdmg")
+    },
+    **{("InterventionalDistribution", graph): ("DistributionMixed",) for graph in ("Cpdag", "Pag")},
+    **{
+        (target, graph): (cell,)
+        for target in ("MediationEffect", "NestedCounterfactualEffect", "PathSpecificEffect")
+        for graph, cell in (
+            ("Admg", "PathSpecificMixed"),
+            ("Cpdag", "PathSpecificCpdag"),
+            ("Pag", "PathSpecificPag"),
+            ("TemporalAdmg", "PathSpecificMixed"),
+        )
+    },
     ("MediationEffect", "TemporalAdmg"): ("PathSpecificMixed", "TemporalMediationAdmg"),
     ("ConditionalEffect", "TemporalAdmg"): ("ConditionalMixed",),
-    **{(target, "TemporalAdmg"): ("TemporalEffectAdmg",)
-       for target in ("PulseEffect", "SustainedEffect", "TemporalConditionalPulse",
-                      "TemporalConditionalSustained")},
+    **{
+        (target, "TemporalAdmg"): ("TemporalEffectAdmg",)
+        for target in (
+            "PulseEffect",
+            "SustainedEffect",
+            "TemporalConditionalPulse",
+            "TemporalConditionalSustained",
+        )
+    },
     ("TemporalMediationEffect", "TemporalPag"): ("TemporalMediationPag",),
     ("TemporalMediationEffect", "TemporalAdmg"): ("TemporalMediationAdmg",),
     **{("TransportQuery", graph): ("TransportMixed",) for graph in ("Dag", "Cpdag", "Pag")},
-    **{("InterferenceQuery", graph): ("InterferenceDag",)
-       for graph in ("Admg", "Cpdag", "Pag", "TemporalAdmg")},
+    **{
+        ("InterferenceQuery", graph): ("InterferenceDag",)
+        for graph in ("Admg", "Cpdag", "Pag", "TemporalAdmg")
+    },
     # builder/finish.rs::lag_zero_average_effect rewrites the series query to
     # its explicit lag-0 TemporalEffect while retaining the matrix query name.
     ("AverageEffect", "TemporalDag"): ("TemporalEffectDag",),
@@ -217,7 +254,7 @@ def _dispatch_entry_body(masked: str, marker: str) -> str | None:
         return None
     depth = 1
     body = []
-    for char in masked[opening + 1:]:
+    for char in masked[opening + 1 :]:
         if char == "{":
             depth += 1
         elif char == "}":
@@ -264,7 +301,9 @@ def registry_cells(root: Path) -> tuple[dict[str, str], list[str]]:
     start = text.find("route_lowerings! {")
     table = text[start:] if start >= 0 else ""
     table = table[: table.find("\n}")] if "\n}" in table else table
-    cells = dict(re.findall(r"^\s*([A-Z][A-Za-z0-9]*)\s*=>\s*([a-z_]+)\s+as\s+[A-Za-z]+\s*,", table, re.M))
+    cells = dict(
+        re.findall(r"^\s*([A-Z][A-Za-z0-9]*)\s*=>\s*([a-z_]+)\s+as\s+[A-Za-z]+\s*,", table, re.M)
+    )
     posterior = re.findall(r'=>\s*"(GraphPosterior[A-Za-z]+)"', text)
     return cells, posterior
 
@@ -310,14 +349,15 @@ def retained_enum_variants(root: Path) -> set[str]:
     return set(re.findall(r"^    ([A-Z][A-Za-z0-9]*)\b", block, re.M))
 
 
-def sealer_cells(root: Path, table: list[tuple[str, str]], cells: set[str], posterior: list[str]) -> tuple[dict[str, set[str]], list[str]]:
+def sealer_cells(
+    root: Path, table: list[tuple[str, str]], cells: set[str], posterior: list[str]
+) -> tuple[dict[str, set[str]], list[str]]:
     """kind -> cells its sealer serves, derived from the sealer sources and the declared table."""
     problems: list[str] = []
-    directory = root / ANALYSIS / "prepared" / "sealers"
     mod_text = rust_mask(_read(root, f"{ANALYSIS}/prepared/sealers/mod.rs") or "")
     accessors: dict[str, set[str]] = {}
     for match in re.finditer(r"pub\(super\)\s+fn\s+(\w+)\s*\(", mod_text):
-        rest = mod_text[match.end():]
+        rest = mod_text[match.end() :]
         following = re.search(r"\n    (?:pub\(super\)\s+)?fn\s", rest)
         body = rest[: following.start()] if following else rest[:1500]
         accessors[match.group(1)] = set(re.findall(r"RouteInput::(\w+)", body))
@@ -325,7 +365,11 @@ def sealer_cells(root: Path, table: list[tuple[str, str]], cells: set[str], post
     for kind, path in table:
         module, name = path.split("::")
         source = rust_mask(_read(root, f"{ANALYSIS}/prepared/sealers/{module}.rs") or "")
-        part = re.search(rf"(?m)^(?:pub\(super\)\s+)?fn\s+{name}\b.*?(?=^(?:pub\(super\)\s+)?fn\s|\Z)", source, re.S)
+        part = re.search(
+            rf"(?m)^(?:pub\(super\)\s+)?fn\s+{name}\b.*?(?=^(?:pub\(super\)\s+)?fn\s|\Z)",
+            source,
+            re.S,
+        )
         found: set[str] = set()
         if part:
             found |= set(re.findall(r"RouteInput::(\w+)", part.group(0)))
@@ -384,8 +428,14 @@ def _test_citation_problems(root: Path, route: dict) -> list[str]:
     return []
 
 
-def manifest_problems(root: Path, cells: dict[str, str], posterior: list[str], kinds: set[str],
-                      names: dict[str, str], served: dict[str, set[str]]) -> list[str]:
+def manifest_problems(
+    root: Path,
+    cells: dict[str, str],
+    posterior: list[str],
+    kinds: set[str],
+    names: dict[str, str],
+    served: dict[str, set[str]],
+) -> list[str]:
     problems: list[str] = []
     text = _read(root, MANIFEST)
     if text is None:
@@ -407,24 +457,36 @@ def manifest_problems(root: Path, cells: dict[str, str], posterior: list[str], k
         target, graph_class = row["coordinate"].split(":")[:2]
         record_keys.add((target, graph_class))
         if row.get("lowering") not in registered:
-            problems.append(f"{row['coordinate']}: lowering {row.get('lowering')!r} is not a registered route cell")
+            problems.append(
+                f"{row['coordinate']}: lowering {row.get('lowering')!r} is not a registered route cell"
+            )
     for target, graph_class in sorted(record_keys - manifest_keys):
-        problems.append(f"licensed_routes.toml holds {target}:{graph_class}, which the route manifest does not license")
+        problems.append(
+            f"licensed_routes.toml holds {target}:{graph_class}, which the route manifest does not license"
+        )
     for target, graph_class in sorted(manifest_keys - record_keys):
-        problems.append(f"route manifest licenses {target}:{graph_class}, which licensed_routes.toml lowers nowhere")
+        problems.append(
+            f"route manifest licenses {target}:{graph_class}, which licensed_routes.toml lowers nowhere"
+        )
 
     for route in routes:
         status, rid = route["status"], route["id"]
         operation = route.get("retained_operation")
         if operation in ("estimator_route", "fresh_run"):
-            problems.append(f"{rid}: retained_operation names a program-only operation, not a route's own")
+            problems.append(
+                f"{rid}: retained_operation names a program-only operation, not a route's own"
+            )
         elif operation is not None and operation not in name_to_variant:
             problems.append(f"{rid}: retained_operation {operation!r} names no sealed operation")
         if route.get("retained_route_test") is not None and operation is None:
             problems.append(f"{rid}: retained_route_test without a retained_operation")
         problems.extend(_test_citation_problems(root, route))
-        if status == "graphless" and (operation is None or route.get("retained_route_test") is None):
-            problems.append(f"{rid}: graphless route records no retained_operation and retained_route_test")
+        if status == "graphless" and (
+            operation is None or route.get("retained_route_test") is None
+        ):
+            problems.append(
+                f"{rid}: graphless route records no retained_operation and retained_route_test"
+            )
         if status not in EXECUTING or status == "licensed":
             continue
         lowered_cells = route_cells(route)
@@ -433,12 +495,20 @@ def manifest_problems(root: Path, cells: dict[str, str], posterior: list[str], k
             continue
         for cell in lowered_cells:
             if cell not in registered and cell not in plan_routes:
-                problems.append(f"{rid}: executing route has no lowered program entry (cell {cell!r})")
+                problems.append(
+                    f"{rid}: executing route has no lowered program entry (cell {cell!r})"
+                )
                 continue
-            if cell in registered and cell not in WRAPPER_FAMILY_EXECUTORS and not any(
-                cell in owned and kind not in wrappers for kind, owned in served.items()
+            if (
+                cell in registered
+                and cell not in WRAPPER_FAMILY_EXECUTORS
+                and not any(
+                    cell in owned and kind not in wrappers for kind, owned in served.items()
+                )
             ):
-                problems.append(f"{rid}: executing route cell {cell} has no family-owned sealed operation")
+                problems.append(
+                    f"{rid}: executing route cell {cell} has no family-owned sealed operation"
+                )
             if operation in name_to_variant and cell in registered:
                 variant = name_to_variant[operation]
                 if variant not in kinds:
@@ -489,20 +559,30 @@ def estimator_table_problems(root: Path, served: dict[str, set[str]]) -> list[st
     rows = tomllib.loads(residual_text).get("estimator", [])
     residual = {row["id"] for row in rows}
     flagged = {
-        row["id"] for row in rows if row.get("served_by_specialised_sealer_for_other_shapes") is True
+        row["id"]
+        for row in rows
+        if row.get("served_by_specialised_sealer_for_other_shapes") is True
     }
     problems = [
         f"{ESTIMATOR_RESIDUAL}: {row['id']} needs a reason"
         for row in rows
         if not str(row.get("reason", "")).strip()
     ]
-    problems.extend(f"the estimator-family table lists {n}, which is not an EstimatorId" for n in sorted(listed - ids))
-    problems.extend(f"{ESTIMATOR_RESIDUAL} lists {n}, which is not an EstimatorId" for n in sorted(residual - ids))
     problems.extend(
-        f"the estimator-family table lists {n}, which {ESTIMATOR_RESIDUAL} does not" for n in sorted(listed - residual)
+        f"the estimator-family table lists {n}, which is not an EstimatorId"
+        for n in sorted(listed - ids)
     )
     problems.extend(
-        f"{ESTIMATOR_RESIDUAL} lists {n}, which the estimator-family table omits" for n in sorted(residual - listed)
+        f"{ESTIMATOR_RESIDUAL} lists {n}, which is not an EstimatorId"
+        for n in sorted(residual - ids)
+    )
+    problems.extend(
+        f"the estimator-family table lists {n}, which {ESTIMATOR_RESIDUAL} does not"
+        for n in sorted(listed - residual)
+    )
+    problems.extend(
+        f"{ESTIMATOR_RESIDUAL} lists {n}, which the estimator-family table omits"
+        for n in sorted(residual - listed)
     )
     sealer_sources = "".join(
         rust_mask(path.read_text(encoding="utf-8"))
@@ -567,21 +647,31 @@ def reentry_guard_problems(root: Path) -> list[str]:
     problems: list[str] = []
     mod = lex(_read(root, f"{ANALYSIS}/lowering/mod.rs") or "").kept
     if not mod or not re.search(r"fn refuse_reentry\b", mod) or "public_builder_reentry" not in mod:
-        problems.append(f"{ANALYSIS}/lowering/mod.rs: the public_builder_reentry refusal (refuse_reentry) is missing")
+        problems.append(
+            f"{ANALYSIS}/lowering/mod.rs: the public_builder_reentry refusal (refuse_reentry) is missing"
+        )
     elif "lowered_dispatch().is_some()" not in mod:
-        problems.append(f"{ANALYSIS}/lowering/mod.rs: refuse_reentry no longer checks the lowered-dispatch scope")
+        problems.append(
+            f"{ANALYSIS}/lowering/mod.rs: refuse_reentry no longer checks the lowered-dispatch scope"
+        )
     for rel in REENTRY_GUARDED:
         text = _read(root, rel)
         if text is None or "refuse_reentry(" not in rust_mask(text):
             problems.append(f"{rel}: the compile or run entry no longer calls refuse_reentry")
     chain = lex(_read(root, f"{ANALYSIS}/propagation_chain.rs") or "").kept
     if "lowered_dispatch().is_some()" not in chain or "public_builder_reentry" not in chain:
-        problems.append(f"{ANALYSIS}/propagation_chain.rs: chain compile no longer refuses public_builder_reentry")
+        problems.append(
+            f"{ANALYSIS}/propagation_chain.rs: chain compile no longer refuses public_builder_reentry"
+        )
     if "enter_lowered_dispatch(" not in chain:
-        problems.append(f"{ANALYSIS}/propagation_chain.rs: chain execution no longer enters its lowered dispatch")
+        problems.append(
+            f"{ANALYSIS}/propagation_chain.rs: chain execution no longer enters its lowered dispatch"
+        )
     planning = _read(root, f"{ANALYSIS}/execute/compile_planning.rs") or ""
     if "enter_lowered_dispatch(" not in planning:
-        problems.append(f"{ANALYSIS}/execute/compile_planning.rs: planning execution no longer enters its lowered dispatch")
+        problems.append(
+            f"{ANALYSIS}/execute/compile_planning.rs: planning execution no longer enters its lowered dispatch"
+        )
     codes = _read(root, "parity/reason_codes.toml") or ""
     for code in ("public_builder_reentry", "route_not_lowered"):
         if f'id = "{code}"' not in codes:
@@ -590,7 +680,9 @@ def reentry_guard_problems(root: Path) -> list[str]:
         text = rust_mask(_read(root, rel) or "")
         body = _dispatch_entry_body(text, marker)
         if body is None:
-            problems.append(f"{rel}: dispatch entry {marker.removeprefix('fn ').rstrip('(')} not found; update the gate")
+            problems.append(
+                f"{rel}: dispatch entry {marker.removeprefix('fn ').rstrip('(')} not found; update the gate"
+            )
             continue
         if "require_lowered(" not in body or "enter_lowered_dispatch(" not in body:
             problems.append(
@@ -631,13 +723,17 @@ def retained_route_problems(root: Path = ROOT) -> list[str]:
     variants = retained_variants(root)
     enum_variants = retained_enum_variants(root)
     if not kinds or not table:
-        return problems + ["sealed-execution table or sealer table not found; update the retained-route gate"]
+        return problems + [
+            "sealed-execution table or sealer table not found; update the retained-route gate"
+        ]
     table_kinds = [kind for kind, _ in table]
     for kind in kinds:
         if kind not in table_kinds:
             problems.append(f"sealed operation {kind} has no sealer")
         if kind not in enum_variants or kind not in variants:
-            problems.append(f"sealed operation {kind} has no RetainedOperation variant or stable name")
+            problems.append(
+                f"sealed operation {kind} has no RetainedOperation variant or stable name"
+            )
     for kind in sorted(set(table_kinds) - set(kinds)):
         problems.append(f"sealer table names {kind}, which is not a sealed operation")
     for kind in sorted({k for k in table_kinds if table_kinds.count(k) > 1}):

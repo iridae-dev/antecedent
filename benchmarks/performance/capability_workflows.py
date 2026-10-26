@@ -73,7 +73,10 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
         rng = np.random.default_rng(args.seed)
         z = rng.normal(size=args.rows)
         t = (rng.random(args.rows) < 1 / (1 + np.exp(-0.4 * z))).astype(float)
-        sigmoid = lambda value: 1 / (1 + np.exp(-value))
+
+        def sigmoid(value):
+            return 1 / (1 + np.exp(-value))
+
         if name == "logit_laplace":
             y = (rng.random(args.rows) < sigmoid(0.2 + 1.5 * t + 0.6 * z)).astype(float)
             truth = float(np.mean(sigmoid(1.7 + 0.6 * z) - sigmoid(0.2 + 0.6 * z)))
@@ -107,9 +110,7 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
             rows=args.rows,
             variables=3,
             truth=truth,
-            fixture_sha256=hashlib.sha256(
-                b"".join(v.tobytes() for v in data.values())
-            ).hexdigest(),
+            fixture_sha256=hashlib.sha256(b"".join(v.tobytes() for v in data.values())).hexdigest(),
             requested_draws=0 if name == "crossfit_dml" else args.draws,
             folds=4 if name == "crossfit_dml" else None,
         )
@@ -120,8 +121,7 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
                 "effect truth failed",
             )
             require(
-                not result.performance.cancelled
-                and not result.performance.early_stopped,
+                not result.performance.cancelled and not result.performance.early_stopped,
                 "incomplete execution",
             )
             if name == "crossfit_dml":
@@ -129,9 +129,7 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
                 return {
                     "effect": result.effect,
                     "folds": 4,
-                    "learner_provenance": list(
-                        result.estimate.learner_provenance or ()
-                    ),
+                    "learner_provenance": list(result.estimate.learner_provenance or ()),
                 }
             require(
                 result.posterior is not None and result.posterior.n_draws >= args.draws,
@@ -181,15 +179,11 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
                 "max_abs_influence_sum": result.max_abs_influence_sum,
             }
 
-        cases.append(
-            Case(name, "cold", call, check, dict(spec, rows=args.rows, grid=grid))
-        )
+        cases.append(Case(name, "cold", call, check, dict(spec, rows=args.rows, grid=grid)))
     elif name in ("cyclic_worlds", "artifact_replay", "artifact_fresh_process"):
         d = args.dimensions
         equations = tuple(
-            Equation(
-                f"v{i}", 0.0, tuple(0.2 if j == (i - 1) % d else 0.0 for j in range(d))
-            )
+            Equation(f"v{i}", 0.0, tuple(0.2 if j == (i - 1) % d else 0.0 for j in range(d)))
             for i in range(d)
         )
         covariance = tuple(float(i == j) for i in range(d) for j in range(d))
@@ -199,10 +193,11 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
             [{"variable": 0, "value": 1.0}],
             [{"variable": 0, "value": 1.0}, {"variable": d - 1, "value": -0.5}],
         ]
-        noise = [
-            [0.1 * math.sin(i * 0.31 + j) for j in range(d)] for i in range(args.units)
-        ]
-        make = lambda: model.prepare(worlds, noise, factual=[0.0] * d)
+        noise = [[0.1 * math.sin(i * 0.31 + j) for j in range(d)] for i in range(args.units)]
+
+        def make():
+            return model.prepare(worlds, noise, factual=[0.0] * d)
+
         prepared = make()
         spec.update(
             variables=d,
@@ -294,9 +289,7 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
                     observed = check(SimpleNamespace(report=value["report"]))
                     return dict(observed, identity=expected)
 
-                cases.append(
-                    Case(name, "startup_load_and_recompute", fresh, check_fresh, spec)
-                )
+                cases.append(Case(name, "startup_load_and_recompute", fresh, check_fresh, spec))
     elif name == "cyclic_fit":
         model = EquilibriumModel(
             (
@@ -306,26 +299,30 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
             (1.0, 0.0, 0.0, 1.0),
         )
         xs = np.linspace(-2, 2, args.units).tolist()
-        rows = lambda weight: [
-            {
-                "values": [x, math.tanh(weight * x)],
-                "clamps": [{"variable": 0, "value": x}],
-            }
-            for x in xs
-        ]
-        make = lambda: model.prepare(
-            [[{"variable": 0, "value": 2.0}]],
-            [[0.0, 0.0]],
-            parameters=[{"kind": "weight", "equation": 1, "parent": 0}],
-            rows=rows(0.7),
-        )
+
+        def rows(weight):
+            return [
+                {
+                    "values": [x, math.tanh(weight * x)],
+                    "clamps": [{"variable": 0, "value": x}],
+                }
+                for x in xs
+            ]
+
+        def make():
+            return model.prepare(
+                [[{"variable": 0, "value": 2.0}]],
+                [[0.0, 0.0]],
+                parameters=[{"kind": "weight", "equation": 1, "parent": 0}],
+                rows=rows(0.7),
+            )
+
         prepared = make()
 
         def check_fit(value, expected=1.4):
             require(value.report["fit"]["converged"], "fit did not converge")
             require(
-                abs(value.report["worlds"][0][0]["values"][1] - math.tanh(expected))
-                < 1e-4,
+                abs(value.report["worlds"][0][0]["values"][1] - math.tanh(expected)) < 1e-4,
                 "fitted intervention truth failed",
             )
             return {
@@ -377,9 +374,7 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
                     "identification failed",
                 )
             else:
-                require(
-                    answer["ci_source"] == "sigma_oracle", "discovery oracle changed"
-                )
+                require(answer["ci_source"] == "sigma_oracle", "discovery oracle changed")
                 # Conditioning inside the {1,2} SCC cannot block the inducing
                 # walks here. Every pair remains sigma-connected, yielding the
                 # complete, unoriented equivalence class rather than direct edges.
@@ -407,9 +402,7 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
                     check,
                     dict(spec, variables=3),
                 ),
-                Case(
-                    name, "prepared", prepared.execute, check, dict(spec, variables=3)
-                ),
+                Case(name, "prepared", prepared.execute, check, dict(spec, variables=3)),
             ]
         )
     elif name in ("ode", "ou", "constraints"):
@@ -422,7 +415,9 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
                 (0.0, 0.0),
             )
             times = np.linspace(0, 1, args.grid_points).tolist()
-            make = lambda: model.prepare([1.0, 0.0], times)
+
+            def make():
+                return model.prepare([1.0, 0.0], times)
 
             def check(result):
                 states = result.report["answer"]["result"]["states"]
@@ -456,8 +451,7 @@ def build_cases(name: str, args: argparse.Namespace, scratch: Path) -> list[Case
                 values = result.report["answer"]["result"]
                 require(len(values) == d * d, "covariance entries omitted")
                 require(
-                    max(abs(v - float(i // d == i % d)) for i, v in enumerate(values))
-                    < 1e-8,
+                    max(abs(v - float(i // d == i % d)) for i, v in enumerate(values)) < 1e-8,
                     "OU Lyapunov truth failed",
                 )
                 return {"covariance_entries": len(values)}
@@ -534,9 +528,7 @@ def main() -> None:
         or min(args.units, args.dimensions, args.grid_points) < 2
         or min(args.draws, args.threads, args.repeats) < 1
     ):
-        parser.error(
-            "rows >=128; units, dimensions, grid-points >=2; other budgets positive"
-        )
+        parser.error("rows >=128; units, dimensions, grid-points >=2; other budgets positive")
     if args.measure and args.output is None:
         parser.error("--measure requires --output to retain every sample")
     import antecedent as ant
@@ -570,9 +562,7 @@ def main() -> None:
                     "samples": samples,
                 }
                 if args.measure:
-                    cell["median_ns"] = statistics.median(
-                        s["elapsed_ns"] for s in samples
-                    )
+                    cell["median_ns"] = statistics.median(s["elapsed_ns"] for s in samples)
                 cells.append(cell)
     report = {
         "scope": "diagnostic_capability_matrix_not_full_N20_or_calibration",
@@ -580,9 +570,7 @@ def main() -> None:
         "warmups": 1 if args.measure else 0,
         "package": ant.__file__,
         "native": _native.__file__,
-        "native_sha256": hashlib.sha256(
-            Path(_native.__file__).read_bytes()
-        ).hexdigest(),
+        "native_sha256": hashlib.sha256(Path(_native.__file__).read_bytes()).hexdigest(),
         "platform": platform.platform(),
         "cells": cells,
     }
@@ -590,11 +578,7 @@ def main() -> None:
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(text)
-    print(
-        json.dumps(
-            {"timed": args.measure, "cells": len(cells), "capabilities": selected}
-        )
-    )
+    print(json.dumps({"timed": args.measure, "cells": len(cells), "capabilities": selected}))
 
 
 if __name__ == "__main__":

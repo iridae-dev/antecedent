@@ -23,7 +23,6 @@ from __future__ import annotations
 import re
 import sys
 import tomllib
-from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
 
@@ -50,8 +49,7 @@ def query_kinds(source: str) -> set[str]:
 def doc_line(row: dict, inference: str) -> str:
     supported = ", ".join(f"`{name}`" for name in row["supported"])
     return (
-        f"| `{row['query']}` | {row['modality']} | {inference} | `{row['default']}` | "
-        f"{supported} |"
+        f"| `{row['query']}` | {row['modality']} | {inference} | `{row['default']}` | {supported} |"
     )
 
 
