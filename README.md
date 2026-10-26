@@ -70,28 +70,34 @@ graph = [("treatment", "outcome"), ("z", "outcome")]
 query = ant.AverageEffect("treatment", "outcome")
 
 # Compile and inspect the plan before estimation.
-study = ant.prepare(data, graph=graph, query=query, seed=19, bootstrap=25)
-print(study.inspect_plan())
-result = study.estimate()
+study = ant.prepare(
+    ant.data.table(data), graph=graph, query=query,
+    inference=ant.Frequentist(bootstrap=25),
+    execution=ant.Execution(seed=19),
+)
+print(study.inspect())
+result = ant.estimate(study)
 print("Answer:", result.answer.kind, result.answer.value)
-print("Calibration:", result.calibration.status)
+print("Uncertainty:", result.uncertainty.summary)
 report = result.inspect().to_dict()
 print("Identification:", report["identification"]["summary"])
-print(study.report("markdown"))  # a readable report of the contract, claim and plan
+print(study.report("markdown"))  # the prepared contract and plan
 
 # Reuse the analysis with new data.
 new_data = {**data, "outcome": data["outcome"] + treatment}
-updated = result.study.refresh(new_data)
+updated_study = ant.rebind(study, data=new_data)
+updated = ant.estimate(updated_study)
 print("Updated effect:", updated.answer.value)
 
 # Export and check artifact acceptance.
-loaded = ant.load(result.export())
+artifact = result.export()
+loaded = ant.load(artifact, expected=artifact.expectation)
 print("Artifact acceptance:", loaded.acceptance.status)
 ```
 
 Expect an estimate near two; the update adds one. The bootstrap budget is small: check calibration before relying on coverage. Execution checks assumption compatibility, not truth. Loading restores the result and acceptance report, not a live study or dataset.
 
-When the declared structure does not identify a question, `analyze` raises a typed refusal. Opt in with `on_refusal="describe"` to keep that refusal unchanged and get, beside it, a labelled noncausal description of the observed data and the evidence that would resolve it; the description is not an answer to the causal question. See [the fallback guide](docs/guides/fallback.md).
+When the declared structure does not identify a valid question, `analyze` returns an `Outcome` with a typed `refusal`. Invalid arguments and operational failures raise errors. Opt in with `on_refusal="describe"` to retain the refusal beside a separately labelled `associational` outcome and the evidence that would resolve it. See [the fallback guide](docs/guides/fallback.md) and [the Python migration guide](docs/migrations/2.4-to-3.0-python.md).
 
 Continue with the [Python workflow](docs/python-workflow.md), [Rust quickstart](docs/rust-quickstart.md) or [examples](examples/README.md). 
 

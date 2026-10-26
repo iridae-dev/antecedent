@@ -183,7 +183,8 @@ nav:
     - Joint responses: migrations/joint-response-3.0.md
     - Prepared cyclic execution: migrations/prepared-cyclic-3.0.md
     - Prepared dose grids: migrations/prepared-dose-grid-3.0.md
-    - Python 2.4 migration: migrations/2.4-python-ux.md
+    - Python 2.4 to 3.0 migration: migrations/2.4-to-3.0-python.md
+    - Historical Python 2.4 migration: migrations/2.4-python-ux.md
     - Transport name migration: migrations/2.0-transport-day1.md
     - Design ranking verification and overlap: migrations/design-ranking-verification-and-overlap.md
     - Composite decision stage identity: migrations/composite-decision-stage-identity.md
