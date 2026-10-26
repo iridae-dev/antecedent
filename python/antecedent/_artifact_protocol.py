@@ -20,6 +20,10 @@ T = TypeVar("T")
 ArtifactT_co = TypeVar("ArtifactT_co", covariant=True)
 P = ParamSpec("P")
 
+_PERIOD_ARTIFACT_KINDS = frozenset(
+    {"ANTECEDENT-PERIOD-REFRESH", "ANTECEDENT-PERIOD-REFRESH-SUMMARY"}
+)
+
 
 if TYPE_CHECKING:
     from .recalc_composite import CompositeSession
@@ -378,10 +382,10 @@ def artifact_from_receipt(source: Any, receipt: Any) -> ExportedArtifact[Any]:
             name: getattr(source, name, None)
             for name in ("program_id", "claim_id", "data_snapshot_id")
         }
-    if view.kind == "causal_posterior":
-        # Historical posterior records contain distributions and their declared
-        # parameter semantics, but no executed causal claim. Bind their actual
-        # encoding instead of attaching an unrelated producing claim identity.
+    if view.kind == "causal_posterior" or view.kind in _PERIOD_ARTIFACT_KINDS:
+        # These records have no standalone producer identity covering the whole
+        # answer. Bind their actual encoding rather than a prior/source digest
+        # that identifies only part of the scientific record.
         from hashlib import sha256
 
         identity = {"expected_encoding_sha256": sha256(data).hexdigest()}
@@ -398,6 +402,8 @@ def artifact_from_receipt(source: Any, receipt: Any) -> ExportedArtifact[Any]:
 # No consumer is selected by trying families until one accepts. The native manifest is the discriminator.
 _CONSUMERS: dict[str, tuple[str, str]] = {
     "causal_posterior": ("_posterior_artifact", "consume_posterior"),
+    "ANTECEDENT-PERIOD-REFRESH": ("transport.advanced", "consume_period_refresh_artifact"),
+    "ANTECEDENT-PERIOD-REFRESH-SUMMARY": ("transport.advanced", "PeriodRefreshSummary.consume"),
     "policy_program_v1": ("intervention_programs", "consume_policy_program"),
     "cyclic_equilibrium": ("cyclic", "consume_artifact"),
     "cyclic_family": ("cyclic", "consume_family_artifact"),
@@ -534,10 +540,27 @@ def load_scientific(
     elif expected is not None:
         if not isinstance(expected, Mapping):
             raise CausalTypeError(f"{view.kind} requires named expected identity fields")
-        unknown = set(expected) - set(parameters)
-        if unknown:
-            raise CausalValueError(f"unknown expectation fields: {sorted(unknown)}")
-        kwargs.update(expected)
+        if view.kind in _PERIOD_ARTIFACT_KINDS:
+            from hashlib import sha256
+
+            if set(expected) != {"expected_encoding_sha256"}:
+                raise CausalValueError(
+                    f"{view.kind} requires expected_encoding_sha256 as its identity expectation"
+                )
+            digest = expected["expected_encoding_sha256"]
+            if not isinstance(digest, str):
+                raise CausalTypeError("expected_encoding_sha256 must be a string")
+            if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+                raise CausalValueError(
+                    "expected_encoding_sha256 must be 64 lowercase hexadecimal characters"
+                )
+            if sha256(data).hexdigest() != digest:
+                raise CausalValueError("artifact encoding differs from expected_encoding_sha256")
+        else:
+            unknown = set(expected) - set(parameters)
+            if unknown:
+                raise CausalValueError(f"unknown expectation fields: {sorted(unknown)}")
+            kwargs.update(expected)
     if context is not None:
         if context.composite_source is not None:
             if view.kind != "conditional_study_ranking_v1":
@@ -566,4 +589,6 @@ def load_scientific(
     if isinstance(result, ScientificResult) or not isinstance(result, Mapping):
         object.__setattr__(result, "_artifact_bytes", data)
         object.__setattr__(result, "acceptance", acceptance)
+        if view.kind in _PERIOD_ARTIFACT_KINDS:
+            object.__setattr__(result, "_inspection_stage", "consumed")
     return result

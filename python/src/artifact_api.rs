@@ -234,6 +234,15 @@ fn inspect_container_metadata(bytes: &[u8], depth: usize) -> PyResult<String> {
                 "metadata": {"envelope": metadata},
             }));
         }
+        if matches!(marker, "ANTECEDENT-PERIOD-REFRESH" | "ANTECEDENT-PERIOD-REFRESH-SUMMARY") {
+            // These frames prefix a raw scientific record, rather than a schema tuple.
+            // Inspection recognizes framing only. Parsing row blocks and verifying the
+            // seal belong to the independent consumer, keeping this metadata bounded.
+            return json(&serde_json::json!({
+                "manifest": {"artifact_kind": {"other": marker}, "frame_version": 1},
+                "metadata": {"encoded_payload_bytes": payload.len(), "validation": "requires_consumer"},
+            }));
+        }
         let (names, inner) =
             if marker.starts_with("ANTECEDENT-TEMPORAL-") || marker == "ANTECEDENT-LEARNED-TRIAL" {
                 (Vec::<String>::new(), payload.to_vec())

@@ -26,7 +26,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from .._artifact_protocol import (
     ExportedArtifact,
@@ -181,10 +181,10 @@ class PeriodPosterior:
 
 @dataclass(frozen=True, slots=True)
 class PeriodLeastSquares:
-    """The least-squares fit of the mechanism."""
+    """The mechanism's least-squares summary; singular designs have no coefficients."""
 
     n: int
-    beta: tuple[float, ...]
+    beta: tuple[float, ...] | None
     residual_variance: float | None
 
     @classmethod
@@ -192,9 +192,30 @@ class PeriodLeastSquares:
         variance = data["residual_variance"]
         return cls(
             n=int(data["n"]),
-            beta=tuple(data["beta"]),
+            beta=None if data["beta"] is None else tuple(data["beta"]),
             residual_variance=None if variance is None else float(variance),
         )
+
+
+@dataclass(frozen=True, slots=True)
+class PeriodRowCounts(ScientificResult):
+    """Native retained-summary row accounting, without reconstructing any rows.
+
+    ``rows`` includes masked rows; ``live_rows`` counts the unmasked rows, and
+    ``effective_n`` sums their observation counts. These remain distinct when a
+    summary originated from weighted or masked observations.
+    """
+
+    rows: int
+    live_rows: int
+    effective_n: int
+
+    def _summary_fields(self) -> dict[str, Any]:
+        return {
+            "rows": self.rows,
+            "live_rows": self.live_rows,
+            "effective_n": self.effective_n,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -274,29 +295,25 @@ class PeriodRefresh(ScientificResult):
             invalidated=tuple(data["invalidated"]),
         )
 
-    def _payload(self) -> dict[str, Any]:
-        payload, refusal = self._native.payload()
-        return _outcome(payload, refusal)
-
     @property
     def posterior(self) -> PeriodPosterior:
         """The posterior over every period the fit currently covers."""
-        return PeriodPosterior._from(self._payload()["posterior"])
+        return PeriodPosterior._from(_outcome(*self._native.posterior_json()))
 
     @property
     def least_squares(self) -> PeriodLeastSquares:
         """The least-squares fit of the same rows."""
-        return PeriodLeastSquares._from(self._payload()["least_squares"])
+        return PeriodLeastSquares._from(json.loads(self._native.least_squares_json()))
 
     @property
     def events(self) -> tuple[PeriodEvent, ...]:
         """Every period applied so far, in order."""
-        return tuple(PeriodEvent._from(e) for e in self._payload()["events"])
+        return tuple(PeriodEvent._from(e) for e in json.loads(self._native.events_json()))
 
     @property
     def prior_digest(self) -> str:
         """Digest of the stated prior."""
-        return str(self._payload()["prior_digest"])
+        return str(self._native.prior_digest())
 
     def evict_row(self, row_id: int) -> str:
         """Remove one retained row; both summaries are rebuilt from the rows that remain."""
@@ -330,23 +347,26 @@ class PeriodRefresh(ScientificResult):
         return bool(ok)
 
     @artifact_export
-    def export(self) -> ExportedArtifact[Any]:
-        """The retained delta ledger, framed."""
-        data, refusal = self._native.export_ledger()
-        if refusal is not None:
-            _consumed(None, refusal)
-        if data is None:
-            raise CausalValueError("the native export returned nothing")
-        return artifact_from_receipt(self, bytes(data))
+    def export(
+        self, *, retention: Literal["full", "summary-only"] = "full"
+    ) -> ExportedArtifact[Any]:
+        """Export the retained ledger or a summary-only least-squares artifact.
 
-    @artifact_export
-    def export_summary_only(self) -> ExportedArtifact[Any]:
-        """The summary-only artifact of the least-squares fit, framed. This fit keeps its rows.
-
-        :meth:`PeriodRefreshSummary.consume` reads it back; it is not a ledger and
-        :func:`consume_period_refresh_artifact` refuses it.
+        The default ledger permits independent replay of the posterior and
+        least-squares fit. ``retention="summary-only"`` keeps no rows or posterior
+        in the artifact; its consumer verifies the retained least-squares summary
+        and refuses operations requiring rows. Export leaves this live session's
+        retention unchanged. ``bytes(artifact)`` exposes its encoding.
         """
-        data, refusal = self._native.export_summary_only()
+        if not isinstance(retention, str):
+            raise CausalTypeError("retention must be 'full' or 'summary-only'")
+        if retention not in ("full", "summary-only"):
+            raise CausalValueError("retention must be 'full' or 'summary-only'")
+        data, refusal = (
+            self._native.export_ledger()
+            if retention == "full"
+            else self._native.export_summary_only()
+        )
         if refusal is not None:
             _consumed(None, refusal)
         if data is None:
@@ -422,6 +442,16 @@ class PeriodRefreshSummary(ScientificResult):
     def source_digest(self) -> str:
         """The digest of the source and the ordered rows the summary was built from."""
         return str(self._payload()["source_digest"])
+
+    @property
+    def row_counts(self) -> PeriodRowCounts:
+        """Readonly counts retained natively alongside the least-squares summary."""
+        ledger = self._payload()["ledger"]
+        return PeriodRowCounts(
+            rows=int(ledger["rows"]),
+            live_rows=int(ledger["live_rows"]),
+            effective_n=int(ledger["effective_n"]),
+        )
 
     def refit_from_rows(self) -> None:
         """Refused: no rows are retained."""
@@ -499,6 +529,7 @@ __all__ = [
     "PeriodLeastSquares",
     "PeriodPosterior",
     "PeriodPrior",
+    "PeriodRowCounts",
     "PeriodRefresh",
     "PeriodRefreshOutcome",
     "PeriodRefreshSummary",

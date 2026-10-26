@@ -374,5 +374,13 @@ retention mode and the operation named (`summary-only cannot serve ...`); there 
 rebuild from. The two forms are never read as each other: the full-ledger reader refuses a
 summary artifact (`period_refresh.summary_only`), and the summary reader refuses a full ledger.
 Export it from a fit already reduced with `into_summary_only` (`SummaryOnlyFit::from_fit`), or
-from a live period refresh with `PeriodRefresh.export_summary_only`, which leaves that fit's rows
-in place. The summary form carries no posterior and no period ledger; those need the rows.
+from a live period refresh with `refresh.export(retention="summary-only")`, which leaves that fit's
+rows in place. `refresh.export()` retains the full ledger. Both return typed artifacts;
+`bytes(artifact)` exposes the unchanged encoding for file storage. Load either form with
+`antecedent.load(artifact, expected=artifact.expectation)` to invoke its independent native
+consumer. The full ledger is replayable; the summary verifies its retained least-squares
+statistics and cannot replay rows. Its `row_counts` property returns an immutable
+`PeriodRowCounts(rows, live_rows, effective_n)` read model from the native summary ledger.
+A singular design retains `beta=None`; a fit without residual degrees of freedom retains
+`residual_variance=None`. Neither load restores a live session or dataset. The summary form
+carries no posterior and no period ledger; those need the rows.
