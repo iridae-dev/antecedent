@@ -74,13 +74,15 @@ fn request(
         .map(|(&unit_id, &len)| {
             let end = next + usize::try_from(len).unwrap_or(0);
             let histories = (next..end)
-                .map(|i| TemporalHistoryWire {
-                    time_id: time_ids[i],
-                    s0: states[0][i],
-                    a1: states[1][i],
-                    l2: states[2][i],
-                    a2: states[3][i],
-                    y: y[i],
+                .map(|i| {
+                    TemporalHistoryWire::two_step(
+                        time_ids[i],
+                        states[0][i],
+                        states[1][i],
+                        states[2][i],
+                        states[3][i],
+                        y[i],
+                    )
                 })
                 .collect();
             next = end;

@@ -274,8 +274,8 @@ fn prepare_temporal_transport_stage(
         <[String; 2]>::try_from(actions).map_err(|_| malformed("declare exactly two actions"))?;
     let slots = TemporalSlots {
         baseline: ids(&baseline)?,
-        covariates: [ids(&first)?, ids(&second)?],
-        actions: [resolve(&names, &a1)?, resolve(&names, &a2)?],
+        covariates: vec![ids(&first)?, ids(&second)?],
+        actions: vec![resolve(&names, &a1)?, resolve(&names, &a2)?],
         outcome: resolve(&names, &outcome)?,
     };
     let diagram =

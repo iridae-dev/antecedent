@@ -5,7 +5,7 @@ use antecedent_discovery::adjacency_mask::{
     adjacency_mask_from_admg, adjacency_mask_from_cpdag, adjacency_masks_from_pag,
 };
 use antecedent_discovery::temporal_admg_atoms::with_lagged_edge;
-use antecedent_discovery::{AdjacencyMask, GraphPosteriorAtomKind, MAX_POSTERIOR_NODES};
+use antecedent_discovery::{AdjacencyMask, GraphPosteriorAtomKind, LagMask};
 use antecedent_graph::{DenseNodeId, Endpoint, MarkedEdge, NodeRef};
 use pyo3::prelude::*;
 
@@ -50,8 +50,8 @@ impl Template {
 struct Packed {
     adjacency: AdjacencyMask,
     marks: AdjacencyMask,
-    lagged: u64,
-    confounders: u64,
+    lagged: LagMask,
+    confounders: LagMask,
 }
 
 /// Return `None` only for a static first atom; mixed families are refused.
@@ -91,7 +91,7 @@ fn pack_posterior(
     ess: Option<f64>,
 ) -> PyResult<PyGraphPosterior> {
     let n = names.len();
-    if n == 0 || n > MAX_POSTERIOR_NODES {
+    if n == 0 {
         return Err(crate::value_err("temporal posterior variable count exceeds the atom codec"));
     }
     let max_lag = templates
@@ -115,7 +115,7 @@ fn pack_posterior(
     let mut lagged = vec![0.0; lag_bits];
     for (atom, weight) in packed.iter().zip(weights) {
         for (bit, probability) in lagged.iter_mut().enumerate() {
-            if (atom.lagged >> bit) & 1 == 1 {
+            if atom.lagged.bit(u32::try_from(bit).unwrap_or(u32::MAX)) {
                 *probability += weight;
             }
         }
@@ -123,18 +123,22 @@ fn pack_posterior(
     let mut inputs = AtomInputs {
         names: names.to_vec(),
         weights: weights.to_vec(),
-        adjacency: packed.iter().map(|atom| atom.adjacency).collect(),
+        adjacency: packed.iter().map(|atom| atom.adjacency.clone()).collect(),
         edge_marginals: None,
         orientation_marginals: None,
         lagged_edge_marginals: Some(lagged),
-        lag_masks: Some(packed.iter().map(|atom| atom.lagged).collect()),
+        lag_masks: Some(
+            packed.iter().map(|atom| atom.lagged.to_word().unwrap_or_default()).collect(),
+        ),
         lag_bidirected_masks: (kind == GraphPosteriorAtomKind::TemporalAdmg)
-            .then(|| packed.iter().map(|atom| atom.confounders).collect()),
+            .then(|| {
+                packed.iter().map(|atom| atom.confounders.to_word().unwrap_or_default()).collect()
+            }),
         max_lag: Some(max_lag),
         ess,
         atom_kind: kind,
         mark_masks: (kind == GraphPosteriorAtomKind::Pag)
-            .then(|| packed.iter().map(|atom| atom.marks).collect()),
+            .then(|| packed.iter().map(|atom| atom.marks.clone()).collect()),
     };
     // A purely contemporaneous temporal ADMG has a distinct core atom kind and
     // needs no lag words. Other temporal families retain max_lag=0 explicitly.
@@ -163,8 +167,8 @@ fn pack_template(template: &Template) -> PyResult<Packed> {
     let mut packed = Packed {
         adjacency: AdjacencyMask::EMPTY,
         marks: AdjacencyMask::EMPTY,
-        lagged: 0,
-        confounders: 0,
+        lagged: LagMask::EMPTY,
+        confounders: LagMask::EMPTY,
     };
     for edge in &template.edges {
         let (a, al) = template.coordinate(edge.a)?;
@@ -231,6 +235,6 @@ fn pack_lagged(
             ));
         }
     };
-    *mask = with_lagged_edge(*mask, n, past.1, past.0, now.0, true).map_err(crate::py_msg)?;
+    *mask = with_lagged_edge(mask.clone(), n, past.1, past.0, now.0, true).map_err(crate::py_msg)?;
     Ok(())
 }

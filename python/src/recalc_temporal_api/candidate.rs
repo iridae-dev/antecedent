@@ -399,16 +399,16 @@ mod tests {
                         for l2 in 0..2 {
                             for a2 in 0..2 {
                                 let index = u64::try_from(histories.len()).unwrap();
-                                histories.push(TemporalHistoryWire {
-                                    time_id: 3 * index,
+                                histories.push(TemporalHistoryWire::two_step(
+                                    3 * index,
                                     s0,
                                     a1,
                                     l2,
                                     a2,
-                                    y: f64::from(u32::from(
+                                    f64::from(u32::from(
                                         (unit_id + 7 * index) % 11 < 3 + u64::from(s0 + a1 + a2),
                                     )),
-                                });
+                                ));
                             }
                         }
                     }
@@ -421,13 +421,13 @@ mod tests {
             bidirected: vec![],
             selection_targets: vec![0],
             horizon: 2,
-            lag_alignment: [0, 1, 2, 2, 2],
+            lag_alignment: vec![0, 1, 2, 2, 2],
             period: (0, 49),
             units,
             snapshot_id: "checked-native-reseal-oracle".into(),
             initial_state: [0.3, 0.7],
             initial_state_id: "fixed-target-law".into(),
-            functional: TemporalFunctionalWire::Effect { active: [1, 1], control: [0, 0] },
+            functional: TemporalFunctionalWire::Effect { active: vec![1, 1], control: vec![0, 0] },
             benefit_per_unit: 1.0,
             cost: 0.0,
         };

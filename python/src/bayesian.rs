@@ -14,7 +14,7 @@ use antecedent_discovery::adjacency_mask::{
     mask_is_dag,
 };
 use antecedent_discovery::{
-    AdjacencyMask, GraphPosteriorAtomKind, MAX_POSTERIOR_NODES, n_directed_edges,
+    AdjacencyMask, GraphPosteriorAtomKind, n_directed_edges,
 };
 use antecedent_graph::Cpdag as RustCpdag;
 use antecedent_prob::InferenceDiagnostics;
@@ -105,17 +105,18 @@ fn mask_to_pyint(py: Python<'_>, mask: AdjacencyMask) -> PyResult<Bound<'_, PyAn
         .call_method1("from_bytes", (PyBytes::new(py, &mask.to_le_bytes()), "little"))
 }
 
-/// Packed edge bits from a non-negative Python `int` below `2**256`.
+/// Packed edge bits from a non-negative Python `int`.
 fn mask_from_pyint(value: &Bound<'_, PyAny>) -> PyResult<AdjacencyMask> {
     let refuse = || {
         crate::value_err(
-            "adjacency masks must be non-negative integers below 2**256 (at most 16 variables)",
+            "adjacency masks must be non-negative integers",
         )
     };
+    let bits: usize = value.call_method0("bit_length").map_err(|_| refuse())?.extract()?;
+    let len = bits.div_ceil(8).max(32);
     let bytes: Vec<u8> =
-        value.call_method1("to_bytes", (32, "little")).map_err(|_| refuse())?.extract()?;
-    let bytes: [u8; 32] = bytes.try_into().map_err(|_| refuse())?;
-    Ok(AdjacencyMask::from_le_bytes(bytes))
+        value.call_method1("to_bytes", (len, "little")).map_err(|_| refuse())?.extract()?;
+    Ok(AdjacencyMask::from_le_bytes(&bytes))
 }
 
 /// Every edge bit of an `n_vars`-variable graph.
@@ -145,26 +146,30 @@ impl PyGraphPosterior {
     fn from_rust(names: Vec<String>, post: RustGraphPosterior) -> Self {
         Self {
             names,
-            n_vars: post.n_vars,
-            n_graphs: post.n_graphs,
-            weights: post.weights.as_ref().to_vec(),
-            adjacency: post.atoms.as_ref().to_vec(),
-            edge_marginals: post.edge_marginals.as_ref().to_vec(),
-            orientation_marginals: post.orientation_marginals.as_ref().to_vec(),
-            ess: post.ess,
-            rejected_invalid: post.rejected_invalid,
-            converged: post.diagnostics.converged,
-            lagged_edge_marginals: post.lagged_edge_marginals.as_ref().map(|v| v.as_ref().to_vec()),
-            max_lag: post.max_lag,
-            lag_masks: post.lag_masks.as_ref().map(|v| v.as_ref().to_vec()),
-            lag_bidirected_masks: post.lag_bidirected_masks.as_ref().map(|v| v.as_ref().to_vec()),
-            algorithm: post.algorithm.as_deref().map(str::to_owned),
-            atom_kind: post.atom_kind.as_str().to_owned(),
-            mark_masks: post.mark_atoms.as_ref().map(|v| v.as_ref().to_vec()),
-            edge_mcse: post.edge_mcse.as_ref().map(|v| v.as_ref().to_vec()),
-            edge_rhat: post.edge_rhat.as_ref().map(|v| v.as_ref().to_vec()),
-            edge_ess: post.edge_ess.as_ref().map(|v| v.as_ref().to_vec()),
-            backend_id: post.diagnostics.backend_id.to_string(),
+            n_vars: post.n_vars(),
+            n_graphs: post.n_graphs(),
+            weights: post.weights().as_ref().to_vec(),
+            adjacency: post.atoms().as_ref().to_vec(),
+            edge_marginals: post.edge_marginals().as_ref().to_vec(),
+            orientation_marginals: post.orientation_marginals().as_ref().to_vec(),
+            ess: post.ess(),
+            rejected_invalid: post.rejected_invalid(),
+            converged: post.diagnostics().converged,
+            lagged_edge_marginals: post
+                .lagged_edge_marginals()
+                .map(|v| v.as_ref().to_vec()),
+            max_lag: post.max_lag(),
+            lag_masks: post.lag_masks().and_then(|v| v.iter().map(AdjacencyMask::to_word).collect()),
+            lag_bidirected_masks: post
+                .lag_bidirected_masks()
+                .and_then(|v| v.iter().map(AdjacencyMask::to_word).collect()),
+            algorithm: post.algorithm().map(|a| a.to_string()),
+            atom_kind: post.atom_kind().as_str().to_owned(),
+            mark_masks: post.mark_atoms().map(|v| v.as_ref().to_vec()),
+            edge_mcse: post.edge_mcse().map(|v| v.as_ref().to_vec()),
+            edge_rhat: post.edge_rhat().map(|v| v.as_ref().to_vec()),
+            edge_ess: post.edge_ess().map(|v| v.as_ref().to_vec()),
+            backend_id: post.diagnostics().backend_id.to_string(),
             route: None,
         }
     }
@@ -267,7 +272,7 @@ impl PyGraphPosterior {
     /// of the Python `int` is the edge `from -> to`.
     #[getter]
     fn adjacency<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyAny>>> {
-        self.adjacency.iter().map(|&mask| mask_to_pyint(py, mask)).collect()
+        self.adjacency.iter().map(|mask| mask_to_pyint(py, mask.clone())).collect()
     }
 
     /// Optional PAG circle-endpoint masks, same packing as `adjacency`.
@@ -275,7 +280,7 @@ impl PyGraphPosterior {
     fn mark_masks<'py>(&self, py: Python<'py>) -> PyResult<Option<Vec<Bound<'py, PyAny>>>> {
         self.mark_masks
             .as_ref()
-            .map(|masks| masks.iter().map(|&mask| mask_to_pyint(py, mask)).collect())
+            .map(|masks| masks.iter().map(|mask| mask_to_pyint(py, mask.clone())).collect())
             .transpose()
     }
 
@@ -424,19 +429,14 @@ impl PyGraphPosterior {
         if n_vars == 0 {
             return Err(crate::value_err("from_atoms requires at least one variable"));
         }
-        if n_vars > MAX_POSTERIOR_NODES {
-            return Err(crate::value_err(format!(
-                "from_atoms supports at most {MAX_POSTERIOR_NODES} variables"
-            )));
-        }
         let all_edges = full_edge_set(n_vars);
         for (index, mask) in adjacency.iter().enumerate() {
-            if !all_edges.contains_all(*mask) {
+            if !all_edges.contains_all(mask) {
                 return Err(crate::value_err(format!(
                     "adjacency atom {index} sets edge bits beyond {n_vars} variables"
                 )));
             }
-            if kind == GraphPosteriorAtomKind::Dag && !mask_is_dag(*mask, n_vars) {
+            if kind == GraphPosteriorAtomKind::Dag && !mask_is_dag(mask, n_vars) {
                 return Err(crate::value_err(format!("adjacency atom {index} is not a DAG")));
             }
         }
@@ -470,7 +470,7 @@ impl PyGraphPosterior {
             for (weight, mask) in weights.iter().zip(&adjacency) {
                 for from in 0..n_vars {
                     for to in 0..n_vars {
-                        if from != to && has_edge(*mask, n_vars, from, to) {
+                        if from != to && has_edge(mask, n_vars, from, to) {
                             marginals[from * n_vars + to] += *weight;
                         }
                     }

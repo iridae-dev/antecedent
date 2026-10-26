@@ -72,13 +72,8 @@ fn units_of(units: Option<Vec<UnitTuple>>) -> Option<Vec<UnitHistories>> {
                 unit_id,
                 histories: histories
                     .into_iter()
-                    .map(|(time_id, s0, a1, l2, a2, y)| SequenceHistory {
-                        time_id,
-                        s0,
-                        a1,
-                        l2,
-                        a2,
-                        y,
+                    .map(|(time_id, s0, a1, l2, a2, y)| {
+                        SequenceHistory::two_step(time_id, s0, a1, l2, a2, y)
                     })
                     .collect(),
             })

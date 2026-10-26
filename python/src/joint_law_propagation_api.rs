@@ -499,22 +499,10 @@ fn joint_law_consume(
     let ctx = execution_context(0, None, cancel);
     match consume_joint_law_propagation_artifact(artifact, expected_identity, &ctx) {
         Ok(consumed) => {
-            let values: Vec<Json> = consumed
-                .result
-                .iter()
-                .filter(|(name, _)| name != "n_rows" && name != "verdict_code")
-                .map(|(name, bits)| json!([name, f64::from_bits(*bits)]))
-                .collect();
-            let n_rows = consumed.result.iter().find(|(n, _)| n == "n_rows").map(|(_, v)| *v);
-            let verdict =
-                consumed.result.iter().find(|(n, _)| n == "verdict_code").and_then(|(_, code)| {
-                    match code {
-                        0 => Some("act"),
-                        1 => Some("withhold"),
-                        2 => Some("unresolved"),
-                        _ => None,
-                    }
-                });
+            let values: Vec<Json> =
+                consumed.values().into_iter().map(|(name, value)| json!([name, value])).collect();
+            let n_rows = consumed.n_rows();
+            let verdict = consumed.verdict().map(|verdict| verdict.as_str());
             (
                 Some(
                     json!({

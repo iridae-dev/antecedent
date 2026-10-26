@@ -93,7 +93,7 @@ impl PreparedStatisticalStage {
                 "probabilities": posterior.distributions.iter().map(|d| d.probabilities.to_vec()).collect::<Vec<_>>(),
                 "atom_intervals": posterior.atom_intervals.to_vec(),
                 "mean_intervals": posterior.mean_intervals.iter().map(|(v, lo, hi)| (self.graph.names[v.as_usize()].as_str(), lo, hi)).collect::<Vec<_>>(),
-                "calibration_status": posterior.interval_reason.as_deref().unwrap_or(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED),
+                "calibration_status": posterior.interval_reason.map_or(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED, |reason| reason.as_str()),
             })
         })
     }
