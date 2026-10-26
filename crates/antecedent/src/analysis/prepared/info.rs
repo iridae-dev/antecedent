@@ -489,6 +489,7 @@ impl PreparedStudy {
         let mut analysis = next.analysis.clone();
         analysis.inference = InferenceMode::Bayesian(config);
         next.replace_study(analysis);
+        next.seal_inspection_metadata()?;
         Ok(next)
     }
 
@@ -655,6 +656,7 @@ impl PreparedStudy {
     pub(crate) fn study_mut(&mut self) -> Result<&mut Study, CausalError> {
         self.program_cache = std::sync::OnceLock::new();
         self.contract_cache = std::sync::OnceLock::new();
+        self.inspection_header = std::sync::OnceLock::new();
         if self.execution.kind() == ExecutionKind::CheckedLinear {
             self.execution = PreparedExecution::EstimatorRoute(
                 crate::analysis::execute::CheckedRouteOperation::lowered(
@@ -670,6 +672,7 @@ impl PreparedStudy {
     pub(super) fn replace_study(&mut self, study: Study) {
         self.program_cache = std::sync::OnceLock::new();
         self.contract_cache = std::sync::OnceLock::new();
+        self.inspection_header = std::sync::OnceLock::new();
         self.analysis = study;
     }
 
@@ -691,6 +694,12 @@ impl PreparedStudy {
         &self,
     ) -> &std::sync::OnceLock<Arc<crate::analysis::contract::ProgramPayloads>> {
         &self.program_cache
+    }
+
+    pub(crate) fn inspection_header(
+        &self,
+    ) -> &std::sync::OnceLock<Arc<crate::analysis::contract::PreparedInspection>> {
+        &self.inspection_header
     }
 
     pub(crate) fn contract_cache(
@@ -728,6 +737,18 @@ impl PreparedStudy {
     #[must_use]
     pub fn population_registry(&self) -> Option<&antecedent_core::PopulationRegistry> {
         self.analysis.population_registry.as_ref()
+    }
+
+    /// Borrow the caller validators frozen at preparation.
+    ///
+    /// Host bindings may wrap these on an execution-local clone before calling
+    /// [`Self::rebind_custom_validators`]. The prepared handle and its callback
+    /// declarations remain unchanged.
+    #[must_use]
+    pub fn custom_validators(
+        &self,
+    ) -> &[std::sync::Arc<dyn antecedent_validate::CustomEffectValidator>] {
+        &self.analysis.custom_validators
     }
 
     /// Names of the caller custom validators frozen at prepare, in order.

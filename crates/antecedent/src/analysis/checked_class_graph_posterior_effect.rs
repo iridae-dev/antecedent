@@ -376,6 +376,7 @@ mod tests {
                     .map(|case| crate::analysis::prepared::CachedClassPosteriorCase {
                         weight: case.weight.0,
                         status: case.result.status,
+                        identification: Arc::new(case.result.clone()),
                         estimand: case.result.estimands.first().cloned(),
                     })
                     .collect::<Vec<_>>(),

@@ -91,7 +91,9 @@ impl PreparedStudy {
             next.materialized = true;
             next.program_cache = std::sync::OnceLock::new();
             next.contract_cache = std::sync::OnceLock::new();
+            next.inspection_header = std::sync::OnceLock::new();
         }
+        next.seal_inspection_metadata()?;
         Ok(next)
     }
 
@@ -159,6 +161,7 @@ impl PreparedStudy {
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: "refresh" });
         }
+        candidate.seal_inspection_metadata()?;
         *self = candidate;
         Ok(result)
     }
@@ -220,6 +223,7 @@ impl PreparedStudy {
         self.analysis.estimator_spec = Some(Arc::new(spec));
         self.program_cache = std::sync::OnceLock::new();
         self.contract_cache = std::sync::OnceLock::new();
+        self.inspection_header = std::sync::OnceLock::new();
     }
 
     /// Rebuild statistical work and admission from the new options and rows,
@@ -429,6 +433,7 @@ impl PreparedStudy {
         study.data = DataInput::Tabular(data);
         self.replace_study(study);
         self.execution = PreparedExecution::AdmgResponseCurve(operation);
+        self.seal_inspection_metadata()?;
         Ok(())
     }
 

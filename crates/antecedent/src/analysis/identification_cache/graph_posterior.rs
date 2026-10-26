@@ -40,6 +40,8 @@ pub(crate) struct CachedClassPosteriorCase {
     pub weight: f64,
     /// Identification status of the completion.
     pub status: IdentificationStatus,
+    /// Complete retained proof, including assumptions, derivation and expression arena.
+    pub identification: Arc<IdentificationResult>,
     /// Selected estimand when the completion is estimable.
     pub estimand: Option<IdentifiedEstimand>,
 }
@@ -417,7 +419,7 @@ fn cache_class_envelope<G>(
         crate::analysis::execute::envelope_to_identification_result(&envelope, query);
     let cases: Vec<CachedClassPosteriorCase> = envelope
         .cases
-        .iter()
+        .into_iter()
         .map(|case| {
             let estimand =
                 if crate::analysis::execute::identification_status_ok_for_case(case.result.status)
@@ -430,7 +432,12 @@ fn cache_class_envelope<G>(
                 } else {
                     None
                 };
-            CachedClassPosteriorCase { weight: case.weight.0, status: case.result.status, estimand }
+            CachedClassPosteriorCase {
+                weight: case.weight.0,
+                status: case.result.status,
+                identification: Arc::new(case.result),
+                estimand,
+            }
         })
         .collect();
     CachedClassPosteriorAtomIdentification {
@@ -456,9 +463,8 @@ mod tests {
     fn repeated_posterior(n_graphs: usize) -> GraphPosterior {
         const N: usize = 4;
         let edges = |list: &[(usize, usize)]| {
-            list.iter().fold(AdjacencyMask::EMPTY, |mask, &(from, to)| {
-                set_edge(mask, N, from, to, true)
-            })
+            list.iter()
+                .fold(AdjacencyMask::EMPTY, |mask, &(from, to)| set_edge(mask, N, from, to, true))
         };
         let structures = [
             edges(&[(0, 1)]),

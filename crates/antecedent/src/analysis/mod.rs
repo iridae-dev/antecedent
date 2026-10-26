@@ -495,8 +495,8 @@ pub use batch_retarget::{
 pub use batch_retarget::{max_t_critical_value, simultaneous_band_unpublished};
 pub use builder::{InterferenceSpec, RdConfig, RefuteSuite, StudyBuilder, TransportTrialSpec};
 pub use candidate_screen_units::{ScreenSplitReceipt, ScreenUnits};
-pub use contract::CausalContract;
 pub(crate) use contract::assumption_label;
+pub use contract::{CausalContract, PreparedInspection};
 pub use decision_contract_facade::{
     ActionRobustness, AdaptedClaims, AdaptedDecision, AdapterError, AdmissibilityError,
     AdmissibilityRules, AdmissibleContractArtifact, AdmissibleDecisionContract, AtomSupport,
@@ -536,7 +536,8 @@ pub use prepared::{
     CheckedStaticClassEffectInfo, CheckedStaticClassResponseInfo, CheckedStaticMediationInfo,
     CheckedTemporalClassEffectInfo, CheckedTemporalClassMediationInfo,
     CheckedTemporalDagEffectInfo, CheckedTemporalDagResponseInfo, CheckedTemporalMediationInfo,
-    CheckedTemporalMediationTargetInfo, CheckedUnknownTieredAverageInfo, PreparedStudy,
+    CheckedTemporalMediationTargetInfo, CheckedUnknownTieredAverageInfo,
+    PreparedIdentificationView, PreparedStudy,
 };
 pub use prepared::{
     CheckedBayesianTemporalClassEffectInfo, CheckedTemporalGraphPosteriorEffectInfo,

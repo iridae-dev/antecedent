@@ -201,6 +201,12 @@ fn unknown(field: &str) -> IoError {
 }
 
 impl ScientificTargetWire {
+    /// Borrow declared assumptions without converting the target or its worlds.
+    #[must_use]
+    pub fn assumptions(&self) -> &[AssumptionRecordWire] {
+        &self.assumptions
+    }
+
     /// Encode a complete question without fitting or identifying it.
     ///
     /// # Errors

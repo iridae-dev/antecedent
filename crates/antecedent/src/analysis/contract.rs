@@ -11,10 +11,10 @@ use std::sync::Arc;
 
 use antecedent_contract::{
     AssumptionSlot, AttestedEvidence, CalibrationView, ClaimEnvelope, ClaimKind,
-    IDENTIFICATION_NOT_CLAIMED, IdentificationSlot, NextAction, ObligationKind, ObligationRecord, ObligationScope, OperationKind, OperationReadiness, OperationReport,
-    ReasoningView, SemanticApplicability, SemanticLayer, SlotAvailability, SupportSlot,
-    TransformIntent, TransformationReport, UncertaintyComponent, UncertaintySlot,
-    UncertaintySource, intent_effects,
+    IDENTIFICATION_NOT_CLAIMED, IdentificationSlot, NextAction, ObligationKind, ObligationRecord,
+    ObligationScope, OperationKind, OperationReadiness, OperationReport, ReasoningView,
+    SemanticApplicability, SemanticLayer, SlotAvailability, SupportSlot, TransformIntent,
+    TransformationReport, UncertaintyComponent, UncertaintySlot, UncertaintySource, intent_effects,
 };
 use antecedent_core::{
     Assumption, AssumptionSet, AssumptionSource, AssumptionStatus, CausalQuery, CausalSchema,
@@ -64,13 +64,15 @@ mod evidence_needs;
 mod failure_inputs;
 mod posterior_programs;
 pub(crate) use posterior_programs::graph_posterior_programs;
-mod program_wire;
-mod result_wire;
 mod calibration;
 mod claim;
 mod compile;
 mod identification_projection;
+mod prepared_inspection;
+pub use prepared_inspection::PreparedInspection;
+mod program_wire;
 mod reasoning;
+mod result_wire;
 mod wire;
 
 #[allow(
@@ -648,9 +650,8 @@ impl PreparedStudy {
             return Ok(found);
         }
         // Only a miss pays for the retargeted study and its compilation.
-        let study = self
-            .study_for_execution(refute, population)
-            .ok_or_else(|| CausalError::Compile {
+        let study =
+            self.study_for_execution(refute, population).ok_or_else(|| CausalError::Compile {
                 message: "retargeted study requested for the handle's own contract".into(),
             })?;
         let (contract, payloads) = compile_with_payloads(&study, Some(self), None)?;

@@ -11,7 +11,9 @@ mod estimate;
 mod execute_checked;
 mod execution;
 mod execution_accessors;
+mod identification_view;
 mod info;
+pub use identification_view::PreparedIdentificationView;
 mod joint_response;
 pub use joint_response::{JointResponseResult, PreparedJointResponse};
 mod lifecycle;
@@ -177,6 +179,8 @@ pub struct SampledPreparedState {
     program_cache: std::sync::OnceLock<Arc<crate::analysis::contract::ProgramPayloads>>,
     /// Immutable base contract; execution claims and reasoning are rebound per result.
     contract_cache: std::sync::OnceLock<Arc<crate::analysis::contract::CompiledContract>>,
+    /// Bounded metadata sealed before a prepared state becomes visible.
+    inspection_header: std::sync::OnceLock<Arc<crate::analysis::contract::PreparedInspection>>,
     /// Per-atom scientific programs compiled under the prepare caller's resource
     /// and cancellation context. Contract inspection only reads these products.
     posterior_programs: Option<Arc<RetainedPosteriorPrograms>>,

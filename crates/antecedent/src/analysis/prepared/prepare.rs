@@ -118,6 +118,10 @@ impl Study {
             base.refute = crate::analysis::builder::RefuteSuite::None;
             let mut handle = base.prepare_metered(ctx, materialized, previous)?;
             handle.analysis.refute = self.refute;
+            handle.program_cache = std::sync::OnceLock::new();
+            handle.contract_cache = std::sync::OnceLock::new();
+            handle.inspection_header = std::sync::OnceLock::new();
+            handle.seal_inspection_metadata()?;
             return Ok(handle);
         }
         ensure_prepared_supported(self)?;
@@ -172,13 +176,14 @@ impl Study {
         } else {
             analysis.prepare_score_table(ctx)?
         };
-        Ok(PreparedStudy {
+        let ready = PreparedStudy {
             state: SampledPreparedState {
                 analysis,
                 materialized,
                 posterior_programs,
                 program_cache: std::sync::OnceLock::new(),
                 contract_cache: std::sync::OnceLock::new(),
+                inspection_header: std::sync::OnceLock::new(),
                 plan,
                 schema,
                 modality,
@@ -187,7 +192,9 @@ impl Study {
                 execution,
                 temporal_log: antecedent_state::InvalidationLog::new(),
             },
-        })
+        };
+        ready.seal_inspection_metadata()?;
+        Ok(ready)
     }
 
     /// The cross-world operation of a tabular counterfactual query; temporal
@@ -873,6 +880,8 @@ impl PreparedStudy {
                 // payloads rather than reuse the pre-execution projection.
                 ready.program_cache = std::sync::OnceLock::new();
                 ready.contract_cache = std::sync::OnceLock::new();
+                ready.inspection_header = std::sync::OnceLock::new();
+                ready.seal_inspection_metadata()?;
                 Ok(ready)
             },
         )
