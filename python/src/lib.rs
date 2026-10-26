@@ -2696,7 +2696,7 @@ impl PosteriorArtifact {
 #[derive(Clone, Debug)]
 pub(crate) struct ColumnBatch {
     names: Vec<String>,
-    columns: Vec<Arc<[f64]>>,
+    columns: Vec<antecedent_data::F64Buffer>,
     receipt: NumpyIngestReceipt,
 }
 
@@ -2741,7 +2741,7 @@ impl ColumnBatch {
             );
             let column = antecedent_data::Float64Column::new(
                 id,
-                antecedent_data::F64Buffer::owned(Arc::clone(values)),
+                values.clone(),
                 antecedent_data::ValidityBitmap::all_valid(rows),
             )
             .map_err(py_err)?;
@@ -2791,24 +2791,28 @@ pub(crate) fn columns_to_batch(
         }
     }
     let mut noncontiguous = 0_u64;
-    let owned: Vec<Arc<[f64]>> = columns
-        .iter()
-        .map(|c| {
-            if let Ok(slice) = c.as_slice() {
-                Arc::<[f64]>::from(slice)
+    let mut copied = 0_u64;
+    let mut owned = Vec::with_capacity(columns.len());
+    for column in columns {
+        if let Some(buffer) = data_snapshot::numpy_buffer(column)? {
+            owned.push(buffer);
+        } else {
+            let values: Arc<[f64]> = if let Ok(slice) = column.as_slice() {
+                Arc::from(slice)
             } else {
                 noncontiguous += 1;
-                c.as_array().iter().copied().collect()
-            }
-        })
-        .collect();
-    let ncols = owned.len() as u64;
+                column.as_array().iter().copied().collect()
+            };
+            copied += 1;
+            owned.push(antecedent_data::F64Buffer::owned(values));
+        }
+    }
     Ok(ColumnBatch {
         names: names.to_vec(),
         columns: owned,
         receipt: NumpyIngestReceipt {
-            owned_copies: ncols,
-            bytes_copied: ncols * (n * std::mem::size_of::<f64>()) as u64,
+            owned_copies: copied,
+            bytes_copied: copied * (n * std::mem::size_of::<f64>()) as u64,
             noncontiguous_columns: noncontiguous,
         },
     })
@@ -2959,19 +2963,26 @@ pub(crate) fn numeric_columns_to_batch(
         }
     }
     let mut noncontiguous = 0_u64;
+    let mut copied = 0_u64;
     let mut owned = Vec::with_capacity(columns.len());
     for (name, column) in names.iter().zip(columns) {
+        if let NumericColumn::F64(array) = column {
+            if let Some(buffer) = data_snapshot::numpy_buffer(array)? {
+                owned.push(buffer);
+                continue;
+            }
+        }
         let (values, strided) = column.owned(name)?;
         noncontiguous += u64::from(strided);
-        owned.push(values);
+        copied += 1;
+        owned.push(antecedent_data::F64Buffer::owned(values));
     }
-    let ncols = owned.len() as u64;
     Ok(ColumnBatch {
         names: names.to_vec(),
         columns: owned,
         receipt: NumpyIngestReceipt {
-            owned_copies: ncols,
-            bytes_copied: ncols * (n * std::mem::size_of::<f64>()) as u64,
+            owned_copies: copied,
+            bytes_copied: copied * (n * std::mem::size_of::<f64>()) as u64,
             noncontiguous_columns: noncontiguous,
         },
     })
@@ -3059,7 +3070,7 @@ pub(crate) fn columns_to_ingested(
         let ncols = owned.len() as u64;
         units.push(ColumnBatch {
             names: names.to_vec(),
-            columns: owned,
+            columns: owned.into_iter().map(antecedent_data::F64Buffer::owned).collect(),
             receipt: NumpyIngestReceipt {
                 owned_copies: ncols,
                 bytes_copied: ncols * (len * std::mem::size_of::<f64>()) as u64,

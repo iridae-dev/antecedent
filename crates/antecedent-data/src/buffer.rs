@@ -21,6 +21,7 @@ pub struct F64Buffer {
     /// Known to hold no `NaN` (set by a scan that found none; the values are
     /// immutable, so the fact survives clones and re-wraps).
     nan_free: bool,
+    admission: Option<Arc<antecedent_core::execution::AdmissionLease>>,
 }
 
 #[derive(Clone, Debug)]
@@ -90,13 +91,26 @@ impl F64Buffer {
     /// Owned buffer.
     #[must_use]
     pub fn owned(values: impl Into<Arc<[f64]>>) -> Self {
-        Self { inner: F64BufferInner::Owned(values.into()), nan_free: false }
+        Self { inner: F64BufferInner::Owned(values.into()), nan_free: false, admission: None }
     }
 
     /// Foreign-backed buffer.
     #[must_use]
     pub fn foreign(buf: ForeignF64Buffer) -> Self {
-        Self { inner: F64BufferInner::Foreign(buf), nan_free: false }
+        Self { inner: F64BufferInner::Foreign(buf), nan_free: false, admission: None }
+    }
+
+    /// Retain an allocation lease in this buffer and every subsequent clone.
+    ///
+    /// Attach before publishing the buffer: pre-existing uncharged aliases cannot
+    /// acquire a lease retroactively. Values and scientific identities stay unchanged.
+    #[must_use]
+    pub fn with_admission(
+        mut self,
+        lease: Arc<antecedent_core::execution::AdmissionLease>,
+    ) -> Self {
+        self.admission = Some(lease);
+        self
     }
 
     /// Whether the values are known to hold no `NaN`.
@@ -205,4 +219,28 @@ pub(crate) fn foreign_offset_f64(values: Vec<f64>, start: usize, len: usize) -> 
     // Moving the `Arc` does not reallocate.
     let foreign = unsafe { ForeignF64Buffer::new(owner, ptr, len) };
     F64Buffer::foreign(foreign)
+}
+
+#[cfg(test)]
+mod admission_tests {
+    use super::F64Buffer;
+    use antecedent_core::ExecutionContext;
+    use std::sync::Arc;
+
+    #[test]
+    fn allocation_admission_survives_clones_until_the_final_buffer_drops() {
+        let context = ExecutionContext::for_tests(1).with_memory_limit(Some(64));
+        let uncharged = F64Buffer::owned(Arc::<[f64]>::from([1.0, 2.0, 3.0, 4.0]));
+        let buffer =
+            uncharged.clone().with_admission(Arc::new(context.acquire_admission(0, 32).unwrap()));
+        assert_eq!(buffer, uncharged);
+        assert_eq!(buffer.as_ptr(), uncharged.as_ptr());
+        drop(uncharged);
+        let retained = buffer.clone();
+        drop(buffer);
+        assert_eq!(context.admission().available().bytes(), 32);
+        assert_eq!(retained.as_slice(), &[1.0, 2.0, 3.0, 4.0]);
+        drop(retained);
+        assert_eq!(context.admission().available().bytes(), 64);
+    }
 }

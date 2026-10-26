@@ -18,9 +18,11 @@ use crate::{CausalDataError, PosteriorArtifact};
 
 /// Read-only buffers retain their exporting Python owner until CPython releases them.
 /// The two callers below own immutable storage whose allocation cannot move.
-unsafe fn readonly_f64_buffer(
+unsafe fn readonly_numeric_buffer(
     owner: Bound<'_, PyAny>,
-    data: &[f64],
+    data: *const std::ffi::c_void,
+    len: usize,
+    format_code: &std::ffi::CStr,
     view: *mut pyo3::ffi::Py_buffer,
     flags: std::os::raw::c_int,
 ) -> PyResult<()> {
@@ -31,13 +33,13 @@ unsafe fn readonly_f64_buffer(
     if (flags & ffi::PyBUF_WRITABLE) == ffi::PyBUF_WRITABLE {
         return Err(PyBufferError::new_err("native numeric views are read-only"));
     }
-    let n = isize::try_from(data.len()).map_err(|_| PyBufferError::new_err("buffer too large"))?;
+    let n = isize::try_from(len).map_err(|_| PyBufferError::new_err("buffer too large"))?;
     let itemsize = isize::try_from(std::mem::size_of::<f64>())
         .map_err(|_| PyBufferError::new_err("f64 size does not fit isize"))?;
     let nbytes =
         n.checked_mul(itemsize).ok_or_else(|| PyBufferError::new_err("buffer size overflow"))?;
     let format = if (flags & ffi::PyBUF_FORMAT) == ffi::PyBUF_FORMAT {
-        c"d".to_owned().into_raw()
+        format_code.to_owned().into_raw()
     } else {
         std::ptr::null_mut()
     };
@@ -47,7 +49,7 @@ unsafe fn readonly_f64_buffer(
     unsafe {
         (*view).obj = owner.as_ptr();
         ffi::Py_INCREF((*view).obj);
-        (*view).buf = data.as_ptr().cast::<std::ffi::c_void>().cast_mut();
+        (*view).buf = data.cast_mut();
         (*view).len = nbytes;
         (*view).readonly = 1;
         (*view).itemsize = itemsize;
@@ -73,7 +75,7 @@ unsafe fn release_readonly_buffer(view: *mut pyo3::ffi::Py_buffer) {
     if view.is_null() {
         return;
     }
-    // SAFETY: these optional allocations were created only by readonly_f64_buffer.
+    // SAFETY: these optional allocations were created only by readonly_numeric_buffer.
     // CPython calls release exactly once for each successfully acquired view.
     unsafe {
         if !(*view).format.is_null() {
@@ -101,7 +103,16 @@ impl PosteriorArtifact {
     ) -> PyResult<()> {
         let borrowed = slf.borrow();
         // SAFETY: PosteriorArtifact owns immutable draws and is retained by the view.
-        unsafe { readonly_f64_buffer(slf.clone().into_any(), &borrowed.draws, view, flags) }
+        unsafe {
+            readonly_numeric_buffer(
+                slf.clone().into_any(),
+                borrowed.draws.as_ptr().cast(),
+                borrowed.draws.len(),
+                c"d",
+                view,
+                flags,
+            )
+        }
     }
 
     #[allow(
@@ -110,6 +121,39 @@ impl PosteriorArtifact {
     )]
     unsafe fn __releasebuffer__(&self, view: *mut pyo3::ffi::Py_buffer) {
         // SAFETY: CPython passes the buffer initialized by __getbuffer__.
+        unsafe {
+            release_readonly_buffer(view);
+        }
+    }
+}
+
+/// Read-only int64 views pin the admitted nanosecond index allocation.
+#[pymethods]
+impl crate::data_snapshot::IndexSnapshot {
+    unsafe fn __getbuffer__(
+        slf: Bound<'_, Self>,
+        view: *mut pyo3::ffi::Py_buffer,
+        flags: std::os::raw::c_int,
+    ) -> PyResult<()> {
+        let borrowed = slf.borrow();
+        // SAFETY: the owner retains immutable, aligned i64 values; dtype q and f64 have the same item width.
+        unsafe {
+            readonly_numeric_buffer(
+                slf.clone().into_any(),
+                borrowed.values.as_ptr().cast(),
+                borrowed.values.len(),
+                c"q",
+                view,
+                flags,
+            )
+        }
+    }
+    #[allow(
+        clippy::unused_self,
+        reason = "CPython buffer-release protocol requires an instance receiver"
+    )]
+    unsafe fn __releasebuffer__(&self, view: *mut pyo3::ffi::Py_buffer) {
+        // SAFETY: CPython returns the view initialized by __getbuffer__ exactly once.
         unsafe {
             release_readonly_buffer(view);
         }
@@ -126,7 +170,17 @@ impl crate::data_snapshot::SnapshotColumn {
     ) -> PyResult<()> {
         let borrowed = slf.borrow();
         // SAFETY: SnapshotColumn pins the table and its immutable F64Buffer.
-        unsafe { readonly_f64_buffer(slf.clone().into_any(), borrowed.values()?, view, flags) }
+        let values = borrowed.values()?;
+        unsafe {
+            readonly_numeric_buffer(
+                slf.clone().into_any(),
+                values.as_ptr().cast(),
+                values.len(),
+                c"d",
+                view,
+                flags,
+            )
+        }
     }
 
     #[allow(

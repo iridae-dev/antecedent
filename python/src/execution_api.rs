@@ -103,6 +103,11 @@ impl PythonExecution {
         Ok(Self { policy: Arc::new(Policy { context, progress, cancel }) })
     }
 
+    #[getter]
+    fn available_memory_bytes(&self) -> u64 {
+        self.policy.context.admission().available().bytes()
+    }
+
     /// Invoke one explicitly configured operation. Nested calls restore the
     /// previous profile even when a Python callback or native operation fails.
     #[pyo3(signature = (callable, /, *args, **kwargs))]
