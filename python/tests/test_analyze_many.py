@@ -45,7 +45,7 @@ def test_analyze_many_matches_solo():
         inference=antecedent.Frequentist(bootstrap=0),
         execution=antecedent.Execution(seed=3),
     )
-    batch = [require_success(result) for result in batch]
+    batch = [require_success(member) for member in require_success(batch).members]
     assert len(batch) == 2
     solo1 = require_success(
         antecedent.analyze(
@@ -97,7 +97,7 @@ def test_analyze_many_shares_identical_nuisance_fits_bit_for_bit():
         execution=antecedent.Execution(seed=5),
     )
     batch = antecedent.estimation.analyze_many(data, graph=edges, queries=queries, **common)
-    batch = [require_success(result) for result in batch]
+    batch = [require_success(member) for member in require_success(batch).members]
     for result, query in zip(batch, queries, strict=True):
         solo = require_success(antecedent.analyze(data, graph=edges, query=query, **common))
         assert result.ate == solo.ate
@@ -121,13 +121,12 @@ def test_analyze_many_refuses_other_queries_naming_analyze():
         antecedent.ConditionalEffect("t1", "y", "z"),
     ]
     for other in others:
-        with pytest.raises(CausalUnsupportedError) as caught:
-            antecedent.estimation.analyze_many(data, graph=edges, queries=[ate, other])
-        assert caught.value.reason_code == "route_not_supported"
-        assert "analyze" in str(caught.value)
-        assert "antecedent.analyze" in caught.value.remedy
+        refused = antecedent.estimation.analyze_many(data, graph=edges, queries=[ate, other])
+        assert refused.refusal is not None
+        assert refused.refusal.code == "route_not_supported"
+        assert "analyze" in refused.refusal.message
         with pytest.raises(CausalUnsupportedError) as prepared:
-            antecedent.estimation.PreparedBatch.prepare(data, graph=edges, queries=[ate, other])
+            antecedent.estimation.prepare_many(data, graph=edges, queries=[ate, other])
         assert prepared.value.reason_code == "route_not_supported"
         assert "antecedent.analyze" in prepared.value.remedy
 
@@ -146,14 +145,12 @@ def test_prepare_cells_refuses_non_joint_queries_naming_analyze():
     )
     for other in (single, antecedent.AverageEffect(treatment="t1", outcome="y")):
         with pytest.raises(CausalUnsupportedError) as caught:
-            antecedent.estimation.PreparedBatch.prepare_cells(
-                data, graph=edges, queries=[joint, other]
-            )
+            antecedent.estimation.prepare_many(data, graph=edges, queries=[joint, other])
         assert caught.value.reason_code == "route_not_supported"
         assert "antecedent.analyze" in caught.value.remedy
 
 
-def test_native_batch_outcomes_inspect_each_claim_without_inventing_a_live_study():
+def test_native_batch_outcomes_retain_completed_member_studies():
     from antecedent.outcomes import Outcome
 
     data, graph = _two_treatment_scm()
@@ -165,13 +162,15 @@ def test_native_batch_outcomes_inspect_each_claim_without_inventing_a_live_study
         execution=antecedent.Execution(seed=3),
         refute=False,
     )
-    assert isinstance(outcomes, tuple)
-    for outcome in outcomes:
+    assert isinstance(outcomes, Outcome)
+    family = require_success(outcomes)
+    assert outcomes.study is family.study
+    for outcome in family.members:
         assert isinstance(outcome, Outcome)
         assert outcome.accepted
         assert outcome.answer.kind == "point"
         assert outcome.inspect().identification.available
-        assert outcome.study is None
+        assert outcome.study is not None
 
 
 @pytest.mark.parametrize("keyword", ["seed", "threads", "bootstrap", "latency"])

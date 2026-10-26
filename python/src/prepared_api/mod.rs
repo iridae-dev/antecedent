@@ -76,6 +76,25 @@ pub struct PyPreparedAnalysis {
 }
 
 impl PyPreparedAnalysis {
+    pub(crate) fn from_completed(
+        study: Arc<PreparedStudy>,
+        result: Arc<antecedent::StudyResult>,
+        names: Vec<String>,
+        seed: u64,
+        threads: u32,
+    ) -> Self {
+        Self {
+            inner: Arc::clone(&study),
+            names,
+            last: Some(result),
+            last_study: Some(study),
+            last_seed: seed,
+            last_threads: threads,
+            borrowed_bytes: None,
+            series: false,
+        }
+    }
+
     pub(crate) fn from_study(prepared: PreparedStudy, names: Vec<String>) -> Self {
         Self {
             inner: Arc::new(prepared),
@@ -109,11 +128,12 @@ impl PyPreparedAnalysis {
             &ExecutionContext,
         ) -> PyResult<T>,
     ) -> PyResult<T> {
-        let mut study = controls.owned_study(&self.inner)?;
+        let source = Arc::clone(&self.inner);
         let out_names = self.names.clone();
         let series = self.series;
         let (mapped, result, bound) = detach_catch(py, move || {
             let ctx = controls.ctx(seed, threads);
+            let mut study = controls.owned_study(&source)?;
             // Bind before materializing: a deferred handle has no row-bound
             // statistical operation to refresh. The retained snapshot must be
             // the ready operation that actually produces the result, not the
@@ -170,10 +190,11 @@ impl PyPreparedAnalysis {
         ) -> PyResult<T>,
     ) -> PyResult<T> {
         let borrowed_bytes = self.borrowed_bytes;
-        let study = controls.study(&self.inner)?;
+        let source = Arc::clone(&self.inner);
         let names = self.names.clone();
         let (mapped, result, bound) = detach_catch(py, move || {
             let ctx = controls.ctx(seed, threads);
+            let study = controls.study(&source)?;
             let cache = ctx.cache_policy.enabled.then(|| {
                 antecedent_estimate::CrossfitNuisanceCache::bounded(
                     Some(&ctx),

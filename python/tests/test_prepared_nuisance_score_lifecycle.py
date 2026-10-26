@@ -100,6 +100,44 @@ def test_nuisance_execution_branches_leave_original_products_and_declarations_un
     assert study.execution.seed == 13
 
 
+def test_nuisance_likelihood_uses_the_completed_members_analysis_rows():
+    from antecedent.estimation import CandidateScreen, analyze_many
+
+    selected = _data()
+    excluded = {**selected, "t": 1 - selected["t"]}
+    data = {name: np.r_[excluded[name], selected[name]] for name in selected}
+    batch = require_success(
+        analyze_many(
+            data,
+            graph=[("z", "t"), ("z", "y"), ("t", "y")],
+            queries=[ant.AverageEffect("t", "y")],
+            estimator="aipw",
+            inference=ant.Frequentist(bootstrap=0),
+            execution=Execution(seed=13, threads=1),
+            candidate_screen=CandidateScreen(
+                "nuisance-rows", "unrecorded", tuple(range(200)), tuple(range(200, 400))
+            ),
+            refute=False,
+        )
+    )
+    member = batch.member(0)
+    assert member.study._data.num_rows == 400
+    actual = require_success(
+        ns.treatment_score_posterior(member.study, draws=200, summary_rows=[0, 350])
+    )
+    reference = require_success(
+        ns.treatment_score_posterior(_study(selected), draws=200, summary_rows=[0, 150])
+    )
+    assert actual.request_digest == reference.request_digest
+    assert actual.values == reference.values
+    design = np.column_stack([np.ones(200), selected["z"]])
+    beta = _mode(design, selected["t"], np.eye(2) / 4)
+    assert [actual["mode.0"], actual["mode.1"]] == pytest.approx(beta, abs=1e-5)
+    assert actual["row0.at_mode"] == pytest.approx(_sigmoid(beta[0]), abs=1e-5)
+    assert actual["row1.at_mode"] == pytest.approx(_sigmoid(beta.sum()), abs=1e-5)
+    assert batch.retarget_rows() == tuple(range(200, 400))
+
+
 def test_nuisance_fit_honors_actual_resources_cancellation_and_original_callback_errors():
     study = _study()
     with pytest.raises(CausalResourceError):

@@ -105,6 +105,13 @@ pub(crate) struct TableSnapshot {
     borrowed_bytes: u64,
 }
 
+impl TableSnapshot {
+    /// Expose an already owned native binding; cloning its columns copies no observations.
+    pub(crate) fn from_native(data: TabularData) -> Self {
+        Self { data: Arc::new(data), copied_bytes: 0, borrowed_bytes: 0 }
+    }
+}
+
 #[pymethods]
 impl TableSnapshot {
     #[new]
@@ -127,7 +134,12 @@ impl TableSnapshot {
         let numeric = if arrow {
             None
         } else {
-            Some(columns.iter().map(crate::NumericColumn::from_object).collect::<PyResult<Vec<_>>>()?)
+            Some(
+                columns
+                    .iter()
+                    .map(crate::NumericColumn::from_object)
+                    .collect::<PyResult<Vec<_>>>()?,
+            )
         };
         let shared = numeric
             .as_ref()
@@ -269,58 +281,25 @@ impl TableSnapshot {
     }
 }
 
-/// Recognize native snapshot columns before any NumPy extraction. Projection shares
-/// immutable buffers and never gathers numeric values through Python.
-pub(crate) fn from_columns(
-    names: &[String],
-    columns: &[Bound<'_, PyAny>],
-) -> PyResult<Option<TabularData>> {
-    let Some(first) = columns.first() else { return Ok(None) };
-    let Ok(first) = first.extract::<PyRef<'_, SnapshotColumn>>() else { return Ok(None) };
-    if names.len() != columns.len() {
-        return Err(crate::value_err("names and columns must have the same length"));
+/// Recover a snapshot column only when its complete numeric view is unchanged.
+/// Owning the same allocation is insufficient: a slice or reordered view is new data.
+fn snapshot_column(column: &Bound<'_, PyAny>) -> PyResult<Option<(Arc<TabularData>, VariableId)>> {
+    if let Ok(snapshot) = column.extract::<PyRef<'_, SnapshotColumn>>() {
+        return Ok(Some((Arc::clone(&snapshot.table), snapshot.id)));
     }
-    let mut ids = Vec::with_capacity(columns.len());
-    for (name, column) in names.iter().zip(columns) {
-        let column = column.extract::<PyRef<'_, SnapshotColumn>>()?;
-        if !Arc::ptr_eq(&first.table, &column.table) || column.name()? != *name {
-            return Err(crate::value_err(
-                "snapshot columns must retain one table and their original names",
-            ));
-        }
-        ids.push(column.id);
-    }
-    let complete = ids.len() == first.table.schema().len()
-        && ids.iter().enumerate().all(|(i, id)| id.as_usize() == i);
-    Ok(Some(if complete {
-        (*first.table).clone()
-    } else {
-        first.table.project(&ids).map_err(crate::py_err)?.0
-    }))
-}
-
-pub(crate) fn register(module: &Bound<'_, pyo3::types::PyModule>) -> PyResult<()> {
-    module.add_class::<IndexSnapshot>()?;
-    module.add_class::<TableSnapshot>()?;
-    module.add_class::<SnapshotColumn>()
-}
-
-/// A NumPy view over a complete snapshot column shares its proven native buffer.
-/// Slices and arbitrary foreign arrays continue through the explicit ownership copy.
-pub(crate) fn numpy_buffer(
-    column: &numpy::PyReadonlyArray1<'_, f64>,
-) -> PyResult<Option<F64Buffer>> {
-    let view = column.as_array();
+    let Ok(array) = column.extract::<numpy::PyReadonlyArray1<'_, f64>>() else {
+        return Ok(None);
+    };
+    let view = array.as_array();
     if !view.is_standard_layout() {
         return Ok(None);
     }
-    let mut owner = column.as_any().clone();
+    let mut owner = column.clone();
     for _ in 0..8 {
         if let Ok(snapshot) = owner.extract::<PyRef<'_, SnapshotColumn>>() {
             let buffer = snapshot.buffer()?;
-            return Ok(
-                (buffer.len() == view.len() && buffer.as_ptr() == view.as_ptr()).then_some(buffer)
-            );
+            return Ok((buffer.len() == view.len() && buffer.as_ptr() == view.as_ptr())
+                .then(|| (Arc::clone(&snapshot.table), snapshot.id)));
         }
         let next = if owner.is_instance_of::<pyo3::types::PyMemoryView>() {
             owner.getattr("obj")?
@@ -335,4 +314,55 @@ pub(crate) fn numpy_buffer(
         owner = next;
     }
     Ok(None)
+}
+
+/// Recognize complete native columns, including their unchanged NumPy views.
+/// Preserve analysis masks, validity and weights with the table, not only its buffers.
+/// Projection shares immutable storage; transformed or mixed inputs follow ordinary ingest.
+pub(crate) fn from_columns(
+    names: &[String],
+    columns: &[Bound<'_, PyAny>],
+) -> PyResult<Option<TabularData>> {
+    if names.len() != columns.len() {
+        return Err(crate::value_err("names and columns must have the same length"));
+    }
+    let Some(first) = columns.first() else { return Ok(None) };
+    let Some((table, _)) = snapshot_column(first)? else { return Ok(None) };
+    let mut ids = Vec::with_capacity(columns.len());
+    for (name, column) in names.iter().zip(columns) {
+        let Some((owner, id)) = snapshot_column(column)? else { return Ok(None) };
+        if !Arc::ptr_eq(&table, &owner)
+            || table.schema().get(id).map_err(crate::py_err)?.name.as_ref() != name.as_str()
+        {
+            // Sharing numeric allocations does not establish one scientific table
+            // when names or owners differ. No mask/weights may be inferred then.
+            return Ok(None);
+        }
+        ids.push(id);
+    }
+    let complete = ids.len() == table.schema().len()
+        && ids.iter().enumerate().all(|(i, id)| id.as_usize() == i);
+    Ok(Some(if complete {
+        (*table).clone()
+    } else {
+        table.project(&ids).map_err(crate::py_err)?.0
+    }))
+}
+
+pub(crate) fn register(module: &Bound<'_, pyo3::types::PyModule>) -> PyResult<()> {
+    module.add_class::<IndexSnapshot>()?;
+    module.add_class::<TableSnapshot>()?;
+    module.add_class::<SnapshotColumn>()
+}
+
+/// A NumPy view over a complete snapshot column shares its proven native buffer.
+/// Slices and arbitrary foreign arrays continue through the explicit ownership copy.
+pub(crate) fn numpy_buffer(
+    column: &numpy::PyReadonlyArray1<'_, f64>,
+) -> PyResult<Option<F64Buffer>> {
+    let Some((table, id)) = snapshot_column(column.as_any())? else { return Ok(None) };
+    match table.storage().columns().get(id.as_usize()) {
+        Some(OwnedColumn::Float64(column)) => Ok(Some(column.values.clone())),
+        _ => Ok(None),
+    }
 }

@@ -201,6 +201,7 @@ def is_scientific_refusal(error: BaseException) -> bool:
             "route_not_supported",
             "row_weights_bound_to_snapshot",
             "treatment_level_undeclared",
+            "population_not_estimable",
             "policy_dependency_circular",
             "policy_dependency_unavailable",
             "policy_directive_conflict",

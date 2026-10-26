@@ -15,7 +15,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent.errors import CausalError, CausalValueError
-from antecedent.estimation import CandidateScreen, PreparedBatch, RetargetClaim
+from antecedent.estimation import CandidateScreen, RetargetClaim
 from antecedent.estimators import Aipw, ClusterDml
 from antecedent.outcomes import require_success
 
@@ -119,17 +119,27 @@ def test_a_cluster_dml_aipw_reports_the_cluster_sandwich_se_and_the_scores():
 def test_a_cluster_batch_band_uses_the_cluster_reference():
     data, cluster = clustered(groups=12, size=20)
     cfg = Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=cluster.tolist(), min_clusters=10))
-    batch = PreparedBatch.prepare(
-        data, graph=GRAPH, queries=[QUERY], estimator=cfg, refute=False, seed=7
+    batch = require_success(
+        ant.estimation.prepare_many(
+            data,
+            graph=GRAPH,
+            queries=[QUERY],
+            estimator=cfg,
+            refute=False,
+            execution=ant.Execution(seed=7),
+        ).estimate()
     )
     rows = batch.retarget_rows()
     assert rows is not None
-    report = batch.retarget(
-        [RetargetClaim("effect", 0, np.ones(len(rows)), depends_on=[])],
-        simultaneous_level=0.95,
-        simultaneous_seed=29,
-        simultaneous_draws=20_000,
+    report = require_success(
+        batch.retarget(
+            [RetargetClaim("effect", 0, np.ones(len(rows)), depends_on=[])],
+            simultaneous_level=0.95,
+            simultaneous_seed=29,
+            simultaneous_draws=20_000,
+        )
     )
+    assert report.scores_source == "estimated"
     band = report.simultaneous_interval()
     assert report.complete and len(band.members) == 1
     assert band.critical_value > 2.1  # t_11, above the iid normal critical 1.96

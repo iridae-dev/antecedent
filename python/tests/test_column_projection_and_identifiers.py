@@ -348,11 +348,16 @@ def test_estimators_without_a_cluster_variance_refuse_a_named_cluster_precisely(
 def test_batch_routes_refuse_a_named_cluster_before_reading_the_table():
     data = _clustered()
     with pytest.raises(CausalUnsupportedError, match="does not resolve cluster="):
-        analyze_many(
-            data,
-            graph=EDGES,
-            queries=[QUERY],
-            estimator=LinearAdjustment(se="cluster", cluster="site"),
+        tuple(
+            require_success(member)
+            for member in require_success(
+                analyze_many(
+                    data,
+                    graph=EDGES,
+                    queries=[QUERY],
+                    estimator=LinearAdjustment(se="cluster", cluster="site"),
+                )
+            ).members
         )
 
 

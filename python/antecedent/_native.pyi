@@ -3134,14 +3134,31 @@ class PreparedBatch:
     def shared_n_folds(self) -> int | None: ...
     def shared_fold_ids(self) -> list[int] | None: ...
     def shared_adjustment_set(self) -> list[int] | None: ...
-    def estimate(
+    def materialized_plan_count(self) -> int: ...
+    def retained_score_table_count(self) -> int: ...
+    def execute(
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        on_stage: list[Callable[[str, dict[str, Any]], None]] | None = None,
+    ) -> CompletedBatch: ...
+    def rebind(
         self,
         names: list[str],
         columns: Sequence[Any],
         *,
         seed: int = 1,
         threads: int | None = None,
-    ) -> list[AteAnalysisResult]: ...
+    ) -> PreparedBatch: ...
+    def reconfigure_execution(
+        self, *, seed: int = 1, threads: int | None = None
+    ) -> PreparedBatch: ...
+
+class CompletedBatch:
+    def bound_table(self) -> _TableSnapshot: ...
+    def preparation(self) -> PreparedBatch: ...
+    def members(self) -> list[tuple[AteAnalysisResult, PreparedAnalysis]]: ...
     def retarget_rows(self) -> list[int] | None: ...
     def retarget_scores_source(self) -> str: ...
     def retarget_snapshot(self) -> str | None: ...
@@ -3183,7 +3200,18 @@ def prepare_cells_batch(
     names: list[str],
     columns: Sequence[Any],
     edges: list[tuple[str, str]],
-    queries: list[tuple[str, list[str], list[str], list[list[float]], dict[str, object] | None]],
+    queries: list[
+        tuple[
+            str,
+            list[str],
+            list[str],
+            list[list[float]],
+            dict[str, object] | None,
+            dict[str, object] | None,
+            dict[str, object] | None,
+            list[dict[str, object]],
+        ]
+    ],
     *,
     identifier: str | None = None,
     estimator: str | None = None,

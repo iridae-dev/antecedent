@@ -1,9 +1,4 @@
-"""Shared-fit batch estimation.
-
-``analyze_many`` and ``PreparedBatch`` ingest one table and fit a shared
-nuisance for queries whose design matches. Re-exported from ``estimation``
-so existing imports keep working.
-"""
+"""Immutable shared-fit batch preparation and explicit family execution."""
 
 from __future__ import annotations
 
@@ -16,7 +11,6 @@ import numpy as np
 from ._api import describe_refusal
 from ._coerce import coerce_refute
 from ._columns import refuse_named_identifiers
-from ._data import ingest_columns
 from ._estimate_helpers import (
     _refused,
     _refused_with_remedy,
@@ -24,7 +18,6 @@ from ._estimate_helpers import (
     _unwrap_estimator,
 )
 from ._from_raw import _wrap_ate
-from ._native import analyze_ate_many as _analyze_ate_many
 from ._native import prepare_ate_batch as _prepare_ate_batch
 from ._native import prepare_cells_batch as _prepare_cells_batch
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
@@ -32,25 +25,20 @@ from .execution import Execution
 from .graph import Dag, TieredBackground
 from .ids import Estimator
 from .inference import Frequentist
-from .outcomes import Outcome, as_outcome, capture_outcome
+from .outcomes import Answer, Outcome, as_outcome, capture_outcome, outcome_operation
 from .population import coerce_target_population
 from .query import AverageEffect, InterventionResponse
 from .results import AnalysisResult
 
 if TYPE_CHECKING:
-    from .preflight import (
-        BatchCostEstimate,
-        BatchPreflightReport,
-        NuisanceFitDiagnostics,
-        RankDropPlan,
-    )
+    from .results._report import InspectionReport
 
 
 def analyze_many(
-    data: Mapping[str, Any] | Any,
+    data: Any,
     *,
     graph: Dag | TieredBackground | Sequence[tuple[str, str]],
-    queries: Sequence[AverageEffect],
+    queries: Sequence[AverageEffect | InterventionResponse],
     identifier: str | None = None,
     estimator: str | Estimator | Any | None = None,
     estimator_config: Mapping[str, Any] | None = None,
@@ -58,137 +46,61 @@ def analyze_many(
     inference: Frequentist | None = None,
     execution: Execution | None = None,
     candidate_screen: CandidateScreen | None = None,
-) -> tuple[Outcome[AnalysisResult], ...]:
-    """Estimate many average effects on one shared table ingest.
+    family: CellFamily | None = None,
+) -> Outcome[BatchResult]:
+    """Prepare and explicitly execute one shared-fit batch, returning a typed outcome."""
 
-    Queries that would fit the identical cross-fitted AIPW nuisance (same
-    treatment coding, adjustment set, complete-case rows, fold plan and
-    learner options) share one fit; each result is bit-identical to the
-    query's own ``analyze`` fit. The ``batch.shared_design`` diagnostic
-    records, per result, whether its propensity / outcome fit was shared.
-
-    Only ``AverageEffect`` queries batch here; discrete joint
-    ``InterventionResponse`` cells batch through
-    :meth:`PreparedBatch.prepare_cells`. Any other query is refused with
-    ``reason_code="route_not_supported"`` and a ``remedy`` naming
-    :func:`antecedent.analyze`, which estimates it one query at a time.
-
-    Parameters
-    ----------
-    data:
-        Column mapping / DataFrame (ingested once).
-    graph:
-        Static DAG, edge list, or ``TieredBackground`` shared by every query.
-    queries:
-        Non-empty sequence of ``AverageEffect`` queries. Outcome functionals
-        are executed, not dropped to means.
-    refute:
-        ``False`` or a suite name; leave unset (``None``) for the default
-        suite. Explicit ``refute=True`` raises ``TypeError`` — see
-        :func:`antecedent._coerce.coerce_refute`.
-    estimator, estimator_config:
-        A bare estimator id (``str`` or :class:`antecedent.Estimator`) or a typed estimator
-        configuration such as ``Aipw(bootstrap=0, propensity_penalty=...)``, exactly as
-        :func:`antecedent.analyze` takes them; one configuration governs every query. A
-        nuisance fit is shared only between queries whose fit inputs (rows, treatment coding,
-        adjustment design, folds, learner options) are identical, and a penalized propensity
-        is never shared. Each result's ``batch.shared_design`` diagnostic carries the
-        canonical ``estimator_config`` fingerprint.
-    inference:
-        Frequentist bootstrap budget; omission keeps the native batch default.
-    execution:
-        Shared execution settings and native admission context.
-    candidate_screen:
-        Optional screen/estimate split recorded on every result.
-
-    Each tuple member is its own typed outcome. Native batch family metadata
-    and shared-fit diagnostics remain on those results. This one-shot native
-    route retains no executable per-member study.
-    """
-    if not queries:
-        raise CausalValueError("analyze_many requires at least one query")
-    if not all(isinstance(q, AverageEffect) for q in queries):
-        raise _batch_route_refusal("analyze_many", "AverageEffect queries")
-    policy = Execution() if execution is None else execution
-    if not isinstance(policy, Execution):
-        raise CausalTypeError("execution must be an Execution declaration")
-    if inference is not None and not isinstance(inference, Frequentist):
-        raise CausalTypeError("batch inference must be a Frequentist declaration")
-    from ._study_lifecycle import replay_declaration, retain
-    from ._table_snapshot import table
-
-    queries = retain(queries)
-    graph = retain(graph)
-    estimator, estimator_config = _unwrap_estimator(estimator, estimator_config)
-    refuse_named_identifiers(estimator_config, "analyze_many")
-    resolved_refute = None if refute is None else coerce_refute(refute)
-    owned = policy._call(table, data)
-    names, columns = owned._native_columns()
-    from .query import coerce_outcome_functional
-
-    specs = [
-        (
-            q.treatment,
-            q.outcome,
-            float(q.control_level),
-            float(q.active_level),
-            coerce_outcome_functional(q.outcome_functional),
-            coerce_target_population(q.target_population),
-        )
-        for q in queries
-    ]
-    kwargs: dict[str, Any] = dict(
-        identifier=identifier,
-        estimator=estimator,
-        estimator_config=replay_declaration(retain(estimator_config)),
-        refute=resolved_refute,
-        seed=policy.seed,
-        bootstrap=None if inference is None else inference.bootstrap,
-        threads=policy.threads,
-    )
-    kwargs.update(_screen_kwargs(candidate_screen))
-
-    def invoke() -> list[Any]:
-        if isinstance(graph, TieredBackground):
-            return policy._call(
-                _analyze_ate_many,
-                names,
-                columns,
-                [],
-                specs,
-                tiers=[list(tier) for tier in graph.tiers],
-                within_tier=str(graph.within_tier),
-                **kwargs,
+    def execute() -> Outcome[BatchResult]:
+        return estimate_many(
+            prepare_many(
+                data,
+                graph=graph,
+                queries=queries,
+                identifier=identifier,
+                estimator=estimator,
+                estimator_config=estimator_config,
+                refute=refute,
+                inference=inference,
+                execution=execution,
+                candidate_screen=candidate_screen,
+                family=family,
             )
-        return policy._call(
-            _analyze_ate_many, names, columns, _static_edges(graph), specs, **kwargs
         )
 
-    outcome = capture_outcome(invoke)
-    if outcome.refusal is not None:
-        # The native batch operation refused as a whole; no member was executed.
-        return tuple(Outcome(refusal=outcome.refusal) for _query in queries)
-    assert outcome.value is not None
-    return tuple(
-        as_outcome(_wrap_ate(raw, query=query))
-        for raw, query in zip(outcome.value, queries, strict=True)
-    )
+    return capture_outcome(execute)
 
 
 _BATCH_ROUTE_REMEDY = (
-    "estimate it with antecedent.analyze(data, graph=..., query=...), one query at a "
-    "time; the batch routes cover AverageEffect (analyze_many, PreparedBatch.prepare) "
-    "and discrete joint InterventionResponse cells (PreparedBatch.prepare_cells)"
+    "use antecedent.analyze(data, graph=..., query=...) for other query families; "
+    "prepare_many accepts homogeneous AverageEffect or discrete joint InterventionResponse queries"
 )
 
 
 def _batch_route_refusal(entry: str, covered: str) -> CausalUnsupportedError:
-    """Typed refusal for a query outside a batch route, naming ``analyze``."""
     return _refused_with_remedy(
         "route_not_supported",
-        f"{entry} covers {covered} only; use analyze for any other query",
+        f"{entry} covers {covered}; use analyze for other queries",
         _BATCH_ROUTE_REMEDY,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class CellFamily:
+    """Scientific contrast and aligned score-posterior budget of joint-cell families."""
+
+    contrast: Literal["cell_minus_control", "interaction"] | None = "cell_minus_control"
+    posterior_draws: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.contrast not in (None, "cell_minus_control", "interaction"):
+            raise CausalValueError(
+                "cell family contrast must be cell_minus_control, interaction or None"
+            )
+        if self.posterior_draws is not None:
+            if not isinstance(self.posterior_draws, int) or isinstance(self.posterior_draws, bool):
+                raise CausalTypeError("cell family posterior_draws must be an integer or None")
+            if self.posterior_draws < 1:
+                raise CausalValueError("cell family posterior_draws must be positive")
 
 
 @dataclass(frozen=True)
@@ -248,17 +160,28 @@ def _screen_kwargs(screen: CandidateScreen | None) -> dict[str, Any]:
     }
 
 
-def _joint_cell_batch_specs(
-    queries: Sequence[InterventionResponse],
-) -> list[tuple[str, list[str], list[str], list[list[float]], dict[str, Any] | None]]:
+_CellBatchSpec = tuple[
+    str,
+    list[str],
+    list[str],
+    list[list[float]],
+    dict[str, Any] | None,
+    dict[str, Any] | None,
+    dict[str, object] | None,
+    list[dict[str, object]],
+]
+
+
+def _joint_cell_batch_specs(queries: Sequence[InterventionResponse]) -> list[_CellBatchSpec]:
     from . import intervention as intervention_specs
+    from .observation import Complete, _assumption_kwargs, _mechanism_kwargs
     from .query import coerce_outcome_functional
 
-    specs: list[tuple[str, list[str], list[str], list[list[float]], dict[str, Any] | None]] = []
+    specs: list[_CellBatchSpec] = []
     for query in queries:
         if getattr(query, "is_temporal", False):
             raise _batch_route_refusal(
-                "PreparedBatch.prepare_cells", "static discrete joint InterventionResponse cells"
+                "prepare_many", "static discrete joint InterventionResponse cells"
             )
         supplied = query.intervention
         interventions = (
@@ -268,7 +191,7 @@ def _joint_cell_batch_specs(
         )
         if len(interventions) < 2:
             raise _batch_route_refusal(
-                "PreparedBatch.prepare_cells", "joint InterventionResponse cells (two or more Set)"
+                "prepare_many", "joint InterventionResponse cells (two or more Set)"
             )
         treatments: list[str] = []
         kinds: list[str] = []
@@ -276,7 +199,7 @@ def _joint_cell_batch_specs(
         for spec in interventions:
             if not isinstance(spec, intervention_specs.Set):
                 raise _batch_route_refusal(
-                    "PreparedBatch.prepare_cells", "discrete joint cells of Set interventions"
+                    "prepare_many", "discrete joint cells of Set interventions"
                 )
             treatments.append(spec.variable)
             kinds.append("set")
@@ -288,6 +211,11 @@ def _joint_cell_batch_specs(
                 kinds,
                 parameters,
                 coerce_outcome_functional(query.outcome_functional),
+                coerce_target_population(query.target_population),
+                None
+                if query.observation is None or isinstance(query.observation, Complete)
+                else _mechanism_kwargs(query.observation),
+                [_assumption_kwargs(assumption) for assumption in query.observation_assumptions],
             )
         )
     return specs
@@ -315,10 +243,10 @@ class SharedBatchDesign:
 
 @dataclass(frozen=True)
 class RetargetClaim:
-    """One declared retargeted claim of a :meth:`PreparedBatch.retarget` family.
+    """One declared retargeted claim of a :meth:`BatchResult.retarget` family.
 
     ``query`` is the index of a batch query or the query object itself. ``weights`` are the
-    target row weights aligned with :meth:`PreparedBatch.retarget_rows`; ``depends_on`` names
+    target row weights aligned with :meth:`BatchResult.retarget_rows`; ``depends_on`` names
     the covariates the weights are a function of (a subset of the certified adjustment set).
     """
 
@@ -361,6 +289,11 @@ class RetargetMember:
     # propensity range); ``None`` for a member that did not fail, absent entries ``None``.
     refusal_fields: Mapping[str, Any] | None = None
 
+    def __post_init__(self) -> None:
+        from ._freeze import freeze
+
+        object.__setattr__(self, "refusal_fields", freeze(self.refusal_fields))
+
 
 @dataclass(frozen=True)
 class SimultaneousBandMember:
@@ -392,7 +325,7 @@ class SimultaneousInterval:
     members: tuple[SimultaneousBandMember, ...]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class BatchRetarget:
     """Points, joint score covariance and contrasts of a retargeted family.
 
@@ -400,10 +333,10 @@ class BatchRetarget:
     row-aligned scores; a standard error is not an interval. For a complete family
     :meth:`simultaneous_interval` returns the max-t band ``value +/- c * std_error`` of the
     claims (level, seed and draws are the ``simultaneous_*`` arguments of
-    :meth:`PreparedBatch.retarget`); a partial family (any failed or point-only member) lists
+    :meth:`BatchResult.retarget`); a partial family (any failed or point-only member) lists
     every member, has no band and is never a complete-family claim (:meth:`complete_family`
-    and :meth:`simultaneous_interval` raise). Penalized-propensity scores retarget to points
-    only.
+    and :meth:`simultaneous_interval` raise). Point-only standing is retained when the
+    native score-table provenance withholds covariance.
     """
 
     family_id: str
@@ -422,6 +355,148 @@ class BatchRetarget:
     _closed: Mapping[str, Any]
     _complete_refusal: Mapping[str, Any] | None
     _rows: tuple[Mapping[str, Any], ...]
+
+    def __post_init__(self) -> None:
+        from ._freeze import freeze
+
+        for name in ("_closed", "_complete_refusal", "_rows"):
+            object.__setattr__(self, name, freeze(getattr(self, name)))
+
+    @property
+    def answer(self) -> Answer:
+        refusal = self._complete_refusal
+        return Answer(
+            "partial" if self.failed_members else "structured",
+            detail=None if refusal is None else str(refusal["detail"]),
+            structured={
+                "family_id": self.family_id,
+                "claims": len(self.claims),
+                "contrasts": len(self.contrasts),
+                "failed_members": self.failed_members,
+                "point_only_members": self.point_only_members,
+            },
+        )
+
+    @property
+    def identities(self) -> Mapping[str, Any]:
+        from ._freeze import freeze
+
+        # A retarget snapshot hashes original row IDs, not observation values.
+        return freeze(
+            {
+                "family_id": self.family_id,
+                "snapshot_id": self.snapshot_id,
+                "estimator_fingerprint": self.estimator_fingerprint,
+            }
+        )
+
+    @property
+    def provenance(self) -> Mapping[str, Any]:
+        from ._freeze import freeze
+
+        return freeze(
+            {
+                **self.identities,
+                "scores_source": self.scores_source,
+                "inference_claim": self.inference_claim,
+                "nuisance_provenance": tuple(
+                    {"name": row["name"], "provenance": row.get("nuisance_provenance")}
+                    for row in self._rows
+                    if row.get("nuisance_provenance") is not None
+                ),
+            }
+        )
+
+    def inspect(self) -> InspectionReport:
+        """Read native family standing without fitting, recomputing bands or encoding."""
+        from .results._report import InspectionReport, SlotModel
+
+        statuses = tuple(
+            {
+                "name": claim.name,
+                "standing": claim.support_status,
+                "refusal_code": claim.refusal_code,
+            }
+            for claim in self.claims
+        )
+        assessed = any(claim.support_status != "not_assessed" for claim in self.claims)
+        supported = all(claim.support_status == "supported" for claim in self.claims)
+        refused = any(claim.support_status == "refused" for claim in self.claims)
+        support_standing = (
+            "supported"
+            if supported
+            else "partial"
+            if any(claim.support_status == "supported" for claim in self.claims)
+            else "refused"
+            if refused
+            else "not_assessed"
+        )
+        # Keep the producer's point-only inference claim separate from the covariance
+        # and nominal-band availability; neither establishes measured calibration.
+        band = {key: value for key, value in self._closed.items() if key != "members"}
+        band_published = self._closed.get("status") == "published"
+        covariance_available = self.covariance is not None
+        operations = ["inspect", "to_rows"]
+        if covariance_available:
+            operations.append("covariance_between")
+        if self.complete:
+            operations.append("complete_family")
+        if band_published:
+            operations.append("simultaneous_interval")
+        diagnostics = tuple(str(note) for row in self._rows for note in row.get("diagnostics", ()))
+        return InspectionReport(
+            identification=SlotModel(
+                available=False,
+                reason="no_new_identification_proof",
+                summary="retargeting reuses retained certified scores; this report carries no new identification proof",
+            ),
+            support=SlotModel(
+                available=assessed,
+                reason=None if supported else support_standing,
+                summary="native per-claim support standing",
+                payload={"standing": support_standing, "members": statuses},
+            ),
+            uncertainty=SlotModel(
+                available=covariance_available,
+                reason=None
+                if self._complete_refusal is None
+                else str(self._complete_refusal["detail"]),
+                summary="native plug-in covariance and nominal family-band standing",
+                payload={
+                    "inference_claim": self.inference_claim,
+                    "complete_family": self.complete,
+                    "covariance_members": self.covariance_names,
+                    "failed_members": self.failed_members,
+                    "point_only_members": self.point_only_members,
+                    "simultaneous_interval": band,
+                },
+            ),
+            assumptions=SlotModel(
+                available=bool(self.scope_note),
+                reason=None if self.scope_note else "unavailable",
+                summary=self.scope_note or "native scope note unavailable",
+                payload={"standing": "declared", "scope_note": self.scope_note},
+            ),
+            answer=self.answer,
+            family="batch_retarget",
+            stage="executed",
+            diagnostics=diagnostics,
+            details={
+                "identities": self.identities,
+                "complete_family_refusal": self._complete_refusal,
+                "failed_members": self.failed_members,
+                "point_only_members": self.point_only_members,
+            },
+            operations=tuple(operations),
+        )
+
+    def __repr__(self) -> str:
+        return f"BatchRetarget(claims={len(self.claims)}, contrasts={len(self.contrasts)}, complete={self.complete})"
+
+    def _repr_html_(self) -> str:
+        import html
+
+        return f"<pre>{html.escape(repr(self))}</pre>"
 
     def covariance_between(self, a: str, b: str) -> float:
         """Entry of the joint covariance for two named claims."""
@@ -499,105 +574,198 @@ def _retarget_estimand(query: Any) -> str | None:
     return f"E[{y}(do {t}={query.active_level})] - E[{y}(do {t}={query.control_level})]"
 
 
-@dataclass
+@dataclass(frozen=True, slots=True, repr=False)
 class PreparedBatch:
-    """Compile-once batch of average-effect or joint-cell plans.
-
-    ``prepare`` and ``prepare_cells`` freeze one fold-assignment object and,
-    when every query shares a certified adjustment set, one covariate design.
-    Average-effect queries that would fit the identical cross-fitted AIPW
-    propensity or outcome model share one fit (bit-identical to the per-query
-    fit); joint-cell nuisances are fit per query. Other query types are
-    refused with ``reason_code="route_not_supported"`` and a ``remedy``
-    naming :func:`antecedent.analyze`.
-    A family of two or more average-effect claims attaches joint IF covariance
-    and max-t / BH / BY on those contrasts. Joint-cell families keep
-    ``simultaneous_interval`` on cell levels and, unless ``family_contrast``
-    is ``None``, test a declared score-difference contrast (default
-    ``cell_minus_control``) with max-t and ``family_contrast_interval`` on
-    that contrast family.
-    """
+    """Immutable, bound shared-fit plans; preparation never fits their nuisances."""
 
     _native: Any
     _queries: tuple[AverageEffect | InterventionResponse, ...]
-    _names: tuple[str, ...]
+    _data: Any
+    _declarations: Mapping[str, Any]
+    execution: Execution
+    reuse: Any
+    _refused: Outcome[Any] | None = None
+    _source_data: Any = None
+
+    def __post_init__(self) -> None:
+        from ._freeze import freeze
+
+        object.__setattr__(self, "_declarations", freeze(dict(self._declarations)))
+
+    @property
+    def refusal(self) -> Any:
+        return None if self._refused is None else self._refused.refusal
+
+    @property
+    def queries(self) -> tuple[AverageEffect | InterventionResponse, ...]:
+        return self._queries
 
     @property
     def shared_design(self) -> SharedBatchDesign | None:
+        if self._native is None:
+            return None
         n_folds = self._native.shared_n_folds()
         if n_folds is None:
             return None
-        folds = self._native.shared_fold_ids() or []
         adj = self._native.shared_adjustment_set()
         return SharedBatchDesign(
             n_folds=int(n_folds),
-            fold_ids=tuple(int(i) for i in folds),
-            adjustment_set=None if adj is None else tuple(int(i) for i in adj),
+            fold_ids=tuple(self._native.shared_fold_ids() or ()),
+            adjustment_set=None if adj is None else tuple(adj),
             shares_covariates=bool(self._native.shares_covariates()),
         )
 
-    def diagnose(self, *, seed: int = 1, threads: int | None = None) -> BatchPreflightReport:
-        """Fit-free preflight of every plan (see ``PreparedAnalysis.diagnose``)."""
-        from .preflight import diagnose_batch
+    def estimate(self) -> Outcome[BatchResult]:
+        return estimate_many(self)
 
-        return diagnose_batch(self._native, seed=seed, threads=threads)
+    def rebind(self, *, data: Any) -> PreparedBatch:
+        return rebind_many(self, data=data)
 
-    def diagnose_fit(
-        self, *, seed: int = 1, threads: int | None = None
-    ) -> tuple[NuisanceFitDiagnostics, ...]:
-        """Propensity-fit diagnostics of every plan (fit-requiring)."""
-        from .preflight import diagnose_fit_batch
+    def reconfigure(self, **declarations: Any) -> PreparedBatch:
+        return reconfigure_many(self, **declarations)
 
-        return diagnose_fit_batch(self._native, seed=seed, threads=threads)
+    def _required_native(self) -> Any:
+        if self._refused is not None:
+            assert self._refused.refusal is not None
+            self._refused.refusal.raise_error()
+        return self._native
+
+    def diagnose(self, *, execution: Execution | None = None) -> Any:
+        from .preflight import diagnose
+
+        return diagnose(self, execution=execution)
+
+    def diagnose_fit(self, *, execution: Execution | None = None) -> Outcome[Any]:
+        """Explicitly execute nuisance diagnostics, leaving this preparation unchanged."""
+        from .preflight import diagnose_fit
+
+        return diagnose_fit(self, execution=execution)
 
     def plan_rank_drop(
-        self,
-        priority: Sequence[str] | None = None,
-        *,
-        seed: int = 1,
-        threads: int | None = None,
-    ) -> tuple[RankDropPlan, ...]:
-        """Opt-in rank-drop plan of every plan under one declared column priority."""
-        from .preflight import plan_rank_drop_batch
+        self, priority: Sequence[str] | None = None, *, execution: Execution | None = None
+    ) -> Any:
+        from .preflight import plan_rank_drop
 
-        return plan_rank_drop_batch(self._native, priority, seed=seed, threads=threads)
+        return plan_rank_drop(self, priority=priority, execution=execution)
 
-    def estimate_cost(self) -> BatchCostEstimate:
-        """Planning counts of every plan and their totals; the fit total is an upper bound
-        because identical cross-fitted nuisances are shared. A planning hint, not a runtime
-        guarantee."""
-        from .preflight import estimate_cost_batch
+    def estimate_cost(self, *, execution: Execution | None = None) -> Any:
+        from .preflight import estimate_cost
 
-        return estimate_cost_batch(self._native)
+        return estimate_cost(self, execution=execution)
 
-    @classmethod
-    def prepare(
-        cls,
-        data: Mapping[str, Any] | Any,
-        *,
-        graph: Dag | TieredBackground | Sequence[tuple[str, str]],
-        queries: Sequence[AverageEffect],
-        identifier: str | None = None,
-        estimator: str | Estimator | Any | None = None,
-        estimator_config: Mapping[str, Any] | None = None,
-        refute: bool | Literal["full", "placebo", "none", "cheap"] | None = None,
-        seed: int = 1,
-        bootstrap: int | None = None,
-        threads: int | None = None,
-        latency: Literal["interactive", "standard", "report"] | None = None,
-        candidate_screen: CandidateScreen | None = None,
-    ) -> PreparedBatch:
-        if not queries:
-            raise CausalValueError("PreparedBatch.prepare requires at least one query")
-        if not all(isinstance(q, AverageEffect) for q in queries):
-            raise _batch_route_refusal("PreparedBatch.prepare", "AverageEffect queries")
-        estimator, estimator_config = _unwrap_estimator(estimator, estimator_config)
-        refuse_named_identifiers(estimator_config, "PreparedBatch.prepare")
-        resolved_refute: bool | str | None = None if refute is None else coerce_refute(refute)
-        names, columns = ingest_columns(data)
-        from .query import coerce_outcome_functional
+    def inspect(self) -> Any:
+        from .results._report import InspectionReport, SlotModel
 
-        specs = [
+        if self._refused is not None:
+            return self._refused.inspect().model_copy(
+                update={
+                    "stage": "prepared",
+                    "operations": ("inspect", "estimate", "rebind", "reconfigure"),
+                }
+            )
+        unavailable = SlotModel(available=False, reason="not_executed", summary="not executed")
+        return InspectionReport(
+            identification=SlotModel(available=True, summary="native batch plans identified"),
+            support=unavailable,
+            uncertainty=unavailable,
+            assumptions=unavailable,
+            family="batch",
+            stage="prepared",
+            details={"members": len(self._queries), "reuse": self.reuse},
+            operations=("inspect", "estimate", "rebind", "reconfigure"),
+        )
+
+    def __repr__(self) -> str:
+        return f"PreparedBatch(members={len(self._queries)}, stage='prepared')"
+
+    def _repr_html_(self) -> str:
+        import html
+
+        return f"<pre>{html.escape(repr(self))}</pre>"
+
+
+def prepare_many(
+    data: Any,
+    *,
+    graph: Dag | TieredBackground | Sequence[tuple[str, str]],
+    queries: Sequence[AverageEffect | InterventionResponse],
+    identifier: str | None = None,
+    estimator: str | Estimator | Any | None = None,
+    estimator_config: Mapping[str, Any] | None = None,
+    refute: bool | Literal["full", "placebo", "none", "cheap"] | None = None,
+    inference: Frequentist | None = None,
+    execution: Execution | None = None,
+    candidate_screen: CandidateScreen | None = None,
+    family: CellFamily | None = None,
+) -> PreparedBatch:
+    """Identify and quote homogeneous effect or joint-cell queries on one owned table.
+
+    Joint cells preserve their native aligned score covariance, family contrasts,
+    and optional aligned Bayesian bootstrap draws. Statistical budgets belong to
+    inference or the family declaration; operational settings belong to Execution.
+    """
+    from ._study_lifecycle import replay_declaration, retain
+    from ._table_snapshot import table
+    from .prepared import Reuse
+    from .query import coerce_outcome_functional
+
+    if not queries:
+        raise CausalValueError("prepare_many requires at least one query")
+    average = all(isinstance(q, AverageEffect) for q in queries)
+    cells = all(isinstance(q, InterventionResponse) for q in queries)
+    if not average and not cells:
+        raise _batch_route_refusal(
+            "prepare_many", "homogeneous AverageEffect or joint cell queries"
+        )
+    if family is not None and not isinstance(family, CellFamily):
+        raise CausalTypeError("family must be a CellFamily declaration or None")
+    if average and family is not None:
+        raise CausalValueError("CellFamily settings require joint InterventionResponse queries")
+    policy = Execution() if execution is None else execution
+    if not isinstance(policy, Execution):
+        raise CausalTypeError("execution must be an Execution declaration")
+    if inference is not None and not isinstance(inference, Frequentist):
+        raise CausalTypeError("batch inference must be a Frequentist declaration")
+    declarations = retain(
+        dict(
+            graph=graph,
+            queries=tuple(queries),
+            identifier=identifier,
+            estimator=estimator,
+            estimator_config=estimator_config,
+            refute=refute,
+            inference=inference,
+            candidate_screen=candidate_screen,
+            family=family,
+        )
+    )
+    queries = declarations["queries"]
+    graph = declarations["graph"]
+    estimator, estimator_config = _unwrap_estimator(estimator, estimator_config)
+    refuse_named_identifiers(estimator_config, "prepare_many")
+    owned = policy._call(table, data)
+    native_queries = tuple(queries)
+    source_data = None
+    if average:
+        from ._treatment_labels import batch_labels
+
+        owned, native_queries, source_data = policy._call(batch_labels, owned, queries)
+    names, columns = owned._native_columns()
+    kwargs: dict[str, Any] = dict(
+        identifier=identifier,
+        estimator=estimator,
+        estimator_config=replay_declaration(retain(estimator_config)),
+        refute=None if refute is None else coerce_refute(refute),
+        bootstrap=None if inference is None else inference.bootstrap,
+        latency=None if inference is None else inference.profile,
+        seed=policy.seed,
+        threads=policy.threads,
+    )
+    kwargs.update(_screen_kwargs(candidate_screen))
+    average_queries = [query for query in native_queries if isinstance(query, AverageEffect)]
+    cell_queries = [query for query in queries if isinstance(query, InterventionResponse)]
+    if average:
+        average_specs = [
             (
                 q.treatment,
                 q.outcome,
@@ -606,151 +774,285 @@ class PreparedBatch:
                 coerce_outcome_functional(q.outcome_functional),
                 coerce_target_population(q.target_population),
             )
-            for q in queries
+            for q in average_queries
         ]
-        kwargs: dict[str, Any] = dict(
-            identifier=identifier,
-            estimator=estimator,
-            estimator_config=estimator_config,
-            refute=resolved_refute,
-            seed=seed,
-            bootstrap=bootstrap,
-            threads=threads,
+    else:
+        cell_specs = _joint_cell_batch_specs(cell_queries)
+        cell_family = CellFamily() if family is None else family
+        kwargs.update(
+            family_contrast=cell_family.contrast, family_posterior_draws=cell_family.posterior_draws
         )
-        if latency is not None:
-            kwargs["latency"] = latency
-        kwargs.update(_screen_kwargs(candidate_screen))
-        if isinstance(graph, TieredBackground):
-            native = _prepare_ate_batch(
-                names,
-                columns,
-                [],
-                specs,
-                tiers=[list(tier) for tier in graph.tiers],
-                within_tier=str(graph.within_tier),
-                **kwargs,
-            )
-        else:
-            native = _prepare_ate_batch(names, columns, _static_edges(graph), specs, **kwargs)
-        return cls(_native=native, _queries=tuple(queries), _names=tuple(names))
-
-    @classmethod
-    def prepare_cells(
-        cls,
-        data: Mapping[str, Any] | Any,
-        *,
-        graph: Dag | TieredBackground | Sequence[tuple[str, str]],
-        queries: Sequence[InterventionResponse],
-        identifier: str | None = None,
-        estimator: str | Estimator | Any | None = None,
-        estimator_config: Mapping[str, Any] | None = None,
-        refute: bool | Literal["full", "placebo", "none", "cheap"] | None = None,
-        seed: int = 1,
-        bootstrap: int | None = None,
-        threads: int | None = None,
-        latency: Literal["interactive", "standard", "report"] | None = None,
-        candidate_screen: CandidateScreen | None = None,
-        family_contrast: Literal["cell_minus_control", "interaction"] | None = "cell_minus_control",
-        family_posterior_draws: int | None = None,
-    ) -> PreparedBatch:
-        """Compile discrete joint ``InterventionResponse`` cells into one batch.
-
-        Licensed on a DAG and on CoDetermined ``TieredBackground``. Unknown-tier
-        joint has no single ADMG and refuses. Pair families share folds and, when
-        adjustment sets agree, the covariate design; estimation attaches joint
-        IF covariance on cell **levels**. Family p-values / FDR use
-        ``family_contrast`` (default ``cell_minus_control``, the same contrast
-        as cell.aipw refuters). Max-t and ``family_contrast_interval`` are
-        formed on that contrast family. ``family_contrast=None`` publishes no
-        p-values. ``estimate.ate`` remains the requested cell level, not a
-        contrast.
-
-        ``family_posterior_draws`` additionally publishes
-        ``estimate.family_contrast_posterior``: a Bayesian-bootstrap posterior of the
-        family contrast (for ``interaction``, the complete non-additivity) from the
-        frozen cross-fit scores. Every family member shares each draw's Dirichlet row
-        weights, so draw ``d`` is one aligned joint realization. It is conditional on
-        the cross-fit nuisances and its calibration is unmeasured.
-        """
-        if not queries:
-            raise CausalValueError("PreparedBatch.prepare_cells requires at least one query")
-        if not all(isinstance(q, InterventionResponse) for q in queries):
-            raise _batch_route_refusal(
-                "PreparedBatch.prepare_cells", "discrete joint InterventionResponse cells"
-            )
-        estimator, estimator_config = _unwrap_estimator(estimator, estimator_config)
-        refuse_named_identifiers(estimator_config, "PreparedBatch.prepare_cells")
         if isinstance(graph, TieredBackground):
             if identifier not in (None, "generalized.adjustment"):
-                raise CausalUnsupportedError(
-                    "CoDetermined joint cells require identifier generalized.adjustment"
-                )
+                raise CausalUnsupportedError("joint cells require generalized.adjustment")
             if estimator not in (None, "cell.aipw"):
-                raise CausalUnsupportedError("CoDetermined joint cells require estimator cell.aipw")
-        resolved_refute: bool | str | None = None if refute is None else coerce_refute(refute)
-        specs = _joint_cell_batch_specs(queries)
-        names, columns = ingest_columns(data)
-        kwargs: dict[str, Any] = dict(
-            identifier=None if isinstance(graph, TieredBackground) else identifier,
-            estimator=estimator,
-            estimator_config=estimator_config,
-            refute=resolved_refute,
-            seed=seed,
-            bootstrap=bootstrap,
-            threads=threads,
-            family_contrast=family_contrast,
-            family_posterior_draws=family_posterior_draws,
+                raise CausalUnsupportedError("joint cells require cell.aipw")
+            kwargs["identifier"] = None
+    if isinstance(graph, TieredBackground):
+        kwargs.update(
+            tiers=[list(tier) for tier in graph.tiers], within_tier=str(graph.within_tier)
         )
-        if latency is not None:
-            kwargs["latency"] = latency
-        kwargs.update(_screen_kwargs(candidate_screen))
-        if isinstance(graph, TieredBackground):
-            native = _prepare_cells_batch(
-                names,
-                columns,
-                [],
-                specs,
-                tiers=[list(tier) for tier in graph.tiers],
-                within_tier=str(graph.within_tier),
-                **kwargs,
+        edges = []
+    else:
+        edges = _static_edges(graph)
+
+    def invoke() -> Any:
+        if average:
+            return policy._call(_prepare_ate_batch, names, columns, edges, average_specs, **kwargs)
+        return policy._call(_prepare_cells_batch, names, columns, edges, cell_specs, **kwargs)
+
+    prepared: Outcome[Any] = capture_outcome(invoke)
+    return PreparedBatch(
+        prepared.value,
+        tuple(queries),
+        owned,
+        declarations,
+        policy,
+        Reuse(),
+        prepared if prepared.refusal is not None else None,
+        source_data,
+    )
+
+
+def rebind_many(study: PreparedBatch, *, data: Any) -> PreparedBatch:
+    """Bind new owned observations, invalidating fits without changing earlier branches."""
+    from dataclasses import replace
+
+    from ._table_snapshot import table
+    from .prepared import Reuse
+
+    owned = study.execution._call(table, data)
+    if owned is study._data or owned is study._source_data:
+        return replace(study, reuse=Reuse(retained=_retained_work(study._native)))
+    if study._source_data is not None:
+        from ._study_lifecycle import replay_declaration
+
+        branch = prepare_many(
+            owned, execution=study.execution, **replay_declaration(study._declarations)
+        )
+        return replace(
+            branch,
+            reuse=Reuse(invalidated=("data", "fits", "scores"), preparation="reprepared"),
+        )
+    if study._native is None:
+        from ._study_lifecycle import replay_declaration
+
+        return prepare_many(
+            owned, execution=study.execution, **replay_declaration(study._declarations)
+        )
+    owned = owned.select(study._data.column_names)
+    names, columns = owned._native_columns()
+    rebound = capture_outcome(
+        study.execution._call,
+        study._native.rebind,
+        names,
+        columns,
+        seed=study.execution.seed,
+        threads=study.execution.threads,
+    )
+    return replace(
+        study,
+        _native=rebound.value,
+        _refused=rebound if rebound.refusal is not None else None,
+        _data=owned,
+        reuse=Reuse(
+            retained=("programs",), invalidated=("data", "fits", "scores"), preparation="rebound"
+        ),
+    )
+
+
+def reconfigure_many(study: PreparedBatch, **declarations: Any) -> PreparedBatch:
+    from dataclasses import replace
+
+    from ._study_lifecycle import replay_declaration
+    from .prepared import Reuse
+
+    if "data" in declarations:
+        raise CausalValueError("data changes use rebind(study, data=...)")
+    if not declarations:
+        return study
+    policy = declarations.pop("execution", study.execution)
+    if not isinstance(policy, Execution):
+        raise CausalTypeError("execution must be an Execution declaration")
+    if declarations or policy is not study.execution or study._native is None:
+        configured = replay_declaration(study._declarations)
+        configured.update(declarations)
+        branch = prepare_many(
+            study._source_data if study._source_data is not None else study._data,
+            execution=policy,
+            **configured,
+        )
+        return replace(
+            branch,
+            reuse=Reuse(
+                retained=("data",),
+                invalidated=("programs", "fits", "scores"),
+                preparation="reprepared",
+            ),
+        )
+    return replace(study, reuse=Reuse(retained=_retained_work(study._native)))
+
+
+def _retained_work(native: Any) -> tuple[str, ...]:
+    if native is None:
+        return ("data",)
+    retained = ["data", "programs"]
+    if native.materialized_plan_count():
+        retained.append("fits")
+    if native.retained_score_table_count():
+        retained.append("scores")
+    return tuple(retained)
+
+
+def estimate_many(study: PreparedBatch) -> Outcome[BatchResult]:
+    """Execute once through the native shared-fit family, retaining an immutable run."""
+    if not isinstance(study, PreparedBatch):
+        raise CausalTypeError("estimate_many requires a PreparedBatch")
+    from dataclasses import replace
+
+    from ._table_snapshot import Table
+    from .estimation import PreparedAnalysis as Engine
+    from .prepared import PreparedAnalysis as Study
+    from .prepared import Reuse, _finish_outcome, _preparation_declarations
+
+    if study._refused is not None:
+        return replace(study._refused, _study=study)
+
+    def execute() -> BatchResult:
+        observer = study.execution.on_stage
+        callbacks = None
+        if observer is not None:
+
+            def bind(index: int) -> Any:
+                def stage(name: str, payload: Any) -> None:
+                    observer(name, {**payload, "query_index": index})
+
+                return stage
+
+            callbacks = [bind(index) for index in range(len(study._queries))]
+        completed = study.execution._call(
+            study._native.execute,
+            seed=study.execution.seed,
+            threads=study.execution.threads,
+            on_stage=callbacks,
+        )
+        native_preparation = completed.preparation()
+        prepared = replace(
+            study,
+            _native=native_preparation,
+            reuse=Reuse(retained=_retained_work(native_preparation)),
+        )
+        member_data = Table(completed.bound_table(), study._data.column_names)
+        member_source = member_data
+        if study._source_data is not None:
+            from ._treatment_labels import label_table
+
+            member_source = label_table(
+                study._source_data, member_data, study._source_data._treatment_codes
             )
-        else:
-            native = _prepare_cells_batch(names, columns, _static_edges(graph), specs, **kwargs)
-        return cls(_native=native, _queries=tuple(queries), _names=tuple(names))
+        members: list[Outcome[AnalysisResult]] = []
+        for query, (raw, header) in zip(study._queries, completed.members(), strict=True):
+            from ._treatment_labels import TreatmentLabels
 
-    def estimate(
-        self,
-        data: Mapping[str, Any] | Any,
-        *,
-        seed: int = 1,
-        threads: int | None = None,
-    ) -> list[AnalysisResult]:
-        """Re-estimate every plan on ``data``.
+            labels = TreatmentLabels.of(query, data=member_source)
+            native_query = query if labels is None else labels.native_query(query)
+            engine: Engine[AnalysisResult] = Engine(
+                header,
+                kind="average",
+                query=native_query,
+                display_query=query,
+                seed=study.execution.seed,
+                threads=study.execution.threads,
+                snapshot_data=member_source,
+                column_names=member_data.column_names,
+            )
+            engine._batch_family = True
+            engine._treatment_labels = labels
+            member_declarations = {
+                key: value
+                for key, value in study._declarations.items()
+                if key
+                in ("graph", "identifier", "estimator", "estimator_config", "refute", "inference")
+            }
+            member_study: Study[AnalysisResult] = Study(
+                _engine=engine,
+                execution=study.execution,
+                _declarations=_preparation_declarations(query=query, **member_declarations),
+                _data=member_source,
+            )
+            result = _wrap_ate(raw, prepared=engine, query=query)
+            members.append(_finish_outcome(member_study, as_outcome(result)))
+        return BatchResult(tuple(members), prepared, completed)
 
-        The estimate's score tables are retained on this handle, so a later
-        :meth:`retarget` reweights this estimate's rows (see :meth:`retarget_rows`) rather
-        than the prepare-time rows; a plan whose estimate kept no table refuses its members
-        instead of silently losing the retarget.
-        """
-        names, columns = ingest_columns(data)
-        raws = self._native.estimate(names, columns, seed=seed, threads=threads)
-        return [_wrap_ate(r, query=q) for r, q in zip(raws, self._queries, strict=True)]
+    outcome = capture_outcome(execute)
+    return replace(outcome, _study=study if outcome.value is None else outcome.value.study)
+
+
+@dataclass(frozen=True, slots=True, repr=False)
+class BatchResult:
+    """A completed native batch with explicit member outcomes and aligned score reuse."""
+
+    members: tuple[Outcome[AnalysisResult], ...]
+    study: PreparedBatch
+    _native: Any
+
+    @property
+    def _queries(self) -> tuple[AverageEffect | InterventionResponse, ...]:
+        return self.study.queries
+
+    def member(self, index: int) -> Outcome[AnalysisResult]:
+        """Select one scientific quantity explicitly for downstream composition."""
+        if not isinstance(index, int) or isinstance(index, bool):
+            raise CausalTypeError("member index must be an integer")
+        return self.members[index]
+
+    def export(self) -> Any:
+        raise CausalValueError(
+            "a batch contains multiple quantities; select member(index).export()"
+        )
+
+    def inspect(self) -> Any:
+        from .outcomes import Answer
+        from .results._report import InspectionReport, SlotModel
+
+        reports = tuple(member.inspect() for member in self.members)
+
+        def slot(name: str) -> SlotModel:
+            present = all(getattr(report, name).available for report in reports)
+            return SlotModel(
+                available=present,
+                reason=None if present else "member_specific",
+                summary="inspect individual member outcomes",
+            )
+
+        return InspectionReport(
+            identification=slot("identification"),
+            support=slot("support"),
+            uncertainty=slot("uncertainty"),
+            assumptions=slot("assumptions"),
+            answer=Answer("structured"),
+            family="batch",
+            stage="executed",
+            details={"members": len(self.members)},
+            operations=("inspect", "member", "retarget"),
+        )
+
+    def __repr__(self) -> str:
+        return f"BatchResult(members={len(self.members)}, stage='executed')"
+
+    def _repr_html_(self) -> str:
+        import html
+
+        return f"<pre>{html.escape(repr(self))}</pre>"
 
     def retarget_rows(self) -> tuple[int, ...] | None:
-        """Original-row index the weights of every claim must align with.
-
-        These are the rows of the scores a retarget now reads: the last :meth:`estimate`'s
-        (retained on this handle), else the prepare-time rows. ``None`` when no plan holds a
-        score table. Plans built on different rows raise
-        ``reason_code="row_weights_bound_to_snapshot"``.
-        """
         rows = self._native.retarget_rows()
-        return None if rows is None else tuple(int(r) for r in rows)
+        return None if rows is None else tuple(int(row) for row in rows)
 
     def retarget_snapshot(self) -> str | None:
-        """Identity of the row snapshot the scores a retarget now reads share."""
         return self._native.retarget_snapshot()
 
+    @outcome_operation
     @describe_refusal
     def retarget(
         self,
@@ -771,9 +1073,9 @@ class PreparedBatch:
         :class:`RetargetContrast` values with their standard errors, the failed members, and
         for a complete family the max-t simultaneous band at ``simultaneous_level`` (the
         Monte-Carlo critical value uses ``simultaneous_seed`` and ``simultaneous_draws``,
-        1000 to 2000000). After :meth:`estimate` the scores are that
-        estimate's; a plan whose estimate kept no score table fails its members with
-        ``reason_code="score_table_unavailable"`` rather than reusing prepare-time rows.
+        1000 to 2000000). Scores belong to this immutable completed execution;
+        a plan that kept no score table fails its members with
+        ``reason_code="score_table_unavailable"``.
         Mixed snapshots, an undeclared ``expected_snapshot`` and malformed families raise
         typed refusals; a member that cannot be retargeted is reported, never dropped.
         """
@@ -784,6 +1086,10 @@ class PreparedBatch:
                 index = claim.query
             else:
                 matches = [i for i, q in enumerate(self._queries) if q == claim.query]
+                if len(matches) > 1:
+                    raise CausalValueError(
+                        "query occurs more than once; select its integer member index"
+                    )
                 if not matches:
                     raise CausalValueError(
                         f"claim {claim.name!r} names a query that is not in this batch"
@@ -805,7 +1111,8 @@ class PreparedBatch:
         native_contrasts = [
             (c.name, [(str(n), float(v)) for n, v in c.coefficients.items()]) for c in contrasts
         ]
-        raw = self._native.retarget_family(
+        raw = self.study.execution._call(
+            self._native.retarget_family,
             native_claims,
             native_contrasts,
             expected_snapshot=expected_snapshot,
@@ -813,7 +1120,7 @@ class PreparedBatch:
             simultaneous_seed=int(simultaneous_seed),
             simultaneous_draws=int(simultaneous_draws),
         )
-        members = []
+        members: list[RetargetMember] = []
         for entry in raw["claims"]:
             if entry["name"] in labels:
                 entry["estimand"] = labels[entry["name"]]

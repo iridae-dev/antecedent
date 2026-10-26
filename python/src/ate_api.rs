@@ -461,23 +461,95 @@ fn compile_ate_batch(
     Ok((batch, ate_queries))
 }
 
-type CellBatchQuerySpec =
-    (String, Vec<String>, Vec<String>, Vec<Vec<f64>>, Option<antecedent_core::OutcomeFunctional>);
-type PyCellBatchQuery<'py> =
-    (String, Vec<String>, Vec<String>, Vec<Vec<f64>>, Option<Bound<'py, PyDict>>);
+struct CellBatchQuerySpec {
+    outcome: String,
+    treatments: Vec<String>,
+    kinds: Vec<String>,
+    parameters: Vec<Vec<f64>>,
+    functional: Option<antecedent_core::OutcomeFunctional>,
+    population: Option<TargetPopulation>,
+    observation: crate::observation_api::ObservationArgs,
+    assumptions: Vec<crate::observation_api::ObservationArgs>,
+}
+
+type PyCellBatchQuery<'py> = (
+    String,
+    Vec<String>,
+    Vec<String>,
+    Vec<Vec<f64>>,
+    Option<Bound<'py, PyDict>>,
+    Option<Bound<'py, PyDict>>,
+    Option<Bound<'py, PyDict>>,
+    Vec<Bound<'py, PyDict>>,
+);
+
+/// Read the established observation kwargs codec; scientific validation remains
+/// in the shared observation builders and the native ResponseQuery consumers.
+fn cell_observation_args(
+    specification: Option<&Bound<'_, PyDict>>,
+    outcome: &str,
+) -> PyResult<crate::observation_api::ObservationArgs> {
+    let text = |name: &str| -> PyResult<Option<String>> {
+        specification
+            .map(|spec| spec.get_item(name))
+            .transpose()?
+            .flatten()
+            .filter(|value| !value.is_none())
+            .map(|value| value.extract())
+            .transpose()
+    };
+    let assumption_variables = specification
+        .map(|spec| spec.get_item("assumption_variables"))
+        .transpose()?
+        .flatten()
+        .map(|value| value.extract::<Vec<String>>())
+        .transpose()?
+        .unwrap_or_default();
+    Ok(crate::observation_api::ObservationArgs {
+        kind: text("observation_kind")?.unwrap_or_else(|| "complete".into()),
+        latent: text("latent")?.unwrap_or_else(|| outcome.to_owned()),
+        observed: text("observed")?,
+        censoring: text("censoring")?,
+        event: text("event")?,
+        lower: text("lower")?,
+        upper: text("upper")?,
+        indicator: text("indicator")?,
+        assumption_kind: text("assumption_kind")?.unwrap_or_default(),
+        assumption_variables,
+        structural_model: text("structural_model")?,
+    })
+}
 
 fn parse_cell_batch_query_specs(
     queries: Vec<PyCellBatchQuery<'_>>,
 ) -> PyResult<Vec<CellBatchQuerySpec>> {
     let mut parsed = Vec::with_capacity(queries.len());
-    for (outcome, treatments, kinds, parameters, functional) in queries {
-        parsed.push((
+    for (
+        outcome,
+        treatments,
+        kinds,
+        parameters,
+        functional,
+        population,
+        observation,
+        assumptions,
+    ) in queries
+    {
+        let observation = cell_observation_args(observation.as_ref(), &outcome)?;
+        let assumptions = assumptions
+            .iter()
+            .map(|assumption| cell_observation_args(Some(assumption), &outcome))
+            .collect::<PyResult<Vec<_>>>()?;
+        parsed.push(CellBatchQuerySpec {
             outcome,
             treatments,
             kinds,
             parameters,
-            parse_outcome_functional(functional.as_ref())?,
-        ));
+            functional: parse_outcome_functional(functional.as_ref())?,
+            population: parse_target_population(population.as_ref())?,
+            observation,
+            assumptions,
+        });
     }
     Ok(parsed)
 }
@@ -501,9 +573,11 @@ fn compile_cell_batch(
     family_contrast: Option<String>,
 ) -> PyResult<(antecedent::BatchStudy, Vec<ResponseQuery>)> {
     let mut cell_queries = Vec::with_capacity(parsed_queries.len());
-    for (outcome, treatments, kinds, parameters, functional) in &parsed_queries {
-        let treatment_ids = crate::response_api::resolve_names(data.schema(), treatments)?;
-        let outcome_ids = crate::response_api::resolve_names(data.schema(), &[outcome.clone()])?;
+    for declaration in &parsed_queries {
+        let treatment_ids =
+            crate::response_api::resolve_names(data.schema(), &declaration.treatments)?;
+        let outcome_ids =
+            crate::response_api::resolve_names(data.schema(), &[declaration.outcome.clone()])?;
         let built = crate::response_api::build_functional(
             "intervention_response",
             &treatment_ids,
@@ -511,16 +585,31 @@ fn compile_cell_batch(
             None,
             None,
             None,
-            Some(kinds.clone()),
-            Some(parameters.clone()),
+            Some(declaration.kinds.clone()),
+            Some(declaration.parameters.clone()),
             1,
             antecedent_core::DerivativeScale::Identity,
             antecedent_core::DerivativeWeighting::Observed,
         )?;
         let mut query = ResponseQuery::new(built);
-        if let Some(functional) = functional.clone() {
+        if let Some(functional) = declaration.functional.clone() {
             query = query.with_outcome_functional(functional);
         }
+        if let Some(population) = declaration.population.clone() {
+            query.target_population = population;
+        }
+        let latent = data.schema().id_of(&declaration.observation.latent).map_err(py_err)?;
+        let observation = crate::observation_api::build_observation(
+            data.schema(),
+            &declaration.observation,
+            latent,
+        )?;
+        let assumptions = declaration
+            .assumptions
+            .iter()
+            .map(|args| crate::observation_api::build_assumption(data.schema(), args))
+            .collect::<PyResult<Vec<_>>>()?;
+        query = query.with_observation(observation, assumptions);
         cell_queries.push(query);
     }
     let batch = compile_batch_study(
@@ -640,11 +729,8 @@ pub(crate) fn ate_result_from_analysis(
     let effect = result.estimate.as_effect();
     let certificate_json = crate::identification_details::analysis_to_json(result, names)?;
     let estimator_id = result.logical_plan.estimator.as_deref().unwrap_or("").to_string();
-    let posterior_artifact = if include_posterior_artifact {
-        posterior_artifact_from_result(result)?
-    } else {
-        None
-    };
+    let posterior_artifact =
+        if include_posterior_artifact { posterior_artifact_from_result(result)? } else { None };
     let sections = crate::shared_study_sections(names, result, estimator_id)?
         .with_posterior_artifact(posterior_artifact);
     let ppc = ppc_fields_from_checks(&result.predictive_checks);
@@ -1461,25 +1547,26 @@ fn parse_candidate_screen(
     }))
 }
 
-/// Frozen multi-query batch: identify once, estimate on later tables.
+/// Immutable multi-query preparation over one owned native table.
 #[pyclass(name = "PreparedBatch")]
 pub struct PyPreparedBatch {
     pub(crate) inner: std::sync::Arc<antecedent::PreparedBatch>,
     pub(crate) names: Vec<String>,
-    /// Score tables of the last `estimate`, retained so a retarget after it reweights that
-    /// estimate's rows; `None` until an estimate ran (a retarget then reweights the
-    /// prepare-time tables).
-    pub(crate) last_scores: std::sync::Mutex<Option<std::sync::Arc<antecedent::BatchScores>>>,
 }
 
 impl PyPreparedBatch {
     fn new(prepared: antecedent::PreparedBatch, names: Vec<String>) -> Self {
-        Self {
-            inner: std::sync::Arc::new(prepared),
-            names,
-            last_scores: std::sync::Mutex::new(None),
-        }
+        Self { inner: std::sync::Arc::new(prepared), names }
     }
+}
+
+/// One immutable execution, with score ownership independent of later runs.
+#[pyclass(name = "CompletedBatch")]
+pub struct PyCompletedBatch {
+    pub(crate) inner: std::sync::Arc<antecedent::CompletedBatch>,
+    pub(crate) names: Vec<String>,
+    seed: u64,
+    threads: u32,
 }
 
 #[pymethods]
@@ -1507,35 +1594,128 @@ impl PyPreparedBatch {
             .map(|c| c.adjustment_set.iter().map(|v| v.raw()).collect())
     }
 
+    fn materialized_plan_count(&self) -> usize {
+        self.inner.materialized_plan_count()
+    }
+
+    fn retained_score_table_count(&self) -> usize {
+        self.inner.retained_score_table_count()
+    }
+
+    #[pyo3(signature = (*, seed=1, threads=None, on_stage=None))]
+    fn execute(
+        &self,
+        py: Python<'_>,
+        seed: u64,
+        threads: Option<u32>,
+        on_stage: Option<Vec<Bound<'_, PyAny>>>,
+    ) -> PyResult<PyCompletedBatch> {
+        let inner = std::sync::Arc::clone(&self.inner);
+        let sinks = on_stage
+            .map(|callbacks| {
+                callbacks
+                    .iter()
+                    .map(|callback| {
+                        crate::callbacks::stage_sink_from_py(Some(callback))?.ok_or_else(|| {
+                            crate::value_err("batch stage observer must be callable")
+                        })
+                    })
+                    .collect::<PyResult<Vec<_>>>()
+            })
+            .transpose()?;
+        let threads = crate::resolve_user_threads(threads);
+        let completed = detach_catch(py, move || {
+            let ctx = py_execution_context(seed, threads);
+            let staged = sinks
+                .map(|sinks| {
+                    inner.with_stage_sinks(
+                        sinks.into_iter().map(crate::interrupt::bind_stage_sink).collect(),
+                    )
+                })
+                .transpose()
+                .map_err(py_err)?;
+            let source = staged.as_ref().unwrap_or(inner.as_ref());
+            source.execute_retained(&ctx).map_err(py_err)
+        })?;
+        Ok(PyCompletedBatch {
+            inner: std::sync::Arc::new(completed),
+            names: self.names.clone(),
+            seed,
+            threads,
+        })
+    }
+
     #[pyo3(signature = (names, columns, *, seed=1, threads=None))]
-    fn estimate(
+    fn rebind(
         &self,
         py: Python<'_>,
         names: Vec<String>,
         columns: Vec<Bound<'_, PyAny>>,
         seed: u64,
         threads: Option<u32>,
-    ) -> PyResult<Vec<AteAnalysisResult>> {
+    ) -> PyResult<Self> {
         if names != self.names {
             return Err(crate::value_err(
-                "prepared batch estimate requires the same column names (order) as prepare",
+                "prepared batch rebind requires its declared column order",
             ));
         }
         let (data, _) = tabular_from_py_columns(names.clone(), columns)?;
         let inner = std::sync::Arc::clone(&self.inner);
-        let (results, scores) = detach_catch(py, move || {
+        let prepared = detach_catch(py, move || {
             let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-            let (results, scores) = inner.estimate_scored(&data, &ctx).map_err(py_err)?;
-            let results = results
-                .into_iter()
-                .map(|r| ate_result_from_analysis(&names, &r, false))
-                .collect::<PyResult<Vec<_>>>()?;
-            Ok((results, scores))
+            inner.rebind_data(data, &ctx).map_err(py_err)
         })?;
-        // A retarget after this estimate reweights this estimate's rows.
-        *self.last_scores.lock().map_err(|_| crate::value_err("batch scores lock poisoned"))? =
-            Some(std::sync::Arc::new(scores));
-        Ok(results)
+        Ok(Self::new(prepared, names))
+    }
+
+    #[pyo3(signature = (*, seed=1, threads=None))]
+    fn reconfigure_execution(
+        &self,
+        py: Python<'_>,
+        seed: u64,
+        threads: Option<u32>,
+    ) -> PyResult<Self> {
+        let inner = std::sync::Arc::clone(&self.inner);
+        let prepared = detach_catch(py, move || {
+            let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+            inner.reconfigure_execution(&ctx).map_err(py_err)
+        })?;
+        Ok(Self::new(prepared, self.names.clone()))
+    }
+}
+
+#[pymethods]
+impl PyCompletedBatch {
+    fn bound_table(&self) -> PyResult<crate::data_snapshot::TableSnapshot> {
+        Ok(crate::data_snapshot::TableSnapshot::from_native(
+            self.inner.bound_table().map_err(py_err)?.clone(),
+        ))
+    }
+
+    fn preparation(&self) -> PyPreparedBatch {
+        PyPreparedBatch::new(self.inner.prepared().clone(), self.names.clone())
+    }
+
+    fn members(
+        &self,
+    ) -> PyResult<Vec<(AteAnalysisResult, crate::prepared_api::PyPreparedAnalysis)>> {
+        self.inner
+            .prepared()
+            .plans()
+            .iter()
+            .zip(self.inner.results())
+            .map(|(study, result)| {
+                let raw = ate_result_from_analysis(&self.names, result, false)?;
+                let execution = crate::prepared_api::PyPreparedAnalysis::from_completed(
+                    std::sync::Arc::new(study.clone()),
+                    std::sync::Arc::clone(result),
+                    self.names.clone(),
+                    self.seed,
+                    self.threads,
+                );
+                Ok((raw, execution))
+            })
+            .collect()
     }
 }
 
@@ -1607,7 +1787,7 @@ fn prepare_ate_batch(
             within_tier,
         )?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let prepared = batch.prepare(&ate_queries, &ctx).map_err(py_err)?;
+        let prepared = batch.prepare_deferred(&ate_queries, &ctx).map_err(py_err)?;
         Ok(PyPreparedBatch::new(prepared, names))
     })
 }
@@ -1692,7 +1872,7 @@ fn prepare_cells_batch(
             }
         }));
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let prepared = batch.prepare_cells(&cell_queries, &ctx).map_err(py_err)?;
+        let prepared = batch.prepare_cells_deferred(&cell_queries, &ctx).map_err(py_err)?;
         Ok(PyPreparedBatch::new(prepared, names))
     })
 }
@@ -1702,6 +1882,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(prepare_ate_batch, m)?)?;
     m.add_function(wrap_pyfunction!(prepare_cells_batch, m)?)?;
     m.add_class::<PyPreparedBatch>()?;
+    m.add_class::<PyCompletedBatch>()?;
     m.add_function(wrap_pyfunction!(identify_ate, m)?)?;
     m.add_function(wrap_pyfunction!(identify_ate_admg, m)?)?;
     m.add_function(wrap_pyfunction!(identify_structure, m)?)?;

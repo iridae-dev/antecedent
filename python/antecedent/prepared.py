@@ -19,9 +19,25 @@ from .outcomes import Outcome, Refusal, as_outcome, capture_outcome
 
 T = TypeVar("T")
 if TYPE_CHECKING:
+    from ._batch import BatchResult, PreparedBatch
     from .cyclic import CyclicResult, PreparedCyclicFamily, PreparedCyclicSystem
 
 CyclicStudyT = TypeVar("CyclicStudyT", "PreparedCyclicFamily", "PreparedCyclicSystem")
+
+
+def _preparation_declarations(**values: Any) -> Mapping[str, Any]:
+    """Bind scientific declarations to the canonical signature without preparing work."""
+    from inspect import signature
+
+    bound = signature(prepare).bind(None, **values)
+    bound.apply_defaults()
+    return retain(
+        {
+            name: value
+            for name, value in bound.arguments.items()
+            if name not in {"data", "execution"}
+        }
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -220,8 +236,8 @@ def prepare(
         raise CausalTypeError(
             "preparation requires an executed discovery result; run discovery.discover first"
         )
-    declarations = retain(
-        {
+    declarations = _preparation_declarations(
+        **{
             "query": query,
             "graph": graph,
             "discovery": discovery,
@@ -375,11 +391,19 @@ def estimate(study: PreparedAnalysis[T]) -> Outcome[T]: ...
 
 
 @overload
+def estimate(study: PreparedBatch) -> Outcome[BatchResult]: ...
+
+
+@overload
 def estimate(study: PreparedCyclicFamily | PreparedCyclicSystem) -> Outcome[CyclicResult]: ...
 
 
 def estimate(study: Any) -> Outcome[Any]:
     """Execute one immutable prepared branch and retain its completed native state."""
+    from ._batch import PreparedBatch, estimate_many
+
+    if isinstance(study, PreparedBatch):
+        return estimate_many(study)
     if not isinstance(study, PreparedAnalysis):
         if _is_cyclic_preparation(study):
             return study.execute()
@@ -613,15 +637,34 @@ def rebind(study: PreparedAnalysis[T], *, data: Any) -> PreparedAnalysis[T]: ...
 
 
 @overload
+def rebind(study: PreparedBatch, *, data: Any) -> PreparedBatch: ...
+
+
+@overload
 def rebind(study: CyclicStudyT, *, data: Any) -> CyclicStudyT: ...
 
 
 def rebind(study: Any, *, data: Any) -> Any:
     """Return a new preparation on compatible observations, leaving the source intact."""
+    from ._batch import PreparedBatch, rebind_many
+
+    if isinstance(study, PreparedBatch):
+        return rebind_many(study, data=data)
     if not isinstance(study, PreparedAnalysis):
         if _is_cyclic_preparation(study):
             return study.rebind(data)
         raise CausalTypeError("rebind requires a PreparedAnalysis")
+    if getattr(study._engine, "_batch_family", False):
+        engine = copy.copy(study._engine)
+        engine._batch_family = False
+        member_branch = rebind(replace(study, _engine=engine), data=data)
+        return replace(
+            member_branch,
+            reuse=replace(
+                member_branch.reuse,
+                invalidated=(*member_branch.reuse.invalidated, "family_inference"),
+            ),
+        )
     if study._refused is not None:
         return prepare(data, execution=study.execution, **replay_declaration(study._declarations))
     from ._table_snapshot import Table, table
@@ -685,17 +728,36 @@ def reconfigure(study: PreparedAnalysis[T], **declarations: Any) -> PreparedAnal
 
 
 @overload
+def reconfigure(study: PreparedBatch, **declarations: Any) -> PreparedBatch: ...
+
+
+@overload
 def reconfigure(study: CyclicStudyT, **declarations: Any) -> CyclicStudyT: ...
 
 
 def reconfigure(study: Any, **declarations: Any) -> Any:
     """Branch scientific or execution declarations without executing the new study."""
+    from ._batch import PreparedBatch, reconfigure_many
+
+    if isinstance(study, PreparedBatch):
+        return reconfigure_many(study, **declarations)
     if not isinstance(study, PreparedAnalysis):
         if _is_cyclic_preparation(study):
             if "data" in declarations:
                 raise CausalValueError("data changes use rebind(study, data=...)")
             return study.reconfigure(**declarations)
         raise CausalTypeError("reconfigure requires a PreparedAnalysis")
+    if getattr(study._engine, "_batch_family", False):
+        engine = copy.copy(study._engine)
+        engine._batch_family = False
+        member_branch = reconfigure(replace(study, _engine=engine), **declarations)
+        return replace(
+            member_branch,
+            reuse=replace(
+                member_branch.reuse,
+                invalidated=(*member_branch.reuse.invalidated, "family_inference"),
+            ),
+        )
     if "data" in declarations:
         raise CausalValueError("data changes use rebind(study, data=...)")
     unknown = declarations.keys() - study._declarations.keys() - {"execution"}

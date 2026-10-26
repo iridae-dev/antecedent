@@ -16,10 +16,11 @@ import numpy as np
 import pytest
 from antecedent.errors import CausalUnsupportedError, CausalValueError
 from antecedent.estimation import (
-    PreparedBatch,
+    BatchResult,
     RetargetClaim,
     RetargetContrast,
     analyze_many,
+    prepare_many,
 )
 from antecedent.estimators import Aipw, PropensityPenalty
 from antecedent.outcomes import require_success
@@ -51,20 +52,22 @@ def frame(n: int = 500, seed: int = 11) -> dict[str, np.ndarray]:
     return {"t1": t1, "t2": t2, "y1": y1, "y2": y2, "z": z}
 
 
-def prepare(data, estimator="aipw", **kwargs) -> PreparedBatch:
-    return PreparedBatch.prepare(
-        data,
-        graph=GRAPH,
-        queries=[Q_T1_Y1, Q_T1_Y2, Q_T2_Y1],
-        estimator=estimator,
-        refute=False,
-        seed=11,
-        **({"bootstrap": 0} if isinstance(estimator, str) else {}),
-        **kwargs,
+def prepare(data, estimator="aipw", **kwargs) -> BatchResult:
+    return require_success(
+        prepare_many(
+            data,
+            graph=GRAPH,
+            queries=[Q_T1_Y1, Q_T1_Y2, Q_T2_Y1],
+            estimator=estimator,
+            refute=False,
+            execution=ant.Execution(seed=11),
+            **({"inference": ant.Frequentist(bootstrap=0)} if isinstance(estimator, str) else {}),
+            **kwargs,
+        ).estimate()
     )
 
 
-def weights(batch: PreparedBatch, data, sign: float) -> np.ndarray:
+def weights(batch: BatchResult, data, sign: float) -> np.ndarray:
     rows = batch.retarget_rows()
     assert rows is not None
     return np.exp(sign * 0.4 * np.asarray(data["z"])[list(rows)])
@@ -90,18 +93,25 @@ def test_batch_entry_points_accept_typed_configurations_and_strings_alike():
             for q in (Q_T1_Y1, Q_T2_Y1)
         ]
         many = analyze_many(
-            data, graph=GRAPH, queries=[Q_T1_Y1, Q_T2_Y1], estimator=cfg, refute=False, seed=11
+            data,
+            graph=GRAPH,
+            queries=[Q_T1_Y1, Q_T2_Y1],
+            estimator=cfg,
+            refute=False,
+            execution=ant.Execution(seed=11),
         )
         prepared = require_success(
-            PreparedBatch.prepare(
+            prepare_many(
                 data,
                 graph=GRAPH,
                 queries=[Q_T1_Y1, Q_T2_Y1],
                 estimator=cfg,
                 refute=False,
-                seed=11,
-            ).estimate(data, seed=11)
+                execution=ant.Execution(seed=11),
+            ).estimate()
         )
+        many = [require_success(member) for member in require_success(many).members]
+        prepared = [require_success(member) for member in prepared.members]
         for alone, batch_result, again in zip(solo, many, prepared, strict=True):
             assert batch_result.effect == alone.effect
             assert again.effect == alone.effect
@@ -112,9 +122,10 @@ def test_batch_entry_points_accept_typed_configurations_and_strings_alike():
         queries=[Q_T1_Y1],
         estimator="aipw",
         refute=False,
-        bootstrap=0,
-        seed=11,
+        inference=ant.Frequentist(bootstrap=0),
+        execution=ant.Execution(seed=11),
     )
+    plain = [require_success(member) for member in require_success(plain).members]
     assert plain[0].effect == pytest.approx(2.0, abs=0.35)
     # The configuration dict form takes the same keys as `analyze`.
     via_dict = analyze_many(
@@ -124,8 +135,9 @@ def test_batch_entry_points_accept_typed_configurations_and_strings_alike():
         estimator="aipw",
         estimator_config={"bootstrap_replicates": 0},
         refute=False,
-        seed=11,
+        execution=ant.Execution(seed=11),
     )
+    via_dict = [require_success(member) for member in require_success(via_dict).members]
     assert via_dict[0].effect == pytest.approx(plain[0].effect, rel=1e-9)
 
 
@@ -146,17 +158,19 @@ def test_a_batch_retarget_reports_points_covariance_contrasts_and_a_simultaneous
     data = frame()
     batch = prepare(data)
     plus, minus = weights(batch, data, 1.0), weights(batch, data, -1.0)
-    report = batch.retarget(
-        [
-            RetargetClaim("a", Q_T1_Y1, plus, depends_on=["z"]),
-            RetargetClaim("b", 0, minus, depends_on=["z"]),
-            RetargetClaim("c", Q_T2_Y1, plus, depends_on=["z"]),
-        ],
-        [RetargetContrast("route_a_minus_route_b", {"a": 1.0, "b": -1.0})],
-        expected_snapshot=batch.retarget_snapshot(),
+    report = require_success(
+        batch.retarget(
+            [
+                RetargetClaim("a", Q_T1_Y1, plus, depends_on=["z"]),
+                RetargetClaim("b", 0, minus, depends_on=["z"]),
+                RetargetClaim("c", Q_T2_Y1, plus, depends_on=["z"]),
+            ],
+            [RetargetContrast("route_a_minus_route_b", {"a": 1.0, "b": -1.0})],
+            expected_snapshot=batch.retarget_snapshot(),
+        )
     )
     assert report.complete and report.complete_family() is report
-    assert report.scores_source == "prepared"
+    assert report.scores_source == "estimated"
     assert report.covariance_names == ("a", "b", "c")
     assert report.covariance is not None
     cov = report.covariance
@@ -189,7 +203,7 @@ def test_a_batch_retarget_reports_points_covariance_contrasts_and_a_simultaneous
     assert [r["name"] for r in rows] == ["a", "b", "c", "route_a_minus_route_b"]
     assert {r["family_id"] for r in rows} == {report.family_id}
     assert all(r["simultaneous_interval"] == "max_t" and r["family_complete"] for r in rows)
-    assert rows[3]["kind"] == "contrast" and rows[0]["scores_source"] == "prepared"
+    assert rows[3]["kind"] == "contrast" and rows[0]["scores_source"] == "estimated"
 
 
 def test_claim_order_does_not_change_the_family_identity_or_values():
@@ -198,8 +212,8 @@ def test_claim_order_does_not_change_the_family_identity_or_values():
     plus, minus = weights(batch, data, 1.0), weights(batch, data, -1.0)
     a = RetargetClaim("a", 0, plus, depends_on=["z"])
     b = RetargetClaim("b", 2, minus, depends_on=["z"])
-    first = batch.retarget([a, b], [RetargetContrast("d", {"a": 1.0, "b": -1.0})])
-    second = batch.retarget([b, a], [RetargetContrast("d", {"b": -1.0, "a": 1.0})])
+    first = require_success(batch.retarget([a, b], [RetargetContrast("d", {"a": 1.0, "b": -1.0})]))
+    second = require_success(batch.retarget([b, a], [RetargetContrast("d", {"b": -1.0, "a": 1.0})]))
     assert first.family_id == second.family_id
     assert {m.name: m.value for m in first.claims} == {m.name: m.value for m in second.claims}
     assert first.covariance_between("a", "b") == second.covariance_between("a", "b")
@@ -212,13 +226,15 @@ def test_a_partial_family_lists_the_failed_members_and_is_never_complete():
     plus = weights(batch, data, 1.0)
     spike = np.zeros_like(plus)
     spike[:3] = 1.0
-    report = batch.retarget(
-        [
-            RetargetClaim("good", 0, plus, depends_on=["z"]),
-            RetargetClaim("spiked", 1, spike, depends_on=["z"]),
-            RetargetClaim("short", 1, plus[:10], depends_on=["z"]),
-        ],
-        [RetargetContrast("good_minus_spiked", {"good": 1.0, "spiked": -1.0})],
+    report = require_success(
+        batch.retarget(
+            [
+                RetargetClaim("good", 0, plus, depends_on=["z"]),
+                RetargetClaim("spiked", 1, spike, depends_on=["z"]),
+                RetargetClaim("short", 1, plus[:10], depends_on=["z"]),
+            ],
+            [RetargetContrast("good_minus_spiked", {"good": 1.0, "spiked": -1.0})],
+        )
     )
     assert not report.complete
     assert report.failed_members == ("spiked", "short", "good_minus_spiked")
@@ -255,14 +271,14 @@ def test_a_malformed_family_is_refused_with_a_registered_reason():
     ]
     for claims, contrasts, code in cases:
         with pytest.raises(CausalUnsupportedError) as error:
-            batch.retarget(claims, contrasts)
+            require_success(batch.retarget(claims, contrasts))
         assert error.value.reason_code == code
         assert_registered_refusal(error.value)
     with pytest.raises(CausalUnsupportedError) as moved:
-        batch.retarget([good], expected_snapshot="not-this-snapshot")
+        require_success(batch.retarget([good], expected_snapshot="not-this-snapshot"))
     assert moved.value.reason_code == "row_weights_bound_to_snapshot"
     with pytest.raises(CausalValueError):
-        batch.retarget([RetargetClaim("a", ant.AverageEffect("t1", "z"), plus)])
+        require_success(batch.retarget([RetargetClaim("a", ant.AverageEffect("t1", "z"), plus)]))
 
 
 def test_a_retarget_after_estimate_reads_that_estimates_rows():
@@ -272,27 +288,22 @@ def test_a_retarget_after_estimate_reads_that_estimates_rows():
     assert prepared_rows is not None and len(prepared_rows) == 500
     assert batch.retarget_snapshot() is not None
     fresh = frame(n=430, seed=12)
-    require_success(batch.estimate(fresh, seed=11))
+    old = batch
+    batch = require_success(batch.study.rebind(data=fresh).estimate())
+    assert old.retarget_rows() == prepared_rows
     rows = batch.retarget_rows()
     assert rows is not None and len(rows) == 430
-    assert (
-        batch.retarget_snapshot()
-        != PreparedBatch.prepare(
-            data,
-            graph=GRAPH,
-            queries=[Q_T1_Y1],
-            estimator="aipw",
-            refute=False,
-            bootstrap=0,
-            seed=11,
-        ).retarget_snapshot()
-    )
-    report = batch.retarget(
-        [RetargetClaim("a", 0, np.exp(0.4 * fresh["z"]), depends_on=["z"])],
+    assert batch.retarget_snapshot() != old.retarget_snapshot()
+    report = require_success(
+        batch.retarget(
+            [RetargetClaim("a", 0, np.exp(0.4 * fresh["z"]), depends_on=["z"])],
+        )
     )
     assert report.scores_source == "estimated" and report.complete
     # Weights aligned with the old rows fail their member rather than reweighting new rows.
-    stale = batch.retarget([RetargetClaim("a", 0, np.exp(0.4 * data["z"]), depends_on=["z"])])
+    stale = require_success(
+        batch.retarget([RetargetClaim("a", 0, np.exp(0.4 * data["z"]), depends_on=["z"])])
+    )
     assert stale.claims[0].status == "failed"
     assert stale.claims[0].refusal_code == "invalid_argument"
 
@@ -302,12 +313,14 @@ def test_a_penalized_family_retargets_with_its_plug_in_score_covariance():
     cfg = Aipw(bootstrap=0, propensity_penalty=PropensityPenalty(lambdas=[0.5, 5.0, 50.0]))
     batch = prepare(data, estimator=cfg)
     plus = weights(batch, data, 1.0)
-    report = batch.retarget(
-        [
-            RetargetClaim("a", 0, plus, depends_on=["z"]),
-            RetargetClaim("b", 1, plus, depends_on=["z"]),
-        ],
-        [RetargetContrast("d", {"a": 1.0, "b": -1.0})],
+    report = require_success(
+        batch.retarget(
+            [
+                RetargetClaim("a", 0, plus, depends_on=["z"]),
+                RetargetClaim("b", 1, plus, depends_on=["z"]),
+            ],
+            [RetargetContrast("d", {"a": 1.0, "b": -1.0})],
+        )
     )
     # A penalized table retargets exactly like an unpenalized one: covariance, standard
     # errors, contrast standard error and a complete family.
@@ -325,20 +338,21 @@ def test_a_penalized_family_retargets_with_its_plug_in_score_covariance():
 
 def test_a_plan_without_scores_refuses_its_members_after_an_estimate():
     data = frame()
-    batch = PreparedBatch.prepare(
+    preparation = prepare_many(
         data,
         graph=GRAPH,
         queries=[Q_T1_Y1],
         estimator="linear.adjustment.ate",
         refute=False,
-        bootstrap=0,
-        seed=11,
+        inference=ant.Frequentist(bootstrap=0),
+        execution=ant.Execution(seed=11),
     )
     claim = RetargetClaim("a", 0, np.ones(500), depends_on=[])
-    before = batch.retarget([claim])
+    batch = require_success(preparation.estimate())
+    before = require_success(batch.retarget([claim]))
     assert before.claims[0].refusal_code == "score_table_unavailable"
-    require_success(batch.estimate(data, seed=11))
-    after = batch.retarget([claim])
+    repeated = require_success(batch.study.estimate())
+    after = require_success(repeated.retarget([claim]))
     assert after.claims[0].refusal_code == "score_table_unavailable"
     assert after.claims[0].status == "failed" and not after.complete
 
@@ -347,14 +361,16 @@ def test_the_simultaneous_interval_is_a_max_t_band_with_a_typed_partial_refusal(
     data = frame()
     batch = prepare(data)
     plus = weights(batch, data, 1.0)
-    report = batch.retarget(
-        [
-            RetargetClaim("a", 0, plus, depends_on=["z"]),
-            RetargetClaim("b", 2, plus, depends_on=["z"]),
-        ],
-        simultaneous_level=0.9,
-        simultaneous_seed=5,
-        simultaneous_draws=20_000,
+    report = require_success(
+        batch.retarget(
+            [
+                RetargetClaim("a", 0, plus, depends_on=["z"]),
+                RetargetClaim("b", 2, plus, depends_on=["z"]),
+            ],
+            simultaneous_level=0.9,
+            simultaneous_seed=5,
+            simultaneous_draws=20_000,
+        )
     )
     assert report.complete
     band = report.simultaneous_interval()
@@ -368,11 +384,13 @@ def test_the_simultaneous_interval_is_a_max_t_band_with_a_typed_partial_refusal(
     # The max-t band is wider than each marginal band at the same level.
     assert all(m.upper - m.value > 1.6448 * m.std_error for m in band.members)
     # A partial family has no band: a typed refusal naming why.
-    partial = batch.retarget(
-        [
-            RetargetClaim("a", 0, plus, depends_on=["z"]),
-            RetargetClaim("short", 2, plus[:5], depends_on=["z"]),
-        ]
+    partial = require_success(
+        batch.retarget(
+            [
+                RetargetClaim("a", 0, plus, depends_on=["z"]),
+                RetargetClaim("short", 2, plus[:5], depends_on=["z"]),
+            ]
+        )
     )
     with pytest.raises(CausalUnsupportedError) as refused:
         partial.simultaneous_interval()
@@ -380,19 +398,23 @@ def test_the_simultaneous_interval_is_a_max_t_band_with_a_typed_partial_refusal(
     assert refused.value.reason_code == "cell_not_licensed"
     assert "partial_family" in str(refused.value)
     with pytest.raises(CausalUnsupportedError, match="max_t_invalid_level"):
-        batch.retarget([RetargetClaim("a", 0, plus, depends_on=["z"])], simultaneous_level=1.5)
+        require_success(
+            batch.retarget([RetargetClaim("a", 0, plus, depends_on=["z"])], simultaneous_level=1.5)
+        )
 
 
 def test_the_tidy_export_carries_identity_provenance_and_failed_members():
     data = frame()
     batch = prepare(data)
     plus = weights(batch, data, 1.0)
-    report = batch.retarget(
-        [
-            RetargetClaim("ok", 0, plus, depends_on=["z"]),
-            RetargetClaim("short", 0, plus[:5], depends_on=["z"]),
-        ],
-        [RetargetContrast("ok_only", {"ok": 1.0})],
+    report = require_success(
+        batch.retarget(
+            [
+                RetargetClaim("ok", 0, plus, depends_on=["z"]),
+                RetargetClaim("short", 0, plus[:5], depends_on=["z"]),
+            ],
+            [RetargetContrast("ok_only", {"ok": 1.0})],
+        )
     )
     rows = report.to_rows()
     assert [r["name"] for r in rows] == ["ok", "short", "ok_only"]
@@ -422,7 +444,7 @@ def test_the_tidy_export_carries_identity_provenance_and_failed_members():
     assert all(columns <= set(row) for row in rows)
     assert {r["family_id"] for r in rows} == {report.family_id}
     assert {r["snapshot_id"] for r in rows} == {batch.retarget_snapshot()}
-    assert {r["scores_source"] for r in rows} == {"prepared"}
+    assert {r["scores_source"] for r in rows} == {"estimated"}
     assert all(r["family_size"] == 3 and r["family_failed"] == 1 for r in rows)
     assert all(not r["family_complete"] for r in rows)
     ok, short, contrast = rows

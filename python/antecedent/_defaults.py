@@ -1,7 +1,7 @@
 """The omitted-default table, read from the Rust study builder.
 
-``analyze`` / ``prepare`` / ``PreparedAnalysis.prepare`` / ``PreparedBatch.prepare`` never
-fill an omitted ``refute`` / ``bootstrap`` / ``latency`` themselves: an omitted value reaches
+``analyze`` / ``prepare`` and ``estimation.analyze_many`` / ``estimation.prepare_many``
+preserve omitted scientific defaults: an omitted ``refute`` or inference budget reaches
 the study builder as omitted, and the builder applies this table, its
 latency-tier mapping, and its refute downgrade. This module exposes what the
 builder would use, for display and for tests.

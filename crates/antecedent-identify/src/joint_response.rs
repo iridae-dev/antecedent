@@ -283,14 +283,9 @@ fn identify_joint_within(
     // The budget ended the search for a smaller set; the maximal set is already certified.
     Ok(match search.found {
         Some(z) => joint_result(query, nodes, &z, &treatments, outcome, search.examined),
-        None => joint_result_bounded(
-            query,
-            nodes,
-            &candidates,
-            &treatments,
-            outcome,
-            search.examined,
-        ),
+        None => {
+            joint_result_bounded(query, nodes, &candidates, &treatments, outcome, search.examined)
+        }
     })
 }
 
@@ -425,6 +420,9 @@ pub(crate) fn joint_result(
     derivation.push("response.joint_adjustment", format!("certified E[Y|do(X=x)] = sum_z E[Y|X=x,Z=z] P(z) for all {} targets; generalized back-door criterion (Perkovic et al., 2018, Definition 20)", treatments.len()));
     let mut assumptions = antecedent_core::AssumptionSet::default();
     assumptions.push(crate::assumptions::causal_markov("response.joint_adjustment"));
+    if let CausalQuery::Response(response) = &query {
+        crate::response::append_observation_assumptions(response, &mut assumptions);
+    }
     IdentificationResult::identified(
         query,
         vec![estimand],
@@ -457,6 +455,42 @@ mod tests {
                 Intervention::set(t2, Value::f64(1.0)),
             ]),
         })
+    }
+
+    #[test]
+    fn joint_identification_retains_every_declared_observation_assumption() {
+        use antecedent_core::{ObservationAssumption, ObservationSpec};
+
+        let mut dag = Dag::with_variables(4);
+        for child in [1, 2, 3] {
+            dag.insert_directed(n(0), n(child)).unwrap();
+        }
+        for parent in [1, 2] {
+            dag.insert_directed(n(parent), n(3)).unwrap();
+        }
+        let baseline =
+            joint(VariableId::from_raw(1), VariableId::from_raw(2), VariableId::from_raw(3));
+        let query = baseline.clone().with_observation(
+            ObservationSpec::Complete,
+            vec![
+                ObservationAssumption::IndependentGiven(Arc::from([VariableId::from_raw(0)])),
+                ObservationAssumption::OutcomeIndependentGiven(Arc::from([VariableId::from_raw(
+                    1,
+                )])),
+                ObservationAssumption::Structural(Arc::from("observation-model")),
+            ],
+        );
+        let identifier = GeneralizedAdjustmentIdentifier::new();
+        let original = identifier.identify_joint_dag_response(&dag, &baseline).unwrap();
+        let retained = identifier.identify_joint_dag_response(&dag, &query).unwrap();
+        assert_eq!(retained.query, CausalQuery::Response(query.clone()));
+        assert_eq!(retained.estimands, original.estimands);
+        assert_eq!(retained.derivation, original.derivation);
+        assert_eq!(retained.status, original.status);
+        let mut expected = original.required_assumptions;
+        crate::response::append_observation_assumptions(&query, &mut expected);
+        assert_eq!(retained.required_assumptions, expected);
+        assert_eq!(retained.required_assumptions.entries.len(), 4);
     }
 
     #[test]
@@ -694,7 +728,9 @@ mod tests {
         let id = identify_joint(&admg, admg.nodes(), &query, usize::MAX, 4, |_, _| true).unwrap();
         assert_eq!(id.status, IdentificationStatus::NotIdentified);
         assert_eq!(id.performance.candidates_examined, 1);
-        assert!(id.diagnostics.iter().any(|d| d.kind == antecedent_core::DiagnosticKind::Scientific));
+        assert!(
+            id.diagnostics.iter().any(|d| d.kind == antecedent_core::DiagnosticKind::Scientific)
+        );
         assert!(!crate::envelope::search_truncated(&id));
     }
 

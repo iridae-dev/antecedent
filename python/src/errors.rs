@@ -385,6 +385,9 @@ pub(crate) fn reason_code_of(error: &RustCausalError) -> Option<String> {
         ) => Some(reason_code!("unknown_variable")),
         RustCausalError::SchemaMismatch { .. } => Some(reason_code!("schema_mismatch")),
         RustCausalError::NotIdentified { .. } => Some(reason_code!("effect_not_identified")),
+        RustCausalError::Identify(antecedent_identify::IdentificationError::UnsupportedQuery {
+            ..
+        }) => Some(reason_code!("route_not_supported")),
         RustCausalError::Unsupported { .. } => Some(reason_code!("route_not_supported")),
         // A matrix refusal without a finer registered code carries the code of its cell verdict.
         RustCausalError::Support { id, .. } => Some(if id.as_str() == "not_applicable" {
@@ -443,6 +446,9 @@ pub(crate) fn uncoded_py_err(error: RustCausalError) -> PyErr {
     match error {
         // A refusal with structured fields is the refusal it wraps.
         RustCausalError::Diagnosed { error, .. } => uncoded_py_err(*error),
+        RustCausalError::Identify(
+            e @ antecedent_identify::IdentificationError::UnsupportedQuery { .. },
+        ) => unsupported_py_err(e.to_string()),
         RustCausalError::Identify(e) => CausalIdentifyError::new_err(e.to_string()),
         // A reason-coded estimator refusal is the one refusal class, as a Rust
         // `Unsupported` refusal is.
@@ -596,4 +602,3 @@ impl IntoCausalPyErr for antecedent::design::DesignError {
         RustCausalError::from(self).into_antecedent_py_err()
     }
 }
-

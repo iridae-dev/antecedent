@@ -52,7 +52,7 @@ impl ClickControls {
             Some(sink) => {
                 refuse_unstaged(inner)?;
                 let mut staged = (**inner).clone();
-                staged.set_stage_sink(Some(Arc::clone(sink)));
+                staged.set_stage_sink(Some(crate::interrupt::bind_stage_sink(Arc::clone(sink))));
                 Ok(Arc::new(staged))
             }
         }
@@ -63,7 +63,7 @@ impl ClickControls {
         let mut owned = (**inner).clone();
         if let Some(sink) = &self.stage {
             refuse_unstaged(inner)?;
-            owned.set_stage_sink(Some(Arc::clone(sink)));
+            owned.set_stage_sink(Some(crate::interrupt::bind_stage_sink(Arc::clone(sink))));
         }
         Ok(owned)
     }

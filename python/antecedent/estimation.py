@@ -14,8 +14,10 @@ import numpy as np
 from . import _estimate_helpers
 from ._api import describe_refusal
 from ._batch import (
+    BatchResult,
     BatchRetarget,
     CandidateScreen,
+    CellFamily,
     PreparedBatch,
     RetargetClaim,
     RetargetContrast,
@@ -24,6 +26,8 @@ from ._batch import (
     SimultaneousBandMember,
     SimultaneousInterval,
     analyze_many,
+    estimate_many,
+    prepare_many,
 )
 from ._coerce import coerce_latency, coerce_query, coerce_refute
 from ._columns import (
@@ -304,7 +308,7 @@ def identify(
     ``identify(TieredBackground)`` stays Rust-only
     (``identify_tiered`` / ``identify_tiered_joint``). Prepared identification
     already returns the certificate; this entry does not accept a tier rule.
-    Pair-family joint cells use :meth:`PreparedBatch.prepare_cells`.
+    Pair-family joint cells use :func:`prepare_many` with joint response queries.
 
     Prefer an ``Admg`` whenever a confounder is unmeasured. A ``Dag`` has no way
     to say a variable cannot be observed, so a latent common cause flattened
@@ -1090,6 +1094,7 @@ class PreparedAnalysis(Generic[ResultT]):
         # without one. Absent for every non-transport study.
         self._transport_stage: TransportStage | None = None
         self._last_result: ResultT | None = None
+        self._batch_family = False
         self._identification_view: Any = None
 
     def _frozen(self, execution: Any) -> PreparedAnalysis[ResultT]:
@@ -1107,6 +1112,7 @@ class PreparedAnalysis(Generic[ResultT]):
             column_names=self._column_names,
         )
         for name in (
+            "_batch_family",
             "_identifier_bindings",
             "_treatment_labels",
             "_preparation_request",
@@ -1598,7 +1604,7 @@ class PreparedAnalysis(Generic[ResultT]):
         query = coerce_query(query)
         # Label-declared treatment levels are mapped to the arm codes of the numeric
         # declared-level path here, once; the mapping is frozen with the study.
-        treatment_labels = TreatmentLabels.of(query)
+        treatment_labels = TreatmentLabels.of(query, data=data)
         if treatment_labels is not None:
             data = treatment_labels.encode(data)
             query = treatment_labels.native_query(query)
@@ -2863,6 +2869,7 @@ __all__ = [
     "PredictiveCheckReport",
     "PreparedAnalysis",
     "PreparedBatch",
+    "BatchResult",
     "BatchRetarget",
     "RetargetClaim",
     "RetargetContrast",
@@ -2871,10 +2878,13 @@ __all__ = [
     "SimultaneousInterval",
     "SharedBatchDesign",
     "CandidateScreen",
+    "CellFamily",
     "PriorSensitivityReport",
     "RefutationReport",
     "ValidationView",
     "analyze_many",
+    "estimate_many",
+    "prepare_many",
     "identify",
     "mediation_effects_summary",
 ]

@@ -125,6 +125,31 @@ pub(crate) fn bind_progress(
     }
 }
 
+struct ScopedStage {
+    inner: Arc<dyn antecedent::StageResultSink>,
+    scope: std::sync::Weak<Scope>,
+}
+
+impl antecedent::StageResultSink for ScopedStage {
+    fn on_stage(&self, event: &antecedent::StageEvent) {
+        let Some(scope) = self.scope.upgrade() else { return };
+        let _restore = ActiveGuard(ACTIVE.with(|active| active.replace(Some(scope))));
+        self.inner.on_stage(event);
+    }
+}
+
+/// Bind a click-only stage observer inside its active run, including callbacks
+/// dispatched by native pool workers. Retaining a sink never retains that run.
+pub(crate) fn bind_stage_sink(
+    inner: Arc<dyn antecedent::StageResultSink>,
+) -> Arc<dyn antecedent::StageResultSink> {
+    let scope = ACTIVE.with(|active| active.borrow().as_ref().map(Arc::downgrade));
+    match scope {
+        Some(scope) => Arc::new(ScopedStage { inner, scope }),
+        None => inner,
+    }
+}
+
 /// Queue length at which dead entries are first pruned from [`PENDING`].
 const PENDING_PRUNE_FLOOR: usize = 64;
 
@@ -654,6 +679,131 @@ mod tests {
             assert!(owner.upgrade().is_none());
             observer.report(1.0, "after completion");
             assert_eq!(calls.load(super::Ordering::Relaxed), 1);
+        });
+    }
+
+    #[test]
+    fn native_stage_workers_preserve_concurrent_original_exceptions_and_tracebacks() {
+        use super::{ambient_token, bind_stage_sink, run};
+        use pyo3::exceptions::{PyRuntimeError, PySystemExit};
+        use pyo3::prelude::*;
+        use pyo3::types::PyDict;
+
+        Python::initialize();
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        std::thread::scope(|threads| {
+            let callers: Vec<_> = (0..2)
+                .map(|caller| {
+                    let barrier = std::sync::Arc::clone(&barrier);
+                    threads.spawn(move || {
+                        Python::attach(|py| {
+                            let globals = PyDict::new(py);
+                            let expected = if caller == 0 {
+                                PyRuntimeError::new_err("identical stage failure")
+                            } else {
+                                PySystemExit::new_err("identical stage failure")
+                            };
+                            globals.set_item("original", expected.value(py)).unwrap();
+                            py.run(
+                                pyo3::ffi::c_str!("def observe(*args):\n    raise original\n"),
+                                Some(&globals),
+                                None,
+                            )
+                            .unwrap();
+                            let observer: std::sync::Arc<dyn antecedent::StageResultSink> =
+                                std::sync::Arc::new(crate::callbacks::PyStageResultSink::new(
+                                    globals.get_item("observe").unwrap().unwrap().unbind(),
+                                ));
+                            // Raw callback reuse must bind to each new execution's scope.
+                            for execution in 0..2 {
+                                let observer = std::sync::Arc::clone(&observer);
+                                let barrier = std::sync::Arc::clone(&barrier);
+                                let error = run::<_, ()>(py, move || {
+                                    let ctx = crate::py_execution_context(1, 2);
+                                    let observer = bind_stage_sink(observer);
+                                    let owner = std::thread::current().id();
+                                    if execution == 0 {
+                                        barrier.wait();
+                                    }
+                                    ctx.map_indexed(2, |_, _| {
+                                        assert_ne!(owner, std::thread::current().id());
+                                        assert!(ambient_token().is_none());
+                                        observer.on_stage(&antecedent::StageEvent::Validate {
+                                            refutations: Vec::new(),
+                                            predictive_checks: Vec::new(),
+                                        });
+                                        assert!(ambient_token().is_none());
+                                        Ok::<(), ()>(())
+                                    })
+                                    .unwrap();
+                                    // Even native success must not swallow observer failure.
+                                    Ok(())
+                                })
+                                .unwrap_err();
+                                assert!(error.value(py).is(expected.value(py)));
+                                let traceback = error.value(py).getattr("__traceback__").unwrap();
+                                let function: String = traceback
+                                    .getattr("tb_frame")
+                                    .unwrap()
+                                    .getattr("f_code")
+                                    .unwrap()
+                                    .getattr("co_name")
+                                    .unwrap()
+                                    .extract()
+                                    .unwrap();
+                                assert_eq!(function, "observe");
+                            }
+                            globals.clear();
+                        });
+                    })
+                })
+                .collect();
+            for caller in callers {
+                caller.join().unwrap();
+            }
+        });
+    }
+
+    #[test]
+    fn retained_stage_adapter_releases_its_run_and_ignores_late_events() {
+        use super::{ACTIVE, bind_stage_sink, run};
+        use pyo3::prelude::*;
+
+        struct Count(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+        impl antecedent::StageResultSink for Count {
+            fn on_stage(&self, _: &antecedent::StageEvent) {
+                self.0.fetch_add(1, super::Ordering::Relaxed);
+            }
+        }
+        Python::initialize();
+        let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let inner: std::sync::Arc<dyn antecedent::StageResultSink> =
+            std::sync::Arc::new(Count(std::sync::Arc::clone(&calls)));
+        Python::attach(|py| {
+            let event = antecedent::StageEvent::Validate {
+                refutations: Vec::new(),
+                predictive_checks: Vec::new(),
+            };
+            let (observer, owner) = run(py, move || {
+                let observer = bind_stage_sink(inner);
+                let owner = ACTIVE
+                    .with(|active| std::sync::Arc::downgrade(active.borrow().as_ref().unwrap()));
+                observer.on_stage(&antecedent::StageEvent::Validate {
+                    refutations: Vec::new(),
+                    predictive_checks: Vec::new(),
+                });
+                Ok((observer, owner))
+            })
+            .unwrap();
+            assert!(owner.upgrade().is_none(), "a retained sink must not retain its run");
+            observer.on_stage(&event);
+            assert_eq!(calls.load(super::Ordering::Relaxed), 1);
+            // A following execution on the same caller starts without cancellation.
+            run(py, || {
+                assert!(!super::ambient_token().unwrap().is_cancelled());
+                Ok(())
+            })
+            .unwrap();
         });
     }
 
