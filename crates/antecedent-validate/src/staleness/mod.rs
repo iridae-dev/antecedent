@@ -87,6 +87,9 @@ pub enum StalenessError {
     /// A column could not be read.
     #[error(transparent)]
     Data(#[from] DataError),
+    /// The declared population needs a diagnostic method this implementation does not provide.
+    #[error("staleness scope unsupported: {0}")]
+    Unsupported(&'static str),
     /// The baseline artifact does not verify or cannot be encoded.
     #[error("staleness baseline: {0}")]
     Artifact(String),

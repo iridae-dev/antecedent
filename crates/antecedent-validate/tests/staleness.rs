@@ -462,3 +462,58 @@ fn a_tiny_admission_pool_refuses_before_allocating() {
         Err(StalenessError::Admission { .. })
     ));
 }
+
+#[test]
+fn masked_numeric_and_categorical_profiles_exclude_screen_rows_and_keep_source_identity() {
+    use antecedent_validate::staleness::snapshot_identity;
+
+    let raw = Scenario::null(400, 220);
+    let labels = (0..400).map(|row| usize::from(row >= 200)).collect::<Vec<_>>();
+    let data = with_region(&raw.data(), &["screen", "analysis"], &labels);
+    let mask = ValidityBitmap::from_bools(&(0..400).map(|row| row >= 200).collect::<Vec<_>>());
+    let masked = data.with_analysis_mask(mask).unwrap();
+    let baseline = StalenessBaseline::build(&masked, &plan(false), &policy(), &ctx()).unwrap();
+    assert_eq!(baseline.wire().rows, 200);
+    assert_eq!(baseline.wire().complete_rows, 200);
+    assert_eq!(baseline.snapshot(), snapshot_identity(&masked));
+    let region = baseline.wire().columns.iter().find(|column| column.name == "region").unwrap();
+    let levels = region.levels.as_ref().unwrap();
+    assert_eq!(levels.len(), 1);
+    assert_eq!(levels[0].label, "analysis");
+    assert_eq!(levels[0].count, 200);
+
+    let values = raw.columns();
+    let compact =
+        TabularData::from_f64_columns(values.iter().map(|(name, column)| (*name, &column[200..])))
+            .unwrap();
+    let compact = with_region(&compact, &["screen", "analysis"], &vec![1; 200]);
+    let expected = StalenessBaseline::build(&compact, &plan(false), &policy(), &ctx()).unwrap();
+    assert_eq!(baseline.wire().columns, expected.wire().columns);
+    assert_eq!(baseline.wire().joint, expected.wire().joint);
+    assert_eq!(baseline.wire().overlap, expected.wire().overlap);
+    assert_eq!(baseline.wire().checks, expected.wire().checks);
+    assert_ne!(baseline.snapshot(), expected.snapshot());
+    let report = baseline.assess(&masked, &policy(), &ctx()).unwrap();
+    assert_eq!(report.new_rows, 200);
+    assert_eq!(report.old_snapshot, report.new_snapshot);
+    assert_eq!(report.recommendation, Recommendation::Reuse);
+}
+
+#[test]
+fn nonunit_active_observation_weights_refuse_unweighted_profiles() {
+    let data = Scenario::null(400, 221).data();
+    let weighted = data.with_weights(vec![2.0; 400].into()).unwrap();
+    assert!(matches!(
+        StalenessBaseline::build(&weighted, &plan(false), &policy(), &ctx()),
+        Err(StalenessError::Unsupported(_))
+    ));
+    let ordinary = StalenessBaseline::build(&data, &plan(false), &policy(), &ctx()).unwrap();
+    assert!(matches!(
+        ordinary.assess(&weighted, &policy(), &ctx()),
+        Err(StalenessError::Unsupported(_))
+    ));
+    let unit = data.with_weights(vec![1.0; 400].into()).unwrap();
+    let unit_baseline = StalenessBaseline::build(&unit, &plan(false), &policy(), &ctx()).unwrap();
+    assert_eq!(ordinary.wire().columns, unit_baseline.wire().columns);
+    assert_eq!(ordinary.wire().overlap, unit_baseline.wire().overlap);
+}

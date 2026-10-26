@@ -10,12 +10,14 @@
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use antecedent_core::{SemanticOperation, ValueType, VariableId};
-use antecedent_data::{CategoricalColumn, ColumnView, TableView, TabularData};
+use antecedent_data::{CategoricalColumn, ColumnView, TableView, TabularData, ValidityBitmap};
 use antecedent_io_core::staleness_artifact::{
-    JointProfileWire, LevelCountWire, MissingPatternWire, NARROW_PATTERN_COLUMNS, NumericProfileWire, OutcomeModelWire,
-    OverlapSummaryWire, RecordedCheckWire, StalenessBaselineWire, StalenessColumnWire,
+    JointProfileWire, LevelCountWire, MissingPatternWire, NARROW_PATTERN_COLUMNS,
+    NumericProfileWire, OutcomeModelWire, OverlapSummaryWire, RecordedCheckWire,
+    StalenessBaselineWire, StalenessColumnWire,
 };
 use antecedent_kernels::{Welford, update_scatter};
 use antecedent_stats::cholesky_spd;
@@ -51,7 +53,7 @@ pub(crate) enum ColumnRead<'a> {
     /// Numbers; a missing cell is `NaN`.
     Numeric(Cow<'a, [f64]>),
     /// Categorical codes and their domain.
-    Categorical(&'a CategoricalColumn),
+    Categorical(Cow<'a, CategoricalColumn>),
     /// Another storage kind: only its validity is read.
     Other { missing: u64 },
 }
@@ -127,7 +129,7 @@ pub(crate) fn read_column(
         ColumnView::Float64(_) | ColumnView::Int64(_) | ColumnView::Boolean(_) => {
             ColumnRead::Numeric(data.float64_cow(id)?)
         }
-        ColumnView::Categorical(column) => ColumnRead::Categorical(column),
+        ColumnView::Categorical(column) => ColumnRead::Categorical(Cow::Borrowed(column)),
         other => {
             let validity = other.validity();
             let missing = (0..other.len()).filter(|&i| !validity.is_valid(i)).count();
@@ -240,9 +242,54 @@ pub(crate) struct ReadTable<'a> {
 impl<'a> ReadTable<'a> {
     /// Read every column of `data`.
     pub(crate) fn new(data: &'a TabularData) -> Result<Self, StalenessError> {
+        let mask = data.storage().analysis_mask();
+        if data.storage().weights().is_some_and(|weights| {
+            weights
+                .iter()
+                .enumerate()
+                .any(|(row, weight)| mask.is_none_or(|mask| mask.is_valid(row)) && *weight != 1.0)
+        }) {
+            return Err(StalenessError::Unsupported(
+                "non-unit observation weights require a declared weighted staleness diagnostic",
+            ));
+        }
+        // Preserve the original unmasked numerical path. A partial analysis mask
+        // selects the diagnostic observations without changing the source identity.
+        let selected = mask.filter(|mask| !mask.is_all_valid()).map(|mask| {
+            (0..data.row_count()).filter(|&row| mask.is_valid(row)).collect::<Vec<_>>()
+        });
         let mut columns = Vec::with_capacity(data.schema().len());
         for variable in data.schema().variables() {
-            let (read, storage) = read_column(data, variable.id)?;
+            let (mut read, storage) = read_column(data, variable.id)?;
+            if let Some(rows) = &selected {
+                read = match read {
+                    ColumnRead::Numeric(values) => ColumnRead::Numeric(Cow::Owned(
+                        rows.iter().map(|&row| values[row]).collect(),
+                    )),
+                    ColumnRead::Categorical(column) => {
+                        let codes = rows.iter().map(|&row| column.codes[row]).collect::<Vec<_>>();
+                        let validity = ValidityBitmap::from_bools(
+                            &rows
+                                .iter()
+                                .map(|&row| column.validity.is_valid(row))
+                                .collect::<Vec<_>>(),
+                        );
+                        ColumnRead::Categorical(Cow::Owned(CategoricalColumn::try_new(
+                            column.id,
+                            codes,
+                            validity,
+                            Arc::clone(&column.domain),
+                        )?))
+                    }
+                    ColumnRead::Other { .. } => {
+                        let validity = data.column(variable.id)?.validity();
+                        ColumnRead::Other {
+                            missing: rows.iter().filter(|&&row| !validity.is_valid(row)).count()
+                                as u64,
+                        }
+                    }
+                };
+            }
             columns.push((
                 variable.name.to_string(),
                 read,
@@ -250,7 +297,8 @@ impl<'a> ReadTable<'a> {
                 value_type_label(&variable.value_type),
             ));
         }
-        Ok(Self { columns, rows: data.row_count() })
+        let rows = selected.as_ref().map_or(data.row_count(), Vec::len);
+        Ok(Self { columns, rows })
     }
 
     /// The read of column `name`.

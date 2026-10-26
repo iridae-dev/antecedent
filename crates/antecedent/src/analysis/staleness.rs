@@ -34,6 +34,7 @@ const PLAN_TAG: &str = "antecedent.staleness.plan.v1";
 fn causal(error: StalenessError) -> CausalError {
     match error {
         StalenessError::Data(error) => CausalError::Data(error),
+        StalenessError::Unsupported(message) => CausalError::Unsupported { message },
         StalenessError::Cancelled => CausalError::Cancelled { stage: super::stage::STAGE_VALIDATE },
         StalenessError::Admission { .. } => CausalError::Resource { message: error.to_string() },
         other => CausalError::Compile { message: other.to_string() },
@@ -106,6 +107,27 @@ impl PreparedStudy {
         policy: &StalenessPolicy,
         ctx: &ExecutionContext,
     ) -> Result<StalenessBaseline, CausalError> {
+        // Estimator sampling weights are a population declaration, separate from
+        // storage weights. The unweighted profile cannot certify that population.
+        if self.study().estimator_spec.as_deref().is_some_and(|spec| {
+            use crate::estimator_spec::EstimatorSpec;
+            match spec {
+                EstimatorSpec::LinearAdjustmentAte(cfg) => cfg.sampling_weights.is_some(),
+                EstimatorSpec::PropensityWeighting(cfg) => cfg.sampling_weights.is_some(),
+                EstimatorSpec::PropensityMatching(cfg) => cfg.sampling_weights.is_some(),
+                EstimatorSpec::PropensityStratification(cfg) => cfg.sampling_weights.is_some(),
+                EstimatorSpec::Aipw(cfg) => cfg.sampling_weights.is_some(),
+                EstimatorSpec::DistanceMatching(cfg) => cfg.sampling_weights.is_some(),
+                EstimatorSpec::GlmAdjustment(cfg) => cfg.sampling_weights.is_some(),
+                EstimatorSpec::Dml(cfg) => cfg.sampling_weights.is_some(),
+                EstimatorSpec::DrLearner(cfg) => cfg.sampling_weights.is_some(),
+                _ => false,
+            }
+        }) {
+            return Err(causal(StalenessError::Unsupported(
+                "sampling-weighted populations require a declared weighted staleness diagnostic",
+            )));
+        }
         let data = self.retained_table()?;
         StalenessBaseline::build(&data, &self.staleness_plan(), policy, ctx).map_err(causal)
     }
