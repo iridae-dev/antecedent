@@ -210,7 +210,7 @@ impl IvBoundsEstimator {
         data: &TabularData,
         query: &IvBoundsQuery,
     ) -> Result<PreparedIvBounds, EstimationError> {
-        query.validate().map_err(|error| EstimationError::data_msg(error.to_string()))?;
+        query.validate()?;
         let instrument = binary_column(data, query.instrument, "instrument")?;
         let treatment = binary_column(data, query.treatment, "treatment")?;
         let outcome = binary_column(data, query.outcome, "outcome")?;
@@ -488,7 +488,7 @@ fn bounds_of(law: BinaryIvLaw) -> Result<(f64, f64), EstimationError> {
         antecedent_identify::IdentificationError::UnsupportedQuery { message } => {
             EstimationError::unsupported(message)
         }
-        other => EstimationError::data_msg(other.to_string()),
+        other => EstimationError::Identification(other),
     })
 }
 

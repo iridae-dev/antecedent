@@ -679,6 +679,25 @@ pub struct CyclicStructureFit {
     pub selection_converged: bool,
 }
 
+/// Likelihood-evaluation work, in multiply-adds, one coordinate-search sweep may spend before the
+/// structure fit uses the gradient optimizer instead.
+///
+/// A sweep over the `P = n^2` candidate coordinates evaluates the likelihood `2P` times, and one
+/// evaluation solves the order-`n` equilibrium system for every row (about `rows * n^3`
+/// multiply-adds). The gradient fit spends a small constant number of evaluations per iteration,
+/// so it is the cheaper optimizer exactly when the sweep is expensive. The optimizer is thus
+/// chosen from the parameter count and the row count rather than from the variable count alone.
+const COORDINATE_SWEEP_WORK_LIMIT: f64 = 1.5e9;
+
+/// Whether the structure fit over `order` variables and `rows` training rows uses the gradient
+/// optimizer: the coordinate search's work per sweep exceeds [`COORDINATE_SWEEP_WORK_LIMIT`].
+/// Both optimizers return the same [`CyclicFit`] shape.
+fn prefers_gradient_fit(order: usize, rows: usize) -> bool {
+    let n = order as f64;
+    let parameters = n * n;
+    2.0 * parameters * rows as f64 * n * n * n > COORDINATE_SWEEP_WORK_LIMIT
+}
+
 /// Fit all off-diagonal coefficients with an explicit L1 penalty, threshold,
 /// then refit selected coefficients/intercepts without penalty. This learns a
 /// parametric candidate topology, not a nonparametrically identified graph.
@@ -699,6 +718,7 @@ pub fn learn_cyclic_structure(
     // The complete candidate topology has one weight per ordered pair plus an intercept per
     // equation; its state is leased against the context instead of capping the order.
     let _lease = crate::cyclic_dynamics::admit_parameters(ctx, n.saturating_mul(n))?;
+    let gradient = prefers_gradient_fit(n, training.len());
     let mut parameters = Vec::new();
     let mut starting = template.clone();
     for i in 0..n {
@@ -708,7 +728,7 @@ pub fn learn_cyclic_structure(
         for j in 0..n {
             if i != j {
                 parameters.push(CyclicParameter::Weight { equation: i, parent: j });
-                starting.equations[i].weights[j] = if n > 8
+                starting.equations[i].weights[j] = if gradient
                     && starting.equations[i].activation
                         == antecedent_model::nonlinear_equilibrium::Activation::Relu
                 {
@@ -744,7 +764,7 @@ pub fn learn_cyclic_structure(
             evaluations: fitted.evaluations,
         })
     };
-    let selected = if n > 8 {
+    let selected = if gradient {
         fit_large(&starting, &parameters, options.l1_penalty)?
     } else {
         fit_cyclic_likelihood(&starting, &parameters, training, options, ctx)?
@@ -765,7 +785,7 @@ pub fn learn_cyclic_structure(
             }
         }
     }
-    let fit = if n > 8 {
+    let fit = if gradient {
         fit_large(&model, &active, 0.0)?
     } else {
         fit_cyclic_likelihood(
@@ -786,6 +806,24 @@ pub fn learn_cyclic_structure(
         heldout_log_likelihood,
         selection_converged: selected.converged,
     })
+}
+
+#[cfg(test)]
+mod optimizer_choice_tests {
+    use super::prefers_gradient_fit;
+
+    #[test]
+    fn the_optimizer_follows_the_sweep_work_not_the_variable_count_alone() {
+        // A small system stays on the coordinate search at any realistic row count.
+        assert!(!prefers_gradient_fit(3, 100_000));
+        // The same order is gradient-fitted once the rows make a sweep expensive.
+        assert!(!prefers_gradient_fit(8, 1_000));
+        assert!(prefers_gradient_fit(8, 1_000_000));
+        // A wide system with few rows is cheap enough for the coordinate search.
+        assert!(!prefers_gradient_fit(12, 500));
+        assert!(prefers_gradient_fit(12, 50_000));
+        assert!(prefers_gradient_fit(40, 1_000));
+    }
 }
 
 #[cfg(test)]

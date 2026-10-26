@@ -8,6 +8,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::ProbabilityTable;
+
 use super::{LaggedPairs, invalid};
 use crate::error::EstimationError;
 use crate::util::refuse;
@@ -148,7 +150,7 @@ pub fn multi_arm_scores(
     pairs: &LaggedPairs,
     outcome: &[f64],
     assignment: &[usize],
-    probabilities: &[Vec<f64>],
+    probabilities: &(impl ProbabilityTable + ?Sized),
     arms: &[String],
     cluster: &[usize],
     ordered: bool,
@@ -160,7 +162,7 @@ pub fn multi_arm_scores(
         return Err(invalid("a multi-arm design declares at least three arms"));
     }
     let rows = outcome.len();
-    require_aligned(rows, &[assignment.len(), probabilities.len(), cluster.len()])?;
+    require_aligned(rows, &[assignment.len(), probabilities.row_count(), cluster.len()])?;
     let steps = if ordered { k - 2 } else { 0 };
     let width = (k - 1) + steps + k;
     let mut scores = Vec::with_capacity(width * pairs.decision.len());
@@ -173,7 +175,7 @@ pub fn multi_arm_scores(
         if !y.is_finite() {
             return Err(invalid("every paired outcome must be finite"));
         }
-        let row = &probabilities[t];
+        let row = probabilities.row_at(t);
         let arm = assignment[t];
         if arm >= k
             || row.len() != k

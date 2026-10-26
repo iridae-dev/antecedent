@@ -68,10 +68,9 @@ fn point(design: &JointRolloutDesign, units: &[&JointRolloutUnit]) -> Result<Vec
 pub fn rollout_joint_effects(
     design: &JointRolloutDesign,
     units: &[JointRolloutUnit],
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<JointDesignEstimate, String> {
     if design.cells.is_empty()
-        || design.cells.len() > 256
-        || units.len() > 16384
         || units.len() < 4
         || [
             &design.no_anticipation,
@@ -106,8 +105,16 @@ pub fn rollout_joint_effects(
     let means = point(design, &refs)?;
     let n = units.len();
     let k = means.len();
+    // One retained realization per deleted unit, plus the k-by-k covariance.
+    let _lease = super::budget::admit_cells(
+        ctx,
+        "rollout delete-unit realizations",
+        n.saturating_mul(k).saturating_add(k.saturating_mul(k)),
+        1,
+    )?;
     let mut deletes = Vec::with_capacity(n);
     for omitted in 0..n {
+        super::budget::check_cancelled(ctx)?;
         deletes.push(point(
             design,
             &refs
@@ -168,14 +175,33 @@ mod tests {
             consistency_and_isolation: "joint versions fixed and independent units".into(),
             population: "cohort 2".into(),
         };
-        let fit = rollout_joint_effects(&design, &units).unwrap();
+        let fit = rollout_joint_effects(
+            &design,
+            &units,
+            &antecedent_core::ExecutionContext::for_tests(1),
+        )
+        .unwrap();
         assert_eq!(fit.means, vec![2.0, 3.0, 9.0]);
         assert_eq!(fit.contrast(&[-1.0, -1.0, 1.0]).unwrap().0, 4.0);
         let mut invalid = design.clone();
         invalid.parallel_trends.clear();
-        assert!(rollout_joint_effects(&invalid, &units).is_err());
+        assert!(
+            rollout_joint_effects(
+                &invalid,
+                &units,
+                &antecedent_core::ExecutionContext::for_tests(1)
+            )
+            .is_err()
+        );
         units.retain(|u| u.adoption.is_some());
-        assert!(rollout_joint_effects(&design, &units).is_err());
+        assert!(
+            rollout_joint_effects(
+                &design,
+                &units,
+                &antecedent_core::ExecutionContext::for_tests(1)
+            )
+            .is_err()
+        );
     }
 }
 
@@ -210,11 +236,9 @@ fn validate_rollout_likelihood(
     design: &JointRolloutDesign,
     units: &[JointRolloutUnit],
     prior: &JointRolloutGaussianPrior,
-    parameters: usize,
 ) -> Result<(), String> {
     let k = design.cells.len();
-    if parameters > 2048
-        || prior.effect_mean.len() != k
+    if prior.effect_mean.len() != k
         || prior.effect_variance.len() != k
         || !prior.unit_mean.is_finite()
         || !prior.time_mean.is_finite()
@@ -226,9 +250,11 @@ fn validate_rollout_likelihood(
         || !prior.ar1_rho.is_finite()
         || prior.ar1_rho.abs() >= 1.0
         || prior.draws < 2
-        || prior.draws > 100_000
     {
-        return Err("joint rollout posterior needs proper priors, known nonsingular residual covariance and bounded parameter dimensions".into());
+        return Err(
+            "joint rollout posterior needs proper priors and known nonsingular residual covariance"
+                .into(),
+        );
     }
     for u in units {
         if let Some(g) = u.adoption {
@@ -260,8 +286,9 @@ pub fn rollout_joint_posterior(
     design: &JointRolloutDesign,
     units: &[JointRolloutUnit],
     prior: &JointRolloutGaussianPrior,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<super::JointDesignPosterior, String> {
-    let _identified = rollout_joint_effects(design, units)?;
+    let _identified = rollout_joint_effects(design, units, ctx)?;
     let times = units
         .iter()
         .flat_map(|u| u.outcomes.iter().map(|(t, _)| *t))
@@ -271,7 +298,17 @@ pub fn rollout_joint_posterior(
     let k = design.cells.len();
     let n = units.len();
     let parameters = n + times.len() - 1 + k;
-    validate_rollout_likelihood(design, units, prior, parameters)?;
+    validate_rollout_likelihood(design, units, prior)?;
+    // The dense precision, its Cholesky factor and the posterior draws are retained together.
+    let _lease = super::budget::admit_cells(
+        ctx,
+        "rollout posterior",
+        parameters
+            .saturating_mul(parameters)
+            .saturating_mul(2)
+            .saturating_add(prior.draws.saturating_mul(parameters)),
+        1,
+    )?;
     let offset = n + times.len() - 1;
     let mut precision = vec![0.0; parameters * parameters];
     let mut rhs = vec![0.0; parameters];
@@ -343,6 +380,7 @@ pub fn rollout_joint_posterior(
     let mut rng = antecedent_core::CausalRng::from_seed(prior.seed);
     let mut draws = Vec::with_capacity(prior.draws);
     for _ in 0..prior.draws {
+        super::budget::check_cancelled(ctx)?;
         let mut delta = (0..parameters)
             .map(|_| antecedent_kernels::standard_normal(&mut rng))
             .collect::<Vec<_>>();

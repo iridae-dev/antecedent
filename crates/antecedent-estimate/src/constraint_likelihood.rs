@@ -100,22 +100,30 @@ pub fn fit_polynomial_candidates(
     policy: IsolationPolicy,
     ctx: &ExecutionContext,
 ) -> Result<PolynomialFit, EquilibriumError> {
-    if candidates.is_empty()
-        || candidates.len() > 256
-        || measurements.is_empty()
-    {
+    if candidates.is_empty() || measurements.is_empty() {
         return Err(invalid("constraint candidates and measurements must be nonempty"));
     }
     let n = candidates[0].model.variables.len();
+    // The retained state is one likelihood enclosure per candidate (identity, selection regions
+    // and the isolated roots). It is leased against the context's memory budget rather than
+    // capped by a candidate count.
+    let region_bytes = n.saturating_mul(16).saturating_add(16);
+    let retained = candidates.iter().fold(0usize, |bytes, candidate| {
+        bytes
+            .saturating_add(256)
+            .saturating_add(candidate.id.len())
+            .saturating_add(candidate.selection.len().saturating_mul(region_bytes))
+    });
+    let _lease = ctx
+        .acquire_admission(0, u64::try_from(retained).unwrap_or(u64::MAX))
+        .map_err(|error| EquilibriumError::Resource(error.to_string()))?;
     let mut ids = std::collections::BTreeSet::new();
     for candidate in candidates {
         candidate.model.validate()?;
         if candidate.model.variables != candidates[0].model.variables
             || candidate.id.is_empty()
-            || candidate.id.len() > 256
             || !ids.insert(&candidate.id)
             || candidate.selection.is_empty()
-            || candidate.selection.len() > 1024
         {
             return Err(invalid(
                 "constraint candidates need common coordinates and unique identities",

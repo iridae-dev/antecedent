@@ -84,53 +84,137 @@ impl FittedSequenceHistory {
     }
 }
 
+/// Levels a binary history route accepts per coordinate.
+const BINARY_LEVELS: u32 = 2;
+
 /// Fit one empirical joint source factor from actual complete binary histories.
 /// The joint is labeled empirical and carries reconciled counts, never supplied-exact.
 /// Whole-unit ownership remains in the input panel for the dependent candidate.
 /// # Errors
 /// No histories, unsupported nonbinary coordinates/outcome, or invalid frequency law.
-#[allow(clippy::cast_precision_loss, reason = "the panel is bounded far below 2^53")]
-#[allow(clippy::float_cmp, reason = "binary outcome membership requires exactly zero or one")]
 pub fn fit_binary_history_joint(
     panel: &TemporalUnitPanel,
 ) -> Result<ExactDiscreteLaw, EstimationError> {
     fit_binary_history_units(panel.snapshot_id(), &panel.units().iter().collect::<Vec<_>>())
 }
+
 /// Fit the same empirical history joint on a whole-unit draw, including repeated units.
 /// # Errors
 /// Empty draw, nonbinary history coordinates or invalid source frequency law.
-#[allow(clippy::cast_precision_loss, reason = "the panel is bounded far below 2^53")]
-#[allow(clippy::float_cmp, reason = "binary outcome membership requires exactly zero or one")]
 pub fn fit_binary_history_units(
     snapshot: &str,
     units: &[&UnitHistories],
 ) -> Result<ExactDiscreteLaw, EstimationError> {
+    fit_history_units(snapshot, units, Some(BINARY_LEVELS))
+}
+
+/// Fit one empirical joint source factor from complete histories whose state, actions,
+/// covariate and outcome are categorical codes `0..k` (each coordinate has as many levels as its
+/// largest observed code plus one, and at least two). The joint is labeled empirical and
+/// carries reconciled counts. The cell index is the mixed radix of the five level counts, so
+/// binary histories reproduce [`fit_binary_history_joint`] exactly.
+/// # Errors
+/// No histories, an outcome that is not a non-negative integer code, a joint cell table the
+/// admission pool cannot fund, or an invalid frequency law.
+pub fn fit_categorical_history_joint(
+    panel: &TemporalUnitPanel,
+) -> Result<ExactDiscreteLaw, EstimationError> {
+    fit_categorical_history_units(panel.snapshot_id(), &panel.units().iter().collect::<Vec<_>>())
+}
+
+/// [`fit_categorical_history_joint`] on a whole-unit draw, including repeated units.
+/// # Errors
+/// As [`fit_categorical_history_joint`].
+pub fn fit_categorical_history_units(
+    snapshot: &str,
+    units: &[&UnitHistories],
+) -> Result<ExactDiscreteLaw, EstimationError> {
+    fit_history_units(snapshot, units, None)
+}
+
+/// The category code of an outcome value: a non-negative integer.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::float_cmp,
+    reason = "the value is checked to be a non-negative integer below u32::MAX before the cast"
+)]
+fn outcome_code(y: f64) -> Option<u32> {
+    (y.is_finite() && y >= 0.0 && y.fract() == 0.0 && y < f64::from(u32::MAX)).then(|| y as u32)
+}
+
+/// Coordinates of a history in axis order: state, first action, covariate, second action,
+/// outcome code.
+fn history_coordinates(
+    h: &crate::temporal_dependent_interval::SequenceHistory,
+) -> Option<[u32; 5]> {
+    Some([h.s0, h.a1, h.l2, h.a2, outcome_code(h.y)?])
+}
+
+/// `cap` bounds the levels of every coordinate (`Some(2)` is the binary route); `None` takes
+/// as many as the data carries.
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    reason = "the panel is bounded far below 2^53, and a coordinate index is one of five"
+)]
+fn fit_history_units(
+    snapshot: &str,
+    units: &[&UnitHistories],
+    cap: Option<u32>,
+) -> Result<ExactDiscreteLaw, EstimationError> {
+    let scope = || {
+        EstimationError::refused(
+            reason_code!("route_not_supported"),
+            "temporal_recalc.binary_history_scope: only binary state, actions, covariate and outcome",
+        )
+    };
     antecedent_core::execution_attempt::run_operation(
         antecedent_core::execution_attempt::Operation::FactorConstruction,
         || {
-            let mut counts = vec![0_u64; 32];
+            // Level count of each coordinate: its largest code plus one, and at least two.
+            let mut levels = [BINARY_LEVELS; 5];
             for h in units.iter().flat_map(|u| &u.histories) {
-                if [h.s0, h.a1, h.l2, h.a2].iter().any(|v| *v > 1) || !(h.y == 0. || h.y == 1.) {
-                    return Err(EstimationError::refused(
-                        reason_code!("route_not_supported"),
-                        "temporal_recalc.binary_history_scope: only binary state, actions, covariate and outcome",
-                    ));
+                let Some(coordinates) = history_coordinates(h) else {
+                    return Err(if cap.is_some() {
+                        scope()
+                    } else {
+                        EstimationError::data_msg("temporal_recalc.invalid_history_outcome")
+                    });
+                };
+                for (level, &code) in levels.iter_mut().zip(&coordinates) {
+                    *level = (*level).max(code.saturating_add(1));
                 }
-                let y = usize::from(h.y == 1.);
-                let cell =
-                    usize::try_from(h.s0 * 16 + h.a1 * 8 + h.l2 * 4 + h.a2 * 2).map_err(|_| {
-                        EstimationError::data_msg("temporal_recalc.invalid_history_fit")
-                    })? + y;
+            }
+            if cap.is_some_and(|cap| levels.iter().any(|&level| level > cap)) {
+                return Err(scope());
+            }
+            let cells = levels
+                .iter()
+                .try_fold(1_usize, |cells, &level| cells.checked_mul(level as usize))
+                .ok_or_else(|| EstimationError::data_msg("temporal_recalc.history_cells_overflow"))?;
+            let _lease = crate::util::admit_bound_array::<u64>(cells, 2)?;
+            let mut counts = vec![0_u64; cells];
+            for h in units.iter().flat_map(|u| &u.histories) {
+                let Some(coordinates) = history_coordinates(h) else {
+                    return Err(EstimationError::data_msg("temporal_recalc.invalid_history_fit"));
+                };
+                let cell = coordinates
+                    .iter()
+                    .zip(&levels)
+                    .fold(0_usize, |cell, (&code, &level)| cell * level as usize + code as usize);
                 counts[cell] += 1;
             }
             let n: u64 = counts.iter().sum();
             if n == 0 {
                 return Err(EstimationError::data_msg("temporal_recalc.empty_histories"));
             }
-            let axes = (0..5)
-                .map(|id| DiscreteAxis {
-                    variable: VariableId::from_raw(id),
-                    values: Arc::from([Value::f64(0.), Value::f64(1.)]),
+            let axes = levels
+                .iter()
+                .enumerate()
+                .map(|(id, &level)| DiscreteAxis {
+                    variable: VariableId::from_raw(id as u32),
+                    values: (0..level).map(|code| Value::f64(f64::from(code))).collect(),
                 })
                 .collect::<Vec<_>>();
             let joint = ExactDiscreteLaw::try_empirical(
@@ -311,5 +395,60 @@ mod tests {
                 assert!((response - candidate_pin("response_11")).abs() < 1e-10);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod categorical_tests {
+    use super::*;
+    use crate::temporal_dependent_interval::SequenceHistory;
+
+    fn unit(histories: &[(u32, u32, u32, u32, f64)]) -> UnitHistories {
+        UnitHistories {
+            unit_id: 0,
+            histories: histories
+                .iter()
+                .enumerate()
+                .map(|(i, &(s0, a1, l2, a2, y))| SequenceHistory {
+                    time_id: i as u64 * 2,
+                    s0,
+                    a1,
+                    l2,
+                    a2,
+                    y,
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn binary_histories_keep_the_binary_cell_order_in_both_routes() {
+        let u = unit(&[(1, 0, 1, 1, 1.0), (0, 1, 0, 0, 0.0), (1, 0, 1, 1, 0.0)]);
+        let units = [&u];
+        let binary = fit_binary_history_units("s", &units).unwrap();
+        let general = fit_categorical_history_units("s", &units).unwrap();
+        assert_eq!(binary.empirical_counts(), general.empirical_counts());
+        let counts = binary.empirical_counts().unwrap();
+        // cell = s0*16 + a1*8 + l2*4 + a2*2 + y
+        assert_eq!((counts.len(), counts[16 + 4 + 2 + 1], counts[8], counts[16 + 4 + 2]), (32, 1, 1, 1));
+    }
+
+    #[test]
+    fn a_three_level_coordinate_indexes_the_mixed_radix_cell() {
+        let u = unit(&[(2, 0, 1, 1, 1.0), (0, 1, 0, 0, 2.0)]);
+        let units = [&u];
+        // The binary route refuses a level it does not carry.
+        assert!(fit_binary_history_units("s", &units).is_err());
+        let law = fit_categorical_history_units("s", &units).unwrap();
+        // Levels per coordinate: state 3, a1 2, l2 2, a2 2, outcome 3.
+        let radix = [3_usize, 2, 2, 2, 3];
+        assert_eq!(law.axes().iter().map(|axis| axis.values.len()).collect::<Vec<_>>(), radix);
+        let counts = law.empirical_counts().unwrap();
+        assert_eq!(counts.len(), 3 * 2 * 2 * 2 * 3);
+        let cell = |c: [usize; 5]| c.iter().zip(radix).fold(0, |cell, (&code, level)| cell * level + code);
+        assert_eq!(counts[cell([2, 0, 1, 1, 1])], 1);
+        assert_eq!(counts[cell([0, 1, 0, 0, 2])], 1);
+        assert_eq!(counts.iter().sum::<u64>(), 2);
+        assert!(fit_categorical_history_units("s", &[&unit(&[(0, 0, 0, 0, 0.5)])]).is_err());
     }
 }

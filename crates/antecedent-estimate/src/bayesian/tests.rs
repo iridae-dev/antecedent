@@ -321,10 +321,7 @@ fn bayesian_and_frequentist_share_ate() {
     );
     let query = AverageEffectQuery::binary_ate(t, y);
 
-    let freq = crate::adjustment::LinearAdjustmentAte {
-        bootstrap_replicates: 0,
-        ..crate::adjustment::LinearAdjustmentAte::new()
-    };
+    let freq = crate::adjustment::LinearAdjustmentAte::new().with_bootstrap_replicates(0);
     let prep = freq.prepare(&data, &estimand, &query).unwrap();
     let mut ws = crate::adjustment::EstimationWorkspace::default();
     let freq_est =
@@ -666,7 +663,7 @@ fn hierarchical_unit_effects_widen_posterior_vs_stacked() {
         ExprId::from_raw(0),
     );
     let query = AverageEffectQuery::binary_ate(treatment, outcome);
-    let freq = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+    let freq = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
     let prep = freq.prepare(&data, &estimand, &query).unwrap();
     let stacked = BayesianGComputationAte::from_prepared_estimation(&prep);
     let mut hierarchical = stacked.clone();
@@ -758,7 +755,7 @@ fn unit_ids_length_mismatch_is_an_error() {
         ExprId::from_raw(0),
     );
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let freq = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+    let freq = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
     let prep = freq.prepare(&data, &estimand, &query).unwrap();
     let mut bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
     bprep.unit_ids = Some(vec![0, 1]);
@@ -856,7 +853,7 @@ fn poisson_random_intercept_does_not_consume_whitened_outcome() {
         ExprId::from_raw(0),
     );
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let freq = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+    let freq = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
     let prep = freq.prepare(&data, &estimand, &query).unwrap();
 
     // Whitening is applicable on this panel and would change the outcome column.

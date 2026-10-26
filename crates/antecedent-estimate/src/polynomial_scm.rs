@@ -397,14 +397,24 @@ fn observation_likelihood(
     Ok(likelihood.probability())
 }
 impl PolynomialCausalProgram {
-    /// Validate identities, bounded finite laws and every observation/world binding.
+    /// Bytes the per-atom, per-world selected states and the training observations retain
+    /// (`None` when the product overflows).
+    fn retained_bytes(&self) -> Option<u64> {
+        let count = self
+            .candidates
+            .iter()
+            .try_fold(0_usize, |total, candidate| total.checked_add(candidate.atoms.len()))?;
+        let per_state = self.candidates.first()?.model.variables.len().checked_mul(128)?.checked_add(512)?;
+        let states = count.checked_mul(self.worlds.len())?.checked_mul(per_state)?;
+        let training = self.training.len().checked_mul(128)?;
+        u64::try_from(states.checked_add(training)?).ok()
+    }
+
+    /// Validate identities, finite laws and every observation/world binding. The size of the
+    /// joint execution is leased against the execution context by [`Self::execute`].
     pub fn validate(&self) -> Result<(), EquilibriumError> {
-        if self.candidates.is_empty()
-            || self.candidates.len() > 32
-            || self.worlds.is_empty()
-            || self.worlds.len() > 32
-        {
-            return Err(invalid("finite causal program limits"));
+        if self.candidates.is_empty() || self.worlds.is_empty() {
+            return Err(invalid("a finite causal program needs candidates and worlds"));
         }
         let n = self.candidates[0].model.variables.len();
         let mut worlds = BTreeSet::new();
@@ -427,9 +437,8 @@ impl PolynomialCausalProgram {
                 || candidate.id.len() > 256
                 || !ids.insert(&candidate.id)
                 || candidate.atoms.is_empty()
-                || candidate.atoms.len() > 256
             {
-                return Err(invalid("candidate identities/variables/atom limits"));
+                return Err(invalid("candidate identities/variables/atoms"));
             }
             let mut atom_ids = BTreeSet::new();
             for atom in &candidate.atoms {
@@ -462,7 +471,6 @@ impl PolynomialCausalProgram {
                 for (world, kernel) in &atom.measurements {
                     if !worlds.contains(world)
                         || kernel.is_empty()
-                        || kernel.len() > 64
                         || kernel.keys().any(|k| k.is_empty() || k.len() > 256)
                     {
                         return Err(invalid("measurement kernel bindings/labels"));
@@ -472,8 +480,10 @@ impl PolynomialCausalProgram {
             }
             normalized(&candidate.atoms.iter().map(|a| a.weight).collect::<Vec<_>>())?;
         }
-        if count > 256 || count * self.worlds.len() > 1024 {
-            return Err(invalid("joint root-execution budget"));
+        // The joint root execution is sized by candidates x atoms x worlds; its memory is leased
+        // against the execution context in `execute`, so only arithmetic overflow is refused here.
+        if count.checked_mul(self.worlds.len()).is_none() || self.retained_bytes().is_none() {
+            return Err(invalid("joint root-execution size overflows"));
         }
         normalized(&self.candidates.iter().map(|c| c.prior_weight).collect::<Vec<_>>())?;
         for observation in self.training.iter().chain(std::iter::once(&self.factual)) {
@@ -500,12 +510,11 @@ impl PolynomialCausalProgram {
     ) -> Result<PolynomialCausalReport, EquilibriumError> {
         self.validate()?;
         let count = self.candidates.iter().map(|c| c.atoms.len()).sum::<usize>();
+        let retained = self
+            .retained_bytes()
+            .ok_or_else(|| EquilibriumError::Resource("joint root-execution size overflows".into()))?;
         let _retention = ctx
-            .acquire_admission(
-                0,
-                (count * self.worlds.len() * (self.candidates[0].model.variables.len() * 128 + 512)
-                    + self.training.len() * 128) as u64,
-            )
+            .acquire_admission(0, retained)
             .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
         let priors =
             normalized(&self.candidates.iter().map(|c| c.prior_weight).collect::<Vec<_>>())?;

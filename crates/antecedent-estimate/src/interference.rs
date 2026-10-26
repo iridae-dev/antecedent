@@ -182,8 +182,7 @@ pub fn estimate_interference_bayesian(
         n_draws,
         seed,
         &mut LaplaceWorkspace::default(),
-    )
-    .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
+    )?;
     let contrast_draws = (0..n_draws).map(|i| draws[i]).collect::<Vec<_>>();
     let mean = contrast_draws.iter().sum::<f64>() / n_draws as f64;
     Ok(BayesianInterferenceEstimate { contrast_draws, mean })

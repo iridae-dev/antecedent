@@ -39,21 +39,18 @@ use crate::crossfit_aipw::DEFAULT_AIPW_FOLDS;
 use crate::crossfit_plan::crossfit_fold_plan;
 use crate::error::EstimationError;
 use crate::joint_if::JointCovariance;
-use crate::util::dot;
-use crate::overlap::{ClipSensitivity, IpwTarget, OverlapPolicy, OverlapReport, clip_propensity};
+use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport, clip_propensity};
 use crate::prepare::treatment_contrast;
 use crate::propensity::{
     DeclaredTreatmentLevels, OtherLevels, PropensityNuisance, clip_of, trim_of,
 };
 use crate::se::AnalyticSeKind;
 use crate::streamed_rows::{
-    ArmFilter, EngineFacts, MaskedRows, RowFilter, RowMode, fit_logistic_streamed, run_engine,
+    ArmFilter, BOUNDARY, EngineFacts, MaskedRows, RowFilter, RowMode, RowView, WeightSums,
+    clip_sensitivity_report, clip_sensitivity_thresholds, fit_logistic_streamed,
+    fitted_propensity, for_each_kept_row, run_engine,
 };
-
-/// Weight above which a weight is counted extreme, as the resident overlap report counts it.
-const EXTREME_WEIGHT: f64 = 10.0;
-/// Fitted probabilities this close to 0 or 1 are refused, as the resident fit refuses them.
-const BOUNDARY: f64 = 1e-8;
+use crate::util::dot;
 
 /// Effect, cross-fit standard error and overlap report from a streamed reduction, with the facts
 /// of the run.
@@ -97,87 +94,6 @@ impl StreamedAipwEstimate {
     }
 }
 
-/// One kept row: the propensity design row, its arm and its outcome.
-struct RowView<'r> {
-    design: &'r [f64],
-    treated: bool,
-    outcome: f64,
-}
-
-/// Visit every kept row with its place among the kept rows.
-#[allow(
-    clippy::float_cmp,
-    reason = "the declared treatment level is an exact category label, not a computed value"
-)]
-fn for_each_kept_row(
-    mask: &[bool],
-    covariates: &[&[f64]],
-    treatment: &[f64],
-    outcome: &[f64],
-    active: f64,
-    mut visit: impl FnMut(usize, RowView<'_>),
-) {
-    let mut design = vec![0.0; 1 + covariates.len()];
-    design[0] = 1.0;
-    let mut place = 0;
-    for (row, &kept) in mask.iter().enumerate() {
-        if !kept {
-            continue;
-        }
-        for (slot, column) in design[1..].iter_mut().zip(covariates) {
-            *slot = column[row];
-        }
-        visit(
-            place,
-            RowView { design: &design, treated: treatment[row] == active, outcome: outcome[row] },
-        );
-        place += 1;
-    }
-}
-
-/// Fitted propensity of a design row, kept off 0 and 1 as the resident scores are.
-fn propensity(design: &[f64], gamma: &[f64]) -> f64 {
-    let eta: f64 = design.iter().zip(gamma).map(|(x, g)| x * g).sum();
-    antecedent_kernels::sigmoid(eta).clamp(1e-9, 1.0 - 1e-9)
-}
-
-/// Running sums of one weight vector: all rows and each arm.
-#[derive(Clone, Copy, Debug, Default)]
-struct WeightSums {
-    sum: f64,
-    sum_sq: f64,
-    extreme: u64,
-    treated_sum: f64,
-    treated_sum_sq: f64,
-    control_sum: f64,
-    control_sum_sq: f64,
-}
-
-impl WeightSums {
-    fn push(&mut self, weight: f64, treated: bool) {
-        self.sum += weight;
-        self.sum_sq += weight * weight;
-        if weight > EXTREME_WEIGHT {
-            self.extreme += 1;
-        }
-        if treated {
-            self.treated_sum += weight;
-            self.treated_sum_sq += weight * weight;
-        } else {
-            self.control_sum += weight;
-            self.control_sum_sq += weight * weight;
-        }
-    }
-
-    fn ess(sum: f64, sum_sq: f64) -> f64 {
-        if sum_sq > 0.0 { (sum * sum) / sum_sq } else { 0.0 }
-    }
-
-    fn extreme_count(&self) -> u32 {
-        u32::try_from(self.extreme).unwrap_or(u32::MAX)
-    }
-}
-
 /// Running means and sums of centered cross-products of the two arm scores.
 #[derive(Clone, Copy, Debug, Default)]
 struct ScoreMoments {
@@ -200,21 +116,115 @@ impl ScoreMoments {
     }
 }
 
+/// The kept rows of a streamed cross-fit reduction: the float columns they are read from, the
+/// declared treatment levels with their row counts, the fold of every kept row and the clip the
+/// weights are formed under.
+struct AipwInputs<'a> {
+    row_mask: Vec<bool>,
+    covariates: Vec<&'a [f64]>,
+    treatment: &'a [f64],
+    outcome: &'a [f64],
+    active: f64,
+    control: f64,
+    at_active: u64,
+    at_control: u64,
+    /// Fold id of each kept row, in the order the mask keeps them.
+    fold_ids: Vec<u32>,
+    clip: Option<f64>,
+}
+
+impl AipwInputs<'_> {
+    fn for_each_row(&self, visit: impl FnMut(usize, RowView<'_>)) {
+        for_each_kept_row(
+            &self.row_mask,
+            &self.covariates,
+            self.treatment,
+            self.outcome,
+            self.active,
+            visit,
+        );
+    }
+}
+
+/// The scoring passes' accumulators: the two arm scores' moments, the propensity range and
+/// support, and the clip-sensitivity weight sums.
+struct ScoreAccumulator {
+    moments: ScoreMoments,
+    thresholds: Vec<f64>,
+    sensitivity: Vec<WeightSums>,
+    min_p: f64,
+    max_p: f64,
+    in_support: u64,
+}
+
+impl ScoreAccumulator {
+    fn new(clip: Option<f64>) -> Self {
+        let thresholds = clip_sensitivity_thresholds(clip);
+        Self {
+            moments: ScoreMoments::default(),
+            sensitivity: vec![WeightSums::default(); thresholds.len()],
+            thresholds,
+            min_p: f64::INFINITY,
+            max_p: f64::NEG_INFINITY,
+            in_support: 0,
+        }
+    }
+
+    /// The contrast value, its variance and the covariance of the two arm-score means
+    /// (column-major `[control, treated]`).
+    fn contrast(&self) -> Result<(f64, f64, [f64; 4]), EstimationError> {
+        let moments = &self.moments;
+        let nf = moments.count;
+        if nf < 2.0 {
+            return Err(EstimationError::data_msg("joint IF requires at least two rows"));
+        }
+        let scale = nf * (nf - 1.0);
+        let covariance = [
+            moments.m2[0][0] / scale,
+            moments.m2[1][0] / scale,
+            moments.m2[0][1] / scale,
+            moments.m2[1][1] / scale,
+        ];
+        let ate = (-1.0) * moments.mean[0] + moments.mean[1];
+        let variance = covariance[0] + covariance[3] - covariance[1] - covariance[2];
+        if !ate.is_finite() || !variance.is_finite() {
+            return Err(EstimationError::data_msg("contrast value or variance is non-finite"));
+        }
+        Ok((ate, variance, covariance))
+    }
+
+    fn overlap_report(&self, clip: Option<f64>) -> OverlapReport {
+        OverlapReport {
+            propensity_min: self.min_p,
+            propensity_max: self.max_p,
+            ess: None,
+            extreme_weight_count: 0,
+            excluded_fraction: 0.0,
+            target_population_support: self.in_support as f64 / self.moments.count.max(1.0),
+            excluded_regions: Arc::from([]),
+            clip,
+            trim: None,
+            retained_fraction: 1.0,
+            clip_sensitivity: clip_sensitivity_report(clip, &self.thresholds, &self.sensitivity),
+        }
+    }
+}
+
 impl AipwAte {
     /// Whether this estimator's result follows in closed form from streamed row passes: the
     /// default unpenalized logistic propensity, untrimmed weights, the iid standard error, and
     /// no sampling weights, clustering, cluster-DML, bootstrap or rows at undeclared levels.
     #[must_use]
     pub fn supports_streamed_reduction(&self) -> bool {
-        self.bootstrap_replicates == 0
-            && self.bootstrap_interval.is_none()
-            && matches!(self.se_kind, AnalyticSeKind::Homoskedastic)
-            && self.cluster_ids.is_none()
-            && self.source_cluster_ids.is_none()
+        self.inference.bootstrap_replicates == 0
+            && self.inference.bootstrap_interval.is_none()
+            && matches!(self.inference.se_kind, AnalyticSeKind::Homoskedastic)
+            && self.inference.cluster_ids.is_none()
+            && self.inference.source_cluster_ids.is_none()
             && self.cluster_ids_second.is_none()
             && self.source_cluster_ids_second.is_none()
-            && self.multiway_ids.is_none()
-            && self.panel_times.is_none()
+            && self.inference.multiway_ids.is_none()
+            && self.inference.panel_times.is_none()
             && self.propensity == PropensityNuisance::default()
             && self.cluster_dml.is_none()
             && self.other_levels == OtherLevels::Refuse
@@ -226,6 +236,10 @@ impl AipwAte {
     /// `batch_rows`, holding at most `ceiling_bytes` per engine pass, without building the
     /// design. `fold_seed` is the seed the resident fit takes from its context.
     ///
+    /// The reduction runs in stages: validate the request and plan the folds, then per fold
+    /// fit the nuisances on the training rows and score the validation rows, and finally form
+    /// the contrast, its covariance and the overlap report from the running accumulators.
+    ///
     /// # Errors
     ///
     /// The estimator is not streamable, the estimand or query is not an all-observed mean
@@ -233,11 +247,6 @@ impl AipwAte {
     /// fold is empty or misses an arm, a fold's logistic fit does not converge or reaches the
     /// boundary, an outcome regression is rank deficient, a propensity is 0 or 1 without a
     /// clip, or the reduction exceeds its ceiling.
-    #[allow(
-        clippy::too_many_lines,
-        clippy::float_cmp,
-        reason = "one reduction: the fold plan, then per fold the nuisance passes and the scoring pass, read in order; the declared treatment levels are exact category labels"
-    )]
     pub fn estimate_streamed(
         &self,
         data: &TabularData,
@@ -247,6 +256,55 @@ impl AipwAte {
         batch_rows: usize,
         ceiling_bytes: u64,
     ) -> Result<StreamedAipwEstimate, EstimationError> {
+        let inputs = self.streamed_inputs(data, estimand, query, fold_seed)?;
+        let folds = DEFAULT_AIPW_FOLDS;
+        let options = CapacityOptions::new(batch_rows, ceiling_bytes, OutputRetention::SummaryOnly);
+        let mut facts = EngineFacts::default();
+        let mut iterations = Vec::with_capacity(folds);
+        let mut scores = ScoreAccumulator::new(inputs.clip);
+        for fold in 0..folds {
+            iterations.push(self.score_fold(&inputs, fold, &options, &mut facts, &mut scores)?);
+        }
+        let (ate, variance, covariance) = scores.contrast()?;
+        let overlap_report = scores.overlap_report(inputs.clip);
+        let choice = facts.choice.ok_or_else(|| EstimationError::data_msg("no engine pass ran"))?;
+        Ok(StreamedAipwEstimate {
+            ate,
+            se_analytic: variance.max(0.0).sqrt(),
+            joint_covariance: JointCovariance { dim: 2, values: Arc::from(covariance) },
+            overlap_report,
+            treatment_levels: DeclaredTreatmentLevels {
+                active: inputs.active,
+                control: inputs.control,
+                other_levels: OtherLevels::Refuse,
+                rows_at_active: inputs.at_active,
+                rows_at_control: inputs.at_control,
+                excluded_rows: 0,
+            },
+            folds,
+            fold_seed,
+            propensity_iterations: iterations,
+            reserved_bytes: facts.reserved,
+            // The engine's passes, the count pass, and a boundary and a scoring pass per fold.
+            source_passes: facts.passes + 2,
+            batches: facts.batches,
+            choice,
+        })
+    }
+
+    /// Validate the estimator and query, read the float columns and the complete-case mask,
+    /// count the rows at each declared level (none may sit elsewhere) and plan the folds.
+    #[allow(
+        clippy::float_cmp,
+        reason = "the declared treatment levels are exact category labels, not computed values"
+    )]
+    fn streamed_inputs<'a>(
+        &self,
+        data: &'a TabularData,
+        estimand: &IdentifiedEstimand,
+        query: &AverageEffectQuery,
+        fold_seed: u64,
+    ) -> Result<AipwInputs<'a>, EstimationError> {
         if !self.supports_streamed_reduction() {
             return Err(EstimationError::unsupported(
                 "a streamed reduction needs the default logistic propensity, untrimmed weights, \
@@ -292,7 +350,7 @@ impl AipwAte {
             &[],
             PreparationControls::finite_resident(),
         )?;
-        let column = |id| -> Result<&[f64], EstimationError> {
+        let column = |id| -> Result<&'a [f64], EstimationError> {
             match data.column(id)? {
                 ColumnView::Float64(c) => Ok(c.values.as_slice()),
                 _ => Err(EstimationError::unsupported(
@@ -346,11 +404,123 @@ impl AipwAte {
         }
         let fold_ids = crossfit_fold_plan(&strata, &units, folds, fold_seed)?;
         drop((strata, units));
+        let inputs = AipwInputs {
+            row_mask,
+            covariates,
+            treatment,
+            outcome,
+            active,
+            control,
+            at_active,
+            at_control,
+            fold_ids,
+            clip,
+        };
+        inputs.require_populated_folds(folds)?;
+        Ok(inputs)
+    }
 
-        // Rows of each fold and arm, so an empty fold or a missing arm refuses before any fit.
+    /// One fold: fit the logistic propensity and the two arm outcome regressions on the training
+    /// rows, then score the fold's validation rows once into `scores`. Returns the propensity
+    /// fit's IRLS iterations.
+    fn score_fold(
+        &self,
+        inputs: &AipwInputs<'_>,
+        fold: usize,
+        options: &CapacityOptions,
+        facts: &mut EngineFacts,
+        scores: &mut ScoreAccumulator,
+    ) -> Result<u32, EstimationError> {
+        let AipwInputs { row_mask, covariates, treatment, outcome, active, fold_ids, clip, .. } =
+            inputs;
+        let (treatment, outcome, active, clip) = (*treatment, *outcome, *active, *clip);
+        let fold_id = u32::try_from(fold).unwrap_or(u32::MAX);
+        let training = RowFilter { fold_ids, exclude_fold: Some(fold_id), arm: None };
+        let (gamma, steps) = fit_logistic_streamed(
+            covariates,
+            treatment,
+            active,
+            row_mask,
+            Some(training),
+            options,
+            &self.glm_options,
+            facts,
+        )?;
+        facts.passes += 1;
+        let mut saturated = false;
+        inputs.for_each_row(|place, row| {
+            if fold_ids[place] != fold_id {
+                let e = fitted_propensity(row.design, &gamma);
+                saturated |= e <= BOUNDARY || e >= 1.0 - BOUNDARY;
+            }
+        });
+        if saturated {
+            return Err(EstimationError::data_msg(
+                "GLM fitted probabilities lie within 1e-8 of 0 or 1 (extreme scores, not \
+                 necessarily separation); refuse propensity/outcome scores",
+            ));
+        }
+        // The arm outcome regressions on the training rows.
+        let mut beta = [Vec::new(), Vec::new()];
+        for treated in [false, true] {
+            let filter = RowFilter {
+                fold_ids,
+                exclude_fold: Some(fold_id),
+                arm: Some(ArmFilter { treatment, active, treated }),
+            };
+            let mut source =
+                MaskedRows::new(true, covariates.clone(), RowMode::Plain { outcome }, row_mask)
+                    .filtered(filter);
+            beta[usize::from(treated)]
+                .clone_from(&run_engine(&mut source, options, facts)?.coefficients);
+        }
+        // The scoring pass over the fold's validation rows.
+        facts.passes += 1;
+        let mut refusal: Option<EstimationError> = None;
+        let support_lo = clip.unwrap_or(0.0);
+        let support_hi = 1.0 - support_lo;
+        inputs.for_each_row(|place, row| {
+            if fold_ids[place] != fold_id || refusal.is_some() {
+                return;
+            }
+            let raw = fitted_propensity(row.design, &gamma);
+            let e = clip.map_or(raw, |c| clip_propensity(raw, c));
+            if !(e > 0.0 && e < 1.0) {
+                refusal = Some(EstimationError::Overlap {
+                    message: "a fitted propensity is 0 or 1 (or not finite) and no clip is \
+                              set; the inverse-probability weight is infinite — set an \
+                              overlap clip",
+                });
+                return;
+            }
+            let t = if row.treated { 1.0 } else { 0.0 };
+            let m0 = dot(row.design, &beta[0]);
+            let m1 = dot(row.design, &beta[1]);
+            let control_score = m0 + ((1.0 - t) / (1.0 - e)) * (row.outcome - m0);
+            let treated_score = m1 + (t / e) * (row.outcome - m1);
+            scores.moments.push(control_score, treated_score);
+            scores.min_p = scores.min_p.min(raw);
+            scores.max_p = scores.max_p.max(raw);
+            if raw >= support_lo && raw <= support_hi {
+                scores.in_support += 1;
+            }
+            for (sums, &threshold) in scores.sensitivity.iter_mut().zip(&scores.thresholds) {
+                sums.push(IpwTarget::Ate.weight(t, clip_propensity(raw, threshold)), row.treated);
+            }
+        });
+        if let Some(error) = refusal.take() {
+            return Err(error);
+        }
+        Ok(steps)
+    }
+}
+
+impl AipwInputs<'_> {
+    /// Rows of each fold and arm, so an empty fold or a missing arm refuses before any fit.
+    fn require_populated_folds(&self, folds: usize) -> Result<(), EstimationError> {
         let mut counts = vec![[0_u64; 2]; folds];
-        for_each_kept_row(&row_mask, &covariates, treatment, outcome, active, |place, row| {
-            counts[fold_ids[place] as usize][usize::from(row.treated)] += 1;
+        self.for_each_row(|place, row| {
+            counts[self.fold_ids[place] as usize][usize::from(row.treated)] += 1;
         });
         let arm_totals =
             [counts.iter().map(|c| c[0]).sum::<u64>(), counts.iter().map(|c| c[1]).sum::<u64>()];
@@ -366,180 +536,7 @@ impl AipwAte {
                 }));
             }
         }
-
-        let options = CapacityOptions::new(batch_rows, ceiling_bytes, OutputRetention::SummaryOnly);
-        let mut facts = EngineFacts::default();
-        let mut iterations = Vec::with_capacity(folds);
-        let thresholds: Vec<f64> = match clip {
-            Some(c) => {
-                let mut kept: Vec<f64> = Vec::with_capacity(3);
-                for candidate in [c * 0.5, c, (c * 2.0).min(0.49)] {
-                    if kept.last().is_some_and(|previous| (previous - candidate).abs() < 1e-15) {
-                        continue;
-                    }
-                    kept.push(candidate);
-                }
-                kept
-            }
-            None => Vec::new(),
-        };
-        let mut sensitivity = vec![WeightSums::default(); thresholds.len()];
-        let mut moments = ScoreMoments::default();
-        let (mut min_p, mut max_p) = (f64::INFINITY, f64::NEG_INFINITY);
-        let mut in_support = 0_u64;
-        let support_lo = clip.unwrap_or(0.0);
-        let support_hi = 1.0 - support_lo;
-        let mut refusal: Option<EstimationError> = None;
-        for fold in 0..folds {
-            let fold_id = u32::try_from(fold).unwrap_or(u32::MAX);
-            let training =
-                RowFilter { fold_ids: &fold_ids, exclude_fold: Some(fold_id), arm: None };
-            let (gamma, steps) = fit_logistic_streamed(
-                &covariates,
-                treatment,
-                active,
-                &row_mask,
-                Some(training),
-                &options,
-                &self.glm_options,
-                &mut facts,
-            )?;
-            iterations.push(steps);
-            facts.passes += 1;
-            let mut saturated = false;
-            for_each_kept_row(&row_mask, &covariates, treatment, outcome, active, |place, row| {
-                if fold_ids[place] != fold_id {
-                    let e = propensity(row.design, &gamma);
-                    saturated |= e <= BOUNDARY || e >= 1.0 - BOUNDARY;
-                }
-            });
-            if saturated {
-                return Err(EstimationError::data_msg(
-                    "GLM fitted probabilities lie within 1e-8 of 0 or 1 (extreme scores, not \
-                     necessarily separation); refuse propensity/outcome scores",
-                ));
-            }
-            // The arm outcome regressions on the training rows.
-            let mut beta = [Vec::new(), Vec::new()];
-            for treated in [false, true] {
-                let filter = RowFilter {
-                    fold_ids: &fold_ids,
-                    exclude_fold: Some(fold_id),
-                    arm: Some(ArmFilter { treatment, active, treated }),
-                };
-                let mut source = MaskedRows::new(
-                    true,
-                    covariates.clone(),
-                    RowMode::Plain { outcome },
-                    &row_mask,
-                )
-                .filtered(filter);
-                beta[usize::from(treated)]
-                    .clone_from(&run_engine(&mut source, &options, &mut facts)?.coefficients);
-            }
-            // The scoring pass over the fold's validation rows.
-            facts.passes += 1;
-            for_each_kept_row(&row_mask, &covariates, treatment, outcome, active, |place, row| {
-                if fold_ids[place] != fold_id || refusal.is_some() {
-                    return;
-                }
-                let raw = propensity(row.design, &gamma);
-                let e = clip.map_or(raw, |c| clip_propensity(raw, c));
-                if !(e > 0.0 && e < 1.0) {
-                    refusal = Some(EstimationError::Overlap {
-                        message: "a fitted propensity is 0 or 1 (or not finite) and no clip is \
-                                  set; the inverse-probability weight is infinite — set an \
-                                  overlap clip",
-                    });
-                    return;
-                }
-                let t = if row.treated { 1.0 } else { 0.0 };
-                let m0 = dot(row.design, &beta[0]);
-                let m1 = dot(row.design, &beta[1]);
-                let control_score = m0 + ((1.0 - t) / (1.0 - e)) * (row.outcome - m0);
-                let treated_score = m1 + (t / e) * (row.outcome - m1);
-                moments.push(control_score, treated_score);
-                min_p = min_p.min(raw);
-                max_p = max_p.max(raw);
-                if raw >= support_lo && raw <= support_hi {
-                    in_support += 1;
-                }
-                for (sums, &threshold) in sensitivity.iter_mut().zip(&thresholds) {
-                    sums.push(
-                        IpwTarget::Ate.weight(t, clip_propensity(raw, threshold)),
-                        row.treated,
-                    );
-                }
-            });
-            if let Some(error) = refusal.take() {
-                return Err(error);
-            }
-        }
-
-        let nf = moments.count;
-        if nf < 2.0 {
-            return Err(EstimationError::data_msg("joint IF requires at least two rows"));
-        }
-        let scale = nf * (nf - 1.0);
-        let covariance = [
-            moments.m2[0][0] / scale,
-            moments.m2[1][0] / scale,
-            moments.m2[0][1] / scale,
-            moments.m2[1][1] / scale,
-        ];
-        let ate = (-1.0) * moments.mean[0] + moments.mean[1];
-        let variance = covariance[0] + covariance[3] - covariance[1] - covariance[2];
-        if !ate.is_finite() || !variance.is_finite() {
-            return Err(EstimationError::data_msg("contrast value or variance is non-finite"));
-        }
-        let overlap_report = OverlapReport {
-            propensity_min: min_p,
-            propensity_max: max_p,
-            ess: None,
-            extreme_weight_count: 0,
-            excluded_fraction: 0.0,
-            target_population_support: in_support as f64 / nf.max(1.0),
-            excluded_regions: Arc::from([]),
-            clip,
-            trim: None,
-            retained_fraction: 1.0,
-            clip_sensitivity: clip.map(|_| ClipSensitivity {
-                thresholds: Arc::from(thresholds.clone()),
-                ess: sensitivity.iter().map(|s| WeightSums::ess(s.sum, s.sum_sq)).collect(),
-                treated_ess: sensitivity
-                    .iter()
-                    .map(|s| WeightSums::ess(s.treated_sum, s.treated_sum_sq))
-                    .collect(),
-                control_ess: sensitivity
-                    .iter()
-                    .map(|s| WeightSums::ess(s.control_sum, s.control_sum_sq))
-                    .collect(),
-                extreme_weight_counts: sensitivity.iter().map(WeightSums::extreme_count).collect(),
-            }),
-        };
-        let choice = facts.choice.ok_or_else(|| EstimationError::data_msg("no engine pass ran"))?;
-        Ok(StreamedAipwEstimate {
-            ate,
-            se_analytic: variance.max(0.0).sqrt(),
-            joint_covariance: JointCovariance { dim: 2, values: Arc::from(covariance) },
-            overlap_report,
-            treatment_levels: DeclaredTreatmentLevels {
-                active,
-                control,
-                other_levels: OtherLevels::Refuse,
-                rows_at_active: at_active,
-                rows_at_control: at_control,
-                excluded_rows: 0,
-            },
-            folds,
-            fold_seed,
-            propensity_iterations: iterations,
-            reserved_bytes: facts.reserved,
-            // The engine's passes, the count pass, and a boundary and a scoring pass per fold.
-            source_passes: facts.passes + 2,
-            batches: facts.batches,
-            choice,
-        })
+        Ok(())
     }
 }
 

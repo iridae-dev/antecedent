@@ -32,6 +32,7 @@
 )]
 use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
 
+use crate::arm::TreatmentArm;
 use crate::EstimationError;
 use crate::splitmix::{mix64, seed_mix, splitmix64};
 use crate::util::mean;
@@ -377,7 +378,7 @@ fn validate(
         ));
     }
     Ok(Columns {
-        a: input.treatment.iter().map(|&v| if v > 0.5 { 1.0 } else { 0.0 }).collect(),
+        a: input.treatment.iter().map(|&v| if TreatmentArm::is_treated_indicator(v) { 1.0 } else { 0.0 }).collect(),
         m: input.mediator.to_vec(),
         y: input.outcome.to_vec(),
         x: input.covariates.iter().map(|c| c.to_vec()).collect(),
@@ -388,7 +389,7 @@ fn check_arms(
     cols: &Columns,
     config: &NonlinearMediationConfig,
 ) -> Result<(usize, usize), EstimationError> {
-    let treated = cols.a.iter().filter(|&&v| v > 0.5).count();
+    let treated = cols.a.iter().filter(|&&v| TreatmentArm::is_treated_indicator(v)).count();
     let control = cols.len() - treated;
     if treated < config.min_arm_count.max(1) || control < config.min_arm_count.max(1) {
         return Err(refuse(
@@ -442,14 +443,14 @@ fn ols(cols: &[Vec<f64>], y: &[f64]) -> Result<Ols, EstimationError> {
     }
     let mut workspace = LeastSquaresWorkspace::default();
     let fit = crate::util::ls_fit(FaerBackend, &design, n, p, y, &mut workspace)?;
-    if fit.rank < p {
+    if fit.rank() < p {
         return Err(refuse(
             rank_code,
             "nonlinear_mediation.rank_deficient",
             "regression design is rank deficient",
         ));
     }
-    let beta: Vec<f64> = fit.coefficients.iter().zip(&scales).map(|(b, s)| b / s).collect();
+    let beta: Vec<f64> = fit.coefficients().iter().zip(&scales).map(|(b, s)| b / s).collect();
     let mut residuals = Vec::with_capacity(n);
     let mut rss = 0.0;
     for i in 0..n {
@@ -738,7 +739,7 @@ fn treated_range(cols: &Columns) -> (f64, f64) {
     let mut lo = f64::INFINITY;
     let mut hi = f64::NEG_INFINITY;
     for (m, a) in cols.m.iter().zip(&cols.a) {
-        if *a > 0.5 {
+        if TreatmentArm::is_treated_indicator(*a) {
             lo = lo.min(*m);
             hi = hi.max(*m);
         }

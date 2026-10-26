@@ -171,12 +171,11 @@ fn log_risk_ratio_and_its_delta_method_variance_match_the_hand_computation() {
 }
 
 #[test]
-fn a_transform_rejects_more_scales_than_the_declared_bound() {
+fn a_transform_evaluates_every_declared_scale_without_a_count_cap() {
     let pair = MeanPair::new(0.4, 0.2, None);
     let scales = [ReportingScale::MeanDifference; 5];
-    let (code, message) = refused(transform_mean_pair(&pair, &scales).unwrap_err());
-    assert_eq!(code, "invalid_argument");
-    assert!(message.contains("at most four reporting scales"), "{message}");
+    let transform = transform_mean_pair(&pair, &scales).unwrap();
+    assert_eq!(transform.contrasts.len(), 5);
 }
 
 #[test]

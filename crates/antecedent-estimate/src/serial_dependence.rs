@@ -41,8 +41,8 @@
 //! ```
 //!
 //! where `R̂` is the correlation matrix of an AR(q) fitted to the residual by
-//! **restricted maximum likelihood** (REML; `q ≤ 4` by BIC on the REML
-//! likelihood, `−2ℓ_R + q ln(n − p)`). REML maximizes the likelihood of the
+//! **restricted maximum likelihood** (REML; `q` by BIC on the REML
+//! likelihood, `−2ℓ_R + q ln(n − p)`, over orders up to the Schwert rule of the sample). REML maximizes the likelihood of the
 //! residual contrasts, so the projection that decorrelates the OLS residuals is
 //! accounted for exactly (Cheang & Reinsel 2000); a Yule–Walker or Burg fit to
 //! the OLS residuals is biased toward independence by the same `tr(HR)`
@@ -109,7 +109,9 @@ use std::sync::Arc;
 
 use antecedent_stats::{CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
-use crate::ar_kernel::{MAX_AR_ORDER, MAX_AR_RHO, bic_autoregression, dot, kendall_rho};
+use crate::ar_kernel::{
+    MAX_AR_ORDER, MAX_AR_RHO, bic_autoregression, dot, kendall_rho, schwert_order,
+};
 use crate::error::EstimationError;
 use crate::util::gram;
 
@@ -960,19 +962,17 @@ struct ArErrorModel {
     z: Vec<f64>,
 }
 
-/// Fixed-capacity AR coefficient vector (`q ≤ MAX_AR_ORDER`).
-type ArCoefficients = [f64; MAX_AR_ORDER];
-
 /// Partial autocorrelations `r` (`|r_k| < 1`) to AR coefficients (Levinson step-up).
 fn pacf_to_phi(r: &[f64]) -> Vec<f64> {
-    let mut phi = [0.0; MAX_AR_ORDER];
+    let mut phi = vec![0.0; r.len()];
     pacf_to_phi_into(r, &mut phi);
-    phi[..r.len()].to_vec()
+    phi
 }
 
-fn pacf_to_phi_into(r: &[f64], phi: &mut ArCoefficients) {
-    debug_assert!(r.len() <= MAX_AR_ORDER);
-    let mut next = [0.0; MAX_AR_ORDER];
+/// Levinson step-up into `phi`, which holds at least `r.len()` entries.
+fn pacf_to_phi_into(r: &[f64], phi: &mut [f64]) {
+    debug_assert!(phi.len() >= r.len());
+    let mut next = vec![0.0; r.len()];
     for (m, &k) in r.iter().enumerate() {
         for j in 0..m {
             next[j] = phi[j] - k * phi[m - 1 - j];
@@ -993,9 +993,10 @@ fn z_to_phi(z: &[f64]) -> Vec<f64> {
 #[derive(Debug)]
 struct Whitener {
     q: usize,
-    phi: ArCoefficients,
+    /// AR coefficients `φ₁ … φ_q`.
+    phi: Vec<f64>,
     /// Lower Cholesky factor `C` of the `q × q` stationary autocovariance (row-major).
-    chol: [f64; MAX_AR_ORDER * MAX_AR_ORDER],
+    chol: Vec<f64>,
     /// `log|Γ| = 2 Σ log diag(C)`.
     log_det: f64,
     /// Marginal variance `γ₀` of the process with unit innovations.
@@ -1005,38 +1006,24 @@ struct Whitener {
 impl Whitener {
     /// `None` when the implied autocovariance is not positive definite.
     fn new(phi: &[f64]) -> Option<Self> {
-        let q = phi.len();
-        if q > MAX_AR_ORDER {
-            return None;
-        }
-        let mut coefficients = [0.0; MAX_AR_ORDER];
-        coefficients[..q].copy_from_slice(phi);
-        Self::from_coefficients(q, coefficients)
+        Self::from_coefficients(phi.to_vec())
     }
 
     /// The whitener of the model at partial-autocorrelation coordinates `z`.
     fn from_z(z: &[f64]) -> Option<Self> {
-        let q = z.len();
-        if q > MAX_AR_ORDER {
-            return None;
-        }
-        let mut r = [0.0; MAX_AR_ORDER];
-        for (r, v) in r.iter_mut().zip(z) {
-            *r = MAX_PARTIAL_AUTOCORRELATION * v.tanh();
-        }
-        let mut phi = [0.0; MAX_AR_ORDER];
-        pacf_to_phi_into(&r[..q], &mut phi);
-        Self::from_coefficients(q, phi)
+        let r: Vec<f64> = z.iter().map(|v| MAX_PARTIAL_AUTOCORRELATION * v.tanh()).collect();
+        Self::from_coefficients(pacf_to_phi(&r))
     }
 
-    fn from_coefficients(q: usize, phi: ArCoefficients) -> Option<Self> {
-        let mut chol = [0.0; MAX_AR_ORDER * MAX_AR_ORDER];
+    fn from_coefficients(phi: Vec<f64>) -> Option<Self> {
+        let q = phi.len();
+        let mut chol = vec![0.0; q * q];
         if q == 0 {
             return Some(Self { q, phi, chol, log_det: 0.0, gamma0: 1.0 });
         }
         // Yule–Walker: ρ_k = Σ_j φ_j ρ_{|k−j|}, k = 1..q, with ρ_0 = 1.
-        let mut a = [0.0; MAX_AR_ORDER * MAX_AR_ORDER];
-        let mut rho = [0.0; MAX_AR_ORDER];
+        let mut a = vec![0.0; q * q];
+        let mut rho = vec![0.0; q];
         for k in 1..=q {
             for j in 1..=q {
                 let idx = k.abs_diff(j);
@@ -1050,9 +1037,9 @@ impl Whitener {
         }
         // `A` is neither symmetric nor positive definite (a Toeplitz-plus-Hankel system), so
         // it is solved through the shared equilibrated inverse rather than a Cholesky.
-        let inverse = antecedent_stats::invert_square(&a[..q * q], q)?;
-        let rhs = rho;
-        for (k, r) in rho.iter_mut().enumerate().take(q) {
+        let inverse = antecedent_stats::invert_square(&a, q)?;
+        let rhs = rho.clone();
+        for (k, r) in rho.iter_mut().enumerate() {
             *r = (0..q).map(|j| inverse[k * q + j] * rhs[j]).sum();
         }
         if !rho[..q].iter().all(|v| v.is_finite()) {
@@ -1062,7 +1049,7 @@ impl Whitener {
         if !gamma0.is_finite() || gamma0 <= 0.0 {
             return None;
         }
-        let mut cov = [0.0; MAX_AR_ORDER * MAX_AR_ORDER];
+        let mut cov = vec![0.0; q * q];
         for i in 0..q {
             for j in 0..q {
                 let lag = i.abs_diff(j);
@@ -1081,7 +1068,7 @@ impl Whitener {
     }
 
     fn coefficients(&self) -> &[f64] {
-        &self.phi[..self.q]
+        &self.phi
     }
 
     /// `u = L v`.
@@ -1128,7 +1115,8 @@ impl Whitener {
             1 => recolour::<1>(&self.phi, u, v),
             2 => recolour::<2>(&self.phi, u, v),
             3 => recolour::<3>(&self.phi, u, v),
-            _ => recolour::<4>(&self.phi, u, v),
+            4 => recolour::<4>(&self.phi, u, v),
+            _ => recolour_any(&self.phi, u, v),
         }
     }
 
@@ -1142,11 +1130,12 @@ impl Whitener {
             1 => recolour_transpose::<1>(&self.phi, x, z),
             2 => recolour_transpose::<2>(&self.phi, x, z),
             3 => recolour_transpose::<3>(&self.phi, x, z),
-            _ => recolour_transpose::<4>(&self.phi, x, z),
+            4 => recolour_transpose::<4>(&self.phi, x, z),
+            _ => recolour_transpose_any(&self.phi, x, z),
         }
         let top = q.min(n);
-        let mut rhs = [0.0; MAX_AR_ORDER];
-        for (t, r) in rhs.iter_mut().enumerate().take(top) {
+        let mut rhs = vec![0.0; top];
+        for (t, r) in rhs.iter_mut().enumerate() {
             let mut s = x[t];
             for (j, f) in self.coefficients().iter().enumerate() {
                 let row = t + 1 + j;
@@ -1177,7 +1166,7 @@ impl Whitener {
 
 /// Forward AR(Q) recolouring `v_t = u_t + Σ_{j<Q} φ_j v_{t−1−j}` for `t ≥ Q`
 /// (rows `t < Q` of `v` are inputs).
-fn recolour<const Q: usize>(phi: &ArCoefficients, u: &[f64], v: &mut [f64]) {
+fn recolour<const Q: usize>(phi: &[f64], u: &[f64], v: &mut [f64]) {
     let n = u.len();
     for t in Q..n {
         let mut s = u[t];
@@ -1190,7 +1179,7 @@ fn recolour<const Q: usize>(phi: &ArCoefficients, u: &[f64], v: &mut [f64]) {
 
 /// Backward AR(Q) recolouring `z_t = x_t + Σ_{j<Q, t+1+j<n} φ_j z_{t+1+j}` for
 /// `t ≥ Q`, in descending `t`.
-fn recolour_transpose<const Q: usize>(phi: &ArCoefficients, x: &[f64], z: &mut [f64]) {
+fn recolour_transpose<const Q: usize>(phi: &[f64], x: &[f64], z: &mut [f64]) {
     let n = x.len();
     // Tail rows with fewer than Q leads available.
     for t in (Q.max(n.saturating_sub(Q))..n).rev() {
@@ -1204,6 +1193,30 @@ fn recolour_transpose<const Q: usize>(phi: &ArCoefficients, x: &[f64], z: &mut [
         let mut s = x[t];
         for j in 0..Q {
             s += phi[j] * z[t + 1 + j];
+        }
+        z[t] = s;
+    }
+}
+
+/// [`recolour`] for an order known only at run time (orders above the unrolled ones).
+fn recolour_any(phi: &[f64], u: &[f64], v: &mut [f64]) {
+    let q = phi.len();
+    for t in q..u.len() {
+        let mut s = u[t];
+        for (j, f) in phi.iter().enumerate() {
+            s += f * v[t - 1 - j];
+        }
+        v[t] = s;
+    }
+}
+
+/// [`recolour_transpose`] for an order known only at run time.
+fn recolour_transpose_any(phi: &[f64], x: &[f64], z: &mut [f64]) {
+    let (q, n) = (phi.len(), x.len());
+    for t in (q..n).rev() {
+        let mut s = x[t];
+        for (j, f) in phi.iter().enumerate().take(n - t - 1) {
+            s += f * z[t + 1 + j];
         }
         z[t] = s;
     }
@@ -1248,7 +1261,7 @@ struct RemlKernel {
     p: usize,
     /// Augmented width `p + 1`.
     m: usize,
-    /// Largest order served (`min(4, n − p − 2)`).
+    /// Largest order served (`min(` [`schwert_order`] `(n), n − p − 2)`).
     max_order: usize,
     /// Rows `t < max_order` of `A`, row-major `max_order × m`.
     top: Vec<f64>,
@@ -1264,7 +1277,7 @@ struct RemlKernel {
 impl RemlKernel {
     fn new(x: &[f64], residuals: &[f64], n: usize, p: usize) -> Self {
         let m = p + 1;
-        let big_q = MAX_AR_ORDER.min((n - p).saturating_sub(2));
+        let big_q = schwert_order(n).min((n - p).saturating_sub(2));
         let column = |c: usize| if c < p { &x[c * n..(c + 1) * n] } else { residuals };
         let mut top = vec![0.0; big_q * m];
         for t in 0..big_q {
@@ -1317,7 +1330,7 @@ impl RemlKernel {
     /// Whitened Gram `Ã'Ã` (row-major `m × m`) of the AR model `w`, into `g`.
     fn whitened_gram(&self, w: &Whitener, g: &mut [f64]) {
         let (m, q, big_q) = (self.m, w.order(), self.max_order);
-        let mut psi = [0.0; MAX_AR_ORDER + 1];
+        let mut psi = vec![0.0; q + 1];
         psi[0] = 1.0;
         for (j, f) in w.coefficients().iter().enumerate() {
             psi[j + 1] = -f;
@@ -1350,7 +1363,7 @@ impl RemlKernel {
         }
         // Cholesky-whitened rows t < q: U = C⁻¹ A_top, G += U'U.
         if q > 0 {
-            let mut u = [0.0; MAX_AR_ORDER];
+            let mut u = vec![0.0; q];
             let mut top = vec![0.0; q * m];
             for c in 0..m {
                 for i in 0..q {
@@ -1402,20 +1415,18 @@ fn reml_log_likelihood(z: &[f64], kernel: &RemlKernel) -> f64 {
     -0.5 * w.log_det - 0.5 * log_det_g - 0.5 * dof * (rss / dof).ln()
 }
 
-/// A Nelder–Mead vertex: coordinates (`dim ≤ MAX_AR_ORDER`) and objective.
-type Vertex = (ArCoefficients, f64);
+/// A Nelder–Mead vertex: coordinates (one per dimension) and objective.
+type Vertex = (Vec<f64>, f64);
 
 /// Nelder–Mead minimization of `f` from `x0` (initial simplex edge `SIMPLEX_STEP`).
 fn nelder_mead(f: impl Fn(&[f64]) -> f64, x0: &[f64]) -> (Vec<f64>, f64) {
     let dim = x0.len();
-    debug_assert!(dim <= MAX_AR_ORDER);
-    let eval = |v: &ArCoefficients| f(&v[..dim]);
-    let mut origin = [0.0; MAX_AR_ORDER];
-    origin[..dim].copy_from_slice(x0);
+    let eval = |v: &[f64]| f(v);
+    let origin = x0.to_vec();
     let mut simplex: Vec<Vertex> = Vec::with_capacity(dim + 1);
-    simplex.push((origin, eval(&origin)));
+    simplex.push((origin.clone(), eval(&origin)));
     for i in 0..dim {
-        let mut v = origin;
+        let mut v = origin.clone();
         v[i] += SIMPLEX_STEP;
         let fv = eval(&v);
         simplex.push((v, fv));
@@ -1428,24 +1439,18 @@ fn nelder_mead(f: impl Fn(&[f64]) -> f64, x0: &[f64]) -> (Vec<f64>, f64) {
         let f_range = simplex[dim].1 - simplex[0].1;
         let x_range = simplex[1..]
             .iter()
-            .flat_map(|(v, _)| {
-                v[..dim].iter().zip(&simplex[0].0[..dim]).map(|(a, b)| (a - b).abs())
-            })
+            .flat_map(|(v, _)| v.iter().zip(&simplex[0].0).map(|(a, b)| (a - b).abs()))
             .fold(0.0_f64, f64::max);
         if f_range.abs() <= SIMPLEX_F_TOL && x_range <= SIMPLEX_X_TOL {
             break;
         }
-        let mut centroid = [0.0; MAX_AR_ORDER];
+        let mut centroid = vec![0.0; dim];
         for k in 0..dim {
             centroid[k] = simplex[..dim].iter().map(|(v, _)| v[k]).sum::<f64>() / dim as f64;
         }
-        let worst = simplex[dim];
-        let point = |coef: f64| -> ArCoefficients {
-            let mut out = [0.0; MAX_AR_ORDER];
-            for k in 0..dim {
-                out[k] = centroid[k] + coef * (centroid[k] - worst.0[k]);
-            }
-            out
+        let worst = simplex[dim].clone();
+        let point = |coef: f64| -> Vec<f64> {
+            (0..dim).map(|k| centroid[k] + coef * (centroid[k] - worst.0[k])).collect()
         };
         let reflected = point(1.0);
         let fr = eval(&reflected);
@@ -1461,9 +1466,9 @@ fn nelder_mead(f: impl Fn(&[f64]) -> f64, x0: &[f64]) -> (Vec<f64>, f64) {
             if fc < fr.min(worst.1) {
                 simplex[dim] = (contracted, fc);
             } else {
-                let best = simplex[0].0;
+                let best = simplex[0].0.clone();
                 for entry in simplex.iter_mut().skip(1) {
-                    for (v, b) in entry.0.iter_mut().zip(&best).take(dim) {
+                    for (v, b) in entry.0.iter_mut().zip(&best) {
                         *v = b + 0.5 * (*v - b);
                     }
                     entry.1 = eval(&entry.0);
@@ -1472,19 +1477,24 @@ fn nelder_mead(f: impl Fn(&[f64]) -> f64, x0: &[f64]) -> (Vec<f64>, f64) {
         }
         order(&mut simplex);
     }
-    let (v, fv) = simplex[0];
-    (v[..dim].to_vec(), fv)
+    let (v, fv) = simplex.swap_remove(0);
+    (v, fv)
 }
 
 /// REML AR(q) fit of the residual process at the BIC-selected order
-/// (`−2ℓ_R + q ln(n − p)`, `q ≤ 4`), each order warm-started from the previous
-/// and polished by [`newton_polish`].
+/// (`−2ℓ_R + q ln(n − p)`), each order warm-started from the previous and polished by
+/// [`newton_polish`]. The search always covers orders up to [`MAX_AR_ORDER`] and goes on past it
+/// only while the BIC-selected order is within two of the order being tried, up to the Schwert
+/// order of the sample (`kernel.max_order`).
 fn reml_autoregression(kernel: &RemlKernel) -> ArErrorModel {
     let dof = (kernel.n - kernel.p) as f64;
     let mut best = ArErrorModel::default();
     let mut best_bic = -2.0 * reml_log_likelihood(&[], kernel);
     let mut prev: Vec<f64> = Vec::new();
     for q in 1..=kernel.max_order {
+        if q > MAX_AR_ORDER && q > best.phi.len() + 2 {
+            break;
+        }
         let mut start = prev.clone();
         start.push(0.0);
         let (mut z, mut neg_ll) = nelder_mead(|z| -reml_log_likelihood(z, kernel), &start);
@@ -2139,6 +2149,27 @@ mod tests {
         .unwrap();
         assert!((zero.kappa - 1.0).abs() < f64::EPSILON);
         assert!(tempering_kappa_from_notes(&[Arc::from("unrelated")]).is_none());
+    }
+
+    #[test]
+    fn a_whitener_above_the_unrolled_orders_inverts_its_own_transform() {
+        let phi = [0.3, -0.1, 0.05, 0.1, -0.05, 0.02];
+        let w = Whitener::new(&phi).expect("a stationary order-6 model");
+        assert_eq!(w.order(), 6);
+        let u: Vec<f64> = (0..30).map(|i| f64::from(i * 7 % 11) - 5.0).collect();
+        let v = w.solve(&u);
+        let back = w.apply(&v);
+        for (a, b) in u.iter().zip(&back) {
+            assert!((a - b).abs() < 1e-9, "{a} vs {b}");
+        }
+        // z = L'⁻¹ x gives <L p, z> = <p, L' z> = <p, x> for every probe p.
+        let x: Vec<f64> = (0..30).map(|i| f64::from(i * 5 % 13) - 6.0).collect();
+        let mut z = vec![0.0; x.len()];
+        w.solve_transpose_into(&x, &mut z);
+        let probe: Vec<f64> = (0..30).map(|i| f64::from(i * 3 % 7) - 3.0).collect();
+        let lhs: f64 = w.apply(&probe).iter().zip(&z).map(|(a, b)| a * b).sum();
+        let rhs: f64 = probe.iter().zip(&x).map(|(a, b)| a * b).sum();
+        assert!((lhs - rhs).abs() < 1e-8 * rhs.abs().max(1.0), "{lhs} vs {rhs}");
     }
 
     /// Stationary AR(2) with unit innovations after a burn-in.

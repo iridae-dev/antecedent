@@ -265,21 +265,25 @@ impl JointDesignRecipe {
     /// Execute the same identified functional with a selected, compatible statistical procedure.
     /// # Errors
     /// Missing design premises, unsupported histories/rank/cohorts or an incompatible posterior model.
-    pub fn execute(&self, inference: &JointDesignInference) -> Result<JointDesignLaw, String> {
+    pub fn execute(
+        &self,
+        inference: &JointDesignInference,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<JointDesignLaw, String> {
         match (self,inference){
             (Self::Randomized{design,units},JointDesignInference::Frequentist)=>randomized_joint_means(design,units).map(JointDesignLaw::Frequentist),
-            (Self::Randomized{design,units},JointDesignInference::RandomizedGaussian{prior})=>randomized_joint_posterior(design,units,prior).map(JointDesignLaw::Bayesian),
-            (Self::Randomized{design,units},JointDesignInference::RandomizedFinitePopulationGaussian{prior})=>randomized_weighted_population_posterior(design,units,prior).map(JointDesignLaw::Bayesian),
+            (Self::Randomized{design,units},JointDesignInference::RandomizedGaussian{prior})=>randomized_joint_posterior(design,units,prior,ctx).map(JointDesignLaw::Bayesian),
+            (Self::Randomized{design,units},JointDesignInference::RandomizedFinitePopulationGaussian{prior})=>randomized_weighted_population_posterior(design,units,prior,ctx).map(JointDesignLaw::Bayesian),
             (Self::Switchback{design,sequences},JointDesignInference::Frequentist)=>switchback_joint_means(design,sequences).map(JointDesignLaw::Frequentist),
-            (Self::Switchback{design,sequences},JointDesignInference::SwitchbackGaussian{prior})=>switchback_joint_posterior(design,sequences,prior).map(JointDesignLaw::Bayesian),
-            (Self::Instrumented{design,units},JointDesignInference::InstrumentedGaussian{prior})=>instrumented_joint_posterior(design,units,prior).map(JointDesignLaw::Bayesian),
-            (Self::DifferenceInDifferences{design,units},JointDesignInference::RolloutGaussian{prior})=>rollout_joint_posterior(design,units,prior).map(JointDesignLaw::Bayesian),
-            (Self::SyntheticControl{design,observations},JointDesignInference::SyntheticBayesian{prior})=>synthetic_joint_posterior(design,observations,prior).map(JointDesignLaw::Bayesian),
+            (Self::Switchback{design,sequences},JointDesignInference::SwitchbackGaussian{prior})=>switchback_joint_posterior(design,sequences,prior,ctx).map(JointDesignLaw::Bayesian),
+            (Self::Instrumented{design,units},JointDesignInference::InstrumentedGaussian{prior})=>instrumented_joint_posterior(design,units,prior,ctx).map(JointDesignLaw::Bayesian),
+            (Self::DifferenceInDifferences{design,units},JointDesignInference::RolloutGaussian{prior})=>rollout_joint_posterior(design,units,prior,ctx).map(JointDesignLaw::Bayesian),
+            (Self::SyntheticControl{design,observations},JointDesignInference::SyntheticBayesian{prior})=>synthetic_joint_posterior(design,observations,prior,ctx).map(JointDesignLaw::Bayesian),
             (Self::GaussianLongitudinal{..},_)=>Err("continuous longitudinal execution requires the admitted context-aware native compiler".into()),
-            (Self::Longitudinal{design,episodes},JointDesignInference::Frequentist)=>longitudinal_joint_means(design,episodes).map(JointDesignLaw::Frequentist),
-            (Self::Longitudinal{design,episodes},JointDesignInference::LongitudinalDirichlet{prior})=>longitudinal_joint_posterior(design,episodes,prior).map(JointDesignLaw::Bayesian),
-            (Self::Instrumented{design,units},JointDesignInference::Frequentist)=>instrumented_joint_contrasts(design,units).map(JointDesignLaw::Frequentist),
-            (Self::DifferenceInDifferences{design,units},JointDesignInference::Frequentist)=>rollout_joint_effects(design,units).map(JointDesignLaw::Frequentist),
+            (Self::Longitudinal{design,episodes},JointDesignInference::Frequentist)=>longitudinal_joint_means(design,episodes,ctx).map(JointDesignLaw::Frequentist),
+            (Self::Longitudinal{design,episodes},JointDesignInference::LongitudinalDirichlet{prior})=>longitudinal_joint_posterior(design,episodes,prior,ctx).map(JointDesignLaw::Bayesian),
+            (Self::Instrumented{design,units},JointDesignInference::Frequentist)=>instrumented_joint_contrasts(design,units,ctx).map(JointDesignLaw::Frequentist),
+            (Self::DifferenceInDifferences{design,units},JointDesignInference::Frequentist)=>rollout_joint_effects(design,units,ctx).map(JointDesignLaw::Frequentist),
             _=>Err("requested posterior likelihood is not implemented for this design owner; no sampling-covariance Gaussian substitution is allowed".into()),
         }
     }
@@ -375,7 +379,7 @@ impl JointDesignRecipe {
                 ctx,
             )
             .map(JointNativeDesignLaw::SyntheticConformal),
-            _ => self.execute(inference).map(JointNativeDesignLaw::Moments),
+            _ => self.execute(inference, ctx).map(JointNativeDesignLaw::Moments),
         }?;
         if ctx.cancellation.is_cancelled() {
             return Err("joint-design execution cancelled".into());

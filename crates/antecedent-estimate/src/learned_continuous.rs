@@ -61,11 +61,16 @@ use serde::{Deserialize, Serialize};
 
 /// Fewest bootstrap replicates accepted by the closed legacy interval request.
 pub const LEARNED_CONTINUOUS_MIN_BOOTSTRAP: u32 = 199;
-/// Most bootstrap replicates one request may ask for.
+/// Largest replicate count of the measured bootstrap envelope. It is a reference point the
+/// artifact premises record, not a ceiling: the public route runs no replicates, and the
+/// internal calibration route admits its work against the execution context.
 pub const LEARNED_CONTINUOUS_MAX_BOOTSTRAP: u32 = 2000;
-/// Most cross-fit folds one request may ask for.
+/// Largest fold count of the measured envelope; a reference point the artifact premises record,
+/// not a ceiling. The fold count is bounded by the stratum sizes and the `u16` fold ids
+/// ([`validate_learned_continuous`] through the trial validation).
 pub const LEARNED_CONTINUOUS_MAX_FOLDS: usize = 20;
-/// `(max folds, min bootstrap, max bootstrap)`: the frozen bounds an artifact's premises bind.
+/// `(folds, min bootstrap, max bootstrap)` of the measured envelope: the reference bounds an
+/// artifact's premises record.
 pub const LEARNED_CONTINUOUS_BOUNDS: (usize, u32, u32) = (
     LEARNED_CONTINUOUS_MAX_FOLDS,
     LEARNED_CONTINUOUS_MIN_BOOTSTRAP,
@@ -93,14 +98,14 @@ pub struct LearnedContinuousOptions {
     pub outcome: LearnerSpec,
     /// Source-membership nuisance in the observed sampling design.
     pub membership: LearnerSpec,
-    /// Shared cross-fit fold count, `2..=`[`LEARNED_CONTINUOUS_MAX_FOLDS`].
+    /// Shared cross-fit fold count, at least 2 and at most the smallest stratum size.
     pub folds: usize,
     /// Smallest out-of-fold membership probability the estimate accepts, in `(0, 0.5)`.
     pub min_membership_probability: f64,
     /// Smallest arm probability of the known randomization, in `(0, 0.5)`.
     pub min_treatment_probability: f64,
-    /// Requested bootstrap replicates, at most [`LEARNED_CONTINUOUS_MAX_BOOTSTRAP`].
-    /// Legacy percentile-bootstrap request. The analytic interval uses zero.
+    /// Requested bootstrap replicates. Legacy percentile-bootstrap request. The analytic
+    /// interval uses zero.
     pub bootstrap: u32,
     /// Nominal coverage of the analytic interval.
     pub coverage_level: f64,
@@ -295,8 +300,7 @@ pub fn parse_learned_continuous_target(name: &str) -> Result<(), EstimationError
 /// Validate a request before any nuisance is fitted.
 ///
 /// # Errors
-/// Declared bounds above the frozen caps (`learned_transport.bounds_exceeded`),
-/// randomization probabilities outside the declared bound
+/// Randomization probabilities outside the declared bound
 /// (`learned_transport.treatment_overlap`), or any [`validate_trial_aipw`] failure.
 #[doc(hidden)]
 pub fn validate_learned_continuous(
@@ -304,18 +308,6 @@ pub fn validate_learned_continuous(
     input: &TrialAipwInput,
     options: &LearnedContinuousOptions,
 ) -> Result<(), EstimationError> {
-    if options.folds > LEARNED_CONTINUOUS_MAX_FOLDS
-        || options.bootstrap > LEARNED_CONTINUOUS_MAX_BOOTSTRAP
-    {
-        return Err(refuse(
-            antecedent_core::reason_code!("route_not_supported"),
-            "learned_transport.bounds_exceeded",
-            &format!(
-                "at most {LEARNED_CONTINUOUS_MAX_FOLDS} folds and \
-                 {LEARNED_CONTINUOUS_MAX_BOOTSTRAP} bootstrap replicates"
-            ),
-        ));
-    }
     for threshold in [options.min_membership_probability, options.min_treatment_probability] {
         if !(threshold > 0.0 && threshold < 0.5) {
             return Err(EstimationError::data_msg(

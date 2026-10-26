@@ -869,13 +869,18 @@ impl Prepared {
             Some(KnownPropensity::PerRow(columns)) => columns,
             _ => &[],
         };
-        if !per_row.is_empty()
-            && (per_row.len() != k || per_row.iter().any(|column| column.len() != rows))
-        {
+        let known_shape_ok = match &request.known_propensity {
+            None => true,
+            Some(KnownPropensity::Constant(values)) => values.len() == k,
+            Some(KnownPropensity::PerRow(columns)) => {
+                columns.len() == k && columns.iter().all(|column| column.len() == rows)
+            }
+        };
+        if !known_shape_ok {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
                 "policy_value.invalid_known_propensity",
-                "per-row known propensities need one column per declared action, each with one value per row",
+                "known propensities need one value (constant) or one column of one value per row (per-row) per declared action",
             ));
         }
         let complete = |i: usize| {

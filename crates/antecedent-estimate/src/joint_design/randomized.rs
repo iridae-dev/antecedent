@@ -45,9 +45,10 @@ pub fn randomized_joint_means(
     units: &[JointRandomizedUnit],
 ) -> Result<JointDesignEstimate, String> {
     let k = design.worlds.len();
-    if !(2..=256).contains(&k)
-        || units.len() > 65536
-        || units.len() < 2
+    // Every complete program needs at least one observed independent unit (checked below), so
+    // more programs than units can never be identified; no count above that is capped.
+    if k < 2
+        || units.len() < k
         || [
             &design.sampling_unit,
             &design.population,
@@ -63,6 +64,8 @@ pub fn randomized_joint_means(
     }
     let mut ids = BTreeSet::new();
     let mut total = 0.0;
+    // Horvitz--Thompson score of each unit; it is nonzero only at the unit's own program, so the
+    // dense unit-by-program matrix is never stored.
     let mut scores = Vec::with_capacity(units.len());
     let mut observed = vec![0usize; k];
     for unit in units {
@@ -81,24 +84,29 @@ pub fn randomized_joint_means(
             );
         }
         total += unit.population_weight;
-        let mut score = vec![0.0; k];
-        score[unit.arm] = unit.population_weight * unit.outcome / unit.probabilities[unit.arm];
+        scores.push(unit.population_weight * unit.outcome / unit.probabilities[unit.arm]);
         observed[unit.arm] += 1;
-        scores.push(score);
     }
     if observed.contains(&0) {
         return Err("requested complete program has no observed independent-unit support".into());
     }
-    let means =
-        (0..k).map(|j| scores.iter().map(|s| s[j]).sum::<f64>() / total).collect::<Vec<_>>();
+    let score_at = |unit: &JointRandomizedUnit, score: f64, program: usize| {
+        if unit.arm == program { score } else { 0.0 }
+    };
+    let means = (0..k)
+        .map(|j| {
+            units.iter().zip(&scores).map(|(unit, &score)| score_at(unit, score, j)).sum::<f64>()
+                / total
+        })
+        .collect::<Vec<_>>();
     let n = units.len() as f64;
     let mut covariance = vec![0.0; k * k];
-    for (unit, score) in units.iter().zip(scores) {
+    for (unit, &score) in units.iter().zip(&scores) {
         for j in 0..k {
             for l in 0..k {
                 covariance[j * k + l] += n / (n - 1.0)
-                    * (score[j] - unit.population_weight * means[j])
-                    * (score[l] - unit.population_weight * means[l])
+                    * (score_at(unit, score, j) - unit.population_weight * means[j])
+                    * (score_at(unit, score, l) - unit.population_weight * means[l])
                     / total.powi(2);
             }
         }
@@ -177,6 +185,7 @@ pub fn randomized_joint_posterior(
     design: &JointRandomizedDesign,
     units: &[JointRandomizedUnit],
     prior: &RandomizedGaussianPrior,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<super::JointDesignPosterior, String> {
     let _design_check = randomized_joint_means(design, units)?;
     let k = design.worlds.len();
@@ -190,13 +199,13 @@ pub fn randomized_joint_posterior(
         || prior.variance.len() != k
         || prior.outcome_variance.len() != units.len()
         || prior.draws < 2
-        || prior.draws > 1_000_000
         || prior.mean.iter().any(|v| !v.is_finite())
         || prior.variance.iter().chain(&prior.outcome_variance).any(|v| !v.is_finite() || *v <= 0.0)
         || units.iter().any(unequal_weight)
     {
         return Err("Gaussian randomized posterior requires proper finite priors, known variances and equal population weights".into());
     }
+    let _lease = super::budget::admit_cells(ctx, "randomized posterior draws", prior.draws, k)?;
     let mut precision = prior.variance.iter().map(|v| 1.0 / v).collect::<Vec<_>>();
     let mut weighted = prior.mean.iter().zip(&precision).map(|(m, p)| m * p).collect::<Vec<_>>();
     for (u, var) in units.iter().zip(&prior.outcome_variance) {
@@ -245,7 +254,13 @@ mod posterior_tests {
             draws: 20000,
             seed: 17,
         };
-        let posterior = randomized_joint_posterior(&design, &units, &prior).unwrap();
+        let posterior = randomized_joint_posterior(
+            &design,
+            &units,
+            &prior,
+            &antecedent_core::ExecutionContext::for_tests(1),
+        )
+        .unwrap();
         for j in 0..2 {
             let reference_variance = 1.0 / (1.0 / prior.variance[j] + 5.0);
             let reference_mean = reference_variance
@@ -280,6 +295,7 @@ pub fn randomized_weighted_population_posterior(
     design: &JointRandomizedDesign,
     units: &[JointRandomizedUnit],
     prior: &RandomizedFinitePopulationPrior,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<super::JointDesignPosterior, String> {
     let _identified = randomized_joint_means(design, units)?;
     let k = design.worlds.len();
@@ -289,7 +305,6 @@ pub fn randomized_weighted_population_posterior(
         || arm.outcome_variance.len() != units.len()
         || prior.heterogeneity_variance.len() != k
         || arm.draws < 2
-        || arm.draws > 100_000
         || arm.mean.iter().any(|v| !v.is_finite())
         || arm
             .variance
@@ -300,6 +315,7 @@ pub fn randomized_weighted_population_posterior(
     {
         return Err("weighted finite-population posterior requires proper Gaussian arm/unit priors and known positive observation/heterogeneity variances".into());
     }
+    let _lease = super::budget::admit_cells(ctx, "weighted posterior draws", arm.draws, k)?;
     let mut precision = arm.variance.iter().map(|v| 1.0 / v).collect::<Vec<_>>();
     let mut weighted = arm.mean.iter().zip(&precision).map(|(m, p)| m * p).collect::<Vec<_>>();
     for (i, u) in units.iter().enumerate() {
@@ -366,7 +382,13 @@ mod weighted_posterior_tests {
             },
             heterogeneity_variance: vec![2.0; 2],
         };
-        let posterior = randomized_weighted_population_posterior(&design, &units, &prior).unwrap();
+        let posterior = randomized_weighted_population_posterior(
+            &design,
+            &units,
+            &prior,
+            &antecedent_core::ExecutionContext::for_tests(1),
+        )
+        .unwrap();
         let total = units.iter().map(|u| u.population_weight).sum::<f64>();
         for j in 0..2 {
             let theta_var = 1.0 / (0.25 + 4.0 / 3.0);

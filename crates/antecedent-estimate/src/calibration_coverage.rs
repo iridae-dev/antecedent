@@ -422,7 +422,7 @@ fn confounded_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn linear_adjustment_analytic_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::default() };
+    let est = LinearAdjustmentAte::default().with_bootstrap_replicates(0);
     let ctx = ExecutionContext::for_tests(1);
     let mut tally = Tally::for_record("linear_adjustment_analytic_ci_coverage", "confounded_scm");
     let effects = map_replicates(n_sim(), |s| {
@@ -442,11 +442,9 @@ fn linear_adjustment_analytic_ci_coverage() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn linear_adjustment_hc1_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let est = LinearAdjustmentAte {
-        bootstrap_replicates: 0,
-        se_kind: AnalyticSeKind::Hc1,
-        ..LinearAdjustmentAte::default()
-    };
+    let est = LinearAdjustmentAte::default()
+        .with_bootstrap_replicates(0)
+        .with_se_kind(AnalyticSeKind::Hc1);
     let ctx = ExecutionContext::for_tests(11);
     let mut tally = Tally::for_record("linear_adjustment_hc1_ci_coverage", "confounded_scm");
     let effects = map_replicates(n_sim(), |s| {
@@ -467,7 +465,7 @@ fn linear_adjustment_hc1_ci_coverage() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn ipw_hajek_bootstrap_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let est = PropensityWeighting { bootstrap_replicates: BOOT_REPS, ..PropensityWeighting::new() };
+    let est = PropensityWeighting::new().with_bootstrap_replicates(BOOT_REPS);
     let mut tally = Tally::for_record("ipw_hajek_bootstrap_ci_coverage", "confounded_scm");
     let effects = map_replicates(n_sim(), |s| {
         // One context per simulation: a shared context would hand every
@@ -497,7 +495,7 @@ fn ipw_hajek_bootstrap_ci_coverage() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn ipw_hajek_analytic_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let est = PropensityWeighting { bootstrap_replicates: 0, ..PropensityWeighting::new() };
+    let est = PropensityWeighting::new().with_bootstrap_replicates(0);
     let ctx = ExecutionContext::for_tests(2);
     let mut tally = Tally::for_record("ipw_hajek_analytic_ci_coverage", "confounded_scm");
     let effects = map_replicates(n_sim(), |s| {
@@ -542,7 +540,7 @@ fn propensity_ipw_conformance_scm(n: usize, rng: &mut CausalRng) -> TabularData 
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn ipw_hajek_analytic_conformance_scm_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let est = PropensityWeighting { bootstrap_replicates: 0, ..PropensityWeighting::new() };
+    let est = PropensityWeighting::new().with_bootstrap_replicates(0);
     let ctx = ExecutionContext::for_tests(9);
     let mut tally = Tally::for_record(
         "ipw_hajek_analytic_conformance_scm_ci_coverage",
@@ -574,7 +572,7 @@ fn ipw_hajek_analytic_conformance_scm_ci_coverage() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn aipw_analytic_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let est = AipwAte { bootstrap_replicates: 0, ..AipwAte::new() };
+    let est = AipwAte::new().with_bootstrap_replicates(0);
     let ctx = ExecutionContext::for_tests(3);
     let mut tally = Tally::for_record("aipw_analytic_ci_coverage", "confounded_scm");
     let effects = map_replicates(n_sim(), |s| {
@@ -656,7 +654,8 @@ fn penalized_aipw_coverage(
     base_n: usize,
 ) {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let est = AipwAte { bootstrap_replicates, propensity: nuisance, ..AipwAte::new() };
+    let est = AipwAte { propensity: nuisance, ..AipwAte::new() }
+        .with_bootstrap_replicates(bootstrap_replicates);
     let mut tally = Tally::for_record(test, "penalized_scm");
     let effects = map_replicates(n_sim(), |s| {
         // One context per simulation: a shared context would hand every simulation the same
@@ -804,7 +803,7 @@ fn aipw_residualized_tally(
     let mut tally = Tally::for_record(test, "heterogeneous_binary_scm");
     let effects = map_replicates(n_sim(), |s| {
         let (data, clusters) = heterogeneous_binary_scm(grid_n(600), seed + s, cluster_sd);
-        let mut est = AipwAte { bootstrap_replicates: 0, se_kind, ..AipwAte::new() };
+        let mut est = AipwAte::new().with_bootstrap_replicates(0).with_se_kind(se_kind);
         if matches!(se_kind, AnalyticSeKind::Cluster) {
             est = est.with_cluster_ids(clusters);
         }
@@ -1754,7 +1753,7 @@ fn wald_iv_weak_first_stage_adversarial_ci_coverage() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn ipw_hajek_weak_overlap_adversarial_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let est = PropensityWeighting { bootstrap_replicates: 0, ..PropensityWeighting::new() };
+    let est = PropensityWeighting::new().with_bootstrap_replicates(0);
     let ctx = ExecutionContext::for_tests(72);
     let mut tally =
         Tally::for_record("ipw_hajek_weak_overlap_adversarial_ci_coverage", "weak_overlap_scm");

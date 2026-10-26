@@ -25,6 +25,7 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
 
 use crate::adjustment::EffectEstimate;
+use crate::arm::TreatmentArm;
 use crate::cluster_dml_aipw::DeclaredUnits;
 use crate::dml::DmlAte;
 use crate::error::EstimationError;
@@ -293,7 +294,7 @@ impl CausalForest {
                 StreamDomain::Estimate,
                 antecedent_core::derive_stream(0xC0F0_0000, b as u64),
             );
-            Ok::<_, EstimationError>(grow_tree(&data, shape, honesty, &mut rng))
+            grow_tree(&data, shape, honesty, &mut rng)
         })?;
         let ForestCate { cate, hits, leaf_dispersion, se_complete } =
             aggregate_forest_cate(&trees, &x, n, p);
@@ -376,7 +377,7 @@ fn aggregate_forest_cate(trees: &[Node], x: &[f64], n: usize, p: usize) -> Fores
     let mut se_hits = vec![0.0; n];
     for tree in trees {
         for i in 0..n {
-            if let Some((tau, se)) = tree.predict_leaf(x, n, p, i) {
+            if let Some(LeafEstimate { cate: tau, se }) = tree.predict_leaf(x, n, p, i) {
                 cate[i] += tau;
                 hits[i] += 1.0;
                 if let Some(leaf_se) = se {
@@ -411,6 +412,11 @@ enum Node {
 }
 
 impl Node {
+    /// The leaf carrying an estimate (or none when an arm is empty).
+    fn leaf(estimate: Option<LeafEstimate>) -> Self {
+        Self::Leaf { cate: estimate.map(|e| e.cate), se: estimate.and_then(|e| e.se) }
+    }
+
     fn portable_nodes(&self, nodes: &mut Vec<antecedent_learn::PredictionNode>) -> usize {
         use antecedent_learn::PredictionNode;
         let index = nodes.len();
@@ -433,15 +439,9 @@ impl Node {
         index
     }
 
-    fn predict_leaf(
-        &self,
-        x: &[f64],
-        n: usize,
-        p: usize,
-        row: usize,
-    ) -> Option<(f64, Option<f64>)> {
+    fn predict_leaf(&self, x: &[f64], n: usize, p: usize, row: usize) -> Option<LeafEstimate> {
         match self {
-            Self::Leaf { cate, se } => cate.map(|tau| (tau, *se)),
+            Self::Leaf { cate, se } => cate.map(|tau| LeafEstimate { cate: tau, se: *se }),
             Self::Split { feature, threshold, left, right } => {
                 if *feature >= p {
                     return None;
@@ -478,15 +478,132 @@ struct TreeShape {
     max_cuts: Option<usize>,
 }
 
-fn grow_tree(data: &ForestData<'_>, shape: TreeShape, honesty: bool, rng: &mut CausalRng) -> Node {
+/// Physical row index of the prepared design. [`CausalForest::fit`] checks that the table fits
+/// in `u32`, and every tree converts its sampled rows to this type once, at the start of
+/// growing, so the split search and the partitioning index columns directly.
+type Row = u32;
+
+/// `row` as a slice index; a `u32` index is lossless on every supported target.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "u32 to usize is lossless on 32- and 64-bit targets"
+)]
+const fn ix(row: Row) -> usize {
+    row as usize
+}
+
+/// Convert sampled row identities to physical indices, refusing an identity outside the table.
+fn physical_rows(
+    rows: &[antecedent_data::GlobalId],
+    n: usize,
+) -> Result<Vec<Row>, EstimationError> {
+    rows.iter()
+        .map(|id| {
+            Row::try_from(id.get())
+                .ok()
+                .filter(|&row| ix(row) < n)
+                .ok_or_else(|| EstimationError::data_msg("CausalForest row id exceeds the table"))
+        })
+        .collect()
+}
+
+/// The estimate of one leaf: its treatment-effect difference in means and, with two or more
+/// rows in each arm, the standard error of that difference.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct LeafEstimate {
+    cate: f64,
+    se: Option<f64>,
+}
+
+/// The slot of an arm in the `[sum, count]` pairs of [`arm_sums`]: treated rows first.
+fn arm_slot(treatment: f64) -> usize {
+    if TreatmentArm::of(treatment).is_treated() { 0 } else { 2 }
+}
+
+/// The rows of one tree node in node order, together with, for every feature, the same rows
+/// ordered by that feature's value (ties keep node order). The orders are built once at the
+/// root and carried down by stable partitioning, so no node sorts.
+struct NodeRows {
+    rows: Vec<Row>,
+    by_feature: Vec<Vec<Row>>,
+}
+
+/// A chosen split: rows with `feature <= threshold` go left.
+#[derive(Clone, Copy, Debug)]
+struct Split {
+    feature: usize,
+    threshold: f64,
+}
+
+/// Stable partition of `rows` by `goes_left`.
+fn partition_rows(rows: &[Row], goes_left: impl Fn(Row) -> bool) -> (Vec<Row>, Vec<Row>) {
+    let mut left = Vec::new();
+    let mut right = Vec::new();
+    for &row in rows {
+        if goes_left(row) {
+            left.push(row);
+        } else {
+            right.push(row);
+        }
+    }
+    (left, right)
+}
+
+impl NodeRows {
+    /// The root node over `rows`, presorting every feature once. A stable sort keeps tied
+    /// values in node-row order, which fixes the scan order of the split search.
+    fn presorted(rows: Vec<Row>, data: &ForestData<'_>) -> Self {
+        let ForestData { x, n, p, .. } = *data;
+        let by_feature = (0..p)
+            .map(|feature| {
+                let column = &x[feature * n..(feature + 1) * n];
+                let mut order = rows.clone();
+                order.sort_by(|&a, &b| column[ix(a)].total_cmp(&column[ix(b)]));
+                order
+            })
+            .collect();
+        Self { rows, by_feature }
+    }
+
+    fn len(&self) -> usize {
+        self.rows.len()
+    }
+
+    /// The two children of this node under `split`; every order stays sorted.
+    fn split(&self, data: &ForestData<'_>, split: Split) -> (Self, Self) {
+        let ForestData { x, n, .. } = *data;
+        let Split { feature, threshold } = split;
+        let goes_left = |row: Row| x[feature * n + ix(row)] <= threshold;
+        let (left_rows, right_rows) = partition_rows(&self.rows, goes_left);
+        let mut left_orders = Vec::with_capacity(self.by_feature.len());
+        let mut right_orders = Vec::with_capacity(self.by_feature.len());
+        for order in &self.by_feature {
+            let (l, r) = partition_rows(order, goes_left);
+            left_orders.push(l);
+            right_orders.push(r);
+        }
+        (
+            Self { rows: left_rows, by_feature: left_orders },
+            Self { rows: right_rows, by_feature: right_orders },
+        )
+    }
+}
+
+fn grow_tree(
+    data: &ForestData<'_>,
+    shape: TreeShape,
+    honesty: bool,
+    rng: &mut CausalRng,
+) -> Result<Node, EstimationError> {
     let ForestData { n, y, t, clusters, .. } = *data;
     let TreeShape { min_leaf, .. } = shape;
     let (split_idx, est_idx) = if let Some(members) = clusters {
-        cluster_subsample(members, SUBSAMPLE_FRACTION, honesty, rng)
+        let (placement, estimation) = cluster_subsample(members, SUBSAMPLE_FRACTION, honesty, rng);
+        (physical_rows(&placement, n)?, physical_rows(&estimation, n)?)
     } else {
-        let sample = subsample(n, SUBSAMPLE_FRACTION, min_leaf, rng);
+        let sample = subsample(n, SUBSAMPLE_FRACTION, min_leaf, rng)?;
         if sample.len() < min_leaf.saturating_mul(2) {
-            return Node::Leaf { cate: leaf_tau(y, t, &sample), se: leaf_se(y, t, &sample) };
+            return Ok(Node::leaf(leaf_stat(y, t, &sample)));
         }
         if honesty {
             let mid = sample.len() / 2;
@@ -495,9 +612,9 @@ fn grow_tree(data: &ForestData<'_>, shape: TreeShape, honesty: bool, rng: &mut C
             (sample.clone(), sample)
         }
     };
-    let mut root = grow_from(&split_idx, 0, data, shape, rng);
+    let mut root = grow_from(NodeRows::presorted(split_idx, data), 0, data, shape, rng);
     fill_cate(&mut root, &est_idx, data, None);
-    root
+    Ok(root)
 }
 
 /// Rows of a subsample of whole clusters, drawn without replacement: about `frac` of the
@@ -548,9 +665,10 @@ fn subsample(
     frac: f64,
     min_leaf: usize,
     rng: &mut CausalRng,
-) -> Vec<antecedent_data::GlobalId> {
-    let mut idx: Vec<antecedent_data::GlobalId> =
-        (0..n).map(|i| antecedent_data::GlobalId::new(u64::try_from(i).expect("row id"))).collect();
+) -> Result<Vec<Row>, EstimationError> {
+    let rows = Row::try_from(n)
+        .map_err(|_| EstimationError::data_msg("CausalForest rows exceed u32 index capacity"))?;
+    let mut idx: Vec<Row> = (0..rows).collect();
     let want = ((n as f64) * frac).round() as usize;
     let k = want.clamp(min_leaf.saturating_mul(2).min(n), n);
     for i in 0..k {
@@ -559,11 +677,11 @@ fn subsample(
         idx.swap(i, j);
     }
     idx.truncate(k);
-    idx
+    Ok(idx)
 }
 
 fn grow_from(
-    rows: &[antecedent_data::GlobalId],
+    node: NodeRows,
     depth: usize,
     data: &ForestData<'_>,
     shape: TreeShape,
@@ -571,79 +689,76 @@ fn grow_from(
 ) -> Node {
     let ForestData { p, y, t, .. } = *data;
     let TreeShape { min_leaf, max_depth, .. } = shape;
-    if depth >= max_depth || rows.len() < min_leaf.saturating_mul(2) || p == 0 {
-        return Node::Leaf { cate: leaf_tau(y, t, rows), se: leaf_se(y, t, rows) };
+    if depth >= max_depth || node.len() < min_leaf.saturating_mul(2) || p == 0 {
+        return Node::leaf(leaf_stat(y, t, &node.rows));
     }
-    let Some((feature, threshold, left_rows, right_rows)) = best_split(rows, data, shape, rng)
-    else {
-        return Node::Leaf { cate: leaf_tau(y, t, rows), se: leaf_se(y, t, rows) };
+    let Some(split) = best_split(&node, data, shape, rng) else {
+        return Node::leaf(leaf_stat(y, t, &node.rows));
     };
+    let (left, right) = node.split(data, split);
     Node::Split {
-        feature,
-        threshold,
-        left: Box::new(grow_from(&left_rows, depth + 1, data, shape, rng)),
-        right: Box::new(grow_from(&right_rows, depth + 1, data, shape, rng)),
+        feature: split.feature,
+        threshold: split.threshold,
+        left: Box::new(grow_from(left, depth + 1, data, shape, rng)),
+        right: Box::new(grow_from(right, depth + 1, data, shape, rng)),
     }
 }
 
+/// The split that maximizes the weighted squared difference of the children's effects over a
+/// random feature subset, scanning each chosen feature's presorted order.
 fn best_split(
-    rows: &[antecedent_data::GlobalId],
+    node: &NodeRows,
     data: &ForestData<'_>,
     shape: TreeShape,
     rng: &mut CausalRng,
-) -> Option<(usize, f64, Vec<antecedent_data::GlobalId>, Vec<antecedent_data::GlobalId>)> {
+) -> Option<Split> {
     let ForestData { x, n, p, y, t, .. } = *data;
     let TreeShape { min_leaf, max_cuts, .. } = shape;
-    let max_cuts = max_cuts.unwrap_or_else(|| MIN_CUTS.max(rows.len().isqrt()));
+    let max_cuts = max_cuts.unwrap_or_else(|| MIN_CUTS.max(node.len().isqrt()));
     let feats = choose_features(p, rng);
     let mut best_score = f64::NEG_INFINITY;
-    let mut best: Option<(usize, f64)> = None;
-    // Row indices and their feature values, reused across features and sorted by value only
-    // (a stable sort keeps ties in node-row order, so the scan order is unchanged).
-    let mut keyed: Vec<(f64, usize)> = Vec::with_capacity(rows.len());
+    let mut best: Option<Split> = None;
+    let mut values: Vec<f64> = Vec::with_capacity(node.len());
     for &feat in &feats {
-        keyed.clear();
-        keyed.extend(rows.iter().map(|&r| {
-            let i = usize::try_from(r.get()).expect("row id");
-            (x[feat * n + i], i)
-        }));
-        keyed.sort_by(|a, b| a.0.total_cmp(&b.0));
-        let cuts = candidate_thresholds(&keyed, max_cuts);
+        let order = &node.by_feature[feat];
+        let column = &x[feat * n..(feat + 1) * n];
+        values.clear();
+        values.extend(order.iter().map(|&row| column[ix(row)]));
+        let cuts = candidate_thresholds(&values, max_cuts);
         let mut total = [0.0; 4];
-        for &(_, i) in &keyed {
-            let arm = if t[i] > 0.5 { 0 } else { 2 };
+        for &row in order {
+            let i = ix(row);
+            let arm = arm_slot(t[i]);
             total[arm] += y[i];
             total[arm + 1] += 1.0;
         }
         let mut left_sums = [0.0; 4];
         let mut split = 0;
         for thr in cuts {
-            while split < keyed.len() && keyed[split].0 <= thr {
-                let i = keyed[split].1;
-                let arm = if t[i] > 0.5 { 0 } else { 2 };
+            while split < order.len() && values[split] <= thr {
+                let i = ix(order[split]);
+                let arm = arm_slot(t[i]);
                 left_sums[arm] += y[i];
                 left_sums[arm + 1] += 1.0;
                 split += 1;
             }
-            if split < min_leaf || keyed.len() - split < min_leaf {
+            if split < min_leaf || order.len() - split < min_leaf {
                 continue;
             }
             let right_sums = std::array::from_fn(|i| total[i] - left_sums[i]);
             let Some(tl) = tau_from_sums(left_sums) else { continue };
             let Some(tr) = tau_from_sums(right_sums) else { continue };
             let nl = split as f64;
-            let nr = (keyed.len() - split) as f64;
+            let nr = (order.len() - split) as f64;
             let nn = (nl + nr).max(1.0);
             let score = (nl * nr / nn.powi(2)) * (tl - tr).powi(2);
             if score > best_score {
                 best_score = score;
-                best = Some((feat, thr));
+                best = Some(Split { feature: feat, threshold: thr });
             }
         }
     }
-    let (feat, thr) = best?;
-    let (left, right) = partition(rows, x, n, feat, thr);
-    Some((feat, thr, left, right))
+    best
 }
 
 #[allow(
@@ -668,11 +783,13 @@ fn choose_features(p: usize, rng: &mut CausalRng) -> Vec<usize> {
     feats
 }
 
-fn candidate_thresholds(sorted: &[(f64, usize)], max_cuts: usize) -> Vec<f64> {
+/// Midpoints between distinct consecutive values of an ascending value list, thinned to at
+/// most about `max_cuts` candidates.
+fn candidate_thresholds(sorted: &[f64], max_cuts: usize) -> Vec<f64> {
     if sorted.len() < 2 {
         return Vec::new();
     }
-    let mut vals: Vec<f64> = sorted.iter().map(|&(v, _)| v).collect();
+    let mut vals: Vec<f64> = sorted.to_vec();
     vals.dedup_by(|a, b| (*a - *b).abs() <= 1e-12);
     if vals.len() < 2 {
         return Vec::new();
@@ -688,55 +805,32 @@ fn candidate_thresholds(sorted: &[(f64, usize)], max_cuts: usize) -> Vec<f64> {
     cuts
 }
 
-fn partition(
-    rows: &[antecedent_data::GlobalId],
-    x: &[f64],
-    n: usize,
-    feat: usize,
-    thr: f64,
-) -> (Vec<antecedent_data::GlobalId>, Vec<antecedent_data::GlobalId>) {
-    let mut left = Vec::new();
-    let mut right = Vec::new();
-    for &i in rows {
-        if x[feat * n + usize::try_from(i.get()).expect("row id")] <= thr {
-            left.push(i);
-        } else {
-            right.push(i);
-        }
-    }
-    (left, right)
-}
-
-fn fill_cate(
-    node: &mut Node,
-    rows: &[antecedent_data::GlobalId],
-    data: &ForestData<'_>,
-    parent: Option<(f64, Option<f64>)>,
-) {
+fn fill_cate(node: &mut Node, rows: &[Row], data: &ForestData<'_>, parent: Option<LeafEstimate>) {
     let ForestData { x, n, p, y, t, .. } = *data;
     let honest = leaf_stat(y, t, rows).or(parent);
     match node {
         Node::Leaf { cate, se } => {
             // Empty/single-arm estimation leaves must never reuse split outcomes.
-            *cate = honest.map(|h| h.0);
-            *se = honest.and_then(|h| h.1);
+            *cate = honest.map(|h| h.cate);
+            *se = honest.and_then(|h| h.se);
         }
         Node::Split { feature, threshold, left, right } => {
             if *feature >= p {
                 return;
             }
-            let (l, r) = partition(rows, x, n, *feature, *threshold);
+            let (feature, threshold) = (*feature, *threshold);
+            let (l, r) = partition_rows(rows, |row| x[feature * n + ix(row)] <= threshold);
             fill_cate(left, &l, data, honest);
             fill_cate(right, &r, data, honest);
         }
     }
 }
 
-fn arm_sums(y: &[f64], t: &[f64], rows: &[antecedent_data::GlobalId]) -> [f64; 4] {
+fn arm_sums(y: &[f64], t: &[f64], rows: &[Row]) -> [f64; 4] {
     let mut sums = [0.0; 4];
-    for &i in rows {
-        let i = usize::try_from(i.get()).expect("row id");
-        let arm = if t[i] > 0.5 { 0 } else { 2 };
+    for &row in rows {
+        let i = ix(row);
+        let arm = arm_slot(t[i]);
         sums[arm] += y[i];
         sums[arm + 1] += 1.0;
     }
@@ -747,29 +841,19 @@ fn tau_from_sums([s1, n1, s0, n0]: [f64; 4]) -> Option<f64> {
     if n1 < 1.0 || n0 < 1.0 { None } else { Some(s1 / n1 - s0 / n0) }
 }
 
-fn leaf_tau(y: &[f64], t: &[f64], rows: &[antecedent_data::GlobalId]) -> Option<f64> {
-    leaf_stat(y, t, rows).map(|s| s.0)
-}
-
-fn leaf_se(y: &[f64], t: &[f64], rows: &[antecedent_data::GlobalId]) -> Option<f64> {
-    leaf_stat(y, t, rows).and_then(|s| s.1)
-}
-
-fn leaf_stat(
-    y: &[f64],
-    t: &[f64],
-    rows: &[antecedent_data::GlobalId],
-) -> Option<(f64, Option<f64>)> {
+/// The difference in arm means of `rows` and, with at least two rows in each arm, its standard
+/// error; `None` when either arm is empty.
+fn leaf_stat(y: &[f64], t: &[f64], rows: &[Row]) -> Option<LeafEstimate> {
     let [s1, n1, s0, n0] = arm_sums(y, t, rows);
     let tau = tau_from_sums([s1, n1, s0, n0])?;
     if n1 < 2.0 || n0 < 2.0 {
-        return Some((tau, None));
+        return Some(LeafEstimate { cate: tau, se: None });
     }
     let mut q1 = 0.0;
     let mut q0 = 0.0;
-    for &i in rows {
-        let i = usize::try_from(i.get()).expect("row id");
-        if t[i] > 0.5 {
+    for &row in rows {
+        let i = ix(row);
+        if TreatmentArm::of(t[i]).is_treated() {
             q1 += y[i] * y[i];
         } else {
             q0 += y[i] * y[i];
@@ -778,7 +862,7 @@ fn leaf_stat(
     let v1 = (q1 - s1 * s1 / n1) / (n1 - 1.0);
     let v0 = (q0 - s0 * s0 / n0) / (n0 - 1.0);
     let var = v1.max(0.0) / n1 + v0.max(0.0) / n0;
-    Some((tau, var.is_finite().then_some(var.sqrt())))
+    Some(LeafEstimate { cate: tau, se: var.is_finite().then_some(var.sqrt()) })
 }
 
 /// Leaf-dispersion diagnostic from summed leaf SEs: `sqrt(mean of leaf variances)`.
@@ -808,10 +892,27 @@ mod tests {
     fn honest_leaf_never_reuses_split_outcomes() {
         let mut node = Node::Leaf { cate: Some(999.0), se: None };
         let data = ForestData { x: &[], n: 1, p: 0, y: &[10.0], t: &[1.0], clusters: None };
-        fill_cate(&mut node, &[antecedent_data::GlobalId::new(0)], &data, None);
+        fill_cate(&mut node, &[0], &data, None);
         assert!(node.predict_leaf(&[], 1, 0, 0).is_none());
-        fill_cate(&mut node, &[antecedent_data::GlobalId::new(0)], &data, Some((2.0, Some(0.5))));
-        assert_eq!(node.predict_leaf(&[], 1, 0, 0), Some((2.0, Some(0.5))));
+        let parent = LeafEstimate { cate: 2.0, se: Some(0.5) };
+        fill_cate(&mut node, &[0], &data, Some(parent));
+        assert_eq!(node.predict_leaf(&[], 1, 0, 0), Some(parent));
+    }
+
+    #[test]
+    fn presorted_orders_are_stable_and_survive_a_split() {
+        // Rows 0..6 carry feature values with ties; the node lists them out of table order.
+        let x = [3.0, 1.0, 2.0, 1.0, 3.0, 2.0];
+        let (y, t) = ([0.0; 6], [0.0; 6]);
+        let data = ForestData { x: &x, n: 6, p: 1, y: &y, t: &t, clusters: None };
+        let node = NodeRows::presorted(vec![5, 0, 3, 1, 4, 2], &data);
+        // Tied values keep node order: value 1 -> rows 3, 1; value 2 -> 5, 2; value 3 -> 0, 4.
+        assert_eq!(node.by_feature[0], [3, 1, 5, 2, 0, 4]);
+        let (left, right) = node.split(&data, Split { feature: 0, threshold: 2.0 });
+        assert_eq!(left.rows, [5, 3, 1, 2]);
+        assert_eq!(left.by_feature[0], [3, 1, 5, 2]);
+        assert_eq!(right.rows, [0, 4]);
+        assert_eq!(right.by_feature[0], [0, 4]);
     }
 
     #[test]

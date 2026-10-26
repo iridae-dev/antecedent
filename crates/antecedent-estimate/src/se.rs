@@ -510,8 +510,7 @@ pub(crate) fn multiway_influence_se(
     let mut combined = vec![0u32; n];
     let mut terms = Vec::with_capacity((1 << d) - 1);
     for (mask, sign) in multiway_subset_masks(d) {
-        let _g = intern_cluster_tuples(&refs, mask, &mut combined)
-            .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
+        let _g = intern_cluster_tuples(&refs, mask, &mut combined)?;
         let (m_s, g_s) = cluster_meat_scalar(psi, &combined, mean)
             .map_err(|_| EstimationError::data_msg("multiway influence SE failed to form meat"))?;
         if g_s < 2 {
@@ -521,8 +520,7 @@ pub(crate) fn multiway_influence_se(
         // Accumulate signed `c_S M_S`; divide by `n²` after IE.
         terms.push(sign * c_s * m_s);
     }
-    let meat = combine_inclusion_exclusion(&terms)
-        .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
+    let meat = combine_inclusion_exclusion(&terms)?;
     Ok((meat.max(0.0) / (n as f64).powi(2)).sqrt())
 }
 
@@ -607,8 +605,7 @@ pub(crate) fn panel_cluster_hac_influence_se(
     }
     let mean = psi.iter().sum::<f64>() / n as f64;
     let u: Vec<f64> = psi.iter().map(|v| v - mean).collect();
-    let (meat, g) = panel_hac_meat_scalar(&u, groups, time, lag)
-        .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
+    let (meat, g) = panel_hac_meat_scalar(&u, groups, time, lag)?;
     if g < 2 {
         return Err(few_clusters(g));
     }

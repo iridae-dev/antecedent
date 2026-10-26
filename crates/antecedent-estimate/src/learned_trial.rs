@@ -380,10 +380,16 @@ pub fn bootstrap_rows(
         );
         antecedent_core::DeclaredSamplingDesign::IndependentSubjectTrajectories
             .apply_resampling(antecedent_core::ResamplingRule::RowSubjectIid)
-            .map_err(|error| EstimationError::data_msg(error.to_string()))?;
+            .map_err(|error| {
+                EstimationError::Data(antecedent_data::DataError::SamplingDesign(error))
+            })?;
         let mut selected = Vec::new();
-        fill_resample_indexes(ResamplingPlan::IidBootstrap, members.len(), &mut rng, &mut selected)
-            .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+        fill_resample_indexes(
+            ResamplingPlan::IidBootstrap,
+            members.len(),
+            &mut rng,
+            &mut selected,
+        )?;
         rows.extend(
             selected.into_iter().map(|i| members[usize::try_from(i.get()).expect("row id")]),
         );
@@ -512,7 +518,7 @@ fn fit_point(
 pub fn validate_trial_query(
     query: &antecedent_core::TransportQuery,
 ) -> Result<(), EstimationError> {
-    query.validate().map_err(|e| EstimationError::data_msg(e.to_string()))?;
+    query.validate()?;
     match &query.response.functional {
         antecedent_core::ResponseFunctional::MeanCurve { treatment, .. } => match &treatment.grid {
             antecedent_core::GridSpec::Values(values) if values.as_ref() == [0.0, 1.0] => {}

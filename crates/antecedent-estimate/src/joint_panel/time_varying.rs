@@ -265,7 +265,6 @@ pub fn validate_temporal_spec(
     let max = data.groups.iter().map(|group| group.outcome.len()).max().unwrap_or(0);
     if data.lag_order != 2
         || coordinates.is_empty()
-        || spec.change_points.len() > 64
         || spec.minimum_segment < 3
         || !spec.weak_change_gap.is_finite()
         || spec.weak_change_gap < 0.0
@@ -277,12 +276,10 @@ pub fn validate_temporal_spec(
                 || point.checked_add(spec.minimum_segment).is_none_or(|end| end > min)
         })
         || spec.smooth_knots.len() < 2
-        || spec.smooth_knots.len() > 32
         || spec.smooth_knots[0] != 0
         || spec.smooth_knots.last().copied() != max.checked_sub(1)
         || spec.smooth_knots.windows(2).any(|pair| pair[0] >= pair[1])
         || spec.smoothing.is_empty()
-        || spec.smoothing.len() > 16
         || spec.smoothing.iter().any(|value| !value.is_finite() || *value <= 0.0)
         || spec.smoothing.windows(2).any(|pair| pair[0] >= pair[1])
     {
@@ -676,9 +673,6 @@ fn fit_temporal_inner(
             .checked_mul(sampler.draws)
             .ok_or_else(|| invalid("temporal posterior count overflow"))?,
     };
-    if p + path_parameters + 1 > 1024 {
-        return Err(invalid("time-varying target exceeds bounded sampler coordinate limit"));
-    }
     let parameter_bytes = likelihood::parameter_bytes(data)?;
     let one_draw = max_time
         .checked_mul(parameter_bytes)

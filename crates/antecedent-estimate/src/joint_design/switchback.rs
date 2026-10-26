@@ -38,9 +38,7 @@ pub struct SwitchbackGaussianPrior {
     pub seed: u64,
 }
 fn checked_histories(design: &JointSwitchbackDesign) -> Result<Vec<Vec<usize>>, String> {
-    if design.carryover > 32
-        || design.worlds.len() > 256
-        || design.worlds.is_empty()
+    if design.worlds.is_empty()
         || design.worlds.iter().any(|(key, h)| key.is_empty() || h.len() != design.carryover + 1)
         || design.worlds.iter().map(|(key, _)| key).collect::<BTreeSet<_>>().len()
             != design.worlds.len()
@@ -66,9 +64,6 @@ pub fn switchback_joint_means(
     design: &JointSwitchbackDesign,
     sequences: &[HistoryAssignment],
 ) -> Result<JointDesignEstimate, String> {
-    if sequences.len() > 65536 {
-        return Err("switchback independent-sequence resource bound exceeded".into());
-    }
     let histories = checked_histories(design)?;
     let fit = switchback_history_means(sequences, &histories).map_err(str::to_string)?;
     Ok(JointDesignEstimate {
@@ -89,6 +84,7 @@ pub fn switchback_joint_posterior(
     design: &JointSwitchbackDesign,
     sequences: &[HistoryAssignment],
     prior: &SwitchbackGaussianPrior,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<JointDesignPosterior, String> {
     let _identified = switchback_joint_means(design, sequences)?;
     let histories = checked_histories(design)?;
@@ -98,7 +94,6 @@ pub fn switchback_joint_posterior(
         || prior.sequence_variance.len() != sequences.len()
         || prior.sequence_rho.len() != sequences.len()
         || prior.draws < 2
-        || prior.draws > 100_000
         || prior.mean.iter().any(|v| !v.is_finite())
         || prior
             .variance
@@ -109,6 +104,14 @@ pub fn switchback_joint_posterior(
     {
         return Err("switchback Gaussian posterior requires proper priors and known nonsingular sequence covariance".into());
     }
+    // Precision, its factor and the covariance are k-by-k; the draws are draws-by-k twice (the
+    // coordinate-major sample and its draw-major restoration).
+    let _lease = super::budget::admit_cells(
+        ctx,
+        "switchback posterior",
+        k.saturating_mul(k).saturating_mul(3).saturating_add(prior.draws.saturating_mul(k)),
+        2,
+    )?;
     let mut precision = vec![0.0; k * k];
     let mut rhs = vec![0.0; k];
     for j in 0..k {
@@ -219,9 +222,8 @@ pub fn switchback_joint_sharp_null_test(
         || contrast.iter().any(|c| !c.is_finite())
         || contrast.iter().all(|c| *c == 0.0)
         || max_cases == 0
-        || max_cases > 10_000_000
     {
-        return Err("switchback randomization inference requires a finite nonzero joint contrast and bounded positive case budget".into());
+        return Err("switchback randomization inference requires a finite nonzero joint contrast and a positive case budget".into());
     }
     let total = sequences.iter().map(|s| s.outcomes.len() - design.carryover).sum::<usize>() as f64;
     let mut schedule_statistics = Vec::with_capacity(sequences.len());

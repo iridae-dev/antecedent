@@ -57,10 +57,11 @@ use antecedent_stats::{
 };
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
+use crate::arm::TreatmentArm;
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::se::AnalyticSeKind;
-use crate::util::{arm_moments};
+use crate::util::arm_moments;
 
 /// Prepared IV problem: column-major instrument and exogenous-covariate designs, shared by
 /// [`WaldIv`] and [`TwoStageLeastSquares`].
@@ -203,7 +204,7 @@ impl CheckedIvPreparation {
         let n = rebound.problem.nrows;
         if !rebound.problem.instruments_matrix[n..2 * n]
             .iter()
-            .all(|&value| value == 0.0 || value == 1.0)
+            .all(|&value| TreatmentArm::exact(value).is_some())
         {
             return Err(EstimationError::unsupported(
                 "checked IV rebound requires a binary 0/1 instrument",
@@ -320,7 +321,7 @@ fn prepare_iv_checked(
     let column = problem.nrows;
     if !problem.instruments_matrix[column..2 * column]
         .iter()
-        .all(|&value| value == 0.0 || value == 1.0)
+        .all(|&value| TreatmentArm::exact(value).is_some())
     {
         return Err(EstimationError::unsupported(
             "checked IV currently requires a binary 0/1 instrument matching the checked Wald functional",
@@ -656,7 +657,7 @@ impl WaldIv {
             && problem.adjustment_set.is_empty()
             && (0..n).all(|r| {
                 let v = problem.instruments_matrix[n + r];
-                v == 0.0 || v == 1.0
+                TreatmentArm::exact(v).is_some()
             });
         if !binary_single {
             // The ratio of two arm differences is the one-binary-instrument case. Several or
@@ -714,8 +715,9 @@ struct WaldResult {
 
 /// Ratio-of-differences point estimate.
 fn wald_ratio(z: &[f64], t: &[f64], y: &[f64]) -> Result<WaldResult, EstimationError> {
-    let outcome = arm_moments(z, y);
-    let treatment = arm_moments(z, t);
+    let arms = TreatmentArm::classify(z);
+    let outcome = arm_moments(&arms, y);
+    let treatment = arm_moments(&arms, t);
     if outcome.n[0] == 0 || outcome.n[1] == 0 {
         return Err(EstimationError::data_msg(
             "Wald IV requires both instrument arms (Z=0 and Z=1) to be present",
@@ -800,7 +802,7 @@ fn attach_anderson_rubin(
 /// mirroring [`fit_2sls`]'s [`FirstStageDiagnostics`] shape so both IV estimators expose
 /// the same diagnostic type.
 fn wald_first_stage_diagnostics(z: &[f64], t: &[f64]) -> Option<FirstStageDiagnostics> {
-    let arms = arm_moments(z, t);
+    let arms = arm_moments(&TreatmentArm::classify(z), t);
     let (n0, n1) = (arms.n[0], arms.n[1]);
     if n1 < 2 || n0 < 2 {
         return None;

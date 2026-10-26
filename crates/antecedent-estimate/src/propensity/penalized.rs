@@ -30,6 +30,7 @@ use antecedent_learn::{
     cross_fit_with_folds_weighted,
 };
 
+use crate::arm::TreatmentArm;
 use super::penalized_report::{FailedFit, FoldSupport};
 use crate::crossfit_plan::{FoldSource, SHARED_FOLD_ID_ERRORS, derive_fold_ids};
 use crate::error::EstimationError;
@@ -728,7 +729,7 @@ pub(crate) fn fit_penalized_fold(
         DesignView::from_column_major(&valid, input.n_valid, input.ncols).map_err(learn_err)?;
     let target = TargetView::new(input.t_train);
 
-    let arms: Vec<u32> = input.t_train.iter().map(|&t| u32::from(t > 0.5)).collect();
+    let arms: Vec<u32> = input.t_train.iter().map(|&t| u32::from(TreatmentArm::is_treated_indicator(t))).collect();
     let plan = derive_fold_ids(
         arms.len(),
         tuning.inner_folds,

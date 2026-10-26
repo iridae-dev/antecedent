@@ -21,6 +21,7 @@ pub mod adaptive_resample_waves;
 pub mod adjustment;
 pub mod admg_conditional_transport;
 pub mod aipw;
+pub mod arm;
 pub mod ancova;
 mod ar_kernel;
 pub mod association;
@@ -75,7 +76,7 @@ pub mod frontdoor;
 pub mod frontdoor_functional;
 pub mod functional_distribution;
 pub mod gaussian_linear_posterior;
-pub mod gcomp;
+mod gcomp;
 pub mod glm_adjustment;
 pub mod history_match;
 pub mod history_outcome_model;
@@ -310,7 +311,9 @@ pub use envelope::{
 };
 pub use error::{EstimationError, ExactF64, RefusalFields};
 pub use estimator::Estimator;
+pub use arm::TreatmentArm;
 pub use fit_plan::JointFitPlan;
+pub use inference::InferenceSpec;
 pub use frontdoor::{
     CheckedFrontDoorLowering, CheckedFrontDoorPreparation, FrontDoorTwoStage, FrontDoorWorkspace,
     PreparedFrontDoorProblem, linear_path_product_restriction,

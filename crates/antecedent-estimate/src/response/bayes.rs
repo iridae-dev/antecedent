@@ -7,7 +7,7 @@ use antecedent_core::{
     AssumptionStatus, CausalResponse, CredibleDraws, DerivativeWeighting, Diagnostic,
     DiagnosticKind, DiagnosticSeverity, IdentificationStatus, Intervention, ParametricAssumption,
     ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
-    StreamDomain, SupportRegion, SupportStatus, VariableId,
+    StreamDomain, SupportRegion, SupportReport, SupportStatus, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_stats::{
@@ -22,7 +22,7 @@ use crate::tiled_prediction::{
 use crate::util::range;
 
 use super::{
-    ContinuousResponseEstimator, bias_corrected_interval_note, bootstrap_weights,
+    ContinuousResponseEstimator, CrossFitFold, bias_corrected_interval_note, bootstrap_weights,
     local_design_refusal, sample::CompleteSample, sample::read_shared_complete_samples,
     simultaneous_posterior_band, static_bayesian_policy, support_report, transform_derivative,
     transform_point_derivative, with_estimation_assumptions,
@@ -542,10 +542,6 @@ impl ContinuousResponseEstimator {
         })
     }
 
-    #[allow(
-        clippy::too_many_lines,
-        reason = "one arm per derivative functional over the same fitted draws, each assembling its own estimand and provenance"
-    )]
     fn estimate_bayesian_derivative(
         &self,
         data: &TabularData,
@@ -574,323 +570,21 @@ impl ContinuousResponseEstimator {
         let mut assumptions = with_estimation_assumptions(assumptions, &query.functional);
         let level = self.options.confidence_level;
         let draws_n = crate::require_bayesian_n_draws(estimator.n_draws)?;
-        let (value, uncertainty, support, assumption_id, assumption_text, provenance) = match &query
-            .functional
-        {
-            ResponseFunctional::AverageDerivative { outcome, treatment, weighting } => {
-                if !matches!(weighting, DerivativeWeighting::Observed) {
-                    return Err(EstimationError::unsupported(
-                        "Bayesian ADE currently supports observed-law weighting only",
-                    ));
-                }
-                let sample =
-                    CompleteSample::read(data, *outcome, &[*treatment], &self.adjustment_set)?;
-                let (_, _, support) =
-                    self.average_derivative(data, *outcome, *treatment, weighting)?;
-                // Folds, their training designs and knots are fixed across draws:
-                // expanded once here, refit under each draw's weights.
-                let folds = self.cross_fit_folds(&sample)?;
-                // One RNG stream per draw: draws are independent, so they run across
-                // the context's thread budget and return in draw order.
-                let values = ctx.map_indexed::<_, EstimationError, _>(draws_n, |draw, ctx| {
-                    if ctx.cancellation.is_cancelled() {
-                        return Err(EstimationError::unsupported("Bayesian ADE cancelled"));
-                    }
-                    let mut rng = ctx
-                        .rng
-                        .stream_for(StreamDomain::Bayesian, (0xADEB_0001_u64 << 32) | draw as u64);
-                    let weights = bootstrap_weights(sample.len(), &mut rng);
-                    self.weighted_cross_fitted_ade(&sample, &folds, &weights)
-                })?;
-                let (mean, lo, hi, sd) = summarize_scalar_draws(&values, level)?;
-                (
-                    ResponseValue::Scalar(mean),
-                    credible_scalar_uncertainty(sd, level, lo, hi, values),
-                    support,
-                    "bayesian.derivative.riesz_weighted_cross_fit",
-                    "Each Rubin Bayesian-bootstrap draw cross-fits the additive-GAM outcome μ and Gaussian treatment law α under Dirichlet(1,...,1)/Exp(1) row weights: every fold refits both nuisances on its weighted training rows and scores its held-out rows with the Riesz ADE φ = ∂_a μ̂_w + α_w (Y − μ̂_w), and the draw is the weighted mean of the held-out scores. This is not a frozen-score reweight of the first-fit φ_i. Held fixed: fold assignment, spline knots, and penalty. Estimator identity stays response.riesz_ade",
-                    "estimate.response.riesz_ade",
-                )
+        let DerivativePosterior {
+            value,
+            uncertainty,
+            support,
+            assumption_id,
+            assumption_text,
+            provenance,
+        } = match &query.functional {
+            ResponseFunctional::AverageDerivative { .. } => {
+                self.average_derivative_posterior(data, &query.functional, level, draws_n, ctx)?
             }
             ResponseFunctional::PointDerivative { .. }
             | ResponseFunctional::DirectionalDerivative { .. }
             | ResponseFunctional::Jacobian { .. } => {
-                self.validate(query, identification_status)?;
-                let (point, _, mut support, provenance) = match &query.functional {
-                    ResponseFunctional::PointDerivative {
-                        outcome,
-                        treatment,
-                        at,
-                        order,
-                        scale,
-                    } => {
-                        let (value, uncertainty, support) =
-                            self.point_derivative(data, *outcome, *treatment, *at, *order, *scale)?;
-                        (value, uncertainty, support, "estimate.response.point_derivative")
-                    }
-                    ResponseFunctional::DirectionalDerivative {
-                        outcomes,
-                        treatments,
-                        at,
-                        direction,
-                    } => {
-                        let (value, uncertainty, support) =
-                            self.directional_derivative(data, outcomes, treatments, at, direction)?;
-                        (value, uncertainty, support, "estimate.response.gam_derivative")
-                    }
-                    ResponseFunctional::Jacobian { outcomes, treatments, at, scale } => {
-                        let (value, uncertainty, support) =
-                            self.jacobian(data, outcomes, treatments, at, *scale)?;
-                        (value, uncertainty, support, "estimate.response.gam_derivative")
-                    }
-                    ResponseFunctional::MeanCurve { .. }
-                    | ResponseFunctional::AverageDerivative { .. }
-                    | ResponseFunctional::InterventionResponse { .. } => {
-                        return Err(non_derivative_functional());
-                    }
-                };
-                // The Frequentist withheld / bias-corrected notes describe the
-                // analytic interval; the draws below supply their own interval and
-                // their own disclosure.
-                support.warnings.retain(|warning| {
-                    !matches!(
-                        warning.code.as_ref(),
-                        "response.derivative_interval_withheld"
-                            | "response.derivative_interval_bias_corrected"
-                            | "response.derivative_interval_delta_method"
-                            | "response.derivative_interval_fieller"
-                            | "response.derivative_interval_unbounded"
-                    )
-                });
-                let point_derivative =
-                    matches!(query.functional, ResponseFunctional::PointDerivative { .. });
-                // Every draw refits its nuisances: point draws rebuild the
-                // cross-fitted Kennedy pseudo-outcome under the draw's row weights
-                // (the bandwidth is the caller's fixed value, never data-selected);
-                // GAM draws refit coefficients with the same continuous weights.
-                let (samples, bandwidth) = match &query.functional {
-                    ResponseFunctional::PointDerivative { outcome, treatment, .. } => {
-                        let sample = CompleteSample::read(
-                            data,
-                            *outcome,
-                            &[*treatment],
-                            &self.adjustment_set,
-                        )?;
-                        let bandwidth = self
-                            .options
-                            .bandwidth
-                            .unwrap_or(silverman_bandwidth(&sample.treatments)?);
-                        (vec![sample], bandwidth)
-                    }
-                    ResponseFunctional::DirectionalDerivative { outcomes, treatments, .. }
-                    | ResponseFunctional::Jacobian { outcomes, treatments, .. } => (
-                        read_shared_complete_samples(
-                            data,
-                            outcomes,
-                            treatments,
-                            &self.adjustment_set,
-                        )?,
-                        0.0,
-                    ),
-                    ResponseFunctional::MeanCurve { .. }
-                    | ResponseFunctional::AverageDerivative { .. }
-                    | ResponseFunctional::InterventionResponse { .. } => {
-                        return Err(non_derivative_functional());
-                    }
-                };
-                let n = samples[0].len();
-                // Fold assignment, knots and bases are fixed across draws: the point
-                // route's cross-fitting folds and the GAM routes' plug-in target
-                // designs are expanded once here and refit under each draw's weights.
-                let folds =
-                    if point_derivative { self.cross_fit_folds(&samples[0])? } else { vec![] };
-                let target_designs: Vec<AdditiveDesign> = if point_derivative {
-                    vec![]
-                } else {
-                    samples
-                        .iter()
-                        .map(|sample| self.outcome_target_design(sample))
-                        .collect::<Result<_, _>>()?
-                };
-                // One RNG stream per draw: draws are independent, so they run across the
-                // context's thread budget and return in draw order. Each draw yields its
-                // point coordinates (local-quadratic, bias-corrected) or its GAM vector,
-                // plus the GAM fits' effective degrees of freedom for the HC1-type spread
-                // correction (`inflate_draws_by_edf`).
-                let draws = ctx.map_indexed::<_, EstimationError, _>(draws_n, |draw, ctx| {
-                    if ctx.cancellation.is_cancelled() {
-                        return Err(EstimationError::unsupported("Bayesian derivative cancelled"));
-                    }
-                    let mut rng = ctx
-                        .rng
-                        .stream_for(StreamDomain::Bayesian, (0xADEB_0002_u64 << 32) | draw as u64);
-                    let weights = bootstrap_weights(n, &mut rng);
-                    let mut out = DerivativeDraw {
-                        scalar: 0.0,
-                        corrected: 0.0,
-                        vector: Vec::new(),
-                        edf: vec![0.0; samples.len()],
-                    };
-                    match &query.functional {
-                        ResponseFunctional::PointDerivative { at, order, scale, .. } => {
-                            let pseudo = self
-                                .cross_fitted_pseudo_outcome_weighted(
-                                    &samples[0],
-                                    &folds,
-                                    Some(&weights),
-                                )?
-                                .values;
-                            let p = antecedent_stats::gaussian_local_quadratic_weighted(
-                                &samples[0].treatments,
-                                &pseudo,
-                                *at,
-                                bandwidth,
-                                &weights,
-                            )
-                            .map_err(|err| {
-                                local_design_refusal(err, &samples[0].treatments, *at, bandwidth)
-                            })?;
-                            out.scalar = transform_point_derivative(
-                                p.value,
-                                p.first_derivative,
-                                p.second_derivative,
-                                *at,
-                                *order,
-                                *scale,
-                            )?;
-                            let c = antecedent_stats::gaussian_local_quadratic_bias_corrected(
-                                &samples[0].treatments,
-                                &pseudo,
-                                *at,
-                                bandwidth,
-                                Some(&weights),
-                            )
-                            .map_err(|err| {
-                                local_design_refusal(err, &samples[0].treatments, *at, bandwidth)
-                            })?;
-                            out.corrected = transform_point_derivative(
-                                c.value,
-                                c.first_derivative,
-                                c.second_derivative,
-                                *at,
-                                *order,
-                                *scale,
-                            )?;
-                        }
-                        ResponseFunctional::DirectionalDerivative { at, direction, .. } => {
-                            for (s, sample) in samples.iter().enumerate() {
-                                let fit = Self::fit_outcome_target_weighted(
-                                    sample,
-                                    &target_designs[s],
-                                    Some(&weights),
-                                )?;
-                                out.edf[s] += fit.edf_approx;
-                                let (_, gradient) =
-                                    Self::plugin_gradient_at_fit(&fit, sample, at, Some(&weights))?;
-                                out.vector.push(
-                                    gradient.iter().zip(direction.iter()).map(|(a, b)| a * b).sum(),
-                                );
-                            }
-                        }
-                        ResponseFunctional::Jacobian { at, scale, .. } => {
-                            for (s, sample) in samples.iter().enumerate() {
-                                let fit = Self::fit_outcome_target_weighted(
-                                    sample,
-                                    &target_designs[s],
-                                    Some(&weights),
-                                )?;
-                                out.edf[s] += fit.edf_approx;
-                                let (level, gradient) =
-                                    Self::plugin_gradient_at_fit(&fit, sample, at, Some(&weights))?;
-                                for (j, raw) in gradient.into_iter().enumerate() {
-                                    out.vector
-                                        .push(transform_derivative(raw, at[j], level, *scale)?);
-                                }
-                            }
-                        }
-                        ResponseFunctional::MeanCurve { .. }
-                        | ResponseFunctional::AverageDerivative { .. }
-                        | ResponseFunctional::InterventionResponse { .. } => {
-                            return Err(non_derivative_functional());
-                        }
-                    }
-                    Ok(out)
-                })?;
-                let scalars: Vec<f64> = draws.iter().map(|d| d.scalar).collect();
-                let corrected_scalars: Vec<f64> = draws.iter().map(|d| d.corrected).collect();
-                let mut edf_sum = vec![0.0; samples.len()];
-                for draw in &draws {
-                    for (total, edf) in edf_sum.iter_mut().zip(&draw.edf) {
-                        *total += edf;
-                    }
-                }
-                let vectors: Vec<Vec<f64>> = draws.into_iter().map(|d| d.vector).collect();
-                let (value, uncertainty) = if point_derivative {
-                    // Reported value: posterior mean of the local-quadratic estimator.
-                    // Interval and SD: the bias-corrected draws on the same weights.
-                    let (mean, _, _, _) = summarize_scalar_draws(&scalars, level)?;
-                    let (corrected_mean, lo, hi, sd) =
-                        summarize_scalar_draws(&corrected_scalars, level)?;
-                    support.warnings.push(bias_corrected_interval_note(true, mean, corrected_mean));
-                    // The retained draws are the bias-corrected ones: the interval's.
-                    (
-                        ResponseValue::Scalar(mean),
-                        credible_scalar_uncertainty(sd, level, lo, hi, corrected_scalars),
-                    )
-                } else {
-                    let dim = vectors.first().map_or(0, Vec::len);
-                    let mut means = vec![0.0; dim];
-                    let mut lower = vec![0.0; dim];
-                    let mut upper = vec![0.0; dim];
-                    // Retained per coordinate *after* the edf inflation: the
-                    // vector the band's quantiles were taken from.
-                    let mut columns: Vec<Vec<f64>> = Vec::with_capacity(dim);
-                    for j in 0..dim {
-                        let mut col: Vec<f64> = vectors.iter().map(|row| row[j]).collect();
-                        // Columns are outcome-major (Jacobian) or one per outcome
-                        // (directional); either way the outcome index is j·S/dim.
-                        let edf = edf_sum[j * samples.len() / dim] / draws_n as f64;
-                        inflate_draws_by_edf(&mut col, n, edf);
-                        let (mean, lo, hi, _) = summarize_scalar_draws(&col, level)?;
-                        means[j] = mean;
-                        lower[j] = lo;
-                        upper[j] = hi;
-                        columns.push(col);
-                    }
-                    let draws = Some(CredibleDraws::columns(draws_n, &columns));
-                    let value = match &point {
-                        ResponseValue::Jacobian { outcomes, treatments, .. } => {
-                            ResponseValue::Jacobian {
-                                outcomes: *outcomes,
-                                treatments: *treatments,
-                                values: Arc::from(means),
-                            }
-                        }
-                        _ => ResponseValue::Vector(Arc::from(means)),
-                    };
-                    (
-                        value,
-                        ResponseUncertainty::PointwiseBand {
-                            level,
-                            lower: Arc::from(lower),
-                            upper: Arc::from(upper),
-                            interpretation: antecedent_core::IntervalInterpretation::Credible,
-                            draws,
-                        },
-                    )
-                };
-                (
-                    value,
-                    uncertainty,
-                    support,
-                    "bayesian.derivative.estimator_bootstrap",
-                    if point_derivative {
-                        "Dirichlet(1,...,1)/Exp(1) row-weight posterior of the Kennedy-DR point derivative: every draw refits the cross-fitted additive-GAM outcome and Gaussian treatment nuisances on its weighted training folds, rebuilds the pseudo-outcome, and evaluates the weighted local quadratic (posterior mean = reported value) and its robust bias-corrected coordinate at the same caller-fixed bandwidth (local-cubic slope for a first derivative, local-quartic level and curvature otherwise) (quantiles = credible interval, SD = standard_error). Held fixed: the caller bandwidth, fold assignment, spline knots, and penalty. Not a frozen-pseudo-outcome reweight. Estimator identity stays estimate.response.point_derivative"
-                    } else {
-                        "Dirichlet(1,...,1)/Exp(1) row-weight posterior of the additive-GAM plug-in gradient: every draw refits the GAM coefficients under the draw's row weights with fixed knots and penalty; the draw spread is inflated around the posterior mean by sqrt(n/(n − edf)) (the row-weight spread is an HC0 sandwich, which understates a fitted-coefficient functional's variance by the fit's leverage; edf is the penalized fit's effective degrees of freedom), and the pointwise band takes exchangeable-rank (type-6) quantiles of the draws. The band inherits the additive-surface restriction and any penalized-spline smoothing bias at the evaluation point; no nuisance-selection uncertainty"
-                    },
-                    provenance,
-                )
+                self.refit_derivative_posterior(data, &query.functional, level, draws_n, ctx)?
             }
             _ => {
                 return Err(EstimationError::unsupported("not a derivative functional"));
@@ -917,6 +611,288 @@ impl ContinuousResponseEstimator {
             provenance_id: Arc::from(provenance),
             horizon_identification: None,
             interaction_structurally_zero: false,
+        })
+    }
+
+    /// The Rubin Bayesian-bootstrap posterior of the cross-fitted Riesz average derivative.
+    fn average_derivative_posterior(
+        &self,
+        data: &TabularData,
+        functional: &ResponseFunctional,
+        level: f64,
+        draws_n: usize,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<DerivativePosterior, EstimationError> {
+        let ResponseFunctional::AverageDerivative { outcome, treatment, weighting } = functional
+        else {
+            return Err(non_derivative_functional());
+        };
+        if !matches!(weighting, DerivativeWeighting::Observed) {
+            return Err(EstimationError::unsupported(
+                "Bayesian ADE currently supports observed-law weighting only",
+            ));
+        }
+        let sample = CompleteSample::read(data, *outcome, &[*treatment], &self.adjustment_set)?;
+        let (_, _, support) = self.average_derivative(data, *outcome, *treatment, weighting)?;
+        // Folds, their training designs and knots are fixed across draws:
+        // expanded once here, refit under each draw's weights.
+        let folds = self.cross_fit_folds(&sample)?;
+        // One RNG stream per draw: draws are independent, so they run across
+        // the context's thread budget and return in draw order.
+        let values = ctx.map_indexed::<_, EstimationError, _>(draws_n, |draw, ctx| {
+            if ctx.cancellation.is_cancelled() {
+                return Err(EstimationError::unsupported("Bayesian ADE cancelled"));
+            }
+            let mut rng = ctx
+                .rng
+                .stream_for(StreamDomain::Bayesian, (0xADEB_0001_u64 << 32) | draw as u64);
+            let weights = bootstrap_weights(sample.len(), &mut rng);
+            self.weighted_cross_fitted_ade(&sample, &folds, &weights)
+        })?;
+        let (mean, lo, hi, sd) = summarize_scalar_draws(&values, level)?;
+        Ok(DerivativePosterior {
+            value: ResponseValue::Scalar(mean),
+            uncertainty: credible_scalar_uncertainty(sd, level, lo, hi, values),
+            support,
+            assumption_id: "bayesian.derivative.riesz_weighted_cross_fit",
+            assumption_text: "Each Rubin Bayesian-bootstrap draw cross-fits the additive-GAM outcome μ and Gaussian treatment law α under Dirichlet(1,...,1)/Exp(1) row weights: every fold refits both nuisances on its weighted training rows and scores its held-out rows with the Riesz ADE φ = ∂_a μ̂_w + α_w (Y − μ̂_w), and the draw is the weighted mean of the held-out scores. This is not a frozen-score reweight of the first-fit φ_i. Held fixed: fold assignment, spline knots, and penalty. Estimator identity stays response.riesz_ade",
+            provenance: "estimate.response.riesz_ade",
+        })
+    }
+
+    /// The Bayesian-bootstrap posterior of a point derivative, directional derivative or
+    /// Jacobian: every draw refits the nuisances (point draws rebuild the cross-fitted Kennedy
+    /// pseudo-outcome under the draw's row weights, with the caller's fixed bandwidth, never a
+    /// data-selected one; GAM draws refit the coefficients with the same continuous weights).
+    fn refit_derivative_posterior(
+        &self,
+        data: &TabularData,
+        functional: &ResponseFunctional,
+        level: f64,
+        draws_n: usize,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<DerivativePosterior, EstimationError> {
+        let (point, mut support, provenance) = self.derivative_baseline(data, functional)?;
+        // The Frequentist withheld / bias-corrected notes describe the
+        // analytic interval; the draws below supply their own interval and
+        // their own disclosure.
+        support.warnings.retain(|warning| {
+            !matches!(
+                warning.code.as_ref(),
+                "response.derivative_interval_withheld"
+                    | "response.derivative_interval_bias_corrected"
+                    | "response.derivative_interval_delta_method"
+                    | "response.derivative_interval_fieller"
+                    | "response.derivative_interval_unbounded"
+            )
+        });
+        let point_derivative = matches!(functional, ResponseFunctional::PointDerivative { .. });
+        let inputs = self.derivative_inputs(data, functional, point_derivative)?;
+        let n = inputs.samples[0].len();
+        let sample_count = inputs.samples.len();
+        let draws = self.derivative_draws(functional, &inputs, draws_n, ctx)?;
+        let (value, uncertainty) = if point_derivative {
+            summarize_point_derivative_draws(&draws, level, &mut support)?
+        } else {
+            summarize_gam_derivative_draws(&point, draws, sample_count, n, level, draws_n)?
+        };
+        Ok(DerivativePosterior {
+            value,
+            uncertainty,
+            support,
+            assumption_id: "bayesian.derivative.estimator_bootstrap",
+            assumption_text: if point_derivative {
+                "Dirichlet(1,...,1)/Exp(1) row-weight posterior of the Kennedy-DR point derivative: every draw refits the cross-fitted additive-GAM outcome and Gaussian treatment nuisances on its weighted training folds, rebuilds the pseudo-outcome, and evaluates the weighted local quadratic (posterior mean = reported value) and its robust bias-corrected coordinate at the same caller-fixed bandwidth (local-cubic slope for a first derivative, local-quartic level and curvature otherwise) (quantiles = credible interval, SD = standard_error). Held fixed: the caller bandwidth, fold assignment, spline knots, and penalty. Not a frozen-pseudo-outcome reweight. Estimator identity stays estimate.response.point_derivative"
+            } else {
+                "Dirichlet(1,...,1)/Exp(1) row-weight posterior of the additive-GAM plug-in gradient: every draw refits the GAM coefficients under the draw's row weights with fixed knots and penalty; the draw spread is inflated around the posterior mean by sqrt(n/(n − edf)) (the row-weight spread is an HC0 sandwich, which understates a fitted-coefficient functional's variance by the fit's leverage; edf is the penalized fit's effective degrees of freedom), and the pointwise band takes exchangeable-rank (type-6) quantiles of the draws. The band inherits the additive-surface restriction and any penalized-spline smoothing bias at the evaluation point; no nuisance-selection uncertainty"
+            },
+            provenance,
+        })
+    }
+
+    /// The Frequentist point value, support report and provenance of a derivative functional:
+    /// the baseline the posterior draws replace the uncertainty of.
+    fn derivative_baseline(
+        &self,
+        data: &TabularData,
+        functional: &ResponseFunctional,
+    ) -> Result<(ResponseValue, SupportReport, &'static str), EstimationError> {
+        let (value, _, support, provenance) = match functional {
+            ResponseFunctional::PointDerivative { outcome, treatment, at, order, scale } => {
+                let (value, uncertainty, support) =
+                    self.point_derivative(data, *outcome, *treatment, *at, *order, *scale)?;
+                (value, uncertainty, support, "estimate.response.point_derivative")
+            }
+            ResponseFunctional::DirectionalDerivative { outcomes, treatments, at, direction } => {
+                let (value, uncertainty, support) =
+                    self.directional_derivative(data, outcomes, treatments, at, direction)?;
+                (value, uncertainty, support, "estimate.response.gam_derivative")
+            }
+            ResponseFunctional::Jacobian { outcomes, treatments, at, scale } => {
+                let (value, uncertainty, support) =
+                    self.jacobian(data, outcomes, treatments, at, *scale)?;
+                (value, uncertainty, support, "estimate.response.gam_derivative")
+            }
+            ResponseFunctional::MeanCurve { .. }
+            | ResponseFunctional::AverageDerivative { .. }
+            | ResponseFunctional::InterventionResponse { .. } => {
+                return Err(non_derivative_functional());
+            }
+        };
+        Ok((value, support, provenance))
+    }
+
+    /// The complete samples, bandwidth, cross-fitting folds and plug-in target designs every
+    /// draw refits under its own weights. Fold assignment, knots and bases are fixed across
+    /// draws: the point route's cross-fitting folds and the GAM routes' plug-in target designs
+    /// are expanded once here.
+    fn derivative_inputs(
+        &self,
+        data: &TabularData,
+        functional: &ResponseFunctional,
+        point_derivative: bool,
+    ) -> Result<DerivativeInputs, EstimationError> {
+        let (samples, bandwidth) = match functional {
+            ResponseFunctional::PointDerivative { outcome, treatment, .. } => {
+                let sample =
+                    CompleteSample::read(data, *outcome, &[*treatment], &self.adjustment_set)?;
+                let bandwidth =
+                    self.options.bandwidth.unwrap_or(silverman_bandwidth(&sample.treatments)?);
+                (vec![sample], bandwidth)
+            }
+            ResponseFunctional::DirectionalDerivative { outcomes, treatments, .. }
+            | ResponseFunctional::Jacobian { outcomes, treatments, .. } => (
+                read_shared_complete_samples(data, outcomes, treatments, &self.adjustment_set)?,
+                0.0,
+            ),
+            ResponseFunctional::MeanCurve { .. }
+            | ResponseFunctional::AverageDerivative { .. }
+            | ResponseFunctional::InterventionResponse { .. } => {
+                return Err(non_derivative_functional());
+            }
+        };
+        let folds = if point_derivative { self.cross_fit_folds(&samples[0])? } else { vec![] };
+        let target_designs: Vec<AdditiveDesign> = if point_derivative {
+            vec![]
+        } else {
+            samples
+                .iter()
+                .map(|sample| self.outcome_target_design(sample))
+                .collect::<Result<_, _>>()?
+        };
+        Ok(DerivativeInputs { samples, bandwidth, folds, target_designs })
+    }
+
+    /// One Bayesian-bootstrap draw per stream, in draw order. Draws are independent, so they
+    /// run across the context's thread budget. Each draw yields its point coordinates
+    /// (local-quadratic, bias-corrected) or its GAM vector, plus the GAM fits' effective degrees
+    /// of freedom for the HC1-type spread correction (`inflate_draws_by_edf`).
+    fn derivative_draws(
+        &self,
+        functional: &ResponseFunctional,
+        inputs: &DerivativeInputs,
+        draws_n: usize,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Vec<DerivativeDraw>, EstimationError> {
+        let DerivativeInputs { samples, bandwidth, folds, target_designs } = inputs;
+        let bandwidth = *bandwidth;
+        let n = samples[0].len();
+        ctx.map_indexed::<_, EstimationError, _>(draws_n, |draw, ctx| {
+            if ctx.cancellation.is_cancelled() {
+                return Err(EstimationError::unsupported("Bayesian derivative cancelled"));
+            }
+            let mut rng = ctx
+                .rng
+                .stream_for(StreamDomain::Bayesian, (0xADEB_0002_u64 << 32) | draw as u64);
+            let weights = bootstrap_weights(n, &mut rng);
+            let mut out = DerivativeDraw {
+                scalar: 0.0,
+                corrected: 0.0,
+                vector: Vec::new(),
+                edf: vec![0.0; samples.len()],
+            };
+            match functional {
+                ResponseFunctional::PointDerivative { at, order, scale, .. } => {
+                    let pseudo = self
+                        .cross_fitted_pseudo_outcome_weighted(
+                            &samples[0],
+                            folds,
+                            Some(&weights),
+                        )?
+                        .values;
+                    let p = antecedent_stats::gaussian_local_quadratic_weighted(
+                        &samples[0].treatments,
+                        &pseudo,
+                        *at,
+                        bandwidth,
+                        &weights,
+                    )
+                    .map_err(|err| {
+                        local_design_refusal(err, &samples[0].treatments, *at, bandwidth)
+                    })?;
+                    out.scalar = transform_point_derivative(
+                        p.value,
+                        p.first_derivative,
+                        p.second_derivative,
+                        *at,
+                        *order,
+                        *scale,
+                    )?;
+                    let c = antecedent_stats::gaussian_local_quadratic_bias_corrected(
+                        &samples[0].treatments,
+                        &pseudo,
+                        *at,
+                        bandwidth,
+                        Some(&weights),
+                    )
+                    .map_err(|err| {
+                        local_design_refusal(err, &samples[0].treatments, *at, bandwidth)
+                    })?;
+                    out.corrected = transform_point_derivative(
+                        c.value,
+                        c.first_derivative,
+                        c.second_derivative,
+                        *at,
+                        *order,
+                        *scale,
+                    )?;
+                }
+                ResponseFunctional::DirectionalDerivative { at, direction, .. } => {
+                    for (s, sample) in samples.iter().enumerate() {
+                        let fit = Self::fit_outcome_target_weighted(
+                            sample,
+                            &target_designs[s],
+                            Some(&weights),
+                        )?;
+                        out.edf[s] += fit.edf_approx;
+                        let (_, gradient) =
+                            Self::plugin_gradient_at_fit(&fit, sample, at, Some(&weights))?;
+                        out.vector
+                            .push(gradient.iter().zip(direction.iter()).map(|(a, b)| a * b).sum());
+                    }
+                }
+                ResponseFunctional::Jacobian { at, scale, .. } => {
+                    for (s, sample) in samples.iter().enumerate() {
+                        let fit = Self::fit_outcome_target_weighted(
+                            sample,
+                            &target_designs[s],
+                            Some(&weights),
+                        )?;
+                        out.edf[s] += fit.edf_approx;
+                        let (level, gradient) =
+                            Self::plugin_gradient_at_fit(&fit, sample, at, Some(&weights))?;
+                        for (j, raw) in gradient.into_iter().enumerate() {
+                            out.vector.push(transform_derivative(raw, at[j], level, *scale)?);
+                        }
+                    }
+                }
+                ResponseFunctional::MeanCurve { .. }
+                | ResponseFunctional::AverageDerivative { .. }
+                | ResponseFunctional::InterventionResponse { .. } => {
+                    return Err(non_derivative_functional());
+                }
+            }
+            Ok(out)
         })
     }
 
@@ -1052,6 +1028,104 @@ fn credible_scalar_uncertainty(
         interpretation: antecedent_core::IntervalInterpretation::Credible,
         draws: Some(CredibleDraws::scalar(draws)),
     }
+}
+
+/// What a Bayesian derivative route hands back for assembly into a response.
+struct DerivativePosterior {
+    value: ResponseValue,
+    uncertainty: ResponseUncertainty,
+    support: SupportReport,
+    assumption_id: &'static str,
+    assumption_text: &'static str,
+    provenance: &'static str,
+}
+
+/// The pieces of a derivative posterior that stay fixed across draws and are refit under each
+/// draw's row weights.
+struct DerivativeInputs {
+    samples: Vec<CompleteSample>,
+    /// The caller's local-polynomial bandwidth (unused by the GAM routes).
+    bandwidth: f64,
+    /// Cross-fitting folds of the point route (empty for the GAM routes).
+    folds: Vec<CrossFitFold>,
+    /// Plug-in target designs of the GAM routes (empty for the point route).
+    target_designs: Vec<AdditiveDesign>,
+}
+
+/// Value and credible uncertainty of a point derivative from its draws. The reported value is
+/// the posterior mean of the local-quadratic estimator; the interval and SD come from the
+/// bias-corrected draws on the same weights, and those are the retained draws.
+fn summarize_point_derivative_draws(
+    draws: &[DerivativeDraw],
+    level: f64,
+    support: &mut SupportReport,
+) -> Result<(ResponseValue, ResponseUncertainty), EstimationError> {
+    let scalars: Vec<f64> = draws.iter().map(|d| d.scalar).collect();
+    let corrected_scalars: Vec<f64> = draws.iter().map(|d| d.corrected).collect();
+    let (mean, _, _, _) = summarize_scalar_draws(&scalars, level)?;
+    let (corrected_mean, lo, hi, sd) = summarize_scalar_draws(&corrected_scalars, level)?;
+    support.warnings.push(bias_corrected_interval_note(true, mean, corrected_mean));
+    Ok((
+        ResponseValue::Scalar(mean),
+        credible_scalar_uncertainty(sd, level, lo, hi, corrected_scalars),
+    ))
+}
+
+/// Value and pointwise credible band of a directional derivative or Jacobian from its draws,
+/// each coordinate's spread inflated by its sample's effective degrees of freedom.
+fn summarize_gam_derivative_draws(
+    point: &ResponseValue,
+    draws: Vec<DerivativeDraw>,
+    sample_count: usize,
+    n: usize,
+    level: f64,
+    draws_n: usize,
+) -> Result<(ResponseValue, ResponseUncertainty), EstimationError> {
+    let mut edf_sum = vec![0.0; sample_count];
+    for draw in &draws {
+        for (total, edf) in edf_sum.iter_mut().zip(&draw.edf) {
+            *total += edf;
+        }
+    }
+    let vectors: Vec<Vec<f64>> = draws.into_iter().map(|d| d.vector).collect();
+    let dim = vectors.first().map_or(0, Vec::len);
+    let mut means = vec![0.0; dim];
+    let mut lower = vec![0.0; dim];
+    let mut upper = vec![0.0; dim];
+    // Retained per coordinate *after* the edf inflation: the
+    // vector the band's quantiles were taken from.
+    let mut columns: Vec<Vec<f64>> = Vec::with_capacity(dim);
+    for j in 0..dim {
+        let mut col: Vec<f64> = vectors.iter().map(|row| row[j]).collect();
+        // Columns are outcome-major (Jacobian) or one per outcome
+        // (directional); either way the outcome index is j·S/dim.
+        let edf = edf_sum[j * sample_count / dim] / draws_n as f64;
+        inflate_draws_by_edf(&mut col, n, edf);
+        let (mean, lo, hi, _) = summarize_scalar_draws(&col, level)?;
+        means[j] = mean;
+        lower[j] = lo;
+        upper[j] = hi;
+        columns.push(col);
+    }
+    let draws = Some(CredibleDraws::columns(draws_n, &columns));
+    let value = match point {
+        ResponseValue::Jacobian { outcomes, treatments, .. } => ResponseValue::Jacobian {
+            outcomes: *outcomes,
+            treatments: *treatments,
+            values: Arc::from(means),
+        },
+        _ => ResponseValue::Vector(Arc::from(means)),
+    };
+    Ok((
+        value,
+        ResponseUncertainty::PointwiseBand {
+            level,
+            lower: Arc::from(lower),
+            upper: Arc::from(upper),
+            interpretation: antecedent_core::IntervalInterpretation::Credible,
+            draws,
+        },
+    ))
 }
 
 /// One Bayesian-bootstrap draw of a derivative functional.

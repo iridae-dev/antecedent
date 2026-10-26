@@ -135,12 +135,9 @@ fn the_cluster_sandwich_receipt_covers_the_known_effect_and_the_iid_se_does_not(
         let raw = draw(9_000 + rep);
         let (data, estimand, query) = build(&raw);
         let spec = ClusterDml::new(20).unwrap();
-        let est = AipwAte {
-            bootstrap_replicates: 0,
-            cluster_ids: Some(raw.cluster.clone()),
-            cluster_dml: Some(spec),
-            ..AipwAte::new()
-        };
+        let est = AipwAte { cluster_dml: Some(spec), ..AipwAte::new() }
+            .with_bootstrap_replicates(0)
+            .with_cluster_ids(raw.cluster.clone());
         let problem = est.prepare(&data, &estimand, &query).unwrap();
         let fit = est
             .fit(

@@ -258,6 +258,21 @@ fn cancelled(ctx: &ExecutionContext) -> Result<(), String> {
         Ok(())
     }
 }
+/// Cells of the regression workspace one mechanism fit retains: the design matrix of the
+/// widest mechanism over every episode, and its square normal-equation matrix.
+fn regression_workspace_cells(design: &GaussianLongitudinalDesign, rows: usize) -> usize {
+    let widest = design
+        .model
+        .covariates
+        .iter()
+        .flatten()
+        .map(Vec::len)
+        .chain(design.model.assignment.iter().map(Vec::len))
+        .chain(std::iter::once(design.model.outcome.len()))
+        .max()
+        .unwrap_or(0);
+    rows.saturating_mul(widest).saturating_add(widest.saturating_mul(widest))
+}
 fn validate(
     design: &GaussianLongitudinalDesign,
     episodes: &[GaussianLongitudinalEpisode],
@@ -266,13 +281,8 @@ fn validate(
     let d = design.covariate_variables.len();
     let m = design.channel_variables.len();
     if h == 0
-        || h > 16
-        || d > 8
         || m == 0
-        || m > 8
         || episodes.len() < 4
-        || episodes.len() > 8192
-        || design.worlds.len() > 256
         || design.assignment_support.len() != m
         || design
             .channel_variables
@@ -292,7 +302,7 @@ fn validate(
         || design.worlds.iter().map(|w| &w.key).collect::<BTreeSet<_>>().len()
             != design.worlds.len()
     {
-        return Err("continuous longitudinal design requires explicit source axes, full sequential premises and bounded distinct regimes".into());
+        return Err("continuous longitudinal design requires explicit source axes, full sequential premises and distinct regimes".into());
     }
     for world in &design.worlds {
         if world.key.is_empty()
@@ -313,21 +323,8 @@ fn validate(
     {
         return Err("conditional model omits initial/state/assignment mechanisms".into());
     }
-    let feature_count = design
-        .model
-        .covariates
-        .iter()
-        .flatten()
-        .map(Vec::len)
-        .chain(design.model.assignment.iter().map(Vec::len))
-        .chain(std::iter::once(design.model.outcome.len()))
-        .sum::<usize>();
-    if feature_count > 16384 {
-        return Err("full longitudinal mechanism feature workspace exceeds bounded implementation resources".into());
-    }
     let check = |features: &[GaussianHistoryFeature], cov_before, treatment_before| {
         features.is_empty()
-            || features.len() > 512
             || features.iter().any(|f| !f.valid(h, d, m, cov_before, treatment_before))
             || features.iter().enumerate().any(|(i, f)| features[..i].contains(f))
             || !features.contains(&GaussianHistoryFeature::Intercept)
@@ -503,6 +500,12 @@ pub fn gaussian_longitudinal_point(
     ctx: &ExecutionContext,
 ) -> Result<Vec<f64>, String> {
     validate(design, episodes)?;
+    let _lease = super::budget::admit_cells(
+        ctx,
+        "continuous longitudinal mechanism fit",
+        regression_workspace_cells(design, episodes.len()),
+        1,
+    )?;
     let fit = fit(design, &episodes.iter().collect::<Vec<_>>(), ctx)?;
     evaluate(design, &fit)
 }
@@ -519,9 +522,15 @@ pub fn gaussian_longitudinal_bootstrap(
     ctx: &ExecutionContext,
 ) -> Result<LongitudinalGaussianBootstrap, String> {
     let point = gaussian_longitudinal_point(design, episodes, ctx)?;
-    if !(2..=100_000).contains(&replicates) {
-        return Err("full longitudinal bootstrap needs bounded multiple realizations".into());
+    if replicates < 2 {
+        return Err("full longitudinal bootstrap needs multiple realizations".into());
     }
+    let _lease = super::budget::admit_cells(
+        ctx,
+        "continuous longitudinal bootstrap realizations",
+        replicates,
+        design.worlds.len(),
+    )?;
     let mut rng = CausalRng::from_seed(seed);
     let mut realizations = Vec::with_capacity(replicates);
     let mut failures = Vec::with_capacity(replicates);
@@ -641,10 +650,24 @@ pub fn gaussian_longitudinal_posterior(
         .iter()
         .any(|v| !v.is_finite() || *v <= 0.0)
         || prior.draws < 2
-        || prior.draws > 100_000
     {
-        return Err("continuous Gaussian g-computation requires proper NIG priors and bounded multiple draws".into());
+        return Err(
+            "continuous Gaussian g-computation requires proper NIG priors and multiple draws"
+                .into(),
+        );
     }
+    let _lease = super::budget::admit_cells(
+        ctx,
+        "continuous longitudinal posterior draws",
+        prior.draws,
+        design.worlds.len(),
+    )?;
+    let _fit_lease = super::budget::admit_cells(
+        ctx,
+        "continuous longitudinal mechanism fit",
+        regression_workspace_cells(design, episodes.len()),
+        1,
+    )?;
     let mut mechanism = fit(design, &episodes.iter().collect::<Vec<_>>(), ctx)?;
     let covariate_posteriors = mechanism
         .covariates

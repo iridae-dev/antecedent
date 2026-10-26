@@ -135,7 +135,7 @@ impl TemporalResponseEstimator {
     #[must_use]
     pub fn new() -> Self {
         let mut inner = LinearAdjustmentAte::new();
-        inner.bootstrap_replicates = 0;
+        inner.inference.bootstrap_replicates = 0;
         inner.overlap = OverlapPolicy::ExplicitOverride;
         Self {
             inner,
@@ -294,8 +294,12 @@ impl TemporalResponseEstimator {
             .collect();
         let values = surface.cells(&cells);
         let mut support = mean_curve_support(doses, temporal, &surface.ranges);
-        let assumptions =
-            surface.finish(&mut support, &values, assumptions, self.inner.bootstrap_replicates);
+        let assumptions = surface.finish(
+            &mut support,
+            &values,
+            assumptions,
+            self.inner.inference.bootstrap_replicates,
+        );
         let uncertainty = values.published_band();
 
         Ok(CausalResponse {
@@ -350,8 +354,12 @@ impl TemporalResponseEstimator {
         let grid: Vec<f64> = temporal.horizons.iter().map(|h| f64::from(*h)).collect();
         let mut support =
             intervention_support(&eval_levels, level, shift, temporal, &surface.ranges);
-        let assumptions =
-            surface.finish(&mut support, &values, assumptions, self.inner.bootstrap_replicates);
+        let assumptions = surface.finish(
+            &mut support,
+            &values,
+            assumptions,
+            self.inner.inference.bootstrap_replicates,
+        );
         let uncertainty = values.published_band();
 
         Ok(CausalResponse {
@@ -406,7 +414,7 @@ impl TemporalResponseEstimator {
             horizons.push(fitted);
         }
 
-        let replicates = self.inner.bootstrap_replicates;
+        let replicates = self.inner.inference.bootstrap_replicates;
         let span = identifications
             .iter()
             .map(|(_, indexer)| indexer.history() as usize + indexer.horizon() as usize)
@@ -602,7 +610,7 @@ impl TemporalResponseEstimator {
     /// Copy the `Study` bootstrap / replicate count onto the shared OLS machinery.
     #[must_use]
     pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.inner.bootstrap_replicates = replicates;
+        self.inner.inference.bootstrap_replicates = replicates;
         self
     }
 }

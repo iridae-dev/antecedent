@@ -12,6 +12,7 @@ use antecedent_stats::{
     ExposureProbabilityMethod, RandomizationContrast, exposures, randomization_mean,
 };
 
+use crate::arm::TreatmentArm;
 use crate::{EstimationError, InterferenceEstimate};
 
 /// Point estimate and observed support for one saturation exposure contrast.
@@ -410,11 +411,11 @@ fn level_probabilities(
         let total_weight: f64 = weights.iter().sum();
         let mut probability = 0.0;
         for (saturation, saturation_mass) in [(low, 1.0 - high_share), (high, high_share)] {
-            #[allow(
-                clippy::float_cmp,
-                reason = "exposure own-level is a categorical 0.0/1.0 flag, not a measured quantity"
-            )]
-            let own_mass = if level.own == 1.0 { saturation } else { 1.0 - saturation };
+            let own_mass = if TreatmentArm::of(level.own).is_treated() {
+                saturation
+            } else {
+                1.0 - saturation
+            };
             let mut neighbor_mass = 0.0;
             for (treated_weight, mass) in treated_weight_distribution(&weights, saturation)? {
                 #[allow(
@@ -536,6 +537,7 @@ mod tests {
     use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 
     use super::{estimate_saturation_interference, estimate_saturation_interference_pointwise};
+    use crate::arm::TreatmentArm;
 
     #[test]
     fn count_exposure_probability_is_exact_beyond_sixteen_neighbors() {
@@ -753,7 +755,8 @@ mod tests {
                                 continue;
                             }
                             let p = if high_a { 0.8 } else { 0.2 };
-                            let own_mass = if level.own == 1.0 { p } else { 1.0 - p };
+                            let own_mass =
+                                if TreatmentArm::of(level.own).is_treated() { p } else { 1.0 - p };
                             for first in [false, true] {
                                 for second in [false, true] {
                                     let g = match mapping {

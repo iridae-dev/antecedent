@@ -32,7 +32,7 @@
 //!
 //! The basis is linear in the covariates, so the target mean of a basis row equals the basis
 //! row at the mean target covariates. The window integral of each basis function is a
-//! Gauss-Legendre rule split at the declared knots, exact for the degree-3 pieces. Each grid
+//! Gauss-Legendre rule split at the declared knots, exact for the polynomial pieces up to the rule's degree. Each grid
 //! dose then reads a fixed linear functional of the coefficients, and one coefficient draw
 //! gives every grid dose at once: the covariance across the grid is preserved. With a known
 //! residual variance the exact Gaussian mean and covariance are reported alongside.
@@ -48,8 +48,7 @@ use crate::dose_basis_regression::{ResidualPrior, fit_basis_regression};
 use crate::error::EstimationError;
 use crate::util::dot;
 use crate::smoothed_dose::{
-    DoseBasis, SMOOTHED_DOSE_MAX_BASIS_DEGREE, SMOOTHED_DOSE_MAX_KNOTS, SmoothedDoseInput,
-    check_grid_bound, check_grid_windows, outcome_design, split_rule,
+    DoseBasis, SmoothedDoseInput, check_grid_windows, outcome_design, split_rule,
 };
 
 /// Gauss-Legendre nodes per window piece.
@@ -141,8 +140,7 @@ pub fn smoothed_dose_posterior(
     model: &SmoothedDosePosteriorModel<'_>,
 ) -> Result<SmoothedDosePosterior, EstimationError> {
     let certified = smoothed_dose_certified_features(id)?;
-    query.validate().map_err(|error| EstimationError::data_msg(error.to_string()))?;
-    check_grid_bound(query)?;
+    query.validate()?;
     check_grid_windows(query)?;
     let (source, target) = split_rows(&certified, query, input, model)?;
     let features = input.covariates.len();
@@ -249,8 +247,8 @@ fn split_rows(
         || input.dose.len() != n
         || input.covariates.iter().any(|col| col.len() != n || col.iter().any(|v| !v.is_finite()))
         || basis.degree == 0
-        || basis.degree > SMOOTHED_DOSE_MAX_BASIS_DEGREE
-        || basis.knots.len() > SMOOTHED_DOSE_MAX_KNOTS
+        // The fixed rule integrates the basis times the degree-2 kernel exactly up to degree 2Q - 1.
+        || usize::from(basis.degree) + 2 >= 2 * WINDOW_NODES
         || basis.knots.iter().any(|k| !k.is_finite() || *k <= lo || *k >= hi)
         || model.min_local_rows < 2
     {

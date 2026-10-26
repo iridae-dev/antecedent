@@ -34,8 +34,9 @@ const MIN_SLOPE_ROWS: usize = 8;
 enum SlopeLayout {
     /// `[1, treatments…, adjustment…]`: slopes are columns `1..=treatments`.
     Slopes { treatments: usize },
-    /// `[1, T, W, T·W, adjustment…]`: the one-modifier conditional regression.
-    Conditional,
+    /// `[1, T, W₁…W_q, T·W₁…T·W_q, adjustment…]`: the conditional regression over `q >= 1`
+    /// effect modifiers (`[1, T, W, T·W, adjustment…]` for one).
+    Conditional { modifiers: usize },
 }
 
 /// One lag-aligned least-squares design of a temporal point route.
@@ -59,9 +60,12 @@ pub struct TemporalSlopeDesign {
 pub struct SlopeFit {
     /// Every coefficient, intercept first.
     pub coefficients: Vec<f64>,
-    /// Mean of the modifier column over the fitted rows (conditional layout);
+    /// Mean of the first modifier column over the fitted rows (conditional layout);
     /// `NaN` for a slope layout.
     pub modifier_mean: f64,
+    /// Mean of every modifier column over the fitted rows, in modifier order (conditional
+    /// layout); empty for a slope layout.
+    pub modifier_means: Vec<f64>,
 }
 
 impl SlopeFit {
@@ -72,16 +76,22 @@ impl SlopeFit {
     }
 
     /// The slopes of the treatments, in the order the design named them (slope layout),
-    /// or `[β_T, β_W, β_TW]` (conditional layout).
+    /// or `[β_T, β_W₁…β_W_q, β_TW₁…β_TW_q]` (conditional layout, `count = 1 + 2q`).
     #[must_use]
     pub fn slopes(&self, count: usize) -> Vec<f64> {
         self.coefficients[1..=count].to_vec()
     }
 
-    /// The one-modifier marginal conditional slope `β_T + β_TW · mean(W)` (conditional layout).
+    /// The marginal conditional slope `β_T + Σ_j β_TW_j · mean(W_j)` (conditional layout): the
+    /// treatment slope averaged over the modifier distribution of the fitted rows.
     #[must_use]
     pub fn conditional_slope(&self) -> f64 {
-        self.coefficients[1] + self.coefficients[3] * self.modifier_mean
+        let q = self.modifier_means.len();
+        let mut slope = self.coefficients[1];
+        for (j, mean) in self.modifier_means.iter().enumerate() {
+            slope += self.coefficients[2 + q + j] * mean;
+        }
+        slope
     }
 }
 
@@ -105,8 +115,10 @@ pub struct SlopePosterior {
     pub tempering: f64,
     /// Smallest effective-row count of the slope columns' normal-equation scores.
     pub effective_rows: f64,
-    /// Modifier mean of the full sample (conditional layout), else `NaN`.
+    /// Mean of the first modifier over the full sample (conditional layout), else `NaN`.
     pub modifier_mean: f64,
+    /// Mean of every modifier over the full sample (conditional layout), else empty.
+    pub modifier_means: Vec<f64>,
 }
 
 /// The inputs of [`TemporalSlopeDesign::posterior`].
@@ -195,7 +207,8 @@ impl TemporalSlopeDesign {
         })
     }
 
-    /// The one-modifier conditional design `Y ~ 1 + T + W + T×W + Z` that
+    /// The conditional design `Y ~ 1 + T + W₁…W_q + T×W₁…T×W_q + Z` over `q >= 1` effect
+    /// modifiers (`Y ~ 1 + T + W + T×W + Z` for one) that
     /// [`crate::temporal_conditional_marginal_effect_with_gaps`] fits, with the
     /// treatment contrast `active − control` it scales the slope by. With
     /// `allow_gaps` the windows that read a missing value are dropped and the
@@ -212,9 +225,13 @@ impl TemporalSlopeDesign {
         policy: &KernelPolicy,
         allow_gaps: bool,
     ) -> Result<(Self, f64), EstimationError> {
-        if query.effect_modifiers.len() != 1 {
+        let modifiers = query.effect_modifiers.as_ref();
+        let q = modifiers.len();
+        if q == 0
+            || modifiers.iter().enumerate().any(|(i, modifier)| modifiers[..i].contains(modifier))
+        {
             return Err(EstimationError::unsupported(
-                "temporal conditional effect fits exactly one modifier",
+                "temporal conditional effect needs at least one effect modifier, each named once",
             ));
         }
         query.validate()?;
@@ -232,18 +249,19 @@ impl TemporalSlopeDesign {
         let sample_anchor = query.outcome_offset().max(0);
         let t_lag = offset_to_lag(query.try_treatment_offset()? - sample_anchor)?;
         let y_lag = offset_to_lag(query.outcome_offset() - sample_anchor)?;
-        let modifier = query.effect_modifiers[0];
         let mut cols = vec![
             LaggedColumn { variable: query.treatment, lag: t_lag },
             LaggedColumn { variable: query.outcome, lag: y_lag },
-            LaggedColumn { variable: modifier, lag: y_lag },
         ];
+        cols.extend(modifiers.iter().map(|&variable| LaggedColumn { variable, lag: y_lag }));
         let adjustment = adjustment_columns(
             estimand,
             indexer,
             sample_anchor,
             |variable| {
-                variable == modifier || variable == query.treatment || variable == query.outcome
+                modifiers.contains(&variable)
+                    || variable == query.treatment
+                    || variable == query.outcome
             },
             &mut cols,
         )?;
@@ -260,18 +278,22 @@ impl TemporalSlopeDesign {
             ));
         }
         let t = prep.column(0);
-        let w = prep.column(2);
-        let ncols = 4 + adjustment;
+        let ncols = 2 + 2 * q + adjustment;
         let mut matrix = vec![0.0; n * ncols];
         for i in 0..n {
             matrix[i] = 1.0;
             matrix[n + i] = t[i];
-            matrix[2 * n + i] = w[i];
-            matrix[3 * n + i] = t[i] * w[i];
+        }
+        for j in 0..q {
+            let w = prep.column(2 + j);
+            for i in 0..n {
+                matrix[(2 + j) * n + i] = w[i];
+                matrix[(2 + q + j) * n + i] = t[i] * w[i];
+            }
         }
         for k in 0..adjustment {
-            let base = (4 + k) * n;
-            matrix[base..base + n].copy_from_slice(prep.column(3 + k));
+            let base = (2 + 2 * q + k) * n;
+            matrix[base..base + n].copy_from_slice(prep.column(2 + q + k));
         }
         let outcome = prep.column(1).to_vec();
         Ok((
@@ -280,7 +302,7 @@ impl TemporalSlopeDesign {
                 outcome,
                 rows: n,
                 cols: ncols,
-                layout: SlopeLayout::Conditional,
+                layout: SlopeLayout::Conditional { modifiers: q },
                 windows: GappedAlignedRows { first_time: max_lag as usize, complete },
             },
             delta,
@@ -317,18 +339,37 @@ impl TemporalSlopeDesign {
         AlignedRows { first_time: self.windows.first_time, rows: self.rows }
     }
 
-    /// The modifier column's mean over `rows` (conditional layout), else `NaN`.
-    fn modifier_mean_over(&self, rows: impl Iterator<Item = usize>) -> f64 {
-        if self.layout != SlopeLayout::Conditional {
-            return f64::NAN;
+    /// Every modifier column's mean over `rows` (conditional layout), else empty; `NaN`s for no
+    /// rows.
+    fn modifier_means_over(&self, rows: impl Iterator<Item = usize> + Clone) -> Vec<f64> {
+        let SlopeLayout::Conditional { modifiers } = self.layout else {
+            return Vec::new();
+        };
+        (0..modifiers)
+            .map(|j| {
+                let column = &self.matrix[(2 + j) * self.rows..(3 + j) * self.rows];
+                let (mut sum, mut count) = (0.0, 0usize);
+                for row in rows.clone() {
+                    sum += column[row];
+                    count += 1;
+                }
+                if count == 0 { f64::NAN } else { sum / count as f64 }
+            })
+            .collect()
+    }
+
+    /// A [`SlopeFit`] of `coefficients` with the modifier means of `rows`.
+    fn fit_of(
+        &self,
+        coefficients: Vec<f64>,
+        rows: impl Iterator<Item = usize> + Clone,
+    ) -> SlopeFit {
+        let modifier_means = self.modifier_means_over(rows);
+        SlopeFit {
+            coefficients,
+            modifier_mean: modifier_means.first().copied().unwrap_or(f64::NAN),
+            modifier_means,
         }
-        let column = &self.matrix[2 * self.rows..3 * self.rows];
-        let (mut sum, mut count) = (0.0, 0usize);
-        for row in rows {
-            sum += column[row];
-            count += 1;
-        }
-        if count == 0 { f64::NAN } else { sum / count as f64 }
     }
 
     /// Full-sample fit: least squares, or with `prior_scale` the posterior mean of the
@@ -353,7 +394,7 @@ impl TemporalSlopeDesign {
             Some(scale) => self.ridge_mean(&fit.coefficients, scale)?.0,
             None => fit.coefficients,
         };
-        Ok(SlopeFit { coefficients, modifier_mean: self.modifier_mean_over(0..self.rows) })
+        Ok(self.fit_of(coefficients, 0..self.rows))
     }
 
     /// Least-squares refit on design rows `rows` (a resampled index set, repeats
@@ -385,10 +426,7 @@ impl TemporalSlopeDesign {
         if !coefficients.iter().all(|value| value.is_finite()) {
             return None;
         }
-        Some(SlopeFit {
-            coefficients,
-            modifier_mean: self.modifier_mean_over(rows.iter().copied()),
-        })
+        Some(self.fit_of(coefficients, rows.iter().copied()))
     }
 
     /// Normal-equation scores `x_tj · ê_t` of every column at the least-squares fit,
@@ -520,12 +558,14 @@ impl TemporalSlopeDesign {
                 .collect();
             out.push(draw);
         }
+        let modifier_means = self.modifier_means_over(0..self.rows);
         Ok(SlopePosterior {
             mean,
             draws: out,
             tempering,
             effective_rows,
-            modifier_mean: self.modifier_mean_over(0..self.rows),
+            modifier_mean: modifier_means.first().copied().unwrap_or(f64::NAN),
+            modifier_means,
         })
     }
 
@@ -689,12 +729,16 @@ impl TemporalSlopeDesign {
             .into_iter()
             .zip(out)
             .zip(designs)
-            .map(|((part, draws), design)| SlopePosterior {
-                mean: part.mean,
-                draws,
-                tempering: part.tempering,
-                effective_rows: part.effective_rows,
-                modifier_mean: design.modifier_mean_over(0..design.rows),
+            .map(|((part, draws), design)| {
+                let modifier_means = design.modifier_means_over(0..design.rows);
+                SlopePosterior {
+                    mean: part.mean,
+                    draws,
+                    tempering: part.tempering,
+                    effective_rows: part.effective_rows,
+                    modifier_mean: modifier_means.first().copied().unwrap_or(f64::NAN),
+                    modifier_means,
+                }
             })
             .collect();
         Ok((posteriors, block))
@@ -917,8 +961,7 @@ fn adjustment_columns(
     let mut added = 0;
     for &dense_var in estimand.adjustment_set.iter() {
         let key = indexer
-            .key_of(dense_var.raw())
-            .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+            .key_of(dense_var.raw())?;
         if skip(key.variable) {
             continue;
         }
@@ -1077,5 +1120,23 @@ mod tests {
         let rng = antecedent_core::RngFactory::from_seed(7);
         let spec = SlopePosteriorSpec { prior_scale: 10.0, draws: 1, structural_span: 1 };
         assert!(design.posterior(spec, 0, &rng).is_err());
+    }
+
+    #[test]
+    fn the_conditional_slope_averages_every_modifier_interaction() {
+        // [1, T, W1, W2, T·W1, T·W2]: β_T + β_TW1 · mean(W1) + β_TW2 · mean(W2).
+        let fit = SlopeFit {
+            coefficients: vec![0.5, 2.0, 0.1, 0.2, 3.0, -1.0],
+            modifier_mean: 0.4,
+            modifier_means: vec![0.4, 1.5],
+        };
+        assert!((fit.conditional_slope() - (2.0 + 3.0 * 0.4 - 1.0 * 1.5)).abs() < 1e-15);
+        // One modifier reduces to the `[1, T, W, T·W]` expression.
+        let one = SlopeFit {
+            coefficients: vec![0.5, 2.0, 0.1, 3.0],
+            modifier_mean: 0.4,
+            modifier_means: vec![0.4],
+        };
+        assert_eq!(one.conditional_slope().to_bits(), (2.0_f64 + 3.0 * 0.4).to_bits());
     }
 }

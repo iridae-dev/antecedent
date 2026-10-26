@@ -190,8 +190,7 @@ fn plan_mean_mechanisms(
     let nodes = match base {
         TemporalInterventionPlan::Single { treatment, level, shift } => spec
             .policy
-            .active_offsets()
-            .map_err(|e| EstimationError::data_msg(e.to_string()))?
+            .active_offsets()?
             .iter()
             .map(|&offset| SequentialNodeOverlay { variable: treatment, offset, level, shift })
             .collect::<Vec<_>>(),
@@ -310,7 +309,7 @@ fn plan_sequence(
         }
         let (variable, level, shift) = resolve_one(&step.intervention, depth + 1)?;
         let offsets =
-            step.temporal.active_offsets().map_err(|e| EstimationError::data_msg(e.to_string()))?;
+            step.temporal.active_offsets()?;
         leaves.push((variable, level, shift, offsets));
     }
     if leaves.len() == 1 {

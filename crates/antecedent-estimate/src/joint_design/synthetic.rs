@@ -96,9 +96,7 @@ fn validate(
     data: &[JointSyntheticObservation],
 ) -> Result<(), String> {
     if design.worlds.is_empty()
-        || design.worlds.len() > 64
         || data.is_empty()
-        || data.len() > 1_000_000
         || [&design.counterfactual_model, &design.donor_isolation, &design.population]
             .iter()
             .any(|s| s.trim().is_empty())
@@ -112,7 +110,6 @@ fn validate(
             || world.treated_unit.is_empty()
             || world.intervention <= 0
             || world.donors.len() < 3
-            || world.donors.len() > 1024
             || world.donors.iter().collect::<BTreeSet<_>>().len() != world.donors.len()
             || world.donors.iter().any(|d| {
                 d.is_empty()
@@ -231,16 +228,22 @@ pub fn synthetic_joint_posterior(
     design: &JointSyntheticDesign,
     data: &[JointSyntheticObservation],
     prior: &JointSyntheticPrior,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<JointDesignPosterior, String> {
     validate(design, data)?;
     if prior.independent_treated_residuals.trim().is_empty()
         || design.worlds.iter().map(|w| &w.treated_unit).collect::<BTreeSet<_>>().len()
             != design.worlds.len()
-        || prior.draws > 100_000
         || prior.draws < 4
     {
         return Err("joint Bayesian synthetic inference requires distinct treated-unit likelihood factors and explicit conditional residual independence".into());
     }
+    let _lease = super::budget::admit_cells(
+        ctx,
+        "synthetic posterior draws",
+        prior.draws,
+        design.worlds.len(),
+    )?;
     let mut draws = vec![vec![0.0; design.worlds.len()]; prior.draws - prior.draws % 4];
     for (index, world) in design.worlds.iter().enumerate() {
         let (outcome, units, periods) = subset(world, data);

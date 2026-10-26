@@ -133,28 +133,28 @@ fn build(raw: &Raw) -> (TabularData, IdentifiedEstimand, AverageEffectQuery) {
 
 fn ridge(grid: &[f64], inner_folds: usize) -> AipwAte {
     AipwAte {
-        bootstrap_replicates: 0,
         propensity: PropensityNuisance::ridge_logistic(
             RidgeTuning::new(grid, inner_folds).unwrap(),
         ),
         ..AipwAte::new()
     }
+    .with_bootstrap_replicates(0)
 }
 
 fn lasso(grid: &[f64], inner_folds: usize) -> AipwAte {
     AipwAte {
-        bootstrap_replicates: 0,
         propensity: PropensityNuisance::lasso_with(RidgeTuning::new(grid, inner_folds).unwrap()),
         ..AipwAte::new()
     }
+    .with_bootstrap_replicates(0)
 }
 
 fn plain() -> AipwAte {
-    AipwAte { bootstrap_replicates: 0, ..AipwAte::new() }
+    AipwAte::new().with_bootstrap_replicates(0)
 }
 
 fn with_bootstrap(est: AipwAte, replicates: u32) -> AipwAte {
-    AipwAte { bootstrap_replicates: replicates, ..est }
+    est.with_bootstrap_replicates(replicates)
 }
 
 /// The plain GLM route with a declared fallback destination.
@@ -445,7 +445,7 @@ fn a_penalized_fit_publishes_scores_a_point_and_the_cross_fitted_influence_inter
     assert!(!provenance_withholds_interval(&t.nuisance_provenance));
     // A dependence-robust analytic kind is accepted too, computed by the shared SE routine,
     // and the iid-only joint covariance is then not published.
-    let hc1 = AipwAte { se_kind: AnalyticSeKind::Hc1, ..ridge(&[0.5, 5.0, 50.0], 4) };
+    let hc1 = ridge(&[0.5, 5.0, 50.0], 4).with_se_kind(AnalyticSeKind::Hc1);
     let robust = run(&hc1, &raw, 11).unwrap();
     assert_eq!(robust.ate.to_bits(), estimate.ate.to_bits());
     assert_eq!(robust.uncertainty.analytic.kind, Some(AnalyticSeKind::Hc1));

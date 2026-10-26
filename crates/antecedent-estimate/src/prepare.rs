@@ -245,10 +245,9 @@ pub(crate) fn intersect_predicate_mask(
         return Ok(());
     }
     let sel = target
-        .resolve(n_full, None, registry)
-        .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+        .resolve(n_full, None, registry)?;
     for (i, slot) in row_mask.iter_mut().enumerate() {
-        *slot = *slot && sel.keep.get(i).copied().unwrap_or(false);
+        *slot = *slot && sel.keep.get(i);
     }
     Ok(())
 }

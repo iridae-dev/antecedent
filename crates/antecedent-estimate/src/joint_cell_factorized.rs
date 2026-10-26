@@ -59,6 +59,7 @@ use antecedent_learn::{
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::aipw::predict_colmajor;
+use crate::arm::TreatmentArm;
 use crate::cell_aipw::{cell_minus_control_coefficients, interaction_coefficients};
 use crate::crossfit_plan::{CrossfitPlan, FoldSource, SHARED_FOLD_ID_ERRORS, rows_colmajor};
 use crate::error::EstimationError;
@@ -782,7 +783,7 @@ impl ConditionalFits<'_> {
         }
         let t: Vec<f64> =
             rows.iter().map(|&i| f64::from((problem.cell[i] >> target) & 1)).collect();
-        let positives = t.iter().filter(|&&v| v > 0.5).count();
+        let positives = t.iter().filter(|&&v| TreatmentArm::is_treated_indicator(v)).count();
         if positives == 0 || positives == rows.len() {
             self.degenerate += 1;
             return Ok(Ok(vec![if positives == 0 { 0.0 } else { 1.0 }; n_valid]));

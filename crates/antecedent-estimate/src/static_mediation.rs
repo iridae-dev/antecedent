@@ -86,10 +86,10 @@ pub fn estimate_static_mediation(
             }
             let y: Vec<_> = rows.iter().map(|&r| columns[i][r]).collect();
             let fitted = crate::util::ls_fit(FaerBackend, &matrix, rows.len(), p, &y, ls_ws)?;
-            if fitted.rank < p {
+            if fitted.rank() < p {
                 return Err(EstimationError::unsupported("singular static mediation regression"));
             }
-            Ok(fitted.coefficients[1..=parents.len()].to_vec())
+            Ok(fitted.coefficients()[1..=parents.len()].to_vec())
         })
     };
     let contrast = |(total, direct): (f64, f64)| match query.contrast {
@@ -407,11 +407,9 @@ fn estimate_static_mediation_bayesian_impl(
         node_est.n_draws = draws_n;
         // Independent mechanisms must all supply every composed draw.
 
-        if let Some(bridge) = bridge {
-            let is_outcome = i == query.outcome.as_usize();
-            if outcome_prior_only && !is_outcome {
-                continue;
-            }
+        // An outcome-scoped bridge hydrates only the outcome prior; every mechanism is still fit.
+        let is_outcome = i == query.outcome.as_usize();
+        if let Some(bridge) = bridge.filter(|_| !outcome_prior_only || is_outcome) {
             if let Some(prior) = hydrate_mechanism_prior(
                 bridge,
                 &coef_names,
@@ -508,8 +506,7 @@ fn estimate_static_mediation_bayesian_impl(
         schema,
         n_keep,
         Arc::<[f64]>::from(values),
-    )
-    .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
+    )?;
     let summaries = draws.summarize();
     let mut posterior_assumptions = point.effect.provenance.assumptions.clone();
     posterior_assumptions.entries.extend(mechanism_assumptions.entries);

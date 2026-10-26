@@ -100,12 +100,11 @@ fn means(
 pub fn longitudinal_joint_means(
     design: &LongitudinalJointDesign,
     episodes: &[LongitudinalEpisode],
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<JointDesignEstimate, String> {
     let horizon = design.worlds.first().map_or(0, |(_, s)| s.len());
     if horizon == 0
-        || horizon > 32
-        || design.worlds.len() > 256
-        || episodes.len() > 4096
+        || horizon > super::budget::MAX_RECURSION_DEPTH
         || episodes.len() < 3
         || [&design.sequential_exchangeability, &design.consistency, &design.sampling_population]
             .iter()
@@ -131,8 +130,16 @@ pub fn longitudinal_joint_means(
     let point = means(design, &refs)?;
     let n = episodes.len();
     let k = point.len();
+    // One retained realization per deleted episode, plus the k-by-k covariance.
+    let _lease = super::budget::admit_cells(
+        ctx,
+        "longitudinal delete-episode realizations",
+        n.saturating_mul(k).saturating_add(k.saturating_mul(k)),
+        1,
+    )?;
     let mut leave = Vec::with_capacity(n);
     for omitted in 0..n {
+        super::budget::check_cancelled(ctx)?;
         let sample = refs
             .iter()
             .enumerate()
@@ -197,14 +204,33 @@ mod tests {
             consistency: "joint arm versions fixed".into(),
             sampling_population: "independent episodes in source population".into(),
         };
-        let fit = longitudinal_joint_means(&design, &episodes).unwrap();
+        let fit = longitudinal_joint_means(
+            &design,
+            &episodes,
+            &antecedent_core::ExecutionContext::for_tests(1),
+        )
+        .unwrap();
         assert_eq!(fit.means, vec![1.0, 5.0, 4.0, 9.0]);
         assert_eq!(fit.contrast(&[1.0, -1.0, -1.0, 1.0]).unwrap().0, 1.0);
         let mut invalid = design.clone();
         invalid.sequential_exchangeability.clear();
-        assert!(longitudinal_joint_means(&invalid, &episodes).is_err());
+        assert!(
+            longitudinal_joint_means(
+                &invalid,
+                &episodes,
+                &antecedent_core::ExecutionContext::for_tests(1)
+            )
+            .is_err()
+        );
         episodes.retain(|e| e.assignments != [1, 1]);
-        assert!(longitudinal_joint_means(&design, &episodes).is_err());
+        assert!(
+            longitudinal_joint_means(
+                &design,
+                &episodes,
+                &antecedent_core::ExecutionContext::for_tests(1)
+            )
+            .is_err()
+        );
     }
 }
 
@@ -320,9 +346,10 @@ pub fn longitudinal_joint_posterior(
     design: &LongitudinalJointDesign,
     episodes: &[LongitudinalEpisode],
     prior: &LongitudinalDirichletPrior,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<super::JointDesignPosterior, String> {
     // Identical scientific checker and complete-procedure positivity checks for both modes.
-    let _identified = longitudinal_joint_means(design, episodes)?;
+    let _identified = longitudinal_joint_means(design, episodes, ctx)?;
     let horizon = episodes[0].covariates.len();
     if prior.covariate_states.len() != horizon
         || prior.covariate_states.iter().any(|states| {
@@ -338,20 +365,18 @@ pub fn longitudinal_joint_posterior(
         || !prior.concentration.is_finite()
         || prior.concentration <= 0.0
         || prior.draws < 2
-        || prior.draws > 1_000_000
     {
         return Err("longitudinal posterior requires complete distinct finite supports and a proper Dirichlet prior".into());
     }
-    if prior
-        .covariate_states
-        .iter()
-        .try_fold(1usize, |total, states| total.checked_mul(states.len()))
-        .is_none_or(|total| total > 65536)
-    {
-        return Err(
-            "declared full-history state space exceeds bounded finite-table implementation".into(),
-        );
-    }
+    // The declared state space is never tabulated: evaluation visits only histories with
+    // empirical support and refuses the first unsupported one, so its work is bounded by the
+    // episodes, not by the product of the declared state counts.
+    let _lease = super::budget::admit_cells(
+        ctx,
+        "longitudinal posterior draws",
+        prior.draws,
+        design.worlds.len(),
+    )?;
     for e in episodes {
         if !prior.outcome_values.contains(&e.outcome)
             || e.covariates.iter().enumerate().any(|(t, l)| !prior.covariate_states[t].contains(l))
@@ -364,6 +389,7 @@ pub fn longitudinal_joint_posterior(
     let mut rng = antecedent_core::CausalRng::from_seed(prior.seed);
     let mut draws = Vec::with_capacity(prior.draws);
     for _ in 0..prior.draws {
+        super::budget::check_cancelled(ctx)?;
         let counts = prior.covariate_states[0]
             .iter()
             .map(|state| episodes.iter().filter(|e| e.covariates[0] == *state).count())
@@ -428,7 +454,13 @@ mod posterior_tests {
             draws: 20000,
             seed: 18,
         };
-        let posterior = longitudinal_joint_posterior(&design, &episodes, &prior).unwrap();
+        let posterior = longitudinal_joint_posterior(
+            &design,
+            &episodes,
+            &prior,
+            &antecedent_core::ExecutionContext::for_tests(1),
+        )
+        .unwrap();
         for j in 0..2 {
             let ones = episodes.iter().filter(|e| e.assignments[0] == j && e.outcome == 1.0).count()
                 as f64;
@@ -444,6 +476,14 @@ mod posterior_tests {
         }
         let mut unsupported = prior.clone();
         unsupported.covariate_states[0].push(1);
-        assert!(longitudinal_joint_posterior(&design, &episodes, &unsupported).is_err());
+        assert!(
+            longitudinal_joint_posterior(
+                &design,
+                &episodes,
+                &unsupported,
+                &antecedent_core::ExecutionContext::for_tests(1)
+            )
+            .is_err()
+        );
     }
 }

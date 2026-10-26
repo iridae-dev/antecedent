@@ -72,7 +72,6 @@ pub fn local_instrument_effect(
     .iter()
     .any(|s| s.trim().is_empty())
         || units.len() < 2
-        || units.len() > 65536
         || units.iter().any(|u| u.id.trim().is_empty())
         || units.iter().map(|u| &u.id).collect::<std::collections::BTreeSet<_>>().len()
             != units.len()
@@ -92,9 +91,10 @@ pub fn local_instrument_effect(
     .ok_or("local encouragement effect lacks a positive identified receipt first stage")?;
     let posterior = posterior_draws
         .map(|draws| {
-            if !(2..=65536).contains(&draws) {
-                return Err("local posterior draw count must be 2..=65536".into());
+            if draws < 2 {
+                return Err("local posterior draw count must be at least 2".into());
             }
+            let _lease = super::budget::admit_cells(ctx, "local posterior draws", draws, 3)?;
             crate::complier_posterior::bayesian_complier_effect(
                 &outcomes,
                 &assigned,

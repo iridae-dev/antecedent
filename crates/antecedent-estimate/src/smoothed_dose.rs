@@ -74,7 +74,7 @@
 //!
 //! # Bounded computation
 //!
-//! No search: the quadrature is a bounded loop over at most 16 grid doses, two node
+//! No search: the quadrature is a bounded loop over the grid doses, two node
 //! counts and chunks of target rows. Cancellation is polled on every chunk. A mandatory
 //! workspace cap ([`SMOOTHED_DOSE_MAX_WORKSPACE_BYTES`], lowered by a context hard memory
 //! limit) refuses before any fit when the cumulative estimate of the rows, the designs
@@ -94,24 +94,33 @@ use antecedent_learn::{
 };
 use serde::{Deserialize, Serialize};
 
-/// Most grid doses one request may declare.
+/// Largest grid of the measured envelope. Like the other `SMOOTHED_DOSE_MAX_*` sizes it is a
+/// reference point the artifact premises record, not a ceiling: a larger request is bounded
+/// by the workspace estimate ([`SMOOTHED_DOSE_MAX_WORKSPACE_BYTES`]), not by a count.
 pub const SMOOTHED_DOSE_MAX_GRID: usize = 16;
 /// The accepted Gauss-Legendre node counts; each is checked against twice as many.
 pub const SMOOTHED_DOSE_QUADRATURE_NODES: [usize; 2] = [16, 32];
-/// Most cross-fit folds one request may ask for.
+/// Largest fold count of the measured envelope (a recorded reference, not a ceiling: the fold
+/// ids are `u16` and each role needs a row per fold).
 pub const SMOOTHED_DOSE_MAX_FOLDS: usize = 20;
 /// Fewest bootstrap replicates of the calibrated interval; below it the interval is withheld.
 pub const SMOOTHED_DOSE_MIN_BOOTSTRAP: u32 = 199;
-/// Most bootstrap replicates one request may ask for.
+/// Largest replicate count of the measured envelope (a recorded reference, not a ceiling:
+/// the internal calibration route admits its replicate workspace against the context).
 pub const SMOOTHED_DOSE_MAX_BOOTSTRAP: u32 = 2000;
-/// Most rows (trial plus target) one request may carry.
+/// Largest row count (trial plus target) of the measured envelope (a recorded reference,
+/// not a ceiling: the workspace estimate bounds the request).
 pub const SMOOTHED_DOSE_MAX_ROWS: usize = 200_000;
-/// Most baseline covariates one request may carry.
+/// Largest covariate count of the measured envelope (a recorded reference, not a ceiling).
 pub const SMOOTHED_DOSE_MAX_FEATURES: usize = 256;
-/// Highest polynomial degree of the dose basis.
+/// Highest polynomial degree of the measured envelope (a recorded reference, not a ceiling:
+/// a higher degree is integrated exactly while the quadrature rule reaches it, and is
+/// otherwise gated by the quadrature comparison like any non-polynomial curve).
 pub const SMOOTHED_DOSE_MAX_BASIS_DEGREE: u8 = 3;
-/// Most hinge knots of the dose basis.
+/// Most hinge knots of the measured envelope (a recorded reference, not a ceiling).
 pub const SMOOTHED_DOSE_MAX_KNOTS: usize = 8;
+/// Degree of the smoothing kernel's polynomial density (Epanechnikov).
+const KERNEL_POLYNOMIAL_DEGREE: usize = 2;
 /// The fold scheme recorded on every estimate.
 pub const SMOOTHED_DOSE_FOLD_SCHEME: &str = "stratified_seeded_source_and_target";
 /// The one supported target of a request.
@@ -124,7 +133,9 @@ const CHUNK_DESIGN_BYTES: usize = 8 << 20;
 /// the default search budget); a context hard memory limit lowers it, never raises it.
 pub const SMOOTHED_DOSE_MAX_WORKSPACE_BYTES: u64 = 536_870_912;
 
-/// The frozen bounds an artifact's premises bind.
+/// The reference bounds an artifact's premises record: the measured envelope its producer
+/// ran in. The quadrature node set and the bootstrap floor are enforced; the sizes are
+/// recorded, and a request is bounded by the workspace estimate instead.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SmoothedDoseBounds {
@@ -150,7 +161,7 @@ pub struct SmoothedDoseBounds {
     pub max_workspace_bytes: u64,
 }
 
-/// The frozen bounds of this cell.
+/// The reference bounds of this cell.
 pub const SMOOTHED_DOSE_BOUNDS: SmoothedDoseBounds = SmoothedDoseBounds {
     max_grid: SMOOTHED_DOSE_MAX_GRID,
     quadrature_nodes: SMOOTHED_DOSE_QUADRATURE_NODES,
@@ -176,9 +187,9 @@ pub(crate) const DOSE_WITHHELD: &str = "withheld";
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DoseBasis {
-    /// Polynomial degree in the dose, `1..=`[`SMOOTHED_DOSE_MAX_BASIS_DEGREE`].
+    /// Polynomial degree in the dose, at least 1.
     pub degree: u8,
-    /// Hinge knots inside the dose support, at most [`SMOOTHED_DOSE_MAX_KNOTS`].
+    /// Hinge knots inside the dose support.
     pub knots: Vec<f64>,
     /// Whether every dose term is also multiplied by every covariate.
     pub interactions: bool,
@@ -207,7 +218,7 @@ impl DoseBasis {
     fn dose_value(&self, term: usize, t: f64) -> f64 {
         let degree = usize::from(self.degree);
         if term < degree {
-            // `term + 1` is at most the degree, itself at most 3.
+            // `term + 1` is at most the degree, itself at most 255.
             t.powi(i32::try_from(term + 1).unwrap_or(i32::MAX))
         } else {
             (t - self.knots[term - degree]).max(0.0)
@@ -225,7 +236,7 @@ pub struct SmoothedDoseOptions {
     pub membership: LearnerSpec,
     /// Dose-by-covariate basis of the outcome design.
     pub basis: DoseBasis,
-    /// Shared cross-fit fold count, `2..=`[`SMOOTHED_DOSE_MAX_FOLDS`].
+    /// Shared cross-fit fold count, at least 2 and at most the smallest role size.
     pub folds: usize,
     /// Gauss-Legendre nodes per window piece, one of [`SMOOTHED_DOSE_QUADRATURE_NODES`];
     /// the check uses twice as many.
@@ -589,17 +600,6 @@ fn bounds_refusal(message: &str) -> EstimationError {
     unsupported("dose_response.bounds_exceeded", message)
 }
 
-/// The grid-count bound of a query (`dose_response.bounds_exceeded`).
-pub(crate) fn check_grid_bound(query: &SmoothedDoseTransportQuery) -> Result<(), EstimationError> {
-    if query.grid.len() > SMOOTHED_DOSE_MAX_GRID {
-        return Err(bounds_refusal(&format!(
-            "{} grid doses; at most {SMOOTHED_DOSE_MAX_GRID}",
-            query.grid.len()
-        )));
-    }
-    Ok(())
-}
-
 /// Every grid window `[a - h, a + h]` lies inside the declared dose support; there are
 /// no boundary kernels (`dose_response.grid_outside_dose_support`).
 pub(crate) fn check_grid_windows(
@@ -623,8 +623,9 @@ pub(crate) fn check_grid_windows(
     Ok(())
 }
 
-/// The option bounds: node count, folds, bootstrap replicates, basis degree and knots
-/// (`dose_response.bounds_exceeded`).
+/// The option bounds: the accepted node counts, a basis degree of at least 1 and a fold count
+/// the `u16` fold ids can carry (`dose_response.bounds_exceeded`). Sizes are bounded by the
+/// workspace estimate, not by a count.
 fn check_option_bounds(options: &SmoothedDoseOptions) -> Result<(), EstimationError> {
     if !SMOOTHED_DOSE_QUADRATURE_NODES.contains(&options.quadrature_nodes) {
         return Err(bounds_refusal(&format!(
@@ -632,40 +633,18 @@ fn check_option_bounds(options: &SmoothedDoseOptions) -> Result<(), EstimationEr
             options.quadrature_nodes
         )));
     }
-    if options.folds > SMOOTHED_DOSE_MAX_FOLDS || options.bootstrap > SMOOTHED_DOSE_MAX_BOOTSTRAP {
-        return Err(bounds_refusal(&format!(
-            "at most {SMOOTHED_DOSE_MAX_FOLDS} folds and {SMOOTHED_DOSE_MAX_BOOTSTRAP} \
-             bootstrap replicates"
-        )));
+    if u16::try_from(options.folds).is_err() {
+        return Err(bounds_refusal("fold ids are 16-bit; at most 65535 folds"));
     }
-    if options.basis.degree == 0
-        || options.basis.degree > SMOOTHED_DOSE_MAX_BASIS_DEGREE
-        || options.basis.knots.len() > SMOOTHED_DOSE_MAX_KNOTS
-    {
-        return Err(bounds_refusal(&format!(
-            "basis degree 1..={SMOOTHED_DOSE_MAX_BASIS_DEGREE} and at most \
-             {SMOOTHED_DOSE_MAX_KNOTS} knots"
-        )));
+    if options.basis.degree == 0 {
+        return Err(bounds_refusal("the dose basis needs a polynomial degree of at least 1"));
     }
     Ok(())
 }
 
-/// Every frozen bound of a request: the grid, the options and the rows.
-fn check_bounds(
-    query: &SmoothedDoseTransportQuery,
-    input: &SmoothedDoseInput,
-    options: &SmoothedDoseOptions,
-) -> Result<(), EstimationError> {
-    check_grid_bound(query)?;
-    check_option_bounds(options)?;
-    if input.source.len() > SMOOTHED_DOSE_MAX_ROWS
-        || input.features.len() > SMOOTHED_DOSE_MAX_FEATURES
-    {
-        return Err(bounds_refusal(&format!(
-            "at most {SMOOTHED_DOSE_MAX_ROWS} rows and {SMOOTHED_DOSE_MAX_FEATURES} covariates"
-        )));
-    }
-    Ok(())
+/// Every bound of a request: the options, with the sizes left to the workspace estimate.
+fn check_bounds(options: &SmoothedDoseOptions) -> Result<(), EstimationError> {
+    check_option_bounds(options)
 }
 
 fn check_learners(options: &SmoothedDoseOptions) -> Result<(), EstimationError> {
@@ -750,7 +729,7 @@ fn local_support(
 ///
 /// # Errors
 /// An uncertified or non-standardization certificate, a malformed query or rows,
-/// declared bounds above the frozen caps (`dose_response.bounds_exceeded`), an estimated
+/// an unsupported node count or fold count (`dose_response.bounds_exceeded`), an estimated
 /// density, a non-portable learner, an invalid or floored known density, a grid window
 /// outside the dose support, or thin or too-discrete local dose support.
 #[doc(hidden)]
@@ -761,9 +740,9 @@ pub fn validate_smoothed_dose(
     input: &SmoothedDoseInput,
     options: &SmoothedDoseOptions,
 ) -> Result<(), EstimationError> {
-    query.validate().map_err(|e| EstimationError::data_msg(e.to_string()))?;
+    query.validate()?;
     parse_dose_density_provenance(&query.density_provenance)?;
-    check_bounds(query, input, options)?;
+    check_bounds(options)?;
     check_learners(options)?;
     let over: &[VariableId] = match id {
         TransportIdentification::Transportable { formula: TransportFormula::Direct(_), .. } => &[],
@@ -1224,7 +1203,11 @@ pub fn evaluate_smoothed_dose_models(
     let n0 = target_rows.len() as f64;
     let coarse = antecedent_stats::special::gauss_legendre(options.quadrature_nodes);
     let fine = antecedent_stats::special::gauss_legendre(2 * options.quadrature_nodes);
-    let exact = piecewise_polynomial(models);
+    // A linear-family curve times the kernel is a polynomial of degree `degree + 2` on every
+    // piece, which the `Q`-node rule integrates exactly while that degree is below `2Q`; a
+    // higher degree is gated by the quadrature comparison like any other curve.
+    let exact = piecewise_polynomial(models)
+        && usize::from(options.basis.degree) + KERNEL_POLYNOMIAL_DEGREE < 2 * options.quadrature_nodes;
     let knots = &options.basis.knots;
     let h = query.bandwidth;
     let predictor = |fold: usize, design: &[f64], rows: usize, c: &ExecutionContext| {
@@ -1562,7 +1545,6 @@ fn dose_structural_refusal(
         )),
     };
     if let Err(error) = parse_dose_density_provenance(&query.density_provenance)
-        .and_then(|()| check_grid_bound(query))
         .and_then(|()| check_grid_windows(query))
     {
         return refused(error);
@@ -1907,9 +1889,16 @@ pub fn smoothed_dose_interval_internal(
     // replicate workspace per concurrent replicate.
     let concurrent =
         (ctx.parallelism.max_threads.get() as usize).clamp(1, options.bootstrap as usize);
+    // The retained replicate values (one `f64` per grid dose and replicate) are admitted with
+    // them: the replicate count is bounded by this estimate, not by a constant.
+    let retained = u64::from(options.bootstrap)
+        .checked_mul(query.grid.len() as u64)
+        .and_then(|cells| cells.checked_mul(8));
     let replicate_bytes =
         smoothed_dose_workspace_bytes(query.grid.len(), input, options, &ctx.serial_inner(), true)
-            .and_then(|b| b.checked_mul(concurrent as u64));
+            .and_then(|b| b.checked_mul(concurrent as u64))
+            .zip(retained)
+            .and_then(|(workspace, retained)| workspace.checked_add(retained));
     check_workspace(replicate_bytes, ctx)?;
     let groups = smoothed_dose_bootstrap_groups(input);
     let folds = &point.folds.assignment;

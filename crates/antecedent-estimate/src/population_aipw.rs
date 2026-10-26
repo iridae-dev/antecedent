@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::arm::TreatmentArm;
 use crate::propensity::PreparedPropensityProblem;
 use crate::{EffectEstimate, EstimationError};
 
@@ -65,7 +66,7 @@ pub(crate) fn point_coefficients(
     let mut h: Vec<f64> = (0..n)
         .map(|i| {
             weights[i] / total
-                * if treatment[i] > 0.5 {
+                * if TreatmentArm::is_treated_indicator(treatment[i]) {
                     1.0 / propensity[i]
                 } else {
                     -1.0 / (1.0 - propensity[i])
@@ -78,7 +79,7 @@ pub(crate) fn point_coefficients(
     for fold in labels {
         for active in [false, true] {
             let rows: Vec<usize> =
-                (0..n).filter(|&i| folds[i] != fold && (treatment[i] > 0.5) == active).collect();
+                (0..n).filter(|&i| folds[i] != fold && (TreatmentArm::is_treated_indicator(treatment[i])) == active).collect();
             if rows.len() <= p {
                 return Err(EstimationError::data_msg("insufficient linear AIPW training arm"));
             }
@@ -129,7 +130,7 @@ fn correct_mean(
                 / total
                 * if active { 1.0 } else { -1.0 };
             rhs[c] = target;
-            for i in (0..n).filter(|&i| (problem.treatment[i] > 0.5) == active) {
+            for i in (0..n).filter(|&i| (TreatmentArm::is_treated_indicator(problem.treatment[i])) == active) {
                 rhs[c] -= x[c * n + i] * h[i];
                 for d in 0..p {
                     gram[c * p + d] += x[c * n + i] * x[d * n + i];
@@ -138,7 +139,7 @@ fn correct_mean(
         }
         let beta = crate::util::solve_spd(&gram, &rhs, p)
             .ok_or_else(|| EstimationError::stats_msg("singular AIPW mean correction"))?;
-        for i in (0..n).filter(|&i| (problem.treatment[i] > 0.5) == active) {
+        for i in (0..n).filter(|&i| (TreatmentArm::is_treated_indicator(problem.treatment[i])) == active) {
             h[i] += (0..p).map(|c| x[c * n + i] * beta[c]).sum::<f64>();
         }
     }
@@ -217,7 +218,7 @@ pub(crate) fn linear_interval(
                 / total
                 * if active { 1.0 } else { -1.0 };
             let actual = (0..n)
-                .filter(|&i| (problem.treatment[i] > 0.5) == active)
+                .filter(|&i| (TreatmentArm::is_treated_indicator(problem.treatment[i])) == active)
                 .map(|i| h[i] * problem.design_matrix[c * n + i])
                 .sum::<f64>();
             if !actual.is_finite() || (actual - target).abs() > 1e-7 * (1.0 + target.abs()) {
@@ -275,7 +276,6 @@ pub(crate) fn linear_interval(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
 
     #[test]
     #[allow(
@@ -319,14 +319,13 @@ mod tests {
                             .iter()
                             .map(|&i| if i == basis { w[i].sqrt() } else { 0.0 })
                             .collect();
-                        let fit = antecedent_stats::fit_ridge(
+                        let fit = antecedent_stats::fit_ridge_with(
                             &design,
                             m,
                             p,
                             &y,
                             ridge,
-                            &FaerBackend,
-                            &mut LeastSquaresWorkspace::default(),
+                            antecedent_stats::RidgeIntercept::sniff(&design, m, p),
                         )
                         .unwrap();
                         for i in (0..n).filter(|&i| folds[i] == fold) {

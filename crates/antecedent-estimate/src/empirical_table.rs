@@ -161,7 +161,7 @@ impl BayesianLawDrawer {
                 sample.snapshot_identity.clone(),
                 LawTolerance::default(),
             )
-            .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+            .map_err(EstimationError::from)?;
             result.insert(key.clone(), law);
         }
         Ok((self.supplied.clone(), result))
@@ -278,7 +278,7 @@ fn draw_transport_law(
         sample.snapshot_identity.clone(),
         LawTolerance::default(),
     )
-    .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+    .map_err(EstimationError::from)?;
     Ok(BayesianTransportLawDraw {
         estimator: Arc::from(if prior > 0.0 {
             STATE_SPACE_DIRICHLET
@@ -576,7 +576,7 @@ pub fn fit_empirical_joint(
         sample.snapshot_identity.clone(),
         LawTolerance::default(),
     )
-    .map_err(|e| EstimationError::data_msg(e.to_string()))
+    .map_err(EstimationError::from)
 }
 
 /// First index of each finite level under `f64` equality, including signed zero.
@@ -676,7 +676,7 @@ fn fit_statistical_joint(
         LawTolerance::default(),
     )
     .and_then(|law| law.with_learned_support(model.counts().to_vec()))
-    .map_err(|e| EstimationError::data_msg(e.to_string()))
+    .map_err(EstimationError::from)
 }
 
 /// Assemble supplied + fitted joints after checking provider coverage.
@@ -765,11 +765,9 @@ fn assemble_laws(
                 sample.snapshot_identity.clone(),
                 joint.tolerance(),
             )
-            .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+            .map_err(EstimationError::from)?;
             if let Some(counts) = joint.empirical_counts() {
-                alias
-                    .with_empirical_counts(counts.to_vec())
-                    .map_err(|e| EstimationError::data_msg(e.to_string()))?
+                alias.with_empirical_counts(counts.to_vec()).map_err(EstimationError::from)?
             } else {
                 alias
             }
@@ -789,8 +787,7 @@ fn assemble_laws(
     if require_coverage {
         require_leaf_providers(functional, &laws, input)?;
     }
-    ExactTransportData::try_new(laws, options.max_joint_cells.max(1))
-        .map_err(|e| EstimationError::data_msg(e.to_string()))
+    ExactTransportData::try_new(laws, options.max_joint_cells.max(1)).map_err(EstimationError::from)
 }
 
 /// Point-estimate assembly (no resampling).
@@ -1121,7 +1118,7 @@ fn law_error(sample: &RegimeSample, kind: &'static str) -> ExactLawError {
 }
 
 fn law_err(sample: &RegimeSample, kind: &'static str) -> EstimationError {
-    EstimationError::data_msg(law_error(sample, kind).to_string())
+    EstimationError::ExactLaw(law_error(sample, kind))
 }
 
 #[cfg(test)]

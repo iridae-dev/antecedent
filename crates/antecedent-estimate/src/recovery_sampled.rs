@@ -47,6 +47,7 @@ use antecedent_identify::{
 
 use antecedent_kernels::{norm_cdf, norm_inv};
 
+use crate::arm::TreatmentArm;
 use crate::recovery::{RecoveredLaw, evaluate_exact_recovery, evaluate_recovered_effect};
 use crate::splitmix::{mix64, seed_mix, splitmix64};
 
@@ -883,7 +884,7 @@ fn outcome_one_probability(distribution: &ExactDistribution, outcome: VariableId
     let mut total = 0.0;
     for (atom, p) in distribution.atoms.iter().zip(distribution.probabilities.iter()) {
         total += *p;
-        if atom.get(axis).and_then(Value::as_f64).is_some_and(|value| value > 0.5) {
+        if atom.get(axis).and_then(Value::as_f64).is_some_and(TreatmentArm::is_treated_indicator) {
             one += *p;
         }
     }

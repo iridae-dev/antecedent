@@ -14,6 +14,7 @@ use antecedent_stats::{
     fit_propensity,
 };
 
+use crate::arm::TreatmentArm;
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::propensity::levels::{DeclaredTreatmentLevels, OtherLevels, classify_treatment_levels};
@@ -92,6 +93,23 @@ pub struct PreparedPropensityProblem {
 }
 
 impl PreparedPropensityProblem {
+    /// Source-table indices of the complete-case rows, converted once from their identities and
+    /// refusing an identity the address space cannot hold. Only source-row cluster labels read
+    /// them, so a caller without those labels passes `needed = false` and gets an empty list.
+    pub(crate) fn source_rows(&self, needed: bool) -> Result<Vec<usize>, EstimationError> {
+        if !needed {
+            return Ok(Vec::new());
+        }
+        self.row_index
+            .iter()
+            .map(|id| {
+                usize::try_from(id.get()).map_err(|_| {
+                    EstimationError::data_msg("a row identity exceeds the addressable table size")
+                })
+            })
+            .collect()
+    }
+
     /// The summary an estimate built from this problem records for its preparation receipt.
     pub(crate) fn preparation_summary(&self) -> Arc<crate::PreparationSummary> {
         crate::prepare::preparation_summary(&self.preparation)
@@ -117,7 +135,7 @@ impl PreparedPropensityProblem {
     /// `0`/`1` column keeps the plan its arm indicator always gave.
     pub(crate) fn fold_strata(&self) -> Vec<u32> {
         let active_is_higher = self.treatment_levels.active > self.treatment_levels.control;
-        self.treatment.iter().map(|&t| u32::from((t > 0.5) == active_is_higher)).collect()
+        self.treatment.iter().map(|&t| u32::from((TreatmentArm::is_treated_indicator(t)) == active_is_higher)).collect()
     }
 }
 
@@ -411,8 +429,7 @@ pub(crate) fn prepare_propensity_problem_with_levels(
         TargetPopulation::CustomDistribution(_) => {
             let sel = query
                 .target_population
-                .resolve(n_full, None, registry)
-                .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+                .resolve(n_full, None, registry)?;
             // Keep complete-case rows; weights apply at estimation time (aligned below).
             full_weights = sel.weights;
         }
@@ -645,7 +662,7 @@ pub(crate) fn split_by_treatment(treatment: &[f64]) -> (Vec<usize>, Vec<usize>) 
     let mut treated = Vec::new();
     let mut control = Vec::new();
     for (i, &t) in treatment.iter().enumerate() {
-        if t > 0.5 {
+        if TreatmentArm::is_treated_indicator(t) {
             treated.push(i);
         } else {
             control.push(i);

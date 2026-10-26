@@ -85,7 +85,7 @@ fn main() {
         std::env::var("ANTECEDENT_LANE_ROWS").ok().and_then(|v| v.parse().ok()).unwrap_or(800);
     let (data, estimand) = confounded_scm(n);
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let est = PropensityWeighting { bootstrap_replicates: 50, ..PropensityWeighting::new() };
+    let est = PropensityWeighting::new().with_bootstrap_replicates(50);
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let ctx = ExecutionContext::for_tests(1);
     let mut ws = PropensityEstimationWorkspace::default();

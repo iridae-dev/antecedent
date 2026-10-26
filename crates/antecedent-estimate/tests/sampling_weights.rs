@@ -283,7 +283,7 @@ fn linear(
 ) -> EffectEstimate {
     let (data, estimand) = study.data();
     let mut estimator = configure(LinearAdjustmentAte::new().with_bootstrap_replicates(0));
-    if weighted && matches!(estimator.se_kind, AnalyticSeKind::Homoskedastic) {
+    if weighted && matches!(estimator.inference.se_kind, AnalyticSeKind::Homoskedastic) {
         estimator = estimator.with_se_kind(AnalyticSeKind::Hc1);
     }
     if weighted {

@@ -419,8 +419,7 @@ impl TemporalLinearAdjustment {
         let mut adj_keys = Vec::new();
         for &dense_var in estimand.adjustment_set.iter() {
             let key = indexer
-                .key_of(dense_var.raw())
-                .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+                .key_of(dense_var.raw())?;
             let lag = offset_to_lag(key.offset - sample_anchor).map_err(|_| {
                 EstimationError::unsupported(
                     "adjustment node sits after this horizon's sample anchor and \
@@ -729,7 +728,7 @@ impl TemporalLinearAdjustment {
         let mut point = fitter.fit_point(prep, &mut workspace, assumptions)?;
         point.uncertainty.analytic.se = f64::NAN;
 
-        let replicates = self.inner.bootstrap_replicates;
+        let replicates = self.inner.inference.bootstrap_replicates;
         // The dependence-aware length refits the design for its normal-equation
         // scores and runs a Politis–White scan on each; without replicates no
         // interval is published, so the rule length stands in (the diagnostic
@@ -822,7 +821,7 @@ impl TemporalLinearAdjustment {
         point.uncertainty.analytic.se = f64::NAN;
         let structural_span = (indexer.history() as usize + indexer.horizon() as usize).max(1);
         let block_length = antecedent_data::circular_block_length(structural_span, windows);
-        let replicates = self.inner.bootstrap_replicates;
+        let replicates = self.inner.inference.bootstrap_replicates;
         let p = prep.design.ncols;
         let boot = if replicates > 0 {
             // A resample keeps at most every window, so one gather holds `windows` rows.
@@ -899,14 +898,13 @@ impl TemporalLinearAdjustment {
     /// The OLS point fitter of [`Self::fit_dependence_honest`] (no iid bootstrap or
     /// cluster SEs).
     fn point_fitter(&self) -> LinearAdjustmentAte {
-        LinearAdjustmentAte {
-            bootstrap_replicates: 0,
-            se_kind: AnalyticSeKind::Homoskedastic,
-            cluster_ids: None,
-            multiway_ids: None,
-            panel_times: None,
-            ..self.inner.clone()
-        }
+        let mut fitter = self.inner.clone();
+        fitter.inference.bootstrap_replicates = 0;
+        fitter.inference.se_kind = AnalyticSeKind::Homoskedastic;
+        fitter.inference.cluster_ids = None;
+        fitter.inference.multiway_ids = None;
+        fitter.inference.panel_times = None;
+        fitter
     }
 
     /// Fit using the shared linear-adjustment path.
@@ -995,8 +993,7 @@ pub fn temporal_coefficient_names(
     ];
     for &dense_var in estimand.adjustment_set.iter() {
         let key = indexer
-            .key_of(dense_var.raw())
-            .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+            .key_of(dense_var.raw())?;
         let lag = offset_to_lag(key.offset - sample_anchor)?;
         names.push(Arc::from(format!(
             "coef_{}{TEMPORAL_COEF_LAG_MARKER}{}",
@@ -1186,11 +1183,11 @@ fn slope_ridge_coefficients(
         .coefficients)
 }
 
-/// Marginal temporal conditional effect for one modifier.
+/// Marginal temporal conditional effect over a modifier set.
 ///
-/// The unfolded regression is `Y ~ 1 + T + W + T×W + Z`. The published point is
-/// `(β_T + β_{T×W} · mean(W)) · (active − control)`, the same functional as the
-/// static one-modifier conditional effect, on the lag-aligned rows of the
+/// The unfolded regression is `Y ~ 1 + T + W₁…W_q + T×W₁…T×W_q + Z`. The published point is
+/// `(β_T + Σ_j β_{T×W_j} · mean(W_j)) · (active − control)`, the same functional as the
+/// static conditional effect over its modifier set, on the lag-aligned rows of the
 /// temporal backdoor design. `prior_scale` is the isotropic Gaussian prior
 /// standard deviation on the slope coefficients. `None` is ordinary least
 /// squares. `Some` replaces that point with the posterior mean under that
@@ -1199,7 +1196,7 @@ fn slope_ridge_coefficients(
 ///
 /// # Errors
 ///
-/// The query is not a single-modifier conditional effect, the design is
+/// The query names no effect modifier (or names one twice), the design is
 /// singular or too small, or the temporal sample cannot be aligned.
 pub fn temporal_conditional_marginal_effect(
     data: &TimeSeriesData,
@@ -1240,9 +1237,12 @@ pub fn temporal_conditional_marginal_effect_with_gaps(
     prior_scale: Option<f64>,
     allow_gaps: bool,
 ) -> Result<(f64, Option<GapSelection>), EstimationError> {
-    if query.effect_modifiers.len() != 1 {
+    let modifiers = query.effect_modifiers.as_ref();
+    let q = modifiers.len();
+    if q == 0 || modifiers.iter().enumerate().any(|(i, modifier)| modifiers[..i].contains(modifier))
+    {
         return Err(EstimationError::unsupported(
-            "temporal conditional effect fits exactly one modifier",
+            "temporal conditional effect needs at least one effect modifier, each named once",
         ));
     }
     query.validate()?;
@@ -1260,18 +1260,16 @@ pub fn temporal_conditional_marginal_effect_with_gaps(
     let sample_anchor = query.outcome_offset().max(0);
     let t_lag = offset_to_lag(query.try_treatment_offset()? - sample_anchor)?;
     let y_lag = offset_to_lag(query.outcome_offset() - sample_anchor)?;
-    let modifier = query.effect_modifiers[0];
     let mut cols = vec![
         LaggedColumn { variable: query.treatment, lag: t_lag },
         LaggedColumn { variable: query.outcome, lag: y_lag },
-        LaggedColumn { variable: modifier, lag: y_lag },
     ];
+    cols.extend(modifiers.iter().map(|&variable| LaggedColumn { variable, lag: y_lag }));
     let mut adjustment = Vec::new();
     for &dense_var in estimand.adjustment_set.iter() {
         let key = indexer
-            .key_of(dense_var.raw())
-            .map_err(|e| EstimationError::data_msg(e.to_string()))?;
-        if key.variable == modifier
+            .key_of(dense_var.raw())?;
+        if modifiers.contains(&key.variable)
             || key.variable == query.treatment
             || key.variable == query.outcome
         {
@@ -1299,19 +1297,23 @@ pub fn temporal_conditional_marginal_effect_with_gaps(
     }
     let t = prep.column(0);
     let y = prep.column(1);
-    let w = prep.column(2);
     let n_z = adjustment.len();
-    let ncols = 4 + n_z;
+    let ncols = 2 + 2 * q + n_z;
     let mut design = vec![0.0; n * ncols];
     for i in 0..n {
         design[i] = 1.0;
         design[n + i] = t[i];
-        design[2 * n + i] = w[i];
-        design[3 * n + i] = t[i] * w[i];
+    }
+    for j in 0..q {
+        let w = prep.column(2 + j);
+        for i in 0..n {
+            design[(2 + j) * n + i] = w[i];
+            design[(2 + q + j) * n + i] = t[i] * w[i];
+        }
     }
     for k in 0..n_z {
-        let column = prep.column(3 + k);
-        let base = (4 + k) * n;
+        let column = prep.column(2 + q + k);
+        let base = (2 + 2 * q + k) * n;
         design[base..base + n].copy_from_slice(column);
     }
     let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
@@ -1329,8 +1331,12 @@ pub fn temporal_conditional_marginal_effect_with_gaps(
             "temporal conditional prior scale must be finite and positive",
         )?;
     }
-    let w_bar = w.iter().sum::<f64>() / n as f64;
-    Ok(((coef[1] + coef[3] * w_bar) * delta, selection))
+    let mut slope = coef[1];
+    for j in 0..q {
+        let w_bar = prep.column(2 + j).iter().sum::<f64>() / n as f64;
+        slope += coef[2 + q + j] * w_bar;
+    }
+    Ok((slope * delta, selection))
 }
 
 /// The outcome, treatments and their time offsets of a [`temporal_linear_slopes`] fit.
@@ -1394,8 +1400,7 @@ pub fn temporal_linear_slopes(
     let mut adjustment = Vec::new();
     for &dense_var in estimand.adjustment_set.iter() {
         let key = indexer
-            .key_of(dense_var.raw())
-            .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+            .key_of(dense_var.raw())?;
         if key.variable == outcome || treatments.contains(&key.variable) {
             continue;
         }
@@ -1782,7 +1787,7 @@ mod tests {
         let mut ws = EstimationWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
         let mut est2 = TemporalLinearAdjustment::new();
-        est2.inner.bootstrap_replicates = 0;
+        est2.inner.inference.bootstrap_replicates = 0;
         let effect = est2.fit(&prep, &mut ws, &ctx, id_res.result.required_assumptions).unwrap();
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
             "../../../conformance/estimate/temporal_adjustment/expected.json"
@@ -1808,13 +1813,13 @@ mod tests {
         let estimand = id_res.result.estimands.first().unwrap();
         let ctx = ExecutionContext::for_tests(3);
         let mut est = TemporalLinearAdjustment::new();
-        est.inner.bootstrap_replicates = 8;
+        est.inner.inference.bootstrap_replicates = 8;
         let prep =
             est.prepare(&data, estimand, &q, &id_res.indexer, None, &ctx.kernel_policy).unwrap();
         let (_, info) =
             est.fit_dependence_honest(&prep, &id_res.indexer, &ctx, AssumptionSet::new()).unwrap();
         // A check of the interval (no replicates of its own) resamples the same blocks.
-        est.inner.bootstrap_replicates = 0;
+        est.inner.inference.bootstrap_replicates = 0;
         let block = est.dependence_block_length(&prep, &id_res.indexer).unwrap();
         assert_eq!(block, info.block_length);
         // The smooth residual is persistent, so its normal-equation score lengthens

@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::arm::TreatmentArm;
 use crate::propensity::PreparedPropensityProblem;
 use crate::{EffectEstimate, EstimationError};
 
@@ -45,7 +46,7 @@ pub(crate) fn coefficient(
     let controls = weights
         .iter()
         .zip(problem.treatment.iter())
-        .filter(|(_, t)| **t < 0.5)
+        .filter(|(_, t)| !TreatmentArm::is_treated_indicator(**t))
         .map(|(w, _)| w)
         .sum::<f64>();
     if controls <= 0.0 {
@@ -55,7 +56,7 @@ pub(crate) fn coefficient(
     let mut gram = vec![0.0; p * p];
     let mut load = vec![0.0; p];
     for i in 0..n {
-        let treated = problem.treatment[i] > 0.5;
+        let treated = TreatmentArm::is_treated_indicator(problem.treatment[i]);
         let r = if treated { (1.0 - propensity[i]) / propensity[i] } else { -1.0 };
         h.push(weights[i] / controls * r);
         for c in 0..p {
@@ -69,7 +70,7 @@ pub(crate) fn coefficient(
     }
     let beta = crate::util::solve_spd(&gram, &load, p)
         .ok_or_else(|| EstimationError::stats_msg("singular ATC treated training design"))?;
-    for i in (0..n).filter(|&i| problem.treatment[i] > 0.5) {
+    for i in (0..n).filter(|&i| TreatmentArm::is_treated_indicator(problem.treatment[i])) {
         h[i] += weights[i] * (0..p).map(|c| x[c * n + i] * beta[c]).sum::<f64>();
     }
     Ok(h)
@@ -150,7 +151,7 @@ fn arm_residual_variance(
     for active in [false, true] {
         let mut gram = vec![0.0; p * p];
         let mut rhs = vec![0.0; p];
-        for i in (0..n).filter(|&i| (problem.treatment[i] > 0.5) == active) {
+        for i in (0..n).filter(|&i| (TreatmentArm::is_treated_indicator(problem.treatment[i])) == active) {
             for c in 0..p {
                 rhs[c] += x[c * n + i] * problem.outcome[i];
                 for d in 0..p {
@@ -173,7 +174,7 @@ fn arm_residual_variance(
         for i in 0..n {
             let fitted = (0..p).map(|c| x[c * n + i] * beta[c]).sum::<f64>();
             contrast[i] += if active { fitted } else { -fitted };
-            if (problem.treatment[i] > 0.5) == active {
+            if (TreatmentArm::is_treated_indicator(problem.treatment[i])) == active {
                 let mut leverage = 0.0;
                 for c in 0..p {
                     for d in 0..p {

@@ -26,22 +26,18 @@ use antecedent_core::{AssumptionSet, AverageEffectQuery, TargetPopulation};
 use antecedent_data::materialize::{PreparationControls, PreparationProduct, prepare_table};
 use antecedent_data::{ColumnView, MissingPolicy, TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_io_core::capacity_account::{
-    CapacityControl, CapacityOptions, run_weighted_capacity,
-};
+use antecedent_io_core::capacity_account::CapacityOptions;
 
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
-use crate::overlap::{ClipSensitivity, IpwTarget, OverlapPolicy, OverlapReport, clip_propensity};
+use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport, clip_propensity};
 use crate::prepare::treatment_contrast;
 use crate::propensity::{DeclaredTreatmentLevels, OtherLevels, PropensityWeighting};
 use crate::propensity::{clip_of, trim_of};
-use crate::streamed_rows::{MaskedRows, RowMode};
-
-/// Weight above which a weight is counted extreme, as the resident overlap report counts it.
-const EXTREME_WEIGHT: f64 = 10.0;
-/// Fitted probabilities this close to 0 or 1 are refused, as the resident fit refuses them.
-const BOUNDARY: f64 = 1e-8;
+use crate::streamed_rows::{
+    BOUNDARY, EngineFacts, RowView, WeightSums, clip_sensitivity_report,
+    clip_sensitivity_thresholds, fit_logistic_streamed, fitted_propensity, for_each_kept_row,
+};
 
 /// Effect, standard error and overlap report from a streamed reduction, with the facts of the
 /// run.
@@ -82,85 +78,67 @@ impl StreamedPropensityEstimate {
     }
 }
 
-/// One row of the propensity design with its treatment and outcome.
-struct RowView<'r> {
-    design: &'r [f64],
-    treated: bool,
-    outcome: f64,
-}
-
-/// Visit every row the mask keeps.
-#[allow(
-    clippy::float_cmp,
-    reason = "the declared treatment level is an exact category label, not a computed value"
-)]
-fn for_each_row(
-    mask: &[bool],
-    covariates: &[&[f64]],
-    treatment: &[f64],
-    outcome: &[f64],
+/// The complete-case rows of a streamed reduction with the float columns they are read from,
+/// the declared treatment levels and the clip threshold the weights are formed under.
+struct StreamedInputs<'a> {
+    row_mask: Vec<bool>,
+    covariates: Vec<&'a [f64]>,
+    treatment: &'a [f64],
+    outcome: &'a [f64],
     active: f64,
-    mut visit: impl FnMut(RowView<'_>),
-) {
-    let mut design = vec![0.0; 1 + covariates.len()];
-    design[0] = 1.0;
-    for (row, &kept) in mask.iter().enumerate() {
-        if !kept {
-            continue;
-        }
-        for (slot, column) in design[1..].iter_mut().zip(covariates) {
-            *slot = column[row];
-        }
-        visit(RowView {
-            design: &design,
-            treated: treatment[row] == active,
-            outcome: outcome[row],
-        });
+    control: f64,
+    /// Rows the mask keeps.
+    rows: u64,
+    at_active: u64,
+    at_control: u64,
+    clip: Option<f64>,
+}
+
+impl StreamedInputs<'_> {
+    /// Visit every kept row with its design row, treatment arm and outcome.
+    fn for_each_row(&self, mut visit: impl FnMut(RowView<'_>)) {
+        for_each_kept_row(
+            &self.row_mask,
+            &self.covariates,
+            self.treatment,
+            self.outcome,
+            self.active,
+            |_, row| visit(row),
+        );
+    }
+
+    /// The weight of a row at fitted propensity `raw`, under the clip.
+    fn weight(&self, target: IpwTarget, treated: bool, raw: f64) -> f64 {
+        let weight_score = self.clip.map_or(raw, |c| clip_propensity(raw, c));
+        target.weight(if treated { 1.0 } else { 0.0 }, weight_score)
     }
 }
 
-/// Fitted propensity of a design row: the unclamped logistic mean, kept off 0 and 1 as the
-/// resident scores are.
-fn score(design: &[f64], beta: &[f64]) -> f64 {
-    let eta: f64 = design.iter().zip(beta).map(|(x, b)| x * b).sum();
-    antecedent_kernels::sigmoid(eta).clamp(1e-9, 1.0 - 1e-9)
+/// The logistic IRLS fit: coefficients and what the engine passes cost.
+struct LogisticPasses {
+    beta: Vec<f64>,
+    iterations: u32,
+    source_passes: u64,
+    reserved_bytes: u64,
+    batches: u64,
+    choice: PhysicalChoice,
 }
 
-/// Running sums of one weight vector: all rows and each arm.
-#[derive(Clone, Copy, Debug, Default)]
-struct WeightSums {
-    sum: f64,
-    sum_sq: f64,
-    extreme: u64,
-    treated_sum: f64,
-    treated_sum_sq: f64,
-    control_sum: f64,
-    control_sum_sq: f64,
-}
-
-impl WeightSums {
-    fn push(&mut self, weight: f64, treated: bool) {
-        self.sum += weight;
-        self.sum_sq += weight * weight;
-        if weight > EXTREME_WEIGHT {
-            self.extreme += 1;
-        }
-        if treated {
-            self.treated_sum += weight;
-            self.treated_sum_sq += weight * weight;
-        } else {
-            self.control_sum += weight;
-            self.control_sum_sq += weight * weight;
-        }
-    }
-
-    fn ess(sum: f64, sum_sq: f64) -> f64 {
-        if sum_sq > 0.0 { (sum * sum) / sum_sq } else { 0.0 }
-    }
-
-    fn extreme_count(&self) -> u32 {
-        u32::try_from(self.extreme).unwrap_or(u32::MAX)
-    }
+/// The first accumulating pass: the weighted arm sums of the Hájek means, the overlap
+/// accumulators and the clip sensitivity.
+struct ArmPass {
+    applied: WeightSums,
+    sensitivity: Vec<WeightSums>,
+    thresholds: Vec<f64>,
+    /// Total weight of the treated and control arms.
+    totals: (f64, f64),
+    /// Hájek mean of the treated and control arms.
+    means: (f64, f64),
+    min_p: f64,
+    max_p: f64,
+    in_support: u64,
+    /// Rows with a positive finite weight.
+    used: u64,
 }
 
 impl PropensityWeighting {
@@ -169,12 +147,13 @@ impl PropensityWeighting {
     /// calibration, bootstrap, or rows at undeclared treatment levels.
     #[must_use]
     pub fn supports_streamed_reduction(&self) -> bool {
-        self.bootstrap_replicates == 0
-            && self.bootstrap_interval.is_none()
+        self.inference.bootstrap_replicates == 0
+            && self.inference.bootstrap_interval.is_none()
             && !self.covariate_balance
             && self.sampling_weights.is_none()
-            && self.cluster_ids.is_none()
-            && self.source_cluster_ids.is_none()
+            && self.inference.cluster_ids.is_none()
+            && self.inference.source_cluster_ids.is_none()
+            && crate::propensity::require_supported_inference(&self.inference).is_ok()
             && self.other_levels == OtherLevels::Refuse
             && trim_of(self.overlap).is_none()
     }
@@ -182,17 +161,16 @@ impl PropensityWeighting {
     /// Estimate the average effect by streaming the rows in batches of `batch_rows`, holding
     /// at most `ceiling_bytes` per engine pass, without building the design.
     ///
+    /// The reduction runs in stages: validate the request and read the columns, fit the
+    /// propensity by streamed IRLS, accumulate the arm sums and overlap report, then the
+    /// logistic information and the corrected influence of the standard error.
+    ///
     /// # Errors
     ///
     /// The estimator is not streamable, the estimand or query is not an all-observed
     /// adjustment, a column is not float64, a treatment row sits at neither declared level,
     /// the logistic fit does not converge or its probabilities reach the boundary, an arm
     /// has no weight, or the reduction exceeds its ceiling.
-    #[allow(
-        clippy::too_many_lines,
-        clippy::float_cmp,
-        reason = "one reduction: the IRLS passes, then the three accumulating passes, read in order; the declared treatment levels are exact category labels"
-    )]
     pub fn estimate_streamed(
         &self,
         data: &TabularData,
@@ -201,6 +179,56 @@ impl PropensityWeighting {
         batch_rows: usize,
         ceiling_bytes: u64,
     ) -> Result<StreamedPropensityEstimate, EstimationError> {
+        let inputs = self.streamed_inputs(data, estimand, query)?;
+        let target = IpwTarget::Ate;
+        let options = CapacityOptions::new(batch_rows, ceiling_bytes, OutputRetention::SummaryOnly);
+        let logistic = self.fit_propensity_streamed(&inputs, &options)?;
+        let arm = arm_pass(&inputs, target, &logistic.beta)?;
+        let se_analytic = influence_se(&inputs, target, &logistic.beta, &arm)?;
+        let overlap_report = overlap_report_of(&inputs, &arm);
+        let LogisticPasses {
+            beta,
+            iterations,
+            source_passes,
+            reserved_bytes,
+            batches,
+            choice,
+        } = logistic;
+        Ok(StreamedPropensityEstimate {
+            ate: arm.means.0 - arm.means.1,
+            se_analytic,
+            n_obs: arm.used,
+            coefficients: beta,
+            iterations,
+            overlap_report,
+            treatment_levels: DeclaredTreatmentLevels {
+                active: inputs.active,
+                control: inputs.control,
+                other_levels: OtherLevels::Refuse,
+                rows_at_active: inputs.at_active,
+                rows_at_control: inputs.at_control,
+                excluded_rows: 0,
+            },
+            reserved_bytes,
+            // The engine's passes, the level count, and the three accumulating passes.
+            source_passes: source_passes + 4,
+            batches,
+            choice,
+        })
+    }
+
+    /// Validate the estimator and query, then read the float columns, the complete-case mask
+    /// and the rows at each declared treatment level (none may sit elsewhere).
+    #[allow(
+        clippy::float_cmp,
+        reason = "the declared treatment levels are exact category labels, not computed values"
+    )]
+    fn streamed_inputs<'a>(
+        &self,
+        data: &'a TabularData,
+        estimand: &IdentifiedEstimand,
+        query: &AverageEffectQuery,
+    ) -> Result<StreamedInputs<'a>, EstimationError> {
         if !self.supports_streamed_reduction() {
             return Err(EstimationError::unsupported(
                 "a streamed reduction needs untrimmed weights, the iid analytic standard error, \
@@ -228,7 +256,6 @@ impl PropensityWeighting {
                 "a streamed reduction estimates the all-observed population",
             ));
         }
-        let target = IpwTarget::Ate;
         let (active, control, _) = treatment_contrast(&query.active, &query.control)?;
         let clip = clip_of(self.overlap);
 
@@ -243,7 +270,7 @@ impl PropensityWeighting {
             &[],
             PreparationControls::finite_resident(),
         )?;
-        let column = |id| -> Result<&[f64], EstimationError> {
+        let column = |id| -> Result<&'a [f64], EstimationError> {
             match data.column(id)? {
                 ColumnView::Float64(c) => Ok(c.values.as_slice()),
                 _ => Err(EstimationError::unsupported(
@@ -282,228 +309,194 @@ impl PropensityWeighting {
                  not exclude them",
             ));
         }
-
-        // Logistic IRLS: one engine pass per iteration.
-        let ncols = 1 + covariates.len();
-        let options = CapacityOptions::new(batch_rows, ceiling_bytes, OutputRetention::SummaryOnly);
-        let mut beta = vec![0.0; ncols];
-        let mut converged = false;
-        let mut iterations = 0_u32;
-        let mut source_passes = 0_u64;
-        let mut reserved_bytes = 0_u64;
-        let mut batches = 0_u64;
-        let mut choice = None;
-        for iteration in 1..=self.glm_options.max_iter {
-            iterations = iteration;
-            let result = {
-                let mut source = MaskedRows::new(
-                    true,
-                    covariates.clone(),
-                    RowMode::LogisticWorking { treatment, active, beta: &beta },
-                    &row_mask,
-                );
-                run_weighted_capacity(CapacityControl::Glm, &mut source, &options)
-                    .map_err(|error| EstimationError::data_msg(error.to_string()))?
-                    .into_resident()
-                    .ok_or_else(|| {
-                        EstimationError::data_msg("the reduction summary was not resident")
-                    })?
-            };
-            source_passes += result.source_passes;
-            reserved_bytes = reserved_bytes.max(result.charges.total_bytes);
-            batches = result.batches;
-            choice = Some(*result.physical_choice());
-            if result.coefficients.len() != ncols
-                || result.coefficients.iter().any(|value| !value.is_finite())
-            {
-                return Err(EstimationError::data_msg(
-                    "the logistic propensity step produced a non-finite coefficient",
-                ));
-            }
-            let max_delta = result
-                .coefficients
-                .iter()
-                .zip(&beta)
-                .map(|(new, old)| (new - old).abs())
-                .fold(0.0_f64, f64::max);
-            beta.clone_from(&result.coefficients);
-            if max_delta < self.glm_options.tol {
-                converged = true;
-                break;
-            }
-        }
-        if !converged {
-            return Err(EstimationError::data_msg(
-                "GLM IRLS did not converge; refuse propensity/outcome scores",
-            ));
-        }
-        let choice = choice.ok_or_else(|| EstimationError::data_msg("no IRLS pass ran"))?;
-
-        // Pass A: arm sums of the Hájek means, the overlap accumulators, the boundary check.
-        let thresholds: Vec<f64> = match clip {
-            Some(c) => {
-                let mut kept: Vec<f64> = Vec::with_capacity(3);
-                for candidate in [c * 0.5, c, (c * 2.0).min(0.49)] {
-                    if kept.last().is_some_and(|previous| (previous - candidate).abs() < 1e-15) {
-                        continue;
-                    }
-                    kept.push(candidate);
-                }
-                kept
-            }
-            None => Vec::new(),
-        };
-        let mut sensitivity = vec![WeightSums::default(); thresholds.len()];
-        let mut applied = WeightSums::default();
-        let (mut sw1, mut sw0, mut sy1, mut sy0) = (0.0, 0.0, 0.0, 0.0);
-        let (mut min_p, mut max_p) = (f64::INFINITY, f64::NEG_INFINITY);
-        let (mut in_support, mut boundary, mut used) = (0_u64, 0_u64, 0_u64);
-        let support_lo = clip.unwrap_or(0.0);
-        let support_hi = 1.0 - support_lo;
-        for_each_row(&row_mask, &covariates, treatment, outcome, active, |row| {
-            let raw = score(row.design, &beta);
-            min_p = min_p.min(raw);
-            max_p = max_p.max(raw);
-            if raw >= support_lo && raw <= support_hi {
-                in_support += 1;
-            }
-            if raw <= BOUNDARY || raw >= 1.0 - BOUNDARY {
-                boundary += 1;
-            }
-            let t = if row.treated { 1.0 } else { 0.0 };
-            let weight_score = clip.map_or(raw, |c| clip_propensity(raw, c));
-            let weight = target.weight(t, weight_score);
-            applied.push(weight, row.treated);
-            if weight.is_finite() && weight > 0.0 {
-                used += 1;
-            }
-            if row.treated {
-                sw1 += weight;
-                sy1 += weight * row.outcome;
-            } else {
-                sw0 += weight;
-                sy0 += weight * row.outcome;
-            }
-            for (sums, &threshold) in sensitivity.iter_mut().zip(&thresholds) {
-                sums.push(target.weight(t, clip_propensity(raw, threshold)), row.treated);
-            }
-        });
-        if boundary > 0 {
-            return Err(EstimationError::data_msg(
-                "GLM fitted probabilities lie within 1e-8 of 0 or 1 (extreme scores, not \
-                 necessarily separation); refuse propensity/outcome scores",
-            ));
-        }
-        if sw1 <= 0.0 || sw0 <= 0.0 {
-            return Err(EstimationError::data_msg(
-                "IPW weighting left an arm with zero total weight (trimming/clipping removed all treated or all control units)",
-            ));
-        }
-        let (mu1, mu0) = (sy1 / sw1, sy0 / sw0);
-        let ate = mu1 - mu0;
-        let nf = rows as f64;
-
-        // Pass B: the logistic information and the derivative of the weighted means with
-        // respect to the propensity coefficients.
-        let mut information = vec![0.0; ncols * ncols];
-        let mut derivative = vec![0.0; ncols];
-        for_each_row(&row_mask, &covariates, treatment, outcome, active, |row| {
-            let raw = score(row.design, &beta);
-            let t = if row.treated { 1.0 } else { 0.0 };
-            let weight_score = clip.map_or(raw, |c| clip_propensity(raw, c));
-            let weight = target.weight(t, weight_score);
-            let psi = linearized(weight, row.treated, row.outcome, (sw1, sw0), (mu1, mu0), nf);
-            let log_weight_derivative = if clip.is_some_and(|c| raw <= c || raw >= 1.0 - c) {
-                0.0
-            } else if row.treated {
-                -(1.0 - raw)
-            } else {
-                raw
-            };
-            let derivative_weight = psi * log_weight_derivative;
-            let information_weight = raw * (1.0 - raw);
-            for c in 0..ncols {
-                derivative[c] += derivative_weight * row.design[c] / nf;
-                for d in 0..ncols {
-                    information[c * ncols + d] +=
-                        information_weight * row.design[c] * row.design[d] / nf;
-                }
-            }
-        });
-        let alpha = crate::util::solve_spd(&information, &derivative, ncols).ok_or_else(|| {
-            EstimationError::stats_msg("singular logistic information in Hajek SE")
-        })?;
-
-        // Pass C: the corrected influence, accumulated as a running mean and sum of squares.
-        let (mut mean, mut m2, mut seen) = (0.0_f64, 0.0_f64, 0.0_f64);
-        for_each_row(&row_mask, &covariates, treatment, outcome, active, |row| {
-            let raw = score(row.design, &beta);
-            let t = if row.treated { 1.0 } else { 0.0 };
-            let weight_score = clip.map_or(raw, |c| clip_propensity(raw, c));
-            let weight = target.weight(t, weight_score);
-            let psi = linearized(weight, row.treated, row.outcome, (sw1, sw0), (mu1, mu0), nf);
-            let adjustment: f64 = row.design.iter().zip(&alpha).map(|(x, a)| x * a).sum();
-            let corrected = psi + adjustment * (t - raw);
-            seen += 1.0;
-            let delta = corrected - mean;
-            mean += delta / seen;
-            m2 += delta * (corrected - mean);
-        });
-        let se_analytic = if rows < 2 {
-            f64::NAN
-        } else {
-            let variance = m2 / (nf - 1.0);
-            let df = (nf - ncols.max(1) as f64).max(1.0);
-            (variance / nf * (nf / df)).max(0.0).sqrt()
-        };
-
-        let n = nf.max(1.0);
-        let overlap_report = OverlapReport {
-            propensity_min: min_p,
-            propensity_max: max_p,
-            ess: Some(WeightSums::ess(applied.sum, applied.sum_sq)),
-            extreme_weight_count: applied.extreme_count(),
-            excluded_fraction: 0.0,
-            target_population_support: in_support as f64 / n,
-            excluded_regions: Arc::from([]),
+        Ok(StreamedInputs {
+            row_mask,
+            covariates,
+            treatment,
+            outcome,
+            active,
+            control,
+            rows,
+            at_active,
+            at_control,
             clip,
-            trim: None,
-            retained_fraction: 1.0,
-            clip_sensitivity: clip.map(|_| ClipSensitivity {
-                thresholds: Arc::from(thresholds.clone()),
-                ess: sensitivity.iter().map(|s| WeightSums::ess(s.sum, s.sum_sq)).collect(),
-                treated_ess: sensitivity
-                    .iter()
-                    .map(|s| WeightSums::ess(s.treated_sum, s.treated_sum_sq))
-                    .collect(),
-                control_ess: sensitivity
-                    .iter()
-                    .map(|s| WeightSums::ess(s.control_sum, s.control_sum_sq))
-                    .collect(),
-                extreme_weight_counts: sensitivity.iter().map(WeightSums::extreme_count).collect(),
-            }),
-        };
-        Ok(StreamedPropensityEstimate {
-            ate,
-            se_analytic,
-            n_obs: used,
-            coefficients: beta,
+        })
+    }
+
+    /// Logistic IRLS: one engine pass per iteration.
+    fn fit_propensity_streamed(
+        &self,
+        inputs: &StreamedInputs<'_>,
+        options: &CapacityOptions,
+    ) -> Result<LogisticPasses, EstimationError> {
+        let mut facts = EngineFacts::default();
+        let (beta, iterations) = fit_logistic_streamed(
+            &inputs.covariates,
+            inputs.treatment,
+            inputs.active,
+            &inputs.row_mask,
+            None,
+            options,
+            &self.glm_options,
+            &mut facts,
+        )?;
+        let choice = facts.choice.ok_or_else(|| EstimationError::data_msg("no IRLS pass ran"))?;
+        Ok(LogisticPasses {
+            beta,
             iterations,
-            overlap_report,
-            treatment_levels: DeclaredTreatmentLevels {
-                active,
-                control,
-                other_levels: OtherLevels::Refuse,
-                rows_at_active: at_active,
-                rows_at_control: at_control,
-                excluded_rows: 0,
-            },
-            reserved_bytes,
-            // The engine's passes, the level count, and the three accumulating passes.
-            source_passes: source_passes + 4,
-            batches,
+            source_passes: facts.passes,
+            reserved_bytes: facts.reserved,
+            batches: facts.batches,
             choice,
         })
+    }
+}
+
+/// Pass A: arm sums of the Hájek means, the overlap accumulators, the boundary check.
+fn arm_pass(
+    inputs: &StreamedInputs<'_>,
+    target: IpwTarget,
+    beta: &[f64],
+) -> Result<ArmPass, EstimationError> {
+    let clip = inputs.clip;
+    let thresholds = clip_sensitivity_thresholds(clip);
+    let mut sensitivity = vec![WeightSums::default(); thresholds.len()];
+    let mut applied = WeightSums::default();
+    let (mut sw1, mut sw0, mut sy1, mut sy0) = (0.0, 0.0, 0.0, 0.0);
+    let (mut min_p, mut max_p) = (f64::INFINITY, f64::NEG_INFINITY);
+    let (mut in_support, mut boundary, mut used) = (0_u64, 0_u64, 0_u64);
+    let support_lo = clip.unwrap_or(0.0);
+    let support_hi = 1.0 - support_lo;
+    inputs.for_each_row(|row| {
+        let raw = fitted_propensity(row.design, beta);
+        min_p = min_p.min(raw);
+        max_p = max_p.max(raw);
+        if raw >= support_lo && raw <= support_hi {
+            in_support += 1;
+        }
+        if raw <= BOUNDARY || raw >= 1.0 - BOUNDARY {
+            boundary += 1;
+        }
+        let t = if row.treated { 1.0 } else { 0.0 };
+        let weight = inputs.weight(target, row.treated, raw);
+        applied.push(weight, row.treated);
+        if weight.is_finite() && weight > 0.0 {
+            used += 1;
+        }
+        if row.treated {
+            sw1 += weight;
+            sy1 += weight * row.outcome;
+        } else {
+            sw0 += weight;
+            sy0 += weight * row.outcome;
+        }
+        for (sums, &threshold) in sensitivity.iter_mut().zip(&thresholds) {
+            sums.push(target.weight(t, clip_propensity(raw, threshold)), row.treated);
+        }
+    });
+    if boundary > 0 {
+        return Err(EstimationError::data_msg(
+            "GLM fitted probabilities lie within 1e-8 of 0 or 1 (extreme scores, not \
+             necessarily separation); refuse propensity/outcome scores",
+        ));
+    }
+    if sw1 <= 0.0 || sw0 <= 0.0 {
+        return Err(EstimationError::data_msg(
+            "IPW weighting left an arm with zero total weight (trimming/clipping removed all treated or all control units)",
+        ));
+    }
+    Ok(ArmPass {
+        applied,
+        sensitivity,
+        thresholds,
+        totals: (sw1, sw0),
+        means: (sy1 / sw1, sy0 / sw0),
+        min_p,
+        max_p,
+        in_support,
+        used,
+    })
+}
+
+/// Passes B and C: the analytic standard error with the logistic-estimation correction.
+///
+/// Pass B accumulates the logistic information and the derivative of the weighted means with
+/// respect to the propensity coefficients; pass C the corrected influence, as a running mean and
+/// sum of squares.
+fn influence_se(
+    inputs: &StreamedInputs<'_>,
+    target: IpwTarget,
+    beta: &[f64],
+    arm: &ArmPass,
+) -> Result<f64, EstimationError> {
+    let ncols = beta.len();
+    let clip = inputs.clip;
+    let nf = inputs.rows as f64;
+    let (totals, means) = (arm.totals, arm.means);
+    let mut information = vec![0.0; ncols * ncols];
+    let mut derivative = vec![0.0; ncols];
+    inputs.for_each_row(|row| {
+        let raw = fitted_propensity(row.design, beta);
+        let weight = inputs.weight(target, row.treated, raw);
+        let psi = linearized(weight, row.treated, row.outcome, totals, means, nf);
+        let log_weight_derivative = if clip.is_some_and(|c| raw <= c || raw >= 1.0 - c) {
+            0.0
+        } else if row.treated {
+            -(1.0 - raw)
+        } else {
+            raw
+        };
+        let derivative_weight = psi * log_weight_derivative;
+        let information_weight = raw * (1.0 - raw);
+        for c in 0..ncols {
+            derivative[c] += derivative_weight * row.design[c] / nf;
+            for d in 0..ncols {
+                information[c * ncols + d] +=
+                    information_weight * row.design[c] * row.design[d] / nf;
+            }
+        }
+    });
+    let alpha = crate::util::solve_spd(&information, &derivative, ncols)
+        .ok_or_else(|| EstimationError::stats_msg("singular logistic information in Hajek SE"))?;
+
+    let (mut mean, mut m2, mut seen) = (0.0_f64, 0.0_f64, 0.0_f64);
+    inputs.for_each_row(|row| {
+        let raw = fitted_propensity(row.design, beta);
+        let t = if row.treated { 1.0 } else { 0.0 };
+        let weight = inputs.weight(target, row.treated, raw);
+        let psi = linearized(weight, row.treated, row.outcome, totals, means, nf);
+        let adjustment: f64 = row.design.iter().zip(&alpha).map(|(x, a)| x * a).sum();
+        let corrected = psi + adjustment * (t - raw);
+        seen += 1.0;
+        let delta = corrected - mean;
+        mean += delta / seen;
+        m2 += delta * (corrected - mean);
+    });
+    Ok(if inputs.rows < 2 {
+        f64::NAN
+    } else {
+        let variance = m2 / (nf - 1.0);
+        let df = (nf - ncols.max(1) as f64).max(1.0);
+        (variance / nf * (nf / df)).max(0.0).sqrt()
+    })
+}
+
+/// The positivity diagnostics built from the running accumulators of pass A.
+fn overlap_report_of(inputs: &StreamedInputs<'_>, arm: &ArmPass) -> OverlapReport {
+    let n = (inputs.rows as f64).max(1.0);
+    let ArmPass { applied, sensitivity, thresholds, min_p, max_p, in_support, .. } = arm;
+    OverlapReport {
+        propensity_min: *min_p,
+        propensity_max: *max_p,
+        ess: Some(WeightSums::ess(applied.sum, applied.sum_sq)),
+        extreme_weight_count: applied.extreme_count(),
+        excluded_fraction: 0.0,
+        target_population_support: *in_support as f64 / n,
+        excluded_regions: Arc::from([]),
+        clip: inputs.clip,
+        trim: None,
+        retained_fraction: 1.0,
+        clip_sensitivity: clip_sensitivity_report(inputs.clip, thresholds, sensitivity),
     }
 }
 

@@ -50,6 +50,7 @@ use antecedent_prob::{
     InferenceDiagnostics, PosteriorDraws, PosteriorQuantityKind, PosteriorSchema,
 };
 
+use crate::arm::TreatmentArm;
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::prepare::require_method;
@@ -428,10 +429,7 @@ impl PreparedFunctionalDistribution {
                 regime: None,
             });
         }
-        let provider = self
-            .provider
-            .snapshot_factors(&requirements)
-            .map_err(|error| EstimationError::data_msg(error.to_string()))?;
+        let provider = self.provider.snapshot_factors(&requirements)?;
         Ok(EmpiricalDistributionFactorSnapshot {
             requirements: Arc::from(requirements),
             provider,
@@ -487,7 +485,7 @@ fn functional_program(
             .map(|variable| (variable.id, ProgramVariable { name: Arc::clone(&variable.name) })),
     );
     FunctionalProgram::new(arena.clone(), schema, root, root, ProgramLimits::default())
-        .map_err(|error| EstimationError::stats_msg(error.to_string()))
+        .map_err(EstimationError::from)
 }
 
 /// How the rows of a functional plug-in are resampled for its frequentist bootstrap and
@@ -1017,12 +1015,8 @@ impl FunctionalDistribution {
                     &prepared.bootstrap_signatures,
                     (block_length, &mut rng),
                 )?;
-                let est = self.estimate_point_with(
-                    prepared,
-                    &provider,
-                    conditioning_values,
-                    draw_ws,
-                )?;
+                let est =
+                    self.estimate_point_with(prepared, &provider, conditioning_values, draw_ws)?;
                 if has_mean && !est.mean.is_finite() {
                     return Err(EstimationError::stats_msg(
                         "functional Bayesian mean was non-finite",
@@ -1060,8 +1054,7 @@ impl FunctionalDistribution {
             PosteriorSchema { quantities: Arc::from(quantities) },
             draws,
             Arc::<[f64]>::from(values),
-        )
-        .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
+        )?;
         let posterior =
             functional_posterior_from_draws(draws, prepared.assumptions.clone(), identification);
         let mut out = point;
@@ -1170,10 +1163,7 @@ impl PreparedFunctionalEffect {
                 regime: None,
             });
         }
-        let provider = self
-            .provider
-            .snapshot_factors(&requirements)
-            .map_err(|error| EstimationError::data_msg(error.to_string()))?;
+        let provider = self.provider.snapshot_factors(&requirements)?;
         Ok(EmpiricalDistributionFactorSnapshot {
             requirements: Arc::from(requirements),
             provider,
@@ -1769,8 +1759,7 @@ fn functional_posterior(
     let schema = PosteriorSchema {
         quantities: Arc::from([PosteriorQuantityKind::Effect { name: Arc::from("functional") }]),
     };
-    let draws = PosteriorDraws::from_column_major(schema, n, Arc::<[f64]>::from(values))
-        .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
+    let draws = PosteriorDraws::from_column_major(schema, n, Arc::<[f64]>::from(values))?;
     Ok(functional_posterior_from_draws(draws, assumptions, identification))
 }
 
@@ -2395,7 +2384,7 @@ fn insert_cpt(
     reason = "a `map_err` adapter: the error arrives by value at every call site"
 )]
 fn eval_err(e: EvalError) -> EstimationError {
-    EstimationError::data_msg(e.to_string())
+    EstimationError::Evaluation(e)
 }
 
 #[cfg(test)]
@@ -2763,9 +2752,12 @@ mod tests {
             _ => unreachable!(),
         };
         let y: Vec<f64> = match boundary.column(VariableId::from_raw(1)).unwrap() {
-            ColumnView::Float64(c) => {
-                c.values.iter().zip(&t).map(|(&y, &t)| if t > 0.5 { 0.0 } else { y }).collect()
-            }
+            ColumnView::Float64(c) => c
+                .values
+                .iter()
+                .zip(&t)
+                .map(|(&y, &t)| if TreatmentArm::is_treated_indicator(t) { 0.0 } else { y })
+                .collect(),
             _ => unreachable!(),
         };
         boundary = rebuild_with_y(&boundary, y);

@@ -320,6 +320,46 @@ mod tests {
         }
     }
 
+    /// Measurement harness for the covariate count beyond the licence: the HC0 normal interval's
+    /// known-truth coverage with three to six covariates under the cells of the licensed record.
+    /// Run with `--ignored --nocapture`; the licence widens only for counts whose every measured
+    /// cell falls inside the licensed coverage band.
+    #[test]
+    #[ignore = "measurement harness: prints coverage for covariate counts outside the licence"]
+    fn bernoulli_ancova_hc0_coverage_beyond_two_covariates_is_measured_not_licensed() {
+        const REPLICATES: usize = 2_000;
+        for (n, covariate_count, probability) in
+            [(400, 3, 0.5), (400, 4, 0.5), (600, 5, 0.5), (600, 6, 0.5), (400, 3, 0.2)]
+        {
+            let xs: Vec<Vec<f64>> = (0..covariate_count)
+                .map(|j| (0..n).map(|i| (0.17 * (j + 1) as f64 * i as f64 + j as f64).sin()).collect())
+                .collect();
+            let refs: Vec<&[f64]> = xs.iter().map(Vec::as_slice).collect();
+            let effect = (0..n).map(|i| 1.4 + 0.2 * xs[0][i]).sum::<f64>() / n as f64;
+            let (mut covered, mut scored) = (0, 0);
+            for rep in 0..REPLICATES {
+                let assignment = (0..n)
+                    .map(|i| crate::splitmix::keyed_unit(rep as u64, i as u64) < probability)
+                    .collect::<Vec<_>>();
+                let outcome = (0..n)
+                    .map(|i| {
+                        2.0 + 1.2 * xs[0][i] - 0.7 * xs[1][i]
+                            + 0.5 * (0.29 * i as f64).sin()
+                            + f64::from(assignment[i]) * (1.4 + 0.2 * xs[0][i])
+                    })
+                    .collect::<Vec<_>>();
+                let Ok(fit) = fit_ancova(&outcome, &assignment, &refs) else { continue };
+                let radius = 1.959_963_984_540_054 * fit.hc0_variance.sqrt();
+                scored += 1;
+                covered += usize::from((fit.effect - effect).abs() <= radius);
+            }
+            eprintln!(
+                "Bernoulli ANCOVA HC0 n={n} covariates={covariate_count} p={probability:.3} known-truth coverage: {covered}/{scored} = {:.4}",
+                covered as f64 / scored.max(1) as f64
+            );
+        }
+    }
+
     #[test]
     fn calibrated_interval_refuses_sparse_low_probability_and_degenerate_variance() {
         let fit = AncovaFit {

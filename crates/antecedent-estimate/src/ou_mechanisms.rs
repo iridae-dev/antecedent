@@ -210,9 +210,14 @@ pub(crate) fn summaries(
     n: usize,
     ctx: &ExecutionContext,
 ) -> Result<Vec<Summary>, EquilibriumError> {
-    if regimes.is_empty() || regimes.len() > 128 {
+    if regimes.is_empty() {
         return Err(invalid("OU regime count"));
     }
+    // Each regime keeps a mean and a scatter matrix: their size is leased against the context
+    // rather than capped by a regime count.
+    let _summaries =
+        crate::util::admit_array::<f64>(ctx, regimes.len(), n.saturating_mul(n.saturating_add(1)))
+            .map_err(|error| EquilibriumError::Resource(error.to_string()))?;
     let mut ids = std::collections::BTreeSet::new();
     let mut output = Vec::new();
     for regime in regimes {

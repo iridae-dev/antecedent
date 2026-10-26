@@ -21,6 +21,15 @@ pub(crate) fn record_model_fit() {
     FITS.with(|c| c.set(c.get().saturating_add(1)));
 }
 
+/// Why a retained fit refuses a set of prediction rows.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PredictionRefusal {
+    /// A row has the wrong number of features or a non-finite value.
+    SchemaMismatch,
+    /// A row's treatment features lie outside the fitted treatment support.
+    OutOfSupport,
+}
+
 /// Retained model over a complete row snapshot. Columns: intercept, adjustment, treatments.
 #[derive(Clone, Debug)]
 pub struct AdjustedFit {
@@ -173,18 +182,18 @@ impl AdjustedFit {
     /// Validate prediction feature shape and declared treatment support without fitting.
     #[must_use]
     #[allow(clippy::float_cmp, reason = "binary and dummy variables require exact coded levels")]
-    pub fn prediction_refusal(&self, rows: &[Vec<f64>]) -> Option<&'static str> {
+    pub fn prediction_refusal(&self, rows: &[Vec<f64>]) -> Option<PredictionRefusal> {
         for row in rows {
             if row.len() != self.ncols - 1 || row.iter().any(|x| !x.is_finite()) {
-                return Some("recalc.adjusted_prediction_schema_mismatch");
+                return Some(PredictionRefusal::SchemaMismatch);
             }
             let t = &row[self.first_treatment - 1..];
             if self.levels.is_some() {
                 if t.iter().any(|x| *x != 0. && *x != 1.) || t.iter().sum::<f64>() > 1. {
-                    return Some("recalc.adjusted_prediction_out_of_support");
+                    return Some(PredictionRefusal::OutOfSupport);
                 }
             } else if !t.iter().zip(&self.support).all(|(x, b)| in_support(*x, b)) {
-                return Some("recalc.adjusted_prediction_out_of_support");
+                return Some(PredictionRefusal::OutOfSupport);
             }
         }
         None

@@ -168,8 +168,7 @@ fn with_replicate_draws(
         stream_base,
         replicate,
         &mut ids,
-    )
-    .map_err(|error| EstimationError::data_msg(error.to_string()))?;
+    )?;
     for id in ids {
         let index = usize::try_from(id.get()).map_err(|_| {
             EstimationError::data_msg(

@@ -142,13 +142,13 @@ impl LinearAdjustmentAte {
     #[must_use]
     pub fn supports_streamed_reduction(&self) -> bool {
         matches!(self.fit_kind, LinearFitKind::Ols)
-            && self.bootstrap_replicates == 0
-            && matches!(self.se_kind, AnalyticSeKind::Homoskedastic | AnalyticSeKind::Hc0)
+            && self.inference.bootstrap_replicates == 0
+            && matches!(self.inference.se_kind, AnalyticSeKind::Homoskedastic | AnalyticSeKind::Hc0)
             && self.sampling_weights.is_none()
-            && self.cluster_ids.is_none()
-            && self.source_cluster_ids.is_none()
-            && self.multiway_ids.is_none()
-            && self.panel_times.is_none()
+            && self.inference.cluster_ids.is_none()
+            && self.inference.source_cluster_ids.is_none()
+            && self.inference.multiway_ids.is_none()
+            && self.inference.panel_times.is_none()
             && self.contrasts.is_empty()
     }
 
@@ -223,12 +223,12 @@ impl LinearAdjustmentAte {
         let p = source.ncols();
         let options = CapacityOptions::new(batch_rows, ceiling_bytes, OutputRetention::SummaryOnly);
         let result = run_weighted_capacity(CapacityControl::Glm, &mut source, &options)
-            .map_err(|error| EstimationError::data_msg(error.to_string()))?
+            .map_err(crate::streamed_rows::capacity_error)?
             .into_resident()
             .ok_or_else(|| EstimationError::data_msg("the reduction summary was not resident"))?;
         let t_col = 1;
         let n = result.residual.positive_weight_rows;
-        let se_coef = if self.se_kind == AnalyticSeKind::Hc0 {
+        let se_coef = if self.inference.se_kind == AnalyticSeKind::Hc0 {
             result.robust_covariance[t_col * p + t_col].max(0.0).sqrt()
         } else {
             let sigma2 = result.residual.weighted_rss / (n as f64 - p as f64).max(1.0);
@@ -298,10 +298,8 @@ mod tests {
     fn the_streamed_reduction_equals_the_materialized_fit_and_both_standard_errors() {
         let (data, estimand, query) = fixture(4_000);
         for kind in [AnalyticSeKind::Homoskedastic, AnalyticSeKind::Hc0] {
-            let estimator = LinearAdjustmentAte {
-                bootstrap_replicates: 0,
-                ..LinearAdjustmentAte::new().with_se_kind(kind)
-            };
+            let estimator =
+                LinearAdjustmentAte::new().with_se_kind(kind).with_bootstrap_replicates(0);
             assert!(estimator.supports_streamed_reduction());
             let prep = estimator.prepare(&data, &estimand, &query).unwrap();
             let mut workspace = EstimationWorkspace::default();
@@ -332,8 +330,7 @@ mod tests {
         };
         use antecedent_core::route_memory::RouteBudget;
         let (data, estimand, query) = fixture(4_000);
-        let estimator =
-            LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let estimator = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
         let design_bytes = 4_000_u64 * 4 * 8;
         let budget = design_bytes / 2;
         // The reduction runs under a ceiling smaller than the design it never builds.
@@ -376,22 +373,19 @@ mod tests {
     #[test]
     fn an_estimator_without_a_closed_form_reduction_is_refused() {
         let (data, estimand, query) = fixture(200);
-        let bootstrap =
-            LinearAdjustmentAte { bootstrap_replicates: 50, ..LinearAdjustmentAte::new() };
+        let bootstrap = LinearAdjustmentAte::new().with_bootstrap_replicates(50);
         assert!(!bootstrap.supports_streamed_reduction());
         assert!(bootstrap.estimate_streamed(&data, &estimand, &query, 64, 1 << 20).is_err());
-        let robust = LinearAdjustmentAte {
-            bootstrap_replicates: 0,
-            ..LinearAdjustmentAte::new().with_se_kind(AnalyticSeKind::Hc3)
-        };
+        let robust = LinearAdjustmentAte::new()
+            .with_se_kind(AnalyticSeKind::Hc3)
+            .with_bootstrap_replicates(0);
         assert!(!robust.supports_streamed_reduction());
     }
 
     #[test]
     fn a_ceiling_below_the_window_refuses_instead_of_reading() {
         let (data, estimand, query) = fixture(500);
-        let estimator =
-            LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let estimator = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
         assert!(estimator.estimate_streamed(&data, &estimand, &query, 64, 8).is_err());
     }
 }

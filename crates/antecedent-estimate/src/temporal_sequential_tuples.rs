@@ -130,13 +130,12 @@ pub fn prepare_sequence_level(
         ));
     }
     let unfolded =
-        graph.unfold(indexer.clone()).map_err(|e| EstimationError::data_msg(e.to_string()))?;
+        graph.unfold(indexer.clone())?;
     let dag = &unfolded.dag;
     let node_count = dag.node_count();
     let key_of = |dense: usize| {
         indexer
             .key_of(u32::try_from(dense).unwrap_or(u32::MAX))
-            .map_err(|e| EstimationError::data_msg(e.to_string()))
     };
     let outcome = indexer
         .dense_id(TemporalNodeKey { variable: outcome, offset: outcome_offset })

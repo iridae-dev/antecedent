@@ -27,6 +27,7 @@ use antecedent_stats::{
     selected_outcome_pseudo_values,
 };
 
+use crate::arm::TreatmentArm;
 use crate::{ContinuousResponseEstimator, EstimationError};
 
 /// Selected-outcome correction used after fitting the observation model.
@@ -163,8 +164,7 @@ pub fn temporal_curve_outcome_regressors(
         });
         for &dense in estimand.adjustment_set.iter() {
             let key = indexer
-                .key_of(dense.raw())
-                .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+                .key_of(dense.raw())?;
             keys.push(TemporalNodeKey {
                 variable: key.variable,
                 offset: key.offset.saturating_sub(outcome_offset),
@@ -976,7 +976,7 @@ impl ObservationMechanismEstimator {
         extras: Option<&OutcomeModelExtras>,
         layout: FoldLayout<'_>,
     ) -> Result<ObservationAdjustedOutcome, EstimationError> {
-        if indicator.iter().all(|&r| r == 1.0) {
+        if indicator.iter().all(|&r| TreatmentArm::exact(r).is_some_and(TreatmentArm::is_treated)) {
             if observed.iter().any(|value| !value.is_finite()) {
                 return Err(EstimationError::unsupported("selected outcomes must be finite"));
             }
@@ -1526,7 +1526,9 @@ fn fit_selected_outcome_regression(
     ncols: usize,
 ) -> Result<Vec<f64>, EstimationError> {
     let n = observed.len();
-    let rows: Vec<usize> = (0..n).filter(|&i| indicator[i] == 1.0).collect();
+    let rows: Vec<usize> = (0..n)
+        .filter(|&i| TreatmentArm::exact(indicator[i]).is_some_and(TreatmentArm::is_treated))
+        .collect();
     if rows.len() <= ncols + 1 {
         return Err(EstimationError::unsupported(
             "too few selected rows for augmented outcome regression",

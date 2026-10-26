@@ -16,15 +16,18 @@ use crate::joint_coefficients::{CoefficientDraws, JointCoefficientDraws, joint_d
 use crate::serial_dependence::{DependenceScope, SerialDependence};
 use crate::temporal_adjustment::TemporalLinearAdjustment;
 use crate::white_innovation_posterior::{
-    WHITE_INNOVATION_NOTE_PREFIX, WhiteInnovationDeclaration, fit_white_innovation_posterior,
+    InnovationWhitenessReport, WHITE_INNOVATION_NOTE_PREFIX, WhiteInnovationDeclaration,
+    fit_white_innovation_posterior,
 };
 use antecedent_core::{
-    CausalResponse, CredibleDraws, Diagnostic, DiagnosticKind, DiagnosticScope, DiagnosticSeverity,
-    ExecutionContext, IdentificationStatus, Intervention, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic,
-    TargetPopulation, TemporalEffectQuery, Value,
+    AssumptionSet, CausalResponse, CredibleDraws, Diagnostic, DiagnosticKind, DiagnosticScope,
+    DiagnosticSeverity, ExecutionContext, HorizonIdentification, IdentificationStatus,
+    Intervention, ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty,
+    ResponseValue, SupportDiagnostic, SupportReport, TargetPopulation, TemporalEffectQuery,
+    TemporalResponseSpec, Value, VariableId,
 };
-use antecedent_data::TimeSeriesData;
+use antecedent_data::{TemporalIndexer, TimeSeriesData};
+use antecedent_expr::IdentifiedEstimand;
 
 use super::{
     TemporalIdentification, TemporalResponseEstimator, assumptions::HorizonTempering,
@@ -37,7 +40,7 @@ use super::{
     band::publish_simultaneous_band, plan::TemporalInterventionPlan,
     plan::plan_temporal_intervention, support::intervention_support, support::mean_curve_support,
     surface::TREATMENT_COL, surface::design_column_means, surface::flatten_dose_horizon_grid,
-    surface::horizon_identification_of,
+    surface::horizon_identification_of, surface::HorizonTreatmentRange,
 };
 
 /// Support diagnostic id of the residual test behind an untempered temporal curve.
@@ -66,13 +69,65 @@ horizon residuals, which this route does not model. Next attempt: fit a dynamic 
 own likelihood (BVAR or state-space) and roll the intervention out through it, or request the \
 GaussianIdentity likelihood";
 
+/// The response target of a validated Bayesian temporal request.
+struct BayesTarget {
+    outcome: VariableId,
+    treatment: VariableId,
+    /// The dose grid of a mean curve (empty for an intervention response).
+    doses: Vec<f64>,
+    /// The `(level, shift)` of a single-treatment intervention response.
+    intervention: Option<(Option<f64>, f64)>,
+}
+
+/// One dose cell's `(mean, lower, upper, sd)` summary and its posterior draws.
+type CellDraws = ((f64, f64, f64, f64), Vec<f64>);
+
+/// Everything the per-horizon fits produce: the cell summaries of each horizon, the treatment
+/// range and identification of each, the tempering record, and the retained fits that tie the
+/// horizons into one joint trajectory.
+struct HorizonFits {
+    rows: Vec<Vec<CellDraws>>,
+    ranges: Vec<HorizonTreatmentRange>,
+    horizons: Vec<HorizonIdentification>,
+    levels: Vec<f64>,
+    tempering: Vec<HorizonTempering>,
+    fits: Vec<Result<HorizonFit, EstimationError>>,
+    whiteness: Option<InnovationWhitenessReport>,
+}
+
+/// The inputs shared by every horizon's fit.
+struct HorizonRun<'a> {
+    data: &'a TimeSeriesData,
+    identifications: &'a [(&'a IdentifiedEstimand, &'a TemporalIndexer)],
+    temporal: &'a TemporalResponseSpec,
+    target: &'a BayesTarget,
+    estimator: &'a crate::BayesianGComputationAte,
+    status: IdentificationStatus,
+    ctx: &'a ExecutionContext,
+}
+
+/// The cell summaries in published order (dose-major, horizon-minor), with the full-length
+/// per-cell draw columns retained for a single-coordinate `InterventionResponse` so the
+/// facade can surface its scalar credible interval as a `Scalar` uncertainty whose draws
+/// reconstruct the published `[lower, upper]`. Curves keep `draws: None`.
+struct CellSummaries {
+    mean: Vec<f64>,
+    lower: Vec<f64>,
+    upper: Vec<f64>,
+    band_columns: Vec<Vec<f64>>,
+}
+
 impl TemporalResponseEstimator {
     /// Bayesian Gaussian linear-additive response on the identified unfolded
     /// design at each horizon. Intervals are pointwise posterior quantiles.
-    #[allow(
-        clippy::too_many_lines,
-        reason = "validate the identifications, fit each horizon, then pair the draws across horizons to summarize every dose cell"
-    )]
+    ///
+    /// The estimate runs in stages: validate the request and resolve its target, fit each
+    /// horizon, tie the horizons into one joint trajectory law, summarize every dose cell,
+    /// then attach the support, tempering and joint-trajectory disclosures.
+    ///
+    /// # Errors
+    /// An unsupported request, an unidentified horizon, a failed horizon fit or a posterior
+    /// that cannot be summarized.
     pub fn estimate_bayesian(
         &self,
         data: &TimeSeriesData,
@@ -86,248 +141,44 @@ impl TemporalResponseEstimator {
             status: identification_status,
             mut assumptions,
         } = identified;
-        query.validate()?;
-        if query.observation != antecedent_core::ObservationSpec::Complete
-            || query.target_population != TargetPopulation::AllObserved
-        {
-            return Err(EstimationError::unsupported(
-                "Bayesian temporal response requires complete observations and the AllObserved population",
-            ));
-        }
-        if estimator.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity {
-            return Err(EstimationError::unsupported(ORDINARY_LIKELIHOOD_REFUSAL));
-        }
-        if !matches!(
+        let temporal = self.validate_bayesian_request(
+            query,
+            estimator,
             identification_status,
-            IdentificationStatus::NonparametricallyIdentified
-                | IdentificationStatus::IdentifiedUnderParametricRestrictions
-        ) {
-            return Err(EstimationError::unsupported(
-                "Bayesian temporal response requires point identification at every horizon",
-            ));
-        }
-        let temporal = query.temporal.as_ref().ok_or_else(|| {
-            EstimationError::unsupported("missing temporal response specification")
-        })?;
-        if identifications.len() != temporal.horizons.len() {
-            return Err(EstimationError::unsupported("one identification required per horizon"));
-        }
-        let (outcome, treatment, doses, intervention) = match &query.functional {
-            ResponseFunctional::MeanCurve { outcome, treatment } => {
-                (*outcome, treatment.variable, treatment.grid.values()?, None)
-            }
-            ResponseFunctional::InterventionResponse { outcome, interventions } => {
-                match plan_temporal_intervention(interventions, temporal)? {
-                    TemporalInterventionPlan::Single { treatment, level, shift } => {
-                        (*outcome, treatment, Vec::new(), Some((level, shift)))
-                    }
-                    TemporalInterventionPlan::Sequential { .. }
-                    | TemporalInterventionPlan::Mechanisms { .. } => {
-                        return Err(EstimationError::unsupported(
-                            "Bayesian multi-step Sequence uses sequential mechanism overlays, \
-                             not response.temporal.bayesian / bayesian.gcomp",
-                        ));
-                    }
-                }
-            }
-            _ => {
-                return Err(EstimationError::unsupported(
-                    "Bayesian temporal response supports only curves and intervention responses",
-                ));
-            }
+            identifications.len(),
+        )?;
+        let target = bayesian_target(query, temporal)?;
+        let run = HorizonRun {
+            data,
+            identifications,
+            temporal,
+            target: &target,
+            estimator,
+            status: identification_status,
+            ctx,
         };
-        // The untempered posterior is licensed at one step ahead only: an unfolded regression at
-        // horizon h >= 2 has moving-average residuals of order h - 1 whatever the innovation
-        // process, and horizons are separate fits that no single likelihood joins.
-        if self.white_innovation.is_some() && &*temporal.horizons != [1_u32].as_slice() {
-            return Err(EstimationError::refused(
-                antecedent_core::reason_code!("route_not_supported"),
-                "a declared white-innovation premise licenses the untempered posterior of a \
-                 temporal response at the single horizon of one step ahead only: an unfolded \
-                 regression at horizon h >= 2 has moving-average residuals of order h - 1 whatever \
-                 the innovation process, and separate horizons share no likelihood. Next attempt: \
-                 request horizon 1 alone, drop the declaration to use the tempered posterior, or \
-                 compose per-mechanism posteriors through the structural equations",
-            ));
-        }
-        let mut whiteness = None;
-        let mut rows = Vec::new();
-        let mut ranges = Vec::new();
-        let mut horizons = Vec::new();
-        let mut levels = Vec::new();
-        let mut tempering: Vec<HorizonTempering> = Vec::new();
-        let mut fits: Vec<Result<HorizonFit, EstimationError>> = Vec::new();
-        for (h, (&horizon_steps, &(estimand, indexer))) in
-            temporal.horizons.iter().zip(identifications).enumerate()
-        {
-            let pulse = TemporalEffectQuery {
-                treatment,
-                outcome,
-                policy: temporal.policy.clone(),
-                control: Intervention::set(treatment, Value::f64(0.0)),
-                active: Intervention::set(treatment, Value::f64(1.0)),
-                horizon_steps,
-                max_history_lag: temporal.max_history_lag,
-                target_population: TargetPopulation::AllObserved,
-                effect_modifiers: std::sync::Arc::from([]),
-            };
-            let (prep, aligned) = TemporalLinearAdjustment::new().prepare_aligned(
-                data,
-                estimand,
-                &pulse,
-                indexer,
-                None,
-                &ctx.kernel_policy,
-            )?;
-            let n = prep.design.nrows;
-            let t = &prep.design.matrix[n..2 * n];
-            ranges.push((
-                t.iter().copied().fold(f64::INFINITY, f64::min),
-                t.iter().copied().fold(f64::NEG_INFINITY, f64::max),
-            ));
-            horizons.push(horizon_identification_of(
-                horizon_steps,
-                estimand,
-                indexer,
-                identification_status,
-            )?);
-            let mut weights = design_column_means(&prep.design);
-            let base_weights = weights.clone();
-            let grid = if let Some((level, shift)) = intervention {
-                vec![level.unwrap_or(weights[1] + shift)]
-            } else {
-                doses.clone()
-            };
-            let mut est = estimator.clone();
-            est.seed = est.seed.wrapping_add(h as u64);
-            let posterior = if let Some(gate) = self.white_innovation {
-                // Declared serially independent innovations: the lag-aligned residual is the
-                // innovation, the rows are independent Gaussian terms, and the likelihood is
-                // untempered. A Ljung-Box rejection refuses the fit and names the tempered
-                // posterior; a pass does not prove the premise.
-                let fit = fit_white_innovation_posterior(
-                    &est,
-                    &prep,
-                    &WhiteInnovationDeclaration { horizon_steps, gate },
-                    identification_status,
-                    ctx,
-                )?;
-                whiteness = Some(fit.whiteness);
-                fit.posterior
-            } else {
-                let mut bprep = crate::BayesianGComputationAte::from_prepared_estimation(&prep);
-                // Lag-aligned rows are time-ordered: at h ≥ 2 the unfolded regression omits the
-                // intermediate treatments and outcome innovations, so its residuals are MA(h−1)
-                // whenever the outcome or treatment is persistent, and serially dependent at
-                // every horizon under autocorrelated innovations. Each horizon's likelihood is
-                // tempered by the long-run-variance ratio of its grid-cell levels (floored at 1),
-                // the same generalized posterior as the Bayesian Pulse / Sustained cells.
-                bprep.serial_dependence =
-                    SerialDependence::LongRunTempering(DependenceScope::Levels(
-                        grid.iter()
-                            .map(|&dose| {
-                                let mut direction = weights.clone();
-                                direction[TREATMENT_COL] = dose;
-                                Arc::from(direction)
-                            })
-                            .collect(),
-                    ));
-                est.fit(
-                    &bprep,
-                    identification_status,
-                    &mut crate::BayesianGCompWorkspace::default(),
-                    ctx,
-                )?
-            };
-            if h == 0 {
-                assumptions.entries.extend(
-                    posterior
-                        .assumptions
-                        .entries
-                        .iter()
-                        .filter(|record| !is_tempering_record(record))
-                        .cloned(),
-                );
-            }
-            if whiteness.is_none() {
-                tempering.push(HorizonTempering::from_notes(&posterior.diagnostics.notes));
-            }
-            if intervention.is_some() {
-                levels.push(grid[0]);
-            }
-            fits.push(HorizonFit::of(&posterior, &prep, aligned, base_weights, grid.clone()));
-            let mut row = Vec::new();
-            for dose in grid {
-                weights[1] = dose;
-                let values = crate::bayesian::linear_response_draws(&posterior, &weights)?;
-                let summary =
-                    crate::bayesian::summarize_linear_response_draws(values.clone(), 0.95)?;
-                row.push((summary, values));
-            }
-            rows.push(row);
-        }
-        // Tie the horizons into one joint trajectory law. A single horizon is its own posterior.
-        let mut joint_block = None;
-        let mut joint_unavailable = None;
-        if rows.len() > 1 {
-            let span = temporal
-                .horizons
-                .iter()
-                .copied()
-                .max()
-                .unwrap_or(1)
-                .saturating_add(temporal.max_history_lag.unwrap_or(0));
-            let span = usize::try_from(span).unwrap_or(usize::MAX);
-            let outcome = fits.into_iter().collect::<Result<Vec<_>, _>>().and_then(|fits| {
-                joint_trajectory_draws(&fits, span, estimator.seed, &ctx.rng).map(|j| (fits, j))
-            });
-            match outcome {
-                Ok((fits, (theta, block))) => {
-                    for ((fit, columns), row) in fits.iter().zip(&theta).zip(rows.iter_mut()) {
-                        let mut weights = fit.base.clone();
-                        for (cell, &dose) in row.iter_mut().zip(&fit.grid) {
-                            weights[1] = dose;
-                            let values = combine_columns(columns, &weights);
-                            let summary = crate::bayesian::summarize_linear_response_draws(
-                                values.clone(),
-                                0.95,
-                            )?;
-                            *cell = (summary, values);
-                        }
-                    }
-                    joint_block = Some(block);
-                }
-                Err(error) => joint_unavailable = Some(error.to_string()),
-            }
-        }
-        let mut mean = Vec::new();
-        let mut lower = Vec::new();
-        let mut upper = Vec::new();
-        let mut cell_draws: Vec<&[f64]> = Vec::new();
-        // Full-length per-cell draw columns in the published order, retained for a
-        // single-coordinate `InterventionResponse` so the facade can surface its
-        // scalar credible interval as a `Scalar` uncertainty whose draws
-        // reconstruct the published `[lower, upper]`. Curves keep `draws: None`.
-        let mut band_columns: Vec<Vec<f64>> = Vec::new();
-        for d in 0..if intervention.is_some() { 1 } else { doses.len() } {
-            for row in &rows {
-                let ((m, lo, hi, _), values) = &row[d];
-                mean.push(*m);
-                lower.push(*lo);
-                upper.push(*hi);
-                cell_draws.push(values);
-                band_columns.push(values.clone());
-            }
-        }
+        let HorizonFits {
+            mut rows,
+            ranges,
+            horizons,
+            levels,
+            tempering,
+            fits,
+            whiteness,
+        } = self.fit_horizons(&run, &mut assumptions)?;
+        let (joint_block, joint_unavailable) =
+            tie_horizons(&mut rows, fits, temporal, estimator.seed, ctx)?;
+        let cell_count = if target.intervention.is_some() { 1 } else { target.doses.len() };
+        let CellSummaries { mean, lower, upper, band_columns } = summarize_cells(&rows, cell_count);
         // With several horizons the draws above are one joint trajectory law (draw r of every
         // horizon is the same joint draw), so the simultaneous band is a band of the joint
         // posterior. Only when the joint dependence could not be formed are the horizons
         // independent fits whose index pairing is a product of marginals, not a joint
         // trajectory posterior. Within a horizon every dose shares one coefficient draw.
-        let n_joint = cell_draws.iter().map(|values| values.len()).min().unwrap_or(0);
-        let cell_draws: Vec<&[f64]> = cell_draws.iter().map(|values| &values[..n_joint]).collect();
+        let n_joint = band_columns.iter().map(Vec::len).min().unwrap_or(0);
+        let cell_draws: Vec<&[f64]> = band_columns.iter().map(|values| &values[..n_joint]).collect();
         let simultaneous = max_deviation_band_columns(&mean, &cell_draws, 0.95);
-        let (grid, dimension, mut support) = if let Some((level, shift)) = intervention {
+        let (grid, dimension, mut support) = if let Some((level, shift)) = target.intervention {
             (
                 temporal.horizons.iter().map(|&h| f64::from(h)).collect(),
                 1,
@@ -335,9 +186,9 @@ impl TemporalResponseEstimator {
             )
         } else {
             (
-                flatten_dose_horizon_grid(&doses, &temporal.horizons)?,
+                flatten_dose_horizon_grid(&target.doses, &temporal.horizons)?,
                 2,
-                mean_curve_support(&doses, temporal, &ranges),
+                mean_curve_support(&target.doses, temporal, &ranges),
             )
         };
         let posterior_basis = if whiteness.is_some() {
@@ -360,74 +211,7 @@ impl TemporalResponseEstimator {
              {posterior_basis}"
         );
         publish_simultaneous_band(&mut support, simultaneous, &simultaneous_detail);
-        if let Some(report) = whiteness {
-            support.diagnostics.push(SupportDiagnostic {
-                id: Arc::from(WHITE_INNOVATION_SUPPORT_DIAGNOSTIC),
-                values: Arc::from(vec![report.q_statistic, report.p_value]),
-                detail: Arc::from(format!(
-                    "{WHITE_INNOVATION_NOTE_PREFIX}: Ljung-Box Q and its p-value on {} residual \
-                     autocorrelations of {} rows; the test did not reject serially independent \
-                     innovations at level {}, and a pass does not prove the declared premise. The \
-                     likelihood is untempered, so the credible interval is the interval of a \
-                     correctly specified model only if the premise holds",
-                    report.lags, report.rows, report.level
-                )),
-                scope: DiagnosticScope::Global,
-            });
-        } else {
-            support.diagnostics.push(SupportDiagnostic {
-                id: Arc::from(TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC),
-                values: Arc::from(tempering.iter().map(|t| t.kappa).collect::<Vec<_>>()),
-                detail: Arc::from(
-                    "per-horizon likelihood tempering factor kappa (rows weighted 1/kappa): the \
-                     variance ratio of that horizon's driving grid-cell-level combination under a \
-                     REML-fitted autoregressive residual, scaled by the residual-scale and \
-                     delta-method spread factors, bounded by three times the prewhitened Newey-West \
-                     long-run-variance ratio of the driving score, floored at 1 and capped at \
-                     n/(p+2) (support diagnostics response.temporal_bayesian.tempering_capped / \
-                     _inestimable disclose which horizons hit either bound)",
-                ),
-                scope: DiagnosticScope::Global,
-            });
-        }
-        let capped_horizons: Vec<u32> = temporal
-            .horizons
-            .iter()
-            .zip(&tempering)
-            .filter(|(_, t)| t.capped)
-            .map(|(&h, _)| h)
-            .collect();
-        let inestimable_horizons: Vec<u32> = temporal
-            .horizons
-            .iter()
-            .zip(&tempering)
-            .filter(|(_, t)| t.inestimable)
-            .map(|(&h, _)| h)
-            .collect();
-        if !inestimable_horizons.is_empty() {
-            support.warnings.push(Diagnostic::new(
-                TEMPORAL_BAYESIAN_TEMPERING_INESTIMABLE,
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Warning,
-                format!(
-                    "the long-run-variance tempering factor could not be estimated at horizon(s) \
-                     {inestimable_horizons:?} (n below max(8, p+2)); those cells keep the \
-                     untempered iid posterior and their credible interval is likely too narrow"
-                ),
-            ));
-        }
-        if !capped_horizons.is_empty() {
-            support.warnings.push(Diagnostic::new(
-                TEMPORAL_BAYESIAN_TEMPERING_CAPPED,
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Warning,
-                format!(
-                    "the long-run-variance tempering factor hit the n/(p+2) cap at horizon(s) \
-                     {capped_horizons:?}; kappa is known to be too small there and the published \
-                     credible interval is still too narrow"
-                ),
-            ));
-        }
+        disclose_posterior_basis(&mut support, whiteness, &tempering, temporal);
         if let Some(block) = joint_block {
             assumptions.push(temporal_bayesian_joint_trajectory_assumption(block));
         } else {
@@ -449,7 +233,7 @@ impl TemporalResponseEstimator {
             assumptions
                 .push(temporal_bayesian_tempering_assumption(&temporal.horizons, &tempering));
         }
-        let band_draws = if intervention.is_none() {
+        let band_draws = if target.intervention.is_none() {
             None
         } else if joint_block.is_some() {
             retained_joint_trajectory_draws(&band_columns, temporal.horizons.len())
@@ -477,6 +261,360 @@ impl TemporalResponseEstimator {
             horizon_identification: Some(Arc::from(horizons)),
             interaction_structurally_zero: false,
         })
+    }
+
+    /// Refuse a request the Bayesian temporal route does not cover; its temporal specification.
+    fn validate_bayesian_request<'q>(
+        &self,
+        query: &'q ResponseQuery,
+        estimator: &crate::BayesianGComputationAte,
+        identification_status: IdentificationStatus,
+        identification_count: usize,
+    ) -> Result<&'q TemporalResponseSpec, EstimationError> {
+        query.validate()?;
+        if query.observation != antecedent_core::ObservationSpec::Complete
+            || query.target_population != TargetPopulation::AllObserved
+        {
+            return Err(EstimationError::unsupported(
+                "Bayesian temporal response requires complete observations and the AllObserved population",
+            ));
+        }
+        if estimator.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity {
+            return Err(EstimationError::unsupported(ORDINARY_LIKELIHOOD_REFUSAL));
+        }
+        if !matches!(
+            identification_status,
+            IdentificationStatus::NonparametricallyIdentified
+                | IdentificationStatus::IdentifiedUnderParametricRestrictions
+        ) {
+            return Err(EstimationError::unsupported(
+                "Bayesian temporal response requires point identification at every horizon",
+            ));
+        }
+        let temporal = query.temporal.as_ref().ok_or_else(|| {
+            EstimationError::unsupported("missing temporal response specification")
+        })?;
+        if identification_count != temporal.horizons.len() {
+            return Err(EstimationError::unsupported("one identification required per horizon"));
+        }
+        // The untempered posterior is licensed at one step ahead only: an unfolded regression at
+        // horizon h >= 2 has moving-average residuals of order h - 1 whatever the innovation
+        // process, and horizons are separate fits that no single likelihood joins.
+        if self.white_innovation.is_some() && &*temporal.horizons != [1_u32].as_slice() {
+            return Err(EstimationError::refused(
+                antecedent_core::reason_code!("route_not_supported"),
+                "a declared white-innovation premise licenses the untempered posterior of a \
+                 temporal response at the single horizon of one step ahead only: an unfolded \
+                 regression at horizon h >= 2 has moving-average residuals of order h - 1 whatever \
+                 the innovation process, and separate horizons share no likelihood. Next attempt: \
+                 request horizon 1 alone, drop the declaration to use the tempered posterior, or \
+                 compose per-mechanism posteriors through the structural equations",
+            ));
+        }
+        Ok(temporal)
+    }
+
+    /// Fit every horizon on its own identified unfolded design and summarize its dose cells.
+    fn fit_horizons(
+        &self,
+        run: &HorizonRun<'_>,
+        assumptions: &mut AssumptionSet,
+    ) -> Result<HorizonFits, EstimationError> {
+        let HorizonRun { data, identifications, temporal, target, estimator, status, ctx } = *run;
+        let BayesTarget { outcome, treatment, doses, intervention } = target;
+        let (outcome, treatment, intervention) = (*outcome, *treatment, *intervention);
+        let mut fitted = HorizonFits {
+            rows: Vec::new(),
+            ranges: Vec::new(),
+            horizons: Vec::new(),
+            levels: Vec::new(),
+            tempering: Vec::new(),
+            fits: Vec::new(),
+            whiteness: None,
+        };
+        for (h, (&horizon_steps, &(estimand, indexer))) in
+            temporal.horizons.iter().zip(identifications).enumerate()
+        {
+            let pulse = TemporalEffectQuery {
+                treatment,
+                outcome,
+                policy: temporal.policy.clone(),
+                control: Intervention::set(treatment, Value::f64(0.0)),
+                active: Intervention::set(treatment, Value::f64(1.0)),
+                horizon_steps,
+                max_history_lag: temporal.max_history_lag,
+                target_population: TargetPopulation::AllObserved,
+                effect_modifiers: std::sync::Arc::from([]),
+            };
+            let (prep, aligned) = TemporalLinearAdjustment::new().prepare_aligned(
+                data,
+                estimand,
+                &pulse,
+                indexer,
+                None,
+                &ctx.kernel_policy,
+            )?;
+            let n = prep.design.nrows;
+            let t = &prep.design.matrix[n..2 * n];
+            fitted.ranges.push((
+                t.iter().copied().fold(f64::INFINITY, f64::min),
+                t.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+            ));
+            fitted.horizons.push(horizon_identification_of(
+                horizon_steps,
+                estimand,
+                indexer,
+                status,
+            )?);
+            let mut weights = design_column_means(&prep.design);
+            let base_weights = weights.clone();
+            let grid = if let Some((level, shift)) = intervention {
+                vec![level.unwrap_or(weights[1] + shift)]
+            } else {
+                doses.clone()
+            };
+            let mut est = estimator.clone();
+            est.seed = est.seed.wrapping_add(h as u64);
+            let posterior = if let Some(gate) = self.white_innovation {
+                // Declared serially independent innovations: the lag-aligned residual is the
+                // innovation, the rows are independent Gaussian terms, and the likelihood is
+                // untempered. A Ljung-Box rejection refuses the fit and names the tempered
+                // posterior; a pass does not prove the premise.
+                let fit = fit_white_innovation_posterior(
+                    &est,
+                    &prep,
+                    &WhiteInnovationDeclaration { horizon_steps, gate },
+                    status,
+                    ctx,
+                )?;
+                fitted.whiteness = Some(fit.whiteness);
+                fit.posterior
+            } else {
+                let mut bprep = crate::BayesianGComputationAte::from_prepared_estimation(&prep);
+                // Lag-aligned rows are time-ordered: at h ≥ 2 the unfolded regression omits the
+                // intermediate treatments and outcome innovations, so its residuals are MA(h−1)
+                // whenever the outcome or treatment is persistent, and serially dependent at
+                // every horizon under autocorrelated innovations. Each horizon's likelihood is
+                // tempered by the long-run-variance ratio of its grid-cell levels (floored at 1),
+                // the same generalized posterior as the Bayesian Pulse / Sustained cells.
+                bprep.serial_dependence =
+                    SerialDependence::LongRunTempering(DependenceScope::Levels(
+                        grid.iter()
+                            .map(|&dose| {
+                                let mut direction = weights.clone();
+                                direction[TREATMENT_COL] = dose;
+                                Arc::from(direction)
+                            })
+                            .collect(),
+                    ));
+                est.fit(&bprep, status, &mut crate::BayesianGCompWorkspace::default(), ctx)?
+            };
+            if h == 0 {
+                assumptions.entries.extend(
+                    posterior
+                        .assumptions
+                        .entries
+                        .iter()
+                        .filter(|record| !is_tempering_record(record))
+                        .cloned(),
+                );
+            }
+            if fitted.whiteness.is_none() {
+                fitted.tempering.push(HorizonTempering::from_notes(&posterior.diagnostics.notes));
+            }
+            if intervention.is_some() {
+                fitted.levels.push(grid[0]);
+            }
+            fitted.fits.push(HorizonFit::of(&posterior, &prep, aligned, base_weights, grid.clone()));
+            let mut row = Vec::new();
+            for dose in grid {
+                weights[1] = dose;
+                let values = crate::bayesian::linear_response_draws(&posterior, &weights)?;
+                let summary =
+                    crate::bayesian::summarize_linear_response_draws(values.clone(), 0.95)?;
+                row.push((summary, values));
+            }
+            fitted.rows.push(row);
+        }
+        Ok(fitted)
+    }
+}
+
+/// The outcome, treatment, dose grid and single-treatment policy of a mean curve or an
+/// intervention response; a multi-step Sequence is refused.
+fn bayesian_target(
+    query: &ResponseQuery,
+    temporal: &TemporalResponseSpec,
+) -> Result<BayesTarget, EstimationError> {
+    match &query.functional {
+        ResponseFunctional::MeanCurve { outcome, treatment } => Ok(BayesTarget {
+            outcome: *outcome,
+            treatment: treatment.variable,
+            doses: treatment.grid.values()?,
+            intervention: None,
+        }),
+        ResponseFunctional::InterventionResponse { outcome, interventions } => {
+            match plan_temporal_intervention(interventions, temporal)? {
+                TemporalInterventionPlan::Single { treatment, level, shift } => Ok(BayesTarget {
+                    outcome: *outcome,
+                    treatment,
+                    doses: Vec::new(),
+                    intervention: Some((level, shift)),
+                }),
+                TemporalInterventionPlan::Sequential { .. }
+                | TemporalInterventionPlan::Mechanisms { .. } => {
+                    Err(EstimationError::unsupported(
+                        "Bayesian multi-step Sequence uses sequential mechanism overlays, \
+                         not response.temporal.bayesian / bayesian.gcomp",
+                    ))
+                }
+            }
+        }
+        _ => Err(EstimationError::unsupported(
+            "Bayesian temporal response supports only curves and intervention responses",
+        )),
+    }
+}
+
+/// Tie the horizons into one joint trajectory law. A single horizon is its own posterior.
+///
+/// Returns the dependence block length of the joint law, or, when the cross-horizon dependence
+/// could not be formed, the reason the horizons keep independent draws.
+fn tie_horizons(
+    rows: &mut [Vec<CellDraws>],
+    fits: Vec<Result<HorizonFit, EstimationError>>,
+    temporal: &TemporalResponseSpec,
+    seed: u64,
+    ctx: &ExecutionContext,
+) -> Result<(Option<usize>, Option<String>), EstimationError> {
+    if rows.len() <= 1 {
+        return Ok((None, None));
+    }
+    let span = temporal
+        .horizons
+        .iter()
+        .copied()
+        .max()
+        .unwrap_or(1)
+        .saturating_add(temporal.max_history_lag.unwrap_or(0));
+    let span = usize::try_from(span).unwrap_or(usize::MAX);
+    let outcome = fits.into_iter().collect::<Result<Vec<_>, _>>().and_then(|fits| {
+        joint_trajectory_draws(&fits, span, seed, &ctx.rng).map(|j| (fits, j))
+    });
+    match outcome {
+        Ok((fits, (theta, block))) => {
+            for ((fit, columns), row) in fits.iter().zip(&theta).zip(rows.iter_mut()) {
+                let mut weights = fit.base.clone();
+                for (cell, &dose) in row.iter_mut().zip(&fit.grid) {
+                    weights[1] = dose;
+                    let values = combine_columns(columns, &weights);
+                    let summary =
+                        crate::bayesian::summarize_linear_response_draws(values.clone(), 0.95)?;
+                    *cell = (summary, values);
+                }
+            }
+            Ok((Some(block), None))
+        }
+        Err(error) => Ok((None, Some(error.to_string()))),
+    }
+}
+
+/// Flatten the per-horizon rows into the published cell order: dose-major, horizon-minor.
+fn summarize_cells(rows: &[Vec<CellDraws>], cell_count: usize) -> CellSummaries {
+    let mut cells = CellSummaries {
+        mean: Vec::new(),
+        lower: Vec::new(),
+        upper: Vec::new(),
+        band_columns: Vec::new(),
+    };
+    for d in 0..cell_count {
+        for row in rows {
+            let ((m, lo, hi, _), values) = &row[d];
+            cells.mean.push(*m);
+            cells.lower.push(*lo);
+            cells.upper.push(*hi);
+            cells.band_columns.push(values.clone());
+        }
+    }
+    cells
+}
+
+/// The support diagnostic and warnings that disclose which posterior the cells are: the
+/// white-innovation residual test of an untempered posterior, or the per-horizon tempering
+/// factors with the horizons whose factor hit a bound.
+fn disclose_posterior_basis(
+    support: &mut SupportReport,
+    whiteness: Option<InnovationWhitenessReport>,
+    tempering: &[HorizonTempering],
+    temporal: &TemporalResponseSpec,
+) {
+    if let Some(report) = whiteness {
+        support.diagnostics.push(SupportDiagnostic {
+            id: Arc::from(WHITE_INNOVATION_SUPPORT_DIAGNOSTIC),
+            values: Arc::from(vec![report.q_statistic, report.p_value]),
+            detail: Arc::from(format!(
+                "{WHITE_INNOVATION_NOTE_PREFIX}: Ljung-Box Q and its p-value on {} residual \
+                 autocorrelations of {} rows; the test did not reject serially independent \
+                 innovations at level {}, and a pass does not prove the declared premise. The \
+                 likelihood is untempered, so the credible interval is the interval of a \
+                 correctly specified model only if the premise holds",
+                report.lags, report.rows, report.level
+            )),
+            scope: DiagnosticScope::Global,
+        });
+    } else {
+        support.diagnostics.push(SupportDiagnostic {
+            id: Arc::from(TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC),
+            values: Arc::from(tempering.iter().map(|t| t.kappa).collect::<Vec<_>>()),
+            detail: Arc::from(
+                "per-horizon likelihood tempering factor kappa (rows weighted 1/kappa): the \
+                 variance ratio of that horizon's driving grid-cell-level combination under a \
+                 REML-fitted autoregressive residual, scaled by the residual-scale and \
+                 delta-method spread factors, bounded by three times the prewhitened Newey-West \
+                 long-run-variance ratio of the driving score, floored at 1 and capped at \
+                 n/(p+2) (support diagnostics response.temporal_bayesian.tempering_capped / \
+                 _inestimable disclose which horizons hit either bound)",
+            ),
+            scope: DiagnosticScope::Global,
+        });
+    }
+    let capped_horizons: Vec<u32> = temporal
+        .horizons
+        .iter()
+        .zip(tempering)
+        .filter(|(_, t)| t.capped)
+        .map(|(&h, _)| h)
+        .collect();
+    let inestimable_horizons: Vec<u32> = temporal
+        .horizons
+        .iter()
+        .zip(tempering)
+        .filter(|(_, t)| t.inestimable)
+        .map(|(&h, _)| h)
+        .collect();
+    if !inestimable_horizons.is_empty() {
+        support.warnings.push(Diagnostic::new(
+            TEMPORAL_BAYESIAN_TEMPERING_INESTIMABLE,
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            format!(
+                "the long-run-variance tempering factor could not be estimated at horizon(s) \
+                 {inestimable_horizons:?} (n below max(8, p+2)); those cells keep the \
+                 untempered iid posterior and their credible interval is likely too narrow"
+            ),
+        ));
+    }
+    if !capped_horizons.is_empty() {
+        support.warnings.push(Diagnostic::new(
+            TEMPORAL_BAYESIAN_TEMPERING_CAPPED,
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            format!(
+                "the long-run-variance tempering factor hit the n/(p+2) cap at horizon(s) \
+                 {capped_horizons:?}; kappa is known to be too small there and the published \
+                 credible interval is still too narrow"
+            ),
+        ));
     }
 }
 

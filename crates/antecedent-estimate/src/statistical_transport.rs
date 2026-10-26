@@ -271,8 +271,7 @@ pub fn evaluate_bayesian_statistical_transport_grid(
             .stream_for(StreamDomain::Transport, TransportStream::BayesianGrid.index(0, draw_id)?);
         let (mut laws, by_sample) = drawer.draw(&mut rng)?;
         laws.extend(by_sample.into_values());
-        let data = antecedent_expr::ExactTransportData::try_new(laws, options.max_joint_cells)
-            .map_err(|error| EstimationError::data_msg(error.to_string()))?;
+        let data = antecedent_expr::ExactTransportData::try_new(laws, options.max_joint_cells)?;
         let mut request_distributions = Vec::with_capacity(requests.len());
         let mut draw_failed = false;
         for request in requests {
@@ -1229,7 +1228,7 @@ impl<'a> CitedTables<'a> {
                         law.tolerance(),
                     ),
                 };
-                rebuilt.map_err(|error| EstimationError::data_msg(error.to_string()))
+                rebuilt.map_err(EstimationError::from)
             })
             .collect()
     }
@@ -1768,7 +1767,7 @@ impl<'t, 'a> TableDrawer<'t, 'a> {
             .rebuild(&self.probabilities, spec.keep_counts.then_some(&self.resampled))?;
         antecedent_expr::ExactTransportData::try_new(laws, self.max_support_rows)
             .map(Some)
-            .map_err(|error| EstimationError::data_msg(error.to_string()))
+            .map_err(EstimationError::from)
     }
 }
 

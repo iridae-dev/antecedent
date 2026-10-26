@@ -139,8 +139,7 @@ fn analytic_cell(base: u64) -> Fingerprint {
 }
 
 fn analytic_cell_rows(rows: usize, base: u64) -> Fingerprint {
-    let estimator =
-        LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::default() };
+    let estimator = LinearAdjustmentAte::default().with_bootstrap_replicates(0);
     let ctx = ExecutionContext::for_tests(base);
     let mut tally = CoverageTally::new("determinism.linear_adjustment", 0.95);
     let mut estimates = Vec::new();
@@ -157,10 +156,7 @@ fn analytic_cell_rows(rows: usize, base: u64) -> Fingerprint {
 
 /// Bootstrap-SE Hajek IPW: every replicate resamples from the context's seeded RNG.
 fn bootstrap_cell(base: u64) -> Fingerprint {
-    let estimator = PropensityWeighting {
-        bootstrap_replicates: BOOTSTRAP_REPLICATES,
-        ..PropensityWeighting::new()
-    };
+    let estimator = PropensityWeighting::new().with_bootstrap_replicates(BOOTSTRAP_REPLICATES);
     let mut tally = CoverageTally::new("determinism.ipw_bootstrap", 0.95);
     let mut estimates = Vec::new();
     for replicate in 0..REPLICATES {
@@ -192,10 +188,7 @@ fn bootstrap_coverage_tally_is_reproducible_bit_for_bit() {
     let first = bootstrap_cell(5_100);
     assert_eq!(first, bootstrap_cell(5_100), "same seeds, different bootstrap tally");
     // Same data, another resampling stream: only the bootstrap seed differs.
-    let estimator = PropensityWeighting {
-        bootstrap_replicates: BOOTSTRAP_REPLICATES,
-        ..PropensityWeighting::new()
-    };
+    let estimator = PropensityWeighting::new().with_bootstrap_replicates(BOOTSTRAP_REPLICATES);
     let data = confounded(5_100);
     let prepared = estimator.prepare(&data, &backdoor_z(), &query()).unwrap();
     let se = |seed| {

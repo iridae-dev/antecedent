@@ -16,6 +16,7 @@ pub(crate) const MIN_ACTION_ROWS_FOR_INTERVAL: usize = 30;
 pub const MIN_EXPECTED_ARM_ROWS_FOR_INTERVAL: f64 = 40.0;
 /// Minimum declared probability for either contrasted action at every row.
 pub(crate) const MIN_ACTION_PROBABILITY_FOR_INTERVAL: f64 = 0.2;
+use antecedent_core::ProbabilityTable;
 use antecedent_stats::NORMAL_Q975 as NORMAL_95;
 
 /// Horvitz–Thompson effect and its conservative independent-row score variance.
@@ -46,15 +47,15 @@ pub struct IndependentActionContrast {
 pub fn independent_action_contrast(
     outcomes: &[f64],
     assignments: &[usize],
-    probabilities: &[Vec<f64>],
+    probabilities: &(impl ProbabilityTable + ?Sized),
     reference: usize,
     action: usize,
 ) -> Option<IndependentActionContrast> {
     let n = outcomes.len();
-    if n < 2 || assignments.len() != n || probabilities.len() != n || reference == action {
+    if n < 2 || assignments.len() != n || probabilities.row_count() != n || reference == action {
         return None;
     }
-    let arms = probabilities.first()?.len();
+    let arms = probabilities.first_row()?.len();
     if arms < 2 || reference >= arms || action >= arms {
         return None;
     }
@@ -65,7 +66,7 @@ pub fn independent_action_contrast(
     let mut action_expected = 0.0;
     let mut probability_supported = true;
     for i in 0..n {
-        let row = &probabilities[i];
+        let row = probabilities.row_at(i);
         if !outcomes[i].is_finite()
             || row.len() != arms
             || assignments[i] >= arms

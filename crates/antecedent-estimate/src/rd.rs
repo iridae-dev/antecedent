@@ -74,6 +74,7 @@ use antecedent_expr::{
 use antecedent_identify::{IdentificationResult, IdentificationStatus};
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
+use crate::arm::TreatmentArm;
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
@@ -334,8 +335,8 @@ impl SharpRegressionDiscontinuity {
                 "no rows within the bandwidth window of the cutoff",
             ));
         }
-        let has_treated = treated_sel.iter().any(|&t| t > 0.5);
-        let has_control = treated_sel.iter().any(|&t| t < 0.5);
+        let has_treated = treated_sel.iter().any(|&t| TreatmentArm::is_treated_indicator(t));
+        let has_control = treated_sel.iter().any(|&t| !TreatmentArm::is_treated_indicator(t));
         if !has_treated || !has_control {
             return Err(EstimationError::data_msg(
                 "bandwidth window must contain rows on both sides of the cutoff",
@@ -579,20 +580,32 @@ impl SharpRegressionDiscontinuity {
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
         let n = problem.nrows;
-        // Each worker gathers `n * RD_NCOLS` design cells and `n` outcomes.
+        // Each worker holds at most `n * RD_NCOLS` design cells, `n` outcomes and `n` counts
+        // (the distinct rows of a resample, scaled by the root of their multiplicity).
         let _gather =
-            crate::util::admit_gather_scratch(ctx, n, RD_NCOLS + 1, self.bootstrap_replicates)?;
+            crate::util::admit_gather_scratch(ctx, n, RD_NCOLS + 2, self.bootstrap_replicates)?;
         // Replicates own a cold workspace; parallel workers cannot share the caller's.
         crate::util::bootstrap_se_with_scratch(
             self.bootstrap_replicates,
             ctx,
             0x5D0C_u64,
             n,
-            || (RdWorkspace::default(), vec![0.0; n * RD_NCOLS], vec![0.0; n]),
-            |(ws, x_boot, y_boot), idx| {
-                crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
-                crate::util::gather_cols(x_boot, &problem.matrix, n, RD_NCOLS, idx);
-                match self.backend.least_squares(x_boot, n, RD_NCOLS, y_boot, &mut ws.ols) {
+            || (RdWorkspace::default(), Vec::<f64>::new(), Vec::<f64>::new(), Vec::<u32>::new()),
+            |(ws, x_boot, y_boot, counts), idx| {
+                // The fit of the resample's repeated rows is the fit of its distinct rows
+                // scaled by the root of their multiplicity; no repeated row is materialized.
+                crate::util::resample_counts(counts, n, idx);
+                let rows = crate::util::gather_count_weighted(
+                    x_boot,
+                    y_boot,
+                    &problem.matrix,
+                    &problem.outcome,
+                    n,
+                    RD_NCOLS,
+                    counts,
+                    RD_NCOLS,
+                );
+                match self.backend.least_squares(x_boot, rows, RD_NCOLS, y_boot, &mut ws.ols) {
                     Ok(fit) => Ok(Some(fit.coefficients[RD_TREATMENT_COL])),
                     Err(_) => Ok(None),
                 }

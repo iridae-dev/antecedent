@@ -8,7 +8,7 @@ use super::{
     ContrastFit, EstimationError, ExecutionContext, IdentifiedEstimand, LaggedColumn,
     MediationContrast, MediationDesign, MediationQuery, TemporalMediationBlockSe,
     TemporalMediationEstimate, TemporalMediationEstimator, TimeSeriesData,
-    mediation_design_max_lag, ols_three_col, ols_two_col,
+    mediation_design_max_lag, ols_mechanism, ols_two_col,
 };
 use crate::temporal_block::{
     AlignedRows, CircularBlockFamily, GappedAlignedRows, aligned_block_bootstrap,
@@ -47,10 +47,10 @@ impl TemporalMediationEstimator {
         adjustment: &[LaggedColumn],
         ctx: &ExecutionContext,
     ) -> Result<PreparedTemporalMediation, EstimationError> {
-        let (mediator, delta) = self.validate(estimand, query)?;
+        let (mediators, delta) = self.validate(estimand, query)?;
         let design = Self::prepare_design_with_gaps(
             data,
-            mediator,
+            &mediators,
             query,
             adjustment,
             &[],
@@ -118,13 +118,21 @@ impl PreparedTemporalMediation {
             .chunks_exact(n)
             .map(|column| rows.iter().map(|&r| column.get(r).copied()).collect())
             .collect::<Option<_>>()?;
-        let (t, m, y) = (&gathered[0], &gathered[1], &gathered[2]);
-        let extras: Vec<&[f64]> = gathered[3..].iter().map(Vec::as_slice).collect();
+        let q = self.design.n_mediators;
+        let (t, y) = (&gathered[0], &gathered[1 + q]);
+        let extras: Vec<&[f64]> = gathered[2 + q..].iter().map(Vec::as_slice).collect();
         let backend = self.estimator.backend;
-        let (a, ..) = ols_two_col(backend, t, m, &extras).ok()?;
-        let (c_prime, b, ..) = ols_three_col(backend, t, m, y, &extras).ok()?;
+        let mut lead: Vec<&[f64]> = Vec::with_capacity(1 + q);
+        lead.push(t);
+        lead.extend(gathered[1..=q].iter().map(Vec::as_slice));
+        let (coef, ..) = ols_mechanism(backend, &lead, &extras, y).ok()?;
+        let mut product = 0.0;
+        for (j, mediator) in gathered[1..=q].iter().enumerate() {
+            let (a, ..) = ols_two_col(backend, t, mediator, &extras).ok()?;
+            product = if j == 0 { a * coef[2] } else { product + a * coef[2 + j] };
+        }
         let (c, ..) = ols_two_col(backend, t, y, &extras).ok()?;
-        Some([c * self.delta, c_prime * self.delta, a * b * self.delta])
+        Some([c * self.delta, coef[1] * self.delta, product * self.delta])
     }
 }
 

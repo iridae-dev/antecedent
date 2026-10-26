@@ -41,6 +41,7 @@ use antecedent_core::StreamDomain;
 use antecedent_core::execution::AdmissionError;
 use antecedent_data::{circular_block_length, fill_circular_block_indexes};
 
+use crate::arm::TreatmentArm;
 use crate::util::{BootstrapSeResult, finalize_bootstrap_se_ex};
 
 /// The circular-block SE families that carry their own short-series threshold.
@@ -328,7 +329,7 @@ pub(crate) fn politis_white_block_length(scores: &[f64]) -> Option<usize> {
     rho_through(&mut rho, big_m);
     let flat_top = |t: f64| {
         let t = t.abs();
-        if t <= 0.5 {
+        if !TreatmentArm::is_treated_indicator(t) {
             1.0
         } else if t <= 1.0 {
             2.0 * (1.0 - t)
@@ -1056,7 +1057,7 @@ mod tests {
             let big_m = (2 * m_hat).min(m_max).max(1);
             let flat_top = |t: f64| {
                 let t = t.abs();
-                if t <= 0.5 {
+                if !TreatmentArm::is_treated_indicator(t) {
                     1.0
                 } else if t <= 1.0 {
                     2.0 * (1.0 - t)

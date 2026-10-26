@@ -580,8 +580,7 @@ pub fn prepare_empirical_transport_scenarios(
         None => antecedent_expr::ExactTransportData::try_new(
             input.supplied.clone(),
             max_joint_cells.max(1),
-        )
-        .map_err(|e| EstimationError::data_msg(e.to_string()))?,
+        )?,
     };
     let mut prepared = prepare_transport_scenarios(decision, data, request, limits, ctx)?;
     prepared.empirical = Some(Arc::new(input));

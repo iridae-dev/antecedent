@@ -13,7 +13,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::sync::Arc;
+
 use antecedent_io_core::capacity_account::{DesignShape, WeightedCapacityError, WeightedRowSource};
+
+use crate::overlap::ClipSensitivity;
 
 /// What each row contributes to the engine.
 #[derive(Clone, Copy, Debug)]
@@ -225,6 +229,15 @@ impl EngineFacts {
     }
 }
 
+/// A refusal of the weighted-Gaussian capacity engine as an estimation error. The engine's
+/// error is neither `Clone` nor `Eq`, so it cannot be held by [`crate::EstimationError`]; its
+/// rendered text is the data-layer message.
+pub(crate) fn capacity_error(
+    error: antecedent_io_core::capacity_account::WeightedCapacityError,
+) -> crate::error::EstimationError {
+    crate::error::EstimationError::data_msg(error.to_string())
+}
+
 /// One pass of the weighted-Gaussian engine over `source`.
 ///
 /// # Errors
@@ -240,7 +253,7 @@ pub(crate) fn run_engine(
 > {
     use antecedent_io_core::capacity_account::{CapacityControl, run_weighted_capacity};
     let result = run_weighted_capacity(CapacityControl::Glm, source, options)
-        .map_err(|error| crate::error::EstimationError::data_msg(error.to_string()))?
+        .map_err(capacity_error)?
         .into_resident()
         .ok_or_else(|| {
             crate::error::EstimationError::data_msg("the reduction summary was not resident")
@@ -306,4 +319,130 @@ pub(crate) fn fit_logistic_streamed(
     Err(crate::error::EstimationError::data_msg(
         "GLM IRLS did not converge; refuse propensity/outcome scores",
     ))
+}
+
+/// Weight above which a weight is counted extreme, as the resident overlap report counts it.
+pub(crate) const EXTREME_WEIGHT: f64 = 10.0;
+/// Fitted probabilities this close to 0 or 1 are refused, as the resident fit refuses them.
+pub(crate) const BOUNDARY: f64 = 1e-8;
+
+/// One kept row: the propensity design row `[1 | Z…]`, its arm and its outcome.
+pub(crate) struct RowView<'r> {
+    pub(crate) design: &'r [f64],
+    pub(crate) treated: bool,
+    pub(crate) outcome: f64,
+}
+
+/// Visit every kept row with its place among the kept rows.
+#[allow(
+    clippy::float_cmp,
+    reason = "the declared treatment level is an exact category label, not a computed value"
+)]
+pub(crate) fn for_each_kept_row(
+    mask: &[bool],
+    covariates: &[&[f64]],
+    treatment: &[f64],
+    outcome: &[f64],
+    active: f64,
+    mut visit: impl FnMut(usize, RowView<'_>),
+) {
+    let mut design = vec![0.0; 1 + covariates.len()];
+    design[0] = 1.0;
+    let mut place = 0;
+    for (row, &kept) in mask.iter().enumerate() {
+        if !kept {
+            continue;
+        }
+        for (slot, column) in design[1..].iter_mut().zip(covariates) {
+            *slot = column[row];
+        }
+        visit(
+            place,
+            RowView { design: &design, treated: treatment[row] == active, outcome: outcome[row] },
+        );
+        place += 1;
+    }
+}
+
+/// Fitted propensity of a design row: the unclamped logistic mean, kept off 0 and 1 as the
+/// resident scores are.
+pub(crate) fn fitted_propensity(design: &[f64], coefficients: &[f64]) -> f64 {
+    let eta: f64 = design.iter().zip(coefficients).map(|(x, b)| x * b).sum();
+    clamped_mean(eta)
+}
+
+/// Running sums of one weight vector: all rows and each arm.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct WeightSums {
+    pub(crate) sum: f64,
+    pub(crate) sum_sq: f64,
+    extreme: u64,
+    treated_sum: f64,
+    treated_sum_sq: f64,
+    control_sum: f64,
+    control_sum_sq: f64,
+}
+
+impl WeightSums {
+    pub(crate) fn push(&mut self, weight: f64, treated: bool) {
+        self.sum += weight;
+        self.sum_sq += weight * weight;
+        if weight > EXTREME_WEIGHT {
+            self.extreme += 1;
+        }
+        if treated {
+            self.treated_sum += weight;
+            self.treated_sum_sq += weight * weight;
+        } else {
+            self.control_sum += weight;
+            self.control_sum_sq += weight * weight;
+        }
+    }
+
+    /// Kish effective sample size `(Σw)² / Σw²` of a weight vector; zero without weight.
+    pub(crate) fn ess(sum: f64, sum_sq: f64) -> f64 {
+        if sum_sq > 0.0 { (sum * sum) / sum_sq } else { 0.0 }
+    }
+
+    pub(crate) fn extreme_count(&self) -> u32 {
+        u32::try_from(self.extreme).unwrap_or(u32::MAX)
+    }
+}
+
+/// The clip thresholds the overlap report is re-evaluated at: half the clip, the clip and
+/// twice the clip (capped below 0.5), without adjacent repeats. Empty without a clip.
+pub(crate) fn clip_sensitivity_thresholds(clip: Option<f64>) -> Vec<f64> {
+    let Some(c) = clip else {
+        return Vec::new();
+    };
+    let mut kept: Vec<f64> = Vec::with_capacity(3);
+    for candidate in [c * 0.5, c, (c * 2.0).min(0.49)] {
+        if kept.last().is_some_and(|previous| (previous - candidate).abs() < 1e-15) {
+            continue;
+        }
+        kept.push(candidate);
+    }
+    kept
+}
+
+/// The clip-sensitivity block of an overlap report from the weight sums at each threshold;
+/// `None` without a clip.
+pub(crate) fn clip_sensitivity_report(
+    clip: Option<f64>,
+    thresholds: &[f64],
+    sensitivity: &[WeightSums],
+) -> Option<ClipSensitivity> {
+    clip.map(|_| ClipSensitivity {
+        thresholds: Arc::from(thresholds),
+        ess: sensitivity.iter().map(|s| WeightSums::ess(s.sum, s.sum_sq)).collect(),
+        treated_ess: sensitivity
+            .iter()
+            .map(|s| WeightSums::ess(s.treated_sum, s.treated_sum_sq))
+            .collect(),
+        control_ess: sensitivity
+            .iter()
+            .map(|s| WeightSums::ess(s.control_sum, s.control_sum_sq))
+            .collect(),
+        extreme_weight_counts: sensitivity.iter().map(WeightSums::extreme_count).collect(),
+    })
 }

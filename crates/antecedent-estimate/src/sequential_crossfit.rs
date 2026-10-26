@@ -920,8 +920,12 @@ fn produce(
 ) -> Result<Produced, SequentialCrossfitError> {
     let mut coefficients = Vec::new();
     let mut blocks = Vec::new();
+    // The constant column and the fit buffers are shared by every evaluation fold.
+    let intercept = vec![1.0; request.panel.first_treatment.len()];
+    let mut scratch = FitScratch::default();
     for evaluation_fold in used_folds(request.folds) {
-        let (coefficient, block) = fit_evaluation(request, evaluation_fold, workspace)?;
+        let (coefficient, block) =
+            fit_evaluation(request, evaluation_fold, &intercept, workspace, &mut scratch)?;
         coefficients.push(coefficient);
         blocks.push(block);
     }
@@ -964,7 +968,9 @@ fn panel_index(row_id: u64) -> Result<usize, SequentialCrossfitError> {
 fn fit_evaluation(
     request: &ProduceRequest<'_>,
     evaluation_fold: u32,
+    intercept: &[f64],
     workspace: &mut LeastSquaresWorkspace,
+    scratch: &mut FitScratch,
 ) -> Result<(FoldCoefficients, BlockedOutOfFoldPredictions), SequentialCrossfitError> {
     let training = row_indexes(request.folds, evaluation_fold, true)?;
     let evaluation_rows = row_indexes(request.folds, evaluation_fold, false)?;
@@ -974,14 +980,12 @@ fn fit_evaluation(
     if evaluation_rows.is_empty() {
         return Err(refused("an evaluation fold has no rows; next attempt: assign that fold"));
     }
-    let n = request.panel.first_treatment.len();
-    let intercept = vec![1.0; n];
     let outcome = if let Some(terminal) = request.terminal {
-        pseudo_outcomes(request.panel, &intercept, evaluation_fold, terminal)?
+        std::borrow::Cow::Owned(pseudo_outcomes(request.panel, intercept, evaluation_fold, terminal)?)
     } else {
-        outcome_column(request.panel, request.family, request.features).to_vec()
+        std::borrow::Cow::Borrowed(outcome_column(request.panel, request.family, request.features))
     };
-    let columns = feature_columns(request.features, request.panel, &intercept);
+    let columns = feature_columns(request.features, request.panel, intercept);
     let subset = subset_rows(request.panel, &training, request.subset, evaluation_fold)?;
     if subset.len() <= columns.len() {
         return Err(SequentialCrossfitError::Underdetermined {
@@ -993,8 +997,15 @@ fn fit_evaluation(
     if matches!(request.family, FitFamily::Logistic) {
         require_both_actions(&outcome, &subset, evaluation_fold, request.decision)?;
     }
-    let coefficients =
-        fit_coefficients(request.family, evaluation_fold, &columns, &subset, &outcome, workspace)?;
+    let coefficients = fit_coefficients(
+        request.family,
+        evaluation_fold,
+        &columns,
+        &subset,
+        &outcome,
+        workspace,
+        scratch,
+    )?;
     let mut predicted = Vec::with_capacity(evaluation_rows.len());
     for row in &evaluation_rows {
         let eta = linear_predictor(&coefficients, &columns, *row)?;
@@ -1056,14 +1067,15 @@ fn feature_columns<'a>(
     columns
 }
 
-fn subset_rows(
+/// The training rows the fit reads: all of them (borrowed) or those at one action level.
+fn subset_rows<'t>(
     panel: SequentialPanel<'_>,
-    training: &[usize],
+    training: &'t [usize],
     subset: Subset,
     evaluation_fold: u32,
-) -> Result<Vec<usize>, SequentialCrossfitError> {
+) -> Result<std::borrow::Cow<'t, [usize]>, SequentialCrossfitError> {
     let (treatment, action, decision) = match subset {
-        Subset::All => return Ok(training.to_vec()),
+        Subset::All => return Ok(std::borrow::Cow::Borrowed(training)),
         Subset::First(action) => (panel.first_treatment, action, 0),
         Subset::Second(action) => (panel.second_treatment, action, 1),
     };
@@ -1076,7 +1088,7 @@ fn subset_rows(
             action: action.code(),
         });
     }
-    Ok(rows)
+    Ok(std::borrow::Cow::Owned(rows))
 }
 
 fn require_both_actions(
@@ -1121,6 +1133,13 @@ fn row_id_of(row: usize) -> Result<u64, SequentialCrossfitError> {
     u64::try_from(row).map_err(|_| refused("a row index does not fit this count"))
 }
 
+/// Training-design buffers reused by every fold fit of one role.
+#[derive(Default)]
+struct FitScratch {
+    matrix: Vec<f64>,
+    y: Vec<f64>,
+}
+
 fn fit_coefficients(
     family: FitFamily,
     fold: u32,
@@ -1128,9 +1147,11 @@ fn fit_coefficients(
     rows: &[usize],
     outcome: &[f64],
     workspace: &mut LeastSquaresWorkspace,
+    scratch: &mut FitScratch,
 ) -> Result<Vec<f64>, SequentialCrossfitError> {
-    let matrix = column_major(columns, rows);
-    let y = gather(outcome, rows);
+    column_major_into(&mut scratch.matrix, columns, rows);
+    crate::util::gather_into(&mut scratch.y, outcome, rows);
+    let (matrix, y) = (&scratch.matrix, &scratch.y);
     let nrows = rows.len();
     let ncols = columns.len();
     let backend = FaerBackend;
@@ -1138,7 +1159,7 @@ fn fit_coefficients(
         FitFamily::Logistic => {
             let fit = fit_glm(
                 GlmFamily::BinomialLogit,
-                GlmDesignRef { x_colmajor: &matrix, nrows, ncols, y: &y },
+                GlmDesignRef { x_colmajor: matrix, nrows, ncols, y },
                 &backend,
                 workspace,
                 &GlmOptions::new(50, 1e-8).without_separation_ridge(),
@@ -1147,7 +1168,7 @@ fn fit_coefficients(
             fit.coefficients
         }
         FitFamily::LeastSquares => {
-            let fit = backend.least_squares(&matrix, nrows, ncols, &y, workspace)?;
+            let fit = backend.least_squares(matrix, nrows, ncols, y, workspace)?;
             if fit.rank != ncols {
                 return Err(SequentialCrossfitError::Rank { fold });
             }
@@ -1160,22 +1181,19 @@ fn fit_coefficients(
     Ok(coefficients)
 }
 
-fn column_major(columns: &[&[f64]], rows: &[usize]) -> Vec<f64> {
+/// The `rows` of `columns` as one column-major matrix, written into the reused buffer.
+fn column_major_into(matrix: &mut Vec<f64>, columns: &[&[f64]], rows: &[usize]) {
     let nrows = rows.len();
-    let mut matrix = vec![0.0; nrows.saturating_mul(columns.len())];
+    matrix.clear();
+    matrix.resize(nrows.saturating_mul(columns.len()), 0.0);
     if nrows == 0 {
-        return matrix;
+        return;
     }
     for (col, column) in columns.iter().enumerate() {
         for (out, &row) in rows.iter().enumerate() {
             matrix[col * nrows + out] = column[row];
         }
     }
-    matrix
-}
-
-fn gather(values: &[f64], rows: &[usize]) -> Vec<f64> {
-    crate::util::gather(values, rows)
 }
 
 fn linear_predictor(

@@ -258,9 +258,7 @@ fn validate(request: &DoseGridPosteriorRequest<'_>) -> Result<Vec<f64>, Estimati
         DoseFunctional::Contrast { from, to } => vec![from, to],
         DoseFunctional::Level | DoseFunctional::Derivative => request.grid.to_vec(),
     };
-    if points.is_empty()
-        || points.iter().any(|v| !v.is_finite())
-    {
+    if points.is_empty() || points.iter().any(|v| !v.is_finite()) {
         return Err(invalid("the requested doses must be at least one finite value"));
     }
     let (minimum, maximum) = request
@@ -347,8 +345,7 @@ fn tile_levels(
                 }
             }
         }
-    })
-    .map_err(|error| EstimationError::data_msg(error.to_string()))?;
+    })?;
     Ok(out)
 }
 
@@ -373,8 +370,7 @@ fn tile_covariance(
                 }
             }
         }
-    })
-    .map_err(|error| EstimationError::data_msg(error.to_string()))?;
+    })?;
     Ok(out)
 }
 

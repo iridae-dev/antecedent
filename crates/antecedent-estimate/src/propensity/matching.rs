@@ -930,156 +930,154 @@ pub(crate) struct MatchedEstimate {
     pub(crate) n_obs: usize,
 }
 
-/// ATT/ATC/ATE via nearest-neighbor matching on `features` (dim columns, row-major).
-///
-/// ATT matches treated→nearest control; ATC matches control→nearest treated (sign-flipped);
-/// ATE pools both directions' per-unit imputed effects (Abadie–Imbens style).
-#[allow(
-    clippy::too_many_lines,
-    reason = "split by arm, match, then form the point, Abadie-Imbens variance and standard error from the same donor usage"
-)]
-pub(crate) fn matching_contrast(
-    sample: MatchingSample<'_>,
+/// The treated and control rows of a matching sample with their gathered features and outcomes.
+struct MatchedArms {
+    treated_idx: Vec<usize>,
+    control_idx: Vec<usize>,
+    treated_feat: Vec<f64>,
+    control_feat: Vec<f64>,
+    treated_y: Vec<f64>,
+    control_y: Vec<f64>,
+}
+
+impl MatchedArms {
+    fn new(sample: &MatchingSample<'_>) -> Result<Self, EstimationError> {
+        let (treated_idx, control_idx) = split_by_treatment(sample.treatment);
+        if treated_idx.is_empty() || control_idx.is_empty() {
+            return Err(EstimationError::data_msg(
+                "matching requires both treated and control rows",
+            ));
+        }
+        Ok(Self {
+            treated_feat: gather_rowmajor(sample.features, sample.dim, &treated_idx),
+            control_feat: gather_rowmajor(sample.features, sample.dim, &control_idx),
+            treated_y: gather(sample.outcome, &treated_idx),
+            control_y: gather(sample.outcome, &control_idx),
+            treated_idx,
+            control_idx,
+        })
+    }
+
+    /// Match the treated rows to their nearest controls (the ATT pass): the differences, donor
+    /// usage and the sample rows of the matched queries.
+    fn treated_to_control(
+        &self,
+        sample: &MatchingSample<'_>,
+        caliper: Option<f64>,
+        workspace: &mut PropensityEstimationWorkspace,
+    ) -> Result<(MatchedDiffs, Vec<usize>), EstimationError> {
+        let diffs = match_diffs(
+            MatchSide { features: &self.control_feat, outcome: &self.control_y },
+            MatchSide { features: &self.treated_feat, outcome: &self.treated_y },
+            sample.dim,
+            sample.distance,
+            sample.matches,
+            caliper,
+            workspace,
+            sample.ctx,
+        )?;
+        let rows = diffs.queries.iter().map(|&q| self.treated_idx[q]).collect();
+        Ok((diffs, rows))
+    }
+
+    /// Match the control rows to their nearest treated (the ATC pass).
+    fn control_to_treated(
+        &self,
+        sample: &MatchingSample<'_>,
+        caliper: Option<f64>,
+        workspace: &mut PropensityEstimationWorkspace,
+    ) -> Result<(MatchedDiffs, Vec<usize>), EstimationError> {
+        let diffs = match_diffs(
+            MatchSide { features: &self.treated_feat, outcome: &self.treated_y },
+            MatchSide { features: &self.control_feat, outcome: &self.control_y },
+            sample.dim,
+            sample.distance,
+            sample.matches,
+            caliper,
+            workspace,
+            sample.ctx,
+        )?;
+        let rows = diffs.queries.iter().map(|&q| self.control_idx[q]).collect();
+        Ok((diffs, rows))
+    }
+}
+
+/// The per-unit matched effects of a target population with the donor usage behind them.
+struct MatchedEffects {
+    per_unit_effects: Vec<f64>,
+    /// Pooled donor index of each matched query's donors (`matches` entries per query).
+    donor_usage: Vec<usize>,
+    /// Donors the usage indexes into.
+    n_donors: usize,
+    /// Sample row of each matched query.
+    effect_rows: Vec<usize>,
+}
+
+/// Match the target population's queries: ATT matches treated to the nearest controls, ATC
+/// the reverse (sign-flipped), and the pooled targets both directions.
+fn match_target(
+    arms: &MatchedArms,
+    sample: &MatchingSample<'_>,
     target: &TargetPopulation,
     caliper: Option<f64>,
     workspace: &mut PropensityEstimationWorkspace,
-    se: SeSpec<'_>,
-    target_weights: Option<&[f64]>,
-) -> Result<MatchedEstimate, EstimationError> {
-    let MatchingSample {
-        treatment,
-        outcome,
-        features,
-        dim,
-        distance,
-        matches,
-        population_variance,
-        ctx,
-    } = sample;
-    let SeSpec { kind: se_kind, cluster_ids, multiway_ids, panel_times } = se;
-    if let Some(ids) = cluster_ids {
-        if ids.len() != treatment.len() {
-            return Err(EstimationError::data_msg("matching cluster_ids length != treatment rows"));
-        }
-    }
-    if let Some(times) = panel_times {
-        if times.len() != treatment.len() {
-            return Err(EstimationError::data_msg("matching panel_times length != treatment rows"));
-        }
-    }
-    if let Some(dims) = multiway_ids {
-        for (i, d) in dims.iter().enumerate() {
-            if d.len() != treatment.len() {
-                return Err(EstimationError::data_msg(format!(
-                    "matching multiway_ids[{i}] length {} != treatment rows",
-                    d.len()
-                )));
-            }
-        }
-    }
-    let (treated_idx, control_idx) = split_by_treatment(treatment);
-    if treated_idx.is_empty() || control_idx.is_empty() {
-        return Err(EstimationError::data_msg("matching requires both treated and control rows"));
-    }
-    let treated_feat = gather_rowmajor(features, dim, &treated_idx);
-    let control_feat = gather_rowmajor(features, dim, &control_idx);
-    let treated_y = gather(outcome, &treated_idx);
-    let control_y = gather(outcome, &control_idx);
-
-    let (per_unit_effects, donor_usage, n_donors, effect_rows): (
-        Vec<f64>,
-        Vec<usize>,
-        usize,
-        Vec<usize>,
-    ) = match target {
+) -> Result<MatchedEffects, EstimationError> {
+    match target {
         TargetPopulation::Treated => {
-            let MatchedDiffs { diffs, donors, queries: q_local } = match_diffs(
-                MatchSide { features: &control_feat, outcome: &control_y },
-                MatchSide { features: &treated_feat, outcome: &treated_y },
-                dim,
-                distance,
-                matches,
-                caliper,
-                workspace,
-                ctx,
-            )?;
-            let rows: Vec<usize> = q_local.iter().map(|&q| treated_idx[q]).collect();
-            (diffs, donors, control_y.len(), rows)
+            let (matched, rows) = arms.treated_to_control(sample, caliper, workspace)?;
+            Ok(MatchedEffects {
+                per_unit_effects: matched.diffs,
+                donor_usage: matched.donors,
+                n_donors: arms.control_y.len(),
+                effect_rows: rows,
+            })
         }
         TargetPopulation::Untreated => {
-            let MatchedDiffs { diffs, donors, queries: q_local } = match_diffs(
-                MatchSide { features: &treated_feat, outcome: &treated_y },
-                MatchSide { features: &control_feat, outcome: &control_y },
-                dim,
-                distance,
-                matches,
-                caliper,
-                workspace,
-                ctx,
-            )?;
-            let flipped: Vec<f64> = diffs.into_iter().map(|d| -d).collect();
-            let rows: Vec<usize> = q_local.iter().map(|&q| control_idx[q]).collect();
-            (flipped, donors, treated_y.len(), rows)
+            let (matched, rows) = arms.control_to_treated(sample, caliper, workspace)?;
+            Ok(MatchedEffects {
+                per_unit_effects: matched.diffs.into_iter().map(|d| -d).collect(),
+                donor_usage: matched.donors,
+                n_donors: arms.treated_y.len(),
+                effect_rows: rows,
+            })
         }
         TargetPopulation::AllObserved
         | TargetPopulation::Predicate(_)
         | TargetPopulation::CustomDistribution(_) => {
-            let MatchedDiffs { diffs: att_diffs, donors: att_donors, queries: att_q } =
-                match_diffs(
-                    MatchSide { features: &control_feat, outcome: &control_y },
-                    MatchSide { features: &treated_feat, outcome: &treated_y },
-                    dim,
-                    distance,
-                    matches,
-                    caliper,
-                    workspace,
-                    ctx,
-                )?;
-            let MatchedDiffs { diffs: atc_raw, donors: atc_donors, queries: atc_q } = match_diffs(
-                MatchSide { features: &treated_feat, outcome: &treated_y },
-                MatchSide { features: &control_feat, outcome: &control_y },
-                dim,
-                distance,
-                matches,
-                caliper,
-                workspace,
-                ctx,
-            )?;
-            let atc_diffs: Vec<f64> = atc_raw.into_iter().map(|d| -d).collect();
-            let n_control = control_y.len();
-            let mut effects = att_diffs;
-            effects.extend(atc_diffs);
-            let mut donors = att_donors;
-            donors.extend(atc_donors.into_iter().map(|d| d + n_control));
-            let mut rows: Vec<usize> = att_q.iter().map(|&q| treated_idx[q]).collect();
-            rows.extend(atc_q.iter().map(|&q| control_idx[q]));
-            (effects, donors, n_control + treated_y.len(), rows)
+            let (att, att_rows) = arms.treated_to_control(sample, caliper, workspace)?;
+            let (atc, atc_rows) = arms.control_to_treated(sample, caliper, workspace)?;
+            let n_control = arms.control_y.len();
+            let mut effects = att.diffs;
+            effects.extend(atc.diffs.into_iter().map(|d| -d));
+            let mut donors = att.donors;
+            donors.extend(atc.donors.into_iter().map(|d| d + n_control));
+            let mut rows = att_rows;
+            rows.extend(atc_rows);
+            Ok(MatchedEffects {
+                per_unit_effects: effects,
+                donor_usage: donors,
+                n_donors: n_control + arms.treated_y.len(),
+                effect_rows: rows,
+            })
         }
-        _ => {
-            return Err(EstimationError::unsupported(
-                "matching estimators support AllObserved, Treated, Untreated, Predicate, or CustomDistribution",
-            ));
-        }
-    };
-    if per_unit_effects.is_empty() {
-        return Err(EstimationError::data_msg("no matched units within caliper"));
+        _ => Err(EstimationError::unsupported(
+            "matching estimators support AllObserved, Treated, Untreated, Predicate, or CustomDistribution",
+        )),
     }
-    let n_eligible = match target {
-        TargetPopulation::Treated => treated_idx.len(),
-        TargetPopulation::Untreated => control_idx.len(),
-        _ => treated_idx.len() + control_idx.len(),
-    };
-    let retained_fraction = per_unit_effects.len() as f64 / n_eligible.max(1) as f64;
-    if matches!(target, TargetPopulation::CustomDistribution(_)) && target_weights.is_none() {
-        return Err(EstimationError::unsupported(
-            "CustomDistribution requires PopulationRegistry weights on the prepared problem",
-        ));
-    }
-    let ate = if let Some(tw) = target_weights {
+}
+
+/// The matched point effect: the equal-weight mean of the per-unit effects, or the
+/// target-weighted mean under a custom distribution or sampling weights.
+fn matched_point_effect(
+    effects: &MatchedEffects,
+    target_weights: Option<&[f64]>,
+) -> Result<f64, EstimationError> {
+    let per_unit_effects = &effects.per_unit_effects;
+    Ok(if let Some(tw) = target_weights {
         let mut num = 0.0;
         let mut den = 0.0;
         for (i, &eff) in per_unit_effects.iter().enumerate() {
-            let w = tw.get(effect_rows[i]).copied().unwrap_or(0.0);
+            let w = tw.get(effects.effect_rows[i]).copied().unwrap_or(0.0);
             num += w * eff;
             den += w;
         }
@@ -1091,41 +1089,50 @@ pub(crate) fn matching_contrast(
         num / den
     } else {
         per_unit_effects.iter().sum::<f64>() / per_unit_effects.len() as f64
-    };
-    // One-arm (ATT/ATC) vs two-arm ATE Abadie–Imbens variance.
-    let ate_form = !matches!(target, TargetPopulation::Treated | TargetPopulation::Untreated);
-    // Under a custom target or sampling weights the estimator is the weighted matched mean, so
-    // each unit's outcome enters with its query weight plus the weights of the queries it
-    // donates to; the equal-weight `(1 + K)/n` coefficients would describe a different
-    // estimator.
-    let weighted_coefficients = target_weights.map(|tw| {
+    })
+}
+
+/// What the analytic matching variance reads beside the SE kind.
+struct MatchedVariance<'a> {
+    sample: &'a MatchingSample<'a>,
+    target: &'a TargetPopulation,
+    arms: &'a MatchedArms,
+    effects: &'a MatchedEffects,
+    target_weights: Option<&'a [f64]>,
+    ate: f64,
+}
+
+impl MatchedVariance<'_> {
+    /// Whether both arms are queried (the two-arm ATE form of the Abadie–Imbens variance).
+    fn ate_form(&self) -> bool {
+        !matches!(self.target, TargetPopulation::Treated | TargetPopulation::Untreated)
+    }
+
+    /// Coefficient of each sample row's outcome in the weighted matched estimator.
+    fn coefficients(&self, weights: &[f64]) -> Vec<f64> {
         custom_unit_coefficients(
-            tw,
-            &effect_rows,
-            &donor_usage,
-            &treated_idx,
-            &control_idx,
-            treatment.len(),
-            ate_form,
-            matches!(target, TargetPopulation::Untreated),
-            matches,
-        )
-    });
-    let population_se = if population_variance {
-        let unit_weights = vec![1.0; treatment.len()];
-        let weights = target_weights.unwrap_or(&unit_weights);
-        let mut coefficients = custom_unit_coefficients(
             weights,
-            &effect_rows,
-            &donor_usage,
-            &treated_idx,
-            &control_idx,
-            treatment.len(),
-            ate_form,
-            matches!(target, TargetPopulation::Untreated),
-            matches,
-        );
-        if ate_form {
+            &self.effects.effect_rows,
+            &self.effects.donor_usage,
+            &self.arms.treated_idx,
+            &self.arms.control_idx,
+            self.sample.treatment.len(),
+            self.ate_form(),
+            matches!(self.target, TargetPopulation::Untreated),
+            self.sample.matches,
+        )
+    }
+
+    /// The population variance form, when requested.
+    fn population_se(&self) -> Result<Option<f64>, EstimationError> {
+        if !self.sample.population_variance {
+            return Ok(None);
+        }
+        let unit_weights = vec![1.0; self.sample.treatment.len()];
+        let weights = self.target_weights.unwrap_or(&unit_weights);
+        let mut coefficients = self.coefficients(weights);
+        if self.ate_form() {
+            let effect_rows = &self.effects.effect_rows;
             let mass = effect_rows.iter().map(|&row| weights[row]).sum::<f64>();
             let queried: std::collections::HashSet<usize> = effect_rows.iter().copied().collect();
             for (row, coefficient) in coefficients.iter_mut().enumerate() {
@@ -1134,84 +1141,164 @@ pub(crate) fn matching_contrast(
                 }
             }
         }
-        Some(population_matching_se(
-            &treated_feat,
-            &treated_y,
-            &control_feat,
-            &control_y,
-            &treated_idx,
-            &control_idx,
-            features,
-            dim,
-            &effect_rows,
+        Ok(Some(population_matching_se(
+            &self.arms.treated_feat,
+            &self.arms.treated_y,
+            &self.arms.control_feat,
+            &self.arms.control_y,
+            &self.arms.treated_idx,
+            &self.arms.control_idx,
+            self.sample.features,
+            self.sample.dim,
+            &self.effects.effect_rows,
             &coefficients,
             weights,
-        )?)
-    } else {
-        None
+        )?))
+    }
+
+    /// The analytic standard error of the requested kind.
+    fn analytic_se(&self, se_kind: AnalyticSeKind) -> Result<f64, EstimationError> {
+        // Under a custom target or sampling weights the estimator is the weighted matched mean,
+        // so each unit's outcome enters with its query weight plus the weights of the queries it
+        // donates to; the equal-weight `(1 + K)/n` coefficients would describe a different
+        // estimator.
+        let weighted_coefficients = self.target_weights.map(|tw| self.coefficients(tw));
+        let population_se = self.population_se()?;
+        let effects = self.effects;
+        Ok(match se_kind {
+            AnalyticSeKind::Homoskedastic if population_se.is_some() => {
+                population_se.unwrap_or(f64::NAN)
+            }
+            AnalyticSeKind::Homoskedastic => match &weighted_coefficients {
+                Some(coefficients) => weighted_abadie_imbens_se(
+                    &effects.per_unit_effects,
+                    self.ate,
+                    &effects.effect_rows,
+                    coefficients,
+                    self.target_weights.unwrap_or(&[]),
+                    self.sample.matches,
+                ),
+                None => abadie_imbens_se(
+                    &effects.per_unit_effects,
+                    &effects.donor_usage,
+                    effects.n_donors,
+                    self.ate_form(),
+                    self.sample.matches,
+                ),
+            },
+            AnalyticSeKind::Hc0
+            | AnalyticSeKind::Hc1
+            | AnalyticSeKind::Hc2
+            | AnalyticSeKind::Hc3 => {
+                return Err(EstimationError::unsupported(
+                    "matching does not implement HC0–HC3 sandwich SEs; use Homoskedastic (Abadie–Imbens)",
+                ));
+            }
+            // A matched effect mixes the query unit's outcome with its donors' outcomes, and
+            // donors come from other clusters and time points. Charging the whole per-query
+            // residual to the query's cluster (or time) mis-assigns the donor noise, so a
+            // cluster, multiway or HAC sandwich over those contributions is not a valid
+            // variance for the matching estimator.
+            //
+            // Kept as a refusal rather than derived, because no clustered influence
+            // function is available for this exact estimator:
+            // - Fixed-M nearest-neighbour matching is not asymptotically linear in an influence
+            //   function of one observation; its only linear representation is the
+            //   martingale one, √N(τ̂ − τ) ≈ N^{-1/2} Σ_i [τ(X_i) − τ + (2W_i − 1)(1 + K_i/M) ε_i]
+            //   (Abadie–Imbens 2006, Econometrica 74(1); 2012, JASA 107(498)), proved for
+            //   random samples. Its K_i distribution and the negligibility of the
+            //   bias-corrected conditional bias are not established under within-cluster or
+            //   serial dependence of the covariates and of the matches themselves.
+            // - Even granting that representation, a cluster sum needs per-unit ε_i
+            //   (within-cluster cross products ε_i ε_j) and per-unit τ(X_i). Abadie–Imbens
+            //   recover only the diagonal σ²(X_i) from same-arm matches; here the bias
+            //   correction is a linear fit on the match feature (the one-dimensional score
+            //   for propensity matching), which is not a consistent μ_w(X), and the
+            //   published SE is a pooled ½·Var(τ̂_i) proxy, not the conditional estimator.
+            // - Propensity matching on an estimated score needs the Abadie–Imbens (2016,
+            //   Econometrica 84(2)) estimated-score adjustment, which is not implemented even
+            //   for iid data; a clustered version would also need it.
+            // - Resampling does not fill the gap: the (cluster) bootstrap is inconsistent for
+            //   fixed-M matching (Abadie–Imbens 2008, Econometrica 76(6)), and the wild
+            //   bootstrap of the martingale representation (Otsu–Rai 2017, JASA 112(520)) is
+            //   proved for iid samples only.
+            AnalyticSeKind::Cluster
+            | AnalyticSeKind::Multiway
+            | AnalyticSeKind::NeweyWest { .. }
+            | AnalyticSeKind::PanelClusterHac { .. } => {
+                return Err(EstimationError::refused(
+                    antecedent_core::reason_code!("estimator_inference_mismatch"),
+                    "matching has no valid cluster, multiway or HAC standard error (donor outcomes \
+                     belong to other clusters and times than the matched unit); use Homoskedastic \
+                     (Abadie–Imbens), or AIPW, which implements cluster, multiway and HAC standard \
+                     errors, for clustered or serially dependent data",
+                ));
+            }
+        })
+    }
+}
+
+/// The row-label vectors of the SE specification must cover every row.
+fn check_label_lengths(rows: usize, se: &SeSpec<'_>) -> Result<(), EstimationError> {
+    if let Some(ids) = se.cluster_ids {
+        if ids.len() != rows {
+            return Err(EstimationError::data_msg("matching cluster_ids length != treatment rows"));
+        }
+    }
+    if let Some(times) = se.panel_times {
+        if times.len() != rows {
+            return Err(EstimationError::data_msg("matching panel_times length != treatment rows"));
+        }
+    }
+    if let Some(dims) = se.multiway_ids {
+        for (i, d) in dims.iter().enumerate() {
+            if d.len() != rows {
+                return Err(EstimationError::data_msg(format!(
+                    "matching multiway_ids[{i}] length {} != treatment rows",
+                    d.len()
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// ATT/ATC/ATE via nearest-neighbor matching on `features` (dim columns, row-major).
+///
+/// ATT matches treated→nearest control; ATC matches control→nearest treated (sign-flipped);
+/// ATE pools both directions' per-unit imputed effects (Abadie–Imbens style). The contrast is
+/// formed in stages: validate the labels and split the arms, match the target's queries, form
+/// the point effect, then the Abadie–Imbens variance from the same donor usage.
+pub(crate) fn matching_contrast(
+    sample: MatchingSample<'_>,
+    target: &TargetPopulation,
+    caliper: Option<f64>,
+    workspace: &mut PropensityEstimationWorkspace,
+    se: SeSpec<'_>,
+    target_weights: Option<&[f64]>,
+) -> Result<MatchedEstimate, EstimationError> {
+    check_label_lengths(sample.treatment.len(), &se)?;
+    let arms = MatchedArms::new(&sample)?;
+    let effects = match_target(&arms, &sample, target, caliper, workspace)?;
+    if effects.per_unit_effects.is_empty() {
+        return Err(EstimationError::data_msg("no matched units within caliper"));
+    }
+    let n_eligible = match target {
+        TargetPopulation::Treated => arms.treated_idx.len(),
+        TargetPopulation::Untreated => arms.control_idx.len(),
+        _ => arms.treated_idx.len() + arms.control_idx.len(),
     };
-    let se_analytic = match se_kind {
-        AnalyticSeKind::Homoskedastic if population_se.is_some() => {
-            population_se.unwrap_or(f64::NAN)
-        }
-        AnalyticSeKind::Homoskedastic => match &weighted_coefficients {
-            Some(coefficients) => weighted_abadie_imbens_se(
-                &per_unit_effects,
-                ate,
-                &effect_rows,
-                coefficients,
-                target_weights.unwrap_or(&[]),
-                matches,
-            ),
-            None => abadie_imbens_se(&per_unit_effects, &donor_usage, n_donors, ate_form, matches),
-        },
-        AnalyticSeKind::Hc0 | AnalyticSeKind::Hc1 | AnalyticSeKind::Hc2 | AnalyticSeKind::Hc3 => {
-            return Err(EstimationError::unsupported(
-                "matching does not implement HC0–HC3 sandwich SEs; use Homoskedastic (Abadie–Imbens)",
-            ));
-        }
-        // A matched effect mixes the query unit's outcome with its donors' outcomes, and
-        // donors come from other clusters and time points. Charging the whole per-query
-        // residual to the query's cluster (or time) mis-assigns the donor noise, so a
-        // cluster, multiway or HAC sandwich over those contributions is not a valid
-        // variance for the matching estimator.
-        //
-        // Kept as a refusal rather than derived, because no clustered influence
-        // function is available for this exact estimator:
-        // - Fixed-M nearest-neighbour matching is not asymptotically linear in an influence
-        //   function of one observation; its only linear representation is the
-        //   martingale one, √N(τ̂ − τ) ≈ N^{-1/2} Σ_i [τ(X_i) − τ + (2W_i − 1)(1 + K_i/M) ε_i]
-        //   (Abadie–Imbens 2006, Econometrica 74(1); 2012, JASA 107(498)), proved for
-        //   random samples. Its K_i distribution and the negligibility of the
-        //   bias-corrected conditional bias are not established under within-cluster or
-        //   serial dependence of the covariates and of the matches themselves.
-        // - Even granting that representation, a cluster sum needs per-unit ε_i
-        //   (within-cluster cross products ε_i ε_j) and per-unit τ(X_i). Abadie–Imbens
-        //   recover only the diagonal σ²(X_i) from same-arm matches; here the bias
-        //   correction is a linear fit on the match feature (the one-dimensional score
-        //   for propensity matching), which is not a consistent μ_w(X), and the
-        //   published SE is a pooled ½·Var(τ̂_i) proxy, not the conditional estimator.
-        // - Propensity matching on an estimated score needs the Abadie–Imbens (2016,
-        //   Econometrica 84(2)) estimated-score adjustment, which is not implemented even
-        //   for iid data; a clustered version would also need it.
-        // - Resampling does not fill the gap: the (cluster) bootstrap is inconsistent for
-        //   fixed-M matching (Abadie–Imbens 2008, Econometrica 76(6)), and the wild
-        //   bootstrap of the martingale representation (Otsu–Rai 2017, JASA 112(520)) is
-        //   proved for iid samples only.
-        AnalyticSeKind::Cluster
-        | AnalyticSeKind::Multiway
-        | AnalyticSeKind::NeweyWest { .. }
-        | AnalyticSeKind::PanelClusterHac { .. } => {
-            return Err(EstimationError::refused(
-                antecedent_core::reason_code!("estimator_inference_mismatch"),
-                "matching has no valid cluster, multiway or HAC standard error (donor outcomes \
-                 belong to other clusters and times than the matched unit); use Homoskedastic \
-                 (Abadie–Imbens), or AIPW, which implements cluster, multiway and HAC standard \
-                 errors, for clustered or serially dependent data",
-            ));
-        }
-    };
-    Ok(MatchedEstimate { ate, se_analytic, retained_fraction, n_obs: per_unit_effects.len() })
+    let retained_fraction = effects.per_unit_effects.len() as f64 / n_eligible.max(1) as f64;
+    if matches!(target, TargetPopulation::CustomDistribution(_)) && target_weights.is_none() {
+        return Err(EstimationError::unsupported(
+            "CustomDistribution requires PopulationRegistry weights on the prepared problem",
+        ));
+    }
+    let ate = matched_point_effect(&effects, target_weights)?;
+    let variance =
+        MatchedVariance { sample: &sample, target, arms: &arms, effects: &effects, target_weights, ate };
+    let se_analytic = variance.analytic_se(se.kind)?;
+    Ok(MatchedEstimate { ate, se_analytic, retained_fraction, n_obs: effects.per_unit_effects.len() })
 }
 
 /// Coefficient `c_i` of each sample row's outcome in the weighted pooled matching estimator

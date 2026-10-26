@@ -4,6 +4,8 @@
 
 use antecedent_core::QueryError;
 use antecedent_data::DataError;
+use antecedent_expr::provider::ProviderSnapshotError;
+use antecedent_expr::{EvalError, ExactLawError, ProgramError};
 use antecedent_prob::ProbError;
 use antecedent_stats::{GlmRefusalKind, StatsError};
 use std::borrow::Cow;
@@ -26,6 +28,40 @@ pub enum EstimationError {
     /// Query validation failed (`AverageEffectQuery::validate`, …).
     #[error(transparent)]
     Query(#[from] QueryError),
+    /// A graph operation (unfolding a temporal graph, reading a node) failed.
+    #[error(transparent)]
+    Graph(#[from] antecedent_graph::GraphError),
+    /// A dense node id does not index the temporal schema.
+    #[error(transparent)]
+    TemporalIndex(#[from] antecedent_core::TemporalIndexError),
+    /// An intervention schedule could not be resolved.
+    #[error(transparent)]
+    Intervention(#[from] antecedent_core::InterventionError),
+    /// A score table's plain data is not a valid table.
+    #[error(transparent)]
+    ScoreWire(#[from] antecedent_io_core::score_wire::ScoreTableWireError),
+    /// An exact discrete law refused a construction or use (see [`ExactLawError`]).
+    #[error("{0}")]
+    ExactLaw(ExactLawError),
+    /// A causal expression could not be compiled or evaluated.
+    #[error("{0}")]
+    Evaluation(EvalError),
+    /// A distribution provider could not snapshot the factor laws a program needs.
+    #[error("{0}")]
+    Provider(ProviderSnapshotError),
+    /// A functional program failed its checked construction.
+    #[error("{0}")]
+    Program(ProgramError),
+    /// A tiled prediction request was refused before any value was streamed.
+    #[error(transparent)]
+    Tile(#[from] crate::tiled_prediction::TileError),
+    /// A nuisance learner failed (fit, prediction or shape); a cancelled fit is the coded
+    /// `cancelled_no_claim` refusal instead.
+    #[error(transparent)]
+    Learner(#[from] antecedent_learn::LearnError),
+    /// Identification could not state the quantity the estimator was asked for.
+    #[error(transparent)]
+    Identification(#[from] antecedent_identify::IdentificationError),
     /// Missing overlap override when required.
     #[error("{message}")]
     Overlap {
@@ -373,6 +409,30 @@ impl From<EstimationError> for antecedent_io_core::IoError {
             EstimationError::Refused { code, message } => Self::Refused { code, message },
             other => Self::Convert(other.to_string()),
         }
+    }
+}
+
+impl From<ExactLawError> for EstimationError {
+    fn from(error: ExactLawError) -> Self {
+        Self::ExactLaw(error)
+    }
+}
+
+impl From<ProviderSnapshotError> for EstimationError {
+    fn from(error: ProviderSnapshotError) -> Self {
+        Self::Provider(error)
+    }
+}
+
+impl From<EvalError> for EstimationError {
+    fn from(error: EvalError) -> Self {
+        Self::Evaluation(error)
+    }
+}
+
+impl From<ProgramError> for EstimationError {
+    fn from(error: ProgramError) -> Self {
+        Self::Program(error)
     }
 }
 

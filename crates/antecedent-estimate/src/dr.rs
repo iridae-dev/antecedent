@@ -11,6 +11,7 @@ use antecedent_learn::{LearnerSpec, LinearSpec, LogisticSpec, PredictionTask, Ri
 use antecedent_stats::{SandwichKind, coefficient_covariance};
 
 use crate::adjustment::EffectEstimate;
+use crate::arm::TreatmentArm;
 use crate::cluster_dml_aipw::{ClusterDml, DeclaredUnits};
 use crate::error::EstimationError;
 use crate::learn_nuisance::{cached_aipw_nuisances, design_for_spec, learn_err, resolve_nuisance};
@@ -548,8 +549,14 @@ fn pointwise_profile_results(
                     .all(|(col, value)| col[r] == *value)
             })
             .collect();
-        let control_count = matching.iter().filter(|&&r| problem.treatment[r] <= 0.5).count();
-        let treated_count = matching.iter().filter(|&&r| problem.treatment[r] > 0.5).count();
+        let control_count = matching
+            .iter()
+            .filter(|&&r| !TreatmentArm::is_treated_indicator(problem.treatment[r]))
+            .count();
+        let treated_count = matching
+            .iter()
+            .filter(|&&r| TreatmentArm::is_treated_indicator(problem.treatment[r]))
+            .count();
         if control_count == 0 || treated_count == 0 {
             return Err(EstimationError::data_msg(
                 "CATE profile lacks exact retained empirical support in both treatment arms",

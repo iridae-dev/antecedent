@@ -182,26 +182,23 @@ fn build(raw: &Raw) -> (TabularData, IdentifiedEstimand, AverageEffectQuery) {
 }
 
 fn declared(raw: &Raw, min_clusters: usize) -> AipwAte {
-    AipwAte {
-        bootstrap_replicates: 0,
-        cluster_ids: Some(raw.cluster.clone()),
-        cluster_dml: Some(ClusterDml::new(min_clusters).unwrap()),
-        ..AipwAte::new()
-    }
+    AipwAte { cluster_dml: Some(ClusterDml::new(min_clusters).unwrap()), ..AipwAte::new() }
+        .with_bootstrap_replicates(0)
+        .with_cluster_ids(raw.cluster.clone())
 }
 
 fn declared_two_way(raw: &Raw, min_clusters: usize, per_fold: usize) -> AipwAte {
     AipwAte {
-        bootstrap_replicates: 0,
-        cluster_ids: Some(raw.cluster.clone()),
         cluster_ids_second: Some(raw.second.clone()),
         cluster_dml: Some(ClusterDml::dyadic(min_clusters, per_fold).unwrap()),
         ..AipwAte::new()
     }
+    .with_bootstrap_replicates(0)
+    .with_cluster_ids(raw.cluster.clone())
 }
 
 fn plain() -> AipwAte {
-    AipwAte { bootstrap_replicates: 0, ..AipwAte::new() }
+    AipwAte::new().with_bootstrap_replicates(0)
 }
 
 fn run(est: &AipwAte, raw: &Raw, seed: u64) -> Result<EffectEstimate, EstimationError> {
@@ -511,8 +508,8 @@ fn an_interval_request_is_refused_with_its_reason_code() {
     let raw = draw(30, 10, 2);
     let (data, estimand, query) = build(&raw);
     for requested in [
-        AipwAte { bootstrap_replicates: 50, ..declared(&raw, 20) },
-        AipwAte { se_kind: antecedent_estimate::AnalyticSeKind::Cluster, ..declared(&raw, 20) },
+        declared(&raw, 20).with_bootstrap_replicates(50),
+        declared(&raw, 20).with_se_kind(antecedent_estimate::AnalyticSeKind::Cluster),
     ] {
         let error = requested.prepare(&data, &estimand, &query).unwrap_err();
         code_of(&error, "cluster_interval_not_licensed");
@@ -522,7 +519,7 @@ fn an_interval_request_is_refused_with_its_reason_code() {
     let ctx = ExecutionContext::for_tests(1);
     let mut workspace = AipwWorkspace::default();
     let point = est.fit(&problem, &mut workspace, &ctx, AssumptionSet::new()).unwrap();
-    let boot = AipwAte { bootstrap_replicates: 5, ..est };
+    let boot = est.with_bootstrap_replicates(5);
     let error = boot.attach_bootstrap(&problem, &mut workspace, &ctx, point).unwrap_err();
     code_of(&error, "cluster_interval_not_licensed");
 }
@@ -543,12 +540,13 @@ fn scope_labels_and_combinations_outside_the_license_are_refused() {
     };
     code_of(&penalized.prepare(&data, &estimand, &query).unwrap_err(), "route_not_supported");
 
-    let unlabeled = AipwAte { cluster_ids: None, ..declared(&raw, 20) };
+    let mut unlabeled = declared(&raw, 20);
+    unlabeled.inference.cluster_ids = None;
     code_of(&unlabeled.prepare(&data, &estimand, &query).unwrap_err(), "required_option_missing");
 
     let mut short = raw.cluster.clone();
     short.pop();
-    let misaligned = AipwAte { cluster_ids: Some(short), ..declared(&raw, 20) };
+    let misaligned = declared(&raw, 20).with_cluster_ids(short);
     let error = misaligned.prepare(&data, &estimand, &query).unwrap_err();
     assert!(error.to_string().contains("cluster_ids length"), "{error}");
 

@@ -223,7 +223,7 @@ pub fn evaluate_finite_cyclic_functional(
         return Err(invalid("finite joint weights"));
     }
     let _lease = ctx.acquire_admission(1, (cells as u64).saturating_mul(256)).map_err(invalid)?;
-    let checked = source.program.compile().map_err(invalid)?;
+    let checked = source.program.compile()?;
     let provider = Provider { law, strides, steps: Cell::new(0), ctx };
     let mut values = Vec::new();
     for pairs in assignments {

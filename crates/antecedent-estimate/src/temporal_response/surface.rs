@@ -8,8 +8,7 @@ use crate::temporal_block::{AlignedRows, normal_equation_scores_of_residuals};
 use crate::temporal_response_dispersion::CellDispersion;
 use antecedent_core::{
     AssumptionSet, Diagnostic, DiagnosticKind, DiagnosticSeverity, HorizonIdentification,
-    IdentificationStatus, ResponseUncertainty, SupportReport,
-    TemporalNodeKey, VariableId,
+    IdentificationStatus, ResponseUncertainty, SupportReport, TemporalNodeKey, VariableId,
 };
 use antecedent_data::TemporalIndexer;
 use antecedent_expr::IdentifiedEstimand;
@@ -619,7 +618,9 @@ pub(super) fn checked_surface_cells(
 ) -> Result<usize, EstimationError> {
     let cells = doses
         .checked_mul(horizons)
-        .filter(|cells| cells.checked_mul(2 * size_of::<f64>()).is_some_and(|b| isize::try_from(b).is_ok()))
+        .filter(|cells| {
+            cells.checked_mul(2 * size_of::<f64>()).is_some_and(|b| isize::try_from(b).is_ok())
+        })
         .ok_or_else(|| {
             EstimationError::data_msg(
                 "temporal response dose-by-horizon cell count is not addressable",
@@ -653,9 +654,7 @@ fn named_adjustment(
     estimand
         .adjustment_set
         .iter()
-        .map(|&dense| {
-            indexer.key_of(dense.raw()).map_err(|e| EstimationError::data_msg(e.to_string()))
-        })
+        .map(|&dense| indexer.key_of(dense.raw()).map_err(EstimationError::from))
         .collect()
 }
 

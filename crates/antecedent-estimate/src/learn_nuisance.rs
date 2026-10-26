@@ -16,6 +16,7 @@ use antecedent_learn::{
     PredictionTask, RowSelection, TargetView, cross_fit_with_folds_weighted, diagnose, resolve_for,
 };
 
+use crate::arm::TreatmentArm;
 use crate::crossfit_plan::{
     CrossfitPlan, FoldIdErrors, FoldRows, FoldSource, SHARED_FOLD_ID_ERRORS, derive_fold_ids,
 };
@@ -33,7 +34,7 @@ pub(crate) fn learn_err(err: antecedent_learn::LearnError) -> EstimationError {
             "a cross-fit fold was cancelled; no nuisance fit is reported and the stop is not a \
              verdict on the data",
         ),
-        other => EstimationError::stats_msg(other.to_string()),
+        other => EstimationError::Learner(other),
     }
 }
 
@@ -237,10 +238,9 @@ pub(crate) fn cross_fit_aipw_nuisances(
         |rows, inner| fit_aipw_fold(&models, rows, inner),
         |_, part| {
             treat_prov.extend(part.provenance);
-            for (((&i, p0), p1), pe) in
+            for (((&row, p0), p1), pe) in
                 part.valid.iter().zip(part.mu0).zip(part.mu1).zip(part.ehat)
             {
-                let row = usize::try_from(i).expect("row id");
                 mu0[row] = p0;
                 mu1[row] = p1;
                 ehat[row] = pe;
@@ -280,17 +280,21 @@ struct AipwFoldModels<'a> {
 }
 
 struct AipwFold {
-    valid: Vec<u64>,
+    /// Validation rows of the fold, in row order.
+    valid: Vec<usize>,
     mu0: Vec<f64>,
     mu1: Vec<f64>,
     ehat: Vec<f64>,
     provenance: [antecedent_learn::LearnerProvenance; 3],
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "i indexes the rows of a problem whose row count the caller checked to fit u32"
-)]
+/// A row index as the `u64` the learner row selections take.
+fn selection_row(row: usize) -> Result<u64, antecedent_learn::LearnError> {
+    u64::try_from(row).map_err(|_| antecedent_learn::LearnError::Shape {
+        message: "a row index exceeds the 64-bit selection range",
+    })
+}
+
 fn fit_aipw_fold(
     models: &AipwFoldModels<'_>,
     rows: FoldRows<'_>,
@@ -307,15 +311,15 @@ fn fit_aipw_fold(
     let mut train0 = Vec::new();
     let mut train1 = Vec::new();
     for &i in rows.train {
-        let idx = u64::try_from(i).expect("row id");
+        let idx = selection_row(i)?;
         train.push(idx);
-        if t[i] > 0.5 {
+        if TreatmentArm::is_treated_indicator(t[i]) {
             train1.push(idx);
         } else {
             train0.push(idx);
         }
     }
-    let valid: Vec<u64> = rows.valid.iter().map(|&i| u64::try_from(i).expect("row id")).collect();
+    let valid: Vec<u64> = rows.valid.iter().map(|&i| selection_row(i)).collect::<Result<_, _>>()?;
     if train.is_empty() || valid.is_empty() || train0.is_empty() || train1.is_empty() {
         return Err(antecedent_learn::LearnError::Shape {
             message: "empty DML/AIPW train, valid, or treatment arm in a fold",
@@ -338,7 +342,7 @@ fn fit_aipw_fold(
     mu1.predict(valid_out, &mut m1, ctx)?;
     ehat.predict(valid_t, &mut e, ctx)?;
     Ok(AipwFold {
-        valid,
+        valid: rows.valid.to_vec(),
         mu0: m0,
         mu1: m1,
         ehat: e,
@@ -438,7 +442,9 @@ fn retained_fold_ids(
 fn require_populated_arms(treatment: &[f64]) -> Result<(), EstimationError> {
     // Preparation validates binary values with its numerical tolerance. Match the
     // executing fold classifier so accepted near-zero/near-one values retain their arms.
-    if treatment.iter().any(|&value| value <= 0.5) && treatment.iter().any(|&value| value > 0.5) {
+    if treatment.iter().any(|&value| !TreatmentArm::is_treated_indicator(value))
+        && treatment.iter().any(|&value| TreatmentArm::is_treated_indicator(value))
+    {
         return Ok(());
     }
     Err(crate::util::refuse(

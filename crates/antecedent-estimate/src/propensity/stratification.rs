@@ -9,6 +9,8 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{FaerBackend, GlmOptions};
 
+use crate::inference::InferenceSpec;
+use crate::arm::TreatmentArm;
 use super::levels::OtherLevels;
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
@@ -46,8 +48,11 @@ use crate::util::BootstrapOutcome;
 pub struct PropensityStratification {
     /// Dense linear-algebra backend used for the logistic IRLS fit.
     pub backend: FaerBackend,
-    /// Bootstrap replicates (0 = skip bootstrap).
-    pub bootstrap_replicates: u32,
+    /// Resampling and dependence declarations: bootstrap size and interval request, cluster
+    /// labels (either per complete-case row or per source-table row, exclusive) and the
+    /// sampling design of the rows. The analytic standard error is fixed by the estimator, so
+    /// `se_kind`, multiway labels and panel times are refused, not ignored.
+    pub inference: InferenceSpec,
     /// Overlap policy; must be [`OverlapPolicy::RequireDiagnostics`].
     pub overlap: OverlapPolicy,
     /// GLM fitting options for the propensity model.
@@ -66,20 +71,6 @@ pub struct PropensityStratification {
     pub other_levels: OtherLevels,
     /// Sampling weights of every row of the source table (see [`crate::sampling_weights`]).
     pub sampling_weights: Option<SamplingWeights>,
-    /// Cluster label of each complete-case row. Exclusive with [`Self::source_cluster_ids`].
-    pub cluster_ids: Option<Vec<u32>>,
-    /// Cluster label of every row of the source table. Exclusive with [`Self::cluster_ids`].
-    pub source_cluster_ids: Option<Vec<u32>>,
-    /// Sampling design of the rows, for the bootstrap. Undeclared, the design is the one the
-    /// cluster labels or panel times imply; declared, a resample the design does not allow
-    /// (a row-level draw under a trajectory design, say) is refused.
-    pub sampling_design: crate::util::SamplingDeclaration,
-    /// A requested bootstrap interval. When set, the bootstrap runs as the wave procedure that
-    /// stops on the request's Monte Carlo tolerances (capped by
-    /// [`Self::bootstrap_replicates`]) and reports its interval, waves, Monte Carlo error and
-    /// stop reason in [`crate::EstimateDiagnostics::resampling`]. `None` runs the fixed-count
-    /// bootstrap exactly as before.
-    pub bootstrap_interval: Option<crate::util::IntervalRequest>,
 }
 
 impl Default for PropensityStratification {
@@ -94,7 +85,7 @@ impl PropensityStratification {
     pub fn new() -> Self {
         Self {
             backend: FaerBackend,
-            bootstrap_replicates: 200,
+            inference: InferenceSpec::new(200),
             overlap: default_propensity_overlap(),
             glm_options: GlmOptions::default(),
             n_strata: 5,
@@ -102,14 +93,10 @@ impl PropensityStratification {
             population_registry: None,
             other_levels: OtherLevels::default(),
             sampling_weights: None,
-            cluster_ids: None,
-            source_cluster_ids: None,
-            sampling_design: crate::util::SamplingDeclaration::Undeclared,
-            bootstrap_interval: None,
         }
     }
 
-    crate::inference::with_bootstrap_interval!();
+    crate::inference::with_bootstrap_interval!(inference);
 
     /// Declare sampling weights for every row of the source table.
     #[must_use]
@@ -118,21 +105,22 @@ impl PropensityStratification {
         self
     }
 
-    crate::inference::with_cluster_ids!();
+    crate::inference::with_cluster_ids!(inference);
 
-    crate::inference::with_source_cluster_ids!();
+    crate::inference::with_source_cluster_ids!(inference);
 
-    crate::inference::with_sampling_design!();
+    crate::inference::with_sampling_design!(inference);
 
     /// Cluster label of each row of `problem`, when clusters are declared.
     fn clusters(
         &self,
         problem: &PreparedPropensityProblem,
     ) -> Result<Option<std::borrow::Cow<'_, [u32]>>, EstimationError> {
+        let source_rows = problem.source_rows(self.inference.source_cluster_ids.is_some())?;
         let labels = crate::se::declared_row_labels(
-            self.cluster_ids.as_deref(),
-            self.source_cluster_ids.as_deref(),
-            problem.row_index.iter().map(|row| usize::try_from(row.get()).expect("row id")),
+            self.inference.cluster_ids.as_deref(),
+            self.inference.source_cluster_ids.as_deref(),
+            source_rows,
         )?;
         if let Some(labels) = &labels {
             crate::se::require_clusters(Some(labels.as_ref()), problem.nrows)?;
@@ -140,7 +128,7 @@ impl PropensityStratification {
         Ok(labels)
     }
 
-    crate::inference::with_bootstrap_replicates!();
+    crate::inference::with_bootstrap_replicates!(inference);
 
     /// Set the overlap policy. Positivity is mandatory here:
     /// [`OverlapPolicy::ExplicitOverride`] is refused by `prepare`.
@@ -192,10 +180,11 @@ impl PropensityStratification {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedPropensityProblem, EstimationError> {
-        if let Some(source) = self.source_cluster_ids.as_deref() {
+        super::require_supported_inference(&self.inference)?;
+        if let Some(source) = self.inference.source_cluster_ids.as_deref() {
             crate::se::require_source_labels(
                 source,
-                self.cluster_ids.as_deref(),
+                self.inference.cluster_ids.as_deref(),
                 data.row_count(),
             )?;
         }
@@ -222,6 +211,7 @@ impl PropensityStratification {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        super::require_supported_inference(&self.inference)?;
         let point = self.fit_point(problem, workspace, assumptions)?;
         self.attach_bootstrap(problem, workspace, ctx, point)
     }
@@ -240,7 +230,7 @@ impl PropensityStratification {
         ctx: &ExecutionContext,
         point: EffectEstimate,
     ) -> Result<EffectEstimate, EstimationError> {
-        if self.bootstrap_replicates == 0 {
+        if self.inference.bootstrap_replicates == 0 {
             return Ok(point);
         }
         let n_strata = (self.n_strata.max(1)) as usize;
@@ -378,16 +368,16 @@ impl PropensityStratification {
             ctx,
             problem.nrows,
             problem.design_ncols + 4,
-            self.bootstrap_replicates,
+            self.inference.bootstrap_replicates,
         )?;
         crate::util::bootstrap_outcome_by_design(
-            self.bootstrap_interval.as_ref(),
+            self.inference.bootstrap_interval.as_ref(),
             crate::util::BootstrapDesign {
                 clusters: labels.as_deref(),
                 series_block: None,
-                declared: self.sampling_design,
+                declared: self.inference.sampling_design,
             },
-            self.bootstrap_replicates,
+            self.inference.bootstrap_replicates,
             ctx,
             0x3D2F_u64,
             problem.nrows,
@@ -586,7 +576,7 @@ pub(crate) fn stratified_ate(
     let weight_of = |i: usize| weights.map_or(1.0, |w| w[i]);
     let mut cells = vec![[ArmCell::default(); 2]; n_strata];
     for i in 0..treatment.len() {
-        let cell = &mut cells[stratum[i]][usize::from(treatment[i] > 0.5)];
+        let cell = &mut cells[stratum[i]][usize::from(TreatmentArm::is_treated_indicator(treatment[i]))];
         cell.count += 1;
         cell.mass += weight_of(i);
         cell.sum += weight_of(i) * outcome[i];
@@ -600,7 +590,7 @@ pub(crate) fn stratified_ate(
     // outcome's mean dwarfs its spread (relative error ≈ ε·(ȳ/s)²), then the `max(0)` would
     // hide the negative result as a zero variance.
     for i in 0..treatment.len() {
-        let cell = &mut cells[stratum[i]][usize::from(treatment[i] > 0.5)];
+        let cell = &mut cells[stratum[i]][usize::from(TreatmentArm::is_treated_indicator(treatment[i]))];
         let deviation = weight_of(i) * (outcome[i] - cell.mean);
         cell.squared_deviations += if weights.is_some() {
             deviation * deviation
@@ -663,7 +653,7 @@ pub(crate) fn stratified_ate(
         if !in_pool[s] {
             continue;
         }
-        let arm = usize::from(treatment[i] > 0.5);
+        let arm = usize::from(TreatmentArm::is_treated_indicator(treatment[i]));
         let cell = &cells[s][arm];
         let sign = if arm == 1 { 1.0 } else { -1.0 };
         let residual = sign
@@ -715,7 +705,7 @@ fn regression_stratified_ate(
     let weight = |i: usize| weights.map_or(1.0, |mass| mass[i]);
     let mut counts = vec![[0_usize; 2]; n_strata];
     for i in 0..n {
-        counts[stratum[i]][usize::from(treatment[i] > 0.5)] += 1;
+        counts[stratum[i]][usize::from(TreatmentArm::is_treated_indicator(treatment[i]))] += 1;
     }
     let mut stratum_column = vec![None; n_strata];
     let mut kept_strata = 0;
@@ -736,8 +726,8 @@ fn regression_stratified_ate(
         }
     }
     let in_target = |i: usize| match target {
-        TargetPopulation::Treated => treatment[i] > 0.5,
-        TargetPopulation::Untreated => treatment[i] <= 0.5,
+        TargetPopulation::Treated => TreatmentArm::is_treated_indicator(treatment[i]),
+        TargetPopulation::Untreated => !TreatmentArm::is_treated_indicator(treatment[i]),
         _ => true,
     };
     let mut target_mass = 0.0;
@@ -761,7 +751,7 @@ fn regression_stratified_ate(
         let mut rhs = vec![0.0; p];
         let mut arm_count = 0;
         for i in 0..n {
-            if (treatment[i] > 0.5) != active || stratum_column[stratum[i]].is_none() {
+            if (TreatmentArm::is_treated_indicator(treatment[i])) != active || stratum_column[stratum[i]].is_none() {
                 continue;
             }
             arm_count += 1;
@@ -805,7 +795,7 @@ fn regression_stratified_ate(
             continue;
         }
         let row = &x[i * p..(i + 1) * p];
-        let arm = usize::from(treatment[i] > 0.5);
+        let arm = usize::from(TreatmentArm::is_treated_indicator(treatment[i]));
         let sign = if arm == 1 { 1.0 } else { -1.0 };
         let residual = outcome[i] - dot(row, &coefficients[arm]);
         let leverage = weight(i)

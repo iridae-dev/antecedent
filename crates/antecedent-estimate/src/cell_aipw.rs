@@ -21,6 +21,7 @@ use antecedent_data::TabularData;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, GlmOptions};
 
 use crate::aipw::predict_colmajor;
+use crate::arm::TreatmentArm;
 use crate::crossfit_aipw::{DEFAULT_AIPW_FOLDS, thresholds_of};
 use crate::crossfit_plan::{
     CrossfitPlan, FoldRows, FoldSource, SHARED_FOLD_ID_ERRORS, rows_colmajor,
@@ -51,11 +52,15 @@ pub fn count_cell_model_fits<R>(work: impl FnOnce() -> R) -> (R, u64) {
     (out, after.saturating_sub(before))
 }
 
-/// Largest joint binary intervention the checked routes admit before fitting.
+/// Widest joint binary intervention a cell arm code can address: the arm is a `u32` bitmask with
+/// one bit per coordinate.
 ///
-/// This estimator itself enforces no coordinate cap: it fits any `k` whose `2^k` joint cells
-/// are all populated by the complete-case rows (an empty cell is refused with its own error).
-pub const MAX_JOINT_BINARY: usize = 3;
+/// This is a representation bound only. The estimator fits any `k` whose `2^k` joint cells are
+/// all populated by the complete-case rows, and positivity is what limits `k` in practice: every
+/// joint cell must appear in every cross-fit training fold with more rows than design columns
+/// (an empty or sparse cell is refused with its own error, before any score is formed), and the
+/// score and propensity tables are admitted against the workflow's memory account.
+pub const MAX_JOINT_BINARY: usize = 31;
 
 /// Named refuse: coarsened `continuous_cell` is not a point CDE.
 pub const POINT_CDE_UNLICENSED: &str = "point controlled direct effect is unlicensed; continuous_cell coarsens D onto a grid and is not do(D=d0)";
@@ -300,7 +305,7 @@ fn prepare_cells(
                     "cell-saturated AIPW requires binary 0/1 treatments",
                 ));
             }
-            if v > 0.5 {
+            if TreatmentArm::is_treated_indicator(v) {
                 code |= 1 << j;
             }
         }
@@ -408,6 +413,10 @@ fn crossfit_cell_scores(
                     });
                 }
             }
+            // The score and propensity tables are `n` rows by one column per cell and
+            // threshold: admitted before they are allocated.
+            let _tables =
+                crate::util::admit_bound_array::<f64>(n, columns.len().saturating_mul(2))?;
             let mut scores = vec![0.0; n * columns.len()];
             let mut propensities = vec![0.0; n * columns.len()];
             let source = match prepared.fold_assignment.as_deref() {
@@ -692,12 +701,13 @@ fn multinomial_propensity(
     )
 }
 
-/// 2×2 interaction contrast `(μ_11 − μ_10) − (μ_01 − μ_00)` on the first
-/// four cells of a mean-functional table.
+/// Highest-order interaction contrast of a mean-functional table over `k >= 2` binary factors:
+/// `(μ_11 − μ_10) − (μ_01 − μ_00)` for two factors, the three-way difference of differences for
+/// three, and so on (see [`interaction_coefficients`]).
 ///
 /// # Errors
 ///
-/// Fewer than four mean columns.
+/// A grid of thresholds, or a mean-column count that is not `2^k` with `k >= 2`.
 pub fn interaction_contrast(table: &ScoreTable) -> Result<LinearContrast, EstimationError> {
     contrast_named(table, "interaction")
 }
@@ -716,8 +726,8 @@ pub fn cell_minus_control_contrast(
 
 /// Named cell contrast and its per-row score-difference influence.
 ///
-/// `cell_minus_control` is requested cell minus arm 0. `interaction` is
-/// `+μ00 −μ10 −μ01 +μ11` on a 2×2 table.
+/// `cell_minus_control` is requested cell minus arm 0. `interaction` is the highest-order
+/// interaction of a `2^k` table (`+μ00 −μ10 −μ01 +μ11` on a 2×2 table).
 ///
 /// # Errors
 ///
@@ -734,9 +744,9 @@ pub fn family_cell_contrast(
             let coeffs = interaction_coefficients(table)?;
             let first = table.columns.first().and_then(|c| c.threshold);
             let n_mean = table.columns.iter().filter(|c| c.threshold == first).count();
-            if n_mean != 4 {
+            if n_mean < 4 || !n_mean.is_power_of_two() {
                 return Err(EstimationError::unsupported(
-                    "family interaction contrast requires a 2×2 cell table",
+                    "family interaction contrast requires a 2^k cell table with k >= 2 factors",
                 ));
             }
             coeffs
@@ -784,11 +794,14 @@ pub fn cell_minus_control_coefficients(
     Ok(coeffs)
 }
 
-/// Coefficients `+μ00 −μ10 −μ01 +μ11` on the first four mean cells.
+/// Coefficients of the highest-order interaction of the `k` binary factors of a `2^k` cell table
+/// (`k >= 2`), on the first threshold slice: the cell with arm code `a` carries
+/// `(-1)^(k - popcount(a))`. On a 2×2 table this is `+μ00 −μ10 −μ01 +μ11`; on a 2×2×2 table
+/// it is the three-way difference of differences of differences.
 ///
 /// # Errors
 ///
-/// An exceedance grid or fewer than four mean columns.
+/// An exceedance grid, or a mean-column count that is not `2^k` with `k >= 2`.
 pub fn interaction_coefficients(table: &ScoreTable) -> Result<Vec<f64>, EstimationError> {
     if table.distinct_threshold_count() > 1 {
         return Err(EstimationError::unsupported(
@@ -803,20 +816,29 @@ pub fn interaction_coefficients(table: &ScoreTable) -> Result<Vec<f64>, Estimati
         .filter(|(_, c)| c.threshold == first_threshold)
         .map(|(i, _)| i)
         .collect();
-    if mean_cols.len() < 4 {
-        return Err(EstimationError::unsupported("interaction contrast requires a 2×2 cell table"));
+    if mean_cols.len() < 4 || !mean_cols.len().is_power_of_two() {
+        return Err(EstimationError::unsupported(
+            "interaction contrast requires a 2^k cell table with k >= 2 factors",
+        ));
     }
+    let factors = mean_cols.len().trailing_zeros();
     let mut coeffs = vec![0.0; table.n_columns()];
-    coeffs[mean_cols[0]] = 1.0;
-    coeffs[mean_cols[1]] = -1.0;
-    coeffs[mean_cols[2]] = -1.0;
-    coeffs[mean_cols[3]] = 1.0;
+    for &column in &mean_cols {
+        let arm = table.columns[column].arm;
+        if arm as usize >= mean_cols.len() {
+            return Err(EstimationError::unsupported(
+                "interaction contrast requires arm codes 0..2^k on the mean cells",
+            ));
+        }
+        coeffs[column] = if (factors - arm.count_ones()) % 2 == 0 { 1.0 } else { -1.0 };
+    }
     Ok(coeffs)
 }
 
 /// Named or raw linear cell contrast.
 ///
-/// `interaction` is the 2×2 interaction on cells `00,01,10,11`.
+/// `interaction` is the highest-order interaction on cells in ascending arm-code order
+/// (`00,01,10,11` on a 2×2 table).
 /// A raw contrast is `c0,c1,...` coefficients matching the mean columns.
 ///
 /// # Errors
@@ -1103,6 +1125,89 @@ mod tests {
             contrast.se
         );
         assert!(contrast.se > 0.0);
+    }
+
+    #[test]
+    fn three_factor_interaction_recovers_the_three_way_term() {
+        let n = 4_000;
+        let mut rng = ExecutionContext::for_tests(9).rng.stream_for(StreamDomain::Estimate, 0xC12);
+        let mut cols: Vec<Vec<f64>> = vec![Vec::with_capacity(n); 5];
+        for _ in 0..n {
+            let zi = standard_normal(&mut rng);
+            let a = f64::from(rng.next_f64() < 0.5);
+            let b = f64::from(rng.next_f64() < 0.5);
+            let c = f64::from(rng.next_f64() < 0.5);
+            let y = 2.0 * a * b * c + a * b + 0.2 * zi + 0.25 * standard_normal(&mut rng);
+            for (col, v) in cols.iter_mut().zip([a, b, c, y, zi]) {
+                col.push(v);
+            }
+        }
+        let mut builder = CausalSchemaBuilder::new();
+        for (name, hint) in [
+            ("a", RoleHint::TreatmentCandidate),
+            ("b", RoleHint::TreatmentCandidate),
+            ("c", RoleHint::TreatmentCandidate),
+            ("y", RoleHint::OutcomeCandidate),
+            ("z", RoleHint::Context),
+        ] {
+            builder
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(hint),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let schema = builder.build().unwrap();
+        let columns = cols
+            .into_iter()
+            .enumerate()
+            .map(|(i, v)| {
+                OwnedColumn::Float64(
+                    Float64Column::new(
+                        VariableId::from_raw(i as u32),
+                        Arc::from(v),
+                        ValidityBitmap::all_valid(n),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect();
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap());
+        let table = CellSaturatedAipw::new()
+            .fit_scores(
+                &data,
+                &CellScoreSpec {
+                    treatments: &[
+                        VariableId::from_raw(0),
+                        VariableId::from_raw(1),
+                        VariableId::from_raw(2),
+                    ],
+                    outcome: VariableId::from_raw(3),
+                    adjustment: &[VariableId::from_raw(4)],
+                    functional: &OutcomeFunctional::Mean,
+                    continuous: None,
+                },
+            )
+            .unwrap();
+        let coefficients = interaction_coefficients(&table).unwrap();
+        let signs: Vec<f64> = (0..8_u32)
+            .map(|arm| if (3 - arm.count_ones()) % 2 == 0 { 1.0 } else { -1.0 })
+            .collect();
+        assert_eq!(coefficients, signs);
+        let contrast = interaction_contrast(&table).unwrap();
+        assert!(
+            (contrast.value - 2.0).abs() < 0.5,
+            "three-way={} se={}",
+            contrast.value,
+            contrast.se
+        );
+        let (family, _) = family_cell_contrast(&table, 7, "interaction").unwrap();
+        assert_eq!(family.value.to_bits(), contrast.value.to_bits());
     }
 
     #[test]

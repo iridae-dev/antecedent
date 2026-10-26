@@ -204,7 +204,7 @@ pub fn uniform_index(rng: &mut CausalRng, n: usize) -> usize {
 #[must_use]
 pub fn moving_block_starts(length: usize, block: usize, rng: &mut CausalRng) -> Vec<usize> {
     let block = block.clamp(1, length.max(1));
-    let starts = length - block + 1;
+    let starts = length + 1 - block;
     let count = length.div_ceil(block);
     (0..count).map(|_| uniform_index(rng, starts)).collect()
 }

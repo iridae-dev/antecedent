@@ -2,6 +2,7 @@
 //! a marginal treatment range never supplies joint support.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+pub(crate) mod budget;
 pub mod capabilities;
 pub mod compiled;
 pub mod gaussian_longitudinal;

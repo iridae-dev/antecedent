@@ -83,10 +83,9 @@ fn point(
 pub fn instrumented_joint_contrasts(
     design: &JointInstrumentedDesign,
     units: &[JointInstrumentedUnit],
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<JointDesignEstimate, String> {
     if units.len() < 4
-        || units.len() > 16384
-        || design.contrasts.len() > 256
         || design.contrasts.is_empty()
         || [&design.structural_model, &design.moment_restrictions, &design.population]
             .iter()
@@ -99,9 +98,6 @@ pub fn instrumented_joint_contrasts(
     let r = units[0].exogenous.len();
     let mut ids = BTreeSet::new();
     if p == 0
-        || p > 256
-        || q > 512
-        || r > 256
         || q < p
         || design
             .contrasts
@@ -128,8 +124,16 @@ pub fn instrumented_joint_contrasts(
     let means = point(design, &refs)?;
     let n = units.len();
     let k = means.len();
+    // One retained realization per deleted unit, plus the k-by-k covariance.
+    let _lease = super::budget::admit_cells(
+        ctx,
+        "structural IV delete-unit realizations",
+        n.saturating_mul(k).saturating_add(k.saturating_mul(k)),
+        1,
+    )?;
     let mut deletes = Vec::with_capacity(n);
     for omitted in 0..n {
+        super::budget::check_cancelled(ctx)?;
         deletes.push(point(
             design,
             &refs
@@ -192,17 +196,36 @@ mod tests {
             moment_restrictions: "Z=(A,B,AB) independent u; structural exclusion".into(),
             population: "independent source units under common structural coefficients".into(),
         };
-        let fit = instrumented_joint_contrasts(&design, &units).unwrap();
+        let fit = instrumented_joint_contrasts(
+            &design,
+            &units,
+            &antecedent_core::ExecutionContext::for_tests(1),
+        )
+        .unwrap();
         for (got, want) in fit.means.iter().zip([2.0, 4.0, 9.0]) {
             assert!((got - want).abs() < 1e-9);
         }
         let mut invalid = design.clone();
         invalid.moment_restrictions.clear();
-        assert!(instrumented_joint_contrasts(&invalid, &units).is_err());
+        assert!(
+            instrumented_joint_contrasts(
+                &invalid,
+                &units,
+                &antecedent_core::ExecutionContext::for_tests(1)
+            )
+            .is_err()
+        );
         for unit in &mut units {
             unit.instruments[2] = unit.instruments[0];
         }
-        assert!(instrumented_joint_contrasts(&design, &units).is_err());
+        assert!(
+            instrumented_joint_contrasts(
+                &design,
+                &units,
+                &antecedent_core::ExecutionContext::for_tests(1)
+            )
+            .is_err()
+        );
     }
 }
 
@@ -240,8 +263,6 @@ fn validate_structural_likelihood(
 ) -> Result<(), String> {
     let raw = prior.raw_feature_indices.len();
     if raw == 0
-        || raw > 16
-        || parameters > 1024
         || prior.raw_feature_indices.iter().any(|j| *j >= p)
         || prior.raw_feature_indices.iter().collect::<BTreeSet<_>>().len() != raw
         || prior.structural_features.len() != p
@@ -256,9 +277,8 @@ fn validate_structural_likelihood(
         || prior.disturbance_covariance.len() != errors * errors
         || prior.disturbance_covariance.iter().any(|x| !x.is_finite())
         || prior.draws < 2
-        || prior.draws > 100_000
     {
-        return Err("invalid proper joint triangular IV prior, raw-feature specification or dimension bound".into());
+        return Err("invalid proper joint triangular IV prior or raw-feature specification".into());
     }
     for unit in units {
         for (j, powers) in prior.structural_features.iter().enumerate() {
@@ -299,8 +319,9 @@ pub fn instrumented_joint_coefficient_posterior(
     design: &JointInstrumentedDesign,
     units: &[JointInstrumentedUnit],
     prior: &JointIvGaussianPrior,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Vec<Vec<f64>>, String> {
-    let _identified = instrumented_joint_contrasts(design, units)?;
+    let _identified = instrumented_joint_contrasts(design, units, ctx)?;
     let p = units[0].endogenous.len();
     let q = units[0].instruments.len();
     let r = units[0].exogenous.len();
@@ -312,6 +333,16 @@ pub fn instrumented_joint_coefficient_posterior(
         .ok_or("joint IV posterior dimension overflow")?;
     let errors = raw + 1;
     validate_structural_likelihood(prior, units, p, parameters, errors)?;
+    // The dense precision, its Cholesky factor and the posterior draws are retained together.
+    let _lease = super::budget::admit_cells(
+        ctx,
+        "structural IV posterior",
+        parameters
+            .saturating_mul(parameters)
+            .saturating_mul(2)
+            .saturating_add(prior.draws.saturating_mul(p + r)),
+        1,
+    )?;
     let noise_chol = antecedent_stats::cholesky_spd(&prior.disturbance_covariance, errors)
         .ok_or("joint IV disturbance covariance is not positive definite")?;
     let mut noise_precision = vec![0.0; errors * errors];
@@ -372,6 +403,7 @@ pub fn instrumented_joint_coefficient_posterior(
     let mut rng = antecedent_core::CausalRng::from_seed(prior.seed);
     let mut draws = Vec::with_capacity(prior.draws);
     for _ in 0..prior.draws {
+        super::budget::check_cancelled(ctx)?;
         let mut delta = (0..parameters)
             .map(|_| antecedent_kernels::standard_normal(&mut rng))
             .collect::<Vec<_>>();
@@ -391,8 +423,9 @@ pub fn instrumented_joint_posterior(
     design: &JointInstrumentedDesign,
     units: &[JointInstrumentedUnit],
     prior: &JointIvGaussianPrior,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<super::JointDesignPosterior, String> {
-    let coefficients = instrumented_joint_coefficient_posterior(design, units, prior)?;
+    let coefficients = instrumented_joint_coefficient_posterior(design, units, prior, ctx)?;
     let draws = coefficients
         .iter()
         .map(|beta| {
@@ -439,7 +472,6 @@ fn verify_features(
     let p = units.first().ok_or("structural model needs original observations")?.endogenous.len();
     let raw = features.raw_feature_indices.len();
     if raw == 0
-        || raw > 16
         || features.raw_feature_indices.iter().any(|j| *j >= p)
         || features.raw_feature_indices.iter().collect::<BTreeSet<_>>().len() != raw
         || features.powers.len() != p
@@ -482,8 +514,9 @@ pub fn fit_instrumented_joint_polynomial(
     design: &JointInstrumentedDesign,
     units: &[JointInstrumentedUnit],
     features: JointStructuralFeatureBinding,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<JointInstrumentedModelFit, String> {
-    let _identified = instrumented_joint_contrasts(design, units)?;
+    let _identified = instrumented_joint_contrasts(design, units, ctx)?;
     verify_features(units, &features)?;
     let p = units[0].endogenous.len();
     let r = units[0].exogenous.len();
@@ -499,8 +532,15 @@ pub fn fit_instrumented_joint_polynomial(
     let point = coefficients(&refs)?;
     let n = units.len();
     let k = p + r;
+    let _lease = super::budget::admit_cells(
+        ctx,
+        "structural IV delete-unit realizations",
+        n.saturating_mul(k).saturating_add(k.saturating_mul(k)),
+        1,
+    )?;
     let mut deletes = Vec::with_capacity(n);
     for omitted in 0..n {
+        super::budget::check_cancelled(ctx)?;
         deletes.push(coefficients(
             &refs
                 .iter()

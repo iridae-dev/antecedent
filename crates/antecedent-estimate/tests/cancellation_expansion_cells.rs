@@ -194,10 +194,10 @@ fn fit(
 
 fn penalized(grid: &[f64]) -> AipwAte {
     AipwAte {
-        bootstrap_replicates: 0,
         propensity: PropensityNuisance::ridge_logistic(RidgeTuning::new(grid, 3).unwrap()),
         ..AipwAte::new()
     }
+    .with_bootstrap_replicates(0)
 }
 
 /// Penalty selection polls once per penalty on every outer fold (5 folds x 2 penalties): a
@@ -218,22 +218,19 @@ fn penalized_aipw_stops_at_a_penalty_without_a_partial_estimate() {
 }
 
 fn one_way(raw: &Raw) -> AipwAte {
-    AipwAte {
-        bootstrap_replicates: 0,
-        cluster_ids: Some(raw.cluster.clone()),
-        cluster_dml: Some(ClusterDml::new(20).unwrap()),
-        ..AipwAte::new()
-    }
+    AipwAte { cluster_dml: Some(ClusterDml::new(20).unwrap()), ..AipwAte::new() }
+        .with_bootstrap_replicates(0)
+        .with_cluster_ids(raw.cluster.clone())
 }
 
 fn two_way(raw: &Raw) -> AipwAte {
     AipwAte {
-        bootstrap_replicates: 0,
-        cluster_ids: Some(raw.cluster.clone()),
         cluster_ids_second: Some(raw.second.clone()),
         cluster_dml: Some(ClusterDml::dyadic(20, 4).unwrap()),
         ..AipwAte::new()
     }
+    .with_bootstrap_replicates(0)
+    .with_cluster_ids(raw.cluster.clone())
 }
 
 /// The whole-cluster fold loop polls once per fold, for the one-way and the two-way unit.
@@ -436,7 +433,7 @@ fn penalized_selection_polls_equal_the_planned_penalty_candidates() {
         ("ridge", PropensityNuisance::ridge_logistic(tuning.clone())),
         ("lasso", PropensityNuisance::lasso_with(tuning.clone())),
     ] {
-        let est = AipwAte { bootstrap_replicates: 0, propensity, ..AipwAte::new() };
+        let est = AipwAte { propensity, ..AipwAte::new() }.with_bootstrap_replicates(0);
         assert_eq!(est.propensity.planned_fits_per_fold(), 3 * (3 + 1), "{name}");
         let done = fit(&est, &raw, &ExecutionContext::for_tests(5)).unwrap();
         let folds = done.crossfit.folds.expect("a cross-fitted route records its folds");
@@ -539,7 +536,7 @@ fn dml_stops_at_a_fold_and_every_stop_is_the_typed_cancellation() {
 #[test]
 fn plain_aipw_stops_at_a_fold_and_polling_changes_no_number() {
     let raw = draw(40, 6, 8);
-    let est = AipwAte { bootstrap_replicates: 0, ..AipwAte::new() };
+    let est = AipwAte::new().with_bootstrap_replicates(0);
     let live = fit(&est, &raw, &ExecutionContext::for_tests(5)).unwrap();
     let folds = live.scores.table.as_ref().map(|t| t.n_folds as usize).unwrap();
     let error = fit(&est, &raw, &pre_cancelled()).unwrap_err();

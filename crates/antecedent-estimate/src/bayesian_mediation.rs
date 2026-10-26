@@ -20,23 +20,24 @@ use crate::{
     PreparedBayesianProblem,
 };
 
-/// Prepare the mediator and outcome mechanisms on the same lag-aligned rows.
-/// Innovations independent across the two mechanisms and independent coefficient
-/// priors give a posterior product; no prior changes the supplied identification
+/// Prepare the mediator and outcome mechanisms on the same lag-aligned rows: one mechanism
+/// per mediator (`M_j ~ T + Z`, in mediator order) followed by the outcome mechanism
+/// (`Y ~ T + M₁…M_q + Z`). Innovations independent across the mechanisms and independent
+/// coefficient priors give a posterior product; no prior changes the supplied identification
 /// status.
 ///
 /// Rows are time-ordered, so each mechanism's Gaussian likelihood is tempered by
 /// the long-run-variance ratio of its path combinations
 /// ([`crate::serial_dependence`], [`DependenceScope::MediationPaths`]): the
 /// treatment slope `a` of the mediator mechanism, and the direct `c'`, mediated
-/// `b` and total `c' + â b` gradients of the outcome mechanism (`â` the OLS
-/// mediator slope).
+/// `b` and total `c' + Σ â_j b_j` gradients of the outcome mechanism (`â_j` the OLS
+/// mediator slopes).
 pub fn prepare_temporal_mediation(
     data: &TimeSeriesData,
     estimand: &IdentifiedEstimand,
     query: &MediationQuery,
     ctx: &ExecutionContext,
-) -> Result<[PreparedBayesianProblem; 2], EstimationError> {
+) -> Result<Vec<PreparedBayesianProblem>, EstimationError> {
     prepare_temporal_mediation_adjusted(data, estimand, query, &[], ctx)
 }
 
@@ -47,7 +48,7 @@ pub fn prepare_temporal_mediation_adjusted(
     query: &MediationQuery,
     adjustment: &[LaggedColumn],
     ctx: &ExecutionContext,
-) -> Result<[PreparedBayesianProblem; 2], EstimationError> {
+) -> Result<Vec<PreparedBayesianProblem>, EstimationError> {
     prepare_temporal_mediation_with_gaps(data, estimand, query, adjustment, ctx, false)
 }
 
@@ -67,22 +68,25 @@ pub fn prepare_temporal_mediation_with_gaps(
     adjustment: &[LaggedColumn],
     ctx: &ExecutionContext,
     gaps: bool,
-) -> Result<[PreparedBayesianProblem; 2], EstimationError> {
+) -> Result<Vec<PreparedBayesianProblem>, EstimationError> {
     query.validate()?;
+    let mediators = &estimand.mediators;
     if !estimand.method_kind().is_ok_and(antecedent_expr::EstimandMethod::is_temporal_mediation)
-        || estimand.mediators.len() != 1
+        || mediators.is_empty()
+        || mediators.iter().enumerate().any(|(index, m)| mediators[..index].contains(m))
     {
         return Err(EstimationError::unsupported(
-            "Bayesian temporal mediation requires one identified mediator",
+            "Bayesian temporal mediation requires an identified mediator set, each named once",
         ));
     }
-    let mediator = estimand.mediators[0];
+    let q = mediators.len();
     let treatment_lag = query.horizons.first().copied().filter(|&h| h >= 1).unwrap_or(1);
-    let mut columns = vec![
-        LaggedColumn { variable: query.treatment, lag: Lag::from_raw(treatment_lag) },
-        LaggedColumn { variable: mediator, lag: Lag::CONTEMPORANEOUS },
-        LaggedColumn { variable: query.outcome, lag: Lag::CONTEMPORANEOUS },
-    ];
+    let mut columns =
+        vec![LaggedColumn { variable: query.treatment, lag: Lag::from_raw(treatment_lag) }];
+    columns.extend(
+        mediators.iter().map(|&variable| LaggedColumn { variable, lag: Lag::CONTEMPORANEOUS }),
+    );
+    columns.push(LaggedColumn { variable: query.outcome, lag: Lag::CONTEMPORANEOUS });
     columns.extend_from_slice(adjustment);
     let max_lag = columns.iter().map(|c| c.lag.raw()).max().unwrap_or(1);
     let mut scan = HistoryScan::plan(data, max_lag, Arc::from(columns))?;
@@ -112,14 +116,17 @@ pub fn prepare_temporal_mediation_with_gaps(
     let covs: Vec<_> = adjustment
         .iter()
         .enumerate()
-        .map(|(i, column)| (column.variable, sample.column(3 + i)))
+        .map(|(i, column)| (column.variable, sample.column(2 + q + i)))
         .collect();
-    let mut outcome_covs = vec![(mediator, sample.column(1))];
+    let mut outcome_covs: Vec<(antecedent_core::VariableId, &[f64])> =
+        mediators.iter().enumerate().map(|(j, &m)| (m, sample.column(1 + j))).collect();
     outcome_covs.extend_from_slice(&covs);
-    let mediator_mechanism = build(sample.column(1), &covs)?;
-    let outcome_mechanism = build(sample.column(2), &outcome_covs)?;
-    // Mediator design [1 | T | Z…]: the path slope `a` is column 1. Outcome design
-    // [1 | T | M | Z…]: `c'` is column 1 and `b` column 2.
+    let mediator_mechanisms = (0..q)
+        .map(|j| build(sample.column(1 + j), &covs))
+        .collect::<Result<Vec<_>, EstimationError>>()?;
+    let outcome_mechanism = build(sample.column(1 + q), &outcome_covs)?;
+    // Mediator design [1 | T | Z…]: the path slope `a_j` is column 1. Outcome design
+    // [1 | T | M₁…M_q | Z…]: `c'` is column 1 and `b_j` column 2 + j.
     let unit = |p: usize, entries: &[(usize, f64)]| -> Arc<[f64]> {
         let mut c = vec![0.0; p];
         for &(i, v) in entries {
@@ -127,15 +134,18 @@ pub fn prepare_temporal_mediation_with_gaps(
         }
         Arc::from(c)
     };
-    let a_hat = ols_coefficient(&mediator_mechanism.design, 1)?;
-    let pm = mediator_mechanism.design.ncols;
+    let a_hat = mediator_mechanisms
+        .iter()
+        .map(|mechanism| ols_coefficient(&mechanism.design, 1))
+        .collect::<Result<Vec<_>, _>>()?;
     let po = outcome_mechanism.design.ncols;
-    let mediator_paths = DependenceScope::MediationPaths(Arc::from([unit(pm, &[(1, 1.0)])]));
-    let outcome_paths = DependenceScope::MediationPaths(Arc::from([
-        unit(po, &[(1, 1.0)]),
-        unit(po, &[(2, 1.0)]),
-        unit(po, &[(1, 1.0), (2, a_hat)]),
-    ]));
+    let mut outcome_gradients = Vec::with_capacity(q + 2);
+    outcome_gradients.push(unit(po, &[(1, 1.0)]));
+    outcome_gradients.extend((0..q).map(|j| unit(po, &[(2 + j, 1.0)])));
+    let mut total_entries = vec![(1, 1.0)];
+    total_entries.extend(a_hat.iter().enumerate().map(|(j, &a)| (2 + j, a)));
+    outcome_gradients.push(unit(po, &total_entries));
+    let outcome_paths = DependenceScope::MediationPaths(Arc::from(outcome_gradients));
     let dependence = |scope: DependenceScope| match &segments {
         Some(segments) => SerialDependence::SegmentedTempering {
             scope,
@@ -143,10 +153,14 @@ pub fn prepare_temporal_mediation_with_gaps(
         },
         None => SerialDependence::LongRunTempering(scope),
     };
-    Ok([
-        mediator_mechanism.with_serial_dependence(dependence(mediator_paths)),
-        outcome_mechanism.with_serial_dependence(dependence(outcome_paths)),
-    ])
+    let mut mechanisms = Vec::with_capacity(q + 1);
+    for mechanism in mediator_mechanisms {
+        let pm = mechanism.design.ncols;
+        let paths = DependenceScope::MediationPaths(Arc::from([unit(pm, &[(1, 1.0)])]));
+        mechanisms.push(mechanism.with_serial_dependence(dependence(paths)));
+    }
+    mechanisms.push(outcome_mechanism.with_serial_dependence(dependence(outcome_paths)));
+    Ok(mechanisms)
 }
 
 /// OLS coefficient `index` of `design` (the plug-in path slope for a tempering gradient).
@@ -202,22 +216,23 @@ pub fn couple_mediation_mechanisms(
         posts
     };
     let coupled = (|| -> Result<(Vec<CausalPosterior>, usize), EstimationError> {
-        if preparations.len() != 2 || mechanisms.len() != 2 {
-            return Err(EstimationError::unsupported("mediation couples exactly two mechanisms"));
+        if preparations.len() < 2 || mechanisms.len() != preparations.len() {
+            return Err(EstimationError::unsupported(
+                "mediation couples one mechanism per mediator and the outcome mechanism",
+            ));
         }
         let rows = preparations[0].design.nrows;
-        if preparations[1].design.nrows != rows {
+        if preparations.iter().any(|preparation| preparation.design.nrows != rows) {
             return Err(EstimationError::unsupported("the mechanisms do not share rows"));
         }
-        let fits = [0, 1]
-            .into_iter()
+        let fits = (0..mechanisms.len())
             .map(|k| {
                 CoefficientDraws::of(&mechanisms[k], &preparations[k].design, (0..rows).collect())
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let (theta, block) = joint_draws(&[&fits[0], &fits[1]], structural_span, seed, &ctx.rng)?;
-        let posts = [0, 1]
-            .into_iter()
+        let fit_refs: Vec<&CoefficientDraws> = fits.iter().collect();
+        let (theta, block) = joint_draws(&fit_refs, structural_span, seed, &ctx.rng)?;
+        let posts = (0..mechanisms.len())
             .map(|k| with_coefficient_columns(&mechanisms[k], &theta[k]))
             .collect::<Result<Vec<_>, _>>()?;
         Ok((posts, block))
@@ -237,16 +252,57 @@ pub fn couple_mediation_mechanisms(
     }
 }
 
-/// Compose mediator/outcome mechanism draws into a posterior over the requested contrast,
-/// retaining all three decomposition quantities. Mechanisms tied by
-/// [`couple_mediation_mechanisms`] compose as a joint law; others compose as an independent
-/// product.
+/// Compose one mediator's and the outcome's mechanism draws into a posterior over the requested
+/// contrast: [`compose_temporal_mediation_set`] for a single mediator.
+///
+/// # Errors
+///
+/// As [`compose_temporal_mediation_set`].
 pub fn compose_temporal_mediation(
     mediator: &CausalPosterior,
     outcome: &CausalPosterior,
     query: &MediationQuery,
     status: IdentificationStatus,
 ) -> Result<CausalPosterior, EstimationError> {
+    compose_temporal_mediation_set(std::slice::from_ref(mediator), outcome, query, status)
+}
+
+/// [`compose_temporal_mediation_set`] over the mechanisms [`prepare_temporal_mediation_with_gaps`]
+/// returns, in its order: the mediator mechanisms, then the outcome mechanism last.
+///
+/// # Errors
+///
+/// No mechanisms, or as [`compose_temporal_mediation_set`].
+pub fn compose_temporal_mediation_mechanisms(
+    mechanisms: &[CausalPosterior],
+    query: &MediationQuery,
+    status: IdentificationStatus,
+) -> Result<CausalPosterior, EstimationError> {
+    let Some((outcome, mediators)) = mechanisms.split_last() else {
+        return Err(EstimationError::unsupported("mediation composes at least one mechanism"));
+    };
+    compose_temporal_mediation_set(mediators, outcome, query, status)
+}
+
+/// Compose mediator-set/outcome mechanism draws into a posterior over the requested contrast,
+/// retaining all three decomposition quantities. `mediators` holds one mechanism posterior per
+/// mediator (`M_j ~ T + Z`, in mediator order) and `outcome` the outcome mechanism
+/// (`Y ~ T + M₁…M_q + Z`); the mediated draw is `Σ_j a_j · b_j`. Mechanisms tied by
+/// [`couple_mediation_mechanisms`] compose as a joint law; others compose as an independent
+/// product.
+///
+/// # Errors
+///
+/// An empty mediator set, a mechanism that lacks a coefficient column, or a draw shape mismatch.
+pub fn compose_temporal_mediation_set(
+    mediators: &[CausalPosterior],
+    outcome: &CausalPosterior,
+    query: &MediationQuery,
+    status: IdentificationStatus,
+) -> Result<CausalPosterior, EstimationError> {
+    if mediators.is_empty() {
+        return Err(EstimationError::unsupported("mediation composes at least one mediator"));
+    }
     let coefficient = |post: &CausalPosterior, index| -> Result<Vec<f64>, EstimationError> {
         let col = post
             .draws
@@ -259,14 +315,26 @@ pub fn compose_temporal_mediation(
             .ok_or_else(|| EstimationError::stats_msg("mediation posterior missing coefficient"))?;
         Ok(post.draws.column(col)?.to_vec())
     };
-    let a = coefficient(mediator, 1)?;
+    let a: Vec<Vec<f64>> = mediators
+        .iter()
+        .map(|mediator| coefficient(mediator, 1))
+        .collect::<Result<_, _>>()?;
     let cp = coefficient(outcome, 1)?;
-    let b = coefficient(outcome, 2)?;
+    let b: Vec<Vec<f64>> =
+        (0..mediators.len()).map(|j| coefficient(outcome, 2 + j)).collect::<Result<_, _>>()?;
     let delta = crate::adjustment::intervention_f64(&query.active)?
         - crate::adjustment::intervention_f64(&query.control)?;
-    let n = a.len().min(b.len());
+    let n = a.iter().chain(&b).map(Vec::len).min().unwrap_or(0);
     let direct: Vec<_> = cp.iter().take(n).map(|v| v * delta).collect();
-    let indirect: Vec<_> = a.iter().zip(&b).map(|(a, b)| a * b * delta).collect();
+    let indirect: Vec<_> = (0..n)
+        .map(|i| {
+            let mut product = a[0][i] * b[0][i];
+            for j in 1..a.len() {
+                product += a[j][i] * b[j][i];
+            }
+            product * delta
+        })
+        .collect();
     let total: Vec<_> = direct.iter().zip(&indirect).map(|(d, i)| d + i).collect();
     let effect = match query.contrast {
         MediationContrast::Total => &total,
@@ -284,13 +352,14 @@ pub fn compose_temporal_mediation(
         ]),
     };
     let draws = PosteriorDraws::from_column_major(schema, n, values)?;
-    let tempered = [mediator, outcome].iter().any(|post| {
+    let mechanisms = || mediators.iter().chain(std::iter::once(outcome));
+    let tempered = mechanisms().any(|post| {
         post.assumptions.entries.iter().any(|record| {
             matches!(&record.assumption, antecedent_core::Assumption::ParametricRestriction(p)
                 if p.id.as_ref() == DEPENDENCE_ASSUMPTION_ID)
         })
     });
-    let joint = [mediator, outcome].iter().any(|post| {
+    let joint = mechanisms().any(|post| {
         post.diagnostics.notes.iter().any(|note| note.starts_with(MEDIATION_JOINT_NOTE))
     });
     let mut post = outcome.clone();
@@ -298,8 +367,10 @@ pub fn compose_temporal_mediation(
     post.summaries = draws.summarize();
     post.draws = draws;
     // Both mechanisms' tempering notes stay on the composed diagnostics.
-    post.diagnostics.notes.extend(mediator.diagnostics.notes.iter().cloned());
-    post.assumptions.entries.extend(mediator.assumptions.entries.iter().cloned());
+    for mediator in mediators {
+        post.diagnostics.notes.extend(mediator.diagnostics.notes.iter().cloned());
+        post.assumptions.entries.extend(mediator.assumptions.entries.iter().cloned());
+    }
     post.assumptions.push(antecedent_core::AssumptionRecord {
         assumption: antecedent_core::Assumption::ParametricRestriction(antecedent_core::ParametricAssumption {
             id: Arc::from("temporal.mediation.gaussian_product"),

@@ -422,8 +422,8 @@ impl Engine<'_> {
         let mut base = vec![usize::MAX; n];
         for &(variable, level) in factor.outputs.iter().chain(&factor.parents) {
             let level = match level {
-                CounterfactualLevel::Fixed(l) => l,
-                CounterfactualLevel::Symbol(id) => match symbols.get(&id) {
+                CounterfactualLevel::Fixed(l) => l.get(),
+                CounterfactualLevel::Symbol(id) => match symbols.get(&id.get()) {
                     Some(&l) => l,
                     None => {
                         return Err(Failure::Incompatible(
@@ -432,7 +432,7 @@ impl Engine<'_> {
                     }
                 },
             };
-            base[variable] = level;
+            base[variable.get()] = level;
         }
         let key = (factor.item, base.clone());
         if let Some(&cached) = self.factor_cache.get(&key) {
@@ -495,7 +495,7 @@ impl Engine<'_> {
         loop {
             let mut assignment: BTreeMap<usize, usize> = BTreeMap::new();
             for (k, symbol) in sum.symbols.iter().enumerate() {
-                assignment.insert(symbol.id, counters[k]);
+                assignment.insert(symbol.id.get(), counters[k]);
             }
             let mut product = 1.0;
             let mut zero = false;
@@ -523,7 +523,7 @@ impl Engine<'_> {
                 }
                 k -= 1;
                 counters[k] += 1;
-                if counters[k] < self.cards[sum.symbols[k].variable] {
+                if counters[k] < self.cards[sum.symbols[k].variable.get()] {
                     break;
                 }
                 counters[k] = 0;

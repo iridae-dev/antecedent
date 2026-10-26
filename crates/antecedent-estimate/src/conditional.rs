@@ -75,6 +75,12 @@ pub struct ConditionalLinearAdjustment {
     pub backend: FaerBackend,
     /// Master seed of the cross-fit fold plan used by the binary AIPW arm scores.
     pub fold_seed: u64,
+    /// Accept a set of several effect modifiers. The regression, delta-method standard error and
+    /// influence functions are the exact vector generalization of the one-modifier model, but
+    /// the interval's coverage is measured for one modifier only, so a modifier set is refused
+    /// unless this is declared; a declared set carries an assumption record naming the
+    /// interval as uncalibrated.
+    pub joint_modifiers: bool,
 }
 
 impl Default for ConditionalLinearAdjustment {
@@ -87,13 +93,26 @@ impl ConditionalLinearAdjustment {
     /// Defaults.
     #[must_use]
     pub fn new() -> Self {
-        Self { overlap: OverlapPolicy::ExplicitOverride, backend: FaerBackend, fold_seed: 0 }
+        Self {
+            overlap: OverlapPolicy::ExplicitOverride,
+            backend: FaerBackend,
+            fold_seed: 0,
+            joint_modifiers: false,
+        }
     }
 
     /// Seed the cross-fit fold plan of the binary AIPW arm scores (the run's master seed).
     #[must_use]
     pub const fn with_fold_seed(mut self, fold_seed: u64) -> Self {
         self.fold_seed = fold_seed;
+        self
+    }
+
+    /// Accept a set of several effect modifiers, with an interval whose coverage has not been
+    /// measured for a modifier set (see [`Self::joint_modifiers`]).
+    #[must_use]
+    pub const fn with_joint_modifiers(mut self) -> Self {
+        self.joint_modifiers = true;
         self
     }
 
@@ -166,8 +185,10 @@ impl ConditionalLinearAdjustment {
             "ConditionalLinearAdjustment requires ExplicitOverride overlap policy",
         )?;
         query.validate()?;
+        let modifiers = query.inner.effect_modifiers.len();
         if query.inner.target_population != TargetPopulation::AllObserved
-            || query.inner.effect_modifiers.len() != 1
+            || modifiers == 0
+            || (modifiers > 1 && !self.joint_modifiers)
         {
             let message = "conditional arm scores require AllObserved and exactly one modifier";
             return Err(
@@ -199,6 +220,9 @@ impl ConditionalLinearAdjustment {
             // report, and name the substitution.
             let mut assumptions = AssumptionSet::default();
             assumptions.push(crossfit_substitution_record());
+            if modifiers > 1 {
+                assumptions.push(joint_modifier_record());
+            }
             let estimate = EffectEstimate::new(
                 scores.means[1] - scores.means[0],
                 (var / n).sqrt(),
@@ -238,7 +262,8 @@ impl ConditionalLinearAdjustment {
                 "ConditionalLinearAdjustment requires effect modifiers",
             ));
         }
-        if query.effect_modifiers.len() != 1 {
+        let m = query.effect_modifiers.len();
+        if m > 1 && !self.joint_modifiers {
             return Err(EstimationError::unsupported_with_remedy(
                 "ConditionalLinearAdjustment currently supports one effect modifier",
                 MULTI_MODIFIER_REMEDY,
@@ -264,33 +289,42 @@ impl ConditionalLinearAdjustment {
             ));
         }
 
-        let w_id = query.effect_modifiers[0];
+        let modifier_ids = &query.effect_modifiers;
         let extra_z: Vec<VariableId> =
-            estimand.adjustment_set.iter().copied().filter(|&z| z != w_id).collect();
-        let mut ids = vec![query.treatment, query.outcome, w_id];
+            estimand.adjustment_set.iter().copied().filter(|z| !modifier_ids.contains(z)).collect();
+        let mut ids = vec![query.treatment, query.outcome];
+        ids.extend_from_slice(modifier_ids);
         ids.extend_from_slice(&extra_z);
         let crate::prepare::AdmittedColumns { data, row_mask, receipt } =
             crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
         let t = data.float64_selected(query.treatment, &row_mask).map_err(EstimationError::from)?;
         let y = data.float64_selected(query.outcome, &row_mask).map_err(EstimationError::from)?;
-        let w = data.float64_selected(w_id, &row_mask).map_err(EstimationError::from)?;
+        let w_columns = modifier_ids
+            .iter()
+            .map(|&id| data.float64_selected(id, &row_mask).map_err(EstimationError::from))
+            .collect::<Result<Vec<_>, _>>()?;
+        let w: Vec<&[f64]> = w_columns.iter().map(|column| &column[..]).collect();
         let n = t.len();
         if n < 8 {
             return Err(EstimationError::data_msg("too few complete rows for conditional ATE"));
         }
 
-        // Design: [1, T, W, T*W, Z...]; skip Z that is already the modifier.
+        // Design: [1, T, W_1..W_m, T*W_1..T*W_m, Z...]; skip Z that is already a modifier. With
+        // one modifier this is the `[1, T, W, T*W, Z...]` interaction model.
         let n_z = extra_z.len();
-        let ncols = 4 + n_z;
+        let layout = InteractionLayout { m, n_z };
+        let ncols = layout.ncols();
         let mut design = vec![0.0; n * ncols];
         for i in 0..n {
             design[i] = 1.0;
             design[n + i] = t[i];
-            design[2 * n + i] = w[i];
-            design[3 * n + i] = t[i] * w[i];
+            for (k, column) in w.iter().enumerate() {
+                design[(2 + k) * n + i] = column[i];
+                design[(2 + m + k) * n + i] = t[i] * column[i];
+            }
         }
         for (k, &z) in extra_z.iter().enumerate() {
-            let base = (4 + k) * n;
+            let base = (layout.z_start() + k) * n;
             data.float64_selected_into(z, &row_mask, &mut design[base..base + n])
                 .map_err(EstimationError::from)?;
         }
@@ -312,49 +346,59 @@ impl ConditionalLinearAdjustment {
         let inv = gram_inverse(&design, n, ncols)
             .ok_or_else(|| EstimationError::stats_msg("singular design in conditional ATE"))?;
 
-        let w_bar: f64 = w.iter().sum::<f64>() / n as f64;
-        // Marginal ATE at mean W: (β_T + β_{TW} * Ē[W]) * delta
-        let point = (coef[1] + coef[3] * w_bar) * delta;
+        let n_f = n as f64;
+        let w_bar: Vec<f64> = w.iter().map(|column| column.iter().sum::<f64>() / n_f).collect();
+        // Marginal ATE at mean W: (β_T + Σ_k β_{T×W_k} * Ē[W_k]) * delta
+        let mut cate_at_mean = coef[1];
+        for (k, mean) in w_bar.iter().enumerate() {
+            cate_at_mean += coef[layout.interaction(k)] * mean;
+        }
+        let point = cate_at_mean * delta;
 
-        // Delta-method SE with g = δ·(e_T + w̄·e_{T×W}) for the coefficients,
-        // plus the sampling variance of w̄ itself: the reported functional
+        // Delta-method SE with g = δ·(e_T + Σ_k w̄_k·e_{T×W_k}) for the coefficients,
+        // plus the sampling variance of the w̄_k themselves: the reported functional
         // averages the CATE over the modifier distribution, so its IF carries
-        // δ·β_{T×W}·(w_i − w̄) (asymptotically uncorrelated with the OLS
-        // score term). Treating w̄ as fixed under-covers whenever β_{T×W} ≠ 0.
+        // δ·Σ_k β_{T×W_k}·(w_ik − w̄_k) (asymptotically uncorrelated with the OLS
+        // score term). Treating w̄ as fixed under-covers whenever some β_{T×W_k} ≠ 0.
         let mut g = vec![0.0; ncols];
         g[1] = delta;
-        g[3] = delta * w_bar;
-        let n_f = n as f64;
-        let modifier_term = delta * coef[3];
-        let w_var_of_mean =
-            w.iter().map(|wi| (wi - w_bar).powi(2)).sum::<f64>() / (n_f * (n_f - 1.0));
+        for (k, mean) in w_bar.iter().enumerate() {
+            g[layout.interaction(k)] = delta * mean;
+        }
+        let modifier_terms: Vec<f64> =
+            (0..m).map(|k| delta * coef[layout.interaction(k)]).collect();
+        let w_var_of_mean = modifier_mean_variance(&modifier_terms, &w, &w_bar);
         let se_coef = crate::util::delta_method_se(&inv, ncols, &g, sigma2);
-        let se_analytic =
-            (se_coef * se_coef + modifier_term * modifier_term * w_var_of_mean).sqrt();
+        let se_analytic = (se_coef * se_coef + w_var_of_mean).sqrt();
 
         let contrast_leverage = inverse_weighted_leverage(&inv, &design, n, ncols, &g);
         let influence: Vec<f64> = contrast_leverage
             .iter()
             .zip(&residuals)
-            .zip(w.iter())
-            .map(|((g_inv_x, residual), wi)| {
-                n_f * g_inv_x * residual + modifier_term * (wi - w_bar)
+            .enumerate()
+            .map(|(i, (g_inv_x, residual))| {
+                let mut value = n_f * g_inv_x * residual;
+                for (k, column) in w.iter().enumerate() {
+                    value += modifier_terms[k] * (column[i] - w_bar[k]);
+                }
+                value
             })
             .collect();
 
         let mut mu0 = 0.0;
         let mut mu1 = 0.0;
-        let zterms = linear_predictors(&design[4 * n..], n, n_z, &coef[4..]);
-        for (wi, zterm) in w.iter().zip(&zterms) {
-            mu0 += coef[0] + coef[1] * control + coef[2] * wi + coef[3] * control * wi + zterm;
-            mu1 += coef[0] + coef[1] * active + coef[2] * wi + coef[3] * active * wi + zterm;
+        let zterms =
+            linear_predictors(&design[layout.z_start() * n..], n, n_z, &coef[layout.z_start()..]);
+        for (i, zterm) in zterms.iter().enumerate() {
+            mu0 += mean_response(&coef, layout, control, &w, i) + zterm;
+            mu1 += mean_response(&coef, layout, active, &w, i) + zterm;
         }
         mu0 /= n_f;
         mu1 /= n_f;
 
         let mut z_bar = vec![0.0; n_z];
         for (k, zmean) in z_bar.iter_mut().enumerate() {
-            let base = (4 + k) * n;
+            let base = (layout.z_start() + k) * n;
             *zmean = design[base..base + n].iter().sum::<f64>() / n_f;
         }
         let fit = InteractionFit {
@@ -365,8 +409,7 @@ impl ConditionalLinearAdjustment {
             w: &w,
             z_bar: &z_bar,
             n,
-            ncols,
-            n_z,
+            layout,
         };
         let if0 = plugin_arm_influence(&fit, control, mu0);
         let if1 = plugin_arm_influence(&fit, active, mu1);
@@ -386,20 +429,88 @@ impl ConditionalLinearAdjustment {
             row_index,
             treatment: t.into_owned(),
         };
+        let mut assumptions = AssumptionSet::default();
+        if m > 1 {
+            assumptions.push(joint_modifier_record());
+        }
 
         Ok((
-            EffectEstimate::new(
-                point,
-                se_analytic,
-                AssumptionSet::default(),
-                OverlapPolicy::ExplicitOverride,
-            )
-            .with_preparation(Some(crate::prepare::preparation_summary(&receipt)))
-            .with_influence(Some(Arc::from(influence))),
+            EffectEstimate::new(point, se_analytic, assumptions, OverlapPolicy::ExplicitOverride)
+                .with_preparation(Some(crate::prepare::preparation_summary(&receipt)))
+                .with_influence(Some(Arc::from(influence))),
             [mu0, mu1],
             scores,
         ))
     }
+}
+
+/// Column layout of the interaction design `[1, T, W_1..W_m, T×W_1..T×W_m, Z_1..Z_nz]`: the
+/// one-modifier design is `[1, T, W, T×W, Z..]`.
+#[derive(Clone, Copy, Debug)]
+struct InteractionLayout {
+    /// Number of effect modifiers.
+    m: usize,
+    /// Number of further adjustment covariates.
+    n_z: usize,
+}
+
+impl InteractionLayout {
+    /// Total design columns.
+    const fn ncols(self) -> usize {
+        2 + 2 * self.m + self.n_z
+    }
+    /// Column of the treatment-by-modifier product of modifier `k`.
+    const fn interaction(self, k: usize) -> usize {
+        2 + self.m + k
+    }
+    /// First adjustment-covariate column.
+    const fn z_start(self) -> usize {
+        2 + 2 * self.m
+    }
+}
+
+/// Fitted mean response of row `row` at treatment `level` before the adjustment-covariate
+/// terms: `β_0 + β_T·level + Σ_k β_{W_k}·w_k + Σ_k β_{T×W_k}·level·w_k`, accumulated left to
+/// right.
+fn mean_response(
+    coef: &[f64],
+    layout: InteractionLayout,
+    level: f64,
+    w: &[&[f64]],
+    row: usize,
+) -> f64 {
+    let mut value = coef[0] + coef[1] * level;
+    for (k, column) in w.iter().enumerate() {
+        value += coef[2 + k] * column[row];
+    }
+    for (k, column) in w.iter().enumerate() {
+        value += coef[layout.interaction(k)] * level * column[row];
+    }
+    value
+}
+
+/// Sampling variance of `Σ_k c_k · w̄_k` for the modifier means: with one modifier the
+/// `c² · Var(w̄)` product, otherwise the variance of the weighted mean of the centred rows.
+fn modifier_mean_variance(terms: &[f64], w: &[&[f64]], w_bar: &[f64]) -> f64 {
+    let n = w.first().map_or(0, |column| column.len()) as f64;
+    if let ([term], [column], [mean]) = (terms, w, w_bar) {
+        let w_var_of_mean =
+            column.iter().map(|wi| (wi - mean).powi(2)).sum::<f64>() / (n * (n - 1.0));
+        return term * term * w_var_of_mean;
+    }
+    let rows = w.first().map_or(0, |column| column.len());
+    let centred_square_sum: f64 = (0..rows)
+        .map(|i| {
+            let weighted: f64 = terms
+                .iter()
+                .zip(w)
+                .zip(w_bar)
+                .map(|((c, column), mean)| c * (column[i] - mean))
+                .sum();
+            weighted * weighted
+        })
+        .sum();
+    centred_square_sum / (n * (n - 1.0))
 }
 
 /// The fitted `Y ~ 1 + T + W + T×W + Z` interaction model an arm's plug-in influence is
@@ -411,37 +522,36 @@ struct InteractionFit<'a> {
     /// Column-major design.
     design: &'a [f64],
     residuals: &'a [f64],
-    /// Effect-modifier values.
-    w: &'a [f64],
+    /// Effect-modifier values, one column per modifier.
+    w: &'a [&'a [f64]],
     /// Column means of the `Z` covariates.
     z_bar: &'a [f64],
     n: usize,
-    ncols: usize,
-    n_z: usize,
+    layout: InteractionLayout,
 }
 
 fn plugin_arm_influence(fit: &InteractionFit<'_>, level: f64, mean: f64) -> Vec<f64> {
-    let InteractionFit { coef, inv, design, residuals, w, z_bar, n, ncols, n_z } = *fit;
+    let InteractionFit { coef, inv, design, residuals, w, z_bar, n, layout } = *fit;
+    let (n_z, ncols) = (layout.n_z, layout.ncols());
     let n_f = n as f64;
     let mut xbar = vec![0.0; ncols];
     xbar[0] = 1.0;
     xbar[1] = level;
-    let w_bar: f64 = w.iter().sum::<f64>() / n_f;
-    xbar[2] = w_bar;
-    xbar[3] = level * w_bar;
+    for (k, column) in w.iter().enumerate() {
+        let w_bar: f64 = column.iter().sum::<f64>() / n_f;
+        xbar[2 + k] = w_bar;
+        xbar[layout.interaction(k)] = level * w_bar;
+    }
     for (k, &zmean) in z_bar.iter().enumerate() {
-        xbar[4 + k] = zmean;
+        xbar[layout.z_start() + k] = zmean;
     }
     // Column-outer: every row adds its terms in the order a row-by-row walk would, from the
     // same starting value, so each score is bit-identical to that walk.
-    let mut mu: Vec<f64> = w
-        .iter()
-        .map(|wi| coef[0] + coef[1] * level + coef[2] * wi + coef[3] * level * wi)
-        .collect();
+    let mut mu: Vec<f64> = (0..n).map(|i| mean_response(coef, layout, level, w, i)).collect();
     for k in 0..n_z {
-        let column = &design[(4 + k) * n..(5 + k) * n];
+        let column = &design[(layout.z_start() + k) * n..(layout.z_start() + k + 1) * n];
         for (slot, &x) in mu.iter_mut().zip(column) {
-            *slot += coef[4 + k] * x;
+            *slot += coef[layout.z_start() + k] * x;
         }
     }
     let mut xbar_inv_x = vec![0.0; n];
@@ -517,6 +627,24 @@ fn crossfit_substitution_record() -> AssumptionRecord {
     }
 }
 
+/// Declared record that a modifier-set interval is the exact vector generalization of the
+/// one-modifier model, with coverage measured for one modifier only.
+fn joint_modifier_record() -> AssumptionRecord {
+    AssumptionRecord {
+        assumption: Assumption::Custom {
+            id: Arc::from("conditional.joint_modifier_interval_uncalibrated"),
+            description: Arc::from(
+                "The conditional contrast conditions on a set of several effect modifiers. The regression, delta-method standard error and influence functions are the vector generalization of the one-modifier model, but the interval's coverage has been measured for one modifier only, so it is not a calibrated coverage claim for a modifier set.",
+            ),
+        },
+        source: AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("estimate.conditional.joint_modifiers"),
+        },
+        scope: AssumptionScope::Estimation,
+        status: AssumptionStatus::Declared,
+    }
+}
+
 fn aipw_conditional_arm_scores(
     data: &TabularData,
     estimand: &IdentifiedEstimand,
@@ -531,12 +659,13 @@ fn aipw_conditional_arm_scores(
             "AIPW conditional scores require an effect modifier",
         ));
     }
-    let w_id = query.effect_modifiers[0];
     let active = intervention_f64(&query.active)?;
     let control = intervention_f64(&query.control)?;
-    let mut adj: Vec<VariableId> =
-        estimand.adjustment_set.iter().copied().filter(|&z| z != w_id).collect();
-    adj.insert(0, w_id);
+    // The nuisance models condition on every modifier, then on the rest of the adjustment set.
+    let mut adj: Vec<VariableId> = query.effect_modifiers.to_vec();
+    adj.extend(
+        estimand.adjustment_set.iter().copied().filter(|z| !query.effect_modifiers.contains(z)),
+    );
     let mut arena = antecedent_expr::CausalExprArena::new();
     let functional = arena.backdoor_ate(
         query.treatment,
@@ -891,6 +1020,52 @@ mod tests {
         assert!(!MULTI_MODIFIER_REMEDY.contains("antecedent.handoff.econml"));
     }
 
+    /// A declared modifier set fits the vector interaction model: the point estimate is the
+    /// effect at the modifier means, the interval is flagged uncalibrated, and the
+    /// one-modifier route is unchanged.
+    #[test]
+    fn a_declared_modifier_set_recovers_the_effect_at_the_modifier_means() {
+        let n = 60usize;
+        let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+        let w: Vec<f64> = (0..n).map(|i| ((i * 7) % 11) as f64 / 5.0).collect();
+        let v: Vec<f64> = (0..n).map(|i| ((i * 3) % 7) as f64 / 3.0).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| 1.0 + 2.0 * t[i] + 0.5 * w[i] + 0.7 * v[i] + t[i] * (0.3 * w[i] + 0.4 * v[i]))
+            .collect();
+        let data = TabularData::from_f64_columns([
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("w", w.as_slice()),
+            ("v", v.as_slice()),
+        ])
+        .unwrap();
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([]),
+            antecedent_expr::ExprId::from_raw(0),
+        );
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_effect_modifiers([VariableId::from_raw(2), VariableId::from_raw(3)]);
+        let estimator = ConditionalLinearAdjustment::new().with_joint_modifiers();
+        let (estimate, means, scores) = estimator.estimate_ate(&data, &estimand, &query).unwrap();
+        let w_bar = w.iter().sum::<f64>() / n as f64;
+        let v_bar = v.iter().sum::<f64>() / n as f64;
+        let expected = 2.0 + 0.3 * w_bar + 0.4 * v_bar;
+        assert!((estimate.ate - expected).abs() < 1e-8, "{} vs {expected}", estimate.ate);
+        assert!((means[1] - means[0] - expected).abs() < 1e-8);
+        assert_eq!(scores.influence[0].len(), n);
+        assert!(estimate.se_analytic() > 0.0, "the modifier-mean term is a sampling variance");
+        assert!(
+            estimate.provenance.assumptions.entries.iter().any(|record| matches!(
+                &record.assumption,
+                Assumption::Custom { id, .. }
+                    if id.as_ref() == "conditional.joint_modifier_interval_uncalibrated"
+            )),
+            "the modifier-set interval names itself uncalibrated"
+        );
+    }
+
     #[test]
     fn arm_plugin_ifs_are_finite_and_contrast_like() {
         let n = 80usize;
@@ -968,7 +1143,9 @@ mod tests {
 
     /// The row-by-row loops the column-outer kernels replaced.
     fn reference_plugin_arm_influence(fit: &InteractionFit<'_>, level: f64, mean: f64) -> Vec<f64> {
-        let InteractionFit { coef, inv, design, residuals, w, z_bar, n, ncols, n_z } = *fit;
+        let InteractionFit { coef, inv, design, residuals, w, z_bar, n, layout } = *fit;
+        let (ncols, n_z) = (layout.ncols(), layout.n_z);
+        let w = w[0];
         let n_f = n as f64;
         let mut xbar = vec![0.0; ncols];
         xbar[0] = 1.0;
@@ -1072,11 +1249,10 @@ mod tests {
             inv: &inv,
             design: &design,
             residuals: &residuals,
-            w: &w,
+            w: &[&w[..]],
             z_bar: &z_bar,
             n,
-            ncols,
-            n_z,
+            layout: InteractionLayout { m: 1, n_z },
         };
         for (level, mean) in [(0.0, 0.3), (1.0, -0.2)] {
             let new = plugin_arm_influence(&fit, level, mean);

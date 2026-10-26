@@ -10,6 +10,7 @@ use antecedent_expr::IdentifiedEstimand;
 use antecedent_learn::{LearnerSpec, LogisticSpec, PredictionTask, RidgeSpec, diagnose};
 
 use crate::adjustment::EffectEstimate;
+use crate::arm::TreatmentArm;
 use crate::cluster_dml_aipw::{ClusterDml, DeclaredUnits};
 use crate::error::EstimationError;
 use crate::learn_nuisance::{
@@ -536,7 +537,11 @@ fn aipw_score_table_clipped(
             }
             AIPW_SCORE_BUILDS.with(|count| count.set(count.get().saturating_add(1)));
             Ok(ScoreTable {
-                observed_arm: problem.treatment.iter().map(|t| u32::from(*t > 0.5)).collect(),
+                observed_arm: problem
+                    .treatment
+                    .iter()
+                    .map(|t| u32::from(TreatmentArm::is_treated_indicator(*t)))
+                    .collect(),
                 propensities: propensities.into(),
                 observed_outcome: Arc::clone(&problem.outcome),
                 n_rows: n,
@@ -599,7 +604,7 @@ pub(crate) fn aipw_marginal_from_nuisance(
         .iter()
         .zip(mu0)
         .zip(mu1)
-        .map(|((&ti, &m0), &m1)| if ti > 0.5 { m1 } else { m0 })
+        .map(|((&ti, &m0), &m1)| if TreatmentArm::is_treated_indicator(ti) { m1 } else { m0 })
         .collect();
     let outcome_diag = diagnose(PredictionTask::Regression, problem.outcome.as_ref(), &yhat);
     let effect =
@@ -841,7 +846,7 @@ mod tests {
             .with_folds(5);
         let prep = dml.prepare(&data, &estimand, &query).unwrap();
         let dml_fit = dml.fit(&prep, &ctx(), AssumptionSet::new()).unwrap();
-        let aipw = AipwAte { bootstrap_replicates: 0, ..AipwAte::new() };
+        let aipw = AipwAte::new().with_bootstrap_replicates(0);
         let aipw_prep = aipw.prepare(&data, &estimand, &query).unwrap();
         let licensed = aipw
             .fit(&aipw_prep, &mut AipwWorkspace::default(), &ctx(), AssumptionSet::new())

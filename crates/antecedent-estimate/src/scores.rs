@@ -504,7 +504,7 @@ impl ScoreTable {
     ///
     /// Shape mismatch.
     pub fn from_wire(wire: ScoreTableWire) -> Result<Self, EstimationError> {
-        wire.check().map_err(|error| EstimationError::data_msg(error.to_string()))?;
+        wire.check()?;
         let n = usize::try_from(wire.n_rows).unwrap_or(usize::MAX);
         Ok(Self {
             observed_arm: wire.observed_arm.into(),

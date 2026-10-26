@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use antecedent_core::TargetPopulation;
 
+use crate::arm::TreatmentArm;
 use crate::error::{EstimationError, ExactF64, RefusalFields};
 
 /// Library-default propensity clip: propensities are clamped into `[0.01, 0.99]` unless a
@@ -208,21 +209,21 @@ impl IpwTarget {
     pub fn weight(self, t: f64, e: f64) -> f64 {
         match self {
             Self::Ate | Self::Custom => {
-                if t > 0.5 {
+                if TreatmentArm::is_treated_indicator(t) {
                     1.0 / e
                 } else {
                     1.0 / (1.0 - e)
                 }
             }
             Self::Att => {
-                if t > 0.5 {
+                if TreatmentArm::is_treated_indicator(t) {
                     1.0
                 } else {
                     e / (1.0 - e)
                 }
             }
             Self::Atc => {
-                if t > 0.5 {
+                if TreatmentArm::is_treated_indicator(t) {
                     (1.0 - e) / e
                 } else {
                     1.0
@@ -326,7 +327,7 @@ fn arm_ess(weights: &[f64], treatment: &[f64], treated: bool) -> f64 {
     let mut sum = 0.0;
     let mut sum_sq = 0.0;
     for (&w, &t) in weights.iter().zip(treatment) {
-        let is_treated = t > 0.5;
+        let is_treated = TreatmentArm::is_treated_indicator(t);
         if is_treated != treated {
             continue;
         }
