@@ -42,7 +42,7 @@ def test_migration_examples_execute_with_declared_application_inputs():
         "other_query": ant.AverageEffect("z", "outcome"),
     }
     examples = blocks("docs/migrations/2.4-to-3.0-python.md")
-    assert len(examples) == 3
+    assert len(examples) == 5
     execute(examples[0], namespace, "migration:preparation")
     assert namespace["result"].answer.value == pytest.approx(2.0)
     assert namespace["updated_result"].answer.value == pytest.approx(3.0)
@@ -52,3 +52,25 @@ def test_migration_examples_execute_with_declared_application_inputs():
     assert namespace["loaded"].acceptance.identity_bound
     execute(examples[2], namespace, "migration:cyclic")
     assert namespace["result"].value[2].mean("B") == pytest.approx(1.0)
+    execute(examples[3], namespace, "migration:posterior")
+    posterior = namespace["posterior_record"]
+    assert posterior.study is None
+    assert posterior.acceptance.status == "sealed"
+    assert posterior.acceptance.identity_bound
+    assert not posterior.acceptance.replayable
+    assert posterior.value.n_draws == 32
+    assert namespace["ate_record"].mean == pytest.approx(
+        namespace["posterior_result"].value.posterior.effect_mean
+    )
+    execute(examples[4], namespace, "migration:population")
+    population, targeted = namespace["population_result"], namespace["targeted"]
+    assert population.answer.value == pytest.approx(2.0)
+    assert targeted.answer.value == pytest.approx(2.0)
+    assert population.inspect().target_weights_id is None
+    assert targeted.inspect().target_weights_id is not None
+    assert namespace["targeted_loaded"].study is None
+    assert namespace["targeted_loaded"].acceptance.identity_bound
+    assert (
+        namespace["targeted_loaded"].inspect().target_weights_id
+        == targeted.inspect().target_weights_id
+    )
