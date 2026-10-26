@@ -217,15 +217,16 @@ fn transport_to_wire(transport: &TransportIdentity) -> TransportIdentityWire {
 }
 
 fn strictly_increasing(values: &[String], what: &'static str) -> Result<(), Failure> {
-    if values.windows(2).any(|pair| pair[0] >= pair[1]) {
-        Err(malformed(format!("{what} are not sorted and distinct")))
-    } else {
+    if crate::interface_contract_artifact::is_strictly_increasing(values) {
         Ok(())
+    } else {
+        Err(malformed(format!("{what} are not sorted and distinct")))
     }
 }
 
+/// Whether `text` is a 64-digit lowercase hex digest (checked on bytes, no allocation).
 fn is_hex_digest(text: &str) -> bool {
-    parse_digest_hex(text).is_some_and(|digest| digest.to_hex() == text)
+    text.len() == 64 && text.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
 fn transport_from_wire(wire: &TransportIdentityWire) -> Result<TransportIdentity, Failure> {

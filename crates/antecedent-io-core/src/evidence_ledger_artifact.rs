@@ -50,6 +50,31 @@ pub const EVIDENCE_LEDGER_ARTIFACT_FEATURE: &str = "evidence_ledger_v1";
 pub const MAX_EVIDENCE_LEDGER_ARTIFACT_BYTES: usize = 128 * 1024 * 1024;
 /// Most syntheses an artifact may carry.
 pub const MAX_LEDGER_SYNTHESES: usize = 1024;
+
+/// Intake bounds a consumer applies to a stored evidence ledger artifact. The defaults are
+/// [`MAX_EVIDENCE_LEDGER_ARTIFACT_BYTES`], the contract's default operation bound and
+/// [`MAX_LEDGER_SYNTHESES`]; a caller with a larger budget passes its own to
+/// [`EvidenceLedgerArtifact::from_bytes_within`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EvidenceLedgerIntakeLimits {
+    /// Most container bytes.
+    pub max_bytes: usize,
+    /// Most ledger operations replayed.
+    pub max_operations: usize,
+    /// Most syntheses recomputed.
+    pub max_syntheses: usize,
+}
+
+impl Default for EvidenceLedgerIntakeLimits {
+    fn default() -> Self {
+        Self {
+            max_bytes: MAX_EVIDENCE_LEDGER_ARTIFACT_BYTES,
+            max_operations: antecedent_contract::evidence_ledger::MAX_OPERATIONS,
+            max_syntheses: MAX_LEDGER_SYNTHESES,
+        }
+    }
+}
+
 /// Relative tolerance a consumer applies when comparing a recomputed
 /// synthesis value with the stored one (transcendental functions may differ
 /// in the last bits across platforms).
@@ -1129,6 +1154,7 @@ fn within(stored: f64, recomputed: f64) -> bool {
 fn check(
     meta: &EvidenceLedgerMeta,
     expected_identity: Option<&str>,
+    limits: &EvidenceLedgerIntakeLimits,
 ) -> Result<EvidenceLedgerArtifact, EvidenceLedgerArtifactError> {
     if meta.version != EVIDENCE_LEDGER_ARTIFACT_VERSION {
         return Err(EvidenceLedgerArtifactError::UnsupportedVersion { version: meta.version });
@@ -1136,10 +1162,10 @@ fn check(
     if meta.feature != EVIDENCE_LEDGER_ARTIFACT_FEATURE {
         return Err(EvidenceLedgerArtifactError::UnsupportedSemantics("feature marker"));
     }
-    if meta.operations.len() > antecedent_contract::evidence_ledger::MAX_OPERATIONS {
+    if meta.operations.len() > limits.max_operations {
         return Err(EvidenceLedgerArtifactError::LimitsExceeded("operations"));
     }
-    if meta.syntheses.len() > MAX_LEDGER_SYNTHESES {
+    if meta.syntheses.len() > limits.max_syntheses {
         return Err(EvidenceLedgerArtifactError::LimitsExceeded("syntheses"));
     }
     // Replay: the ledger recomputes identities, policy, refusals and effects.
@@ -1218,10 +1244,13 @@ fn encode_meta(
     .map_err(|error| crate::map_artifact_check!(error, EvidenceLedgerArtifactError))
 }
 
-fn decode_meta(bytes: &[u8]) -> Result<EvidenceLedgerMeta, EvidenceLedgerArtifactError> {
+fn decode_meta(
+    bytes: &[u8],
+    max_bytes: usize,
+) -> Result<EvidenceLedgerMeta, EvidenceLedgerArtifactError> {
     let parts = crate::decode_container(
         ARTIFACT_KIND,
-        MAX_EVIDENCE_LEDGER_ARTIFACT_BYTES,
+        max_bytes,
         &[META_SECTION],
         bytes,
     )
@@ -1271,7 +1300,7 @@ impl EvidenceLedgerArtifact {
             identity: String::new(),
         };
         meta.identity = compute_identity(&meta);
-        let artifact = check(&meta, None)?;
+        let artifact = check(&meta, None, &EvidenceLedgerIntakeLimits::default())?;
         Ok((artifact, meta))
     }
 
@@ -1321,7 +1350,19 @@ impl EvidenceLedgerArtifact {
         bytes: &[u8],
         expected_identity: Option<&str>,
     ) -> Result<Self, EvidenceLedgerArtifactError> {
-        check(&decode_meta(bytes)?, expected_identity)
+        Self::from_bytes_within(bytes, expected_identity, &EvidenceLedgerIntakeLimits::default())
+    }
+
+    /// [`Self::from_bytes`] under the caller's intake bounds.
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        limits: &EvidenceLedgerIntakeLimits,
+    ) -> Result<Self, EvidenceLedgerArtifactError> {
+        check(&decode_meta(bytes, limits.max_bytes)?, expected_identity, limits)
     }
 
     /// Validate metadata as a consumer would, for tests that reseal edits.
@@ -1333,7 +1374,7 @@ impl EvidenceLedgerArtifact {
         meta: &EvidenceLedgerMeta,
         expected_identity: Option<&str>,
     ) -> Result<Self, EvidenceLedgerArtifactError> {
-        check(meta, expected_identity)
+        check(meta, expected_identity, &EvidenceLedgerIntakeLimits::default())
     }
 
     /// Recompute the identity of `meta` after an edit, for tests that reseal.

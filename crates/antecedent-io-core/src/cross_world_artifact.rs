@@ -277,21 +277,49 @@ pub fn cross_world_identity(wire: &CrossWorldArtifactWire) -> Result<String, IoE
     )
 }
 
+/// Intake bounds for a stored cross-world table. The defaults are
+/// [`CROSS_WORLD_MAX_NODES`] variables and [`CROSS_WORLD_MAX_ROWS`] rows; a caller with a
+/// larger budget passes its own through [`CrossWorldArtifactWire::check_bounds_within`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CrossWorldIntakeLimits {
+    /// Most variables.
+    pub max_variables: usize,
+    /// Most rows.
+    pub max_rows: usize,
+}
+
+impl Default for CrossWorldIntakeLimits {
+    fn default() -> Self {
+        Self { max_variables: CROSS_WORLD_MAX_NODES, max_rows: CROSS_WORLD_MAX_ROWS }
+    }
+}
+
 impl CrossWorldArtifactWire {
-    /// Refuse a table outside the format's bounds: one to
-    /// [`CROSS_WORLD_MAX_NODES`] variables, one to [`CROSS_WORLD_MAX_ROWS`] rows,
-    /// one column per variable. The producer and the consumer both call this, so
-    /// an artifact this writer exports is one this reader accepts.
+    /// Refuse a table outside the default intake bounds; see [`Self::check_bounds_within`].
     ///
     /// # Errors
     /// [`CrossWorldArtifactError::LimitsExceeded`] or `Malformed`.
     pub fn check_bounds(&self) -> Result<(), CrossWorldArtifactError> {
+        self.check_bounds_within(&CrossWorldIntakeLimits::default())
+    }
+
+    /// Refuse a table outside the caller's bounds: one to `limits.max_variables`
+    /// variables, one to `limits.max_rows` rows, one column per variable. The producer and
+    /// the consumer both call this, so an artifact this writer exports is one this reader
+    /// accepts under the same limits.
+    ///
+    /// # Errors
+    /// [`CrossWorldArtifactError::LimitsExceeded`] or `Malformed`.
+    pub fn check_bounds_within(
+        &self,
+        limits: &CrossWorldIntakeLimits,
+    ) -> Result<(), CrossWorldArtifactError> {
         let n = self.variable_names.len();
-        if n == 0 || n > CROSS_WORLD_MAX_NODES {
+        if n == 0 || n > limits.max_variables {
             return Err(CrossWorldArtifactError::LimitsExceeded("variables"));
         }
         let rows = self.columns.first().map_or(0, Vec::len);
-        if rows > CROSS_WORLD_MAX_ROWS {
+        if rows > limits.max_rows {
             return Err(CrossWorldArtifactError::LimitsExceeded("rows"));
         }
         if self.columns.len() != n || self.columns.iter().any(|c| c.len() != rows) || rows == 0 {

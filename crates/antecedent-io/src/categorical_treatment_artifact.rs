@@ -1492,6 +1492,9 @@ impl CategoricalTreatmentArtifact {
                 field: "monotonicity_null",
             });
         }
+        // Replay contract: the consumer re-runs the same deterministic code on the stored
+        // numbers, so the result must agree exactly (derived `PartialEq`: bitwise except that
+        // `-0.0 == 0.0`); a tolerance would admit a result the producer never computed.
         if meta.result != computed.result {
             return Err(CategoricalTreatmentArtifactError::ResultMismatch(
                 "counts, coefficients, covariance, contrasts or tests",

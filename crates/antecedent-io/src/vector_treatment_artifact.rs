@@ -19,8 +19,9 @@
 //!     the rows computes once `X'X` is known, so the meat is fixed when sealing and the consumer
 //!     recomputes the sandwich `(X'X)^-1 meat (X'X)^-1` from these numbers alone, bit-identically;
 //!   * `rows` (legacy robust artifacts): the outcome, the adjustment columns and the treatment
-//!     columns, replayed through the core fit. It is read but no longer written; replay above
-//!     [`VECTOR_TREATMENT_HC_ROW_CAP`] rows is refused.
+//!     columns, replayed through the core fit. It is read but no longer written; the declared row
+//!     count must match the stored payload exactly, so the artifact byte budget is the only bound
+//!     on the rows.
 //!
 //! The summaries carry no row, so they are bound to the rows they came from by a digest
 //! (`data_digest`, part of the design identity): [`VectorTreatmentArtifact::verify_data`] checks
@@ -74,8 +75,10 @@ pub const VECTOR_TREATMENT_ARTIFACT_FEATURE: &str = "vector_treatment_v1";
 pub const VECTOR_TREATMENT_CALIBRATION: &str = "unmeasured";
 /// Most bytes an artifact may occupy: the largest export budget, enforced on consumption.
 pub const MAX_VECTOR_TREATMENT_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
-/// Most rows a legacy robust-covariance `rows` replay artifact may carry. Sealing no longer
-/// embeds rows, so this bounds only the consumption of artifacts that already do.
+/// Row count the legacy robust-covariance `rows` replay format was originally written for. It
+/// is no longer applied: a declared row count must match the stored numbers exactly (so the
+/// artifact byte budget bounds the rows), and the constant is kept only so existing importers
+/// still resolve it.
 pub const VECTOR_TREATMENT_HC_ROW_CAP: usize = 4096;
 /// Most shared adjustment columns an artifact may declare.
 pub const VECTOR_TREATMENT_MAX_ADJUSTMENT: usize = 1024;
@@ -500,9 +503,6 @@ impl Replay {
                 }))
             }
             REPLAY_ROWS => {
-                if decl.n_rows > VECTOR_TREATMENT_HC_ROW_CAP {
-                    return Err(VectorTreatmentArtifactError::LimitsExceeded("replay rows"));
-                }
                 if decl.n_rows.checked_mul(p) != Some(numbers.len()) {
                     return Err(malformed("numbers section length"));
                 }
@@ -1105,6 +1105,9 @@ impl VectorTreatmentArtifact {
         if let Some(field) = identity_diff(&meta.identity, &computed.identity) {
             return Err(VectorTreatmentArtifactError::IdentityMismatch { field });
         }
+        // Replay contract: the consumer re-runs the same deterministic code on the stored
+        // numbers, so the result must agree exactly (derived `PartialEq`: bitwise except that
+        // `-0.0 == 0.0`); a tolerance would admit a result the producer never computed.
         if meta.result != computed.result {
             return Err(VectorTreatmentArtifactError::ResultMismatch(
                 "coefficients, covariance, contrasts or joint test",
@@ -1238,11 +1241,11 @@ mod number_section_tests {
     }
 
     #[test]
-    fn a_legacy_rows_replay_above_its_cap_is_refused_on_consumption() {
+    fn a_legacy_rows_replay_declaring_more_rows_than_it_stores_is_malformed() {
         let decl = decl(VECTOR_TREATMENT_HC_ROW_CAP + 1);
         assert!(matches!(
             Replay::from_numbers(&decl, REPLAY_ROWS, &[]),
-            Err(VectorTreatmentArtifactError::LimitsExceeded("replay rows"))
+            Err(VectorTreatmentArtifactError::Malformed(_))
         ));
     }
 }

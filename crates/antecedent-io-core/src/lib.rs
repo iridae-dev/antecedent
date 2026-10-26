@@ -150,8 +150,8 @@ pub use causal_artifact::{
 pub use claim_identity::{ClaimIdentityWire, claim_digest};
 pub use container::{
     AUTO_COMPRESS_MAX_RATIO, AUTO_COMPRESS_MIN_BYTES, ArtifactManifest, COMPRESSION_ZSTD,
-    CONTAINER_VERSION, CompressPolicy, EncodedArtifact, MAGIC, SectionBytes, pack_section,
-    pack_section_shared, section_descriptor, section_descriptor_with_policy,
+    CONTAINER_VERSION, CompressPolicy, ContainerLimits, EncodedArtifact, MAGIC, SectionBytes,
+    pack_section, pack_section_shared, section_descriptor, section_descriptor_with_policy,
 };
 pub use contract_section::TargetWeightsSectionWire;
 pub use contract_section::{

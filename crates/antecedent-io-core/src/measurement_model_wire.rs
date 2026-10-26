@@ -39,7 +39,6 @@ pub const MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES: usize = 8 * 1024 * 1024;
 pub const MEASUREMENT_MODEL_ARTIFACT_VERSION: u16 = 1;
 /// Most per-imputation fits one artifact carries.
 pub const MAX_MEASUREMENT_IMPUTATIONS: usize = 10_000;
-const MAX_DIM: usize = 66;
 const ARTIFACT_KIND: &str = crate::artifact_kinds::MEASUREMENT_MODEL;
 const META_SECTION: &str = "measurement_model_meta";
 /// Relative tolerance of the replay comparison.
@@ -731,9 +730,14 @@ fn moments_to_wire(m: &LinearMoments) -> MomentsWire {
 }
 
 fn moments_from_wire(w: &MomentsWire) -> Result<LinearMoments, IoError> {
-    let dim = w.dim as usize;
-    if !(2..=MAX_DIM).contains(&dim) {
+    // The design width is bounded by the payload, not a literal: the Gram matrix stored
+    // with the moments must be exactly `dim x dim`, and the artifact byte budget bounds it.
+    let dim = usize::try_from(w.dim).map_err(|_| IoError::TooLarge)?;
+    if dim < 2 {
         return Err(IoError::TooLarge);
+    }
+    if dim.checked_mul(dim) != Some(w.gram_bits.len()) {
+        return Err(convert("moments dimension does not match the stored Gram matrix"));
     }
     Ok(LinearMoments {
         n: usize::try_from(w.n).map_err(|_| IoError::TooLarge)?,
@@ -869,8 +873,6 @@ fn replay_from_wire(wire: &ReplayWire) -> Result<MeasurementReplay, IoError> {
         } => {
             if coefficients_bits.len() > MAX_MEASUREMENT_IMPUTATIONS
                 || covariances_bits.len() > MAX_MEASUREMENT_IMPUTATIONS
-                || coefficients_bits.iter().any(|c| c.len() > MAX_DIM)
-                || covariances_bits.iter().any(|c| c.len() > MAX_DIM * MAX_DIM)
             {
                 return Err(IoError::TooLarge);
             }

@@ -74,8 +74,6 @@ pub const COHORT_DECISION_SECTION: &str = "cohort_decision_source_body";
 pub const MAX_COHORT_DECISION_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
 /// Most cohort rows one source binds.
 pub const MAX_COHORT_ROWS: usize = 200_000;
-/// Most features one cohort binds.
-pub const MAX_COHORT_FEATURES: usize = 64;
 /// Largest allowed deviation of the weight sum from one.
 pub const WEIGHT_SUM_TOLERANCE: f64 = 1e-9;
 /// Functional identity of the model's conditional contrast.
@@ -385,7 +383,7 @@ impl CohortBinding {
         if rows == 0 {
             return Err(invalid("cohort_decision.cohort_empty", "rows", remedy));
         }
-        if rows > MAX_COHORT_ROWS || self.features.len() > MAX_COHORT_FEATURES {
+        if rows > MAX_COHORT_ROWS {
             return Err(invalid("cohort_decision.cohort_too_large", rows.to_string(), remedy));
         }
         if self.features.is_empty()

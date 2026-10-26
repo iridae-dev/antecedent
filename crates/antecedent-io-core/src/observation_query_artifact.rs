@@ -75,10 +75,7 @@ use crate::distribution_artifact::{
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
 use crate::measurement_model_wire::{MeasurementModelWire, model_from_wire};
-use crate::mechanism_composition_artifact::{
-    MECHANISM_COMPOSITION_MAX_INTERVENTIONS, MechanismCompositionPremisesWire,
-    refusals_for_findings,
-};
+use crate::mechanism_composition_artifact::{MechanismCompositionPremisesWire, refusals_for_findings};
 use crate::quantity_wire::DistributionMeaningWire;
 
 /// The artifact format this reader writes and accepts.
@@ -98,9 +95,6 @@ pub const OBSERVATION_QUERY_MAX_RETAINED_ROWS: usize = 4096;
 /// The reading of the spread of redrawn parameters: a spread of exact posterior
 /// draws with no coverage statement.
 pub const PARAMETER_DRAWS_READING: &str = antecedent_contract::UNCALIBRATED_SPREAD_LABEL;
-/// Most assignments (observed values, interventions, background values) one
-/// query may carry.
-pub const OBSERVATION_QUERY_MAX_ASSIGNMENTS: usize = MECHANISM_COMPOSITION_MAX_INTERVENTIONS;
 
 /// Why an observation-query artifact was refused.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -883,55 +877,18 @@ pub fn observation_query_identity(
 
 // ----------------------------------------------------------------- execution
 
-fn check_assignments(
-    pairs: &[(String, String)],
-    what: &'static str,
-) -> Result<(), ObservationQueryArtifactError> {
-    if pairs.len() > OBSERVATION_QUERY_MAX_ASSIGNMENTS {
-        return Err(ObservationQueryArtifactError::LimitsExceeded(what));
-    }
-    Ok(())
-}
-
+/// Structural bounds on a query. Assignment lists (observed values, interventions,
+/// background values) carry no count cap: they are data of the artifact, bounded by its
+/// byte budget, and the engine refuses names that are not variables of the premises.
 fn check_query_bounds(query: &ObservationQueryWire) -> Result<(), ObservationQueryArtifactError> {
     match query {
-        ObservationQueryWire::ConditionalOutcome { observed, .. } => {
-            check_assignments(observed, "observed values")
-        }
-        ObservationQueryWire::InterventionalOutcome { interventions, .. } => {
-            check_assignments(interventions, "interventions")
-        }
-        ObservationQueryWire::ConditioningVersusIntervention { assignment, .. } => {
-            check_assignments(assignment, "assignment")
-        }
-        ObservationQueryWire::GaussianOutcome { interventions, observed, .. } => {
-            if interventions.len() > OBSERVATION_QUERY_MAX_ASSIGNMENTS
-                || observed.len() > OBSERVATION_QUERY_MAX_ASSIGNMENTS
-            {
-                return Err(ObservationQueryArtifactError::LimitsExceeded("assignments"));
-            }
-            Ok(())
-        }
-        ObservationQueryWire::ConditionalInterventionalOutcome {
-            interventions, observed, ..
-        } => {
-            check_assignments(interventions, "interventions")?;
-            check_assignments(observed, "observed values")
-        }
-        ObservationQueryWire::ParameterRedraw { target, retained, draws, .. } => {
-            let (interventions, observed) = match target {
-                RedrawTargetWire::Gaussian { interventions, observed, .. } => {
-                    (interventions.len(), observed.len())
-                }
-                RedrawTargetWire::Finite { interventions, observed, .. } => {
-                    (interventions.len(), observed.len())
-                }
-            };
-            if interventions > OBSERVATION_QUERY_MAX_ASSIGNMENTS
-                || observed > OBSERVATION_QUERY_MAX_ASSIGNMENTS
-            {
-                return Err(ObservationQueryArtifactError::LimitsExceeded("assignments"));
-            }
+        ObservationQueryWire::ConditionalOutcome { .. }
+        | ObservationQueryWire::InterventionalOutcome { .. }
+        | ObservationQueryWire::ConditioningVersusIntervention { .. }
+        | ObservationQueryWire::GaussianOutcome { .. }
+        | ObservationQueryWire::ConditionalInterventionalOutcome { .. }
+        | ObservationQueryWire::ThresholdCrossing { .. } => Ok(()),
+        ObservationQueryWire::ParameterRedraw { retained, draws, .. } => {
             if retained.len() > MAX_COMPOSED_MECHANISMS || *draws > MAX_REDRAWS {
                 return Err(ObservationQueryArtifactError::LimitsExceeded("redraw"));
             }
@@ -963,9 +920,6 @@ fn check_query_bounds(query: &ObservationQueryWire) -> Result<(), ObservationQue
                 }
             }
             Ok(())
-        }
-        ObservationQueryWire::ThresholdCrossing { background, .. } => {
-            check_assignments(background, "background values")
         }
         ObservationQueryWire::FinitePosterior {
             hypotheses,

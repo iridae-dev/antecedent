@@ -46,7 +46,9 @@ pub const UNCERTAINTY_SCOPE: &str = "model-based standard error se = sqrt(phi' V
 pub const CALIBRATION_STATUS: &str = "calibration unmeasured";
 /// Label carried by every reported standard error.
 pub const SE_BASIS: &str = "model_based_sqrt_phi_v_phi";
-/// Largest polynomial degree a term may declare.
+/// Default largest polynomial degree a term may declare. This is a numeric-stability
+/// default (the power basis is ill-conditioned at high degree), not a format limit: a
+/// consumer that wants other degrees sets [`ExportLimits::max_degree`].
 pub const MAX_POLYNOMIAL_DEGREE: u32 = 8;
 
 const SYMMETRY_TOLERANCE: f64 = 1e-9;
@@ -66,6 +68,9 @@ pub struct ExportLimits {
     pub max_mask_regions: usize,
     /// Largest number of levels in one level set.
     pub max_levels: usize,
+    /// Largest polynomial degree a power term may declare (default
+    /// [`MAX_POLYNOMIAL_DEGREE`]).
+    pub max_degree: u32,
 }
 
 impl Default for ExportLimits {
@@ -76,6 +81,7 @@ impl Default for ExportLimits {
             max_inputs: 64,
             max_mask_regions: 256,
             max_levels: 1024,
+            max_degree: MAX_POLYNOMIAL_DEGREE,
         }
     }
 }
@@ -173,7 +179,7 @@ pub enum TermSpec {
         /// Input `variable_id`.
         quantity: String,
     },
-    /// The numeric quantity raised to `degree` (2 to [`MAX_POLYNOMIAL_DEGREE`]).
+    /// The numeric quantity raised to `degree` (2 to [`ExportLimits::max_degree`]).
     Power {
         /// Input `variable_id`.
         quantity: String,
@@ -542,6 +548,7 @@ fn check_inputs(
 fn check_terms(
     body: &CompactExportBody,
     supports: &BTreeMap<String, InputSupport>,
+    limits: &ExportLimits,
 ) -> Result<(), ExportRefusal> {
     if body.terms.windows(2).any(|pair| pair[0] >= pair[1]) {
         return Err(invalid("compact_export.terms_not_canonical", "terms"));
@@ -559,7 +566,7 @@ fn check_terms(
                     return Err(invalid("compact_export.term_support_mismatch", quantity.clone()));
                 }
                 if let TermSpec::Power { degree, .. } = term {
-                    if !(2..=MAX_POLYNOMIAL_DEGREE).contains(degree) {
+                    if !(2..=limits.max_degree).contains(degree) {
                         return Err(invalid("compact_export.invalid_degree", quantity.clone()));
                     }
                 }
@@ -603,7 +610,61 @@ fn check_covariance(body: &CompactExportBody) -> Result<(), ExportRefusal> {
             }
         }
     }
+    // The diagonal and pairwise bounds are necessary but not sufficient from three
+    // dimensions up: the full positive-semidefinite condition is checked below.
+    if let Some(pivot) = first_negative_pivot(&body.covariance, n) {
+        return Err(invalid("compact_export.covariance_not_psd", format!("pivot {pivot}")));
+    }
     Ok(())
+}
+
+/// Symmetric-pivoted Cholesky elimination of the row-major `n x n` matrix `matrix`
+/// (symmetrized first). Returns the step at which the Schur complement acquires a diagonal
+/// below `-tolerance`, which certifies a negative eigenvalue beyond rounding, or `None` when
+/// the matrix is positive semidefinite to the tolerance. Singular matrices pass: once the
+/// largest remaining diagonal is within the tolerance of zero the rest of the Schur
+/// complement is zero to that tolerance (a PSD matrix bounds each entry by the geometric mean
+/// of its diagonals) and the elimination stops.
+fn first_negative_pivot(matrix: &[f64], n: usize) -> Option<usize> {
+    let mut a: Vec<f64> = (0..n * n)
+        .map(|k| {
+            let (i, j) = (k / n, k % n);
+            0.5 * (matrix[i * n + j] + matrix[j * n + i])
+        })
+        .collect();
+    let scale = (0..n).map(|i| a[i * n + i]).fold(0.0_f64, f64::max);
+    let tolerance = PSD_TOLERANCE * scale * f64::from(u32::try_from(n).unwrap_or(u32::MAX));
+    let mut order: Vec<usize> = (0..n).collect();
+    for step in 0..n {
+        // Largest remaining diagonal is the pivot; any remaining diagonal below
+        // -tolerance already certifies a negative eigenvalue.
+        let (mut best, mut best_value) = (step, f64::NEG_INFINITY);
+        for k in step..n {
+            let d = a[order[k] * n + order[k]];
+            if d < -tolerance {
+                return Some(step);
+            }
+            if d > best_value {
+                (best, best_value) = (k, d);
+            }
+        }
+        if best_value <= tolerance {
+            return None;
+        }
+        order.swap(step, best);
+        let p = order[step];
+        for r in (step + 1)..n {
+            let (i, factor) = (order[r], a[order[r] * n + p] / best_value);
+            if factor == 0.0 {
+                continue;
+            }
+            for c in (step + 1)..n {
+                let j = order[c];
+                a[i * n + j] -= factor * a[p * n + j];
+            }
+        }
+    }
+    None
 }
 
 fn check_region(
@@ -659,7 +720,7 @@ fn check_semantics(body: &CompactExportBody, limits: &ExportLimits) -> Result<()
         return Err(invalid("compact_export.scope_mismatch", "scope"));
     }
     let supports = check_inputs(body, limits)?;
-    check_terms(body, &supports)?;
+    check_terms(body, &supports, limits)?;
     check_covariance(body)?;
     check_mask(body, &supports, limits)
 }
@@ -955,5 +1016,26 @@ impl CompactExport {
             from_cbor(section.as_bytes()).map_err(|error| io_refusal(&error))?;
         verify_body(&body, limits, expected_identity)?;
         Ok(Self { body })
+    }
+}
+
+#[cfg(test)]
+mod psd_tests {
+    use super::first_negative_pivot;
+
+    #[test]
+    fn a_unit_diagonal_matrix_with_strongly_negative_correlations_is_not_psd() {
+        let m = [1.0, -0.9, -0.9, -0.9, 1.0, -0.9, -0.9, -0.9, 1.0];
+        assert!(first_negative_pivot(&m, 3).is_some());
+    }
+
+    #[test]
+    fn singular_and_diagonal_matrices_pass() {
+        // Rank one: v v' with v = (1, 2, 3).
+        let v = [1.0_f64, 2.0, 3.0];
+        let rank_one: Vec<f64> = (0..9).map(|k| v[k / 3] * v[k % 3]).collect();
+        assert!(first_negative_pivot(&rank_one, 3).is_none());
+        assert!(first_negative_pivot(&[0.0; 4], 2).is_none());
+        assert!(first_negative_pivot(&[2.0, 0.0, 0.0, 0.5], 2).is_none());
     }
 }

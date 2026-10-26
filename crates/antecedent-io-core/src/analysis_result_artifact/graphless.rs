@@ -15,9 +15,14 @@ use crate::graphless_support::{GraphlessAssignmentSupport, GraphlessSupportKey, 
 const MIN_EXPECTED_ARM_UNITS: f64 = 40.0;
 /// Fewest observed rows in each arm of a small-arm Student interval.
 const MIN_SMALL_ARM_UNITS: usize = 2;
-/// Fewest rows in all of a trial that publishes a small-arm Student interval.
+/// Fewest rows in all of a trial that publishes a small-arm Student interval. A licence
+/// boundary, not a parser bound: the interval's coverage was only measured from this size, so
+/// a stored interval claiming it below the boundary is a forgery whatever its bytes.
 const MIN_SMALL_ARM_ROWS: usize = 100;
-/// Most ANCOVA covariates of a small-arm Student interval.
+/// Most ANCOVA covariates of a small-arm Student interval. A licence boundary mirroring the
+/// estimator's own: the interval uses `n - 2 - covariates` degrees of freedom and its
+/// coverage was measured only for up to this many covariates, so a stored interval claiming
+/// more is refused as unlicensed rather than parsed as too large.
 const MAX_SMALL_ARM_COVARIATES: usize = 2;
 
 /// Whether a stored graphless support status matches the independently

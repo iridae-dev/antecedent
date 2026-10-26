@@ -37,12 +37,37 @@ pub const FROZEN_SCORES_ARTIFACT_FEATURE: &str = "frozen_scores_v1";
 pub const MAX_FROZEN_SCORES_ARTIFACT_BYTES: usize = 128 * 1024 * 1024;
 /// Most complete-case rows a frozen score table may carry.
 pub const MAX_FROZEN_SCORE_ROWS: usize = 1 << 21;
-/// Most score columns a frozen score table may carry.
-pub const MAX_FROZEN_SCORE_COLUMNS: usize = 64;
 /// Most score values (rows times columns) a frozen score table may carry.
 pub const MAX_FROZEN_SCORE_VALUES: usize = 1 << 22;
 /// Most stage declarations the artifact may carry.
 pub const MAX_FROZEN_SCORE_STAGES: usize = 64;
+
+/// Intake bounds for a stored frozen score table. The defaults are the `MAX_FROZEN_SCORE_*`
+/// constants and [`MAX_FROZEN_SCORES_ARTIFACT_BYTES`]; there is no separate column cap, as
+/// rows times columns is bounded by `max_values`. A consumer with a larger budget passes its
+/// own to [`FrozenScoreTable::from_bytes_within`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FrozenScoresIntakeLimits {
+    /// Most container bytes.
+    pub max_bytes: usize,
+    /// Most complete-case rows.
+    pub max_rows: usize,
+    /// Most score values (rows times columns).
+    pub max_values: usize,
+    /// Most stage declarations.
+    pub max_stages: usize,
+}
+
+impl Default for FrozenScoresIntakeLimits {
+    fn default() -> Self {
+        Self {
+            max_bytes: MAX_FROZEN_SCORES_ARTIFACT_BYTES,
+            max_rows: MAX_FROZEN_SCORE_ROWS,
+            max_values: MAX_FROZEN_SCORE_VALUES,
+            max_stages: MAX_FROZEN_SCORE_STAGES,
+        }
+    }
+}
 
 const ARTIFACT_KIND: &str = crate::artifact_kinds::FROZEN_SCORES;
 const META_SECTION: &str = "frozen_scores_meta";
@@ -205,16 +230,16 @@ fn compute_identity(
 
 // -- validation ---------------------------------------------------------------------------
 
-fn check_bounds(table: &ScoreTablePlain) -> Result<usize, FrozenScoresArtifactError> {
+fn check_bounds(
+    table: &ScoreTablePlain,
+    limits: &FrozenScoresIntakeLimits,
+) -> Result<usize, FrozenScoresArtifactError> {
     let limit = |what| Err(FrozenScoresArtifactError::LimitsExceeded(what));
     let n = usize::try_from(table.n_rows).unwrap_or(usize::MAX);
-    if n > MAX_FROZEN_SCORE_ROWS {
+    if n > limits.max_rows {
         return limit("score rows");
     }
-    if table.columns.len() > MAX_FROZEN_SCORE_COLUMNS {
-        return limit("score columns");
-    }
-    if n.saturating_mul(table.columns.len()) > MAX_FROZEN_SCORE_VALUES {
+    if n.saturating_mul(table.columns.len()) > limits.max_values {
         return limit("score values");
     }
     if table.adjustment_set.len() > MAX_ADJUSTMENT || table.intervened.len() > MAX_ADJUSTMENT {
@@ -259,8 +284,11 @@ fn check_shape(
     Ok(())
 }
 
-fn check_identities(meta: &FrozenScoresMeta) -> Result<StageIdentities, FrozenScoresArtifactError> {
-    if meta.declared.len() > MAX_FROZEN_SCORE_STAGES {
+fn check_identities(
+    meta: &FrozenScoresMeta,
+    limits: &FrozenScoresIntakeLimits,
+) -> Result<StageIdentities, FrozenScoresArtifactError> {
+    if meta.declared.len() > limits.max_stages {
         return Err(FrozenScoresArtifactError::LimitsExceeded("stage declarations"));
     }
     if meta.estimator.is_empty() || meta.estimator.len() > MAX_TEXT_BYTES {
@@ -290,6 +318,7 @@ fn check_identities(meta: &FrozenScoresMeta) -> Result<StageIdentities, FrozenSc
 fn check(
     mut meta: FrozenScoresMeta,
     expected_identity: Option<&str>,
+    limits: &FrozenScoresIntakeLimits,
 ) -> Result<FrozenScoreTable, FrozenScoresArtifactError> {
     if meta.version != FROZEN_SCORES_ARTIFACT_VERSION {
         return Err(FrozenScoresArtifactError::UnsupportedVersion { version: meta.version });
@@ -297,9 +326,9 @@ fn check(
     if meta.feature != FROZEN_SCORES_ARTIFACT_FEATURE {
         return Err(FrozenScoresArtifactError::UnsupportedSemantics("feature marker"));
     }
-    let n = check_bounds(&meta.table)?;
+    let n = check_bounds(&meta.table, limits)?;
     check_shape(&meta.table, n, meta.input_rows)?;
-    let declared = check_identities(&meta)?;
+    let declared = check_identities(&meta, limits)?;
     // The estimator's decoder applies the same checks (finite scores, propensities in
     // [0, 1], fold ids below the fold count, a sane clip); the text keeps its
     // `invalid argument` rendering.
@@ -369,13 +398,16 @@ fn encode_parts_impl(
 #[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn decode_parts(bytes: &[u8]) -> Result<FrozenScoresMeta, FrozenScoresArtifactError> {
-    decode_parts_impl(bytes)
+    decode_parts_impl(bytes, MAX_FROZEN_SCORES_ARTIFACT_BYTES)
 }
 
-fn decode_parts_impl(bytes: &[u8]) -> Result<FrozenScoresMeta, FrozenScoresArtifactError> {
+fn decode_parts_impl(
+    bytes: &[u8],
+    max_bytes: usize,
+) -> Result<FrozenScoresMeta, FrozenScoresArtifactError> {
     let parts = crate::decode_container(
         ARTIFACT_KIND,
-        MAX_FROZEN_SCORES_ARTIFACT_BYTES,
+        max_bytes,
         &[META_SECTION],
         bytes,
     )
@@ -435,7 +467,7 @@ impl FrozenScoreTable {
             identity: String::new(),
         };
         meta.identity = compute_identity(&meta, &parts.declared)?.to_hex();
-        check(meta, None)
+        check(meta, None, &FrozenScoresIntakeLimits::default())
     }
 
     /// The stored metadata, with declarations in topological order.
@@ -513,7 +545,19 @@ impl FrozenScoreTable {
         bytes: &[u8],
         expected_identity: Option<&str>,
     ) -> Result<Self, FrozenScoresArtifactError> {
-        check(decode_parts_impl(bytes)?, expected_identity)
+        Self::from_bytes_within(bytes, expected_identity, &FrozenScoresIntakeLimits::default())
+    }
+
+    /// [`Self::from_bytes`] under the caller's intake bounds.
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        limits: &FrozenScoresIntakeLimits,
+    ) -> Result<Self, FrozenScoresArtifactError> {
+        check(decode_parts_impl(bytes, limits.max_bytes)?, expected_identity, limits)
     }
 
     /// Validate metadata as a consumer would, for hidden test reseals.
@@ -526,7 +570,7 @@ impl FrozenScoreTable {
         meta: FrozenScoresMeta,
         expected_identity: Option<&str>,
     ) -> Result<Self, FrozenScoresArtifactError> {
-        check(meta, expected_identity)
+        check(meta, expected_identity, &FrozenScoresIntakeLimits::default())
     }
 
     /// Recompute the identity of `meta` after an edit, for hidden test reseals.

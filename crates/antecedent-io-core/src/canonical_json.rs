@@ -14,10 +14,33 @@ use crate::error::IoError;
 
 /// Largest JSON document hashed, in bytes.
 pub const MAX_CANONICAL_JSON_BYTES: usize = 16 * 1024 * 1024;
-const MAX_DEPTH: usize = 64;
+/// Default deepest nesting hashed.
+pub const MAX_CANONICAL_JSON_DEPTH: usize = 64;
 
-fn write(stream: &mut CanonicalWriter, value: &Value, depth: usize) -> Result<(), IoError> {
-    if depth > MAX_DEPTH {
+/// Bounds on a document handed to the canonical digest. Both stay refusals; the defaults are
+/// [`MAX_CANONICAL_JSON_BYTES`] and [`MAX_CANONICAL_JSON_DEPTH`]. Documents parsed from text
+/// are additionally subject to the JSON parser's own recursion limit.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CanonicalJsonLimits {
+    /// Largest document, in bytes.
+    pub max_bytes: usize,
+    /// Deepest nesting.
+    pub max_depth: usize,
+}
+
+impl Default for CanonicalJsonLimits {
+    fn default() -> Self {
+        Self { max_bytes: MAX_CANONICAL_JSON_BYTES, max_depth: MAX_CANONICAL_JSON_DEPTH }
+    }
+}
+
+fn write(
+    stream: &mut CanonicalWriter,
+    value: &Value,
+    depth: usize,
+    max_depth: usize,
+) -> Result<(), IoError> {
+    if depth > max_depth {
         return Err(IoError::Convert("canonical JSON nests too deeply".into()));
     }
     match value {
@@ -44,7 +67,7 @@ fn write(stream: &mut CanonicalWriter, value: &Value, depth: usize) -> Result<()
         Value::Array(items) => {
             stream.word(6).word(items.len() as u64);
             for item in items {
-                write(stream, item, depth + 1)?;
+                write(stream, item, depth + 1, max_depth)?;
             }
         }
         Value::Object(map) => {
@@ -53,7 +76,7 @@ fn write(stream: &mut CanonicalWriter, value: &Value, depth: usize) -> Result<()
             stream.word(7).word(entries.len() as u64);
             for (key, item) in entries {
                 stream.text(key);
-                write(stream, item, depth + 1)?;
+                write(stream, item, depth + 1, max_depth)?;
             }
         }
     }
@@ -66,12 +89,24 @@ fn write(stream: &mut CanonicalWriter, value: &Value, depth: usize) -> Result<()
 /// A blank domain, an oversized or unparseable document, a non-finite number
 /// or excessive nesting refuses.
 pub fn canonical_json_digest(domain: &str, json: &str) -> Result<String, IoError> {
-    if json.len() > MAX_CANONICAL_JSON_BYTES {
+    canonical_json_digest_with(domain, json, &CanonicalJsonLimits::default())
+}
+
+/// [`canonical_json_digest`] under the caller's bounds.
+///
+/// # Errors
+/// As [`canonical_json_digest`], with `limits` in place of the defaults.
+pub fn canonical_json_digest_with(
+    domain: &str,
+    json: &str,
+    limits: &CanonicalJsonLimits,
+) -> Result<String, IoError> {
+    if json.len() > limits.max_bytes {
         return Err(IoError::TooLarge);
     }
     let value: Value = serde_json::from_str(json)
         .map_err(|error| IoError::Convert(format!("canonical JSON is invalid: {error}")))?;
-    canonical_json_value_digest(domain, &value)
+    canonical_json_value_digest_with(domain, &value, limits)
 }
 
 /// [`canonical_json_digest`] of a value already parsed, so a Rust caller digests
@@ -80,11 +115,23 @@ pub fn canonical_json_digest(domain: &str, json: &str) -> Result<String, IoError
 /// # Errors
 /// A blank domain, a non-finite number or excessive nesting refuses.
 pub fn canonical_json_value_digest(domain: &str, value: &Value) -> Result<String, IoError> {
+    canonical_json_value_digest_with(domain, value, &CanonicalJsonLimits::default())
+}
+
+/// [`canonical_json_value_digest`] under the caller's bounds.
+///
+/// # Errors
+/// As [`canonical_json_value_digest`], with `limits` in place of the defaults.
+pub fn canonical_json_value_digest_with(
+    domain: &str,
+    value: &Value,
+    limits: &CanonicalJsonLimits,
+) -> Result<String, IoError> {
     if domain.trim().is_empty() {
         return Err(IoError::Convert("canonical digest needs a domain".into()));
     }
     let mut stream = CanonicalWriter::new(domain);
-    write(&mut stream, value, 0)?;
+    write(&mut stream, value, 0, limits.max_depth)?;
     Ok(stream.finish_hex())
 }
 

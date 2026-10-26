@@ -69,16 +69,12 @@ use super::{
 };
 use crate::cyclic_system_artifact::CyclicArtifactError;
 
-/// Largest number of worlds one request evaluates.
-const MAX_WORLDS: usize = 256;
-/// Largest number of draws, replicates or disturbance rows one request retains.
+/// Largest number of draws, replicates or disturbance rows one request *generates* or
+/// retains from a bare count. Counts that index request data (worlds, regimes, quantities,
+/// retained draws) are bounded by that data and carry no separate cap.
 const MAX_DRAWS: usize = 10_000;
-/// Largest number of experiment regimes.
-const MAX_REGIMES: usize = 256;
 /// Largest number of observed values over every regime column.
 const MAX_EXPERIMENT_VALUES: usize = 20_000_000;
-/// Largest number of derived dynamic quantities.
-const MAX_QUANTITIES: usize = 256;
 
 /// Next attempt named when a recovered law is asked for anything but a hard clamp.
 const RECOVERED_CLAMP_ONLY: &str = "a recovered law is evaluated under hard clamps only; next \
@@ -183,8 +179,8 @@ impl CyclicWorldWire {
 fn world_requests(
     worlds: &[CyclicWorldWire],
 ) -> Result<Vec<CyclicWorldRequest>, CyclicArtifactError> {
-    if worlds.is_empty() || worlds.len() > MAX_WORLDS {
-        return Err(invalid("typed cyclic worlds: between one and 256 worlds are required"));
+    if worlds.is_empty() {
+        return Err(invalid("typed cyclic worlds: at least one world is required"));
     }
     let mut seen = BTreeSet::new();
     worlds
@@ -1139,8 +1135,8 @@ impl RecoveredLawProduct {
     }
 
     fn law(&self) -> Result<RecoveredCoefficientUncertainty, CyclicArtifactError> {
-        if self.draws.is_empty() || self.draws.len() > MAX_DRAWS || self.nodes.len() > 64 {
-            return Err(invalid("recovered law draw or node limit"));
+        if self.draws.is_empty() || self.nodes.len() > 64 {
+            return Err(invalid("a recovered law needs a draw and at most 64 nodes"));
         }
         let ids: Vec<VariableId> = self.nodes.iter().copied().map(VariableId::from_raw).collect();
         RecoveredCoefficientUncertainty::retain(&ids, self.draws.iter().map(draw_input).collect())
@@ -1412,10 +1408,8 @@ fn check_experiment(
     source_id: &str,
     certifying_evidence: &[String],
 ) -> Result<(), CyclicArtifactError> {
-    if regimes.is_empty() || regimes.len() > MAX_REGIMES || samples.len() != regimes.len() {
-        return Err(invalid(
-            "experimental recovery needs one sample per declared regime, at most 256 regimes",
-        ));
+    if regimes.is_empty() || samples.len() != regimes.len() {
+        return Err(invalid("experimental recovery needs one sample per declared regime"));
     }
     let values = samples
         .iter()
@@ -1809,9 +1803,6 @@ pub(super) fn execute_dynamic_inference(
     frozen: Option<&DynamicFitAnswer>,
     ctx: &ExecutionContext,
 ) -> Result<A, CyclicArtifactError> {
-    if quantities.len() > MAX_QUANTITIES {
-        return Err(invalid("dynamic inference quantity limit"));
-    }
     let fit = match frozen {
         Some(retained) => retained.clone(),
         None => fit_dynamic(problem, ctx)?,

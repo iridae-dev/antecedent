@@ -352,30 +352,67 @@ pub(crate) fn counterfactual_id_identity(
     )
 }
 
+/// Intake bounds for a stored counterfactual-identification artifact. The defaults are the
+/// sizes the exact finite-state evidence stage is exercised at; a caller with a larger
+/// budget passes its own through [`CounterfactualIdArtifactWire::check_bounds_within`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CounterfactualIdIntakeLimits {
+    /// Most named variables.
+    pub max_variables: usize,
+    /// Most levels per variable.
+    pub max_levels: usize,
+}
+
+impl Default for CounterfactualIdIntakeLimits {
+    fn default() -> Self {
+        Self {
+            max_variables: COUNTERFACTUAL_ID_MAX_VARIABLES,
+            max_levels: COUNTERFACTUAL_ID_MAX_LEVELS,
+        }
+    }
+}
+
 impl CounterfactualIdArtifactWire {
-    /// Refuse an artifact outside the format's bounds: one to
-    /// [`COUNTERFACTUAL_ID_MAX_VARIABLES`] named variables, each with one to
-    /// [`COUNTERFACTUAL_ID_MAX_LEVELS`] levels, a law with one axis per variable
-    /// and one probability (and count) per cell. Producer and consumer both
-    /// call this.
+    /// Refuse an artifact outside the default intake bounds; see
+    /// [`Self::check_bounds_within`].
     ///
     /// # Errors
     /// [`CounterfactualIdArtifactError::LimitsExceeded`] or `Malformed`.
     pub fn check_bounds(&self) -> Result<(), CounterfactualIdArtifactError> {
+        self.check_bounds_within(&CounterfactualIdIntakeLimits::default())
+    }
+
+    /// Refuse an artifact outside the caller's bounds: one to
+    /// `limits.max_variables` named variables, each with at most
+    /// `limits.max_levels` levels (defaults [`COUNTERFACTUAL_ID_MAX_VARIABLES`] and
+    /// [`COUNTERFACTUAL_ID_MAX_LEVELS`]), a law with one axis per variable and one
+    /// probability (and count) per cell. Producer and consumer both call this.
+    ///
+    /// # Errors
+    /// [`CounterfactualIdArtifactError::LimitsExceeded`] or `Malformed`.
+    pub fn check_bounds_within(
+        &self,
+        limits: &CounterfactualIdIntakeLimits,
+    ) -> Result<(), CounterfactualIdArtifactError> {
         let n = self.variable_names.len();
-        if n == 0 || n > COUNTERFACTUAL_ID_MAX_VARIABLES {
+        if n == 0 || n > limits.max_variables {
             return Err(CounterfactualIdArtifactError::LimitsExceeded("variables"));
         }
-        if self.levels.iter().any(|l| l.len() > COUNTERFACTUAL_ID_MAX_LEVELS) {
+        if self.levels.iter().any(|l| l.len() > limits.max_levels) {
             return Err(CounterfactualIdArtifactError::LimitsExceeded("levels"));
         }
         if self.levels.len() != n || self.law.axes.len() != n {
             return Err(CounterfactualIdArtifactError::Malformed("variable count".into()));
         }
-        let cells: usize = self.law.axes.iter().map(|a| a.levels.len()).product();
-        if self.law.axes.iter().any(|a| a.levels.len() > COUNTERFACTUAL_ID_MAX_LEVELS) {
+        if self.law.axes.iter().any(|a| a.levels.len() > limits.max_levels) {
             return Err(CounterfactualIdArtifactError::LimitsExceeded("law levels"));
         }
+        let cells = self
+            .law
+            .axes
+            .iter()
+            .try_fold(1_usize, |acc, a| acc.checked_mul(a.levels.len()))
+            .ok_or(CounterfactualIdArtifactError::LimitsExceeded("law cells"))?;
         if self.law.probabilities.len() != cells
             || self.law.counts.as_ref().is_some_and(|c| c.len() != cells)
         {

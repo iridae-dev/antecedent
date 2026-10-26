@@ -684,7 +684,10 @@ pub fn project_claim_host(consumed: &AnalysisResultConsumption) -> ClaimHostProj
         return unsupported_host(consumed, consumed.acceptance.accepts_as_claim());
     };
     let value = match (claim.kind.as_str(), claim.value_bits) {
-        ("point", Some(bits)) => serde_json::Value::from(f64::from_bits(bits)),
+        // A non-finite point estimate is not JSON-representable; it must not collapse into the
+        // `null` that means an explicitly absent value.
+        ("point", Some(bits)) => serde_json::Number::from_f64(f64::from_bits(bits))
+            .map_or_else(|| serde_json::Value::String("non_finite".into()), serde_json::Value::Number),
         ("point", None) => serde_json::Value::Null,
         ("bounds" | "incomplete", _) => serde_json::Value::String("unbounded".into()),
         ("refusal", _) => serde_json::Value::String("unsupported".into()),

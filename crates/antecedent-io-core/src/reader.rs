@@ -11,8 +11,8 @@ use std::sync::Arc;
 use memmap2::Mmap;
 
 use crate::container::{
-    ArtifactManifest, EncodedArtifact, MAX_SECTION_BYTES, SectionBytes, decode_on_wire_arc,
-    decode_on_wire_arc_owned, read_header_and_manifest,
+    ArtifactManifest, ContainerLimits, EncodedArtifact, SectionBytes, decode_on_wire_arc,
+    decode_on_wire_arc_owned, read_header_and_manifest_with,
 };
 use crate::error::IoError;
 use crate::mmap_file::map_file_readonly;
@@ -131,6 +131,7 @@ pub struct ArtifactReader<R> {
     inner: R,
     stats: SectionLoadStats,
     loaded: Vec<bool>,
+    limits: ContainerLimits,
 }
 
 impl<R: Read + Seek> ArtifactReader<R> {
@@ -139,13 +140,23 @@ impl<R: Read + Seek> ArtifactReader<R> {
     /// # Errors
     ///
     /// IO / framing / CBOR failures.
-    pub fn open_seek(mut inner: R) -> Result<Self, IoError> {
-        let (manifest, index, mut stats) = index_seekable(&mut inner)?;
+    pub fn open_seek(inner: R) -> Result<Self, IoError> {
+        Self::open_seek_with_limits(inner, ContainerLimits::default())
+    }
+
+    /// [`Self::open_seek`] under the caller's container bounds, which also bound every later
+    /// section load.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::open_seek`]; a bound of `limits` exceeded is [`IoError::TooLarge`].
+    pub fn open_seek_with_limits(mut inner: R, limits: ContainerLimits) -> Result<Self, IoError> {
+        let (manifest, index, mut stats) = index_seekable(&mut inner, &limits)?;
         stats.bytes_skipped = index.iter().map(|e| u64::from(e.on_wire_len)).sum();
         stats.sections_skipped = index.len() as u64;
         let by_id = index_by_id(&index);
         let loaded = vec![false; index.len()];
-        Ok(Self { manifest, index, by_id, inner, stats, loaded })
+        Ok(Self { manifest, index, by_id, inner, stats, loaded, limits })
     }
 
     /// Manifest (always available after open).
@@ -180,7 +191,7 @@ impl<R: Read + Seek> ArtifactReader<R> {
             .seek(SeekFrom::Start(entry.file_offset))
             .map_err(|e| IoError::Io(e.to_string()))?;
         let len = usize::try_from(entry.on_wire_len).map_err(|_| IoError::TooLarge)?;
-        if len > MAX_SECTION_BYTES {
+        if len > self.limits.max_section_bytes {
             return Err(IoError::TooLarge);
         }
         let on_wire = crate::container::read_exact_len(&mut self.inner, len)?;
@@ -193,6 +204,7 @@ impl<R: Read + Seek> ArtifactReader<R> {
             desc.compression.as_deref(),
             &desc.id,
             desc.uncompressed_size,
+            self.limits.max_section_bytes,
         )?;
         let pos = self.by_id[id];
         note_loaded(&mut self.stats, &mut self.loaded[pos], entry.on_wire_len, decompressed);
@@ -249,6 +261,7 @@ pub struct MappedArtifactReader {
     /// the immutability contract of [`Self::open_path_mapped`].
     verified: Vec<bool>,
     loaded: Vec<bool>,
+    limits: ContainerLimits,
 }
 
 impl MappedArtifactReader {
@@ -260,8 +273,20 @@ impl MappedArtifactReader {
     ///
     /// IO, bad magic, or manifest errors.
     pub fn open_path(path: impl AsRef<Path>) -> Result<Self, IoError> {
+        Self::open_path_with_limits(path, ContainerLimits::default())
+    }
+
+    /// [`Self::open_path`] under the caller's container bounds.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::open_path`]; a bound of `limits` exceeded is [`IoError::TooLarge`].
+    pub fn open_path_with_limits(
+        path: impl AsRef<Path>,
+        limits: ContainerLimits,
+    ) -> Result<Self, IoError> {
         let bytes = std::fs::read(path.as_ref()).map_err(|e| IoError::Io(e.to_string()))?;
-        Self::from_bytes(Arc::from(bytes))
+        Self::from_bytes_with_limits(Arc::from(bytes), limits)
     }
 
     /// Memory-map `path` without copying payloads.
@@ -294,7 +319,19 @@ impl MappedArtifactReader {
     ///
     /// Bad magic, version, CBOR, or section framing.
     pub fn from_bytes(bytes: Arc<[u8]>) -> Result<Self, IoError> {
-        Self::from_backing(ArtifactBacking::Owned(bytes))
+        Self::from_bytes_with_limits(bytes, ContainerLimits::default())
+    }
+
+    /// [`Self::from_bytes`] under the caller's container bounds.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`]; a bound of `limits` exceeded is [`IoError::TooLarge`].
+    pub fn from_bytes_with_limits(
+        bytes: Arc<[u8]>,
+        limits: ContainerLimits,
+    ) -> Result<Self, IoError> {
+        Self::from_backing(ArtifactBacking::Owned(bytes), limits)
     }
 
     /// Index an already-mapped buffer.
@@ -312,18 +349,18 @@ impl MappedArtifactReader {
         reason = "memory map of a caller-owned file; the caller guarantees it is not mutated while mapped"
     )]
     pub unsafe fn from_mmap(mmap: Arc<Mmap>) -> Result<Self, IoError> {
-        Self::from_backing(ArtifactBacking::Mapped(mmap))
+        Self::from_backing(ArtifactBacking::Mapped(mmap), ContainerLimits::default())
     }
 
-    fn from_backing(backing: ArtifactBacking) -> Result<Self, IoError> {
+    fn from_backing(backing: ArtifactBacking, limits: ContainerLimits) -> Result<Self, IoError> {
         let mut cursor = Cursor::new(backing.as_slice());
-        let (manifest, index, mut stats) = index_seekable(&mut cursor)?;
+        let (manifest, index, mut stats) = index_seekable(&mut cursor, &limits)?;
         stats.bytes_skipped = index.iter().map(|e| u64::from(e.on_wire_len)).sum();
         stats.sections_skipped = index.len() as u64;
         let by_id = index_by_id(&index);
         let verified = vec![false; index.len()];
         let loaded = vec![false; index.len()];
-        Ok(Self { backing, manifest, index, by_id, stats, verified, loaded })
+        Ok(Self { backing, manifest, index, by_id, stats, verified, loaded, limits })
     }
 
     /// Manifest.
@@ -385,6 +422,7 @@ impl MappedArtifactReader {
             desc.compression.as_deref(),
             &desc.id,
             desc.uncompressed_size,
+            self.limits.max_section_bytes,
         )?;
         note_loaded(&mut self.stats, &mut self.loaded[pos], entry.on_wire_len, decompressed);
         Ok(SectionAccess::Shared(logical))
@@ -445,8 +483,9 @@ fn index_by_id(index: &[SectionIndexEntry]) -> HashMap<String, usize> {
 
 fn index_seekable<R: Read + Seek>(
     r: &mut R,
+    limits: &ContainerLimits,
 ) -> Result<(ArtifactManifest, Vec<SectionIndexEntry>, SectionLoadStats), IoError> {
-    let (manifest, r) = read_header_and_manifest(r)?;
+    let (manifest, r) = read_header_and_manifest_with(r, limits)?;
     let mut index = Vec::with_capacity(manifest.sections.len());
     let stats = SectionLoadStats::default();
     for desc in &manifest.sections {

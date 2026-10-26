@@ -3,6 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
+use std::fmt::Write as _;
 
 use antecedent_graph::{Admg, Cpdag, Pag};
 use serde::{Deserialize, Serialize};
@@ -1123,10 +1124,11 @@ fn endpoint_str(e: EndpointWire) -> &'static str {
 }
 
 fn push_label(out: &mut String, id: u32, names: Option<&[String]>, use_names: bool) {
-    if use_names {
-        graph_dot::push_quoted(out, &names.expect("checked")[id as usize]);
-    } else {
-        out.push_str(&id.to_string());
+    match names.filter(|_| use_names).and_then(|names| names.get(id as usize)) {
+        Some(name) => graph_dot::push_quoted(out, name),
+        None => {
+            let _ = write!(out, "{id}");
+        }
     }
 }
 

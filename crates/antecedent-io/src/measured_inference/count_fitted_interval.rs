@@ -41,8 +41,6 @@ pub const MEASURED_DRAWS: u32 = 2000;
 /// Largest accepted ratio of an endpoint's Monte Carlo standard error to the interval
 /// width; one rule shared with every posterior-draw route.
 pub use antecedent_estimate::count_fitted_posterior::MAX_ENDPOINT_MCSE_FRACTION;
-const MAX_NODES: usize = 16;
-const MAX_LEVELS: usize = 16;
 
 fn refused(detail: &str, message: &str) -> IoError {
     IoError::Refused {
@@ -106,17 +104,14 @@ struct Resolved {
 
 impl CountFittedIntervalArtifactWire {
     fn resolve(&self) -> Result<Resolved, IoError> {
-        if self.version != 1 || self.nodes.is_empty() || self.nodes.len() > MAX_NODES {
+        if self.version != 1 || self.nodes.is_empty() {
             return Err(refused(
                 "measured_inference.artifact_mismatch",
-                "count-fitted source is not a version 1 model within bounds",
+                "count-fitted source is not a version 1 model with at least one node",
             ));
         }
         let mut nodes = Vec::with_capacity(self.nodes.len());
         for node in &self.nodes {
-            if node.levels.len() > MAX_LEVELS {
-                return Err(protocol("a node exceeds the measured level bound"));
-            }
             let table = match (&node.counts, &node.declared_bits) {
                 (Some(counts), None) => NodeTable::Counts(counts.clone()),
                 (None, Some(bits)) => {

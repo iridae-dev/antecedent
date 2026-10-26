@@ -9,7 +9,7 @@ use antecedent_core::recalc::{RetargetSupport, Stage, StageIdentities, StageIden
 use antecedent_estimate::{ScoreColumn, ScoreTable, ScoreTableWire};
 use antecedent_io::frozen_scores_artifact::{
     FROZEN_SCORES_ARTIFACT_VERSION, FrozenScoreParts, FrozenScoreTable, FrozenScoresArtifactError,
-    MAX_FROZEN_SCORE_COLUMNS, MAX_FROZEN_SCORE_ROWS, decode_parts, encode_parts,
+    MAX_FROZEN_SCORE_ROWS, MAX_FROZEN_SCORE_VALUES, decode_parts, encode_parts,
 };
 use antecedent_io::recalc_receipt_artifact::{identities_from_wire, identities_to_wire};
 
@@ -261,16 +261,19 @@ fn scores_decode_is_bounded_and_versioned() {
         FrozenScoresArtifactError::LimitsExceeded("score rows")
     );
 
-    let mut columns = artifact.meta().clone();
-    columns.table.columns = (0..=MAX_FROZEN_SCORE_COLUMNS)
+    // Columns carry no count cap of their own: rows times columns is what is bounded.
+    let mut values = artifact.meta().clone();
+    values.table.n_rows = MAX_FROZEN_SCORE_ROWS as u64;
+    let columns = MAX_FROZEN_SCORE_VALUES / MAX_FROZEN_SCORE_ROWS + 1;
+    values.table.columns = (0..columns)
         .map(|i| antecedent_io::frozen_scores_artifact::ScoreColumnPlain {
             arm: u32::try_from(i).unwrap(),
             threshold: None,
         })
         .collect();
     assert_eq!(
-        FrozenScoreTable::from_meta(columns, None).unwrap_err(),
-        FrozenScoresArtifactError::LimitsExceeded("score columns")
+        FrozenScoreTable::from_meta(values, None).unwrap_err(),
+        FrozenScoresArtifactError::LimitsExceeded("score values")
     );
 
     let mut stages = artifact.meta().clone();

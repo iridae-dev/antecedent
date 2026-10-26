@@ -56,8 +56,10 @@ use super::spill_file::{self, AllocFail, Declared, IoFail, SpillFault};
 
 const MAGIC: &[u8; 4] = b"WGOL";
 const VERSION: u32 = 1;
-const HEADER_LEN: usize = 20;
+/// Bytes of the payload header; one definition, with the `usize` form derived from it.
 const HEADER_BYTES: u64 = 20;
+#[allow(clippy::cast_possible_truncation, reason = "a 20-byte header fits every usize")]
+const HEADER_LEN: usize = HEADER_BYTES as usize;
 const IDENTITY_DOMAIN: &str = "antecedent.capacity.weighted-gaussian.v1";
 /// Fit backends the spill layout can name. A backend outside this list is not spilled.
 const SPILL_BACKENDS: [&str; 1] = ["faer"];

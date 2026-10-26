@@ -64,6 +64,44 @@ pub(crate) const MAX_SECTION_BYTES: usize = 512 * 1024 * 1024;
 /// read, so a small file cannot force a huge total allocation.
 pub(crate) const MAX_TOTAL_UNCOMPRESSED_BYTES: u64 = 4 * MAX_SECTION_BYTES as u64;
 
+/// Bounds a reader applies to an untrusted container before it allocates for it. The
+/// defaults are the crate's conservative limits; a consumer that legitimately handles larger
+/// artifacts (or wants tighter ones) passes its own to the `*_with_limits` readers. They stay
+/// refusals ([`IoError::TooLarge`]), never truncations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ContainerLimits {
+    /// Largest manifest, in bytes.
+    pub max_manifest_bytes: usize,
+    /// Largest single section, on the wire or declared uncompressed, in bytes.
+    pub max_section_bytes: usize,
+    /// Largest sum of declared uncompressed section sizes, checked before any payload is
+    /// read so a small file cannot force a huge total allocation.
+    pub max_total_uncompressed_bytes: u64,
+}
+
+impl Default for ContainerLimits {
+    fn default() -> Self {
+        Self {
+            max_manifest_bytes: MAX_MANIFEST_BYTES,
+            max_section_bytes: MAX_SECTION_BYTES,
+            max_total_uncompressed_bytes: MAX_TOTAL_UNCOMPRESSED_BYTES,
+        }
+    }
+}
+
+impl ContainerLimits {
+    /// Limits with sections of at most `max_section_bytes` and a total of four maximal
+    /// sections (the default ratio), keeping the default manifest bound.
+    #[must_use]
+    pub const fn with_max_section_bytes(max_section_bytes: usize) -> Self {
+        Self {
+            max_manifest_bytes: MAX_MANIFEST_BYTES,
+            max_section_bytes,
+            max_total_uncompressed_bytes: 4 * max_section_bytes as u64,
+        }
+    }
+}
+
 /// Artifact manifest (canonical CBOR).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ArtifactManifest {
@@ -230,11 +268,23 @@ impl EncodedArtifact {
     /// # Errors
     ///
     /// Bad magic, version, CBOR, length, or checksum.
-    pub fn read_from<R: Read>(mut r: R) -> Result<Self, IoError> {
-        let (manifest, mut r) = read_header_and_manifest(&mut r)?;
+    pub fn read_from<R: Read>(r: R) -> Result<Self, IoError> {
+        Self::read_from_with_limits(r, &ContainerLimits::default())
+    }
+
+    /// [`Self::read_from`] under the caller's container bounds.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::read_from`]; a bound of `limits` exceeded is [`IoError::TooLarge`].
+    pub fn read_from_with_limits<R: Read>(
+        mut r: R,
+        limits: &ContainerLimits,
+    ) -> Result<Self, IoError> {
+        let (manifest, mut r) = read_header_and_manifest_with(&mut r, limits)?;
         let mut sections = Vec::with_capacity(manifest.sections.len());
         for desc in &manifest.sections {
-            let logical = read_section_logical(&mut r, desc)?;
+            let logical = read_section_logical(&mut r, desc, limits)?;
             sections.push(SectionBytes::new(desc.id.clone(), logical));
         }
         Ok(Self { manifest, sections })
@@ -250,16 +300,29 @@ impl EncodedArtifact {
     /// # Errors
     ///
     /// Bad magic, version, CBOR, length, or checksum.
-    pub fn read_selective<R: Read>(mut r: R, want: &HashSet<&str>) -> Result<Self, IoError> {
-        let (manifest, mut r) = read_header_and_manifest(&mut r)?;
+    pub fn read_selective<R: Read>(r: R, want: &HashSet<&str>) -> Result<Self, IoError> {
+        Self::read_selective_with_limits(r, want, &ContainerLimits::default())
+    }
+
+    /// [`Self::read_selective`] under the caller's container bounds.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::read_selective`]; a bound of `limits` exceeded is [`IoError::TooLarge`].
+    pub fn read_selective_with_limits<R: Read>(
+        mut r: R,
+        want: &HashSet<&str>,
+        limits: &ContainerLimits,
+    ) -> Result<Self, IoError> {
+        let (manifest, mut r) = read_header_and_manifest_with(&mut r, limits)?;
         let mut sections = Vec::new();
         let mut scratch = vec![0u8; SKIP_SCRATCH];
         for desc in &manifest.sections {
             if want.contains(desc.id.as_str()) {
-                let logical = read_section_logical(&mut r, desc)?;
+                let logical = read_section_logical(&mut r, desc, limits)?;
                 sections.push(SectionBytes::new(desc.id.clone(), logical));
             } else {
-                skip_section_verified(&mut r, desc, &mut scratch)?;
+                skip_section_verified(&mut r, desc, &mut scratch, limits)?;
             }
         }
         Ok(Self { manifest, sections })
@@ -270,6 +333,14 @@ impl EncodedArtifact {
 pub(crate) fn read_header_and_manifest<R: Read>(
     r: &mut R,
 ) -> Result<(ArtifactManifest, &mut R), IoError> {
+    read_header_and_manifest_with(r, &ContainerLimits::default())
+}
+
+/// [`read_header_and_manifest`] under the caller's container bounds.
+pub(crate) fn read_header_and_manifest_with<'r, R: Read>(
+    r: &'r mut R,
+    limits: &ContainerLimits,
+) -> Result<(ArtifactManifest, &'r mut R), IoError> {
     let mut magic = [0u8; 8];
     r.read_exact(&mut magic)?;
     if &magic != MAGIC {
@@ -284,7 +355,7 @@ pub(crate) fn read_header_and_manifest<R: Read>(
     r.read_exact(&mut ver_buf)?;
     let manifest_len =
         usize::try_from(u32::from_le_bytes(ver_buf)).map_err(|_| IoError::TooLarge)?;
-    if manifest_len > MAX_MANIFEST_BYTES {
+    if manifest_len > limits.max_manifest_bytes {
         return Err(IoError::TooLarge);
     }
     let manifest_buf = read_exact_len(r, manifest_len)?;
@@ -295,7 +366,7 @@ pub(crate) fn read_header_and_manifest<R: Read>(
         .iter()
         .try_fold(0u64, |acc, desc| acc.checked_add(desc.uncompressed_size))
         .ok_or(IoError::TooLarge)?;
-    if total > MAX_TOTAL_UNCOMPRESSED_BYTES {
+    if total > limits.max_total_uncompressed_bytes {
         return Err(IoError::TooLarge);
     }
     // Lookups are by id, so a repeated id would let one payload be read while another
@@ -307,7 +378,11 @@ pub(crate) fn read_header_and_manifest<R: Read>(
     Ok((manifest, r))
 }
 
-fn read_section_logical<R: Read>(r: &mut R, desc: &SectionDescriptor) -> Result<Vec<u8>, IoError> {
+fn read_section_logical<R: Read>(
+    r: &mut R,
+    desc: &SectionDescriptor,
+    limits: &ContainerLimits,
+) -> Result<Vec<u8>, IoError> {
     let mut len_buf = [0u8; 4];
     r.read_exact(&mut len_buf)?;
     let len = usize::try_from(u32::from_le_bytes(len_buf)).map_err(|_| IoError::TooLarge)?;
@@ -315,7 +390,7 @@ fn read_section_logical<R: Read>(r: &mut R, desc: &SectionDescriptor) -> Result<
     if len != expected_comp {
         return Err(IoError::ManifestMismatch { message: "section size mismatch" });
     }
-    if len > MAX_SECTION_BYTES {
+    if len > limits.max_section_bytes {
         return Err(IoError::TooLarge);
     }
     let on_wire = read_exact_len(r, len)?;
@@ -323,7 +398,17 @@ fn read_section_logical<R: Read>(r: &mut R, desc: &SectionDescriptor) -> Result<
     if hash.as_bytes() != &desc.blake3 {
         return Err(IoError::ChecksumMismatch { section: desc.id.clone() });
     }
-    decode_on_wire(&on_wire, desc.compression.as_deref(), &desc.id, desc.uncompressed_size)
+    // An uncompressed section is already the logical payload: move it instead of copying.
+    if desc.compression.is_none() {
+        return Ok(on_wire);
+    }
+    decode_on_wire_with(
+        &on_wire,
+        desc.compression.as_deref(),
+        &desc.id,
+        desc.uncompressed_size,
+        limits.max_section_bytes,
+    )
 }
 
 /// Read exactly `len` bytes without reserving `len` up front.
@@ -353,6 +438,7 @@ fn skip_section_verified<R: Read>(
     r: &mut R,
     desc: &SectionDescriptor,
     scratch: &mut Vec<u8>,
+    limits: &ContainerLimits,
 ) -> Result<(), IoError> {
     let mut len_buf = [0u8; 4];
     r.read_exact(&mut len_buf)?;
@@ -361,7 +447,7 @@ fn skip_section_verified<R: Read>(
     if len != expected_comp {
         return Err(IoError::ManifestMismatch { message: "section size mismatch" });
     }
-    if len > MAX_SECTION_BYTES {
+    if len > limits.max_section_bytes {
         return Err(IoError::TooLarge);
     }
     if scratch.len() < SKIP_SCRATCH {
@@ -506,10 +592,21 @@ pub(crate) fn decode_on_wire(
     section: &str,
     uncompressed_size: u64,
 ) -> Result<Vec<u8>, IoError> {
+    decode_on_wire_with(on_wire, compression, section, uncompressed_size, MAX_SECTION_BYTES)
+}
+
+/// [`decode_on_wire`] with the caller's largest section.
+pub(crate) fn decode_on_wire_with(
+    on_wire: &[u8],
+    compression: Option<&str>,
+    section: &str,
+    uncompressed_size: u64,
+    max_section_bytes: usize,
+) -> Result<Vec<u8>, IoError> {
     match compression {
         None => Ok(on_wire.to_vec()),
         Some(COMPRESSION_ZSTD) => {
-            let max = decode_size_cap(uncompressed_size)?;
+            let max = decode_size_cap(uncompressed_size, max_section_bytes)?;
             let logical = decode_zstd_bounded(on_wire, max, section)?;
             if logical.len() != max {
                 return Err(IoError::Decompress {
@@ -530,11 +627,18 @@ pub(crate) fn decode_on_wire_arc(
     compression: Option<&str>,
     section: &str,
     uncompressed_size: u64,
+    max_section_bytes: usize,
 ) -> Result<(Arc<[u8]>, bool), IoError> {
     match compression {
-        None => Ok((Arc::from(on_wire.to_vec()), false)),
+        None => Ok((Arc::<[u8]>::from(on_wire), false)),
         Some(COMPRESSION_ZSTD) => {
-            let v = decode_on_wire(on_wire, compression, section, uncompressed_size)?;
+            let v = decode_on_wire_with(
+                on_wire,
+                compression,
+                section,
+                uncompressed_size,
+                max_section_bytes,
+            )?;
             Ok((Arc::from(v), true))
         }
         Some(other) => Err(IoError::UnsupportedCompression { algo: other.into() }),
@@ -549,16 +653,23 @@ pub(crate) fn decode_on_wire_arc_owned(
     compression: Option<&str>,
     section: &str,
     uncompressed_size: u64,
+    max_section_bytes: usize,
 ) -> Result<(Arc<[u8]>, bool), IoError> {
     match compression {
         None => Ok((Arc::from(on_wire), false)),
-        _ => decode_on_wire_arc(&on_wire, compression, section, uncompressed_size),
+        _ => decode_on_wire_arc(
+            &on_wire,
+            compression,
+            section,
+            uncompressed_size,
+            max_section_bytes,
+        ),
     }
 }
 
-fn decode_size_cap(uncompressed_size: u64) -> Result<usize, IoError> {
+fn decode_size_cap(uncompressed_size: u64, max_section_bytes: usize) -> Result<usize, IoError> {
     let max = usize::try_from(uncompressed_size).map_err(|_| IoError::TooLarge)?;
-    if max > MAX_SECTION_BYTES {
+    if max > max_section_bytes {
         return Err(IoError::TooLarge);
     }
     Ok(max)

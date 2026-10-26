@@ -856,58 +856,77 @@ pub struct PayloadDigestWire {
     pub len: u64,
 }
 
+/// Digest `values` as consecutive `N`-byte words under `kind`, streaming through a small
+/// stack buffer instead of materializing the payload. Digest-identical to
+/// [`payload_digest`] over the concatenated words.
+fn digest_words<T: Copy, const N: usize>(
+    kind: &str,
+    values: &[T],
+    encode: impl Fn(T) -> [u8; N],
+) -> [u8; 32] {
+    const CHUNK: usize = 8192;
+    let mut hasher = payload_hasher(kind, |_| {});
+    let mut chunk = [0_u8; CHUNK];
+    let mut used = 0;
+    for &value in values {
+        if used + N > CHUNK {
+            hasher.update(&chunk[..used]);
+            used = 0;
+        }
+        chunk[used..used + N].copy_from_slice(&encode(value));
+        used += N;
+    }
+    hasher.update(&chunk[..used]);
+    *hasher.finalize().as_bytes()
+}
+
 impl PayloadDigestWire {
     /// Digest little-endian `u32` values.
     #[must_use]
     pub fn u32s(kind: &str, values: &[u32]) -> Self {
-        let mut bytes = Vec::with_capacity(values.len() * 4);
-        for value in values {
-            bytes.extend_from_slice(&value.to_le_bytes());
-        }
-        Self { digest: payload_digest(kind, &bytes), len: values.len() as u64 }
+        Self { digest: digest_words(kind, values, u32::to_le_bytes), len: values.len() as u64 }
     }
 
     /// Digest little-endian `u64` row ids.
     #[must_use]
     pub fn u64s(kind: &str, values: &[u64]) -> Self {
-        let mut bytes = Vec::with_capacity(values.len() * 8);
-        for value in values {
-            bytes.extend_from_slice(&value.to_le_bytes());
-        }
-        Self { digest: payload_digest(kind, &bytes), len: values.len() as u64 }
+        Self { digest: digest_words(kind, values, u64::to_le_bytes), len: values.len() as u64 }
     }
 
     /// Digest little-endian `i64` values.
     #[must_use]
     pub fn i64s(kind: &str, values: &[i64]) -> Self {
-        let mut bytes = Vec::with_capacity(values.len() * 8);
-        for value in values {
-            bytes.extend_from_slice(&value.to_le_bytes());
-        }
-        Self { digest: payload_digest(kind, &bytes), len: values.len() as u64 }
+        Self { digest: digest_words(kind, values, i64::to_le_bytes), len: values.len() as u64 }
     }
 
     /// Digest exact IEEE-754 bits of `f64` values.
     #[must_use]
     pub fn f64s(kind: &str, values: &[f64]) -> Self {
-        let mut bytes = Vec::with_capacity(values.len() * 8);
-        for value in values {
-            bytes.extend_from_slice(&value.to_bits().to_le_bytes());
+        Self {
+            digest: digest_words(kind, values, |value| value.to_bits().to_le_bytes()),
+            len: values.len() as u64,
         }
-        Self { digest: payload_digest(kind, &bytes), len: values.len() as u64 }
     }
 
     /// Digest length-prefixed groups of `u32` values.
     #[must_use]
     pub fn u32_groups(kind: &str, groups: &[Vec<u32>]) -> Self {
-        let mut bytes = Vec::new();
+        let mut hasher = payload_hasher(kind, |_| {});
+        let mut chunk = [0_u8; 8192];
         for group in groups {
-            bytes.extend_from_slice(&(group.len() as u64).to_le_bytes());
+            hasher.update(&(group.len() as u64).to_le_bytes());
+            let mut used = 0;
             for value in group {
-                bytes.extend_from_slice(&value.to_le_bytes());
+                if used + 4 > chunk.len() {
+                    hasher.update(&chunk[..used]);
+                    used = 0;
+                }
+                chunk[used..used + 4].copy_from_slice(&value.to_le_bytes());
+                used += 4;
             }
+            hasher.update(&chunk[..used]);
         }
-        Self { digest: payload_digest(kind, &bytes), len: groups.len() as u64 }
+        Self { digest: *hasher.finalize().as_bytes(), len: groups.len() as u64 }
     }
 
     /// Digest raw bytes.

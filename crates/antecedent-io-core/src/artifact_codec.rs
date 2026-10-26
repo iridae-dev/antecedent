@@ -637,15 +637,9 @@ where
     value.deserialized().map_err(|error| IoError::Cbor(error.to_string()).into())
 }
 
+/// One CBOR item, trailing bytes refused (the shared single-item decoder).
 fn cbor_value(bytes: &[u8]) -> Result<ciborium::Value, IoError> {
-    let mut reader = bytes;
-    let value =
-        ciborium::from_reader(&mut reader).map_err(|error| IoError::Cbor(error.to_string()))?;
-    if reader.is_empty() {
-        Ok(value)
-    } else {
-        Err(IoError::Cbor(format!("{} trailing bytes after the CBOR item", reader.len())))
-    }
+    crate::convert::from_cbor(bytes)
 }
 
 /// Decode little-endian IEEE-754 `f64` words from a section payload.

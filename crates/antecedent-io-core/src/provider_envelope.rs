@@ -20,8 +20,32 @@ const HEADER_SECTION: &str = "provider_result.header";
 const ARTIFACT_SECTION: &str = "provider_result.artifact";
 const MAX_HEADER: usize = 1 << 20;
 const MAX_ARTIFACT: usize = 32 << 20;
-/// Largest sealed result, container framing included.
-const MAX_ENVELOPE_BYTES: usize = MAX_HEADER + MAX_ARTIFACT + (1 << 20);
+
+/// Bounds on a provider envelope. The defaults (1 MiB header, 32 MiB opaque artifact) suit
+/// ordinary provider results; a host exchanging larger ones passes its own to the
+/// `*_within` entry points. Exceeding a bound refuses the envelope.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProviderEnvelopeLimits {
+    /// Largest encoded header, in bytes.
+    pub max_header_bytes: usize,
+    /// Largest opaque provider artifact, in bytes.
+    pub max_artifact_bytes: usize,
+}
+
+impl Default for ProviderEnvelopeLimits {
+    fn default() -> Self {
+        Self { max_header_bytes: MAX_HEADER, max_artifact_bytes: MAX_ARTIFACT }
+    }
+}
+
+impl ProviderEnvelopeLimits {
+    /// Largest sealed result, container framing included.
+    fn max_envelope_bytes(&self) -> usize {
+        self.max_header_bytes
+            .saturating_add(self.max_artifact_bytes)
+            .saturating_add(1 << 20)
+    }
+}
 
 /// Host trust assigned to a separately installed provider result.
 /// Native licensing is deliberately absent from this external envelope.
@@ -111,7 +135,7 @@ fn count(shape: &[usize]) -> Option<usize> {
     shape.iter().try_fold(1_usize, |product, dimension| product.checked_mul(*dimension))
 }
 
-fn validate(envelope: &ProviderEnvelope) -> Result<(), String> {
+fn validate(envelope: &ProviderEnvelope, limits: &ProviderEnvelopeLimits) -> Result<(), String> {
     let h = &envelope.header;
     if h.version != 1 {
         return Err("unsupported provider envelope version".into());
@@ -162,7 +186,7 @@ fn validate(envelope: &ProviderEnvelope) -> Result<(), String> {
     match (&envelope.external_artifact, &h.external_artifact_digest) {
         (None, None) => {}
         (Some(artifact), Some(digest))
-            if artifact.len() <= MAX_ARTIFACT
+            if artifact.len() <= limits.max_artifact_bytes
                 && digest == &antecedent_core::blake3_hex(artifact) => {}
         _ => return Err("provider artifact digest or size is invalid".into()),
     }
@@ -171,12 +195,20 @@ fn validate(envelope: &ProviderEnvelope) -> Result<(), String> {
 
 /// Validate and seal an external result through the shared container.
 /// The opaque provider artifact is retained byte for byte.
-pub fn seal_provider_envelope(mut envelope: ProviderEnvelope) -> Result<Vec<u8>, String> {
+pub fn seal_provider_envelope(envelope: ProviderEnvelope) -> Result<Vec<u8>, String> {
+    seal_provider_envelope_within(envelope, &ProviderEnvelopeLimits::default())
+}
+
+/// [`seal_provider_envelope`] under the caller's bounds.
+pub fn seal_provider_envelope_within(
+    mut envelope: ProviderEnvelope,
+    limits: &ProviderEnvelopeLimits,
+) -> Result<Vec<u8>, String> {
     envelope.header.external_artifact_digest =
         envelope.external_artifact.as_ref().map(|artifact| antecedent_core::blake3_hex(artifact));
-    validate(&envelope)?;
+    validate(&envelope, limits)?;
     let header = to_cbor(&envelope.header).map_err(|error| error.to_string())?;
-    if header.len() > MAX_HEADER {
+    if header.len() > limits.max_header_bytes {
         return Err("provider envelope header is too large".into());
     }
     let artifact = envelope.external_artifact.as_deref().unwrap_or(&[]);
@@ -185,7 +217,7 @@ pub fn seal_provider_envelope(mut envelope: ProviderEnvelope) -> Result<Vec<u8>,
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "provider_result",
-            max_bytes: MAX_ENVELOPE_BYTES,
+            max_bytes: limits.max_envelope_bytes(),
             artifact_id: &artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
@@ -216,7 +248,15 @@ pub fn is_provider_envelope(bytes: &[u8]) -> bool {
 /// A verified claim requires host-held evidence and must use
 /// [`open_verified_provider_envelope`] instead.
 pub fn open_provider_envelope(bytes: &[u8]) -> Result<ProviderEnvelope, String> {
-    decode_provider_envelope(bytes, Expectation::Attested)
+    open_provider_envelope_within(bytes, &ProviderEnvelopeLimits::default())
+}
+
+/// [`open_provider_envelope`] under the caller's bounds.
+pub fn open_provider_envelope_within(
+    bytes: &[u8],
+    limits: &ProviderEnvelopeLimits,
+) -> Result<ProviderEnvelope, String> {
+    decode_provider_envelope(bytes, Expectation::Attested, limits)
 }
 
 /// Decode a verified result only when its spec, request, and evidence digests
@@ -234,6 +274,7 @@ pub fn open_verified_provider_envelope(
             expected_request_digest,
             expected_evidence_digest,
         ),
+        &ProviderEnvelopeLimits::default(),
     )
 }
 
@@ -243,7 +284,15 @@ pub fn open_verified_provider_envelope(
 /// A `verified_extension` claim is believed only through
 /// [`open_verified_provider_envelope`] against host-held evidence.
 pub fn inspect_provider_envelope(bytes: &[u8]) -> Result<ProviderEnvelope, String> {
-    decode_provider_envelope(bytes, Expectation::Declared)
+    inspect_provider_envelope_within(bytes, &ProviderEnvelopeLimits::default())
+}
+
+/// [`inspect_provider_envelope`] under the caller's bounds.
+pub fn inspect_provider_envelope_within(
+    bytes: &[u8],
+    limits: &ProviderEnvelopeLimits,
+) -> Result<ProviderEnvelope, String> {
+    decode_provider_envelope(bytes, Expectation::Declared, limits)
 }
 
 #[derive(Clone, Copy)]
@@ -259,11 +308,12 @@ enum Expectation<'a> {
 fn decode_provider_envelope(
     bytes: &[u8],
     expectation: Expectation<'_>,
+    limits: &ProviderEnvelopeLimits,
 ) -> Result<ProviderEnvelope, String> {
     let (header, external_artifact) = if bytes.starts_with(LEGACY_MAGIC) {
-        decode_legacy_frame(bytes)?
+        decode_legacy_frame(bytes, limits)?
     } else {
-        decode_container_frame(bytes)?
+        decode_container_frame(bytes, limits)?
     };
     match (header.trust, expectation) {
         (_, Expectation::Declared)
@@ -277,17 +327,18 @@ fn decode_provider_envelope(
         _ => return Err("provider envelope trust requires matching host verification".into()),
     }
     let envelope = ProviderEnvelope { header, external_artifact };
-    validate(&envelope)?;
+    validate(&envelope, limits)?;
     Ok(envelope)
 }
 
 fn decode_container_frame(
     bytes: &[u8],
+    limits: &ProviderEnvelopeLimits,
 ) -> Result<(ProviderEnvelopeHeader, Option<Vec<u8>>), String> {
     let layout = "unsupported provider result layout";
     let parts = crate::decode_container(
         ARTIFACT_KIND,
-        MAX_ENVELOPE_BYTES,
+        limits.max_envelope_bytes(),
         &[HEADER_SECTION, ARTIFACT_SECTION],
         bytes,
     )
@@ -295,7 +346,7 @@ fn decode_container_frame(
     let Ok([header, artifact]) = <[Vec<u8>; 2]>::try_from(parts) else {
         return Err(layout.into());
     };
-    if header.len() > MAX_HEADER || artifact.len() > MAX_ARTIFACT {
+    if header.len() > limits.max_header_bytes || artifact.len() > limits.max_artifact_bytes {
         return Err("provider envelope section lengths are invalid".into());
     }
     let header: ProviderEnvelopeHeader = from_cbor(&header).map_err(|error| error.to_string())?;
@@ -308,7 +359,10 @@ fn decode_container_frame(
 
 /// The `ANTEPROV2` frame: magic, header and artifact lengths, JSON header,
 /// artifact, trailing BLAKE3 of everything before it.
-fn decode_legacy_frame(bytes: &[u8]) -> Result<(ProviderEnvelopeHeader, Option<Vec<u8>>), String> {
+fn decode_legacy_frame(
+    bytes: &[u8],
+    limits: &ProviderEnvelopeLimits,
+) -> Result<(ProviderEnvelopeHeader, Option<Vec<u8>>), String> {
     let prefix = LEGACY_MAGIC.len() + 8;
     if bytes.len() < prefix + 32 {
         return Err("provider envelope magic or length is invalid".into());
@@ -323,8 +377,8 @@ fn decode_legacy_frame(bytes: &[u8]) -> Result<(ProviderEnvelopeHeader, Option<V
             .try_into()
             .map_err(|_| "provider artifact length is invalid")?,
     ) as usize;
-    if header_len > MAX_HEADER
-        || artifact_len > MAX_ARTIFACT
+    if header_len > limits.max_header_bytes
+        || artifact_len > limits.max_artifact_bytes
         || bytes.len() != prefix + header_len + artifact_len + 32
     {
         return Err("provider envelope section lengths are invalid".into());

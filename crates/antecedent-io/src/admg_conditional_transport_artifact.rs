@@ -98,6 +98,14 @@ pub struct AdmgConditionalConsumeLimits {
     pub max_law_cells: usize,
     /// Most requests an artifact may carry.
     pub max_requests: usize,
+    /// Most observed variables an artifact may declare.
+    pub max_observed: usize,
+    /// Most treatments an artifact may declare.
+    pub max_treatments: usize,
+    /// Most conditioned variables an artifact may declare.
+    pub max_conditioned: usize,
+    /// Most levels of one latent variable in a stored witness.
+    pub max_latent_levels: usize,
 }
 
 impl Default for AdmgConditionalConsumeLimits {
@@ -109,6 +117,10 @@ impl Default for AdmgConditionalConsumeLimits {
             max_laws: 1024,
             max_law_cells: 1_000_000,
             max_requests: 64,
+            max_observed: antecedent_identify::ADMG_CONDITIONAL_MAX_OBSERVED,
+            max_treatments: antecedent_identify::ADMG_CONDITIONAL_MAX_TREATMENTS,
+            max_conditioned: antecedent_identify::ADMG_CONDITIONAL_MAX_CONDITIONED,
+            max_latent_levels: antecedent_identify::CONDITIONAL_WITNESS_MAX_LATENT_LEVELS,
         }
     }
 }
@@ -536,16 +548,12 @@ impl AdmgConditionalArtifactWire {
         &self,
         limits: &AdmgConditionalConsumeLimits,
     ) -> Result<(), AdmgConditionalArtifactError> {
-        use antecedent_identify::{
-            ADMG_CONDITIONAL_MAX_CONDITIONED, ADMG_CONDITIONAL_MAX_OBSERVED,
-            ADMG_CONDITIONAL_MAX_TREATMENTS,
-        };
         let exceeded = AdmgConditionalArtifactError::LimitsExceeded;
         // The route's size bounds, checked before any digest is hashed: an
         // oversized graph or query is never decoded further or re-checked.
         let nodes = usize::try_from(self.graph.node_count).unwrap_or(usize::MAX);
         let max_edges = nodes.saturating_mul(nodes.saturating_sub(1));
-        if nodes > ADMG_CONDITIONAL_MAX_OBSERVED
+        if nodes > limits.max_observed
             || self.graph.directed.len() > max_edges
             || self.graph.bidirected.len() > max_edges
             || self.selections.len() > nodes
@@ -553,11 +561,11 @@ impl AdmgConditionalArtifactWire {
             return Err(exceeded("graph size"));
         }
         if self.query.outcomes.len() > nodes
-            || self.query.treatments.len() > ADMG_CONDITIONAL_MAX_TREATMENTS
-            || self.query.conditioned_on.len() > ADMG_CONDITIONAL_MAX_CONDITIONED
-            || self.proof.conditioned_on.len() > ADMG_CONDITIONAL_MAX_CONDITIONED
+            || self.query.treatments.len() > limits.max_treatments
+            || self.query.conditioned_on.len() > limits.max_conditioned
+            || self.proof.conditioned_on.len() > limits.max_conditioned
             || self.proof.moves.len() + self.proof.remaining.len()
-                > ADMG_CONDITIONAL_MAX_CONDITIONED
+                > limits.max_conditioned
         {
             return Err(exceeded("query size"));
         }
@@ -798,15 +806,14 @@ impl AdmgConditionalObstructionWire {
     }
 
     /// The route's size bounds, checked before any digest is hashed.
-    fn check_bounds(&self) -> Result<(), AdmgConditionalArtifactError> {
-        use antecedent_identify::{
-            ADMG_CONDITIONAL_MAX_CONDITIONED, ADMG_CONDITIONAL_MAX_OBSERVED,
-            ADMG_CONDITIONAL_MAX_TREATMENTS, CONDITIONAL_WITNESS_MAX_LATENT_LEVELS,
-        };
+    fn check_bounds(
+        &self,
+        limits: &AdmgConditionalConsumeLimits,
+    ) -> Result<(), AdmgConditionalArtifactError> {
         let exceeded = AdmgConditionalArtifactError::LimitsExceeded;
         let nodes = usize::try_from(self.graph.node_count).unwrap_or(usize::MAX);
         let max_edges = nodes.saturating_mul(nodes.saturating_sub(1));
-        if nodes > ADMG_CONDITIONAL_MAX_OBSERVED
+        if nodes > limits.max_observed
             || self.graph.directed.len() > max_edges
             || self.graph.bidirected.len() > max_edges
             || self.selections.len() > nodes
@@ -814,10 +821,10 @@ impl AdmgConditionalObstructionWire {
             return Err(exceeded("graph size"));
         }
         if self.query.outcomes.len() > nodes
-            || self.query.treatments.len() > ADMG_CONDITIONAL_MAX_TREATMENTS
-            || self.query.conditioned_on.len() > ADMG_CONDITIONAL_MAX_CONDITIONED
+            || self.query.treatments.len() > limits.max_treatments
+            || self.query.conditioned_on.len() > limits.max_conditioned
             || self.proof.moves.len() + self.proof.remaining.len()
-                > ADMG_CONDITIONAL_MAX_CONDITIONED
+                > limits.max_conditioned
         {
             return Err(exceeded("query size"));
         }
@@ -831,7 +838,7 @@ impl AdmgConditionalObstructionWire {
                 || model
                     .latents
                     .iter()
-                    .any(|l| l.probabilities.len() > CONDITIONAL_WITNESS_MAX_LATENT_LEVELS)
+                    .any(|l| l.probabilities.len() > limits.max_latent_levels)
             {
                 return Err(exceeded("witness size"));
             }
@@ -887,8 +894,22 @@ impl AdmgConditionalObstructionWire {
         bytes: &[u8],
         ctx: &ExecutionContext,
     ) -> Result<ConsumedAdmgConditionalObstruction, IoError> {
+        Self::consume_within(bytes, &AdmgConditionalConsumeLimits::default(), ctx)
+    }
+
+    /// [`Self::consume`] under the caller's intake bounds (observed, treatment,
+    /// conditioned and latent-level counts); the proof still verifies against the
+    /// caller's operations and the admission pool.
+    ///
+    /// # Errors
+    /// As [`Self::consume`].
+    pub fn consume_within(
+        bytes: &[u8],
+        limits: &AdmgConditionalConsumeLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<ConsumedAdmgConditionalObstruction, IoError> {
         let wire = Self::decode(bytes)?;
-        wire.check_bounds()?;
+        wire.check_bounds(limits)?;
         crate::require_digest(
             &wire.premises_digest,
             wire.expected_premises_digest(),

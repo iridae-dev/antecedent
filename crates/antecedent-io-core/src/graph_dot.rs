@@ -6,6 +6,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
+use std::fmt::Write as _;
 
 use antecedent_graph::Dag;
 
@@ -52,7 +53,7 @@ pub fn dag_with_names_from_dot(dot: &str) -> Result<(Dag, Vec<String>), IoError>
 /// Wire conversion failures (non-static / non-directed edges).
 pub fn dag_to_dot(dag: &Dag, names: Option<&[String]>) -> Result<String, IoError> {
     let wire = dag_to_wire(dag)?;
-    Ok(dag_wire_to_dot(&wire, names))
+    dag_wire_to_dot(&wire, names)
 }
 
 /// Parse DOT into [`DagWire`] (shared with JSON path for tests).
@@ -208,43 +209,55 @@ pub(crate) fn parse_dot_graph(dot: &str, options: DotParseOptions) -> Result<Par
 }
 
 /// Emit DOT from [`DagWire`].
-#[must_use]
-pub fn dag_wire_to_dot(wire: &DagWire, names: Option<&[String]>) -> String {
+///
+/// When `names` is `Some` and its length equals `node_count`, those labels are emitted
+/// (quoted); otherwise nodes are emitted as dense integer ids. Isolated nodes always appear
+/// so a re-import keeps `node_count` and the ids.
+///
+/// # Errors
+///
+/// An edge endpoint at or beyond `node_count`.
+pub fn dag_wire_to_dot(wire: &DagWire, names: Option<&[String]>) -> Result<String, IoError> {
+    let node_count = wire.node_count as usize;
+    if let Some(&(from, to)) =
+        wire.edges.iter().find(|&&(from, to)| from as usize >= node_count || to as usize >= node_count)
+    {
+        return Err(IoError::Convert(format!(
+            "edge ({from}, {to}) names a node outside node_count {node_count}"
+        )));
+    }
+    let names = names.filter(|names| names.len() == node_count);
     let mut out = String::from("digraph {\n");
-    let use_names = names.is_some_and(|n| n.len() == wire.node_count as usize);
     for &(from, to) in &wire.edges {
-        if use_names {
-            let names = names.expect("checked");
+        if let Some(names) = names {
             out.push(' ');
             push_quoted(&mut out, &names[from as usize]);
             out.push_str(" -> ");
             push_quoted(&mut out, &names[to as usize]);
             out.push_str(";\n");
         } else {
-            out.push_str(&format!(" {from} -> {to};\n"));
+            let _ = writeln!(out, " {from} -> {to};");
         }
     }
-    // Isolated nodes must always appear so re-import keeps node_count / ids.
-    let mut seen = vec![false; wire.node_count as usize];
-    for &(f, t) in &wire.edges {
-        seen[f as usize] = true;
-        seen[t as usize] = true;
+    let mut seen = vec![false; node_count];
+    for &(from, to) in &wire.edges {
+        seen[from as usize] = true;
+        seen[to as usize] = true;
     }
     for (i, present) in seen.iter().enumerate() {
         if *present {
             continue;
         }
-        if use_names {
-            let names = names.expect("checked");
+        if let Some(names) = names {
             out.push(' ');
             push_quoted(&mut out, &names[i]);
             out.push_str(";\n");
         } else {
-            out.push_str(&format!(" {i};\n"));
+            let _ = writeln!(out, " {i};");
         }
     }
     out.push('}');
-    out
+    Ok(out)
 }
 
 /// Refuse edge attributes that would change DAG semantics if ignored.
