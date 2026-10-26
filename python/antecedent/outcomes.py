@@ -26,6 +26,7 @@ from typing import (
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ArtifactAcceptance, ExportedArtifact
+    from ._batch import PreparedBatch
     from .prepared import PreparedAnalysis
     from .results._report import InspectionReport, SlotModel
 
@@ -197,6 +198,8 @@ def is_scientific_refusal(error: BaseException) -> bool:
         in {
             "effect_not_identified",
             "cell_not_licensed",
+            "route_not_supported",
+            "row_weights_bound_to_snapshot",
             "policy_dependency_circular",
             "policy_dependency_unavailable",
             "policy_directive_conflict",
@@ -240,7 +243,7 @@ class Outcome(Generic[T]):
 
     value: T | None = None
     refusal: Refusal | None = None
-    _study: PreparedAnalysis | None = field(default=None, repr=False, compare=False)
+    _study: PreparedAnalysis | PreparedBatch | None = field(default=None, repr=False, compare=False)
     _acceptance: ArtifactAcceptance | None = field(default=None, repr=False, compare=False)
     associational: Outcome[Any] | None = field(default=None, repr=False, compare=False)
     evidence_plan: Any = field(default=None, repr=False, compare=False)
@@ -373,7 +376,7 @@ class Outcome(Generic[T]):
         )
 
     @property
-    def study(self) -> PreparedAnalysis | None:
+    def study(self) -> PreparedAnalysis | PreparedBatch | None:
         """The explicitly retained canonical study; independent loads have none."""
         return self._study if self._study is not None else getattr(self.value, "_prepared", None)
 

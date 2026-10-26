@@ -2,10 +2,10 @@
 
 Two kinds of check, kept apart on purpose:
 
-* **Fit-free** (:func:`preflight`, ``PreparedAnalysis.diagnose``): counts, missingness,
+* **Fit-free** (:func:`preflight`, :func:`diagnose`): counts, missingness,
   exact duplicate columns, the numerical rank of the ``[1 | Z]`` design with the dependent
   columns named, and review flags for near-deterministic relations. Nothing is fit.
-* **Fit-requiring** (:func:`fit_diagnostics`, ``PreparedAnalysis.diagnose_fit``): a propensity
+* **Fit-requiring** (:func:`fit_diagnostics`, :func:`diagnose_fit`): a propensity
   model is fit and its score range and per-arm weight ESS are reported. A fit that fails
   before any score exists reports every fitted quantity as absent (``status == "absent"``).
 
@@ -33,11 +33,17 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any, overload
 
 from . import _native
 from ._data import ingest_columns
-from .errors import CausalUnsupportedError
+from .errors import CausalTypeError, CausalUnsupportedError
+from .execution import Execution
+from .outcomes import Outcome, capture_outcome
+
+if TYPE_CHECKING:
+    from ._batch import PreparedBatch
+    from .prepared import PreparedAnalysis
 
 __all__ = [
     "ArmCount",
@@ -60,6 +66,9 @@ __all__ = [
     "RankReport",
     "ScoreQuantile",
     "SpanCheck",
+    "diagnose",
+    "diagnose_fit",
+    "estimate_cost",
     "estimate_with_rank_drop",
     "fit_diagnostics",
     "plan_rank_drop",
@@ -538,6 +547,25 @@ def fit_diagnostics(
     return _fit_diagnostics(json.loads(raw))
 
 
+@overload
+def plan_rank_drop(
+    data: PreparedAnalysis[Any],
+    *,
+    priority: Sequence[str] | None = None,
+    execution: Execution | None = None,
+) -> RankDropPlan: ...
+
+
+@overload
+def plan_rank_drop(
+    data: PreparedBatch,
+    *,
+    priority: Sequence[str] | None = None,
+    execution: Execution | None = None,
+) -> tuple[RankDropPlan, ...]: ...
+
+
+@overload
 def plan_rank_drop(
     data: Mapping[str, Any] | Any,
     *,
@@ -549,7 +577,22 @@ def plan_rank_drop(
     active: float = 1.0,
     seed: int = 1,
     threads: int | None = None,
-) -> RankDropPlan:
+) -> RankDropPlan: ...
+
+
+def plan_rank_drop(
+    data: Mapping[str, Any] | Any,
+    *,
+    treatment: str | None = None,
+    outcome: str | None = None,
+    adjustment: Sequence[str] | None = None,
+    priority: Sequence[str] | None = None,
+    control: float = 0.0,
+    active: float = 1.0,
+    seed: int | None = None,
+    threads: int | None = None,
+    execution: Execution | None = None,
+) -> RankDropPlan | tuple[RankDropPlan, ...]:
     """Plan an opt-in rank-deficiency drop under a declared column priority.
 
     ``priority`` lists **every** adjustment column exactly once, highest priority first
@@ -557,7 +600,30 @@ def plan_rank_drop(
     relation behind each, and the resulting design identity; it is a record, not an
     execution. Raises ``CausalUnsupportedError`` (``rank_drop_not_licensed``) when a
     treatment or outcome is involved or the priority does not cover the adjustment set.
+
+    A canonical prepared study supplies its native certified design directly. Pass only
+    ``priority`` and, optionally, ``execution``; manual roles and loose execution controls
+    would conflict with its retained declarations. Batch studies return one plan per query.
     """
+    if _is_prepared(data):
+        if any(value is not None for value in (treatment, outcome, adjustment, seed, threads)) or (
+            control != 0.0 or active != 1.0
+        ):
+            raise CausalTypeError(
+                "prepared rank-drop plans retain their design; pass priority and Execution only"
+            )
+        native, policy, batch = _prepared_context(data, execution)
+        if batch:
+            return policy._call(
+                plan_rank_drop_batch, native, priority, seed=policy.seed, threads=policy.threads
+            )
+        return policy._call(
+            plan_rank_drop_prepared, native, priority, seed=policy.seed, threads=policy.threads
+        )
+    if execution is not None:
+        raise CausalTypeError("execution applies to a prepared rank-drop plan")
+    if treatment is None or outcome is None or adjustment is None:
+        raise CausalTypeError("an unprepared design requires treatment, outcome and adjustment")
     names, columns = ingest_columns(data)
     raw = _native.rank_drop_json(
         names,
@@ -568,7 +634,7 @@ def plan_rank_drop(
         None if priority is None else list(priority),
         control,
         active,
-        seed=seed,
+        seed=1 if seed is None else seed,
         threads=threads,
     )
     return _plan(json.loads(raw))
@@ -633,6 +699,128 @@ def _call(native: Any, method: str, *args: Any, **kwargs: Any) -> Any:
             reason_code="route_not_supported",
         )
     return json.loads(fn(*args, **kwargs))
+
+
+def _is_prepared(study: Any) -> bool:
+    from ._batch import PreparedBatch
+    from .prepared import PreparedAnalysis
+
+    return isinstance(study, (PreparedAnalysis, PreparedBatch))
+
+
+def _prepared_context(study: Any, execution: Execution | None) -> tuple[Any, Execution, bool]:
+    """Select a retained native design without ingestion or scientific reconstruction."""
+    from ._batch import PreparedBatch
+    from .prepared import PreparedAnalysis
+
+    if not isinstance(study, (PreparedAnalysis, PreparedBatch)):
+        raise CausalTypeError("diagnostics require an immutable prepared study or batch")
+    policy = study.execution if execution is None else execution
+    if not isinstance(policy, Execution):
+        raise CausalTypeError("execution must be an Execution declaration")
+    if study._refused is not None:
+        assert study._refused.refusal is not None
+        study._refused.refusal.raise_error()
+    if isinstance(study, PreparedBatch):
+        return study._native, policy, True
+    return study._engine._native, policy, False
+
+
+@overload
+def diagnose(
+    study: PreparedAnalysis[Any], *, execution: Execution | None = None
+) -> PreflightReport: ...
+
+
+@overload
+def diagnose(
+    study: PreparedBatch, *, execution: Execution | None = None
+) -> BatchPreflightReport: ...
+
+
+def diagnose(
+    study: Any, *, execution: Execution | None = None
+) -> PreflightReport | BatchPreflightReport:
+    """Read counts, missingness and rank from the prepared native design, without fitting.
+
+    The native identification supplies roles and adjustment columns. Findings never change
+    that design or the source study. Omission of ``execution`` uses the study's policy.
+    """
+    native, policy, batch = _prepared_context(study, execution)
+    if batch:
+        return policy._call(diagnose_batch, native, seed=policy.seed, threads=policy.threads)
+    return policy._call(diagnose_prepared, native, seed=policy.seed, threads=policy.threads)
+
+
+@overload
+def diagnose_fit(
+    study: PreparedAnalysis[Any], *, execution: Execution | None = None
+) -> Outcome[NuisanceFitDiagnostics]: ...
+
+
+@overload
+def diagnose_fit(
+    study: PreparedBatch, *, execution: Execution | None = None
+) -> Outcome[tuple[NuisanceFitDiagnostics, ...]]: ...
+
+
+def diagnose_fit(study: Any, *, execution: Execution | None = None) -> Outcome[Any]:
+    """Explicitly fit diagnostic propensities against the native retained design.
+
+    The outcome retains scientific refusals; argument, resource, cancellation and callback
+    failures raise their original typed errors. An absent fit remains an explicit diagnostic
+    record without invented scores. No effect is estimated or retained state replaced.
+
+    Progress reports this diagnostic operation's start/completion as ``diagnose_fit``.
+    Progressive estimation stages are unavailable for a diagnostic propensity fit.
+    """
+    context = capture_outcome(_prepared_context, study, execution)
+    if context.refusal is not None:
+        return Outcome(refusal=context.refusal)
+    assert context.value is not None
+    native, policy, batch = context.value
+    if policy.on_stage is not None:
+        raise CausalUnsupportedError(
+            "diagnostic propensity fits do not expose progressive estimation stages",
+            reason_code="stage_stream_unavailable",
+        )
+    # Invoke observers outside scientific refusal capture so even an observer-raised
+    # scientific exception preserves its original identity and traceback as an error.
+    if policy.on_progress is not None:
+        policy.on_progress(0.0, "diagnose_fit")
+    operation = diagnose_fit_batch if batch else diagnose_fit_prepared
+    outcome = capture_outcome(
+        policy._call, operation, native, seed=policy.seed, threads=policy.threads
+    )
+    if policy.on_progress is not None:
+        policy.on_progress(1.0, "diagnose_fit")
+    return outcome
+
+
+@overload
+def estimate_cost(
+    study: PreparedAnalysis[Any], *, execution: Execution | None = None
+) -> CostEstimate: ...
+
+
+@overload
+def estimate_cost(
+    study: PreparedBatch, *, execution: Execution | None = None
+) -> BatchCostEstimate: ...
+
+
+def estimate_cost(
+    study: Any, *, execution: Execution | None = None
+) -> CostEstimate | BatchCostEstimate:
+    """Read the retained plan's scientific budgets and work counts without executing it.
+
+    Counts describe the prepared plan; overriding the policy for this read does not replan
+    its scientific declarations or turn a planning estimate into a measured execution.
+    """
+    native, policy, batch = _prepared_context(study, execution)
+    if batch:
+        return policy._call(estimate_cost_batch, native)
+    return policy._call(estimate_cost_prepared, native)
 
 
 def diagnose_prepared(native: Any, *, seed: int, threads: int | None) -> PreflightReport:
