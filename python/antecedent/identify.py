@@ -1,28 +1,23 @@
-"""The staged identification surface: ``identify()`` → ``estimate()`` → ``result.refute()``.
+"""Data-free identification followed by immutable preparation and execution.
 
-:func:`identify` runs identification only (no estimate) and returns an
-:class:`Identification` — enough state to continue into a strategy-consistent
-``.estimate(refute=...)`` / ``result.refute()`` workflow. The one-shot analysis pipeline
-deterministically rechecks identification before estimation. This is the
-single class that replaces both ``estimation.IdentifyResult`` (identify-only
-shape) and ``results.IdentificationView`` (the identification section of a
-full :class:`antecedent.AnalysisResult`) — see :meth:`Identification.from_view`
-and :meth:`Identification.to_identify_result` for the two conversions that
-keep those existing shapes reachable rather than deleting them outright.
+``identify()`` retains the resolved query, graph, strategy and available
+certificate. ``Identification.prepare(data)`` enters the canonical prepared
+lifecycle; ``Identification.estimate(data)`` prepares and executes that same
+lifecycle. Native preparation checks identification again because the identify-only
+certificate is not a retained executable native proof.
 
-This module imports ``estimation``; ``estimation`` must never import this
-module (that would be a cycle). Because of that direction, ``estimation.identify()``
-keeps its own native-calling implementation unchanged — :func:`identify` here
-wraps it rather than the reverse, so there remains exactly one code path that
-calls the native identify-only entry point.
+This module wraps the existing identify-only native implementation in
+``estimation``. It also projects legacy identify-only and completed-analysis
+views without introducing an independent identification algorithm.
 """
 
 from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
-from typing import Any, Literal, TypedDict
+from dataclasses import dataclass, replace
+from enum import Enum
+from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from ._claim import identification_statement
 from ._freeze import thaw
@@ -30,8 +25,9 @@ from ._verdict import describe_status, verdict_for
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .estimation import IdentifyResult
 from .estimation import identify as _identify_native
+from .execution import Execution
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
-from .ids import Estimator, Identifier, Latency, Refute
+from .ids import Estimator, Identifier, Refute
 from .inference import Bayesian, Frequentist
 from .query import (
     AverageDerivative,
@@ -51,7 +47,15 @@ from .query import (
     SustainedEffect,
     TemporalMediationEffect,
 )
-from .results import Analysis, IdentificationView
+from .results import IdentificationView
+
+if TYPE_CHECKING:
+    from .outcomes import Outcome
+    from .prepared import PreparedAnalysis
+
+
+class _DefaultRefute(Enum):
+    DEFAULT = "default"
 
 
 def _assumption_line(item: object) -> str | None:
@@ -125,7 +129,7 @@ def _derivation_statements(certificate: Mapping[str, Any] | None) -> tuple[str, 
 
 @dataclass(frozen=True)
 class Identification:
-    """A resolved identification strategy, staged for ``.estimate()`` / ``.validate()``.
+    """A resolved identification strategy, staged for ``.prepare()`` / ``.estimate()``.
 
     Produced by :func:`identify` or :meth:`from_view`. Typed-structure
     certificates retain each case's assumptions, derivation and search diagnostics;
@@ -499,60 +503,148 @@ class Identification:
             ),
         )
 
-    def estimate(
+    def prepare(
         self,
-        data: Mapping[str, Any] | Any,
+        data: Any,
         *,
         inference: Frequentist | Bayesian | None = None,
+        execution: Execution | None = None,
         estimator: str | Estimator | None = None,
         estimator_config: Mapping[str, Any] | None = None,
-        refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = False,
-        seed: int = 1,
-        bootstrap: int | None = None,
-        threads: int | None = None,
-        latency: Latency | Literal["interactive", "standard", "report"] | None = None,
-        provider: Any | None = None,
-        controls: Any | None = None,
-    ) -> Analysis:
-        """Estimate the effect on ``data`` using this identification's strategy.
+        refute: (
+            bool | Refute | Literal["full", "placebo", "none", "cheap"] | None | _DefaultRefute
+        ) = _DefaultRefute.DEFAULT,
+        class_prior: Any = None,
+        max_completions: int | None = None,
+        participant: str | None = None,
+        missing: Any = None,
+        population_registry: Any = None,
+        validators: Sequence[Any] | Mapping[str, Any] | None = None,
+        regimes: Sequence[int] | None = None,
+        provider: Any = None,
+        controls: Any = None,
+        sampling_design: str | None = None,
+        retain_joint_horizons: bool = False,
+        on_refusal: Literal["refuse", "describe"] = "refuse",
+        evidence_candidates: Sequence[Any] | None = None,
+        outcome_units: str | None = None,
+        quantity_population: str = "target",
+        quantity_transform: str = "identity",
+        dose_units: str | None = None,
+    ) -> PreparedAnalysis[Any]:
+        """Own data and prepare this strategy through the common lifecycle.
 
-        Dispatches through :func:`antecedent.analyze` with ``identifier=``
-        fixed to the strategy this identification already resolved, so the
-        estimate is consistent with what :func:`identify` reported rather
-        than letting ``analyze`` pick a strategy on its own. There is no
-        separate native "estimate against a precomputed identification" entry
-        point — ``analyze`` recomputes identification internally as part of
-        its own pipeline, deterministically arriving at the same strategy.
+        The native preparation checks identification again: the identify-only
+        certificate is retained on this stage, but is not a reusable native proof.
+        Statistical budgets belong to ``inference``; execution settings belong
+        to ``Execution``. Omitted refutation keeps the ordinary-stage default
+        disabled and the transport-stage default unspecified; explicit options
+        are validated by the common preparation path.
         """
-        from ._analyze import analyze
+        from .prepared import Reuse, prepare
         from .transport import Transport
 
-        resolved_identifier = None if isinstance(self.graph, TieredBackground) else self.identifier
-        if isinstance(self.query, Transport):
-            return analyze(
-                data,
-                query=self.query,
-                graph=self.graph,
-                inference=inference,
-                identifier=resolved_identifier,
-                provider=provider,
-                controls=controls,
-            )
-        return analyze(
+        resolved_refute = refute
+        if refute is _DefaultRefute.DEFAULT:
+            resolved_refute = None if isinstance(self.query, Transport) else False
+        graph = self.graph
+        if self.names is not None and isinstance(graph, (list, tuple)):
+            graph = Dag.from_edges(list(self.names), list(graph))
+        study = prepare(
             data,
             query=self.query,
-            graph=self.graph,
+            graph=graph,
+            identifier=None if isinstance(graph, TieredBackground) else self.identifier,
             inference=inference,
-            identifier=resolved_identifier,
+            execution=execution,
             estimator=estimator,
             estimator_config=estimator_config,
-            refute=refute,
-            seed=seed,
-            bootstrap=bootstrap,
-            threads=threads,
-            latency=latency,
+            refute=resolved_refute,
+            class_prior=class_prior,
+            max_completions=max_completions,
+            participant=participant,
+            missing=missing,
+            population_registry=population_registry,
+            validators=validators,
+            regimes=regimes,
             provider=provider,
             controls=controls,
+            sampling_design=sampling_design,
+            retain_joint_horizons=retain_joint_horizons,
+            on_refusal=on_refusal,
+            evidence_candidates=evidence_candidates,
+            outcome_units=outcome_units,
+            quantity_population=quantity_population,
+            quantity_transform=quantity_transform,
+            dose_units=dose_units,
+        )
+        return replace(
+            study,
+            reuse=Reuse(
+                retained=("declarations",),
+                invalidated=("identification", "program", "fits", "scores"),
+                preparation="reprepared",
+            ),
+        )
+
+    def estimate(
+        self,
+        data: Any,
+        *,
+        inference: Frequentist | Bayesian | None = None,
+        execution: Execution | None = None,
+        estimator: str | Estimator | None = None,
+        estimator_config: Mapping[str, Any] | None = None,
+        refute: (
+            bool | Refute | Literal["full", "placebo", "none", "cheap"] | None | _DefaultRefute
+        ) = _DefaultRefute.DEFAULT,
+        class_prior: Any = None,
+        max_completions: int | None = None,
+        participant: str | None = None,
+        missing: Any = None,
+        population_registry: Any = None,
+        validators: Sequence[Any] | Mapping[str, Any] | None = None,
+        regimes: Sequence[int] | None = None,
+        provider: Any = None,
+        controls: Any = None,
+        sampling_design: str | None = None,
+        retain_joint_horizons: bool = False,
+        on_refusal: Literal["refuse", "describe"] = "refuse",
+        evidence_candidates: Sequence[Any] | None = None,
+        outcome_units: str | None = None,
+        quantity_population: str = "target",
+        quantity_transform: str = "identity",
+        dose_units: str | None = None,
+    ) -> Outcome[Any]:
+        """Prepare and execute through the common immutable lifecycle."""
+        from .prepared import estimate
+
+        return estimate(
+            self.prepare(
+                data,
+                inference=inference,
+                execution=execution,
+                estimator=estimator,
+                estimator_config=estimator_config,
+                refute=refute,
+                class_prior=class_prior,
+                max_completions=max_completions,
+                participant=participant,
+                missing=missing,
+                population_registry=population_registry,
+                validators=validators,
+                regimes=regimes,
+                provider=provider,
+                controls=controls,
+                sampling_design=sampling_design,
+                retain_joint_horizons=retain_joint_horizons,
+                on_refusal=on_refusal,
+                evidence_candidates=evidence_candidates,
+                outcome_units=outcome_units,
+                quantity_population=quantity_population,
+                quantity_transform=quantity_transform,
+                dose_units=dose_units,
+            )
         )
 
 
@@ -877,8 +969,8 @@ def identify(
     Same parameters as the one-shot identify-only call
     (:func:`antecedent.estimation.identify`, still available unchanged for
     callers that only want the ``IdentifyResult`` shape) — the difference is
-    the return type carries enough state to continue into ``.estimate()`` /
-    ``.validate()`` while retaining the resolved strategy and query.
+    the return type carries enough state to continue into ``.prepare()`` /
+    ``.estimate()`` while retaining the resolved strategy and query.
 
     Pass ``names`` when ``graph`` is an edge list (variable order). With a
     typed graph, names are taken from ``graph.nodes()``.
@@ -1039,40 +1131,6 @@ def identify(
     )
 
 
-def estimate(
-    identification: Identification,
-    data: Mapping[str, Any] | Any,
-    *,
-    inference: Frequentist | Bayesian | None = None,
-    estimator: str | Estimator | None = None,
-    refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = False,
-    seed: int = 1,
-    bootstrap: int | None = None,
-    threads: int | None = None,
-    latency: Latency | Literal["interactive", "standard", "report"] | None = None,
-) -> Analysis:
-    """Module-level mirror of :meth:`Identification.estimate`.
-
-    The stub this replaces took ``(identification, *, graph, query, names,
-    identifier)`` — all four of ``graph``/``query``/``names``/``identifier``
-    are redundant once ``identification`` already carries them (that's the
-    entire point of staging: continue without re-supplying what ``identify``
-    already resolved), so they're dropped here. The stub also never accepted
-    a ``data`` argument at all, despite obviously needing tabular data to run
-    estimation — added as a required positional parameter.
-    """
-    return identification.estimate(
-        data,
-        inference=inference,
-        estimator=estimator,
-        refute=refute,
-        seed=seed,
-        bootstrap=bootstrap,
-        threads=threads,
-        latency=latency,
-    )
-
-
 @dataclass(frozen=True, slots=True)
 class BinaryIvBounds:
     """Sharp Balke–Pearl interval for ``E[Y(1)-Y(0)]`` under a binary IV."""
@@ -1091,8 +1149,9 @@ def binary_iv_bounds(cells: Sequence[Sequence[float]]) -> BinaryIvBounds:
     """
     import math
 
-    from ._analyze import analyze
     from .errors import CausalEstimateError, CausalIdentifyError
+    from .outcomes import require_success
+    from .prepared import analyze
     from .quasi import IvBounds
     from .results import AnalysisResult
 
@@ -1115,9 +1174,11 @@ def binary_iv_bounds(cells: Sequence[Sequence[float]]) -> BinaryIvBounds:
     treatment = [float(d) for _ in (0, 1) for _y, d in ((0, 0), (1, 0), (0, 1), (1, 1))]
     weight = [cell for arm in arms for cell in arm]
     try:
-        result = analyze(
-            {"z": instrument, "d": treatment, "y": outcome, "w": weight},
-            query=IvBounds(outcome="y", treatment="d", instrument="z", weight="w"),
+        result = require_success(
+            analyze(
+                {"z": instrument, "d": treatment, "y": outcome, "w": weight},
+                query=IvBounds(outcome="y", treatment="d", instrument="z", weight="w"),
+            )
         )
     except (CausalEstimateError, CausalUnsupportedError) as error:
         # A law the instrument premises cannot produce is an identification failure, named so.
@@ -1137,6 +1198,5 @@ __all__ = [
     "Identification",
     "IdentifyResult",
     "binary_iv_bounds",
-    "estimate",
     "identify",
 ]

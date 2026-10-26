@@ -232,15 +232,29 @@ def prepare(
     bootstrap = getattr(inference, "bootstrap", None)
 
     def build() -> Any:
+        from .extensibility import ProviderQuery
+
+        if isinstance(query, ProviderQuery):
+            from ._prepared_provider import PreparedProvider
+
+            return PreparedProvider.prepare(
+                owned,
+                query=query,
+                execution=policy,
+                **{key: value for key, value in declarations.items() if key != "query"},
+            )
         return Engine.prepare(
             owned,
             **options,
             bootstrap=bootstrap,
-            seed=policy.seed,
-            threads=policy.threads,
+            # Legacy transport lowering rejects ordinary loose controls. The
+            # active Execution owns its native context; execution forks bind
+            # the requested RNG/thread policy before any statistical run.
+            seed=1 if transport else policy.seed,
+            threads=None if transport else policy.threads,
             cancel=policy.cancel,
-            on_progress=policy.on_progress,
-            on_stage=policy.on_stage,
+            on_progress=None if transport else policy.on_progress,
+            on_stage=None if transport else policy.on_stage,
         )
 
     prepared = capture_outcome(policy._call, build)

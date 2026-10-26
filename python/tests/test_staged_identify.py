@@ -15,7 +15,6 @@ from antecedent.errors import CausalUnsupportedError
 from antecedent.identify import (
     Identification,
     IdentifyResult,
-    estimate,
     identify,
 )
 from antecedent.outcomes import require_success
@@ -45,9 +44,16 @@ def test_identification_estimate_matches_analyze():
     data, edges = confounded_scm(n=500, seed=7)
     query = antecedent.AverageEffect(treatment="t", outcome="y")
     identification = identify(graph=edges, query=query, names=["z", "t", "y"])
-    staged = require_success(identification.estimate(data, refute=False, bootstrap=0, seed=1))
+    staged = require_success(identification.estimate(data, refute=False, inference=antecedent.Frequentist(bootstrap=0), execution=antecedent.Execution(seed=1)))
     direct = require_success(
-        antecedent.analyze(data, graph=edges, query=query, refute=False, bootstrap=0, seed=1)
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     assert math.isfinite(staged.ate)
     assert abs(staged.ate - direct.ate) < 1e-9
@@ -67,15 +73,15 @@ def test_response_curve_identify_then_estimate_matches_analyze():
     assert tuple(identification.query.grid) == tuple(query.grid)
     assert identification.query is not query
     assert "z" in identification.adjustment_set
-    staged = require_success(identification.estimate(data, refute=False, bootstrap=0, seed=1))
+    staged = require_success(identification.estimate(data, refute=False, inference=antecedent.Frequentist(bootstrap=0), execution=antecedent.Execution(seed=1)))
     direct = require_success(
         antecedent.analyze(
             data,
             graph=edges,
             query=query,
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert staged.identification == direct.identification
@@ -98,14 +104,14 @@ def test_response_curve_combined_refutation_refuses_scalar_suite_by_default():
     )
 
     with pytest.raises(CausalUnsupportedError, match="not_applicable:"):
-        require_success(identification.estimate({"t": t, "y": y}, refute="cheap", seed=3))
+        require_success(identification.estimate({"t": t, "y": y}, refute="cheap", execution=antecedent.Execution(seed=3)))
 
 
 def test_identification_estimate_runs_requested_refutation_suite():
     data, edges = confounded_scm(n=500, seed=11)
     query = antecedent.AverageEffect(treatment="t", outcome="y")
     identification = identify(graph=edges, query=query, names=["z", "t", "y"])
-    validated = require_success(identification.estimate(data, refute="cheap", seed=1, threads=1))
+    validated = require_success(identification.estimate(data, refute="cheap", execution=antecedent.Execution(seed=1, threads=1)))
     assert validated.validation.ran is True
     assert validated.validation.count >= 1
 
@@ -121,12 +127,12 @@ def test_identification_to_identify_result_projects_fields():
     assert tuple(legacy.adjustment_set) == identification.adjustment_set
 
 
-def test_module_level_estimate_and_validate_mirror_methods():
+def test_identification_composes_with_common_prepare_and_estimate():
     data, edges = confounded_scm(n=500, seed=13)
     query = antecedent.AverageEffect(treatment="t", outcome="y")
     identification = identify(graph=edges, query=query, names=["z", "t", "y"])
-    via_function = estimate(identification, data, refute=False, bootstrap=0, seed=2)
-    via_method = require_success(identification.estimate(data, refute=False, bootstrap=0, seed=2))
+    via_function = require_success(antecedent.estimate(identification.prepare(data, refute=False, inference=antecedent.Frequentist(bootstrap=0), execution=antecedent.Execution(seed=2))))
+    via_method = require_success(identification.estimate(data, refute=False, inference=antecedent.Frequentist(bootstrap=0), execution=antecedent.Execution(seed=2)))
     assert abs(via_function.ate - via_method.ate) < 1e-12
 
 
@@ -163,7 +169,14 @@ def test_from_view_carries_assumption_counts():
     data, edges = confounded_scm(n=500, seed=17)
     query = antecedent.AverageEffect(treatment="t", outcome="y")
     result = require_success(
-        antecedent.analyze(data, graph=edges, query=query, refute=False, bootstrap=0, seed=1)
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     identification = Identification.from_view(result.identification, graph=edges, query=query)
     assert identification.status == result.identification.status

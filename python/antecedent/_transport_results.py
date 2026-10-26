@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
+from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
@@ -17,11 +18,12 @@ def _thaw(value: Any) -> Any:
     return value
 
 
+@dataclass(frozen=True, slots=True, repr=False)
 class _Record(Mapping[str, Any]):
-    __slots__ = ("_values",)
+    _values: Mapping[str, Any]
 
     def __init__(self, values: Mapping[str, Any]) -> None:
-        self._values = _freeze(values)
+        object.__setattr__(self, "_values", _freeze(values))
 
     def __getitem__(self, key: str) -> Any:
         return self._values[key]

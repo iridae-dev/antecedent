@@ -90,6 +90,9 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
         if hasattr(estimate, "tolist"):
             estimate = estimate.tolist()
         return InspectionReport(
+            stage="executed",
+            family="provider",
+            operations=("inspect", "export"),
             identification=SlotModel(
                 available=False,
                 reason="provider_identification_not_independently_verified",
@@ -132,15 +135,18 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
     def export(
         self,
         *,
-        quantity: Literal["provider", "host"] = "provider",
-        artifact_id: str = "analysis-result",
+        quantity: Literal["result", "posterior", "query", "provider", "host"] = "provider",
+        artifact_id: str | None = None,
     ) -> ExportedArtifact:
         if quantity == "host":
             return artifact_from_receipt(self, self._host_bytes())
-        if quantity != "provider":
-            from ..errors import CausalTypeError
+        if quantity not in ("provider", "result"):
+            from ..errors import CausalUnsupportedError
 
-            raise CausalTypeError("quantity must be 'provider' or 'host'")
+            raise CausalUnsupportedError(
+                "provider results export their provider receipt or host envelope",
+                reason_code="option_not_applicable",
+            )
         # A provider result carries a single opaque artifact; artifact_id is
         # accepted for API parity with the analysis result but does not select.
         if self.provider_artifact is None:

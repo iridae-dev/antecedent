@@ -1047,7 +1047,13 @@ class ProviderRegistry:
         effective_trust = trust
         if report is not None and not report.covers(request, spec_digest=current_spec_digest):
             effective_trust = ProviderTrust.EXTERNALLY_ATTESTED
-        raw = provider.execute(MappingProxyType(dict(request)))
+        try:
+            raw = provider.execute(MappingProxyType(dict(request)))
+        except Exception as error:
+            # Provider callbacks are operational boundaries, even when user code
+            # raises a scientific refusal class. Keep its identity and traceback.
+            setattr(error, "_antecedent_operational_callback", True)  # noqa: B010 -- exception marker
+            raise
         if not isinstance(raw, ProviderExecution):
             raise TypeError("provider execute() must return ProviderExecution")
         estimate = _provider_array(raw.estimate, "estimate")
