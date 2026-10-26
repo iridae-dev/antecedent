@@ -323,10 +323,37 @@ fn retained_laws() -> &'static Mutex<RetainedLaws> {
     LAWS.get_or_init(|| Mutex::new(RetainedLaws { order: VecDeque::new(), by_id: HashMap::new() }))
 }
 
+/// Whether a context can use the process-owned signal-law memo. A constrained
+/// caller cannot transfer its scientific payload beyond its byte account.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(crate) enum ProcessLawReuse {
+    Allowed,
+    Bypass,
+}
+
+impl ProcessLawReuse {
+    pub(crate) fn for_context(ctx: &antecedent_core::ExecutionContext) -> Self {
+        if ctx.cache_policy.enabled
+            && ctx.cache_policy.max_bytes.is_none()
+            && ctx.admission.byte_budget() == u64::MAX
+        {
+            Self::Allowed
+        } else {
+            Self::Bypass
+        }
+    }
+}
+
 /// Remember the law `evaluate_evsi` just prepared, keyed by receipt identity.
 ///
 /// The receipt identity covers the law digest. [`recall_prepared`] returns it to `seal`.
-pub(crate) fn remember_prepared(prepared: &PreparedSignal) {
+pub(crate) fn remember_prepared(
+    prepared: &PreparedSignal,
+    ctx: &antecedent_core::ExecutionContext,
+) {
+    if ProcessLawReuse::for_context(ctx) == ProcessLawReuse::Bypass {
+        return;
+    }
     let id = prepared.receipt.identity();
     let mut slot = retained_laws().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if let Some(existing) = slot.by_id.get_mut(&id) {

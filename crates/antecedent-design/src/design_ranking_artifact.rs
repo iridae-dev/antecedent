@@ -1379,7 +1379,25 @@ fn law_wire(
 
 /// The law from evaluation when its receipt is still on the row; otherwise a
 /// fresh prepare that must answer with that same receipt identity.
-fn prepared_for_seal(declared: &EvsiCandidate, row: &EvsiCandidateRow) -> Result<PreparedSignal> {
+fn prepared_for_seal(
+    declared: &EvsiCandidate,
+    row: &EvsiCandidateRow,
+    laws: Option<&[PreparedSignal]>,
+) -> Result<PreparedSignal> {
+    if let Some(laws) = laws {
+        if declared.signal_request.fingerprint() != row.signal_receipt.request_fingerprint {
+            return Err(DesignRankingArtifactError::SignalInconsistent {
+                candidate: row.semantic_id.clone(),
+                slot: "evaluated_request_changed",
+            });
+        }
+        return laws.iter().find(|law| law.receipt == row.signal_receipt).cloned().ok_or_else(
+            || DesignRankingArtifactError::SignalInconsistent {
+                candidate: row.semantic_id.clone(),
+                slot: "evaluated_law_missing",
+            },
+        );
+    }
     if let Some(retained) = recall_prepared(&row.signal_receipt.identity())
         .filter(|retained| retained.receipt == row.signal_receipt)
     {
@@ -1419,6 +1437,33 @@ fn prepared_for_seal(declared: &EvsiCandidate, row: &EvsiCandidateRow) -> Result
 /// A provider that no longer answers its request identically, a law that cannot be
 /// retained, a duplicated declared semantic id, or an empty report.
 pub fn seal<A: Clone>(inputs: &SealInputs<'_, A>) -> Result<DesignRankingArtifactWire> {
+    seal_with_laws(inputs, None, None)
+}
+
+/// Seal the exact laws of a contextual evaluation under caller cancellation.
+/// This path never consults the process memo or re-prepares a provider.
+///
+/// # Errors
+/// As [`seal`], or [`DesignError::Cancelled`] when the caller cancels publication.
+pub fn seal_with_context<A: Clone>(
+    inputs: &SealInputs<'_, A>,
+    evaluation: &crate::evsi::EvaluatedEvsi,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<DesignRankingArtifactWire> {
+    if inputs.report != evaluation.report() {
+        return Err(DesignRankingArtifactError::InvalidWire("evaluation report differs"));
+    }
+    seal_with_laws(inputs, Some(&evaluation.laws), Some(&ctx.cancellation))
+}
+
+fn seal_with_laws<A: Clone>(
+    inputs: &SealInputs<'_, A>,
+    laws: Option<&[PreparedSignal]>,
+    cancellation: Option<&antecedent_core::CancellationToken>,
+) -> Result<DesignRankingArtifactWire> {
+    if cancellation.is_some_and(antecedent_core::CancellationToken::is_cancelled) {
+        return Err(DesignError::Cancelled.into());
+    }
     let report = inputs.report;
     let ranking = RankingRecord::from_evsi(report, inputs.source_digests)?;
     let decision = decision_wire(inputs)?;
@@ -1436,7 +1481,10 @@ pub fn seal<A: Clone>(inputs: &SealInputs<'_, A>) -> Result<DesignRankingArtifac
             .get(row.semantic_id.as_str())
             .copied()
             .ok_or(DesignRankingArtifactError::InvalidWire("report names an unknown candidate"))?;
-        let prepared = prepared_for_seal(declared, row)?;
+        if cancellation.is_some_and(antecedent_core::CancellationToken::is_cancelled) {
+            return Err(DesignError::Cancelled.into());
+        }
+        let prepared = prepared_for_seal(declared, row, laws)?;
         let law = law_wire(&row.signal_receipt, &prepared, row.sample_size)?;
         candidates.push(EvsiCandidateWire::from_scored(row, declared, law));
     }
@@ -1479,6 +1527,9 @@ pub fn seal<A: Clone>(inputs: &SealInputs<'_, A>) -> Result<DesignRankingArtifac
         digest: String::new(),
     };
     wire.reseal()?;
+    if cancellation.is_some_and(antecedent_core::CancellationToken::is_cancelled) {
+        return Err(DesignError::Cancelled.into());
+    }
     Ok(wire)
 }
 

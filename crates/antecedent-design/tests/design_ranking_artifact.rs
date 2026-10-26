@@ -904,3 +904,144 @@ fn a_newer_body_version_is_refused_as_a_version_before_any_field_is_read() {
     let error = DesignRankingArtifactWire::from_bytes(&bytes).unwrap_err();
     assert!(matches!(error, DesignRankingArtifactError::UnsupportedVersion(99)), "{error:?}");
 }
+
+/// A provider whose second preparation would supply a different scientific law.
+/// Publication must use the first preparation even when the process memo is warm.
+#[derive(Default)]
+struct ChangingProvider {
+    calls: std::sync::atomic::AtomicUsize,
+    law: std::sync::Mutex<Option<std::sync::Weak<dyn antecedent_design::DecisionSignal<f64>>>>,
+}
+
+impl SignalProvider for ChangingProvider {
+    fn prepare(
+        &self,
+        request: &SignalRequest,
+    ) -> Result<antecedent_design::signal::PreparedSignal, antecedent_design::signal::SignalError>
+    {
+        let call = self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let prepared = NativeGaussianMeanSignal::new(if call == 0 { 12.0 } else { 99.0 })
+            .unwrap()
+            .prepare(request)?;
+        let antecedent_design::signal::PreparedLaw::Likelihood(law) = &prepared.law else {
+            unreachable!("native Gaussian provider returns a likelihood");
+        };
+        *self.law.lock().unwrap() = Some(Arc::downgrade(law));
+        Ok(prepared)
+    }
+}
+
+#[test]
+fn contextual_evsi_owns_the_exact_law_through_seal_without_process_retention() {
+    use antecedent_core::{CachePolicy, ExecutionContext};
+    use antecedent_design::design_ranking_artifact::seal_with_context;
+    use antecedent_design::evsi::evaluate_evsi_with_context;
+    use std::sync::atomic::Ordering;
+
+    let utility = AffineUtility::new(vec![0.0, 0.0], vec![0.0, 1.0]).unwrap();
+    let problem = DecisionProblem::new(vec![0_usize, 1], Arc::new(utility), vec![]);
+    let prior = DecisionPrior::Normal { mean: 0.5, variance: 1.0 };
+    let disabled = ExecutionContext::for_tests(999);
+    let mut bounded = disabled.clone();
+    bounded.cache_policy = CachePolicy::enabled(Some(1024));
+    let mut finite = disabled.clone().with_memory_limit(Some(1 << 20));
+    finite.cache_policy = CachePolicy::enabled(None);
+    for (label, ctx) in [("disabled", disabled), ("bounded", bounded), ("finite", finite)] {
+        let id = format!("context-law-{label}");
+        let native: Arc<dyn SignalProvider> =
+            Arc::new(NativeGaussianMeanSignal::new(12.0).unwrap());
+        let mut req =
+            request(&["stay", "treat"], vec![candidate(&id, 4, native, 0.0, "utility")], None);
+        // Populate the identical receipt key under the legacy process-owned policy.
+        let warm = evaluate_evsi(&problem, &prior, &req, &CancellationToken::new()).unwrap();
+        let sources = digests();
+        let baseline = seal(&SealInputs {
+            problem: &problem,
+            prior: &prior,
+            request: &req,
+            report: &warm,
+            source_digests: &sources,
+        })
+        .unwrap();
+        let provider = Arc::new(ChangingProvider::default());
+        req.candidates[0].provider = provider.clone();
+        let before = ctx.admission().available();
+        let evaluated = evaluate_evsi_with_context(&problem, &prior, &req, &ctx).unwrap();
+        assert_eq!(evaluated.report(), &warm, "{label}: receipts and values stay exact");
+        let sealed = seal_with_context(
+            &SealInputs {
+                problem: &problem,
+                prior: &prior,
+                request: &req,
+                report: evaluated.report(),
+                source_digests: &sources,
+            },
+            &evaluated,
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(sealed, baseline, "{label}: the warm memo cannot replace the evaluated law");
+        assert_eq!(provider.calls.load(Ordering::SeqCst), 1, "publication never re-prepares");
+        let weak = provider.law.lock().unwrap().clone().unwrap();
+        assert!(weak.upgrade().is_some(), "the evaluation owns its law until publication");
+        drop(evaluated);
+        assert!(weak.upgrade().is_none(), "{label}: no process entry may retain this run's law");
+        assert_eq!(ctx.admission().available(), before);
+    }
+}
+
+#[test]
+fn contextual_evsi_cancellation_refuses_before_provider_work_and_before_seal() {
+    use antecedent_core::ExecutionContext;
+    use antecedent_design::design_ranking_artifact::seal_with_context;
+    use antecedent_design::evsi::{EvsiError, evaluate_evsi_with_context};
+    use std::sync::atomic::Ordering;
+
+    let problem = guess_problem();
+    let prior = DecisionPrior::Normal { mean: 0.5, variance: 1.0 };
+    let provider = Arc::new(ChangingProvider::default());
+    let req = request(
+        &GUESS,
+        vec![candidate("context-cancel", 4, provider.clone(), 0.0, "utility")],
+        None,
+    );
+    let ctx = ExecutionContext::for_tests(5);
+    let evaluated = evaluate_evsi_with_context(&problem, &prior, &req, &ctx).unwrap();
+    let sources = digests();
+    let mut changed = evaluated.report().clone();
+    changed.rng_seed ^= 1;
+    let error = seal_with_context(
+        &SealInputs {
+            problem: &problem,
+            prior: &prior,
+            request: &req,
+            report: &changed,
+            source_digests: &sources,
+        },
+        &evaluated,
+        &ctx,
+    )
+    .unwrap_err();
+    assert!(matches!(error, DesignRankingArtifactError::InvalidWire("evaluation report differs")));
+    ctx.cancellation.cancel();
+    let error = evaluate_evsi_with_context(&problem, &prior, &req, &ctx).err().unwrap();
+    assert!(matches!(error, EvsiError::Cancelled));
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
+    let error = seal_with_context(
+        &SealInputs {
+            problem: &problem,
+            prior: &prior,
+            request: &req,
+            report: evaluated.report(),
+            source_digests: &sources,
+        },
+        &evaluated,
+        &ctx,
+    )
+    .unwrap_err();
+    assert!(matches!(
+        error,
+        DesignRankingArtifactError::Design(antecedent_design::DesignError::Cancelled)
+    ));
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
+}

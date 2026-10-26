@@ -38,6 +38,7 @@
 impl !core::marker::Send for antecedent_design::composition_bundle::BundleConsumer [auto]
 impl !core::marker::Sync for antecedent_design::composition_bundle::BundleConsumer [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_bundle::BundleConsumer [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::EvaluatedEvsi [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::EvsiCandidate [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::EvsiRequest [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::prior_signal::CandidateSignalPrior [auto]
@@ -46,6 +47,7 @@ impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::prior_signa
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::signal::PreparedLaw [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::signal::PreparedSignal [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_bundle::BundleConsumer [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::EvaluatedEvsi [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::EvsiCandidate [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::EvsiRequest [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::prior_signal::CandidateSignalPrior [auto]
@@ -2160,6 +2162,7 @@ impl core::fmt::Debug for antecedent_design::evidence_plan_artifact::PlanOptionW
 impl core::fmt::Debug for antecedent_design::evidence_plan_artifact::UnverifiedRouteWire
 impl core::fmt::Debug for antecedent_design::evsi::AffineStateUtility
 impl core::fmt::Debug for antecedent_design::evsi::CostToUtilityMap
+impl core::fmt::Debug for antecedent_design::evsi::EvaluatedEvsi
 impl core::fmt::Debug for antecedent_design::evsi::EvsiCandidateRow
 impl core::fmt::Debug for antecedent_design::evsi::EvsiError
 impl core::fmt::Debug for antecedent_design::evsi::EvsiReport
@@ -3127,6 +3130,7 @@ impl core::marker::Freeze for antecedent_design::evidence_plan_artifact::PlanOpt
 impl core::marker::Freeze for antecedent_design::evidence_plan_artifact::UnverifiedRouteWire [auto]
 impl core::marker::Freeze for antecedent_design::evsi::AffineStateUtility [auto]
 impl core::marker::Freeze for antecedent_design::evsi::CostToUtilityMap [auto]
+impl core::marker::Freeze for antecedent_design::evsi::EvaluatedEvsi [auto]
 impl core::marker::Freeze for antecedent_design::evsi::EvsiCandidate [auto]
 impl core::marker::Freeze for antecedent_design::evsi::EvsiCandidateRow [auto]
 impl core::marker::Freeze for antecedent_design::evsi::EvsiError [auto]
@@ -3822,6 +3826,7 @@ impl core::marker::Send for antecedent_design::evidence_plan_artifact::PlanOptio
 impl core::marker::Send for antecedent_design::evidence_plan_artifact::UnverifiedRouteWire [auto]
 impl core::marker::Send for antecedent_design::evsi::AffineStateUtility [auto]
 impl core::marker::Send for antecedent_design::evsi::CostToUtilityMap [auto]
+impl core::marker::Send for antecedent_design::evsi::EvaluatedEvsi [auto]
 impl core::marker::Send for antecedent_design::evsi::EvsiCandidate [auto]
 impl core::marker::Send for antecedent_design::evsi::EvsiCandidateRow [auto]
 impl core::marker::Send for antecedent_design::evsi::EvsiError [auto]
@@ -5116,6 +5121,7 @@ impl core::marker::Sync for antecedent_design::evidence_plan_artifact::PlanOptio
 impl core::marker::Sync for antecedent_design::evidence_plan_artifact::UnverifiedRouteWire [auto]
 impl core::marker::Sync for antecedent_design::evsi::AffineStateUtility [auto]
 impl core::marker::Sync for antecedent_design::evsi::CostToUtilityMap [auto]
+impl core::marker::Sync for antecedent_design::evsi::EvaluatedEvsi [auto]
 impl core::marker::Sync for antecedent_design::evsi::EvsiCandidate [auto]
 impl core::marker::Sync for antecedent_design::evsi::EvsiCandidateRow [auto]
 impl core::marker::Sync for antecedent_design::evsi::EvsiError [auto]
@@ -5812,6 +5818,7 @@ impl core::marker::Unpin for antecedent_design::evidence_plan_artifact::PlanOpti
 impl core::marker::Unpin for antecedent_design::evidence_plan_artifact::UnverifiedRouteWire [auto]
 impl core::marker::Unpin for antecedent_design::evsi::AffineStateUtility [auto]
 impl core::marker::Unpin for antecedent_design::evsi::CostToUtilityMap [auto]
+impl core::marker::Unpin for antecedent_design::evsi::EvaluatedEvsi [auto]
 impl core::marker::Unpin for antecedent_design::evsi::EvsiCandidate [auto]
 impl core::marker::Unpin for antecedent_design::evsi::EvsiCandidateRow [auto]
 impl core::marker::Unpin for antecedent_design::evsi::EvsiError [auto]
@@ -11160,6 +11167,8 @@ pub fn <antecedent_design::design_ranking_artifact::DesignRankingArtifactWire>::
 pub fn <antecedent_design::design_ranking_artifact::DesignRankingArtifactWire>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_design::design_ranking_artifact::ReplayKind>::const fn as_str(self) -> &'static str
 pub fn <antecedent_design::evsi::AffineStateUtility>::fn try_new(intercept: alloc::vec::Vec<f64>, slope: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_design::evsi::FutureStudyError>
+pub fn <antecedent_design::evsi::EvaluatedEvsi>::const fn report(&self) -> &antecedent_design::evsi::EvsiReport
+pub fn <antecedent_design::evsi::EvaluatedEvsi>::fn into_report(self) -> antecedent_design::evsi::EvsiReport
 pub fn <antecedent_design::evsi::EvsiError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
 pub fn <antecedent_design::evsi::EvsiEvidence<'a>>::const fn new(ledger: &'a antecedent_contract::evidence_ledger::ledger::EvidenceLedger, prior: antecedent_contract::evidence_ledger::ids::SourceId, candidates: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_contract::evidence_ledger::ids::SourceId>) -> Self
 pub fn <antecedent_design::evsi::FutureStudyProgram>::const fn study_cost(&self) -> core::option::Option<f64>
@@ -11538,7 +11547,9 @@ pub fn antecedent_design::design_ranking_artifact::consume(bytes: &[u8], expecta
 pub fn antecedent_design::design_ranking_artifact::consume_wire(wire: &antecedent_design::design_ranking_artifact::DesignRankingArtifactWire, expectation: &antecedent_design::design_ranking_artifact::ConsumeExpectation) -> core::result::Result<antecedent_design::design_ranking_artifact::ConsumedDesignRanking, antecedent_design::design_ranking_artifact::DesignRankingArtifactError>
 pub fn antecedent_design::design_ranking_artifact::consume_wire_with_receipts(wire: &antecedent_design::design_ranking_artifact::DesignRankingArtifactWire, expectation: &antecedent_design::design_ranking_artifact::ConsumeExpectation, verified_candidates: &alloc::collections::btree::set::BTreeSet<alloc::string::String>) -> core::result::Result<antecedent_design::design_ranking_artifact::ConsumedDesignRanking, antecedent_design::design_ranking_artifact::DesignRankingArtifactError>
 pub fn antecedent_design::design_ranking_artifact::seal<A: core::clone::Clone>(inputs: &antecedent_design::design_ranking_artifact::SealInputs<'_, A>) -> core::result::Result<antecedent_design::design_ranking_artifact::DesignRankingArtifactWire, antecedent_design::design_ranking_artifact::DesignRankingArtifactError>
+pub fn antecedent_design::design_ranking_artifact::seal_with_context<A: core::clone::Clone>(inputs: &antecedent_design::design_ranking_artifact::SealInputs<'_, A>, evaluation: &antecedent_design::evsi::EvaluatedEvsi, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::design_ranking_artifact::DesignRankingArtifactWire, antecedent_design::design_ranking_artifact::DesignRankingArtifactError>
 pub fn antecedent_design::evsi::evaluate_evsi<A: core::clone::Clone + core::marker::Sync>(problem: &antecedent_design::DecisionProblem<A, f64>, prior: &antecedent_design::DecisionPrior<f64>, request: &antecedent_design::evsi::EvsiRequest, cancellation: &antecedent_core::execution::CancellationToken) -> core::result::Result<antecedent_design::evsi::EvsiReport, antecedent_design::evsi::EvsiError>
+pub fn antecedent_design::evsi::evaluate_evsi_with_context<A: core::clone::Clone + core::marker::Sync>(problem: &antecedent_design::DecisionProblem<A, f64>, prior: &antecedent_design::DecisionPrior<f64>, request: &antecedent_design::evsi::EvsiRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::evsi::EvaluatedEvsi, antecedent_design::evsi::EvsiError>
 pub fn antecedent_design::evsi::evaluate_evsi_with_evidence<A: core::clone::Clone + core::marker::Sync>(problem: &antecedent_design::DecisionProblem<A, f64>, prior: &antecedent_design::DecisionPrior<f64>, request: &antecedent_design::evsi::EvsiRequest, evidence: &antecedent_design::evsi::EvsiEvidence<'_>, cancellation: &antecedent_core::execution::CancellationToken) -> core::result::Result<antecedent_design::evsi::EvsiReport, antecedent_design::evsi::EvsiError>
 pub fn antecedent_design::failure_routes(result: &antecedent_identify::result::IdentificationResult, graph: &antecedent_graph::admg::Admg, observed: &[antecedent_core::ids::VariableId], population: &str, sensitivity: core::option::Option<&antecedent_design::SensitivityFinding>) -> core::result::Result<antecedent_design::FailureRoutes, antecedent_design::RepairError>
 pub fn antecedent_design::identification_repair::latent_expansion(admg: &antecedent_graph::admg::Admg) -> core::result::Result<(antecedent_graph::dag::Dag, alloc::vec::Vec<antecedent_design::LatentCause>), antecedent_design::RepairError>
@@ -11982,6 +11993,8 @@ pub struct antecedent_design::evidence_plan_artifact::UnverifiedRouteWire
 pub struct antecedent_design::evsi::AffineStateUtility
 pub struct antecedent_design::evsi::AffineStateUtility has private fields
 pub struct antecedent_design::evsi::CostToUtilityMap
+pub struct antecedent_design::evsi::EvaluatedEvsi
+pub struct antecedent_design::evsi::EvaluatedEvsi has private fields
 pub struct antecedent_design::evsi::EvsiCandidate
 pub struct antecedent_design::evsi::EvsiCandidateRow
 pub struct antecedent_design::evsi::EvsiEvidence has private fields

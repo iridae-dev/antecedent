@@ -252,6 +252,29 @@ pub struct EvsiReport {
     pub search: SearchReceipt,
 }
 
+/// One contextual evaluation with the exact provider laws that produced it.
+/// Laws remain owned by this run until artifact publication; they are not a
+/// process cache and are never recovered by re-preparing the provider.
+#[derive(Debug)]
+pub struct EvaluatedEvsi {
+    report: EvsiReport,
+    pub(crate) laws: Vec<crate::signal::PreparedSignal>,
+}
+
+impl EvaluatedEvsi {
+    /// The evaluated ranking and its original receipts.
+    #[must_use]
+    pub const fn report(&self) -> &EvsiReport {
+        &self.report
+    }
+
+    /// Keep the report and release this run's prepared laws.
+    #[must_use]
+    pub fn into_report(self) -> EvsiReport {
+        self.report
+    }
+}
+
 /// Why an EVSI evaluation refuses.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -640,6 +663,7 @@ fn candidate_overlap(
 
 /// Numbers one candidate's evaluation produced.
 struct Evaluated {
+    prepared: crate::signal::PreparedSignal,
     evsi: f64,
     integration: IntegrationReport,
     evpi: f64,
@@ -832,14 +856,18 @@ fn evaluate_candidate<A: Clone>(
     }
     // Seal reuses this law when the receipt is still the one on the row. The
     // artifact is built from the law, so a miss falls back to preparing again.
-    remember_prepared(&prepared);
+    if ctx.cancellation.is_cancelled() {
+        return Err(EvsiError::Cancelled);
+    }
+    remember_prepared(&prepared, ctx);
     Ok(Evaluated {
+        receipt: prepared.receipt.clone(),
+        prepared,
         evsi,
         integration,
         evpi,
         prior_expected_utility,
         bayes_action,
-        receipt: prepared.receipt,
         overlap,
         stream_digest,
     })
@@ -925,6 +953,40 @@ fn evaluate<A: Clone + Sync>(
     evidence: Option<&EvsiEvidence<'_>>,
     cancellation: &CancellationToken,
 ) -> Result<EvsiReport, EvsiError> {
+    let mut ctx =
+        ExecutionContext::production(request.rng_seed, antecedent_core::default_user_threads());
+    ctx.cancellation = cancellation.clone();
+    evaluate_in_context(problem, prior, request, evidence, &ctx).map(EvaluatedEvsi::into_report)
+}
+
+/// Evaluate EVSI using the caller's admission pool, parallelism, cancellation
+/// and cache policy. The request's declared seed still defines all draw streams.
+///
+/// # Errors
+/// As [`evaluate_evsi`], including caller cancellation or refused integration.
+pub fn evaluate_evsi_with_context<A: Clone + Sync>(
+    problem: &DecisionProblem<A, f64>,
+    prior: &DecisionPrior<f64>,
+    request: &EvsiRequest,
+    ctx: &ExecutionContext,
+) -> Result<EvaluatedEvsi, EvsiError> {
+    evaluate_in_context(problem, prior, request, None, ctx)
+}
+
+fn evaluate_in_context<A: Clone + Sync>(
+    problem: &DecisionProblem<A, f64>,
+    prior: &DecisionPrior<f64>,
+    request: &EvsiRequest,
+    evidence: Option<&EvsiEvidence<'_>>,
+    ctx: &ExecutionContext,
+) -> Result<EvaluatedEvsi, EvsiError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(EvsiError::Cancelled);
+    }
+    // Keep scientific stream identity tied to the request, while cloning shares
+    // the caller's live pool and cancellation rather than resetting either.
+    let mut ctx = ctx.clone();
+    ctx.rng = antecedent_core::RngFactory::from_seed(request.rng_seed);
     validate_request(problem, request)?;
     let mut ordered: Vec<&EvsiCandidate> = request.candidates.iter().collect();
     ordered.sort_by(|a, b| a.semantic_id.cmp(&b.semantic_id));
@@ -932,9 +994,6 @@ fn evaluate<A: Clone + Sync>(
     let unevaluated_ids: Vec<String> =
         ordered.iter().skip(request.max_candidates).map(|c| c.semantic_id.clone()).collect();
     ordered.truncate(request.max_candidates);
-    let mut ctx =
-        ExecutionContext::production(request.rng_seed, antecedent_core::default_user_threads());
-    ctx.cancellation = cancellation.clone();
     // Replicate streams are keyed by (seed, purpose, replicate) and shared by every
     // candidate (common random numbers), so neither the index order of `map_indexed` nor
     // the catalog moves them.
@@ -950,7 +1009,12 @@ fn evaluate<A: Clone + Sync>(
         truncated: !unevaluated_ids.is_empty(),
         unevaluated_ids,
     };
-    Ok(assemble(prior, request, &ordered, &evaluated, search))
+    if ctx.cancellation.is_cancelled() {
+        return Err(EvsiError::Cancelled);
+    }
+    let report = assemble(prior, request, &ordered, &evaluated, search);
+    let laws = evaluated.into_iter().map(|value| value.prepared).collect();
+    Ok(EvaluatedEvsi { report, laws })
 }
 
 fn assemble(
