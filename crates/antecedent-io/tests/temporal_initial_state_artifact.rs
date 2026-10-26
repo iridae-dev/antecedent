@@ -51,8 +51,14 @@ fn panel(snapshot: &str) -> TemporalUnitPanel {
                         let n_cell = n_l / 2;
                         let ones = n_cell * M10[s0][a1][l][a2] / 10;
                         for k in 0..n_cell {
-                            histories.push(SequenceHistory::two_step(histories.len() as u64, s0 as u32, a1 as u32, l as u32, a2 as u32, if k < ones { 1.0) else { 0.0 },
-                            });
+                            histories.push(SequenceHistory::two_step(
+                                histories.len() as u64,
+                                s0 as u32,
+                                a1 as u32,
+                                l as u32,
+                                a2 as u32,
+                                if k < ones { 1.0 } else { 0.0 },
+                            ));
                         }
                     }
                 }
