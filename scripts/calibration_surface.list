@@ -513,6 +513,9 @@ allow design crates/antecedent/src/analysis/execute/temporal_path.rs evaluate
 allow design crates/antecedent/src/analysis/execute/temporal_point_uncertainty.rs evaluate
 allow design crates/antecedent/src/period_refresh.rs seal
 allow design crates/antecedent/src/planner/lowered.rs IdentifiedSet seal
+# The reconfiguration guard's local `seal` is the core static identification
+# digest from identification_seal::seal_static, not a design-artifact sealer.
+allow design crates/antecedent/src/analysis/lowering/mod.rs seal
 # Structure discovery, attribution and simulation (the Discover, Attribute, Simulate,
 # MechanismChange and UnitChange queries) run the fitted-model engines; each of those
 # queries carries mechanism by key. The joint-panel estimator, likelihood and source

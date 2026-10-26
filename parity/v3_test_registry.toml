@@ -10651,3 +10651,549 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_check_architecture.py"
 gates = ["inventory"]
+
+[[test]]
+id = "engineering-python-ci-callback-evidence-boundary"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/callbacks.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "engineering-native-callback-error-cleanup"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/interrupt.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-attribution-src-coalition-rs"
+crate = "antecedent-attribution"
+cargo_target = "lib"
+path = "crates/antecedent-attribution/src/coalition.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-core-src-execution-rs"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/execution.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-data-src-categorical-rs"
+crate = "antecedent-data"
+cargo_target = "lib"
+path = "crates/antecedent-data/src/categorical.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-estimate-src-crossfit-plan-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/crossfit_plan.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-estimate-src-serial-dependence-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/serial_dependence.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-estimate-src-util-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/util.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-graph-src-dag-rs"
+crate = "antecedent-graph"
+cargo_target = "lib"
+path = "crates/antecedent-graph/src/dag.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-identify-src-experiment-moments-noisy-rs"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/experiment_moments_noisy.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-io-core-src-reader-rs"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/reader.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-learn-burn-src-lib-rs"
+crate = "antecedent-learn-burn"
+cargo_target = "lib"
+path = "crates/antecedent-learn-burn/src/lib.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-learn-burn-src-staged-rs"
+crate = "antecedent-learn-burn"
+cargo_target = "lib"
+path = "crates/antecedent-learn-burn/src/staged.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-learn-src-crossfit-rs"
+crate = "antecedent-learn"
+cargo_target = "lib"
+path = "crates/antecedent-learn/src/crossfit.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-learn-src-portable-rs"
+crate = "antecedent-learn"
+cargo_target = "lib"
+path = "crates/antecedent-learn/src/portable.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-prob-src-linalg-rs"
+crate = "antecedent-prob"
+cargo_target = "lib"
+path = "crates/antecedent-prob/src/linalg.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-prob-src-posterior-rs"
+crate = "antecedent-prob"
+cargo_target = "lib"
+path = "crates/antecedent-prob/src/posterior.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-state-src-disk-retention-rs"
+crate = "antecedent-state"
+cargo_target = "lib"
+path = "crates/antecedent-state/src/disk_retention.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-validate-src-component-sensitivity-rs"
+crate = "antecedent-validate"
+cargo_target = "lib"
+path = "crates/antecedent-validate/src/component_sensitivity.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-validate-src-vector-sensitivity-rs"
+crate = "antecedent-validate"
+cargo_target = "lib"
+path = "crates/antecedent-validate/src/vector_sensitivity.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-contract-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/contract.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-prepared-sealers-mod-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/prepared/sealers/mod.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-prepared-tests-static-operation-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/prepared/tests/static_operation.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-io-src-smoothed-dose-artifact"
+crate = "antecedent-io"
+cargo_target = "lib"
+path = "crates/antecedent-io/src/smoothed_dose_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-conditional-admg"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/conditional_admg.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-contract-identity"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/contract_identity.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-finite-discrete"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/finite_discrete.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-lowering-static-effect-tests"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/lowering/static_effect_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-python-src-lib"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/lib.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-contract-src-bridge-propagation"
+crate = "antecedent-contract"
+cargo_target = "lib"
+path = "crates/antecedent-contract/src/bridge/propagation.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-core-src-identity"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/identity.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-core-src-physical-choice"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/physical_choice.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-core-src-route-memory"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/route_memory.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-identify-src-generalized"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/generalized.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-identify-src-path-specific"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/path_specific.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-learn-burn-src-policy"
+crate = "antecedent-learn-burn"
+cargo_target = "lib"
+path = "crates/antecedent-learn-burn/src/policy.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-model-src-history-operators"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/history_operators.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-design-src-repair-artifact"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/repair_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-estimate-src-joint-panel-selection-uncertainty"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_panel/selection_uncertainty.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-estimate-src-joint-panel-streaming"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_panel/streaming.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-estimate-src-streamed-adjustment"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/streamed_adjustment.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-estimate-src-streamed-aipw"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/streamed_aipw.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-estimate-src-streamed-iv"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/streamed_iv.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-estimate-src-temporal-adjustment"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/temporal_adjustment.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-estimate-src-temporal-design-regime"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/temporal_design/regime.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-estimate-src-temporal-response-bayes"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/temporal_response/bayes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-design-src-evsi"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/evsi.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-graph-src-temporal-pag-completion"
+crate = "antecedent-graph"
+cargo_target = "lib"
+path = "crates/antecedent-graph/src/temporal_pag_completion.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-identify-src-class-envelope-cache"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/class_envelope_cache.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-identify-src-class-transport"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/class_transport.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-identify-src-pag-path-specific"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/pag_path_specific.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-identify-src-response-id"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/response_id.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-identify-src-sid-conditional-witness"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/sid/conditional_witness.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-identify-src-temporal-generalized"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/temporal_generalized.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-identify-src-transport"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/transport.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-checked-temporal-class-effect"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/checked_temporal_class_effect.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-checked-temporal-graph-posterior-effect"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/checked_temporal_graph_posterior_effect.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-execute-bayesian-path"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/bayesian_path.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-execute-checked-bayesian-static-mediation"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/checked_bayesian_static_mediation.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-execute-checked-cell-aipw-response"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/checked_cell_aipw_response.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-execute-class-distribution"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/class_distribution.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-execute-compile"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/compile.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-execute-interference-refutation"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/interference_refutation.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-execute-mediation-mixed"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/mediation_mixed.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-execute-response-path"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/response_path.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-execute-study-clone-tests"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/study_clone_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-execute-temporal-path"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/temporal_path.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-identification-cache-graph-posterior"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/identification_cache/graph_posterior.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-learned-trial"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/learned_trial.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-proof-support"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/proof_support.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-query-license"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/query_license.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-recipe-glm"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/recipe_glm.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-target-validation"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/target_validation.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-error"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/error.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-strategy-table-dispatch"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/strategy_table/dispatch.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-identify-src-auto"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/auto.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-identify-src-joint-response"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/joint_response.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-identify-src-response"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/response.rs"
+gates = ["inventory", "named"]
