@@ -677,7 +677,9 @@ pub fn admg_from_adjacency_mask(
 ///
 /// # Errors
 ///
-/// Packing overflow.
+/// Packing overflow, or a bow (a directed and bidirected edge on the same pair).
+/// Bow-free ADMGs round-trip through this representation; use an explicit ADMG
+/// rather than a packed posterior atom when a bow must be retained.
 pub fn adjacency_mask_from_admg(admg: &Admg) -> Result<AdjacencyMask, DiscoveryError> {
     let n_vars = admg.node_count();
     require_mask_capacity(n_vars, "adjacency_mask_from_admg")?;
@@ -685,6 +687,11 @@ pub fn adjacency_mask_from_admg(admg: &Admg) -> Result<AdjacencyMask, DiscoveryE
     for i in 0..n_vars {
         let from = DenseNodeId::from_raw(crate::indexing::dense_u32(i));
         for &to in admg.children(from) {
+            if admg.bidirected_neighbors(from).contains(&to) {
+                return Err(DiscoveryError::unsupported(
+                    "ADMG posterior adjacency encoding cannot represent a bow (directed and bidirected edges on the same pair); use an explicit ADMG graph",
+                ));
+            }
             mask.set_edge(n_vars, i, to.as_usize(), true);
         }
         for &nbr in admg.bidirected_neighbors(from) {
@@ -701,6 +708,40 @@ pub fn adjacency_mask_from_admg(admg: &Admg) -> Result<AdjacencyMask, DiscoveryE
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bow_free_admg_round_trips_without_losing_any_edge() {
+        let mut graph = Admg::with_variables(3);
+        let [t, m, y] = [0, 1, 2].map(DenseNodeId::from_raw);
+        graph.insert_directed(t, m).unwrap();
+        graph.insert_directed(m, y).unwrap();
+        graph.insert_bidirected(t, y).unwrap();
+        let mask = adjacency_mask_from_admg(&graph).unwrap();
+        let decoded = admg_from_adjacency_mask(&mask, 3).unwrap();
+        for node in [t, m, y] {
+            assert_eq!(graph.children(node), decoded.children(node));
+            assert_eq!(graph.bidirected_neighbors(node), decoded.bidirected_neighbors(node));
+        }
+        assert_eq!(adjacency_mask_from_admg(&decoded).unwrap(), mask);
+    }
+
+    #[test]
+    fn bows_are_rejected_in_either_directed_orientation() {
+        let [a, b] = [0, 1].map(DenseNodeId::from_raw);
+        for (from, to) in [(a, b), (b, a)] {
+            let mut graph = Admg::with_variables(2);
+            graph.insert_directed(from, to).unwrap();
+            graph.insert_bidirected(a, b).unwrap();
+            assert!(matches!(
+                adjacency_mask_from_admg(&graph),
+                Err(DiscoveryError::Unsupported { message }) if message.contains("bow")
+            ));
+            assert!(matches!(
+                crate::graph_posterior::adjacency_mask_from_admg(&graph),
+                Err(DiscoveryError::Unsupported { message }) if message.contains("bow")
+            ));
+        }
+    }
 
     #[test]
     fn single_word_set_is_the_earlier_encoding() {
@@ -729,7 +770,8 @@ mod tests {
 
     #[test]
     fn a_set_grows_past_the_inline_words_and_shrinks_back() {
-        let wide = AdjacencyMask::EMPTY.with_bit(5, true).with_bit(1000, true).with_bit(40_000, true);
+        let wide =
+            AdjacencyMask::EMPTY.with_bit(5, true).with_bit(1000, true).with_bit(40_000, true);
         assert!(wide.bit(5) && wide.bit(1000) && wide.bit(40_000));
         assert!(!wide.bit(999) && !wide.bit(40_001) && !wide.bit(1_000_000));
         assert_eq!(wide.count_ones(), 3);
@@ -746,9 +788,10 @@ mod tests {
     #[test]
     fn equal_sets_hash_and_order_alike_whatever_their_history() {
         let built = AdjacencyMask::EMPTY.with_bit(900, true).with_bit(2, true);
-        let reached = AdjacencyMask::from_words(&[4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 << 4])
-            .with_bit(2, false)
-            .with_bit(2, true);
+        let reached =
+            AdjacencyMask::from_words(&[4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 << 4])
+                .with_bit(2, false)
+                .with_bit(2, true);
         assert_eq!(built, reached);
         assert_eq!(built.key(), reached.key());
         assert_eq!(built.cmp(&reached), std::cmp::Ordering::Equal);
@@ -778,7 +821,8 @@ mod tests {
     #[test]
     fn a_chain_on_many_nodes_is_a_dag_and_closing_it_is_not() {
         let n = 40;
-        let chain = (0..n - 1).fold(AdjacencyMask::EMPTY, |mask, i| set_edge(mask, n, i, i + 1, true));
+        let chain =
+            (0..n - 1).fold(AdjacencyMask::EMPTY, |mask, i| set_edge(mask, n, i, i + 1, true));
         assert!(mask_is_dag(&chain, n));
         assert_eq!(chain.edges(n).count(), n - 1);
         assert!(has_edge(&chain, n, 38, 39) && !has_edge(&chain, n, 39, 38));

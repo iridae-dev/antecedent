@@ -1101,7 +1101,7 @@ pub fn admg_from_adjacency_mask(mask: u64, n_vars: usize) -> Result<Admg, Discov
 ///
 /// # Errors
 ///
-/// Packing overflow.
+/// Packing overflow or a bow, which cannot be encoded without dropping an edge.
 pub fn adjacency_mask_from_admg(admg: &Admg) -> Result<u64, DiscoveryError> {
     require_word_capacity(admg.node_count(), "adjacency_mask_from_admg")?;
     into_word(crate::adjacency_mask::adjacency_mask_from_admg(admg)?, "adjacency_mask_from_admg")
@@ -1920,7 +1920,7 @@ mod tests {
     fn dags_of_one_equivalence_class_pool_their_mass() {
         let n = 3;
         let graph = |edges: &[(usize, usize)]| {
-            edges.iter().fold(AdjacencyMask::EMPTY, |mask, &(a, b)| set_edge(mask, n, a, b, true))
+            edges.iter().fold(AdjacencyMask::EMPTY, |mask, &(a, b)| set_edge(&mask, n, a, b, true))
         };
         // The three orientations of a chain without a collider share one class; the
         // collider is its own class.
@@ -1968,7 +1968,7 @@ mod tests {
         let forward = set_edge(AdjacencyMask::EMPTY, p, 0, 1, true);
         let backward = set_edge(AdjacencyMask::EMPTY, p, 1, 0, true);
         // Bit 0 is the lag-1 edge from variable 0 to variable 0.
-        let atoms = [forward, backward, forward, backward];
+        let atoms = [forward.clone(), backward.clone(), forward, backward];
         let lags = [0_u64, 0, 1, 1];
         let weights = [0.1, 0.2, 0.3, 0.4];
         let (edge, orientation) = accumulate_marginals(p, &weights, &atoms);
@@ -1999,7 +1999,10 @@ mod tests {
         assert!(has_edge(&classes.atoms()[1], p, 0, 1) && !has_edge(&classes.atoms()[1], p, 1, 0));
         assert!(has_edge(&classes.atoms()[2], p, 1, 0) && !has_edge(&classes.atoms()[2], p, 0, 1));
         assert_eq!(classes.max_lag(), Some(1));
-        assert_eq!(classes.lag_masks().map(|m| m.iter().map(|x| x.to_word().unwrap()).collect::<Vec<_>>()), Some(vec![0_u64, 1, 1]));
+        assert_eq!(
+            classes.lag_masks().map(|m| m.iter().map(|x| x.to_word().unwrap()).collect::<Vec<_>>()),
+            Some(vec![0_u64, 1, 1])
+        );
     }
 
     #[test]
@@ -2101,8 +2104,8 @@ mod tests {
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         g.insert_undirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
         let mask = adjacency_mask_from_cpdag(&g).unwrap();
-        assert!(!mask_is_dag(mask, 3));
-        let back = cpdag_from_adjacency_mask(mask, 3).unwrap();
+        assert!(!mask_is_dag(&mask, 3));
+        let back = cpdag_from_adjacency_mask(&mask, 3).unwrap();
         assert_eq!(back.edges().len(), g.edges().len());
         assert!(
             back.edge_between(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2))
@@ -2169,9 +2172,9 @@ mod tests {
         g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
         g.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
         let mask = adjacency_mask_from_admg(&g).unwrap();
-        assert!(!mask_is_dag(mask, 3), "bidirected both-bits must not look like a DAG");
-        assert!(dag_from_adjacency_mask(mask, 3).is_err(), "ADMG bidirected packing is not a Dag");
-        let back = admg_from_adjacency_mask(mask, 3).unwrap();
+        assert!(!mask_is_dag(&mask, 3), "bidirected both-bits must not look like a DAG");
+        assert!(dag_from_adjacency_mask(&mask, 3).is_err(), "ADMG bidirected packing is not a Dag");
+        let back = admg_from_adjacency_mask(&mask, 3).unwrap();
         assert!(back.has_bidirected());
         assert!(back.children(DenseNodeId::from_raw(0)).contains(&DenseNodeId::from_raw(1)));
         assert!(back.children(DenseNodeId::from_raw(1)).contains(&DenseNodeId::from_raw(2)));
@@ -2330,8 +2333,8 @@ mod tests {
         let legacy: u64 =
             (1 << edge_bit(n, 0, 1)) | (1 << edge_bit(n, 1, 3)) | (1 << edge_bit(n, 3, 2));
         let mask = AdjacencyMask::from(legacy);
-        assert!(has_edge(mask, n, 0, 1) && has_edge(mask, n, 1, 3) && has_edge(mask, n, 3, 2));
-        assert!(!has_edge(mask, n, 1, 0) && !has_edge(mask, n, 2, 3));
+        assert!(has_edge(&mask, n, 0, 1) && has_edge(&mask, n, 1, 3) && has_edge(&mask, n, 3, 2));
+        assert!(!has_edge(&mask, n, 1, 0) && !has_edge(&mask, n, 2, 3));
         assert_eq!(parents_of(legacy, n, 3), vec![1]);
         assert!(mask_is_dag(legacy, n));
         assert_eq!(mask.key(), legacy);
@@ -2345,34 +2348,37 @@ mod tests {
         let n = 16;
         let mut chain = AdjacencyMask::EMPTY;
         for i in 0..n - 1 {
-            chain = set_edge(chain, n, i, i + 1, true);
+            chain = set_edge(&chain, n, i, i + 1, true);
         }
-        assert!(mask_is_dag(chain, n));
+        assert!(mask_is_dag(&chain, n));
         assert_eq!(chain.to_word(), None);
-        assert_eq!(parents_of(chain, n, 15), vec![14]);
-        assert!(has_edge(chain, n, 14, 15) && !has_edge(chain, n, 15, 14));
-        let cyclic = set_edge(chain, n, 15, 0, true);
-        assert!(!mask_is_dag(cyclic, n));
-        let dag = dag_from_adjacency_mask(chain, n).unwrap();
+        assert_eq!(parents_of(&chain, n, 15), vec![14]);
+        assert!(has_edge(&chain, n, 14, 15) && !has_edge(&chain, n, 15, 14));
+        let cyclic = set_edge(&chain, n, 15, 0, true);
+        assert!(!mask_is_dag(&cyclic, n));
+        let dag = dag_from_adjacency_mask(&chain, n).unwrap();
         assert_eq!(dag.edges().count(), 15);
         assert_eq!(
             dag.topological_order().unwrap().first().map(|id| id.raw()),
             Some(0),
             "an acyclic chain still receives a topological order"
         );
-        let err = dag_from_adjacency_mask(cyclic, n).unwrap_err();
+        let err = dag_from_adjacency_mask(&cyclic, n).unwrap_err();
         let text = err.to_string();
         assert!(text.contains("is not a DAG"), "{text}");
         assert!(text.contains("condensation"), "{text}");
         assert!(text.contains("not passed to Dag::insert_directed"), "{text}");
-        assert!(dag_from_adjacency_mask(chain, 17).is_err());
+        assert!(
+            super::dag_from_adjacency_mask(0, 17).is_err(),
+            "the legacy u64 adapter still rejects wider graphs"
+        );
     }
 
     #[test]
     fn a_dag_posterior_does_not_mark_a_two_cycle_identified() {
         let n = 2;
         let chain = set_edge(AdjacencyMask::EMPTY, n, 0, 1, true);
-        let cycle = set_edge(chain, n, 1, 0, true);
+        let cycle = set_edge(&chain, n, 1, 0, true);
         let sampling = || SamplingSummary {
             ess: 1.0,
             diagnostics: InferenceDiagnostics::analytic("test"),
@@ -2405,22 +2411,28 @@ mod tests {
     }
 
     #[test]
-    fn graph_posterior_refuses_more_than_sixteen_variables() {
-        let sampling = SamplingSummary {
-            ess: 1.0,
-            diagnostics: InferenceDiagnostics::analytic("test"),
-            rejected_invalid: 0,
-        };
-        let err = GraphPosterior::new(
-            17,
+    fn graph_posterior_accepts_seventeen_variables_without_truncating_edges() {
+        let n = 17;
+        let chain =
+            (0..n - 1).fold(AdjacencyMask::EMPTY, |mask, i| set_edge(mask, n, i, i + 1, true));
+        let posterior = GraphPosterior::from_atoms(
+            n,
             vec![1.0],
-            vec![0_u64],
-            vec![0.0; 289],
-            vec![0.0; 289],
-            sampling,
+            vec![chain.clone()],
+            vec![0.0; n * n],
+            vec![0.0; n * n],
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: InferenceDiagnostics::analytic("test"),
+                rejected_invalid: 0,
+            },
         )
-        .unwrap_err();
-        assert!(err.to_string().contains("at most 16 variables"), "{err}");
+        .unwrap();
+        assert_eq!(posterior.atoms()[0], chain);
+        let dag = dag_from_adjacency_mask(&posterior.atoms()[0], n).unwrap();
+        assert_eq!(dag.node_count(), n);
+        assert_eq!(dag.edges().count(), n - 1);
+        assert_eq!(parents_of(&posterior.atoms()[0], n, 16), vec![15]);
     }
 
     /// Wide masks key by digest; distinct ones keep distinct keys and repeats share one.
@@ -2437,7 +2449,7 @@ mod tests {
         let post = GraphPosterior::from_atoms(
             n,
             vec![0.25, 0.25, 0.5],
-            vec![a, b, a],
+            vec![a.clone(), b, a.clone()],
             vec![0.0; n * n],
             vec![0.0; n * n],
             sampling,
