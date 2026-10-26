@@ -115,15 +115,6 @@ scope_fixture = { path = "crates/antecedent-io/tests/nested_markov_artifact.rs",
 
 [[bound]]
 record = "temporal.dependent_interval"
-key = "max_horizon"
-implementation = [{ path = "crates/antecedent-identify/src/sid/temporal_sequence.rs", constant = "TEMPORAL_HORIZON" }]
-documentation = [{ path = "crates/antecedent-identify/src/sid/temporal_sequence.rs", constant = "TEMPORAL_HORIZON" }]
-guard = { path = "crates/antecedent-identify/src/sid/temporal_sequence.rs", pattern = "if\\ horizon\\ !=\\ TEMPORAL_HORIZON\\ \\{" }
-refusal = { path = "crates/antecedent-identify/src/sid/temporal_sequence.rs", pattern = "if\\ horizon\\ !=\\ TEMPORAL_HORIZON\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", pattern = "\\bunknown_unit_dependence_refuses_an_absent_map_and_incompatible_units\\b" }
-
-[[bound]]
-record = "temporal.dependent_interval"
 key = "max_replicates"
 implementation = [{ path = "crates/antecedent-estimate/src/temporal_dependent_interval.rs", constant = "INTERVAL_MAX_REPLICATES" }]
 documentation = [{ path = "crates/antecedent-estimate/src/temporal_dependent_interval.rs", constant = "INTERVAL_MAX_REPLICATES" }]
@@ -152,10 +143,10 @@ scope_fixture = { path = "crates/antecedent-estimate/tests/temporal_initial_stat
 [[bound]]
 record = "temporal.uncertain_initial_state"
 key = "max_horizon"
-implementation = [{ path = "crates/antecedent-identify/src/sid/temporal_sequence.rs", constant = "TEMPORAL_HORIZON" }]
-documentation = [{ path = "crates/antecedent-identify/src/sid/temporal_sequence.rs", constant = "TEMPORAL_HORIZON" }]
-guard = { path = "crates/antecedent-identify/src/sid/temporal_sequence.rs", pattern = "if\\ horizon\\ !=\\ TEMPORAL_HORIZON\\ \\{" }
-refusal = { path = "crates/antecedent-identify/src/sid/temporal_sequence.rs", pattern = "if\\ horizon\\ !=\\ TEMPORAL_HORIZON\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+implementation = [{ path = "crates/antecedent-io/src/temporal_initial_state_artifact.rs", pattern = 'sequence: \[u32; (2)\],\n        query' }]
+documentation = [{ path = "crates/antecedent-io/src/temporal_initial_state_artifact.rs", pattern = 'sequence: \[u32; (2)\],\n        query' }]
+guard = { path = "crates/antecedent-io/src/temporal_initial_state_artifact.rs", pattern = 'steps != sequence\.len\(\)' }
+refusal = { path = "crates/antecedent-io/src/temporal_initial_state_artifact.rs", pattern = 'steps != sequence\.len\(\)[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
 scope_fixture = { path = "crates/antecedent-estimate/tests/temporal_initial_state.rs", pattern = "\\bsource_state_only_refuses_a_source_law_and_a_point_state\\b" }
 
 [[bound]]
@@ -664,24 +655,6 @@ scope_fixture = { path = "crates/antecedent/tests/recalc_bayesian.rs", pattern =
 
 [[bound]]
 record = "recalculation.temporal"
-key = "max_variables"
-implementation = [{ path = "crates/antecedent/src/analysis/recalc_temporal.rs", pattern = "NAMES: \\[&str; (5)\\]" }]
-documentation = [{ path = "crates/antecedent/src/analysis/recalc_temporal.rs", pattern = "NAMES: \\[&str; (5)\\]" }]
-guard = { path = "crates/antecedent/src/analysis/recalc_temporal.rs", pattern = "NAMES:\\ \\[\\&str;\\ 5\\]" }
-refusal = { path = "crates/antecedent/src/analysis/recalc_temporal.rs", pattern = "NAMES:\\ \\[\\&str;\\ 5\\][\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent/tests/recalc_temporal.rs", pattern = "\\btemporal_history_resource_window_and_support_refusals_preserve_previous_fit\\b" }
-
-[[bound]]
-record = "recalculation.temporal"
-key = "max_periods"
-implementation = [{ path = "crates/antecedent/src/analysis/recalc_temporal.rs", pattern = "r.horizon != (2)" }]
-documentation = [{ path = "crates/antecedent/src/analysis/recalc_temporal.rs", pattern = "r.horizon != (2)" }]
-guard = { path = "crates/antecedent/src/analysis/recalc_temporal.rs", pattern = "r\\.horizon\\ !=\\ 2" }
-refusal = { path = "crates/antecedent/src/analysis/recalc_temporal.rs", pattern = "r\\.horizon\\ !=\\ 2[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent/tests/recalc_temporal.rs", pattern = "\\btemporal_history_resource_window_and_support_refusals_preserve_previous_fit\\b" }
-
-[[bound]]
-record = "recalculation.temporal"
 key = "history_values_per_window"
 implementation = [{ path = "python/src/recalc_temporal_api.rs", constant = "HISTORY_VALUES" }]
 documentation = [{ path = "python/src/recalc_temporal_api.rs", constant = "HISTORY_VALUES" }]
@@ -1021,10 +994,10 @@ scope_fixture = { path = "python/tests/test_recalc_composite.py", pattern = "\\b
 [[bound]]
 record = "design.conditional_study_ranking"
 key = "max_artifact_bytes"
-implementation = [{ path = "crates/antecedent/src/analysis/conditional_study_ranking.rs", constant = "MAX_BYTES" }]
-documentation = [{ path = "crates/antecedent/src/analysis/conditional_study_ranking.rs", constant = "MAX_BYTES" }]
-guard = { path = "crates/antecedent/src/analysis/conditional_study_ranking.rs", pattern = "if bytes\\.len\\(\\) > MAX_BYTES" }
-refusal = { path = "crates/antecedent/src/analysis/conditional_study_ranking.rs", pattern = "if bytes\\.len\\(\\) > MAX_BYTES[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+implementation = [{ path = "crates/antecedent/src/analysis/conditional_study_ranking.rs", constant = "DEFAULT_MAX_BYTES" }]
+documentation = [{ path = "crates/antecedent/src/analysis/conditional_study_ranking.rs", constant = "DEFAULT_MAX_BYTES" }]
+guard = { path = "crates/antecedent/src/analysis/conditional_study_ranking.rs", pattern = "if bytes\\.len\\(\\) > limits\\.max_bytes" }
+refusal = { path = "crates/antecedent/src/analysis/conditional_study_ranking.rs", pattern = "if bytes\\.len\\(\\) > limits\\.max_bytes[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "python/tests/test_recalc_composite.py", pattern = "\\btest_actual_selected_decision_routes_original_structural_ranking_and_source_updates\\b" }
 
 [[bound]]

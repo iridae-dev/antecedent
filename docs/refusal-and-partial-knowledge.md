@@ -539,7 +539,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `adaptive_transport.stratum_arm_unobserved` | `transport_support_failure` | Restrict the target law, coarsen strata or collect units there. |
 | `adaptive_transport.no_analysed_units` | `transport_support_failure` | The trial holds no observed outcome to transport. |
 | `adaptive_transport.assignment_below_floor` | `adaptive_assumption_violated` | Restrict the compared arms or justify a lower floor; nothing is clipped. |
-| `adaptive_transport.strata` | `invalid_argument` | Name 1 to 1024 distinct strata. |
+| `adaptive_transport.strata` | `invalid_argument` | Name at least one distinct, non-blank stratum. |
 | `adaptive_transport.unit_strata` | `invalid_argument` | Give every enrolled unit a declared stratum. |
 | `adaptive_transport.target_stratum_law` | `invalid_argument` | Supply one probability per stratum summing to one. |
 | `adaptive_transport.arms` | `invalid_argument` | Name two distinct arms. |

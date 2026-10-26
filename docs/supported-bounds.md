@@ -40,11 +40,10 @@ markers below and compares it. Prose outside those markers is not read.
 | transport.joint_bayesian | max_model_parameters | 256 | `crates/antecedent-estimate/src/joint_bayesian_transport.rs` |
 | identify.binary_nested_markov | max_observed | 6 | `crates/antecedent-estimate/src/nested_markov_binary.rs` |
 | identify.binary_nested_markov | max_iterations | 1000000 | `crates/antecedent-estimate/src/nested_markov_binary.rs` |
-| temporal.dependent_interval | max_horizon | 2 | `crates/antecedent-identify/src/sid/temporal_sequence.rs` |
 | temporal.dependent_interval | max_replicates | 2000 | `crates/antecedent-estimate/src/temporal_dependent_interval.rs` |
 | temporal.dependent_interval | max_units | 100000 | `crates/antecedent-estimate/src/temporal_dependent_interval.rs` |
 | temporal.uncertain_initial_state | max_initial_states | 64 | `crates/antecedent-estimate/src/temporal_initial_state.rs` |
-| temporal.uncertain_initial_state | max_horizon | 2 | `crates/antecedent-identify/src/sid/temporal_sequence.rs` |
+| temporal.uncertain_initial_state | max_horizon | 2 | `crates/antecedent-io/src/temporal_initial_state_artifact.rs` |
 | temporal.new_period_refresh | max_horizon | 2 | `crates/antecedent-estimate/src/temporal_refresh.rs` |
 | counterfactual.temporal_fixed_population | max_horizon | 2 | `crates/antecedent-counterfactual/src/temporal_cross_world.rs` |
 | counterfactual.temporal_fixed_population | max_units | 100000 | `crates/antecedent-counterfactual/src/temporal_cross_world.rs` |
@@ -101,8 +100,6 @@ markers below and compares it. Prose outside those markers is not read.
 | recalculation.static_response | min_support_points | 2 | `crates/antecedent/src/analysis/recalc_static.rs` |
 | recalculation.design_specific | input_bytes_per_value | 8 | `python/src/recalc_bounds.rs` |
 | recalculation.bayesian | min_draws | 2 | `crates/antecedent/src/analysis/recalc_bayesian.rs` |
-| recalculation.temporal | max_variables | 5 | `crates/antecedent/src/analysis/recalc_temporal.rs` |
-| recalculation.temporal | max_periods | 2 | `crates/antecedent/src/analysis/recalc_temporal.rs` |
 | recalculation.temporal | history_values_per_window | 6 | `python/src/recalc_temporal_api.rs` |
 | recalculation.temporal | max_source_support_rows | 4096 | `crates/antecedent/src/analysis/recalc_temporal.rs` |
 | composition.native_authority | max_draws | 100000 | `crates/antecedent-io-core/src/distribution_artifact.rs` |

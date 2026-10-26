@@ -304,13 +304,6 @@ MAPPING: tuple[Bound, ...] = (
     # ---- two-step temporal transport
     Bound(
         "transport.two_step_temporal",
-        "horizon",
-        rust=(C(TEMP, "TEMPORAL_HORIZON"),),
-
-        python=(L(TEMP_PY, r"and the horizon is (\w+)\."),),
-    ),
-    Bound(
-        "transport.two_step_temporal",
         "max_actions",
         rust=(C(TEMP, "TEMPORAL_MAX_ACTIONS"),),
 
