@@ -693,8 +693,13 @@ pub struct IvMoments<'a> {
 pub struct TwoSlsMomentFit {
     /// Second-stage coefficients: the endogenous coefficient first, then the exogenous block.
     pub coefficients: Vec<f64>,
-    /// Structural residual sum of squares at the actual endogenous values.
+    /// Structural residual sum of squares at the actual endogenous values, clamped at zero.
     pub structural_rss: f64,
+    /// Whether the residual sums of squares are resolved above the rounding noise of the raw
+    /// moments they are formed from (`yy − 2b'xy + b'Gb` and `tt − π'G`). `false` means a
+    /// residual sum of squares is within `64 ε` of the magnitude of its terms: the clamped
+    /// value is not informative and the first-stage `F` is reported as `NaN`, not `+∞`.
+    pub rss_resolved: bool,
     /// Weak-instrument diagnostic for the excluded instruments.
     pub first_stage_diagnostics: FirstStageDiagnostics,
 }
@@ -778,12 +783,14 @@ pub fn fit_2sls_from_moments(moments: &IvMoments<'_>) -> Result<TwoSlsMomentFit,
     };
     let df1 = z;
     let df2 = moments.nrows.saturating_sub(z + x);
-    let f_statistic = if df1 == 0 || df2 == 0 {
+    // `tt − π'G` cancels catastrophically when the instruments explain the endogenous column
+    // almost exactly: below rounding of its own terms the residual is noise, and dividing by
+    // it would report an "infinitely strong" instrument.
+    let first_stage_resolved = rss_full > 64.0 * f64::EPSILON * g_tt.abs();
+    let f_statistic = if df1 == 0 || df2 == 0 || !first_stage_resolved {
         f64::NAN
-    } else if rss_full > 0.0 {
-        ((rss_restricted - rss_full) / df1 as f64) / (rss_full / df2 as f64)
     } else {
-        f64::INFINITY
+        ((rss_restricted - rss_full) / df1 as f64) / (rss_full / df2 as f64)
     };
     let partial_r2 = if rss_restricted > 0.0 {
         ((rss_restricted - rss_full) / rss_restricted).max(0.0)
@@ -819,10 +826,15 @@ pub fn fit_2sls_from_moments(moments: &IvMoments<'_>) -> Result<TwoSlsMomentFit,
             quadratic += coefficients[i] * coefficients[j] * moments.entry(row, col);
         }
     }
-    let structural_rss = moments.outcome_sum_squares - 2.0 * linear + quadratic;
+    let structural_raw = moments.outcome_sum_squares - 2.0 * linear + quadratic;
+    let structural_magnitude =
+        moments.outcome_sum_squares.abs() + 2.0 * linear.abs() + quadratic.abs();
+    let structural_resolved = structural_raw > 64.0 * f64::EPSILON * structural_magnitude;
+    let structural_rss = structural_raw.max(0.0);
     Ok(TwoSlsMomentFit {
         coefficients,
         structural_rss,
+        rss_resolved: first_stage_resolved && structural_resolved,
         first_stage_diagnostics: FirstStageDiagnostics {
             f_statistic,
             df1,

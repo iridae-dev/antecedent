@@ -21,7 +21,7 @@ use crate::gaussian_target::{PosteriorTarget, gaussian_target_from_model_with_pr
 use crate::likelihood_terms::{
     LikelihoodScratch, accumulate_likelihood, log_posterior_value, validate_design,
 };
-use crate::linalg::{cholesky_spd, condition_from_chol, invert_spd, solve_spd_into};
+use crate::linalg::{cholesky_spd, condition_from_chol, solve_spd_into};
 use crate::posterior::{PosteriorDraws, PosteriorSchema};
 use crate::prior::{
     CoefficientPrecision, GaussianCoefficientPrior, GaussianVarianceModel, PriorSet,
@@ -95,6 +95,8 @@ pub fn fit_laplace_glm(
     let mut converged = false;
     let mut iterations = 0u32;
     let mut grad_inf: f64;
+    // The log-posterior at the current iterate, known once a line search has accepted it.
+    let mut known_objective: Option<f64> = None;
 
     for iter in 0..options.max_iter {
         iterations = iter + 1;
@@ -154,15 +156,18 @@ pub fn fit_laplace_glm(
         let mut step_scale = 1.0;
         workspace.q[..ncols].copy_from_slice(&workspace.beta[..ncols]);
         let mut accepted = false;
-        let old_obj = log_posterior_value(
-            likelihood,
-            design,
-            &workspace.q[..ncols],
-            &coef_prior,
-            &prec,
-            &mut workspace.eta[..nrows],
-            1.0,
-        )?;
+        let old_obj = match known_objective {
+            Some(value) => value,
+            None => log_posterior_value(
+                likelihood,
+                design,
+                &workspace.q[..ncols],
+                &coef_prior,
+                &prec,
+                &mut workspace.eta[..nrows],
+                1.0,
+            )?,
+        };
         for _ in 0..8 {
             for i in 0..ncols {
                 workspace.beta[i] = workspace.q[i] + step_scale * workspace.step[i];
@@ -178,6 +183,7 @@ pub fn fit_laplace_glm(
             ) {
                 Ok(new_obj) if new_obj >= old_obj - 1e-12 => {
                     accepted = true;
+                    known_objective = Some(new_obj);
                     break;
                 }
                 Ok(_) | Err(ProbError::Numerical { .. }) => {
@@ -327,6 +333,10 @@ fn fit_gaussian_laplace(
 }
 
 /// Form `A_β = X'WX + P` and `b_β = X'W(y − offset) + P m₀`.
+///
+/// The Gram matrix is the blocked [`antecedent_stats::form_xtx`] (of `√w`-scaled columns when
+/// there are prior weights), and the weight and offset lookups are hoisted out of the
+/// per-column loops.
 #[allow(
     clippy::unnecessary_wraps,
     reason = "returns Result to match the fallible sibling paths it is dispatched alongside"
@@ -341,47 +351,43 @@ fn gaussian_normal_equations(
     let mut prec_mean = vec![0.0; ncols];
     prec.mul_into(&coef_prior.mean, &mut prec_mean);
     let mut a_beta = vec![0.0; ncols * ncols];
-    let mut b_beta = vec![0.0; ncols];
-    for c1 in 0..ncols {
-        for c2 in c1..ncols {
-            let mut acc = 0.0;
-            for r in 0..nrows {
-                let w = design.weights.map_or(1.0, |ww| ww[r]);
-                let x1 = design.x_colmajor[c1 * nrows + r];
-                let x2 = design.x_colmajor[c2 * nrows + r];
-                acc += w * x1 * x2;
+    match design.weights {
+        None => antecedent_stats::form_xtx(design.x_colmajor, nrows, ncols, &mut a_beta),
+        Some(weights) => {
+            let mut scaled = design.x_colmajor[..nrows * ncols].to_vec();
+            for column in scaled.chunks_exact_mut(nrows.max(1)) {
+                for (x, w) in column.iter_mut().zip(weights) {
+                    *x *= w.sqrt();
+                }
             }
-            a_beta[c1 * ncols + c2] = acc;
-            a_beta[c2 * ncols + c1] = acc;
+            antecedent_stats::form_xtx(&scaled, nrows, ncols, &mut a_beta);
         }
-        let mut acc = 0.0;
-        for r in 0..nrows {
+    }
+    let weighted_response: Vec<f64> = (0..nrows)
+        .map(|r| {
             let w = design.weights.map_or(1.0, |ww| ww[r]);
             let offset = design.offsets.map_or(0.0, |oo| oo[r]);
-            let x = design.x_colmajor[c1 * nrows + r];
-            acc += w * x * (design.y[r] - offset);
-        }
+            w * (design.y[r] - offset)
+        })
+        .collect();
+    let mut b_beta = vec![0.0; ncols];
+    for c1 in 0..ncols {
+        let column = &design.x_colmajor[c1 * nrows..(c1 + 1) * nrows];
+        let acc: f64 = column.iter().zip(&weighted_response).map(|(x, v)| x * v).sum();
         b_beta[c1] = acc + prec_mean[c1];
     }
     prec.add_divided_to(&mut a_beta, ncols, 1.0);
     Ok((a_beta, b_beta))
 }
 
+/// Posterior mode `A⁻¹ b` through one equilibrated Cholesky factorization (no explicit
+/// inverse).
 fn solve_map_from_normal_eq(
     a_beta: &[f64],
     b_beta: &[f64],
     ncols: usize,
 ) -> Result<Vec<f64>, ProbError> {
-    let a_inv = invert_spd(a_beta, ncols)?;
-    let mut map = vec![0.0; ncols];
-    for i in 0..ncols {
-        let mut acc = 0.0;
-        for j in 0..ncols {
-            acc += a_inv[i * ncols + j] * b_beta[j];
-        }
-        map[i] = acc;
-    }
-    Ok(map)
+    Ok(crate::conjugate::solve_posterior_mean(a_beta, ncols, b_beta)?.mean)
 }
 
 fn fit_gaussian_laplace_known(
@@ -395,12 +401,14 @@ fn fit_gaussian_laplace_known(
     let ncols = design.ncols;
     workspace.prepare(design.nrows, ncols, options.n_draws);
     let (a_beta, b_beta) = gaussian_normal_equations(design, coef_prior, prec)?;
-    let map = solve_map_from_normal_eq(&a_beta, &b_beta, ncols)?;
-    let a_inv = invert_spd(&a_beta, ncols)?;
-    let mut cov = vec![0.0; ncols * ncols];
-    for i in 0..ncols * ncols {
-        cov[i] = sigma2 * a_inv[i];
+    // One equilibrated factorization yields the mode, the covariance and the condition.
+    let solved = crate::conjugate::solve_posterior_mean(&a_beta, ncols, &b_beta)?;
+    let condition = solved.condition;
+    let mut cov = solved.inverse();
+    for value in &mut cov {
+        *value *= sigma2;
     }
+    let map = solved.mean;
 
     let mut target = gaussian_target_from_model_with_precision(
         design,
@@ -416,8 +424,6 @@ fn fit_gaussian_laplace_known(
     for &g in &grad {
         grad_inf = grad_inf.max(g.abs() / inv_s2.max(1e-300));
     }
-    let chol = cholesky_spd(&a_beta, ncols)?;
-    let condition = condition_from_chol(&chol, ncols);
     let diagnostics = InferenceDiagnostics::laplace(
         "laplace",
         grad_inf < options.grad_tol.max(1e-8),
@@ -489,6 +495,7 @@ pub fn sample_gaussian_mvn(
 
 #[cfg(test)]
 mod tests {
+    use crate::linalg::invert_spd;
     use super::*;
     use crate::gaussian_target::{gaussian_target_from_model, prior_quadratic, rss_and_xtwr};
     use crate::prior::PriorSpec;

@@ -29,7 +29,7 @@ pub(crate) fn analytic_parcorr_ci(r: f64, df: f64, level: f64) -> (f64, f64) {
         // clamp would silently collapse to ±1.0 anyway).
         return (-1.0, 1.0);
     }
-    let z = 0.5 * ((1.0 + r) / (1.0 - r)).ln();
+    let z = r.atanh();
     let se = 1.0 / (df - 1.0).sqrt();
     // Approximate normal critical value via inverse erf for common levels.
     let alpha = 1.0 - level;
@@ -40,8 +40,7 @@ pub(crate) fn analytic_parcorr_ci(r: f64, df: f64, level: f64) -> (f64, f64) {
 }
 
 fn z_to_r(z: f64) -> f64 {
-    let e = (2.0 * z).exp();
-    ((e - 1.0) / (e + 1.0)).clamp(-1.0, 1.0)
+    z.tanh().clamp(-1.0, 1.0)
 }
 
 #[cfg(test)]

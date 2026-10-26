@@ -174,7 +174,7 @@ mod tests {
         for i in 0..n {
             let z = (i as f64 * 0.02).cos();
             d0[i] = z;
-            d1[i] = 0.9 * z;
+            d1[i] = 0.9 * z + 0.3 * (i as f64 * 0.37).sin();
             x[i] = z + 0.05 * ((i % 5) as f64);
             y[i] = z + 0.05 * ((i % 9) as f64);
         }

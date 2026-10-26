@@ -302,48 +302,6 @@ pub fn check_covariance(covariance: &[f64], k: usize) -> Result<CovarianceCheck,
     Ok(CovarianceCheck { min_eigenvalue, max_eigenvalue, has_cross_covariance: cross })
 }
 
-/// Cholesky factor (lower, row-major) of a positive definite matrix.
-fn cholesky(matrix: &[f64], k: usize) -> Option<Vec<f64>> {
-    let mut l = vec![0.0; k * k];
-    for i in 0..k {
-        for j in 0..=i {
-            let mut sum = matrix[i * k + j];
-            for m in 0..j {
-                sum -= l[i * k + m] * l[j * k + m];
-            }
-            if i == j {
-                if sum <= 0.0 || !sum.is_finite() {
-                    return None;
-                }
-                l[i * k + i] = sum.sqrt();
-            } else {
-                l[i * k + j] = sum / l[j * k + j];
-            }
-        }
-    }
-    Some(l)
-}
-
-fn cholesky_solve(l: &[f64], k: usize, rhs: &[f64]) -> Vec<f64> {
-    let mut z = vec![0.0; k];
-    for i in 0..k {
-        let mut sum = rhs[i];
-        for m in 0..i {
-            sum -= l[i * k + m] * z[m];
-        }
-        z[i] = sum / l[i * k + i];
-    }
-    let mut x = vec![0.0; k];
-    for i in (0..k).rev() {
-        let mut sum = z[i];
-        for m in (i + 1)..k {
-            sum -= l[m * k + i] * x[m];
-        }
-        x[i] = sum / l[i * k + i];
-    }
-    x
-}
-
 /// Pool estimates with a full covariance matrix by generalized least squares.
 ///
 /// The estimate is `1' S^-1 y / 1' S^-1 1` and its variance `1 / 1' S^-1 1`.
@@ -379,17 +337,21 @@ pub fn fixed_effect_gls(
             symmetric[j * k + i] = mean;
         }
     }
-    let l = cholesky(&symmetric, k).ok_or(SynthesisError::Singular {
+    let l = crate::gram::cholesky_spd(&symmetric, k).ok_or(SynthesisError::Singular {
         min_eigenvalue: check.min_eigenvalue,
         max_eigenvalue: check.max_eigenvalue,
     })?;
     let ones = vec![1.0; k];
-    let x = cholesky_solve(&l, k, &ones);
+    let singular = || SynthesisError::Singular {
+        min_eigenvalue: check.min_eigenvalue,
+        max_eigenvalue: check.max_eigenvalue,
+    };
+    let x = crate::gram::chol_solve(&l, k, &ones).ok_or_else(singular)?;
     let denominator: f64 = x.iter().sum();
     let weights: Vec<f64> = x.iter().map(|v| v / denominator).collect();
     let estimate: f64 = weights.iter().zip(estimates).map(|(w, y)| w * y).sum();
     let residual: Vec<f64> = estimates.iter().map(|y| y - estimate).collect();
-    let z = cholesky_solve(&l, k, &residual);
+    let z = crate::gram::chol_solve(&l, k, &residual).ok_or_else(singular)?;
     let q: f64 = residual.iter().zip(&z).map(|(r, v)| r * v).sum();
     Ok(PooledEstimate {
         estimate,

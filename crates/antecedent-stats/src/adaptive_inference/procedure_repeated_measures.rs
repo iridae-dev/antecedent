@@ -62,7 +62,7 @@
 use std::collections::VecDeque;
 
 use antecedent_core::CausalRng;
-use antecedent_kernels::norm_cdf;
+use antecedent_kernels::{norm_cdf, standard_normal};
 
 use super::AdaptiveInferenceError as Error;
 use super::capacity::{CapacityError, ResourceBudget, ResourceReceipt, SimulationShape};
@@ -293,33 +293,6 @@ fn correlation_matrix(measurements: usize, entry: impl Fn(usize, usize) -> f64) 
     matrix
 }
 
-fn cholesky(matrix: &[f64], n: usize) -> Option<Vec<f64>> {
-    let mut lower = vec![0.0; n * n];
-    for i in 0..n {
-        for j in 0..=i {
-            let mut sum = matrix[i * n + j];
-            for k in 0..j {
-                sum -= lower[i * n + k] * lower[j * n + k];
-            }
-            if i == j {
-                if !(sum.is_finite() && sum > 0.0) {
-                    return None;
-                }
-                lower[i * n + i] = sum.sqrt();
-            } else {
-                lower[i * n + j] = sum / lower[j * n + j];
-            }
-        }
-    }
-    Some(lower)
-}
-
-fn standard_normal(rng: &mut CausalRng) -> f64 {
-    let u1 = 1.0 - rng.next_f64();
-    let u2 = rng.next_f64();
-    (-2.0 * u1.ln()).sqrt() * (std::f64::consts::TAU * u2).cos()
-}
-
 impl Covariance {
     fn build(structure: &OutcomeStructure) -> Option<Self> {
         match structure {
@@ -338,7 +311,7 @@ impl Covariance {
                         correlation_matrix(m, |i, j| rho.powi(i.abs_diff(j) as i32)),
                     ),
                 };
-                let factor = cholesky(&matrix, m)?;
+                let factor = crate::gram::cholesky_spd(&matrix, m)?;
                 Some(Self {
                     measurements: m,
                     marginal_variance: *variance,
@@ -356,7 +329,7 @@ impl Covariance {
                 let total = between + within;
                 let icc = between / total;
                 let matrix = correlation_matrix(m, |_, _| icc);
-                let factor = cholesky(&matrix, m)?;
+                let factor = crate::gram::cholesky_spd(&matrix, m)?;
                 Some(Self {
                     measurements: m,
                     marginal_variance: total,
@@ -1181,14 +1154,7 @@ struct Unit {
     values: Vec<f64>,
 }
 
-fn mean_and_variance(values: &[f64]) -> Option<(f64, f64)> {
-    if values.len() < 2 {
-        return None;
-    }
-    let n = values.len() as f64;
-    let mean = values.iter().sum::<f64>() / n;
-    Some((mean, values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0)))
-}
+use crate::describe::mean_and_sample_variance as mean_and_variance;
 
 fn analyse(
     spec: &RepeatedMeasuresSpec,

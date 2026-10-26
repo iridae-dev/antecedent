@@ -64,16 +64,16 @@ pub use ci::{
 #[cfg(test)]
 pub(crate) use cluster::panel_effective_lag;
 pub use cluster::{
-    MAX_CLUSTER_DIMENSIONS, bartlett_weight, cluster_meat_scalar, combine_inclusion_exclusion,
-    effective_nw_lag, few_cluster_t_ratio, intern_cluster_tuples, multiway_subset_masks,
-    newey_west_meat_scalar, panel_hac_meat_scalar,
+    MAX_CLUSTER_DIMENSIONS, MAX_MULTIWAY_WORK, bartlett_weight, cluster_meat_scalar,
+    combine_inclusion_exclusion, effective_nw_lag, few_cluster_t_ratio, intern_cluster_tuples,
+    multiway_subset_masks, multiway_work, newey_west_meat_scalar, panel_hac_meat_scalar,
 };
 pub use covariance::{
     Hc2Coefficient, SandwichKind, coefficient_covariance, hc2_coefficient_bell_mccaffrey,
     score_coefficient_covariance, symmetric_eigen,
 };
 pub use dcor::distance_correlation;
-pub use describe::{iid_se, mean_and_se};
+pub use describe::{iid_se, mean_and_se, mean_and_sample_variance};
 pub use design::{
     BasisKind, CompiledDesign, ContrastCodingKind, DesignColumn, DesignColumnMap, DesignColumnRole,
     RecordedContrast, RecordedSmooth, StandardizationRecord, StandardizedColumn,
@@ -102,7 +102,7 @@ pub use glm::{
 };
 pub use gram::{
     accumulate_xtx_xty_row, chol_log_det, chol_solve, cholesky_spd, column_is_constant, form_xtx,
-    form_xty, invert_square,
+    form_xty, invert_square, solve_spd,
 };
 pub use identified_set::{
     IdentifiedSetInterval, IdentifiedSetIntervalMethod, imbens_manski_critical_value,
@@ -153,8 +153,9 @@ pub use quantile::{
     QuantileRule, equal_tail_interval_sorted, mad_sigma, median_sorted, quantile_sorted,
 };
 pub use regularized::{
-    LassoFit, LassoOptions, first_col_is_exact_ones, fit_lasso, fit_lasso_with_ones_column,
-    fit_ridge, predict_lasso, ridge_gram_inverse,
+    LassoFit, LassoOptions, RidgeIntercept, first_col_is_exact_ones, fit_lasso,
+    fit_lasso_with_ones_column, fit_ridge, fit_ridge_with, predict_lasso, ridge_gram_inverse,
+    ridge_gram_inverse_with, soft_threshold,
 };
 pub use response::{
     GaussianMixtureDensity, LocalPolynomialBiasCorrected, LocalPolynomialInfluence,

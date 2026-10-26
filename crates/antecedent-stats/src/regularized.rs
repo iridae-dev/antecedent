@@ -3,7 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::StatsError;
-use crate::gram::{column_is_constant, form_xtx, invert_square};
+use crate::gram::{column_is_constant, form_xtx, invert_square, solve_spd};
 use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};
 
 /// Relative spread below which a (centered) column is treated as constant: its standard
@@ -24,7 +24,9 @@ pub struct LassoOptions {
     pub standardize: bool,
     /// Maximum coordinate-descent iterations.
     pub max_iter: u32,
-    /// Coefficient change tolerance.
+    /// Convergence tolerance, relative to the response scale: a sweep has converged when no
+    /// coordinate moved the fit by more than `tol · ‖y − ȳ‖` (`‖x_c‖ · |Δβ_c|`), so the
+    /// verdict does not depend on the units of the predictors.
     pub tol: f64,
 }
 
@@ -56,10 +58,76 @@ pub struct LassoFit {
     pub diagnostics: FitDiagnostics,
 }
 
-/// `(XᵀX + λP)⁻¹` (row-major) for the ridge penalty `P = I`, with a leading constant column
-/// left unpenalized. It is both the ridge solve's matrix and the bread of the ridge
-/// estimator's sampling variance `A⁻¹ XᵀΣX A⁻¹` (`A` is not `XᵀX`, so an OLS bread misstates
-/// it). `Ok(None)` when the penalized Gram matrix is singular.
+/// How a ridge fit treats the design's leading column.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RidgeIntercept {
+    /// Every column is penalized.
+    None,
+    /// Column 0 is an intercept and is left unpenalized.
+    LeadingColumn,
+}
+
+impl RidgeIntercept {
+    /// The compatibility rule of [`fit_ridge`]: column 0 is an unpenalized intercept exactly
+    /// when it is constant (judged against its own magnitude).
+    #[must_use]
+    pub fn sniff(x_colmajor: &[f64], nrows: usize, ncols: usize) -> Self {
+        if ncols > 0
+            && x_colmajor.len() >= nrows.saturating_mul(ncols)
+            && column_is_constant(x_colmajor, nrows, 0)
+        {
+            Self::LeadingColumn
+        } else {
+            Self::None
+        }
+    }
+}
+
+fn ridge_penalized_gram(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    lambda: f64,
+    intercept: RidgeIntercept,
+) -> Result<Vec<f64>, StatsError> {
+    if ncols == 0 {
+        return Err(StatsError::Shape { message: "ridge needs at least one column" });
+    }
+    if x_colmajor.len() < nrows.saturating_mul(ncols) {
+        return Err(StatsError::Shape { message: "X buffer too short" });
+    }
+    let mut xtx = vec![0.0; ncols * ncols];
+    form_xtx(x_colmajor, nrows, ncols, &mut xtx);
+    for c in 0..ncols {
+        if c == 0 && intercept == RidgeIntercept::LeadingColumn {
+            continue;
+        }
+        xtx[c * ncols + c] += lambda;
+    }
+    Ok(xtx)
+}
+
+/// `(XᵀX + λP)⁻¹` (row-major) for the ridge penalty `P = I` with the intercept handling given
+/// explicitly. It is the bread of the ridge estimator's sampling variance `A⁻¹ XᵀΣX A⁻¹`
+/// (`A` is not `XᵀX`, so an OLS bread misstates it). `Ok(None)` when the penalized Gram matrix
+/// is singular.
+///
+/// # Errors
+///
+/// [`StatsError::Shape`] when `ncols == 0` or the buffer is shorter than `nrows · ncols`.
+pub fn ridge_gram_inverse_with(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    lambda: f64,
+    intercept: RidgeIntercept,
+) -> Result<Option<Vec<f64>>, StatsError> {
+    let xtx = ridge_penalized_gram(x_colmajor, nrows, ncols, lambda, intercept)?;
+    Ok(invert_square(&xtx, ncols))
+}
+
+/// [`ridge_gram_inverse_with`] with the intercept column detected by [`RidgeIntercept::sniff`]
+/// (a constant first column is left unpenalized).
 ///
 /// # Errors
 ///
@@ -70,37 +138,24 @@ pub fn ridge_gram_inverse(
     ncols: usize,
     lambda: f64,
 ) -> Result<Option<Vec<f64>>, StatsError> {
-    if ncols == 0 {
-        return Err(StatsError::Shape { message: "ridge needs at least one column" });
-    }
-    if x_colmajor.len() < nrows.saturating_mul(ncols) {
-        return Err(StatsError::Shape { message: "X buffer too short" });
-    }
-    let mut xtx = vec![0.0; ncols * ncols];
-    form_xtx(x_colmajor, nrows, ncols, &mut xtx);
-    let unpenalize0 = column_is_constant(x_colmajor, nrows, 0);
-    for c in 0..ncols {
-        if c == 0 && unpenalize0 {
-            continue;
-        }
-        xtx[c * ncols + c] += lambda;
-    }
-    Ok(invert_square(&xtx, ncols))
+    let intercept = RidgeIntercept::sniff(x_colmajor, nrows, ncols);
+    ridge_gram_inverse_with(x_colmajor, nrows, ncols, lambda, intercept)
 }
 
-/// Ridge regression: solve `(XᵀX + λ I)β = Xᵀy`, leaving a constant intercept column unpenalized.
+/// Ridge regression: solve `(XᵀX + λP)β = Xᵀy` by one Cholesky factorization (no explicit
+/// inverse), with the unpenalized intercept column chosen explicitly.
 ///
 /// # Errors
 ///
-/// Shape mismatch or singular penalized Gram matrix.
-pub fn fit_ridge(
+/// Shape mismatch, invalid `lambda`, or a penalized Gram matrix that is not numerically
+/// positive definite.
+pub fn fit_ridge_with(
     x_colmajor: &[f64],
     nrows: usize,
     ncols: usize,
     y: &[f64],
     lambda: f64,
-    _backend: &impl DenseLinearAlgebra,
-    _workspace: &mut LeastSquaresWorkspace,
+    intercept: RidgeIntercept,
 ) -> Result<LeastSquaresFit, StatsError> {
     if y.len() != nrows {
         return Err(StatsError::Shape { message: "y length != nrows" });
@@ -111,11 +166,7 @@ pub fn fit_ridge(
     if !(lambda.is_finite() && lambda >= 0.0) {
         return Err(StatsError::Shape { message: "ridge lambda must be finite and ≥ 0" });
     }
-
-    if ncols == 0 {
-        return Err(StatsError::Shape { message: "ridge needs at least one column" });
-    }
-
+    let xtx = ridge_penalized_gram(x_colmajor, nrows, ncols, lambda, intercept)?;
     let mut xty = vec![0.0; ncols];
     for c in 0..ncols {
         let mut s = 0.0;
@@ -124,17 +175,9 @@ pub fn fit_ridge(
         }
         xty[c] = s;
     }
-    let Some(inv) = ridge_gram_inverse(x_colmajor, nrows, ncols, lambda)? else {
+    let Some(coefficients) = solve_spd(&xtx, ncols, &xty) else {
         return Err(StatsError::Backend("ridge: singular X'X+λI".into()));
     };
-    let mut coefficients = vec![0.0; ncols];
-    for i in 0..ncols {
-        let mut s = 0.0;
-        for j in 0..ncols {
-            s += inv[i * ncols + j] * xty[j];
-        }
-        coefficients[i] = s;
-    }
     let mut residuals = vec![0.0; nrows];
     let mut rss = 0.0;
     for r in 0..nrows {
@@ -153,6 +196,28 @@ pub fn fit_ridge(
         rss,
         diagnostics: FitDiagnostics::new(ncols, None, "ridge", 0),
     })
+}
+
+/// Ridge regression leaving a constant first column unpenalized ([`RidgeIntercept::sniff`]).
+///
+/// Kept for existing callers: the backend and workspace arguments are not used, because the
+/// penalized normal equations are solved by Cholesky. New code should call [`fit_ridge_with`],
+/// which states the intercept handling instead of inferring it.
+///
+/// # Errors
+///
+/// Shape mismatch or singular penalized Gram matrix.
+pub fn fit_ridge(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    y: &[f64],
+    lambda: f64,
+    _backend: &impl DenseLinearAlgebra,
+    _workspace: &mut LeastSquaresWorkspace,
+) -> Result<LeastSquaresFit, StatsError> {
+    let intercept = RidgeIntercept::sniff(x_colmajor, nrows, ncols);
+    fit_ridge_with(x_colmajor, nrows, ncols, y, lambda, intercept)
 }
 
 /// Lasso via coordinate descent with an explicit intercept / standardization contract.
@@ -268,6 +333,7 @@ pub fn fit_lasso(
     // ½‖r‖² + λ α ‖β‖₁ + λ (1-α)/2 ‖β‖²  →  β = S(ρ, λα) / (‖x‖² + λ(1-α)).
     let l1 = options.lambda * options.l1_ratio;
     let l2 = options.lambda * (1.0 - options.l1_ratio);
+    let response_norm = residual.iter().map(|v| v * v).sum::<f64>().sqrt();
 
     for iter in 1..=options.max_iter {
         iterations = iter;
@@ -287,7 +353,8 @@ pub fn fit_lasso(
                 rho += xc[c * nrows + r] * residual[r];
             }
             let new_b = soft_threshold(rho, l1) / (col_ss[c] + l2);
-            max_delta = max_delta.max((new_b - beta_c).abs());
+            // Size of the move in fitted-value units: `‖x_c‖ |Δβ_c|`.
+            max_delta = max_delta.max(col_ss[c].sqrt() * (new_b - beta_c).abs());
             beta_std[c] = new_b;
             if new_b.abs() > f64::MIN_POSITIVE {
                 for r in 0..nrows {
@@ -295,7 +362,7 @@ pub fn fit_lasso(
                 }
             }
         }
-        if max_delta < options.tol {
+        if max_delta <= options.tol * response_norm {
             converged = true;
             break;
         }
@@ -410,7 +477,9 @@ pub fn fit_lasso_with_ones_column(
     fit_lasso(rest, nrows, ncols - 1, y, &opts)
 }
 
-fn soft_threshold(z: f64, gamma: f64) -> f64 {
+/// Soft-thresholding operator `sign(z) · max(|z| − γ, 0)`.
+#[must_use]
+pub fn soft_threshold(z: f64, gamma: f64) -> f64 {
     if z > gamma {
         z - gamma
     } else if z < -gamma {
@@ -957,5 +1026,30 @@ mod tests {
         assert!(fit.coefficients[0] < 1e-9, "penalized coefficient must be shrunk to ~0");
         // ncols == 0 used to index x_colmajor[0] and panic.
         assert!(fit_ridge(&[], 5, 0, &[0.0; 5], 1.0, &FaerBackend, &mut ws).is_err());
+    }
+
+    #[test]
+    fn explicit_intercept_choice_controls_the_penalty() {
+        let x = vec![1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 2.0, 3.0];
+        let y = vec![1.0, 4.0, 7.0, 10.0];
+        let free = fit_ridge_with(&x, 4, 2, &y, 5.0, RidgeIntercept::LeadingColumn).unwrap();
+        assert!((free.coefficients[0] - 3.25).abs() < 1e-9);
+        let all = fit_ridge_with(&x, 4, 2, &y, 5.0, RidgeIntercept::None).unwrap();
+        assert!(all.coefficients[0].abs() < free.coefficients[0].abs());
+        assert_eq!(RidgeIntercept::sniff(&x, 4, 2), RidgeIntercept::LeadingColumn);
+        assert_eq!(RidgeIntercept::sniff(&x[4..], 4, 1), RidgeIntercept::None);
+    }
+
+    #[test]
+    fn lasso_convergence_is_invariant_to_predictor_units() {
+        let n = 50usize;
+        let t: Vec<f64> = (0..n).map(|i| (i as f64 * 0.37).sin()).collect();
+        let y: Vec<f64> = t.iter().map(|v| 1.0 + 2.0 * v).collect();
+        let options = LassoOptions { lambda: 0.5, ..LassoOptions::default() };
+        let base = fit_lasso(&t, n, 1, &y, &options).unwrap();
+        let big: Vec<f64> = t.iter().map(|v| v * 1e6).collect();
+        let scaled = fit_lasso(&big, n, 1, &y, &options).unwrap();
+        assert!(base.converged && scaled.converged);
+        assert!(scaled.iterations <= base.iterations + 1);
     }
 }

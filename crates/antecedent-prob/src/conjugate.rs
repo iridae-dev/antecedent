@@ -187,12 +187,12 @@ fn fit_conjugate_gaussian_resolved(
     // coefficient correlation (a hydrated full-covariance prior).
     let prec = prior.coefficient_precision(&coef_prior)?;
 
-    let (map, draws, include_sigma2, condition, exact_cov) = if let Some(sigma2) = known_sigma2 {
+    let (map, draws, include_sigma2, condition, exact_cov, rss_resolved) = if let Some(sigma2) = known_sigma2 {
         let (mean, cov, condition) =
             posterior_known_sigma2(ncols, &coef_prior, &prec, xtx, xty, sigma2)?;
         let draws =
             draw_mvn_known_sigma(&mean, &cov, sigma2, options.n_draws, options.seed, workspace)?;
-        (mean, draws, false, condition, Some(cov))
+        (mean, draws, false, condition, Some(cov), true)
     } else {
         let post = posterior_nig(
             ncols,
@@ -211,7 +211,7 @@ fn fit_conjugate_gaussian_resolved(
             options.seed,
             workspace,
         )?;
-        (post.mean, draws, true, post.condition, None)
+        (post.mean, draws, true, post.condition, None, post.rss_resolved)
     };
 
     let schema = if include_sigma2 {
@@ -231,6 +231,11 @@ fn fit_conjugate_gaussian_resolved(
     // merely on different scales.
     let mut diagnostics = InferenceDiagnostics::analytic("conjugate_gaussian");
     diagnostics.hessian_condition = condition;
+    if !rss_resolved {
+        diagnostics.notes.push(
+            "residual sum of squares formed from raw moments is within rounding of zero".into(),
+        );
+    }
     // The known-σ² posterior is exactly Gaussian, so its covariance is published
     // (the NIG coefficient marginal is Student-t and has none).
     Ok(BayesFitResult { draws: posterior, map, diagnostics, cov: exact_cov })
@@ -352,20 +357,20 @@ fn posterior_known_sigma2(
 }
 
 /// Posterior mean, precision factor and condition from [`solve_posterior_mean`].
-struct ScaledSolve {
+pub(crate) struct ScaledSolve {
     /// Posterior mean `m` in the original coordinates.
-    mean: Vec<f64>,
+    pub(crate) mean: Vec<f64>,
     /// Cholesky factor of the equilibrated precision `D⁻¹ A D⁻¹`.
     chol: Vec<f64>,
     /// Equilibration scales `D` (powers of two).
     scales: Vec<f64>,
     /// Condition lower bound of the equilibrated precision.
-    condition: f64,
+    pub(crate) condition: f64,
 }
 
 impl ScaledSolve {
     /// `A⁻¹ = D⁻¹ (D⁻¹ A D⁻¹)⁻¹ D⁻¹` in the original coordinates.
-    fn inverse(&self) -> Vec<f64> {
+    pub(crate) fn inverse(&self) -> Vec<f64> {
         let n = self.scales.len();
         let mut inv = invert_spd_from_chol(&self.chol, n);
         for i in 0..n {
@@ -387,7 +392,11 @@ impl ScaledSolve {
 /// two scales make the transform exact in floating point, so a design whose columns are
 /// merely in different units (say `1e8` and `1e-3`) is judged by the condition of the
 /// equilibrated system, not by its units.
-fn solve_posterior_mean(a: &[f64], ncols: usize, rhs: &[f64]) -> Result<ScaledSolve, ProbError> {
+pub(crate) fn solve_posterior_mean(
+    a: &[f64],
+    ncols: usize,
+    rhs: &[f64],
+) -> Result<ScaledSolve, ProbError> {
     let scales = antecedent_kernels::symmetric_scales(a, ncols);
     if scales.len() != ncols {
         return Err(ProbError::Shape {
@@ -420,6 +429,9 @@ struct NigPosterior {
     beta_n: f64,
     /// Condition lower bound of the equilibrated posterior precision `V_n^{-1}`.
     condition: f64,
+    /// Whether the residual sum of squares is resolved above the rounding noise of its terms.
+    /// Always true when it is computed from the design; the moment form can cancel.
+    rss_resolved: bool,
 }
 
 /// Weighted normal-linear-model moments the NIG update reads.
@@ -472,8 +484,8 @@ fn posterior_nig(
             let vn = solved.inverse();
             let (mean, condition) = (solved.mean, solved.condition);
 
-            let rss = match design {
-                Some(d) => residual_ss_from_design(d, &mean),
+            let (rss, rss_resolved) = match design {
+                Some(d) => (residual_ss_from_design(d, &mean), true),
                 None => residual_ss_from_moments(ncols, &mean, xtx, xty, yty),
             };
             let prior_quad = prec.quadratic(&mean, &prior.mean);
@@ -488,7 +500,7 @@ fn posterior_nig(
             // Cholesky of Vn (scale matrix for β | σ²): cov(β|σ²) = σ² Vn
             let chol = cholesky_spd(&vn, ncols)?;
             crate::fit_counts::note_posterior_fit();
-            Ok(NigPosterior { mean, scale_chol: chol, alpha_n, beta_n, condition })
+            Ok(NigPosterior { mean, scale_chol: chol, alpha_n, beta_n, condition, rss_resolved })
         },
     )
 }
@@ -521,8 +533,16 @@ fn residual_ss_from_design(design: BayesDesignRef<'_>, mean: &[f64]) -> f64 {
 /// RSS = ‖y − X m‖² from Gram moments: `y'y − 2 m'X'y + m'(X'X)m`.
 ///
 /// Subtracts the cross term in two passes. Prefer [`residual_ss_from_design`]
-/// when `y` and `X` are available — this form still loses digits for huge `|y|`.
-fn residual_ss_from_moments(ncols: usize, mean: &[f64], xtx: &[f64], xty: &[f64], yty: f64) -> f64 {
+/// when `y` and `X` are available — this form still loses digits for huge `|y|`. The second
+/// return value is false when the clamped result is within `64 ε` of the magnitude of its
+/// terms, i.e. it is rounding noise rather than a residual sum of squares.
+fn residual_ss_from_moments(
+    ncols: usize,
+    mean: &[f64],
+    xtx: &[f64],
+    xty: &[f64],
+    yty: f64,
+) -> (f64, bool) {
     let mut mn_xty = 0.0;
     for i in 0..ncols {
         mn_xty += mean[i] * xty[i];
@@ -539,7 +559,9 @@ fn residual_ss_from_moments(ncols: usize, mean: &[f64], xtx: &[f64], xty: &[f64]
     rss -= mn_xty;
     rss -= mn_xty;
     rss += mn_xtx_mn;
-    rss.max(0.0)
+    let magnitude = yty.abs() + 2.0 * mn_xty.abs() + mn_xtx_mn.abs();
+    let resolved = rss > 64.0 * f64::EPSILON * magnitude;
+    (rss.max(0.0), resolved)
 }
 
 #[allow(

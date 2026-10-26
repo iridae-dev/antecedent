@@ -37,7 +37,7 @@
 
 use thiserror::Error;
 
-use crate::gram::{chol_solve, cholesky_spd, invert_square};
+use crate::gram::{invert_square, solve_spd};
 
 /// Most rows one measurement-error correction accepts.
 pub const MAX_MEASUREMENT_ROWS: usize = 1 << 26;
@@ -114,11 +114,6 @@ pub enum MeasurementErrorError {
 
 fn finite_all(values: &[f64]) -> bool {
     values.iter().all(|v| v.is_finite())
-}
-
-fn solve_spd(a: &[f64], d: usize, b: &[f64]) -> Option<Vec<f64>> {
-    let chol = cholesky_spd(a, d)?;
-    chol_solve(&chol, d, b)
 }
 
 fn matmul(a: &[f64], b: &[f64], d: usize) -> Vec<f64> {

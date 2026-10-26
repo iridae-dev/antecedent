@@ -48,7 +48,7 @@ use std::collections::btree_map::Entry;
 use antecedent_core::CausalRng;
 use antecedent_kernels::standard_normal;
 
-use crate::gram::{chol_solve, cholesky_spd};
+use crate::gram::{chol_solve, cholesky_spd, solve_spd};
 use crate::measurement_error::{
     ErrorVariance, LinearErrorData, MAX_MEASUREMENT_COVARIATES, MAX_MEASUREMENT_ROWS,
     MeasurementErrorError,
@@ -60,8 +60,6 @@ use crate::{FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorksp
 pub const DEFAULT_SIMEX_LAMBDAS: [f64; 4] = [0.5, 1.0, 1.5, 2.0];
 /// Default remeasurement replicates per `lambda`.
 pub const DEFAULT_SIMEX_REPLICATES: u32 = 50;
-/// Most remeasurement replicates per `lambda`.
-pub const MAX_SIMEX_REPLICATES: u32 = 10_000;
 /// Most `lambda` values in one SIMEX grid.
 pub const MAX_SIMEX_LAMBDAS: usize = 32;
 
@@ -139,8 +137,8 @@ impl SimexConfig {
     ///
     /// # Errors
     /// A non-positive, non-finite or repeated `lambda`, too many or too few
-    /// grid points for the extrapolant, or a replicate count outside
-    /// `1..=MAX_SIMEX_REPLICATES`.
+    /// grid points for the extrapolant, or a replicate count of zero (any positive count is valid:
+    /// the cost is linear in it and the caller owns it).
     pub fn validate(&self) -> Result<(), MeasurementErrorError> {
         if self.lambdas.is_empty() || self.lambdas.len() > MAX_SIMEX_LAMBDAS {
             return Err(MeasurementErrorError::InvalidParameter(
@@ -162,9 +160,9 @@ impl SimexConfig {
                 "the extrapolant needs at least as many grid points (with lambda = 0) as it has coefficients",
             ));
         }
-        if self.replicates == 0 || self.replicates > MAX_SIMEX_REPLICATES {
+        if self.replicates == 0 {
             return Err(MeasurementErrorError::InvalidParameter(
-                "SIMEX replicates must lie in 1..=10000",
+                "SIMEX replicates must be at least 1",
             ));
         }
         Ok(())
@@ -295,11 +293,6 @@ fn moments_of_v(data: &LinearErrorData<'_>, shape: &Shape) -> (Vec<f64>, Vec<f64
         }
     }
     (means, cov)
-}
-
-fn solve_spd(a: &[f64], d: usize, b: &[f64]) -> Option<Vec<f64>> {
-    let chol = cholesky_spd(a, d)?;
-    chol_solve(&chol, d, b)
 }
 
 /// `1 - shift (S^{-1})_{ww}` from the covariance of `(W, Z)`.

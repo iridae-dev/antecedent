@@ -826,7 +826,7 @@ fn log_det_v0(prec: &CoefficientPrecision) -> Result<f64, ProbError> {
             sum
         }
         CoefficientPrecision::Dense { dim, matrix } => {
-            let chol = antecedent_stats::cholesky_spd(matrix, *dim).ok_or_else(|| {
+            let chol = crate::linalg::cholesky_spd(matrix, *dim).map_err(|_| {
                 ProbError::Numerical {
                     message: "coefficient precision is not positive definite".into(),
                 }

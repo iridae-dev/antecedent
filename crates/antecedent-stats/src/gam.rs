@@ -19,7 +19,7 @@ use crate::design::DesignColumnMap;
 use crate::design::DesignColumnRole;
 use crate::design::{BasisKind, RecordedSmooth};
 use crate::error::StatsError;
-use crate::gram::{form_xtx, invert_square};
+use crate::gram::form_xtx;
 use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresWorkspace};
 
 /// Cubic B-spline degree (order = 4).
@@ -503,15 +503,15 @@ pub fn fit_gam_weighted_design(
         .collect();
     let sqrt_weights: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
     // `B'B` and the penalty depend on neither λ nor the response: form them once per
-    // smooth. `(B'B + λP)⁻¹` is cached per smooth and only recomputed when λ changes, so
-    // a backfit sweep costs `O(n K)` per smooth (the right-hand side `B'r`) rather than an
-    // `O(n K²)` Gram plus a dense inverse.
+    // smooth. The Cholesky factor of `B'B + λP` is cached per smooth and only recomputed when
+    // λ changes, so a backfit sweep costs `O(n K)` per smooth (the right-hand side `B'r`)
+    // plus a triangular solve rather than an `O(n K²)` Gram plus a dense inverse.
     let smoothers: Vec<PenalizedSmoother> = weighted_bases
         .iter()
         .zip(specs)
         .map(|(basis, spec)| PenalizedSmoother::new(basis, nrows, spec.n_basis))
         .collect::<Result<_, _>>()?;
-    let mut inverses: Vec<Option<Vec<f64>>> = vec![None; specs.len()];
+    let mut factors: Vec<Option<PenalizedFactor>> = (0..specs.len()).map(|_| None).collect();
     let mut boundary_lambda = vec![false; specs.len()];
     // Auto-λ is re-selected against the current partial residuals every sweep until a full
     // sweep leaves every λ unchanged (or the sweep cap freezes it), because the partial
@@ -559,17 +559,17 @@ pub fn fit_gam_weighted_design(
                     &sqrt_weights,
                 )?;
                 boundary_lambda[j] = at_boundary;
-                if inverses[j].is_none() || lambda.to_bits() != chosen_lambda[j].to_bits() {
+                if factors[j].is_none() || lambda.to_bits() != chosen_lambda[j].to_bits() {
                     chosen_lambda[j] = lambda;
                     smooth_meta[j].lambda = lambda;
-                    inverses[j] = None;
+                    factors[j] = None;
                     lambda_changed = true;
                 }
             }
-            if inverses[j].is_none() {
-                inverses[j] = Some(smoothers[j].inverse(chosen_lambda[j])?);
+            if factors[j].is_none() {
+                factors[j] = Some(smoothers[j].factor(chosen_lambda[j])?);
             }
-            let inverse = inverses[j].as_deref().expect("inverse cached above");
+            let inverse = factors[j].as_ref().expect("factor cached above");
             let beta = smoothers[j].coefficients(inverse, solve_basis, nrows, &weighted_partial);
             let off = coef_offsets[j];
             coefficients[off..off + spec.n_basis].copy_from_slice(&beta);
@@ -634,7 +634,7 @@ pub fn fit_gam_weighted_design(
     // here, once in the intercept) and edf_approx runs high by exactly one per smooth term.
     // Evaluated at the final λ, not the first sweep's.
     let mut edf_approx = 1.0; // intercept (unpenalized)
-    for (smoother, inverse) in smoothers.iter().zip(&inverses) {
+    for (smoother, inverse) in smoothers.iter().zip(&factors) {
         if let Some(inverse) = inverse {
             edf_approx += smoother.edf(inverse) - 1.0;
         }
@@ -1142,52 +1142,163 @@ struct PenalizedSmoother {
     xtx: Vec<f64>,
     /// Roughness penalty `P = D₂'D₂`, `K×K` row-major.
     penalty: Vec<f64>,
+    /// Demmler–Reinsch form of the pencil `(B'B, P)`, built on first use by GCV selection.
+    spectrum: std::cell::OnceCell<Option<PencilSpectrum>>,
+}
+
+/// Lower Cholesky factor of `B'B + λP`.
+struct PenalizedFactor {
+    chol: Vec<f64>,
+}
+
+/// Spectral form of the pencil `(B'B, P)` for scoring many λ from one factorization.
+///
+/// With `A₀ = B'B + P = L₀L₀'` and `M = L₀⁻¹ P L₀⁻ᵀ = U diag(m) U'` (`m ∈ [0, 1]`), the
+/// whitened `B'B + λP` is `U diag((1 − mᵢ) + λ mᵢ) U'`, so every λ-dependent quantity of the
+/// penalized fit is a diagonal operation in the `U` basis.
+struct PencilSpectrum {
+    /// `L₀`, row-major lower.
+    chol0: Vec<f64>,
+    /// Eigenvectors of `M` as columns (row-major `K×K`).
+    vectors: Vec<f64>,
+    /// Eigenvalues `mᵢ` of `M`, clamped to `[0, 1]`.
+    m: Vec<f64>,
 }
 
 impl PenalizedSmoother {
     fn new(basis: &[f64], nrows: usize, n_basis: usize) -> Result<Self, StatsError> {
         let mut xtx = vec![0.0; n_basis * n_basis];
         form_xtx(basis, nrows, n_basis, &mut xtx);
-        Ok(Self { n_basis, xtx, penalty: second_difference_penalty(n_basis)? })
+        Ok(Self {
+            n_basis,
+            xtx,
+            penalty: second_difference_penalty(n_basis)?,
+            spectrum: std::cell::OnceCell::new(),
+        })
     }
 
-    /// `(B'B + λP)⁻¹`.
-    fn inverse(&self, lambda: f64) -> Result<Vec<f64>, StatsError> {
+    /// Cholesky factor of `B'B + λP`.
+    fn factor(&self, lambda: f64) -> Result<PenalizedFactor, StatsError> {
         let mut penalized = self.xtx.clone();
         if lambda != 0.0 {
             for (g, p) in penalized.iter_mut().zip(&self.penalty) {
                 *g += lambda * p;
             }
         }
-        invert_square(&penalized, self.n_basis)
+        crate::gram::cholesky_spd(&penalized, self.n_basis)
+            .map(|chol| PenalizedFactor { chol })
             .ok_or_else(|| StatsError::Backend("GAM: singular B'B+λP".into()))
     }
 
-    /// `β = (B'B + λP)⁻¹ B'y` given the cached inverse.
-    fn coefficients(&self, inverse: &[f64], basis: &[f64], nrows: usize, y: &[f64]) -> Vec<f64> {
+    /// `B'y` for a (scaled) basis.
+    fn rhs(&self, basis: &[f64], nrows: usize, y: &[f64]) -> Vec<f64> {
+        (0..self.n_basis)
+            .map(|c| basis[c * nrows..(c + 1) * nrows].iter().zip(y).map(|(b, y)| b * y).sum())
+            .collect()
+    }
+
+    /// `β = (B'B + λP)⁻¹ B'y` by a Cholesky solve against the factor (no explicit inverse).
+    fn coefficients(
+        &self,
+        factor: &PenalizedFactor,
+        basis: &[f64],
+        nrows: usize,
+        y: &[f64],
+    ) -> Vec<f64> {
         let k = self.n_basis;
-        let mut rhs = vec![0.0; k];
-        for c in 0..k {
-            let col = &basis[c * nrows..(c + 1) * nrows];
-            rhs[c] = col.iter().zip(y).map(|(b, y)| b * y).sum();
-        }
+        let rhs = self.rhs(basis, nrows, y);
+        let mut y_scratch = vec![0.0; k];
         let mut beta = vec![0.0; k];
-        for i in 0..k {
-            beta[i] = (0..k).map(|j| inverse[i * k + j] * rhs[j]).sum();
-        }
+        antecedent_kernels::chol_solve_into(&factor.chol, k, &rhs, &mut y_scratch, &mut beta);
         beta
     }
 
-    /// `tr((B'B + λP)⁻¹ B'B)` — the trace of the uncentered smoother.
-    fn edf(&self, inverse: &[f64]) -> f64 {
+    /// `tr((B'B + λP)⁻¹ B'B)` — the trace of the uncentered smoother — from the factor,
+    /// one triangular solve per column of `B'B`.
+    fn edf(&self, factor: &PenalizedFactor) -> f64 {
         let k = self.n_basis;
+        let mut column = vec![0.0; k];
+        let mut y_scratch = vec![0.0; k];
+        let mut solved = vec![0.0; k];
         let mut edf = 0.0;
-        for i in 0..k {
-            for j in 0..k {
-                edf += inverse[i * k + j] * self.xtx[j * k + i];
+        for j in 0..k {
+            for i in 0..k {
+                column[i] = self.xtx[i * k + j];
             }
+            antecedent_kernels::chol_solve_into(&factor.chol, k, &column, &mut y_scratch, &mut solved);
+            edf += solved[j];
         }
         edf
+    }
+
+    /// The spectral form of the pencil, or `None` when `B'B + P` or its eigendecomposition
+    /// is not usable (selection then scores each λ from its own factorization).
+    fn spectrum(&self) -> Option<&PencilSpectrum> {
+        self.spectrum.get_or_init(|| self.build_spectrum()).as_ref()
+    }
+
+    fn build_spectrum(&self) -> Option<PencilSpectrum> {
+        let k = self.n_basis;
+        let mut a0 = self.xtx.clone();
+        for (g, p) in a0.iter_mut().zip(&self.penalty) {
+            *g += p;
+        }
+        let chol0 = crate::gram::cholesky_spd(&a0, k)?;
+        // W = L₀⁻¹ P (column by column), then M = L₀⁻¹ Wᵀ.
+        let mut w = vec![0.0; k * k];
+        let mut column = vec![0.0; k];
+        let mut solved = vec![0.0; k];
+        for j in 0..k {
+            for i in 0..k {
+                column[i] = self.penalty[i * k + j];
+            }
+            antecedent_kernels::forward_solve_into(&chol0, k, &column, &mut solved);
+            for i in 0..k {
+                w[i * k + j] = solved[i];
+            }
+        }
+        let mut m = vec![0.0; k * k];
+        for j in 0..k {
+            for i in 0..k {
+                column[i] = w[j * k + i];
+            }
+            antecedent_kernels::forward_solve_into(&chol0, k, &column, &mut solved);
+            for i in 0..k {
+                m[i * k + j] = solved[i];
+            }
+        }
+        for i in 0..k {
+            for j in (i + 1)..k {
+                let mean = 0.5 * (m[i * k + j] + m[j * k + i]);
+                m[i * k + j] = mean;
+                m[j * k + i] = mean;
+            }
+        }
+        let (values, vectors) = crate::covariance::symmetric_eigen(&m, k).ok()?;
+        Some(PencilSpectrum {
+            chol0,
+            vectors,
+            m: values.into_iter().map(|v| v.clamp(0.0, 1.0)).collect(),
+        })
+    }
+}
+
+impl PencilSpectrum {
+    /// `Uᵀ L₀⁻¹ v` for a `K`-vector `v`.
+    fn to_eigenbasis(&self, v: &[f64]) -> Vec<f64> {
+        let k = self.m.len();
+        let mut whitened = vec![0.0; k];
+        antecedent_kernels::forward_solve_into(&self.chol0, k, v, &mut whitened);
+        (0..k).map(|c| (0..k).map(|r| self.vectors[r * k + c] * whitened[r]).sum()).collect()
+    }
+
+    /// `β = L₀⁻ᵀ U t` for eigenbasis coefficients `t`.
+    fn coefficients(&self, t: &[f64]) -> Vec<f64> {
+        let k = self.m.len();
+        let ut: Vec<f64> = (0..k).map(|r| (0..k).map(|c| self.vectors[r * k + c] * t[c]).sum()).collect();
+        let mut beta = vec![0.0; k];
+        antecedent_kernels::back_solve_into(&self.chol0, k, &ut, &mut beta);
+        beta
     }
 }
 
@@ -1196,10 +1307,16 @@ const GCV_LAMBDA_GRID: [f64; 25] = [
     100.0, 300.0, 1e3, 3e3, 1e4, 3e4, 1e5, 3e5, 1e6,
 ];
 
+/// Residual sums of squares below this fraction of `y'y` are recomputed from the residual
+/// vector: the moment form `y'y − 2β'B'y + β'B'Bβ` has cancelled too far to be trusted.
+const GCV_MOMENT_RSS_FLOOR: f64 = 1e-6;
+
 /// Grid λ minimizing the centered-smoother GCV, and whether the winner is an edge of the
 /// grid (the optimum may then lie outside the searched range).
 ///
 /// `basis` and `y` are the `√w`-scaled design and response; `sqrt_w` the `√w` vector.
+/// One factorization of the pencil `(B'B, P)` scores every grid λ in `O(K²)` (`O(K)` for
+/// the fit and trace, `O(K²)` for the back-transform when the residual has to be rebuilt).
 fn select_lambda_gcv(
     smoother: &PenalizedSmoother,
     basis: &[f64],
@@ -1209,35 +1326,89 @@ fn select_lambda_gcv(
 ) -> Result<(f64, bool), StatsError> {
     let mut best_index = 0usize;
     let mut best_gcv = f64::INFINITY;
-    for (index, &lambda) in GCV_LAMBDA_GRID.iter().enumerate() {
-        let inverse = smoother.inverse(lambda)?;
-        let gcv = centered_smooth_gcv(smoother, &inverse, basis, nrows, y, sqrt_w);
-        if gcv < best_gcv {
-            best_gcv = gcv;
-            best_index = index;
+    if let Some(spectrum) = smoother.spectrum() {
+        let scores = spectral_gcv_scores(smoother, spectrum, basis, nrows, y, sqrt_w);
+        for (index, gcv) in scores.into_iter().enumerate() {
+            if gcv < best_gcv {
+                best_gcv = gcv;
+                best_index = index;
+            }
+        }
+    } else {
+        for (index, &lambda) in GCV_LAMBDA_GRID.iter().enumerate() {
+            let factor = smoother.factor(lambda)?;
+            let gcv = centered_smooth_gcv(smoother, &factor, basis, nrows, y, sqrt_w);
+            if gcv < best_gcv {
+                best_gcv = gcv;
+                best_index = index;
+            }
         }
     }
     Ok((GCV_LAMBDA_GRID[best_index], best_index == 0 || best_index == GCV_LAMBDA_GRID.len() - 1))
 }
 
-/// GCV of the smoother actually applied in backfitting: centered `Bβ` with
-/// `edf = tr(S₁) − 1`. Uncentered RSS / `tr(S₁)` scores a different operator.
-///
-/// Inputs are in `√w`-scaled coordinates (`basis = √w B`, `y = √w y₀`), so with
-/// `fᵣ = (Bβ)ᵣ` the weighted-centered residual `√wᵣ (y₀ᵣ − fᵣ + f̄_w)` is
-/// `yᵣ − (√w B β)ᵣ + f̄_w √wᵣ`, where `f̄_w = Σ wᵣ fᵣ / n = Σ √wᵣ (√w B β)ᵣ / n`. The
-/// centering constant multiplies `√w`, it is not subtracted from the scaled prediction —
-/// the two coincide only when every weight is equal.
-fn centered_smooth_gcv(
+/// Centered GCV at every grid λ from the spectral form of the pencil.
+fn spectral_gcv_scores(
     smoother: &PenalizedSmoother,
-    inverse: &[f64],
+    spectrum: &PencilSpectrum,
+    basis: &[f64],
+    nrows: usize,
+    y: &[f64],
+    sqrt_w: &[f64],
+) -> Vec<f64> {
+    let k = smoother.n_basis;
+    let n = nrows as f64;
+    let rhs = smoother.rhs(basis, nrows, y);
+    let centering = smoother.rhs(basis, nrows, sqrt_w);
+    let s = spectrum.to_eigenbasis(&rhs);
+    let g = spectrum.to_eigenbasis(&centering);
+    let yty: f64 = y.iter().map(|v| v * v).sum();
+    let sqrt_w_y: f64 = sqrt_w.iter().zip(y).map(|(w, v)| w * v).sum();
+    let weight_total: f64 = sqrt_w.iter().map(|w| w * w).sum();
+    let mut t = vec![0.0; k];
+    GCV_LAMBDA_GRID
+        .iter()
+        .map(|&lambda| {
+            let mut fit_cross = 0.0; // β'B'y
+            let mut fit_quad = 0.0; // β'B'Bβ
+            let mut centering_dot = 0.0; // (B'√w)'β
+            let mut trace = 0.0; // tr(S₁)
+            for i in 0..k {
+                let gram = 1.0 - spectrum.m[i];
+                let denominator = gram + lambda * spectrum.m[i];
+                let ti = s[i] / denominator;
+                t[i] = ti;
+                fit_cross += ti * s[i];
+                fit_quad += gram * ti * ti;
+                centering_dot += g[i] * ti;
+                trace += gram / denominator;
+            }
+            let mean = centering_dot / n;
+            let moment_rss = yty - 2.0 * fit_cross + fit_quad
+                + 2.0 * mean * (sqrt_w_y - centering_dot)
+                + mean * mean * weight_total;
+            let edf = (trace - 1.0).max(0.0);
+            let denom = (n - edf).max(1e-8);
+            let rss = if moment_rss.is_finite() && moment_rss > GCV_MOMENT_RSS_FLOOR * yty {
+                moment_rss
+            } else {
+                let beta = spectrum.coefficients(&t);
+                centered_rss(&beta, k, basis, nrows, y, sqrt_w)
+            };
+            n * rss / (denom * denom)
+        })
+        .collect()
+}
+
+/// Centered residual sum of squares of `Bβ` against `y` (both `√w`-scaled).
+fn centered_rss(
+    beta: &[f64],
+    n_basis: usize,
     basis: &[f64],
     nrows: usize,
     y: &[f64],
     sqrt_w: &[f64],
 ) -> f64 {
-    let n_basis = smoother.n_basis;
-    let beta = smoother.coefficients(inverse, basis, nrows, y);
     let mut scaled_pred = vec![0.0; nrows];
     for r in 0..nrows {
         let mut pred = 0.0;
@@ -1253,7 +1424,28 @@ fn centered_smooth_gcv(
         let e = y[r] - scaled_pred[r] + weighted_mean * sqrt_w[r];
         rss += e * e;
     }
-    let edf = (smoother.edf(inverse) - 1.0).max(0.0);
+    rss
+}
+
+/// GCV of the smoother actually applied in backfitting: centered `Bβ` with
+/// `edf = tr(S₁) − 1`. Uncentered RSS / `tr(S₁)` scores a different operator.
+///
+/// Inputs are in `√w`-scaled coordinates (`basis = √w B`, `y = √w y₀`), so with
+/// `fᵣ = (Bβ)ᵣ` the weighted-centered residual `√wᵣ (y₀ᵣ − fᵣ + f̄_w)` is
+/// `yᵣ − (√w B β)ᵣ + f̄_w √wᵣ`, where `f̄_w = Σ wᵣ fᵣ / n = Σ √wᵣ (√w B β)ᵣ / n`. The
+/// centering constant multiplies `√w`, it is not subtracted from the scaled prediction —
+/// the two coincide only when every weight is equal.
+fn centered_smooth_gcv(
+    smoother: &PenalizedSmoother,
+    factor: &PenalizedFactor,
+    basis: &[f64],
+    nrows: usize,
+    y: &[f64],
+    sqrt_w: &[f64],
+) -> f64 {
+    let beta = smoother.coefficients(factor, basis, nrows, y);
+    let rss = centered_rss(&beta, smoother.n_basis, basis, nrows, y, sqrt_w);
+    let edf = (smoother.edf(factor) - 1.0).max(0.0);
     let denom = (nrows as f64 - edf).max(1e-8);
     (nrows as f64) * rss / (denom * denom)
 }
@@ -1268,8 +1460,8 @@ fn roughness_basis_solve(
     lambda: f64,
 ) -> Result<Vec<f64>, StatsError> {
     let smoother = PenalizedSmoother::new(basis, nrows, n_basis)?;
-    let inverse = smoother.inverse(lambda)?;
-    Ok(smoother.coefficients(&inverse, basis, nrows, y))
+    let factor = smoother.factor(lambda)?;
+    Ok(smoother.coefficients(&factor, basis, nrows, y))
 }
 
 /// `tr((B'B + λP)⁻¹ B'B)` (test helper over [`PenalizedSmoother`]).
@@ -1281,7 +1473,7 @@ fn roughness_edf(
     lambda: f64,
 ) -> Result<f64, StatsError> {
     let smoother = PenalizedSmoother::new(basis, nrows, n_basis)?;
-    Ok(smoother.edf(&smoother.inverse(lambda)?))
+    Ok(smoother.edf(&smoother.factor(lambda)?))
 }
 
 #[cfg(test)]
@@ -1789,7 +1981,7 @@ mod tests {
             }
             rhs[c] = s;
         }
-        let inv = invert_square(&gram[..144], 12).unwrap();
+        let inv = crate::gram::invert_square(&gram[..144], 12).unwrap();
         let mut beta_i = [0.0; 12];
         for i in 0..12 {
             let mut s = 0.0;
@@ -1909,7 +2101,7 @@ mod tests {
         let mut uncentered_winner = GCV_LAMBDA_GRID[0];
         let mut best_uncentered_gcv = f64::INFINITY;
         for &lambda in &GCV_LAMBDA_GRID {
-            let inverse = smoother.inverse(lambda).unwrap();
+            let inverse = smoother.factor(lambda).unwrap();
             let centered_gcv =
                 centered_smooth_gcv(&smoother, &inverse, &basis, n, &centered, &ones);
             if centered_gcv < best_gcv {
@@ -1967,7 +2159,7 @@ mod tests {
         let scaled_y: Vec<f64> = y.iter().zip(&sqrt_w).map(|(v, s)| v * s).collect();
         let smoother = PenalizedSmoother::new(&scaled_basis, n, 6).unwrap();
         for lambda in [1e-3, 0.1, 10.0] {
-            let inverse = smoother.inverse(lambda).unwrap();
+            let inverse = smoother.factor(lambda).unwrap();
             let got =
                 centered_smooth_gcv(&smoother, &inverse, &scaled_basis, n, &scaled_y, &sqrt_w);
 
@@ -2022,7 +2214,7 @@ mod tests {
                 expand_bspline(cols[j], 8, Some(fit.smooths[j].knots.as_ref())).unwrap();
             let smoother = PenalizedSmoother::new(&basis, n, 8).unwrap();
             let score = |lambda: f64| {
-                let inverse = smoother.inverse(lambda).unwrap();
+                let inverse = smoother.factor(lambda).unwrap();
                 centered_smooth_gcv(&smoother, &inverse, &basis, n, &partial, &ones)
             };
             let best = GCV_LAMBDA_GRID.iter().map(|&l| score(l)).fold(f64::INFINITY, f64::min);
@@ -2265,6 +2457,28 @@ mod tests {
                 .abs()
                     < 1e-7
             );
+        }
+    }
+
+    #[test]
+    fn spectral_gcv_scores_match_the_per_lambda_factorization() {
+        let n = 70usize;
+        let x1 = linspace(n, 0.0, 1.0);
+        let w: Vec<f64> = (0..n).map(|i| 0.5 + (i % 4) as f64 * 0.4).collect();
+        let y: Vec<f64> =
+            x1.iter().enumerate().map(|(i, &v)| (4.0 * v).sin() + 0.2 * ((i * 5) % 7) as f64).collect();
+        let (basis, _) = expand_bspline(&x1, 9, None).unwrap();
+        let sqrt_w: Vec<f64> = w.iter().map(|v| v.sqrt()).collect();
+        let scaled_basis: Vec<f64> =
+            basis.iter().enumerate().map(|(i, v)| v * sqrt_w[i % n]).collect();
+        let scaled_y: Vec<f64> = y.iter().zip(&sqrt_w).map(|(v, s)| v * s).collect();
+        let smoother = PenalizedSmoother::new(&scaled_basis, n, 9).unwrap();
+        let spectrum = smoother.spectrum().expect("pencil is factorizable");
+        let scores = spectral_gcv_scores(&smoother, spectrum, &scaled_basis, n, &scaled_y, &sqrt_w);
+        for (&lambda, &got) in GCV_LAMBDA_GRID.iter().zip(&scores) {
+            let factor = smoother.factor(lambda).unwrap();
+            let want = centered_smooth_gcv(&smoother, &factor, &scaled_basis, n, &scaled_y, &sqrt_w);
+            assert!((got - want).abs() <= 1e-6 * want.abs(), "λ={lambda}: {got} vs {want}");
         }
     }
 }

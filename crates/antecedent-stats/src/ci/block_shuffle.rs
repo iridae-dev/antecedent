@@ -4,9 +4,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalRng, KernelPolicy};
-use antecedent_kernels::shuffle;
+use antecedent_kernels::{shuffle, unbiased_index};
 
-use super::residualize::weighted_pearson;
+use super::residualize::{weighted_pearson_against_fixed, weighted_pearson_fixed_side};
 use crate::error::StatsError;
 
 /// Relative slack when comparing a permuted statistic to the observed one: two arrangements
@@ -62,17 +62,82 @@ pub(crate) fn block_row_permutation(
     }
 }
 
+/// Reusable buffers for permuting a column replicate after replicate without allocating.
+#[derive(Debug)]
+pub(crate) struct PermutationScratch<T> {
+    perm: Vec<usize>,
+    snapshot: Vec<T>,
+}
+
+impl<T> Default for PermutationScratch<T> {
+    fn default() -> Self {
+        Self { perm: Vec::new(), snapshot: Vec::new() }
+    }
+}
+
 /// Permute `y` in place by contiguous blocks; see [`block_row_permutation`].
 ///
 /// This is the block-preserving primitive behind
-/// [`SignificanceMethod::BlockShuffle`](super::types::SignificanceMethod).
-pub(crate) fn block_permute_contiguous(y: &mut [f64], block_size: usize, rng: &mut CausalRng) {
-    let mut perm = Vec::with_capacity(y.len());
-    block_row_permutation(y.len(), block_size, rng, &mut perm);
-    let original = y.to_vec();
-    for (dst, &src) in perm.iter().enumerate() {
-        y[dst] = original[src];
+/// [`SignificanceMethod::BlockShuffle`](super::types::SignificanceMethod). The index and value
+/// buffers live in `scratch` and are reused across calls.
+pub(crate) fn block_permute_contiguous<T: Copy>(
+    y: &mut [T],
+    block_size: usize,
+    rng: &mut CausalRng,
+    scratch: &mut PermutationScratch<T>,
+) {
+    block_row_permutation(y.len(), block_size, rng, &mut scratch.perm);
+    scratch.snapshot.clear();
+    scratch.snapshot.extend_from_slice(y);
+    for (dst, &src) in scratch.perm.iter().enumerate() {
+        y[dst] = scratch.snapshot[src];
     }
+}
+
+/// Add-one permutation p-value `(1 + #{null ≥ observed}) / (1 + replicates)`.
+pub(crate) fn add_one_pvalue(exceedances: u32, replicates: usize) -> f64 {
+    (1.0 + f64::from(exceedances)) / (1.0 + replicates as f64)
+}
+
+/// The shared permutation-null loop of the discrete and nonparametric CI tests: permute `y`
+/// `replicates` times and count how many permuted statistics reach the observed one.
+///
+/// With `block_size > 1` each replicate is a contiguous block permutation of the whole column;
+/// otherwise `y` is Fisher–Yates shuffled within each stratum of `strata` (row-index groups,
+/// disjoint), so the link between `y` and the conditioning set is preserved under the null.
+/// `y` is permuted as stored (integer codes stay integer codes: no conversion per replicate),
+/// and `reaches_observed` receives the permuted column and says whether the permuted statistic
+/// is at least the observed one.
+///
+/// # Errors
+///
+/// The first error `reaches_observed` returns.
+pub(crate) fn permutation_null_exceedances<T: Copy, E>(
+    replicates: usize,
+    y: &mut [T],
+    strata: &[Vec<usize>],
+    block_size: usize,
+    rng: &mut CausalRng,
+    mut reaches_observed: impl FnMut(&[T]) -> Result<bool, E>,
+) -> Result<u32, E> {
+    let mut scratch = PermutationScratch::default();
+    let mut exceedances = 0u32;
+    for _ in 0..replicates {
+        if block_size > 1 {
+            block_permute_contiguous(y, block_size, rng, &mut scratch);
+        } else {
+            for rows in strata {
+                for i in (1..rows.len()).rev() {
+                    let j = unbiased_index(rng, i + 1);
+                    y.swap(rows[i], rows[j]);
+                }
+            }
+        }
+        if reaches_observed(y)? {
+            exceedances = exceedances.saturating_add(1);
+        }
+    }
+    Ok(exceedances)
 }
 
 /// Block-permutation p-value for the partial correlation, from residuals.
@@ -113,7 +178,11 @@ pub(crate) fn residual_null_pvalue(
         &ones
     };
     let degenerate = StatsError::Shape { message: "block-shuffle null: degenerate residual" };
-    let observed = weighted_pearson(policy, rx, ry, w)?.ok_or(degenerate)?.abs();
+    // `ry` is fixed across replicates: its weighted mean and centred sum of squares are
+    // computed once, not once per permutation.
+    let fixed = weighted_pearson_fixed_side(policy, ry, w)?.ok_or_else(|| degenerate.clone())?;
+    let observed =
+        weighted_pearson_against_fixed(policy, rx, ry, w, fixed)?.ok_or_else(|| degenerate.clone())?.abs();
     let mut perm = Vec::with_capacity(n);
     let mut shuffled = vec![0.0; n];
     let mut extreme = 0u32;
@@ -122,8 +191,8 @@ pub(crate) fn residual_null_pvalue(
         for (dst, &src) in perm.iter().enumerate() {
             shuffled[dst] = rx[src];
         }
-        let r = weighted_pearson(policy, &shuffled, ry, w)?
-            .ok_or(StatsError::Shape { message: "block-shuffle null: degenerate residual" })?;
+        let r = weighted_pearson_against_fixed(policy, &shuffled, ry, w, fixed)?
+            .ok_or_else(|| degenerate.clone())?;
         if r.abs() >= observed * (1.0 - TIE_REL_TOL) {
             extreme += 1;
         }

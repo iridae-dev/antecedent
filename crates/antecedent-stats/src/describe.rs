@@ -16,14 +16,30 @@
 /// helper's.
 #[must_use]
 pub fn mean_and_se(values: &[f64]) -> Option<(f64, f64)> {
-    let n = values.len() as f64;
-    if values.len() < 2 || values.iter().any(|v| !v.is_finite()) {
+    if values.iter().any(|v| !v.is_finite()) {
         return None;
     }
+    let (mean, variance) = mean_and_sample_variance(values)?;
+    let se = (variance / values.len() as f64).sqrt();
+    se.is_finite().then_some((mean, se))
+}
+
+/// Mean and Bessel-corrected sample variance `Σ(v − mean)² / (n − 1)` by the two-pass formula;
+/// `None` for fewer than two values.
+///
+/// This applies no finiteness policy: a non-finite input gives a non-finite result, so a caller
+/// that must refuse it checks first (as [`mean_and_se`] does). The one owner of the sample
+/// mean/variance arithmetic; population variance (denominator `n`) is
+/// `divergence::mean_var`.
+#[must_use]
+pub fn mean_and_sample_variance(values: &[f64]) -> Option<(f64, f64)> {
+    if values.len() < 2 {
+        return None;
+    }
+    let n = values.len() as f64;
     let mean = values.iter().sum::<f64>() / n;
     let variance = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0);
-    let se = (variance / n).sqrt();
-    se.is_finite().then_some((mean, se))
+    Some((mean, variance))
 }
 
 /// Standard error of the mean of independent scores (an influence-function SE):
@@ -35,14 +51,10 @@ pub fn mean_and_se(values: &[f64]) -> Option<(f64, f64)> {
 /// [`mean_and_se`] for the refusing form that returns `None` instead.
 #[must_use]
 pub fn iid_se(values: &[f64]) -> f64 {
-    let n = values.len();
-    if n < 2 {
+    let Some((_, var)) = mean_and_sample_variance(values) else {
         return f64::NAN;
-    }
-    let nf = n as f64;
-    let mean = values.iter().sum::<f64>() / nf;
-    let var = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (nf - 1.0);
-    (var / nf).sqrt()
+    };
+    (var / values.len() as f64).sqrt()
 }
 
 #[cfg(test)]

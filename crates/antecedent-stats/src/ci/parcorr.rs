@@ -29,6 +29,16 @@ pub(crate) fn parcorr_mode(policy: &KernelPolicy) -> ParCorrMode {
     }
 }
 
+/// A constant or collinear variable or conditioning set has no partial correlation. That is
+/// missing information, not evidence of independence, so it is refused rather than reported as
+/// `p = 1` (which constraint-based search would read as "delete the edge").
+fn undefined_partial_correlation() -> StatsError {
+    StatsError::Unsupported {
+        message: "partial correlation is undefined (a constant variable or a collinear \
+                  conditioning set), so the data carry no information about this independence",
+    }
+}
+
 /// Partial-correlation CI test.
 ///
 /// Kernel path selection comes from [`ExecutionContext::kernel_policy`] at call time
@@ -89,14 +99,7 @@ impl PartialCorrelation {
         )
         .map_err(|_| StatsError::Shape { message: "partial correlation output length" })?;
         let Some(r) = workspace.stats[0] else {
-            // A constant or collinear conditioning set has no partial correlation.
-            // That is not evidence of independence, so the p-value stays 1.
-            return Ok(CiResult {
-                statistic: 0.0,
-                p_value: 1.0,
-                df: (n as f64) - 2.0 - (z_flat.len() as f64),
-                ci: None,
-            });
+            return Err(undefined_partial_correlation());
         };
         let ci_query = CiQuery { x: 0, y: 1, z_start: 0, z_len: z_flat.len() };
         Self::interpret(
@@ -203,13 +206,7 @@ impl ConditionalIndependenceTest for PartialCorrelation {
         let mut results = Vec::with_capacity(nq);
         for (i, q) in request.queries.iter().enumerate() {
             let Some(r) = workspace.stats[i] else {
-                results.push(CiResult {
-                    statistic: 0.0,
-                    p_value: 1.0,
-                    df: (n as f64) - 2.0 - (q.z_len as f64),
-                    ci: None,
-                });
-                continue;
+                return Err(undefined_partial_correlation());
             };
             results.push(Self::interpret(
                 PartialCorrelationStat { r, n, query: *q },
@@ -259,10 +256,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(
-        clippy::float_cmp,
-        reason = "exact comparison against exactly representable or bit-identical reference values"
-    )]
     fn collinear_conditioning_does_not_claim_independence() {
         let n = 40usize;
         let z: Vec<_> = (0..n).map(|i| (i as f64) * 0.2).collect();
@@ -271,16 +264,14 @@ mod tests {
         let test = PartialCorrelation::new();
         let ctx = ExecutionContext::for_tests(3);
         let mut workspace = CiWorkspace::default();
-        let result = test
-            .test_one(
-                &[&x, &y, &z, &z],
-                &[2, 3],
-                SignificanceMethod::Analytic,
-                &mut workspace,
-                &ctx,
-            )
-            .unwrap();
-        assert_eq!(result.p_value, 1.0);
+        let result = test.test_one(
+            &[&x, &y, &z, &z],
+            &[2, 3],
+            SignificanceMethod::Analytic,
+            &mut workspace,
+            &ctx,
+        );
+        assert!(matches!(result, Err(StatsError::Unsupported { .. })), "{result:?}");
     }
 
     fn simple_residuals(t: &[f64], z: &[f64]) -> Vec<f64> {

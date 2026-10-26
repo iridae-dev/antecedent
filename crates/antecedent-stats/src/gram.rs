@@ -222,6 +222,16 @@ pub fn chol_solve(chol: &[f64], n: usize, b: &[f64]) -> Option<Vec<f64>> {
     Some(x)
 }
 
+/// Solve `A x = b` for SPD `A` (row-major `n×n`) by one Cholesky factorization.
+///
+/// `None` when `A` is not numerically positive definite (the shared relative pivot rule of
+/// [`cholesky_spd`]) or `b` is shorter than `n`.
+#[must_use]
+pub fn solve_spd(a: &[f64], n: usize, b: &[f64]) -> Option<Vec<f64>> {
+    let chol = cholesky_spd(a, n)?;
+    chol_solve(&chol, n, b)
+}
+
 /// Invert a small dense matrix.
 ///
 /// Equilibration and the pivot test are [`antecedent_kernels::invert_square`]:

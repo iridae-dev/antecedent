@@ -75,7 +75,7 @@ pub mod weighting;
 use thiserror::Error;
 
 pub use beta_bernoulli::{
-    BetaPosterior, MAX_ARM_TRIALS, MAX_BANDIT_ARMS, best_arm_probabilities, expected_losses,
+    BetaPosterior, EXACT_BETA_TRIALS, MAX_BANDIT_ARMS, best_arm_probabilities, expected_losses,
     probability_exceeds, probability_superior, regularized_incomplete_beta,
 };
 pub use capacity::{

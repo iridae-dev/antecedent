@@ -49,12 +49,16 @@ use crate::joint_law::DecisionVerdict;
 use crate::special::normal_ppf;
 use crate::synthesis::{SynthesisError, fixed_effect_gls, fixed_effect_inverse_variance};
 
-/// Most rows one chain table may carry.
-pub const MAX_CHAIN_ROWS: usize = 200_000;
-/// Most sources plus stages one chain may name.
-pub const MAX_CHAIN_NODES: usize = 128;
-/// Most rows a preposterior update may use: it compares every row with every
-/// other row.
+/// Most `f64` cells (rows times nodes) one chain table may hold: 2 GiB of draws. The only
+/// limit on a table is that it fits in memory.
+pub const MAX_CHAIN_CELLS: usize = 1 << 28;
+/// Most rows one chain table may carry: a single column within [`MAX_CHAIN_CELLS`].
+pub const MAX_CHAIN_ROWS: usize = MAX_CHAIN_CELLS;
+/// Most sources plus stages one chain may name. The product of nodes and rows is held to
+/// [`MAX_CHAIN_CELLS`]; this bounds only the validation walk.
+pub const MAX_CHAIN_NODES: usize = 1 << 16;
+/// Rows from which a preposterior update averages over a subsample of simulated studies
+/// instead of one study per row: every study compares its likelihood with every row.
 pub const MAX_PREPOSTERIOR_ROWS: usize = 2_048;
 /// Smallest mean effective size of the updated draws a preposterior update
 /// may report. Below it the likelihood of the simulated study leaves too few
@@ -63,8 +67,8 @@ pub const MIN_UPDATE_EFFECTIVE_SIZE: f64 = 10.0;
 /// Level of the normal band a decision verdict is read against.
 pub const DECISION_BAND_LEVEL: f64 = 0.95;
 
-/// Most terms one expression stage may hold.
-pub const MAX_EXPRESSION_TERMS: usize = 64;
+/// Most terms one expression stage may hold: the bound on the evaluation walk of one stage.
+pub const MAX_EXPRESSION_TERMS: usize = 1 << 16;
 
 const CANCEL_STRIDE: usize = 64;
 const VARIANCE_FLOOR: f64 = 1e-300;
@@ -206,8 +210,8 @@ impl UnaryFn {
             Self::Log => x.ln(),
             Self::Square => x * x,
             Self::Reciprocal => 1.0 / x,
-            Self::Logistic => 1.0 / (1.0 + (-x).exp()),
-            Self::ExponentialUtility { risk_aversion } => 1.0 - (-risk_aversion * x).exp(),
+            Self::Logistic => antecedent_kernels::sigmoid(x),
+            Self::ExponentialUtility { risk_aversion } => -(-risk_aversion * x).exp_m1(),
             Self::PiecewiseLinear { kink, below_slope, above_slope } => {
                 if x >= kink {
                     above_slope * (x - kink)
@@ -641,7 +645,7 @@ pub fn validate_spec(n_sources: usize, stages: &[StageSpec]) -> Result<(), Chain
 /// Check an expression's stack discipline before any number is formed.
 fn check_expression(terms: &[ExprTerm], arity: usize) -> Result<(), ChainError> {
     if terms.is_empty() || terms.len() > MAX_EXPRESSION_TERMS {
-        return Err(ChainError::Shape("an expression holds between one and 64 terms"));
+        return Err(ChainError::Shape("an expression holds between one and MAX_EXPRESSION_TERMS terms"));
     }
     let mut depth = 0_usize;
     for term in terms {
@@ -812,7 +816,7 @@ fn pool_columns(
 ///
 /// # Errors
 /// A malformed chain, columns of different lengths or more rows than
-/// [`MAX_CHAIN_ROWS`], a transformation leaving its domain, a singular pool, or
+/// [`MAX_CHAIN_CELLS`] in total, a transformation leaving its domain, a singular pool, or
 /// cancellation.
 pub fn evaluate_columns(
     sources: &[Vec<f64>],
@@ -824,7 +828,7 @@ pub fn evaluate_columns(
     if rows == 0 {
         return Err(ChainError::Shape("a chain table needs at least one row"));
     }
-    if rows > MAX_CHAIN_ROWS {
+    if rows.checked_mul(sources.len() + stages.len()).is_none_or(|cells| cells > MAX_CHAIN_CELLS) {
         return Err(ChainError::Budget("rows"));
     }
     for column in sources {
@@ -1124,6 +1128,11 @@ pub struct PreposteriorOutcome {
     pub mean_effective_size: f64,
     /// Smallest effective size of the updated draws.
     pub min_effective_size: f64,
+    /// Number of simulated studies averaged over. It is the row count up to
+    /// [`MAX_PREPOSTERIOR_ROWS`]; beyond it the studies are a systematic weighted subsample of the
+    /// rows (every study still reweights all rows), which widens the Monte Carlo error of the
+    /// averages above but leaves the effective size of each updated posterior intact.
+    pub simulated_studies: usize,
 }
 
 /// Update the parameter draws by each simulated future study and re-evaluate
@@ -1137,9 +1146,14 @@ pub struct PreposteriorOutcome {
 /// every stage the parameter feeds is updated with it.
 ///
 /// # Errors
-/// Columns of different lengths, more than [`MAX_PREPOSTERIOR_ROWS`] rows, noise
-/// of another length, updated draws with mean effective size below
-/// [`MIN_UPDATE_EFFECTIVE_SIZE`], or cancellation.
+/// Columns of different lengths, noise of another length, updated draws with mean
+/// effective size below [`MIN_UPDATE_EFFECTIVE_SIZE`], or cancellation.
+///
+/// Every simulated study compares its likelihood with all `n` rows, so the cost is `O(n m)` for
+/// `m` studies. Above [`MAX_PREPOSTERIOR_ROWS`] rows the studies are a systematic subsample of
+/// `MAX_PREPOSTERIOR_ROWS` rows drawn at the weighted quantiles of the row weights; each
+/// updated posterior still uses all `n` rows, so only the outer Monte Carlo average loses
+/// precision ([`PreposteriorOutcome::simulated_studies`] reports `m`).
 pub fn preposterior(
     parameter: &[f64],
     utility: &[f64],
@@ -1153,9 +1167,6 @@ pub fn preposterior(
             "the parameter, utility and noise columns have one entry per row",
         ));
     }
-    if n > MAX_PREPOSTERIOR_ROWS {
-        return Err(ChainError::Budget("preposterior rows"));
-    }
     if let Some(weights) = weights {
         if weights.len() != n {
             return Err(ChainError::InvalidWeights("one weight per row"));
@@ -1163,6 +1174,7 @@ pub fn preposterior(
     }
     let uniform = 1.0 / n as f64;
     let prior = |row: usize| weights.map_or(uniform, |w| w[row]);
+    let studies = preposterior_studies(n, &prior);
     let scale = study.noise_sd / study.sample_size.sqrt();
     let current: f64 = (0..n).map(|row| prior(row) * utility[row]).sum();
     let current_acts = current > study.reference_utility;
@@ -1172,8 +1184,8 @@ pub fn preposterior(
     let mut sum_ess = 0.0;
     let mut min_ess = f64::INFINITY;
     let mut log_likelihood = vec![0.0; n];
-    for row in 0..n {
-        if row % CANCEL_STRIDE == 0 {
+    for (index, &(row, outer)) in studies.iter().enumerate() {
+        if index % CANCEL_STRIDE == 0 {
             check_cancel(cancel)?;
         }
         let observed = parameter[row] + scale * study.noise[row];
@@ -1197,7 +1209,6 @@ pub fn preposterior(
         }
         let updated = weighted_utility / total;
         let ess = total * total / squares;
-        let outer = prior(row);
         value_with += outer * updated.max(study.reference_utility);
         mean_updated += outer * updated;
         if (updated > study.reference_utility) != current_acts {
@@ -1221,7 +1232,33 @@ pub fn preposterior(
         probability_decision_changes: changes,
         mean_effective_size: sum_ess,
         min_effective_size: min_ess,
+        simulated_studies: studies.len(),
     })
+}
+
+/// The `(row, weight)` pairs whose simulated studies a preposterior update averages over: every
+/// row with its own weight up to [`MAX_PREPOSTERIOR_ROWS`], otherwise that many rows picked
+/// systematically at the weighted quantiles `(k + ½)/m` of the row weights, each carrying the
+/// mean weight so the total mass is unchanged.
+fn preposterior_studies(n: usize, prior: &impl Fn(usize) -> f64) -> Vec<(usize, f64)> {
+    if n <= MAX_PREPOSTERIOR_ROWS {
+        return (0..n).map(|row| (row, prior(row))).collect();
+    }
+    let total: f64 = (0..n).map(prior).sum();
+    let m = MAX_PREPOSTERIOR_ROWS;
+    let share = total / m as f64;
+    let mut picked = Vec::with_capacity(m);
+    let mut row = 0_usize;
+    let mut cumulative = prior(0);
+    for k in 0..m {
+        let target = (k as f64 + 0.5) * share;
+        while cumulative < target && row + 1 < n {
+            row += 1;
+            cumulative += prior(row);
+        }
+        picked.push((row, share));
+    }
+    picked
 }
 
 // ------------------------------------------------------------------ enclosures
@@ -1435,8 +1472,9 @@ pub fn evaluate_enclosures(
 
 // ------------------------------------------------------------- family tables
 
-/// Most variables one joint normal table may carry.
-pub const MAX_TABLE_VARIABLES: usize = 64;
+/// Most variables one joint normal table may carry: the covariance (`k²` cells) must fit within
+/// [`MAX_CHAIN_CELLS`].
+pub const MAX_TABLE_VARIABLES: usize = 1 << 14;
 
 /// `SplitMix64` stream, so a seed reproduces the table on every platform.
 struct SeedStream(u64);
@@ -1527,7 +1565,7 @@ pub fn shared_row_correlation(
 /// # Errors
 /// No variables or too many; a covariance of the wrong size, not finite, not
 /// symmetric or not positive semidefinite; fewer than `variables + 2` rows or
-/// more than [`MAX_CHAIN_ROWS`].
+/// whose `rows × variables` cells exceed [`MAX_CHAIN_CELLS`].
 pub fn moment_matched_normal_table(
     means: &[f64],
     covariance: &[f64],
@@ -1540,7 +1578,7 @@ pub fn moment_matched_normal_table(
             "a joint table needs one mean per variable and a k by k covariance",
         ));
     }
-    if rows > MAX_CHAIN_ROWS {
+    if rows.checked_mul(k).is_none_or(|cells| cells > MAX_CHAIN_CELLS) {
         return Err(ChainError::Budget("table rows"));
     }
     if rows < k + 2 {
@@ -1620,3 +1658,21 @@ mod tests;
 #[cfg(test)]
 #[path = "propagation_chain_table_tests.rs"]
 mod table_tests;
+
+#[cfg(test)]
+mod preposterior_study_selection_tests {
+    use super::{MAX_PREPOSTERIOR_ROWS, preposterior_studies};
+
+    #[test]
+    fn small_tables_use_every_row_and_large_ones_a_mass_preserving_subsample() {
+        let small = preposterior_studies(10, &|_| 0.1);
+        assert_eq!(small.len(), 10);
+        let n = 3 * MAX_PREPOSTERIOR_ROWS;
+        let picked = preposterior_studies(n, &|_| 1.0 / n as f64);
+        assert_eq!(picked.len(), MAX_PREPOSTERIOR_ROWS);
+        let mass: f64 = picked.iter().map(|(_, w)| w).sum();
+        assert!((mass - 1.0).abs() < 1e-12);
+        assert!(picked.windows(2).all(|pair| pair[0].0 <= pair[1].0));
+        assert!(picked.iter().all(|(row, _)| *row < n));
+    }
+}

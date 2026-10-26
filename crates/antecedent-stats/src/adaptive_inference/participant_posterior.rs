@@ -70,6 +70,8 @@
 
 use std::sync::OnceLock;
 
+use antecedent_kernels::sigmoid;
+
 use super::AdaptiveInferenceError as Error;
 use crate::special::{digamma, gauss_legendre, trigamma};
 
@@ -248,15 +250,6 @@ fn rule() -> &'static Rule {
 
 fn ln_sigmoid(u: f64) -> f64 {
     if u >= 0.0 { -(-u).exp().ln_1p() } else { u - u.exp().ln_1p() }
-}
-
-fn sigmoid(u: f64) -> f64 {
-    if u >= 0.0 {
-        1.0 / (1.0 + (-u).exp())
-    } else {
-        let e = u.exp();
-        e / (1.0 + e)
-    }
 }
 
 #[allow(
@@ -443,10 +436,16 @@ fn arm_log_density(layout: &Layout, arm: &ArmStats, table: &[Vec<f64>]) -> Vec<f
     out
 }
 
+/// `ln Σ wᵢ exp(vᵢ)` and the peak it was shifted by. When no term carries mass (every value is
+/// `-inf`, or every weight is zero) the log-sum is `-inf`, never `NaN`, so the caller's finiteness
+/// check refuses it.
 fn log_sum_exp_weighted(values: &[f64], weights: &[f64]) -> (f64, f64) {
     let peak = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    if !peak.is_finite() {
+        return (if peak.is_nan() { f64::NAN } else { peak }, peak);
+    }
     let total: f64 = values.iter().zip(weights).map(|(v, w)| w * (v - peak).exp()).sum();
-    (peak + total.ln(), peak)
+    if total > 0.0 { (peak + total.ln(), peak) } else { (f64::NEG_INFINITY, peak) }
 }
 
 // -- One evaluation of the arm integrals over a set of correlation nodes --------------------------
@@ -864,4 +863,19 @@ fn assemble(
         correlation_nodes: nodes.len(),
         arm_nodes: evaluation.layout.u.len(),
     })
+}
+
+#[cfg(test)]
+mod log_sum_exp_tests {
+    use super::log_sum_exp_weighted;
+
+    #[test]
+    fn massless_inputs_give_negative_infinity_not_nan() {
+        let (z, _) = log_sum_exp_weighted(&[f64::NEG_INFINITY, f64::NEG_INFINITY], &[1.0, 1.0]);
+        assert_eq!(z, f64::NEG_INFINITY);
+        let (z, _) = log_sum_exp_weighted(&[0.0, 1.0], &[0.0, 0.0]);
+        assert_eq!(z, f64::NEG_INFINITY);
+        let (z, peak) = log_sum_exp_weighted(&[0.0, 0.0], &[1.0, 1.0]);
+        assert!((z - 2.0_f64.ln()).abs() < 1e-15 && peak == 0.0);
+    }
 }

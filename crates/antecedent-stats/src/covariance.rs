@@ -11,7 +11,8 @@
 )]
 
 use crate::cluster::{
-    MAX_CLUSTER_DIMENSIONS, bartlett_weight, effective_nw_lag, intern_cluster_tuples,
+    MAX_CLUSTER_DIMENSIONS, MAX_MULTIWAY_WORK, bartlett_weight, effective_nw_lag,
+    intern_cluster_tuples, multiway_work,
     multiway_subset_masks, panel_hac_meat_matrix, validate_panel_hac,
 };
 use crate::error::StatsError;
@@ -509,7 +510,14 @@ fn multiway_meat(
     // Two-way: V1 + V2 − V12. General: inclusion–exclusion over non-empty subsets.
     let d = dimensions.len();
     if d == 0 || d > MAX_CLUSTER_DIMENSIONS {
-        return Err(StatsError::Shape { message: "multiway supports 1..=4 dimensions" });
+        return Err(StatsError::Shape {
+            message: "multiway supports 1..=MAX_CLUSTER_DIMENSIONS dimensions",
+        });
+    }
+    if multiway_work(d, nrows).is_none_or(|work| work > MAX_MULTIWAY_WORK) {
+        return Err(StatsError::Shape {
+            message: "multiway inclusion-exclusion work (2^d - 1) * n exceeds MAX_MULTIWAY_WORK",
+        });
     }
     let mut meat = vec![0.0; ncols * ncols];
     let mut abs_diag = vec![0.0; ncols];

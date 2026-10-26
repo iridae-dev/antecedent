@@ -184,24 +184,88 @@ pub(crate) fn weighted_pearson(
     y: &[f64],
     weights: &[f64],
 ) -> Result<Option<f64>, StatsError> {
-    let n = x.len();
-    let mismatch = StatsError::Shape { message: "weighted correlation length mismatch" };
-    let mx = weighted_mean(policy, x, weights).map_err(|_| mismatch.clone())?;
-    let my = weighted_mean(policy, y, weights).map_err(|_| mismatch)?;
-    let (Some(mx), Some(my)) = (mx, my) else {
+    let Some(fixed) = weighted_pearson_fixed_side(policy, y, weights)? else {
+        // A side with no variance has no correlation; still refuse a length mismatch.
+        let mismatch = StatsError::Shape { message: "weighted correlation length mismatch" };
+        weighted_mean(policy, x, weights).map_err(|_| mismatch)?;
         return Ok(None);
     };
-    let mut cxx = 0.0;
+    weighted_pearson_against_fixed(policy, x, y, weights, fixed)
+}
+
+/// The weighted mean and centred weighted sum of squares of one side of a correlation that a
+/// permutation null leaves fixed, so they are computed once instead of per replicate.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FixedSide {
+    mean: f64,
+    sum_squares: f64,
+}
+
+/// [`FixedSide`] of `y`; `Ok(None)` when `y` has no weighted variance (a correlation with it is
+/// undefined).
+///
+/// # Errors
+///
+/// [`StatsError::Shape`] when `y` and `weights` do not share a length.
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "kept by reference to match the shared kernel-policy plumbing"
+)]
+pub(crate) fn weighted_pearson_fixed_side(
+    policy: &KernelPolicy,
+    y: &[f64],
+    weights: &[f64],
+) -> Result<Option<FixedSide>, StatsError> {
+    let mismatch = StatsError::Shape { message: "weighted correlation length mismatch" };
+    let Some(my) = weighted_mean(policy, y, weights).map_err(|_| mismatch)? else {
+        return Ok(None);
+    };
     let mut cyy = 0.0;
+    for i in 0..y.len() {
+        let w = sanitize_weight(weights[i]);
+        let dy = y[i] - my;
+        cyy += w * dy * dy;
+    }
+    Ok((cyy > 0.0).then_some(FixedSide { mean: my, sum_squares: cyy }))
+}
+
+/// Weighted Pearson correlation of `x` against `y` whose [`FixedSide`] is already known.
+///
+/// Arithmetic is that of [`weighted_pearson`], term for term.
+///
+/// # Errors
+///
+/// [`StatsError::Shape`] when `x`, `y`, and `weights` do not share a length.
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "kept by reference to match the shared kernel-policy plumbing"
+)]
+pub(crate) fn weighted_pearson_against_fixed(
+    policy: &KernelPolicy,
+    x: &[f64],
+    y: &[f64],
+    weights: &[f64],
+    fixed: FixedSide,
+) -> Result<Option<f64>, StatsError> {
+    let n = x.len();
+    let mismatch = StatsError::Shape { message: "weighted correlation length mismatch" };
+    if y.len() != n || weights.len() != n {
+        return Err(mismatch);
+    }
+    let Some(mx) = weighted_mean(policy, x, weights).map_err(|_| mismatch)? else {
+        return Ok(None);
+    };
+    let my = fixed.mean;
+    let mut cxx = 0.0;
     let mut cxy = 0.0;
     for i in 0..n {
         let w = sanitize_weight(weights[i]);
         let dx = x[i] - mx;
         let dy = y[i] - my;
         cxx += w * dx * dx;
-        cyy += w * dy * dy;
         cxy += w * dx * dy;
     }
+    let cyy = fixed.sum_squares;
     if !(cxx > 0.0 && cyy > 0.0) {
         return Ok(None);
     }

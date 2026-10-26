@@ -328,8 +328,12 @@ pub fn kernel_two_sample_with_permutations(
     let gram = (n <= MMD_GRAM_CACHE_MAX_POOLED).then(|| pooled_rbf_gram(&pooled, bandwidth));
     // Observed and null statistics take the same route so their fp rounding agrees.
     let mut order: Vec<usize> = (0..n).collect();
-    let mmd2 = |order: &[usize], values: &[f64]| match &gram {
-        Some(k) => mmd2_from_gram(k, n, &order[..na], &order[na..]),
+    let mut labels = vec![0.0; if gram.is_some() { n } else { 0 }];
+    let mut mmd2 = |order: &[usize], values: &[f64]| match &gram {
+        Some(k) => {
+            partition_labels(&order[..na], &order[na..], &mut labels);
+            mmd2_from_labels(k, n, &labels)
+        }
         None => biased_mmd2(&values[..na], &values[na..], bandwidth),
     };
     let observed = mmd2(&order, &pooled);
@@ -456,6 +460,12 @@ const MEDIAN_HEURISTIC_EXACT_PAIR_CAP: usize = 20_000;
 /// Number of pairs drawn when the pool is too large to enumerate exactly.
 const MEDIAN_HEURISTIC_SAMPLE_SIZE: usize = 2_000;
 
+/// Uniform index in `0..n` by rejection sampling ([`antecedent_kernels::unbiased_index`]), so
+/// no residue of `2^64 mod n` is over-represented. `n` is positive at every call site.
+fn draw_index(rng: &mut CausalRng, n: usize) -> usize {
+    antecedent_kernels::unbiased_index(rng, n)
+}
+
 /// Bandwidth via the median pairwise-|diff| heuristic on the pooled sample.
 ///
 /// Computes the exact median over all `C(n, 2)` pairs when that's affordable;
@@ -464,12 +474,6 @@ const MEDIAN_HEURISTIC_SAMPLE_SIZE: usize = 2_000;
 /// `(i, j)` pair enumeration can alias with periodicity in structured / time-ordered
 /// input — exactly what `kernel_two_sample` is documented to be used on — and bias the
 /// estimated median away from the true one.
-/// Uniform-enough index in `0..n` from one 64-bit draw (modulo reduction, as before).
-fn draw_index(rng: &mut CausalRng, n: usize) -> usize {
-    let n64 = u64::try_from(n).unwrap_or(u64::MAX);
-    usize::try_from(rng.next_u64() % n64).unwrap_or(usize::MAX)
-}
-
 fn rbf_bandwidth_median_heuristic(a: &[f64], b: &[f64], rng: &mut CausalRng) -> f64 {
     let mut pooled = Vec::with_capacity(a.len() + b.len());
     pooled.extend_from_slice(a);
@@ -540,21 +544,45 @@ fn pooled_rbf_gram(pooled: &[f64], bandwidth: f64) -> Vec<f64> {
     k
 }
 
+/// Biased MMD² of a labelled partition of a precomputed pooled Gram matrix.
+///
+/// With `s_i = 1/n_a` on the first sample, `−1/n_b` on the second and `0` elsewhere, the biased
+/// MMD² is the quadratic form `sᵀ K s`, one symmetric matrix-vector product over contiguous
+/// rows (a permutation only rewrites the label vector).
+#[allow(
+    clippy::float_cmp,
+    reason = "a label is exactly zero when its point belongs to neither sample"
+)]
+fn mmd2_from_labels(k: &[f64], n: usize, labels: &[f64]) -> f64 {
+    let mut total = 0.0;
+    for (i, &label) in labels.iter().enumerate().take(n) {
+        if label == 0.0 {
+            continue;
+        }
+        let row = &k[i * n..(i + 1) * n];
+        let dot: f64 = row.iter().zip(labels).map(|(kij, sj)| kij * sj).sum();
+        total += label * dot;
+    }
+    total
+}
+
+/// Signed sample labels for the partition `ia` / `ib` of an `n`-point pool, written into `out`.
+fn partition_labels(ia: &[usize], ib: &[usize], out: &mut [f64]) {
+    out.fill(0.0);
+    let (na, nb) = (ia.len() as f64, ib.len() as f64);
+    for &i in ia {
+        out[i] = 1.0 / na;
+    }
+    for &j in ib {
+        out[j] = -1.0 / nb;
+    }
+}
+
 /// Biased MMD² for the index sets `ia` / `ib` of a precomputed pooled Gram matrix.
 fn mmd2_from_gram(k: &[f64], n: usize, ia: &[usize], ib: &[usize]) -> f64 {
-    let block_sum = |rows: &[usize], cols: &[usize]| -> f64 {
-        let mut s = 0.0;
-        for &i in rows {
-            let row = &k[i * n..(i + 1) * n];
-            for &j in cols {
-                s += row[j];
-            }
-        }
-        s
-    };
-    let (na, nb) = (ia.len() as f64, ib.len() as f64);
-    block_sum(ia, ia) / (na * na) + block_sum(ib, ib) / (nb * nb)
-        - 2.0 * block_sum(ia, ib) / (na * nb)
+    let mut labels = vec![0.0; n];
+    partition_labels(ia, ib, &mut labels);
+    mmd2_from_labels(k, n, &labels)
 }
 
 #[inline]

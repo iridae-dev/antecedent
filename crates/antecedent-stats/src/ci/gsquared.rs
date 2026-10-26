@@ -14,9 +14,8 @@
 use std::collections::HashMap;
 
 use antecedent_core::{ExecutionContext, KernelPolicy, StreamDomain};
-use antecedent_kernels::unbiased_index;
 
-use super::block_shuffle::{block_permute_contiguous, query_stream_salt};
+use super::block_shuffle::{add_one_pvalue, permutation_null_exceedances, query_stream_salt};
 use super::parcorr::PartialCorrelation;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
@@ -78,45 +77,28 @@ impl ConditionalIndependenceTest for GSquared {
                     }
                     let n_perm = replicates.max(1) as usize;
                     let strata = discrete_strata(request.columns, z, n)?;
-                    // X codes and Z strata are invariant under a Y-only
-                    // permutation; only the Y codes change per replicate. The Y codes are
-                    // permuted as exact f64 images so the block permutation can move them.
+                    // X codes and Z strata are invariant under a Y-only permutation; only the
+                    // Y codes change per replicate, and they are permuted as the integer
+                    // codes they are.
                     let xi = encode_categories(request.columns[q.x])?;
-                    let mut y_perm: Vec<f64> = encode_categories(request.columns[q.y])?
-                        .into_iter()
-                        .map(f64::from)
-                        .collect();
+                    let mut yi_perm = encode_categories(request.columns[q.y])?;
                     let mut rng = ctx.rng.stream_for(
                         StreamDomain::StatsCi,
                         0x65C0_u64 ^ query_stream_salt(&[q.x], &[q.y], z),
                     );
-                    let mut null_ge = 0u32;
-                    let mut yi_perm: Vec<i32> = vec![0; n];
-                    for _ in 0..n_perm {
-                        if block_size > 1 {
-                            block_permute_contiguous(&mut y_perm, block_size, &mut rng);
-                        } else {
-                            for rows in &strata {
-                                for i in (1..rows.len()).rev() {
-                                    let j = unbiased_index(&mut rng, i + 1);
-                                    y_perm.swap(rows[i], rows[j]);
-                                }
-                            }
-                        }
-                        #[allow(
-                            clippy::cast_possible_truncation,
-                            reason = "y_perm holds exact f64 images of i32 codes"
-                        )]
-                        for (code, value) in yi_perm.iter_mut().zip(&y_perm) {
-                            *code = *value as i32;
-                        }
-                        let (g_null, _) =
-                            g_squared_from_parts(&xi, &yi_perm, &strata, workspace, policy)?;
-                        if g_null >= g {
-                            null_ge = null_ge.saturating_add(1);
-                        }
-                    }
-                    (1.0 + f64::from(null_ge)) / (1.0 + n_perm as f64)
+                    let null_ge = permutation_null_exceedances(
+                        n_perm,
+                        &mut yi_perm,
+                        &strata,
+                        block_size,
+                        &mut rng,
+                        |permuted| {
+                            let (g_null, _) =
+                                g_squared_from_parts(&xi, permuted, &strata, workspace, policy)?;
+                            Ok::<_, StatsError>(g_null >= g)
+                        },
+                    )?;
+                    add_one_pvalue(null_ge, n_perm)
                 }
             };
             results.push(CiResult { statistic: g, p_value: p, df, ci: None });

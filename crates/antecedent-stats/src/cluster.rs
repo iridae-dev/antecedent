@@ -10,12 +10,30 @@ use std::collections::{HashMap, HashSet};
 use crate::error::StatsError;
 
 /// Maximum clustering dimensions for multiway / tuple interning.
-pub const MAX_CLUSTER_DIMENSIONS: usize = 4;
+///
+/// Cameron–Gelbach–Miller inclusion–exclusion visits the `2^d − 1` nonempty subsets of the
+/// dimensions, so the cost grows as `2^d · n`; the real bound is [`MAX_MULTIWAY_WORK`]
+/// ([`multiway_work`]), and this only keeps `1 << d` representable and the subset walk finite.
+pub const MAX_CLUSTER_DIMENSIONS: usize = 20;
 
-/// Exact cluster-label key for up to [`MAX_CLUSTER_DIMENSIONS`] selected dims.
+/// Largest `(2^d − 1) · n` tuple-interning passes one multiway meat may request.
+pub const MAX_MULTIWAY_WORK: u64 = 1 << 32;
+
+/// Row-interning work `(2^d − 1) · n` of a `d`-dimensional multiway meat over `n` rows, or `None`
+/// on overflow. A caller compares it with [`MAX_MULTIWAY_WORK`].
+#[must_use]
+pub fn multiway_work(d: usize, n: usize) -> Option<u64> {
+    let subsets = 1u64.checked_shl(u32::try_from(d).ok()?)?.checked_sub(1)?;
+    subsets.checked_mul(u64::try_from(n).ok()?)
+}
+
+/// Dimensions held inline in a cluster key; more spill to a heap slice.
+const INLINE_CLUSTER_LABELS: usize = 4;
+
+/// Exact cluster-label key for up to [`INLINE_CLUSTER_LABELS`] selected dims.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 struct ClusterTuple {
-    labels: [u32; MAX_CLUSTER_DIMENSIONS],
+    labels: [u32; INLINE_CLUSTER_LABELS],
     len: u8,
 }
 
@@ -40,7 +58,7 @@ pub fn intern_cluster_tuples(
     let d = dimensions.len();
     if d == 0 || d > MAX_CLUSTER_DIMENSIONS {
         return Err(StatsError::Shape {
-            message: "cluster tuple interning supports 1..=4 dimensions",
+            message: "cluster tuple interning supports 1..=MAX_CLUSTER_DIMENSIONS dimensions",
         });
     }
     if subset_mask == 0 || subset_mask >= (1usize << d) {
@@ -58,28 +76,49 @@ pub fn intern_cluster_tuples(
     }
 
     let mut selected = [0usize; MAX_CLUSTER_DIMENSIONS];
-    let mut k = 0u8;
+    let mut k = 0usize;
     for i in 0..d {
         if (subset_mask & (1 << i)) != 0 {
-            selected[k as usize] = i;
+            selected[k] = i;
             k += 1;
         }
     }
 
-    let mut map: HashMap<ClusterTuple, u32> = HashMap::new();
     let mut next = 0u32;
-    for r in 0..n {
-        let mut labels = [0u32; MAX_CLUSTER_DIMENSIONS];
-        for j in 0..k {
-            labels[j as usize] = dimensions[selected[j as usize]][r];
+    if k <= INLINE_CLUSTER_LABELS {
+        let mut map: HashMap<ClusterTuple, u32> = HashMap::new();
+        for r in 0..n {
+            let mut labels = [0u32; INLINE_CLUSTER_LABELS];
+            for j in 0..k {
+                labels[j] = dimensions[selected[j]][r];
+            }
+            // `k <= 4`, so the narrowing cannot truncate.
+            let key = ClusterTuple { labels, len: k as u8 };
+            let id = *map.entry(key).or_insert_with(|| {
+                let id = next;
+                next = next.saturating_add(1);
+                id
+            });
+            out_ids[r] = id;
         }
-        let key = ClusterTuple { labels, len: k };
-        let id = *map.entry(key).or_insert_with(|| {
-            let id = next;
-            next = next.saturating_add(1);
-            id
-        });
-        out_ids[r] = id;
+    } else {
+        // Wide tuples: the key is a heap slice, looked up through a reused scratch row.
+        let mut map: HashMap<Box<[u32]>, u32> = HashMap::new();
+        let mut scratch = vec![0u32; k];
+        for r in 0..n {
+            for j in 0..k {
+                scratch[j] = dimensions[selected[j]][r];
+            }
+            let id = if let Some(&id) = map.get(scratch.as_slice()) {
+                id
+            } else {
+                let id = next;
+                next = next.saturating_add(1);
+                map.insert(scratch.clone().into_boxed_slice(), id);
+                id
+            };
+            out_ids[r] = id;
+        }
     }
     Ok(usize::try_from(next).unwrap_or(usize::MAX))
 }
@@ -639,5 +678,23 @@ mod tests {
         }
         let ie_meat_perm = combine_inclusion_exclusion(&terms_perm).unwrap();
         assert!((ie_meat - ie_meat_perm).abs() < 1e-10);
+    }
+
+    #[test]
+    fn wide_tuples_are_interned_exactly_beyond_four_dimensions() {
+        let a: Vec<u32> = vec![0, 0, 1, 1, 0];
+        let b: Vec<u32> = vec![0, 1, 0, 1, 0];
+        let c: Vec<u32> = vec![0, 0, 0, 0, 0];
+        let d: Vec<u32> = vec![1, 1, 1, 1, 1];
+        let e: Vec<u32> = vec![2, 2, 2, 2, 2];
+        let dims: [&[u32]; 5] = [&a, &b, &c, &d, &e];
+        let mut ids = vec![0u32; 5];
+        let groups = intern_cluster_tuples(&dims, 0b11111, &mut ids).unwrap();
+        // Rows 0 and 4 share the tuple (0, 0, 0, 1, 2); the other three are distinct.
+        assert_eq!(groups, 4);
+        assert_eq!(ids[0], ids[4]);
+        assert_ne!(ids[1], ids[2]);
+        assert_eq!(multiway_work(5, 100), Some(31 * 100));
+        assert!(multiway_work(70, 1).is_none());
     }
 }
