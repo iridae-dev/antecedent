@@ -563,21 +563,22 @@ pub fn encode_panel_execution(
     program.validate()?;
     let identity = program.identity()?;
     encode_record(
-        &RecordRef { version: program.inner.version, identity, program: &program, point, draws },
+        &EncodingRecord { version: program.inner.version, identity, program, point, draws },
         ctx,
     )
 }
-/// Borrowed form of `Record` with the same wire layout, so encoding never copies the draws.
+/// Own the consumed program while borrowing its executed outputs. The wire
+/// layout matches `Record` without copying the retained draw law.
 #[derive(Serialize)]
-struct RecordRef<'a> {
+struct EncodingRecord<'a> {
     version: u16,
     identity: [u8; 32],
-    program: &'a PanelExecutionProgram,
+    program: PanelExecutionProgram,
     point: &'a [PanelResponse],
     draws: &'a [Option<Vec<PanelResponse>>],
 }
 fn encode_record(
-    record: &RecordRef<'_>,
+    record: &EncodingRecord<'_>,
     ctx: &ExecutionContext,
 ) -> Result<Vec<u8>, PanelArtifactError> {
     // One serialization pass: the quote is 4x the payload, so a payload larger than a
