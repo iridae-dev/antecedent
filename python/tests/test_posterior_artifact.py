@@ -38,27 +38,29 @@ def test_posterior_artifact_round_trip_opt_in():
             graph=edges,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Bayesian(n_draws=128),
-            seed=3,
+            execution=antecedent.Execution(seed=3),
             refute=False,
-            return_posterior_artifact=True,
         )
     )
     assert result.posterior is not None
-    assert result.posterior.artifact is not None
     assert result.posterior.n_draws == 128
     assert result.posterior.effect_mean is not None
 
-    art = antecedent.inference.decode_posterior_artifact(result.posterior.artifact)
+    exported = result.export(quantity="posterior")
+    art = require_success(antecedent.load(exported, expected=exported.expectation))
     assert art.n_draws == 128
     effect_idx = art.quantity_names.index("ate") if "ate" in art.quantity_names else -1
     assert abs(art.mean[effect_idx] - result.posterior.effect_mean) < 1e-12
     assert art.backend_id
-    assert len(art.draws) == art.n_draws * len(art.quantity_names)
+    draws = np.column_stack([art.quantity(name).draws for name in art.quantity_names])
+    assert draws.size == art.n_draws * len(art.quantity_names)
 
-    again = antecedent.inference.encode_posterior_artifact(art)
-    art2 = antecedent.inference.decode_posterior_artifact(again)
+    again = art.export()
+    art2 = require_success(antecedent.load(again, expected=again.expectation))
     assert art2.n_draws == art.n_draws
-    assert np.array_equal(art2.draws, art.draws)
+    for name in art.quantity_names:
+        np.testing.assert_array_equal(art2.quantity(name).draws, art.quantity(name).draws)
+    assert bytes(again) == bytes(exported)
     assert art2.mean == art.mean
     assert abs(art2.mean[effect_idx] - 2.0) < 0.5
 
@@ -81,17 +83,19 @@ def test_posterior_artifact_payload_size_vs_summaries():
             graph=edges,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Bayesian(n_draws=2000),
-            seed=5,
+            execution=antecedent.Execution(seed=5),
             refute=False,
-            return_posterior_artifact=True,
         )
     )
     assert summary.posterior.artifact is None
-    assert full.posterior.artifact is not None
-    art = antecedent.inference.decode_posterior_artifact(full.posterior.artifact)
-    assert len(art.draws) == art.n_draws * len(art.quantity_names)
-    assert len(art.draws) > 0
-    assert len(full.posterior.artifact) > len(art.mean) * 8
+    full_artifact = full.export(quantity="posterior")
+    art = require_success(antecedent.load(full_artifact))
+    draws = np.column_stack([art.quantity(name).draws for name in art.quantity_names])
+    assert draws.size == art.n_draws * len(art.quantity_names)
+    assert draws.size > 0
+    assert len(bytes(full_artifact)) > len(art.mean) * 8
+    assert full.posterior.effect_mean == summary.posterior.effect_mean
+    assert full.posterior.n_draws == summary.posterior.n_draws
 
 
 def test_posterior_artifact_draws_are_a_float64_array_matching_the_buffer_view():

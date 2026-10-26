@@ -28,12 +28,11 @@ def test_sequential_prior_from_artifact():
             query=query,
             inference=antecedent.Bayesian(n_draws=128, backend="conjugate"),
             refute=False,
-            seed=1,
-            return_posterior_artifact=True,
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert a.posterior is not None
-    artifact = bytes(a.posterior.artifact)
+    artifact = bytes(a.export(quantity="posterior"))
 
     flat_b = require_success(
         antecedent.analyze(
@@ -116,13 +115,12 @@ def test_sequential_prior_named_subset_when_design_shrinks():
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Bayesian(n_draws=48, backend="conjugate"),
             refute=False,
-            seed=3,
-            return_posterior_artifact=True,
+            execution=antecedent.Execution(seed=3),
         )
     )
     assert a.posterior is not None
-    artifact = bytes(a.posterior.artifact)
-    names = list(antecedent.inference.decode_posterior_artifact(artifact).quantity_names)
+    artifact = bytes(a.export(quantity="posterior"))
+    names = list(require_success(antecedent.load(artifact)).quantity_names)
     assert "coef_z" in names
 
     data2 = {"t": data["t"], "y": data["y"]}

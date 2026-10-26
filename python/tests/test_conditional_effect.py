@@ -39,12 +39,10 @@ def test_conditional_bayesian_consults_prior():
             query=antecedent.ConditionalEffect("t", "y", "w"),
             inference=antecedent.Bayesian(backend="conjugate", n_draws=512),
             refute=False,
-            bootstrap=0,
-            return_posterior_artifact=True,
         )
     )
     assert result.posterior is not None
-    assert result.posterior.artifact is not None
+    assert require_success(antecedent.load(result.export(quantity="posterior"))).n_draws == 512
     assert result.ate == pytest.approx(2 + 0.5 * w.mean(), abs=0.1)
     assert result.estimate.estimator_id == "conditional.bayesian"
 
@@ -61,9 +59,7 @@ def test_handle_conditional_bayesian_uses_staged_estimator():
             graph=antecedent.Dag.from_edges(["t", "y", "w"], [("t", "y"), ("w", "y")]),
             inference=antecedent.Bayesian(backend="conjugate", n_draws=512),
             refute=False,
-            seed=1,
-            bootstrap=0,
-            threads=1,
+            execution=antecedent.Execution(seed=1, threads=1),
         )
     )
     assert result.estimate.estimator_id == "conditional.bayesian"
