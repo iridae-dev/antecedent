@@ -2,6 +2,35 @@
 
 Status: incomplete. No completion percentage is asserted. Calibration and attestation are excluded; all Python API and UX requirements remain in scope.
 
+## Current acceptance view — immutable lifecycle cutover
+
+This is an implementation checkpoint, not completion of the TODO item.
+
+| Requirement | Current standing | Work that still blocks closure |
+| --- | --- | --- |
+| Public lifecycle | Root `prepare`, `analyze`, `estimate`, `rebind`, `reconfigure` use the immutable implementation; ordinary and cyclic branches have focused executing evidence. | Migrate every old caller and remove the remaining overlapping mutable/module interfaces; complete provider and identification-stage adapters and retained scientific operations. |
+| Cyclic and feedback UX | Focused suite covers system/family fit sharing, named worlds/evidence, data invalidation, common operations, resource/cancellation errors, and independent consumers. | Complete cross-family practitioner journeys, final guides/registry evidence and all public-surface reconciliation. |
+| Policy preparation | Native topology/program validation and quoting precede fitting; fit ownership is shared across compatible branches and invalidated on data change. | Full family/callback/resource integration gates, including exact copy accounting and full internal workspace coverage. |
+| Outcomes and persistence | Scientific labels bind native claims without implicit artifact export; explicit fallback retains refusal and separate association; native cyclic consumers and checked policy declarations dispatch through `load`. | Remaining ledger persistence/two-cause retention, ambiguous selections and all family read-model/lifecycle audits. |
+| Capability parity | Inventory integrity is checked and unresolved mappings stay open. | Review/map every capability to actual consumers and executing scientific assertions; counts are not parity. |
+| Documentation and migration | The README, focused 2.4→3.0 migration blocks and nonlinear feedback example execute; the feedback artifact independently replays. | Remaining family guides/examples, stubs/registries/host records and final namespace synchronization. |
+| Acceptance | Focused evidence below passes. | Full Python suite/coverage, affected Rust/API gates, examples/docs checks and identical-workload before/after measurements. |
+
+Latest source-stable native build: `/private/tmp/python-api-observer-cleanup-build.log` (23.14s, dev profile, three Cargo jobs), following `/private/tmp/python-api-lifecycle-build-v3.log` (2m08s). The first build failed to compile the policy adapter; subsequent focused failures exposed and fixed fit-counter reporting, typed resource errors, frozen-backend integration and swallowed observer exceptions. The Rust callback suite additionally exposed nondeterministic cleanup at thread-local destruction; cleanup now happens at the run boundary, with a regression deliberately retaining the scope. Those failures were not suppressed.
+
+- Fresh-extension combined rerun: **98 passed** (82 focused cyclic/policy/immutable/public-options workflows plus 16 native stub checks; `/private/tmp/python-api-lifecycle-cleanup-final.log`, matching JUnit XML).
+- Published README and migration journeys: **2 passed** (`/private/tmp/python-api-documented-lifecycle-tests.log`, matching JUnit XML). The tests execute all three migration blocks, check analytic branch effects, original-answer retention, explicit artifact identity binding, loaded-state absence and a named feedback-world mean.
+- Affected cyclic Rust workflows: **16 passed**, with the existing fixture-writing helper left ignored (`/private/tmp/python-api-cyclic-rust-tests.log`). This covers actual overlapping feedback, independent replay, historical records and seeded dynamic inference; the ignored writer is not counted as acceptance evidence.
+- Native interrupt/callback Rust unit suite: **15 passed** (`/private/tmp/python-api-observer-rust-tests-final.log`). The relocated local Python reports `/install/lib`; the harness command supplies its actual shared-library location and Python home through `LIBRARY_PATH`, `DYLD_LIBRARY_PATH` and `PYTHONHOME`. The initial harness-link and cleanup failures remain recorded in `/private/tmp/python-api-observer-rust-tests{,-v2}.log`.
+- Full mypy: **240 source files, no issues** (`/private/tmp/python-api-lifecycle-mypy-accepted.log`).
+- Nonlinear cyclic example: executed successfully with fresh-process replay (`/private/tmp/python-api-cyclic-example.log`, artifacts under `/private/tmp/cyclic-3-api-example`). Predictions remain model-conditional; calibration remains unmeasured.
+- Full package/test Ruff and formatting checks pass (`/private/tmp/python-api-lifecycle-ruff-final.log`, `/private/tmp/python-api-lifecycle-format-final.log`).
+- Public-surface snapshot: **8 failed, 22 passed** (`/private/tmp/python-api-lifecycle-public-snapshot.log`). The snapshot still imports the old mutable prepared class and must move to the canonical handle along with reviewed replacement journeys; do not just repin away missing operations. Other differences include intentional canonical-export removals and new read-model adapters.
+
+The full Python suite has **not** been rerun since the breaking root cutover. Legacy keyword and lifecycle caller migration remains required. The earlier 643-pass batch below predates that cutover and cannot establish acceptance of the new root API. All remaining Python/UX work stays in this goal; only calibration/attestation is excluded. ROADMAP.md remains untouched at its original 92 additions/584 deletions.
+
+Implementation commits: `72ee09605` (observer propagation), `be1a5ec94` (immutable public lifecycle, cyclic sharing and deferred policy fitting), `b40d8eaa9` (deterministic callback cleanup), and `fde0ca1b1` (executed README/migration guide). All use the requested DCO and have no co-author trailer. Concrete remaining engineering includes ordinary fit/cache reuse and preparation-counter audits, scenario/restricted empirical transport preparation, provider preparation, identification-stage composition and retained scientific operations, smoothed posterior execution context, ledger persistence/cause retention, and exact copy/allocation accounting. These are in-scope work, not deferred release items.
+
 ## Committed
 
 - `324b66742` — Own Python table inputs and scope reusable execution controls.
