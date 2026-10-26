@@ -23,6 +23,14 @@ use std::sync::Arc;
 use std::time::Instant;
 
 impl PreparedStudy {
+    /// Requote retained declarations and data under new execution controls without fitting.
+    ///
+    /// # Errors
+    /// Returns declaration, resource, or cancellation errors during preparation.
+    pub fn reconfigure_execution(&self, ctx: &ExecutionContext) -> Result<Self, CausalError> {
+        self.analysis.prepare_deferred_retaining(&self.plan, ctx)
+    }
+
     /// Branch onto compatible tabular observations without fitting.
     ///
     /// # Errors
@@ -80,7 +88,7 @@ impl PreparedStudy {
         analysis.data = data;
         // Identification caches are immutable, key-checked scientific products. A new
         // physical plan admits the new row count; preparation retains no old fitted law.
-        analysis.prepare_deferred(ctx)
+        analysis.prepare_deferred_retaining(&self.plan, ctx)
     }
 
     /// The retained snapshot, operation, caches, scores and invalidation log

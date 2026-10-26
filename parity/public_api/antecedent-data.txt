@@ -2066,6 +2066,7 @@ pub fn <antecedent_data::F64Buffer>::fn is_empty(&self) -> bool
 pub fn <antecedent_data::F64Buffer>::fn len(&self) -> usize
 pub fn <antecedent_data::F64Buffer>::fn nbytes(&self) -> u64
 pub fn <antecedent_data::F64Buffer>::fn owned(values: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> Self
+pub fn <antecedent_data::F64Buffer>::fn with_admission(self, lease: alloc::sync::Arc<antecedent_core::execution::AdmissionLease>) -> Self
 pub fn <antecedent_data::FixedVectorColumn>::fn is_empty(&self) -> bool
 pub fn <antecedent_data::FixedVectorColumn>::fn len(&self) -> usize
 pub fn <antecedent_data::FixedVectorColumn>::fn new(id: antecedent_core::ids::VariableId, dim: usize, values: impl core::convert::Into<alloc::sync::Arc<[f64]>>, validity: antecedent_data::ValidityBitmap) -> core::result::Result<Self, antecedent_data::DataError>

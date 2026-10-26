@@ -116,6 +116,29 @@ pub(crate) fn attach(
     install(study, plan, lowered, ctx)
 }
 
+/// Offer only the old lowered carrier to a freshly quoted plan. Lowering rebuilds
+/// its statistical and physical layers; its existing retention-key and product
+/// identity checks decide whether the proof can be reused. No old linear state,
+/// scores, physical admission, or fitted operation is transferred.
+pub(crate) fn offer_retained_identification(
+    study: &Study,
+    previous: Option<&PhysicalExecutionPlan>,
+    fresh: &mut PhysicalExecutionPlan,
+) {
+    let Some(previous) = previous else {
+        return;
+    };
+    let Some(lowered) = previous.lowered() else {
+        return;
+    };
+    let Some(retained) = lowered.retained_identification() else {
+        return;
+    };
+    if retained.key.is_some() && retained.key == retention_key(study) {
+        fresh.lowered.clone_from(&previous.lowered);
+    }
+}
+
 /// Re-lower compatible numerical options without deriving a new causal proof.
 pub(crate) fn reconfigure_retained(
     study: &Study,

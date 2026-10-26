@@ -32,6 +32,10 @@ fn data() -> TabularData {
 }
 
 fn data_rows(n: usize) -> TabularData {
+    data_rows_with_effect(n, 2.0)
+}
+
+fn data_rows_with_effect(n: usize, effect: f64) -> TabularData {
     let mut builder = CausalSchemaBuilder::new();
     for (name, hint) in [
         ("t", RoleHint::TreatmentCandidate),
@@ -58,7 +62,7 @@ fn data_rows(n: usize) -> TabularData {
         let zi = (f64::from(u32::try_from(i * 37 % 101).unwrap()) - 50.0) / 50.0;
         t.push(ti);
         z.push(zi);
-        y.push(2.0 * ti + zi + ((i * 13 % 47) as f64 - 23.0) / 100.0);
+        y.push(effect * ti + zi + ((i * 13 % 47) as f64 - 23.0) / 100.0);
     }
     let columns = [("t", t), ("y", y), ("z", z)]
         .into_iter()
@@ -800,9 +804,23 @@ fn deferred_preparation_keeps_statistical_operations_and_scores_unmaterialized()
     assert!(compiled.score_table.is_none());
     assert!(matches!(compiled.execution, PreparedExecution::EstimatorRoute(_)));
     let before = compiled.plan_view().unwrap().identity();
-    let branch = compiled.rebind_data(data.clone(), &ctx).unwrap();
+    let mut branch_ctx = ctx.clone();
+    branch_ctx.progress = Some(Arc::new(NoRefreshIdentification));
+    let branch_data = data_rows_with_effect(384, 4.0);
+    let branch = compiled.rebind_data(branch_data.clone(), &branch_ctx).unwrap();
     assert!(!branch.materialized);
     assert!(branch.score_table.is_none());
+    assert!(Arc::ptr_eq(
+        compiled.analysis.identification_cache.as_ref().unwrap(),
+        branch.analysis.identification_cache.as_ref().unwrap(),
+    ));
+    assert!(!Arc::ptr_eq(&compiled.plan, &branch.plan));
+    let branch_answer = branch.materialize(&ctx).unwrap().estimate_retained(&ctx).unwrap();
+    let mut fresh_branch = study.clone();
+    fresh_branch.data = crate::analysis::builder::DataInput::Tabular(branch_data);
+    let fresh_answer = fresh_branch.prepare(&ctx).unwrap().estimate_retained(&ctx).unwrap();
+    assert_eq!(branch_answer.effect().to_bits(), fresh_answer.effect().to_bits());
+    assert!((branch_answer.effect() - 4.0).abs() < 0.1);
     let ready = compiled.materialize(&ctx).unwrap();
     assert!(ready.materialized);
     assert!(ready.score_table.is_some());
@@ -814,6 +832,7 @@ fn deferred_preparation_keeps_statistical_operations_and_scores_unmaterialized()
     let actual = ready.estimate_retained(&ctx).unwrap();
     let expected_result = expected.estimate_retained(&ctx).unwrap();
     assert_eq!(actual.effect().to_bits(), expected_result.effect().to_bits());
+    assert!((actual.effect() - 2.0).abs() < 0.1);
     assert_eq!(ready.contract().unwrap().identities, expected.contract().unwrap().identities);
 }
 

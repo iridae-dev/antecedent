@@ -2026,12 +2026,22 @@ impl super::Study {
         goal: &crate::analysis::lowering::CompileGoal,
         ctx: &ExecutionContext,
     ) -> Result<PhysicalExecutionPlan, CausalError> {
+        self.compile_with_retained_identification(goal, ctx, None)
+    }
+
+    /// Requote every physical input while offering a compatible causal proof to lowering.
+    pub(crate) fn compile_with_retained_identification(
+        &self,
+        goal: &crate::analysis::lowering::CompileGoal,
+        ctx: &ExecutionContext,
+        previous: Option<&PhysicalExecutionPlan>,
+    ) -> Result<PhysicalExecutionPlan, CausalError> {
         crate::analysis::lowering::refuse_reentry(ctx)?;
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: "compile" });
         }
         if self.graph_posterior.is_some() {
-            return self.compile_graph_posterior(goal, ctx);
+            return self.compile_graph_posterior(goal, ctx, previous);
         }
         let input = self.route_input()?;
         let checked_linear = matches!(&input, RouteInput::StaticAteDag { query, .. }
@@ -2043,6 +2053,7 @@ impl super::Study {
             physical_context.set_memory_limit(None);
         }
         let mut plan = self.compile_with_route(&input, &physical_context)?;
+        crate::analysis::lowering::offer_retained_identification(self, previous, &mut plan);
         if let RouteInput::StaticAteDag { data, query, .. } = input {
             if crate::analysis::compiled_linear::can_retain(self, query)
                 && self.resolve_static_ids().1 == EstimatorId::LinearAdjustmentAte

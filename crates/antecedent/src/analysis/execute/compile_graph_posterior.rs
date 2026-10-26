@@ -36,8 +36,10 @@ impl super::Study {
         &self,
         goal: &crate::analysis::lowering::CompileGoal,
         ctx: &ExecutionContext,
+        previous: Option<&PhysicalExecutionPlan>,
     ) -> Result<PhysicalExecutionPlan, CausalError> {
         let mut plan = self.compile_graph_posterior_record(ctx)?;
+        crate::analysis::lowering::offer_retained_identification(self, previous, &mut plan);
         crate::analysis::lowering::attach_graph_posterior(self, &mut plan, goal, ctx)?;
         Ok(plan)
     }

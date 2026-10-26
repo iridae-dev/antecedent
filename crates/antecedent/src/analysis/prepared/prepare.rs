@@ -75,7 +75,7 @@ impl Study {
     pub fn prepare(&self, ctx: &ExecutionContext) -> Result<PreparedStudy, CausalError> {
         antecedent_estimate::prepare::with_preparation_budget(
             crate::planner::PhysicalExecutionPlan::preparation_budget(ctx),
-            || self.prepare_metered(ctx, true),
+            || self.prepare_metered(ctx, true, None),
         )
     }
 
@@ -86,7 +86,20 @@ impl Study {
     pub fn prepare_deferred(&self, ctx: &ExecutionContext) -> Result<PreparedStudy, CausalError> {
         antecedent_estimate::prepare::with_preparation_budget(
             PhysicalExecutionPlan::preparation_budget(ctx),
-            || self.prepare_metered(ctx, false),
+            || self.prepare_metered(ctx, false, None),
+        )
+    }
+
+    /// A pure prepared branch may offer its immutable proof, while all physical
+    /// quotes and statistical declarations are rebuilt under the caller's context.
+    pub(super) fn prepare_deferred_retaining(
+        &self,
+        previous: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedStudy, CausalError> {
+        antecedent_estimate::prepare::with_preparation_budget(
+            PhysicalExecutionPlan::preparation_budget(ctx),
+            || self.prepare_metered(ctx, false, Some(previous)),
         )
     }
 
@@ -95,6 +108,7 @@ impl Study {
         &self,
         ctx: &ExecutionContext,
         materialized: bool,
+        previous: Option<&PhysicalExecutionPlan>,
     ) -> Result<PreparedStudy, CausalError> {
         // A functional query under cheap or full validation is prepared as the same query at
         // validation none: its program is the one every refit re-executes, and the handle keeps
@@ -102,12 +116,16 @@ impl Study {
         if crate::analysis::functional_validation::requested(self) {
             let mut base = self.clone();
             base.refute = crate::analysis::builder::RefuteSuite::None;
-            let mut handle = base.prepare_metered(ctx, materialized)?;
+            let mut handle = base.prepare_metered(ctx, materialized, previous)?;
             handle.analysis.refute = self.refute;
             return Ok(handle);
         }
         ensure_prepared_supported(self)?;
-        let plan = Arc::new(self.compile(ctx)?);
+        let plan = Arc::new(self.compile_with_retained_identification(
+            &crate::analysis::lowering::CompileGoal::Estimate,
+            ctx,
+            previous,
+        )?);
         let posterior_programs = crate::analysis::contract::graph_posterior_programs(
             self,
             plan.logical.record.estimator.as_deref(),
