@@ -1541,13 +1541,13 @@ mod tests {
         .unwrap();
         assert_eq!(exhausted.status(), &ZTransportFailureStatus::ExhaustedComputation);
         assert_eq!(exhausted.obligations()[0].as_ref(), "z_transport.exhausted_computation");
-        let mut oversized = query;
-        oversized.controllable = (0..4).map(VariableId::from_raw).collect::<Vec<_>>().into();
-        oversized.controllable =
-            [0, 1, 2, 3, 0].iter().map(|raw| VariableId::from_raw(*raw)).collect::<Vec<_>>().into();
+        // The query has no controllable variable to experiment on: the family of experiments
+        // the formula needs is empty, which no catalog can supply.
+        let mut uncontrollable = query;
+        uncontrollable.controllable = Arc::<[VariableId]>::from([]);
         let unsupported = snapshot_z_transport_failure(
             &diagram,
-            &oversized,
+            &uncontrollable,
             &catalog,
             SidLimits::default(),
             &ctx(),

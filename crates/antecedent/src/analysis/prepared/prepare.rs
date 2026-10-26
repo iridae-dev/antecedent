@@ -764,7 +764,7 @@ impl Study {
                 witness.policy = temporal.policy.clone();
                 witness.max_history_lag = temporal.max_history_lag;
             }
-            let cache = build_temporal_class_posterior_identification_cache(
+            let mut cache = build_temporal_class_posterior_identification_cache(
                 posterior,
                 variables,
                 &witness,
@@ -772,12 +772,10 @@ impl Study {
                 ctx,
             )?;
             if let Some(atom) = cache.class_atoms.first() {
-                caches.push(IdentificationCache::TemporalClass(Arc::new(
-                    CachedTemporalClassIdentification {
-                        envelope: atom.envelope.clone(),
-                        by_horizon: vec![(horizon, atom.envelope.clone())],
-                    },
-                )));
+                cache.first_atom_class = Some(Arc::new(CachedTemporalClassIdentification {
+                    envelope: atom.envelope.clone(),
+                    by_horizon: vec![(horizon, atom.envelope.clone())],
+                }));
             }
             caches.push(IdentificationCache::TemporalClassPosterior(Arc::new(cache)));
         } else {

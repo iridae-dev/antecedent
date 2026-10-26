@@ -111,7 +111,7 @@ fn nonzero_synthetic_did_sharp_null_carries_tested_effect() {
 }
 
 #[test]
-fn exact_synthetic_did_assignment_refuses_more_than_32_candidate_units() {
+fn exact_synthetic_did_assignment_enumerates_every_candidate_unit_beyond_thirty_two() {
     let mut units = Vec::new();
     let mut periods = Vec::new();
     let mut outcomes = Vec::new();
@@ -126,11 +126,19 @@ fn exact_synthetic_did_assignment_refuses_more_than_32_candidate_units() {
     let query = SyntheticControlQuery::new(VariableId::from_raw(0), units, periods, "unit-0", 4)
         .difference_in_differences()
         .with_uniform_unit_randomization();
-    let error = Study::tabular(data)
+    // The exact assignment test enumerates one assignment per candidate unit, so the number of
+    // candidates is not capped: 33 units give 33 statistics and a p-value on the 1/33 grid.
+    let result = Study::tabular(data)
         .query(query)
         .build()
         .unwrap()
         .run(&ExecutionContext::for_tests(31))
-        .unwrap_err();
-    assert!(error.to_string().contains("at most 32 candidate units"));
+        .unwrap();
+    let fit = result.synthetic_did().unwrap();
+    assert_eq!(fit.randomization_statistics.len(), 33);
+    let observed =
+        fit.randomization_statistics.iter().find(|(unit, _)| unit.as_ref() == "unit-0").unwrap().1;
+    let extreme =
+        fit.randomization_statistics.iter().filter(|(_, statistic)| *statistic >= observed).count();
+    assert_eq!(fit.randomization_p_value, Some(extreme as f64 / 33.0));
 }

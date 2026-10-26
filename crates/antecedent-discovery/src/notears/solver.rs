@@ -435,6 +435,10 @@ fn lbfgs_minimize_al(
             for t in 0..n_free {
                 ws.free[t] = ws.free_prev[t] + step * ws.dir[t];
             }
+            // A trial step that overflows the objective or its gradient is a step that is too
+            // long, not a failed solve: the penalty's exponential term is finite only near the
+            // acyclic set, so the search backtracks. The restore below re-evaluates a point the
+            // search has already accepted, where an error is a real failure.
             match al_value_and_grad(x, n, d, cfg.lambda, alpha, rho, ws) {
                 Ok(f_new) => {
                     if f_new <= f + 1e-4 * step * gtd {
@@ -457,7 +461,7 @@ fn lbfgs_minimize_al(
                         break;
                     }
                 }
-                Err(e) => return Err(e.into()),
+                Err(_) => {}
             }
             step *= 0.5;
         }

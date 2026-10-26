@@ -702,7 +702,8 @@ fn an_expression_edit_is_refused_resealed_or_not_and_its_terms_are_part_of_the_i
     assert_eq!(edited.consume(None, &ctx()), Err(PropagationChainError::ResultMismatch));
     // More terms than the format admits are refused before anything is read.
     let mut long = record.clone();
-    long.stages[0].op = ChainOpWire::expression(vec![ChainExprTermWire::input(0); 65]);
+    let too_many = antecedent_stats::MAX_EXPRESSION_TERMS + 1;
+    long.stages[0].op = ChainOpWire::expression(vec![ChainExprTermWire::input(0); too_many]);
     assert_eq!(long.plan(), Err(PropagationChainError::LimitsExceeded("expression terms")));
 }
 

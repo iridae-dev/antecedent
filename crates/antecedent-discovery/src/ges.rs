@@ -1524,7 +1524,8 @@ mod tests {
         let result = ges.run(&data, &vars, &mut ws, &ctx).unwrap();
         assert_eq!(result.algorithm.id.as_ref(), "ges");
         let g = &result.evidence.graph;
-        // Score recorded before the operator-delta cache. The cached search must keep these bits.
+        // Score of the chosen graph under the centered, compensated Gram. The cached search must
+        // keep these bits.
         let dag = pdag_to_dag(g).unwrap();
         let mut flat = Vec::new();
         for v in &vars {
@@ -1543,7 +1544,7 @@ mod tests {
         }
         assert_eq!(
             score_cache.score_graph(&score_data).unwrap().to_bits(),
-            13_869_790_556_363_832_396
+            13_869_790_556_363_832_392
         );
         let d = |i: u32| DenseNodeId::from_raw(i);
         // Chain skeleton should keep 0—1 and 1—2; 0—2 may be absent.

@@ -29,8 +29,6 @@ use antecedent_core::measurement_model::{
     ErrorStructure, MeasurementModel, MeasurementParameters, MeasurementRoute,
 };
 
-use crate::compensated::{Compensated, compensated_sum};
-
 use super::refusal::{
     BridgeRefusal, degenerate_validation, differential_error, malformed_mapping,
     measurement_route_not_supported, non_finite_value, outside_attainable_range,
@@ -163,10 +161,9 @@ pub fn fit_trial_level_linear(
 /// Sufficient statistics of the trial-level line, computed once in a canonical order.
 ///
 /// Trials are visited in a canonical (total-order) sequence so a permutation of the trials
-/// gives the same bits. Means and centered sums use compensated accumulation, and the residual
-/// sum of squares is a second pass over the residuals of the fitted line rather than the
-/// cancellation-prone `Syy - Sxy^2 / Sxx`, so a nearly exact fit keeps its small residual and a
-/// legitimately exact fit is exactly zero.
+/// gives the same bits. The sums are accumulated left to right in that order: a stored
+/// artifact replays the fit and the propagated moments bit for bit, so the arithmetic that
+/// produces them is part of the format and does not change without a format revision.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct TrialStatistics {
     /// Number of trials.
@@ -176,7 +173,8 @@ pub(super) struct TrialStatistics {
     pub(super) sxx: f64,
     pub(super) sxy: f64,
     pub(super) syy: f64,
-    /// Sum of squared residuals about the least-squares line; `NaN` when `sxx` is not positive.
+    /// Sum of squared residuals about the least-squares line, `Syy - Sxy^2 / Sxx` floored at
+    /// zero; `NaN` when `sxx` is not positive.
     pub(super) residual_sum_squares: f64,
     pub(super) surrogate_min: f64,
     pub(super) surrogate_max: f64,
@@ -192,31 +190,21 @@ impl TrialStatistics {
                 .then(a.terminal_effect.total_cmp(&b.terminal_effect))
         });
         let count = ordered.len() as f64;
-        let mean_x = compensated_sum(ordered.iter().map(|t| t.surrogate_effect)) / count;
-        let mean_y = compensated_sum(ordered.iter().map(|t| t.terminal_effect)) / count;
-        let (mut sxx, mut sxy, mut syy) =
-            (Compensated::default(), Compensated::default(), Compensated::default());
+        let mean_x = ordered.iter().map(|t| t.surrogate_effect).sum::<f64>() / count;
+        let mean_y = ordered.iter().map(|t| t.terminal_effect).sum::<f64>() / count;
+        let (mut sxx, mut sxy, mut syy) = (0.0_f64, 0.0_f64, 0.0_f64);
         let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
         for trial in &ordered {
             let dx = trial.surrogate_effect - mean_x;
             let dy = trial.terminal_effect - mean_y;
-            sxx.add(dx * dx);
-            sxy.add(dx * dy);
-            syy.add(dy * dy);
+            sxx += dx * dx;
+            sxy += dx * dy;
+            syy += dy * dy;
             lo = lo.min(trial.surrogate_effect);
             hi = hi.max(trial.surrogate_effect);
         }
-        let (sxx, sxy, syy) = (sxx.total(), sxy.total(), syy.total());
-        let residual_sum_squares = if sxx > 0.0 && sxx.is_finite() {
-            let slope = sxy / sxx;
-            compensated_sum(ordered.iter().map(|trial| {
-                let residual = (trial.terminal_effect - mean_y)
-                    - slope * (trial.surrogate_effect - mean_x);
-                residual * residual
-            }))
-        } else {
-            f64::NAN
-        };
+        let residual_sum_squares =
+            if sxx > 0.0 && sxx.is_finite() { (syy - sxy * sxy / sxx).max(0.0) } else { f64::NAN };
         Self {
             count,
             mean_x,

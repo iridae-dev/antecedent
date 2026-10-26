@@ -446,7 +446,14 @@ mod tests {
         }
         let alias = ArrowCColumn::from_arrow_array("x", &Float64Array::from(vec![9.0])).unwrap();
         let refused = frozen.bind_foreign_alias(alias).unwrap_err();
-        assert!(refused.to_string().contains("refuses a mutable foreign alias"));
+        assert!(
+            matches!(
+                &refused,
+                crate::error::DataError::Unsupported { operation, .. }
+                    if *operation == "freezing a mutable foreign alias"
+            ),
+            "{refused:?}"
+        );
         match frozen.data().column(antecedent_core::VariableId::from_raw(0)).unwrap() {
             ColumnView::Float64(column) => {
                 assert_eq!(column.values.as_slice()[0].to_bits(), 1.0_f64.to_bits());

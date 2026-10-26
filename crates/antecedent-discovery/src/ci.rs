@@ -120,6 +120,42 @@ pub(crate) fn single_finite_or_untestable(
     }
 }
 
+/// [`run_ci_batch`] where a query the test cannot answer ([`is_untestable`]) is `None`.
+///
+/// One unanswerable query fails its whole batch, so on that failure each query is run by
+/// itself and only the unanswerable ones are `None`. The results are what the batch would
+/// have returned, because a query's result never depends on its batch.
+///
+/// # Errors
+///
+/// Every failure other than an untestable query, or a non-finite statistic or p-value.
+pub(crate) fn run_ci_batch_or_untestable(
+    ci: &(dyn ConditionalIndependence + Sync),
+    prepared: &PreparedCiTest,
+    request: &CiBatchRequest<'_>,
+    workspace: &mut CiWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<Vec<Option<(f64, f64)>>, DiscoveryError> {
+    match run_ci_batch(ci, prepared, request, workspace, ctx) {
+        Ok(results) => results.iter().map(|result| finite_outcome(result).map(Some)).collect(),
+        Err(error) => {
+            let error = DiscoveryError::from(error);
+            if !is_untestable(&error) {
+                return Err(error);
+            }
+            (0..request.queries.len())
+                .map(|index| {
+                    let one = CiBatchRequest {
+                        queries: &request.queries[index..=index],
+                        ..request.clone()
+                    };
+                    single_finite_or_untestable(ci, prepared, &one, workspace, ctx)
+                })
+                .collect()
+        }
+    }
+}
+
 /// Sizes of the successive chunks of a scan that stops at its first hit.
 ///
 /// A serial context evaluates one test at a time, exactly as an unbatched loop would. A

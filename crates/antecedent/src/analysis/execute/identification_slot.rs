@@ -53,8 +53,6 @@ slot_accessors! {
         "The prepared CPDAG envelope, when that is the installed product.";
     Temporal, temporal_cache, CachedTemporalIdentification,
         "The prepared temporal identification by horizon, when that is the installed product.";
-    TemporalClass, temporal_class_cache, CachedTemporalClassIdentification,
-        "The prepared temporal class envelope, when that is the installed product.";
     Transport, transport_cache, antecedent_identify::TransportIdentification,
         "The prepared transport formula, when that is the installed product.";
     GraphPosterior, graph_posterior_cache, CachedGraphPosteriorIdentification,
@@ -64,6 +62,25 @@ slot_accessors! {
     TemporalClassPosterior, temporal_class_posterior_cache,
         CachedTemporalClassPosteriorIdentification,
         "The prepared per-atom temporal class-posterior envelopes, when installed.";
+}
+
+impl IdentificationCache {
+    /// The prepared temporal class envelope: the installed class product, or the first-atom
+    /// envelope a class graph-posterior response carries for the single-graph readers.
+    pub(crate) fn temporal_class_cache(&self) -> Option<&Arc<CachedTemporalClassIdentification>> {
+        match self {
+            Self::TemporalClass(cache) => Some(cache),
+            Self::TemporalClassPosterior(cache) => cache.first_atom_class.as_ref(),
+            _ => None,
+        }
+    }
+}
+
+impl Study {
+    /// The prepared temporal class envelope, when the installed product states one.
+    pub(crate) fn temporal_class_cache(&self) -> Option<&Arc<CachedTemporalClassIdentification>> {
+        self.identification.as_ref().and_then(IdentificationCache::temporal_class_cache)
+    }
 }
 
 impl IdentificationCache {

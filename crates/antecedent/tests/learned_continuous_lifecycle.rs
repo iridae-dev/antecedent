@@ -773,7 +773,8 @@ fn a_mutated_artifact_fails_independent_consumption_with_a_typed_error() {
     assert_eq!(refused(&forged_folds), Refusal::FoldMismatch);
     let forged_threshold = mutate(&original, |w| w.options.min_membership_probability = 0.49, true);
     assert_eq!(refused(&forged_threshold), Refusal::OverlapRefused);
-    let forged_bound = mutate(&original, |w| w.options.folds = 21, true);
+    // Fold ids are `u16`: one more fold than they can name is outside the format.
+    let forged_bound = mutate(&original, |w| w.options.folds = usize::from(u16::MAX) + 2, true);
     assert!(matches!(refused(&forged_bound), Refusal::LimitsExceeded(_)));
     let forged_certificate = mutate(&original, |w| w.certificate.rule = "forged".into(), true);
     assert!(matches!(refused(&forged_certificate), Refusal::ProofMismatch(_)));

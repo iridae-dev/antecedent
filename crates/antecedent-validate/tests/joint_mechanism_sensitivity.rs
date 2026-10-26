@@ -30,6 +30,10 @@ use antecedent_identify::{
     BoundZTransportFunctional, SidLimits, ZTransportQuery, ZTransportResult,
     bind_z_transport_catalog, identify_z_transport,
 };
+use antecedent_validate::joint_mechanism_sensitivity::{
+    JOINT_SENSITIVITY_MAX_FRONTIER_POINTS, JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES,
+    JOINT_SENSITIVITY_MAX_PARENT_LEVELS,
+};
 use antecedent_validate::{
     JointDeviationSpec, JointFactor, JointFactorBound, JointMechanismSensitivityResult,
     JointSensitivityError, JointSensitivityLimits, TippingStatus, ZTransportSensitivityError,
@@ -823,8 +827,9 @@ fn declared_bounds_admit_the_cap_and_refuse_one_more() {
         run(&model, &declared)
     };
     let exceeded = ("route_not_supported", "joint_sensitivity.bounds_exceeded");
-    assert_eq!(bounded(&|s| s.frontier_points = 33).unwrap().frontier.len(), 33);
-    assert_eq!(refusal(bounded(&|s| s.frontier_points = 34)), exceeded);
+    let widest = JOINT_SENSITIVITY_MAX_FRONTIER_POINTS;
+    assert_eq!(bounded(&|s| s.frontier_points = widest).unwrap().frontier.len(), widest);
+    assert_eq!(refusal(bounded(&|s| s.frontier_points = widest + 1)), exceeded);
     assert_eq!(refusal(bounded(&|s| s.frontier_points = 0)), exceeded);
     bounded(&|s| s.limits.operations = 100_000).unwrap();
     assert_eq!(refusal(bounded(&|s| s.limits.operations = 100_001)), exceeded);
@@ -835,12 +840,14 @@ fn declared_bounds_admit_the_cap_and_refuse_one_more() {
     bounded(&|s| s.limits.memory_bytes = 512 << 20).unwrap();
     assert_eq!(refusal(bounded(&|s| s.limits.memory_bytes = (512 << 20) + 1)), exceeded);
     assert_eq!(refusal(bounded(&|s| s.limits.memory_bytes = u64::MAX)), exceeded);
-    // 64 parent levels and 32 outcome categories are admitted; one more refuses.
+    // The sanity bounds on parent levels and outcome categories are admitted; one more refuses.
+    let (levels, categories) =
+        (JOINT_SENSITIVITY_MAX_PARENT_LEVELS, JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES);
     let mut rng = Rng::new(3);
-    run(&rng.model(64, 2), &spec(Some(0.1), Some(0.1))).unwrap();
-    assert_eq!(refusal(run(&rng.model(65, 2), &spec(Some(0.1), Some(0.1)))), exceeded);
-    run(&rng.model(1, 32), &spec(Some(0.1), Some(0.1))).unwrap();
-    assert_eq!(refusal(run(&rng.model(1, 33), &spec(Some(0.1), Some(0.1)))), exceeded);
+    run(&rng.model(levels, 2), &spec(Some(0.1), Some(0.1))).unwrap();
+    assert_eq!(refusal(run(&rng.model(levels + 1, 2), &spec(Some(0.1), Some(0.1)))), exceeded);
+    run(&rng.model(1, categories), &spec(Some(0.1), Some(0.1))).unwrap();
+    assert_eq!(refusal(run(&rng.model(1, categories + 1), &spec(Some(0.1), Some(0.1)))), exceeded);
 }
 
 #[test]
@@ -858,9 +865,12 @@ fn law_bounds_refuse_before_the_charged_read_of_the_law() {
         }
         other => panic!("expected the read to be charged, got {other:?}"),
     }
-    // ... while a 65-level (or 33-category) law refuses on its shape, before any
+    // ... while a law past the level (or category) bound refuses on its shape, before any
     // cell is read or charged.
-    for model in [rng.model(65, 2), rng.model(2, 33)] {
+    for model in [
+        rng.model(JOINT_SENSITIVITY_MAX_PARENT_LEVELS + 1, 2),
+        rng.model(2, JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES + 1),
+    ] {
         assert_eq!(
             refusal(run(&model, &one)),
             ("route_not_supported", "joint_sensitivity.bounds_exceeded")
@@ -871,7 +881,12 @@ fn law_bounds_refuse_before_the_charged_read_of_the_law() {
     let ctx = ExecutionContext::for_tests(1);
     ctx.cancellation.cancel();
     assert_eq!(
-        refusal(run_ctx(&rng.model(65, 2), &spec(Some(0.1), None), &ctx)).1,
+        refusal(run_ctx(
+            &rng.model(JOINT_SENSITIVITY_MAX_PARENT_LEVELS + 1, 2),
+            &spec(Some(0.1), None),
+            &ctx
+        ))
+        .1,
         "joint_sensitivity.budget"
     );
 }

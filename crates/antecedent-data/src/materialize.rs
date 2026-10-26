@@ -1210,8 +1210,11 @@ mod tests {
             &[],
             controls,
         );
-        let message = refused.expect_err("zero budget").to_string();
-        assert!(message.contains("exceeds budget 0"), "{message}");
+        let error = refused.expect_err("zero budget");
+        assert!(
+            matches!(error, DataError::BudgetRefused { budget: Some(0), bytes, .. } if bytes > 0),
+            "{error:?}"
+        );
     }
 
     #[test]
@@ -1249,9 +1252,9 @@ mod tests {
         let required = deliver_stream(&quote, PreparationBudget::new(32), controls).unwrap();
         assert!(matches!(required, StreamDelivery::MaterializeRequired { bytes: 32 }));
         let absent = StreamQuote { materialize_bytes: None, ..quote };
-        let message = deliver_stream(&absent, PreparationBudget::new(32), controls)
-            .expect_err("absent estimate")
-            .to_string();
-        assert!(message.contains("estimate is absent"), "{message}");
+        let error = deliver_stream(&absent, PreparationBudget::new(32), controls)
+            .expect_err("absent estimate");
+        assert!(matches!(error, DataError::InvalidValue { .. }), "{error:?}");
+        assert!(error.to_string().contains("absent estimate is not zero"), "{error}");
     }
 }

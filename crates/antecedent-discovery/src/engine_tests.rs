@@ -566,7 +566,10 @@ fn a_forty_column_conditioning_set_matches_an_independent_partial_correlation() 
     let cond: Vec<(VariableId, Lag)> = (0..conditioning)
         .map(|j| (VariableId::from_raw(u32::try_from(2 + j).unwrap()), Lag::CONTEMPORANEOUS))
         .collect();
-    let (statistic, p_value) = engine.ci_statistic(&frame, link, &cond, &mut ws, &ctx).unwrap();
+    let (statistic, p_value) = engine
+        .ci_statistic(&frame, link, &cond, &mut ws, &ctx)
+        .unwrap()
+        .expect("the 40-column conditioning set is testable");
 
     let column = |v: VariableId| frame.column(frame.column_index(v, Lag::CONTEMPORANEOUS).unwrap());
     let given: Vec<&[f64]> = cond.iter().map(|&(v, _)| column(v)).collect();

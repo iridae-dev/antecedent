@@ -211,16 +211,25 @@ fn mediation_quadrature_error_check_reports_and_refuses() {
     assert!((fine.natural_direct - nde).abs() < 1e-8);
     assert!((fine.natural_indirect - nie).abs() < 1e-8);
     assert!((fine.total - te).abs() < 1e-8);
-    // 1 node is the plug-in mean (drops the 3*mu*sigma2 term); 2 nodes are exact for a cubic,
-    // so the n versus 2n disagreement is sigma2-sized and is refused at the 1e-6 tolerance.
-    let msg = refusal_message(run(&g, &ignorable, &cubic(1)));
-    assert!(msg.contains("nonlinear_mediation.integration_error"), "{msg}");
-    // With a loose tolerance the estimate is returned at 2 nodes with the error reported,
-    // and it still equals the closed form because 2 nodes are exact for degree 3.
-    let loose = NonlinearMediationConfig { integration_tolerance: 10.0, ..cubic(1) };
-    let est = run(&g, &ignorable, &loose).expect("loose");
-    assert!(est.integration_error > 1e-3, "error {}", est.integration_error);
-    assert!((est.natural_indirect - nie).abs() < 1e-8);
+    // A declared node count below what the outcome degree needs is raised to the least count
+    // that integrates the degree exactly, so one declared node still returns the closed form
+    // (a single node would be the plug-in mean and drop the 3*mu*sigma2 term).
+    let raised = run(&g, &ignorable, &cubic(1)).expect("raised");
+    assert!(raised.quadrature_nodes > 1, "nodes {}", raised.quadrature_nodes);
+    assert!(raised.integration_error < 1e-10, "error {}", raised.integration_error);
+    assert!((raised.natural_indirect - nie).abs() < 1e-8);
+    assert!((raised.natural_direct - nde).abs() < 1e-8);
+    // The check itself still compares the n and 2n node effects: a tolerance below their
+    // rounding-level disagreement refuses, and one at or above it returns the estimate with
+    // the error reported.
+    let strict = NonlinearMediationConfig { integration_tolerance: f64::MIN_POSITIVE, ..cubic(1) };
+    match run(&g, &ignorable, &strict) {
+        Err(_) => assert!(
+            refusal_message(run(&g, &ignorable, &strict))
+                .contains("nonlinear_mediation.integration_error")
+        ),
+        Ok(est) => assert!(est.integration_error <= f64::MIN_POSITIVE),
+    }
 }
 
 #[test]

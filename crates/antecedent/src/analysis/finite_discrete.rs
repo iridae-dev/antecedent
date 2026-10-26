@@ -940,9 +940,9 @@ fn plan_world(
         data.clone(),
         ctx,
     )
-    .map_err(crate::CausalError::from)?;
+    .map_err(|err| exact_failure(err, ctx))?;
     *compilations += 1;
-    let distribution = plan.evaluate(ctx).map_err(crate::CausalError::from)?;
+    let distribution = plan.evaluate(ctx).map_err(|err| exact_failure(err, ctx))?;
     if distribution.probabilities.len() != 2 || distribution.atoms.len() != 2 {
         return Err(compile("outcome enumeration was not the binary domain"));
     }
@@ -950,6 +950,16 @@ fn plan_world(
     let levels = [outcome_level(&distribution.atoms[0])?, outcome_level(&distribution.atoms[1])?];
     let probabilities = [distribution.probabilities[0], distribution.probabilities[1]];
     Ok(AtomLaw { mean, probabilities, levels })
+}
+
+/// An exact plan's refusal, or the cancellation that stopped it: a plan that observes a
+/// cancelled context reports a provider fault, which the caller must see as cancellation.
+fn exact_failure(error: antecedent_expr::EvalError, ctx: &ExecutionContext) -> crate::CausalError {
+    if ctx.cancellation.is_cancelled() {
+        cancelled()
+    } else {
+        crate::CausalError::from(error)
+    }
 }
 
 fn outcome_level(atom: &Arc<[Value]>) -> Result<i64, crate::CausalError> {

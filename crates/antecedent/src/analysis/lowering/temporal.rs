@@ -784,10 +784,7 @@ fn temporal_cache(layer: &IdentificationLayer) -> Option<&CachedTemporalIdentifi
 }
 
 fn class_cache(layer: &IdentificationLayer) -> Option<&CachedTemporalClassIdentification> {
-    caches(layer).iter().find_map(|cache| match cache {
-        IdentificationCache::TemporalClass(cache) => Some(&**cache),
-        _ => None,
-    })
+    caches(layer).iter().find_map(|cache| cache.temporal_class_cache().map(|cache| &**cache))
 }
 
 /// Deepest history any completion unfolded, over the effect envelope and, when

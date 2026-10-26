@@ -885,9 +885,25 @@ mod tests {
 
     #[test]
     fn the_plug_in_variance_floor_scales_with_the_response() {
+        // The exact-fit boundary is a fixed fraction of var(y), so it moves with the response's
+        // units: the same relative residual is accepted or refused at every scale.
         let y: Vec<f64> = (0..10).map(|i| 1e6 * f64::from(i)).collect();
-        let floor = plug_in_variance(0.0, 7, &y).unwrap();
         let small: Vec<f64> = y.iter().map(|v| v * 1e-12).collect();
-        assert!((floor / plug_in_variance(0.0, 7, &small).unwrap() - 1e24).abs() / 1e24 < 1e-9);
+        let variance = |y: &[f64]| {
+            let centre = mean(y);
+            y.iter().map(|v| (v - centre).powi(2)).sum::<f64>() / (y.len() - 1) as f64
+        };
+        for column in [&y, &small] {
+            let scale = variance(column);
+            let above = 2.0 * VARIANCE_FLOOR_FRACTION * scale * 7.0;
+            let below = 0.5 * VARIANCE_FLOOR_FRACTION * scale * 7.0;
+            let accepted = plug_in_variance(above, 7, column).unwrap();
+            assert!((accepted / (2.0 * VARIANCE_FLOOR_FRACTION * scale) - 1.0).abs() < 1e-12);
+            assert!(matches!(
+                plug_in_variance(below, 7, column),
+                Err(EstimationError::Stats(antecedent_stats::StatsError::NonPositiveVariance { .. }))
+            ));
+            assert!(plug_in_variance(0.0, 7, column).is_err());
+        }
     }
 }

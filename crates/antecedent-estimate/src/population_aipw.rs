@@ -84,11 +84,15 @@ pub(crate) fn point_coefficients(
                 return Err(EstimationError::data_msg("insufficient linear AIPW training arm"));
             }
             let m = rows.len();
+            let unscaled: Vec<f64> =
+                (0..p).flat_map(|c| rows.iter().map(move |&i| x[c * n + i])).collect();
             let design: Vec<f64> = (0..p)
                 .flat_map(|c| rows.iter().map(move |&i| x[c * n + i] * weights[i].sqrt()))
                 .collect();
-            // Use the actual learner's penalty/intercept rule after prior-weight scaling.
-            let inverse = antecedent_stats::ridge_gram_inverse(&design, m, p, ridge)
+            // The learner judges the intercept on the design before prior-weight scaling (the
+            // scaling would make a ones column non-constant) and then penalizes the rest.
+            let intercept = antecedent_stats::RidgeIntercept::sniff(&unscaled, m, p);
+            let inverse = antecedent_stats::ridge_gram_inverse_with(&design, m, p, ridge, intercept)
                 .map_err(crate::error::EstimationError::from)?
                 .ok_or_else(|| EstimationError::stats_msg("singular AIPW training design"))?;
             let mut load = vec![0.0; p];
@@ -319,13 +323,18 @@ mod tests {
                             .iter()
                             .map(|&i| if i == basis { w[i].sqrt() } else { 0.0 })
                             .collect();
+                        // The learner's rule: the intercept is judged before weight scaling.
+                        let columns = &x;
+                        let unscaled: Vec<f64> = (0..p)
+                            .flat_map(|c| rows.iter().map(move |&i| columns[c * n + i]))
+                            .collect();
                         let fit = antecedent_stats::fit_ridge_with(
                             &design,
                             m,
                             p,
                             &y,
                             ridge,
-                            antecedent_stats::RidgeIntercept::sniff(&design, m, p),
+                            antecedent_stats::RidgeIntercept::sniff(&unscaled, m, p),
                         )
                         .unwrap();
                         for i in (0..n).filter(|&i| folds[i] == fold) {

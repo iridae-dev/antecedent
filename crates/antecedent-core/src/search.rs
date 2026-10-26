@@ -190,6 +190,33 @@ impl<'a> SearchBudget<'a> {
         Ok(())
     }
 
+    /// Whether `work` further operations at `depth` over `bytes` of live state would be admitted,
+    /// without recording them: neither the operation count nor the depth reached moves.
+    ///
+    /// A search whose accounting is part of a stored receipt meters work it cannot yet price
+    /// per operation (the leaves of an enumeration) with this, so the enumeration stops at the
+    /// budget while the receipt keeps counting only the operations that were charged.
+    /// Cancellation is checked first, then memory, operations and depth, as in [`Self::charge`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the bound the work would cross.
+    pub fn admits(&self, depth: usize, bytes: u64, work: u64) -> Result<(), SearchStop> {
+        if self.ctx.cancellation.is_cancelled() {
+            return Err(SearchStop::Cancelled);
+        }
+        if bytes > self.memory_limit_bytes {
+            return Err(SearchStop::Memory);
+        }
+        if work > u64::try_from(self.operations_remaining()).unwrap_or(u64::MAX) {
+            return Err(SearchStop::Operations);
+        }
+        if depth > self.limits.depth {
+            return Err(SearchStop::Depth);
+        }
+        Ok(())
+    }
+
     /// Lease `bytes` of storage for the search's context on its admission pool, to be held
     /// while the caller allocates it. Nothing is allocated here, and a refusal charges nothing.
     ///

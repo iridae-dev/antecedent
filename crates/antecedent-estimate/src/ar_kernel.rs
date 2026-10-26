@@ -286,7 +286,8 @@ mod tests {
 
     #[test]
     fn schwert_order_grows_with_the_sample_and_never_drops_below_the_floor() {
-        assert_eq!(schwert_order(8), MAX_AR_ORDER);
+        assert_eq!(schwert_order(1), MAX_AR_ORDER);
+        assert_eq!(schwert_order(8), 6);
         assert_eq!(schwert_order(100), 12);
         assert!(schwert_order(10_000) > schwert_order(100));
     }

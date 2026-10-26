@@ -14,6 +14,7 @@ use antecedent_identify::IdentificationResult;
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 
 use super::{dbn_envelope_key, map_posterior_graphs};
+use crate::analysis::prepared::CachedTemporalClassIdentification;
 use crate::error::CausalError;
 
 /// Class-envelope identification for one TemporalCpdag/Pag posterior atom.
@@ -40,6 +41,10 @@ pub(crate) struct CachedTemporalClassPosteriorIdentification {
     pub graphs: WeightedGraphSamples,
     /// Identified class atoms. Unidentified atoms remain in [`Self::graphs`].
     pub class_atoms: Arc<[CachedTemporalClassPosteriorAtomIdentification]>,
+    /// The first atom's envelope for the requested horizon, as the class product a
+    /// single-graph class response reads. Only the response route sets it; the
+    /// study's class accessor answers with it while this posterior is the installed product.
+    pub first_atom_class: Option<Arc<CachedTemporalClassIdentification>>,
 }
 
 /// Identify every TemporalCpdag/Pag posterior atom with the class envelope.
@@ -166,7 +171,11 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
         return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
     }
     let graphs = WeightedGraphSamples::new(weights, flags, keys)?;
-    Ok(CachedTemporalClassPosteriorIdentification { graphs, class_atoms: Arc::from(class_atoms) })
+    Ok(CachedTemporalClassPosteriorIdentification {
+        graphs,
+        class_atoms: Arc::from(class_atoms),
+        first_atom_class: None,
+    })
 }
 
 /// Scientific refusals keep unidentified mass; interrupted or unfunded searches refuse the attempt.

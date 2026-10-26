@@ -1115,8 +1115,8 @@ fn neighborhood_sensitivity_one_hundred_thousand_row_acceptance() {
     assert!(report.comparison.is_finite());
 }
 
-/// 30000 complete cases are above the exact smoother's cap, which refuses them and points at
-/// the neighbourhood construction; that construction's tipping value must be the one the TRUE
+/// 30000 complete cases are above the exact smoother's cap, which runs the neighbourhood
+/// construction in its place and says so; that construction's tipping value must be the one the TRUE
 /// residuals imply. On an OLS design the simulated tipping partial R² is `|ρ| / (1 + |ρ|)`
 /// with `ρ` the partial correlation of `T` and `Y` given `Z` (module docs of `sensitivity`), so
 /// the reported grid value is the first grid point above that number computed from the known
@@ -1141,10 +1141,11 @@ fn neighborhood_sensitivity_reproduces_the_tipping_value_of_the_true_residuals()
         None,
     );
 
-    let refused = NonparametricSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap_err();
-    assert!(refused.to_string().contains("NeighborhoodSensitivity"), "{refused}");
+    let routed = NonparametricSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap();
+    assert_eq!(routed.refuter.as_ref(), "sensitivity.nonparametric_neighborhood");
 
     let report = NeighborhoodSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap();
+    assert_eq!(routed.comparison, report.comparison);
     assert_eq!(report.refuter.as_ref(), "sensitivity.nonparametric_neighborhood");
     assert_eq!(report.replicates as usize, NeighborhoodSensitivity::new().partial_r2_grid.len());
 
@@ -2055,10 +2056,10 @@ fn perturbation_refuters_centre_on_the_full_sample_refit_not_the_published_estim
     assert!(subset.passed, "{:?}", subset.failure_condition);
 }
 
-/// A replicate count beyond the stream-alias bound is refused rather than silently sharing
-/// noise streams between refuters.
+/// A replicate count beyond the additive stream range is accepted: its replicates use
+/// hash-separated streams instead of sharing noise streams with a neighbouring refuter.
 #[test]
-fn replicate_counts_beyond_the_stream_alias_bound_are_refused() {
+fn replicate_counts_beyond_the_additive_stream_range_are_accepted() {
     let (data, estimand, _) = toy_confounded();
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let (original, mut ws, ctx) = crate::test_support::linear_original(&data, &estimand, &query);
@@ -2070,11 +2071,9 @@ fn replicate_counts_beyond_the_stream_alias_bound_are_refused() {
         Some("linear.adjustment.ate"),
         None,
     );
-    let placebo = PlaceboTreatment { replicates: 5000, ..PlaceboTreatment::new() };
-    assert!(matches!(
-        placebo.refute(&problem, &mut ws, &ctx),
-        Err(ValidationError::NotApplicable { .. })
-    ));
+    let placebo = PlaceboTreatment { replicates: 4100, ..PlaceboTreatment::new() };
+    let report = placebo.refute(&problem, &mut ws, &ctx).unwrap();
+    assert_eq!(report.replicates, 4100);
 }
 
 /// Cancellation is polled inside replicate loops.

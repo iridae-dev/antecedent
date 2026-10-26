@@ -715,7 +715,11 @@ fn retain_class_mediation_proofs(
         Arc::clone(&cache.graphs.graph_keys),
     )
     .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-    Ok(CachedTemporalClassPosteriorIdentification { graphs, class_atoms: atoms.into() })
+    Ok(CachedTemporalClassPosteriorIdentification {
+        graphs,
+        class_atoms: atoms.into(),
+        first_atom_class: None,
+    })
 }
 
 fn retained_mediation_targets(

@@ -27,6 +27,7 @@ use antecedent_model::compose::{
     ComposedModelSpec, Domain, MechanismContext, MechanismDescriptor, MechanismForm,
     MechanismOrigin, MechanismProvenance, ParentBinding, PosteriorDependence, TabularRow,
 };
+use antecedent_model::observation_uncertainty::MAX_REDRAWS;
 
 const TOL: f64 = 1e-12;
 
@@ -1029,7 +1030,7 @@ fn a_redraw_refuses_a_draw_count_outside_its_range_and_oversized_data() {
     assert!(matches!(error, ObservationQueryArtifactError::Refused { .. }));
     let error = ObservationQueryArtifactWire::seal(
         Some(&spec),
-        redraw_query(1, 1_000_000),
+        redraw_query(1, MAX_REDRAWS + 1),
         InferenceBasis::DeclaredModel,
         &ctx(),
     )

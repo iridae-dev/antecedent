@@ -34,6 +34,7 @@ use antecedent_identify::{
     SidLimits, ZTransportQuery, ZTransportResult, bind_z_transport_catalog, identify_z_transport,
 };
 use antecedent_io::IoError;
+use antecedent_validate::joint_mechanism_sensitivity::JOINT_SENSITIVITY_MAX_FRONTIER_POINTS;
 use antecedent_validate::{
     JointDeviationSpec, JointFactor, JointFactorBound, z_transport_joint_mechanism_sensitivity,
 };
@@ -715,9 +716,9 @@ fn the_producer_binds_premises_and_data_and_refuses_a_cancelled_frontier() {
     )
     .unwrap();
     assert_ne!(rebased.data_digest, wire.data_digest);
-    // Producer-side bounds are the evaluator's hard caps.
+    // Producer-side bounds are the evaluator's resolution cap.
     let mut over = spec();
-    over.frontier_points = 34;
+    over.frontier_points = JOINT_SENSITIVITY_MAX_FRONTIER_POINTS + 1;
     let error = JointSensitivityArtifactWire::checked(
         baseline.clone(),
         &over,

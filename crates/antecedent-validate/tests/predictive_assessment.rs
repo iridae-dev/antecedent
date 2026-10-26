@@ -24,7 +24,8 @@ use antecedent_validate::predictive_assessment::{
     ScoreIntervalRequest, ScoreKind, ValidationDesign, assess_predictive_laws, brier_binary,
     construct_expected_score_interval, crps_gaussian, crps_weighted_atoms, detail,
     distribution_drift, energy_score_weighted, exact_expected_score, expected_score_interval,
-    log_score_gaussian, score_case, variance_of_mean,
+    log_score_gaussian, score_case, variance_of_mean, MAX_BINS, MAX_JOINT_DIMENSION, MAX_LAW_ATOMS,
+    MAX_PREDICTORS,
 };
 
 fn ctx() -> ExecutionContext {
@@ -963,7 +964,7 @@ fn a_malformed_diagnostic_configuration_is_refused() {
         spec
     };
     for spec in
-        [build(1, vec![0.5]), build(10, vec![1.5]), build(10, vec![0.0]), build(5000, vec![])]
+        [build(1, vec![0.5]), build(10, vec![1.5]), build(10, vec![0.0]), build(MAX_BINS + 1, vec![])]
     {
         let (code, slot) = refusal(assess_predictive_laws(&spec, &ctx()));
         assert_eq!(code, "invalid_argument");
@@ -979,14 +980,14 @@ fn declared_bounds_on_predictors_atoms_and_joint_dimension_are_refused() {
     let one = |name: String| predictor(&name, gaussian_laws(1, 0.0, 1.0), Horizon::Contemporaneous);
     let spec = PredictiveAssessmentSpec::new(
         observations(gaussian_outcomes(1, 31), Horizon::Contemporaneous),
-        (0..33).map(|i| one(format!("p{i}"))).collect(),
+        (0..=MAX_PREDICTORS).map(|i| one(format!("p{i}"))).collect(),
         ValidationDesign::HeldOutSplit,
         vec![ScoreKind::Crps],
     );
     let (code, slot) = refusal(assess_predictive_laws(&spec, &ctx()));
     assert_eq!((code.as_str(), slot.as_str()), ("route_not_supported", detail::BOUNDS_EXCEEDED));
 
-    let too_many_draws = ForecastLaw::EmpiricalSample { draws: vec![0.0; 65_537] };
+    let too_many_draws = ForecastLaw::EmpiricalSample { draws: vec![0.0; MAX_LAW_ATOMS + 1] };
     let spec = PredictiveAssessmentSpec::new(
         observations(gaussian_outcomes(1, 32), Horizon::Contemporaneous),
         vec![predictor("big", vec![too_many_draws], Horizon::Contemporaneous)],
@@ -996,12 +997,13 @@ fn declared_bounds_on_predictors_atoms_and_joint_dimension_are_refused() {
     let (code, slot) = refusal(assess_predictive_laws(&spec, &ctx()));
     assert_eq!((code.as_str(), slot.as_str()), ("invalid_argument", detail::INVALID_LAW));
 
-    let wide = ForecastLaw::JointSample { dimension: 65, draws: vec![0.0; 65] };
+    let width = MAX_JOINT_DIMENSION + 1;
+    let wide = ForecastLaw::JointSample { dimension: width, draws: vec![0.0; width] };
     let spec = PredictiveAssessmentSpec::new(
         RealizedObservations {
             target: target(Horizon::Contemporaneous),
             ids: vec![key(0)],
-            outcomes: vec![Outcome::Vector(vec![0.0; 65])],
+            outcomes: vec![Outcome::Vector(vec![0.0; width])],
         },
         vec![predictor("wide", vec![wide], Horizon::Contemporaneous)],
         ValidationDesign::HeldOutSplit,

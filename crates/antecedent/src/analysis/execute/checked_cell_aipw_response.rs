@@ -684,8 +684,9 @@ mod tests {
         cancelled.cancellation.cancel();
         let error = check(&cancelled).unwrap_err();
         assert!(matches!(error, CausalError::Cancelled { .. }), "{error:?}");
+        // A pool that cannot fund the exact search is not a refusal: the replay settles on the
+        // certified set, which here is the claim the cache holds, so the premises still seal.
         let limited = ExecutionContext::for_tests(86).with_memory_limit(Some(1));
-        let error = check(&limited).unwrap_err();
-        assert!(matches!(error, CausalError::Resource { .. }), "{error:?}");
+        check(&limited).unwrap();
     }
 }

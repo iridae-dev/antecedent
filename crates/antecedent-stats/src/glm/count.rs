@@ -24,9 +24,11 @@ fn negbin_row_deviance(yi: f64, eta: f64, theta: f64) -> f64 {
         return f64::INFINITY;
     }
     if yi > 0.0 {
-        2.0 * (yi * (yi / mu).ln() - (yi + theta) * ((yi + theta) / (mu + theta)).ln())
+        // `ln1p` keeps the large-`θ` (small `α`) limit accurate: the ratio is within rounding of 1
+        // there and its plain logarithm would lose the digits the deviance is made of.
+        2.0 * (yi * (yi / mu).ln() + (yi + theta) * ((mu - yi) / (yi + theta)).ln_1p())
     } else {
-        2.0 * theta * ((theta + mu) / theta).ln()
+        2.0 * theta * (mu / theta).ln_1p()
     }
 }
 

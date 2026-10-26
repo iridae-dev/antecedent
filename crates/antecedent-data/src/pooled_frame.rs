@@ -483,7 +483,10 @@ mod tests {
             &KernelPolicy::default_policy(),
         )
         .unwrap_err();
-        assert!(err.to_string().contains("max_time_one_hot_levels"), "unexpected error: {err}");
+        assert!(
+            matches!(err, DataError::ExceedsLimit { limit: 4, value, .. } if value > 4),
+            "unexpected error: {err:?}"
+        );
     }
 
     #[test]

@@ -1386,6 +1386,23 @@ impl Search<'_> {
         })
     }
 
+    /// Charge one operation, or, with `enumerated` leaves of an enumeration, check that they fit
+    /// the budget without recording them.
+    ///
+    /// The leaves of the subset enumerations are work the budget must bound, but they are not
+    /// operations of the decision's receipt: the receipt (`operations_consumed`) is part of the
+    /// canonical text a stored derivation is replayed against, so it counts the charged
+    /// operations of the search only, and an enumeration that fits the remaining operations
+    /// leaves it as it was.
+    fn work(&mut self, depth: usize, bytes: u64, enumerated: Option<u64>) -> Result<(), SearchStop> {
+        match enumerated {
+            None => self.charge(depth, bytes),
+            Some(leaves) => self.budget.admits(depth, bytes, leaves).inspect_err(|stop| {
+                self.stop.get_or_insert(*stop);
+            }),
+        }
+    }
+
     /// Quote the summation over `cardinalities` from the declared exact-enumeration charge and
     /// check it against what the caller's budget still allows: the cells are the work, one
     /// binary64 per cell is the storage. The storage is leased from the context's pool and
@@ -1963,20 +1980,23 @@ fn supplied_seeds(validated: &Validated) -> Vec<Seed> {
 /// Seeds of the declared family not supplied in full: every population's
 /// observational law and every source's experiments on subsets of its
 /// controllable set, each measuring every non-intervened variable. Every subset visited is
-/// charged to the search, so a controllable set the budget cannot enumerate stops the decision.
+/// metered against the search (see [`Search::work`]), so a controllable set the budget cannot
+/// enumerate stops the decision while the receipt keeps counting charged operations only.
 fn candidate_seeds(
     validated: &Validated,
     problem: &CounterfactualTransportProblem,
-    charge: &mut dyn FnMut(usize, u64) -> Result<(), SearchStop>,
+    charge: &mut dyn FnMut(usize, u64, Option<u64>) -> Result<(), SearchStop>,
 ) -> Result<Vec<Seed>, SearchStop> {
     let full = problem.full_mask();
     let mut seeds: Vec<Seed> = Vec::new();
+    let mut visited: u64 = 0;
     for population in 0..validated.populations.len() {
         let control = validated.controllable[population];
         // Every subset of the controllable set, the empty one included.
         let mut subset = control;
         loop {
-            charge(0, (seeds.len() as u64 + 1).saturating_mul(32))?;
+            visited += 1;
+            charge(0, (seeds.len() as u64 + 1).saturating_mul(32), Some(visited))?;
             let supplied = validated.usable.iter().any(|u| {
                 u.population == population && u.intervened == subset && u.measured == full & !subset
             });
@@ -2011,8 +2031,8 @@ fn run_stages(
 ) -> Result<CounterfactualTransportDecision, Abort> {
     // Stage 1: supplied regimes only.
     let supplied = supplied_seeds(validated);
-    let closure = close(problem, &validated.selected, &supplied, &[], &mut |depth, bytes| {
-        search.charge(depth, bytes)
+    let closure = close(problem, &validated.selected, &supplied, &[], &mut |depth, bytes, leaves| {
+        search.work(depth, bytes, leaves)
     })?;
     search.stage("supplied_regimes");
     let ctx = DeriveCtx::new(problem, &closure);
@@ -2021,12 +2041,12 @@ fn run_stages(
         return Ok(CounterfactualTransportDecision::Identified(Box::new(derivation)));
     }
     // Stage 2: the declared family.
-    let candidates = candidate_seeds(validated, problem, &mut |depth, bytes| {
-        search.charge(depth, bytes)
+    let candidates = candidate_seeds(validated, problem, &mut |depth, bytes, leaves| {
+        search.work(depth, bytes, leaves)
     })?;
     let declared_closure =
-        close(problem, &validated.selected, &supplied, &candidates, &mut |depth, bytes| {
-            search.charge(depth, bytes)
+        close(problem, &validated.selected, &supplied, &candidates, &mut |depth, bytes, leaves| {
+            search.work(depth, bytes, leaves)
         })?;
     search.stage("declared_family");
     let declared_ctx = DeriveCtx::new(problem, &declared_closure);
@@ -2101,7 +2121,7 @@ fn run_stages(
             .unwrap_or(u64::MAX)
             .saturating_mul(witness::SIMULATIONS_PER_OPERATION),
     };
-    match search_witness(&wp, &mut |depth, bytes| search.charge(depth, bytes))? {
+    match search_witness(&wp, &mut |depth, bytes, leaves| search.work(depth, bytes, leaves))? {
         WitnessOutcome::Found(witness) => {
             let check = verify_witness(&wp, &witness).map_err(|_| {
                 Abort::Error(IdentificationError::invalid_derivation(INVALID_WITNESS))
@@ -2242,7 +2262,7 @@ pub fn verify_counterfactual_transport_witness(
     };
     let bad = || IdentificationError::invalid_derivation(INVALID_WITNESS);
     let supplied = supplied_seeds(&validated);
-    let candidates = candidate_seeds(&validated, problem, &mut |_, _| Ok(())).map_err(|_| bad())?;
+    let candidates = candidate_seeds(&validated, problem, &mut |_, _, _| Ok(())).map_err(|_| bad())?;
     let mut family: Vec<(usize, u32)> = supplied
         .iter()
         .chain(&candidates)

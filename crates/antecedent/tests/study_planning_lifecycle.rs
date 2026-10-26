@@ -888,21 +888,19 @@ fn bounds_are_checked_before_any_candidate_compiles() {
         (error.code, error.detail)
     };
     let bound = ("route_not_supported", "study_plan.bounds_exceeded");
+    let invalid = ("invalid_argument", "study_plan.invalid_candidate");
     // A candidate that cannot compile (no recruitment declaration), sorted first.
     let mut broken = study("a_broken", "b", &[], None, &[X], 1);
     broken.recruitment = Arc::from(" ");
-    assert_eq!(
-        refuse(&[broken.clone()], StudyPlanLimits::default()),
-        ("invalid_argument", "study_plan.invalid_candidate")
-    );
-    // Seventeen candidates: the count refuses before the broken one compiles.
+    assert_eq!(refuse(&[broken.clone()], StudyPlanLimits::default()), invalid);
+    // The number of candidates and of level combinations is charged to the plan's budget, not
+    // capped: seventeen candidates and nine combinations in one reach the broken candidate.
     let mut many = vec![broken.clone()];
     many.extend((0..16).map(|i| study(&format!("obs{i:02}"), "b", &[], None, &[X], 1)));
-    assert_eq!(refuse(&many, StudyPlanLimits::default()), bound);
-    // Nine level combinations in one candidate, likewise.
+    assert_eq!(refuse(&many, StudyPlanLimits::default()), invalid);
     let wide = study("z_wide", "a", &[Z2], Some(vec![vec![(Z2, false)]; 9]), &[Z1, X, Y], 1);
-    assert_eq!(refuse(&[broken.clone(), wide], StudyPlanLimits::default()), bound);
-    // Plan limits above the caps, likewise.
+    assert_eq!(refuse(&[broken.clone(), wide], StudyPlanLimits::default()), invalid);
+    // Plan limits above the route maxima refuse before the broken candidate compiles.
     let over = StudyPlanLimits {
         search: SearchLimits { operations: 200_001, depth: 24 },
         ..StudyPlanLimits::default()

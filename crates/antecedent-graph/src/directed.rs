@@ -21,7 +21,7 @@ use crate::workspace::GraphWorkspace;
 ///
 /// [`Dag`](crate::Dag), [`Admg`](crate::Admg), and [`TemporalDag`](crate::TemporalDag)
 /// each own one of these and add only the checks that belong to that type.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) struct DirectedCore {
     nodes: Arc<Vec<NodeRef>>,
     children: Arc<Vec<Vec<DenseNodeId>>>,
@@ -30,6 +30,19 @@ pub(crate) struct DirectedCore {
     /// than a scan of an insertion-ordered row.
     edge_index: Arc<HashSet<(DenseNodeId, DenseNodeId)>>,
     insert_ws: GraphWorkspace,
+}
+
+/// The edge index is derived from the adjacency rows and its hash order is not stable between
+/// two graphs with the same edges, so the rendering leaves it out: equal graphs render alike.
+impl std::fmt::Debug for DirectedCore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DirectedCore")
+            .field("nodes", &self.nodes)
+            .field("children", &self.children)
+            .field("parents", &self.parents)
+            .field("insert_ws", &self.insert_ws)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Default for DirectedCore {

@@ -634,21 +634,21 @@ fn nullspace(rows: &[Vec<i128>], cols: usize) -> Option<Vec<Vec<i128>>> {
 }
 
 /// Append every non-empty bidirected clique extending `current` with variables drawn from
-/// `candidates` (all above the last member and adjacent to every member), ascending, charging
-/// one operation per clique found.
+/// `candidates` (all above the last member and adjacent to every member), ascending, metering
+/// every clique found against the budget (they are not operations of its receipt).
 fn extend_cliques(
     problem: &Problem,
     current: &mut Vec<usize>,
     candidates: u32,
     out: &mut Vec<Vec<usize>>,
-    charge: &mut dyn FnMut(usize, u64) -> Result<(), SearchStop>,
+    charge: &mut dyn FnMut(usize, u64, Option<u64>) -> Result<(), SearchStop>,
 ) -> Result<(), SearchStop> {
     let mut remaining = candidates;
     while remaining != 0 {
         let v = remaining.trailing_zeros() as usize;
         remaining &= remaining - 1;
         current.push(v);
-        charge(0, (out.len() as u64 + 1).saturating_mul(64))?;
+        charge(0, (out.len() as u64 + 1).saturating_mul(64), Some(out.len() as u64 + 1))?;
         out.push(current.clone());
         let above = u32::MAX.checked_shl(u32::try_from(v + 1).unwrap_or(32)).unwrap_or(0);
         let next = candidates & problem.bidirected_mask[v] & above;
@@ -665,7 +665,7 @@ fn extend_cliques(
 )]
 pub(super) fn search_witness(
     wp: &WitnessProblem<'_>,
-    charge: &mut dyn FnMut(usize, u64) -> Result<(), SearchStop>,
+    charge: &mut dyn FnMut(usize, u64, Option<u64>) -> Result<(), SearchStop>,
 ) -> Result<WitnessOutcome, SearchStop> {
     let model = match Model::new(wp) {
         Ok(model) => model,
@@ -692,7 +692,11 @@ pub(super) fn search_witness(
             continue;
         }
         for baseline in Baseline::ALL {
-            charge(0, (states as u64).saturating_mul(layout.rows as u64).saturating_mul(16))?;
+            charge(
+                0,
+                (states as u64).saturating_mul(layout.rows as u64).saturating_mul(16),
+                None,
+            )?;
             let Some((counts, m, _)) = collect_counts(&model, &layout, clique, baseline) else {
                 continue;
             };

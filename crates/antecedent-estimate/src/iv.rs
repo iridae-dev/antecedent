@@ -1644,16 +1644,20 @@ mod tests {
     }
 
     #[test]
-    fn wald_iv_rejects_continuous_instrument() {
+    fn wald_iv_with_a_continuous_instrument_is_two_stage_least_squares() {
         let (data, estimand) = continuous_iv_scm(200, 6);
         let est = WaldIv::new();
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
-        let err = est.fit(&prep, &ctx(), AssumptionSet::new()).unwrap_err();
-        assert!(matches!(err, EstimationError::Unsupported { .. }));
+        let wald = est.fit(&prep, &ctx(), AssumptionSet::new()).unwrap();
+        let tsls = TwoStageLeastSquares::new();
+        let tsls_prep = tsls.prepare(&data, &estimand, &query()).unwrap();
+        let mut ws = TwoStageLeastSquaresWorkspace::default();
+        let reference = tsls.fit(&tsls_prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert!((wald.ate - reference.ate).abs() <= 1e-12 * (1.0 + reference.ate.abs()));
     }
 
     #[test]
-    fn wald_iv_rejects_nonempty_adjustment_set_while_two_sls_recovers() {
+    fn wald_iv_with_a_nonempty_adjustment_set_is_the_two_stage_fit_not_the_unconditional_ratio() {
         // T = Z + U, Y = 2T + 3U; Z binary. Unconditional Wald is 3; 2SLS is 2.
         let z = [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0];
         let u = [0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0];
@@ -1698,8 +1702,8 @@ mod tests {
         let q = query();
         let wald = WaldIv { bootstrap_replicates: 8, ..WaldIv::new() };
         let wald_prep = wald.prepare(&data, &estimand, &q).unwrap();
-        let err = wald.fit(&wald_prep, &ctx(), AssumptionSet::new()).unwrap_err();
-        assert!(matches!(err, EstimationError::Unsupported { .. }), "{err:?}");
+        let adjusted = wald.fit(&wald_prep, &ctx(), AssumptionSet::new()).unwrap();
+        assert!((adjusted.ate - 2.0).abs() < 1e-12, "ate={}", adjusted.ate);
 
         let tsls = TwoStageLeastSquares::new();
         let tsls_prep = tsls.prepare(&data, &estimand, &q).unwrap();

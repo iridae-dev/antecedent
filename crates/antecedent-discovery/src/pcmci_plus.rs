@@ -533,8 +533,13 @@ fn contemp_mci_phase_inner(
                 };
                 let result = engine.ci_statistic(frame, link, &cond, workspace, ctx);
                 workspace.others = cond;
-                let (stat, p) = result?;
+                let outcome = result?;
                 ci_tests += 1;
+                // An untestable query carries no information: it neither scores nor removes
+                // the link, and an unscored candidate enters the family with p = 1.
+                let Some((stat, p)) = outcome else {
+                    continue;
+                };
                 let key_stat = (target, src, slag);
                 let prev = min_stat.get(&key_stat).copied().unwrap_or(f64::INFINITY);
                 min_stat.insert(key_stat, prev.min(stat.abs()));

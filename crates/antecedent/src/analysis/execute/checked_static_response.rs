@@ -989,7 +989,7 @@ mod checked_derivative_operation_tests {
         let mut graph = Dag::with_variables(2);
         graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let identifier = crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER_ID;
-        let identification = crate::strategy_table::identify_static_query(
+        let mut identification = crate::strategy_table::identify_static_query(
             identifier,
             &graph,
             &CausalQuery::Response(ResponseQuery::new(ResponseFunctional::PointDerivative {
@@ -1001,6 +1001,9 @@ mod checked_derivative_operation_tests {
             })),
         )
         .unwrap();
+        // The grid names variables outside the two-node graph, so the identification is the
+        // two-node claim restated for the grid query the operation seals.
+        identification.query = CausalQuery::Response(query.clone());
         let estimand = identification.estimands.first().unwrap();
         let operation = CheckedDerivativeResponseOperation::checked(
             &graph,

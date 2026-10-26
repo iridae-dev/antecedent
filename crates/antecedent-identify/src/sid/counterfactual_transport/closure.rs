@@ -207,15 +207,17 @@ pub(super) fn regime_measured_is_factor(problem: &Problem, intervened: u32, meas
 /// (population 0, the target, has none). The `seeds` are closed first, so every
 /// item they derive keeps a derivation that cites supplied regimes only; the
 /// `extra` seeds (declared but absent regimes) are then added and the closure
-/// continues, deriving only what the supplied closure did not. `charge` is called
-/// once per processed item and once per ancestrally closed subset of an item that is
-/// visited, with `(depth, estimated live bytes)`, and may stop the search.
+/// continues, deriving only what the supplied closure did not. `charge` is called with
+/// `(depth, estimated live bytes, None)` once per processed item, which is one operation of
+/// the search, and with `(depth, bytes, Some(leaves))` for the ancestrally closed subsets of an
+/// item visited so far, which are metered against the budget but are not operations of its
+/// receipt. It may stop the search.
 pub(super) fn close(
     problem: &Problem,
     selected: &[u32],
     seeds: &[Seed],
     extra: &[Seed],
-    charge: &mut dyn FnMut(usize, u64) -> Result<(), SearchStop>,
+    charge: &mut dyn FnMut(usize, u64, Option<u64>) -> Result<(), SearchStop>,
 ) -> Result<Closure, SearchStop> {
     let mut closure = Closure::default();
     let mut head = 0usize;
@@ -241,7 +243,7 @@ pub(super) fn close(
         while head < closure.items.len() {
             let item = closure.items[head];
             let bytes = (closure.items.len() as u64).saturating_mul(64);
-            charge(item.depth, bytes)?;
+            charge(item.depth, bytes, None)?;
             let mut produced: Vec<Item> = Vec::new();
             if item.population != 0 && item.mask & selected[item.population] == 0 {
                 produced.push(Item {
@@ -256,7 +258,11 @@ pub(super) fn close(
             // closed subsets the budget pays for, not the `2^n` subsets of the mask.
             let base = closure.items.len() as u64;
             for sub in ancestral_subsets(problem, item.mask, &mut |visited| {
-                charge(item.depth, base.saturating_add(visited as u64).saturating_mul(64))
+                charge(
+                    item.depth,
+                    base.saturating_add(visited as u64).saturating_mul(64),
+                    Some(visited as u64),
+                )
             })? {
                 produced.push(Item {
                     population: item.population,

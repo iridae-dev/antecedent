@@ -482,7 +482,7 @@ fn batch_dimension_overflow_is_an_error_before_allocation() {
     )
     .unwrap_err();
     for error in [index_error, weight_error] {
-        assert!(error.to_string().contains("overflow"));
+        assert!(matches!(error, DataError::Overflow { .. }), "{error:?}");
     }
 }
 
@@ -534,7 +534,10 @@ fn resample_scratch_above_the_admission_pool_is_refused_before_work() {
         &mut out,
     )
     .unwrap_err();
-    assert!(error.to_string().contains("admission pool"), "{error}");
+    assert!(
+        matches!(error, DataError::BudgetRefused { what: "resample scratch", .. }),
+        "{error:?}"
+    );
     assert!(out.iter().all(|id| id.get() == 9));
     assert_eq!(ctx.memory_limit_bytes(), Some(bytes - 1));
 }
@@ -553,7 +556,7 @@ fn resample_scratch_overflow_is_refused_before_allocation() {
     })
     .unwrap_err();
     assert_eq!(calls.load(Ordering::SeqCst), 0);
-    assert!(error.to_string().contains("overflow"), "{error}");
+    assert!(matches!(error, DataError::Overflow { .. }), "{error:?}");
     assert!(ctx.memory_limit_bytes().is_none());
 }
 
@@ -569,11 +572,11 @@ fn resample_scratch_products_use_checked_arithmetic() {
     let ctx = ExecutionContext::production(1, 2);
     let n = usize::MAX / width;
     let error = fill_replicate_rows(&ctx, n, 2, &mut [0u64; 0], fill).unwrap_err();
-    assert!(error.to_string().contains("overflow"), "{error}");
+    assert!(matches!(error, DataError::Overflow { .. }), "{error:?}");
     // A single buffer whose byte count overflows `usize`.
     let serial = ExecutionContext::for_tests(1);
     let error = fill_replicate_rows(&serial, usize::MAX, 1, &mut [0u64; 0], fill).unwrap_err();
-    assert!(error.to_string().contains("overflow"), "{error}");
+    assert!(matches!(error, DataError::Overflow { .. }), "{error:?}");
     // The index path refuses an `n` whose replicate matrix overflows.
     let index_error = fill_resample_index_batch(
         ResamplingPlan::IidBootstrap,
@@ -585,7 +588,7 @@ fn resample_scratch_products_use_checked_arithmetic() {
         &mut [],
     )
     .unwrap_err();
-    assert!(index_error.to_string().contains("overflow"), "{index_error}");
+    assert!(matches!(index_error, DataError::Overflow { .. }), "{index_error:?}");
     assert_eq!(calls.load(Ordering::SeqCst), 0);
 }
 
@@ -643,7 +646,10 @@ fn resample_refuses_when_the_pool_cannot_fund_scratch() {
     })
     .unwrap_err();
     assert_eq!(calls.load(Ordering::SeqCst), 0);
-    assert!(error.to_string().contains("cannot fund"), "{error}");
+    assert!(
+        matches!(error, DataError::BudgetRefused { what: "resample scratch", .. }),
+        "{error:?}"
+    );
     assert!(out.iter().all(|value| *value == 7));
     assert_eq!(shared.available().threads(), 2);
     assert_eq!(shared.available().bytes(), bytes - 1);

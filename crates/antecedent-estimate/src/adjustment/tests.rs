@@ -472,14 +472,17 @@ fn influence_and_homoskedastic_se_match_the_row_wise_gram_formula() {
     let inv = invert_square(&xtx, p).unwrap();
     let sigma2 = fit.rss / (n - p) as f64;
     let se = (sigma2 * inv[t_col * p + t_col]).sqrt() * prep.treatment_delta.abs();
-    assert_eq!(effect.se_analytic().to_bits(), se.to_bits());
+    // The production inverse comes from the QR factor and never forms XᵀX, so it agrees with
+    // the Gram inverse to rounding rather than bit for bit.
+    let reported = effect.se_analytic();
+    assert!((reported - se).abs() <= 1e-10 * se.abs(), "{reported} vs {se}");
     let influence = effect.scores.influence.as_ref().unwrap();
     let row = &inv[t_col * p..(t_col + 1) * p];
     let scale = prep.treatment_delta * n as f64;
     for i in 0..n {
         let leverage: f64 = (0..p).map(|c| row[c] * prep.design.matrix[c * n + i]).sum();
         let expected = scale * leverage * fit.residuals[i];
-        assert!((influence[i] - expected).abs() == 0.0, "row {i}");
+        assert!((influence[i] - expected).abs() <= 1e-10 * (1.0 + expected.abs()), "row {i}");
     }
 }
 
@@ -807,7 +810,7 @@ fn a_tight_budget_refuses_preparation() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let estimator = LinearAdjustmentAte::new().with_preparation_budget(PreparationBudget::new(0));
     let message = estimator.prepare(&data, &estimand, &query).expect_err("budget").to_string();
-    assert!(message.contains("exceeds budget 0"), "{message}");
+    assert!(message.contains("exceeds the budget 0"), "{message}");
 }
 
 #[test]

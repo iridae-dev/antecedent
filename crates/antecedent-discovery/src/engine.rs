@@ -45,7 +45,7 @@ pub(crate) struct CiProbe<'a> {
 /// is answered from here instead of being run again.
 #[derive(Debug, Default)]
 pub(crate) struct CiMemo {
-    outcomes: HashMap<LaggedLink, HashMap<Box<[(VariableId, Lag)]>, (f64, f64)>>,
+    outcomes: HashMap<LaggedLink, HashMap<Box<[(VariableId, Lag)]>, Option<(f64, f64)>>>,
     /// Tests actually run (memo misses).
     pub computed: u64,
 }
@@ -63,11 +63,21 @@ fn canonical_cond(cond: &[(VariableId, Lag)]) -> std::borrow::Cow<'_, [(Variable
 }
 
 impl CiMemo {
-    fn get(&self, link: LaggedLink, canonical: &[(VariableId, Lag)]) -> Option<(f64, f64)> {
+    /// The remembered outcome of a test; `Some(None)` is a remembered untestable query.
+    fn get(
+        &self,
+        link: LaggedLink,
+        canonical: &[(VariableId, Lag)],
+    ) -> Option<Option<(f64, f64)>> {
         self.outcomes.get(&link)?.get(canonical).copied()
     }
 
-    fn insert(&mut self, link: LaggedLink, canonical: &[(VariableId, Lag)], outcome: (f64, f64)) {
+    fn insert(
+        &mut self,
+        link: LaggedLink,
+        canonical: &[(VariableId, Lag)],
+        outcome: Option<(f64, f64)>,
+    ) {
         self.outcomes.entry(link).or_default().insert(canonical.into(), outcome);
     }
 }
@@ -364,22 +374,25 @@ impl PcmciEngine {
                     };
                     let result = self.ci_statistic(frame, link, &combo, workspace, ctx);
                     let outcome = match result {
-                        Ok(pair) => pair,
+                        Ok(outcome) => outcome,
                         Err(e) => {
                             workspace.combo = combo;
                             return Err(e);
                         }
                     };
                     ci_tests += 1;
-                    record_pc_parent_outcome(
-                        link,
-                        outcome,
-                        &combo,
-                        compiled,
-                        self.constraints.alpha,
-                        &mut min_stat[pi],
-                        workspace,
-                    );
+                    // An untestable parent keeps its place: missing information never removes it.
+                    if let Some(outcome) = outcome {
+                        record_pc_parent_outcome(
+                            link,
+                            outcome,
+                            &combo,
+                            compiled,
+                            self.constraints.alpha,
+                            &mut min_stat[pi],
+                            workspace,
+                        );
+                    }
                     workspace.combo = combo;
                 }
             }
@@ -465,13 +478,21 @@ impl PcmciEngine {
             .prepared_ci
             .as_ref()
             .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
-        let results = crate::ci::run_ci_batch(&*self.ci, prepared, &req, &mut workspace.ci, ctx)
-            .map_err(DiscoveryError::from)?;
+        let results = crate::ci::run_ci_batch_or_untestable(
+            &*self.ci,
+            prepared,
+            &req,
+            &mut workspace.ci,
+            ctx,
+        )?;
         if results.len() != parents.len() {
             return Err(DiscoveryError::stats_msg("CI batch result length mismatch"));
         }
         for (pi, (result, combo)) in results.into_iter().zip(combos).enumerate() {
-            let (statistic, p_value) = crate::ci::finite_outcome(&result)?;
+            // An untestable parent keeps its place: missing information never removes it.
+            let Some((statistic, p_value)) = result else {
+                continue;
+            };
             let (src, slag) = parents[pi];
             let link = LaggedLink {
                 source: src,
@@ -520,8 +541,13 @@ impl PcmciEngine {
         let cond = std::mem::take(&mut workspace.others);
         let result = self.ci_statistic(frame, link, &cond, workspace, ctx);
         workspace.others = cond;
-        let (stat, p) = result?;
-        Ok((ScoredLink { link, statistic: stat, p_value: p, adjusted_p_value: None }, truncated))
+        let scored = match result? {
+            Some((statistic, p_value)) => {
+                ScoredLink { link, statistic, p_value, adjusted_p_value: None }
+            }
+            None => untestable_link(link),
+        };
+        Ok((scored, truncated))
     }
 
     /// Run PC parents for all targets then MCI on the full constrained candidate family.
@@ -889,15 +915,24 @@ impl PcmciEngine {
             .prepared_ci
             .as_ref()
             .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
-        let results = crate::ci::run_ci_batch(&*self.ci, prepared, &req, &mut workspace.ci, ctx)
-            .map_err(DiscoveryError::from)?;
+        let results = crate::ci::run_ci_batch_or_untestable(
+            &*self.ci,
+            prepared,
+            &req,
+            &mut workspace.ci,
+            ctx,
+        )?;
         if results.len() != links.len() {
             return Err(DiscoveryError::stats_msg("CI batch result length mismatch"));
         }
         let mut scored = Vec::with_capacity(links.len());
         for (link, result) in links.into_iter().zip(results) {
-            let (statistic, p_value) = crate::ci::finite_outcome(&result)?;
-            scored.push(ScoredLink { link, statistic, p_value, adjusted_p_value: None });
+            scored.push(match result {
+                Some((statistic, p_value)) => {
+                    ScoredLink { link, statistic, p_value, adjusted_p_value: None }
+                }
+                None => untestable_link(link),
+            });
         }
         Ok((scored, truncated))
     }
@@ -1016,7 +1051,7 @@ impl PcmciEngine {
                 for (&index, r) in missing.iter().zip(results) {
                     // A non-finite outcome is left out so that it errors where it is visited.
                     if r.statistic.is_finite() && r.p_value.is_finite() {
-                        memo.insert(link, &canonical[index], (r.statistic, r.p_value));
+                        memo.insert(link, &canonical[index], Some((r.statistic, r.p_value)));
                         memo.computed += 1;
                     }
                 }
@@ -1027,7 +1062,7 @@ impl PcmciEngine {
             for index in 0..chunk.len() {
                 let cond = std::mem::take(&mut chunk[index]);
                 let key = canonical_cond(&cond);
-                let (stat, p) = if let Some(hit) = memo.get(link, &key) {
+                let outcome = if let Some(hit) = memo.get(link, &key) {
                     hit
                 } else {
                     let out = self.ci_statistic(frame, link, &cond, workspace, ctx)?;
@@ -1036,6 +1071,11 @@ impl PcmciEngine {
                     out
                 };
                 drop(key);
+                // An untestable set carries no information: it is never visited, so it can
+                // neither separate the link nor count against it.
+                let Some((stat, p)) = outcome else {
+                    continue;
+                };
                 if let std::ops::ControlFlow::Break(b) = visit(cond, stat, p) {
                     return Ok(Some(b));
                 }
@@ -1047,6 +1087,10 @@ impl PcmciEngine {
     }
 
     /// CI test of `link.source ⊥ link.target | cond` on `frame`.
+    ///
+    /// `Ok(None)` is a query the test cannot answer (a constant variable or a collinear
+    /// conditioning set, see [`crate::ci::is_untestable`]): missing information, which is
+    /// neither independence nor dependence.
     #[allow(
         clippy::too_many_lines,
         reason = "fast unmasked path, then the masked complete-case path; both share the column indexes and workspace"
@@ -1058,7 +1102,7 @@ impl PcmciEngine {
         cond: &[(VariableId, Lag)],
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
-    ) -> Result<(f64, f64), DiscoveryError> {
+    ) -> Result<Option<(f64, f64)>, DiscoveryError> {
         let LaggedLink { source: x, source_lag: x_lag, target: y, target_lag: y_lag } = link;
         ensure_ci_query_fits(frame_rows(frame), cond.len(), ctx)?;
         let xi = frame.column_index(x, x_lag).ok_or_else(|| {
@@ -1086,9 +1130,13 @@ impl PcmciEngine {
                 self.constraints.significance,
             );
             let outcome = match workspace.prepared_ci.as_ref() {
-                Some(prepared) => {
-                    crate::ci::single_finite(&*self.ci, prepared, &req, &mut workspace.ci, ctx)
-                }
+                Some(prepared) => crate::ci::single_finite_or_untestable(
+                    &*self.ci,
+                    prepared,
+                    &req,
+                    &mut workspace.ci,
+                    ctx,
+                ),
                 None => Err(DiscoveryError::Unsupported { message: "CI test used before prepare()" }),
             };
             workspace.column_views.recover(cols);
@@ -1173,7 +1221,7 @@ impl PcmciEngine {
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len }];
         let req =
             crate::ci::ci_batch_request(&cols, &queries, &z_remap, self.constraints.significance);
-        crate::ci::single_finite(&*self.ci, &prepared, &req, &mut workspace.ci, ctx)
+        crate::ci::single_finite_or_untestable(&*self.ci, &prepared, &req, &mut workspace.ci, ctx)
     }
 }
 
@@ -1183,6 +1231,15 @@ fn pc_parent_combo(
     cond_size: usize,
 ) -> Vec<(VariableId, Lag)> {
     parents.iter().enumerate().filter(|(j, _)| *j != pi).map(|(_, x)| *x).take(cond_size).collect()
+}
+
+/// The score of a candidate link whose MCI test the data cannot answer.
+///
+/// The full constrained family stays in the multiplicity denominator, so the link is kept with
+/// no association and `p = 1`: it is never reported as an effect, and never as a tested
+/// independence either (it enters no separating set).
+fn untestable_link(link: LaggedLink) -> ScoredLink {
+    ScoredLink { link, statistic: 0.0, p_value: 1.0, adjusted_p_value: None }
 }
 
 /// Fold one PC1 outcome for `link` into the candidate's `min_stat` slot, queueing it for

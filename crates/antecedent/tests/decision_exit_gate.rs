@@ -880,11 +880,12 @@ fn story_a_failed_multi_source_decision_is_planned_replayed_and_flipped_by_arriv
         assert!((point - truth).abs() < 1e-12, "do(X={x}): {point} vs {truth}");
     }
 
-    // A catalog over the bounds is refused as bounds_exceeded, never "sufficient".
-    let many: Vec<_> =
-        (0..17).map(|i| study(&format!("obs{i:02}"), "b", &[], None, &[X], 1)).collect();
-    let error =
-        plan_studies(&graph(), &route, &base, &many, StudyPlanLimits::default(), &ctx).unwrap_err();
+    // Plan limits above the route maxima are refused as bounds_exceeded, never "sufficient".
+    let over = StudyPlanLimits {
+        search: SearchLimits { operations: 200_001, depth: 24 },
+        ..StudyPlanLimits::default()
+    };
+    let error = plan_studies(&graph(), &route, &base, &candidates, over, &ctx).unwrap_err();
     assert_eq!((error.code, error.detail), ("route_not_supported", "study_plan.bounds_exceeded"));
     // A budget that stops the plan before the pair is a receipt, never a verdict.
     let short = StudyPlanLimits {

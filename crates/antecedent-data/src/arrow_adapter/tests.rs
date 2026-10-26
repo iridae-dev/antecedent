@@ -465,8 +465,11 @@ fn an_estimator_that_cannot_stream_materializes_or_refuses() {
     let mut controls = PreparationControls::finite_resident();
     controls.budget = Some(PreparationBudget::new(0));
     let refused = frame.open_for_estimator(&[], MissingPolicy::CompleteCase, &[], controls);
-    let message = refused.expect_err("budget").to_string();
-    assert!(message.contains("exceeds budget 0"), "{message}");
+    let error = refused.expect_err("budget");
+    assert!(
+        matches!(error, crate::error::DataError::BudgetRefused { budget: Some(0), .. }),
+        "{error:?}"
+    );
 
     controls.budget = None;
     let delivered =

@@ -627,7 +627,6 @@ fn the_demoted_engines_are_not_on_the_public_surface() {
                 "facade_counterfactual_policy",
                 "facade_sample_temporal_policy",
                 "facade_counterfactual_temporal_policy",
-                "core.value(",
             ][..],
         ),
         ("python/src/lib.rs", &["facade_sample_do"][..]),

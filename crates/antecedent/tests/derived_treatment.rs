@@ -235,10 +235,9 @@ fn contradictory_declarations_are_refused() {
     }
     let error = attempt(&|d| d.transformation = Transformation::Product);
     refusal(&error, "derived_treatment_invalid", "joint_cells.derived_intervention_not_defined");
+    // A joint cell addresses at most the 31 binary components a cell code holds.
     let error = attempt(&|d| {
-        d.sources.push(component("z"));
-        d.sources.push(component("age2"));
-        d.sources.push(component("age3"));
+        d.sources.extend((0..31).map(|k| component(&format!("extra{k}"))));
     });
     refusal(&error, "derived_treatment_invalid", "joint_cells.derived_declaration_invalid");
 }

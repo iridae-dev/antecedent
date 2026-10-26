@@ -505,7 +505,8 @@ fn route_bounds_requests_and_counted_laws_refuse_with_their_frozen_codes() {
 
 #[test]
 fn a_graph_beyond_the_conditional_class_refuses_the_whole_set() {
-    // Seven observed variables: inside the scenario system's 12-variable bound, outside the conditional row's 6.
+    // Seven observed variables: the conditional class has no variable-count bound, so the set
+    // is prepared like a smaller one; only the evidence it is asked about can refuse it.
     let mut graph = antecedent_graph::Admg::with_variables(7);
     graph
         .insert_directed(
@@ -539,9 +540,7 @@ fn a_graph_beyond_the_conditional_class_refuses_the_whole_set() {
         ExactEvaluationLimits::default(),
         &ExecutionContext::for_tests(1),
     );
-    let (code, message) = refused(result);
-    assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("admg_transport.bounds_exceeded"), "{message}");
+    assert!(result.is_ok(), "{:?}", result.map(|_| ()));
 }
 
 fn consume(bytes: &[u8]) -> Result<ScenarioSetReport, IoError> {

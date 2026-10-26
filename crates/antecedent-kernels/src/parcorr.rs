@@ -415,8 +415,12 @@ fn pearson_after_residualize(
     y: &[f64],
     corr: FlooredPearson,
 ) -> Option<f64> {
-    match corr(rx, ry, Some((residual_floor(x), residual_floor(y)))) {
+    let (floor_x, floor_y) = (residual_floor(x), residual_floor(y));
+    match corr(rx, ry, Some((floor_x, floor_y))) {
         Some(r) => Some(r),
+        // A raw column with no variation has no correlation with anything: undefined, not
+        // independent. Only a residual that Z explains away is trivially independent.
+        None if !(floor_x.is_finite() && floor_y.is_finite()) => None,
         None if rx.iter().chain(ry.iter()).all(|v| v.is_finite()) => Some(0.0),
         None => None,
     }

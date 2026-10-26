@@ -670,7 +670,7 @@ fn structures_and_inference_outside_the_cell_are_refused() {
     let text = reason(&interval);
     assert!(text.contains("reason=estimator_inference_mismatch"), "{text}");
     assert!(text.contains("cross_world.interval_requested"), "{text}");
-    // Nine variables exceed the licensed graph size.
+    // The licensed graph has no size limit: nine variables evaluate like three.
     let nine: Vec<Vec<f64>> =
         (0..9).map(|k| (0..30).map(|i| f64::from(i * (k + 1)).sin()).collect()).collect();
     let names: Vec<String> = (0..9).map(|k| format!("v{k}")).collect();
@@ -679,17 +679,15 @@ fn structures_and_inference_outside_the_cell_are_refused() {
     )
     .unwrap();
     let big_query = CrossWorldQuery::natural_direct(v(0), v(1), v(2), 0.0, 1.0).unwrap();
-    let text = reason(
-        &evaluate_cross_world_effect(
-            dag(9, &[(0, 1), (1, 2)]),
-            &big,
-            &big_query,
-            CrossWorldOptions::default(),
-            &ctx,
-        )
-        .unwrap_err(),
-    );
-    assert!(text.contains("cross_world.graph_outside_contract"), "{text}");
+    let wide = evaluate_cross_world_effect(
+        dag(9, &[(0, 1), (1, 2)]),
+        &big,
+        &big_query,
+        CrossWorldOptions::default(),
+        &ctx,
+    )
+    .unwrap();
+    assert!(wide.point.is_finite());
     // Malformed: table width disagrees with the graph.
     let two =
         TabularData::from_f64_columns([("x", &[0.0, 1.0, 2.0][..]), ("y", &[1.0, 2.0, 3.0][..])])

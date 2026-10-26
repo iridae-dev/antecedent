@@ -520,23 +520,36 @@ fn a_pag_posterior_is_a_compiled_bayesian_route_over_ancestral_graph_classes() {
         let direct =
             antecedent::discovery::discover_exact_pag_posterior(&data, &three(), &ctx()).unwrap();
         assert_eq!(pag.atoms, direct.atoms);
-        // Five variables are not enumerated.
-        let wide = TabularData::from_f64_columns([
-            ("a", &[1.0, 2.0, 3.0, 4.0][..]),
-            ("b", &[2.0, 1.0, 4.0, 3.0][..]),
-            ("c", &[1.0, 3.0, 2.0, 4.0][..]),
-            ("d", &[4.0, 1.0, 3.0, 2.0][..]),
-            ("e", &[1.0, 4.0, 2.0, 3.0][..]),
-        ])
+        // Five variables are not enumerated: the same spec is routed to the sampler and keeps
+        // the sampler's label.
+        let columns: Vec<Vec<f64>> = (0..5)
+            .map(|seed| {
+                let mut rng = CausalRng::from_seed(60 + seed);
+                (0..300).map(|_| rng.next_f64()).collect()
+            })
+            .collect();
+        let wide = TabularData::from_f64_columns(
+            ["a", "b", "c", "d", "e"]
+                .iter()
+                .zip(&columns)
+                .map(|(name, values)| (*name, values.as_slice())),
+        )
         .unwrap();
-        let refused = Study::tabular(wide)
+        let routed = Study::tabular(wide)
             .discovery(
                 DiscoverySpec::exact_pag_posterior(BayesianDiscoverParams::default()),
                 vec![v(0), v(1), v(2), v(3), v(4)],
             )
             .build()
-            .and_then(|study| CompiledExecution::run(&study, &ctx()).map(|_| ()));
-        assert!(refused.is_err());
+            .unwrap();
+        let execution = compiled(&routed, "DiscoverStatic");
+        let Some(DiscoveredStructure::Posterior(sampled)) =
+            execution.result().discovery().map(|payload| payload.structure.clone())
+        else {
+            panic!("a wide PAG posterior returns a posterior");
+        };
+        assert_eq!(sampled.atom_kind, GraphPosteriorAtomKind::Pag);
+        assert_eq!(sampled.algorithm.as_deref(), Some("pag_mcmc"));
     });
 }
 
@@ -608,7 +621,8 @@ fn a_pag_sampler_is_a_compiled_bayesian_route_beyond_four_variables() {
         assert_eq!(pag.atom_kind, GraphPosteriorAtomKind::Pag);
         let mass: f64 = pag.weights.iter().sum();
         assert!((mass - 1.0).abs() < 1e-9);
-        // Nine variables are beyond the sampler.
+        // The sampler is bounded by a work budget, not by a variable count below 32: a
+        // schedule whose work exceeds the budget is refused.
         let wide = TabularData::from_f64_columns(
             ["a", "b", "c", "d", "e", "f", "g", "h", "i"]
                 .map(|name| (name, a_column(n)))
@@ -616,9 +630,10 @@ fn a_pag_sampler_is_a_compiled_bayesian_route_beyond_four_variables() {
                 .map(|(name, values)| (*name, values.as_slice())),
         )
         .unwrap();
+        let heavy = GraphMcmcSchedule { n_chains: 2, n_warmup: 0, n_draws: u32::MAX, thin: 1 };
         let refused = Study::tabular(wide)
             .discovery(
-                DiscoverySpec::pag_mcmc(BayesianDiscoverParams::default(), schedule),
+                DiscoverySpec::pag_mcmc(BayesianDiscoverParams::default(), heavy),
                 (0..9).map(v).collect::<Vec<_>>(),
             )
             .build()

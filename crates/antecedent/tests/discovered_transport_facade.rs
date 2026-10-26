@@ -780,7 +780,7 @@ fn a_variable_with_more_levels_than_supported_is_refused() {
     .unwrap_err();
     let refusal = refused(error);
     assert_eq!(refusal.detail, "discovered_transport.evidence_invalid");
-    assert!(refusal.remedy.contains("at most 32"));
+    assert!(refusal.remedy.contains("joint domain"), "{}", refusal.remedy);
 }
 
 // -- discovery from data, then transport --------------------------------------------------------------

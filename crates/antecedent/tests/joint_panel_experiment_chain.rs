@@ -675,8 +675,13 @@ fn assert_fresh_experiment_replay(
     law: &antecedent_io::distribution_artifact::DistributionArtifact,
     _ctx: &ExecutionContext,
 ) {
-    let directory = std::env::temp_dir()
-        .join(format!("antecedent-panel-experiment-replay-{}", std::process::id()));
+    // Two tests of one process replay concurrently, so each replay owns its directory.
+    static REPLAYS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let directory = std::env::temp_dir().join(format!(
+        "antecedent-panel-experiment-replay-{}-{}",
+        std::process::id(),
+        REPLAYS.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
     std::fs::create_dir_all(&directory).unwrap();
     std::fs::write(directory.join("execution.bin"), bytes).unwrap();
     let expected = (
