@@ -26,8 +26,7 @@ def test_new_bayesian_estimator_ids_are_public_and_basis_result_keeps_metadata()
             estimator=antecedent.Estimator.BAYESIAN_BASIS_GCOMP,
             inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
             refute=False,
-            seed=19,
-            return_posterior_artifact=True,
+            execution=antecedent.Execution(seed=19),
         )
     )
 
@@ -41,14 +40,15 @@ def test_new_bayesian_estimator_ids_are_public_and_basis_result_keeps_metadata()
     assert result.posterior.q975 is not None
     assert result.posterior.q025 < result.posterior.q975
     assert result.posterior.interval() == (result.posterior.q025, result.posterior.q975)
-    assert result.posterior.artifact is not None
+    exported = result.export(quantity="posterior")
+    assert bytes(exported)
     assert any(
         "zero-centered Gaussian prior" in assumption for assumption in result.assumptions or []
     )
 
-    artifact = antecedent.inference.decode_posterior_artifact(result.posterior.artifact)
+    artifact = require_success(antecedent.load(exported))
     assert artifact.backend_id == result.posterior.backend
     assert "ate" in artifact.quantity_names
     assert artifact.n_draws == 256
-    assert artifact.q025[artifact.quantity_names.index("ate")] == result.posterior.q025
-    assert artifact.q975[artifact.quantity_names.index("ate")] == result.posterior.q975
+    assert artifact.quantity("ate").q025 == result.posterior.q025
+    assert artifact.quantity("ate").q975 == result.posterior.q975

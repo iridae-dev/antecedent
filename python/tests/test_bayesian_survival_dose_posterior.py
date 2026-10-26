@@ -60,7 +60,10 @@ def test_estimator_ids_are_public() -> None:
 def test_survival_posterior_matches_the_gamma_hazard_reference() -> None:
     result = require_success(
         antecedent.analyze(
-            _small_survival(), query=_survival_query(), inference=_hazards(), seed=11
+            _small_survival(),
+            query=_survival_query(),
+            inference=_hazards(),
+            execution=antecedent.Execution(seed=11),
         )
     )
     row = result.posterior_row
@@ -116,7 +119,9 @@ def test_flat_prior_survival_posterior_tracks_the_frequentist_product_limit() ->
         ),
     )
     row = require_success(
-        antecedent.analyze(data, query=_survival_query(), inference=flat, seed=3)
+        antecedent.analyze(
+            data, query=_survival_query(), inference=flat, execution=antecedent.Execution(seed=3)
+        )
     ).posterior_row
     assert row is not None
     survival_difference = frequentist.treated_survival[-1] - frequentist.control_survival[-1]
@@ -129,7 +134,12 @@ def test_flat_prior_survival_posterior_tracks_the_frequentist_product_limit() ->
 
 def test_survival_posterior_round_trips_in_this_process_and_a_fresh_one(tmp_path) -> None:
     result = require_success(
-        antecedent.analyze(_small_survival(), query=_survival_query(), inference=_hazards(), seed=5)
+        antecedent.analyze(
+            _small_survival(),
+            query=_survival_query(),
+            inference=_hazards(),
+            execution=antecedent.Execution(seed=5),
+        )
     )
     artifact = bytes(result.export(artifact_id="bayesian-survival"))
     loaded = require_success(antecedent.load(artifact))
@@ -142,8 +152,9 @@ def test_survival_posterior_round_trips_in_this_process_and_a_fresh_one(tmp_path
     path.write_bytes(artifact)
     script = (
         "import antecedent, json, sys\n"
-        "answer = antecedent.load(open(sys.argv[1], 'rb').read()).answer\n"
-        "print(json.dumps(answer.structured))\n"
+        "from antecedent.outcomes import require_success\n"
+        "result = require_success(antecedent.load(open(sys.argv[1], 'rb').read()))\n"
+        "print(json.dumps(result.inspect().to_dict()['answer']['structured']))\n"
     )
     done = subprocess.run(
         [sys.executable, "-I", "-c", script, str(path)],
@@ -192,10 +203,8 @@ def test_survival_posterior_refusals_name_the_next_attempt() -> None:
             antecedent.analyze(data, query=_survival_query(), inference=_hazards(cuts=(1.0, 2.0)))
         )
     # A bootstrap has no meaning for a posterior.
-    with pytest.raises(CausalError, match="bootstrap_not_applicable"):
-        require_success(
-            antecedent.analyze(data, query=_survival_query(), inference=_hazards(), bootstrap=300)
-        )
+    with pytest.raises(TypeError, match="bootstrap"):
+        antecedent.Bayesian(backend="conjugate", bootstrap=300)
 
 
 def _dose_rows(rows: int = 800) -> dict[str, np.ndarray]:
@@ -248,7 +257,13 @@ def test_dose_policy_posterior_tracks_the_frequentist_kernel_row() -> None:
         antecedent.analyze(data, query=query, refute="none")
     ).continuous_dose_response
     result = require_success(
-        antecedent.analyze(data, query=query, inference=_polynomial(), refute="none", seed=7)
+        antecedent.analyze(
+            data,
+            query=query,
+            inference=_polynomial(),
+            refute="none",
+            execution=antecedent.Execution(seed=7),
+        )
     )
     row = result.posterior_row
     assert row is not None and result.continuous_dose_response is None
@@ -302,7 +317,13 @@ def test_dose_policy_posterior_matches_the_per_group_conjugate_reference() -> No
         ),
     )
     row = require_success(
-        antecedent.analyze(data, query=query, inference=inference, refute="none", seed=5)
+        antecedent.analyze(
+            data,
+            query=query,
+            inference=inference,
+            refute="none",
+            execution=antecedent.Execution(seed=5),
+        )
     ).posterior_row
     # numpy ridge posteriors per group, scipy adaptive quadrature of the window average.
     assert row.exact_mean == pytest.approx((1.91559566, 1.43144023, 0.48415543), abs=1e-7)
@@ -373,7 +394,7 @@ def _quantile(concentration: float = 0.5, model: bool = True, **kwargs):
             estimator=antecedent.Estimator.BAYESIAN_RANDOMIZED_QUANTILE,
             inference=inference,
             refute="none",
-            seed=kwargs.pop("seed", 9),
+            execution=antecedent.Execution(seed=kwargs.pop("seed", 9)),
         )
     )
 

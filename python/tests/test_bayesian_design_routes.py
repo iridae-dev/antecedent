@@ -58,8 +58,7 @@ def test_bayesian_panel_did_matches_the_closed_form_and_stays_unlicensed():
             data,
             query=PanelDifferenceInDifferences("y", "id", "group", "after"),
             inference=antecedent.Bayesian(backend="conjugate", n_draws=20000, prior_scale=100.0),
-            seed=11,
-            return_posterior_artifact=True,
+            execution=antecedent.Execution(seed=11),
         )
     )
     mean, sd = _nig_reference(changes, groups)
@@ -70,7 +69,7 @@ def test_bayesian_panel_did_matches_the_closed_form_and_stays_unlicensed():
     assert result.posterior.q025 < mean < result.posterior.q975
     assert result.evidence_status != "licensed"
     assert result.panel_did is None
-    artifact = antecedent.inference.decode_posterior_artifact(result.posterior.artifact)
+    artifact = require_success(antecedent.load(result.export(quantity="posterior")))
     assert artifact.n_draws == 20000
     assert "att" in artifact.quantity_names
 
@@ -108,9 +107,17 @@ def _ratio(strong: bool):
 def test_bayesian_local_ratio_recovers_truth_and_withholds_a_weak_interval():
     query = FuzzyRegressionDiscontinuity("y", "t", "x", 0.0, 0.8)
     bayes = antecedent.Bayesian(backend="conjugate", n_draws=8000, prior_scale=10.0)
-    strong = require_success(antecedent.analyze(_ratio(True), query=query, inference=bayes, seed=5))
+    strong = require_success(
+        antecedent.analyze(
+            _ratio(True), query=query, inference=bayes, execution=antecedent.Execution(seed=5)
+        )
+    )
     assert strong.estimate.estimator_id == "bayesian.local_ratio"
     assert strong.posterior.q025 < 2.0 < strong.posterior.q975
-    weak = require_success(antecedent.analyze(_ratio(False), query=query, inference=bayes, seed=5))
+    weak = require_success(
+        antecedent.analyze(
+            _ratio(False), query=query, inference=bayes, execution=antecedent.Execution(seed=5)
+        )
+    )
     assert weak.posterior.q025 is None and weak.posterior.q975 is None
     assert any("weak_first_stage" in d for d in weak.diagnostics)

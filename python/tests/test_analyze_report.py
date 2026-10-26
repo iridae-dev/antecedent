@@ -22,13 +22,14 @@ def _data():
 
 
 def test_analyze_result_is_pydantic_and_to_dict_is_json_safe() -> None:
-    result = analyze(
-        _data(),
-        graph=[("t", "y"), ("x", "y"), ("x", "t")],
-        query=AverageEffect("t", "y"),
-        inference=Frequentist(),
-        refute="none",
-        bootstrap=0,
+    result = require_success(
+        analyze(
+            _data(),
+            graph=[("t", "y"), ("x", "y"), ("x", "t")],
+            query=AverageEffect("t", "y"),
+            inference=Frequentist(bootstrap=0),
+            refute="none",
+        )
     )
     assert isinstance(result, AnalysisResult)
     assert isinstance(result, BaseModel)
@@ -49,9 +50,8 @@ def test_prepared_estimate_is_the_same_pydantic_result() -> None:
         _data(),
         graph=[("t", "y"), ("x", "y"), ("x", "t")],
         query=AverageEffect("t", "y"),
-        inference=Frequentist(),
+        inference=Frequentist(bootstrap=0),
         refute="none",
-        bootstrap=0,
     )
     result = require_success(prepared.estimate())
     assert isinstance(result, AnalysisResult)
@@ -67,13 +67,14 @@ def test_response_analyze_is_pydantic() -> None:
     treatment = 0.7 * confounder + rng.normal(size=200)
     outcome = 2.0 * treatment + confounder + rng.normal(scale=0.2, size=200)
     data = pd.DataFrame({"t": treatment, "y": outcome, "x": confounder})
-    result = analyze(
-        data,
-        graph=[("t", "y"), ("x", "y"), ("x", "t")],
-        query=ResponseCurve("t", "y", grid=[-0.5, 0.0, 0.5]),
-        inference=Frequentist(),
-        refute="none",
-        bootstrap=0,
+    result = require_success(
+        analyze(
+            data,
+            graph=[("t", "y"), ("x", "y"), ("x", "t")],
+            query=ResponseCurve("t", "y", grid=[-0.5, 0.0, 0.5]),
+            inference=Frequentist(bootstrap=0),
+            refute="none",
+        )
     )
     assert isinstance(result, CausalResponseView)
     assert isinstance(result, BaseModel)

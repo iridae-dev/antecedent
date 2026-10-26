@@ -9,7 +9,6 @@ import json
 import antecedent as ac
 import numpy as np
 import pytest
-from antecedent.estimation import PreparedAnalysis
 from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT
@@ -79,14 +78,14 @@ def test_bayesian_path_prepare_estimate():
     )
     data = {"t": t, "m": m, "y": y}
     dag = ac.Dag.from_edges(["t", "m", "y"], [("t", "m"), ("m", "y")])
-    prepared = PreparedAnalysis.prepare(
+    prepared = ac.prepare(
         data,
         graph=dag,
         query=ac.PathSpecificEffect("t", "y", path_nodes=["m"]),
         inference=ac.Bayesian(n_draws=64),
         refute="none",
     )
-    result = require_success(prepared.estimate(data))
+    result = require_success(prepared.estimate())
     assert result.estimate.estimator_id == "functional.effect"
     assert any("exec.identify.cached" in item for item in result.diagnostics)
     assert result.posterior is not None
@@ -102,7 +101,7 @@ def test_bayesian_mediation_four_axes():
     y = 3 * a + 4 * m + 0.1 * np.sin(i * 0.31)
     data = {"a": a, "m": m, "y": y}
     dag = ac.Dag.from_edges(["a", "m", "y"], [("a", "m"), ("a", "y"), ("m", "y")])
-    prepared = PreparedAnalysis.prepare(
+    prepared = ac.prepare(
         data,
         graph=dag,
         query=ac.MediationEffect(
@@ -116,7 +115,7 @@ def test_bayesian_mediation_four_axes():
         inference=ac.Bayesian(n_draws=64),
         refute="none",
     )
-    result = require_success(prepared.estimate(data))
+    result = require_success(prepared.estimate())
     assert result.estimate.estimator_id == "mediation.linear"
     assert result.posterior is not None
     assert result.identification
@@ -140,22 +139,22 @@ def test_bayesian_counterfactual_unit_posterior():
         active_level=kinds["active"],
     )
     bayes = require_success(
-        PreparedAnalysis.prepare(
+        ac.prepare(
             data,
             graph=dag,
             query=query,
             inference=ac.Bayesian(n_draws=64),
             refute="none",
-        ).estimate(data)
+        ).estimate()
     )
     freq = require_success(
-        PreparedAnalysis.prepare(
+        ac.prepare(
             data,
             graph=dag,
             query=query,
             inference=ac.Frequentist(),
             refute="none",
-        ).estimate(data)
+        ).estimate()
     )
     assert bayes.unit_effects is not None
     assert freq.unit_effects is not None
@@ -187,12 +186,11 @@ def test_bayesian_mediation_mapped_prior_is_used():
             ),
             inference=ac.Bayesian(n_draws=64, backend="conjugate"),
             refute=False,
-            seed=int(pin["seed"]),
-            return_posterior_artifact=True,
+            execution=ac.Execution(seed=int(pin["seed"])),
         )
     )
     assert source.posterior is not None
-    artifact = bytes(source.posterior.artifact)
+    artifact = bytes(source.export(quantity="posterior"))
     transferred = require_success(
         ac.analyze(
             data,
@@ -212,7 +210,7 @@ def test_bayesian_mediation_mapped_prior_is_used():
                 mapping=PriorMapping.effect_functional("ate"),
             ),
             refute=False,
-            seed=int(pin["seed"]),
+            execution=ac.Execution(seed=int(pin["seed"])),
         )
     )
     isotropic = require_success(
@@ -229,7 +227,7 @@ def test_bayesian_mediation_mapped_prior_is_used():
             ),
             inference=ac.Bayesian(n_draws=64, backend="conjugate"),
             refute=False,
-            seed=int(pin["seed"]),
+            execution=ac.Execution(seed=int(pin["seed"])),
         )
     )
     assert transferred.posterior is not None
@@ -261,19 +259,17 @@ def test_staged_native_signatures_match_type_stubs():
 @pytest.mark.parametrize("refute", ["none", "cheap", "full"])
 @pytest.mark.parametrize("accepted", [False, True])
 def test_bayesian_conditional_distribution_without_scalar_mean(refute, accepted):
-    from antecedent.inference import decode_posterior_artifact
-
     rows = np.array([(t, y, z) for t in [0.0, 1.0] for y in [0.0, 1.0] for z in [0.0, 1.0]] * 40)
     data = dict(zip(["t", "y", "z"], rows.T, strict=True))
     graph = ac.Dag.from_edges(list(data), [("z", "t"), ("z", "y"), ("t", "y")])
-    prepared = PreparedAnalysis.prepare(
+    prepared = ac.prepare(
         data,
         graph=ac.AcceptedGraph(graph) if accepted else graph,
         query=ac.InterventionalDistribution("y", interventions={"t": 1.0}, conditioning=["z"]),
         inference=ac.Bayesian(n_draws=64),
         refute=refute,
     )
-    result = require_success(prepared.estimate(data))
+    result = require_success(prepared.estimate())
     assert result.effect is None
     assert result.posterior is not None
     assert result.posterior.n_draws == 64
@@ -282,10 +278,10 @@ def test_bayesian_conditional_distribution_without_scalar_mean(refute, accepted)
     assert result.posterior.p_below_zero is None
     assert "empty" not in repr(result.posterior)
     assert "No posterior computed" not in result.posterior._repr_html_()
-    posterior = decode_posterior_artifact(prepared.export_artifact())
+    posterior = require_success(ac.load(result.export(quantity="posterior")))
     assert posterior.n_draws == 64
     assert list(posterior.quantity_names) == [f"probability_atom_{i}" for i in range(4)]
-    draws = np.asarray(posterior).reshape((64, 4), order="F")
+    draws = np.column_stack([posterior.quantity(name).draws for name in posterior.quantity_names])
     assert np.all(np.isfinite(draws))
     assert np.all((draws >= 0) & (draws <= 1))
     # Atom order is conditioning assignment, then outcome support.
