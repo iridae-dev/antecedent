@@ -72,8 +72,8 @@ def _run(query, graph=None, **kwargs):
             graph=graph if graph is not None else _graph(),
             query=query,
             refute=False,
-            bootstrap=kwargs.pop("bootstrap", 0),
-            seed=3,
+            inference=antecedent.Frequentist(bootstrap=kwargs.pop("bootstrap", 0)),
+            execution=antecedent.Execution(seed=3),
             **kwargs,
         )
     )

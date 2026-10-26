@@ -66,8 +66,8 @@ def test_panel_discover_pcmci_ci_callback_invoked():
                     horizon_steps=1,
                     active_level=1.0,
                 ),
-                bootstrap=0,
-                seed=1,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
                 refute=False,
             )
         )
@@ -115,8 +115,8 @@ def test_panel_discover_jpcmci_plus_ci_callback_invoked():
                     horizon_steps=1,
                     active_level=1.0,
                 ),
-                bootstrap=0,
-                seed=1,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
                 refute=False,
             )
         )

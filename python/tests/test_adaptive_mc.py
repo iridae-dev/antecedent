@@ -49,9 +49,9 @@ def test_static_ate_evaluates_requested_bootstrap(estimator):
             data,
             graph=edges,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            bootstrap=199,
+            inference=antecedent.Frequentist(bootstrap=199),
             refute=False,
-            seed=5,
+            execution=antecedent.Execution(seed=5),
             **kwargs,
         )
     )
@@ -66,9 +66,9 @@ def test_static_mediation_evaluates_requested_bootstrap(contrast):
             data,
             graph=edges,
             query=antecedent.MediationEffect("a", "y", mediators=["m"], contrast=contrast),
-            bootstrap=199,
+            inference=antecedent.Frequentist(bootstrap=199),
             refute=False,
-            seed=5,
+            execution=antecedent.Execution(seed=5),
         )
     )
     _assert_full(result, 199)
@@ -84,7 +84,7 @@ def test_bayesian_laplace_materializes_requested_draws():
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Bayesian(backend="laplace", n_draws=max_draws),
             refute=False,
-            seed=9,
+            execution=antecedent.Execution(seed=9),
         )
     )
     assert result.performance.n_draws == max_draws

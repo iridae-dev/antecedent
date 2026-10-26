@@ -83,7 +83,7 @@ def test_dr_native_dml_cate_counts_and_full_rerun(cate):
             query=ac.AverageEffect(treatment="t", outcome="y"),
             estimator=r.estimator,
             refute=False,
-            seed=3,
+            execution=ac.Execution(seed=3),
         )
     )
     assert result.law.ate == pytest.approx(existing.effect, abs=1e-10)

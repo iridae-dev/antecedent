@@ -28,8 +28,8 @@ def test_custom_distribution_ipw_via_analyze():
             population_registry=reg,
             estimator="propensity.weighting",
             refute=False,
-            bootstrap=0,
-            seed=11,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=11),
         )
     )
     assert abs(result.ate - 2.0) < 0.35

@@ -58,7 +58,11 @@ def test_temporal_control_level_sets_the_contrast(query_type: Any, options: dict
     def effect(control: float) -> float:
         query = query_type("x", "y", treatment_lag=1, control_level=control, active_level=1.0)
         return float(
-            require_success(ant.analyze(data, query=query, refute=False, seed=3, **options)).ate
+            require_success(
+                ant.analyze(
+                    data, query=query, refute=False, execution=ant.Execution(seed=3), **options
+                )
+            ).ate
         )
 
     full, half = effect(0.0), effect(0.5)

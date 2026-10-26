@@ -244,8 +244,8 @@ def _temporal_class(**kwargs: Any):
                 graph=_cpdag(),
                 query=_pulse(_PIN),
                 refute=False,
-                bootstrap=0,
-                seed=7,
+                inference=ant.Frequentist(bootstrap=0),
+                execution=ant.Execution(seed=7),
                 **kwargs,
             )
         )
@@ -554,7 +554,7 @@ def _response_with_coordinates(**metadata):
             data,
             query=ant.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
             graph=[("a", "y")],
-            bootstrap=0,
+            inference=ant.Frequentist(bootstrap=0),
             refute="none",
             **metadata,
         )

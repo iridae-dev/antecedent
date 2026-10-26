@@ -86,7 +86,13 @@ def test_temporal_class_pulse_pin(accepted: bool, class_name: str, graph_fn, dia
         assert len(identified.certificate["cases"]) == 3
         with pytest.raises(antecedent.errors.CausalCompileError, match="no identified mass"):
             require_success(
-                antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0)
+                antecedent.analyze(
+                    data,
+                    graph=graph,
+                    query=query,
+                    refute=False,
+                    inference=antecedent.Frequentist(bootstrap=0),
+                )
             )
         return
     section = _PIN[class_name]
@@ -94,7 +100,14 @@ def test_temporal_class_pulse_pin(accepted: bool, class_name: str, graph_fn, dia
     tol = float(section["pulse"]["absolute_tolerance"])
 
     fresh = require_success(
-        antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0, seed=1)
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
@@ -124,7 +137,14 @@ def test_temporal_class_pulse_pin(accepted: bool, class_name: str, graph_fn, dia
     )
 
     cheap = require_success(
-        antecedent.analyze(data, graph=graph, query=query, refute="cheap", bootstrap=0, seed=1)
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            refute="cheap",
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     assert cheap.validation.ran
     assert any("refute.envelope.effect_mixture" in diagnostic for diagnostic in cheap.diagnostics)
@@ -139,15 +159,33 @@ def test_temporal_class_single_step_sustained_matches_pulse(class_name: str, gra
         for query in (_pulse(_PIN), _sustained(_PIN)):
             with pytest.raises(antecedent.errors.CausalCompileError, match="no identified mass"):
                 require_success(
-                    antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0)
+                    antecedent.analyze(
+                        data,
+                        graph=graph,
+                        query=query,
+                        refute=False,
+                        inference=antecedent.Frequentist(bootstrap=0),
+                    )
                 )
         return
     pulse = require_success(
-        antecedent.analyze(data, graph=graph, query=_pulse(_PIN), refute=False, bootstrap=0, seed=1)
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=_pulse(_PIN),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     sustained = require_success(
         antecedent.analyze(
-            data, graph=graph, query=_sustained(_PIN), refute=False, bootstrap=0, seed=1
+            data,
+            graph=graph,
+            query=_sustained(_PIN),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert pulse.ate == pytest.approx(sustained.ate, abs=1e-10)

@@ -101,7 +101,7 @@ def test_prepared_aipw_refresh_and_independent_artifact_consumption() -> None:
         query=ant.AverageEffect("treatment", "outcome"),
         estimator="aipw",
         refute="none",
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
     )
     first = require_success(prepared.estimate(data))
     assert first.effect == pytest.approx(1.5, abs=0.3)
@@ -127,7 +127,7 @@ def test_prepared_frontdoor_refresh_and_independent_artifact_consumption() -> No
         identifier="frontdoor",
         estimator="frontdoor.linear_two_stage",
         refute="none",
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
     )
     first = require_success(prepared.estimate(data))
     assert first.effect == pytest.approx(1.0, abs=0.15)
@@ -156,7 +156,7 @@ def test_prepared_binary_iv_refresh_and_independent_artifact_consumption(
         identifier="iv",
         estimator=estimator,
         refute="none",
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
     )
     first = require_success(prepared.estimate(data))
     assert first.effect == pytest.approx(1.5, abs=0.35)
@@ -251,7 +251,7 @@ def test_no_estimator_runs_under_an_inference_mode_it_does_not_implement(
                             inference=inference,
                             estimator=estimator,
                             refute="none",
-                            seed=1,
+                            execution=ant.Execution(seed=1),
                             **extra,
                         )
                     )

@@ -50,7 +50,7 @@ def test_bayesian_level_refuter_state_runs_and_is_unlicensed(suite):
             query=_level_query(),
             inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
             refute=suite,
-            seed=3,
+            execution=antecedent.Execution(seed=3),
         )
     )
     assert result.evidence_status != "licensed"
@@ -70,7 +70,7 @@ def test_bayesian_level_without_refute_stays_licensed():
             query=_level_query(),
             inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
             refute="none",
-            seed=3,
+            execution=antecedent.Execution(seed=3),
         )
     )
     assert result.evidence_status == "licensed"
@@ -89,7 +89,7 @@ def test_derivative_cheap_runs_its_refuter_state():
             graph=EDGES,
             query=antecedent.AverageDerivative("t", "y"),
             refute="cheap",
-            seed=3,
+            execution=antecedent.Execution(seed=3),
         )
     )
     assert result.evidence_status != "licensed"

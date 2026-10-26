@@ -25,9 +25,9 @@ def test_dml_auto_recovers_ate():
             graph=graph,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             estimator=DML(learner="auto", folds=4),
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
             refute=False,
-            seed=1,
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.estimate.estimator_id == "dml"
@@ -54,9 +54,9 @@ def test_drlearner_returns_cate():
             graph=graph,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             estimator=DRLearner(learner="ridge", folds=4),
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
             refute=False,
-            seed=2,
+            execution=antecedent.Execution(seed=2),
         )
     )
     assert result.estimate.estimator_id == "dr.learner"
@@ -75,7 +75,7 @@ def test_staged_learner_artifact_roundtrip(estimator):
         graph=graph,
         query=antecedent.AverageEffect("t", "y"),
         estimator=estimator,
-        bootstrap=0,
+        inference=antecedent.Frequentist(bootstrap=0),
         refute="none",
     )
     result = require_success(prepared.estimate(data))

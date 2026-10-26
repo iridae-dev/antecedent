@@ -25,9 +25,8 @@ def test_inspect_is_pydantic_and_to_dict_matches_dump() -> None:
         _data(),
         graph=[("t", "y"), ("x", "y"), ("x", "t")],
         query=AverageEffect("t", "y"),
-        inference=Frequentist(),
+        inference=Frequentist(bootstrap=0),
         refute="none",
-        bootstrap=0,
     )
     report = prepared.inspect()
     assert isinstance(report, InspectionReport)
@@ -57,7 +56,7 @@ def test_point_only_uncertainty_reason_survives_artifact_loading() -> None:
             graph=[("t", 1, "y", 0)],
             query=ant.PulseEffect("t", "y"),
             refute="none",
-            bootstrap=0,
+            inference=ant.Frequentist(bootstrap=0),
         )
     )
     live = result.inspect().uncertainty

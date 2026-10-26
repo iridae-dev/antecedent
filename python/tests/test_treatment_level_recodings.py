@@ -60,8 +60,8 @@ def _analyze(data: Any, estimator: Any, control: Any, active: Any) -> Any:
             query=ant.AverageEffect("t", "y", control_level=control, active_level=active),
             estimator=estimator,
             refute="none",
-            bootstrap=0,
-            seed=3,
+            inference=ant.Frequentist(bootstrap=0),
+            execution=ant.Execution(seed=3),
         )
     )
 
@@ -123,8 +123,8 @@ def test_refresh_encodes_a_new_table_by_the_same_declared_labels() -> None:
         query=ant.AverageEffect("t", "y", control_level="a", active_level="b"),
         estimator=PropensityWeighting(bootstrap=0),
         refute="none",
-        bootstrap=0,
-        seed=3,
+        inference=ant.Frequentist(bootstrap=0),
+        execution=ant.Execution(seed=3),
     )
     first = require_success(prepared.estimate())
     again = require_success(prepared.refresh(labelled))

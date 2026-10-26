@@ -157,7 +157,11 @@ def test_analyze_refuses_bootstrap_where_it_does_not_apply(route) -> None:
     _, kwargs, error, match = route
     data = kwargs.pop("data")
     with pytest.raises(error, match=match):
-        require_success(antecedent.analyze(data, refute=False, bootstrap=60, **kwargs))
+        require_success(
+            antecedent.analyze(
+                data, refute=False, inference=antecedent.Frequentist(bootstrap=60), **kwargs
+            )
+        )
 
 
 @pytest.mark.parametrize(
@@ -174,10 +178,22 @@ def test_prepare_refuses_bootstrap_where_it_does_not_apply(route) -> None:
 def test_temporal_dag_bootstrap_takes_effect(query) -> None:
     data = _temporal_data()
     withheld = require_success(
-        antecedent.analyze(data, graph=_TEMPORAL_EDGES, query=query, refute=False, bootstrap=0)
+        antecedent.analyze(
+            data,
+            graph=_TEMPORAL_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
     banded = require_success(
-        antecedent.analyze(data, graph=_TEMPORAL_EDGES, query=query, refute=False, bootstrap=60)
+        antecedent.analyze(
+            data,
+            graph=_TEMPORAL_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=60),
+        )
     )
     assert withheld.uncertainty.kind == "none"
     assert any(_BAND_WITHHELD in warning for warning in withheld.support.warnings)
@@ -196,10 +212,22 @@ def test_temporal_class_bootstrap_takes_effect() -> None:
     data = _temporal_data()
     graph = TemporalCpdag.from_lagged_edges(["t", "y"], _TEMPORAL_EDGES, [])
     withheld = require_success(
-        antecedent.analyze(data, graph=graph, query=_TEMPORAL_CURVE, refute=False, bootstrap=0)
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=_TEMPORAL_CURVE,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
     banded = require_success(
-        antecedent.analyze(data, graph=graph, query=_TEMPORAL_CURVE, refute=False, bootstrap=60)
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=_TEMPORAL_CURVE,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=60),
+        )
     )
     assert withheld.uncertainty.kind == banded.uncertainty.kind == "identified_set"
     assert any(_BAND_WITHHELD in warning for warning in withheld.support.warnings)

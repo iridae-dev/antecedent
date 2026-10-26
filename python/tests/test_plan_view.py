@@ -32,8 +32,8 @@ def _prepared(**options):
         graph=_EDGES,
         query=ant.AverageEffect("t", "y"),
         refute="none",
-        bootstrap=0,
-        seed=3,
+        inference=ant.Frequentist(bootstrap=0),
+        execution=ant.Execution(seed=3),
         **options,
     )
 

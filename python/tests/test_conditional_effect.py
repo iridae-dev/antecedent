@@ -21,8 +21,8 @@ def test_conditional_effect_recovers_interaction():
             graph=edges,
             query=antecedent.ConditionalEffect("t", "y", "w"),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert abs(result.ate - 3.0) < 0.3

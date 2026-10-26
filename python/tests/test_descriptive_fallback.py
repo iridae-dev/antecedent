@@ -201,11 +201,17 @@ def test_a_successful_causal_query_returns_the_ordinary_result_never_a_fallback(
     data = {"t": t, "y": 1.0 + 2.0 * t + rng.normal(scale=0.3, size=200)}
     graph = ant.Dag.from_edges(["t", "y"], [("t", "y")])
     ordinary = require_success(
-        ant.analyze(data, graph=graph, query=ant.AverageEffect("t", "y"), seed=3)
+        ant.analyze(
+            data, graph=graph, query=ant.AverageEffect("t", "y"), execution=ant.Execution(seed=3)
+        )
     )
     optional = require_success(
         ant.analyze(
-            data, graph=graph, query=ant.AverageEffect("t", "y"), seed=3, on_refusal="describe"
+            data,
+            graph=graph,
+            query=ant.AverageEffect("t", "y"),
+            execution=ant.Execution(seed=3),
+            on_refusal="describe",
         )
     )
     assert not isinstance(optional, AnalysisWithFallback)
@@ -251,7 +257,7 @@ def test_only_identification_class_refusals_are_converted():
                 graph=_confounded_graph(),
                 query=ant.AverageEffect("t", "y"),
                 on_refusal="describe",
-                cancel=token,
+                execution=ant.Execution(cancel=token),
             )
         )
     # An unknown column is an invalid argument, not an identification gap.

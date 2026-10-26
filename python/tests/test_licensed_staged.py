@@ -474,7 +474,12 @@ def test_temporal_dag_full_refute_completes_with_data_subset_refuter(graph, quer
 
     result = require_success(
         antecedent.analyze(
-            _PULSE_DATA, graph=graph, query=query, refute="full", bootstrap=0, seed=1
+            _PULSE_DATA,
+            graph=graph,
+            query=query,
+            refute="full",
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.evidence_status == "licensed"
@@ -494,7 +499,14 @@ def _outcome(data, graph, query):
     """Estimate, or the refusal type and message when the cell refuses."""
     try:
         result = require_success(
-            antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0, seed=1)
+            antecedent.analyze(
+                data,
+                graph=graph,
+                query=query,
+                refute=False,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
+            )
         )
     except Exception as error:  # noqa: BLE001 - the refusal itself is compared
         return type(error), str(error)
@@ -960,7 +972,11 @@ def test_distribution_publishes_bounded_probability_intervals():
     """Frequentist distribution atoms carry logit intervals inside [0, 1]."""
     result = require_success(
         antecedent.analyze(
-            _DISTRIBUTION_DATA, graph=_DISTRIBUTION_DAG, query=_DISTRIBUTION, refute=False, seed=3
+            _DISTRIBUTION_DATA,
+            graph=_DISTRIBUTION_DAG,
+            query=_DISTRIBUTION,
+            refute=False,
+            execution=antecedent.Execution(seed=3),
         )
     )
     atoms = result.estimate.distribution
@@ -986,7 +1002,13 @@ def test_distribution_boundary_probability_reports_unavailable_interval():
     data = {key: value.copy() for key, value in _DISTRIBUTION_DATA.items()}
     data["y"][data["t"] == 1.0] = 0.0
     result = require_success(
-        antecedent.analyze(data, graph=_DISTRIBUTION_DAG, query=_DISTRIBUTION, refute=False, seed=3)
+        antecedent.analyze(
+            data,
+            graph=_DISTRIBUTION_DAG,
+            query=_DISTRIBUTION,
+            refute=False,
+            execution=antecedent.Execution(seed=3),
+        )
     )
     atoms = result.estimate.distribution
     assert atoms is not None

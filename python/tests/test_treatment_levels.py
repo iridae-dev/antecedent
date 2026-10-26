@@ -39,8 +39,8 @@ def _estimate(data: dict[str, np.ndarray], estimator: Any, *, control: float, ac
             query=ant.AverageEffect("t", "y", control_level=control, active_level=active),
             estimator=estimator,
             refute="none",
-            bootstrap=0,
-            seed=3,
+            inference=ant.Frequentist(bootstrap=0),
+            execution=ant.Execution(seed=3),
         )
     )
 

@@ -188,7 +188,7 @@ def test_a_prepared_plan_diagnoses_and_counts_its_cost() -> None:
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
         estimator="aipw",
         refute=False,
-        bootstrap=0,
+        inference=antecedent.Frequentist(bootstrap=0),
     )
     report = prepared.diagnose()
     assert "z" in report.adjustment_set

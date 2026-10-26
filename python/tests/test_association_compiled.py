@@ -53,7 +53,11 @@ def _association(result: ant.AnalysisResult) -> AssociationEstimate:
 
 def test_the_compiled_study_reports_the_least_squares_line_and_is_noncausal() -> None:
     data = _line()
-    result = require_success(ant.analyze(data, query=Association("y", "x"), refute="none", seed=1))
+    result = require_success(
+        ant.analyze(
+            data, query=Association("y", "x"), refute="none", execution=ant.Execution(seed=1)
+        )
+    )
     section = _association(result)
     x, y = data["x"], data["y"]
     slope = np.cov(x, y, bias=True)[0, 1] / np.var(x)
@@ -93,10 +97,18 @@ def test_conditional_laws_match_the_group_statistics_and_the_two_by_two_table() 
 def test_the_selection_rule_is_deterministic_and_a_declared_scale_wins() -> None:
     data = _line()
     first = _association(
-        require_success(ant.analyze(data, query=Association("y", "x"), refute="none", seed=1))
+        require_success(
+            ant.analyze(
+                data, query=Association("y", "x"), refute="none", execution=ant.Execution(seed=1)
+            )
+        )
     )
     again = _association(
-        require_success(ant.analyze(data, query=Association("y", "x"), refute="none", seed=99))
+        require_success(
+            ant.analyze(
+                data, query=Association("y", "x"), refute="none", execution=ant.Execution(seed=99)
+            )
+        )
     )
     assert first == again
     assert first.rule == "association_selection_rule"
@@ -141,7 +153,7 @@ def test_correlations_and_a_scored_predictive_model() -> None:
                 _line(),
                 query=Association("y", "x", functional="predictive", folds=5),
                 refute="none",
-                seed=2,
+                execution=ant.Execution(seed=2),
             )
         )
     )
@@ -156,9 +168,9 @@ def test_a_series_resamples_blocks_under_the_declared_dependent_design() -> None
             _series(),
             query=Association("y", "x", temporal=True),
             refute="none",
-            bootstrap=60,
+            inference=ant.Frequentist(bootstrap=60),
             sampling_design="dependent_time_series",
-            seed=4,
+            execution=ant.Execution(seed=4),
         )
     )
     section = _association(result)
@@ -174,7 +186,7 @@ def test_a_series_resamples_blocks_under_the_declared_dependent_design() -> None
                 _series(),
                 query=Association("y", "x", temporal=True),
                 refute="none",
-                bootstrap=60,
+                inference=ant.Frequentist(bootstrap=60),
                 sampling_design="independent_subject_trajectories",
             )
         )
@@ -189,7 +201,7 @@ def test_bayesian_readings_are_conjugate_for_gaussian_outcomes_and_a_bootstrap_o
                 query=Association("y", "x"),
                 inference=ant.Bayesian(backend="conjugate", n_draws=400),
                 refute="none",
-                seed=6,
+                execution=ant.Execution(seed=6),
             )
         )
     )
@@ -206,7 +218,7 @@ def test_bayesian_readings_are_conjugate_for_gaussian_outcomes_and_a_bootstrap_o
                 query=Association("y", "x"),
                 inference=ant.Bayesian(backend="conjugate", n_draws=400),
                 refute="none",
-                seed=6,
+                execution=ant.Execution(seed=6),
             )
         )
     )
@@ -218,7 +230,7 @@ def test_bayesian_readings_are_conjugate_for_gaussian_outcomes_and_a_bootstrap_o
                 query=Association("y", "x", temporal=True),
                 inference=ant.Bayesian(backend="conjugate", n_draws=200),
                 refute="none",
-                seed=6,
+                execution=ant.Execution(seed=6),
             )
         )
     )
@@ -268,7 +280,9 @@ def test_declarations_that_do_not_fit_are_refused_with_the_next_attempt() -> Non
 
 def test_an_exported_result_loads_with_the_same_associational_answer() -> None:
     result = require_success(
-        ant.analyze(_line(), query=Association("y", "x"), refute="none", seed=3)
+        ant.analyze(
+            _line(), query=Association("y", "x"), refute="none", execution=ant.Execution(seed=3)
+        )
     )
     loaded = require_success(ant.load(bytes(result.export())))
     assert_answer_kept(loaded)

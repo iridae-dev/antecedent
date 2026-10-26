@@ -64,8 +64,8 @@ def test_panel_frequentist_pulse_baseline():
                 active_level=1.0,
             ),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert np.isfinite(result.ate)

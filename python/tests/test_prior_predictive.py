@@ -23,7 +23,7 @@ def test_bayesian_ate_validation_includes_prior_and_posterior_ppc():
             graph=edges,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Bayesian(n_draws=64),
-            seed=1,
+            execution=antecedent.Execution(seed=1),
         )
     )
     prior = result.validation.prior_predictive
@@ -57,7 +57,7 @@ def test_bayesian_ate_refute_false_skips_ppc():
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Bayesian(n_draws=32),
             refute=False,
-            seed=1,
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.validation.prior_predictive is None

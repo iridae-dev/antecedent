@@ -37,8 +37,8 @@ def ate(data, graph, refute):
             graph=graph,
             query=ac.AverageEffect("a", "y"),
             refute=refute,
-            bootstrap=0,
-            seed=1,
+            inference=ac.Frequentist(bootstrap=0),
+            execution=ac.Execution(seed=1),
         )
     )
 

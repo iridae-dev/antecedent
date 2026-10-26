@@ -319,7 +319,7 @@ def test_declared_native_response_coordinates_feed_public_decision_composition()
         _curve_data(),
         query=query,
         graph=[("a", "y")],
-        bootstrap=0,
+        inference=antecedent.Frequentist(bootstrap=0),
         outcome_units="kg",
         quantity_population="clinic",
         quantity_transform="log",

@@ -203,22 +203,50 @@ def test_temporal_gaps_refuse_then_drop_only_the_windows_that_read_them():
         graph=[("x", 1, "y", 0)], query=ant.PulseEffect("x", "y", treatment_lag=1, horizon_steps=1)
     )
     with pytest.raises(CausalError, match="IncompleteSeries|incomplete series"):
-        require_success(ant.analyze(data, bootstrap=0, refute="none", **kwargs))
+        require_success(
+            ant.analyze(data, inference=ant.Frequentist(bootstrap=0), refute="none", **kwargs)
+        )
     with pytest.raises(CausalError) as raised:
-        require_success(ant.analyze(data, missing="error", bootstrap=0, refute="none", **kwargs))
+        require_success(
+            ant.analyze(
+                data,
+                missing="error",
+                inference=ant.Frequentist(bootstrap=0),
+                refute="none",
+                **kwargs,
+            )
+        )
     assert getattr(raised.value, "reason_code", None) == "missing_policy_required"
     assert "column `x` at row 100" in str(raised.value)
     refuted = require_success(
-        ant.analyze(data, missing="complete_case", bootstrap=0, refute="cheap", **kwargs)
+        ant.analyze(
+            data,
+            missing="complete_case",
+            inference=ant.Frequentist(bootstrap=0),
+            refute="cheap",
+            **kwargs,
+        )
     )
     assert refuted.validation.ran
     boot = require_success(
-        ant.analyze(data, missing="complete_case", bootstrap=150, refute="none", **kwargs)
+        ant.analyze(
+            data,
+            missing="complete_case",
+            inference=ant.Frequentist(bootstrap=150),
+            refute="none",
+            **kwargs,
+        )
     )
     assert boot.estimate.se_bootstrap and boot.estimate.se_bootstrap > 0
 
     result = require_success(
-        ant.analyze(data, missing="complete_case", bootstrap=0, refute="none", **kwargs)
+        ant.analyze(
+            data,
+            missing="complete_case",
+            inference=ant.Frequentist(bootstrap=0),
+            refute="none",
+            **kwargs,
+        )
     )
     kept = [i for i in range(1, n) if (i - 1) not in gaps]
     xs = x[[i - 1 for i in kept]]
@@ -243,11 +271,18 @@ def test_average_effect_reports_dropped_rows_and_error_is_a_declared_refusal():
     graph = [("z", "t"), ("z", "y"), ("t", "y")]
     query = ant.AverageEffect("t", "y")
     default = require_success(
-        ant.analyze(data, query=query, graph=graph, refute="none", bootstrap=0)
+        ant.analyze(
+            data, query=query, graph=graph, refute="none", inference=ant.Frequentist(bootstrap=0)
+        )
     )
     explicit = require_success(
         ant.analyze(
-            data, query=query, graph=graph, refute="none", bootstrap=0, missing="complete_case"
+            data,
+            query=query,
+            graph=graph,
+            refute="none",
+            inference=ant.Frequentist(bootstrap=0),
+            missing="complete_case",
         )
     )
     assert default.estimate.ate == explicit.estimate.ate
@@ -258,6 +293,13 @@ def test_average_effect_reports_dropped_rows_and_error_is_a_declared_refusal():
     assert accounting.dropped_by_reason == {"missing_value": len(holes)}
     with pytest.raises(CausalError) as raised:
         require_success(
-            ant.analyze(data, query=query, graph=graph, refute="none", bootstrap=0, missing="error")
+            ant.analyze(
+                data,
+                query=query,
+                graph=graph,
+                refute="none",
+                inference=ant.Frequentist(bootstrap=0),
+                missing="error",
+            )
         )
     assert getattr(raised.value, "reason_code", None) == "missing_policy_required"

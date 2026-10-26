@@ -213,8 +213,7 @@ def test_max_cond_size_reaches_analyze_temporal_discover_path():
                 data,
                 query=query,
                 discovery=PCMCIPlus(max_lag=1, alpha=0.05, max_cond_size=0),
-                seed=1,
-                threads=1,
+                execution=antecedent.Execution(seed=1, threads=1),
             )
         )
 
@@ -223,8 +222,7 @@ def test_max_cond_size_reaches_analyze_temporal_discover_path():
             data,
             query=query,
             discovery=PCMCIPlus(max_lag=1, alpha=0.05, max_cond_size=2),
-            seed=1,
-            threads=1,
+            execution=antecedent.Execution(seed=1, threads=1),
         )
     )
     assert np.isfinite(capped_result.estimate.ate)
@@ -236,8 +234,7 @@ def test_max_cond_size_reaches_analyze_temporal_discover_path():
             data,
             query=query,
             discovery=PCMCIPlus(max_lag=1, alpha=0.05),
-            seed=1,
-            threads=1,
+            execution=antecedent.Execution(seed=1, threads=1),
         )
     )
     assert default_result.estimate.ate == capped_result.estimate.ate

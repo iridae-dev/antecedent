@@ -42,7 +42,7 @@ def test_cpdag_derivatives_normalize_only_fully_oriented_graphs(query, accepted)
                 graph=graph,
                 query=query,
                 refute="none",
-                bootstrap=0,
+                inference=ant.Frequentist(bootstrap=0),
                 estimator_config={"bandwidth": 0.3},
             )
 
@@ -118,7 +118,13 @@ def test_static_dag_families_preserve_cpdag_compatibility(query, accepted):
             graph = ant.AcceptedGraph.from_graph(graph)
 
         def prepared(graph=graph):
-            return ant.prepare(values, graph=graph, query=query, refute="none", bootstrap=0)
+            return ant.prepare(
+                values,
+                graph=graph,
+                query=query,
+                refute="none",
+                inference=ant.Frequentist(bootstrap=0),
+            )
 
         if complete:
             assert prepared().inspect().support.payload["matrix_coordinate"] == (

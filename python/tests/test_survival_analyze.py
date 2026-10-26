@@ -180,7 +180,12 @@ def test_retained_survival_pointwise_intervals_round_trip_and_refuse_thin_draws(
         randomized=True,
         observation_assumption=IndependentGiven(()),
     )
-    prepared = antecedent.prepare(data, query=query, bootstrap=399, seed=17)
+    prepared = antecedent.prepare(
+        data,
+        query=query,
+        inference=antecedent.Frequentist(bootstrap=399),
+        execution=antecedent.Execution(seed=17),
+    )
     result = require_success(prepared.estimate())
     section = result.survival
     assert section is not None
@@ -210,7 +215,9 @@ def test_retained_survival_pointwise_intervals_round_trip_and_refuse_thin_draws(
     assert loaded.answer.structured["bootstrap_replicates_ok"] == 399
     assert loaded.answer.detail == "randomized_survival_pointwise_bootstrap"
     with pytest.raises(Exception, match="199"):
-        require_success(antecedent.analyze(data, query=query, bootstrap=198))
+        require_success(
+            antecedent.analyze(data, query=query, inference=antecedent.Frequentist(bootstrap=198))
+        )
 
 
 def test_graphless_survival_scalar_license_at_support_boundary() -> None:
@@ -228,7 +235,14 @@ def test_graphless_survival_scalar_license_at_support_boundary() -> None:
         randomized=True,
         observation_assumption=IndependentGiven(()),
     )
-    result = require_success(antecedent.analyze(data, query=query, bootstrap=299, seed=7729))
+    result = require_success(
+        antecedent.analyze(
+            data,
+            query=query,
+            inference=antecedent.Frequentist(bootstrap=299),
+            execution=antecedent.Execution(seed=7729),
+        )
+    )
     assert result.evidence_status == "licensed"
     assert result.survival.support_status == "licensed"
     assert result.survival.rmst_difference_interval is not None
@@ -244,7 +258,14 @@ def test_graphless_survival_scalar_license_at_support_boundary() -> None:
         120,
     ]
     thin = {key: value[1:120] + value[121:] for key, value in data.items()}
-    off_axis = require_success(antecedent.analyze(thin, query=query, bootstrap=299, seed=7729))
+    off_axis = require_success(
+        antecedent.analyze(
+            thin,
+            query=query,
+            inference=antecedent.Frequentist(bootstrap=299),
+            execution=antecedent.Execution(seed=7729),
+        )
+    )
     assert off_axis.survival.support_status == "unlicensed_pointwise_interval"
 
 
@@ -271,7 +292,12 @@ def test_retained_competing_risk_known_g_pointwise_interval() -> None:
         known_censoring=KnownCensoringSurvival((0.0, 1.0, 3.0), ("g0", "g1", "g3")),
     )
     section = require_success(
-        antecedent.analyze(data, query=query, bootstrap=399, seed=19)
+        antecedent.analyze(
+            data,
+            query=query,
+            inference=antecedent.Frequentist(bootstrap=399),
+            execution=antecedent.Execution(seed=19),
+        )
     ).survival
     assert section is not None
     assert (

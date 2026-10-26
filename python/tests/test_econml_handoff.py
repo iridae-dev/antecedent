@@ -170,7 +170,12 @@ def test_analyze_result_handoff_matches_identify() -> None:
     query = antecedent.AverageEffect(treatment="t", outcome="y")
     result = require_success(
         antecedent.analyze(
-            data, graph=_backdoor_graph(), query=query, refute=False, bootstrap=0, seed=1
+            data,
+            graph=_backdoor_graph(),
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     spec = antecedent.handoff.econml(result, treatment="t", outcome="y")
@@ -198,8 +203,8 @@ def test_partial_id_refuses() -> None:
             graph=graph,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.plan.structure_source == "explicit"
@@ -356,7 +361,11 @@ def test_relabeling_certificate_is_rejected(analyzed):
     result = (
         require_success(
             antecedent.analyze(
-                _backdoor_data(), graph=_backdoor_graph(), query=query, refute=False, bootstrap=0
+                _backdoor_data(),
+                graph=_backdoor_graph(),
+                query=query,
+                refute=False,
+                inference=antecedent.Frequentist(bootstrap=0),
             )
         )
         if analyzed
@@ -446,7 +455,7 @@ def test_attach_from_analyzed_parent_does_not_claim_native_calibration() -> None
             graph=_backdoor_graph(),
             query=antecedent.AverageEffect("t", "y"),
             refute=False,
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     attached = antecedent.handoff.econml(result).attach(

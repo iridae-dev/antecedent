@@ -24,7 +24,7 @@ def test_prior_sensitivity_on_refute_full():
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Bayesian(n_draws=48, backend="conjugate"),
             refute="full",
-            seed=1,
+            execution=antecedent.Execution(seed=1),
         )
     )
     sens = result.validation.prior_sensitivity
@@ -46,7 +46,7 @@ def test_prior_sensitivity_skipped_on_default_refute():
             inference=antecedent.Bayesian(n_draws=32),
             # "default refute" is spelled by leaving it unset; an explicit
             # refute=True is a TypeError because it never said which suite.
-            seed=2,
+            execution=antecedent.Execution(seed=2),
         )
     )
     assert result.validation.prior_predictive is not None

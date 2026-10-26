@@ -100,7 +100,7 @@ def test_adjusted_native_fit_counts_and_joint_covariance_match_independent_ols(v
                 query=ac.AverageEffect(treatment="t", outcome="y"),
                 estimator=LinearAdjustment(bootstrap=0),
                 refute=False,
-                seed=3,
+                execution=ac.Execution(seed=3),
             )
         )
         assert first.law.ate == pytest.approx(independent.effect, abs=1e-10)
@@ -179,7 +179,7 @@ def test_adjusted_glm_contrast_target_reuse_matches_existing_route_and_full_reru
             query=ac.AverageEffect(treatment="t", outcome="y"),
             estimator=GlmAdjustment(bootstrap=0),
             refute=False,
-            seed=3,
+            execution=ac.Execution(seed=3),
         )
     )
     assert first.law.ate == pytest.approx(independent.effect, abs=1e-9)

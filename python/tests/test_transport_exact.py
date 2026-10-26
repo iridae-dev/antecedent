@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 
+import antecedent as _ant_api
 import pytest
 from antecedent import Admg
 from antecedent.errors import CausalCancelledError, CausalResourceError, CausalUnsupportedError
@@ -619,7 +620,9 @@ def test_cancelled_exact_click_and_prepare_publish_no_claim():
         bytes(prepared.export())
     with pytest.raises(CausalCancelledError, match="cancel"):
         prepare(
-            data, query=transport.ExactTransportQuery(identified, catalog, {"x": 1.0}), cancel=token
+            data,
+            query=transport.ExactTransportQuery(identified, catalog, {"x": 1.0}),
+            execution=_ant_api.Execution(cancel=token),
         )
 
 

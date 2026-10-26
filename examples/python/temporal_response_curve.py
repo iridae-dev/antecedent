@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 
+import antecedent as _ant_api
 import numpy as np
 from antecedent import InterventionResponse, ResponseCurve, analyze, load
 from antecedent.intervention import Set
@@ -37,7 +38,14 @@ curve = ResponseCurve(
 # The band comes from joint circular-block bootstrap replicates of the whole
 # surface; bootstrap=0 keeps the point surface and withholds
 # the band, because an analytic band would treat lag-aligned rows as independent.
-result = analyze(data, graph=graph, query=curve, refute="none", bootstrap=100, seed=42)
+result = analyze(
+    data,
+    graph=graph,
+    query=curve,
+    refute="none",
+    inference=_ant_api.Frequentist(bootstrap=100),
+    execution=_ant_api.Execution(seed=42),
+)
 assert result.response is not None
 curve_result = result
 study = result.study
@@ -63,9 +71,13 @@ for point, mean_row, lo_row, hi_row in zip(
 # The simultaneous band covers every (dose, horizon) cell at once.
 band = curve_result.simultaneous_band
 assert band is not None
-print(f"simultaneous band: critical={band.critical:.3f} from {band.replicates} replicates")
+print(
+    f"simultaneous band: critical={band.critical:.3f} from {band.replicates} replicates"
+)
 for point, lo_row, hi_row in zip(curve_result.response.points, band.lower, band.upper):
-    print(f"  dose={point[0]:.1f} horizon={point[1]:.0f}  [{lo_row[0]:.4f}, {hi_row[0]:.4f}]")
+    print(
+        f"  dose={point[0]:.1f} horizon={point[1]:.0f}  [{lo_row[0]:.4f}, {hi_row[0]:.4f}]"
+    )
 
 # Next, hold the intervention level fixed and follow its effect over time.
 path = analyze(
@@ -79,8 +91,8 @@ path = analyze(
         treatment_lag=1,
     ),
     refute="none",
-    bootstrap=0,
-    seed=42,
+    inference=_ant_api.Frequentist(bootstrap=0),
+    execution=_ant_api.Execution(seed=42),
 )
 assert path.response is not None
 print("intervention path:", [row[0] for row in path.response.values])

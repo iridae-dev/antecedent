@@ -52,6 +52,7 @@ Install with ``python -m pip install antecedent``; see examples/README.md.
 
 from __future__ import annotations
 
+import antecedent as _ant_api
 import numpy as np
 from antecedent import AverageEffect, analyze
 
@@ -73,7 +74,9 @@ def make_ihdp_like(seed: int = 42) -> dict[str, np.ndarray]:
     x = np.hstack([cont, binary])
 
     # Soft selection on the continuous confounders → good overlap for IPW.
-    logit = -0.2 + 0.15 * (0.8 * x[:, 0] + 0.6 * x[:, 1] + 0.4 * x[:, 2] - 0.3 * x[:, 3])
+    logit = -0.2 + 0.15 * (
+        0.8 * x[:, 0] + 0.6 * x[:, 1] + 0.4 * x[:, 2] - 0.3 * x[:, 3]
+    )
     propensity = 1.0 / (1.0 + np.exp(-logit))
     treatment = (rng.uniform(size=N_ROWS) < propensity).astype(np.float64)
     outcome = (
@@ -115,7 +118,9 @@ def main() -> None:
 
     print("Assumed DAG edges:", graph)
     print("Assumed adjustment set:", ADJUSTMENT)
-    print(f"IHDP-like table: n={N_ROWS}, covariates={N_COVARS} (binary x7–x25 not in DAG)")
+    print(
+        f"IHDP-like table: n={N_ROWS}, covariates={N_COVARS} (binary x7–x25 not in DAG)"
+    )
 
     ipw = analyze(
         data,
@@ -123,8 +128,8 @@ def main() -> None:
         query=query,
         estimator="propensity.weighting",
         refute="cheap",
-        bootstrap=40,
-        seed=11,
+        inference=_ant_api.Frequentist(bootstrap=40),
+        execution=_ant_api.Execution(seed=11),
     )
     assert ipw.answer.kind == "point"
     assert ipw.identification.status == "NonparametricallyIdentified"
@@ -165,8 +170,8 @@ def main() -> None:
         query=query,
         estimator="aipw",
         refute="none",
-        bootstrap=40,
-        seed=11,
+        inference=_ant_api.Frequentist(bootstrap=40),
+        execution=_ant_api.Execution(seed=11),
     )
     assert aipw.answer.kind == "point"
     assert aipw.identification.status == "NonparametricallyIdentified"

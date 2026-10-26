@@ -45,7 +45,14 @@ def _with_extras(data: dict[str, np.ndarray]) -> dict[str, object]:
 
 def _analyze(data: object) -> object:
     return require_success(
-        ant.analyze(data, query=QUERY, graph=GRAPH, bootstrap=0, refute="none", seed=11)
+        ant.analyze(
+            data,
+            query=QUERY,
+            graph=GRAPH,
+            inference=ant.Frequentist(bootstrap=0),
+            refute="none",
+            execution=ant.Execution(seed=11),
+        )
     )
 
 
@@ -66,7 +73,9 @@ def test_prepare_estimate_and_refresh_accept_files(tmp_path):
     first = _write(tmp_path / "first.parquet", data)
     shifted = {**data, "y": data["y"] + data["t"]}
     second = _write(tmp_path / "second.parquet", shifted)
-    study = ant.prepare(first, query=QUERY, graph=GRAPH, bootstrap=0, refute="none")
+    study = ant.prepare(
+        first, query=QUERY, graph=GRAPH, inference=ant.Frequentist(bootstrap=0), refute="none"
+    )
     baseline = require_success(study.estimate())
     refreshed = require_success(study.refresh(second))
     assert refreshed.effect == pytest.approx(baseline.effect + 1.0)

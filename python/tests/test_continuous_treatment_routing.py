@@ -31,8 +31,8 @@ def _cheap(data: dict[str, np.ndarray], *, estimator=None):
             query=QUERY,
             estimator=estimator,
             refute="cheap",
-            bootstrap=0,
-            seed=9,
+            inference=ac.Frequentist(bootstrap=0),
+            execution=ac.Execution(seed=9),
         )
     )
 
@@ -92,8 +92,8 @@ def test_propensity_weighting_refuses_continuous_treatment():
                 query=QUERY,
                 estimator=PropensityWeighting(),
                 refute=False,
-                bootstrap=0,
-                seed=9,
+                inference=ac.Frequentist(bootstrap=0),
+                execution=ac.Execution(seed=9),
             )
         )
 
@@ -106,8 +106,8 @@ def test_propensity_weighting_accepts_two_valued_float():
             query=QUERY,
             estimator=PropensityWeighting(),
             refute=False,
-            bootstrap=0,
-            seed=9,
+            inference=ac.Frequentist(bootstrap=0),
+            execution=ac.Execution(seed=9),
         )
     )
     assert np.isfinite(result.ate)

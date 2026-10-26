@@ -81,8 +81,8 @@ def run(series, graph=GRAPH, **kwargs):
             ),
             identifier=antecedent.Identifier.TEMPORAL_IV_UNFOLDED,
             refute=False,
-            bootstrap=0,
-            seed=2,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=2),
             **kwargs,
         )
     )
@@ -139,7 +139,7 @@ def test_the_identifier_and_the_estimators_go_together() -> None:
                 ),
                 estimator=antecedent.Estimator.TEMPORAL_LAGGED_INSTRUMENT,
                 refute=False,
-                bootstrap=0,
+                inference=antecedent.Frequentist(bootstrap=0),
             )
         )
     assert info.value.reason_code == "option_not_applicable"

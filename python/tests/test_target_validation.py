@@ -143,7 +143,7 @@ def test_a_prepared_study_refutes_its_own_target():
         data,
         graph=[("z", "t"), ("z", "y"), ("t", "y")],
         query=ant.AverageEffect("t", "y"),
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
         refute="none",
     )
     outcome = study.refute_target(data, suite="cheap", replicates=12)
@@ -172,7 +172,11 @@ def test_constructed_refuters_pass_on_a_sound_design_and_flag_a_planted_confound
     graph = [("z", "t"), ("z", "y"), ("t", "y"), ("z", "x"), ("z", "w")]
     clean = sample(1, False)
     study = ant.prepare(
-        clean, graph=graph, query=ant.AverageEffect("t", "y"), bootstrap=0, refute="none"
+        clean,
+        graph=graph,
+        query=ant.AverageEffect("t", "y"),
+        inference=ant.Frequentist(bootstrap=0),
+        refute="none",
     )
     outcome = study.refute_target(clean, suite="full", replicates=12, common_cause_strength=0.5)
     passed = {r.refuter: r.passed for r in outcome.reports}
@@ -184,7 +188,11 @@ def test_constructed_refuters_pass_on_a_sound_design_and_flag_a_planted_confound
         assert passed[refuter], refuter
     planted = sample(2, True)
     study = ant.prepare(
-        planted, graph=graph, query=ant.AverageEffect("t", "y"), bootstrap=0, refute="none"
+        planted,
+        graph=graph,
+        query=ant.AverageEffect("t", "y"),
+        inference=ant.Frequentist(bootstrap=0),
+        refute="none",
     )
     outcome = study.refute_target(planted, suite="full", replicates=12)
     flagged = {r.refuter: r.passed for r in outcome.reports}

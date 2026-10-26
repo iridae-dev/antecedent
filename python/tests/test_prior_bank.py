@@ -293,7 +293,7 @@ def test_summary_only_artifact_round_trips_and_hydrates_prior():
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
             refute=False,
-            seed=9,
+            execution=antecedent.Execution(seed=9),
         )
     )
     mapped = require_success(
@@ -308,7 +308,7 @@ def test_summary_only_artifact_round_trips_and_hydrates_prior():
                 mapping=antecedent.priors.PriorMapping.effect_functional("ate"),
             ),
             refute=False,
-            seed=9,
+            execution=antecedent.Execution(seed=9),
         )
     )
     assert baseline.posterior is not None
@@ -862,7 +862,7 @@ def test_posterior_round_trip_preserves_named_schema_and_source_contrast(contras
                         mapping=mapping,
                     ),
                     refute=False,
-                    seed=17,
+                    execution=antecedent.Execution(seed=17),
                 )
             )
             estimates.append(result.effect)

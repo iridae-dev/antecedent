@@ -74,7 +74,13 @@ def test_temporal_observation_pair_consumes_fixture(kind):
     prepared = PreparedAnalysis.prepare(data, graph=_EDGES, query=query, refute=False, bootstrap=0)
     result = require_success(prepared.estimate(data))
     fresh = require_success(
-        antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=0)
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
     np.testing.assert_allclose(_means(fresh), _means(result), atol=1e-10)
     np.testing.assert_allclose(_means(result), _TRUTH, atol=_ATOL)
@@ -86,7 +92,7 @@ def test_temporal_observation_pair_consumes_fixture(kind):
             graph=_EDGES,
             query=antecedent.ResponseCurve("t", "y", grid=_PIN["grid"], horizons=_PIN["horizons"]),
             refute=False,
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     naive_err = np.max(np.abs(_means(naive) - _TRUTH))
@@ -111,7 +117,13 @@ def test_temporal_right_censor_intervention_path():
         observation_assumptions=[obs.IndependentGiven(["t"])],
     )
     result = require_success(
-        antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=0)
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
     np.testing.assert_allclose(_means(result), _PIN["intervention_set_0_5"], atol=_ATOL)
 

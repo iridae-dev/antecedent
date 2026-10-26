@@ -28,7 +28,11 @@ def _siblings(n: int = 800, seed: int = 214):
 def _analyze(graph, data):
     return require_success(
         antecedent.analyze(
-            data, graph=graph, query=antecedent.AverageEffect("t", "y"), refute="none", bootstrap=0
+            data,
+            graph=graph,
+            query=antecedent.AverageEffect("t", "y"),
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
 

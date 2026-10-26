@@ -140,7 +140,7 @@ def _response_curve_values(data) -> list[float]:
             data,
             query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
             graph=[("x", "a"), ("x", "y"), ("a", "y")],
-            seed=1,
+            execution=antecedent.Execution(seed=1),
         )
     )
     return [float(v) for row in result.response.values for v in row]

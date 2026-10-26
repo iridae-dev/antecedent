@@ -29,8 +29,8 @@ def test_unknown_edge_variable_raises_data_error():
                 graph=[("missing", "y")],
                 query=antecedent.AverageEffect(treatment="t", outcome="y"),
                 refute=False,
-                bootstrap=0,
-                seed=1,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
             )
         )
 

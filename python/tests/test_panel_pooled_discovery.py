@@ -39,8 +39,8 @@ def test_panel_pooled_pcmci_smoke():
                 horizon_steps=1,
                 active_level=1.0,
             ),
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
             refute=False,
         )
     )
@@ -71,8 +71,8 @@ def test_panel_pooled_rejects_rpcmci():
                     horizon_steps=1,
                     active_level=1.0,
                 ),
-                bootstrap=0,
-                seed=1,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
                 refute=False,
             )
         )

@@ -50,7 +50,14 @@ def test_temporal_response_curve_matches_fixture_and_prepared_reuse():
         treatment_lag=1,
     )
     direct = require_success(
-        antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=0, seed=21)
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=21),
+        )
     )
     np.testing.assert_allclose(_response_means(direct), _MEAN, atol=_ATOL)
     assert direct.support.status == "supported"
@@ -86,13 +93,34 @@ def test_temporal_intervention_set_and_single_step_sequence_match_fixture():
         treatment_lag=1,
     )
     set_result = require_success(
-        antecedent.analyze(data, graph=_EDGES, query=set_query, refute=False, bootstrap=0, seed=22)
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=set_query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=22),
+        )
     )
     seq_result = require_success(
-        antecedent.analyze(data, graph=_EDGES, query=seq_query, refute=False, bootstrap=0, seed=22)
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=seq_query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=22),
+        )
     )
     soft_result = require_success(
-        antecedent.analyze(data, graph=_EDGES, query=soft_query, refute=False, bootstrap=0, seed=22)
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=soft_query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=22),
+        )
     )
     np.testing.assert_allclose(_response_means(set_result), _SET_PATH, atol=_ATOL)
     np.testing.assert_allclose(_response_means(seq_result), _SET_PATH, atol=_ATOL)
@@ -118,7 +146,14 @@ def test_multi_step_sequence_matches_two_step_truth_and_does_not_collapse():
         treatment_lag=1,
     )
     result = require_success(
-        antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=0, seed=22)
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=22),
+        )
     )
     np.testing.assert_allclose(_response_means(result), two_step, atol=_ATOL)
     np.testing.assert_raises(
@@ -140,7 +175,13 @@ def test_nested_sequence_refuses():
     )
     with pytest.raises(CausalUnsupportedError, match="nested Sequence"):
         require_success(
-            antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=0)
+            antecedent.analyze(
+                data,
+                graph=_EDGES,
+                query=query,
+                refute=False,
+                inference=antecedent.Frequentist(bootstrap=0),
+            )
         )
 
 
@@ -159,8 +200,8 @@ def test_pulse_projection_matches_surface_contrast():
                 treatment_lag=1,
             ),
             refute=False,
-            bootstrap=0,
-            seed=23,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=23),
         )
     )
     pulse = require_success(
@@ -169,8 +210,8 @@ def test_pulse_projection_matches_surface_contrast():
             graph=_EDGES,
             query=antecedent.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1),
             refute=False,
-            bootstrap=0,
-            seed=23,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=23),
         )
     )
     means = _response_means(surface)
@@ -291,8 +332,8 @@ def test_temporal_dose_horizon_point_and_block_bands_match_fixture():
             graph=_EDGES,
             query=_SURFACE_QUERY,
             refute=False,
-            bootstrap=int(pin["replicates"]),
-            seed=int(pin["seed"]),
+            inference=antecedent.Frequentist(bootstrap=int(pin["replicates"])),
+            execution=antecedent.Execution(seed=int(pin["seed"])),
         )
     )
     _assert_block_bands(result, int(pin["replicates"]))
@@ -317,7 +358,12 @@ def test_temporal_response_zero_bootstrap_withholds_band():
     data = _fixture_data()
     result = require_success(
         antecedent.analyze(
-            data, graph=_EDGES, query=_SURFACE_QUERY, refute=False, bootstrap=0, seed=21
+            data,
+            graph=_EDGES,
+            query=_SURFACE_QUERY,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=21),
         )
     )
     _assert_band_withheld(result)
@@ -339,13 +385,23 @@ def test_temporal_response_bootstrap_publishes_block_bands(bootstrap: int | None
     kwargs: dict[str, Any] = {} if bootstrap is None else {"bootstrap": bootstrap}
     direct = require_success(
         antecedent.analyze(
-            data, graph=_EDGES, query=_SURFACE_QUERY, refute=False, seed=21, **kwargs
+            data,
+            graph=_EDGES,
+            query=_SURFACE_QUERY,
+            refute=False,
+            execution=antecedent.Execution(seed=21),
+            **kwargs,
         )
     )
     _assert_block_bands(direct, replicates)
     again = require_success(
         antecedent.analyze(
-            data, graph=_EDGES, query=_SURFACE_QUERY, refute=False, seed=21, **kwargs
+            data,
+            graph=_EDGES,
+            query=_SURFACE_QUERY,
+            refute=False,
+            execution=antecedent.Execution(seed=21),
+            **kwargs,
         )
     )
     assert again.uncertainty.lower == direct.uncertainty.lower
@@ -378,12 +434,24 @@ def test_temporal_intervention_path_bootstrap_publishes_block_bands():
         "y", intervention=Set("t", 1.0), horizons=[1, 2], policy="pulse", treatment_lag=1
     )
     withheld = require_success(
-        antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=0)
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
     assert withheld.uncertainty.kind == "none"
     assert any(d.startswith(f"{_BAND_WITHHELD}: ") for d in withheld.diagnostics)
     banded = require_success(
-        antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=60)
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=60),
+        )
     )
     np.testing.assert_allclose(_response_means(banded), _SET_PATH, atol=_ATOL)
     assert banded.uncertainty.kind == "pointwise"
@@ -443,7 +511,12 @@ def test_declared_feedback_reaches_the_response(policy: str):
     assert query.feedback.initial_law == "origin"
     result = require_success(
         antecedent.analyze(
-            _fixture_data(), graph=_EDGES, query=query, refute=False, bootstrap=0, seed=21
+            _fixture_data(),
+            graph=_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=21),
         )
     )
     assert result.response is not None

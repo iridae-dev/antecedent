@@ -52,7 +52,7 @@ def prepared():
         study_data(),
         graph=GRAPH,
         query=antecedent.AverageEffect("t", "y"),
-        bootstrap=0,
+        inference=antecedent.Frequentist(bootstrap=0),
         refute=False,
     )
 
@@ -182,7 +182,7 @@ def prepared_panel(units):
         query=antecedent.PulseEffect(
             treatment="x", outcome="y", treatment_lag=1, horizon_steps=1, active_level=1.0
         ),
-        bootstrap=0,
+        inference=antecedent.Frequentist(bootstrap=0),
         refute=False,
     )
 
@@ -233,7 +233,7 @@ def test_a_single_dependent_series_has_no_temporal_treatment_score() -> None:
         query=antecedent.PulseEffect(
             treatment="x", outcome="y", treatment_lag=1, horizon_steps=1, active_level=1.0
         ),
-        bootstrap=0,
+        inference=antecedent.Frequentist(bootstrap=0),
         refute=False,
     )
     with pytest.raises(CausalUnsupportedError) as info:

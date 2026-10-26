@@ -32,7 +32,13 @@ def baseline_data() -> dict[str, np.ndarray]:
 
 @pytest.fixture(scope="module")
 def study(baseline_data):
-    return ant.prepare(baseline_data, graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
+    return ant.prepare(
+        baseline_data,
+        graph=GRAPH,
+        query=QUERY,
+        inference=ant.Frequentist(bootstrap=0),
+        refute="none",
+    )
 
 
 def test_the_retained_data_is_reused(study, baseline_data):

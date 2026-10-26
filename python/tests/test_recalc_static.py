@@ -115,7 +115,7 @@ def test_static_response_finite_truth_counts_and_full_rerun():
             identifier="general.id",
             estimator="functional.effect",
             refute="none",
-            bootstrap=0,
+            inference=ac.Frequentist(bootstrap=0),
         ).estimate(request.data, seed=3)
     )
     assert result.means == pytest.approx(np.asarray(existing.response.values).flatten(), abs=1e-12)

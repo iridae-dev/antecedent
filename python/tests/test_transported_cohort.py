@@ -37,9 +37,9 @@ def fitted_result(effect: float = 2.0):
             graph=[("z", "t"), ("z", "y"), ("t", "y")],
             query=ac.AverageEffect(treatment="t", outcome="y"),
             estimator=DRLearner(),
-            bootstrap=0,
+            inference=ac.Frequentist(bootstrap=0),
             refute=False,
-            seed=3,
+            execution=ac.Execution(seed=3),
         )
     )
 

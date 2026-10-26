@@ -19,7 +19,7 @@ def test_bayesian_default_omits_posterior_artifact():
             graph=edges,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Bayesian(n_draws=128),
-            seed=3,
+            execution=antecedent.Execution(seed=3),
             refute=False,
         )
     )
@@ -71,7 +71,7 @@ def test_posterior_artifact_payload_size_vs_summaries():
             graph=edges,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Bayesian(n_draws=2000),
-            seed=5,
+            execution=antecedent.Execution(seed=5),
             refute=False,
         )
     )

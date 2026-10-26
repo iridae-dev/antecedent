@@ -38,8 +38,8 @@ def test_path_specific_graph_posterior_runs_and_is_never_licensed():
             query=antecedent.PathSpecificEffect("t", "y"),
             discovery=antecedent.discovery.ExactDagPosterior(),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert np.isfinite(result.estimate.ate)
@@ -53,8 +53,8 @@ def test_licensed_pag_response_curve_runs():
             graph=_PAG,
             query=_CURVE,
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.response is not None
@@ -74,8 +74,8 @@ def test_licensed_response_curve_still_runs(graph):
             graph=graph,
             query=_CURVE,
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.response is not None
@@ -88,10 +88,9 @@ def test_licensed_average_effect_on_dag_frequentist():
             _DATA,
             graph=_DAG,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            inference=antecedent.Frequentist(),
+            inference=antecedent.Frequentist(bootstrap=0),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert np.isfinite(result.ate)
@@ -105,8 +104,8 @@ def test_licensed_pag_ate_runs():
             graph=_PAG,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert np.isfinite(result.ate)
@@ -129,8 +128,8 @@ def test_licensed_admg_ate_runs():
             graph=admg,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert np.isfinite(result.ate)
@@ -160,8 +159,8 @@ def test_licensed_pulse_effect_temporal_dag_runs():
                 treatment="t", outcome="y", treatment_lag=1, horizon_steps=1
             ),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert np.isfinite(result.ate)
@@ -216,8 +215,8 @@ def test_path_specific_cheap_refute_runs_native_suite():
             graph=dag,
             query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
             refute="cheap",
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
 
@@ -237,8 +236,8 @@ def test_distribution_full_refute_runs_native_suite():
             graph=dag,
             query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
             refute="full",
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
 

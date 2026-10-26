@@ -25,9 +25,9 @@ def analyze(estimator):
             graph=[("z", "t"), ("z", "y"), ("t", "y")],
             query=ac.AverageEffect(treatment="t", outcome="y"),
             estimator=estimator,
-            bootstrap=0,
+            inference=ac.Frequentist(bootstrap=0),
             refute=False,
-            seed=3,
+            execution=ac.Execution(seed=3),
         )
     )
 

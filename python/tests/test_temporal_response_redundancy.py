@@ -83,7 +83,12 @@ def test_confounded_pulse_recovers_structural_surface_unadjusted_does_not():
     )
     adjusted = require_success(
         antecedent.analyze(
-            data, graph=_CONFOUNDED_EDGES, query=query, refute=False, bootstrap=0, seed=21
+            data,
+            graph=_CONFOUNDED_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=21),
         )
     )
     np.testing.assert_allclose(
@@ -94,7 +99,12 @@ def test_confounded_pulse_recovers_structural_surface_unadjusted_does_not():
 
     unadjusted = require_success(
         antecedent.analyze(
-            data, graph=[("t", 1, "y", 0)], query=query, refute=False, bootstrap=0, seed=21
+            data,
+            graph=[("t", 1, "y", 0)],
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=21),
         )
     )
     np.testing.assert_allclose(
@@ -130,7 +140,12 @@ def test_confounded_multi_horizon_keeps_z_at_short_horizon():
     )
     result = require_success(
         antecedent.analyze(
-            data, graph=_CONFOUNDED_EDGES, query=query, refute=False, bootstrap=0, seed=29
+            data,
+            graph=_CONFOUNDED_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=29),
         )
     )
     mean = _means(result)
@@ -170,8 +185,8 @@ def test_confounded_pulse_and_sustained_match_structural_contrast():
             graph=_CONFOUNDED_EDGES,
             query=antecedent.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1),
             refute=False,
-            bootstrap=0,
-            seed=23,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=23),
         )
     )
     sustained = require_success(
@@ -180,8 +195,8 @@ def test_confounded_pulse_and_sustained_match_structural_contrast():
             graph=_CONFOUNDED_EDGES,
             query=antecedent.SustainedEffect("t", "y", treatment_lag=1, horizon_steps=1),
             refute=False,
-            bootstrap=0,
-            seed=23,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=23),
         )
     )
     _assert_identified(pulse, _IDENT, estimator=estimators["pulse"])
@@ -198,8 +213,8 @@ def test_confounded_pulse_and_sustained_match_structural_contrast():
             graph=accepted,
             query=antecedent.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1),
             refute=False,
-            bootstrap=0,
-            seed=23,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=23),
         )
     )
     _assert_identified(accepted_pulse, _IDENT, estimator=estimators["pulse"])
@@ -211,8 +226,8 @@ def test_confounded_pulse_and_sustained_match_structural_contrast():
             graph=[("t", 1, "y", 0)],
             query=antecedent.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1),
             refute=False,
-            bootstrap=0,
-            seed=23,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=23),
         )
     )
     _assert_identified(unadjusted, _UNADJUSTED["identification"], estimator=estimators["pulse"])
@@ -232,7 +247,12 @@ def test_horizon_support_is_per_cell_not_union():
     )
     result = require_success(
         antecedent.analyze(
-            data, graph=_SUPPORT_EDGES, query=query, refute=False, bootstrap=0, seed=11
+            data,
+            graph=_SUPPORT_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=11),
         )
     )
     spec = _SUPPORT["contract"]["support"]
@@ -261,8 +281,8 @@ def test_horizon_support_is_per_cell_not_union():
                 treatment_lag=1,
             ),
             refute=False,
-            bootstrap=0,
-            seed=11,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=11),
         )
     )
     assert path.support.status == "extrapolative"

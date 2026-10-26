@@ -89,12 +89,22 @@ def test_class_aware_intervention_pins(accepted: bool, class_name: str) -> None:
     section = _PIN[class_name]
     high = require_success(
         antecedent.analyze(
-            data, graph=graph, query=_intervention(1.0), refute=False, bootstrap=0, seed=1
+            data,
+            graph=graph,
+            query=_intervention(1.0),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     low = require_success(
         antecedent.analyze(
-            data, graph=graph, query=_intervention(0.0), refute=False, bootstrap=0, seed=1
+            data,
+            graph=graph,
+            query=_intervention(0.0),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
@@ -133,7 +143,14 @@ def test_class_aware_curve_pins(accepted: bool, class_name: str) -> None:
     section = _PIN[class_name]
     query = _curve()
     fresh = require_success(
-        antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0, seed=1)
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     ate = require_success(
         antecedent.analyze(
@@ -144,8 +161,8 @@ def test_class_aware_curve_pins(accepted: bool, class_name: str) -> None:
                 _PIN["query"]["outcome"],
             ),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(

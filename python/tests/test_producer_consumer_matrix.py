@@ -206,7 +206,7 @@ def _executed_native_view() -> CausalResponseView:
                 "nuisance_basis": 4,
                 "folds": 2,
             },
-            bootstrap=0,
+            inference=ac.Frequentist(bootstrap=0),
             refute="none",
         )
     )

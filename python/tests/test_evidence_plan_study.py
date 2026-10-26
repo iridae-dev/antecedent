@@ -241,12 +241,16 @@ def test_an_identified_study_returns_the_ordinary_result_and_owes_no_evidence():
     data = {"t": t, "y": 1.0 + 2.0 * t + rng.normal(scale=0.3, size=200)}
     graph = ant.Admg.from_edges(["t", "y"], [("t", "y")], [])
     outcome = require_success(
-        ant.analyze(data, graph=graph, query=_QUERY, on_refusal="describe", seed=5)
+        ant.analyze(
+            data, graph=graph, query=_QUERY, on_refusal="describe", execution=ant.Execution(seed=5)
+        )
     )
     assert not isinstance(outcome, AnalysisWithFallback)
     assert (
         outcome.answer.kind
-        == require_success(ant.analyze(data, graph=graph, query=_QUERY, seed=5)).answer.kind
+        == require_success(
+            ant.analyze(data, graph=graph, query=_QUERY, execution=ant.Execution(seed=5))
+        ).answer.kind
     )
 
     # The evidence routes of a graph that identifies the effect refuse by name.

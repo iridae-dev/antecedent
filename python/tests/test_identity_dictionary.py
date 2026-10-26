@@ -78,7 +78,7 @@ def test_prepared_and_loaded_availability():
         query=ant.AverageEffect("t", "y"),
         estimator="aipw",
         refute="none",
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
     )
     slots = prepared.inspect()
     executed = require_success(prepared.estimate())

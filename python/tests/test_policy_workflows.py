@@ -366,7 +366,10 @@ def test_prepare_reruns_the_policy_workflow_without_recompiling_and_equals_the_o
     policy = [transform("price", maximum(1, 0.85 * generated()))]
     query = PolicyProgramValue(policy, "demand", n_draws=4000)
     handle = antecedent.prepare(
-        data, query=query, graph=Dag.from_edges(list(data), PRICING_EDGES), seed=5
+        data,
+        query=query,
+        graph=Dag.from_edges(list(data), PRICING_EDGES),
+        execution=antecedent.Execution(seed=5),
     )
     assert isinstance(handle, PreparedAnalysis)
 

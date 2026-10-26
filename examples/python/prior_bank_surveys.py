@@ -41,7 +41,7 @@ def _fit_artifact(
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
         inference=antecedent.Bayesian(n_draws=96, backend="conjugate"),
         refute="none",
-        seed=seed,
+        execution=antecedent.Execution(seed=seed),
     )
     assert result.posterior is not None
     # The prior catalog consumes a posterior payload, not a full execution export.
@@ -161,7 +161,7 @@ def main() -> None:
             prior_from=prior_for_fit,
         ),
         refute="full",
-        seed=13,
+        execution=antecedent.Execution(seed=13),
     )
     print("Calibration:", target.calibration.status)
     assert target.posterior is not None

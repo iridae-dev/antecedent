@@ -271,7 +271,9 @@ def test_prepared_question_and_repreparation_detach_mutable_caller_declarations(
     grid = [-0.5, 0.0, 0.5]
     query = ant.ResponseCurve("t", "y", grid=grid)
     edges = [("t", "y")]
-    study = ant.prepare(data, graph=edges, query=query, refute=False, bootstrap=0)
+    study = ant.prepare(
+        data, graph=edges, query=query, refute=False, inference=ant.Frequentist(bootstrap=0)
+    )
     grid[0] = -99.0
     edges.clear()
     identification = study.identification
@@ -296,7 +298,7 @@ def test_repreparation_keeps_graph_and_configuration_despite_caller_edits():
         query=ant.AverageEffect("t", "y"),
         estimator="linear.adjustment.ate",
         estimator_config=configuration,
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
         refute=False,
     )
     original = require_success(study.estimate())

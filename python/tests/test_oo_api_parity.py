@@ -36,7 +36,7 @@ def test_analyze_with_dag_object_and_levels():
             graph=g,
             query=antecedent.AverageEffect("t", "y", control_level=0.0, active_level=1.0),
             refute=False,
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     r1 = require_success(
@@ -45,7 +45,7 @@ def test_analyze_with_dag_object_and_levels():
             graph=g,
             query=antecedent.AverageEffect("t", "y", control_level=0.0, active_level=2.0),
             refute=False,
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     assert r0.ate != pytest.approx(r1.ate, abs=1e-9) or abs(r1.ate) > abs(r0.ate) * 1.2
@@ -65,7 +65,7 @@ def test_sustained_vs_pulse_policy_accepted():
             data,
             graph=edges,
             query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
             refute=False,
         )
     )
@@ -76,7 +76,7 @@ def test_sustained_vs_pulse_policy_accepted():
             data,
             graph=edges,
             query=antecedent.SustainedEffect("a", "b", treatment_lag=1, horizon_steps=1),
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
             refute=False,
         )
     )
@@ -108,8 +108,8 @@ def test_temporal_refute_runs_by_default():
             {"a": x, "b": y},
             graph=[("a", 1, "b", 0)],
             query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.validation.ran
@@ -131,8 +131,8 @@ def test_refute_true_is_rejected():
                 graph=[("a", 1, "b", 0)],
                 query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
                 refute=True,
-                bootstrap=0,
-                seed=1,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
             )
         )
 
@@ -483,7 +483,7 @@ def test_path_specific_and_distribution_queries():
             graph=edges,
             query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
             refute=False,
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     assert abs(path.ate - 0.3) < 1e-9
@@ -493,7 +493,7 @@ def test_path_specific_and_distribution_queries():
             graph=edges,
             query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
             refute=False,
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     assert np.isfinite(dist.ate)

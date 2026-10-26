@@ -42,7 +42,12 @@ def _counts_sample(cells: list[list[float]], n_per_arm: int = 10_000) -> dict[st
 
 def test_the_compiled_study_reproduces_the_frozen_balke_pearl_bounds() -> None:
     result = require_success(
-        ant.analyze(_counts_sample(TABLE1["cells"]), query=QUERY, refute="none", seed=3)
+        ant.analyze(
+            _counts_sample(TABLE1["cells"]),
+            query=QUERY,
+            refute="none",
+            execution=ant.Execution(seed=3),
+        )
     )
     section = result.iv_bounds
     assert section is not None
@@ -56,7 +61,12 @@ def test_the_compiled_study_reproduces_the_frozen_balke_pearl_bounds() -> None:
 
 def test_the_answer_is_an_identified_set_never_a_point() -> None:
     result = require_success(
-        ant.analyze(_counts_sample(TABLE1["cells"]), query=QUERY, refute="none", seed=3)
+        ant.analyze(
+            _counts_sample(TABLE1["cells"]),
+            query=QUERY,
+            refute="none",
+            execution=ant.Execution(seed=3),
+        )
     )
     answer = result.answer
     assert answer.kind == "bounds"
@@ -83,7 +93,13 @@ def test_the_bootstrap_interval_covers_the_identified_set() -> None:
     d = (rng.random(n) < 0.2 + 0.6 * z).astype(float)
     y = (rng.random(n) < 0.3 + 0.2 * d).astype(float)
     result = require_success(
-        ant.analyze({"z": z, "d": d, "y": y}, query=QUERY, refute="none", bootstrap=200, seed=5)
+        ant.analyze(
+            {"z": z, "d": d, "y": y},
+            query=QUERY,
+            refute="none",
+            inference=ant.Frequentist(bootstrap=200),
+            execution=ant.Execution(seed=5),
+        )
     )
     section = result.iv_bounds
     assert section is not None and section.interval is not None
@@ -101,7 +117,7 @@ def test_bayesian_inference_reports_the_endpoint_posterior() -> None:
             query=QUERY,
             inference=ant.Bayesian(backend="conjugate", n_draws=400),
             refute="none",
-            seed=7,
+            execution=ant.Execution(seed=7),
         )
     )
     section = result.iv_bounds
@@ -130,7 +146,7 @@ def test_a_declared_dependent_design_refuses_the_row_level_draw() -> None:
                 data,
                 query=QUERY,
                 refute="none",
-                bootstrap=50,
+                inference=ant.Frequentist(bootstrap=50),
                 sampling_design="dependent_time_series",
             )
         )
@@ -168,7 +184,12 @@ def test_the_estimator_follows_the_inference_mode() -> None:
 
 def test_an_exported_result_loads_with_the_same_identified_set() -> None:
     result = require_success(
-        ant.analyze(_counts_sample(TABLE1["cells"]), query=QUERY, refute="none", seed=3)
+        ant.analyze(
+            _counts_sample(TABLE1["cells"]),
+            query=QUERY,
+            refute="none",
+            execution=ant.Execution(seed=3),
+        )
     )
     loaded = require_success(ant.load(bytes(result.export())))
     assert_answer_kept(loaded)

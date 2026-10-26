@@ -49,7 +49,7 @@ def _frequentist(estimator: Any) -> Any:
             query=ant.AverageEffect("t", "y"),
             estimator=estimator,
             refute="none",
-            bootstrap=0,
+            inference=ant.Frequentist(bootstrap=0),
         )
     )
 

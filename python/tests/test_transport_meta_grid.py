@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 
+import antecedent as _ant_api
 import pytest
 from antecedent import Admg, load, prepare
 from antecedent.errors import CausalCancelledError, CausalResourceError, CausalUnsupportedError
@@ -456,7 +457,7 @@ def test_grid_family_identity_atomic_refresh_and_preview():
         prepare(
             data,
             query=transport.TransportResponseGridQuery(identified, catalog, ({"x": 0.0},)),
-            threads=2,
+            execution=_ant_api.Execution(threads=2),
         )
 
 

@@ -24,11 +24,12 @@ def ml_prepare():
         data,
         graph=[("z", "a"), ("z", "y"), ("a", "y")],
         query=ac.AverageEffect(treatment="a", outcome="y"),
-        estimator=DRLearner(outcome=Ridge(0.1), treatment=Logistic(), final_learner=Linear()),
-        bootstrap=0,
+        estimator=DRLearner(
+            outcome=Ridge(0.1), treatment=Logistic(), final_learner=Linear()
+        ),
+        inference=ac.Frequentist(bootstrap=0),
         refute=False,
-        seed=9,
-        threads=1,
+        execution=ac.Execution(seed=9, threads=1),
     )
     return study
 
@@ -56,7 +57,10 @@ def transport_example():
         target="target",
         evidence=tr.Evidence(
             source=tr.Source(
-                "trial", kind="experimental", interventions=["a"], sampling="independent"
+                "trial",
+                kind="experimental",
+                interventions=["a"],
+                sampling="independent",
             ),
             target_sampling="representative_sample",
         ),

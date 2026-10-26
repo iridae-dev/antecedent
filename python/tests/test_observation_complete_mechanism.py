@@ -70,7 +70,7 @@ def test_complete_observation_refuses_scalar_refute_like_no_mechanism():
                     query=query,
                     graph=[("a", "y")],
                     refute="cheap",
-                    seed=9,
+                    execution=antecedent.Execution(seed=9),
                 )
             )
 

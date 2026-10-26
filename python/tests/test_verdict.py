@@ -54,7 +54,7 @@ def test_certificate_matches_schema():
             data,
             graph=[("z", "t"), ("z", "y"), ("t", "y")],
             query=ant.AverageEffect("t", "y"),
-            bootstrap=0,
+            inference=ant.Frequentist(bootstrap=0),
             refute="none",
         )
     )
@@ -65,7 +65,7 @@ def test_certificate_matches_schema():
                 ["t", "y", "z"], directed=[("t", "y"), ("z", "t"), ("z", "y")]
             ),
             query=ant.AverageEffect("t", "y"),
-            bootstrap=0,
+            inference=ant.Frequentist(bootstrap=0),
             refute="none",
         )
     )
@@ -76,7 +76,7 @@ def test_certificate_matches_schema():
                 ["t", "y", "z"], directed=[("z", "t"), ("z", "y"), ("t", "y")], undirected=[]
             ),
             query=ant.AverageEffect("t", "y"),
-            bootstrap=0,
+            inference=ant.Frequentist(bootstrap=0),
             refute="none",
         )
     )
@@ -98,7 +98,7 @@ def test_certificate_matches_schema():
                 pin["columns"], [tuple(edge) for edge in pin["marked_edges"]]
             ),
             query=ant.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1),
-            bootstrap=0,
+            inference=ant.Frequentist(bootstrap=0),
             refute="none",
         )
     )

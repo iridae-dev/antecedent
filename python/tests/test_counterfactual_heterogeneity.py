@@ -48,7 +48,7 @@ def test_exp_modifier_unit_effects_rise_with_the_modifier():
             graph=[("z", "a"), ("z", "y"), ("a", "y")],
             query=ac.Counterfactual("a", "y"),
             refute="none",
-            seed=1,
+            execution=ac.Execution(seed=1),
         )
     )
     effects = np.asarray(result.unit_effects)
@@ -66,7 +66,7 @@ def test_bayesian_unit_effect_intervals_are_level_tagged_and_contain_the_point()
             graph=graph,
             query=ac.Counterfactual("a", "y"),
             refute="none",
-            seed=1,
+            execution=ac.Execution(seed=1),
             inference=ac.Bayesian(n_draws=200),
         )
     )
@@ -88,7 +88,13 @@ def test_frequentist_unit_effects_carry_no_interval():
     synthesised, and the existing diagnostic still says so."""
     data, graph = interaction_fixture()
     result = require_success(
-        ac.analyze(data, graph=graph, query=ac.Counterfactual("a", "y"), refute="none", seed=1)
+        ac.analyze(
+            data,
+            graph=graph,
+            query=ac.Counterfactual("a", "y"),
+            refute="none",
+            execution=ac.Execution(seed=1),
+        )
     )
     assert result.unit_effect_intervals is None
     assert result.unit_effect_intervals_level is None
@@ -116,7 +122,7 @@ def test_units_outside_the_opposite_arms_covariate_support_are_flagged():
             graph=[("x", "y"), ("a", "y")],
             query=ac.Counterfactual("a", "y"),
             refute="none",
-            seed=1,
+            execution=ac.Execution(seed=1),
         )
     )
     flags = np.asarray(result.unit_extrapolative)
@@ -183,7 +189,7 @@ def test_counterfactual_is_invariant_to_affine_rescaling_of_lever_parents(bayesi
                 graph=LEVER_GRAPH,
                 query=ac.Counterfactual("lever", "y"),
                 refute="none",
-                seed=1,
+                execution=ac.Execution(seed=1),
                 **kwargs,
             )
         )

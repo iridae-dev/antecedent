@@ -345,9 +345,17 @@ def test_rd_key_used_without_rd_sharp_estimator_reports_the_owner():
 def test_public_analyze_accepts_estimator_config_and_none_is_identical():
     data, graph = _public_scm()
     query = antecedent.AverageEffect(treatment="t", outcome="y")
-    omitted = require_success(antecedent.analyze(data, graph=graph, query=query, seed=1))
+    omitted = require_success(
+        antecedent.analyze(data, graph=graph, query=query, execution=antecedent.Execution(seed=1))
+    )
     explicit_none = require_success(
-        antecedent.analyze(data, graph=graph, query=query, seed=1, estimator_config=None)
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            execution=antecedent.Execution(seed=1),
+            estimator_config=None,
+        )
     )
     assert explicit_none.estimate.ate == omitted.estimate.ate
     assert explicit_none.estimate.se_analytic == omitted.estimate.se_analytic
@@ -356,13 +364,15 @@ def test_public_analyze_accepts_estimator_config_and_none_is_identical():
 def test_public_analyze_estimator_config_changes_the_standard_error():
     data, graph = _public_scm()
     query = antecedent.AverageEffect(treatment="t", outcome="y")
-    default = require_success(antecedent.analyze(data, graph=graph, query=query, seed=1))
+    default = require_success(
+        antecedent.analyze(data, graph=graph, query=query, execution=antecedent.Execution(seed=1))
+    )
     clustered = require_success(
         antecedent.analyze(
             data,
             graph=graph,
             query=query,
-            seed=1,
+            execution=antecedent.Execution(seed=1),
             estimator="linear.adjustment.ate",
             estimator_config={
                 "se_kind": "cluster",
@@ -392,7 +402,7 @@ def test_public_analyze_rejects_bad_estimator_config(config, needle):
                 data,
                 graph=graph,
                 query=query,
-                seed=1,
+                execution=antecedent.Execution(seed=1),
                 estimator="linear.adjustment.ate",
                 estimator_config=config,
             )
@@ -426,7 +436,13 @@ def test_estimator_config_reaches_estimator_on_discovery_path():
     with pytest.raises(antecedent.errors.CausalEstimateError, match="did not converge"):
         require_success(
             antecedent.analyze(
-                data, graph=edges, query=query, estimator=cfg, refute=False, bootstrap=0, seed=1
+                data,
+                graph=edges,
+                query=query,
+                estimator=cfg,
+                refute=False,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
             )
         )
 
@@ -442,8 +458,8 @@ def test_estimator_config_reaches_estimator_on_discovery_path():
                 query=query,
                 estimator=cfg,
                 refute=False,
-                bootstrap=0,
-                seed=1,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
             )
         )
 
@@ -467,7 +483,7 @@ def test_estimator_config_dict_reaches_estimator_on_discovery_path():
                 estimator="propensity.weighting",
                 estimator_config={"glm_options": {"max_iter": 3}},
                 refute=False,
-                bootstrap=0,
-                seed=1,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
             )
         )

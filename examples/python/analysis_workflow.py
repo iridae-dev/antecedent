@@ -25,7 +25,13 @@ query = ant.AverageEffect("treatment", "outcome")
 new_data = {**data, "outcome": data["outcome"] + treatment}
 
 # Estimate the effect, then keep the study so we can reuse it.
-result = ant.analyze(data, graph=graph, query=query, seed=19, bootstrap=25)
+result = ant.analyze(
+    data,
+    graph=graph,
+    query=query,
+    execution=ant.Execution(seed=19),
+    inference=ant.Frequentist(bootstrap=25),
+)
 study = result.study
 updated = study.refresh(new_data)
 report = result.inspect().to_dict()
@@ -48,6 +54,12 @@ assert np.isclose(study.estimate().answer.value, updated.answer.value)
 print("After refresh:", updated)
 
 # To inspect identification before estimating, prepare the study explicitly.
-prepared = ant.prepare(data, graph=graph, query=query, seed=19, bootstrap=25)
+prepared = ant.prepare(
+    data,
+    graph=graph,
+    query=query,
+    execution=ant.Execution(seed=19),
+    inference=ant.Frequentist(bootstrap=25),
+)
 assert prepared.inspect().identification.available
 assert np.isclose(prepared.estimate().answer.value, result.answer.value)

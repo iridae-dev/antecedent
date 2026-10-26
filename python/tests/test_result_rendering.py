@@ -87,7 +87,7 @@ def identified():
                 graph=GRAPH,
                 query=ant.AverageEffect("t", "y"),
                 refute="none",
-                bootstrap=0,
+                inference=ant.Frequentist(bootstrap=0),
             )
         )
 
@@ -159,7 +159,7 @@ def test_parametric_identification_keeps_its_qualifier():
                 graph=GRAPH,
                 query=ant.Counterfactual("t", "y"),
                 refute="none",
-                bootstrap=0,
+                inference=ant.Frequentist(bootstrap=0),
             )
         )
     assert result.identification.status == "IdentifiedUnderParametricRestrictions"
@@ -304,7 +304,7 @@ def test_function_valued_answers_agree_live_and_loaded():
                 query=ant.ResponseJacobian(["t"], ["y"], at={"t": 0.5}),
                 estimator_config={"bandwidth": 0.45},
                 refute="none",
-                bootstrap=0,
+                inference=ant.Frequentist(bootstrap=0),
             )
         )
     assert result.answer.kind == "response"
@@ -319,7 +319,7 @@ def test_limited_function_valued_answer_is_partial_live_and_loaded():
                 _continuous(n=300),
                 graph=PARTIAL,
                 query=ant.ResponseCurve("t", "y", grid=[0.0, 0.5, 1.0]),
-                bootstrap=0,
+                inference=ant.Frequentist(bootstrap=0),
                 refute="none",
             )
         )

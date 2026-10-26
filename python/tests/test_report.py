@@ -59,8 +59,8 @@ def _licensed():
         graph=_EDGES,
         query=ant.AverageEffect("t", "y"),
         refute="none",
-        bootstrap=0,
-        seed=3,
+        inference=ant.Frequentist(bootstrap=0),
+        execution=ant.Execution(seed=3),
     )
     require_success(prepared.estimate(_table(), seed=3))
     return prepared
@@ -204,8 +204,8 @@ def test_report_before_an_estimate_reads_the_contract_and_executes_nothing() -> 
         graph=_EDGES,
         query=ant.AverageEffect("t", "y"),
         refute="none",
-        bootstrap=0,
-        seed=3,
+        inference=ant.Frequentist(bootstrap=0),
+        execution=ant.Execution(seed=3),
     )
     markdown = prepared.report("markdown")
     assert prepared.last_result is None, "a report executes nothing"
@@ -242,7 +242,7 @@ def test_a_refused_cell_raises_at_prepare_so_no_handle_reports_on_it() -> None:
             graph=_EDGES,
             query=ant.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1),
             refute="none",
-            bootstrap=0,
+            inference=ant.Frequentist(bootstrap=0),
         )
 
 
@@ -259,8 +259,8 @@ def test_html_is_inert_and_escapes_every_value() -> None:
         graph=[(hostile[2], hostile[0]), (hostile[2], hostile[1]), (hostile[0], hostile[1])],
         query=ant.AverageEffect(hostile[0], hostile[1]),
         refute="none",
-        bootstrap=0,
-        seed=3,
+        inference=ant.Frequentist(bootstrap=0),
+        execution=ant.Execution(seed=3),
     )
     require_success(prepared.estimate(_table(names=hostile), seed=3))
 

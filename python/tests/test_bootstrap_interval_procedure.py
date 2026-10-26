@@ -48,7 +48,7 @@ def _run(estimator: str, interval: dict | None, **config: object):
             estimator=estimator,
             estimator_config=settings,
             refute="none",
-            seed=3,
+            execution=ant.Execution(seed=3),
         )
     )
 

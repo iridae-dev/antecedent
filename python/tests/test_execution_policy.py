@@ -18,7 +18,7 @@ def _prepare():
         {"t": t, "y": 2 * t + z, "z": z},
         graph=[("t", "y"), ("z", "y")],
         query=ant.AverageEffect("t", "y"),
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
         refute="none",
     )
 

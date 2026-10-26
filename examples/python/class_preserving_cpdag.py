@@ -10,6 +10,7 @@ Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations
 
+import antecedent as _ant_api
 import numpy as np
 from antecedent import AverageEffect, Cpdag, analyze, identify
 from antecedent.handoff import econml
@@ -36,7 +37,13 @@ def main() -> None:
     print(f"partial status={identified.status} method={identified.method}")
     assert identified.status == "PartiallyIdentified"
 
-    envelope = analyze(data, graph=partial, query=query, refute="none", bootstrap=0)
+    envelope = analyze(
+        data,
+        graph=partial,
+        query=query,
+        refute="none",
+        inference=_ant_api.Frequentist(bootstrap=0),
+    )
     print("Partial answer:", envelope.answer)
     print("Identification:", envelope.inspect().identification)
     print("Calibration:", envelope.calibration.status)

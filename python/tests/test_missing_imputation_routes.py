@@ -86,8 +86,8 @@ def _conditional(data, missing, **extra):
             graph=[("t", "y"), ("w", "y")],
             query=ant.ConditionalEffect("t", "y", "w"),
             refute="none",
-            bootstrap=0,
-            seed=1,
+            inference=ant.Frequentist(bootstrap=0),
+            execution=ant.Execution(seed=1),
             missing=missing,
             **extra,
         )
@@ -156,8 +156,8 @@ def test_a_response_curve_pools_every_grid_point_jointly():
             graph=[("w", "t"), ("w", "y"), ("t", "y")],
             query=ant.ResponseCurve("t", "y", grid=grid),
             refute="none",
-            bootstrap=0,
-            seed=2,
+            inference=ant.Frequentist(bootstrap=0),
+            execution=ant.Execution(seed=2),
             missing=_policy(),
         )
     )
@@ -199,7 +199,7 @@ def test_an_interventional_distribution_pools_atoms_and_needs_a_variance_to_pool
         "refute": "none",
         "missing": _policy(),
     }
-    result = require_success(ant.analyze(data, bootstrap=60, **kwargs))
+    result = require_success(ant.analyze(data, inference=ant.Frequentist(bootstrap=60), **kwargs))
     vector = result.missing_data.imputation.vector
     assert vector is not None
     _assert_rubin_vector(vector, 6)
@@ -211,7 +211,7 @@ def test_an_interventional_distribution_pools_atoms_and_needs_a_variance_to_pool
     assert sum(atoms) == pytest.approx(1.0, abs=1e-9)
     # Without bootstrap replicates the plug-in publishes no variance to pool: refused.
     with pytest.raises(CausalError) as refused:
-        require_success(ant.analyze(data, bootstrap=0, **kwargs))
+        require_success(ant.analyze(data, inference=ant.Frequentist(bootstrap=0), **kwargs))
     assert getattr(refused.value, "reason_code", None) == "missing_policy_not_applicable"
     assert "standard error" in str(refused.value)
 
@@ -293,7 +293,7 @@ def test_a_series_is_imputed_by_a_lagged_model_over_contiguous_blocks():
             graph=_SERIES_DAG,
             query=query,
             refute="none",
-            bootstrap=60,
+            inference=ant.Frequentist(bootstrap=60),
             missing=_policy(),
         )
     )
@@ -308,7 +308,12 @@ def test_a_series_is_imputed_by_a_lagged_model_over_contiguous_blocks():
     digest = _assert_digest(result)
     again = require_success(
         ant.analyze(
-            data, graph=_SERIES_DAG, query=query, refute="none", bootstrap=60, missing=_policy()
+            data,
+            graph=_SERIES_DAG,
+            query=query,
+            refute="none",
+            inference=ant.Frequentist(bootstrap=60),
+            missing=_policy(),
         )
     )
     assert _assert_digest(again) == digest
@@ -325,7 +330,7 @@ def test_the_joint_normal_model_has_no_lagged_form_on_a_series():
                 graph=_SERIES_DAG,
                 query=ant.PulseEffect("t", "y", treatment_lag=1),
                 refute="none",
-                bootstrap=0,
+                inference=ant.Frequentist(bootstrap=0),
                 missing=joint,
             )
         )

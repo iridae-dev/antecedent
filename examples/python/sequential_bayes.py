@@ -9,6 +9,7 @@ Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations
 
+import antecedent as _ant_api
 import numpy as np
 from antecedent import AverageEffect, Bayesian, analyze
 
@@ -33,7 +34,7 @@ def main() -> None:
         query=query,
         inference=Bayesian(n_draws=128),
         refute="none",
-        seed=11,
+        execution=_ant_api.Execution(seed=11),
     )
     assert batch_a.posterior is not None
     # Prior hydration needs the posterior payload; batch_a.export() saves the full execution.
@@ -45,7 +46,7 @@ def main() -> None:
         query=query,
         inference=Bayesian(n_draws=128, prior_from=artifact),
         refute="none",
-        seed=12,
+        execution=_ant_api.Execution(seed=12),
     )
     print("Calibration:", batch_b.calibration.status)
     assert batch_b.study.estimate().posterior is not None

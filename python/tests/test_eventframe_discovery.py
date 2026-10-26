@@ -40,8 +40,8 @@ def test_eventframe_pcmci_discovery_happy_path():
                 horizon_steps=1,
                 active_level=1.0,
             ),
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
             refute=False,
         )
     )
@@ -66,8 +66,8 @@ def test_eventframe_rejects_jpcmci_plus():
                     horizon_steps=1,
                     active_level=1.0,
                 ),
-                bootstrap=0,
-                seed=1,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
                 refute=False,
             )
         )

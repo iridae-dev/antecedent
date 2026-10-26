@@ -183,7 +183,7 @@ def _executed_native(grid: tuple[float, ...]) -> CausalResponseView:
                 "nuisance_basis": 4,
                 "folds": 2,
             },
-            bootstrap=0,
+            inference=ac.Frequentist(bootstrap=0),
             refute="none",
         )
     )

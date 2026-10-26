@@ -79,7 +79,7 @@ def test_analyze_exceedance_and_mean():
             graph=graph,
             query=antecedent.AverageEffect("t", "y"),
             refute="none",
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     exc = require_success(
@@ -88,7 +88,7 @@ def test_analyze_exceedance_and_mean():
             graph=graph,
             query=antecedent.AverageEffect("t", "y", outcome_functional=Exceedance(1.0)),
             refute="none",
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
             estimator="aipw",
         )
     )
@@ -100,7 +100,7 @@ def test_analyze_exceedance_and_mean():
             graph=graph,
             query=antecedent.AverageEffect("t", "y", outcome_functional=Quantile(0.5)),
             refute="none",
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
             estimator="aipw",
         )
     )
@@ -158,7 +158,7 @@ def test_tiered_background():
             ),
             query=antecedent.AverageEffect("t", "y"),
             refute="none",
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     assert np.isfinite(result.estimate.ate)
@@ -173,7 +173,7 @@ def test_econml_modifier_set_and_exceedance():
             graph=graph,
             query=antecedent.AverageEffect("t", "y"),
             refute="none",
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     spec = econml(
@@ -194,7 +194,12 @@ def test_exceedance_grid_on_fresh_estimate():
     query = antecedent.AverageEffect("t", "y", outcome_functional=ExceedanceGrid([0.0, 0.5, 1.0]))
     fresh = require_success(
         antecedent.analyze(
-            data, graph=graph, query=query, estimator="aipw", refute="none", bootstrap=0
+            data,
+            graph=graph,
+            query=query,
+            estimator="aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     cdf = fresh.estimate.exceedance_cdf
@@ -282,7 +287,7 @@ def test_analyze_does_not_always_return_scores():
             query=antecedent.AverageEffect("t", "y"),
             estimator="linear.adjustment.ate",
             refute="none",
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     assert linear.estimate.score_table is None
@@ -293,7 +298,7 @@ def test_analyze_does_not_always_return_scores():
             query=antecedent.AverageEffect("t", "y"),
             estimator="aipw",
             refute="none",
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     assert aipw.estimate.score_table is not None
@@ -364,7 +369,7 @@ def test_validator_computation_failure_is_typed_and_does_not_abort_claim():
             query=antecedent.AverageEffect("t", "y"),
             refute="none",
             validators=[broken_validator],
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     assert np.isfinite(result.estimate.ate)
@@ -382,7 +387,13 @@ def test_dag_intervention_response_cheap_runs():
     graph = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
     query = antecedent.InterventionResponse("y", intervention=antecedent.intervention.Set("t", 1.0))
     one_shot = require_success(
-        antecedent.analyze(data, graph=graph, query=query, refute="cheap", bootstrap=0)
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            refute="cheap",
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
     assert np.isfinite(one_shot.estimate)
     plan = antecedent.estimation.PreparedAnalysis.prepare(
@@ -447,12 +458,22 @@ def test_analyze_many_tiered_codetermined_aipw():
     assert grid.estimate.exceedance_cdf is not None
     solo_mean = require_success(
         antecedent.analyze(
-            data, graph=background, query=mean_q, estimator="aipw", refute="none", bootstrap=0
+            data,
+            graph=background,
+            query=mean_q,
+            estimator="aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     solo_grid = require_success(
         antecedent.analyze(
-            data, graph=background, query=grid_q, estimator="aipw", refute="none", bootstrap=0
+            data,
+            graph=background,
+            query=grid_q,
+            estimator="aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     _assert_same_effect(mean, solo_mean)
@@ -585,7 +606,7 @@ def test_codetermined_joint_cells_are_cell_aipw():
             query=query,
             estimator="cell.aipw",
             refute="none",
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     assert np.isfinite(result.estimate)
@@ -610,7 +631,7 @@ def test_codetermined_joint_cells_are_cell_aipw():
                 query=query,
                 estimator="cell.aipw",
                 refute="none",
-                bootstrap=0,
+                inference=antecedent.Frequentist(bootstrap=0),
             )
         )
 
@@ -676,7 +697,7 @@ def test_prepared_batch_prepare_cells_codetermined_pair_family():
             query=q11,
             estimator="cell.aipw",
             refute="none",
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     assert first.estimate.ate == pytest.approx(solo.estimate, abs=1e-12)
@@ -722,7 +743,12 @@ def test_prepared_batch_zero_effect_pair_family_is_not_significant():
     first, second = require_success(batch.estimate(data))
     solo = require_success(
         antecedent.analyze(
-            data, graph=graph, query=q11, estimator="cell.aipw", refute="none", bootstrap=0
+            data,
+            graph=graph,
+            query=q11,
+            estimator="cell.aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     assert first.estimate.ate == pytest.approx(solo.estimate, abs=1e-12)
@@ -817,7 +843,12 @@ def test_prepared_batch_codetermined_distinct_pairs_share_folds_not_z():
     assert len(results[0].estimate.joint_covariance) == 3
     solo = require_success(
         antecedent.analyze(
-            data, graph=background, query=q12, estimator="cell.aipw", refute="none", bootstrap=0
+            data,
+            graph=background,
+            query=q12,
+            estimator="cell.aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     assert results[0].estimate.ate == pytest.approx(solo.estimate, abs=1e-12)
@@ -896,7 +927,7 @@ def test_conditional_grid_outcome_translation():
                     outcome_functional=ExceedanceGrid([offset, offset + 0.5, offset + 1.0]),
                 ),
                 refute="none",
-                bootstrap=0,
+                inference=antecedent.Frequentist(bootstrap=0),
             )
         )
         cdfs.append(result.estimate.exceedance_cdf)
@@ -912,7 +943,13 @@ def test_conditional_quantile_fresh_prepared_and_class():
     results = []
     for graph in (dag, cpdag):
         fresh = require_success(
-            antecedent.analyze(data, graph=graph, query=query, refute="none", bootstrap=0)
+            antecedent.analyze(
+                data,
+                graph=graph,
+                query=query,
+                refute="none",
+                inference=antecedent.Frequentist(bootstrap=0),
+            )
         )
         plan = antecedent.estimation.PreparedAnalysis.prepare(
             data, graph=graph, query=query, refute="none", bootstrap=0
@@ -957,7 +994,12 @@ def test_dag_cell_aipw_public_route_and_quantile(quantile, first_level, tiered):
     )
     fresh = require_success(
         antecedent.analyze(
-            data, graph=graph, query=query, estimator="cell.aipw", refute="none", bootstrap=0
+            data,
+            graph=graph,
+            query=query,
+            estimator="cell.aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     plan = antecedent.estimation.PreparedAnalysis.prepare(
@@ -1000,7 +1042,7 @@ def test_conditional_quantile_refuses_mean_effect_refuters(refute):
                 graph=graph,
                 query=antecedent.ConditionalEffect("t", "y", "z", outcome_functional=Quantile(0.5)),
                 refute=refute,
-                bootstrap=0,
+                inference=antecedent.Frequentist(bootstrap=0),
             )
         )
 

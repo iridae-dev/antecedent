@@ -22,9 +22,9 @@ def test_causal_forest_returns_cate():
             graph=graph,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             estimator=CausalForest(n_trees=80, min_leaf=8, max_depth=4),
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
             refute=False,
-            seed=3,
+            execution=antecedent.Execution(seed=3),
         )
     )
     assert result.estimate.estimator_id == "causal.forest"

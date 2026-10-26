@@ -29,7 +29,7 @@ def main() -> None:
         data,
         graph=[("z", "treatment"), ("z", "outcome"), ("treatment", "outcome")],
         query=ant.AverageEffect("treatment", "outcome"),
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
         refute=False,
     )
     assert study.last_result is None
@@ -67,7 +67,10 @@ def main() -> None:
     else:
         raise AssertionError("changing retained assignments must be refused")
     assert experiment.last_result is original
-    assert experiment.refresh({"outcome": data["outcome"]}).answer.value == original.answer.value
+    assert (
+        experiment.refresh({"outcome": data["outcome"]}).answer.value
+        == original.answer.value
+    )
     # Repreparation returns a new study, resolves the names and repeats checks.
     revised = experiment.reprepare(changed_design)
     assert revised is not experiment and revised.last_result is None

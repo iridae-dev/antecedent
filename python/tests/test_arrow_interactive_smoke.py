@@ -120,12 +120,11 @@ def test_arrow_interactive_cancel_and_progress():
             table,
             graph=edges,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            bootstrap=requested,
+            inference=antecedent.Frequentist(bootstrap=requested),
             refute=False,
-            seed=3,
-            threads=1,
-            cancel=token,
-            on_progress=on_progress,
+            execution=antecedent.Execution(
+                seed=3, threads=1, cancel=token, on_progress=on_progress
+            ),
         )
     )
     assert math.isfinite(partial.ate)

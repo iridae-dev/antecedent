@@ -29,7 +29,7 @@ def consume(directory):
         {"t": t, "y": 3 * t},
         graph=[("t", "y")],
         query=ant.AverageEffect("t", "y"),
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
         refute=False,
     ).artifact()
     wrong_expected = different.expectation

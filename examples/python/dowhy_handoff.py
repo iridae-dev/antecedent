@@ -17,6 +17,7 @@ import math
 import random
 from typing import Any
 
+import antecedent as _ant_api
 import numpy as np
 from antecedent import AcceptedGraph, AverageEffect, Dag, analyze, identify
 
@@ -57,9 +58,9 @@ def antecedent_side(data: dict[str, np.ndarray]) -> dict[str, Any]:
         graph=accepted,
         query=query,
         estimator="propensity.weighting",
-        bootstrap=0,
+        inference=_ant_api.Frequentist(bootstrap=0),
         refute=False,
-        seed=11,
+        execution=_ant_api.Execution(seed=11),
     )
     return {
         "dot": dag.to_dot(),
@@ -70,7 +71,9 @@ def antecedent_side(data: dict[str, np.ndarray]) -> dict[str, Any]:
     }
 
 
-def dowhy_side(data: dict[str, np.ndarray], antecedent_dot: str) -> dict[str, Any] | None:
+def dowhy_side(
+    data: dict[str, np.ndarray], antecedent_dot: str
+) -> dict[str, Any] | None:
     """Optional DoWhy half: Antecedent DOT → DoWhy, and DoWhy DOT → Antecedent."""
     try:
         import pandas as pd

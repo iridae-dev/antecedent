@@ -59,7 +59,11 @@ def _contrast_query() -> SequentialContrast:
 
 
 def test_sequential_contrast_normal_interval_matches_the_pinned_reference() -> None:
-    result = require_success(ant.analyze(_panel(), query=_contrast_query(), refute="none", seed=3))
+    result = require_success(
+        ant.analyze(
+            _panel(), query=_contrast_query(), refute="none", execution=ant.Execution(seed=3)
+        )
+    )
     fit = result.sequential_contrast
     assert fit is not None
     assert abs(fit.active_mean - 3.5770033958969876) < 1e-4
@@ -445,7 +449,7 @@ def test_bayesian_gcomp_on_the_treated_is_a_model_based_effect_not_a_matching_po
             query=ant.AverageEffect("t", "y", target_population=ant.population.Treated()),
             inference=ant.Bayesian(backend="conjugate", n_draws=2000),
             refute=False,
-            seed=4,
+            execution=ant.Execution(seed=4),
         )
     )
     assert result.ate == pytest.approx(truth, abs=0.1)

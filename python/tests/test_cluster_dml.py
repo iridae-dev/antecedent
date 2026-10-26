@@ -88,7 +88,14 @@ def test_a_cluster_dml_aipw_reports_the_cluster_sandwich_se_and_the_scores():
     data, cluster = clustered()
     cfg = Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=cluster.tolist(), min_clusters=20))
     result = require_success(
-        ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=7)
+        ant.analyze(
+            data,
+            graph=GRAPH,
+            query=QUERY,
+            estimator=cfg,
+            refute=False,
+            execution=ant.Execution(seed=7),
+        )
     )
     assert result.effect == pytest.approx(2.0, abs=0.7)
     estimate = result.estimate
@@ -97,7 +104,14 @@ def test_a_cluster_dml_aipw_reports_the_cluster_sandwich_se_and_the_scores():
     assert estimate.joint_covariance is None and estimate.score_inference is None
     assert estimate.score_table is not None
     again = require_success(
-        ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=7)
+        ant.analyze(
+            data,
+            graph=GRAPH,
+            query=QUERY,
+            estimator=cfg,
+            refute=False,
+            execution=ant.Execution(seed=7),
+        )
     )
     assert again.effect == result.effect
 
@@ -128,7 +142,14 @@ def test_few_clusters_are_refused_with_a_registered_reason_code():
     cfg = Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=cluster.tolist(), min_clusters=20))
     with pytest.raises(CausalError) as error:
         require_success(
-            ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=1)
+            ant.analyze(
+                data,
+                graph=GRAPH,
+                query=QUERY,
+                estimator=cfg,
+                refute=False,
+                execution=ant.Execution(seed=1),
+            )
         )
     assert "too_few_clusters" in refusal_text(error.value)
     assert_registered_refusal(error.value)
@@ -163,7 +184,14 @@ def test_a_two_way_cluster_dml_aipw_reports_the_two_way_se_and_the_scores():
         ),
     )
     result = require_success(
-        ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=7)
+        ant.analyze(
+            data,
+            graph=GRAPH,
+            query=QUERY,
+            estimator=cfg,
+            refute=False,
+            execution=ant.Execution(seed=7),
+        )
     )
     assert result.effect == pytest.approx(2.0, abs=0.7)
     estimate = result.estimate
@@ -172,7 +200,14 @@ def test_a_two_way_cluster_dml_aipw_reports_the_two_way_se_and_the_scores():
     assert estimate.joint_covariance is None and estimate.score_inference is None
     assert estimate.score_table is not None
     again = require_success(
-        ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=7)
+        ant.analyze(
+            data,
+            graph=GRAPH,
+            query=QUERY,
+            estimator=cfg,
+            refute=False,
+            execution=ant.Execution(seed=7),
+        )
     )
     assert again.effect == result.effect
     # Other second-endpoint labels with the same structure are another declaration, but the
@@ -187,7 +222,14 @@ def test_a_two_way_cluster_dml_aipw_reports_the_two_way_se_and_the_scores():
         ),
     )
     other = require_success(
-        ant.analyze(data, graph=GRAPH, query=QUERY, estimator=relabeled, refute=False, seed=7)
+        ant.analyze(
+            data,
+            graph=GRAPH,
+            query=QUERY,
+            estimator=relabeled,
+            refute=False,
+            execution=ant.Execution(seed=7),
+        )
     )
     assert other.effect == result.effect
 
@@ -207,7 +249,14 @@ def test_unsupported_dyadic_structures_stay_closed_with_a_registered_reason_code
         )
         with pytest.raises(CausalError) as error:
             require_success(
-                ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=1)
+                ant.analyze(
+                    data,
+                    graph=GRAPH,
+                    query=QUERY,
+                    estimator=cfg,
+                    refute=False,
+                    execution=ant.Execution(seed=1),
+                )
             )
         assert "dyadic_dependence_not_licensed" in refusal_text(error.value)
         assert detail in refusal_text(error.value)
@@ -222,7 +271,14 @@ def test_few_components_per_fold_are_refused_with_a_registered_reason_code():
     )
     with pytest.raises(CausalError) as error:
         require_success(
-            ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=1)
+            ant.analyze(
+                data,
+                graph=GRAPH,
+                query=QUERY,
+                estimator=cfg,
+                refute=False,
+                execution=ant.Execution(seed=1),
+            )
         )
     assert "too_few_clusters" in refusal_text(error.value)
     assert_registered_refusal(error.value)

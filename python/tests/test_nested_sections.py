@@ -68,8 +68,8 @@ def test_static_nested_sections_mirror_flat_fields():
             graph=edges,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             refute="placebo",
-            bootstrap=20,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=20),
+            execution=antecedent.Execution(seed=1),
         )
     )
     raw = result._raw
@@ -152,8 +152,8 @@ def test_static_validation_nothing_ran_is_false_not_true():
             graph=edges,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             refute=False,
-            bootstrap=0,
-            seed=3,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=3),
         )
     )
     raw = result._raw
@@ -178,8 +178,8 @@ def test_temporal_nested_sections_mirror_flat_fields():
             graph=[("pressure", 1, "defect", 0)],
             query=antecedent.PulseEffect(**_PULSE_QUERY_KWARGS),
             refute="placebo",
-            bootstrap=10,
-            seed=4,
+            inference=antecedent.Frequentist(bootstrap=10),
+            execution=antecedent.Execution(seed=4),
         )
     )
     raw = result._raw
@@ -241,8 +241,8 @@ def test_temporal_validation_nothing_ran_is_false_not_true():
             graph=[("pressure", 1, "defect", 0)],
             query=antecedent.PulseEffect(**_PULSE_QUERY_KWARGS),
             refute=False,
-            bootstrap=0,
-            seed=5,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=5),
         )
     )
     raw = result._raw

@@ -14,6 +14,7 @@ from __future__ import annotations
 import math
 import random
 
+import antecedent as _ant_api
 import numpy as np
 from antecedent import AverageEffect, analyze
 
@@ -38,8 +39,8 @@ def main() -> None:
         graph=[("z", "t"), ("z", "y"), ("t", "y")],
         query=AverageEffect(treatment="t", outcome="y"),
         estimator="propensity.weighting",
-        bootstrap=30,
-        seed=11,
+        inference=_ant_api.Frequentist(bootstrap=30),
+        execution=_ant_api.Execution(seed=11),
     )
     assert result.answer.kind == "point"
     print("Calibration:", result.calibration.status)

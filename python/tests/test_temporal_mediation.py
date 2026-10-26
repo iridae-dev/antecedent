@@ -28,8 +28,8 @@ def test_temporal_mediation_decomposition():
             graph=edges,
             query=antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated"),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.mediation is not None

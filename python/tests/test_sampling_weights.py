@@ -428,7 +428,7 @@ def test_a_weighted_temporal_pulse_reads_one_weight_per_time_step():
                 query=ant.PulseEffect("t", "y", weights="w"),
                 graph=graph,
                 refute="cheap",
-                bootstrap=0,
+                inference=ant.Frequentist(bootstrap=0),
             )
         )
 

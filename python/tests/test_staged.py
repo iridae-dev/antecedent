@@ -71,7 +71,9 @@ def test_mediation_stages_and_artifacts(contrast, key, accepted):
     result = require_success(prepared.estimate(data))
     assert result.effect == pytest.approx(pin[key], abs=pin["tolerance"])
     assert result.estimate.estimator_id == "mediation.linear"
-    fresh = require_success(ac.analyze(data, graph=graph, query=q, refute="full", bootstrap=0))
+    fresh = require_success(
+        ac.analyze(data, graph=graph, query=q, refute="full", inference=ac.Frequentist(bootstrap=0))
+    )
     assert fresh.effect == pytest.approx(result.effect)
     assert result.validation.count == 3
     assert any("reused" in d for d in result.diagnostics)
@@ -250,7 +252,9 @@ def test_frequentist_plugin_gradient_is_point_only_and_says_why(kind):
             ["a", "b"], ["y", "v"], at=[0.5, 0.0], direction=[1, 2]
         ),
     }[kind]
-    result = require_success(ac.analyze(data, graph=graph, query=query, refute="none", seed=3))
+    result = require_success(
+        ac.analyze(data, graph=graph, query=query, refute="none", execution=ac.Execution(seed=3))
+    )
     assert np.all(np.isfinite(np.asarray(result.estimate, dtype=float)))
     assert result.uncertainty.kind == "none"
     assert result.uncertainty.lower is None and result.uncertainty.upper is None
@@ -607,7 +611,7 @@ def test_v13_named_refusals():
     # A Frequentist replicate count runs the mechanism-refit row bootstrap, which is
     # unlicensed; the Bayesian cell keeps its posterior and refuses bootstrap=.
     bootstrapped = require_success(
-        ac.analyze(data, graph=dag, query=cf, refute="none", bootstrap=10)
+        ac.analyze(data, graph=dag, query=cf, refute="none", inference=ac.Frequentist(bootstrap=10))
     )
     assert bootstrapped.evidence_status != "licensed"
     assert any("gcm.frequentist_bootstrap" in d for d in bootstrapped.diagnostics)

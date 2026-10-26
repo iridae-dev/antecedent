@@ -104,7 +104,7 @@ def test_bayesian_factorial_main_effect_matches_the_exact_beta_moments() -> None
                 backend="conjugate", n_draws=4000, design_model=BernoulliArms(1.0, 1.0)
             ),
             estimator=ant.Estimator.BAYESIAN_RANDOMIZED_SUPERPOPULATION,
-            seed=2,
+            execution=ant.Execution(seed=2),
             refute="none",
         )
     )

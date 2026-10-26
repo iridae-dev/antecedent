@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import math
 
+import antecedent as _ant_api
 import numpy as np
 from antecedent import PulseEffect, analyze
 
@@ -29,8 +30,8 @@ def main() -> None:
             horizon_steps=1,
             active_level=1.0,
         ),
-        bootstrap=0,
-        seed=42,
+        inference=_ant_api.Frequentist(bootstrap=0),
+        execution=_ant_api.Execution(seed=42),
     )
     assert result.answer.kind == "point"
     print("Calibration:", result.calibration.status)

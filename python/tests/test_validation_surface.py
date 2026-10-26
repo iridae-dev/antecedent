@@ -23,8 +23,8 @@ def test_analyze_refute_full_runs():
             graph=edges,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             refute="full",
-            bootstrap=5,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=5),
+            execution=antecedent.Execution(seed=1),
         )
     )
     # Full suite includes more than placebo+rcc when applicable.

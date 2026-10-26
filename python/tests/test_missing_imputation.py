@@ -32,7 +32,7 @@ def _analyze(data, missing):
             query=ant.AverageEffect("t", "y"),
             graph=GRAPH,
             refute="none",
-            bootstrap=0,
+            inference=ant.Frequentist(bootstrap=0),
             missing=missing,
         )
     )

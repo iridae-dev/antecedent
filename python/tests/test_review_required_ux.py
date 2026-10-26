@@ -32,8 +32,8 @@ def test_fci_review_required_attrs():
                 query=antecedent.AverageEffect(treatment="t", outcome="y"),
                 accept_discovered=False,
                 refute=False,
-                bootstrap=0,
-                seed=1,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
             )
         )
     err = ei.value
@@ -61,7 +61,14 @@ def test_temporal_pag_does_not_bypass_mag_visibility(endpoint):
     assert identified.certificate["graph_class"] == "TemporalPag"
     with pytest.raises(antecedent.errors.CausalCompileError, match="no identified mass"):
         require_success(
-            antecedent.analyze(data, graph=pag, query=query, bootstrap=0, seed=1, refute=False)
+            antecedent.analyze(
+                data,
+                graph=pag,
+                query=query,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
+                refute=False,
+            )
         )
 
 

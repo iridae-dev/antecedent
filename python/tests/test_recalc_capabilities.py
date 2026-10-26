@@ -154,9 +154,9 @@ def test_verified_predictor_supports_point_prediction_without_becoming_score_sta
             # Correctly specified unpenalized outcome/final regressions reproduce
             # this deterministic linear SCM; default Ridge adds shrinkage bias.
             estimator=DRLearner(outcome=Linear(), final_learner=Linear()),
-            bootstrap=0,
+            inference=ac.Frequentist(bootstrap=0),
             refute=False,
-            seed=3,
+            execution=ac.Execution(seed=3),
         )
     )
     model = FittedEffectModel.load(bytes(result.fitted_model.export()))

@@ -35,9 +35,9 @@ def analyze(device):
                 treatment=Logistic(),
                 folds=2,
             ),
-            bootstrap=0,
+            inference=ac.Frequentist(bootstrap=0),
             refute=False,
-            seed=3,
+            execution=ac.Execution(seed=3),
         )
     )
 

@@ -149,7 +149,7 @@ def test_unfolded_geometry_is_refused_instead_of_silently_changing_the_target(ge
             data,
             graph=graph,
             query=TemporalQuery(ant.Counterfactual("x", "y"), **geometry),
-            bootstrap=0,
+            inference=ant.Frequentist(bootstrap=0),
             refute="none",
         )
 

@@ -30,7 +30,7 @@ def _study():
         data,
         graph=[("z", "t"), ("z", "y"), ("t", "y")],
         query=ant.AverageEffect("t", "y"),
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
         refute=False,
     )
     return data, study

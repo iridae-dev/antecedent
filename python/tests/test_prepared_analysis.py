@@ -96,7 +96,14 @@ def test_prepared_response_curve_matches_analyze():
     edges = [("z", "t"), ("z", "y"), ("t", "y")]
     query = antecedent.ResponseCurve("t", "y", grid=[-0.5, 0.0, 0.5])
     fresh = require_success(
-        antecedent.analyze(data, graph=edges, query=query, refute=False, bootstrap=0, seed=1)
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data, graph=edges, query=query, latency="interactive", seed=1

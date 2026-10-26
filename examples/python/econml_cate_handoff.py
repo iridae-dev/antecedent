@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 import random
 
+import antecedent as _ant_api
 import numpy as np
 from antecedent import AverageEffect, Dag, analyze, identify
 from antecedent.handoff import econml
@@ -55,8 +56,8 @@ def main() -> None:
         graph=graph,
         query=query,
         refute=False,
-        bootstrap=0,
-        seed=11,
+        inference=_ant_api.Frequentist(bootstrap=0),
+        execution=_ant_api.Execution(seed=11),
     )
     assert result.answer.kind == "point"
     ate = float(result.answer.value)

@@ -80,8 +80,8 @@ def run(units, **kwargs):
                 treatment="x", outcome="y", treatment_lag=1, horizon_steps=1, active_level=1.0
             ),
             refute=False,
-            bootstrap=0,
-            seed=4,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=4),
             **kwargs,
         )
     )
@@ -137,7 +137,7 @@ def test_a_single_dependent_series_is_refused_with_its_next_attempt() -> None:
                 ),
                 estimator=antecedent.Estimator.TEMPORAL_GLM_LINK_CONTRAST,
                 refute=False,
-                bootstrap=0,
+                inference=antecedent.Frequentist(bootstrap=0),
             )
         )
     text = str(info.value)

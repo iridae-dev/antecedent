@@ -27,7 +27,7 @@ def test_bayesian_conjugate_vs_laplace_backend():
             query=query,
             inference=antecedent.Bayesian(n_draws=64, backend="laplace"),
             refute=False,
-            seed=1,
+            execution=antecedent.Execution(seed=1),
         )
     )
     conjugate = require_success(
@@ -37,7 +37,7 @@ def test_bayesian_conjugate_vs_laplace_backend():
             query=query,
             inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
             refute=False,
-            seed=1,
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert laplace.posterior is not None
@@ -64,7 +64,7 @@ def test_bayesian_hmc_smoke():
             # at 3000 when callers ask for less.
             inference=antecedent.Bayesian(n_draws=4000, backend="hmc"),
             refute=False,
-            seed=2,
+            execution=antecedent.Execution(seed=2),
         )
     )
     assert result.posterior is not None

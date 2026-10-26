@@ -106,9 +106,9 @@ def test_a_tiered_identification_can_explicitly_estimate_its_own_target():
         {"z": z, "t": t, "y": y},
         graph=graph,
         query=ant.AverageEffect("t", "y"),
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
         refute="none",
-        seed=1,
+        execution=ant.Execution(seed=1),
     )
     assert result.estimate.ate == pytest.approx(2.0, abs=1e-10)
     assert result.estimate.ate == pytest.approx(fresh.estimate.ate, abs=1e-12)

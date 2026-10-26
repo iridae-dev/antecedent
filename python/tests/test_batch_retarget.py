@@ -78,7 +78,14 @@ def test_batch_entry_points_accept_typed_configurations_and_strings_alike():
     ):
         solo = [
             require_success(
-                ant.analyze(data, graph=GRAPH, query=q, estimator=cfg, refute=False, seed=11)
+                ant.analyze(
+                    data,
+                    graph=GRAPH,
+                    query=q,
+                    estimator=cfg,
+                    refute=False,
+                    execution=ant.Execution(seed=11),
+                )
             )
             for q in (Q_T1_Y1, Q_T2_Y1)
         ]

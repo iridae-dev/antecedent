@@ -187,8 +187,8 @@ def test_admg_frontdoor_functional_effect_numeric_pin(
             graph=graph,
             query=query,
             refute=validation,
-            bootstrap=0,
-            seed=seed,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=seed),
         )
     )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
@@ -324,7 +324,14 @@ def test_admg_interventional_distribution_numeric_pin(accepted: bool) -> None:
     for level, expected in truth.items():
         query = antecedent.InterventionalDistribution("y", interventions={"t": level})
         fresh = require_success(
-            antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0, seed=1)
+            antecedent.analyze(
+                data,
+                graph=graph,
+                query=query,
+                refute=False,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
+            )
         )
         prepared = antecedent.estimation.PreparedAnalysis.prepare(
             data, graph=graph, query=query, refute=False, bootstrap=0, seed=1
@@ -364,8 +371,8 @@ def test_admg_response_pins_against_distribution(accepted: bool) -> None:
                 graph=graph,
                 query=antecedent.InterventionalDistribution("y", interventions={"t": level}),
                 refute=False,
-                bootstrap=0,
-                seed=1,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
             )
         )
         ir = require_success(
@@ -376,8 +383,8 @@ def test_admg_response_pins_against_distribution(accepted: bool) -> None:
                     "y", intervention=antecedent.intervention.Set("t", level)
                 ),
                 refute=False,
-                bootstrap=0,
-                seed=1,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
             )
         )
         prepared = antecedent.estimation.PreparedAnalysis.prepare(
@@ -401,8 +408,8 @@ def test_admg_response_pins_against_distribution(accepted: bool) -> None:
             graph=graph,
             query=antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0]),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert curve.response is not None
@@ -415,8 +422,8 @@ def test_admg_response_pins_against_distribution(accepted: bool) -> None:
             graph=graph,
             query=_query(_ADMG_PIN),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert (dist_means[1.0] - dist_means[0.0]) == pytest.approx(ate.ate, abs=tolerance)

@@ -71,8 +71,8 @@ def test_path_specific_lingam_discovery_smoke():
             discovery=antecedent.discovery.LiNGAM(),
             query=antecedent.PathSpecificEffect("t", "m", path_nodes=["y"]),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.study is not None
@@ -91,8 +91,8 @@ def test_interventional_lingam_discovery_smoke():
             discovery=antecedent.discovery.LiNGAM(),
             query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.study is not None
@@ -106,8 +106,8 @@ def test_path_specific_exact_dag_posterior_map():
             discovery=antecedent.discovery.ExactDagPosterior(),
             query=antecedent.PathSpecificEffect("x", "y"),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert np.isfinite(result.estimate.ate)
@@ -122,8 +122,8 @@ def test_interventional_distribution_exact_dag_posterior_mixes_the_atoms():
             discovery=antecedent.discovery.ExactDagPosterior(),
             query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert np.isfinite(result.estimate.ate)
@@ -146,8 +146,8 @@ def test_path_specific_fci_rejected():
                 query=antecedent.PathSpecificEffect("t", "y"),
                 accept_discovered=True,
                 refute=False,
-                bootstrap=0,
-                seed=1,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
             )
         )
 
@@ -167,8 +167,8 @@ def test_path_specific_incomplete_pc_rejected():
                 query=antecedent.PathSpecificEffect("t", "y"),
                 accept_discovered=True,
                 refute=False,
-                bootstrap=0,
-                seed=1,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
             )
         )
 
@@ -187,8 +187,8 @@ def test_path_specific_accept_discovered_false_review_attrs():
                 query=antecedent.PathSpecificEffect("t", "y"),
                 accept_discovered=False,
                 refute=False,
-                bootstrap=0,
-                seed=1,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
             )
         )
     assert getattr(raised.value, "algorithm", None) == "fci"
@@ -208,7 +208,7 @@ def test_analyze_path_specific_graph_cpdag_fully_oriented():
             graph=cpdag,
             query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
             refute=False,
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     assert abs(result.ate - 0.3) < 0.1
@@ -228,6 +228,6 @@ def test_analyze_path_specific_graph_cpdag_incomplete():
                 graph=cpdag,
                 query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
                 refute=False,
-                bootstrap=0,
+                inference=antecedent.Frequentist(bootstrap=0),
             )
         )

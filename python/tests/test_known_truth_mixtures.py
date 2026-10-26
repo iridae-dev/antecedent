@@ -461,7 +461,12 @@ def test_frequentist_dbn_mediation_mixture_follows_the_latency_tier() -> None:
 
     fresh = require_success(
         antecedent.analyze(
-            data, discovery=posterior, query=query, inference=FREQ, refute=False, seed=seed
+            data,
+            discovery=posterior,
+            query=query,
+            inference=FREQ,
+            refute=False,
+            execution=antecedent.Execution(seed=seed),
         )
     )
     assert fresh.ate == pytest.approx(interactive.ate, abs=1e-12)
@@ -535,7 +540,12 @@ def test_frequentist_dbn_pulse_sustained_mixture_follows_the_latency_tier(kind) 
 
     fresh = require_success(
         antecedent.analyze(
-            data, discovery=posterior, query=query, inference=FREQ, refute=False, seed=11
+            data,
+            discovery=posterior,
+            query=query,
+            inference=FREQ,
+            refute=False,
+            execution=antecedent.Execution(seed=11),
         )
     )
     assert fresh.ate == pytest.approx(interactive.ate, abs=1e-12)

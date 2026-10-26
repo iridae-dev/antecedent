@@ -55,7 +55,7 @@ def counterfactual(data, graph, **kwargs):
             graph=graph,
             query=ac.Counterfactual("a", "y"),
             refute="none",
-            seed=1,
+            execution=ac.Execution(seed=1),
             **kwargs,
         )
     )

@@ -191,7 +191,9 @@ def test_bootstrap_runs_unlicensed_and_cheap_full_refuse(query):
     data = _outlier_chain() if isinstance(query, ant.AnomalyAttribution) else _two_period_chain()
     # A Frequentist replicate count runs the mechanism-refit row bootstrap: it publishes
     # a bootstrap standard error and the result is unlicensed.
-    bootstrapped = require_success(ant.analyze(data, graph=_dag(), query=query, bootstrap=50))
+    bootstrapped = require_success(
+        ant.analyze(data, graph=_dag(), query=query, inference=ant.Frequentist(bootstrap=50))
+    )
     assert bootstrapped.evidence_status != "licensed"
     assert any("gcm.frequentist_bootstrap" in note for note in bootstrapped.diagnostics)
     # The Bayesian cell keeps its Bayesian-bootstrap posterior and refuses bootstrap=.

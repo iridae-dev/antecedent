@@ -200,7 +200,7 @@ def test_live_discovery_honours_cancellation(route):
                 query=query,
                 inference=antecedent.Frequentist(),
                 refute=False,
-                cancel=token,
+                execution=antecedent.Execution(cancel=token),
             )
         )
 
@@ -217,7 +217,9 @@ def test_live_discovery_forwards_progress(route):
             query=query,
             inference=antecedent.Frequentist(),
             refute=False,
-            on_progress=lambda fraction, stage: seen.append((fraction, stage)),
+            execution=antecedent.Execution(
+                on_progress=lambda fraction, stage: seen.append((fraction, stage))
+            ),
         )
     )
     assert any(stage == "discovery" for _, stage in seen)
@@ -234,7 +236,7 @@ def test_live_discovery_refuses_stage_streaming_where_there_are_no_stages():
                 query=query,
                 inference=antecedent.Frequentist(),
                 refute=False,
-                on_stage=lambda *_args: None,
+                execution=antecedent.Execution(on_stage=lambda *_args: None),
             )
         )
     assert raised.value.reason_code == "stage_stream_unavailable"
@@ -260,7 +262,7 @@ def test_supplied_posterior_refuses_stage_callback():
                 query=_ATE,
                 inference=BAYES,
                 refute=False,
-                on_stage=lambda *_args: None,
+                execution=antecedent.Execution(on_stage=lambda *_args: None),
             )
         )
 
@@ -286,7 +288,7 @@ def test_supplied_posterior_honours_cancellation(temporal):
                 query=query,
                 inference=BAYES,
                 refute=False,
-                cancel=token,
+                execution=antecedent.Execution(cancel=token),
             )
         )
 
@@ -314,7 +316,7 @@ def test_supplied_posterior_forwards_progress_callback(temporal):
             query=query,
             inference=BAYES,
             refute=False,
-            on_progress=on_progress,
+            execution=antecedent.Execution(on_progress=on_progress),
         )
     )
 

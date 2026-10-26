@@ -40,7 +40,13 @@ def serve(data, graph, query):
     identity it retains independently of the bytes.
     """
     # 1. Compile. The prepared study is what was compiled, not an answer.
-    prepared = ant.prepare(data, graph=graph, query=query, seed=19, bootstrap=0)
+    prepared = ant.prepare(
+        data,
+        graph=graph,
+        query=query,
+        execution=ant.Execution(seed=19),
+        inference=ant.Frequentist(bootstrap=0),
+    )
     before = host.inspection_status(prepared.inspect())
     print("before running:", before)
     if before == "unsupported":
@@ -89,7 +95,8 @@ def main():
     # cannot answer raises; the host relays code, family and remedy unchanged.
     refusal = host.refusal_record(
         errors.CausalUnsupportedError(
-            "the attestation cannot be re-verified", reason_code="attested_not_reverifiable"
+            "the attestation cannot be re-verified",
+            reason_code="attested_not_reverifiable",
         )
     )
     print("refusal:", json.dumps(refusal))
@@ -110,7 +117,7 @@ def main():
         {"t": other_t, "y": 3 * other_t},
         graph=[("t", "y")],
         query=ant.AverageEffect("t", "y"),
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
         refute=False,
     ).artifact()
     wrong = accept(artifact.data, other.expectation)

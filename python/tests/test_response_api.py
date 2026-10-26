@@ -382,7 +382,7 @@ def test_curve_cheap_refute_is_not_applicable():
                 query=antecedent.ResponseCurve("a", "y", grid=[-0.4, 0.0, 0.4]),
                 graph=[("a", "y")],
                 refute="cheap",
-                seed=9,
+                execution=antecedent.Execution(seed=9),
             )
         )
 
@@ -527,8 +527,8 @@ def test_response_honors_explicit_threads():
             {"a": np.arange(30.0), "y": np.arange(30.0) * 0.5},
             query=antecedent.ResponseCurve("a", "y", grid=[1.0, 2.0]),
             graph=[("a", "y")],
-            threads=2,
-            bootstrap=0,
+            execution=antecedent.Execution(threads=2),
+            inference=antecedent.Frequentist(bootstrap=0),
             refute="none",
         )
     )
@@ -561,8 +561,8 @@ def test_response_admg_intervention_cheap_runs_plugin_level():
             ),
             graph=admg,
             refute="cheap",
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.evidence_status == "licensed"

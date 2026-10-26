@@ -35,13 +35,17 @@ def main() -> None:
         import pyarrow as pa
         import pyarrow.parquet as pq
     except ImportError:
-        print("parquet_e2e: skipped, PyArrow is not installed (python -m pip install pyarrow)")
+        print(
+            "parquet_e2e: skipped, PyArrow is not installed (python -m pip install pyarrow)"
+        )
         return
 
     columns = _orders()
     n = len(columns["t"])
     regions = np.array(["north", "south", "east", "west"])[np.arange(n) % 4]
-    stamps = np.datetime64("2024-01-01T00:00:00") + np.arange(n).astype("timedelta64[h]")
+    stamps = np.datetime64("2024-01-01T00:00:00") + np.arange(n).astype(
+        "timedelta64[h]"
+    )
     table = pa.table(
         {
             **columns,
@@ -64,25 +68,48 @@ def main() -> None:
         graph = [("z", "t"), ("z", "y"), ("t", "y")]
         query = antecedent.AverageEffect("t", "y")
         from_file = antecedent.analyze(
-            orders, query=query, graph=graph, bootstrap=0, refute="none", seed=3
+            orders,
+            query=query,
+            graph=graph,
+            inference=antecedent.Frequentist(bootstrap=0),
+            refute="none",
+            execution=antecedent.Execution(seed=3),
         )
         in_memory = antecedent.analyze(
-            columns, query=query, graph=graph, bootstrap=0, refute="none", seed=3
+            columns,
+            query=query,
+            graph=graph,
+            inference=antecedent.Frequentist(bootstrap=0),
+            refute="none",
+            execution=antecedent.Execution(seed=3),
         )
-        print(f"effect from Parquet {from_file.effect:.4f}, in memory {in_memory.effect:.4f}")
-        assert math.isclose(from_file.effect, in_memory.effect, rel_tol=1e-12, abs_tol=1e-12)
+        print(
+            f"effect from Parquet {from_file.effect:.4f}, in memory {in_memory.effect:.4f}"
+        )
+        assert math.isclose(
+            from_file.effect, in_memory.effect, rel_tol=1e-12, abs_tol=1e-12
+        )
         assert abs(from_file.effect - 1.5) < 0.2
 
         by_path = antecedent.analyze(
-            str(path), query=query, graph=graph, bootstrap=0, refute="none", seed=3
+            str(path),
+            query=query,
+            graph=graph,
+            inference=antecedent.Frequentist(bootstrap=0),
+            refute="none",
+            execution=antecedent.Execution(seed=3),
         )
-        assert math.isclose(by_path.effect, in_memory.effect, rel_tol=1e-12, abs_tol=1e-12)
+        assert math.isclose(
+            by_path.effect, in_memory.effect, rel_tol=1e-12, abs_tol=1e-12
+        )
 
         identity = orders.content_identity(["t", "y", "z"])
         regrouped = Path(scratch) / "orders_regrouped.parquet"
         pq.write_table(table, regrouped, row_group_size=137)
         again = antecedent.data.from_parquet(regrouped, chunk_rows=100)
-        assert again.content_identity(["t", "y", "z"]) == identity, "layout is not content"
+        assert again.content_identity(["t", "y", "z"]) == identity, (
+            "layout is not content"
+        )
         print("content identity:", identity[:16], "...")
 
         quote = orders.quote(["t", "y", "z"])

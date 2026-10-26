@@ -502,9 +502,9 @@ def _pulse(frame):
         frame,
         graph=LAGGED,
         query=PulseEffect("t", "y"),
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
         refute="none",
-        seed=1,
+        execution=ant.Execution(seed=1),
     ).estimate.ate
 
 
@@ -524,9 +524,9 @@ def test_panel_response_uses_every_unit():
             frame,
             graph=LAGGED,
             query=ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1]),
-            bootstrap=0,
+            inference=ant.Frequentist(bootstrap=0),
             refute="none",
-            seed=1,
+            execution=ant.Execution(seed=1),
         )
         return tuple(np.ravel(np.asarray(view.response.values, dtype=float)))
 
@@ -544,20 +544,24 @@ def test_multi_env_prepare_binds_every_environment():
     environment is dropped before the study is compiled.
     """
     one = ant.prepare(
-        multi_env([UNIT_A]), graph=LAGGED, query=PulseEffect("t", "y"), bootstrap=0, refute="none"
+        multi_env([UNIT_A]),
+        graph=LAGGED,
+        query=PulseEffect("t", "y"),
+        inference=ant.Frequentist(bootstrap=0),
+        refute="none",
     )
     both = ant.prepare(
         multi_env([UNIT_A, UNIT_B]),
         graph=LAGGED,
         query=PulseEffect("t", "y"),
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
         refute="none",
     )
     reordered = ant.prepare(
         multi_env([UNIT_B, UNIT_A]),
         graph=LAGGED,
         query=PulseEffect("t", "y"),
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
         refute="none",
     )
     assert one.inspect().data_snapshot_id != both.inspect().data_snapshot_id

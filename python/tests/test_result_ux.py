@@ -30,9 +30,9 @@ def _ate_result():
             {"t": t, "y": y, "z": z},
             graph=[("z", "t"), ("z", "y"), ("t", "y")],
             query=antecedent.AverageEffect("t", "y"),
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
             refute=False,
-            seed=1,
+            execution=antecedent.Execution(seed=1),
         )
     )
 
@@ -68,8 +68,8 @@ def _cpdag_envelope_result():
             graph=graph,
             query=antecedent.AverageEffect("t", "y"),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
     )
 
@@ -158,8 +158,8 @@ def test_analyze_refusal_report_next():
                 query=antecedent.AverageEffect(treatment="t", outcome="y"),
                 accept_discovered=False,
                 refute=False,
-                bootstrap=0,
-                seed=1,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
             )
         )
     report = ei.value.report

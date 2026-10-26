@@ -443,14 +443,19 @@ def test_bootstrap_refuses_on_the_design_cells():
                 _transport_data(200, 7),
                 graph=_transport_graph(),
                 query=_transport_query(),
-                bootstrap=50,
+                inference=ant.Frequentist(bootstrap=50),
             )
         )
     assert raised.value.reason_code == "option_not_applicable"
     assignment, data = _interference_design()
     with pytest.raises(CausalUnsupportedError) as raised:
         require_success(
-            ant.analyze(data, graph=[], query=_interference_query(assignment), bootstrap=50)
+            ant.analyze(
+                data,
+                graph=[],
+                query=_interference_query(assignment),
+                inference=ant.Frequentist(bootstrap=50),
+            )
         )
     assert raised.value.reason_code == "option_not_applicable"
 
@@ -567,7 +572,7 @@ def test_transport_catalog_survives_prepared_execution_and_export() -> None:
             data,
             graph=_transport_graph(),
             query=_transport_query(catalog=catalog),
-            bootstrap=0,
+            inference=ant.Frequentist(bootstrap=0),
             refute="none",
         )
     )

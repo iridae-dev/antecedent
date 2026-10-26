@@ -25,8 +25,8 @@ def test_analyze_default_pair_schema_and_fields():
             data,
             graph=edges,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            bootstrap=10,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=10),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.identification.method == "backdoor.adjustment"
@@ -45,8 +45,8 @@ def test_analyze_propensity_weighting_recovers_ate_and_overlap():
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             identifier="backdoor.adjustment",
             estimator="propensity.weighting",
-            bootstrap=10,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=10),
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert abs(result.ate - 2.0) < 0.4, result.ate
@@ -73,8 +73,8 @@ def test_analyze_estimate_estimators_smoke(estimator):
             graph=edges,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             estimator=estimator,
-            bootstrap=5,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=5),
+            execution=antecedent.Execution(seed=1),
             refute=False,
         )
     )
@@ -95,8 +95,8 @@ def test_analyze_iv_2sls_smoke():
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             identifier="iv",
             estimator="iv.2sls",
-            bootstrap=5,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=5),
+            execution=antecedent.Execution(seed=1),
             refute=False,
         )
     )
@@ -129,8 +129,8 @@ def _analyze_frontdoor(estimator: str):
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             identifier="frontdoor",
             estimator=estimator,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
             refute=False,
         )
     )

@@ -50,8 +50,22 @@ def test_simultaneous_difference_band_round_trip_and_determinism(competing: bool
             observation_assumption=IndependentGiven(()),
         )
     )
-    first = require_success(ant.analyze(data, query=query, bootstrap=399, seed=923))
-    second = require_success(ant.analyze(data, query=query, bootstrap=399, seed=923))
+    first = require_success(
+        ant.analyze(
+            data,
+            query=query,
+            inference=ant.Frequentist(bootstrap=399),
+            execution=ant.Execution(seed=923),
+        )
+    )
+    second = require_success(
+        ant.analyze(
+            data,
+            query=query,
+            inference=ant.Frequentist(bootstrap=399),
+            execution=ant.Execution(seed=923),
+        )
+    )
     band = first.survival.difference_band
     assert band is not None
     assert band == second.survival.difference_band
@@ -90,7 +104,12 @@ def test_simultaneous_band_refuses_fixed_censoring_weights_and_delayed_entry() -
         known_censoring=KnownCensoringSurvival((0.0, 1.0, 2.0, 3.0), ("g0", "g1", "g2", "g3")),
     )
     weighted_result = require_success(
-        ant.analyze(data, query=weighted, bootstrap=399, seed=923)
+        ant.analyze(
+            data,
+            query=weighted,
+            inference=ant.Frequentist(bootstrap=399),
+            execution=ant.Execution(seed=923),
+        )
     ).survival
     assert weighted_result.difference_band is None
     assert "censoring" in weighted_result.band_unavailable_reason
@@ -106,7 +125,12 @@ def test_simultaneous_band_refuses_fixed_censoring_weights_and_delayed_entry() -
         observation_assumption=IndependentGiven(()),
     )
     delayed_result = require_success(
-        ant.analyze(data, query=delayed, bootstrap=399, seed=923)
+        ant.analyze(
+            data,
+            query=delayed,
+            inference=ant.Frequentist(bootstrap=399),
+            execution=ant.Execution(seed=923),
+        )
     ).survival
     assert delayed_result.difference_band is None
     assert "delayed entry" in delayed_result.band_unavailable_reason
@@ -125,7 +149,14 @@ def test_simultaneous_band_withholds_thin_arms_but_keeps_scalar_interval() -> No
         randomized=True,
         observation_assumption=IndependentGiven(()),
     )
-    result = require_success(ant.analyze(data, query=query, bootstrap=399, seed=923)).survival
+    result = require_success(
+        ant.analyze(
+            data,
+            query=query,
+            inference=ant.Frequentist(bootstrap=399),
+            execution=ant.Execution(seed=923),
+        )
+    ).survival
     assert result.difference_band is None
     assert "80 subjects" in result.band_unavailable_reason
     assert result.rmst_difference_interval is not None

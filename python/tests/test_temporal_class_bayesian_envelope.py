@@ -412,8 +412,8 @@ def test_two_completion_sequence_and_soft_match_fixtures() -> None:
             graph=graph,
             query=query,
             refute=False,
-            bootstrap=0,
-            seed=22,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=22),
         )
     )
     expected = np.asarray(
@@ -461,8 +461,8 @@ def test_two_completion_sequence_and_soft_match_fixtures() -> None:
                     treatment_lag=1,
                 ),
                 refute=False,
-                bootstrap=0,
-                seed=22,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=22),
             )
         )
         if result.response is not None:

@@ -22,13 +22,26 @@ def _rows(n: int = 120, seed: int = 3) -> dict[str, np.ndarray]:
 
 def _run(**options):
     return require_success(
-        ant.prepare(_rows(), graph=EDGES, query=QUERY, refute=False, seed=1, **options).estimate()
+        ant.prepare(
+            _rows(),
+            graph=EDGES,
+            query=QUERY,
+            refute=False,
+            execution=ant.Execution(seed=1),
+            **options,
+        ).estimate()
     )
 
 
 def test_an_unknown_design_name_is_a_value_error():
     with pytest.raises(CausalValueError, match="sampling_design"):
-        ant.prepare(_rows(), graph=EDGES, query=QUERY, bootstrap=0, sampling_design="row_iid")
+        ant.prepare(
+            _rows(),
+            graph=EDGES,
+            query=QUERY,
+            inference=ant.Frequentist(bootstrap=0),
+            sampling_design="row_iid",
+        )
 
 
 def test_a_declared_design_without_resampling_leaves_the_estimate_unchanged():
@@ -45,7 +58,13 @@ def test_a_row_bootstrap_is_refused_under_a_trajectory_design():
 def test_the_declaration_is_part_of_the_study_identity():
     def snapshot(**options):
         study = ant.prepare(
-            _rows(), graph=EDGES, query=QUERY, bootstrap=0, refute=False, seed=1, **options
+            _rows(),
+            graph=EDGES,
+            query=QUERY,
+            inference=ant.Frequentist(bootstrap=0),
+            refute=False,
+            execution=ant.Execution(seed=1),
+            **options,
         )
         return study.inspect_plan().data_snapshot_id
 

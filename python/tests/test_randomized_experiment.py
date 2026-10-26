@@ -922,7 +922,7 @@ def test_bayesian_finite_population_is_the_default_and_matches_enumeration():
             {"outcome": np.asarray(_TRIAL_Y)},
             query=_two_arm_query(),
             inference=_bayes(BernoulliArms(1.0, 1.0)),
-            seed=3,
+            execution=ant.Execution(seed=3),
             refute="none",
         )
     )
@@ -944,7 +944,7 @@ def test_bayesian_superpopulation_is_selected_by_estimator_id():
             query=_two_arm_query(),
             inference=_bayes(BernoulliArms(1.0, 1.0)),
             estimator=ant.Estimator.BAYESIAN_RANDOMIZED_SUPERPOPULATION,
-            seed=3,
+            execution=ant.Execution(seed=3),
             refute="none",
         )
     )
@@ -972,7 +972,7 @@ def test_bayesian_multi_arm_reports_each_action_against_the_reference():
             query=ant.experiment.RandomizedEffect("outcome", design),
             inference=_bayes(BernoulliArms(1.0, 1.0)),
             estimator=ant.Estimator.BAYESIAN_RANDOMIZED_SUPERPOPULATION,
-            seed=5,
+            execution=ant.Execution(seed=5),
             refute="none",
         )
     )
@@ -1051,7 +1051,7 @@ def test_bayesian_switchback_matches_the_whitened_least_squares_reference():
             data,
             query=query,
             inference=_bayes(_sb_model("none", "compound_symmetric", 0.4)),
-            seed=7,
+            execution=ant.Execution(seed=7),
             refute="none",
         )
     )

@@ -34,7 +34,7 @@ def main():
             data,
             graph=[("treatment", "outcome"), ("z", "outcome")],
             query=ant.AverageEffect("treatment", "outcome"),
-            bootstrap=0,
+            inference=ant.Frequentist(bootstrap=0),
             refute=False,
         )
         print(study.inspect_plan())

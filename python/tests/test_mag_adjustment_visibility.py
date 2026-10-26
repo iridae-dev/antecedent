@@ -44,7 +44,15 @@ def test_visible_mag_known_linear_effect(mixed, accepted, bayesian, kind):
     }[kind]()
     kwargs = {"inference": ant.Bayesian(prior_scale=100.0)} if bayesian else {}
     result = require_success(
-        ant.analyze(data, graph=graph, query=query, refute=False, bootstrap=0, seed=7, **kwargs)
+        ant.analyze(
+            data,
+            graph=graph,
+            query=query,
+            refute=False,
+            inference=ant.Frequentist(bootstrap=0),
+            execution=ant.Execution(seed=7),
+            **kwargs,
+        )
     )
     assert result.certificate is not None
     assert len(result.certificate["cases"]) == (3 if mixed else 1)

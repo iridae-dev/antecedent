@@ -42,7 +42,7 @@ def test_sequential_prior_from_artifact():
             query=query,
             inference=antecedent.Bayesian(n_draws=128, backend="conjugate", prior_scale=1e4),
             refute=False,
-            seed=2,
+            execution=antecedent.Execution(seed=2),
         )
     )
     b = require_success(
@@ -52,7 +52,7 @@ def test_sequential_prior_from_artifact():
             query=query,
             inference=antecedent.Bayesian(n_draws=128, backend="conjugate", prior_from=artifact),
             refute=False,
-            seed=2,
+            execution=antecedent.Execution(seed=2),
         )
     )
     assert b.posterior is not None
@@ -83,7 +83,7 @@ def test_prior_and_data_both_influence_posterior():
             query=query,
             inference=antecedent.Bayesian(n_draws=200, backend="conjugate", prior_scale=1e4),
             refute=False,
-            seed=7,
+            execution=antecedent.Execution(seed=7),
         )
     )
     strong = require_success(
@@ -93,7 +93,7 @@ def test_prior_and_data_both_influence_posterior():
             query=query,
             inference=antecedent.Bayesian(n_draws=200, backend="conjugate", prior_scale=0.05),
             refute=False,
-            seed=7,
+            execution=antecedent.Execution(seed=7),
         )
     )
     assert flat.posterior is not None and strong.posterior is not None
@@ -133,7 +133,7 @@ def test_sequential_prior_named_subset_when_design_shrinks():
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Bayesian(n_draws=48, backend="conjugate", prior_from=artifact),
             refute=False,
-            seed=4,
+            execution=antecedent.Execution(seed=4),
         )
     )
     assert b.posterior is not None
@@ -150,6 +150,6 @@ def test_sequential_prior_rejects_corrupt_artifact():
                 query=antecedent.AverageEffect(treatment="t", outcome="y"),
                 inference=antecedent.Bayesian(n_draws=48, prior_from=b"not-a-posterior"),
                 refute=False,
-                seed=4,
+                execution=antecedent.Execution(seed=4),
             )
         )

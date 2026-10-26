@@ -81,7 +81,7 @@ def test_linear_adjustment_wire_round_trips_through_public_analyze():
             data,
             graph=graph,
             query=query,
-            seed=1,
+            execution=antecedent.Execution(seed=1),
             estimator=cfg.estimator_id,
             estimator_config=cfg._wire(),
         )
@@ -95,8 +95,8 @@ def test_linear_adjustment_wire_round_trips_through_public_analyze():
             data,
             graph=graph,
             query=query,
-            seed=1,
-            bootstrap=64,
+            execution=antecedent.Execution(seed=1),
+            inference=antecedent.Frequentist(bootstrap=64),
             estimator="linear.adjustment.ate",
             estimator_config=hand_dict,
         )
@@ -382,7 +382,7 @@ def test_matching_refuses_clustered_multiway_and_hac_se(cls, se):
                 data,
                 graph=graph,
                 query=antecedent.AverageEffect(treatment="t", outcome="y"),
-                seed=1,
+                execution=antecedent.Execution(seed=1),
                 refute=False,
                 estimator=cfg.estimator_id,
                 estimator_config=cfg._wire(),

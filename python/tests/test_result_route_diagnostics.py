@@ -26,7 +26,7 @@ def _analyze(inference):
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=inference,
             refute=False,
-            seed=1,
+            execution=antecedent.Execution(seed=1),
         )
     )
 
@@ -67,7 +67,7 @@ def _bayesian(estimator, query):
             estimator=estimator,
             inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
             refute=False,
-            seed=19,
+            execution=antecedent.Execution(seed=19),
         )
     )
 

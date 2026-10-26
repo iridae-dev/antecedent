@@ -32,8 +32,8 @@ def test_extra_soft_families_consume_native_mean_dynamics(family, params):
                 treatment_lag=1,
             ),
             refute=False,
-            bootstrap=0,
-            seed=17,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=17),
         )
     )
     assert result.response.values[0][0] == pytest.approx(

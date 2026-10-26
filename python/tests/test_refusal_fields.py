@@ -60,7 +60,7 @@ def _prepare_aipw(data, p: int):
         query=ant.AverageEffect(treatment="t", outcome="y"),
         estimator="aipw",
         refute=False,
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
     )
 
 
@@ -78,7 +78,7 @@ def test_a_retarget_onto_unsupported_rows_reports_arm_sizes_and_propensity_range
         query=ant.AverageEffect(treatment="t", outcome="y"),
         estimator="aipw",
         refute=False,
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
     )
     weights = (np.asarray(data["z"]) > 1.2).astype(float)
     with pytest.raises(CausalUnsupportedError) as raised:
@@ -135,7 +135,7 @@ def test_a_retarget_dependence_refusal_has_stage_reason_and_remedy_but_no_number
         query=ant.AverageEffect(treatment="t", outcome="y"),
         estimator="aipw",
         refute=False,
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
     )
     weights = np.exp(0.3 * np.asarray(data["z"]))
     with pytest.raises(CausalError) as raised:
@@ -242,7 +242,7 @@ def test_a_cluster_count_shortfall_reports_found_and_minimum_counts():
                 query=ant.AverageEffect("t", "y"),
                 estimator=cfg,
                 refute=False,
-                seed=1,
+                execution=ant.Execution(seed=1),
             )
         )
     error = raised.value

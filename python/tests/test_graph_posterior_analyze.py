@@ -46,10 +46,9 @@ def test_exact_dag_posterior_frequentist_ate_mixture():
             {"t": t, "y": y, "z": z},
             discovery=antecedent.discovery.ExactDagPosterior(),
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            inference=antecedent.Frequentist(),
+            inference=antecedent.Frequentist(bootstrap=0),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.posterior is None
@@ -143,10 +142,9 @@ def test_cpdag_graph_posterior_ate_from_graphs():
                 ["t", "y", "z"], [1.0], [cpdag]
             ),
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            inference=antecedent.Frequentist(),
+            inference=antecedent.Frequentist(bootstrap=0),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert result.evidence_status == "licensed"
@@ -165,10 +163,9 @@ def test_admg_graph_posterior_ate_and_intervention_response():
             {"t": t, "y": y},
             discovery=discovery,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            inference=antecedent.Frequentist(),
+            inference=antecedent.Frequentist(bootstrap=0),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert ate.evidence_status == "licensed"
@@ -179,10 +176,9 @@ def test_admg_graph_posterior_ate_and_intervention_response():
             query=antecedent.InterventionResponse(
                 "y", intervention=antecedent.intervention.Set("t", 1.0)
             ),
-            inference=antecedent.Frequentist(),
+            inference=antecedent.Frequentist(bootstrap=0),
             refute="cheap",
-            bootstrap=0,
-            seed=1,
+            execution=antecedent.Execution(seed=1),
         )
     )
     assert response.evidence_status == "licensed"
@@ -202,10 +198,9 @@ def test_dbn_posterior_temporal_response_curve_and_intervention():
             data,
             discovery=antecedent.discovery.DbnPosterior(max_lag=1),
             query=antecedent.ResponseCurve("pressure", "defect", grid=[0.0, 1.0], horizons=[1]),
-            inference=antecedent.Frequentist(),
+            inference=antecedent.Frequentist(bootstrap=0),
             refute=False,
-            bootstrap=0,
-            seed=11,
+            execution=antecedent.Execution(seed=11),
         )
     )
     assert curve.evidence_status == "licensed"
@@ -220,10 +215,9 @@ def test_dbn_posterior_temporal_response_curve_and_intervention():
                 intervention=antecedent.intervention.Set("pressure", 1.0),
                 horizons=[1],
             ),
-            inference=antecedent.Frequentist(),
+            inference=antecedent.Frequentist(bootstrap=0),
             refute=False,
-            bootstrap=0,
-            seed=11,
+            execution=antecedent.Execution(seed=11),
         )
     )
     assert ir.evidence_status == "licensed"
@@ -258,10 +252,9 @@ def test_temporal_cpdag_graph_posterior_pulse():
                 horizon_steps=1,
                 active_level=1.0,
             ),
-            inference=antecedent.Frequentist(),
+            inference=antecedent.Frequentist(bootstrap=0),
             refute=False,
-            bootstrap=0,
-            seed=3,
+            execution=antecedent.Execution(seed=3),
         )
     )
     assert result.evidence_status == "licensed"

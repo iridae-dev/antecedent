@@ -64,7 +64,12 @@ def test_analyze_equals_the_standalone_module(bayesian: bool) -> None:
     table = _two_arm_table()
     inference = antecedent.Bayesian(n_draws=200) if bayesian else None
     result = require_success(
-        antecedent.analyze(table, query=_two_arm_query(), inference=inference, seed=5)
+        antecedent.analyze(
+            table,
+            query=_two_arm_query(),
+            inference=inference,
+            execution=antecedent.Execution(seed=5),
+        )
     )
     design = result.temporal_design
     assert isinstance(design, TemporalDesignEstimate)
@@ -112,8 +117,12 @@ def test_the_answer_is_structured_and_reads_back_equal() -> None:
 
 def test_prepare_and_estimate_on_the_same_table_reproduce_analyze() -> None:
     table = _two_arm_table()
-    direct = require_success(antecedent.analyze(table, query=_two_arm_query(), seed=7))
-    prepared = antecedent.prepare(table, query=_two_arm_query(), seed=7)
+    direct = require_success(
+        antecedent.analyze(table, query=_two_arm_query(), execution=antecedent.Execution(seed=7))
+    )
+    prepared = antecedent.prepare(
+        table, query=_two_arm_query(), execution=antecedent.Execution(seed=7)
+    )
     clicked = require_success(prepared.estimate(table))
     assert clicked.temporal_design == direct.temporal_design
 
@@ -164,7 +173,11 @@ def _survival_query() -> RegimeSurvivalContrast:
 
 def test_regime_survival_reports_its_bootstrap_standard_error() -> None:
     result = require_success(
-        antecedent.analyze(_survival_table(), query=_survival_query(), bootstrap=99)
+        antecedent.analyze(
+            _survival_table(),
+            query=_survival_query(),
+            inference=antecedent.Frequentist(bootstrap=99),
+        )
     )
     design = result.temporal_design
     assert design.design == "regime_survival"
@@ -285,7 +298,9 @@ def _observational_table(units: int = 300, periods: int = 4, seed: int = 21) -> 
 def test_observational_excursion_removes_decision_time_confounding() -> None:
     table = _observational_table()
     query = ObservationalExcursion("y", "unit", "period", treatment="a", history=("x",))
-    result = require_success(antecedent.analyze(table, query=query, bootstrap=99))
+    result = require_success(
+        antecedent.analyze(table, query=query, inference=antecedent.Frequentist(bootstrap=99))
+    )
     design = result.temporal_design
     assert design.design == "observational_excursion"
     assert design.replicates is not None and design.replicates[0] >= 90
@@ -295,7 +310,12 @@ def test_observational_excursion_removes_decision_time_confounding() -> None:
     assert abs(design.estimate[0] - 1.0) < 4.0 * design.standard_error[0] + 0.05
     assert require_success(antecedent.load(bytes(result.export()))).temporal_design == design
     posterior = require_success(
-        antecedent.analyze(table, query=query, inference=antecedent.Bayesian(n_draws=200), seed=5)
+        antecedent.analyze(
+            table,
+            query=query,
+            inference=antecedent.Bayesian(n_draws=200),
+            execution=antecedent.Execution(seed=5),
+        )
     ).temporal_design
     assert posterior.draws == 200
     assert abs(posterior.estimate[0] - 1.0) < 4.0 * posterior.standard_error[0] + 0.05
@@ -345,7 +365,11 @@ def _regime_query(method: str = "doubly_robust") -> ObservationalRegimeContrast:
 
 def test_observational_regime_recovers_the_whole_path_contrast_under_feedback() -> None:
     table = _regime_table()
-    result = require_success(antecedent.analyze(table, query=_regime_query(), bootstrap=99))
+    result = require_success(
+        antecedent.analyze(
+            table, query=_regime_query(), inference=antecedent.Frequentist(bootstrap=99)
+        )
+    )
     design = result.temporal_design
     assert design.design == "observational_regime"
     assert design.replicates is not None and design.replicates[0] >= 90
@@ -364,7 +388,9 @@ def test_observational_regime_estimators_agree_and_posterior_is_seeded() -> None
     table = _regime_table(units=800)
     estimates = {
         method: require_success(
-            antecedent.analyze(table, query=_regime_query(method), bootstrap=99)
+            antecedent.analyze(
+                table, query=_regime_query(method), inference=antecedent.Frequentist(bootstrap=99)
+            )
         ).temporal_design.estimate[0]
         for method in ("g_formula", "doubly_robust")
     }
@@ -375,7 +401,7 @@ def test_observational_regime_estimators_agree_and_posterior_is_seeded() -> None
             table,
             query=_regime_query("g_formula"),
             inference=antecedent.Bayesian(n_draws=100),
-            seed=4,
+            execution=antecedent.Execution(seed=4),
         )
     ).temporal_design
     second = require_success(
@@ -383,7 +409,7 @@ def test_observational_regime_estimators_agree_and_posterior_is_seeded() -> None
             table,
             query=_regime_query("g_formula"),
             inference=antecedent.Bayesian(n_draws=100),
-            seed=4,
+            execution=antecedent.Execution(seed=4),
         )
     ).temporal_design
     assert first == second
@@ -423,4 +449,8 @@ def test_observational_regime_refuses_what_it_cannot_identify() -> None:
     for key in ragged:
         ragged[key] = ragged[key][:-1]
     with pytest.raises(CausalError):
-        require_success(antecedent.analyze(ragged, query=_regime_query(), bootstrap=99))
+        require_success(
+            antecedent.analyze(
+                ragged, query=_regime_query(), inference=antecedent.Frequentist(bootstrap=99)
+            )
+        )

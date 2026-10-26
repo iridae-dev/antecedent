@@ -24,7 +24,7 @@ def test_rd_sharp_via_query():
         antecedent.analyze(
             data,
             query=SharpRegressionDiscontinuity("y", "t", "r", 0.0, 1.5),
-            seed=26,
+            execution=antecedent.Execution(seed=26),
         )
     )
     assert abs(result.answer.value - 2.0) < 0.35
@@ -48,7 +48,7 @@ def test_rd_sharp_refuses_a_treatment_column_that_breaks_the_rule():
             antecedent.analyze(
                 {"t": t, "y": y, "r": r},
                 query=SharpRegressionDiscontinuity("y", "t", "r", 0.0, 1.5),
-                seed=28,
+                execution=antecedent.Execution(seed=28),
             )
         )
 
@@ -64,7 +64,9 @@ def test_sharp_rd_se_kind_reaches_the_estimator():
     def fit(se):
         return require_success(
             antecedent.analyze(
-                data, query=SharpRegressionDiscontinuity("y", "t", "r", 0.0, 1.5, se=se), seed=26
+                data,
+                query=SharpRegressionDiscontinuity("y", "t", "r", 0.0, 1.5, se=se),
+                execution=antecedent.Execution(seed=26),
             )
         ).estimate
 
@@ -110,8 +112,8 @@ def test_sharp_rd_analytic_se_matches_the_rust_reference_pin(se, key):
         antecedent.analyze(
             data,
             query=SharpRegressionDiscontinuity("y", "t", "r", cutoff, block["bandwidth"], se=se),
-            seed=3,
-            bootstrap=0,
+            execution=antecedent.Execution(seed=3),
+            inference=antecedent.Frequentist(bootstrap=0),
         )
     )
     expected = block["expected"]

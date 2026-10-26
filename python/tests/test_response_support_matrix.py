@@ -63,7 +63,9 @@ def test_accepted_graph_analyze_response_curve_threads_accepted():
     )
 
     result = require_success(
-        antecedent.analyze(_DATA, graph=_DAG, query=_CURVE, refute=False, seed=1)
+        antecedent.analyze(
+            _DATA, graph=_DAG, query=_CURVE, refute=False, execution=antecedent.Execution(seed=1)
+        )
     )
     assert result.response is not None
     assert (
@@ -95,7 +97,7 @@ def test_path_distribution_graph_posterior_rule_executes_and_the_prepare_gate_is
         query=antecedent.PathSpecificEffect("t", "y"),
         discovery=antecedent.discovery.ExactDagPosterior(),
         refute=False,
-        bootstrap=0,
+        inference=antecedent.Frequentist(bootstrap=0),
     )
     assert prepared is not None
 

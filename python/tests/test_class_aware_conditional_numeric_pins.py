@@ -73,7 +73,14 @@ def test_class_aware_conditional_pins(accepted: bool, class_name: str, refute) -
     query = _query()
     freq = _ATE["conditional"]["frequentist"]
     fresh = require_success(
-        antecedent.analyze(data, graph=graph, query=query, refute=refute, bootstrap=0, seed=1)
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            refute=refute,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,

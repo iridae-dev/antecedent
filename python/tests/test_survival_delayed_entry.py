@@ -63,7 +63,12 @@ def test_retained_delayed_entry_bootstrap_reports_pointwise_interval():
         delayed_entry="entry",
         observation_assumption=IndependentGiven(()),
     )
-    prepared = antecedent.prepare(data, query=query, bootstrap=299, seed=279)
+    prepared = antecedent.prepare(
+        data,
+        query=query,
+        inference=antecedent.Frequentist(bootstrap=299),
+        execution=antecedent.Execution(seed=279),
+    )
     result = require_success(prepared.estimate())
     section = result.survival
     assert section is not None

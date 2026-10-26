@@ -112,8 +112,8 @@ def test_forward_inverse_round_trip_on_a_known_structural_law_through_a_real_rou
             query=ant.ResponseCurve("t", "y", grid=grid),
             estimator="response.kennedy_dr",
             refute="none",
-            bootstrap=0,
-            seed=4,
+            inference=ant.Frequentist(bootstrap=0),
+            execution=ant.Execution(seed=4),
         ).estimate(data, seed=4)
     )
     # The structural truth, computed from the generating law and the data's own mean of z.

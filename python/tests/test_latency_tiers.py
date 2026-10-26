@@ -55,9 +55,9 @@ def test_cancel_mid_bootstrap_partial():
             data,
             graph=edges,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            bootstrap=requested,
+            inference=antecedent.Frequentist(bootstrap=requested),
             refute=False,
-            seed=3,
+            execution=antecedent.Execution(seed=3),
         )
     )
     full_ok = full.performance.bootstrap_replicates_ok or 0
@@ -78,12 +78,11 @@ def test_cancel_mid_bootstrap_partial():
             data,
             graph=edges,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            bootstrap=requested,
+            inference=antecedent.Frequentist(bootstrap=requested),
             refute=False,
-            seed=3,
-            threads=1,
-            cancel=token,
-            on_progress=on_progress,
+            execution=antecedent.Execution(
+                seed=3, threads=1, cancel=token, on_progress=on_progress
+            ),
         )
     )
     assert math.isfinite(partial.ate)
@@ -111,10 +110,9 @@ def test_progressive_stages_callback_order():
             data,
             graph=edges,
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            bootstrap=40,
+            inference=antecedent.Frequentist(bootstrap=40),
             refute=False,
-            seed=11,
-            on_stage=on_stage,
+            execution=antecedent.Execution(seed=11, on_stage=on_stage),
         )
     )
     assert stages == ["identify", "estimate_point", "uncertainty", "validate"]
