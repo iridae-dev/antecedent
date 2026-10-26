@@ -65,7 +65,7 @@ pub use contract::{
     BRIDGE_TARGET_PORT, BridgeAssumption, BridgeContract, BridgeDrawsSource, BridgeEndpoint,
     BridgeInterfaceBasis, BridgeScope, BridgedDistributionClaim, CorrectionDrawLaw, DrawMapping,
     DrawsPlan, EstimandBridge, ExperimentalPrior, ExposureSetting, ImportedExperimentalPrior,
-    Licensing, MAX_BRIDGE_ASSUMPTIONS, MAX_BRIDGE_TEXT_BYTES, MappedDrawsSummary,
+    Licensing, MAX_BRIDGE_ASSUMPTIONS, MappedDrawsSummary,
     MappingUncertainty, NonlinearMap, NonlinearMoment, NonlinearPropagation,
     POINT_PROPAGATION_CALIBRATION, POINT_PROPAGATION_LABEL, PointPropagation, PreservedSupport,
     PropagatedUncertainty, SourceMappingDependence, SupportMap, TransportabilityPremise,

@@ -20,6 +20,7 @@ pub mod bridge;
 pub mod callback_protocol;
 pub mod capability;
 pub mod claim;
+mod compensated;
 pub mod composition_provenance;
 pub mod composition_verification;
 pub mod dependence;
@@ -67,7 +68,7 @@ pub use claim::{
     HostOperation, SharedEvidenceRef, claim_compatibility, compose_claims,
 };
 pub use composition_provenance::{
-    CompositionLink, CompositionStage, MAX_CHAIN_LINKS, ProvenanceChain, ProvenanceChainError,
+    CompositionLink, CompositionStage, ProvenanceChain, ProvenanceChainError,
 };
 pub use dependence::{
     CovarianceCombination, CovarianceTerms, DependenceContract, DependenceError, DependenceSource,
@@ -116,7 +117,7 @@ pub use joint_law_rule::{
 };
 pub use mechanism_composition::{
     AdmissionBasis, AdmissionCoordinate, DependenceDeclaration, LatentCauseDeclaration,
-    MAX_DECLARED_MECHANISMS, MECHANISM_COMPOSITION_STAGE, MECHANISM_OUTPUT_PORT,
+    MECHANISM_COMPOSITION_STAGE, MECHANISM_OUTPUT_PORT,
     MECHANISM_VALUE_FUNCTIONAL, MechanismCompositionDeclaration, MechanismCompositionPlan,
     MechanismDeclaration, MechanismInterfaceBasis, MechanismOriginKind, PlannedMechanism,
     PlannedParent, TransportAdmission, UncertaintyRoute,

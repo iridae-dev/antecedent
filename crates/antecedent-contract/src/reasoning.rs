@@ -11,6 +11,18 @@ use std::sync::Arc;
 use crate::obligation::ObligationRecord;
 use antecedent_core::identification::IdentificationStatus;
 
+/// Absolute tolerance on the sum of the four identification masses.
+///
+/// The masses are probabilities aggregated from at most a few thousand graph-mass terms, so the
+/// partition sum (compensated) is held to `1e-9`. This is a partition-closure tolerance: it is
+/// deliberately looser than [`IDENTIFICATION_MONOTONE_SLACK`] and independent of the assignment
+/// row tolerances of the design declarations, which bound a different quantity.
+pub const IDENTIFICATION_PARTITION_TOLERANCE: f64 = 1e-9;
+
+/// Absolute slack allowed when comparing the identified mass of a derived claim with that of a
+/// parent: a derived claim may exceed a parent by at most rounding noise (`1e-12`).
+pub const IDENTIFICATION_MONOTONE_SLACK: f64 = 1e-12;
+
 /// Stable reason an identification slot is unavailable on a noncausal claim.
 ///
 /// An associational claim has nothing to identify. Its identification slot is
@@ -147,7 +159,7 @@ impl IdentificationSlot {
     }
 
     /// Whether the four masses form a probability partition (finite, each in
-    /// `[0, 1]`, summing to 1 within `1e-9`).
+    /// `[0, 1]`, summing to 1 within [`IDENTIFICATION_PARTITION_TOLERANCE`]).
     #[must_use]
     pub fn masses_are_valid(&self) -> bool {
         self.check_masses().is_ok()
@@ -166,7 +178,9 @@ impl IdentificationSlot {
         if masses.iter().any(|mass| !(0.0..=1.0).contains(mass)) {
             return Err("identification_mass_out_of_range");
         }
-        if (masses.iter().sum::<f64>() - 1.0).abs() > 1e-9 {
+        if (crate::compensated::compensated_sum(masses) - 1.0).abs()
+            > IDENTIFICATION_PARTITION_TOLERANCE
+        {
             return Err("identification_mass_not_partition");
         }
         Ok(())

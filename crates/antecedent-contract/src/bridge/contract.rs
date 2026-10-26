@@ -43,7 +43,7 @@ use super::refusal::{
     invalid_quantity, mapping_not_allowed, mapping_scope_mismatch, measurement_model_mismatch,
     missing_principal, model_identity_mismatch, model_score_as_probability, population_mismatch,
     predictive_importance_as_causal_effect, proxy_as_construct, regime_mismatch,
-    scientific_endpoint_as_utility, too_many_assumptions, transport_premise_mismatch,
+    scientific_endpoint_as_utility, transport_premise_mismatch,
     transport_premise_missing, transport_premise_unused, value_kind_not_carried, wrong_value_kind,
 };
 use crate::ScientificQuantity;
@@ -82,10 +82,9 @@ pub use propagation::{
 /// Version word written into every bridge contract identity. Bump only when
 /// the canonical encoding below changes.
 pub const BRIDGE_IDENTITY_VERSION: u64 = 1;
-/// Most declared assumptions one contract may carry.
+/// Default bound on declared assumptions per contract that a decoder of untrusted input applies.
+/// Validating a contract is linear in its assumptions, so the contract itself carries no bound.
 pub const MAX_BRIDGE_ASSUMPTIONS: usize = 64;
-/// Longest identity or statement, in bytes.
-pub const MAX_BRIDGE_TEXT_BYTES: usize = 4096;
 
 const TAG_CONTRACT: &str = "antecedent.scientific_bridge.contract";
 
@@ -247,7 +246,7 @@ pub struct Licensing {
 }
 
 fn check_text(field: &str, text: &str) -> Result<(), BridgeRefusal> {
-    if text.trim().is_empty() || text.len() > MAX_BRIDGE_TEXT_BYTES {
+    if text.trim().is_empty() {
         return Err(blank_field(field));
     }
     Ok(())
@@ -271,9 +270,6 @@ impl BridgeContract {
             endpoint.quantity.validate().map_err(|_| invalid_quantity(name))?;
         }
         check_scope("evidence_scope", &self.evidence_scope)?;
-        if self.assumptions.len() > MAX_BRIDGE_ASSUMPTIONS {
-            return Err(too_many_assumptions());
-        }
         let mut seen = BTreeSet::new();
         for assumption in &self.assumptions {
             check_text("assumption.id", &assumption.id)?;

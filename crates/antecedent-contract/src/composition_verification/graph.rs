@@ -18,13 +18,18 @@ use antecedent_core::named_variants;
 
 /// Version word written into every graph identity.
 pub const COMPOSITION_GRAPH_VERSION: u64 = 1;
-/// Most nodes in one graph.
+// The sizes below are the defaults that decoders of untrusted graph records apply to their own
+// input. Building a graph costs time proportional to what is declared (a cycle check per edge),
+// so the graph itself refuses no declaration on size.
+
+/// Default bound on nodes in a graph record that a decoder of untrusted input applies.
 pub const MAX_NODES: usize = 512;
-/// Most edges in one graph.
+/// Default bound on edges in a graph record that a decoder of untrusted input applies.
 pub const MAX_EDGES: usize = 4_096;
-/// Most assumptions, unsupported coordinates or evidence sources on one node.
+/// Default bound on assumptions, unsupported coordinates or evidence sources per node that a
+/// decoder of untrusted input applies.
 pub const MAX_ITEMS_PER_NODE: usize = 64;
-/// Longest text field in bytes.
+/// Default bound on a text field, in bytes, that a decoder of untrusted input applies.
 pub const MAX_TEXT_BYTES: usize = 1_024;
 
 /// What a node stands for.
@@ -434,7 +439,8 @@ pub enum GraphError {
         /// The node depended on.
         upstream: String,
     },
-    /// A bound was exceeded.
+    /// A caller-imposed bound was exceeded. The graph itself imposes none; decoders of
+    /// untrusted records report their own bound with this variant.
     LimitExceeded(&'static str),
     /// An unsupported node declares no coordinates.
     EmptyUnsupported(String),
@@ -460,7 +466,7 @@ impl fmt::Display for GraphError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidText(what) => {
-                write!(f, "composition_verification.invalid_text: {what} is blank or too long")
+                write!(f, "composition_verification.invalid_text: {what} is blank")
             }
             Self::DuplicateNode(key) => {
                 write!(f, "composition_verification.duplicate_node: {key} is declared twice")
@@ -496,7 +502,7 @@ impl fmt::Display for GraphError {
 impl std::error::Error for GraphError {}
 
 fn text(value: &str, what: &'static str) -> Result<(), GraphError> {
-    if value.trim().is_empty() || value.len() > MAX_TEXT_BYTES {
+    if value.trim().is_empty() {
         Err(GraphError::InvalidText(what))
     } else {
         Ok(())
@@ -525,7 +531,7 @@ impl CompositionGraph {
     /// stored sorted and distinct, so declaration order carries no meaning.
     ///
     /// # Errors
-    /// A malformed or duplicate node, or a bound exceeded.
+    /// A malformed or duplicate node.
     pub fn add_node(&mut self, mut node: CompositionNode) -> Result<(), GraphError> {
         text(&node.key, "node key")?;
         if let Some(version) = &node.representation {
@@ -546,9 +552,6 @@ impl CompositionGraph {
             if coordinates.is_empty() {
                 return Err(GraphError::EmptyUnsupported(node.key));
             }
-            if coordinates.len() > MAX_ITEMS_PER_NODE {
-                return Err(GraphError::LimitExceeded("unsupported coordinates"));
-            }
         }
         if let CalibrationDeclaration::Inherited { from, .. } = &node.calibration {
             text(from, "calibration source")?;
@@ -557,14 +560,8 @@ impl CompositionGraph {
         node.assumptions.dedup();
         node.evidence.sort_unstable();
         node.evidence.dedup();
-        if node.assumptions.len() > MAX_ITEMS_PER_NODE || node.evidence.len() > MAX_ITEMS_PER_NODE {
-            return Err(GraphError::LimitExceeded("items on one node"));
-        }
         if self.nodes.contains_key(&node.key) {
             return Err(GraphError::DuplicateNode(node.key));
-        }
-        if self.nodes.len() >= MAX_NODES {
-            return Err(GraphError::LimitExceeded("nodes"));
         }
         self.nodes.insert(node.key.clone(), node);
         Ok(())
@@ -574,7 +571,7 @@ impl CompositionGraph {
     /// twice is a no-op.
     ///
     /// # Errors
-    /// An unknown node, a self-dependency, a cycle or a bound exceeded.
+    /// An unknown node, a self-dependency or a cycle.
     pub fn add_edge(
         &mut self,
         downstream: &str,
@@ -600,9 +597,6 @@ impl CompositionGraph {
             upstream: upstream.to_owned(),
             kind,
         };
-        if !self.edges.contains(&edge) && self.edges.len() >= MAX_EDGES {
-            return Err(GraphError::LimitExceeded("edges"));
-        }
         self.edges.insert(edge);
         Ok(())
     }

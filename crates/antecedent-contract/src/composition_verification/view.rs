@@ -21,7 +21,9 @@ use crate::evidence_ledger::{
 use super::graph::{CompositionGraph, DependencyKind, GraphError, NodeKind, SupportStanding};
 use super::revalidate::{CalibrationLineage, GraphRevalidation};
 
-/// Most source-pair overlap checks one ledger query may make.
+/// Default bound on source-pair overlap checks that a caller of untrusted input may apply by
+/// cancelling the query; [`shared_data_relations`] itself checks the cancellation token between
+/// source pairs and imposes no fixed bound.
 pub const MAX_OVERLAP_CHECKS: usize = 250_000;
 
 /// Why a view or a shared-data query could not be produced.
@@ -32,7 +34,7 @@ pub enum ViewError {
     Graph(GraphError),
     /// The ledger refused an overlap query (an unknown source).
     Ledger(LedgerError),
-    /// The overlap work bound was exceeded.
+    /// A caller-imposed overlap work bound was exceeded. The query itself imposes none.
     LimitExceeded,
     /// The cancellation token fired.
     Cancelled,
@@ -90,7 +92,7 @@ const fn rank(kind: RelationKind) -> u8 {
 /// not both known is listed as an unknown dependence.
 ///
 /// # Errors
-/// A source the ledger does not hold, the overlap-check bound or cancellation.
+/// A source the ledger does not hold, or cancellation.
 pub fn shared_data_relations(
     graph: &CompositionGraph,
     ledger: &EvidenceLedger,
@@ -101,7 +103,6 @@ pub fn shared_data_relations(
         .filter(|n| !n.evidence.is_empty())
         .map(|n| (n.key.as_str(), n.evidence.as_slice()))
         .collect();
-    let mut checks = 0_usize;
     let mut out = Vec::new();
     for (i, (first, first_sources)) in carriers.iter().enumerate() {
         for (second, second_sources) in &carriers[i + 1..] {
@@ -111,11 +112,10 @@ pub fn shared_data_relations(
             let mut best: Option<RelationKind> = None;
             let mut shared = 0_u64;
             for a in *first_sources {
+                if cancel.is_cancelled() {
+                    return Err(ViewError::Cancelled);
+                }
                 for b in *second_sources {
-                    checks += 1;
-                    if checks > MAX_OVERLAP_CHECKS {
-                        return Err(ViewError::LimitExceeded);
-                    }
                     let relation = ledger.relation(*a, *b).map_err(ViewError::Ledger)?;
                     if relation == RelationKind::Independent {
                         continue;

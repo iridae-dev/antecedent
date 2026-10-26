@@ -27,22 +27,20 @@ use super::source::{
     SourceKind, SourceStatus,
 };
 
-/// Most sources a ledger holds.
+// The sizes below are the defaults that decoders of untrusted ledger records apply to their
+// own input. The ledger itself holds any number of sources, results, operations, observations
+// and populations and any label length: memory is the only bound.
+
+/// Default bound on sources in a ledger record that a decoder of untrusted input applies.
 pub const MAX_SOURCES: usize = 1024;
-/// Most results a ledger holds.
-pub const MAX_RESULTS: usize = 4096;
-/// Most operations a ledger logs.
+/// Default bound on operations in a ledger record that a decoder of untrusted input applies.
 pub const MAX_OPERATIONS: usize = 16_384;
-/// Most observations one source declares.
+/// Default bound on observations per source that a decoder of untrusted input applies.
 pub const MAX_OBSERVATIONS_PER_SOURCE: usize = 1 << 20;
-/// Most observation ids held across all sources.
-pub const MAX_TOTAL_OBSERVATIONS: usize = 1 << 22;
-/// Most sources one combination names.
+/// Default bound on sources one combination request names in a decoded record.
 pub const MAX_COMBINATION_SOURCES: usize = 64;
-/// Most bytes in a label, reason or stage name.
+/// Default bound on label bytes in a decoded record.
 pub const MAX_TEXT_BYTES: usize = 256;
-/// Most populations or assumptions in one transport identity.
-pub const MAX_TRANSPORT_ITEMS: usize = 64;
 
 macro_rules! refuse {
     ($kind:ident, $code:literal, $detail:literal, $($message:tt)+) => {
@@ -83,12 +81,6 @@ macro_rules! invalid {
 macro_rules! not_licensed {
     ($detail:literal, $($message:tt)+) => {
         refuse!(NotLicensed, "cell_not_licensed", $detail, $($message)+)
-    };
-}
-
-macro_rules! limit {
-    ($detail:literal, $($message:tt)+) => {
-        refuse!(LimitExceeded, "invalid_argument", $detail, $($message)+)
     };
 }
 
@@ -161,7 +153,6 @@ pub struct EvidenceLedger {
     result_index: BTreeMap<ResultId, usize>,
     log: Vec<AppliedOperation>,
     head: OperationId,
-    total_observations: usize,
 }
 
 impl Default for EvidenceLedger {
@@ -177,7 +168,30 @@ fn genesis() -> OperationId {
 }
 
 fn text_ok(text: &str) -> bool {
-    !text.trim().is_empty() && text.len() <= MAX_TEXT_BYTES
+    !text.trim().is_empty()
+}
+
+/// What the per-operation checks of a combination establish for its result record.
+struct CombinationFacts {
+    claim_class: ClaimClass,
+    data_reuse: bool,
+    dependence_declared: bool,
+    /// Sources accounted for directly (empty when the result cites an earlier one).
+    direct: Vec<SourceId>,
+    /// Mass, observation digest and transport identities carried over from a cited result.
+    precomputed: Option<(MassAccount, Option<SemanticDigest>, Vec<SemanticDigest>)>,
+}
+
+impl CombinationFacts {
+    const fn new() -> Self {
+        Self {
+            claim_class: ClaimClass::PointOnly,
+            data_reuse: false,
+            dependence_declared: false,
+            direct: Vec::new(),
+            precomputed: None,
+        }
+    }
 }
 
 impl EvidenceLedger {
@@ -191,7 +205,6 @@ impl EvidenceLedger {
             result_index: BTreeMap::new(),
             log: Vec::new(),
             head: genesis(),
-            total_observations: 0,
         }
     }
 
@@ -507,18 +520,12 @@ impl EvidenceLedger {
         if !text_ok(&declaration.label) {
             return Err(invalid!(
                 "evidence_ledger.invalid_declaration",
-                "a source label must be non-empty and at most {MAX_TEXT_BYTES} bytes"
+                "a source label must be non-empty"
             ));
         }
         let mut declaration = declaration.clone();
         // Observation rows: canonical order, no repeated observation inside one set.
         if let ObservationBasis::Declared(rows) = &mut declaration.observations {
-            if rows.len() > MAX_OBSERVATIONS_PER_SOURCE {
-                return Err(limit!(
-                    "evidence_ledger.limit_exceeded",
-                    "a source declares at most {MAX_OBSERVATIONS_PER_SOURCE} observations"
-                ));
-            }
             rows.sort_unstable();
             if rows.windows(2).any(|w| w[0] == w[1]) {
                 return Err(double_counted!(
@@ -577,8 +584,6 @@ impl EvidenceLedger {
             transport.assumptions.sort_unstable();
             transport.assumptions.dedup();
             if transport.source_populations.is_empty()
-                || transport.source_populations.len() > MAX_TRANSPORT_ITEMS
-                || transport.assumptions.len() > MAX_TRANSPORT_ITEMS
                 || transport.source_populations.iter().any(|p| !text_ok(p))
                 || transport.assumptions.iter().any(|p| !text_ok(p))
                 || !text_ok(&transport.target_population)
@@ -713,12 +718,6 @@ impl EvidenceLedger {
     // -- combination policy ---------------------------------------------------------------
 
     fn check_listed(&self, ids: &[SourceId]) -> Result<Vec<SourceId>, LedgerError> {
-        if ids.len() > MAX_COMBINATION_SOURCES {
-            return Err(limit!(
-                "evidence_ledger.limit_exceeded",
-                "a combination names at most {MAX_COMBINATION_SOURCES} sources"
-            ));
-        }
         let mut sorted = ids.to_vec();
         sorted.sort_unstable();
         if let Some(window) = sorted.windows(2).find(|w| w[0] == w[1]) {
@@ -851,10 +850,6 @@ impl EvidenceLedger {
         Ok((mass, digest, transports))
     }
 
-    #[allow(
-        clippy::too_many_lines,
-        reason = "one arm per combination operation, each a flat sequence of independent admissibility checks"
-    )]
     fn check_combination(
         &self,
         request: &CombinationRequest,
@@ -862,205 +857,260 @@ impl EvidenceLedger {
         if !text_ok(&request.label) {
             return Err(invalid!(
                 "evidence_ledger.invalid_declaration",
-                "a result label must be non-empty and at most {MAX_TEXT_BYTES} bytes"
+                "a result label must be non-empty"
             ));
         }
-        if self.results.len() >= MAX_RESULTS {
-            return Err(limit!(
-                "evidence_ledger.limit_exceeded",
-                "a ledger holds at most {MAX_RESULTS} results"
-            ));
-        }
-        if let Some(replaced) = request.replaces {
-            let replaced_record = self.result(replaced).ok_or_else(|| {
-                invalid!("evidence_ledger.unknown_result", "result {replaced} is not in the ledger")
-            })?;
-            if matches!(replaced_record.status, ResultStatus::Replaced { .. }) {
-                return Err(invalid!(
-                    "evidence_ledger.unknown_result",
-                    "result {replaced} was already replaced by a recomputation"
-                ));
-            }
-        }
+        self.check_replaced_result(request.replaces)?;
         let mut canonical = request.operation.clone();
-        let mut claim_class = ClaimClass::PointOnly;
-        let mut data_reuse = false;
-        let mut dependence_declared = false;
-        let direct: Vec<SourceId>;
-        let precomputed: Option<(MassAccount, Option<SemanticDigest>, Vec<SemanticDigest>)>;
+        let mut facts = CombinationFacts::new();
         match &mut canonical {
             SynthesisOperation::StatisticalPooling { sources, dependence } => {
-                if sources.len() < 2 {
-                    return Err(invalid!(
-                        "evidence_ledger.operation_arity",
-                        "pooling combines at least two sources"
-                    ));
-                }
-                let ids = self.check_listed(sources)?;
-                sources.clone_from(&ids);
-                // A claim that carries transport identity is never native data.
-                let (transported, native): (Vec<SourceId>, Vec<SourceId>) =
-                    ids.iter().copied().partition(|id| {
-                        self.source(*id).is_some_and(|s| s.declaration.transport.is_some())
-                    });
-                self.require_disjoint_groups(&native, &transported, |_, a, b, shared| {
-                    Self::native_and_transported(a, b, shared)
-                })?;
-                match *dependence {
-                    PoolingDependence::Independent => self.require_pairwise_independent(&ids)?,
-                    PoolingDependence::DeclaredCovariance { has_cross_covariance, .. } => {
-                        if !has_cross_covariance {
-                            self.require_pairwise_independent_for_diagonal(&ids)?;
-                        }
-                        dependence_declared = has_cross_covariance;
-                    }
-                    PoolingDependence::AssumptionRange { rho_lo, rho_hi } => {
-                        let k = ids.len() as f64;
-                        let lower_bound = -1.0 / (k - 1.0);
-                        if !rho_lo.is_finite()
-                            || !rho_hi.is_finite()
-                            || rho_lo >= rho_hi
-                            || rho_hi >= 1.0
-                            || rho_lo <= lower_bound
-                        {
-                            return Err(invalid!(
-                                "evidence_ledger.invalid_declaration",
-                                "an assumption range needs finite bounds with lo < hi inside the positive definite interval (-1/(k-1), 1)"
-                            ));
-                        }
-                        claim_class = ClaimClass::AssumptionRange;
-                        dependence_declared = true;
-                    }
-                }
-                direct = ids;
-                precomputed = None;
+                self.check_pooling(sources, *dependence, &mut facts)?;
             }
             SynthesisOperation::BayesianBorrowing { priors, likelihood } => {
-                if likelihood.is_empty() {
-                    return Err(invalid!(
-                        "evidence_ledger.operation_arity",
-                        "borrowing needs at least one likelihood-bearing source"
-                    ));
-                }
-                let mut all = priors.clone();
-                all.extend(likelihood.iter().copied());
-                let ids = self.check_listed(&all)?;
-                for prior in priors.iter() {
-                    if self.require_known(*prior)?.declaration.kind != SourceKind::Prior {
-                        return Err(invalid!(
-                            "evidence_ledger.invalid_declaration",
-                            "a borrowed prior must have kind prior"
-                        )
-                        .with_sources([*prior]));
-                    }
-                }
-                priors.sort_unstable();
-                likelihood.sort_unstable();
-                self.require_pairwise_independent(likelihood)?;
-                self.require_pairwise_independent(priors)?;
-                self.require_disjoint_groups(priors, likelihood, |ledger, a, b, shared| {
-                    let (sa, sb) =
-                        (&ledger.sources[ledger.source_index[&a]], &ledger.sources[ledger.source_index[&b]]);
-                    match ledger.reentry_between(sa, sb) {
-                        ReentryKind::SharedObservations | ReentryKind::PriorPlusLikelihood => {
-                            double_counted!(
-                                "evidence_ledger.reentry_prior_plus_likelihood",
-                                "prior {a} and likelihood {b} share {shared} observation(s): the data would inform the estimate once as prior and once as likelihood"
-                            )
-                            .with_sources([a, b])
-                        }
-                        _ => ledger.double_counting(a, b, shared),
-                    }
-                })?;
-                direct = ids;
-                precomputed = None;
+                self.check_borrowing(priors, likelihood, &mut facts)?;
             }
             SynthesisOperation::CausalTransport { transported, native } => {
-                if transported.is_empty() {
-                    return Err(invalid!(
-                        "evidence_ledger.operation_arity",
-                        "transport carries at least one transported claim"
-                    ));
-                }
-                if let Some(id) = transported.iter().find(|id| native.contains(id)) {
-                    return Err(double_counted!(
-                        "evidence_ledger.native_and_transported",
-                        "source {id} is listed as both native and transported"
-                    )
-                    .with_sources([*id]));
-                }
-                let mut all = transported.clone();
-                all.extend(native.iter().copied());
-                let ids = self.check_listed(&all)?;
-                for id in transported.iter() {
-                    if self.require_known(*id)?.declaration.transport.is_none() {
-                        return Err(invalid!(
-                            "evidence_ledger.transport_identity_missing",
-                            "a transported claim carries its transport identity (source populations, selection diagram, assumptions)"
-                        )
-                        .with_sources([*id]));
-                    }
-                }
-                for id in native.iter() {
-                    if self.require_known(*id)?.declaration.transport.is_some() {
-                        return Err(invalid!(
-                            "evidence_ledger.transported_as_native",
-                            "a claim carrying a transport identity is not native target data"
-                        )
-                        .with_sources([*id]));
-                    }
-                }
-                transported.sort_unstable();
-                native.sort_unstable();
-                self.require_disjoint_groups(native, transported, |_, a, b, shared| {
-                    Self::native_and_transported(a, b, shared)
-                })?;
-                direct = ids;
-                precomputed = None;
+                self.check_transport(transported, native, &mut facts)?;
             }
             SynthesisOperation::EvidenceReuse { of } => {
-                let original = self.result(*of).ok_or_else(|| {
-                    invalid!("evidence_ledger.unknown_result", "result {of} is not in the ledger")
-                })?;
-                if original.status != ResultStatus::Valid {
-                    return Err(retired!(
-                        "evidence_ledger.result_not_valid",
-                        "result {of} is {}; recompute it before citing it again",
-                        original.status.revalidation().as_str()
-                    ));
-                }
-                claim_class = original.claim_class;
-                data_reuse = original.data_reuse;
-                dependence_declared = original.dependence_declared;
-                direct = Vec::new();
-                precomputed = Some((
-                    original.mass.clone(),
-                    original.observations_digest,
-                    original.transport_identities.clone(),
-                ));
+                self.check_reuse(*of, &mut facts)?;
             }
             SynthesisOperation::RepeatedObservationUse { sources, stage } => {
-                if sources.is_empty() || !text_ok(stage) {
-                    return Err(invalid!(
-                        "evidence_ledger.operation_arity",
-                        "repeated use names the sources and the later stage that uses them again"
-                    ));
-                }
-                let ids = self.check_listed(sources)?;
-                sources.clone_from(&ids);
-                let mass = self.mass_account(&ids)?;
-                if let Some(&first) = mass.unknown_sources.first() {
-                    return Err(overlap_unknown!(
-                        "evidence_ledger.overlap_unknown",
-                        "the observations behind {first} are not known, so their repeated use cannot be accounted; declare the row-level observations"
-                    )
-                    .with_sources([first]));
-                }
-                data_reuse = true;
-                direct = ids;
-                precomputed = None;
+                self.check_repeated_use(sources, stage, &mut facts)?;
             }
         }
+        self.finish_combination(request, canonical, facts)
+    }
+
+    /// A recomputation replaces a result that exists and was not already replaced.
+    fn check_replaced_result(&self, replaces: Option<ResultId>) -> Result<(), LedgerError> {
+        let Some(replaced) = replaces else {
+            return Ok(());
+        };
+        let replaced_record = self.result(replaced).ok_or_else(|| {
+            invalid!("evidence_ledger.unknown_result", "result {replaced} is not in the ledger")
+        })?;
+        if matches!(replaced_record.status, ResultStatus::Replaced { .. }) {
+            return Err(invalid!(
+                "evidence_ledger.unknown_result",
+                "result {replaced} was already replaced by a recomputation"
+            ));
+        }
+        Ok(())
+    }
+
+    fn check_pooling(
+        &self,
+        sources: &mut Vec<SourceId>,
+        dependence: PoolingDependence,
+        facts: &mut CombinationFacts,
+    ) -> Result<(), LedgerError> {
+        if sources.len() < 2 {
+            return Err(invalid!(
+                "evidence_ledger.operation_arity",
+                "pooling combines at least two sources"
+            ));
+        }
+        let ids = self.check_listed(sources)?;
+        sources.clone_from(&ids);
+        // A claim that carries transport identity is never native data.
+        let (transported, native): (Vec<SourceId>, Vec<SourceId>) = ids
+            .iter()
+            .copied()
+            .partition(|id| self.source(*id).is_some_and(|s| s.declaration.transport.is_some()));
+        self.require_disjoint_groups(&native, &transported, |_, a, b, shared| {
+            Self::native_and_transported(a, b, shared)
+        })?;
+        match dependence {
+            PoolingDependence::Independent => self.require_pairwise_independent(&ids)?,
+            PoolingDependence::DeclaredCovariance { has_cross_covariance, .. } => {
+                if !has_cross_covariance {
+                    self.require_pairwise_independent_for_diagonal(&ids)?;
+                }
+                facts.dependence_declared = has_cross_covariance;
+            }
+            PoolingDependence::AssumptionRange { rho_lo, rho_hi } => {
+                let k = ids.len() as f64;
+                let lower_bound = -1.0 / (k - 1.0);
+                if !rho_lo.is_finite()
+                    || !rho_hi.is_finite()
+                    || rho_lo >= rho_hi
+                    || rho_hi >= 1.0
+                    || rho_lo <= lower_bound
+                {
+                    return Err(invalid!(
+                        "evidence_ledger.invalid_declaration",
+                        "an assumption range needs finite bounds with lo < hi inside the positive definite interval (-1/(k-1), 1)"
+                    ));
+                }
+                facts.claim_class = ClaimClass::AssumptionRange;
+                facts.dependence_declared = true;
+            }
+        }
+        facts.direct = ids;
+        Ok(())
+    }
+
+    fn check_borrowing(
+        &self,
+        priors: &mut Vec<SourceId>,
+        likelihood: &mut Vec<SourceId>,
+        facts: &mut CombinationFacts,
+    ) -> Result<(), LedgerError> {
+        if likelihood.is_empty() {
+            return Err(invalid!(
+                "evidence_ledger.operation_arity",
+                "borrowing needs at least one likelihood-bearing source"
+            ));
+        }
+        let mut all = priors.clone();
+        all.extend(likelihood.iter().copied());
+        let ids = self.check_listed(&all)?;
+        for prior in priors.iter() {
+            if self.require_known(*prior)?.declaration.kind != SourceKind::Prior {
+                return Err(invalid!(
+                    "evidence_ledger.invalid_declaration",
+                    "a borrowed prior must have kind prior"
+                )
+                .with_sources([*prior]));
+            }
+        }
+        priors.sort_unstable();
+        likelihood.sort_unstable();
+        self.require_pairwise_independent(likelihood)?;
+        self.require_pairwise_independent(priors)?;
+        self.require_disjoint_groups(priors, likelihood, |ledger, a, b, shared| {
+            let (sa, sb) =
+                (&ledger.sources[ledger.source_index[&a]], &ledger.sources[ledger.source_index[&b]]);
+            match ledger.reentry_between(sa, sb) {
+                ReentryKind::SharedObservations | ReentryKind::PriorPlusLikelihood => {
+                    double_counted!(
+                        "evidence_ledger.reentry_prior_plus_likelihood",
+                        "prior {a} and likelihood {b} share {shared} observation(s): the data would inform the estimate once as prior and once as likelihood"
+                    )
+                    .with_sources([a, b])
+                }
+                _ => ledger.double_counting(a, b, shared),
+            }
+        })?;
+        facts.direct = ids;
+        Ok(())
+    }
+
+    fn check_transport(
+        &self,
+        transported: &mut Vec<SourceId>,
+        native: &mut Vec<SourceId>,
+        facts: &mut CombinationFacts,
+    ) -> Result<(), LedgerError> {
+        if transported.is_empty() {
+            return Err(invalid!(
+                "evidence_ledger.operation_arity",
+                "transport carries at least one transported claim"
+            ));
+        }
+        if let Some(id) = transported.iter().find(|id| native.contains(id)) {
+            return Err(double_counted!(
+                "evidence_ledger.native_and_transported",
+                "source {id} is listed as both native and transported"
+            )
+            .with_sources([*id]));
+        }
+        let mut all = transported.clone();
+        all.extend(native.iter().copied());
+        let ids = self.check_listed(&all)?;
+        for id in transported.iter() {
+            if self.require_known(*id)?.declaration.transport.is_none() {
+                return Err(invalid!(
+                    "evidence_ledger.transport_identity_missing",
+                    "a transported claim carries its transport identity (source populations, selection diagram, assumptions)"
+                )
+                .with_sources([*id]));
+            }
+        }
+        for id in native.iter() {
+            if self.require_known(*id)?.declaration.transport.is_some() {
+                return Err(invalid!(
+                    "evidence_ledger.transported_as_native",
+                    "a claim carrying a transport identity is not native target data"
+                )
+                .with_sources([*id]));
+            }
+        }
+        transported.sort_unstable();
+        native.sort_unstable();
+        self.require_disjoint_groups(native, transported, |_, a, b, shared| {
+            Self::native_and_transported(a, b, shared)
+        })?;
+        facts.direct = ids;
+        Ok(())
+    }
+
+    fn check_reuse(&self, of: ResultId, facts: &mut CombinationFacts) -> Result<(), LedgerError> {
+        let original = self.result(of).ok_or_else(|| {
+            invalid!("evidence_ledger.unknown_result", "result {of} is not in the ledger")
+        })?;
+        if original.status != ResultStatus::Valid {
+            return Err(retired!(
+                "evidence_ledger.result_not_valid",
+                "result {of} is {}; recompute it before citing it again",
+                original.status.revalidation().as_str()
+            ));
+        }
+        facts.claim_class = original.claim_class;
+        facts.data_reuse = original.data_reuse;
+        facts.dependence_declared = original.dependence_declared;
+        facts.direct = Vec::new();
+        facts.precomputed = Some((
+            original.mass.clone(),
+            original.observations_digest,
+            original.transport_identities.clone(),
+        ));
+        Ok(())
+    }
+
+    fn check_repeated_use(
+        &self,
+        sources: &mut Vec<SourceId>,
+        stage: &str,
+        facts: &mut CombinationFacts,
+    ) -> Result<(), LedgerError> {
+        if sources.is_empty() || !text_ok(stage) {
+            return Err(invalid!(
+                "evidence_ledger.operation_arity",
+                "repeated use names the sources and the later stage that uses them again"
+            ));
+        }
+        let ids = self.check_listed(sources)?;
+        sources.clone_from(&ids);
+        let mass = self.mass_account(&ids)?;
+        if let Some(&first) = mass.unknown_sources.first() {
+            return Err(overlap_unknown!(
+                "evidence_ledger.overlap_unknown",
+                "the observations behind {first} are not known, so their repeated use cannot be accounted; declare the row-level observations"
+            )
+            .with_sources([first]));
+        }
+        facts.data_reuse = true;
+        facts.direct = ids;
+        Ok(())
+    }
+
+    /// Account for the checked sources and derive the result identity.
+    fn finish_combination(
+        &self,
+        request: &CombinationRequest,
+        canonical: SynthesisOperation,
+        facts: CombinationFacts,
+    ) -> Result<CheckedCombination, LedgerError> {
+        let CombinationFacts {
+            claim_class,
+            data_reuse,
+            dependence_declared,
+            direct,
+            precomputed,
+        } = facts;
         let (mass, observations_digest, transport_identities) = match precomputed {
             Some(values) => values,
             None => self.account(&direct)?,
@@ -1306,20 +1356,8 @@ impl EvidenceLedger {
     // -- operations ---------------------------------------------------------------------
 
     fn plan(&self, operation: &LedgerOperation) -> Result<Plan, LedgerError> {
-        if self.log.len() >= MAX_OPERATIONS {
-            return Err(limit!(
-                "evidence_ledger.limit_exceeded",
-                "a ledger logs at most {MAX_OPERATIONS} operations"
-            ));
-        }
         match operation {
             LedgerOperation::Add { source } => {
-                if self.sources.len() >= MAX_SOURCES {
-                    return Err(limit!(
-                        "evidence_ledger.limit_exceeded",
-                        "a ledger holds at most {MAX_SOURCES} sources"
-                    ));
-                }
                 let canonical = self.canonical_source(source)?;
                 self.check_new_source(&canonical)?;
                 let overlaps = self.overlaps_with_existing(&canonical, None);
@@ -1352,19 +1390,6 @@ impl EvidenceLedger {
                 source.id
             )
             .with_sources([source.id]));
-        }
-        let rows = source.effective.known().map_or(0, <[ObservationId]>::len);
-        if self.total_observations + rows > MAX_TOTAL_OBSERVATIONS {
-            return Err(limit!(
-                "evidence_ledger.limit_exceeded",
-                "a ledger holds at most {MAX_TOTAL_OBSERVATIONS} observation ids"
-            ));
-        }
-        if self.sources.len() >= MAX_SOURCES {
-            return Err(limit!(
-                "evidence_ledger.limit_exceeded",
-                "a ledger holds at most {MAX_SOURCES} sources"
-            ));
         }
         Ok(())
     }
@@ -1473,22 +1498,8 @@ impl EvidenceLedger {
             )
             .with_sources([canonical.id]));
         }
-        self.check_new_source_bounds(&canonical)?;
         let overlaps = self.overlaps_with_existing(&canonical, Some(target));
         Ok(Plan::Retire { retire, target, reason: None, replacement: Some((canonical, overlaps)) })
-    }
-
-    fn check_new_source_bounds(&self, source: &CanonicalSource) -> Result<(), LedgerError> {
-        let rows = source.effective.known().map_or(0, <[ObservationId]>::len);
-        if self.total_observations + rows > MAX_TOTAL_OBSERVATIONS
-            || self.sources.len() >= MAX_SOURCES
-        {
-            return Err(limit!(
-                "evidence_ledger.limit_exceeded",
-                "the ledger's source or observation bound would be exceeded"
-            ));
-        }
-        Ok(())
     }
 
     fn operation_identity(&self, plan: &Plan) -> OperationId {
@@ -1531,8 +1542,6 @@ impl EvidenceLedger {
     }
 
     fn insert_source(&mut self, source: CanonicalSource, added_by: OperationId) {
-        let rows = source.effective.known().map_or(0, <[ObservationId]>::len);
-        self.total_observations += rows;
         self.source_index.insert(source.id, self.sources.len());
         self.sources.push(EvidenceSource {
             id: source.id,

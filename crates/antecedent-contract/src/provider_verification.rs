@@ -67,8 +67,12 @@ pub struct ExecutionContract {
     pub artifact_blake3: Option<String>,
 }
 
+/// Whether `value` is a 64-character hex digest. External digests (the opaque artifact's
+/// BLAKE3 and a verified contract digest) arrive as text from outside the library, so both
+/// cases are accepted here; canonical identities elsewhere are lowercase-only (see
+/// `digest_from_lower_hex`).
 fn hex64(value: &str) -> bool {
-    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+    antecedent_core::digest_from_hex(value).is_some()
 }
 
 impl ExecutionContract {

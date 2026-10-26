@@ -31,17 +31,16 @@ use antecedent_core::named_variants;
 /// Version word of the canonical contract encoding. Bump when the encoding
 /// below changes.
 pub const ADAPTIVE_DESIGN_VERSION: u64 = 1;
-/// Most arms a contract declares.
-pub const MAX_CONTRACT_ARMS: usize = 64;
-/// Most units a contract declares.
-pub const MAX_CONTRACT_UNITS: usize = 1 << 20;
-/// Most interim analyses a contract declares.
-pub const MAX_CONTRACT_LOOKS: usize = 64;
-/// Most measurements one unit carries.
-pub const MAX_UNIT_MEASUREMENTS: usize = 1024;
+/// Most units a contract declares: the unit index and the enrollment counter of an interim
+/// analysis are `u32`, so this is the representation bound rather than a sizing choice. The
+/// number of arms, interim analyses and measurements per unit have no separate bound; arms are
+/// indexed by `u32` and looks are strictly increasing in units.
+pub const MAX_CONTRACT_UNITS: usize = u32::MAX as usize;
 
 const STAGE_DECLARE: &str = "declare";
 const STAGE_BIND: &str = "bind";
+/// Absolute tolerance on an assignment-probability row sum (rows are caller-supplied decimal
+/// probabilities, so it is looser than the identification partition tolerance).
 const PROBABILITY_ROW_TOLERANCE: f64 = 1e-8;
 
 /// One policy state and the first unit it governed.
@@ -302,14 +301,13 @@ fn required_elements(declaration: &AdaptiveDesignDeclaration, refusals: &mut Vec
 fn check_shapes(declaration: &AdaptiveDesignDeclaration, refusals: &mut Vec<ExternalRefusal>) {
     let arms = declaration.arm_labels.len();
     let units = declaration.assigned_arm.len();
-    let remedy =
-        "declare between 2 and 64 distinct arm labels, and as many per-unit records as units";
+    let remedy = "declare at least 2 distinct arm labels, and as many per-unit records as units";
     let distinct = {
         let mut labels: Vec<&str> = declaration.arm_labels.iter().map(String::as_str).collect();
         labels.sort_unstable();
         labels.windows(2).all(|w| w[0] != w[1]) && labels.iter().all(|l| !l.trim().is_empty())
     };
-    if !(2..=MAX_CONTRACT_ARMS).contains(&arms) || !distinct {
+    if arms < 2 || u32::try_from(arms).is_err() || !distinct {
         refusals.push(invalid("adaptive_inference.arms_invalid", remedy));
     }
     if !(2..=MAX_CONTRACT_UNITS).contains(&units) || declaration.outcomes.len() != units {
@@ -324,11 +322,11 @@ fn check_shapes(declaration: &AdaptiveDesignDeclaration, refusals: &mut Vec<Exte
     let bad_outcome = declaration
         .outcomes
         .iter()
-        .any(|m| m.len() > MAX_UNIT_MEASUREMENTS || m.iter().any(|y| !y.is_finite()));
+        .any(|m| m.iter().any(|y| !y.is_finite()));
     if bad_outcome {
         refusals.push(invalid(
             "adaptive_inference.outcome_invalid",
-            "outcomes must be finite, at most 1024 measurements per unit",
+            "outcomes must be finite",
         ));
     }
     let single = declaration.cell.outcome == super::matrix::OutcomeStructure::SingleOutcome;
@@ -416,7 +414,6 @@ fn check_monitoring(declaration: &AdaptiveDesignDeclaration, refusals: &mut Vec<
     let units = declaration.assigned_arm.len();
     let Some(looks) = &declaration.interim_analyses else { return };
     let ordered = !looks.is_empty()
-        && looks.len() <= MAX_CONTRACT_LOOKS
         && looks.windows(2).all(|w| {
             w[0].units_enrolled < w[1].units_enrolled
                 && w[0].information_fraction < w[1].information_fraction

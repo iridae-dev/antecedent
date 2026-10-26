@@ -50,10 +50,7 @@ use antecedent_core::{NextAttempt, impl_refused, named_variants};
 use crate::dependence::{
     DependenceContract, DependenceSource, DependenceStatus, SharedFactorKind, SharedFactorSets,
 };
-use crate::evidence_ledger::MAX_TEXT_BYTES;
 
-/// Most sources plus stages one chain may name.
-pub const MAX_CHAIN_NODES: usize = 128;
 /// Label of a quantity propagated as posterior draws.
 pub const POSTERIOR_PROPAGATION_LABEL: &str = "posterior_propagation";
 /// Label of a chain read as an enclosure of declared intervals.
@@ -684,9 +681,6 @@ fn check_text(text: &str, what: &str) -> Result<(), ChainRefusal> {
     if blank(text) {
         return Err(malformed(format!("{what} is blank"), None));
     }
-    if text.len() > MAX_TEXT_BYTES {
-        return Err(malformed(format!("{what} is longer than {MAX_TEXT_BYTES} bytes"), None));
-    }
     Ok(())
 }
 
@@ -742,7 +736,27 @@ fn factor_label(kind: SharedFactorKind, id: &str) -> String {
     format!("{}:{id}", kind.as_str())
 }
 
+/// Cells of the source-by-stage ancestry table a chain may need.
+///
+/// Every stage records the set of sources it depends on, so the table holds at most
+/// `sources × stages` entries. That product, not the node count, is what costs memory and
+/// time, so the check is a work budget on it (about 4 million cells) and leaves the number
+/// of nodes otherwise free.
+pub const MAX_CHAIN_ANCESTRY_CELLS: usize = 1 << 22;
+
+/// What the chain check has established about each declared node so far.
+#[derive(Default)]
+struct ChainState<'a> {
+    facts: BTreeMap<&'a str, NodeFacts>,
+    factors: BTreeMap<String, FactorSet>,
+    disclosure: BTreeMap<String, bool>,
+    ancestors: BTreeMap<String, BTreeSet<String>>,
+}
+
 /// Check a declared chain.
+///
+/// The check runs as named phases, each returning its own refusal: structure and budget,
+/// source declarations, draw alignment, one pass per stage, and the answer.
 ///
 /// # Errors
 ///
@@ -752,35 +766,51 @@ fn factor_label(kind: SharedFactorKind, id: &str) -> String {
 /// representation the stage cannot carry; mixed law meanings; an independent
 /// pool of overlapping or undeclared evidence; a reading the output
 /// representation cannot give.
-#[allow(
-    clippy::too_many_lines,
-    reason = "one linear pass over the checks, in the order the refusals are documented"
-)]
 pub fn check_propagation_chain(decl: &ChainDecl) -> Result<ChainPlan, ChainRefusal> {
-    // ---- structure
+    check_structure_and_budget(decl)?;
+    let mut state = ChainState::default();
+    declare_sources(decl, &mut state)?;
+    let alignments = check_draw_alignment(decl, &state)?;
+    let mut plans: Vec<StagePlan> = Vec::with_capacity(decl.stages.len());
+    for stage in &decl.stages {
+        let plan = check_stage(stage, &mut state, &plans)?;
+        plans.push(plan);
+    }
+    finish_plan(decl, plans, &state, alignments)
+}
+
+/// Phase 1: a chain names a source, a stage and an output, within the ancestry-table budget.
+fn check_structure_and_budget(decl: &ChainDecl) -> Result<(), ChainRefusal> {
     if decl.sources.is_empty() {
         return Err(malformed("a chain names at least one source", None));
     }
     if decl.stages.is_empty() {
         return Err(malformed("a chain names at least one stage", None));
     }
-    if decl.sources.len() + decl.stages.len() > MAX_CHAIN_NODES {
+    if decl.sources.len().saturating_mul(decl.stages.len()) > MAX_CHAIN_ANCESTRY_CELLS {
         return Err(refuse(
             INVALID_CODE,
             "propagation_chain.too_many_nodes",
-            format!("a chain names at most {MAX_CHAIN_NODES} sources and stages"),
+            format!(
+                "a chain names {} sources and {} stages; their ancestry table would exceed {MAX_CHAIN_ANCESTRY_CELLS} cells",
+                decl.sources.len(),
+                decl.stages.len()
+            ),
             None,
             RAISE_BUDGET_OR_THIN_DRAWS,
         ));
     }
-    check_text(&decl.output, "the output stage id")?;
-    let mut facts: BTreeMap<&str, NodeFacts> = BTreeMap::new();
-    let mut factors: BTreeMap<String, FactorSet> = BTreeMap::new();
-    let mut disclosure: BTreeMap<String, bool> = BTreeMap::new();
-    let mut ancestors: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    check_text(&decl.output, "the output stage id")
+}
+
+/// Phase 2: validate each source declaration and register its facts, factors and ancestry.
+fn declare_sources<'a>(
+    decl: &'a ChainDecl,
+    state: &mut ChainState<'a>,
+) -> Result<(), ChainRefusal> {
     for source in &decl.sources {
         check_text(&source.id, "a source id")?;
-        if facts.contains_key(source.id.as_str()) {
+        if state.facts.contains_key(source.id.as_str()) {
             return Err(malformed("a source id repeats a node id", Some(&source.id)));
         }
         let draws = source.representation == Representation::Draws;
@@ -802,7 +832,7 @@ pub fn check_propagation_chain(decl: &ChainDecl) -> Result<ChainPlan, ChainRefus
         }
         let mut own = factor_set(&source.factors, &source.id)?;
         own.insert(implicit_factor(&source.id));
-        facts.insert(
+        state.facts.insert(
             source.id.as_str(),
             NodeFacts {
                 representation: match source.representation {
@@ -813,17 +843,26 @@ pub fn check_propagation_chain(decl: &ChainDecl) -> Result<ChainPlan, ChainRefus
                 meaning: source.meaning,
             },
         );
-        factors.insert(source.id.clone(), own);
-        disclosure.insert(source.id.clone(), source.complete_disclosure);
-        ancestors.insert(source.id.clone(), BTreeSet::from([source.id.clone()]));
+        state.factors.insert(source.id.clone(), own);
+        state.disclosure.insert(source.id.clone(), source.complete_disclosure);
+        state.ancestors.insert(source.id.clone(), BTreeSet::from([source.id.clone()]));
     }
-    // ---- alignment of the draws
+    Ok(())
+}
+
+/// Phase 3: the draws share one alignment, intervals and draws are not mixed, and an
+/// independent product is not built over sources that share or hide a factor. Returns the
+/// distinct alignment identities.
+fn check_draw_alignment<'a>(
+    decl: &'a ChainDecl,
+    state: &ChainState<'a>,
+) -> Result<BTreeSet<&'a str>, ChainRefusal> {
     let alignments: BTreeSet<&str> =
         decl.sources.iter().filter_map(|s| s.alignment.as_deref()).collect();
     let draw_sources: Vec<&ChainSourceDecl> =
         decl.sources.iter().filter(|s| s.representation == Representation::Draws).collect();
     if alignments.len() > 1 {
-        let assessed = assess_sources(&draw_sources, &factors, &disclosure)?;
+        let assessed = assess_sources(&draw_sources, &state.factors, &state.disclosure)?;
         let next = if assessed.is_independent() {
             BUILD_INDEPENDENT_PRODUCT_TABLE
         } else {
@@ -852,7 +891,7 @@ pub fn check_propagation_chain(decl: &ChainDecl) -> Result<ChainPlan, ChainRefus
         ));
     }
     if decl.construction == TableConstruction::IndependentProduct && draw_sources.len() > 1 {
-        let assessed = assess_sources(&draw_sources, &factors, &disclosure)?;
+        let assessed = assess_sources(&draw_sources, &state.factors, &state.disclosure)?;
         if assessed.is_dependent() {
             let shared: Vec<String> = assessed
                 .shared_factors()
@@ -880,202 +919,240 @@ pub fn check_propagation_chain(decl: &ChainDecl) -> Result<ChainPlan, ChainRefus
             ));
         }
     }
-    // ---- stages
-    let mut plans: Vec<StagePlan> = Vec::with_capacity(decl.stages.len());
-    for stage in &decl.stages {
-        check_text(&stage.id, "a stage id")?;
-        if facts.contains_key(stage.id.as_str()) {
-            return Err(malformed("a stage id repeats a node id", Some(&stage.id)));
+    Ok(alignments)
+}
+
+/// Phase 4: check one stage against the nodes before it and register it.
+fn check_stage<'a>(
+    stage: &'a ChainStageDecl,
+    state: &mut ChainState<'a>,
+    plans: &[StagePlan],
+) -> Result<StagePlan, ChainRefusal> {
+    check_stage_shape(stage, state)?;
+    let mut input_facts: Vec<NodeFacts> = Vec::with_capacity(stage.inputs.len());
+    let mut union_factors = factor_set(&stage.own_factors, &stage.id)?;
+    let mut union_complete = true;
+    let mut stage_sources: BTreeSet<String> = BTreeSet::new();
+    for input in &stage.inputs {
+        let Some(found) = state.facts.get(input.as_str()) else {
+            return Err(malformed("a stage reads only sources and earlier stages", Some(&stage.id)));
+        };
+        if plans.iter().any(|p| p.id == *input && p.class == OperatorClass::Update) {
+            return Err(malformed("no stage may read a preposterior update", Some(&stage.id)));
         }
-        if stage.inputs.is_empty() {
-            return Err(malformed("a stage reads at least one input", Some(&stage.id)));
+        input_facts.push(*found);
+        if let Some(set) = state.factors.get(input) {
+            union_factors.extend(set.iter().cloned());
         }
-        if !class_fits(stage.kind, stage.class) {
-            return Err(refuse(
-                NOT_SUPPORTED_CODE,
-                "propagation_chain.operator_not_licensed_for_stage",
-                format!(
-                    "a {} stage does not apply a {} operator",
-                    stage.kind.as_str(),
-                    stage.class.as_str()
-                ),
-                Some(&stage.id),
-                FIX_CHAIN_DECLARATION,
-            ));
+        union_complete &= state.disclosure.get(input).copied().unwrap_or(true);
+        if let Some(set) = state.ancestors.get(input) {
+            stage_sources.extend(set.iter().cloned());
         }
-        if stage.class.is_pool() && stage.inputs.len() < 2 {
-            return Err(malformed("a pool reads at least two inputs", Some(&stage.id)));
-        }
-        if stage.class == OperatorClass::Update && stage.inputs.len() != 2 {
-            return Err(malformed(
-                "an update reads the parameter and the utility it re-evaluates",
-                Some(&stage.id),
-            ));
-        }
-        let mut input_facts: Vec<NodeFacts> = Vec::with_capacity(stage.inputs.len());
-        let mut union_factors = factor_set(&stage.own_factors, &stage.id)?;
-        let mut union_complete = true;
-        let mut stage_sources: BTreeSet<String> = BTreeSet::new();
-        for input in &stage.inputs {
-            let Some(found) = facts.get(input.as_str()) else {
-                return Err(malformed(
-                    "a stage reads only sources and earlier stages",
-                    Some(&stage.id),
-                ));
-            };
-            if plans.iter().any(|p| p.id == *input && p.class == OperatorClass::Update) {
-                return Err(malformed("no stage may read a preposterior update", Some(&stage.id)));
-            }
-            input_facts.push(*found);
-            if let Some(set) = factors.get(input) {
-                union_factors.extend(set.iter().cloned());
-            }
-            union_complete &= disclosure.get(input).copied().unwrap_or(true);
-            if let Some(set) = ancestors.get(input) {
-                stage_sources.extend(set.iter().cloned());
-            }
-        }
-        // ---- representation
-        let has_draws = input_facts.iter().any(|f| f.representation == NodeRepresentation::Draws);
-        let has_enclosure =
-            input_facts.iter().any(|f| f.representation == NodeRepresentation::Enclosure);
-        let has_point = input_facts.iter().any(|f| f.representation == NodeRepresentation::Point);
-        if stage.class == OperatorClass::Update {
-            if has_enclosure {
-                return Err(refuse(
-                    REPRESENTATION_CODE,
-                    "propagation_chain.interval_is_not_a_posterior",
-                    "an update re-evaluates a decision under the posterior of a parameter, and an interval is not a posterior",
-                    Some(&stage.id),
-                    SUPPLY_POSTERIOR_DRAWS,
-                ));
-            }
-            if has_point {
-                return Err(refuse(
-                    REPRESENTATION_CODE,
-                    "propagation_chain.point_has_no_posterior",
-                    "an update re-evaluates a decision under the posterior of a parameter, and a fixed value has none",
-                    Some(&stage.id),
-                    SUPPLY_POSTERIOR_DRAWS,
-                ));
-            }
-            if input_facts.iter().any(|f| f.meaning != Some(LawMeaning::Posterior)) {
-                return Err(refuse(
-                    REPRESENTATION_CODE,
-                    "propagation_chain.sampling_law_is_not_a_posterior",
-                    "an update needs posterior draws of the parameter; a sampling law is not updated by a likelihood",
-                    Some(&stage.id),
-                    SUPPLY_POSTERIOR_DRAWS,
-                ));
-            }
-        } else if stage.class.is_pool() {
-            if has_enclosure {
-                return Err(refuse(
-                    REPRESENTATION_CODE,
-                    "propagation_chain.interval_cannot_be_pooled",
-                    "a pool weights its inputs by their joint covariance, and an interval has none",
-                    Some(&stage.id),
-                    SUPPLY_DRAWS_FOR_INTERVAL,
-                ));
-            }
-            if has_point {
-                return Err(refuse(
-                    REPRESENTATION_CODE,
-                    "propagation_chain.point_cannot_be_pooled",
-                    "a pool weights its inputs by their variances, and a fixed value has none",
-                    Some(&stage.id),
-                    SUPPLY_DRAWS_FOR_FIXED_INPUT,
-                ));
-            }
-        } else if has_draws && has_enclosure {
+    }
+    let representation = check_stage_representation(stage, &input_facts)?;
+    let meaning = check_stage_meaning(stage, &input_facts)?;
+    let dependence = check_stage_dependence(stage, state)?;
+    state.facts.insert(stage.id.as_str(), NodeFacts { representation, meaning });
+    state.factors.insert(stage.id.clone(), union_factors);
+    state.disclosure.insert(stage.id.clone(), union_complete);
+    state.ancestors.insert(stage.id.clone(), stage_sources.clone());
+    Ok(StagePlan {
+        id: stage.id.clone(),
+        kind: stage.kind,
+        class: stage.class,
+        representation,
+        meaning,
+        sources: stage_sources.into_iter().collect(),
+        dependence,
+    })
+}
+
+/// A stage's own declaration: a fresh id, at least one input, an operator its kind licenses,
+/// and the input arity its operator class needs.
+fn check_stage_shape(stage: &ChainStageDecl, state: &ChainState<'_>) -> Result<(), ChainRefusal> {
+    check_text(&stage.id, "a stage id")?;
+    if state.facts.contains_key(stage.id.as_str()) {
+        return Err(malformed("a stage id repeats a node id", Some(&stage.id)));
+    }
+    if stage.inputs.is_empty() {
+        return Err(malformed("a stage reads at least one input", Some(&stage.id)));
+    }
+    if !class_fits(stage.kind, stage.class) {
+        return Err(refuse(
+            NOT_SUPPORTED_CODE,
+            "propagation_chain.operator_not_licensed_for_stage",
+            format!(
+                "a {} stage does not apply a {} operator",
+                stage.kind.as_str(),
+                stage.class.as_str()
+            ),
+            Some(&stage.id),
+            FIX_CHAIN_DECLARATION,
+        ));
+    }
+    if stage.class.is_pool() && stage.inputs.len() < 2 {
+        return Err(malformed("a pool reads at least two inputs", Some(&stage.id)));
+    }
+    if stage.class == OperatorClass::Update && stage.inputs.len() != 2 {
+        return Err(malformed(
+            "an update reads the parameter and the utility it re-evaluates",
+            Some(&stage.id),
+        ));
+    }
+    Ok(())
+}
+
+/// The representation a stage carries, refusing inputs its operator cannot read.
+fn check_stage_representation(
+    stage: &ChainStageDecl,
+    input_facts: &[NodeFacts],
+) -> Result<NodeRepresentation, ChainRefusal> {
+    let has_draws = input_facts.iter().any(|f| f.representation == NodeRepresentation::Draws);
+    let has_enclosure =
+        input_facts.iter().any(|f| f.representation == NodeRepresentation::Enclosure);
+    let has_point = input_facts.iter().any(|f| f.representation == NodeRepresentation::Point);
+    if stage.class == OperatorClass::Update {
+        if has_enclosure {
             return Err(refuse(
                 REPRESENTATION_CODE,
-                "propagation_chain.mixed_draws_and_interval",
-                "a stage reads draws and an interval together: the interval has no law to pair with the draws",
+                "propagation_chain.interval_is_not_a_posterior",
+                "an update re-evaluates a decision under the posterior of a parameter, and an interval is not a posterior",
+                Some(&stage.id),
+                SUPPLY_POSTERIOR_DRAWS,
+            ));
+        }
+        if has_point {
+            return Err(refuse(
+                REPRESENTATION_CODE,
+                "propagation_chain.point_has_no_posterior",
+                "an update re-evaluates a decision under the posterior of a parameter, and a fixed value has none",
+                Some(&stage.id),
+                SUPPLY_POSTERIOR_DRAWS,
+            ));
+        }
+        if input_facts.iter().any(|f| f.meaning != Some(LawMeaning::Posterior)) {
+            return Err(refuse(
+                REPRESENTATION_CODE,
+                "propagation_chain.sampling_law_is_not_a_posterior",
+                "an update needs posterior draws of the parameter; a sampling law is not updated by a likelihood",
+                Some(&stage.id),
+                SUPPLY_POSTERIOR_DRAWS,
+            ));
+        }
+    } else if stage.class.is_pool() {
+        if has_enclosure {
+            return Err(refuse(
+                REPRESENTATION_CODE,
+                "propagation_chain.interval_cannot_be_pooled",
+                "a pool weights its inputs by their joint covariance, and an interval has none",
                 Some(&stage.id),
                 SUPPLY_DRAWS_FOR_INTERVAL,
             ));
         }
-        let representation = if has_draws {
-            NodeRepresentation::Draws
-        } else if has_enclosure {
-            NodeRepresentation::Enclosure
-        } else {
-            NodeRepresentation::Point
-        };
-        // ---- meaning
-        let meanings: BTreeSet<LawMeaning> = input_facts.iter().filter_map(|f| f.meaning).collect();
-        if meanings.len() > 1 {
+        if has_point {
             return Err(refuse(
-                MEANING_CODE,
-                "propagation_chain.law_meaning_mismatch",
-                "a stage reads a sampling law together with a posterior",
+                REPRESENTATION_CODE,
+                "propagation_chain.point_cannot_be_pooled",
+                "a pool weights its inputs by their variances, and a fixed value has none",
                 Some(&stage.id),
-                MATCH_LAW_MEANING,
+                SUPPLY_DRAWS_FOR_FIXED_INPUT,
             ));
         }
-        let meaning = meanings.into_iter().next();
-        // ---- dependence of a stage that combines several inputs
-        let dependence = if stage.inputs.len() >= 2 {
-            let assessed = assess_inputs(&stage.inputs, &factors, &disclosure)?;
-            if stage.class == OperatorClass::IndependentPool {
-                if assessed.is_dependent() {
-                    let shared: Vec<String> = assessed
-                        .shared_factors()
-                        .iter()
-                        .map(|f| factor_label(f.kind(), f.id().as_str()))
-                        .collect();
-                    return Err(refuse(
-                        DOUBLE_COUNTED_CODE,
-                        "propagation_chain.pool_shares_evidence",
-                        format!("an independent pool would count {} twice", shared.join(", ")),
-                        Some(&stage.id),
-                        POOL_WITH_JOINT_COVARIANCE,
-                    ));
-                }
-                if assessed.is_unknown() {
-                    return Err(refuse(
-                        OVERLAP_UNKNOWN_CODE,
-                        "propagation_chain.pool_overlap_unknown",
-                        "an independent pool needs the overlap of its inputs declared",
-                        Some(&stage.id),
-                        DECLARE_SHARED_FACTORS,
-                    ));
-                }
-            }
-            Some(StageDependence {
-                status: if assessed.is_dependent() {
-                    DependenceStatus::Dependent
-                } else if assessed.is_unknown() {
-                    DependenceStatus::Unknown
-                } else {
-                    DependenceStatus::Independent
-                },
-                shared: assessed
-                    .shared_factors()
-                    .iter()
-                    .map(|f| factor_label(f.kind(), f.id().as_str()))
-                    .collect(),
-            })
-        } else {
-            None
-        };
-        let stage_complete = union_complete;
-        facts.insert(stage.id.as_str(), NodeFacts { representation, meaning });
-        factors.insert(stage.id.clone(), union_factors);
-        disclosure.insert(stage.id.clone(), stage_complete);
-        ancestors.insert(stage.id.clone(), stage_sources.clone());
-        plans.push(StagePlan {
-            id: stage.id.clone(),
-            kind: stage.kind,
-            class: stage.class,
-            representation,
-            meaning,
-            sources: stage_sources.into_iter().collect(),
-            dependence,
-        });
+    } else if has_draws && has_enclosure {
+        return Err(refuse(
+            REPRESENTATION_CODE,
+            "propagation_chain.mixed_draws_and_interval",
+            "a stage reads draws and an interval together: the interval has no law to pair with the draws",
+            Some(&stage.id),
+            SUPPLY_DRAWS_FOR_INTERVAL,
+        ));
     }
-    // ---- the answer
+    Ok(if has_draws {
+        NodeRepresentation::Draws
+    } else if has_enclosure {
+        NodeRepresentation::Enclosure
+    } else {
+        NodeRepresentation::Point
+    })
+}
+
+/// The law meaning a stage carries: its inputs agree on at most one.
+fn check_stage_meaning(
+    stage: &ChainStageDecl,
+    input_facts: &[NodeFacts],
+) -> Result<Option<LawMeaning>, ChainRefusal> {
+    let meanings: BTreeSet<LawMeaning> = input_facts.iter().filter_map(|f| f.meaning).collect();
+    if meanings.len() > 1 {
+        return Err(refuse(
+            MEANING_CODE,
+            "propagation_chain.law_meaning_mismatch",
+            "a stage reads a sampling law together with a posterior",
+            Some(&stage.id),
+            MATCH_LAW_MEANING,
+        ));
+    }
+    Ok(meanings.into_iter().next())
+}
+
+/// The dependence of a stage that combines several inputs, refusing an independent pool of
+/// overlapping or undeclared evidence.
+fn check_stage_dependence(
+    stage: &ChainStageDecl,
+    state: &ChainState<'_>,
+) -> Result<Option<StageDependence>, ChainRefusal> {
+    if stage.inputs.len() < 2 {
+        return Ok(None);
+    }
+    let assessed = assess_inputs(&stage.inputs, &state.factors, &state.disclosure)?;
+    if stage.class == OperatorClass::IndependentPool {
+        if assessed.is_dependent() {
+            let shared: Vec<String> = assessed
+                .shared_factors()
+                .iter()
+                .map(|f| factor_label(f.kind(), f.id().as_str()))
+                .collect();
+            return Err(refuse(
+                DOUBLE_COUNTED_CODE,
+                "propagation_chain.pool_shares_evidence",
+                format!("an independent pool would count {} twice", shared.join(", ")),
+                Some(&stage.id),
+                POOL_WITH_JOINT_COVARIANCE,
+            ));
+        }
+        if assessed.is_unknown() {
+            return Err(refuse(
+                OVERLAP_UNKNOWN_CODE,
+                "propagation_chain.pool_overlap_unknown",
+                "an independent pool needs the overlap of its inputs declared",
+                Some(&stage.id),
+                DECLARE_SHARED_FACTORS,
+            ));
+        }
+    }
+    Ok(Some(StageDependence {
+        status: if assessed.is_dependent() {
+            DependenceStatus::Dependent
+        } else if assessed.is_unknown() {
+            DependenceStatus::Unknown
+        } else {
+            DependenceStatus::Independent
+        },
+        shared: assessed
+            .shared_factors()
+            .iter()
+            .map(|f| factor_label(f.kind(), f.id().as_str()))
+            .collect(),
+    }))
+}
+
+/// Phase 5: the output stage exists, its reading is licensed, and the point sources a draw
+/// answer depends on are listed.
+fn finish_plan(
+    decl: &ChainDecl,
+    plans: Vec<StagePlan>,
+    state: &ChainState<'_>,
+    alignments: BTreeSet<&str>,
+) -> Result<ChainPlan, ChainRefusal> {
     let Some(output) = plans.iter().find(|plan| plan.id == decl.output) else {
         return Err(malformed("the output names a stage of the chain", Some(&decl.output)));
     };
@@ -1085,7 +1162,8 @@ pub fn check_propagation_chain(decl: &ChainDecl) -> Result<ChainPlan, ChainRefus
             .sources
             .iter()
             .filter(|id| {
-                facts.get(id.as_str()).map(|f| f.representation) == Some(NodeRepresentation::Point)
+                state.facts.get(id.as_str()).map(|f| f.representation)
+                    == Some(NodeRepresentation::Point)
             })
             .cloned()
             .collect()

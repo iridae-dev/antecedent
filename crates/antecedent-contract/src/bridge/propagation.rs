@@ -42,7 +42,7 @@ use super::super::refusal::{
     propagation_overflow, source_dependence_invalid, source_dependence_missing,
     source_moment_not_finite, source_variance_invalid, uncertain_mapping_not_affine,
 };
-use super::{BridgeAssumption, BridgeContract, MAX_BRIDGE_TEXT_BYTES, check_text};
+use super::{BridgeAssumption, BridgeContract, check_text};
 
 /// Section word that opens the identity suffix. Written only when a contract
 /// declares mapping uncertainty, source dependence or an estimand bridge, so
@@ -485,7 +485,7 @@ fn require_text(
     remedy: &'static str,
     refuse: fn(&str, &'static str) -> BridgeRefusal,
 ) -> Result<(), BridgeRefusal> {
-    if text.trim().is_empty() || text.len() > MAX_BRIDGE_TEXT_BYTES {
+    if text.trim().is_empty() {
         return Err(refuse(field, remedy));
     }
     Ok(())
@@ -724,11 +724,10 @@ pub(super) fn propagate_affine(
 // Joint propagation of a nonlinear function of the source and the mapping.
 // ---------------------------------------------------------------------------
 
-/// Most coordinates a joint law may carry.
-const MAX_JOINT_DIMENSION: usize = 32;
-/// Fewest and most simulated draws a propagation accepts.
+/// Fewest simulated draws a propagation accepts: below this the Monte Carlo standard error of
+/// the variance, which needs a fourth moment, is not meaningful. There is no upper bound; the
+/// simulation streams its moments, so the draw count costs time and never memory.
 const MIN_SIMULATION_DRAWS: usize = 64;
-const MAX_SIMULATION_DRAWS: usize = 4_000_000;
 /// Relative step of the finite differences behind the second-order terms, in
 /// units of each coordinate's standard deviation.
 const DIFFERENCE_STEP: f64 = 1e-2;
@@ -765,13 +764,13 @@ impl JointLaw {
         covariance: Vec<f64>,
     ) -> Result<Self, BridgeRefusal> {
         let n = mean.len();
-        if n == 0 || n > MAX_JOINT_DIMENSION || names.len() != n || covariance.len() != n * n {
+        if n == 0 || names.len() != n || n.checked_mul(n) != Some(covariance.len()) {
             return Err(malformed_mapping(
                 "joint_law",
-                "state one name and one mean per coordinate and an n by n covariance, with at most 32 coordinates",
+                "state one name and one mean per coordinate and an n by n covariance",
             ));
         }
-        if names.iter().any(|name| name.trim().is_empty() || name.len() > MAX_BRIDGE_TEXT_BYTES) {
+        if names.iter().any(|name| name.trim().is_empty()) {
             return Err(malformed_mapping("joint_law.names", "name every coordinate"));
         }
         if mean.iter().any(|value| !value.is_finite()) {
@@ -1015,7 +1014,7 @@ fn checked(value: f64) -> Result<f64, BridgeRefusal> {
 ///
 /// # Errors
 /// The function is not finite at a point the method evaluates; a simulation
-/// asks for fewer than 64 or more than four million draws.
+/// asks for fewer than 64 draws or more than fit the evaluation counter.
 pub fn propagate_joint(
     law: &JointLaw,
     g: &dyn Fn(&[f64]) -> f64,
@@ -1183,10 +1182,10 @@ fn simulate(
     draws: usize,
     seed: u64,
 ) -> Result<JointPropagation, BridgeRefusal> {
-    if !(MIN_SIMULATION_DRAWS..=MAX_SIMULATION_DRAWS).contains(&draws) {
+    if draws < MIN_SIMULATION_DRAWS || draws == usize::MAX {
         return Err(malformed_mapping(
             "simulation.draws",
-            "state between 64 and 4000000 simulated draws",
+            "state at least 64 simulated draws, fewer than the evaluation counter can hold",
         ));
     }
     let n = law.dimension();
@@ -1196,7 +1195,9 @@ fn simulate(
     let mut stream = DrawStream(seed);
     let mut normals = vec![0.0; n];
     let mut point = vec![0.0; n];
-    let mut values = Vec::with_capacity(draws);
+    // Streaming central moments (Pébay's update through the fourth), so the draw count does not
+    // bound memory and a long run keeps the accuracy of a Welford recurrence.
+    let (mut seen, mut mean, mut m2, mut m3, mut m4) = (0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64);
     for _ in 0..draws {
         let mut index = 0;
         while index < n {
@@ -1214,17 +1215,22 @@ fn simulate(
             }
             point[row] = value;
         }
-        values.push(checked(g(&point))?);
+        let value = checked(g(&point))?;
+        let previous = seen;
+        seen += 1.0;
+        let delta = value - mean;
+        let delta_n = delta / seen;
+        let delta_n_squared = delta_n * delta_n;
+        let term = delta * delta_n * previous;
+        mean += delta_n;
+        m4 += term * delta_n_squared * (seen * seen - 3.0 * seen + 3.0)
+            + 6.0 * delta_n_squared * m2
+            - 4.0 * delta_n * m3;
+        m3 += term * delta_n * (seen - 2.0) - 3.0 * delta_n * m2;
+        m2 += term;
     }
     let count = draws as f64;
-    let mean = values.iter().sum::<f64>() / count;
-    let mut second = 0.0;
-    let mut fourth = 0.0;
-    for value in &values {
-        let deviation = value - mean;
-        second += deviation * deviation;
-        fourth += deviation.powi(4);
-    }
+    let (second, fourth) = (m2, m4);
     let population_variance = second / count;
     let variance = second / (count - 1.0);
     let fourth_moment = fourth / count;

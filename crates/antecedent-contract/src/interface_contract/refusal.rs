@@ -101,14 +101,6 @@ pub(super) fn duplicate_port(port: &str) -> InterfaceRefusal {
     .with_offending(port)
 }
 
-pub(super) fn too_many_items(what: &str) -> InterfaceRefusal {
-    invalid(
-        "interface_contract.too_many_items",
-        "declare at most the bounded number of ports, identities and stages",
-    )
-    .with_offending(what)
-}
-
 pub(super) fn invalid_support(port: &str) -> InterfaceRefusal {
     invalid(
         "interface_contract.invalid_support",
@@ -228,14 +220,6 @@ pub(super) fn port_multiply_fed(component: &str, port: &str) -> InterfaceRefusal
         "feed a consumed port from one produced port; combine evidence in a component that declares the combination",
     )
     .with_offending(format!("{component}.{port}"))
-}
-
-pub(super) fn composition_too_large(what: &str) -> InterfaceRefusal {
-    invalid(
-        "interface_contract.composition_too_large",
-        "check a composition of at most the bounded number of components and connections",
-    )
-    .with_offending(what)
 }
 
 // -- quantity and support mismatch (interface_contract_quantity_mismatch) -------------------------------

@@ -19,7 +19,7 @@ use super::refusal::{
     InterfaceRefusal, blank_field, calibration_record_blank, calibration_without_interval,
     duplicate_port, inherited_input_unknown, invalid_digest, invalid_quantity, invalid_support,
     missing_operations, point_only_with_uncertainty, posterior_without_posterior_meaning,
-    too_many_items, uncertainty_meaning_required, uncertainty_meaning_unused,
+    uncertainty_meaning_required, uncertainty_meaning_unused,
     unknown_provenance_stage,
 };
 use crate::composition_provenance::CompositionStage;
@@ -31,12 +31,17 @@ use antecedent_core::named_variants;
 /// Version word written into every interface contract identity. Bump only
 /// when the canonical encoding below changes.
 pub const INTERFACE_CONTRACT_VERSION: u64 = 1;
-/// Most produced ports, and most consumed ports, one contract may declare.
+// The sizes below are the defaults that decoders of untrusted contract records apply to their
+// own input. Validating a declaration is linear in its size, so the contract itself imposes no
+// count or length bound; memory is the only limit.
+
+/// Default bound on produced ports, and on consumed ports, that a decoder of untrusted input
+/// applies to one contract record.
 pub const MAX_INTERFACE_PORTS: usize = 256;
-/// Longest identity or name, in bytes.
+/// Default bound on an identity or name, in bytes, that a decoder of untrusted input applies.
 pub const MAX_INTERFACE_TEXT_BYTES: usize = 4096;
-/// Most measurement models, evidence sources, support levels or provenance
-/// stages one port may declare.
+/// Default bound on measurement models, evidence sources, support levels or provenance stages
+/// per port that a decoder of untrusted input applies.
 pub const MAX_PORT_SET_ITEMS: usize = 1024;
 
 /// Domain tag of the canonical contract stream.
@@ -377,10 +382,7 @@ impl SupportDomain {
             }
             Self::Categorical { levels } => {
                 !levels.is_empty()
-                    && levels.len() <= MAX_PORT_SET_ITEMS
-                    && levels
-                        .iter()
-                        .all(|l| !l.trim().is_empty() && l.len() <= MAX_INTERFACE_TEXT_BYTES)
+                    && levels.iter().all(|l| !l.trim().is_empty())
                     && levels.windows(2).all(|pair| pair[0] < pair[1])
             }
         }
@@ -737,21 +739,19 @@ pub struct InterfaceContract {
 }
 
 fn check_text(field: &str, text: &str) -> Result<(), InterfaceRefusal> {
-    if text.trim().is_empty() || text.len() > MAX_INTERFACE_TEXT_BYTES {
+    if text.trim().is_empty() {
         return Err(blank_field(field));
     }
     Ok(())
 }
 
-/// Whether `text` is 64 lowercase hex characters.
+/// Whether `text` is 64 lowercase hex characters. Declared model identities are canonical
+/// identity text, so uppercase is refused (unlike externally supplied digests).
 pub(super) fn is_lower_hex_digest(text: &str) -> bool {
-    text.len() == 64 && text.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    antecedent_core::digest_from_lower_hex(text).is_some()
 }
 
 fn check_models(field: &str, models: &BTreeSet<String>) -> Result<(), InterfaceRefusal> {
-    if models.len() > MAX_PORT_SET_ITEMS {
-        return Err(too_many_items(field));
-    }
     if models.iter().any(|m| !is_lower_hex_digest(m)) {
         return Err(invalid_digest(field));
     }
@@ -759,9 +759,6 @@ fn check_models(field: &str, models: &BTreeSet<String>) -> Result<(), InterfaceR
 }
 
 fn check_stages(stages: &BTreeSet<String>) -> Result<(), InterfaceRefusal> {
-    if stages.len() > MAX_PORT_SET_ITEMS {
-        return Err(too_many_items("provenance"));
-    }
     if let Some(stage) = stages.iter().find(|s| CompositionStage::from_name(s).is_none()) {
         return Err(unknown_provenance_stage(stage));
     }
@@ -823,11 +820,6 @@ impl ProducedPort {
         check_uncertainty(&self.name, &self.operations, self.uncertainty)?;
         check_models("measurement_models", &self.measurement_models)?;
         check_stages(&self.provenance)?;
-        if let EvidenceBasis::Declared(sources) = &self.evidence {
-            if sources.len() > MAX_PORT_SET_ITEMS {
-                return Err(too_many_items("evidence"));
-            }
-        }
         match &self.calibration {
             CalibrationStatus::None | CalibrationStatus::Unmeasured => {}
             CalibrationStatus::PointOnly => {
@@ -886,9 +878,6 @@ impl InterfaceContract {
     /// names the declaration that would make the contract well formed.
     pub fn validate(&self) -> Result<(), InterfaceRefusal> {
         check_text("component", &self.component)?;
-        if self.produces.len() > MAX_INTERFACE_PORTS || self.consumes.len() > MAX_INTERFACE_PORTS {
-            return Err(too_many_items("ports"));
-        }
         let mut consumed = BTreeSet::new();
         for port in &self.consumes {
             if !consumed.insert(port.name.as_str()) {

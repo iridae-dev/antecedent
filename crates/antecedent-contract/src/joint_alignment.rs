@@ -29,8 +29,6 @@ use std::{collections::BTreeSet, error::Error, fmt, sync::Arc};
 use antecedent_core::text::is_blank;
 use antecedent_core::{CanonicalWriter, NextAttempt, SemanticDigest, impl_refused, named_variants};
 
-use crate::evidence_ledger::MAX_COMBINATION_SOURCES;
-
 /// Domain tag for [`ProducingLaw::identity`].
 const PRODUCING_LAW_TAG: &str = "antecedent.contract.producing_law";
 
@@ -480,8 +478,7 @@ impl LawArray {
     ///
     /// # Errors
     ///
-    /// Returns an error when `label` is blank, `axes` is empty, `axes` names
-    /// more than [`MAX_COMBINATION_SOURCES`] entries, or two axes share a kind.
+    /// Returns an error when `label` is blank, `axes` is empty, or two axes share a kind.
     ///
     /// # Panics
     ///
@@ -496,9 +493,6 @@ impl LawArray {
     ) -> Result<Self, JointAlignmentError> {
         if is_blank(label) {
             return Err(invalid("an array label is blank"));
-        }
-        if axes.len() > MAX_COMBINATION_SOURCES {
-            return Err(invalid(format!("an array names at most {MAX_COMBINATION_SOURCES} axes")));
         }
         let axes = canonical_axes(label, axes)?;
         Ok(Self { label: Arc::from(label), len, axes, mass, consumer })
@@ -554,8 +548,7 @@ impl JointAlignmentRequest {
     ///
     /// # Errors
     ///
-    /// Returns an error when fewer than two arrays are named, more than
-    /// [`MAX_COMBINATION_SOURCES`] arrays are named, or two arrays share a label.
+    /// Returns an error when fewer than two arrays are named or two arrays share a label.
     ///
     /// # Panics
     ///
@@ -567,11 +560,6 @@ impl JointAlignmentRequest {
     ) -> Result<Self, JointAlignmentError> {
         if arrays.len() < 2 {
             return Err(invalid("a joint alignment names at least two arrays"));
-        }
-        if arrays.len() > MAX_COMBINATION_SOURCES {
-            return Err(invalid(format!(
-                "a joint alignment names at most {MAX_COMBINATION_SOURCES} arrays"
-            )));
         }
         let mut labels = BTreeSet::new();
         for array in &arrays {
@@ -1325,38 +1313,14 @@ mod tests {
     }
 
     #[test]
-    fn over_cap_array_and_request_are_refused() {
-        use crate::evidence_ledger::MAX_COMBINATION_SOURCES;
-
-        let axis = JointAxis::try_new(JointAxisKind::Outcome, "y").expect("axis");
-        let mut axes = Vec::new();
-        for _ in 0..=MAX_COMBINATION_SOURCES {
-            axes.push(axis.clone());
-        }
-        let array = LawArray::try_new(
-            "contrast",
-            4,
-            &axes,
-            MassAccount::retained(),
-            JointConsumer::Contrast,
-        );
-        let refusal = array.expect_err("too many axes");
-        assert_eq!(refusal.code(), "invalid_argument");
-        assert_eq!(refusal.detail(), "joint_alignment.invalid_declaration");
-        assert!(refusal.message().contains(&MAX_COMBINATION_SOURCES.to_string()));
-        assert_eq!(refusal.next_attempt(), REPAIR_DECLARATION);
-
+    fn many_arrays_are_named_without_a_count_cap() {
         let one = contrast_array(4, "do(a,b)", MassAccount::retained());
         let mut arrays = Vec::new();
-        for index in 0..=MAX_COMBINATION_SOURCES {
+        for index in 0..500 {
             let mut labeled = one.clone();
             labeled.label = std::sync::Arc::from(format!("array-{index}"));
             arrays.push(labeled);
         }
-        let request = JointAlignmentRequest::try_new(arrays, LawCoupling::DeclaredProduct);
-        let refusal = request.expect_err("too many arrays");
-        assert!(refusal.message().contains(&MAX_COMBINATION_SOURCES.to_string()));
-        assert!(refusal.message().contains("arrays"));
-        assert_eq!(refusal.next_attempt(), REPAIR_DECLARATION);
+        assert!(JointAlignmentRequest::try_new(arrays, LawCoupling::DeclaredProduct).is_ok());
     }
 }

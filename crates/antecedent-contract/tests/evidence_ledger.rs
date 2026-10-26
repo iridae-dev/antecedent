@@ -1031,10 +1031,10 @@ fn relations_use_the_composition_vocabulary() {
 }
 
 #[test]
-fn bounds_are_enforced() {
+fn counts_are_not_capped_and_blank_labels_are_refused() {
     let mut ledger = EvidenceLedger::new();
-    let ids: Vec<SourceId> = (0..=u32::try_from(MAX_COMBINATION_SOURCES)
-        .expect("the bound fits u32"))
+    let count = u32::try_from(MAX_COMBINATION_SOURCES).expect("the default bound fits u32") + 1;
+    let ids: Vec<SourceId> = (0..count)
         .map(|i| {
             #[allow(
                 clippy::range_plus_one,
@@ -1044,10 +1044,9 @@ fn bounds_are_enforced() {
             add(&mut ledger, data(&format!("s{i}"), one))
         })
         .collect();
-    let error = ledger
-        .combine(pooling("too_many", &ids, PoolingDependence::Independent))
-        .expect_err("more sources than a combination may name");
-    expect_refusal(&error, "invalid_argument", "evidence_ledger.limit_exceeded");
+    ledger
+        .combine(pooling("many_sources", &ids, PoolingDependence::Independent))
+        .expect("a combination may name more sources than the decoder default");
     let error = ledger
         .add_source(SourceDeclaration::new("  ", SourceKind::ObservationSet))
         .expect_err("empty label");

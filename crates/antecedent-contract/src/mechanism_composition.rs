@@ -39,8 +39,6 @@ use crate::{ExternalRefusal, QuantityMismatch, ScientificQuantity};
 pub const MECHANISM_VALUE_FUNCTIONAL: &str = "realization";
 /// Stage reported by every refusal of this module.
 pub const MECHANISM_COMPOSITION_STAGE: &str = "compose";
-/// Most mechanisms one declaration may hold.
-pub const MAX_DECLARED_MECHANISMS: usize = 64;
 /// Version of the plan identity encoding.
 pub const MECHANISM_PLAN_IDENTITY_VERSION: u64 = 1;
 
@@ -615,22 +613,43 @@ fn canonical_mechanism(m: &MechanismDeclaration) -> PlannedMechanism {
 /// namespaced detail. An `Ok` plan is a statement about declared coordinates
 /// only: numerical support, parameter-law validity and execution are checked by
 /// the model-level composition.
-#[allow(
-    clippy::too_many_lines,
-    reason = "a flat sequence of independent semantic checks over the declaration, each collecting its own refusals"
-)]
 pub fn check_mechanism_composition(
     decl: &MechanismCompositionDeclaration,
 ) -> Result<MechanismCompositionPlan, Vec<ExternalRefusal>> {
     let mut c = Collector { refusals: Vec::new() };
-    if decl.mechanisms.is_empty() || decl.mechanisms.len() > MAX_DECLARED_MECHANISMS {
+    if !check_shape(decl, &mut c) {
+        return Err(c.refusals);
+    }
+    let by_var = index_mechanisms(decl, &mut c);
+    if !c.refusals.is_empty() {
+        return Err(c.refusals);
+    }
+    for m in &decl.mechanisms {
+        check_context(decl, m, &mut c);
+        for p in &m.parents {
+            check_parent(decl, m, p, &by_var, &mut c);
+        }
+    }
+    check_graph(decl, &by_var, &mut c);
+    check_latents(&by_var, &mut c);
+    check_declared_independence(decl, &mut c);
+    if !c.refusals.is_empty() {
+        return Err(c.refusals);
+    }
+    Ok(canonical_plan(decl))
+}
+
+/// The declaration names at least one mechanism and a target population and regime. `false`
+/// when a refusal was recorded and no later check is meaningful.
+fn check_shape(decl: &MechanismCompositionDeclaration, c: &mut Collector) -> bool {
+    if decl.mechanisms.is_empty() {
         c.push(
             "shape",
             "mechanism_composition.shape_mechanism_count",
             "composition",
-            "declare between one and the bounded number of mechanisms",
+            "declare at least one mechanism",
         );
-        return Err(c.refusals);
+        return false;
     }
     if blank(&decl.target_population_id) || blank(&decl.target_regime_id) {
         c.push(
@@ -639,14 +658,23 @@ pub fn check_mechanism_composition(
             "target",
             "name the target population and regime",
         );
-        return Err(c.refusals);
+        return false;
     }
+    true
+}
+
+/// Index the mechanisms by output variable, refusing a repeated variable, a malformed
+/// realization, missing provenance and an unacknowledged declared mechanism.
+fn index_mechanisms<'a>(
+    decl: &'a MechanismCompositionDeclaration,
+    c: &mut Collector,
+) -> BTreeMap<&'a str, &'a MechanismDeclaration> {
     let mut by_var: BTreeMap<&str, &MechanismDeclaration> = BTreeMap::new();
     for m in &decl.mechanisms {
         let v = m.output.variable_id.as_str();
-        check_realization(&m.output, v, &mut c);
+        check_realization(&m.output, v, c);
         for p in &m.parents {
-            check_realization(p, &format!("{v}<-{}", p.variable_id), &mut c);
+            check_realization(p, &format!("{v}<-{}", p.variable_id), c);
         }
         if by_var.insert(v, m).is_some() {
             c.push(
@@ -681,135 +709,144 @@ pub fn check_mechanism_composition(
             );
         }
     }
-    if !c.refusals.is_empty() {
-        return Err(c.refusals);
+    by_var
+}
+
+/// One parent of one mechanism: it was seen in the fit's own context, has a producing
+/// mechanism, and agrees with that producer on every coordinate once both are brought to the
+/// target context.
+fn check_parent(
+    decl: &MechanismCompositionDeclaration,
+    m: &MechanismDeclaration,
+    p: &ScientificQuantity,
+    by_var: &BTreeMap<&str, &MechanismDeclaration>,
+    c: &mut Collector,
+) {
+    let consumer = m.output.variable_id.as_str();
+    let subject = format!("{}->{consumer}", p.variable_id);
+    if p.population_id != m.output.population_id {
+        c.compare(
+            "population",
+            "mechanism_composition.population_parent_context_differs_from_fit",
+            &subject,
+            &m.output.population_id,
+            &p.population_id,
+            "a fit sees its parents in the population it was fitted in",
+        );
     }
+    if p.regime_id != m.output.regime_id {
+        c.compare(
+            "regime",
+            "mechanism_composition.regime_parent_context_differs_from_fit",
+            &subject,
+            &m.output.regime_id,
+            &p.regime_id,
+            "a fit sees its parents in the regime it was fitted in",
+        );
+    }
+    let Some(producer) = by_var.get(p.variable_id.as_str()) else {
+        c.push(
+            "variable_identity",
+            "mechanism_composition.identity_parent_without_mechanism",
+            &subject,
+            "supply a mechanism for the parent (a root needs its own marginal mechanism)",
+        );
+        return;
+    };
+    // Both mechanisms are brought to the target context (or refused above); the remaining
+    // coordinates must then agree exactly.
+    let to_target = |q: &ScientificQuantity| {
+        let mut n = q.clone();
+        n.population_id.clone_from(&decl.target_population_id);
+        n.regime_id.clone_from(&decl.target_regime_id);
+        n
+    };
+    match to_target(p).require_same_coordinate(&to_target(&producer.output)) {
+        Ok(()) => {}
+        Err(QuantityMismatch::Units) => c.compare(
+            "units",
+            "mechanism_composition.units_mismatch",
+            &subject,
+            &p.units,
+            &producer.output.units,
+            "convert explicitly and refit one side; no implicit unit conversion is inferred",
+        ),
+        Err(QuantityMismatch::Transform) => c.compare(
+            "transform",
+            "mechanism_composition.transform_mismatch",
+            &subject,
+            &p.transform_id,
+            &producer.output.transform_id,
+            "declare the transform the consumer was fitted on, or refit one side",
+        ),
+        Err(QuantityMismatch::Variable) => c.push(
+            "quantity",
+            "mechanism_composition.quantity_role_mismatch",
+            &subject,
+            "the parent and the producer must name the same variable in the same causal role",
+        ),
+        Err(QuantityMismatch::Horizon) => c.push(
+            "quantity",
+            "mechanism_composition.quantity_horizon_mismatch",
+            &subject,
+            "the parent and the producer must refer to the same time horizon",
+        ),
+        Err(QuantityMismatch::Functional) => c.push(
+            "quantity",
+            "mechanism_composition.quantity_functional_mismatch",
+            &subject,
+            "the parent and the producer must be the same functional of the variable",
+        ),
+        Err(QuantityMismatch::Conditioning) => c.push(
+            "quantity",
+            "mechanism_composition.quantity_conditioning_mismatch",
+            &subject,
+            "the parent and the producer must be conditioned on the same events",
+        ),
+        Err(
+            QuantityMismatch::InvalidCoordinate
+            | QuantityMismatch::Population
+            | QuantityMismatch::Regime,
+        ) => c.push(
+            "quantity",
+            "mechanism_composition.quantity_invalid_coordinate",
+            &subject,
+            "give every semantic coordinate a non-blank identity",
+        ),
+    }
+}
+
+/// A composition declared independent by design justifies it and does not reuse one evidence
+/// identity across mechanisms.
+fn check_declared_independence(decl: &MechanismCompositionDeclaration, c: &mut Collector) {
+    let DependenceDeclaration::IndependentByDesign { justification } = &decl.dependence else {
+        return;
+    };
+    if blank(justification) {
+        c.push(
+            "posterior_dependence",
+            "mechanism_composition.posterior_dependence_independence_unjustified",
+            "composition",
+            "state why the estimates are independent (disjoint, independently generated evidence)",
+        );
+    }
+    let mut seen: BTreeMap<&str, &str> = BTreeMap::new();
     for m in &decl.mechanisms {
-        check_context(decl, m, &mut c);
-        let consumer = m.output.variable_id.as_str();
-        for p in &m.parents {
-            let subject = format!("{}->{consumer}", p.variable_id);
-            if p.population_id != m.output.population_id {
-                c.compare(
-                    "population",
-                    "mechanism_composition.population_parent_context_differs_from_fit",
-                    &subject,
-                    &m.output.population_id,
-                    &p.population_id,
-                    "a fit sees its parents in the population it was fitted in",
-                );
-            }
-            if p.regime_id != m.output.regime_id {
-                c.compare(
-                    "regime",
-                    "mechanism_composition.regime_parent_context_differs_from_fit",
-                    &subject,
-                    &m.output.regime_id,
-                    &p.regime_id,
-                    "a fit sees its parents in the regime it was fitted in",
-                );
-            }
-            let Some(producer) = by_var.get(p.variable_id.as_str()) else {
-                c.push(
-                    "variable_identity",
-                    "mechanism_composition.identity_parent_without_mechanism",
-                    &subject,
-                    "supply a mechanism for the parent (a root needs its own marginal mechanism)",
-                );
-                continue;
-            };
-            // Both mechanisms are brought to the target context (or refused
-            // above); the remaining coordinates must then agree exactly.
-            let to_target = |q: &ScientificQuantity| {
-                let mut n = q.clone();
-                n.population_id.clone_from(&decl.target_population_id);
-                n.regime_id.clone_from(&decl.target_regime_id);
-                n
-            };
-            match to_target(p).require_same_coordinate(&to_target(&producer.output)) {
-                Ok(()) => {}
-                Err(QuantityMismatch::Units) => c.compare(
-                    "units",
-                    "mechanism_composition.units_mismatch",
-                    &subject,
-                    &p.units,
-                    &producer.output.units,
-                    "convert explicitly and refit one side; no implicit unit conversion is inferred",
-                ),
-                Err(QuantityMismatch::Transform) => c.compare(
-                    "transform",
-                    "mechanism_composition.transform_mismatch",
-                    &subject,
-                    &p.transform_id,
-                    &producer.output.transform_id,
-                    "declare the transform the consumer was fitted on, or refit one side",
-                ),
-                Err(QuantityMismatch::Variable) => c.push(
-                    "quantity",
-                    "mechanism_composition.quantity_role_mismatch",
-                    &subject,
-                    "the parent and the producer must name the same variable in the same causal role",
-                ),
-                Err(QuantityMismatch::Horizon) => c.push(
-                    "quantity",
-                    "mechanism_composition.quantity_horizon_mismatch",
-                    &subject,
-                    "the parent and the producer must refer to the same time horizon",
-                ),
-                Err(QuantityMismatch::Functional) => c.push(
-                    "quantity",
-                    "mechanism_composition.quantity_functional_mismatch",
-                    &subject,
-                    "the parent and the producer must be the same functional of the variable",
-                ),
-                Err(QuantityMismatch::Conditioning) => c.push(
-                    "quantity",
-                    "mechanism_composition.quantity_conditioning_mismatch",
-                    &subject,
-                    "the parent and the producer must be conditioned on the same events",
-                ),
-                Err(
-                    QuantityMismatch::InvalidCoordinate
-                    | QuantityMismatch::Population
-                    | QuantityMismatch::Regime,
-                ) => c.push(
-                    "quantity",
-                    "mechanism_composition.quantity_invalid_coordinate",
-                    &subject,
-                    "give every semantic coordinate a non-blank identity",
-                ),
-            }
-        }
-    }
-    check_graph(decl, &by_var, &mut c);
-    check_latents(&by_var, &mut c);
-    if let DependenceDeclaration::IndependentByDesign { justification } = &decl.dependence {
-        if blank(justification) {
-            c.push(
+        if let Some(first) = seen.insert(m.evidence_id.as_str(), m.output.variable_id.as_str()) {
+            c.compare(
                 "posterior_dependence",
-                "mechanism_composition.posterior_dependence_independence_unjustified",
-                "composition",
-                "state why the estimates are independent (disjoint, independently generated evidence)",
+                "mechanism_composition.posterior_dependence_shared_evidence_declared_independent",
+                &format!("{first}|{}", m.output.variable_id),
+                "distinct evidence identities",
+                &m.evidence_id,
+                "mechanisms estimated from the same evidence are dependent; supply a joint law or cross-mechanism covariance",
             );
         }
-        let mut seen: BTreeMap<&str, &str> = BTreeMap::new();
-        for m in &decl.mechanisms {
-            if let Some(first) = seen.insert(m.evidence_id.as_str(), m.output.variable_id.as_str())
-            {
-                c.compare(
-                    "posterior_dependence",
-                    "mechanism_composition.posterior_dependence_shared_evidence_declared_independent",
-                    &format!("{first}|{}", m.output.variable_id),
-                    "distinct evidence identities",
-                    &m.evidence_id,
-                    "mechanisms estimated from the same evidence are dependent; supply a joint law or cross-mechanism covariance",
-                );
-            }
-        }
     }
-    if !c.refusals.is_empty() {
-        return Err(c.refusals);
-    }
+}
+
+/// The plan of a declaration that passed every check, in canonical order.
+fn canonical_plan(decl: &MechanismCompositionDeclaration) -> MechanismCompositionPlan {
     let mut mechanisms: Vec<PlannedMechanism> =
         decl.mechanisms.iter().map(canonical_mechanism).collect();
     mechanisms.sort_by(|a, b| a.variable_id.cmp(&b.variable_id));
@@ -831,7 +868,7 @@ pub fn check_mechanism_composition(
             &b.target_id,
         ))
     });
-    Ok(MechanismCompositionPlan {
+    MechanismCompositionPlan {
         target_population_id: decl.target_population_id.clone(),
         target_regime_id: decl.target_regime_id.clone(),
         mechanisms,
@@ -839,7 +876,7 @@ pub fn check_mechanism_composition(
         admissions,
         dependence: decl.dependence.clone(),
         admit_declared_mechanisms: decl.admit_declared_mechanisms,
-    })
+    }
 }
 
 /// Name of the single produced port of a mechanism's interface contract.

@@ -29,7 +29,6 @@ use std::sync::Arc;
 use antecedent_core::text::is_blank;
 use antecedent_core::{CanonicalWriter, SemanticDigest};
 
-use crate::evidence_ledger::MAX_TEXT_BYTES;
 use antecedent_core::{NextAttempt, Refused, impl_refused, named_variants};
 
 /// Identity tag for a frequentist summary.
@@ -41,11 +40,9 @@ pub const SUMMARY_OBSERVATION_TAG: &str = "antecedent.contract.summary_observati
 const BLANK_DETAIL: &str = "summary_observation.blank_record";
 const NON_FINITE_DETAIL: &str = "summary_observation.non_finite_value";
 const SHAPE_DETAIL: &str = "summary_observation.covariance_shape";
-const DIMENSION_DETAIL: &str = "summary_observation.covariance_dimension";
 const NOT_LIKELIHOOD_DETAIL: &str = "summary_observation.not_bayesian_likelihood";
 const INTERVAL_DETAIL: &str = "summary_observation.interval_stays_frequentist";
 const NOT_LAW_DETAIL: &str = "summary_observation.not_bayesian_law";
-const TOO_LONG_DETAIL: &str = "summary_observation.text_too_long";
 const CHECKLIST_DETAIL: &str = "summary_observation.checklist_not_likelihood";
 
 const MISMATCH_CODE: &str = antecedent_core::reason_code!("distribution_meaning_mismatch");
@@ -76,12 +73,6 @@ impl fmt::Display for FrequentistSummaryKind {
     }
 }
 
-/// Largest side length of a stored covariance.
-///
-/// A covariance of this order holds `MAX_COVARIANCE_DIMENSION²` entries, so the
-/// cap bounds the storage and the identity hash of one summary.
-pub const MAX_COVARIANCE_DIMENSION: usize = 1024;
-
 /// Square covariance stored with a frequentist estimate, row-major.
 ///
 /// A scalar variance converts through [`From<f64>`] into a one-by-one matrix.
@@ -98,15 +89,11 @@ impl SummaryCovariance {
     ///
     /// # Errors
     ///
-    /// [`SummaryObservationError`] when `dimension` is zero or exceeds
-    /// [`MAX_COVARIANCE_DIMENSION`], `entries` has a length other than
+    /// [`SummaryObservationError`] when `dimension` is zero, `entries` has a length other than
     /// `dimension * dimension`, or any entry is non-finite. The error has no
     /// next attempt.
     #[must_use = "a covariance that is not a finite square matrix is refused"]
     pub fn matrix(dimension: usize, entries: Vec<f64>) -> Result<Self, SummaryObservationError> {
-        if dimension > MAX_COVARIANCE_DIMENSION {
-            return Err(SummaryObservationError::dimension());
-        }
         let Some(cells) = dimension.checked_mul(dimension) else {
             return Err(SummaryObservationError::shape());
         };
@@ -843,16 +830,6 @@ impl SummaryObservationError {
         }
     }
 
-    fn too_long(field: &'static str) -> Self {
-        Self {
-            code: INVALID_CODE,
-            detail: TOO_LONG_DETAIL,
-            message: format!("{field} is longer than {MAX_TEXT_BYTES} bytes"),
-            next: None,
-            summary_kind: None,
-        }
-    }
-
     fn non_finite(field: &'static str) -> Self {
         Self {
             code: INVALID_CODE,
@@ -868,18 +845,6 @@ impl SummaryObservationError {
             code: INVALID_CODE,
             detail: SHAPE_DETAIL,
             message: String::from("covariance is not a square matrix"),
-            next: None,
-            summary_kind: None,
-        }
-    }
-
-    fn dimension() -> Self {
-        Self {
-            code: INVALID_CODE,
-            detail: DIMENSION_DETAIL,
-            message: format!(
-                "covariance is larger than {MAX_COVARIANCE_DIMENSION} by {MAX_COVARIANCE_DIMENSION}"
-            ),
             next: None,
             summary_kind: None,
         }
@@ -922,8 +887,6 @@ fn declared(
     let name = name.into();
     if is_blank(&name) {
         Err(SummaryObservationError::blank(field))
-    } else if name.len() > MAX_TEXT_BYTES {
-        Err(SummaryObservationError::too_long(field))
     } else {
         Ok(name)
     }
@@ -967,7 +930,7 @@ mod tests {
 
     use super::{
         ADAPT_ESTIMATE_COVARIANCE, Dependence, FrequentistSummary, FrequentistSummaryKind,
-        MAX_COVARIANCE_DIMENSION, NEXT_ATTEMPTS, Origin, REPORT_AS_FREQUENTIST_INTERVAL,
+        NEXT_ATTEMPTS, Origin, REPORT_AS_FREQUENTIST_INTERVAL,
         SUPPLY_ESTIMATE_COVARIANCE, SamplingApproximation, Selection, SummaryCovariance,
         SummaryObservationModel, SummaryUse, USE_AS_LIKELIHOOD_UPDATE,
     };
@@ -1287,11 +1250,6 @@ mod tests {
                 SummaryCovariance::matrix(2, vec![1.0_f64, 0.0_f64, 0.0_f64]).err(),
                 "summary_observation.covariance_shape",
                 "covariance is not a square matrix",
-            ),
-            (
-                SummaryCovariance::matrix(MAX_COVARIANCE_DIMENSION + 1, vec![]).err(),
-                "summary_observation.covariance_dimension",
-                "covariance is larger than 1024 by 1024",
             ),
             (
                 SummaryCovariance::matrix(1, vec![f64::NEG_INFINITY]).err(),

@@ -78,10 +78,6 @@ use antecedent_core::named_variants;
 /// Version word written into every identity of this module. Bump only when a
 /// canonical encoding below changes.
 pub const PROVIDER_TRANSPORT_VERSION: u64 = 1;
-/// Most assumptions, populations or evidence sources one declaration may name.
-pub const MAX_PROVIDER_TRANSPORT_ITEMS: usize = 256;
-/// Longest identity, in bytes.
-pub const MAX_PROVIDER_TRANSPORT_TEXT_BYTES: usize = 4096;
 /// Port name of the quantity an admitted provider source produces.
 pub const PROVIDER_SOURCE_PORT: &str = "provider_source";
 /// Port name of the quantity a transport route consumes from a provider.
@@ -142,7 +138,7 @@ fn assumption_mismatch(detail: &str, remedy: &'static str) -> ExternalRefusal {
 }
 
 fn text_ok(text: &str) -> bool {
-    !text.trim().is_empty() && text.len() <= MAX_PROVIDER_TRANSPORT_TEXT_BYTES
+    !text.trim().is_empty()
 }
 
 fn write_support(writer: &mut CanonicalWriter, support: &SupportDomain) {
@@ -311,7 +307,6 @@ impl ProviderTransportSource {
             ));
         }
         if self.assumptions.is_empty()
-            || self.assumptions.len() > MAX_PROVIDER_TRANSPORT_ITEMS
             || self.assumptions.iter().any(|a| !text_ok(a))
         {
             return Err(declare(
@@ -649,10 +644,8 @@ impl TransportedClaimOffer {
             || !text_ok(&self.semantic_identity)
             || !text_ok(&transport.target_population)
             || transport.source_populations.is_empty()
-            || transport.source_populations.len() > MAX_PROVIDER_TRANSPORT_ITEMS
             || transport.source_populations.iter().any(|p| !text_ok(p))
             || transport.assumptions.is_empty()
-            || transport.assumptions.len() > MAX_PROVIDER_TRANSPORT_ITEMS
             || transport.assumptions.iter().any(|a| !text_ok(a))
             || transport.source_populations.contains(&transport.target_population)
         {
@@ -669,7 +662,7 @@ impl TransportedClaimOffer {
             .with_expected(transport.target_population.clone())
             .with_supplied(self.quantity.population_id.clone()));
         }
-        if self.evidence.is_empty() || self.evidence.len() > MAX_PROVIDER_TRANSPORT_ITEMS {
+        if self.evidence.is_empty() {
             return Err(declare(
                 "provider_transport.evidence_missing",
                 "name the ledger sources the transported claim was derived from",

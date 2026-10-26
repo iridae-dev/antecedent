@@ -1143,7 +1143,7 @@ fn identification_strengthened(
         // A non-comparable (NaN) mass is a violation, like a larger one.
         derived_slot
             .identified_mass
-            .partial_cmp(&(slot.identified_mass + 1e-12))
+            .partial_cmp(&(slot.identified_mass + crate::reasoning::IDENTIFICATION_MONOTONE_SLACK))
             .is_none_or(std::cmp::Ordering::is_gt)
     }) {
         return Some("parents_not_retroactively_strengthened");

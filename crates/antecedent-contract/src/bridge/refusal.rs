@@ -85,14 +85,6 @@ pub(super) fn invalid_quantity(which: &str) -> BridgeRefusal {
     .with_offending(which)
 }
 
-pub(super) fn too_many_assumptions() -> BridgeRefusal {
-    invalid(
-        "scientific_bridge.too_many_assumptions",
-        "declare at most the bounded number of assumptions",
-    )
-    .with_offending("assumptions")
-}
-
 pub(super) fn duplicate_assumption(id: &str) -> BridgeRefusal {
     invalid(
         "scientific_bridge.duplicate_assumption",

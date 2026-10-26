@@ -46,8 +46,8 @@ use super::super::claim::{
 };
 use super::super::kind::{BridgeKind, ValueKind};
 use super::super::mapping::{
-    BridgeMapping, MappingKind, MeasurementDirection, TrialLevelValidation, binary_rates,
-    fit_trial_level_linear, identified_youden,
+    BridgeMapping, MappingKind, MeasurementDirection, TrialLevelValidation, TrialStatistics,
+    binary_rates, fit_with_statistics, identified_youden,
 };
 use super::super::refusal::{
     BridgeRefusal, dependence_not_a_covariance, draws_meaning_mismatch, draws_not_aligned,
@@ -270,31 +270,16 @@ fn trial_law(
     validation: &TrialLevelValidation,
     source_slope_covariance: f64,
 ) -> Result<AffineDrawLaw, BridgeRefusal> {
-    let fit = fit_trial_level_linear(validation)?;
+    let (fit, statistics) = fit_with_statistics(validation)?;
     let trials = validation.trials.len();
     if trials < MIN_DRAW_TRIALS as usize {
         return Err(validation_trials_too_few(MIN_DRAW_TRIALS, trials));
     }
-    // The same canonical order as the fit, so a permutation of the trials gives the same bits.
-    let mut sorted = validation.trials.clone();
-    sorted.sort_by(|a, b| {
-        a.surrogate_effect
-            .total_cmp(&b.surrogate_effect)
-            .then(a.terminal_effect.total_cmp(&b.terminal_effect))
-    });
-    let count = trials as f64;
-    let mean_x = sorted.iter().map(|t| t.surrogate_effect).sum::<f64>() / count;
-    let mean_y = sorted.iter().map(|t| t.terminal_effect).sum::<f64>() / count;
-    let (mut sxx, mut sxy, mut syy) = (0.0_f64, 0.0_f64, 0.0_f64);
-    for trial in &sorted {
-        let dx = trial.surrogate_effect - mean_x;
-        let dy = trial.terminal_effect - mean_y;
-        sxx += dx * dx;
-        sxy += dx * dy;
-        syy += dy * dy;
-    }
+    // The fit's own canonical statistics: the residual sum of squares is a second pass over the
+    // residuals, so a near-exact line is not lost to cancellation and an exact one is exactly 0.
+    let TrialStatistics { count, mean_x, sxx, residual_sum_squares, .. } = statistics;
     let degrees_of_freedom = count - 2.0;
-    let residual_variance = (syy - sxy * sxy / sxx).max(0.0) / degrees_of_freedom;
+    let residual_variance = residual_sum_squares / degrees_of_freedom;
     Ok(AffineDrawLaw {
         intercept_mean: fit.intercept,
         slope_mean: fit.slope,

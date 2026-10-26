@@ -32,11 +32,10 @@ use crate::{ObligationRecord, ObligationScope, ScientificQuantity};
 use antecedent_core::named_variants;
 use antecedent_core::{EvidenceCatalog, FactorNeed, VariableId};
 
-/// Declared bound on the variable coordinates of one obligation.
+/// Default bound on the variable coordinates of one obligation that a producer of obligations
+/// from untrusted input applies. Validation is linear in the coordinates, so the obligation
+/// itself carries no bound.
 pub const MAX_OBLIGATION_COORDINATES: usize = 1024;
-
-/// Longest contract slot name, in bytes.
-const MAX_SLOT_BYTES: usize = 256;
 
 /// What kind of evidence an obligation asks for.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -473,20 +472,14 @@ fn validate_spec(spec: &EvidenceObligationSpec) -> Result<(), EvidenceObligation
     {
         return Err(invalid("an obligation needs a reason and a provenance family and source"));
     }
-    if spec.required_slots.iter().any(|slot| slot.trim().is_empty() || slot.len() > MAX_SLOT_BYTES)
-    {
-        return Err(invalid("a required contract slot is empty or too long"));
+    if spec.required_slots.iter().any(|slot| slot.trim().is_empty()) {
+        return Err(invalid("a required contract slot is empty"));
     }
-    let coordinates =
-        spec.variables.len() + spec.regime.interventions.len() + spec.regime.conditioned_on.len();
-    if coordinates > MAX_OBLIGATION_COORDINATES
-        || !distinct(&spec.variables)
+    if !distinct(&spec.variables)
         || !distinct(&spec.regime.interventions)
         || !distinct(&spec.regime.conditioned_on)
     {
-        return Err(invalid(
-            "obligation variables must be distinct and within the coordinate bound",
-        ));
+        return Err(invalid("obligation variables must be distinct"));
     }
     if spec.quantities.values().map(|quantity| &quantity.variable_id).collect::<BTreeSet<_>>().len()
         != spec.quantities.len()

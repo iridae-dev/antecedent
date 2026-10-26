@@ -39,8 +39,8 @@ use antecedent_core::identity::CanonicalWriter;
 use antecedent_core::measurement_model::{MeasurementModel, MeasurementParameters};
 
 use super::super::mapping::{
-    BridgeMapping, MeasurementDirection, TrialLevelValidation, binary_rates,
-    fit_trial_level_linear,
+    BridgeMapping, MeasurementDirection, TrialLevelValidation, TrialStatistics, binary_rates,
+    fit_with_statistics,
 };
 use super::super::refusal::{
     BridgeRefusal, dependence_not_a_covariance, malformed_mapping, mapping_uncertainty_invalid,
@@ -230,36 +230,17 @@ fn affine_propagation(
     })
 }
 
-/// Coefficient moments of the least-squares line through the validation trials, summed
-/// in the canonical order of the fit so a permutation of the trials gives the same bits.
-fn trial_moments(
-    validation: &TrialLevelValidation,
-    slope: f64,
-) -> Result<AffineMoments, BridgeRefusal> {
-    let mut sorted = validation.trials.clone();
-    sorted.sort_by(|a, b| {
-        a.surrogate_effect
-            .total_cmp(&b.surrogate_effect)
-            .then(a.terminal_effect.total_cmp(&b.terminal_effect))
-    });
-    let count = sorted.len() as f64;
-    let mean_x = sorted.iter().map(|t| t.surrogate_effect).sum::<f64>() / count;
-    let mean_y = sorted.iter().map(|t| t.terminal_effect).sum::<f64>() / count;
-    let (mut sxx, mut sxy, mut syy) = (0.0_f64, 0.0_f64, 0.0_f64);
-    for trial in &sorted {
-        let dx = trial.surrogate_effect - mean_x;
-        let dy = trial.terminal_effect - mean_y;
-        sxx += dx * dx;
-        sxy += dx * dy;
-        syy += dy * dy;
-    }
-    if sorted.len() < 3 || sxx.is_nan() || sxx <= 0.0 {
+/// Coefficient moments of the least-squares line through the validation trials, from the
+/// canonical statistics of the fit so a permutation of the trials gives the same bits.
+fn trial_moments(statistics: &TrialStatistics, slope: f64) -> Result<AffineMoments, BridgeRefusal> {
+    let TrialStatistics { count, mean_x, sxx, residual_sum_squares, .. } = *statistics;
+    if count < 3.0 || sxx.is_nan() || sxx <= 0.0 {
         return Err(malformed_mapping(
             "trials",
             "the validation trials do not determine a line with a residual variance",
         ));
     }
-    let residual_variance = (syy - sxy * sxy / sxx).max(0.0) / (count - 2.0);
+    let residual_variance = residual_sum_squares / (count - 2.0);
     Ok(AffineMoments {
         slope,
         intercept_variance: residual_variance * (1.0 / count + mean_x * mean_x / sxx),
@@ -277,8 +258,8 @@ fn trial_propagation(
 ) -> Result<PointPropagation, BridgeRefusal> {
     uncertainty_declared_once(contract)?;
     let dependence = declared_dependence(contract)?;
-    let fit = fit_trial_level_linear(validation)?;
-    let moments = trial_moments(validation, fit.slope)?;
+    let (fit, statistics) = fit_with_statistics(validation)?;
+    let moments = trial_moments(&statistics, fit.slope)?;
     let (covariance, variance) =
         moments.propagate(source_value, source_variance, dependence.covariance())?;
     let mean = plug_in + covariance;

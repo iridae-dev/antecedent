@@ -12,9 +12,6 @@ use std::collections::{BTreeSet, HashMap};
 use antecedent_core::identity::CanonicalWriter;
 use antecedent_core::named_variants;
 
-/// Maximum links in one chain.
-pub const MAX_CHAIN_LINKS: usize = 4_096;
-
 /// What kind of object a link stands for.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum CompositionStage {
@@ -167,14 +164,11 @@ impl ProvenanceChain {
     /// Validate links in dependency order and compute each link's digest.
     ///
     /// # Errors
-    /// Blank or duplicate identities, oversize chains, and parents that are
+    /// Blank or duplicate identities, and parents that are
     /// unknown or not earlier in the list refuse. A link whose declared
     /// parent digests differ from the recomputed ones refuses with
     /// `DigestMismatch`.
     pub fn new(links: Vec<CompositionLink>) -> Result<Self, ProvenanceChainError> {
-        if links.len() > MAX_CHAIN_LINKS {
-            return Err(ProvenanceChainError::InvalidLink);
-        }
         let mut index = HashMap::with_capacity(links.len());
         let mut digests: Vec<String> = Vec::with_capacity(links.len());
         for (position, link) in links.iter().enumerate() {

@@ -18,9 +18,12 @@ use super::refusal::{
 };
 use crate::interface_contract::SupportDomain;
 
-/// Most draws one query may ask for.
+/// Default bound on draws per query that a decoder of untrusted input applies. A query itself
+/// carries no fixed bound: the size of an answer is bounded by the `max_values` budget passed to
+/// [`validate_output`], which a caller derives from its memory budget.
 pub const MAX_CALLBACK_DRAWS: u32 = 1_000_000;
-/// Most thresholds or quantile levels one query may name.
+/// Default bound on thresholds or quantile levels per query that a decoder of untrusted input
+/// applies.
 pub const MAX_CALLBACK_POINTS: usize = 65_536;
 
 /// One question put to a callback.
@@ -78,7 +81,7 @@ impl CallbackQuery {
         }
     }
 
-    /// Check the query is bounded and well formed.
+    /// Check the query is well formed.
     ///
     /// # Errors
     /// A `callback_output_invalid` refusal with a `callback_protocol.query_invalid`
@@ -87,18 +90,12 @@ impl CallbackQuery {
         match self {
             Self::Mean => Ok(()),
             Self::Sample { draws } => {
-                if *draws > MAX_CALLBACK_DRAWS {
-                    return Err(query_invalid("draws"));
-                }
                 if *draws == 0 {
                     return Err(query_invalid("draws"));
                 }
                 Ok(())
             }
             Self::Cdf { thresholds } => {
-                if thresholds.len() > MAX_CALLBACK_POINTS {
-                    return Err(query_invalid("thresholds"));
-                }
                 if thresholds.is_empty()
                     || thresholds.iter().any(|t| !t.is_finite())
                     || thresholds.windows(2).any(|pair| pair[0] >= pair[1])
@@ -108,9 +105,6 @@ impl CallbackQuery {
                 Ok(())
             }
             Self::Quantile { levels } => {
-                if levels.len() > MAX_CALLBACK_POINTS {
-                    return Err(query_invalid("levels"));
-                }
                 if levels.is_empty()
                     || levels.iter().any(|p| !(*p > 0.0 && *p < 1.0))
                     || levels.windows(2).any(|pair| pair[0] >= pair[1])
@@ -120,9 +114,6 @@ impl CallbackQuery {
                 Ok(())
             }
             Self::PosteriorUpdate { observation, draws } => {
-                if *draws > MAX_CALLBACK_DRAWS {
-                    return Err(query_invalid("draws"));
-                }
                 if !observation.is_finite() {
                     return Err(query_invalid("observation"));
                 }

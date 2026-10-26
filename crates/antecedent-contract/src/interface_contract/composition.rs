@@ -15,9 +15,9 @@
 //! share observations (a subset, a resample, a derived source) are refused
 //! and a pair whose overlap is not computable is unknown, never disjoint.
 //!
-//! The work is bounded (at most [`MAX_COMPOSITION_COMPONENTS`] components and
-//! [`MAX_COMPOSITION_CONNECTIONS`] connections, checked first) and linear in
-//! the declared sizes, so there is no search to budget or cancel.
+//! The work is linear in the declared sizes (up to ordering), so there is no search to budget
+//! or cancel and no count bound to enforce; [`MAX_COMPOSITION_COMPONENTS`] and
+//! [`MAX_COMPOSITION_CONNECTIONS`] are only the defaults a decoder of untrusted input applies.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -32,14 +32,15 @@ use super::declaration::{
 };
 use super::refusal::{
     InterfaceRefusal, calibration_inherited_not_held, calibration_inherited_unfed,
-    composition_too_large, cyclic_composition, dependence_unknown, duplicate_component,
+    cyclic_composition, dependence_unknown, duplicate_component,
     port_multiply_fed, shared_evidence, unknown_component, unknown_port,
 };
 use crate::evidence_ledger::{EvidenceLedger, Overlap, SourceId};
 
-/// Most components one composition may contain.
+/// Default bound on components in a composition record that a decoder of untrusted input applies.
 pub const MAX_COMPOSITION_COMPONENTS: usize = 1024;
-/// Most connections one composition may contain.
+/// Default bound on connections in a composition record that a decoder of untrusted input
+/// applies.
 pub const MAX_COMPOSITION_CONNECTIONS: usize = 8192;
 
 const TAG_COMPOSITION: &str = "antecedent.interface_contract.composition";
@@ -119,12 +120,14 @@ fn feed_forward_order<'a>(
     // Every component left over has a predecessor among the leftovers; walking
     // predecessors from the smallest name must repeat a component, which closes
     // a cycle.
-    let remaining: BTreeSet<&str> =
-        names.iter().copied().filter(|name| !order.contains(name)).collect();
+    let placed: BTreeSet<&str> = order.iter().copied().collect();
+    let remaining: BTreeSet<&str> = names.difference(&placed).copied().collect();
     let mut walk: Vec<&str> = Vec::new();
+    let mut walked: BTreeSet<&str> = BTreeSet::new();
     let mut current = remaining.iter().next().copied().unwrap_or_default();
-    while !walk.contains(&current) {
+    while !walked.contains(&current) {
         walk.push(current);
+        walked.insert(current);
         let previous = predecessors
             .get(current)
             .and_then(|set| set.iter().copied().find(|name| remaining.contains(name)));
@@ -157,10 +160,6 @@ fn feed_forward_order<'a>(
 /// # Errors
 /// Every defect of the group that failed, each a coded refusal with an
 /// `interface_contract.*` detail and the declaration that would license it.
-#[allow(
-    clippy::too_many_lines,
-    reason = "one ordered pipeline of checks; splitting would hide the order the documentation fixes"
-)]
 pub fn check_composition(
     components: &[InterfaceContract],
     connections: &[ComponentConnection],
@@ -188,21 +187,29 @@ pub fn check_composition_with_ledger(
     check_composition_inner(components, connections, Some(ledger))
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "one ordered pipeline of checks; splitting would hide the order the documentation fixes"
-)]
 fn check_composition_inner(
     components: &[InterfaceContract],
     connections: &[ComponentConnection],
     ledger: Option<&EvidenceLedger>,
 ) -> Result<ComposedInterfaces, Vec<InterfaceRefusal>> {
-    if components.len() > MAX_COMPOSITION_COMPONENTS {
-        return Err(vec![composition_too_large("components")]);
+    let by_name = validate_components(components)?;
+    resolve_connections(connections, &by_name)?;
+    let order = order_components(&by_name, connections)?;
+    let mut refusals = Vec::new();
+    let effective = resolve_inherited_calibration(&order, &by_name, connections, &mut refusals);
+    let accepted = decide_connections(connections, &by_name, &effective, &mut refusals);
+    // Inputs required to rest on disjoint evidence must not share a source.
+    check_disjoint(&accepted, &by_name, ledger, &mut refusals);
+    if !refusals.is_empty() {
+        return Err(refusals);
     }
-    if connections.len() > MAX_COMPOSITION_CONNECTIONS {
-        return Err(vec![composition_too_large("connections")]);
-    }
+    Ok(compose(&by_name, &order, accepted))
+}
+
+/// Phase 1: every component is well formed and named once.
+fn validate_components(
+    components: &[InterfaceContract],
+) -> Result<BTreeMap<&str, &InterfaceContract>, Vec<InterfaceRefusal>> {
     let mut refusals = Vec::new();
     let mut by_name: BTreeMap<&str, &InterfaceContract> = BTreeMap::new();
     for contract in components {
@@ -212,11 +219,16 @@ fn check_composition_inner(
             refusals.push(duplicate_component(&contract.component));
         }
     }
-    if !refusals.is_empty() {
-        return Err(refusals);
-    }
+    if refusals.is_empty() { Ok(by_name) } else { Err(refusals) }
+}
 
-    // Resolve every connection and count what feeds each consumed port.
+/// Phase 2: every connection names declared components and ports, and no consumed port is fed
+/// twice.
+fn resolve_connections(
+    connections: &[ComponentConnection],
+    by_name: &BTreeMap<&str, &InterfaceContract>,
+) -> Result<(), Vec<InterfaceRefusal>> {
+    let mut refusals = Vec::new();
     let mut fed: BTreeMap<(&str, &str), usize> = BTreeMap::new();
     for connection in connections {
         let producer = by_name.get(connection.producer.as_str());
@@ -249,11 +261,15 @@ fn check_composition_inner(
             refusals.push(port_multiply_fed(component, port));
         }
     }
-    if !refusals.is_empty() {
-        return Err(refusals);
-    }
+    if refusals.is_empty() { Ok(()) } else { Err(refusals) }
+}
 
-    // Cycles are refused before any pairwise decision or execution.
+/// Phase 3: a feed-forward order, or the cycle that prevents one. Cycles are refused before any
+/// pairwise decision or execution.
+fn order_components<'a>(
+    by_name: &BTreeMap<&'a str, &InterfaceContract>,
+    connections: &'a [ComponentConnection],
+) -> Result<Vec<&'a str>, Vec<InterfaceRefusal>> {
     let names: BTreeSet<&str> = by_name.keys().copied().collect();
     let mut successors: Edges<'_> = BTreeMap::new();
     let mut predecessors: Edges<'_> = BTreeMap::new();
@@ -267,16 +283,22 @@ fn check_composition_inner(
             .or_default()
             .insert(connection.producer.as_str());
     }
-    let order = match feed_forward_order(&names, &successors, &predecessors) {
-        Ok(order) => order,
-        Err(path) => return Err(vec![cyclic_composition(path)]),
-    };
+    feed_forward_order(&names, &successors, &predecessors)
+        .map_err(|path| vec![cyclic_composition(path)])
+}
 
-    // Resolve inherited calibration in feed-forward order.
+/// Phase 4: the calibration each produced port effectively holds, resolving `Inherited`
+/// against the upstream producer in feed-forward order.
+fn resolve_inherited_calibration<'a>(
+    order: &[&'a str],
+    by_name: &BTreeMap<&'a str, &'a InterfaceContract>,
+    connections: &'a [ComponentConnection],
+    refusals: &mut Vec<InterfaceRefusal>,
+) -> BTreeMap<(&'a str, &'a str), CalibrationStatus> {
     let feeding: BTreeMap<(&str, &str), &ComponentConnection> =
         connections.iter().map(|c| ((c.consumer.as_str(), c.consumed_port.as_str()), c)).collect();
     let mut effective: BTreeMap<(&str, &str), CalibrationStatus> = BTreeMap::new();
-    for component in &order {
+    for component in order {
         let Some(contract) = by_name.get(component) else { continue };
         for port in &contract.produces {
             let status = match &port.calibration {
@@ -307,8 +329,17 @@ fn check_composition_inner(
             effective.insert((*component, port.name.as_str()), status);
         }
     }
+    effective
+}
 
-    // The pairwise decision, in canonical (consumer, consumed port) order.
+/// Phase 5: the pairwise decision of every connection, in canonical (consumer, consumed port)
+/// order.
+fn decide_connections(
+    connections: &[ComponentConnection],
+    by_name: &BTreeMap<&str, &InterfaceContract>,
+    effective: &BTreeMap<(&str, &str), CalibrationStatus>,
+    refusals: &mut Vec<InterfaceRefusal>,
+) -> Vec<Connection> {
     let mut ordered: Vec<&ComponentConnection> = connections.iter().collect();
     ordered.sort_by(|a, b| {
         (a.consumer.as_str(), a.consumed_port.as_str())
@@ -334,16 +365,19 @@ fn check_composition_inner(
             Err(found) => refusals.extend(found),
         }
     }
+    accepted
+}
 
-    // Inputs required to rest on disjoint evidence must not share a source.
-    check_disjoint(&accepted, &by_name, ledger, &mut refusals);
-    if !refusals.is_empty() {
-        return Err(refusals);
-    }
-
+/// Phase 6: the composed result and the identity binding every component, connection and the
+/// order.
+fn compose(
+    by_name: &BTreeMap<&str, &InterfaceContract>,
+    order: &[&str],
+    accepted: Vec<Connection>,
+) -> ComposedInterfaces {
     let mut writer = CanonicalWriter::new(TAG_COMPOSITION);
     writer.word(INTERFACE_CONTRACT_VERSION).word(by_name.len() as u64);
-    for (name, contract) in &by_name {
+    for (name, contract) in by_name {
         writer.text(name).text(&contract.canonical_identity().to_hex());
     }
     writer.word(accepted.len() as u64);
@@ -351,14 +385,14 @@ fn check_composition_inner(
         writer.text(&connection.identity.to_hex());
     }
     writer.word(order.len() as u64);
-    for name in &order {
+    for name in order {
         writer.text(name);
     }
-    Ok(ComposedInterfaces {
+    ComposedInterfaces {
         order: order.iter().map(|name| (*name).to_owned()).collect(),
         connections: accepted,
         identity: SemanticDigest::from_bytes(writer.finish()),
-    })
+    }
 }
 
 const TAG_CYCLIC_COMPOSITION: &str = "antecedent.interface_contract.composition.cyclic_components";
@@ -397,9 +431,6 @@ pub fn check_composition_with_cyclic_components(
     cyclic: &[CyclicComponentDeclaration],
     ledger: Option<&EvidenceLedger>,
 ) -> Result<ComposedInterfaces, Vec<InterfaceRefusal>> {
-    if cyclic.len() > MAX_COMPOSITION_COMPONENTS {
-        return Err(vec![composition_too_large("cyclic components")]);
-    }
     let declared: BTreeSet<&str> =
         components.iter().map(|contract| contract.component.as_str()).collect();
     let mut refusals = Vec::new();

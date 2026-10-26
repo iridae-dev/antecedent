@@ -35,7 +35,7 @@ pub use ids::{
 };
 pub use ledger::{
     EvidenceLedger, MAX_COMBINATION_SOURCES, MAX_OBSERVATIONS_PER_SOURCE, MAX_OPERATIONS,
-    MAX_RESULTS, MAX_SOURCES, MAX_TEXT_BYTES, MAX_TOTAL_OBSERVATIONS, MAX_TRANSPORT_ITEMS,
+    MAX_SOURCES, MAX_TEXT_BYTES,
 };
 pub use operation::{
     AppliedOperation, ClaimClass, CombinationRequest, DetectedOverlap, LedgerOperation,

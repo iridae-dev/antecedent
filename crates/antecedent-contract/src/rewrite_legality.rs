@@ -27,11 +27,8 @@ use antecedent_core::{
     CanonicalWriter, NextAttempt, SemanticDigest, named_variants, text::is_blank,
 };
 
-use crate::evidence_ledger::MAX_TEXT_BYTES;
-
 const INVALID_CODE: &str = antecedent_core::reason_code!("invalid_argument");
 const BLANK_DETAIL: &str = "rewrite_legality.blank_identity";
-const TOO_LONG_DETAIL: &str = "rewrite_legality.identity_too_long";
 const TAG_SELECTED_ROWS: &str = "rewrite_legality.selected_rows";
 const TAG_FOLDS: &str = "rewrite_legality.fold_assignment";
 const TAG_POPULATION: &str = "rewrite_legality.population_id";
@@ -170,8 +167,6 @@ impl AxisId {
     fn try_new(text: &str, axis: PreservationAxis) -> Result<Self, RewriteRefusal> {
         if is_blank(text) {
             Err(blank(axis))
-        } else if text.len() > MAX_TEXT_BYTES {
-            Err(too_long(axis))
         } else {
             Ok(Self(Arc::from(text)))
         }
@@ -204,7 +199,7 @@ impl PreservedIdentities {
     ///
     /// # Errors
     ///
-    /// A blank identity, or one longer than [`MAX_TEXT_BYTES`] bytes. The axis
+    /// A blank identity. The axis
     /// is the first such one in [`PreservationAxis`] order, and the next
     /// attempt is [`NAME_PRESERVED_IDENTITY`].
     pub fn try_new(
@@ -279,7 +274,7 @@ impl FrameContents {
     ///
     /// # Errors
     ///
-    /// A blank id, an id longer than [`MAX_TEXT_BYTES`] bytes, a repeated row
+    /// A blank id, a repeated row
     /// id, or a fold list whose length is not the number of selected rows. The
     /// axis is the earliest one in [`PreservationAxis`] order.
     pub fn try_new(
@@ -1382,17 +1377,6 @@ fn altered(kind: &'static str, axis: PreservationAxis, because: &str) -> Rewrite
     }
 }
 
-fn too_long(axis: PreservationAxis) -> RewriteRefusal {
-    RewriteRefusal {
-        code: INVALID_CODE,
-        detail: TOO_LONG_DETAIL,
-        message: format!("the {} identity is longer than {MAX_TEXT_BYTES} bytes", axis.phrase()),
-        kind: None,
-        axis,
-        next: NAME_PRESERVED_IDENTITY,
-    }
-}
-
 fn blank(axis: PreservationAxis) -> RewriteRefusal {
     RewriteRefusal {
         code: INVALID_CODE,
@@ -1461,12 +1445,6 @@ fn content_refusal(axis: PreservationAxis, message: &str) -> RewriteRefusal {
 fn check_text(axis: PreservationAxis, what: &str, text: &str) -> Result<(), RewriteRefusal> {
     if is_blank(text) {
         return Err(content_refusal(axis, &format!("{what} is blank")));
-    }
-    if text.len() > MAX_TEXT_BYTES {
-        return Err(content_refusal(
-            axis,
-            &format!("{what} is longer than {MAX_TEXT_BYTES} bytes"),
-        ));
     }
     Ok(())
 }
@@ -2064,24 +2042,11 @@ mod tests {
     }
 
     #[test]
-    fn identity_text_is_capped() {
-        use crate::evidence_ledger::MAX_TEXT_BYTES;
-
-        let long = "x".repeat(MAX_TEXT_BYTES + 1);
-        let err = PreservedIdentities::try_new("a", "b", "c", &long, "e", "f")
-            .expect_err("over-long identity");
-        assert_eq!(err.detail(), "rewrite_legality.identity_too_long");
-        assert_eq!(err.axis(), PreservationAxis::History);
-        assert_eq!(err.next_attempt(), NAME_PRESERVED_IDENTITY);
-
-        let err = FrameContents::try_new(&[long.as_str()], &["f"], "p", "h")
-            .expect_err("over-long row id");
-        assert_eq!(err.axis(), PreservationAxis::SampleSelection);
-        let err =
-            FrameContents::try_new(&["r"], &["f"], &long, "h").expect_err("over-long population");
-        assert_eq!(err.axis(), PreservationAxis::Population);
-        let at_cap = "x".repeat(MAX_TEXT_BYTES);
-        assert!(FrameContents::try_new(&[at_cap.as_str()], &["f"], "p", "h").is_ok());
+    fn identity_text_is_not_length_capped() {
+        let long = "x".repeat(10_000);
+        assert!(PreservedIdentities::try_new("a", "b", "c", &long, "e", "f").is_ok());
+        assert!(FrameContents::try_new(&[long.as_str()], &["f"], "p", "h").is_ok());
+        assert!(FrameContents::try_new(&["r"], &["f"], &long, "h").is_ok());
     }
 
     fn executed(dependence: [&str; 3], uncertainty: [&str; 3], law: &str) -> FrameContents {

@@ -13,7 +13,8 @@
 //! one parameter, with disjoint rows and no other shared factor, are
 //! independent. Factor ids are compared after trimming, case-folding, dropping
 //! invisible format characters, and composing common Latin accents. An
-//! assessment names at most [`MAX_COMBINATION_SOURCES`] sources.
+//! assessment indexes factors rather than comparing sources pairwise, so its
+//! cost is linear (up to ordering) in the number of declared factors.
 //!
 //! An independence claim is [`DependenceContract::try_claim_independent`].
 //! When the factors do not support it, the error names the shared factor, or
@@ -24,16 +25,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::{collections::BTreeSet, error::Error, fmt, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    error::Error,
+    fmt,
+    sync::Arc,
+};
 
-use crate::evidence_ledger::{MAX_COMBINATION_SOURCES, MAX_TEXT_BYTES};
 use antecedent_core::{Refused, impl_refused, named_variants};
-
-/// Most factors one source names across every kind.
-///
-/// With [`MAX_COMBINATION_SOURCES`] this bounds an assessment at a fixed
-/// number of set intersections.
-pub const MAX_FACTORS_PER_SOURCE: usize = 1024;
 
 const KIND_COUNT: usize = SharedFactorKind::ALL.len();
 
@@ -45,13 +44,9 @@ const BLANK_SOURCE_DETAIL: &str = "dependence.blank_source_id";
 const BLANK_FACTOR_DETAIL: &str = "dependence.blank_factor_id";
 const SHARED_DETAIL: &str = "dependence.shared_factor";
 const UNKNOWN_DETAIL: &str = "dependence.overlap_unknown";
-const TOO_MANY_DETAIL: &str = "dependence.too_many_sources";
-const TOO_MANY_FACTORS_DETAIL: &str = "dependence.too_many_factors";
-const TOO_LONG_DETAIL: &str = "dependence.text_too_long";
 
 const BLANK_SOURCE_MESSAGE: &str = "a source id is blank";
 const BLANK_FACTOR_MESSAGE: &str = "a factor id is blank";
-const TOO_LONG_MESSAGE: &str = "an id is longer than the text limit";
 
 /// A kind of factor that two evidence sources can share.
 ///
@@ -111,9 +106,6 @@ pub struct SharedFactorId(Arc<str>);
 
 impl SharedFactorId {
     fn try_new(text: &str) -> Result<Self, DependenceError> {
-        if text.len() > MAX_TEXT_BYTES {
-            return Err(DependenceError::too_long());
-        }
         let folded = fold_identity(text);
         let trimmed = folded.trim();
         if antecedent_core::is_blank(trimmed) {
@@ -172,7 +164,6 @@ impl fmt::Display for SharedFactor {
 ///
 /// An empty set of a kind means the source declared that it uses none of that
 /// kind. It is distinct from an undeclared overlap on [`DependenceSource`].
-/// A source names at most [`MAX_FACTORS_PER_SOURCE`] factors in total.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SharedFactorSets {
     by_kind: [BTreeSet<SharedFactorId>; KIND_COUNT],
@@ -201,9 +192,7 @@ impl SharedFactorSets {
     ///
     /// # Errors
     ///
-    /// Returns an error when `id` is empty, only whitespace, or longer than
-    /// [`MAX_TEXT_BYTES`] bytes, or when the source would name more than
-    /// [`MAX_FACTORS_PER_SOURCE`] factors.
+    /// Returns an error when `id` is empty or only whitespace.
     #[must_use = "a refused factor id is not recorded"]
     pub fn try_insert(
         &mut self,
@@ -211,9 +200,6 @@ impl SharedFactorSets {
         id: impl AsRef<str>,
     ) -> Result<(), DependenceError> {
         let id = SharedFactorId::try_new(id.as_ref())?;
-        if !self.ids(kind).contains(&id) && self.len() >= MAX_FACTORS_PER_SOURCE {
-            return Err(DependenceError::too_many_factors());
-        }
         self.by_kind[kind.index()].insert(id);
         Ok(())
     }
@@ -238,18 +224,6 @@ impl SharedFactorSets {
 
     fn contains(&self, factor: &SharedFactor) -> bool {
         self.ids(factor.kind()).contains(factor.id())
-    }
-
-    fn accumulate_overlap(&self, other: &Self, into: &mut BTreeSet<SharedFactor>) {
-        for kind in SharedFactorKind::ALL {
-            // A parameter is the quantity independent studies inform.
-            if matches!(kind, SharedFactorKind::Parameter) {
-                continue;
-            }
-            for id in self.ids(kind).intersection(other.ids(kind)) {
-                into.insert(SharedFactor { kind, id: id.clone() });
-            }
-        }
     }
 }
 
@@ -404,19 +378,26 @@ impl DependenceContract {
     ///
     /// # Errors
     ///
-    /// Returns an error when `sources` names more than [`MAX_COMBINATION_SOURCES`].
-    /// The error has no next contract.
-    #[must_use = "an assessment past the source cap is refused"]
+    /// Never refuses today; the `Result` is kept so a future refusal is not a breaking change.
+    ///
+    /// Shared factors come from an index of factor to number of sources naming it, so the cost
+    /// does not grow with the square of the number of sources.
+    #[must_use = "an assessment that is not read does nothing"]
     pub fn assess(sources: &[DependenceSource]) -> Result<Self, DependenceError> {
-        if sources.len() > MAX_COMBINATION_SOURCES {
-            return Err(DependenceError::too_many(sources.len()));
-        }
-        let mut shared = BTreeSet::new();
-        for (index, left) in sources.iter().enumerate() {
-            for right in sources.iter().skip(index + 1) {
-                left.factors.accumulate_overlap(&right.factors, &mut shared);
+        let mut holders: BTreeMap<SharedFactor, usize> = BTreeMap::new();
+        for source in sources {
+            for kind in SharedFactorKind::ALL {
+                // A parameter is the quantity independent studies inform.
+                if matches!(kind, SharedFactorKind::Parameter) {
+                    continue;
+                }
+                for id in source.factors.ids(kind) {
+                    *holders.entry(SharedFactor { kind, id: id.clone() }).or_insert(0) += 1;
+                }
             }
         }
+        let shared: BTreeSet<SharedFactor> =
+            holders.into_iter().filter(|&(_, count)| count >= 2).map(|(factor, _)| factor).collect();
         let mut unknown = BTreeSet::new();
         for source in sources {
             if matches!(source.disclosure, FactorDisclosure::UnknownOverlap) {
@@ -455,9 +436,7 @@ impl DependenceContract {
     ///
     /// Returns an error naming each shared factor, or naming that overlap is
     /// unknown. [`DependenceError::next_contract`] is the dependent or unknown
-    /// contract, and that contract is never independent. Also returns an error
-    /// when more than [`MAX_COMBINATION_SOURCES`] sources are named; that error
-    /// has no next contract.
+    /// contract, and that contract is never independent.
     #[must_use = "an independence claim the factors do not support is a failed attempt"]
     pub fn try_claim_independent(sources: &[DependenceSource]) -> Result<Self, DependenceError> {
         let contract = Self::assess(sources)?;
@@ -600,31 +579,6 @@ impl DependenceError {
         let message = unknown_message(contract.unknown_sources());
         Self { code: UNKNOWN_CODE, detail: UNKNOWN_DETAIL, message, next: Some(contract) }
     }
-
-    fn too_many_factors() -> Self {
-        Self {
-            code: BLANK_CODE,
-            detail: TOO_MANY_FACTORS_DETAIL,
-            message: format!("a source names at most {MAX_FACTORS_PER_SOURCE} factors"),
-            next: None,
-        }
-    }
-
-    fn too_long() -> Self {
-        Self::blank(TOO_LONG_DETAIL, TOO_LONG_MESSAGE)
-    }
-
-    fn too_many(count: usize) -> Self {
-        Self {
-            code: BLANK_CODE,
-            detail: TOO_MANY_DETAIL,
-            message: format!(
-                "{count} sources in one assessment; at most {MAX_COMBINATION_SOURCES} are \
-                 assessed at once"
-            ),
-            next: None,
-        }
-    }
 }
 
 impl fmt::Display for DependenceError {
@@ -738,8 +692,6 @@ fn checked_text(
 ) -> Result<Arc<str>, DependenceError> {
     if antecedent_core::is_blank(text) {
         Err(DependenceError::blank(detail, message))
-    } else if text.len() > MAX_TEXT_BYTES {
-        Err(DependenceError::too_long())
     } else {
         Ok(Arc::from(text))
     }
@@ -889,10 +841,9 @@ fn witness<'a>(
 #[cfg(test)]
 mod tests {
     use super::{
-        CovarianceTerms, DependenceContract, DependenceSource, DependenceStatus,
-        MAX_FACTORS_PER_SOURCE, SharedFactorKind, SharedFactorSets,
+        CovarianceTerms, DependenceContract, DependenceSource, DependenceStatus, SharedFactorKind,
+        SharedFactorSets,
     };
-    use crate::evidence_ledger::{MAX_COMBINATION_SOURCES, MAX_TEXT_BYTES};
 
     const KINDS: [SharedFactorKind; 7] = [
         SharedFactorKind::Row,
@@ -1285,33 +1236,27 @@ mod tests {
     }
 
     #[test]
-    fn too_many_sources_are_refused() {
+    fn many_sources_and_long_ids_are_assessed_without_a_cap() {
         let sources: Vec<DependenceSource> =
-            (0..=MAX_COMBINATION_SOURCES).map(|index| declared(&index.to_string(), &[])).collect();
-        let refusal = DependenceContract::assess(&sources).expect_err("over the source cap");
-        assert_eq!(refusal.detail(), "dependence.too_many_sources");
-        assert_eq!(refusal.code(), "invalid_argument");
-        assert!(refusal.message().contains(&MAX_COMBINATION_SOURCES.to_string()));
-        assert!(refusal.next_contract().is_none());
-        let claim = DependenceContract::try_claim_independent(&sources).expect_err("over the cap");
-        assert_eq!(claim.detail(), "dependence.too_many_sources");
-        assert!(claim.into_contract().is_none());
-    }
-
-    #[test]
-    fn oversized_ids_and_factor_lists_are_refused() {
+            (0..2_000).map(|index| declared(&index.to_string(), &[])).collect();
+        let contract = DependenceContract::assess(&sources).expect("no source cap");
+        assert!(contract.is_independent());
+        let mut shared: Vec<DependenceSource> = (0..300)
+            .map(|index| {
+                let row = format!("r{index}");
+                declared(&format!("s{index}"), &[(SharedFactorKind::Row, row.as_str())])
+            })
+            .collect();
+        shared.push(declared("tail", &[(SharedFactorKind::Row, "r7")]));
+        assert!(DependenceContract::assess(&shared).expect("assessed").is_dependent());
         let mut sets = SharedFactorSets::empty();
-        let long = "x".repeat(MAX_TEXT_BYTES + 1);
-        let refused = sets.try_insert(SharedFactorKind::Row, &long).expect_err("long id");
-        assert_eq!(refused.detail(), "dependence.text_too_long");
-        assert!(DependenceSource::try_declared(&long, SharedFactorSets::empty()).is_err());
-        for index in 0..MAX_FACTORS_PER_SOURCE {
-            sets.try_insert(SharedFactorKind::Row, format!("row-{index}")).expect("within cap");
+        let long = "x".repeat(10_000);
+        sets.try_insert(SharedFactorKind::Row, &long).expect("long ids are carried");
+        for index in 0..5_000 {
+            sets.try_insert(SharedFactorKind::Row, format!("row-{index}")).expect("no factor cap");
         }
-        sets.try_insert(SharedFactorKind::Row, "row-0").expect("repeat is not a new factor");
-        let refused = sets.try_insert(SharedFactorKind::Model, "extra").expect_err("past cap");
-        assert_eq!(refused.detail(), "dependence.too_many_factors");
-        assert_eq!(sets.len(), MAX_FACTORS_PER_SOURCE);
+        assert_eq!(sets.len(), 5_001);
+        assert!(DependenceSource::try_declared(&long, SharedFactorSets::empty()).is_ok());
     }
 
     #[test]

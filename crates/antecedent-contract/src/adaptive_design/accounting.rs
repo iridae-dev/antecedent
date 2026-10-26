@@ -48,10 +48,10 @@ impl AdaptiveDesignContract {
     ///
     /// # Panics
     /// When `unit` does not fit in `u32`; a validated contract has at most
-    /// 2^20 units.
+    /// `u32::MAX` units.
     #[must_use]
     pub fn observation_id(&self, unit: usize) -> ObservationId {
-        let key = u32::try_from(unit).expect("a validated contract has at most 2^20 units");
+        let key = u32::try_from(unit).expect("a validated contract has at most u32::MAX units");
         ObservationId::from_key(&self.identity().to_hex(), &key.to_le_bytes())
     }
 

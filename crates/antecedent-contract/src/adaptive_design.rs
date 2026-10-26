@@ -24,9 +24,8 @@ pub use accounting::{INTERIM_REUSE_STAGE, InterimEvidence};
 pub use declaration::{
     ADAPTIVE_DESIGN_VERSION, AdaptiveContractError, AdaptiveDesignContract,
     AdaptiveDesignDeclaration, BoundarySidedness, DelayMechanism, InterimAnalysis,
-    MAX_CONTRACT_ARMS, MAX_CONTRACT_LOOKS, MAX_CONTRACT_UNITS, MAX_UNIT_MEASUREMENTS,
-    OutcomeAvailability, PolicyEpoch, RouteAuthorization, SpendingKind, StoppingRuleDeclaration,
-    StoppingSpec,
+    MAX_CONTRACT_UNITS, OutcomeAvailability, PolicyEpoch, RouteAuthorization, SpendingKind,
+    StoppingRuleDeclaration, StoppingSpec,
 };
 pub use matrix::{
     AssignmentFamily, CellStatus, InferenceParadigm, MonitoringStrategy, OutcomeStructure,
