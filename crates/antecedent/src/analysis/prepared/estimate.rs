@@ -144,6 +144,9 @@ impl PreparedStudy {
         shared: Option<Arc<crate::analysis::batch::SharedBatchDesign>>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        if !self.materialized {
+            return self.materialize(ctx)?.estimate_with_shared(data, shared, ctx);
+        }
         if crate::analysis::functional_validation::requested(&self.analysis) {
             return crate::analysis::functional_validation::validate_data(
                 &self.analysis,

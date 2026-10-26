@@ -23,6 +23,66 @@ use std::sync::Arc;
 use std::time::Instant;
 
 impl PreparedStudy {
+    /// Branch onto compatible tabular observations without fitting.
+    ///
+    /// # Errors
+    /// Returns schema, declaration, resource, or cancellation errors.
+    pub fn rebind_data(
+        &self,
+        data: TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        self.ensure_schema_compatible(&data)?;
+        self.rebind_input(DataInput::Tabular(data), ctx)
+    }
+
+    /// Branch onto compatible temporal observations without fitting.
+    ///
+    /// # Errors
+    /// Returns schema, regularity, declaration, resource, or cancellation errors.
+    pub fn rebind_series(
+        &self,
+        data: TimeSeriesData,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        self.ensure_series_compatible(&data)?;
+        self.rebind_input(series_input(&self.analysis.data, data), ctx)
+    }
+
+    /// Branch onto a compatible panel without fitting.
+    ///
+    /// # Errors
+    /// Returns modality, schema, regularity, resource, or cancellation errors.
+    pub fn rebind_panel(
+        &self,
+        data: PanelData,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        self.ensure_panel_compatible(&data)?;
+        self.rebind_input(DataInput::Panel(data), ctx)
+    }
+
+    /// Branch onto compatible environments without fitting.
+    ///
+    /// # Errors
+    /// Returns modality, schema, regularity, resource, or cancellation errors.
+    pub fn rebind_multi_env(
+        &self,
+        data: antecedent_data::MultiEnvironmentData,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        self.ensure_multi_env_compatible(&data)?;
+        self.rebind_input(DataInput::MultiEnv(data), ctx)
+    }
+
+    fn rebind_input(&self, data: DataInput, ctx: &ExecutionContext) -> Result<Self, CausalError> {
+        let mut analysis = self.analysis.clone();
+        analysis.data = data;
+        // Identification caches are immutable, key-checked scientific products. A new
+        // physical plan admits the new row count; preparation retains no old fitted law.
+        analysis.prepare_deferred(ctx)
+    }
+
     /// The retained snapshot, operation, caches, scores and invalidation log
     /// change together only after execution and final publication both succeed.
     fn commit_refresh(
@@ -634,6 +694,9 @@ impl PreparedStudy {
         data: &TimeSeriesData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        if !self.materialized {
+            return self.materialize(ctx)?.estimate_series(data, ctx);
+        }
         self.ensure_series_compatible(data)?;
         let input = series_input(&self.analysis.data, data.clone());
         if crate::analysis::functional_validation::requested(&self.analysis) {
@@ -725,6 +788,9 @@ impl PreparedStudy {
         data: &PanelData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        if !self.materialized {
+            return self.materialize(ctx)?.estimate_panel(data, ctx);
+        }
         self.execution.operation().require_retained_program(&self.plan)?;
         self.ensure_panel_compatible(data)?;
         let input = DataInput::Panel(data.clone());
@@ -784,6 +850,9 @@ impl PreparedStudy {
         data: &antecedent_data::MultiEnvironmentData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        if !self.materialized {
+            return self.materialize(ctx)?.estimate_multi_env(data, ctx);
+        }
         self.execution.operation().require_retained_program(&self.plan)?;
         self.ensure_multi_env_compatible(data)?;
         let input = DataInput::MultiEnv(data.clone());

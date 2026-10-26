@@ -75,19 +75,34 @@ impl Study {
     pub fn prepare(&self, ctx: &ExecutionContext) -> Result<PreparedStudy, CausalError> {
         antecedent_estimate::prepare::with_preparation_budget(
             crate::planner::PhysicalExecutionPlan::preparation_budget(ctx),
-            || self.prepare_metered(ctx),
+            || self.prepare_metered(ctx, true),
         )
     }
 
-    /// The body of [`Self::prepare`], run under the plan's preparation budget.
-    fn prepare_metered(&self, ctx: &ExecutionContext) -> Result<PreparedStudy, CausalError> {
+    /// Compile and identify without fitting statistical operations or scores.
+    ///
+    /// # Errors
+    /// Returns the same declaration, identification, and admission errors as preparation.
+    pub fn prepare_deferred(&self, ctx: &ExecutionContext) -> Result<PreparedStudy, CausalError> {
+        antecedent_estimate::prepare::with_preparation_budget(
+            PhysicalExecutionPlan::preparation_budget(ctx),
+            || self.prepare_metered(ctx, false),
+        )
+    }
+
+    /// The body of preparation, run under the plan's preparation budget.
+    fn prepare_metered(
+        &self,
+        ctx: &ExecutionContext,
+        materialized: bool,
+    ) -> Result<PreparedStudy, CausalError> {
         // A functional query under cheap or full validation is prepared as the same query at
         // validation none: its program is the one every refit re-executes, and the handle keeps
         // the requested suite so each estimate validates (see `functional_validation`).
         if crate::analysis::functional_validation::requested(self) {
             let mut base = self.clone();
             base.refute = crate::analysis::builder::RefuteSuite::None;
-            let mut handle = base.prepare_metered(ctx)?;
+            let mut handle = base.prepare_metered(ctx, materialized)?;
             handle.analysis.refute = self.refute;
             return Ok(handle);
         }
@@ -117,23 +132,33 @@ impl Study {
         // when the plan retained none. A sharp-RD prepare builds no cache and
         // reports nothing: its clicks do.
         let binding = plan.binding();
-        let execution = seal_execution(&SealContext {
-            source: self,
-            analysis: &analysis,
-            plan: &plan,
-            binding: &binding,
-            ctx,
-            route: self.route_input_classified(),
-            counterfactual: counterfactual.as_ref(),
-            nested_counterfactual: nested_counterfactual.as_ref(),
-        })?;
+        let execution = if materialized {
+            seal_execution(&SealContext {
+                source: self,
+                analysis: &analysis,
+                plan: &plan,
+                binding: &binding,
+                ctx,
+                route: self.route_input_classified(),
+                counterfactual: counterfactual.as_ref(),
+                nested_counterfactual: nested_counterfactual.as_ref(),
+            })?
+        } else {
+            super::PreparedExecution::EstimatorRoute(
+                crate::analysis::execute::CheckedRouteOperation::lowered(&analysis, &plan)?,
+            )
+        };
         // A plan that streams its design holds no rows to cross-fit scores over: it keeps no
         // score table, and a retarget refuses as unavailable.
-        let score_table =
-            if plan.streams_design() { None } else { analysis.prepare_score_table(ctx)? };
+        let score_table = if !materialized || plan.streams_design() {
+            None
+        } else {
+            analysis.prepare_score_table(ctx)?
+        };
         Ok(PreparedStudy {
             state: SampledPreparedState {
                 analysis,
+                materialized,
                 posterior_programs,
                 program_cache: std::sync::OnceLock::new(),
                 contract_cache: std::sync::OnceLock::new(),
@@ -813,5 +838,56 @@ fn install_cache(analysis: &mut Study, cache: &IdentificationCache) {
         IdentificationCache::TemporalClassPosterior(cache) => {
             analysis.temporal_class_posterior_identification_cache = Some(Arc::clone(cache));
         }
+    }
+}
+
+impl PreparedStudy {
+    /// Materialize the retained statistical plan at an explicit execution boundary.
+    /// Identification, declarations, and the physical plan remain those of preparation.
+    ///
+    /// # Errors
+    /// Statistical, resource, or cancellation failures while building retained operations.
+    pub fn materialize(&self, ctx: &ExecutionContext) -> Result<Self, CausalError> {
+        if self.materialized {
+            return Ok(self.clone());
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
+        }
+        antecedent_estimate::prepare::with_preparation_budget(
+            PhysicalExecutionPlan::preparation_budget(ctx),
+            || {
+                let mut ready = self.clone();
+                let mut source = self.analysis.clone();
+                if crate::analysis::functional_validation::requested(&source) {
+                    source.refute = crate::analysis::builder::RefuteSuite::None;
+                }
+                let counterfactual = source.compile_counterfactual()?;
+                let nested_counterfactual = source.compile_nested_counterfactual()?;
+                let binding = self.plan.binding();
+                ready.execution = seal_execution(&SealContext {
+                    source: &source,
+                    analysis: &source,
+                    plan: &self.plan,
+                    binding: &binding,
+                    ctx,
+                    route: source.route_input_classified(),
+                    counterfactual: counterfactual.as_ref(),
+                    nested_counterfactual: nested_counterfactual.as_ref(),
+                })?;
+                ready.score_table = if self.plan.streams_design() {
+                    None
+                } else {
+                    source.prepare_score_table(ctx)?
+                };
+                if ctx.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled {
+                        stage: crate::analysis::stage::STAGE_IDENTIFY,
+                    });
+                }
+                ready.materialized = true;
+                Ok(ready)
+            },
+        )
     }
 }

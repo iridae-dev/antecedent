@@ -171,6 +171,8 @@ struct RetainedPosteriorPrograms {
 pub struct SampledPreparedState {
     /// Frozen analysis config (data slot replaced only by checked refresh).
     analysis: Study,
+    /// Whether data-dependent statistical operations have been materialized.
+    materialized: bool,
     /// Data-independent contract layers, compiled once per handle state.
     program_cache: std::sync::OnceLock<Arc<crate::analysis::contract::ProgramPayloads>>,
     /// Immutable base contract; execution claims and reasoning are rebound per result.

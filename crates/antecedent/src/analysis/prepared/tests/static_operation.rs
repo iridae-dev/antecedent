@@ -777,3 +777,60 @@ fn unsealed_bayesian_basis_proof_replay_uses_the_construction_context() {
     let limited = ExecutionContext::for_tests(87).with_memory_limit(Some(1));
     assert!(matches!(check(&limited), Err(crate::CausalError::Resource { .. })));
 }
+
+#[test]
+fn deferred_preparation_keeps_statistical_operations_and_scores_unmaterialized() {
+    let data = data();
+    let graph =
+        Dag::from_named_edges(data.schema(), &[("z", "t"), ("z", "y"), ("t", "y")]).unwrap();
+    let query = AverageEffectQuery::binary_ate(
+        data.schema().id_of("t").unwrap(),
+        data.schema().id_of("y").unwrap(),
+    );
+    let study = Study::tabular(data.clone())
+        .graph(graph)
+        .query(query)
+        .estimator(AipwAte::new().with_bootstrap_replicates(0))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
+    let ctx = ExecutionContext::for_tests(95);
+    let compiled = study.prepare_deferred(&ctx).unwrap();
+    assert!(!compiled.materialized);
+    assert!(compiled.score_table.is_none());
+    assert!(matches!(compiled.execution, PreparedExecution::EstimatorRoute(_)));
+    let before = compiled.plan_view().unwrap().identity();
+    let branch = compiled.rebind_data(data.clone(), &ctx).unwrap();
+    assert!(!branch.materialized);
+    assert!(branch.score_table.is_none());
+    let ready = compiled.materialize(&ctx).unwrap();
+    assert!(ready.materialized);
+    assert!(ready.score_table.is_some());
+    assert!(matches!(ready.execution, PreparedExecution::CheckedAipw(_)));
+    assert!(!compiled.materialized);
+    assert!(compiled.score_table.is_none());
+    assert_eq!(before, ready.plan_view().unwrap().identity());
+    let expected = study.prepare(&ctx).unwrap();
+    let actual = ready.estimate_retained(&ctx).unwrap();
+    let expected_result = expected.estimate_retained(&ctx).unwrap();
+    assert_eq!(actual.effect().to_bits(), expected_result.effect().to_bits());
+    assert_eq!(ready.contract().unwrap().identities, expected.contract().unwrap().identities);
+}
+
+#[test]
+fn deferred_preparation_cancelled_materialization_does_not_publish_state() {
+    let data = data();
+    let graph = Dag::from_named_edges(data.schema(), &[("t", "y")]).unwrap();
+    let query = AverageEffectQuery::binary_ate(
+        data.schema().id_of("t").unwrap(),
+        data.schema().id_of("y").unwrap(),
+    );
+    let study =
+        Study::tabular(data).graph(graph).query(query).refute(RefuteSuite::None).build().unwrap();
+    let ctx = ExecutionContext::for_tests(96);
+    let compiled = study.prepare_deferred(&ctx).unwrap();
+    ctx.cancellation.cancel();
+    assert!(matches!(compiled.materialize(&ctx), Err(crate::CausalError::Cancelled { .. })));
+    assert!(!compiled.materialized);
+    assert!(compiled.score_table.is_none());
+}
