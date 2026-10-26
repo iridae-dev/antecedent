@@ -253,9 +253,8 @@ def consume_posterior(
     if expected_encoding_sha256 is not None:
         if not isinstance(expected_encoding_sha256, str):
             raise CausalTypeError("expected_encoding_sha256 must be a hexadecimal string")
-        if (
-            len(expected_encoding_sha256) != 64
-            or any(character not in "0123456789abcdefABCDEF" for character in expected_encoding_sha256)
+        if len(expected_encoding_sha256) != 64 or any(
+            character not in "0123456789abcdefABCDEF" for character in expected_encoding_sha256
         ):
             raise CausalValueError("expected_encoding_sha256 must contain 64 hexadecimal digits")
         if sha256(raw).hexdigest() != expected_encoding_sha256.lower():

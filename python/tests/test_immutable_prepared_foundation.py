@@ -6,6 +6,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent.execution import Execution
+from antecedent.outcomes import require_success
 from antecedent.prepared import estimate, prepare, rebind, reconfigure
 
 
@@ -69,3 +70,42 @@ def test_prepared_declarations_are_immutable_and_representations_do_not_execute(
     assert branch._engine._last_result is None
     with pytest.raises(FrozenInstanceError):
         study.execution = Execution(seed=2)
+
+
+def test_unwrapped_result_retains_the_same_immutable_completed_study():
+    outcome = estimate(_prepare())
+    value = require_success(outcome)
+    assert value.study is outcome.study
+    assert not hasattr(value, "refresh")
+    original = bytes(outcome.export())
+    branch = value.study.rebind(data=_data(4.0))
+    assert estimate(branch).answer.value == pytest.approx(4.0)
+    assert estimate(value.study).answer.value == pytest.approx(2.0)
+    assert bytes(outcome.export()) == original
+    assert value.study.inspect().data_snapshot_id == value.data_snapshot_id
+
+
+def test_population_retarget_uses_retained_scores_without_refitting(monkeypatch):
+    data = _data()
+    outcome = ant.analyze(
+        data,
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=ant.AverageEffect("t", "y"),
+        estimator="aipw",
+        inference=ant.Frequentist(bootstrap=0),
+        refute=False,
+    )
+    value = require_success(outcome)
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("population retarget refitted an estimator")
+
+    monkeypatch.setattr(type(value.study._engine), "estimate", unexpected)
+    targeted = value.study.retarget(np.exp(data["z"] / 3), depends_on=["z"])
+    require_success(targeted)
+    assert targeted.inspect().target_weights_id is not None
+    assert outcome.inspect().target_weights_id is None
+    assert targeted.inspect().data_snapshot_id == outcome.inspect().data_snapshot_id
+    loaded = ant.load(targeted.export())
+    assert loaded.study is None
+    assert loaded.inspect().target_weights_id == targeted.inspect().target_weights_id

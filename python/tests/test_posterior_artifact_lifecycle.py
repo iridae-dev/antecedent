@@ -66,9 +66,7 @@ def test_explicit_encoding_digest_binds_only_bytes():
     assert consumed.acceptance.identity_bound
     assert consumed.acceptance.status == "sealed"
     assert not consumed.acceptance.verified
-    loaded = require_success(
-        ac.load(data, expected={"expected_encoding_sha256": digest})
-    )
+    loaded = require_success(ac.load(data, expected={"expected_encoding_sha256": digest}))
     assert loaded.acceptance.identity_bound
     assert bytes(loaded.export()) == data
     assert loaded.export().expectation.identity == {"expected_encoding_sha256": digest}

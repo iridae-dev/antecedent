@@ -13,9 +13,9 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal
 if TYPE_CHECKING:
     from .._artifact_protocol import ExportedArtifact
     from .._workflow import LoadedResult
-    from ..estimation import PreparedAnalysis
     from ..msm_sensitivity import MsmResult
     from ..prediction import FittedEffectModel
+    from ..prepared import PreparedAnalysis
     from .response import CausalResponseView
 
 from .._api import describe_refusal
@@ -365,48 +365,13 @@ class ResultAPI:
     @describe_refusal
     def study(self) -> PreparedAnalysis:
         """Reusable study, when this execution retained one; never re-prepares lazily."""
-        prepared = getattr(self, "_prepared", None)
+        prepared = getattr(self, "_live_study", None)
         if prepared is None:
             raise CausalUnsupportedError(
                 "This result has no retained study.",
                 reason_code="not_executed",
             )
         return prepared
-
-    def refresh(
-        self,
-        data: Mapping[str, Any] | Any,
-        *,
-        seed: int | None = None,
-        threads: int | None = None,
-    ) -> Any:
-        """Re-estimate on new data via the retained prepared handle.
-
-        The five-line second click is ``result = analyze(...); result.refresh(new_data)``.
-        A second ``analyze()`` still re-prepares. Equivalent to ``result.study.refresh``.
-        """
-        refreshed = self.study.refresh(data, seed=seed, threads=threads)
-        binding = getattr(self, "program_binding", None)
-        if binding is not None:
-            from ..program_claims import ProgramBinding
-            from ._report import copy_model
-
-            refreshed = copy_model(
-                refreshed,
-                quantities=refreshed.response_coordinates(
-                    outcome_units=binding.outcome_units,
-                    population=binding.population_id,
-                    transform=binding.transform_id,
-                ),
-                program_binding=ProgramBinding.from_response(
-                    refreshed,
-                    outcome_units=binding.outcome_units,
-                    dose_units=binding.dose_units,
-                    population=binding.population_id,
-                    transform=binding.transform_id,
-                ),
-            )
-        return refreshed
 
     def refute(
         self,
@@ -422,7 +387,12 @@ class ResultAPI:
 
         if isinstance(suite, Refute):
             suite = str(suite)
-        study = self.study
+        study = getattr(self, "_prepared", None)
+        if study is None:
+            raise CausalUnsupportedError(
+                "This result has no retained statistical preparation.",
+                reason_code="not_executed",
+            )
         execution = getattr(self, "_execution", None)
         if execution is None:
             raise CausalUnsupportedError(
@@ -941,7 +911,7 @@ class ResultAPI:
             update={
                 "stage": "executed",
                 "family": type(self).__name__,
-                "operations": ("inspect", "export", "refute", "refresh"),
+                "operations": ("inspect", "export", "refute"),
             }
         )
 
@@ -968,7 +938,9 @@ class ResultAPI:
 
     @describe_refusal
     def export(
-        self, *, artifact_id: str | None = None,
+        self,
+        *,
+        artifact_id: str | None = None,
         quantity: Literal["result", "posterior", "query"] = "result",
     ) -> ExportedArtifact[LoadedResult]:
         """Export this exact execution, even after another estimate or refresh."""
@@ -985,7 +957,10 @@ class ResultAPI:
 
             raise CausalValueError("quantity must be result, posterior or query")
         if quantity == "posterior":
-            if getattr(self, "posterior", None) is None or getattr(self, "response", None) is not None:
+            if (
+                getattr(self, "posterior", None) is None
+                or getattr(self, "response", None) is not None
+            ):
                 raise CausalUnsupportedError(
                     "posterior export requires draws of a single scalar estimand",
                     reason_code="option_not_applicable",
@@ -998,10 +973,13 @@ class ResultAPI:
                     reason_code="option_not_applicable",
                 )
         if quantity in ("posterior", "query"):
-            return artifact_from_receipt(self, execution.export_artifact(
-                artifact_id="prepared-result" if artifact_id is None else artifact_id,
-                payload="query" if quantity == "query" else "result",
-            ))
+            return artifact_from_receipt(
+                self,
+                execution.export_artifact(
+                    artifact_id="prepared-result" if artifact_id is None else artifact_id,
+                    payload="query" if quantity == "query" else "result",
+                ),
+            )
         artifact_id = "analysis-result" if artifact_id is None else artifact_id
 
         quantities = getattr(self, "quantities", None)

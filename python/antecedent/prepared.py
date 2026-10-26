@@ -56,6 +56,12 @@ class PreparedAnalysis(Generic[T]):
     def reconfigure(self, **declarations: Any) -> PreparedAnalysis[T]:
         return reconfigure(self, **declarations)
 
+    def retarget(self, weights: Any, *, depends_on: Sequence[str]) -> Outcome[Any]:
+        return retarget(self, weights, depends_on=depends_on)
+
+    def plan_view(self) -> Any:
+        return plan_view(self)
+
     def inspect(self) -> Any:
         if self._refused is not None:
             return self._refused.inspect().model_copy(
@@ -225,7 +231,7 @@ def prepare(
     # This backend flag controls implicit discovery execution, which this
     # lifecycle prohibits. Explicit graphs and retained posterior declarations
     # have no live discovery review step to waive.
-    if discovery is None:
+    if discovery is None or not callable(getattr(discovery, "run", None)):
         options["accept_discovered"] = True
     # Resolved estimator defaults stay native. Explicit statistical budgets belong
     # to inference and are passed through the one existing native lowering path.
@@ -309,8 +315,22 @@ def estimate(study: Any) -> Outcome[Any]:
     if study._refused is not None:
         return _finish_outcome(study, study._refused)
     engine = _fork(study)
-    outcome = capture_outcome(study.execution._call, engine.estimate)
+    from .errors import CausalError
+
+    try:
+        outcome = capture_outcome(study.execution._call, engine.estimate)
+    except CausalError as error:
+        # Keep the same operational exception and traceback, while exposing
+        # the public immutable branch rather than its private engine header.
+        setattr(error, "study", study)  # noqa: B010 — public execution context on the original error
+        raise
     completed = getattr(outcome.value, "_prepared", None)
+    execution = getattr(outcome.value, "_execution", None)
+    if completed is not None and execution is not None:
+        # Keep the actual materialized native snapshot, including retained
+        # score tables and fits, instead of the declaration used to start it.
+        completed = copy.copy(completed)
+        completed._native = execution
     retained = study if completed is None else replace(study, _engine=completed)
     return capture_outcome(_finish_outcome, retained, outcome)
 
@@ -416,7 +436,52 @@ def _finish_outcome(study: PreparedAnalysis[T], outcome: Outcome[T]) -> Outcome[
                 ),
             )
         outcome = replace(outcome, value=result)
+    from .results._report import ResultModel
+
+    if isinstance(outcome.value, ResultModel):
+        result = outcome.value.model_copy()
+        result._live_study = study
+        outcome = replace(outcome, value=result)
     return replace(outcome, _study=study)
+
+
+def plan_view(study: PreparedAnalysis[Any]) -> Any:
+    """Read the native lowered program and quoted work without executing it."""
+    if not isinstance(study, PreparedAnalysis):
+        raise CausalTypeError("plan_view requires a PreparedAnalysis")
+    if study._refused is not None:
+        from .errors import CausalUnsupportedError
+
+        raise CausalUnsupportedError(
+            "a refused preparation has no lowered executable program",
+            reason_code="plan_view_unavailable",
+        )
+    return study._engine.plan_view()
+
+
+def retarget(
+    study: PreparedAnalysis[Any], weights: Any, *, depends_on: Sequence[str]
+) -> Outcome[Any]:
+    """Execute declared population weights against compatible retained native scores.
+
+    Native checks bind the weights to their data snapshot and validate that
+    their declared dependencies do not include treatment descendants.
+    This operation never fits a replacement score model.
+    """
+    if not isinstance(study, PreparedAnalysis):
+        raise CausalTypeError("retarget requires a PreparedAnalysis")
+    if study._refused is not None:
+        return _finish_outcome(study, study._refused)
+    engine = _fork(study)
+    outcome = capture_outcome(
+        study.execution._call,
+        engine.retarget,
+        weights,
+        depends_on=depends_on,
+        seed=study.execution.seed,
+        threads=study.execution.threads,
+    )
+    return _finish_outcome(replace(study, _engine=engine), outcome)
 
 
 @overload

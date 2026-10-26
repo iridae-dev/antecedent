@@ -10,6 +10,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    PrivateAttr,
     ValidationError,
     field_serializer,
     field_validator,
@@ -24,7 +25,7 @@ InspectionStage = Literal[
     "prepared", "executed", "declared", "consumed", "exported", "unavailable", "refused"
 ]
 
-_HANDLE_ATTRS = ("_raw", "_prepared", "_execution")
+_HANDLE_ATTRS = ("_raw", "_prepared", "_execution", "_live_study")
 
 
 class SlotModel(BaseModel):
@@ -236,6 +237,7 @@ class ResultModel(BaseModel):
     """Frozen analyze/response view. ``to_dict()`` is a JSON-safe walk."""
 
     model_config = ConfigDict(frozen=True, extra="allow", arbitrary_types_allowed=True)
+    _live_study: Any = PrivateAttr(default=None)
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         if args:
