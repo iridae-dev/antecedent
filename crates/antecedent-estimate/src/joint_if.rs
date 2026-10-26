@@ -180,7 +180,13 @@ pub(crate) fn joint_influence_covariance_with_means(
         }
     }
 
-    let mut values = vec![0.0; dim * dim];
+    // Construction storage is distinct from the Arc returned to its caller.
+    // A retained-output owner must fund that Arc separately.
+    let _construction = crate::util::admit_bound_array::<f64>(dim, dim)?;
+    let square = dim
+        .checked_mul(dim)
+        .ok_or_else(|| EstimationError::data_msg("joint covariance dimensions overflow"))?;
+    let mut values = vec![0.0; square];
     let nf = n as f64;
     match weights {
         None => {
@@ -297,6 +303,44 @@ pub fn max_t_critical(
 /// Draws between two polls of the stop signal in [`max_t_critical_polled`].
 const MAX_T_POLL_EVERY: u32 = 1024;
 
+/// The exact five buffers of one max-t simulation. The lease is private and
+/// drops after the buffers; it cannot outlive them or be transferred to a
+/// different workflow's scratch. Direct unbound component calls remain owned
+/// by their caller.
+struct MaxTScratch {
+    corr: Vec<f64>,
+    chol: Vec<f64>,
+    se: Vec<f64>,
+    z: Vec<f64>,
+    maxima: Vec<f64>,
+    _admission: Option<antecedent_core::execution::AdmissionLease>,
+}
+
+impl MaxTScratch {
+    fn new(dim: usize, replicates: usize) -> Result<Self, EstimationError> {
+        let overflow = || EstimationError::data_msg("max-t scratch dimensions overflow");
+        let square = dim.checked_mul(dim).ok_or_else(overflow)?;
+        // Correlation and its factor, one SE and one normal draw per coordinate,
+        // and the complete replicate maxima. These are distinct allocations.
+        let cells = square
+            .checked_add(square)
+            .and_then(|n| n.checked_add(dim))
+            .and_then(|n| n.checked_add(dim))
+            .and_then(|n| n.checked_add(replicates))
+            .ok_or_else(overflow)?;
+        let admission = crate::util::admit_bound_array::<f64>(cells, 1)?;
+        let buffer = |length| vec![0.0; length].into_boxed_slice().into_vec();
+        Ok(Self {
+            corr: buffer(square),
+            chol: buffer(square),
+            se: buffer(dim),
+            z: buffer(dim),
+            maxima: buffer(replicates),
+            _admission: admission,
+        })
+    }
+}
+
 /// [`max_t_critical`] on a caller-owned stream, polling `cancelled` every
 /// [`MAX_T_POLL_EVERY`] draws.
 ///
@@ -353,8 +397,8 @@ pub fn max_t_critical_with_df_polled(
             }
         }
     }
-    let mut corr = vec![0.0; k * k];
-    let mut se = vec![0.0; k];
+    let mut scratch = MaxTScratch::new(k, replicates as usize)?;
+    let MaxTScratch { corr, chol, se, z, maxima, .. } = &mut scratch;
     for (i, slot) in se.iter_mut().enumerate() {
         *slot = cov.se(i);
         if !(*slot > 0.0 && slot.is_finite()) {
@@ -366,14 +410,20 @@ pub fn max_t_critical_with_df_polled(
             corr[j * k + i] = cov.get(i, j) / (se[i] * se[j]);
         }
     }
-    let chol = cholesky_corr(&corr, k)?;
-    let mut maxima = Vec::with_capacity(replicates as usize);
-    let mut z = vec![0.0; k];
+    antecedent_kernels::cholesky::cholesky_psd_into(
+        corr,
+        k,
+        crate::util::CORRELATION_PSD_TOLERANCE,
+        chol,
+    )
+    .map_err(|_| EstimationError::data_msg("covariance must be positive semidefinite"))?;
     for draw in 0..replicates {
-        if draw % MAX_T_POLL_EVERY == 0 && cancelled() {
+        if draw % MAX_T_POLL_EVERY == 0
+            && (cancelled() || antecedent_core::numerical_admission::is_cancelled())
+        {
             return Ok(None);
         }
-        for zi in &mut z {
+        for zi in z.iter_mut() {
             *zi = antecedent_kernels::standard_normal(rng);
         }
         let student_scale = if let Some(df) = df {
@@ -393,10 +443,10 @@ pub fn max_t_critical_with_df_polled(
             }
             max_abs = max_abs.max((acc * student_scale).abs());
         }
-        maxima.push(max_abs);
+        maxima[draw as usize] = max_abs;
     }
     maxima.sort_by(f64::total_cmp);
-    Ok(Some(crate::util::monte_carlo_critical(&maxima, level)))
+    Ok(Some(crate::util::monte_carlo_critical(maxima, level)))
 }
 
 /// Equal-weight least-squares projection onto decreasing sequences using PAVA.
@@ -466,6 +516,7 @@ fn pava_increasing(y: &mut [f64]) {
 
 /// Lower factor of the (possibly rank-deficient) correlation matrix of the joint scores, by
 /// the kernel's PSD-tolerant Cholesky.
+#[cfg(test)]
 fn cholesky_corr(corr: &[f64], k: usize) -> Result<Vec<f64>, EstimationError> {
     let mut l = vec![0.0; k * k];
     antecedent_kernels::cholesky::cholesky_psd_into(
@@ -481,6 +532,66 @@ fn cholesky_corr(corr: &[f64], k: usize) -> Result<Vec<f64>, EstimationError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn max_t_owner_funds_exact_capacities_until_its_buffers_drop() {
+        use antecedent_core::{ExecutionContext, numerical_admission};
+        // Two 2x2 matrices, two vectors of length 2, and seven maxima.
+        let bytes = 152;
+        let ctx = ExecutionContext::for_tests(13).with_memory_limit(Some(bytes));
+        let owner = numerical_admission::with_context(&ctx, || MaxTScratch::new(2, 7).unwrap());
+        let buffers = [&owner.corr, &owner.chol, &owner.se, &owner.z, &owner.maxima];
+        assert!(buffers.iter().all(|buffer| buffer.capacity() == buffer.len()));
+        assert_eq!(buffers.iter().map(|buffer| buffer.capacity() as u64 * 8).sum::<u64>(), bytes);
+        assert_eq!(ctx.admission().available().bytes(), 0);
+        drop(owner);
+        assert_eq!(ctx.admission().available().bytes(), bytes);
+
+        let short = ExecutionContext::for_tests(13).with_memory_limit(Some(bytes - 1));
+        assert!(numerical_admission::with_context(&short, || MaxTScratch::new(2, 7)).is_err());
+        assert_eq!(short.admission().available().bytes(), bytes - 1);
+        assert!(MaxTScratch::new(2, 7).unwrap()._admission.is_none());
+    }
+
+    #[test]
+    fn max_t_cancellation_and_numerical_refusal_release_owned_scratch() {
+        use antecedent_core::{ExecutionContext, numerical_admission};
+        let bytes = 152;
+        let ctx = ExecutionContext::for_tests(13).with_memory_limit(Some(bytes));
+        let cov = JointCovariance { dim: 2, values: Arc::from([1.0, 0.5, 0.5, 1.0]) };
+        let mut rng = CausalRng::from_seed(13);
+        let result = numerical_admission::with_context(&ctx, || {
+            max_t_critical_polled(&cov, 0.95, 7, &mut rng, &|| {
+                assert_eq!(ctx.admission().available().bytes(), 0);
+                ctx.cancellation.cancel();
+                false
+            })
+        });
+        assert!(result.unwrap().is_none());
+        assert_eq!(ctx.admission().available().bytes(), bytes);
+
+        let fresh = ExecutionContext::for_tests(13).with_memory_limit(Some(bytes));
+        let indefinite = JointCovariance { dim: 2, values: Arc::from([1.0, 1.2, 1.2, 1.0]) };
+        assert!(
+            numerical_admission::with_context(&fresh, || {
+                max_t_critical(&indefinite, 0.95, 7, 13)
+            })
+            .is_err()
+        );
+        assert_eq!(fresh.admission().available().bytes(), bytes);
+    }
+
+    #[test]
+    fn max_t_admission_keeps_the_original_draw_stream_and_critical_value() {
+        use antecedent_core::{ExecutionContext, numerical_admission};
+        let cov = JointCovariance { dim: 2, values: Arc::from([1.0, 0.5, 0.5, 1.0]) };
+        let expected = max_t_critical(&cov, 0.95, 32, 13).unwrap();
+        let ctx = ExecutionContext::for_tests(13).with_memory_limit(Some(352));
+        let actual =
+            numerical_admission::with_context(&ctx, || max_t_critical(&cov, 0.95, 32, 13).unwrap());
+        assert_eq!(actual.to_bits(), expected.to_bits());
+        assert_eq!(ctx.admission().available().bytes(), 352);
+    }
 
     #[test]
     fn correlation_factor_zeroes_collinear_scores_and_refuses_an_indefinite_matrix() {
