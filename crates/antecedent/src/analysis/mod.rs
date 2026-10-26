@@ -89,6 +89,8 @@ pub mod file_table;
 mod finite_discrete;
 pub use finite_discrete::{FiniteDiscreteContrast, finite_discrete_contrast};
 pub(crate) mod four_way;
+pub(crate) mod functional_sensitivity;
+pub(crate) mod functional_validation;
 pub mod horizon_composition;
 pub mod interface_contract;
 mod inverse_outcome;
@@ -159,8 +161,6 @@ mod statistical;
 pub mod structure_route;
 mod structure_stability;
 pub mod target_validation;
-pub(crate) mod functional_sensitivity;
-pub(crate) mod functional_validation;
 pub mod temporal_counterfactual;
 mod temporal_extensions;
 #[doc(hidden)]
@@ -363,8 +363,8 @@ pub use smoothed_dose::{
     consume_smoothed_dose_artifact, consume_smoothed_dose_posterior_artifact,
 };
 pub use statistical::{
-    StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
-    StatisticalStudyInspection, StatisticalStudyResult,
+    DeferredStatisticalTransport, StatisticalBindingView, StatisticalContrast,
+    StatisticalPreparedState, StatisticalStudyInspection, StatisticalStudyResult,
 };
 pub use temporal_extensions::{
     IntervalEstimand, TemporalInitialState, TemporalWindow, consume_period_refresh_artifact,
@@ -380,8 +380,8 @@ pub use tier_diagnostics::{
 };
 pub use transport_common::EvidenceSearch;
 pub use transport_grid::{
-    TransportGridData, TransportGridFailure, TransportGridPoint, TransportGridQuery,
-    TransportGridResult, TransportGridState,
+    DeferredTransportGrid, TransportGridData, TransportGridFailure, TransportGridPoint,
+    TransportGridQuery, TransportGridResult, TransportGridState,
 };
 pub use transport_scenarios::{
     EmpiricalScenarioInput, PreparedTransportScenarios, consume_transport_scenarios_artifact,
@@ -392,7 +392,6 @@ mod graph_posterior_target;
 mod helpers;
 mod identification_cache;
 pub(crate) mod identification_seal;
-pub(crate) mod streamed_route;
 mod latency;
 pub(crate) mod lowering;
 mod posterior_binding;
@@ -400,6 +399,7 @@ mod prepared;
 pub(crate) mod proof_support;
 mod route_guards;
 mod stage;
+pub(crate) mod streamed_route;
 mod transport_common;
 pub(crate) use graph_posterior_target::GraphPosteriorEffectTarget;
 pub(crate) use prepared::IdentificationCache;

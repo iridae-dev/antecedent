@@ -211,6 +211,13 @@ impl PreparedAdmgConditionalTransport {
         Ok(Self { data, plans, ..self.clone() })
     }
 
+    /// Recompile physical evaluation under the current caller while retaining the checked proof.
+    /// # Errors
+    /// Cancellation, resource or conditional-plan compilation failure.
+    pub fn requote_execution(&self, ctx: &ExecutionContext) -> Result<Self, IoError> {
+        self.refresh(self.data.clone(), ctx)
+    }
+
     /// The frozen, catalog-bound functional.
     #[must_use]
     pub const fn functional(&self) -> &BoundConditionalTransportFunctional {

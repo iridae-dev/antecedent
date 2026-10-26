@@ -33,7 +33,7 @@ pub struct PreparedSmoothedDose {
     diagram: SelectionDiagram,
     query: SmoothedDoseTransportQuery,
     identification: TransportIdentification,
-    input: SmoothedDoseInput,
+    input: std::sync::Arc<SmoothedDoseInput>,
     options: SmoothedDoseOptions,
     variable_names: Vec<String>,
     seed: u64,
@@ -134,7 +134,7 @@ impl StudyBuilder {
             diagram,
             query,
             identification,
-            input,
+            input: std::sync::Arc::new(input),
             options,
             variable_names,
             seed: ctx.rng.master_seed(),
@@ -226,7 +226,32 @@ impl PreparedSmoothedDose {
             &self.options,
         )
         .map_err(estimate_err)?;
-        Ok(Self { input, ..self.clone() })
+        Ok(Self { input: std::sync::Arc::new(input), ..self.clone() })
+    }
+
+    /// Reconfigure the execution stream while sharing the immutable input and checked certificate.
+    /// # Errors
+    /// Cancellation or physical workspace refusal under the caller's policy.
+    pub fn with_seed(&self, seed: u64, ctx: &ExecutionContext) -> Result<Self, IoError> {
+        antecedent_estimate::refuse_cancelled(ctx, "transport execution reconfiguration")
+            .map_err(estimate_err)?;
+        let bytes = antecedent_estimate::smoothed_dose::smoothed_dose_workspace_bytes(
+            self.query.grid.len(),
+            &self.input,
+            &self.options,
+            ctx,
+            true,
+        );
+        let cap = antecedent_estimate::smoothed_dose::smoothed_dose_memory_cap(ctx);
+        if bytes.is_none_or(|bytes| bytes > cap) {
+            return Err(IoError::Refused {
+                code: antecedent_core::reason_code!("transport_budget_cancel"),
+                message: "smoothed dose workspace budget during execution reconfiguration".into(),
+            });
+        }
+        let mut branch = self.clone();
+        branch.seed = seed;
+        Ok(branch)
     }
 
     /// The estimator menu for this prepared graph, query and options.

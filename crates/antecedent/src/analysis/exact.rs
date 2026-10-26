@@ -61,6 +61,7 @@ pub struct ExactPreparedState {
     identities: ExactStudyIdentities,
     shape: String,
     legacy_law_identity: bool,
+    pub(super) provider_retention: Vec<std::sync::Arc<antecedent_core::execution::AdmissionLease>>,
 }
 
 /// Exact execution result, without a sampled-data estimate or fabricated uncertainty.
@@ -343,6 +344,7 @@ impl PreparedStudy<ExactPreparedState> {
                 },
                 shape,
                 legacy_law_identity,
+                provider_retention: Vec::new(),
             },
         })
     }
@@ -539,6 +541,9 @@ impl PreparedStudy<ExactPreparedState> {
     /// # Errors
     /// Support failure, cancellation, or resource exhaustion. No partial result escapes.
     pub fn estimate_retained(&self, ctx: &ExecutionContext) -> Result<ExactStudyResult, IoError> {
+        for retention in &self.state.provider_retention {
+            retention.observe_current();
+        }
         Ok(self.result_from_evaluation(self.state.plan.evaluate(ctx).map_err(err)?))
     }
     /// Wrap a distribution already produced by this handle's own plan, so a caller that
@@ -597,6 +602,49 @@ impl PreparedStudy<ExactPreparedState> {
             self.state.legacy_law_identity,
         )
     }
+    /// Branch onto a compatible supplied-law snapshot without executing the target.
+    ///
+    /// # Errors
+    /// Changed provider shape, invalid bindings, cancellation or resource refusal.
+    pub fn bind_snapshot(
+        &self,
+        data: ExactTransportData,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        self.replacement(data, ctx)
+    }
+
+    /// Recompile physical evaluation under the current caller, without identifying or evaluating.
+    /// Exact supplied laws do not use a random stream.
+    /// # Errors
+    /// Cancellation, admission or exact-plan compilation refusal.
+    pub fn requote_execution(&self, ctx: &ExecutionContext) -> Result<Self, IoError> {
+        self.rebind_assignment(self.state.request.clone(), ctx)
+    }
+
+    /// Rebind target assignment over the retained checked proof and immutable exact laws.
+    /// This compiles the evaluator but performs no target evaluation.
+    ///
+    /// # Errors
+    /// Invalid target, provider support, cancellation or numerical-resource refusal.
+    pub fn rebind_assignment(
+        &self,
+        request: Assignment,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        let mut branch = Self::build_with_identity(
+            self.state.diagram.clone(),
+            self.state.functional.clone(),
+            self.state.data.clone(),
+            request,
+            self.state.limits,
+            ctx,
+            self.state.legacy_law_identity,
+        )?;
+        branch.state.provider_retention = self.state.provider_retention.clone();
+        Ok(branch)
+    }
+
     /// Replace compatible snapshots, invalidating all earlier execution claims.
     /// Reuses the checked derivation. Failure preserves the current handle.
     ///

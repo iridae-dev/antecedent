@@ -15,7 +15,7 @@ pub struct LearnedTrialState {
     diagram: SelectionDiagram,
     query: TransportQuery,
     identification: TransportIdentification,
-    input: TrialAipwInput,
+    input: Arc<TrialAipwInput>,
     options: TrialAipwOptions,
     seed: u64,
 }
@@ -115,7 +115,7 @@ impl StudyBuilder {
                 diagram,
                 query,
                 identification,
-                input,
+                input: Arc::new(input),
                 options,
                 seed: ctx.rng.master_seed(),
             },
@@ -138,7 +138,7 @@ impl PreparedStudy<LearnedTrialState> {
                 antecedent_io::admg_to_wire(self.state.diagram.causal_graph())?,
                 self.state.diagram.selection_targets().iter().map(|v| v.raw()).collect::<Vec<_>>(),
                 antecedent_io::query_wire::transport_query_to_wire(&self.state.query)?,
-                &self.state.input,
+                self.state.input.as_ref(),
                 &self.state.options,
                 self.state.seed,
             ),
@@ -164,6 +164,33 @@ impl PreparedStudy<LearnedTrialState> {
             },
         )
     }
+    /// Reconfigure the physical policy and stream without fitting or copying rows.
+    /// # Errors
+    /// Workspace refusal or cancelled execution.
+    pub fn with_seed(&self, seed: u64, ctx: &ExecutionContext) -> Result<Self, IoError> {
+        antecedent_estimate::learned_trial::check_trial_aipw_resources(
+            &self.state.input,
+            &self.state.options,
+            ctx,
+        )
+        .map_err(super::transport_common::estimate_err)?;
+        let mut branch = self.clone();
+        branch.state.seed = seed;
+        Ok(branch)
+    }
+    /// Bind a compatible immutable snapshot without executing an estimate.
+    /// # Errors
+    /// Invalid rows, changed schema/sampling or cancellation.
+    pub fn bind_snapshot(
+        &self,
+        input: TrialAipwInput,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        let mut branch = self.clone();
+        branch.replace_snapshot(input, ctx)?;
+        Ok(branch)
+    }
+
     /// Metadata-only compiler reasoning.
     #[must_use]
     pub fn inspect(&self) -> antecedent_contract::ReasoningView {
@@ -192,7 +219,7 @@ impl PreparedStudy<LearnedTrialState> {
             graph: antecedent_io::admg_to_wire(self.state.diagram.causal_graph())?,
             selections: self.state.diagram.selection_targets().iter().map(|v| v.raw()).collect(),
             query: antecedent_io::query_wire::transport_query_to_wire(&self.state.query)?,
-            input: self.state.input.clone(),
+            input: (*self.state.input).clone(),
             options: self.state.options,
             seed: self.state.seed,
             result,
@@ -222,7 +249,7 @@ impl PreparedStudy<LearnedTrialState> {
             &self.state.options,
         )
         .map_err(err)?;
-        self.state.input = input;
+        self.state.input = Arc::new(input);
         Ok(())
     }
     /// Atomically replace the compatible snapshot and execute it.
@@ -248,7 +275,7 @@ impl PreparedStudy<LearnedTrialState> {
         )
         .map_err(err)?;
         let mut candidate = self.clone();
-        candidate.state.input = input;
+        candidate.state.input = Arc::new(input);
         let result = candidate.estimate(ctx)?;
         *self = candidate;
         Ok(result)

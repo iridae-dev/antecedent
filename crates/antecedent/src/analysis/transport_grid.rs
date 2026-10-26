@@ -36,6 +36,22 @@ pub enum TransportGridData {
     /// Supplied laws and sampled datasets, with an explicit inference contract.
     Statistical(StatisticalTransportInput, EmpiricalTableOptions),
 }
+// Public declarations move into this private owner once. Scalar point studies and
+// target branches share its immutable rows rather than constructing another DTO.
+#[derive(Clone, Debug)]
+enum RetainedGridData {
+    Exact(ExactTransportData),
+    Statistical(Arc<StatisticalTransportInput>, EmpiricalTableOptions),
+}
+fn retain_grid_input(input: TransportGridData) -> Result<Arc<RetainedGridData>, IoError> {
+    Ok(Arc::new(match input {
+        TransportGridData::Exact(data) => RetainedGridData::Exact(data),
+        TransportGridData::Statistical(mut raw, options) => {
+            super::statistical::canonicalize_input(&mut raw)?;
+            RetainedGridData::Statistical(Arc::new(raw), options)
+        }
+    }))
+}
 /// Immutable structural and numerical request for a finite response grid.
 #[derive(Clone, Debug)]
 pub struct TransportGridQuery {
@@ -47,6 +63,246 @@ pub struct TransportGridQuery {
     pub at: Vec<Assignment>,
     /// Global numerical limits, partitioned conservatively across points.
     pub limits: ExactEvaluationLimits,
+}
+
+/// Checked grid declarations whose statistical providers are fitted only on execution.
+#[derive(Clone, Debug)]
+pub struct DeferredTransportGrid {
+    query: TransportGridQuery,
+    input: Arc<RetainedGridData>,
+    seed: u64,
+    retention: Arc<antecedent_core::execution::AdmissionLease>,
+    cache: Arc<super::statistical::MaterializationCache<GridProvider>>,
+}
+#[derive(Clone, Debug)]
+struct GridProvider {
+    data: ExactTransportData,
+    samples: Vec<SampleSummary>,
+    options: Option<StatisticalOptionsWire>,
+    retention: Arc<antecedent_core::execution::AdmissionLease>,
+}
+impl DeferredTransportGrid {
+    /// Retain checked proof, finite requests and raw providers without fitting.
+    /// # Errors
+    /// Invalid declarations, proof, cancellation or resource admission failure.
+    pub fn compile(
+        query: TransportGridQuery,
+        input: TransportGridData,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        Self::compile_retained(query, retain_grid_input(input)?, None, ctx)
+    }
+    fn compile_retained(
+        query: TransportGridQuery,
+        input: Arc<RetainedGridData>,
+        retained: Option<Arc<antecedent_core::execution::AdmissionLease>>,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        super::statistical::check_deferred_cancel(ctx)?;
+        antecedent_identify::verify_classical_transport(
+            &query.diagram,
+            query.functional.derivation().query(),
+            query.functional.derivation(),
+            SidLimits { steps: query.limits.operations, depth: query.limits.depth },
+            ctx,
+        )
+        .map_err(err)?;
+        validate_grid(&query.functional, &query.at, query.limits, ctx)?;
+        let bytes = match input.as_ref() {
+            RetainedGridData::Exact(data) => {
+                if data
+                    .laws()
+                    .iter()
+                    .any(|law| law.origin() != antecedent_expr::LawOrigin::SuppliedExact)
+                {
+                    return Err(err("empirical laws require statistical transport"));
+                }
+                super::statistical::retained_law_bytes(data)?
+            }
+            RetainedGridData::Statistical(raw, options) => {
+                antecedent_estimate::statistical_transport::check_statistical_resources(
+                    raw,
+                    &query.functional,
+                    options,
+                    ctx,
+                )
+                .map_err(err)?;
+                // Validate recorded sample declarations without fitting their numerical laws.
+                for sample in &raw.samples {
+                    SampleSummary::from_sample(sample)?;
+                }
+                super::statistical::retained_input_bytes(raw)?
+            }
+        };
+        let retention = match retained {
+            Some(retention) => retention,
+            None => Arc::new(
+                ctx.acquire_admission(0, bytes)
+                    .map_err(super::statistical::deferred_admission_error)?,
+            ),
+        };
+        super::statistical::check_deferred_cancel(ctx)?;
+        Ok(Self { query, input, seed: ctx.rng.master_seed(), retention, cache: Arc::default() })
+    }
+    /// Frozen structural request; it does not assert an executed grid identity.
+    #[must_use]
+    pub fn query(&self) -> &TransportGridQuery {
+        &self.query
+    }
+    /// Structural reasoning before any provider is fitted or grid point executed.
+    #[must_use]
+    pub fn inspect(&self) -> antecedent_contract::ReasoningView {
+        grid_reasoning_view(None, false)
+    }
+    /// Declared inference settings, if the providers are statistical.
+    #[must_use]
+    pub fn statistical_options(&self) -> Option<EmpiricalTableOptions> {
+        match self.input.as_ref() {
+            RetainedGridData::Statistical(_, options) => Some(*options),
+            RetainedGridData::Exact(_) => None,
+        }
+    }
+    /// Branch to a new ordered grid, sharing immutable raw evidence and compatible fitted laws.
+    /// # Errors
+    /// Invalid grid declarations, cancellation or computation budget failure.
+    pub fn rebind(&self, at: Vec<Assignment>, ctx: &ExecutionContext) -> Result<Self, IoError> {
+        super::statistical::check_deferred_cancel(ctx)?;
+        validate_grid(&self.query.functional, &at, self.query.limits, ctx)?;
+        let mut branch = self.clone();
+        branch.query.at = at;
+        Ok(branch)
+    }
+    /// Bind compatible provider snapshots without fitting or executing a target.
+    /// # Errors
+    /// Changed provider shape/options, invalid proof bindings or admission failure.
+    pub fn bind_snapshot(
+        &self,
+        input: TransportGridData,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        let input = retain_grid_input(input)?;
+        let shape = |input: &RetainedGridData| -> Result<String, IoError> {
+            match input {
+                RetainedGridData::Statistical(raw, options) => {
+                    super::statistical::declared_statistical_shape(
+                        raw,
+                        &self.query.functional,
+                        *options,
+                    )
+                }
+                RetainedGridData::Exact(data) => digest(
+                    IdentityDomain::Program,
+                    &data.laws().iter().map(ExactLawWire::metadata).collect::<Vec<_>>(),
+                ),
+            }
+        };
+        if shape(&input)? != shape(&self.input)? {
+            return Err(err("transport.reprepare_required"));
+        }
+        match (self.input.as_ref(), input.as_ref()) {
+            (RetainedGridData::Exact(_), RetainedGridData::Exact(_)) => {}
+            (RetainedGridData::Statistical(_, old), RetainedGridData::Statistical(_, new))
+                if old == new => {}
+            _ => return Err(err("transport.reprepare_required: inference settings changed")),
+        }
+        let mut query = self.query.clone();
+        let catalog =
+            rebind_snapshots(query.functional.catalog(), |regime| match input.as_ref() {
+                RetainedGridData::Exact(data) => data
+                    .laws()
+                    .iter()
+                    .filter(|law| law.regime() == regime)
+                    .map(antecedent_expr::ExactDiscreteLaw::snapshot_identity)
+                    .collect(),
+                RetainedGridData::Statistical(raw, _) => raw
+                    .samples
+                    .iter()
+                    .filter(|sample| sample.regime == regime)
+                    .map(|sample| sample.snapshot_identity.as_ref())
+                    .chain(
+                        raw.supplied
+                            .iter()
+                            .filter(|law| law.regime() == regime)
+                            .map(antecedent_expr::ExactDiscreteLaw::snapshot_identity),
+                    )
+                    .collect(),
+            })?;
+        query.functional = query
+            .functional
+            .derivation()
+            .bind_catalog_with_context(
+                &catalog,
+                SidLimits { steps: query.limits.operations, depth: query.limits.depth },
+                ctx,
+            )
+            .map_err(err)?;
+        let mut frozen = ctx.clone();
+        frozen.rng = antecedent_core::RngFactory::from_seed(self.seed);
+        Self::compile_retained(query, input, None, &frozen)
+    }
+    /// Reconfigure an execution stream and physical policy without fitting or copying rows.
+    /// # Errors
+    /// Invalid declarations, cancelled execution or refused resource bounds.
+    pub fn with_seed(&self, seed: u64, ctx: &ExecutionContext) -> Result<Self, IoError> {
+        let mut frozen = ctx.clone();
+        frozen.rng = antecedent_core::RngFactory::from_seed(seed);
+        let mut branch = Self::compile_retained(
+            self.query.clone(),
+            Arc::clone(&self.input),
+            Some(Arc::clone(&self.retention)),
+            &frozen,
+        )?;
+        if seed == self.seed {
+            branch.cache = Arc::clone(&self.cache);
+        }
+        Ok(branch)
+    }
+    /// Materialize finite provider laws under the actual caller's policy and admission pool.
+    /// # Errors
+    /// Provider fit, cancellation, admission or finite numerical plan failure.
+    pub fn materialize(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedStudy<TransportGridState>, IoError> {
+        super::statistical::check_deferred_cancel(ctx)?;
+        self.retention.observe_current();
+        let mut frozen = ctx.clone();
+        frozen.rng = antecedent_core::RngFactory::from_seed(self.seed);
+        let provider = self.cache.materialize(ctx, || {
+            let bytes = match self.input.as_ref() {
+                RetainedGridData::Exact(data) => super::statistical::retained_law_bytes(data)?,
+                RetainedGridData::Statistical(raw, _) => {
+                    super::statistical::declared_provider_bytes(raw, &self.query.functional)?
+                }
+            };
+            let retention = Arc::new(
+                ctx.acquire_admission(0, bytes)
+                    .map_err(super::statistical::deferred_admission_error)?,
+            );
+            let (data, samples, options) = grid_provider_data(&self.input, &self.query, &frozen)?;
+            if super::statistical::retained_law_bytes(&data)? > bytes {
+                return Err(err("transport retained provider memory budget quote exceeded"));
+            }
+            super::statistical::check_deferred_cancel(ctx)?;
+            Ok(super::statistical::MaterializedProvider {
+                value: GridProvider { data, samples, options, retention: Arc::clone(&retention) },
+                bytes,
+                retention,
+                kernel: ctx.kernel_policy,
+            })
+        })?;
+        let mut prepared = build_grid(
+            self.query.clone(),
+            Arc::clone(&self.input),
+            provider.data,
+            provider.samples,
+            provider.options,
+            &frozen,
+        )?;
+        prepared.state.retention = vec![Arc::clone(&self.retention), provider.retention];
+        super::statistical::check_deferred_cancel(ctx)?;
+        Ok(prepared)
+    }
 }
 
 fn local_failure(
@@ -213,11 +469,12 @@ fn point_evidence(point: &TransportGridPoint) -> Result<String, IoError> {
 #[derive(Clone, Debug)]
 pub struct TransportGridState {
     query: TransportGridQuery,
-    input: Option<TransportGridData>,
+    input: Option<Arc<RetainedGridData>>,
     data: ExactTransportData,
     seed: u64,
     plans: Vec<Result<antecedent_expr::ExactEvaluationPlan, TransportGridFailure>>,
     template: GridWire,
+    retention: Vec<Arc<antecedent_core::execution::AdmissionLease>>,
 }
 /// A checked curve whose requested coordinates and local failures are durable.
 #[derive(Clone, Debug)]
@@ -225,6 +482,7 @@ pub struct TransportGridResult {
     points: Vec<TransportGridPoint>,
     wire: GridWire,
     identity: String,
+    retention: Vec<Arc<antecedent_core::execution::AdmissionLease>>,
 }
 impl TransportGridResult {
     /// Points in the original requested order.
@@ -301,6 +559,9 @@ impl TransportGridResult {
     /// # Errors
     /// Serialization or container validation failure.
     pub fn export(&self) -> Result<Vec<u8>, IoError> {
+        for retention in &self.retention {
+            retention.observe_current();
+        }
         let mut wire = self.wire.clone();
         if wire.version == 2 {
             wire.points = self
@@ -501,18 +762,18 @@ fn compile_grid(
 
 /// Resolves the grid's provider laws, sample summaries, and frozen inference options from the supplied evidence.
 fn grid_provider_data(
-    input: &TransportGridData,
+    input: &RetainedGridData,
     query: &TransportGridQuery,
     ctx: &ExecutionContext,
 ) -> Result<(ExactTransportData, Vec<SampleSummary>, Option<StatisticalOptionsWire>), IoError> {
     Ok(match input {
-        TransportGridData::Exact(data) => {
+        RetainedGridData::Exact(data) => {
             if data.laws().iter().any(|l| l.origin() != antecedent_expr::LawOrigin::SuppliedExact) {
                 return Err(err("empirical laws require statistical transport"));
             }
             (data.clone(), vec![], None)
         }
-        TransportGridData::Statistical(input, options) => {
+        RetainedGridData::Statistical(input, options) => {
             antecedent_estimate::statistical_transport::check_statistical_resources(
                 input,
                 &query.functional,
@@ -565,77 +826,204 @@ impl StudyBuilder {
         )
         .map_err(err)?;
         validate_grid(&query.functional, &query.at, query.limits, ctx)?;
-        let mut input = input;
-        if let TransportGridData::Statistical(input, _) = &mut input {
-            super::statistical::canonicalize_input(input)?;
-        }
+        let input = retain_grid_input(input)?;
         let (data, samples, options) = grid_provider_data(&input, &query, ctx)?;
-        let data = data.with_shared_factor_cache(1024);
-        let footprint = data
-            .laws()
-            .iter()
-            .try_fold(0usize, |bytes, law| {
-                bytes.checked_add(law.probabilities().len().checked_mul(128)?)
-            })
-            .and_then(|bytes| bytes.checked_mul(query.at.len().checked_add(2)?))
-            .ok_or_else(|| err("transport grid memory overflow"))?;
-        if ctx
-            .memory_limit_bytes()
-            .is_some_and(|limit| u64::try_from(footprint).map_or(true, |n| n > limit))
-        {
-            return Err(err("transport grid memory budget"));
-        }
-        let plans = compile_grid(&query, &data, ctx)?;
-        let graph = query.diagram.causal_graph();
-        let edges = antecedent_io::admg_to_wire(graph)?;
-        let template = GridWire {
-            version: 2,
-            required_features: vec![
-                "checked_transport_proof_v1".into(),
-                "retained_transport_grid_v2".into(),
-            ],
-            nodes: graph
-                .nodes()
-                .iter()
-                .map(|n| match n {
-                    NodeRef::Static(v) => Ok(v.raw()),
-                    _ => Err(err("static transport only")),
-                })
-                .collect::<Result<_, _>>()?,
-            directed: edges.directed,
-            bidirected: edges.bidirected,
-            selections: query.diagram.selection_targets().iter().map(|v| v.raw()).collect(),
-            proof: TransportProofWire::from_checked(query.functional.derivation())?,
-            catalog: EvidenceCatalogWire::from_catalog(query.functional.catalog()),
-            laws: data.laws().iter().map(ExactLawWire::from_law).collect(),
-            at: query.at.iter().map(assignments).collect(),
-            operations: query.limits.operations,
-            depth: query.limits.depth,
-            seed: ctx.rng.master_seed(),
-            statistical: matches!(input, TransportGridData::Statistical(..)),
-            samples,
-            options,
-            points: vec![],
-            point_evidence: vec![],
-            reasoning: grid_reasoning(
-                &[],
-                matches!(input, TransportGridData::Statistical(..)),
-                false,
-            ),
-        };
-        Ok(PreparedStudy {
-            state: TransportGridState {
-                query,
-                input: Some(input),
-                data,
-                seed: ctx.rng.master_seed(),
-                template,
-                plans,
-            },
-        })
+        build_grid(query, input, data, samples, options, ctx)
     }
 }
+
+fn build_grid(
+    query: TransportGridQuery,
+    input: Arc<RetainedGridData>,
+    data: ExactTransportData,
+    samples: Vec<SampleSummary>,
+    options: Option<StatisticalOptionsWire>,
+    ctx: &ExecutionContext,
+) -> Result<PreparedStudy<TransportGridState>, IoError> {
+    let data = if ctx.cache_policy.enabled
+        && ctx.cache_policy.max_bytes.is_none()
+        && ctx.memory_limit_bytes().is_none()
+    {
+        data.with_shared_factor_cache(1024)
+    } else {
+        data
+    };
+    let footprint = data
+        .laws()
+        .iter()
+        .try_fold(0usize, |bytes, law| {
+            bytes.checked_add(law.probabilities().len().checked_mul(128)?)
+        })
+        .and_then(|bytes| bytes.checked_mul(query.at.len().checked_add(2)?))
+        .ok_or_else(|| err("transport grid memory overflow"))?;
+    if ctx
+        .memory_limit_bytes()
+        .is_some_and(|limit| u64::try_from(footprint).map_or(true, |n| n > limit))
+    {
+        return Err(err("transport grid memory budget"));
+    }
+    let plans = compile_grid(&query, &data, ctx)?;
+    let graph = query.diagram.causal_graph();
+    let edges = antecedent_io::admg_to_wire(graph)?;
+    let template = GridWire {
+        version: 2,
+        required_features: vec![
+            "checked_transport_proof_v1".into(),
+            "retained_transport_grid_v2".into(),
+        ],
+        nodes: graph
+            .nodes()
+            .iter()
+            .map(|n| match n {
+                NodeRef::Static(v) => Ok(v.raw()),
+                _ => Err(err("static transport only")),
+            })
+            .collect::<Result<_, _>>()?,
+        directed: edges.directed,
+        bidirected: edges.bidirected,
+        selections: query.diagram.selection_targets().iter().map(|v| v.raw()).collect(),
+        proof: TransportProofWire::from_checked(query.functional.derivation())?,
+        catalog: EvidenceCatalogWire::from_catalog(query.functional.catalog()),
+        laws: data.laws().iter().map(ExactLawWire::from_law).collect(),
+        at: query.at.iter().map(assignments).collect(),
+        operations: query.limits.operations,
+        depth: query.limits.depth,
+        seed: ctx.rng.master_seed(),
+        statistical: matches!(input.as_ref(), RetainedGridData::Statistical(..)),
+        samples,
+        options,
+        points: vec![],
+        point_evidence: vec![],
+        reasoning: grid_reasoning(
+            &[],
+            matches!(input.as_ref(), RetainedGridData::Statistical(..)),
+            false,
+        ),
+    };
+    Ok(PreparedStudy {
+        state: TransportGridState {
+            query,
+            input: Some(input),
+            data,
+            seed: ctx.rng.master_seed(),
+            template,
+            plans,
+            retention: Vec::new(),
+        },
+    })
+}
 impl PreparedStudy<TransportGridState> {
+    /// Reconfigure an executable retained grid using its original immutable provider declarations.
+    /// # Errors
+    /// A loaded statistical grid has no raw declarations, or resource/cancellation refusal.
+    pub fn defer_execution(
+        &self,
+        seed: u64,
+        ctx: &ExecutionContext,
+    ) -> Result<DeferredTransportGrid, IoError> {
+        let input =
+            self.state.input.as_ref().ok_or_else(|| {
+                err("transport.samples_not_embedded; bind_snapshot before execution")
+            })?;
+        let mut frozen = ctx.clone();
+        frozen.rng = antecedent_core::RngFactory::from_seed(seed);
+        DeferredTransportGrid::compile_retained(
+            self.state.query.clone(),
+            Arc::clone(input),
+            self.state.retention.first().cloned(),
+            &frozen,
+        )
+    }
+    /// Bind a compatible raw snapshot without provider fitting or target execution.
+    /// # Errors
+    /// Changed provider schema/options or failed proof/admission checks.
+    pub fn deferred_snapshot(
+        &self,
+        input: TransportGridData,
+        ctx: &ExecutionContext,
+    ) -> Result<DeferredTransportGrid, IoError> {
+        let mut query = self.state.query.clone();
+        let catalog = rebind_snapshots(query.functional.catalog(), |regime| match &input {
+            TransportGridData::Exact(data) => data
+                .laws()
+                .iter()
+                .filter(|law| law.regime() == regime)
+                .map(antecedent_expr::ExactDiscreteLaw::snapshot_identity)
+                .collect(),
+            TransportGridData::Statistical(raw, _) => raw
+                .samples
+                .iter()
+                .filter(|sample| sample.regime == regime)
+                .map(|sample| sample.snapshot_identity.as_ref())
+                .chain(
+                    raw.supplied
+                        .iter()
+                        .filter(|law| law.regime() == regime)
+                        .map(antecedent_expr::ExactDiscreteLaw::snapshot_identity),
+                )
+                .collect(),
+        })?;
+        query.functional = query
+            .functional
+            .derivation()
+            .bind_catalog_with_context(
+                &catalog,
+                SidLimits { steps: query.limits.operations, depth: query.limits.depth },
+                ctx,
+            )
+            .map_err(err)?;
+        let shape = match &input {
+            TransportGridData::Statistical(raw, options) => {
+                if Some(StatisticalOptionsWire::from_options(options))
+                    != self.state.template.options
+                {
+                    return Err(err("transport.reprepare_required: inference settings changed"));
+                }
+                super::statistical::declared_statistical_shape(raw, &query.functional, *options)?
+            }
+            TransportGridData::Exact(data) if !self.state.template.statistical => {
+                super::statistical::statistical_shape_wires(
+                    data.laws().iter().map(ExactLawWire::metadata).collect(),
+                )?
+            }
+            _ => return Err(err("transport.reprepare_required: provider modality changed")),
+        };
+        if shape != super::statistical::statistical_shape_wires(self.state.template.laws.clone())? {
+            return Err(err("transport.reprepare_required"));
+        }
+        let mut frozen = ctx.clone();
+        frozen.rng = antecedent_core::RngFactory::from_seed(self.state.seed);
+        DeferredTransportGrid::compile(query, input, &frozen)
+    }
+    /// Branch to a new finite request using retained numerical providers without fitting.
+    /// # Errors
+    /// Missing raw statistical samples after loading or invalid request/plan.
+    pub fn rebind_assignments(
+        &self,
+        at: Vec<Assignment>,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        let input = self
+            .state
+            .input
+            .as_ref()
+            .ok_or_else(|| err("transport.samples_not_embedded; bind_snapshot required"))?;
+        let mut query = self.state.query.clone();
+        query.at = at;
+        validate_grid(&query.functional, &query.at, query.limits, ctx)?;
+        let mut frozen = ctx.clone();
+        frozen.rng = antecedent_core::RngFactory::from_seed(self.state.seed);
+        let mut branch = build_grid(
+            query,
+            Arc::clone(input),
+            self.state.data.clone(),
+            self.state.template.samples.clone(),
+            self.state.template.options.clone(),
+            &frozen,
+        )?;
+        branch.state.retention.extend(self.state.retention.clone());
+        Ok(branch)
+    }
     /// Metadata-only inspection of the immutable request, evidence and supported operations.
     #[must_use]
     pub fn query(&self) -> &TransportGridQuery {
@@ -665,7 +1053,7 @@ impl PreparedStudy<TransportGridState> {
         let input = self
             .state
             .input
-            .as_ref()
+            .as_deref()
             .ok_or_else(|| err("transport.samples_not_embedded; refresh required"))?;
         let mut ctx = ctx.clone();
         ctx.rng = antecedent_core::RngFactory::from_seed(self.state.seed);
@@ -674,11 +1062,14 @@ impl PreparedStudy<TransportGridState> {
             operations: query.limits.operations / query.at.len() / 8,
             depth: query.limits.depth,
         };
-        ctx.set_memory_limit(ctx.memory_limit_bytes().map(|n| n / query.at.len() as u64));
+        // Keep the caller's shared pool: point plans already carry their own operation limits.
+        for retention in &self.state.retention {
+            retention.observe_current();
+        }
         let EligibleGridPoints { failures, eligible, evaluated } =
             self.evaluate_eligible_points(&ctx)?;
         let mut evaluated_points = Some(evaluated);
-        let mut statistical = if let TransportGridData::Statistical(input, options) = input {
+        let mut statistical = if let RetainedGridData::Statistical(input, options) = input {
             self.joint_statistical_estimates(
                 input,
                 options,
@@ -707,8 +1098,8 @@ impl PreparedStudy<TransportGridState> {
                 continue;
             }
             match input {
-                TransportGridData::Exact(_) => {
-                    let study = PreparedStudy::<ExactPreparedState>::from_checked_plan(
+                RetainedGridData::Exact(_) => {
+                    let mut study = PreparedStudy::<ExactPreparedState>::from_checked_plan(
                         query.diagram.clone(),
                         query.functional.clone(),
                         self.state.data.clone(),
@@ -717,13 +1108,14 @@ impl PreparedStudy<TransportGridState> {
                         plan.as_ref().map_err(|_| err("missing compiled grid point"))?.clone(),
                         false,
                     )?;
+                    study.state.provider_retention = self.state.retention.clone();
                     let result = study.result_from_evaluation(
                         evaluated_exact.next().ok_or_else(|| err("missing exact grid result"))?,
                     );
                     wire.points.push(GridPointWire::Exact(vec![]));
                     points.push(TransportGridPoint::Exact(study, Box::new(result)));
                 }
-                TransportGridData::Statistical(..) => {
+                RetainedGridData::Statistical(..) => {
                     let (study, result) =
                         statistical.next().ok_or_else(|| err("missing joint grid result"))?;
                     wire.points.push(GridPointWire::Statistical(vec![]));
@@ -740,6 +1132,7 @@ impl PreparedStudy<TransportGridState> {
             identity: antecedent_io::transport_grid_wire::grid_identity(&wire)?,
             wire,
             points,
+            retention: self.state.retention.clone(),
         })
     }
     /// Evaluates every compiled point once, splitting local failures from the eligible points and their distributions.
@@ -774,7 +1167,7 @@ impl PreparedStudy<TransportGridState> {
     /// Fits the joint bootstrap over the eligible statistical points, consuming the retained point distributions.
     fn joint_statistical_estimates(
         &self,
-        input: &StatisticalTransportInput,
+        input: &Arc<StatisticalTransportInput>,
         options: &EmpiricalTableOptions,
         eligible: &[Assignment],
         limits: ExactEvaluationLimits,
@@ -786,11 +1179,11 @@ impl PreparedStudy<TransportGridState> {
     > {
         let query = &self.state.query;
         Ok(if let Some(first) = eligible.first() {
-            let study = PreparedStudy::<StatisticalPreparedState>::build_fitted(
+            let mut study = PreparedStudy::<StatisticalPreparedState>::build_fitted(
                 super::statistical::StatisticalPremises {
                     diagram: query.diagram.clone(),
                     functional: query.functional.clone(),
-                    input: Arc::new(input.clone()),
+                    input: Arc::clone(input),
                     data: self.state.data.clone(),
                     samples: self.state.template.samples.clone(),
                     request: first.clone(),
@@ -800,6 +1193,7 @@ impl PreparedStudy<TransportGridState> {
                 ctx,
                 false,
             )?;
+            study.state.provider_retention = self.state.retention.clone();
             study
                 .estimate_grid_evaluated(
                     eligible,
@@ -987,8 +1381,11 @@ impl PreparedStudy<TransportGridState> {
                 }
             }
         }
-        let input =
-            if wire.statistical { None } else { Some(TransportGridData::Exact(data.clone())) };
+        let input = if wire.statistical {
+            None
+        } else {
+            Some(Arc::new(RetainedGridData::Exact(data.clone())))
+        };
         let compiled_query = TransportGridQuery {
             diagram: diagram.clone(),
             functional: functional.clone(),
@@ -998,6 +1395,7 @@ impl PreparedStudy<TransportGridState> {
         let plans = compile_grid(&compiled_query, &data, ctx)?;
         let state = TransportGridState {
             plans,
+            retention: Vec::new(),
             query: TransportGridQuery {
                 diagram,
                 functional,
@@ -1009,7 +1407,10 @@ impl PreparedStudy<TransportGridState> {
             seed: wire.seed,
             template: GridWire { points: vec![], ..wire.clone() },
         };
-        Ok((PreparedStudy { state }, TransportGridResult { points, identity: artifact_id, wire }))
+        Ok((
+            PreparedStudy { state },
+            TransportGridResult { points, identity: artifact_id, wire, retention: Vec::new() },
+        ))
     }
 }
 
@@ -1291,6 +1692,152 @@ mod tests {
             &ctx,
         )
         .unwrap()
+    }
+    fn sampled_grid_input() -> TransportGridData {
+        let raw = StatisticalTransportInput {
+            supplied: vec![],
+            samples: vec![antecedent_estimate::RegimeSample {
+                population: Arc::from("source"),
+                regime: RegimeId::from_raw(0),
+                snapshot_identity: Arc::from("snapshot"),
+                interventions: Arc::from([InterventionAssignment {
+                    variable: v(0),
+                    value: Value::Int64(1),
+                }]),
+                columns: std::collections::BTreeMap::from([(
+                    v(1),
+                    vec![
+                        Some(0.0),
+                        Some(0.0),
+                        Some(0.0),
+                        Some(1.0),
+                        Some(1.0),
+                        Some(1.0),
+                        Some(1.0),
+                        Some(1.0),
+                        Some(1.0),
+                        Some(1.0),
+                    ],
+                )]),
+            }],
+        };
+        let options = EmpiricalTableOptions { bootstrap_replicates: 0, ..Default::default() };
+        TransportGridData::Statistical(raw, options)
+    }
+
+    #[test]
+    fn deferred_grid_preserves_ordered_failures_identity_and_artifact_bytes() {
+        let mut ctx = ExecutionContext::for_tests(0);
+        ctx.cache_policy = antecedent_core::CachePolicy::enabled(None);
+        let eager = fixture();
+        let deferred = DeferredTransportGrid::compile(
+            eager.state.query.clone(),
+            TransportGridData::Exact(eager.state.data.clone()),
+            &ctx,
+        )
+        .unwrap();
+        assert!(!deferred.inspect().support.is_available());
+        let expected = eager.estimate(&ctx).unwrap();
+        let materialized = deferred.materialize(&ctx).unwrap();
+        let actual = materialized.estimate(&ctx).unwrap();
+        assert_eq!(actual.identity(), expected.identity());
+        assert_eq!(actual.export().unwrap(), expected.export().unwrap());
+        assert!(matches!(actual.points()[0], TransportGridPoint::Unavailable(_)));
+        let branch = deferred.rebind(vec![eager.state.query.at[1].clone()], &ctx).unwrap();
+        assert_eq!(deferred.query().at.len(), 2);
+        assert_eq!(branch.query().at.len(), 1);
+        let next = branch.materialize(&ctx).unwrap();
+        assert!(Arc::ptr_eq(&materialized.state.retention[1], &next.state.retention[1]));
+        assert_eq!(next.estimate(&ctx).unwrap().points().len(), 1);
+    }
+    #[test]
+    fn deferred_statistical_grid_fits_only_on_execution_and_honors_caller_cache_pool() {
+        let mut ctx = ExecutionContext::for_tests(0);
+        ctx.cache_policy = antecedent_core::CachePolicy::enabled(None);
+        let eager = fixture();
+        let input = sampled_grid_input();
+        let deferred =
+            DeferredTransportGrid::compile(eager.state.query.clone(), input.clone(), &ctx).unwrap();
+        let first = deferred.materialize(&ctx).unwrap();
+        let second = deferred.materialize(&ctx).unwrap();
+        assert!(Arc::ptr_eq(&first.state.retention[1], &second.state.retention[1]));
+        let old = StudyBuilder::transport_grid(eager.state.query.clone(), input, &ctx)
+            .unwrap()
+            .estimate(&ctx)
+            .unwrap();
+        let actual = first.estimate(&ctx).unwrap();
+        assert!(matches!(actual.points()[0], TransportGridPoint::Unavailable(_)));
+        assert_eq!(actual.identity(), old.identity());
+        assert_eq!(actual.export().unwrap(), old.export().unwrap());
+        let mut disabled = ctx.clone();
+        disabled.cache_policy.enabled = false;
+        let uncached = deferred.materialize(&disabled).unwrap();
+        assert!(!Arc::ptr_eq(&first.state.retention[1], &uncached.state.retention[1]));
+        let mut bounded = ctx.clone();
+        bounded.cache_policy.max_bytes = Some(0);
+        let bounded = deferred.materialize(&bounded).unwrap();
+        assert!(!Arc::ptr_eq(&first.state.retention[1], &bounded.state.retention[1]));
+        let mut tiny = ctx.clone();
+        tiny.set_memory_limit(Some(1));
+        assert!(deferred.materialize(&tiny).is_err());
+        assert_eq!(tiny.admission.available().bytes(), 1);
+        let cancelled = ctx.clone();
+        cancelled.cancellation.cancel();
+        assert!(deferred.materialize(&cancelled).is_err());
+    }
+    #[test]
+    fn deferred_grid_shares_raw_and_fitted_storage_across_targets_with_one_admission() {
+        let baseline = fixture();
+        let input = sampled_grid_input();
+        let TransportGridData::Statistical(raw, options) = &input else {
+            panic!("statistical fixture");
+        };
+        let raw_bytes = super::super::statistical::retained_input_bytes(raw).unwrap();
+        let law_bytes = super::super::statistical::declared_provider_bytes(
+            raw,
+            &baseline.state.query.functional,
+        )
+        .unwrap();
+        // Empirical fitting has a separate transient-workspace preflight. Allow
+        // that actual quote for the initial fit, then occupy all spare capacity
+        // before branching: retained rows and laws must never be admitted twice.
+        let (_, workspace_bytes) =
+            antecedent_estimate::statistical_transport::check_statistical_resources(
+                raw,
+                &baseline.state.query.functional,
+                options,
+                &ExecutionContext::for_tests(0),
+            )
+            .unwrap();
+        let retained_bytes = raw_bytes + law_bytes;
+        let capacity = retained_bytes.max(u64::try_from(workspace_bytes).unwrap());
+        let pool = antecedent_core::execution::AdmissionPool::fixed(1, capacity);
+        let mut ctx = ExecutionContext::for_tests(0).with_admission(pool.clone());
+        ctx.cache_policy = antecedent_core::CachePolicy::enabled(None);
+        let deferred =
+            DeferredTransportGrid::compile(baseline.state.query.clone(), input, &ctx).unwrap();
+        let first = deferred.materialize(&ctx).unwrap();
+        assert_eq!(pool.available().bytes(), capacity - retained_bytes);
+        let headroom = ctx.acquire_admission(0, capacity - retained_bytes).unwrap();
+        assert_eq!(pool.available().bytes(), 0);
+        let target = vec![baseline.state.query.at[1].clone()];
+        let branch = deferred.rebind(target.clone(), &ctx).unwrap();
+        let second = branch.materialize(&ctx).unwrap();
+        let third = first.rebind_assignments(target, &ctx).unwrap();
+        let rows = |state: &TransportGridState| match state.input.as_deref().unwrap() {
+            RetainedGridData::Statistical(raw, _) => Arc::clone(raw),
+            RetainedGridData::Exact(_) => panic!("statistical fixture"),
+        };
+        assert!(Arc::ptr_eq(&rows(&first.state), &rows(&second.state)));
+        assert!(Arc::ptr_eq(&rows(&first.state), &rows(&third.state)));
+        assert!(Arc::ptr_eq(&first.state.retention[1], &second.state.retention[1]));
+        assert!(std::ptr::eq(
+            first.state.data.laws()[0].probabilities().as_ptr(),
+            second.state.data.laws()[0].probabilities().as_ptr()
+        ));
+        assert_eq!(pool.available().bytes(), 0);
+        drop((deferred, branch, first, second, third, headroom));
+        assert_eq!(pool.available().bytes(), capacity);
     }
     #[test]
     fn portable_grid_reasoning_is_the_in_memory_view() {

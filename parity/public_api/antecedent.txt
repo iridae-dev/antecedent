@@ -530,6 +530,8 @@ impl core::clone::Clone for antecedent::analysis::DecisionCompileRequest
 impl core::clone::Clone for antecedent::analysis::DecisionDemand
 impl core::clone::Clone for antecedent::analysis::DecisionReliabilityInspection
 impl core::clone::Clone for antecedent::analysis::DecisionReliabilityRefusal
+impl core::clone::Clone for antecedent::analysis::DeferredStatisticalTransport
+impl core::clone::Clone for antecedent::analysis::DeferredTransportGrid
 impl core::clone::Clone for antecedent::analysis::ExceedanceQuery
 impl core::clone::Clone for antecedent::analysis::FamilyDependence
 impl core::clone::Clone for antecedent::analysis::FamilyEstimate
@@ -2229,6 +2231,8 @@ impl core::fmt::Debug for antecedent::analysis::DecisionCompileRequest
 impl core::fmt::Debug for antecedent::analysis::DecisionDemand
 impl core::fmt::Debug for antecedent::analysis::DecisionReliabilityInspection
 impl core::fmt::Debug for antecedent::analysis::DecisionReliabilityRefusal
+impl core::fmt::Debug for antecedent::analysis::DeferredStatisticalTransport
+impl core::fmt::Debug for antecedent::analysis::DeferredTransportGrid
 impl core::fmt::Debug for antecedent::analysis::ExceedanceQuery
 impl core::fmt::Debug for antecedent::analysis::FamilyDependence
 impl core::fmt::Debug for antecedent::analysis::FamilyEstimate
@@ -3298,6 +3302,8 @@ impl core::marker::Freeze for antecedent::analysis::DecisionCompileRequest [auto
 impl core::marker::Freeze for antecedent::analysis::DecisionDemand [auto]
 impl core::marker::Freeze for antecedent::analysis::DecisionReliabilityInspection [auto]
 impl core::marker::Freeze for antecedent::analysis::DecisionReliabilityRefusal [auto]
+impl core::marker::Freeze for antecedent::analysis::DeferredStatisticalTransport [auto]
+impl core::marker::Freeze for antecedent::analysis::DeferredTransportGrid [auto]
 impl core::marker::Freeze for antecedent::analysis::ExceedanceQuery [auto]
 impl core::marker::Freeze for antecedent::analysis::FamilyDependence [auto]
 impl core::marker::Freeze for antecedent::analysis::FamilyEstimate [auto]
@@ -4141,6 +4147,8 @@ impl core::marker::Send for antecedent::analysis::DecisionCompileRequest [auto]
 impl core::marker::Send for antecedent::analysis::DecisionDemand [auto]
 impl core::marker::Send for antecedent::analysis::DecisionReliabilityInspection [auto]
 impl core::marker::Send for antecedent::analysis::DecisionReliabilityRefusal [auto]
+impl core::marker::Send for antecedent::analysis::DeferredStatisticalTransport [auto]
+impl core::marker::Send for antecedent::analysis::DeferredTransportGrid [auto]
 impl core::marker::Send for antecedent::analysis::ExceedanceQuery [auto]
 impl core::marker::Send for antecedent::analysis::FamilyDependence [auto]
 impl core::marker::Send for antecedent::analysis::FamilyEstimate [auto]
@@ -5483,6 +5491,8 @@ impl core::marker::Sync for antecedent::analysis::DecisionCompileRequest [auto]
 impl core::marker::Sync for antecedent::analysis::DecisionDemand [auto]
 impl core::marker::Sync for antecedent::analysis::DecisionReliabilityInspection [auto]
 impl core::marker::Sync for antecedent::analysis::DecisionReliabilityRefusal [auto]
+impl core::marker::Sync for antecedent::analysis::DeferredStatisticalTransport [auto]
+impl core::marker::Sync for antecedent::analysis::DeferredTransportGrid [auto]
 impl core::marker::Sync for antecedent::analysis::ExceedanceQuery [auto]
 impl core::marker::Sync for antecedent::analysis::FamilyDependence [auto]
 impl core::marker::Sync for antecedent::analysis::FamilyEstimate [auto]
@@ -6330,6 +6340,8 @@ impl core::marker::Unpin for antecedent::analysis::DecisionCompileRequest [auto]
 impl core::marker::Unpin for antecedent::analysis::DecisionDemand [auto]
 impl core::marker::Unpin for antecedent::analysis::DecisionReliabilityInspection [auto]
 impl core::marker::Unpin for antecedent::analysis::DecisionReliabilityRefusal [auto]
+impl core::marker::Unpin for antecedent::analysis::DeferredStatisticalTransport [auto]
+impl core::marker::Unpin for antecedent::analysis::DeferredTransportGrid [auto]
 impl core::marker::Unpin for antecedent::analysis::ExceedanceQuery [auto]
 impl core::marker::Unpin for antecedent::analysis::FamilyDependence [auto]
 impl core::marker::Unpin for antecedent::analysis::FamilyEstimate [auto]
@@ -7172,6 +7184,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::DecisionC
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::DecisionDemand [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::DecisionReliabilityInspection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::DecisionReliabilityRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::DeferredStatisticalTransport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::DeferredTransportGrid [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::ExceedanceQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::FamilyDependence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::FamilyEstimate [auto]
@@ -7986,6 +8000,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::DecisionComp
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::DecisionDemand [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::DecisionReliabilityInspection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::DecisionReliabilityRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::DeferredStatisticalTransport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::DeferredTransportGrid [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::ExceedanceQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::FamilyDependence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::FamilyEstimate [auto]
@@ -12253,6 +12269,7 @@ pub fn <antecedent::PreparedAdmgConditionalTransport>::fn estimate(&self, ctx: &
 pub fn <antecedent::PreparedAdmgConditionalTransport>::fn plans(&self) -> &[antecedent_estimate::admg_conditional_transport::AdmgConditionalExactPlan]
 pub fn <antecedent::PreparedAdmgConditionalTransport>::fn refresh(&self, data: antecedent_expr::exact::ExactTransportData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedAdmgConditionalTransport>::fn requests(&self) -> &[antecedent_expr::provider::Assignment]
+pub fn <antecedent::PreparedAdmgConditionalTransport>::fn requote_execution(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedBatch>::fn batch_share_identity(&self) -> core::result::Result<core::option::Option<antecedent_core::identity::SemanticDigest>, antecedent::CausalError>
 pub fn <antecedent::PreparedBatch>::fn diagnose(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::BatchPreflightReport, antecedent::CausalError>
 pub fn <antecedent::PreparedBatch>::fn diagnose_fit(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent::NuisanceFitDiagnostics>, antecedent::CausalError>
@@ -12299,6 +12316,7 @@ pub fn <antecedent::PreparedLearnedContinuous>::fn estimator_menu(&self) -> ante
 pub fn <antecedent::PreparedLearnedContinuous>::fn features(&self) -> &[u32]
 pub fn <antecedent::PreparedLearnedContinuous>::fn interval(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::LearnedContinuousResult, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedLearnedContinuous>::fn refresh(&self, input: antecedent_estimate::learned_trial::TrialAipwInput, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent::PreparedLearnedContinuous>::fn with_seed(&self, seed: u64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedMeasurementModel>::const fn binding(&self) -> &antecedent::MeasurementAnalysisBinding
 pub fn <antecedent::PreparedMeasurementModel>::const fn input(&self) -> &antecedent::MeasurementInput
 pub fn <antecedent::PreparedMeasurementModel>::const fn model(&self) -> &antecedent_core::measurement_model::MeasurementModel
@@ -12388,6 +12406,8 @@ pub fn <antecedent::PreparedSmoothedDose>::fn estimator_menu(&self) -> anteceden
 pub fn <antecedent::PreparedSmoothedDose>::fn interval(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::SmoothedDoseResult, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedSmoothedDose>::fn posterior(&self, model: antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire) -> core::result::Result<antecedent::analysis::SmoothedDosePosteriorResult, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedSmoothedDose>::fn refresh(&self, input: antecedent_estimate::smoothed_dose::SmoothedDoseInput, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent::PreparedSmoothedDose>::fn with_seed(&self, seed: u64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn bind_snapshot(&self, data: antecedent_expr::exact::ExactTransportData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn consume(bytes: &[u8], limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(Self, antecedent::ExactStudyResult), antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn diagram(&self) -> &antecedent_graph::selection::SelectionDiagram
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn estimate(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::ExactStudyResult, antecedent_io_core::error::IoError>
@@ -12403,18 +12423,24 @@ pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn mechanism
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn preview_snapshot(&self, data: &antecedent_expr::exact::ExactTransportData) -> core::result::Result<bool, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn preview_transform(&self, intent: antecedent_contract::transform::TransformIntent) -> core::result::Result<antecedent_contract::transform::TransformationReport, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn query(&self) -> &antecedent_identify::sid::ClassicalTransportQuery
+pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn rebind_assignment(&self, request: antecedent_expr::provider::Assignment, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn refresh(&mut self, data: antecedent_expr::exact::ExactTransportData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::ExactStudyResult, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn replace_snapshot(&mut self, data: antecedent_expr::exact::ExactTransportData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_io_core::error::IoError>
+pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn requote_execution(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn rules(&self) -> alloc::vec::Vec<&'static str>
+pub fn <antecedent::PreparedStudy<antecedent::LearnedTrialState>>::fn bind_snapshot(&self, input: antecedent_estimate::learned_trial::TrialAipwInput, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::LearnedTrialState>>::fn estimate(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::LearnedTrialResult, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::LearnedTrialState>>::fn features(&self) -> &[u32]
 pub fn <antecedent::PreparedStudy<antecedent::LearnedTrialState>>::fn inspect(&self) -> antecedent_contract::reasoning::ReasoningView
 pub fn <antecedent::PreparedStudy<antecedent::LearnedTrialState>>::fn preview_transform(&self, intent: antecedent_contract::transform::TransformIntent) -> core::result::Result<antecedent_contract::transform::TransformationReport, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::LearnedTrialState>>::fn refresh(&mut self, input: antecedent_estimate::learned_trial::TrialAipwInput, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::LearnedTrialResult, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::LearnedTrialState>>::fn replace_snapshot(&mut self, input: antecedent_estimate::learned_trial::TrialAipwInput, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_io_core::error::IoError>
+pub fn <antecedent::PreparedStudy<antecedent::LearnedTrialState>>::fn with_seed(&self, seed: u64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::const fn options(&self) -> antecedent_estimate::empirical_table::EmpiricalTableOptions
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::const fn seed(&self) -> u64
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn consume(bytes: &[u8], limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(Self, antecedent::StatisticalStudyResult), antecedent_io_core::error::IoError>
+pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn defer_execution(&self, seed: u64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::DeferredStatisticalTransport, antecedent_io_core::error::IoError>
+pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn defer_snapshot(&self, input: antecedent_estimate::empirical_table::StatisticalTransportInput, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::DeferredStatisticalTransport, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn diagram(&self) -> &antecedent_graph::selection::SelectionDiagram
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn estimate(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StatisticalStudyResult, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn estimate_checked(&self, execution: &str, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StatisticalStudyResult, antecedent_io_core::error::IoError>
@@ -12426,15 +12452,20 @@ pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn ins
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn preview_snapshot(&self, input: &antecedent_estimate::empirical_table::StatisticalTransportInput) -> core::result::Result<bool, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn preview_transform(&self, intent: antecedent_contract::transform::TransformIntent) -> core::result::Result<antecedent_contract::transform::TransformationReport, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn query(&self) -> &antecedent_identify::sid::ClassicalTransportQuery
+pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn rebind_assignment(&self, request: antecedent_expr::provider::Assignment, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn refresh(&mut self, input: antecedent_estimate::empirical_table::StatisticalTransportInput, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StatisticalStudyResult, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn replace_snapshot(&mut self, input: antecedent_estimate::empirical_table::StatisticalTransportInput, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_io_core::error::IoError>
+pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn requote_execution(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn rules(&self) -> alloc::vec::Vec<&'static str>
 pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn can_reestimate(&self) -> bool
 pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn consume(bytes: &[u8], limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(Self, antecedent::analysis::TransportGridResult), antecedent_io_core::error::IoError>
+pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn defer_execution(&self, seed: u64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::DeferredTransportGrid, antecedent_io_core::error::IoError>
+pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn deferred_snapshot(&self, input: antecedent::analysis::TransportGridData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::DeferredTransportGrid, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn estimate(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::TransportGridResult, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn inspect(&self) -> antecedent_contract::reasoning::ReasoningView
 pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn preview_transform(&self, intent: antecedent_contract::transform::TransformIntent) -> core::result::Result<antecedent_contract::transform::TransformationReport, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn query(&self) -> &antecedent::analysis::TransportGridQuery
+pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn rebind_assignments(&self, at: alloc::vec::Vec<antecedent_expr::provider::Assignment>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn refresh(&mut self, input: antecedent::analysis::TransportGridData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::TransportGridResult, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn replace_snapshot(&mut self, input: antecedent::analysis::TransportGridData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn statistical_options(&self) -> core::option::Option<antecedent_estimate::empirical_table::EmpiricalTableOptions>
@@ -12997,6 +13028,23 @@ pub fn <antecedent::analysis::DecisionCompileRequest>::fn utility_unit(&self) ->
 pub fn <antecedent::analysis::DecisionCompileRequest>::fn with_contract_identity(self, identity: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent::analysis::DecisionCompileRequest>::fn with_utility_unit(self, unit: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent::analysis::DecisionDemand>::const fn carrier(self) -> antecedent::planner::lowered::CarrierDemand
+pub fn <antecedent::analysis::DeferredStatisticalTransport>::const fn options(&self) -> antecedent_estimate::empirical_table::EmpiricalTableOptions
+pub fn <antecedent::analysis::DeferredStatisticalTransport>::fn bind_snapshot(&self, input: antecedent_estimate::empirical_table::StatisticalTransportInput, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent::analysis::DeferredStatisticalTransport>::fn compile(diagram: antecedent_graph::selection::SelectionDiagram, functional: antecedent_identify::sid::BoundTransportFunctional, input: antecedent_estimate::empirical_table::StatisticalTransportInput, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, options: antecedent_estimate::empirical_table::EmpiricalTableOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent::analysis::DeferredStatisticalTransport>::fn declaration_identity(&self) -> &str
+pub fn <antecedent::analysis::DeferredStatisticalTransport>::fn functional(&self) -> &antecedent_identify::sid::BoundTransportFunctional
+pub fn <antecedent::analysis::DeferredStatisticalTransport>::fn materialize(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::StatisticalPreparedState>, antecedent_io_core::error::IoError>
+pub fn <antecedent::analysis::DeferredStatisticalTransport>::fn rebind(&self, request: antecedent_expr::provider::Assignment, options: antecedent_estimate::empirical_table::EmpiricalTableOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent::analysis::DeferredStatisticalTransport>::fn request(&self) -> &antecedent_expr::provider::Assignment
+pub fn <antecedent::analysis::DeferredStatisticalTransport>::fn with_seed(&self, seed: u64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent::analysis::DeferredTransportGrid>::fn bind_snapshot(&self, input: antecedent::analysis::TransportGridData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent::analysis::DeferredTransportGrid>::fn compile(query: antecedent::analysis::TransportGridQuery, input: antecedent::analysis::TransportGridData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent::analysis::DeferredTransportGrid>::fn inspect(&self) -> antecedent_contract::reasoning::ReasoningView
+pub fn <antecedent::analysis::DeferredTransportGrid>::fn materialize(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::analysis::TransportGridState>, antecedent_io_core::error::IoError>
+pub fn <antecedent::analysis::DeferredTransportGrid>::fn query(&self) -> &antecedent::analysis::TransportGridQuery
+pub fn <antecedent::analysis::DeferredTransportGrid>::fn rebind(&self, at: alloc::vec::Vec<antecedent_expr::provider::Assignment>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent::analysis::DeferredTransportGrid>::fn statistical_options(&self) -> core::option::Option<antecedent_estimate::empirical_table::EmpiricalTableOptions>
+pub fn <antecedent::analysis::DeferredTransportGrid>::fn with_seed(&self, seed: u64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::analysis::FamilyEstimate>::fn new(id: &str, estimate: f64, standard_error: f64, meaning: antecedent_contract::propagation_chain::LawMeaning) -> Self
 pub fn <antecedent::analysis::FamilyEstimate>::fn with_authority(self, source: antecedent_contract::evidence_ledger::ids::SourceId) -> Self
 pub fn <antecedent::analysis::FamilyEstimate>::fn with_factor(self, kind: antecedent_contract::dependence::SharedFactorKind, id: &str) -> Self
@@ -15108,6 +15156,10 @@ pub struct antecedent::analysis::DecisionCompileRequest
 pub struct antecedent::analysis::DecisionCompileRequest has private fields
 pub struct antecedent::analysis::DecisionReliabilityInspection
 pub struct antecedent::analysis::DecisionReliabilityRefusal
+pub struct antecedent::analysis::DeferredStatisticalTransport
+pub struct antecedent::analysis::DeferredStatisticalTransport has private fields
+pub struct antecedent::analysis::DeferredTransportGrid
+pub struct antecedent::analysis::DeferredTransportGrid has private fields
 pub struct antecedent::analysis::ExceedanceQuery
 pub struct antecedent::analysis::FamilyEstimate
 pub struct antecedent::analysis::FamilyTable

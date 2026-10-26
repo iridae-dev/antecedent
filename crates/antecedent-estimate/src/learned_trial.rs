@@ -228,6 +228,39 @@ fn cancelled(ctx: &ExecutionContext) -> Result<(), EstimationError> {
     }
 }
 
+/// Check the existing trial workspace bound under the actual caller without fitting.
+/// # Errors
+/// Workspace overflow, physical memory refusal or cancelled execution.
+pub fn check_trial_aipw_resources(
+    input: &TrialAipwInput,
+    options: &TrialAipwOptions,
+    ctx: &ExecutionContext,
+) -> Result<(), EstimationError> {
+    cancelled(ctx)?;
+    let n = input.source.len();
+    let bytes = input
+        .features
+        .len()
+        .checked_add(32)
+        .and_then(|p| n.checked_mul(p))
+        .and_then(|n| n.checked_mul(8))
+        .and_then(|n| n.checked_add(usize::try_from(options.bootstrap).ok()?.checked_mul(16)?))
+        .ok_or_else(|| EstimationError::Refused {
+            code: antecedent_core::reason_code!("transport_budget_cancel"),
+            message: "trial workspace overflow".into(),
+        })?;
+    if ctx
+        .memory_limit_bytes()
+        .is_some_and(|limit| u64::try_from(bytes).map_or(true, |bytes| bytes > limit))
+    {
+        return Err(EstimationError::Refused {
+            code: antecedent_core::reason_code!("transport_budget_cancel"),
+            message: "trial workspace budget".into(),
+        });
+    }
+    Ok(())
+}
+
 /// Fit the certified score with shared OOF roles and joint outer refits.
 /// # Errors
 /// Invalid inputs, unsupported certificate, cancellation, or numerical fit failure.
@@ -239,18 +272,7 @@ pub fn estimate_trial_aipw(
 ) -> Result<TrialAipwEstimate, EstimationError> {
     validate_trial_aipw(id, input, options)?;
     cancelled(ctx)?;
-    let n = input.source.len();
-    let bytes = input
-        .features
-        .len()
-        .checked_add(32)
-        .and_then(|p| n.checked_mul(p))
-        .and_then(|n| n.checked_mul(8))
-        .and_then(|n| n.checked_add(options.bootstrap as usize * 16))
-        .ok_or_else(|| EstimationError::data_msg("trial workspace overflow"))?;
-    if ctx.memory_limit_bytes().is_some_and(|limit| bytes as u64 > limit) {
-        return Err(EstimationError::data_msg("trial workspace budget"));
-    }
+    check_trial_aipw_resources(input, options, ctx)?;
     let folds = trial_fold_assignment(input, options.folds);
     let mut result = fit_point(id, input, options, &folds, ctx)?;
     let groups = bootstrap_groups(input);

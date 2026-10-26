@@ -29,7 +29,7 @@ use antecedent_io::{
     transport_catalog_wire::EvidenceCatalogWire, transport_proof::TransportProofWire,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::sync::{Arc, Condvar, Mutex};
 
 use crate::result::PERCENTILE_95_MIN_REPLICATES;
 
@@ -184,6 +184,523 @@ pub struct StatisticalPreparedState {
     samples: Vec<SampleSummary>,
     loaded_only: bool,
     grid: Vec<Vec<(u32, ValueWire)>>,
+    pub(super) provider_retention: Vec<Arc<antecedent_core::execution::AdmissionLease>>,
+}
+
+/// Request-owned statistical transport compilation. Empirical provider fitting is deferred
+/// until [`Self::materialize`]; inspection and rebinding only inspect declared dependencies.
+#[derive(Clone, Debug)]
+pub struct DeferredStatisticalTransport {
+    diagram: SelectionDiagram,
+    functional: BoundTransportFunctional,
+    input: Arc<StatisticalTransportInput>,
+    request: Assignment,
+    limits: ExactEvaluationLimits,
+    options: EmpiricalTableOptions,
+    seed: u64,
+    declaration_identity: String,
+    retention: Arc<antecedent_core::execution::AdmissionLease>,
+    cache: Arc<MaterializationCache<ProviderLaws>>,
+}
+
+#[derive(Clone, Debug)]
+struct ProviderLaws {
+    data: ExactTransportData,
+    retention: Arc<antecedent_core::execution::AdmissionLease>,
+}
+
+/// One immutable product, charged to the pool that owns its retained provider buffers.
+#[derive(Clone, Debug)]
+pub(super) struct MaterializedProvider<T> {
+    pub value: T,
+    pub bytes: u64,
+    pub retention: Arc<antecedent_core::execution::AdmissionLease>,
+    pub kernel: antecedent_core::KernelPolicy,
+}
+
+#[derive(Debug)]
+struct MaterializationState<T> {
+    building: bool,
+    product: Option<MaterializedProvider<T>>,
+}
+
+/// Serialize materialization without holding a mutex across numerical work or callbacks.
+#[derive(Debug)]
+pub(super) struct MaterializationCache<T> {
+    state: Mutex<MaterializationState<T>>,
+    changed: Condvar,
+}
+
+impl<T> Default for MaterializationCache<T> {
+    fn default() -> Self {
+        Self {
+            state: Mutex::new(MaterializationState { building: false, product: None }),
+            changed: Condvar::new(),
+        }
+    }
+}
+
+struct MaterializationGuard<'a, T>(&'a MaterializationCache<T>);
+impl<T> Drop for MaterializationGuard<'_, T> {
+    fn drop(&mut self) {
+        let mut state = self.0.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        state.building = false;
+        self.0.changed.notify_all();
+    }
+}
+
+pub(super) fn check_deferred_cancel(ctx: &ExecutionContext) -> Result<(), IoError> {
+    antecedent_estimate::refuse_cancelled(ctx, "transport provider materialization")
+        .map_err(estimate_err)
+}
+
+impl<T: Clone> MaterializationCache<T> {
+    pub(super) fn materialize(
+        &self,
+        ctx: &ExecutionContext,
+        build: impl FnOnce() -> Result<MaterializedProvider<T>, IoError>,
+    ) -> Result<T, IoError> {
+        check_deferred_cancel(ctx)?;
+        if !ctx.cache_policy.enabled {
+            let product = build()?;
+            check_deferred_cancel(ctx)?;
+            return Ok(product.value);
+        }
+        let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        loop {
+            check_deferred_cancel(ctx)?;
+            if let Some(product) = &state.product {
+                if product.kernel == ctx.kernel_policy
+                    && product.retention.belongs_to(&ctx.admission)
+                    && ctx.cache_policy.max_bytes.is_none_or(|limit| product.bytes <= limit)
+                {
+                    product.retention.observe_current();
+                    return Ok(product.value.clone());
+                }
+            }
+            if !state.building {
+                state.building = true;
+                break;
+            }
+            state = self
+                .changed
+                .wait_timeout(state, std::time::Duration::from_millis(10))
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .0;
+        }
+        drop(state);
+        let _building = MaterializationGuard(self);
+        let product = build()?;
+        check_deferred_cancel(ctx)?;
+        let value = product.value.clone();
+        if ctx.cache_policy.max_bytes.is_none_or(|limit| product.bytes <= limit) {
+            let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            check_deferred_cancel(ctx)?;
+            state.product = Some(product);
+        }
+        Ok(value)
+    }
+}
+
+pub(super) fn deferred_admission_error(
+    error: antecedent_core::execution::AdmissionError,
+) -> IoError {
+    IoError::Refused {
+        code: antecedent_core::reason_code!("transport_budget_cancel"),
+        message: error.to_string(),
+    }
+}
+
+fn retained_memory_overflow() -> IoError {
+    err("transport retained provider memory budget overflow")
+}
+
+fn retained_add(total: &mut u64, count: usize, width: usize) -> Result<(), IoError> {
+    let bytes = count
+        .checked_mul(width)
+        .and_then(|n| u64::try_from(n).ok())
+        .ok_or_else(retained_memory_overflow)?;
+    *total = total.checked_add(bytes).ok_or_else(retained_memory_overflow)?;
+    Ok(())
+}
+
+/// Conservative bound on the known finite law buffers, including axis metadata and Arc headers.
+/// This does not claim to account for arbitrary application-owned provider objects.
+pub(super) fn retained_law_bytes(data: &ExactTransportData) -> Result<u64, IoError> {
+    let mut total = 0;
+    for law in data.laws() {
+        retained_add(
+            &mut total,
+            1,
+            std::mem::size_of::<antecedent_expr::ExactDiscreteLaw>() + 256,
+        )?;
+        retained_add(&mut total, law.probabilities().len(), std::mem::size_of::<f64>())?;
+        retained_add(&mut total, law.empirical_counts().map_or(0, <[u64]>::len), 8)?;
+        retained_add(&mut total, law.population().len() + law.snapshot_identity().len(), 1)?;
+        for axis in law.axes() {
+            retained_add(&mut total, 1, std::mem::size_of::<antecedent_expr::DiscreteAxis>() + 64)?;
+            retained_add(
+                &mut total,
+                axis.values.len(),
+                std::mem::size_of::<antecedent_core::Value>(),
+            )?;
+            for value in axis.values.iter() {
+                if let antecedent_core::Value::Label(label) = value {
+                    retained_add(&mut total, label.len(), 1)?;
+                }
+            }
+        }
+        retained_add(
+            &mut total,
+            law.interventions().len(),
+            std::mem::size_of::<antecedent_expr::InterventionAssignment>() + 64,
+        )?;
+    }
+    Ok(total)
+}
+
+/// Quote the finite output joints from declared domains before fitting them. This covers
+/// probabilities and empirical counts even when a learned provider retains only one of them.
+pub(super) fn declared_provider_bytes(
+    input: &StatisticalTransportInput,
+    functional: &BoundTransportFunctional,
+) -> Result<u64, IoError> {
+    let supplied = ExactTransportData::try_new(input.supplied.clone(), usize::MAX).map_err(err)?;
+    let mut total = retained_law_bytes(&supplied)?;
+    for sample in &input.samples {
+        let axes = antecedent_estimate::catalog_axes(functional.catalog(), sample)
+            .map_err(estimate_err)?;
+        let cells = axes.iter().try_fold(1usize, |n, axis| {
+            n.checked_mul(axis.values.len()).ok_or_else(retained_memory_overflow)
+        })?;
+        retained_add(
+            &mut total,
+            1,
+            std::mem::size_of::<antecedent_expr::ExactDiscreteLaw>() + 256,
+        )?;
+        retained_add(&mut total, cells, 16)?;
+        retained_add(&mut total, sample.population.len() + sample.snapshot_identity.len(), 1)?;
+        for axis in axes {
+            retained_add(&mut total, 1, std::mem::size_of::<antecedent_expr::DiscreteAxis>() + 64)?;
+            retained_add(
+                &mut total,
+                axis.values.len(),
+                std::mem::size_of::<antecedent_core::Value>(),
+            )?;
+        }
+        retained_add(
+            &mut total,
+            sample.interventions.len(),
+            std::mem::size_of::<antecedent_expr::InterventionAssignment>() + 64,
+        )?;
+        for assignment in sample.interventions.iter() {
+            if let antecedent_core::Value::Label(label) = &assignment.value {
+                retained_add(&mut total, label.len(), 1)?;
+            }
+        }
+    }
+    Ok(total)
+}
+
+pub(super) fn retained_input_bytes(input: &StatisticalTransportInput) -> Result<u64, IoError> {
+    let data = ExactTransportData::try_new(input.supplied.clone(), usize::MAX).map_err(err)?;
+    let mut total = retained_law_bytes(&data)?;
+    retained_add(
+        &mut total,
+        input.supplied.capacity(),
+        std::mem::size_of::<antecedent_expr::ExactDiscreteLaw>(),
+    )?;
+    retained_add(
+        &mut total,
+        input.samples.capacity(),
+        std::mem::size_of::<antecedent_estimate::RegimeSample>(),
+    )?;
+    for sample in &input.samples {
+        retained_add(
+            &mut total,
+            1,
+            std::mem::size_of::<antecedent_estimate::RegimeSample>() + 128,
+        )?;
+        retained_add(&mut total, sample.population.len() + sample.snapshot_identity.len(), 1)?;
+        retained_add(
+            &mut total,
+            sample.interventions.len(),
+            std::mem::size_of::<antecedent_expr::InterventionAssignment>() + 64,
+        )?;
+        for column in sample.columns.values() {
+            retained_add(&mut total, 1, 128)?;
+            retained_add(&mut total, column.capacity(), std::mem::size_of::<Option<f64>>())?;
+        }
+    }
+    Ok(total)
+}
+
+struct RetainedStatisticalInput {
+    input: Arc<StatisticalTransportInput>,
+    retention: Option<Arc<antecedent_core::execution::AdmissionLease>>,
+}
+
+impl DeferredStatisticalTransport {
+    /// Compile checked declarations and retain raw evidence without fitting any provider.
+    ///
+    /// # Errors
+    /// Invalid proof/catalog/options, malformed declared data, cancellation or admission refusal.
+    pub fn compile(
+        diagram: SelectionDiagram,
+        functional: BoundTransportFunctional,
+        mut input: StatisticalTransportInput,
+        request: Assignment,
+        limits: ExactEvaluationLimits,
+        options: EmpiricalTableOptions,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        canonicalize_input(&mut input)?;
+        Self::compile_retained(
+            diagram,
+            functional,
+            RetainedStatisticalInput { input: Arc::new(input), retention: None },
+            request,
+            limits,
+            options,
+            ctx,
+        )
+    }
+    fn compile_retained(
+        diagram: SelectionDiagram,
+        functional: BoundTransportFunctional,
+        raw: RetainedStatisticalInput,
+        request: Assignment,
+        limits: ExactEvaluationLimits,
+        options: EmpiricalTableOptions,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        let input = raw.input;
+        check_deferred_cancel(ctx)?;
+        antecedent_identify::verify_classical_transport(
+            &diagram,
+            functional.derivation().query(),
+            functional.derivation(),
+            SidLimits { steps: limits.operations, depth: limits.depth },
+            ctx,
+        )
+        .map_err(err)?;
+        antecedent_estimate::statistical_transport::check_statistical_resources(
+            &input,
+            &functional,
+            &options,
+            ctx,
+        )
+        .map_err(estimate_err)?;
+        let samples =
+            input.samples.iter().map(SampleSummary::from_sample).collect::<Result<Vec<_>, _>>()?;
+        let declaration_identity = digest(
+            IdentityDomain::Program,
+            &(
+                "deferred_statistical_transport_v1",
+                TransportProofWire::from_checked(functional.derivation())?,
+                EvidenceCatalogWire::from_catalog(functional.catalog()),
+                input.supplied.iter().map(ExactLawWire::from_law).collect::<Vec<_>>(),
+                samples,
+                assignments(&request),
+                StatisticalOptionsWire::from_options(&options),
+                limits.operations,
+                limits.depth,
+                ctx.rng.master_seed(),
+            ),
+        )?;
+        let bytes = retained_input_bytes(&input)?;
+        let retention = match raw.retention {
+            Some(retention) => retention,
+            None => Arc::new(ctx.acquire_admission(0, bytes).map_err(deferred_admission_error)?),
+        };
+        check_deferred_cancel(ctx)?;
+        Ok(Self {
+            diagram,
+            functional,
+            input,
+            request,
+            limits,
+            options,
+            seed: ctx.rng.master_seed(),
+            declaration_identity,
+            retention,
+            cache: Arc::default(),
+        })
+    }
+
+    /// Identity of the raw declared preparation, never an executed/fitted-law identity.
+    #[must_use]
+    pub fn declaration_identity(&self) -> &str {
+        &self.declaration_identity
+    }
+
+    /// Checked structural functional; inspection does not fit or evaluate it.
+    #[must_use]
+    pub fn functional(&self) -> &BoundTransportFunctional {
+        &self.functional
+    }
+
+    /// Rebind target coordinates without materializing a provider or altering this owner.
+    /// Unchanged provider options share the immutable law cache, not the old target binding.
+    ///
+    /// # Errors
+    /// Invalid inference settings, cancellation, or admission refusal.
+    pub fn rebind(
+        &self,
+        request: Assignment,
+        options: EmpiricalTableOptions,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        let mut frozen = ctx.clone();
+        frozen.rng = antecedent_core::RngFactory::from_seed(self.seed);
+        let mut next = Self::compile_retained(
+            self.diagram.clone(),
+            self.functional.clone(),
+            RetainedStatisticalInput {
+                input: Arc::clone(&self.input),
+                retention: Some(Arc::clone(&self.retention)),
+            },
+            request,
+            self.limits,
+            options,
+            &frozen,
+        )?;
+        if point_options(options) == point_options(self.options) {
+            next.cache = Arc::clone(&self.cache);
+        }
+        Ok(next)
+    }
+
+    /// Reconfigure the execution stream without fitting or copying immutable rows.
+    /// # Errors
+    /// Declared work exceeds the caller's resource policy, or cancellation/proof refusal.
+    pub fn with_seed(&self, seed: u64, ctx: &ExecutionContext) -> Result<Self, IoError> {
+        let mut frozen = ctx.clone();
+        frozen.rng = antecedent_core::RngFactory::from_seed(seed);
+        let mut branch = Self::compile_retained(
+            self.diagram.clone(),
+            self.functional.clone(),
+            RetainedStatisticalInput {
+                input: Arc::clone(&self.input),
+                retention: Some(Arc::clone(&self.retention)),
+            },
+            self.request.clone(),
+            self.limits,
+            self.options,
+            &frozen,
+        )?;
+        if seed == self.seed {
+            branch.cache = Arc::clone(&self.cache);
+        }
+        Ok(branch)
+    }
+
+    /// Bind a compatible raw evidence snapshot, leaving the parent and its claims untouched.
+    /// This validates declared shape and catalog binding without fitting a joint law.
+    ///
+    /// # Errors
+    /// Changed observation shape, invalid catalog bindings, cancellation or resource refusal.
+    pub fn bind_snapshot(
+        &self,
+        input: StatisticalTransportInput,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        if declared_statistical_shape(&input, &self.functional, self.options)?
+            != declared_statistical_shape(&self.input, &self.functional, self.options)?
+        {
+            return Err(err("transport.reprepare_required"));
+        }
+        let functional = rebind_raw_snapshots(&self.functional, &input, self.limits, ctx)?;
+        let mut frozen = ctx.clone();
+        frozen.rng = antecedent_core::RngFactory::from_seed(self.seed);
+        Self::compile(
+            self.diagram.clone(),
+            functional,
+            input,
+            self.request.clone(),
+            self.limits,
+            self.options,
+            &frozen,
+        )
+    }
+
+    /// Inference settings retained by this preparation.
+    #[must_use]
+    pub const fn options(&self) -> EmpiricalTableOptions {
+        self.options
+    }
+
+    /// Frozen target coordinates.
+    #[must_use]
+    pub fn request(&self) -> &Assignment {
+        &self.request
+    }
+
+    /// Materialize a compatible immutable provider product under this execution's context.
+    /// Disabled caching bypasses memo lookup/insertion. A cached product is reused only under
+    /// its actual pool, kernel policy and cache byte limit. Returned products own their leases.
+    ///
+    /// # Errors
+    /// Provider fitting/preflight, cancellation or admission failure. Failure publishes no product.
+    pub fn materialize(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedStudy<StatisticalPreparedState>, IoError> {
+        let mut frozen = ctx.clone();
+        frozen.rng = antecedent_core::RngFactory::from_seed(self.seed);
+        antecedent_estimate::statistical_transport::check_statistical_resources(
+            &self.input,
+            &self.functional,
+            &self.options,
+            &frozen,
+        )
+        .map_err(estimate_err)?;
+        let provider = self.cache.materialize(ctx, || {
+            let bytes = declared_provider_bytes(&self.input, &self.functional)?;
+            let retention =
+                Arc::new(ctx.acquire_admission(0, bytes).map_err(deferred_admission_error)?);
+            let data = assemble_point_laws(
+                &self.input,
+                &self.functional,
+                &point_options(self.options),
+                &frozen,
+            )
+            .map_err(estimate_err)?;
+            if retained_law_bytes(&data)? > bytes {
+                return Err(err("transport retained provider memory budget quote exceeded"));
+            }
+            check_deferred_cancel(ctx)?;
+            Ok(MaterializedProvider {
+                value: ProviderLaws { data, retention: Arc::clone(&retention) },
+                bytes,
+                retention,
+                kernel: ctx.kernel_policy,
+            })
+        })?;
+        let samples = self
+            .input
+            .samples
+            .iter()
+            .map(SampleSummary::from_sample)
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut value = PreparedStudy::<StatisticalPreparedState>::build_fitted(
+            StatisticalPremises {
+                diagram: self.diagram.clone(),
+                functional: self.functional.clone(),
+                input: Arc::clone(&self.input),
+                data: provider.data,
+                samples,
+                request: self.request.clone(),
+                limits: self.limits,
+                options: self.options,
+            },
+            &frozen,
+            false,
+        )?;
+        value.state.provider_retention = vec![Arc::clone(&self.retention), provider.retention];
+        check_deferred_cancel(ctx)?;
+        Ok(value)
+    }
 }
 
 /// Statistical execution result: plug-in law plus licensed or withheld uncertainty.
@@ -602,6 +1119,7 @@ impl PreparedStudy<StatisticalPreparedState> {
                 samples,
                 loaded_only,
                 grid: Vec::new(),
+                provider_retention: Vec::new(),
             },
         })
     }
@@ -892,6 +1410,9 @@ impl PreparedStudy<StatisticalPreparedState> {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<StatisticalStudyResult, IoError> {
+        for reservation in &self.state.provider_retention {
+            reservation.observe_current();
+        }
         if self.state.loaded_only {
             return Err(err(
                 "transport.samples_not_embedded: refresh with source samples before re-estimating",
@@ -1066,43 +1587,8 @@ impl PreparedStudy<StatisticalPreparedState> {
     /// # Errors
     /// Identity encoding failure.
     pub fn preview_snapshot(&self, input: &StatisticalTransportInput) -> Result<bool, IoError> {
-        let mut laws: Vec<_> = input.supplied.iter().map(ExactLawWire::metadata).collect();
-        for sample in &input.samples {
-            laws.push(ExactLawWire {
-                empirical_counts: None,
-                population: sample.population.to_string(),
-                regime: sample.regime.raw(),
-                interventions: sample
-                    .interventions
-                    .iter()
-                    .map(|a| (a.variable.raw(), ValueWire::from_value(&a.value)))
-                    .collect(),
-                axes: antecedent_estimate::catalog_axes(self.evidence_catalog(), sample)
-                    .map_err(err)?
-                    .iter()
-                    .map(|axis| {
-                        (
-                            axis.variable.raw(),
-                            axis.values.iter().map(ValueWire::from_value).collect(),
-                        )
-                    })
-                    .collect(),
-                probabilities: Vec::new(),
-                snapshot: String::new(),
-                origin: if matches!(
-                    self.state.options.estimator,
-                    antecedent_estimate::EmpiricalTableEstimator::Learned(_)
-                ) {
-                    "learned_plugin"
-                } else {
-                    "empirical_plugin"
-                }
-                .into(),
-                absolute_tolerance: 0.0,
-                relative_tolerance: 0.0,
-            });
-        }
-        Ok(statistical_shape_wires(laws)? == self.state.shape)
+        Ok(declared_statistical_shape(input, &self.state.functional, self.state.options)?
+            == self.state.shape)
     }
 
     fn replacement(
@@ -1140,6 +1626,111 @@ impl PreparedStudy<StatisticalPreparedState> {
             &frozen_ctx,
         )?
         .with_grid(self.state.grid.clone())
+    }
+
+    /// Recheck declared work under a caller's physical policy, retaining the explicit fitted laws.
+    /// # Errors
+    /// Raw samples are absent, the declared work is refused, or execution is cancelled.
+    pub fn requote_execution(&self, ctx: &ExecutionContext) -> Result<Self, IoError> {
+        if self.state.loaded_only {
+            return Err(err("transport.samples_not_embedded; bind_snapshot before execution"));
+        }
+        check_deferred_cancel(ctx)?;
+        antecedent_estimate::statistical_transport::check_statistical_resources(
+            &self.state.input,
+            &self.state.functional,
+            &self.state.options,
+            ctx,
+        )
+        .map_err(estimate_err)?;
+        Ok(self.clone())
+    }
+
+    /// Reconfigure a retained raw execution as an unfitted preparation on a new stream.
+    /// # Errors
+    /// Raw samples are absent after artifact loading, or resource/cancellation refusal.
+    pub fn defer_execution(
+        &self,
+        seed: u64,
+        ctx: &ExecutionContext,
+    ) -> Result<DeferredStatisticalTransport, IoError> {
+        if self.state.loaded_only {
+            return Err(err(
+                "transport.samples_not_embedded; bind_snapshot before changing execution",
+            ));
+        }
+        let mut frozen = ctx.clone();
+        frozen.rng = antecedent_core::RngFactory::from_seed(seed);
+        DeferredStatisticalTransport::compile_retained(
+            self.state.diagram.clone(),
+            self.state.functional.clone(),
+            RetainedStatisticalInput {
+                input: Arc::clone(&self.state.input),
+                retention: self.state.provider_retention.first().cloned(),
+            },
+            self.state.request.clone(),
+            self.state.limits,
+            self.state.options,
+            &frozen,
+        )
+    }
+
+    /// Rebind the target over immutable already materialized providers without refitting.
+    /// A consumed artifact retains its original sample-replay limitations.
+    ///
+    /// # Errors
+    /// Invalid target, changed limits, cancellation or admission refusal.
+    pub fn rebind_assignment(
+        &self,
+        request: Assignment,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        let mut frozen = ctx.clone();
+        frozen.rng = antecedent_core::RngFactory::from_seed(self.state.seed);
+        let mut next = Self::build_fitted(
+            StatisticalPremises {
+                diagram: self.state.diagram.clone(),
+                functional: self.state.functional.clone(),
+                input: Arc::clone(&self.state.input),
+                data: self.state.data.clone(),
+                samples: self.state.samples.clone(),
+                request,
+                limits: self.state.limits,
+                options: self.state.options,
+            },
+            &frozen,
+            self.state.loaded_only,
+        )?;
+        next.state.provider_retention = self.state.provider_retention.clone();
+        Ok(next)
+    }
+
+    /// Branch a fitted or consumed handle onto compatible raw inputs without fitting them.
+    /// Independent artifact consumption remains separate from preparation.
+    ///
+    /// # Errors
+    /// Changed observation shape, binding mismatch, cancellation or resource refusal.
+    pub fn defer_snapshot(
+        &self,
+        input: StatisticalTransportInput,
+        ctx: &ExecutionContext,
+    ) -> Result<DeferredStatisticalTransport, IoError> {
+        if !self.preview_snapshot(&input)? {
+            return Err(err("transport.reprepare_required"));
+        }
+        let functional =
+            rebind_raw_snapshots(&self.state.functional, &input, self.state.limits, ctx)?;
+        let mut frozen = ctx.clone();
+        frozen.rng = antecedent_core::RngFactory::from_seed(self.state.seed);
+        DeferredStatisticalTransport::compile(
+            self.state.diagram.clone(),
+            functional,
+            input,
+            self.state.request.clone(),
+            self.state.limits,
+            self.state.options,
+            &frozen,
+        )
     }
 
     /// Replace compatible snapshots and invalidate execution claims.
@@ -1448,11 +2039,83 @@ fn statistical_bindings(
         .collect()
 }
 
+fn rebind_raw_snapshots(
+    functional: &BoundTransportFunctional,
+    input: &StatisticalTransportInput,
+    limits: ExactEvaluationLimits,
+    ctx: &ExecutionContext,
+) -> Result<BoundTransportFunctional, IoError> {
+    let catalog = rebind_snapshots(functional.catalog(), |regime| {
+        input
+            .supplied
+            .iter()
+            .filter(|law| law.regime() == regime)
+            .map(antecedent_expr::ExactDiscreteLaw::snapshot_identity)
+            .chain(
+                input
+                    .samples
+                    .iter()
+                    .filter(|sample| sample.regime == regime)
+                    .map(|sample| sample.snapshot_identity.as_ref()),
+            )
+            .collect()
+    })?;
+    functional
+        .derivation()
+        .bind_catalog_with_context(
+            &catalog,
+            SidLimits { steps: limits.operations, depth: limits.depth },
+            ctx,
+        )
+        .map_err(err)
+}
+
+pub(super) fn declared_statistical_shape(
+    input: &StatisticalTransportInput,
+    functional: &BoundTransportFunctional,
+    options: EmpiricalTableOptions,
+) -> Result<String, IoError> {
+    let mut laws: Vec<_> = input.supplied.iter().map(ExactLawWire::metadata).collect();
+    for sample in &input.samples {
+        laws.push(ExactLawWire {
+            empirical_counts: None,
+            population: sample.population.to_string(),
+            regime: sample.regime.raw(),
+            interventions: sample
+                .interventions
+                .iter()
+                .map(|a| (a.variable.raw(), ValueWire::from_value(&a.value)))
+                .collect(),
+            axes: antecedent_estimate::catalog_axes(functional.catalog(), sample)
+                .map_err(err)?
+                .iter()
+                .map(|axis| {
+                    (axis.variable.raw(), axis.values.iter().map(ValueWire::from_value).collect())
+                })
+                .collect(),
+            probabilities: Vec::new(),
+            snapshot: String::new(),
+            origin: if matches!(
+                options.estimator,
+                antecedent_estimate::EmpiricalTableEstimator::Learned(_)
+            ) {
+                "learned_plugin"
+            } else {
+                "empirical_plugin"
+            }
+            .into(),
+            absolute_tolerance: 0.0,
+            relative_tolerance: 0.0,
+        });
+    }
+    statistical_shape_wires(laws)
+}
+
 fn statistical_shape(data: &ExactTransportData) -> Result<String, IoError> {
     statistical_shape_wires(data.laws().iter().map(ExactLawWire::metadata).collect())
 }
 
-fn statistical_shape_wires(mut laws: Vec<ExactLawWire>) -> Result<String, IoError> {
+pub(super) fn statistical_shape_wires(mut laws: Vec<ExactLawWire>) -> Result<String, IoError> {
     for law in &mut laws {
         law.probabilities.clear();
         law.snapshot.clear();
@@ -2104,6 +2767,115 @@ mod tests {
             &ctx,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn deferred_provider_compilation_does_not_publish_fitted_identity_or_laws() {
+        let baseline = prepared_with_replicates("deferred", [3, 1, 1, 3], 0);
+        let ctx = ExecutionContext::for_tests(7)
+            .with_admission(antecedent_core::execution::AdmissionPool::fixed(1, 10_000_000));
+        let deferred = DeferredStatisticalTransport::compile(
+            baseline.state.diagram.clone(),
+            baseline.state.functional.clone(),
+            (*baseline.state.input).clone(),
+            baseline.state.request.clone(),
+            baseline.state.limits,
+            baseline.state.options,
+            &ctx,
+        )
+        .unwrap();
+        assert!(!deferred.declaration_identity().is_empty());
+        assert!(deferred.cache.state.lock().unwrap().product.is_none());
+        let materialized = deferred.materialize(&ctx).unwrap();
+        assert_eq!(materialized.inspect().identities, baseline.inspect().identities);
+        assert!(!materialized.state.provider_retention.is_empty());
+        let result = materialized.estimate(&ctx).unwrap();
+        let reference = baseline.estimate(&ctx).unwrap();
+        assert_eq!(result.distribution().probabilities, reference.distribution().probabilities);
+        assert_eq!(materialized.export(&result).unwrap(), baseline.export(&reference).unwrap());
+    }
+
+    #[test]
+    fn deferred_provider_cache_respects_disabled_bounded_and_foreign_pool_callers() {
+        let baseline = prepared_with_replicates("cache", [3, 1, 1, 3], 0);
+        let pool = antecedent_core::execution::AdmissionPool::fixed(1, 10_000_000);
+        let mut ctx = ExecutionContext::for_tests(7).with_admission(pool.clone());
+        ctx.cache_policy = antecedent_core::CachePolicy::enabled(None);
+        let deferred = DeferredStatisticalTransport::compile(
+            baseline.state.diagram.clone(),
+            baseline.state.functional.clone(),
+            (*baseline.state.input).clone(),
+            baseline.state.request.clone(),
+            baseline.state.limits,
+            baseline.state.options,
+            &ctx,
+        )
+        .unwrap();
+        let first = deferred.materialize(&ctx).unwrap();
+        let second = deferred.materialize(&ctx).unwrap();
+        assert!(Arc::ptr_eq(
+            &first.state.provider_retention[1],
+            &second.state.provider_retention[1]
+        ));
+        ctx.cache_policy = antecedent_core::CachePolicy::disabled();
+        let uncached = deferred.materialize(&ctx).unwrap();
+        assert!(!Arc::ptr_eq(
+            &first.state.provider_retention[1],
+            &uncached.state.provider_retention[1]
+        ));
+        ctx.cache_policy = antecedent_core::CachePolicy::enabled(Some(1));
+        let bounded = deferred.materialize(&ctx).unwrap();
+        assert!(!Arc::ptr_eq(
+            &first.state.provider_retention[1],
+            &bounded.state.provider_retention[1]
+        ));
+        let tiny =
+            ctx.clone().with_admission(antecedent_core::execution::AdmissionPool::fixed(1, 1));
+        assert!(deferred.materialize(&tiny).is_err());
+        ctx.cancellation.cancel();
+        assert!(deferred.materialize(&ctx).is_err());
+        drop((deferred, first, second, uncached, bounded));
+        assert_eq!(pool.available().bytes(), 10_000_000);
+    }
+
+    #[test]
+    fn deferred_target_and_snapshot_branches_do_not_execute_or_change_the_parent() {
+        let baseline = prepared_with_replicates("branches", [3, 1, 1, 3], 0);
+        let mut ctx = ExecutionContext::for_tests(7)
+            .with_admission(antecedent_core::execution::AdmissionPool::fixed(1, 10_000_000));
+        ctx.cache_policy = antecedent_core::CachePolicy::enabled(None);
+        let deferred = DeferredStatisticalTransport::compile(
+            baseline.state.diagram.clone(),
+            baseline.state.functional.clone(),
+            (*baseline.state.input).clone(),
+            baseline.state.request.clone(),
+            baseline.state.limits,
+            baseline.state.options,
+            &ctx,
+        )
+        .unwrap();
+        let parent = deferred.materialize(&ctx).unwrap();
+        let before = parent.inspect().identities;
+        let branch = deferred
+            .rebind(Assignment::from_pairs([(v(0), Value::Int64(0))]), deferred.options(), &ctx)
+            .unwrap();
+        assert!(Arc::ptr_eq(&deferred.cache, &branch.cache));
+        assert_ne!(deferred.declaration_identity(), branch.declaration_identity());
+        let rebound = branch.materialize(&ctx).unwrap();
+        assert!(Arc::ptr_eq(
+            &parent.state.provider_retention[1],
+            &rebound.state.provider_retention[1]
+        ));
+        assert_ne!(before.target, rebound.inspect().identities.target);
+        assert_eq!(before, parent.inspect().identities);
+        let mut input = (*deferred.input).clone();
+        input.samples[0] = sample("replacement", [1, 3, 3, 1]);
+        let replacement = deferred.bind_snapshot(input, &ctx).unwrap();
+        assert!(replacement.cache.state.lock().unwrap().product.is_none());
+        assert_eq!(before, parent.inspect().identities);
+        let new_point = replacement.materialize(&ctx).unwrap().estimate(&ctx).unwrap();
+        let old_point = parent.estimate(&ctx).unwrap();
+        assert_ne!(old_point.distribution().probabilities, new_point.distribution().probabilities);
     }
 
     #[test]
