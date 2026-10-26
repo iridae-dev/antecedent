@@ -58,12 +58,22 @@ from the admission pool before it is allocated.
 
 ```python
 import antecedent as ant
+from antecedent import validation
 
 study = ant.prepare(data, graph=graph, query=query, refute="none")
-outcome = study.refute_target(data, suite="full", replicates=30)
-outcome.target.family      # e.g. "response_derivative"
-outcome.reports            # one TargetCheck per refuter that ran
-outcome.refused            # refuters this study cannot construct, with the next attempt
+checks = validation.TargetRefutationSpec(suite="full", replicates=30)
+outcome = validation.refute_target(study, checks=checks)
+report = outcome.value     # typed TargetRefutation; inspect outcome.refusal first
+report.target.family      # e.g. "response_derivative"
+report.reports            # one TargetCheck per refuter that ran
+report.refused            # refusers with reasons and next actions
+
+# Reuse the exact original native result rather than execute it again.
+original = ant.estimate(study)
+validated = validation.refute_target(original, checks=checks)
+# Different observations are an explicit immutable branch.
+updated = ant.rebind(study, data=new_data)
+updated_validation = validation.refute_target(updated, checks=checks)
 ```
 
 Every refit re-executes a compiled program in full. Most refuters perturb the
@@ -127,10 +137,66 @@ on every refit.
 - **Posterior-predictive check.** Under the reference linear-Gaussian outcome
   model of the treatment and adjustment set, each posterior draw's noiseless
   outcome gives the target of the draw and its noisy replicate gives a
-  replicated target, both through the study's program. Independent rows only.
+  replicated target, both through the study's program. Temporal data uses the
+  native lagged reference model and preserves its series or unit structure;
+  unsupported reference models remain individual refuter refusals.
 
-From Python, `refute_target` perturbs independent rows; series and panels are
-refuted from Rust through `PreparedTargetData::Series` and `::Panel`.
+`validation.refute_target` uses the exact native observations retained by the
+preparation: independent rows, one series, a panel, independent environments,
+or events already aligned to their declared grid. It never flattens trajectories
+or converts a multidimensional target into an average effect. Native sampling
+weights, active-row masks and the declared dependence structure follow each
+perturbation. A route that cannot preserve them returns an individual refusal.
+
+`TargetRefutationSpec` contains scientific settings; `Execution` contains the
+seed, threads, resource limits, cache policy, cancellation and observers. The
+operation uses the study's execution declaration unless one is supplied:
+
+```python
+checks = validation.TargetRefutationSpec(
+    suite="full",
+    replicates=30,
+    pre_trend_lead=2,
+    gathered_resamples=True,
+    prior_scale_factors=(0.25, 4.0),
+    prior_shift_tolerance=0.5,
+    derivative_step=None,
+    derivative_tolerance=0.1,
+    linearity_tolerance=0.25,
+)
+outcome = validation.refute_target(
+    original, checks=checks, execution=ant.Execution(seed=19, threads=2)
+)
+```
+
+Other resolved defaults remain `alpha=0.05`, `subset_fraction=0.8`,
+`mediation_rho_bar=0.1` and `common_cause_strength=0.0`. Negative-control
+exposure/outcome and mediator names default to `None`; the graph supplies
+compatible controls where possible. The default pre-trend lead is one period
+and gathered resampling is off. A class posterior's common-cause perturbation
+requires an explicit `within_class="uniform_over_members"` assumption; its
+mass allocation is never silently chosen.
+
+Successful outcomes contain a typed `TargetRefutation`. Its answer is partial
+when some refuters refuse, with every reason and next attempt retained. If no
+refuter can run, the outcome is a scientific refusal with the individual causes
+and next actions. Failed diagnostic checks remain reports, not execution
+exceptions. `passed` judges the informative reports that ran; a `True` value
+does not remove partial standing or certify refused checks. It is `None` when
+there are no informative reports. Bounds
+remain sets, and a distribution must be queried through an explicitly declared
+compatible response rather than silently becoming a mean.
+
+`original_executions` records original target executions performed by this
+operation: one for a fresh preparation, zero for the retained original result.
+It does not count fits inside refuters. Native program and target identities
+and the certificate remain available on the report. Inspection and notebook
+representation read bounded retained metadata and execute nothing.
+
+An independently loaded artifact has no live study or observations and cannot
+be refitted. Supply a preparation or retained live outcome. Resource failure,
+cancellation and callback failure remain typed exceptions; diagnostic operating
+characteristics remain unmeasured.
 
 ## Sensitivity ranges
 

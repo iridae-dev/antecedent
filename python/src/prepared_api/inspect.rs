@@ -189,6 +189,7 @@ impl PyPreparedAnalysis {
         serde_json::to_string(&serde_json::json!({
             "contract": section,
             "evidence": {
+                "lowered_program_id": result.lowered_program_identity().map(|id| id.to_hex()),
                 "identification": body.identification,
                 "identification_variables": body.identification_variables,
                 "assumptions": body.assumptions,

@@ -262,6 +262,8 @@ class ReasoningSlots:
     program_id: str | None
     #: Execution claim identity (`contract["claim"]["claim_id"]`). Distinct from program_id.
     claim_id: str | None
+    #: Exact lowered dispatch that produced a live result; absent when it was not retained.
+    lowered_program_id: str | None = None
     target_id: str | None = None
     identification_id: str | None = None
     identification_product_id: str | None = None
@@ -439,6 +441,7 @@ class ReasoningSlots:
             assumptions=assumptions,
             program_id=_identity_hex(identities.get("program")),
             claim_id=_identity_hex(claim.get("claim_id")),
+            lowered_program_id=_identity_hex(body.get("lowered_program_id")),
             target_id=_identity_hex(identities.get("target")),
             identification_id=_identity_hex(identities.get("identification")),
             identification_product_id=_identity_hex(identities.get("identification_product")),

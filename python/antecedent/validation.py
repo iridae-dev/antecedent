@@ -20,10 +20,19 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import asdict, dataclass, replace
+from typing import TYPE_CHECKING, Any, Literal
 
+from . import _native
 from ._data import as_columns, as_multi_env_columns
+from ._scientific import ScientificResult
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from .execution import Execution
+from .outcomes import Answer, Outcome, outcome_operation, require_success
+
+if TYPE_CHECKING:
+    from .prepared import PreparedAnalysis
+
 from ._native import (
     sensitivity_amplify as _sensitivity_amplify,
 )
@@ -498,9 +507,96 @@ class RefuterRefusal:
     reason: str
     next_attempt: str
 
+    @property
+    def code(self) -> Literal["refuter_not_applicable"]:
+        """Stable standing; ``reason`` retains the native scientific explanation."""
+        return "refuter_not_applicable"
 
-@dataclass(frozen=True)
-class TargetRefutation:
+
+@dataclass(frozen=True, slots=True)
+class TargetRefutationSpec:
+    """Scientific perturbations and budgets of a target-native validation run.
+
+    ``None`` controls are resolved by the native graph or original declaration.
+    A class posterior requires an explicit ``within_class`` assumption for a
+    common-cause perturbation; no division of class mass is inferred.
+    """
+
+    suite: Literal["cheap", "placebo", "full"] = "full"
+    replicates: int = 30
+    alpha: float = 0.05
+    subset_fraction: float = 0.8
+    pre_trend_lead: int = 1
+    negative_control_exposure: str | None = None
+    negative_control_outcome: str | None = None
+    mediator: str | None = None
+    mediation_rho_bar: float = 0.1
+    common_cause_strength: float = 0.0
+    prior_scale_factors: tuple[float, ...] = (0.25, 4.0)
+    prior_shift_tolerance: float = 0.5
+    derivative_step: float | None = None
+    derivative_tolerance: float = 0.1
+    linearity_tolerance: float = 0.25
+    gathered_resamples: bool = False
+    within_class: Literal["uniform_over_members"] | None = None
+
+    def __post_init__(self) -> None:
+        import math
+
+        if self.suite not in ("cheap", "placebo", "full"):
+            raise CausalValueError("suite must be cheap, placebo or full")
+        for name in ("replicates", "pre_trend_lead"):
+            value = getattr(self, name)
+            if type(value) is not int:
+                raise CausalTypeError(f"{name} must be an integer")
+            if not 1 <= value <= 2**32 - 1:
+                raise CausalValueError(f"{name} must lie in [1, 2**32 - 1]")
+        for name in ("alpha", "subset_fraction"):
+            value = getattr(self, name)
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                raise CausalTypeError(f"{name} must be a number")
+            if not 0 < value < 1:
+                raise CausalValueError(f"{name} must lie in (0, 1)")
+        for name in (
+            "mediation_rho_bar",
+            "common_cause_strength",
+            "prior_shift_tolerance",
+            "derivative_tolerance",
+            "linearity_tolerance",
+            "derivative_step",
+        ):
+            value = getattr(self, name)
+            if value is None and name == "derivative_step":
+                continue
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                raise CausalTypeError(f"{name} must be a number")
+            if not math.isfinite(value) or (name != "common_cause_strength" and value < 0):
+                raise CausalValueError(f"{name} must be finite and nonnegative")
+            if name == "derivative_step" and value == 0:
+                raise CausalValueError("derivative_step must be positive")
+        for name in ("negative_control_exposure", "negative_control_outcome", "mediator"):
+            value = getattr(self, name)
+            if value is not None and (not isinstance(value, str) or not value):
+                raise CausalTypeError(f"{name} must be a nonempty column name or None")
+        if type(self.gathered_resamples) is not bool:
+            raise CausalTypeError("gathered_resamples must be a bool")
+        if self.within_class not in (None, "uniform_over_members"):
+            raise CausalValueError("within_class must be uniform_over_members or None")
+        if isinstance(self.prior_scale_factors, (str, bytes)):
+            raise CausalTypeError("prior_scale_factors must be a sequence of positive numbers")
+        try:
+            factors = tuple(self.prior_scale_factors)
+        except TypeError as error:
+            raise CausalTypeError("prior_scale_factors must be a sequence") from error
+        if any(type(value) not in (int, float) for value in factors):
+            raise CausalTypeError("prior_scale_factors must contain numbers")
+        if any(not math.isfinite(value) or value <= 0 for value in factors):
+            raise CausalValueError("prior_scale_factors must be finite and positive")
+        object.__setattr__(self, "prior_scale_factors", factors)
+
+
+@dataclass(frozen=True, repr=False)
+class TargetRefutation(ScientificResult):
     """The target-native suite of one prepared result: plan, reports, refusals, certificate."""
 
     target: RefutationTarget
@@ -510,11 +606,85 @@ class TargetRefutation:
     refused: tuple[RefuterRefusal, ...]
     certificate: str
     calibration: str
+    reused_original_result: bool = False
+    original_executions: int | None = None
+    program: str | None = None
+    declaration: TargetRefutationSpec | None = None
+
+    def _summary_fields(self) -> dict[str, Any]:
+        return {
+            "family": self.target.family,
+            "suite": self.suite,
+            "reports": len(self.reports),
+            "refused": len(self.refused),
+            "passed": self.passed,
+            "calibration": self.calibration,
+        }
 
     @property
-    def passed(self) -> bool:
+    def answer(self) -> Answer:
+        return Answer(
+            "partial" if self.refused else "structured",
+            detail="target_native_refutation",
+            structured=self._summary_fields(),
+        )
+
+    @property
+    def identities(self) -> Mapping[str, Any]:
+        return {
+            "program_id": self.program,
+            "target_id": self.target.identity,
+            "certificate": self.certificate,
+        }
+
+    @property
+    def provenance(self) -> Mapping[str, Any]:
+        return {
+            "program": self.program,
+            "target": self.target.identity,
+            "reused_original_result": self.reused_original_result,
+            "original_executions": self.original_executions,
+            "calibration": self.calibration,
+        }
+
+    def inspect(self) -> Any:
+        from .results._report import SlotModel
+
+        return (
+            super()
+            .inspect()
+            .model_copy(
+                update={
+                    "uncertainty": SlotModel(
+                        available=False,
+                        reason="diagnostic_unmeasured",
+                        summary="Target-native diagnostic; operating characteristics unmeasured",
+                    ),
+                    "next_actions": tuple(
+                        {"refuter": r.refuter, "action": r.next_attempt} for r in self.refused
+                    ),
+                    "assumptions": SlotModel(
+                        available=True,
+                        summary="Native target and declared perturbation assumptions",
+                        payload={
+                            "target_family": self.target.family,
+                            "quadrant": self.target.quadrant,
+                            "within_class": self.declaration.within_class
+                            if self.declaration
+                            else None,
+                        },
+                    ),
+                    "program_id": self.program,
+                    "target_id": self.target.identity,
+                }
+            )
+        )
+
+    @property
+    def passed(self) -> bool | None:
         """Whether every informative report passed."""
-        return all(report.passed for report in self.reports if report.informative)
+        informative = tuple(report for report in self.reports if report.informative)
+        return all(report.passed for report in informative) if informative else None
 
     @classmethod
     def _from_json(cls, raw: str) -> TargetRefutation:
@@ -534,7 +704,107 @@ class TargetRefutation:
             ),
             certificate=str(wire["certificate"]),
             calibration=str(wire["calibration"]),
+            reused_original_result=bool(wire.get("reused_original_result", False)),
+            original_executions=wire.get("original_executions"),
+            program=wire.get("program"),
         )
+
+
+@outcome_operation
+def refute_target(
+    source: PreparedAnalysis[Any] | Outcome[Any],
+    *,
+    checks: TargetRefutationSpec | None = None,
+    execution: Execution | None = None,
+) -> TargetRefutation:
+    """Explicitly refit a study's complete target under declared perturbations.
+
+    A retained outcome reuses its exact original native result. A preparation
+    executes its original target once before the suite. Neither operation changes
+    the source. For different observations, first use :func:`antecedent.rebind`.
+    """
+    from .estimation import PreparedAnalysis as Engine
+    from .prepared import PreparedAnalysis
+
+    completed = isinstance(source, Outcome)
+    if isinstance(source, Outcome):
+        require_success(source)
+        study = source.study
+    else:
+        study = source
+    if not isinstance(study, PreparedAnalysis):
+        if completed:
+            raise StructuredRefusal(
+                {
+                    "code": "route_not_supported",
+                    "detail": "target_refutation.live_result_required",
+                    "message": "refitting requires the retained native result, study and observations",
+                }
+            )
+        raise CausalTypeError(
+            "refute_target requires a canonical prepared study or retained Outcome"
+        )
+    if study._refused is not None:
+        require_success(study._refused)
+    if checks is None:
+        checks = TargetRefutationSpec()
+    elif not isinstance(checks, TargetRefutationSpec):
+        raise CausalTypeError("checks must be TargetRefutationSpec or None")
+    controls = study.execution if execution is None else execution
+    if not isinstance(controls, Execution):
+        raise CausalTypeError("execution must be Execution or None")
+    engine = study._engine
+    if not isinstance(engine, Engine) or not isinstance(engine._native, _native.PreparedAnalysis):
+        raise StructuredRefusal(
+            {
+                "code": "route_not_supported",
+                "detail": "target_refutation.native_preparation_required",
+                "message": "this scientific preparation has no target-native refit implementation",
+            }
+        )
+    if (
+        isinstance(source, Outcome)
+        and getattr(source.value, "_execution", None) is not engine._native
+    ):
+        # Canonical estimation binds this exact immutable execution header to
+        # both the published native-backed view and its retained study. A
+        # program identity alone cannot distinguish another dataset or run.
+        raise StructuredRefusal(
+            {
+                "code": "route_not_supported",
+                "detail": "target_refutation.producer_mismatch",
+                "message": "the supplied outcome is not the retained native result of this study",
+                "next_actions": ({"action": "use the outcome's original retained study"},),
+            }
+        )
+    report = TargetRefutation._from_json(
+        controls._call(
+            engine._native.refute_target_bound,
+            **asdict(checks),
+            require_completed=completed,
+            seed=controls.seed,
+            threads=controls.threads,
+            on_stage=controls.on_stage,
+        )
+    )
+    if not report.reports:
+        raise StructuredRefusal(
+            {
+                "code": "route_not_supported",
+                "detail": "target_refutation.no_applicable_refuters",
+                "message": "none of the declared target refuters can assess this target",
+                "causes": tuple(
+                    {"code": "refuter_not_applicable", "refuter": r.refuter, "message": r.reason}
+                    for r in report.refused
+                ),
+                "next_actions": tuple(
+                    {"refuter": r.refuter, "action": r.next_attempt} for r in report.refused
+                ),
+                "target": report.target.identity,
+                "certificate": report.certificate,
+            }
+        )
+    return replace(report, declaration=checks)
 
 
 def evalue(
@@ -1219,6 +1489,8 @@ __all__ = [
     "SensitivityResult",
     "TargetCheck",
     "TargetRefutation",
+    "TargetRefutationSpec",
+    "refute_target",
     "amplify",
     "derivative_consistency",
     "evalue",

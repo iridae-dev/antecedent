@@ -56,6 +56,7 @@ class InspectionReport(BaseModel):
     uncertainty: SlotModel
     assumptions: SlotModel
     program_id: str | None = None
+    lowered_program_id: str | None = None
     claim_id: str | None = None
     target_id: str | None = None
     identification_id: str | None = None
@@ -376,6 +377,7 @@ def as_inspection(slots: Any) -> InspectionReport:
             uncertainty=_slot(slots.uncertainty),
             assumptions=_slot(slots.assumptions),
             program_id=slots.program_id,
+            lowered_program_id=getattr(slots, "lowered_program_id", None),
             claim_id=slots.claim_id,
             target_id=slots.target_id,
             identification_id=slots.identification_id,

@@ -348,6 +348,7 @@ class Outcome(Generic[T]):
         report = self.inspect()
         names = (
             "program_id",
+            "lowered_program_id",
             "claim_id",
             "target_id",
             "identification_id",

@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 from antecedent import validation as v
 from antecedent.errors import CausalError
+from antecedent.outcomes import require_success
 
 
 def test_evalue_reproduces_vanderweele_and_ding():
@@ -146,7 +147,9 @@ def test_a_prepared_study_refutes_its_own_target():
         inference=ant.Frequentist(bootstrap=0),
         refute="none",
     )
-    outcome = study.refute_target(data, suite="cheap", replicates=12)
+    outcome = require_success(
+        v.refute_target(study, checks=v.TargetRefutationSpec(suite="cheap", replicates=12))
+    )
     assert isinstance(outcome, v.TargetRefutation)
     assert outcome.target.family == "scalar_average_effect"
     refuters = {report.refuter for report in outcome.reports}
@@ -178,7 +181,12 @@ def test_constructed_refuters_pass_on_a_sound_design_and_flag_a_planted_confound
         inference=ant.Frequentist(bootstrap=0),
         refute="none",
     )
-    outcome = study.refute_target(clean, suite="full", replicates=12, common_cause_strength=0.5)
+    outcome = require_success(
+        v.refute_target(
+            study,
+            checks=v.TargetRefutationSpec(suite="full", replicates=12, common_cause_strength=0.5),
+        )
+    )
     passed = {r.refuter: r.passed for r in outcome.reports}
     for refuter in (
         "target.random_common_cause",
@@ -194,7 +202,9 @@ def test_constructed_refuters_pass_on_a_sound_design_and_flag_a_planted_confound
         inference=ant.Frequentist(bootstrap=0),
         refute="none",
     )
-    outcome = study.refute_target(planted, suite="full", replicates=12)
+    outcome = require_success(
+        v.refute_target(study, checks=v.TargetRefutationSpec(suite="full", replicates=12))
+    )
     flagged = {r.refuter: r.passed for r in outcome.reports}
     assert flagged["target.negative_control_exposure"] is False
 

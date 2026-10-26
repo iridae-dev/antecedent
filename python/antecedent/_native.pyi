@@ -1411,6 +1411,31 @@ class PreparedAnalysis:
         self, *, policy_json: str | None = None, seed: int = 1, threads: int | None = None
     ) -> bytes: ...
     def staleness_plan_json(self) -> str: ...
+    def refute_target_bound(
+        self,
+        *,
+        suite: str = "full",
+        replicates: int = 30,
+        alpha: float = 0.05,
+        subset_fraction: float = 0.8,
+        pre_trend_lead: int = 1,
+        negative_control_exposure: str | None = None,
+        negative_control_outcome: str | None = None,
+        mediator: str | None = None,
+        mediation_rho_bar: float = 0.1,
+        common_cause_strength: float = 0.0,
+        prior_scale_factors: list[float] | None = None,
+        prior_shift_tolerance: float = 0.5,
+        derivative_step: float | None = None,
+        derivative_tolerance: float = 0.1,
+        linearity_tolerance: float = 0.25,
+        gathered_resamples: bool = False,
+        within_class: str | None = None,
+        require_completed: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        on_stage: Any = None,
+    ) -> str: ...
     def refute_target(
         self,
         names: list[str],

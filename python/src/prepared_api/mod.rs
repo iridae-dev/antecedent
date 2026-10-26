@@ -77,6 +77,13 @@ pub struct PyPreparedAnalysis {
 }
 
 impl PyPreparedAnalysis {
+    /// Immutable producer state for a domain operation; no execution or header mutation.
+    pub(crate) fn target_refutation_source(
+        &self,
+    ) -> (Arc<PreparedStudy>, Option<Arc<antecedent::StudyResult>>) {
+        (self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner)), self.last.clone())
+    }
+
     pub(crate) fn from_completed(
         study: Arc<PreparedStudy>,
         result: Arc<antecedent::StudyResult>,
@@ -160,7 +167,9 @@ impl PyPreparedAnalysis {
                 },
             };
             study = study.materialize(&ctx).map_err(py_err)?;
-            let result = study.estimate_retained(&ctx).map_err(py_err)?;
+            let result = crate::interrupt::bind_study_validators(&study)?
+                .estimate_retained(&ctx)
+                .map_err(py_err)?;
             let mapped = map(&out_names, &result, &study, &ctx)?;
             drop(frame_retention);
             Ok((mapped, result, Arc::new(unstaged(study))))
@@ -206,7 +215,9 @@ impl PyPreparedAnalysis {
             let (study, mut result) =
                 antecedent_estimate::CrossfitNuisanceCache::run_in(cache.as_ref(), || {
                     let study = study.materialize(&ctx).map_err(py_err)?;
-                    let result = study.estimate_retained(&ctx).map_err(py_err)?;
+                    let result = crate::interrupt::bind_study_validators(&study)?
+                        .estimate_retained(&ctx)
+                        .map_err(py_err)?;
                     Ok::<_, PyErr>((study, result))
                 })?;
             result.performance.bytes_borrowed = borrowed_bytes;
@@ -269,7 +280,9 @@ impl PyPreparedAnalysis {
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
-            let result = inner.refute(&prior, &data, refute_suite, &ctx).map_err(py_err)?;
+            let result = crate::interrupt::bind_study_validators(&inner)?
+                .refute(&prior, &data, refute_suite, &ctx)
+                .map_err(py_err)?;
             let mapped = ate_result_from_analysis(&out_names, &result, false)?;
             Ok((mapped, result))
         })?;

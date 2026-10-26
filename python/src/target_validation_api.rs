@@ -1070,6 +1070,117 @@ fn column_id(names: &[String], name: Option<&str>, what: &str) -> PyResult<Optio
 
 #[pymethods]
 impl PyPreparedAnalysis {
+    /// Execute target-native checks against immutable retained native observations.
+    #[pyo3(signature = (*, suite="full", replicates=30, alpha=0.05, subset_fraction=0.8,
+        pre_trend_lead=1, negative_control_exposure=None, negative_control_outcome=None,
+        mediator=None, mediation_rho_bar=0.1, common_cause_strength=0.0,
+        prior_scale_factors=None, prior_shift_tolerance=0.5, derivative_step=None,
+        derivative_tolerance=0.1, linearity_tolerance=0.25, gathered_resamples=false,
+        within_class=None, require_completed=false, seed=1, threads=None, on_stage=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn refute_target_bound(
+        &self,
+        py: Python<'_>,
+        suite: &str,
+        replicates: u32,
+        alpha: f64,
+        subset_fraction: f64,
+        pre_trend_lead: u32,
+        negative_control_exposure: Option<String>,
+        negative_control_outcome: Option<String>,
+        mediator: Option<String>,
+        mediation_rho_bar: f64,
+        common_cause_strength: f64,
+        prior_scale_factors: Option<Vec<f64>>,
+        prior_shift_tolerance: f64,
+        derivative_step: Option<f64>,
+        derivative_tolerance: f64,
+        linearity_tolerance: f64,
+        gathered_resamples: bool,
+        within_class: Option<&str>,
+        require_completed: bool,
+        seed: u64,
+        threads: Option<u32>,
+        on_stage: Option<Bound<'_, PyAny>>,
+    ) -> PyResult<String> {
+        let suite = suite_of(suite)?;
+        let (source, retained) = self.target_refutation_source();
+        if require_completed && retained.is_none() {
+            return Err(crate::refusal(
+                "route_not_supported",
+                "target_refutation.live_result_required: target refutation requires the exact retained native producer result",
+            ));
+        }
+        let column = |name: Option<&str>| {
+            name.map(|name| crate::graph_build::schema_var_id(source.schema(), name)).transpose()
+        };
+        let options = TargetRefitOptions {
+            negative_control_exposure: column(negative_control_exposure.as_deref())?,
+            negative_control_outcome: column(negative_control_outcome.as_deref())?,
+            mediator: column(mediator.as_deref())?,
+            mediation_rho_bar,
+            common_cause_strength,
+            prior_scale_factors: prior_scale_factors.unwrap_or_else(|| vec![0.25, 4.0]),
+            prior_shift_tolerance,
+            derivative_step,
+            derivative_tolerance,
+            linearity_tolerance,
+            gathered_resamples,
+            within_class: match within_class {
+                None => None,
+                Some("uniform_over_members") => Some(
+                    antecedent::analysis::target_validation::WithinClassDistribution::UniformOverMembers,
+                ),
+                Some(_) => return Err(value_err("within_class must be uniform_over_members or None")),
+            },
+        };
+        let config = TargetRefutationConfig { replicates, alpha, subset_fraction, pre_trend_lead };
+        let stage = crate::callbacks::stage_sink_from_py(on_stage.as_ref())?;
+        let reused_original = retained.is_some();
+        detach_catch(py, move || {
+            let ctx = py_execution_context(seed, resolve_user_threads(threads));
+            let mut study = source.materialize(&ctx).map_err(py_err)?;
+            if let Some(stage) = stage {
+                if !study.streams_stages() {
+                    return Err(crate::refusal(
+                        "option_not_applicable",
+                        "target refutation stage observers require a stage-streaming preparation",
+                    ));
+                }
+                study.set_stage_sink(Some(crate::interrupt::bind_stage_sink(stage)));
+            }
+            let study = crate::interrupt::bind_study_validators(&study)?;
+            let mut original_executions = 0_u32;
+            let result = match retained {
+                Some(result) => result,
+                None => {
+                    let result = study.estimate_retained(&ctx).map_err(py_err)?;
+                    original_executions += 1;
+                    Arc::new(result)
+                }
+            };
+            let outcome = study
+                .refute_retained_target(&result, suite, &config, &options, &ctx)
+                .map_err(py_err)?;
+            Ok(json!({
+                "target": target_json(outcome.plan.target()),
+                "suite": outcome.plan.suite().as_str(),
+                "plan": outcome.plan.refuters().iter().map(|k| k.as_str()).collect::<Vec<_>>(),
+                "reports": outcome.run.reports.iter().map(report_json).collect::<Vec<_>>(),
+                "refused": outcome.run.refused.iter().map(|r| json!({
+                    "refuter": r.kind.as_str(), "reason": r.reason.as_ref(),
+                    "next_attempt": r.next_attempt.as_ref(),
+                })).collect::<Vec<_>>(),
+                "certificate": hex(&outcome.certificate.identity),
+                "calibration": "unmeasured",
+                "reused_original_result": reused_original,
+                "original_executions": original_executions,
+                "program": result.lowered_program_identity().map(|id| hex(id.as_bytes())),
+            })
+            .to_string())
+        })
+    }
+
     /// Estimate on the columns, then refute the result's own target by refits of this
     /// prepared program; the outcome as JSON.
     #[pyo3(signature = (names, columns, *, suite="full", replicates=30, alpha=0.05, subset_fraction=0.8, negative_control_exposure=None, negative_control_outcome=None, mediator=None, mediation_rho_bar=0.1, common_cause_strength=0.0, prior_scale_factors=None, derivative_step=None, seed=1, threads=None))]
@@ -1122,6 +1233,7 @@ impl PyPreparedAnalysis {
         let study = Arc::clone(&self.inner);
         detach_catch(py, move || {
             let ctx = py_execution_context(seed, resolve_user_threads(threads));
+            let study = crate::interrupt::bind_study_validators(&study)?;
             let result = study.estimate(&data, &ctx).map_err(py_err)?;
             let outcome = refute_prepared_target(
                 &study,

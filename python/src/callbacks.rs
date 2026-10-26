@@ -460,10 +460,12 @@ impl CustomEffectValidator for PyCustomValidator {
     ) -> Result<RefutationReport, ValidationError> {
         Python::attach(|py| -> Result<RefutationReport, ValidationError> {
             let py_err = |e: PyErr| {
-                ValidationError::data_msg(callback_failure(
-                    &format!("Python validator `{}` failed", self.name),
-                    e,
-                ))
+                // Native validation may record a computation diagnostic and still
+                // return success. Retain the exact Python error at the execution
+                // boundary so that diagnostic conversion cannot swallow it.
+                let message = format!("Python validator `{}` raised an exception", self.name);
+                let _unowned = crate::interrupt::observer_failure(e);
+                ValidationError::data_msg(message)
             };
             let kwargs = PyDict::new(py);
             kwargs.set_item("ate", problem.original.ate).map_err(py_err)?;

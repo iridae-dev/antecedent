@@ -20,7 +20,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Condvar, Mutex, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, PoisonError, Weak};
 use std::time::Duration;
 
 use antecedent_core::{CancellationToken, WeakCancellationToken};
@@ -167,6 +167,69 @@ thread_local! {
 /// The interruptible run's token, if the current thread is a [`run`] worker.
 pub(crate) fn ambient_token() -> Option<CancellationToken> {
     ACTIVE.with(|active| active.borrow().as_ref().map(|scope| scope.own.clone()))
+}
+
+/// An execution-local callback owner. Weak ownership prevents a retained adapter
+/// from keeping a completed run alive or attributing a late callback to a new run.
+struct ValidatorScope(Weak<Scope>);
+
+impl ValidatorScope {
+    fn call<T>(&self, callback: impl FnOnce() -> T) -> Option<T> {
+        let scope = self.0.upgrade()?;
+        let _restore = ActiveGuard(ACTIVE.with(|active| active.replace(Some(scope))));
+        Some(callback())
+    }
+}
+
+struct ScopedValidator {
+    inner: Arc<dyn antecedent_validate::CustomEffectValidator>,
+    scope: ValidatorScope,
+}
+
+impl antecedent_validate::CustomEffectValidator for ScopedValidator {
+    fn name(&self) -> &str {
+        self.inner.name()
+    }
+
+    fn validate(
+        &self,
+        problem: &antecedent_validate::RefutationProblem<'_>,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<antecedent_validate::RefutationReport, antecedent_validate::ValidationError> {
+        self.scope.call(|| self.inner.validate(problem, ctx)).unwrap_or_else(|| {
+            Err(antecedent_validate::ValidationError::data_msg(
+                "custom validator execution scope has ended",
+            ))
+        })
+    }
+}
+
+/// Bind validators only around an execution, never on a retained preparation.
+/// Native snapshots, scientific plans, and callback objects remain shared; only
+/// the small execution backend is cloned when callbacks actually exist.
+/// Callers retain the original study, not the temporary weak adapters.
+pub(crate) fn bind_study_validators(
+    study: &antecedent::PreparedStudy,
+) -> PyResult<std::borrow::Cow<'_, antecedent::PreparedStudy>> {
+    if study.custom_validators().is_empty() {
+        return Ok(std::borrow::Cow::Borrowed(study));
+    }
+    let scope = ACTIVE
+        .with(|active| active.borrow().as_ref().map(Arc::downgrade))
+        .ok_or_else(|| crate::value_err("custom validators require an active native execution"))?;
+    let validators = study
+        .custom_validators()
+        .iter()
+        .map(|inner| {
+            Arc::new(ScopedValidator {
+                inner: Arc::clone(inner),
+                scope: ValidatorScope(scope.clone()),
+            }) as Arc<dyn antecedent_validate::CustomEffectValidator>
+        })
+        .collect();
+    let mut execution = study.clone();
+    execution.rebind_custom_validators(validators).map_err(crate::py_err)?;
+    Ok(std::borrow::Cow::Owned(execution))
 }
 
 /// Cancel `token` too when the current run is interrupted (an explicit user token stays usable).
@@ -679,6 +742,145 @@ mod tests {
             assert!(owner.upgrade().is_none());
             observer.report(1.0, "after completion");
             assert_eq!(calls.load(super::Ordering::Relaxed), 1);
+        });
+    }
+
+    #[test]
+    fn native_validator_workers_preserve_concurrent_originals_after_diagnostic_conversion() {
+        use super::{ACTIVE, ValidatorScope, observer_failure, run};
+        use pyo3::exceptions::{PyRuntimeError, PySystemExit};
+        use pyo3::prelude::*;
+        use pyo3::types::PyDict;
+        use std::sync::Arc;
+
+        Python::initialize();
+        let barrier = Arc::new(std::sync::Barrier::new(2));
+        std::thread::scope(|threads| {
+            let callers: Vec<_> = (0..2)
+                .map(|caller| {
+                    let barrier = Arc::clone(&barrier);
+                    threads.spawn(move || {
+                        Python::attach(|py| {
+                            let globals = PyDict::new(py);
+                            let original = if caller == 0 {
+                                PyRuntimeError::new_err("identical validator failure")
+                            } else {
+                                PySystemExit::new_err("identical validator failure")
+                            };
+                            globals.set_item("original", original.value(py)).unwrap();
+                            py.run(
+                                pyo3::ffi::c_str!("def validate():\n    raise original\n"),
+                                Some(&globals),
+                                None,
+                            )
+                            .unwrap();
+                            let callback = globals.get_item("validate").unwrap().unwrap().unbind();
+                            // Reuse the same Python callback across fresh execution scopes.
+                            for execution in 0..2 {
+                                let callback = callback.clone_ref(py);
+                                let barrier = Arc::clone(&barrier);
+                                let error = run::<_, ()>(py, move || {
+                                    let scope = ValidatorScope(ACTIVE.with(|active| {
+                                        Arc::downgrade(active.borrow().as_ref().unwrap())
+                                    }));
+                                    let ctx = crate::py_execution_context(1, 2);
+                                    if execution == 0 {
+                                        barrier.wait();
+                                    }
+                                    ctx.map_indexed(2, |_, _| {
+                                        assert!(ACTIVE.with(|active| active.borrow().is_none()));
+                                        let diagnostic = scope
+                                            .call(|| {
+                                                Python::attach(|py| {
+                                                    let error =
+                                                        callback.bind(py).call0().unwrap_err();
+                                                    observer_failure(error).unwrap();
+                                                    // Same conversion performed by PyCustomValidator;
+                                                    // a native validation diagnostic must not own the error.
+                                                    antecedent_validate::ValidationError::data_msg(
+                                                        "Python validator raised an exception",
+                                                    )
+                                                })
+                                            })
+                                            .unwrap();
+                                        assert!(diagnostic.to_string().contains("validator"));
+                                        assert!(ACTIVE.with(|active| active.borrow().is_none()));
+                                        Ok::<(), ()>(())
+                                    })
+                                    .unwrap();
+                                    Ok(()) // Native computation-failure recording or fallback succeeded.
+                                })
+                                .unwrap_err();
+                                assert!(error.value(py).is(original.value(py)));
+                                assert!(
+                                    error
+                                        .value(py)
+                                        .getattr("_antecedent_operational_callback")
+                                        .unwrap()
+                                        .extract::<bool>()
+                                        .unwrap()
+                                );
+                                let mut traceback =
+                                    error.value(py).getattr("__traceback__").unwrap();
+                                let mut saw_validator = false;
+                                while !traceback.is_none() {
+                                    let function: String = traceback
+                                        .getattr("tb_frame")
+                                        .unwrap()
+                                        .getattr("f_code")
+                                        .unwrap()
+                                        .getattr("co_name")
+                                        .unwrap()
+                                        .extract()
+                                        .unwrap();
+                                    saw_validator |= function == "validate";
+                                    traceback = traceback.getattr("tb_next").unwrap();
+                                }
+                                assert!(saw_validator);
+                            }
+                            globals.clear();
+                        })
+                    })
+                })
+                .collect();
+            for caller in callers {
+                caller.join().unwrap();
+            }
+        });
+    }
+
+    #[test]
+    fn validator_scope_restores_tls_on_panic_and_cannot_leak_into_later_runs() {
+        use super::{ACTIVE, ValidatorScope, run};
+        use pyo3::prelude::*;
+        use std::sync::Arc;
+
+        Python::initialize();
+        Python::attach(|py| {
+            let adapter = run(py, || {
+                let owner = ACTIVE.with(|active| Arc::downgrade(active.borrow().as_ref().unwrap()));
+                let adapter = ValidatorScope(owner);
+                let expected = ACTIVE.with(|active| active.borrow().clone().unwrap());
+                let unwind = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    adapter.call(|| panic!("validator unwound"));
+                }));
+                assert!(unwind.is_err());
+                assert!(
+                    ACTIVE
+                        .with(|active| Arc::ptr_eq(active.borrow().as_ref().unwrap(), &expected,))
+                );
+                Ok(adapter)
+            })
+            .unwrap();
+            assert!(adapter.0.upgrade().is_none(), "validator must not retain its run");
+            assert!(adapter.call(|| panic!("late callback must not execute")).is_none());
+            run(py, || {
+                assert!(!super::ambient_token().unwrap().is_cancelled());
+                // The next run's active TLS cannot revive a prior adapter.
+                assert!(adapter.call(|| panic!("must not borrow next run")).is_none());
+                Ok(())
+            })
+            .unwrap();
         });
     }
 

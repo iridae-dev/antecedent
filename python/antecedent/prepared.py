@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from ._batch import BatchResult, PreparedBatch
     from ._prepared_identification import PreparedIdentification
     from .cyclic import CyclicResult, PreparedCyclicFamily, PreparedCyclicSystem
+    from .validation import TargetRefutation, TargetRefutationSpec
 
 CyclicStudyT = TypeVar("CyclicStudyT", "PreparedCyclicFamily", "PreparedCyclicSystem")
 
@@ -82,6 +83,16 @@ class PreparedAnalysis(Generic[T]):
 
     def refute(self, *, suite: Any = "placebo") -> Outcome[Any]:
         return refute(self, suite=suite)
+
+    def refute_target(
+        self,
+        *,
+        checks: TargetRefutationSpec | None = None,
+        execution: Execution | None = None,
+    ) -> Outcome[TargetRefutation]:
+        from .validation import refute_target
+
+        return refute_target(self, checks=checks, execution=execution)
 
     def preflight(self) -> Any:
         return preflight(self)
