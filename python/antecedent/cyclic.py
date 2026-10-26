@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import threading
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
@@ -70,6 +71,8 @@ from ._cyclic_typed import (
     prepare_experimental_recovery,
 )
 from ._cyclic_typed import EvidenceVariable as EvidenceVariable
+from ._freeze import freeze, thaw
+from ._scientific import ScientificResult
 from .errors import CausalValueError, StructuredRefusal
 from .execution import Execution
 from .intervention import Set, Shift, Soft
@@ -184,12 +187,144 @@ class FitOptions:
 
 
 @dataclass(frozen=True)
-class CyclicResult:
+class CyclicResult(ScientificResult):
     """Model-conditional worlds, diagnostics, and independent replay artifact."""
 
-    report: dict[str, Any]
-    artifact: bytes
+    report: Mapping[str, Any] = field(repr=False)
+    artifact: bytes = field(repr=False)
     execution_facts: Any = field(default=None, repr=False, compare=False)
+    _prepared: Any = field(default=None, repr=False, compare=False)
+    _contract: Any = field(default=None, repr=False, compare=False)
+    _inspection: Any = field(default=None, init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "report", freeze(self.report))
+        object.__setattr__(self, "_contract", freeze(self._contract))
+        object.__setattr__(self, "_inspection", self._make_inspection())
+
+    def _summary_fields(self) -> dict[str, Any]:
+        return {
+            "identity": self.identity,
+            "family": self.report.get("answer", {}).get("family"),
+            "claim": self.report.get("claim"),
+            "calibration": self.report.get("calibration"),
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        """Explicit mutable JSON-compatible copy of the native execution report."""
+        return thaw(self.report)
+
+    @property
+    def identities(self):
+        contract = self._contract or {}
+        native = self._native_report_metadata()
+        return freeze(
+            {
+                **contract.get("identities", {}),
+                **{key: native[key] for key in ("source_identity",) if key in native},
+                **{
+                    key: contract[key]
+                    for key in ("cyclic_solution", "recovery", "lowered_program_identity")
+                    if contract.get(key) is not None
+                },
+            }
+        )
+
+    @property
+    def provenance(self):
+        """Retained native contract coordinates, without a reconstructed source history."""
+        native = self._native_report_metadata()
+        return freeze(
+            {
+                **({"native_contract": self._contract} if self._contract else {}),
+                **{
+                    key: native[key]
+                    for key in ("source_identity", "derivation", "scope")
+                    if key in native
+                },
+            }
+        )
+
+    def _native_report_metadata(self):
+        native = self.report.get("answer", {}).get("result", self.report)
+        return native if isinstance(native, Mapping) else self.report
+
+    def inspect(self):
+        """Return retained native metadata without serializing a payload or running work."""
+        return self._inspection
+
+    def _make_inspection(self):
+        from .outcomes import Answer
+        from .results._report import InspectionReport, SlotModel
+
+        contract = self._contract or {}
+        layers = contract.get("layers", {})
+        identification = layers.get("identification")
+        inference = layers.get("inference_binding")
+        target = layers.get("target")
+        # Only native metadata is exposed: no certificate, interval or assumption is
+        # inferred from successful numerical execution or from a mean-valued target.
+        unavailable = SlotModel(
+            available=False, reason="not_retained_by_native_report", summary="unavailable"
+        )
+        native = self._native_report_metadata()
+        assumptions = native.get("assumptions")
+        if assumptions is None and target is not None:
+            assumptions = target.get("assumptions")
+            if assumptions is None and "targets" in target:
+                assumptions = tuple(
+                    item["assumptions"] for item in target["targets"] if "assumptions" in item
+                )
+        diagnostics = native.get("diagnostics", ())
+        if not isinstance(diagnostics, (list, tuple)):
+            diagnostics = ()
+        ids = {
+            f"{key}_id": value
+            for key, value in contract.get("identities", {}).items()
+            if value is not None
+        }
+        return InspectionReport(
+            identification=SlotModel(
+                available=True, summary=contract["identification_kind"], payload=identification
+            )
+            if identification
+            else unavailable,
+            support=unavailable,
+            uncertainty=SlotModel(
+                available=inference is not None and inference.get("method") != "none",
+                summary=str(inference.get("method")) if inference else "unavailable",
+                reason="no_uncertainty_claim"
+                if inference and inference.get("method") == "none"
+                else None
+                if inference
+                else "not_retained_by_native_report",
+                payload=inference or {},
+            ),
+            assumptions=SlotModel(
+                available=True, summary="native assumptions", payload={"assumptions": assumptions}
+            )
+            if assumptions is not None
+            else unavailable,
+            contract=contract or None,
+            target=target,
+            inference_binding=inference,
+            answer=Answer("structured"),
+            calibration=self.report.get("calibration"),
+            diagnostics=tuple(item for item in diagnostics if isinstance(item, str)),
+            native_diagnostics=freeze(native.get("diagnostics")),
+            details={
+                **self._summary_fields(),
+                **{
+                    key: native[key]
+                    for key in ("derivation", "scope", "source_identity")
+                    if key in native
+                },
+            },
+            family=contract.get("family", self.report.get("answer", {}).get("family", "system")),
+            stage="executed" if self._prepared is not None else "consumed",
+            operations=("inspect", "to_dict", "export"),
+            **ids,
+        )
 
     @property
     def identity(self) -> str:
@@ -412,9 +547,12 @@ class EquilibriumModel:
 class PreparedCyclicSystem:
     """Frozen retained request; Rust validates and executes its complete program."""
 
-    request_json: str
+    request_json: str = field(repr=False)
     execution: Execution = field(default_factory=Execution, repr=False, compare=False)
     _handle: Any = field(init=False, repr=False, compare=False)
+
+    def __repr__(self) -> str:
+        return "PreparedCyclicSystem()"
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -571,7 +709,7 @@ class PreparedCyclicSystem:
                 max_bytes=None,
                 cancel=None,
             )
-            return CyclicResult(json.loads(report), artifact, facts)
+            return CyclicResult(json.loads(report), artifact, facts, self, self.contract())
         report, artifact, values, counterfactuals, width, facts = self._handle.execute_buffers(
             max_bytes=None,
             cancel=None,
@@ -586,7 +724,7 @@ class PreparedCyclicSystem:
         for row in report["counterfactuals"] or []:
             row["values"] = counterfactuals[offset : offset + width].tolist()
             offset += width
-        return CyclicResult(report, artifact, facts)
+        return CyclicResult(report, artifact, facts, self, self.contract())
 
     @outcome_operation
     @_with_execution
@@ -638,15 +776,29 @@ class OdePolicy:
 class PreparedCyclicFamily:
     """Retained dynamics/constraint request; no static SCM coercion is implied."""
 
-    request_json: str
+    request_json: str = field(repr=False)
     variable_names: tuple[str, ...] | None = field(default=None, repr=False, compare=False)
     execution: Execution = field(default_factory=Execution, repr=False, compare=False)
     _handle: Any = field(default=None, init=False, repr=False, compare=False)
     _lock: Any = field(default_factory=threading.Lock, init=False, repr=False, compare=False)
     _law: Any = field(default=None, init=False, repr=False, compare=False)
+    _inspection_facts: Any = field(default=None, init=False, repr=False, compare=False)
+
+    def __repr__(self) -> str:
+        return "PreparedCyclicFamily()"
 
     def __post_init__(self) -> None:
         self.execution._call(self._prepare, execution=self.execution)
+        self._cache_inspection_facts()
+
+    def _cache_inspection_facts(self) -> None:
+        from ._cyclic_typed import family_facts
+
+        native = json.loads(self._handle.inspect())
+        facts = family_facts(
+            json.loads(self.request_json), self._law, native.get("design_unresolved")
+        )
+        object.__setattr__(self, "_inspection_facts", freeze(facts))
 
     @classmethod
     def _from_handle(cls, request_json, variable_names, handle, execution):
@@ -660,6 +812,7 @@ class PreparedCyclicFamily:
             ("_law", None),
         ):
             object.__setattr__(result, name, value)
+        result._cache_inspection_facts()
         return result
 
     def inspect(self) -> dict[str, Any]:
@@ -677,22 +830,8 @@ class PreparedCyclicFamily:
         handle ``unresolved_directions`` reports those rows; after one it reports the recovered
         law's directions, which also name rank deficiencies the fit found.
         """
-        from ._cyclic_typed import family_facts
-
-        request = json.loads(self.request_json)
-        if self._handle is None and request["family"] == "experimental_recovery":
-            # Compilation only: it admits the worlds and reads the clamp design, never fits.
-            with self._lock:
-                self._prepare(execution=self.execution)
-        if self._handle is None:
-            facts: dict[str, Any] = {
-                "family": request["family"],
-                "preparation_evaluations": 0,
-                "design_unresolved": None,
-            }
-        else:
-            facts = dict(json.loads(self._handle.inspect()))
-        facts.update(family_facts(request, self._law, facts.get("design_unresolved")))
+        facts = dict(json.loads(self._handle.inspect()))
+        facts.update(thaw(self._inspection_facts))
         if self.variable_names is not None:
             facts["variables"] = list(self.variable_names)
         return facts
@@ -725,7 +864,9 @@ class PreparedCyclicFamily:
                 if refusal is None:
                     raise
                 raise refusal from error
-        return CyclicInterventions._from_native(json.loads(payload), self.variable_names, facts)
+        return CyclicInterventions._from_native(
+            json.loads(payload), self.variable_names, facts, self
+        )
 
     @_with_execution
     @outcome_operation
@@ -765,6 +906,7 @@ class PreparedCyclicFamily:
                 cancel=cancel,
             ),
             execution=execution,
+            _prepared=self,
         )
 
     @_with_execution
@@ -967,7 +1109,8 @@ class PreparedCyclicFamily:
             answer = decoded.get("answer", {})
             if answer.get("family") == "experimental_recovery":
                 object.__setattr__(self, "_law", answer["result"]["law"])
-        return CyclicResult(decoded, artifact, facts)
+                self._cache_inspection_facts()
+        return CyclicResult(decoded, artifact, facts, self, self.contract())
 
 
 @_with_execution
@@ -2070,7 +2213,7 @@ class IdentifiedCyclicFunctional:
                     "family": "gaussian_functional",
                     "source": self.source,
                     "source_identity": self.source_identity,
-                    "program": self.program,
+                    "program": thaw(self.program),
                     "law": law,
                     "assignments": assignments,
                 },
@@ -2101,7 +2244,7 @@ class IdentifiedCyclicFunctional:
                     "family": "functional",
                     "source": self.source,
                     "source_identity": self.source_identity,
-                    "program": self.program,
+                    "program": thaw(self.program),
                     "law": {"support": support, "weights": weights},
                     "assignments": assignments,
                 },
@@ -2190,8 +2333,9 @@ class LocalCyclicModel:
 class CyclicEvidence:
     """Native source-bound contract envelopes, uncertainty ports and decision inputs."""
 
-    _handle: Any
+    _handle: Any = field(repr=False)
     execution: Execution = field(default_factory=Execution, repr=False, compare=False)
+    _prepared: Any = field(default=None, repr=False, compare=False)
 
     @property
     def report(self) -> dict[str, Any]:

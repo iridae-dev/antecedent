@@ -30,6 +30,7 @@ from inspect import signature
 from typing import TYPE_CHECKING, Any, Literal
 
 from . import _native
+from ._scientific import ScientificResult
 from .errors import CausalValueError
 from .execution import Execution
 from .intervention import Set, Shift, Soft
@@ -566,7 +567,7 @@ _READERS = {
 
 
 @dataclass(frozen=True)
-class WorldAnswer:
+class WorldAnswer(ScientificResult):
     """One evaluated world of a specified model, keyed by its scientific world id.
 
     ``outcome`` keeps the native status: ``gaussian_law`` (mean and row-major covariance in
@@ -579,13 +580,58 @@ class WorldAnswer:
     world: int
     family: str
     variables: tuple[str, ...]
-    actions: tuple[dict[str, Any], ...]
-    outcome: dict[str, Any]
-    certificate: dict[str, Any]
-    solved_by: dict[str, Any]
+    actions: tuple[Mapping[str, Any], ...]
+    outcome: Mapping[str, Any]
+    certificate: Mapping[str, Any]
+    solved_by: Mapping[str, Any]
     failed_mass: float
     withheld_mass: float
     physical_stability: str
+
+    def _summary_fields(self) -> dict[str, Any]:
+        return {
+            "world": self.world,
+            "family": self.family,
+            "status": self.status,
+            "failed_mass": self.failed_mass,
+            "withheld_mass": self.withheld_mass,
+        }
+
+    def inspect(self):
+        from .outcomes import Answer
+        from .results._report import InspectionReport, SlotModel
+
+        unavailable = SlotModel(
+            available=False, reason="not_established_by_world", summary="unavailable"
+        )
+        return InspectionReport(
+            identification=unavailable,
+            support=SlotModel(
+                available=True,
+                summary=str(self.certificate["basis"]),
+                payload={
+                    "certificate": self.certificate,
+                    "failed_mass": self.failed_mass,
+                    "withheld_mass": self.withheld_mass,
+                },
+            ),
+            uncertainty=SlotModel(available=False, reason="no_interval_claim", summary=self.status),
+            assumptions=unavailable,
+            answer=Answer("structured"),
+            family=self.family,
+            details={
+                **self._summary_fields(),
+                "solved_by": self.solved_by,
+                "physical_stability": self.physical_stability,
+            },
+            stage="executed",
+            operations=("inspect", "to_dict")
+            + {
+                "gaussian_law": ("mean", "covariance"),
+                "equilibrium_draws": ("draws",),
+                "trajectory": ("trajectory",),
+            }.get(self.status, ()),
+        )
 
     @property
     def status(self) -> str:
@@ -611,7 +657,7 @@ class WorldAnswer:
             raise CausalValueError("variable position out of range")
         return variable
 
-    def _require(self, status: str) -> dict[str, Any]:
+    def _require(self, status: str) -> Mapping[str, Any]:
         if self.status == status:
             return self.outcome
         if self.status in ("no_solution", "withheld"):
@@ -691,7 +737,7 @@ class WorldAnswer:
 
 
 @dataclass(frozen=True)
-class RecoveredWorldAnswer:
+class RecoveredWorldAnswer(ScientificResult):
     """One hard-clamp world of a recovered law, draw-aligned, keyed by world id.
 
     ``origin`` is how the draws were produced and ``law_meaning`` its evidence meaning:
@@ -702,15 +748,52 @@ class RecoveredWorldAnswer:
     """
 
     world: int
-    origin: dict[str, Any]
+    origin: Mapping[str, Any]
     law_meaning: str | None
     outcome: int
-    draws: tuple[dict[str, Any], ...]
+    draws: tuple[Mapping[str, Any], ...]
     total_mass: float
     withheld_mass: float
     mixture_mean: float | None
     mixture_variance: float | None
     between_draw_variance: float | None
+
+    def _summary_fields(self) -> dict[str, Any]:
+        return {
+            "world": self.world,
+            "law_meaning": self.law_meaning,
+            "total_mass": self.total_mass,
+            "withheld_mass": self.withheld_mass,
+            "mixture_mean": self.mixture_mean,
+        }
+
+    def inspect(self):
+        from .outcomes import Answer
+        from .results._report import InspectionReport, SlotModel
+
+        unavailable = SlotModel(
+            available=False, reason="not_established_by_world", summary="unavailable"
+        )
+        return InspectionReport(
+            identification=unavailable,
+            support=SlotModel(
+                available=True,
+                summary="retained draw mass",
+                payload={"total_mass": self.total_mass, "withheld_mass": self.withheld_mass},
+            ),
+            uncertainty=SlotModel(
+                available=self.law_meaning is not None,
+                summary=self.law_meaning or "unavailable",
+                reason=None if self.law_meaning else "supplied_draws_have_no_uncertainty_meaning",
+                payload={"origin": self.origin},
+            ),
+            assumptions=unavailable,
+            answer=Answer("structured"),
+            family=type(self).__name__,
+            details=self._summary_fields(),
+            stage="executed",
+            operations=("inspect", "to_dict", "mean"),
+        )
 
     def mean(self) -> float:
         """Weighted mean of certified draw means of the outcome, in its units.
@@ -751,17 +834,21 @@ class RecoveredWorldAnswer:
         )
 
 
-class CyclicInterventions(Mapping[int, "WorldAnswer | RecoveredWorldAnswer"]):
+class CyclicInterventions(ScientificResult, Mapping[int, "WorldAnswer | RecoveredWorldAnswer"]):
     """Evaluated intervention worlds keyed by scientific world id, in request order."""
 
-    __slots__ = ("_worlds", "execution_facts")
+    __slots__ = ("_worlds", "execution_facts", "_prepared")
 
     def __init__(
         self,
         worlds: Mapping[int, WorldAnswer | RecoveredWorldAnswer],
         execution_facts: Any = None,
+        prepared: Any = None,
     ) -> None:
-        self._worlds = dict(worlds)
+        from types import MappingProxyType
+
+        self._worlds = MappingProxyType(dict(worlds))
+        self._prepared = prepared
         #: Native execution facts of the evaluation.
         self.execution_facts = execution_facts
 
@@ -778,11 +865,21 @@ class CyclicInterventions(Mapping[int, "WorldAnswer | RecoveredWorldAnswer"]):
         return len(self._worlds)
 
     def __repr__(self) -> str:
-        return f"CyclicInterventions({list(self._worlds)})"
+        return f"CyclicInterventions(worlds={len(self._worlds)})"
+
+    def _summary_fields(self) -> dict[str, Any]:
+        return {"world_count": len(self)}
+
+    def to_dict(self) -> dict[str, Any]:
+        return {str(world): answer.to_dict() for world, answer in self.items()}
 
     @classmethod
     def _from_native(
-        cls, payload: Sequence[Mapping[str, Any]], names: Sequence[str] | None, facts: Any
+        cls,
+        payload: Sequence[Mapping[str, Any]],
+        names: Sequence[str] | None,
+        facts: Any,
+        prepared: Any = None,
     ) -> CyclicInterventions:
         worlds: dict[int, WorldAnswer | RecoveredWorldAnswer] = {}
         for item in payload:
@@ -793,7 +890,7 @@ class CyclicInterventions(Mapping[int, "WorldAnswer | RecoveredWorldAnswer"]):
                 worlds[int(item["world"])] = RecoveredWorldAnswer._from_wire(
                     item["world"], item["origin"], item["answer"]
                 )
-        return cls(worlds, facts)
+        return cls(worlds, facts, prepared)
 
 
 # ---------------------------------------------------------------------------

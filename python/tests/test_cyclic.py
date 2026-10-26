@@ -55,7 +55,7 @@ def test_nonlinear_shared_worlds_counterfactual_and_fresh_artifact(tmp_path: Pat
     assert loaded.report == result.report
     artifact = tmp_path / "cyclic.ant"
     artifact.write_bytes(bytes(result.export()))
-    script = f"from antecedent.outcomes import require_success\nimport json, pathlib\nfrom antecedent.cyclic import consume_artifact\nr = require_success(consume_artifact(pathlib.Path({str(artifact)!r}).read_bytes(), expected_identity={result.identity!r}))\nprint(json.dumps(r.report, sort_keys=True))\n"
+    script = f"from antecedent.outcomes import require_success\nimport json, pathlib\nfrom antecedent.cyclic import consume_artifact\nr = require_success(consume_artifact(pathlib.Path({str(artifact)!r}).read_bytes(), expected_identity={result.identity!r}))\nprint(json.dumps(r.to_dict(), sort_keys=True))\n"
     completed = subprocess.run(
         [sys.executable, "-c", script],
         cwd=tmp_path,
@@ -64,7 +64,7 @@ def test_nonlinear_shared_worlds_counterfactual_and_fresh_artifact(tmp_path: Pat
         text=True,
         check=True,
     )
-    assert json.loads(completed.stdout) == result.report
+    assert json.loads(completed.stdout) == result.to_dict()
     with pytest.raises(Exception, match="identity|mismatch"):
         require_success(consume_artifact(bytes(result.export()), expected_identity="0" * 64))
 
@@ -155,7 +155,7 @@ def test_polynomial_solution_sets_retain_unresolved_regions() -> None:
     )
     result = require_success(system.prepare().execute())
     assert len(result.report["answer"]["result"]["roots"]) == 3
-    assert result.report["answer"]["result"]["unresolved"] == []
+    assert result.report["answer"]["result"]["unresolved"] == ()
     assert (
         require_success(
             consume_family_artifact(result.artifact, expected_identity=result.identity)
@@ -417,7 +417,7 @@ def test_recovered_linear_keeps_failed_draws_and_replays_in_a_fresh_process(tmp_
     program = (
         "from antecedent.outcomes import require_success; import json,pathlib; from antecedent.cyclic import consume_family_artifact; "
         + f"print(json.dumps(require_success(consume_family_artifact(pathlib.Path({str(path)!r}).read_bytes(),"
-        + f"expected_identity={result.identity!r})).report,sort_keys=True))"
+        + f"expected_identity={result.identity!r})).to_dict(),sort_keys=True))"
     )
     replay = subprocess.run(
         [sys.executable, "-c", program],
@@ -427,7 +427,7 @@ def test_recovered_linear_keeps_failed_draws_and_replays_in_a_fresh_process(tmp_
         text=True,
         check=True,
     )
-    assert json.loads(replay.stdout) == result.report
+    assert json.loads(replay.stdout) == result.to_dict()
 
 
 def test_all_cyclic_family_artifacts_replay_in_fresh_process(tmp_path: Path) -> None:
@@ -460,11 +460,11 @@ def test_all_cyclic_family_artifacts_replay_in_fresh_process(tmp_path: Path) -> 
         result = require_success(request.execute())
         path = tmp_path / f"family-{i}.ant"
         path.write_bytes(result.artifact)
-        expected.append(result.report)
+        expected.append(result.to_dict())
         paths.append((str(path), result.identity))
     program = (
         "from antecedent.outcomes import require_success; import json,pathlib; from antecedent.cyclic import consume_family_artifact; "
-        + f"pairs={paths!r}; print(json.dumps([require_success(consume_family_artifact(pathlib.Path(p).read_bytes(),expected_identity=i)).report for p,i in pairs],sort_keys=True))"
+        + f"pairs={paths!r}; print(json.dumps([require_success(consume_family_artifact(pathlib.Path(p).read_bytes(),expected_identity=i)).to_dict() for p,i in pairs],sort_keys=True))"
     )
     completed = subprocess.run(
         [sys.executable, "-c", program],
@@ -633,7 +633,7 @@ def test_nonlinear_end_to_end_milestone_with_overlapping_feedback_loops(tmp_path
     path.write_bytes(result.artifact)
     program = (
         "from antecedent.outcomes import require_success; import json,pathlib; from antecedent.cyclic import consume_artifact; "
-        + f"r=require_success(consume_artifact(pathlib.Path({str(path)!r}).read_bytes(),expected_identity={result.identity!r}));print(json.dumps(r.report,sort_keys=True))"
+        + f"r=require_success(consume_artifact(pathlib.Path({str(path)!r}).read_bytes(),expected_identity={result.identity!r}));print(json.dumps(r.to_dict(),sort_keys=True))"
     )
     replay = subprocess.run(
         [sys.executable, "-c", program],
@@ -643,7 +643,7 @@ def test_nonlinear_end_to_end_milestone_with_overlapping_feedback_loops(tmp_path
         text=True,
         check=True,
     )
-    assert json.loads(replay.stdout) == result.report
+    assert json.loads(replay.stdout) == result.to_dict()
 
 
 def test_family_preparation_reuses_products_and_refresh_invalidates_binding() -> None:
@@ -700,8 +700,8 @@ def test_frequentist_bootstrap_responses_keep_failed_replicate_slots() -> None:
             *inputs, replicates=4, execution=Execution(seed=91), policy=FitOptions(max_sweeps=1)
         ).execute()
     ).report["answer"]["result"]
-    assert failed["parameters"] == [None] * 4
-    assert failed["worlds"][0] == [None] * 4
+    assert failed["parameters"] == (None,) * 4
+    assert failed["worlds"][0] == (None,) * 4
 
 
 def test_sampled_gaussian_ci_discovery_keeps_cyclic_interpretation() -> None:
@@ -904,7 +904,7 @@ def test_multiple_equilibrium_joint_selection_law_abduction_and_artifact(tmp_pat
     path.write_bytes(answers[0].artifact)
     program = (
         "from antecedent.outcomes import require_success; import json,pathlib;from antecedent.cyclic import consume_family_artifact;"
-        + f"r=require_success(consume_family_artifact(pathlib.Path({str(path)!r}).read_bytes(),expected_identity={answers[0].identity!r}));print(json.dumps(r.report,sort_keys=True))"
+        + f"r=require_success(consume_family_artifact(pathlib.Path({str(path)!r}).read_bytes(),expected_identity={answers[0].identity!r}));print(json.dumps(r.to_dict(),sort_keys=True))"
     )
     replay = subprocess.run(
         [sys.executable, "-c", program],
@@ -914,7 +914,7 @@ def test_multiple_equilibrium_joint_selection_law_abduction_and_artifact(tmp_pat
         text=True,
         check=True,
     )
-    assert json.loads(replay.stdout) == answers[0].report
+    assert json.loads(replay.stdout) == answers[0].to_dict()
 
 
 def test_compositional_feedback_gradient_fit_counterfactual_and_artifact(tmp_path):
@@ -1377,8 +1377,8 @@ def test_whole_family_scientific_identity_invalidation_and_fresh_consumers(tmp_p
         path = tmp_path / f"inventory-{i}.ant"
         path.write_bytes(result.artifact)
         pairs.append((str(path), result.identity))
-        expected.append(result.report)
-    script = f"from antecedent.outcomes import require_success\nimport json, pathlib\nfrom antecedent.cyclic import consume_family_artifact\npairs = {pairs!r}\nprint(json.dumps([require_success(consume_family_artifact(pathlib.Path(p).read_bytes(), expected_identity=i)).report for p, i in pairs], sort_keys=True))\n"
+        expected.append(result.to_dict())
+    script = f"from antecedent.outcomes import require_success\nimport json, pathlib\nfrom antecedent.cyclic import consume_family_artifact\npairs = {pairs!r}\nprint(json.dumps([require_success(consume_family_artifact(pathlib.Path(p).read_bytes(), expected_identity=i)).to_dict() for p, i in pairs], sort_keys=True))\n"
     process = subprocess.run(
         [sys.executable, "-c", script], cwd=tmp_path, capture_output=True, text=True, check=True
     )
@@ -1454,11 +1454,11 @@ def test_continuous_identification_gaussian_fitting_evidence_and_fresh_replay(tm
     assert evidence.report["columns"][0]["quantity"]["units"] == "1/(unit)"
     path = tmp_path / "continuous.ant"
     path.write_bytes(result.artifact)
-    code = f"from antecedent.outcomes import require_success\nimport pathlib, json\nfrom antecedent.cyclic import consume_family_artifact\nr = require_success(consume_family_artifact(pathlib.Path({str(path)!r}).read_bytes(), expected_identity={result.identity!r}))\nprint(json.dumps(r.report, sort_keys=True))\n"
+    code = f"from antecedent.outcomes import require_success\nimport pathlib, json\nfrom antecedent.cyclic import consume_family_artifact\nr = require_success(consume_family_artifact(pathlib.Path({str(path)!r}).read_bytes(), expected_identity={result.identity!r}))\nprint(json.dumps(r.to_dict(), sort_keys=True))\n"
     replay = subprocess.run(
         [sys.executable, "-c", code], cwd=tmp_path, capture_output=True, text=True, check=True
     )
-    assert json.loads(replay.stdout) == result.report
+    assert json.loads(replay.stdout) == result.to_dict()
     with pytest.raises(CausalResourceError, match="admission|limit|resource"):
         require_success(prepared.execute(execution=Execution(limits=ResourceLimits(1))))
     with pytest.raises(ValueError, match="IID|replicates"):
@@ -1719,9 +1719,9 @@ def test_linear_worlds_reproduce_the_analytic_feedback_pair_and_replay(tmp_path:
         tmp_path,
         "from antecedent.outcomes import require_success; import json,pathlib; from antecedent.cyclic import consume_family_artifact; "
         + f"print(json.dumps(require_success(consume_family_artifact(pathlib.Path({str(path)!r}).read_bytes(),"
-        + f"expected_identity={result.identity!r})).report,sort_keys=True))",
+        + f"expected_identity={result.identity!r})).to_dict(),sort_keys=True))",
     )
-    assert json.loads(replayed) == result.report
+    assert json.loads(replayed) == result.to_dict()
 
 
 def test_unsolvable_clamp_is_failed_mass_and_reading_it_names_the_next_attempt() -> None:
@@ -2040,9 +2040,9 @@ def test_dynamic_inference_shares_its_fit_across_methods_and_binds_its_port(
         tmp_path,
         "from antecedent.outcomes import require_success; import json,pathlib; from antecedent.cyclic import consume_family_artifact; "
         + f"print(json.dumps(require_success(consume_family_artifact(pathlib.Path({str(path)!r}).read_bytes(),"
-        + f"expected_identity={result.identity!r})).report,sort_keys=True))",
+        + f"expected_identity={result.identity!r})).to_dict(),sort_keys=True))",
     )
-    assert json.loads(replayed) == result.report
+    assert json.loads(replayed) == result.to_dict()
 
     with pytest.raises(CyclicRefusal, match="sampling design") as undeclared:
         process.infer(parameters, rows, method=ObservedInformation(), sampling_design=None)
@@ -2072,10 +2072,10 @@ def test_recovered_law_and_its_evidence_replay_in_a_fresh_process(tmp_path: Path
         + f"expected_identity={result.identity!r})); "
         + f"e=require_success(consume_evidence(pathlib.Path({str(evidence_path)!r}).read_bytes(),"
         + f"expected_identity={evidence.identity!r})); "
-        + "print(json.dumps([f.report,e.report],sort_keys=True))",
+        + "print(json.dumps([f.to_dict(),e.report],sort_keys=True))",
     )
     family_report, evidence_report = json.loads(replayed)
-    assert family_report == result.report
+    assert family_report == result.to_dict()
     assert evidence_report == evidence.report
     assert evidence_report["columns"][0]["port"] == "sampling_law"
 
@@ -2203,7 +2203,7 @@ def _replay_committed(tmp_path: Path, name: str) -> dict:
         + f"p=pathlib.Path({str(directory)!r}); "
         + "r=require_success(consume_family_artifact((p/'family.ant').read_bytes(),"
         + f"expected_identity={identity['identity']!r})); "
-        + "print(json.dumps(r.report))",
+        + "print(json.dumps(r.to_dict()))",
     )
     report = json.loads(replayed)
     assert report == json.loads((directory / "report.json").read_text(encoding="utf-8"))
