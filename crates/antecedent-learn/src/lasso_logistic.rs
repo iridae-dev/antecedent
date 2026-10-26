@@ -24,7 +24,7 @@
 
 use antecedent_core::ExecutionContext;
 use antecedent_kernels::{sigmoid, softplus};
-use antecedent_stats::first_col_is_exact_ones;
+use antecedent_stats::{first_col_is_exact_ones, soft_threshold};
 
 use crate::dense::{gather_physical, materialize_dense_colmajor, require_binary_labels};
 use crate::design::{DesignView, TargetView};
@@ -77,10 +77,6 @@ impl LassoLogisticLearner {
             Err(LearnError::Shape { message: "logistic lasso penalty must be finite and > 0" })
         }
     }
-}
-
-fn soft_threshold(value: f64, threshold: f64) -> f64 {
-    value.signum() * (value.abs() - threshold).max(0.0)
 }
 
 /// `-loglik + lambda * sum |beta_j|` over the penalized coordinates.

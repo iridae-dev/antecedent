@@ -1,10 +1,12 @@
 //! Sequentially randomized unit-period designs and regime survival on subject trajectories.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::TemporalDesignFault;
 use std::sync::Arc;
 
 use super::QueryError;
 use super::probability::row_totals_one;
+use super::probability_rows::ProbabilityRows;
 use crate::canonical_encode::{
     CanonicalEncode, count, encode_flags, encode_i64s, encode_usizes, encode_variables, flag,
 };
@@ -84,8 +86,9 @@ pub enum TemporalAssignment {
     MultiArm {
         /// Realized arm index in row order.
         assignment: Arc<[usize]>,
-        /// Known probability of every arm, one row per table row.
-        probabilities: Arc<[Vec<f64>]>,
+        /// Known probability of every arm, one row per table row, in one flat table whose
+        /// stride is the arm count.
+        probabilities: ProbabilityRows,
         /// Arm labels; the first is the reference.
         arms: Arc<[Arc<str>]>,
         /// Categorical levels: the contrasts form one Holm family.
@@ -336,8 +339,8 @@ impl CanonicalEncode for TemporalDesignQuery {
     }
 }
 
-fn invalid(message: &str) -> QueryError {
-    QueryError::InvalidTemporalDesign(message.to_owned())
+fn invalid(fault: TemporalDesignFault) -> QueryError {
+    QueryError::InvalidTemporalDesign(fault)
 }
 
 fn probabilities_valid(values: &[f64]) -> bool {
@@ -412,22 +415,22 @@ impl TemporalDesignQuery {
     pub fn validate(&self) -> Result<(), QueryError> {
         let n = self.units.len();
         if n < 2 || self.periods.len() != n {
-            return Err(invalid("unit and period labels must align with at least two rows"));
+            return Err(invalid(TemporalDesignFault::Alignment));
         }
         if self.units.iter().any(|unit| unit.trim().is_empty()) {
-            return Err(invalid("unit labels must be non-empty"));
+            return Err(invalid(TemporalDesignFault::BlankUnit));
         }
         let mut seen = std::collections::HashSet::with_capacity(n);
         for (unit, period) in self.units.iter().zip(self.periods.iter()) {
             if !seen.insert((&**unit, *period)) {
-                return Err(invalid("each (unit, period) must appear on exactly one row"));
+                return Err(invalid(TemporalDesignFault::DuplicateUnitPeriod));
             }
         }
         if !(self.min_probability.is_finite()
             && self.min_probability > 0.0
             && self.min_probability <= 0.5)
         {
-            return Err(invalid("min_probability must be in (0, 0.5]"));
+            return Err(invalid(TemporalDesignFault::MinProbability));
         }
         if let Some(counts) = &self.outcome_misclassification {
             let arm_design = matches!(
@@ -438,24 +441,20 @@ impl TemporalDesignQuery {
                     | TemporalAssignment::Interference { .. }
             );
             if !arm_design || self.functional != TemporalDesignFunctional::Mean {
-                return Err(invalid(
-                    "an outcome misclassification correction applies to the mean of an arm design",
-                ));
+                return Err(invalid(TemporalDesignFault::MisclassificationDesign));
             }
             if counts.true_positive + counts.false_negative == 0
                 || counts.true_negative + counts.false_positive == 0
             {
-                return Err(invalid(
-                    "the validation counts need true positives and true negatives",
-                ));
+                return Err(invalid(TemporalDesignFault::ValidationCounts));
             }
         }
         if let TemporalDesignFunctional::Quantile { level } = self.functional {
             if !(level.is_finite() && level > 0.0 && level < 1.0) {
-                return Err(invalid("the quantile level must be in (0, 1)"));
+                return Err(invalid(TemporalDesignFault::QuantileLevel));
             }
             if !matches!(self.assignment, TemporalAssignment::TwoArm { .. }) {
-                return Err(invalid("the quantile functional is defined for a two-arm design"));
+                return Err(invalid(TemporalDesignFault::QuantileDesign));
             }
         }
         match &self.assignment {
@@ -464,9 +463,7 @@ impl TemporalDesignQuery {
                     || probability.len() != n
                     || !probabilities_valid(probability)
                 {
-                    return Err(invalid(
-                        "two-arm assignment and probabilities must align with the rows and lie in (0, 1)",
-                    ));
+                    return Err(invalid(TemporalDesignFault::TwoArmAssignment));
                 }
             }
             TemporalAssignment::MultiArm {
@@ -480,10 +477,10 @@ impl TemporalDesignQuery {
                     || arms.iter().any(|arm| arm.trim().is_empty())
                     || arms.iter().collect::<std::collections::HashSet<_>>().len() != arms.len()
                 {
-                    return Err(invalid("declare at least three distinct non-empty arm labels"));
+                    return Err(invalid(TemporalDesignFault::ArmLabels));
                 }
                 if *ordered && !*categorical {
-                    return Err(invalid("ordered levels are a categorical design"));
+                    return Err(invalid(TemporalDesignFault::OrderedNeedsCategorical));
                 }
                 if assignment.len() != n
                     || probabilities.len() != n
@@ -494,9 +491,7 @@ impl TemporalDesignQuery {
                             || !row_totals_one(row)
                     })
                 {
-                    return Err(invalid(
-                        "every row needs a realized arm in range and a probability row over every arm summing to one",
-                    ));
+                    return Err(invalid(TemporalDesignFault::MultiArmRows));
                 }
             }
             TemporalAssignment::Factorial {
@@ -512,9 +507,7 @@ impl TemporalDesignQuery {
                     || !probabilities_valid(first_probability)
                     || !probabilities_valid(second_probability)
                 {
-                    return Err(invalid(
-                        "both factors and their probabilities must align with the rows and lie in (0, 1)",
-                    ));
+                    return Err(invalid(TemporalDesignFault::FactorialAssignment));
                 }
             }
             TemporalAssignment::Interference { assignment, probability, clusters } => {
@@ -524,9 +517,7 @@ impl TemporalDesignQuery {
                     || !probabilities_valid(probability)
                     || clusters.iter().any(|cluster| cluster.trim().is_empty())
                 {
-                    return Err(invalid(
-                        "assignment, probabilities and non-empty cluster labels must align with the rows",
-                    ));
+                    return Err(invalid(TemporalDesignFault::InterferenceAssignment));
                 }
             }
             TemporalAssignment::Dose { dose, density, bandwidth, target } => {
@@ -536,9 +527,7 @@ impl TemporalDesignQuery {
                     || density.iter().any(|value| !(value.is_finite() && *value > 0.0))
                     || !(bandwidth.is_finite() && *bandwidth > 0.0)
                 {
-                    return Err(invalid(
-                        "doses and positive densities must align with the rows, and the bandwidth must be positive",
-                    ));
+                    return Err(invalid(TemporalDesignFault::DoseDensities));
                 }
                 let target_valid = match target {
                     TemporalDoseTarget::SmoothedCurve { grid } => grid_valid(grid),
@@ -551,16 +540,12 @@ impl TemporalDesignQuery {
                     }
                 };
                 if !target_valid {
-                    return Err(invalid(
-                        "a dose target needs a finite grid, two distinct doses, or a non-negative curvature bound",
-                    ));
+                    return Err(invalid(TemporalDesignFault::DoseTarget));
                 }
             }
             TemporalAssignment::RegimeSurvival { treatment, censored, confounders, horizon } => {
                 if self.lag != 0 || *horizon == 0 {
-                    return Err(invalid(
-                        "regime survival reads each period's event (lag 0) up to a positive horizon",
-                    ));
+                    return Err(invalid(TemporalDesignFault::RegimeSurvivalHorizon));
                 }
                 let mut columns = vec![self.outcome, *treatment, *censored];
                 columns.extend(confounders.iter().copied());
@@ -568,16 +553,12 @@ impl TemporalDesignQuery {
                 sorted.sort_unstable();
                 sorted.dedup();
                 if sorted.len() != columns.len() {
-                    return Err(invalid(
-                        "event, treatment, censoring and confounder columns must be distinct",
-                    ));
+                    return Err(invalid(TemporalDesignFault::RegimeSurvivalColumns));
                 }
             }
             TemporalAssignment::ObservationalExcursion { treatment, history } => {
                 if self.outcome_misclassification.is_some() {
-                    return Err(invalid(
-                        "an outcome misclassification correction applies to the recorded-law arm designs",
-                    ));
+                    return Err(invalid(TemporalDesignFault::MisclassificationRecordedLaw));
                 }
                 let mut columns = vec![self.outcome, *treatment];
                 columns.extend(history.iter().copied());
@@ -585,9 +566,7 @@ impl TemporalDesignQuery {
                 sorted.sort_unstable();
                 sorted.dedup();
                 if sorted.len() != columns.len() {
-                    return Err(invalid(
-                        "outcome, treatment and history columns of an observational excursion must be distinct",
-                    ));
+                    return Err(invalid(TemporalDesignFault::ExcursionColumns));
                 }
             }
             TemporalAssignment::ObservationalRegime {
@@ -600,21 +579,13 @@ impl TemporalDesignQuery {
                 if self.outcome_misclassification.is_some()
                     || self.functional != TemporalDesignFunctional::Mean
                 {
-                    return Err(invalid(
-                        "a whole-regime contrast reads the mean of a continuous outcome without a \
-                         misclassification correction",
-                    ));
+                    return Err(invalid(TemporalDesignFault::WholeRegimeMisclassification));
                 }
                 if self.lag != 0 {
-                    return Err(invalid(
-                        "a whole-regime contrast reads the outcome at the end of follow-up (lag 0)",
-                    ));
+                    return Err(invalid(TemporalDesignFault::WholeRegimeLag));
                 }
                 if active.is_empty() || active.len() != reference.len() || active == reference {
-                    return Err(invalid(
-                        "the active and reference regimes name one action per period, the same \
-                         number of periods each, and differ in some period",
-                    ));
+                    return Err(invalid(TemporalDesignFault::RegimeActions));
                 }
                 let mut columns = vec![self.outcome, *treatment];
                 columns.extend(confounders.iter().copied());
@@ -622,9 +593,7 @@ impl TemporalDesignQuery {
                 sorted.sort_unstable();
                 sorted.dedup();
                 if sorted.len() != columns.len() {
-                    return Err(invalid(
-                        "outcome, treatment and confounder columns of a whole-regime contrast must be distinct",
-                    ));
+                    return Err(invalid(TemporalDesignFault::WholeRegimeColumns));
                 }
             }
         }

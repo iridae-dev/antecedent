@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::InterventionFault;
 use std::sync::Arc;
 
 use crate::canonical_encode::{CanonicalEncode, encode_list, encode_variables, flag};
@@ -96,9 +97,9 @@ impl CounterfactualQuery {
             return Err(QueryError::EmptyCounterfactualOutcomes);
         }
         for iv in self.interventions.iter() {
-            iv.validate().map_err(|e| QueryError::InvalidIntervention(e.to_string()))?;
+            iv.validate().map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
         }
-        self.control.validate().map_err(|e| QueryError::InvalidIntervention(e.to_string()))?;
+        self.control.validate().map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
         if let Some(active_var) =
             self.interventions.first().and_then(Intervention::primary_variable)
         {

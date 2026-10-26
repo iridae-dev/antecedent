@@ -13,8 +13,8 @@ use std::sync::Arc;
 
 use super::model::{ActionKind, TimeKind};
 use super::{
-    HistoryWindow, InitialLaw, InterventionWorld, ScientificTargetError, ScientificWorldId,
-    WorldCollection,
+    ContrastIncoherence, DoseGridFault, HistoryWindow, InitialLaw, InterventionWorld,
+    ScientificTargetError, ScientificWorldId, WorldCollection,
 };
 
 /// One finite nonzero term of an explicitly declared linear world functional.
@@ -102,9 +102,7 @@ impl InterventionContrast {
         if terms.is_empty()
             || terms.iter().any(|term| !term.coefficient.is_finite() || term.coefficient == 0.0)
         {
-            return Err(ScientificTargetError::InvalidLinearContrast {
-                reason: "coefficients must be finite and nonzero",
-            });
+            return Err(ScientificTargetError::InvalidLinearContrast);
         }
         terms.sort_by_key(|term| term.world);
         require_ids(&worlds, &terms.iter().map(|term| term.world).collect::<Vec<_>>())?;
@@ -358,7 +356,7 @@ fn projected_intervention(
     }
 }
 
-fn incoherent(reason: &'static str) -> ScientificTargetError {
+fn incoherent(reason: ContrastIncoherence) -> ScientificTargetError {
     ScientificTargetError::IncoherentContrast { reason }
 }
 
@@ -373,10 +371,10 @@ fn require_coherent_difference(
     let plus = coordinates(plus);
     let minus = coordinates(minus);
     if !plus.keys().eq(minus.keys()) {
-        return Err(incoherent("the two worlds assign different variables or schedules"));
+        return Err(incoherent(ContrastIncoherence::TwoWorldsDiffer));
     }
     if plus == minus {
-        return Err(incoherent("the two worlds are the same intervention"));
+        return Err(incoherent(ContrastIncoherence::TwoWorldsIdentical));
     }
     Ok(())
 }
@@ -402,7 +400,7 @@ fn require_coherent_interaction(
     let reference = coordinates(reference);
     for other in [&joint, &a_world, &b_world] {
         if !other.keys().eq(reference.keys()) {
-            return Err(incoherent("the four worlds assign different variables or schedules"));
+            return Err(incoherent(ContrastIncoherence::FourWorldsDiffer));
         }
     }
     let mut moves_a = false;
@@ -414,7 +412,7 @@ fn require_coherent_interaction(
         let a_moves = a != at_reference;
         let b_moves = b != at_reference;
         if a_moves && b_moves {
-            return Err(incoherent("the two factors move the same variable or schedule"));
+            return Err(incoherent(ContrastIncoherence::FactorsOverlap));
         }
         let expected = if a_moves {
             a
@@ -424,13 +422,13 @@ fn require_coherent_interaction(
             at_reference
         };
         if both != expected {
-            return Err(incoherent("the joint world is not the reference moved by both factors"));
+            return Err(incoherent(ContrastIncoherence::JointNotComposed));
         }
         moves_a |= a_moves;
         moves_b |= b_moves;
     }
     if !moves_a || !moves_b {
-        return Err(incoherent("each factor must move away from the reference"));
+        return Err(incoherent(ContrastIncoherence::FactorNotMoved));
     }
     Ok(())
 }
@@ -514,17 +512,17 @@ fn canonical_levels(
     let mut previous: Option<f64> = None;
     for level in levels {
         if !level.is_finite() {
-            return Err(grid("dose levels must be finite and strictly increasing"));
+            return Err(grid(DoseGridFault::DoseLevels));
         }
         let level = if level.to_bits() == (-0.0_f64).to_bits() { 0.0 } else { level };
         if previous.is_some_and(|prev| level.total_cmp(&prev) != std::cmp::Ordering::Greater) {
-            return Err(grid("dose levels must be finite and strictly increasing"));
+            return Err(grid(DoseGridFault::DoseLevels));
         }
         previous = Some(level);
         bits.push(level.to_bits());
     }
     if bits.is_empty() {
-        return Err(grid("a dose-time grid names at least one dose and one horizon"));
+        return Err(grid(DoseGridFault::EmptyGrid));
     }
     Ok(Arc::from(bits))
 }
@@ -534,12 +532,12 @@ fn canonical_horizons(
 ) -> Result<Arc<[u32]>, ScientificTargetError> {
     let horizons: Vec<u32> = horizons.into_iter().collect();
     if horizons.is_empty() {
-        return Err(grid("a dose-time grid names at least one dose and one horizon"));
+        return Err(grid(DoseGridFault::EmptyGrid));
     }
     let mut previous = 0_u32;
     for horizon in &horizons {
         if *horizon == 0 || *horizon <= previous {
-            return Err(grid("horizons must be strictly increasing and at least 1"));
+            return Err(grid(DoseGridFault::Horizons));
         }
         previous = *horizon;
     }
@@ -554,15 +552,15 @@ fn check_grid(
     cells: &[ScientificWorldId],
 ) -> Result<(), ScientificTargetError> {
     let Some(expected) = levels.len().checked_mul(horizons.len()) else {
-        return Err(grid("dose-time grid is too large"));
+        return Err(grid(DoseGridFault::TooLarge));
     };
     if cells.len() != expected || worlds.len() != cells.len() {
-        return Err(grid("cells must be one world per dose and horizon, and no others"));
+        return Err(grid(DoseGridFault::CellCoverage));
     }
     let mut seen = cells.to_vec();
     seen.sort_unstable();
     if seen.windows(2).any(|pair| pair[0] == pair[1]) {
-        return Err(grid("a world is used for more than one cell"));
+        return Err(grid(DoseGridFault::SharedWorld));
     }
     let mut anchor: Option<(TemporalPolicy, HistoryWindow, InitialLaw)> = None;
     for (index, id) in cells.iter().enumerate() {
@@ -570,17 +568,17 @@ fn check_grid(
             return Err(ScientificTargetError::UnknownWorld { id: *id });
         };
         if world.binding().outcome().outcome() == dose {
-            return Err(grid("dose and outcome are the same variable"));
+            return Err(grid(DoseGridFault::DoseIsOutcome));
         }
         let dose_index = index / horizons.len();
         let horizon_index = index % horizons.len();
         let (policy, history, initial_law, horizon_steps, assigned) = cell_parts(world, dose)?;
         if horizon_steps != horizons[horizon_index] || assigned != levels[dose_index] {
-            return Err(grid("a cell does not match its dose and horizon"));
+            return Err(grid(DoseGridFault::CellMismatch));
         }
         if let Some((policy0, history0, law0)) = &anchor {
             if policy != policy0 || history != *history0 || initial_law != law0 {
-                return Err(grid("cells must share a policy, history, and initial law"));
+                return Err(grid(DoseGridFault::CellsNotComparable));
             }
         } else {
             anchor = Some((policy.clone(), history, initial_law.clone()));
@@ -594,23 +592,23 @@ fn cell_parts(
     dose: VariableId,
 ) -> Result<(&TemporalPolicy, HistoryWindow, &InitialLaw, u32, u64), ScientificTargetError> {
     let TimeKind::Temporal { horizon_steps, history, initial_law } = &world.time().kind else {
-        return Err(grid("each cell is a temporal world"));
+        return Err(grid(DoseGridFault::NotTemporal));
     };
     let ActionKind::Schedule { intervention, policy } = &world.action().kind else {
-        return Err(grid("each cell is a scheduled dose assignment"));
+        return Err(grid(DoseGridFault::NotScheduledDose));
     };
     let Intervention::Set { variable, value: Value::Float64(level) } = intervention else {
-        return Err(grid("each cell hard-sets the dose"));
+        return Err(grid(DoseGridFault::NotHardSet));
     };
     if *variable != dose {
-        return Err(grid("each cell hard-sets the dose"));
+        return Err(grid(DoseGridFault::NotHardSet));
     }
     let bits =
         if level.to_bits() == (-0.0_f64).to_bits() { 0.0_f64.to_bits() } else { level.to_bits() };
     Ok((policy, *history, initial_law, *horizon_steps, bits))
 }
 
-fn grid(reason: &'static str) -> ScientificTargetError {
+fn grid(reason: DoseGridFault) -> ScientificTargetError {
     ScientificTargetError::NotADoseTimeGrid { reason }
 }
 

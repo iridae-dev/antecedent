@@ -1,6 +1,7 @@
 //! Retained synthetic-control design metadata.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::PanelDesignFault;
 use super::QueryError;
 use crate::canonical_encode::{CanonicalEncode, encode_i64s, flag, i64_bits};
 use crate::identity::CanonicalWriter;
@@ -228,27 +229,19 @@ impl SyntheticControlQuery {
             || self.units.iter().any(|unit| unit.trim().is_empty())
             || self.periods.iter().any(|period| *period <= 0)
         {
-            return Err(QueryError::InvalidRandomizedEffect(
-                "synthetic control requires aligned nonempty units, positive periods, and a treated unit with a positive intervention period".into(),
-            ));
+            return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::SyntheticControlPanel));
         }
         if let Some(ridge) = self.augmentation_ridge {
             if !ridge.is_finite() || ridge <= 0.0 {
-                return Err(QueryError::InvalidRandomizedEffect(
-                    "augmented synthetic control requires a finite positive ridge penalty".into(),
-                ));
+                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::AugmentedRidge));
             }
             if self.method != SyntheticPanelMethod::Control {
-                return Err(QueryError::InvalidRandomizedEffect(
-                    "augmented synthetic control cannot be combined with synthetic DiD".into(),
-                ));
+                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::AugmentedWithDid));
             }
         }
         if let Some(effect) = self.sharp_null_effect {
             if !effect.is_finite() || !self.uniform_unit_randomization {
-                return Err(QueryError::InvalidRandomizedEffect(
-                    "a finite sharp-null effect requires declared uniform single-unit randomization".into(),
-                ));
+                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::SharpNullRandomization));
             }
         }
         if let Some(rollout) = &self.rollout {
@@ -267,28 +260,20 @@ impl SyntheticControlQuery {
                     *unit == self.treated_unit && *period == self.intervention_period
                 })
             {
-                return Err(QueryError::InvalidRandomizedEffect(
-                    "synthetic adoptions must be distinct named units with positive periods and list the treated unit at its intervention period".into(),
-                ));
+                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::SyntheticAdoptions));
             }
             if self.uniform_unit_randomization || self.augmentation_ridge.is_some() {
-                return Err(QueryError::InvalidRandomizedEffect(
-                    "synthetic intervals cannot be combined with a unit-randomization test or a ridge augmentation".into(),
-                ));
+                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::IntervalWithRandomizationTest));
             }
             match rollout.interval {
                 SyntheticInterval::Conformal
                     if rollout.adoptions.len() != 1
                         || self.method != SyntheticPanelMethod::Control =>
                 {
-                    return Err(QueryError::InvalidRandomizedEffect(
-                        "conformal synthetic intervals take one treated unit and the simplex synthetic control; use placebo variance for several units or synthetic DiD".into(),
-                    ));
+                    return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::ConformalIntervalDesign));
                 }
                 SyntheticInterval::PlaceboVariance if rollout.replicates < 2 => {
-                    return Err(QueryError::InvalidRandomizedEffect(
-                        "placebo-variance synthetic intervals need at least two replicates".into(),
-                    ));
+                    return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::PlaceboReplicates));
                 }
                 _ => {}
             }

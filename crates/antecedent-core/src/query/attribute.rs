@@ -8,6 +8,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::AttributeFault;
 use std::sync::Arc;
 
 use crate::canonical_encode::{CanonicalEncode, count, encode_variables};
@@ -393,13 +394,11 @@ impl AttributeQuery {
             | AttributeTarget::FeatureRelevance { outcome, .. } => Ok(*outcome),
             AttributeTarget::UnitChange(query) => Ok(query.outcome),
             AttributeTarget::Anomaly(query) => query.targets.first().copied().ok_or_else(|| {
-                QueryError::InvalidAttribute("an anomaly attribution declares no target".into())
+                QueryError::InvalidAttribute(AttributeFault::AnomalyWithoutTarget)
             }),
             AttributeTarget::MechanismChange { query, .. } => {
                 query.targets.first().copied().ok_or_else(|| {
-                    QueryError::InvalidAttribute(
-                        "a mechanism-change detection declares no target".into(),
-                    )
+                    QueryError::InvalidAttribute(AttributeFault::MechanismChangeWithoutTarget)
                 })
             }
         }
@@ -414,24 +413,21 @@ impl AttributeQuery {
     /// level outside `(0, 1)`, no sources or features, a zero path or feature
     /// limit, a non-finite shift, or no Monte Carlo samples.
     pub fn validate(&self) -> Result<(), QueryError> {
-        let invalid = |message: &str| Err(QueryError::InvalidAttribute(message.to_owned()));
+        let invalid = |fault: AttributeFault| Err(QueryError::InvalidAttribute(fault));
         match &self.target {
             AttributeTarget::IntrinsicInfluence(target) => {
                 if target.outer_draws < 2 || target.inner_draws < 2 || target.replicates < 2 {
-                    return invalid(
-                        "intrinsic influence needs at least two outer draws, inner draws and \
-                         replicate batches",
-                    );
+                    return invalid(AttributeFault::IntrinsicDraws);
                 }
                 if !(target.level.is_finite() && target.level > 0.0 && target.level < 1.0) {
-                    return invalid("the interval level must be in (0, 1)");
+                    return invalid(AttributeFault::IntervalLevelRange);
                 }
                 if target.max_sources == 0 {
-                    return invalid("the source limit must be at least 1");
+                    return invalid(AttributeFault::SourceLimit);
                 }
                 if let InfluenceAllocation::Permutation { n_permutations } = target.allocation {
                     if n_permutations < 2 {
-                        return invalid("permutation sampling needs at least two permutations");
+                        return invalid(AttributeFault::PermutationCount);
                     }
                 }
                 Ok(())
@@ -444,16 +440,16 @@ impl AttributeQuery {
                     | ChangeEstimator::Robust { n_samples, .. } => *n_samples,
                 };
                 if samples == 0 {
-                    return invalid("a change attribution needs at least one sample");
+                    return invalid(AttributeFault::ChangeSampleCount);
                 }
                 if let ChangeEstimator::Robust { max_rows: 0, .. } = estimator {
-                    return invalid("the robust row cap must be at least 1");
+                    return invalid(AttributeFault::RobustRowCap);
                 }
                 Ok(())
             }
             AttributeTarget::Paths { sources, max_paths, max_len, .. } => {
                 if sources.is_empty() {
-                    return invalid("a path decomposition needs at least one source");
+                    return invalid(AttributeFault::PathSourcesEmpty);
                 }
                 if *max_paths == 0 || *max_len == 0 {
                     return Err(QueryError::NonPositivePathLimit);
@@ -468,15 +464,10 @@ impl AttributeQuery {
                 max_features,
             } => {
                 if features.is_empty() || features.contains(outcome) {
-                    return invalid(
-                        "feature relevance needs at least one feature, and the outcome is not one",
-                    );
+                    return invalid(AttributeFault::FeatureRelevanceFeatures);
                 }
                 if !delta.is_finite() || *n_samples == 0 || *max_features == 0 {
-                    return invalid(
-                        "feature relevance needs a finite shift, at least one sample and a \
-                         positive feature limit",
-                    );
+                    return invalid(AttributeFault::FeatureRelevanceSampling);
                 }
                 Ok(())
             }
@@ -486,10 +477,10 @@ impl AttributeQuery {
             AttributeTarget::StructureChange { change, comparison, n_samples, .. } => {
                 change.validate()?;
                 if comparison.iter().any(|(from, to)| from == to) {
-                    return invalid("a comparison structure has no self-loop");
+                    return invalid(AttributeFault::ComparisonSelfLoop);
                 }
                 if *n_samples == 0 {
-                    return invalid("a structure-change attribution needs at least one sample");
+                    return invalid(AttributeFault::StructureChangeSampleCount);
                 }
                 Ok(())
             }

@@ -105,7 +105,7 @@ impl TemporalMediationIdentifier {
         horizon: u32,
     ) -> Result<(IdentificationResult, TemporalIdentificationResult), IdentificationError> {
         Self::ensure_mediators_intercept(template, query)?;
-        // Template premises (one mediator, T@lag-1 and M/Y contemporaneous,
+        // Template premises (T@lag-1 into the mediator set, M/Y contemporaneous,
         // no treatment-induced mediator/outcome parent) stay required for the
         // linear path-product and keep their refusal.
         let _premises = Self::adjustment_nodes(template, query)?;
@@ -123,11 +123,14 @@ impl TemporalMediationIdentifier {
     /// a set that blocks `M←…→Y` confounding as well as the `T→Y` backdoor
     /// paths. `I(h)` alone certifies only the last. `S(h)` is `I(h)` plus every
     /// parent of `M` and `Y` other than `T` and `M` that is not a descendant of
-    /// the treatment or the mediator, and it is certified on the unfolded DAG:
+    /// the treatment or the mediator, and it is certified on the unfolded DAG. For a
+    /// mediator set `M = {M₁…M_q}` every statement holds for each member (the
+    /// regressions are `M_j ~ T + S` for each `j` and `Y ~ T + M₁…M_q + S`, whose product
+    /// sum `Σ_j a_j b_j` is the block-mediated effect):
     ///
-    /// * no member descends from `T` or `M`;
-    /// * `T ⊥ M | S` with `T`'s outgoing edges removed (mediator model);
-    /// * `{T, M} ⊥ Y | S` with the outgoing edges of `T` and `M` removed
+    /// * no member descends from `T` or any `M_j`;
+    /// * `T ⊥ M_j | S` with `T`'s outgoing edges removed (mediator models);
+    /// * `{T, M₁…M_q} ⊥ Y | S` with the outgoing edges of `T` and every `M_j` removed
     ///   (outcome model: joint back-door for the controlled `(T, M)` contrast);
     /// * `T ⊥ Y | S` with `T`'s outgoing edges removed (reduced-form Total).
     ///
@@ -137,11 +140,11 @@ impl TemporalMediationIdentifier {
         query: &MediationQuery,
         temporal: &TemporalIdentificationResult,
     ) -> Result<MediationAdjustment, IdentificationError> {
-        let [mediator] = query.mediators.as_ref() else {
+        if query.mediators.is_empty() {
             return Err(IdentificationError::unsupported(
-                "temporal mediation requires one mediator",
+                "temporal mediation requires at least one mediator",
             ));
-        };
+        }
         let dag = &temporal.unfolded.dag;
         let dense = |key: TemporalNodeKey| {
             temporal
@@ -152,12 +155,20 @@ impl TemporalMediationIdentifier {
         };
         let t = dense(temporal.treatment_key)?;
         let y = dense(temporal.outcome_key)?;
-        let m =
-            dense(TemporalNodeKey { variable: *mediator, offset: temporal.outcome_key.offset })?;
+        let mediator_nodes = query
+            .mediators
+            .iter()
+            .map(|&mediator| {
+                dense(TemporalNodeKey { variable: mediator, offset: temporal.outcome_key.offset })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         let mut gws = GraphWorkspace::default();
         let mut downstream = BitSet::with_len(dag.node_count());
-        dag.descendants_of(&[t, m], &mut downstream, &mut gws);
+        let mut sources = Vec::with_capacity(1 + mediator_nodes.len());
+        sources.push(t);
+        sources.extend_from_slice(&mediator_nodes);
+        dag.descendants_of(&sources, &mut downstream, &mut gws);
 
         let backdoor: Vec<DenseNodeId> = temporal
             .result
@@ -168,8 +179,11 @@ impl TemporalMediationIdentifier {
         let mut set: Vec<DenseNodeId> =
             backdoor.iter().copied().filter(|&z| !downstream.contains(z)).collect();
         let mut mediator_outcome = Vec::new();
-        for &p in dag.parents(m).iter().chain(dag.parents(y)) {
-            if p == t || p == m || downstream.contains(p) || set.contains(&p) {
+        let mediator_parents: Vec<DenseNodeId> =
+            mediator_nodes.iter().flat_map(|&m| dag.parents(m).iter().copied()).collect();
+        for &p in mediator_parents.iter().chain(dag.parents(y)) {
+            if p == t || mediator_nodes.contains(&p) || downstream.contains(p) || set.contains(&p)
+            {
                 continue;
             }
             set.push(p);
@@ -181,10 +195,15 @@ impl TemporalMediationIdentifier {
         let n = dag.node_count();
         let mut dws = DSeparationWorkspace::default();
         let treatment_cut = GraphOverlay::remove_outgoing(n, &[t]);
-        let joint_cut = GraphOverlay::remove_outgoing(n, &[t, m]);
-        let mediator_ok = dag.view(&treatment_cut).is_d_separated(t, m, &set, &mut dws)?;
-        let outcome_ok = dag.view(&joint_cut).is_d_separated(t, y, &set, &mut dws)?
-            && dag.view(&joint_cut).is_d_separated(m, y, &set, &mut dws)?;
+        let joint_cut = GraphOverlay::remove_outgoing(n, &sources);
+        let mut mediator_ok = true;
+        for &m in &mediator_nodes {
+            mediator_ok &= dag.view(&treatment_cut).is_d_separated(t, m, &set, &mut dws)?;
+        }
+        let mut outcome_ok = dag.view(&joint_cut).is_d_separated(t, y, &set, &mut dws)?;
+        for &m in &mediator_nodes {
+            outcome_ok &= dag.view(&joint_cut).is_d_separated(m, y, &set, &mut dws)?;
+        }
         let total_ok = dag.view(&treatment_cut).is_d_separated(t, y, &set, &mut dws)?;
         if !(mediator_ok && outcome_ok && total_ok) {
             return Err(IdentificationError::NotCertified {
@@ -446,19 +465,27 @@ impl TemporalMediationIdentifier {
         template: &TemporalDag,
         query: &MediationQuery,
     ) -> Result<Vec<TemporalNodeKey>, IdentificationError> {
-        let [mediator] = query.mediators.as_ref() else {
+        if query.mediators.is_empty() {
             return Err(IdentificationError::unsupported(
-                "temporal mediation requires one mediator",
+                "temporal mediation requires at least one mediator",
             ));
-        };
+        }
         let treatment = TemporalNodeKey { variable: query.treatment, offset: -1 };
-        let mediator_key = TemporalNodeKey { variable: *mediator, offset: 0 };
+        let mediator_keys: Vec<TemporalNodeKey> = query
+            .mediators
+            .iter()
+            .map(|&mediator| TemporalNodeKey { variable: mediator, offset: 0 })
+            .collect();
         let mut adjustment = Vec::new();
         let mut has_t_m = false;
         let mut has_m_y = false;
         let mut history = 1;
-        let mut variable_count =
-            query.treatment.raw().max(query.outcome.raw()).max(mediator.raw()) + 1;
+        let mut variable_count = query
+            .mediators
+            .iter()
+            .map(|mediator| mediator.raw())
+            .fold(query.treatment.raw().max(query.outcome.raw()), u32::max)
+            + 1;
         for node in template.nodes() {
             if let NodeRef::Lagged { variable, .. } = node {
                 variable_count = variable_count.max(variable.raw() + 1);
@@ -473,7 +500,7 @@ impl TemporalMediationIdentifier {
             else {
                 continue;
             };
-            if target != *mediator && target != query.outcome {
+            if !query.mediators.contains(&target) && target != query.outcome {
                 continue;
             }
             let lag = source_lag.raw() - target_lag.raw();
@@ -482,9 +509,9 @@ impl TemporalMediationIdentifier {
                 variable: source,
                 offset: -i32::try_from(lag).map_err(|e| IdentificationError::construction(e))?,
             };
-            has_t_m |= target == *mediator && key == treatment;
-            has_m_y |= target == query.outcome && key == mediator_key;
-            if key != treatment && key != mediator_key && !adjustment.contains(&key) {
+            has_t_m |= query.mediators.contains(&target) && key == treatment;
+            has_m_y |= target == query.outcome && mediator_keys.contains(&key);
+            if key != treatment && !mediator_keys.contains(&key) && !adjustment.contains(&key) {
                 adjustment.push(key);
             }
         }
@@ -498,7 +525,7 @@ impl TemporalMediationIdentifier {
         let dense =
             |key| indexer.dense_id(key).map_err(|e| IdentificationError::construction(e));
         let t = dense(treatment)?;
-        let m = dense(mediator_key)?;
+        let mediator_nodes = mediator_keys.iter().map(|&key| dense(key)).collect::<Result<Vec<_>, _>>()?;
         for &key in &adjustment {
             let z = dense(key)?;
             let induced = t == z
@@ -510,15 +537,17 @@ impl TemporalMediationIdentifier {
                     history,
                     1,
                 )
-                || m == z
-                || crate::temporal_window::reaches_in_window(
-                    template,
-                    mediator_key,
-                    key,
-                    variable_count,
-                    history,
-                    1,
-                );
+                || mediator_nodes.contains(&z)
+                || mediator_keys.iter().any(|&mediator_key| {
+                    crate::temporal_window::reaches_in_window(
+                        template,
+                        mediator_key,
+                        key,
+                        variable_count,
+                        history,
+                        1,
+                    )
+                });
             if induced {
                 return Err(IdentificationError::unsupported(
                     "treatment-induced mediation covariates require a larger path model",
@@ -632,6 +661,36 @@ mod tests {
             &a.assumption,
             Assumption::Custom { id, .. } if id.as_ref() == "natural_controlled_alias"
         )));
+    }
+
+    /// `T@-1 -> M1 -> M2 -> Y` with `T@-1 -> Y`: M1 and M2 are ordered mediators.
+    fn ordered_mediators_template() -> TemporalDag {
+        let mut g = TemporalDag::empty();
+        let t1 = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let m1 = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let m2 = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        let y0 = g.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(t1, m1).unwrap();
+        g.insert_directed(m1, m2).unwrap();
+        g.insert_directed(m2, y0).unwrap();
+        g.insert_directed(t1, y0).unwrap();
+        g
+    }
+
+    #[test]
+    fn identifies_an_ordered_mediator_set() {
+        let g = ordered_mediators_template();
+        let q = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(3),
+            [VariableId::from_raw(1), VariableId::from_raw(2)],
+            MediationContrast::Mediated,
+        );
+        let id = TemporalMediationIdentifier::new().identify(&g, &q).unwrap();
+        assert!(matches!(id.status, IdentificationStatus::IdentifiedUnderParametricRestrictions));
+        assert_eq!(id.estimands[0].mediators.len(), 2);
+        // The ordered mediators are not adjustment covariates of one another.
+        assert!(id.estimands[0].adjustment_set.is_empty());
     }
 
     fn confounded_mediator_template() -> TemporalDag {

@@ -90,9 +90,7 @@ fn row_map_gathers_validity_mask_and_weights() {
     // No invalid source value appears as a valid replicate value.
     for i in 0..4 {
         if col.validity.is_valid(i) {
-            assert!(
-                (col.values[i] - 10.0).abs() < 1e-12 || (col.values[i] - 11.0).abs() < 1e-12
-            );
+            assert!((col.values[i] - 10.0).abs() < 1e-12 || (col.values[i] - 11.0).abs() < 1e-12);
         }
     }
     // Analysis mask follows the row map (source row 1 was hidden).
@@ -121,8 +119,7 @@ fn bayesian_bootstrap_rejects_index_fill() {
     let mut rng = CausalRng::from_seed(1);
     let mut idx = Vec::new();
     assert!(
-        fill_resample_indexes(ResamplingPlan::BayesianBootstrap, 10, &mut rng, &mut idx)
-            .is_err()
+        fill_resample_indexes(ResamplingPlan::BayesianBootstrap, 10, &mut rng, &mut idx).is_err()
     );
 }
 
@@ -194,13 +191,9 @@ fn moving_block_preserves_length() {
     let data = float_series(100, 1);
     let mut rng = CausalRng::from_seed(1);
     let mut idx = Vec::new();
-    let out = resample_timeseries(
-        &data,
-        ResamplingPlan::MovingBlock { length: 10 },
-        &mut rng,
-        &mut idx,
-    )
-    .unwrap();
+    let out =
+        resample_timeseries(&data, ResamplingPlan::MovingBlock { length: 10 }, &mut rng, &mut idx)
+            .unwrap();
     assert_eq!(out.row_count(), 100);
     assert_eq!(idx.len(), 100);
 }
@@ -214,13 +207,8 @@ fn moving_block_indexes_are_consecutive_runs_and_replay() {
     let draw = |seed: u64| {
         let mut rng = CausalRng::from_seed(seed);
         let mut idx = Vec::new();
-        resample_timeseries(
-            &data,
-            ResamplingPlan::MovingBlock { length: 10 },
-            &mut rng,
-            &mut idx,
-        )
-        .unwrap();
+        resample_timeseries(&data, ResamplingPlan::MovingBlock { length: 10 }, &mut rng, &mut idx)
+            .unwrap();
         idx
     };
     let idx = draw(5);
@@ -394,15 +382,8 @@ fn weight_batch_rows_sum_to_n() {
     let n = 15usize;
     let b = 4usize;
     let mut out = vec![0.0; n * b];
-    fill_resample_weight_batch(
-        ResamplingPlan::BayesianBootstrap,
-        n,
-        b,
-        &ctx,
-        0xBEEF_u64,
-        &mut out,
-    )
-    .unwrap();
+    fill_resample_weight_batch(ResamplingPlan::BayesianBootstrap, n, b, &ctx, 0xBEEF_u64, &mut out)
+        .unwrap();
     for r in 0..b {
         let sum: f64 = out[r * n..(r + 1) * n].iter().sum();
         assert!((sum - n as f64).abs() < 1e-9);
@@ -424,8 +405,7 @@ fn unequal_cluster_bootstrap_draws_g_whole_clusters_without_conditioning_on_rows
             if rows[cursor].get() == 0 {
                 cursor += 1;
             } else {
-                let got: Vec<u64> =
-                    rows[cursor..cursor + 3].iter().map(|id| id.get()).collect();
+                let got: Vec<u64> = rows[cursor..cursor + 3].iter().map(|id| id.get()).collect();
                 assert_eq!(got, [1, 2, 3]);
                 cursor += 3;
             }
@@ -437,9 +417,7 @@ fn unequal_cluster_bootstrap_draws_g_whole_clusters_without_conditioning_on_rows
         assert!((count as f64 / 4000.0 - target).abs() < 0.04);
     }
     let mut fixed = vec![GlobalId::new(0); 8];
-    assert!(
-        fill_resample_index_batch(plan, 4, 2, Some(&ids), &context, 11, &mut fixed).is_err()
-    );
+    assert!(fill_resample_index_batch(plan, 4, 2, Some(&ids), &context, 11, &mut fixed).is_err());
 }
 
 #[test]
@@ -855,8 +833,7 @@ fn bounded_cluster_replicate_keeps_variable_length_and_repeated_copies() {
                 copies0 += 1;
                 cursor += 1;
             } else {
-                let got: Vec<u64> =
-                    reused[cursor..cursor + 3].iter().map(|id| id.get()).collect();
+                let got: Vec<u64> = reused[cursor..cursor + 3].iter().map(|id| id.get()).collect();
                 assert_eq!(got, [1, 2, 3]);
                 copies1 += 1;
                 cursor += 3;
@@ -1090,8 +1067,7 @@ fn series_design_draws_a_contiguous_block_and_honors_the_embargo() {
         assert!(row >= margin && row < n - margin, "embargoed row {row} was drawn");
     }
     for window in with_time.chunks(length) {
-        let rows: Vec<usize> =
-            window.iter().map(|id| usize::try_from(id.get()).unwrap()).collect();
+        let rows: Vec<usize> = window.iter().map(|id| usize::try_from(id.get()).unwrap()).collect();
         for pair in rows.windows(2) {
             assert_eq!(pair[1], pair[0] + 1);
         }

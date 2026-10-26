@@ -18,12 +18,14 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod contrast;
+mod fault;
 mod identity;
 mod mediation;
 mod model;
 #[cfg(test)]
 mod tests;
 
+pub use self::fault::{ActionFault, ContrastIncoherence, DoseGridFault};
 pub use self::contrast::{ContrastForm, ContrastTerm, DoseTimeSurface, InterventionContrast};
 pub use self::identity::{ScientificTarget, TargetForm};
 pub use self::mediation::{CrossWorldPremise, MediationArms, MediationComponent, MediationTarget};
@@ -58,8 +60,8 @@ pub enum ScientificTargetError {
     /// An intervention, policy, functional, or population declaration is unusable.
     #[error("{reason}")]
     InvalidAction {
-        /// Stable explanation.
-        reason: String,
+        /// Why the declaration is unusable.
+        reason: ActionFault,
     },
     /// A callback is a program binding, not a declared scientific action.
     #[error("a scientific world cannot carry a callback intervention")]
@@ -109,11 +111,8 @@ pub enum ScientificTargetError {
     #[error("a contrast's worlds are exactly the worlds in its formula")]
     ContrastWorldSet,
     /// A general linear functional has missing, zero, repeated or nonfinite coefficients.
-    #[error("invalid linear world functional: {reason}")]
-    InvalidLinearContrast {
-        /// Exact invalid declaration.
-        reason: &'static str,
-    },
+    #[error("invalid linear world functional: coefficients must be finite and nonzero")]
+    InvalidLinearContrast,
     /// The reference id is not flagged as the explicit reference intervention.
     #[error("reference world {id} is not marked as the explicit reference intervention")]
     ReferenceNotMarked {
@@ -141,7 +140,7 @@ pub enum ScientificTargetError {
     )]
     NotADoseTimeGrid {
         /// What about the grid failed.
-        reason: &'static str,
+        reason: DoseGridFault,
     },
     /// A cross-world mediation component was declared without its premises.
     #[error(
@@ -184,7 +183,7 @@ pub enum ScientificTargetError {
     #[error("contrast worlds do not realise the formula: {reason}")]
     IncoherentContrast {
         /// What about the four-world or two-world structure failed.
-        reason: &'static str,
+        reason: ContrastIncoherence,
     },
     /// A mediation target compares an arm with itself.
     #[error("mediation control and active arms are the same intervention")]

@@ -25,7 +25,7 @@ pub mod welford;
 
 pub use cholesky::{
     CholeskyError, back_solve_into, chol_inverse, chol_solve_into, cholesky_condition_lower_bound,
-    cholesky_spd_into, forward_solve_into,
+    cholesky_spd_into, design_gram_cholesky, forward_solve_into,
 };
 pub use dispatch::{
     KernelImpl, accumulate_contingency, gather, select_impl, standardize_inplace, weighted_mean,

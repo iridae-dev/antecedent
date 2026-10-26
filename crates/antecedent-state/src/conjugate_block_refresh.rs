@@ -286,6 +286,23 @@ impl ConjugateBlockRefresh {
         Ok(writer.finish_hex())
     }
 
+    /// The posterior summary rebuilt from the retained rows alone, borrowing them: no block
+    /// is copied and the cached posterior is not consulted.
+    ///
+    /// # Errors
+    /// A block does not retain rows, or the rebuilt posterior precision is singular.
+    pub fn fresh_summary(&self) -> Result<ConjugateOlsSummary, StateError> {
+        let mut fresh = ConjugateOlsPosterior::new(&self.prior);
+        for (label, block) in &self.blocks {
+            block.require_rows(RetainedOperation::RefitFromRetainedRows)?;
+            let stats = fresh_stats(block)?;
+            if stats.n() > 0 {
+                fresh.update(&self.prior, label, &stats)?;
+            }
+        }
+        fresh.summary(&self.prior)
+    }
+
     /// Compare the cached posterior with one rebuilt from the retained rows: every block
     /// against its own fresh rebuild, then the posterior mean, precision, scale, shape, rate
     /// and count within [`merge_within_tolerance`], and the identity exactly.

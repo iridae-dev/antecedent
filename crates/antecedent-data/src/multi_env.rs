@@ -29,16 +29,12 @@ impl MultiEnvironmentData {
     pub fn try_new(environments: impl Into<Arc<[TimeSeriesData]>>) -> Result<Self, DataError> {
         let environments = environments.into();
         if environments.is_empty() {
-            return Err(DataError::InvalidArgument {
-                message: "multi-environment data needs ≥1 environment".into(),
-            });
+            return Err(DataError::empty("multi-environment data environments"));
         }
         let schema = Arc::new(environments[0].schema().clone());
         for env in environments.iter().skip(1) {
             if env.schema() != schema.as_ref() {
-                return Err(DataError::InvalidArgument {
-                    message: "environment schemas must match".into(),
-                });
+                return Err(DataError::mismatch("environment schemas"));
             }
         }
         Ok(Self { schema, environments })
@@ -62,9 +58,11 @@ impl MultiEnvironmentData {
     ///
     /// Out of range.
     pub fn environment(&self, i: usize) -> Result<&TimeSeriesData, DataError> {
-        self.environments
-            .get(i)
-            .ok_or(DataError::InvalidArgument { message: "environment index out of range".into() })
+        self.environments.get(i).ok_or(DataError::out_of_range(
+            "environment",
+            i,
+            self.environments.len(),
+        ))
     }
 
     /// All environments.
@@ -91,9 +89,7 @@ impl MultiEnvironmentData {
     ) -> Result<Self, DataError> {
         let mut environments: Vec<TimeSeriesData> = self.environments.to_vec();
         let Some(slot) = environments.get_mut(index) else {
-            return Err(DataError::InvalidArgument {
-                message: "environment index out of range".into(),
-            });
+            return Err(DataError::out_of_range("environment", index, self.environments.len()));
         };
         *slot = series;
         Self::try_new(environments)

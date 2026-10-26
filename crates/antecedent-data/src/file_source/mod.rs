@@ -63,26 +63,26 @@ use convert::ColumnState;
 use identity::ColumnDigest;
 use provider::{BatchProvider, DecodeNeed};
 
+mod chunks;
 mod format;
 mod plan;
 mod schema;
-mod chunks;
 
-pub use self::format::TableFileFormat;
-pub use self::format::FileColumnKind;
-pub use self::format::FileColumn;
-pub use self::plan::ReadOptions;
-pub use self::plan::ChunkQuote;
-pub use self::plan::ReadPlan;
-pub use self::plan::RowCursor;
-pub use self::plan::chunk_local_index;
-pub use self::chunks::TableStream;
 pub use self::chunks::FileChunk;
 pub use self::chunks::ScanReceipt;
 pub use self::chunks::TableChunkReader;
+pub use self::chunks::TableStream;
+pub use self::format::FileColumn;
+pub use self::format::FileColumnKind;
+pub use self::format::TableFileFormat;
+pub use self::plan::ChunkQuote;
+pub use self::plan::ReadOptions;
+pub use self::plan::ReadPlan;
+pub use self::plan::RowCursor;
+pub use self::plan::chunk_local_index;
 
+use self::chunks::Origin;
 use self::schema::{SchemaView, list_dataset, same_schema};
-use self::chunks::{Origin};
 
 pub use error::{FileSourceError, FileSourceErrorKind, MemoryStage};
 pub use identity::{FILE_IDENTITY_VERSION, FileContentIdentity};

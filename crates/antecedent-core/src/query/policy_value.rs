@@ -4,6 +4,7 @@
 //! rows; prediction ownership is retained as caller-declared metadata.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::PolicyValueFault;
 use super::QueryError;
 use super::probability::{compensated_sum, row_totals_one, within_budget};
 use crate::canonical_encode::{
@@ -113,10 +114,7 @@ impl MultiActionPolicyInputs {
                 && (self.cate_groups.len() != n
                     || self.cate_groups.iter().any(|group| group.trim().is_empty())))
         {
-            return Err(QueryError::InvalidPolicyValue(
-                "multi-action policy rows, labels, probabilities, and constraints must align"
-                    .into(),
-            ));
+            return Err(QueryError::InvalidPolicyValue(PolicyValueFault::MultiActionAlignment));
         }
         if self.costs.iter().chain(self.reference_costs.iter()).any(|x| !x.is_finite() || *x < 0.0)
             || [self.budget, self.reference_budget]
@@ -127,7 +125,7 @@ impl MultiActionPolicyInputs {
                 row.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p > 1.0) || !row_totals_one(row)
             })
         {
-            return Err(QueryError::InvalidPolicyValue("multi-action probabilities must be positive and sum to one; costs and budgets must be finite and non-negative".into()));
+            return Err(QueryError::InvalidPolicyValue(PolicyValueFault::MultiActionProbabilities));
         }
         for (recommendations, costs, capacities, budget) in [
             (&self.actions, &self.costs, &self.capacities, self.budget),
@@ -141,9 +139,7 @@ impl MultiActionPolicyInputs {
             let mut counts = vec![0usize; k];
             for (i, &action) in recommendations.iter().enumerate() {
                 if !self.available[i * k + action] {
-                    return Err(QueryError::InvalidPolicyValue(
-                        "policy selects an unavailable action".into(),
-                    ));
+                    return Err(QueryError::InvalidPolicyValue(PolicyValueFault::UnavailableAction));
                 }
                 counts[action] += 1;
             }
@@ -151,9 +147,7 @@ impl MultiActionPolicyInputs {
             if counts.iter().zip(capacities.iter()).any(|(count, limit)| count > limit)
                 || budget.is_some_and(|limit| !within_budget(total_cost, limit))
             {
-                return Err(QueryError::InvalidPolicyValue(
-                    "policy exceeds its action capacity or budget".into(),
-                ));
+                return Err(QueryError::InvalidPolicyValue(PolicyValueFault::ActionCapacityExceeded));
             }
         }
         Ok(())
@@ -362,7 +356,7 @@ impl PolicyValueQuery {
                     .len()
                     != multi.assignment.len()
             {
-                return Err(QueryError::InvalidPolicyValue("multi-action policy must carry only multi-action inputs and unique evaluation subject IDs".into()));
+                return Err(QueryError::InvalidPolicyValue(PolicyValueFault::MultiActionInputs));
             }
             return multi.validate();
         }
@@ -377,14 +371,10 @@ impl PolicyValueQuery {
             || !(self.costs.len() == 1 || self.costs.len() == n)
             || !(self.reference_costs.len() == 1 || self.reference_costs.len() == n)
         {
-            return Err(QueryError::InvalidPolicyValue(
-                "policy, outcome predictions, ownership IDs, and assignment must align on at least two rows".into(),
-            ));
+            return Err(QueryError::InvalidPolicyValue(PolicyValueFault::BinaryAlignment));
         }
         if self.propensity.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p >= 1.0) {
-            return Err(QueryError::InvalidPolicyValue(
-                "randomized propensities must be finite and strictly between zero and one".into(),
-            ));
+            return Err(QueryError::InvalidPolicyValue(PolicyValueFault::PropensityRange));
         }
         if self.mu0.iter().chain(self.mu1.iter()).any(|x| !x.is_finite())
             || self
@@ -396,21 +386,14 @@ impl PolicyValueQuery {
             || self.evaluation_subject_ids.iter().collect::<std::collections::HashSet<_>>().len()
                 != n
         {
-            return Err(QueryError::InvalidPolicyValue(
-                "predictions, costs, and unique non-empty evaluation subject IDs must be valid"
-                    .into(),
-            ));
+            return Err(QueryError::InvalidPolicyValue(PolicyValueFault::PredictionInputs));
         }
         if ipw && (self.disjoint_training_subjects || self.crossfit_fold_ownership_valid) {
-            return Err(QueryError::InvalidPolicyValue(
-                "IPW has no nuisance prediction ownership metadata".into(),
-            ));
+            return Err(QueryError::InvalidPolicyValue(PolicyValueFault::IpwOwnershipMetadata));
         }
         if self.uplift_bin_count == 0 {
             if !self.uplift_bins.is_empty() || !self.uplift_training_subject_ids.is_empty() {
-                return Err(QueryError::InvalidPolicyValue(
-                    "uplift bins and training subjects require a positive bin count".into(),
-                ));
+                return Err(QueryError::InvalidPolicyValue(PolicyValueFault::UpliftBinCount));
             }
         } else if self.uplift_bins.len() != n
             || self.uplift_bin_count > n
@@ -429,12 +412,10 @@ impl PolicyValueQuery {
             || (0..self.uplift_bin_count)
                 .any(|bin| self.uplift_bins.iter().filter(|&&x| x == bin).count() < 2)
         {
-            return Err(QueryError::InvalidPolicyValue("uplift bins must cover evaluation rows and each bin; declared training subjects must be unique and disjoint".into()));
+            return Err(QueryError::InvalidPolicyValue(PolicyValueFault::UpliftBinCoverage));
         }
         if !(ipw || self.disjoint_training_subjects || self.crossfit_fold_ownership_valid) {
-            return Err(QueryError::InvalidPolicyValue(
-                "prediction ownership requires disjoint training IDs or matching excluded-fold metadata".into(),
-            ));
+            return Err(QueryError::InvalidPolicyValue(PolicyValueFault::PredictionOwnership));
         }
         if let Some(regret) = &self.regret {
             let training = &regret.training_subject_ids;
@@ -451,9 +432,7 @@ impl PolicyValueQuery {
                     .any(|id| id.trim().is_empty() || self.evaluation_subject_ids.contains(id))
                 || training.iter().collect::<std::collections::HashSet<_>>().len() != training.len()
             {
-                return Err(QueryError::InvalidPolicyValue(
-                    "finite-class regret requires 2–16 fixed IPW candidates, selected-policy equality, and disjoint construction subjects".into(),
-                ));
+                return Err(QueryError::InvalidPolicyValue(PolicyValueFault::FiniteClassRegret));
             }
         }
         Ok(())

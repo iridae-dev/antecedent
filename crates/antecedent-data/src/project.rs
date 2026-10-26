@@ -84,9 +84,7 @@ impl TabularData {
                 )
                 .map_err(DataError::from)?;
             let new_id = VariableId::from_raw(u32::try_from(new_idx).map_err(|_| {
-                DataError::InvalidArgument {
-                    message: "projected schema exceeds VariableId range".into(),
-                }
+                DataError::overflow("projected schema variable count as VariableId")
             })?);
             old_to_new.insert(old_id, new_id);
             let col = storage

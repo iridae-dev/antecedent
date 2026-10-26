@@ -3,6 +3,7 @@
 
 use super::{QueryError, RandomizedEffectFault};
 use super::probability::{probabilities_agree, row_totals_one};
+use super::probability_rows::ProbabilityRows;
 use crate::canonical_encode::{
     CanonicalEncode, count, encode_flags, encode_usizes, encode_variables, flag,
 };
@@ -45,8 +46,9 @@ pub enum RandomizationDesign {
     MultiArm {
         /// Observed action indices aligned with outcome rows.
         assignment: Arc<[usize]>,
-        /// Known action probabilities in declared label order for each row.
-        probabilities: Arc<[Vec<f64>]>,
+        /// Known action probabilities in declared label order for each row, in one flat
+        /// table whose stride is the arm count.
+        probabilities: ProbabilityRows,
         /// Ordered action labels; the first is the reference arm.
         arms: Arc<[Arc<str>]>,
     },
@@ -364,7 +366,9 @@ impl RandomizedEffectQuery {
         self
     }
 
-    /// Enumerate every fixed-count assignment under the Fisher sharp null.
+    /// Test the Fisher sharp null over the fixed-count assignments: every one is enumerated when
+    /// they are few (an exact p-value), and a fixed-stream Monte Carlo permutation sample of them
+    /// is drawn otherwise.
     #[must_use]
     pub fn with_exact_randomization_test(mut self) -> Self {
         self.exact_randomization_test = true;

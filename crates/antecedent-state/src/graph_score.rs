@@ -464,8 +464,8 @@ fn laplace_bic_local(data: &GraphScoreData, node: u32, parents: &[u32]) -> Resul
     let y = centered_column(data.col(node as usize));
     let outcome_scale = compensated_sum(y.iter().copied().map(f64::abs)) / n as f64;
     if !(outcome_scale.is_finite() && outcome_scale > 0.0) {
-        return Err(StateError::Numerical(
-            "degenerate Laplace BIC fit (zero residual scale)".into(),
+        return Err(StateError::DegenerateScore(
+            "Laplace BIC fit (zero residual scale)".into(),
         ));
     }
     let floor = LAD_RESIDUAL_FLOOR * outcome_scale;
@@ -516,8 +516,8 @@ fn laplace_bic_local(data: &GraphScoreData, node: u32, parents: &[u32]) -> Resul
     }
     let scale = objective / n as f64;
     if !(scale.is_finite() && scale > 1e-12 * outcome_scale) {
-        return Err(StateError::Numerical(
-            "degenerate Laplace BIC fit (zero residual scale)".into(),
+        return Err(StateError::DegenerateScore(
+            "Laplace BIC fit (zero residual scale)".into(),
         ));
     }
     let nf = n as f64;
@@ -547,8 +547,8 @@ fn rss_from_joint_gram(gram: &[f64], m: usize, cols: &[usize]) -> Result<f64, St
     equilibrate_into(&sub, &scales, q, &mut eq);
     let mut factor = vec![0.0; q * q];
     if cholesky_spd_into(&eq, q, &mut factor).is_err() {
-        return Err(StateError::Numerical(
-            "degenerate Gaussian BIC fit (zero residual variance)".into(),
+        return Err(StateError::DegenerateScore(
+            "Gaussian BIC fit (zero residual variance)".into(),
         ));
     }
     let pivot = factor[(q - 1) * q + (q - 1)];
@@ -585,8 +585,8 @@ fn bic_from_rss(rss: f64, n: usize, k: usize) -> Result<f64, StateError> {
         return Err(StateError::Numerical("non-finite Gaussian BIC residual variance".into()));
     }
     if sigma2 <= 0.0 {
-        return Err(StateError::Numerical(
-            "degenerate Gaussian BIC fit (zero residual variance)".into(),
+        return Err(StateError::DegenerateScore(
+            "Gaussian BIC fit (zero residual variance)".into(),
         ));
     }
     let n_f = n as f64;
@@ -769,7 +769,7 @@ mod tests {
     #[test]
     fn degenerate_fit_is_an_error_not_infinity() {
         let err = bic_from_rss(0.0, 10, 2).unwrap_err();
-        assert!(matches!(err, StateError::Numerical(_)), "{err:?}");
+        assert!(matches!(err, StateError::DegenerateScore(_)), "{err:?}");
         let got = bic_from_rss(1.0, 10, 2).unwrap();
         let expected =
             -5.0 * (1.0 + (2.0 * std::f64::consts::PI).ln() + 0.1_f64.ln()) - 1.0 * 10.0_f64.ln();

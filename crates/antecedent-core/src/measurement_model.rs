@@ -479,6 +479,73 @@ impl ParameterEvidence {
     }
 }
 
+/// Which parameter of a measurement model is outside its range.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, thiserror::Error)]
+#[non_exhaustive]
+pub enum ParameterFault {
+    /// Refused: error variance and its standard error must be finite and non-negative
+    #[error("error variance and its standard error must be finite and non-negative")]
+    ClassicalVariance,
+    /// Refused: minimum reliability must lie in [0, 1)
+    #[error("minimum reliability must lie in [0, 1)")]
+    ReliabilityFloor,
+    /// Refused: repeated measurements need at least two replicated units and a reliability floor in [0, 1)
+    #[error("repeated measurements need at least two replicated units and a reliability floor in [0, 1)")]
+    RepeatedMeasurements,
+    /// Refused: minimum Youden index must lie in (0, 1)
+    #[error("minimum Youden index must lie in (0, 1)")]
+    YoudenIndex,
+    /// Refused: sensitivity and specificity must lie in [0, 1]
+    #[error("sensitivity and specificity must lie in [0, 1]")]
+    RateRange,
+    /// Refused: rate variances must be finite and non-negative
+    #[error("rate variances must be finite and non-negative")]
+    RateVariances,
+    /// Refused: a confusion model needs 2 to 16 named levels and a square matrix
+    #[error("a confusion model needs 2 to 16 named levels and a square matrix")]
+    ConfusionShape,
+    /// Refused: level names repeat
+    #[error("level names repeat")]
+    LevelNamesRepeat,
+    /// Refused: confusion entries must be probabilities
+    #[error("confusion entries must be probabilities")]
+    ConfusionEntries,
+    /// Refused: each confusion column must sum to one
+    #[error("each confusion column must sum to one")]
+    ConfusionColumnSums,
+    /// Refused: validation counts need one positive count per true level
+    #[error("validation counts need one positive count per true level")]
+    ValidationCounts,
+    /// Refused: maximum condition number must be at least one
+    #[error("maximum condition number must be at least one")]
+    ConditionNumber,
+    /// Refused: a posterior route needs at least two joint draws
+    #[error("a posterior route needs at least two joint draws")]
+    PosteriorDraws,
+}
+
+impl ParameterFault {
+    /// The stable statement of the violated range.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ClassicalVariance => "error variance and its standard error must be finite and non-negative",
+            Self::ReliabilityFloor => "minimum reliability must lie in [0, 1)",
+            Self::RepeatedMeasurements => "repeated measurements need at least two replicated units and a reliability floor in [0, 1)",
+            Self::YoudenIndex => "minimum Youden index must lie in (0, 1)",
+            Self::RateRange => "sensitivity and specificity must lie in [0, 1]",
+            Self::RateVariances => "rate variances must be finite and non-negative",
+            Self::ConfusionShape => "a confusion model needs 2 to 16 named levels and a square matrix",
+            Self::LevelNamesRepeat => "level names repeat",
+            Self::ConfusionEntries => "confusion entries must be probabilities",
+            Self::ConfusionColumnSums => "each confusion column must sum to one",
+            Self::ValidationCounts => "validation counts need one positive count per true level",
+            Self::ConditionNumber => "maximum condition number must be at least one",
+            Self::PosteriorDraws => "a posterior route needs at least two joint draws",
+        }
+    }
+}
+
 /// Why a measurement model is not well formed.
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
@@ -503,7 +570,7 @@ pub enum MeasurementModelError {
     /// The parameters belong to a different route than declared.
     RouteParameterMismatch,
     /// A parameter is outside its range.
-    InvalidParameter(&'static str),
+    InvalidParameter(ParameterFault),
     /// The declared error structure disagrees with the parameter layout
     /// (for example shared rates declared differential, or arm rates declared
     /// non-differential).
@@ -667,14 +734,10 @@ impl MeasurementModel {
         min_reliability: f64,
     ) -> Result<(), MeasurementModelError> {
         if !variance(error_variance) || !variance(error_variance_standard_error) {
-            return Err(MeasurementModelError::InvalidParameter(
-                "error variance and its standard error must be finite and non-negative",
-            ));
+            return Err(MeasurementModelError::InvalidParameter(ParameterFault::ClassicalVariance));
         }
         if !reliability_floor(min_reliability) {
-            return Err(MeasurementModelError::InvalidParameter(
-                "minimum reliability must lie in [0, 1)",
-            ));
+            return Err(MeasurementModelError::InvalidParameter(ParameterFault::ReliabilityFloor));
         }
         self.require_non_differential()
     }
@@ -685,9 +748,7 @@ impl MeasurementModel {
         min_reliability: f64,
     ) -> Result<(), MeasurementModelError> {
         if min_replicated_units < 2 || !reliability_floor(min_reliability) {
-            return Err(MeasurementModelError::InvalidParameter(
-                "repeated measurements need at least two replicated units and a reliability floor in [0, 1)",
-            ));
+            return Err(MeasurementModelError::InvalidParameter(ParameterFault::RepeatedMeasurements));
         }
         self.require_non_differential()
     }
@@ -698,20 +759,14 @@ impl MeasurementModel {
         min_youden: f64,
     ) -> Result<(), MeasurementModelError> {
         if !(min_youden.is_finite() && min_youden > 0.0 && min_youden < 1.0) {
-            return Err(MeasurementModelError::InvalidParameter(
-                "minimum Youden index must lie in (0, 1)",
-            ));
+            return Err(MeasurementModelError::InvalidParameter(ParameterFault::YoudenIndex));
         }
         for arm in rates {
             if !(probability(arm.sensitivity) && probability(arm.specificity)) {
-                return Err(MeasurementModelError::InvalidParameter(
-                    "sensitivity and specificity must lie in [0, 1]",
-                ));
+                return Err(MeasurementModelError::InvalidParameter(ParameterFault::RateRange));
             }
             if !(variance(arm.sensitivity_variance) && variance(arm.specificity_variance)) {
-                return Err(MeasurementModelError::InvalidParameter(
-                    "rate variances must be finite and non-negative",
-                ));
+                return Err(MeasurementModelError::InvalidParameter(ParameterFault::RateVariances));
             }
             if arm.arm_id.as_deref().is_some_and(blank) {
                 return Err(MeasurementModelError::BlankField("rates.arm_id"));
@@ -742,39 +797,29 @@ impl MeasurementModel {
             || confusion.len() != k * k
             || levels.iter().any(|level| blank(level))
         {
-            return Err(MeasurementModelError::InvalidParameter(
-                "a confusion model needs 2 to 16 named levels and a square matrix",
-            ));
+            return Err(MeasurementModelError::InvalidParameter(ParameterFault::ConfusionShape));
         }
         let mut seen: Vec<&str> = levels.iter().map(String::as_str).collect();
         seen.sort_unstable();
         if seen.windows(2).any(|pair| pair[0] == pair[1]) {
-            return Err(MeasurementModelError::InvalidParameter("level names repeat"));
+            return Err(MeasurementModelError::InvalidParameter(ParameterFault::LevelNamesRepeat));
         }
         if !confusion.iter().all(|v| probability(*v)) {
-            return Err(MeasurementModelError::InvalidParameter(
-                "confusion entries must be probabilities",
-            ));
+            return Err(MeasurementModelError::InvalidParameter(ParameterFault::ConfusionEntries));
         }
         for t in 0..k {
             let sum: f64 = (0..k).map(|j| confusion[j * k + t]).sum();
             if (sum - 1.0).abs() > 1e-9 {
-                return Err(MeasurementModelError::InvalidParameter(
-                    "each confusion column must sum to one",
-                ));
+                return Err(MeasurementModelError::InvalidParameter(ParameterFault::ConfusionColumnSums));
             }
         }
         if let Some(counts) = column_counts {
             if counts.len() != k || counts.contains(&0) {
-                return Err(MeasurementModelError::InvalidParameter(
-                    "validation counts need one positive count per true level",
-                ));
+                return Err(MeasurementModelError::InvalidParameter(ParameterFault::ValidationCounts));
             }
         }
         if !(max_condition.is_finite() && max_condition >= 1.0) {
-            return Err(MeasurementModelError::InvalidParameter(
-                "maximum condition number must be at least one",
-            ));
+            return Err(MeasurementModelError::InvalidParameter(ParameterFault::ConditionNumber));
         }
         self.require_non_differential()
     }
@@ -796,9 +841,7 @@ impl MeasurementModel {
             }
         }
         if min_draws < 2 {
-            return Err(MeasurementModelError::InvalidParameter(
-                "a posterior route needs at least two joint draws",
-            ));
+            return Err(MeasurementModelError::InvalidParameter(ParameterFault::PosteriorDraws));
         }
         self.require_non_differential()
     }

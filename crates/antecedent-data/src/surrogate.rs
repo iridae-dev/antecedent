@@ -61,9 +61,10 @@ pub fn surrogate_phase_randomize(
 ) -> Result<TimeSeriesData, DataError> {
     let n = data.row_count();
     if n < 4 {
-        return Err(DataError::InvalidArgument {
-            message: "phase-randomize requires series length ≥ 4".into(),
-        });
+        return Err(DataError::invalid_value(
+            "phase-randomize series length",
+            "must be at least 4",
+        ));
     }
     let schema = data.schema().clone();
     let mut planner = RealFftPlanner::<f64>::new();
@@ -96,8 +97,7 @@ fn phase_randomize_column(
 ) -> Result<Vec<f64>, DataError> {
     let mut indata = values.to_vec();
     let mut spectrum = r2c.make_output_vec();
-    r2c.process(&mut indata, &mut spectrum)
-        .map_err(|e| DataError::InvalidArgument { message: format!("forward FFT failed: {e}") })?;
+    r2c.process(&mut indata, &mut spectrum).map_err(|e| DataError::external("forward FFT", e))?;
 
     // spectrum[0] = DC (real). spectrum[last] = Nyquist when n even (must stay real).
     let last = spectrum.len() - 1;
@@ -113,8 +113,7 @@ fn phase_randomize_column(
     }
 
     let mut out = c2r.make_output_vec();
-    c2r.process(&mut spectrum, &mut out)
-        .map_err(|e| DataError::InvalidArgument { message: format!("inverse FFT failed: {e}") })?;
+    c2r.process(&mut spectrum, &mut out).map_err(|e| DataError::external("inverse FFT", e))?;
     let scale = 1.0 / n as f64;
     for v in &mut out {
         *v *= scale;

@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use crate::ids::DistributionRef;
+use crate::row_mask::{RowMask, RowMaskError};
 
 use super::error::QueryError;
 use super::probability::BINARY_CODING_TOLERANCE;
@@ -86,8 +87,8 @@ impl PopulationRegistry {
 /// Resolved population as a keep-mask and optional observation weights.
 #[derive(Clone, Debug)]
 pub struct PopulationSelection {
-    /// Length-`n` keep mask (`true` = include).
-    pub keep: Arc<[bool]>,
+    /// Length-`n` bit-packed keep mask (set = include).
+    pub keep: RowMask,
     /// Optional length-`n` non-negative weights (`CustomDistribution`).
     pub weights: Option<Arc<[f64]>>,
 }
@@ -113,7 +114,7 @@ impl TargetPopulation {
             // and this variant carries only their digest, so no weights can be
             // recovered from it.
             Self::AllObserved | Self::RowWeights { .. } => {
-                Ok(PopulationSelection { keep: Arc::from(vec![true; n]), weights: None })
+                Ok(PopulationSelection { keep: RowMask::all_set(n), weights: None })
             }
             Self::Treated | Self::Untreated => {
                 let t = treatment.ok_or(QueryError::PopulationNeedsTreatment)?;
@@ -124,16 +125,15 @@ impl TargetPopulation {
                     });
                 }
                 let want_treated = matches!(self, Self::Treated);
-                let mut keep = vec![false; n];
-                for (i, &ti) in t.iter().enumerate() {
-                    let is_t = (ti - 1.0).abs() <= BINARY_CODING_TOLERANCE;
-                    let is_c = ti.abs() <= BINARY_CODING_TOLERANCE;
-                    if !is_t && !is_c {
-                        return Err(QueryError::PopulationNonBinaryTreatment);
-                    }
-                    keep[i] = if want_treated { is_t } else { is_c };
+                let is_treated = |ti: f64| (ti - 1.0).abs() <= BINARY_CODING_TOLERANCE;
+                let is_control = |ti: f64| ti.abs() <= BINARY_CODING_TOLERANCE;
+                if t.iter().any(|&ti| !is_treated(ti) && !is_control(ti)) {
+                    return Err(QueryError::PopulationNonBinaryTreatment);
                 }
-                Ok(PopulationSelection { keep: Arc::from(keep), weights: None })
+                let keep = RowMask::from_fn(n, |i| {
+                    if want_treated { is_treated(t[i]) } else { is_control(t[i]) }
+                });
+                Ok(PopulationSelection { keep, weights: None })
             }
             Self::Environment(_) => Err(QueryError::PopulationEnvironmentUnsupported),
             Self::LocalAtCutoff { .. } => Err(QueryError::PopulationLocalAtCutoffNotRows),
@@ -147,14 +147,13 @@ impl TargetPopulation {
                         })?
                     }
                 };
-                let mut keep = vec![false; n];
-                for &r in rows {
-                    if r >= n {
-                        return Err(QueryError::PopulationRowOutOfRange { row: r, n });
-                    }
-                    keep[r] = true;
-                }
-                Ok(PopulationSelection { keep: Arc::from(keep), weights: None })
+                let keep = RowMask::from_set_rows(n, rows.iter().copied()).map_err(|error| {
+                    let RowMaskError::RowOutOfRange { row, .. } = error else {
+                        unreachable!("building from listed rows can only fail on an out-of-range row")
+                    };
+                    QueryError::PopulationRowOutOfRange { row, n }
+                })?;
+                Ok(PopulationSelection { keep, weights: None })
             }
             Self::CustomDistribution(id) => {
                 let reg = registry.ok_or(QueryError::PopulationRegistryRequired)?;
@@ -171,7 +170,7 @@ impl TargetPopulation {
                     return Err(QueryError::InvalidPopulationWeights);
                 }
                 Ok(PopulationSelection {
-                    keep: Arc::from(vec![true; n]),
+                    keep: RowMask::all_set(n),
                     weights: Some(Arc::from(weights.to_vec())),
                 })
             }
@@ -208,12 +207,12 @@ mod tests {
         let rows = TargetPopulation::Predicate(PredicateExpr::rows([1usize]))
             .resolve(3, None, None)
             .unwrap();
-        assert_eq!(rows.keep.as_ref(), &[false, true, false]);
+        assert_eq!(rows.keep.to_bools(), vec![false, true, false]);
 
         let named = TargetPopulation::Predicate(PredicateExpr::named("cohort"))
             .resolve(3, None, Some(&reg))
             .unwrap();
-        assert_eq!(named.keep.as_ref(), &[true, false, true]);
+        assert_eq!(named.keep.to_bools(), vec![true, false, true]);
 
         let w = TargetPopulation::CustomDistribution(DistributionRef::from_raw(1))
             .resolve(3, None, Some(&reg))

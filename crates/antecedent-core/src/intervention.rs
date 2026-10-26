@@ -319,39 +319,39 @@ impl StochasticPolicy {
         match self {
             Self::Bernoulli { p } => {
                 if !(0.0..=1.0).contains(p) || !p.is_finite() {
-                    return Err(InterventionError::InvalidStochasticPolicy {
-                        message: "Bernoulli p must be finite and in [0, 1]",
-                    });
+                    return Err(InterventionError::InvalidStochasticPolicy(
+                        StochasticPolicyFault::BernoulliProbability,
+                    ));
                 }
             }
             Self::Gaussian { mean, variance } => {
                 if !mean.is_finite() {
-                    return Err(InterventionError::InvalidStochasticPolicy {
-                        message: "Gaussian mean must be finite",
-                    });
+                    return Err(InterventionError::InvalidStochasticPolicy(
+                        StochasticPolicyFault::GaussianMean,
+                    ));
                 }
                 if !(variance.is_finite() && *variance > 0.0) {
-                    return Err(InterventionError::InvalidStochasticPolicy {
-                        message: "Gaussian variance must be finite and > 0",
-                    });
+                    return Err(InterventionError::InvalidStochasticPolicy(
+                        StochasticPolicyFault::GaussianVariance,
+                    ));
                 }
             }
             Self::Categorical { probs } => {
                 if probs.is_empty() {
-                    return Err(InterventionError::InvalidStochasticPolicy {
-                        message: "categorical probs must be non-empty",
-                    });
+                    return Err(InterventionError::InvalidStochasticPolicy(
+                        StochasticPolicyFault::CategoricalEmpty,
+                    ));
                 }
                 if probs.iter().any(|p| !(p.is_finite() && *p >= 0.0)) {
-                    return Err(InterventionError::InvalidStochasticPolicy {
-                        message: "categorical probs must be finite and >= 0",
-                    });
+                    return Err(InterventionError::InvalidStochasticPolicy(
+                        StochasticPolicyFault::CategoricalEntries,
+                    ));
                 }
                 let sum: f64 = probs.iter().sum();
                 if sum.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
-                    return Err(InterventionError::InvalidStochasticPolicy {
-                        message: "categorical probs must sum to a positive value",
-                    });
+                    return Err(InterventionError::InvalidStochasticPolicy(
+                        StochasticPolicyFault::CategoricalTotal,
+                    ));
                 }
             }
         }
@@ -696,16 +696,37 @@ impl Intervention {
     }
 }
 
+/// Which parameter of a [`StochasticPolicy`] is invalid.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
+pub enum StochasticPolicyFault {
+    /// Refused: Bernoulli p must be finite and in [0, 1]
+    #[error("Bernoulli p must be finite and in [0, 1]")]
+    BernoulliProbability,
+    /// Refused: Gaussian mean must be finite
+    #[error("Gaussian mean must be finite")]
+    GaussianMean,
+    /// Refused: Gaussian variance must be finite and > 0
+    #[error("Gaussian variance must be finite and > 0")]
+    GaussianVariance,
+    /// Refused: categorical probs must be non-empty
+    #[error("categorical probs must be non-empty")]
+    CategoricalEmpty,
+    /// Refused: categorical probs must be finite and >= 0
+    #[error("categorical probs must be finite and >= 0")]
+    CategoricalEntries,
+    /// Refused: categorical probs must sum to a positive value
+    #[error("categorical probs must sum to a positive value")]
+    CategoricalTotal,
+}
+
 /// Errors from intervention construction or validation.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum InterventionError {
     /// Stochastic policy parameters are invalid.
-    #[error("invalid stochastic policy: {message}")]
-    InvalidStochasticPolicy {
-        /// Context.
-        message: &'static str,
-    },
+    #[error("invalid stochastic policy: {0}")]
+    InvalidStochasticPolicy(StochasticPolicyFault),
     /// A hard level, shift, or soft-mechanism parameter is NaN or infinite.
     #[error("intervention level must be finite")]
     NonFiniteLevel,

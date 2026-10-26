@@ -40,17 +40,14 @@ impl VectorVariableGroups {
         let mut seen = HashSet::new();
         for g in groups.iter() {
             if g.is_empty() {
-                return Err(DataError::InvalidArgument {
-                    message: "vector variable group must be non-empty".into(),
-                });
+                return Err(DataError::empty("vector variable group"));
             }
             for &id in g.iter() {
                 if !seen.insert(id) {
-                    return Err(DataError::InvalidArgument {
-                        message: format!(
-                            "vector variable component {id} appears in multiple groups"
-                        ),
-                    });
+                    return Err(DataError::invalid_column(
+                        id,
+                        "appears in multiple vector variable groups",
+                    ));
                 }
             }
         }
@@ -121,11 +118,10 @@ pub fn column_blocks_for_frame(
             let mut block = Vec::with_capacity(g.len());
             for &id in g.iter() {
                 let Some(idx) = frame.column_index(id, lag) else {
-                    return Err(DataError::InvalidArgument {
-                        message: format!(
-                            "vector component {id} lag {lag:?} missing from lagged frame"
-                        ),
-                    });
+                    return Err(DataError::invalid_column(
+                        id,
+                        "is missing a lag from the lagged frame",
+                    ));
                 };
                 block.push(idx);
             }

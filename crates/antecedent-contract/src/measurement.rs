@@ -321,7 +321,7 @@ pub fn model_refusal(error: &MeasurementModelError) -> MeasurementRefusal {
             invalid("measurement_model.route_parameters")
         }
         MeasurementModelError::InvalidParameter(what) => {
-            invalid("measurement_model.parameter").with_offending(*what)
+            invalid("measurement_model.parameter").with_offending(what.as_str())
         }
         MeasurementModelError::StructureParameterMismatch => {
             ExternalRefusal::new(

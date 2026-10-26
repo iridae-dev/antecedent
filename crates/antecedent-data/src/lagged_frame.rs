@@ -162,9 +162,7 @@ impl LaggedFrame {
         _policy: &KernelPolicy,
     ) -> Result<Self, DataError> {
         if variables.is_empty() {
-            return Err(DataError::InvalidArgument {
-                message: "lagged frame needs ≥1 variable".into(),
-            });
+            return Err(DataError::empty("lagged frame variables"));
         }
         let lag_map = LagMap::with_reference(data.row_count(), max_lag, reference)?;
         let n_effective = lag_map.n_effective();
@@ -307,16 +305,16 @@ impl LaggedFrame {
     /// Empty column list or out-of-range index.
     pub fn keep_mask_for_columns(&self, cols: &[usize]) -> Result<ValidityBitmap, DataError> {
         if cols.is_empty() {
-            return Err(DataError::InvalidArgument {
-                message: "keep_mask_for_columns needs ≥1 column".into(),
-            });
+            return Err(DataError::empty("keep_mask_for_columns columns"));
         }
         let mut parts: Vec<&ValidityBitmap> = Vec::with_capacity(cols.len());
         for &c in cols {
             if c >= self.ncols() {
-                return Err(DataError::InvalidArgument {
-                    message: format!("keep_mask_for_columns: column {c} out of range"),
-                });
+                return Err(DataError::out_of_range(
+                    "keep_mask_for_columns column",
+                    c,
+                    self.ncols(),
+                ));
             }
             parts.push(&self.validity[c]);
         }
@@ -333,19 +331,18 @@ impl LaggedFrame {
     /// Length mismatch or empty keep set.
     pub fn retain_effective(&self, keep: &ValidityBitmap) -> Result<Self, DataError> {
         if keep.len() != self.n_effective {
-            return Err(DataError::InvalidArgument {
-                message: format!(
-                    "retain_effective keep length {} != n_effective {}",
-                    keep.len(),
-                    self.n_effective
-                ),
+            return Err(DataError::LengthMismatch {
+                expected: self.n_effective,
+                actual: keep.len(),
+                context: "retain_effective keep mask",
             });
         }
         let n_new = keep.count_valid();
         if n_new == 0 {
-            return Err(DataError::InvalidArgument {
-                message: "retain_effective: no effective rows retained".into(),
-            });
+            return Err(DataError::invalid_value(
+                "retain_effective",
+                "must retain at least one effective row",
+            ));
         }
         let n_cols = self.ncols();
         let mut values = vec![0.0; n_cols.saturating_mul(n_new)];
@@ -378,27 +375,22 @@ impl LaggedFrame {
     /// Empty input, or mismatched variables / `max_lag` across frames.
     pub fn stack(frames: &[Self]) -> Result<Self, DataError> {
         let Some(first) = frames.first() else {
-            return Err(DataError::InvalidArgument {
-                message: "LaggedFrame::stack needs ≥1 frame".into(),
-            });
+            return Err(DataError::empty("LaggedFrame::stack frames"));
         };
-        for (i, f) in frames.iter().enumerate().skip(1) {
+        for f in frames.iter().skip(1) {
             if f.variables.as_ref() != first.variables.as_ref() {
-                return Err(DataError::InvalidArgument {
-                    message: format!("LaggedFrame::stack: variables mismatch at frame {i}"),
-                });
+                return Err(DataError::mismatch("LaggedFrame::stack variables"));
             }
             if f.max_lag != first.max_lag || f.n_lags != first.n_lags {
-                return Err(DataError::InvalidArgument {
-                    message: format!("LaggedFrame::stack: max_lag mismatch at frame {i}"),
-                });
+                return Err(DataError::mismatch("LaggedFrame::stack max_lag"));
             }
         }
         let n_eff: usize = frames.iter().map(Self::n_effective).sum();
         if n_eff == 0 {
-            return Err(DataError::InvalidArgument {
-                message: "LaggedFrame::stack: zero effective rows".into(),
-            });
+            return Err(DataError::invalid_value(
+                "LaggedFrame::stack",
+                "needs at least one effective row",
+            ));
         }
         let n_cols = first.ncols();
         let mut values = vec![0.0; n_cols.saturating_mul(n_eff)];
@@ -448,18 +440,17 @@ impl LaggedFrame {
         let mut vars = self.variables.to_vec();
         for (id, col) in columns {
             if col.len() != self.n_effective {
-                return Err(DataError::InvalidArgument {
-                    message: format!(
-                        "append_constant_lag_columns: column len {} != n_effective {}",
-                        col.len(),
-                        self.n_effective
-                    ),
+                return Err(DataError::LengthMismatch {
+                    expected: self.n_effective,
+                    actual: col.len(),
+                    context: "append_constant_lag_columns column",
                 });
             }
             if vars.contains(id) {
-                return Err(DataError::InvalidArgument {
-                    message: format!("append_constant_lag_columns: duplicate variable {id}"),
-                });
+                return Err(DataError::invalid_column(
+                    *id,
+                    "is already a variable of the lagged frame",
+                ));
             }
             vars.push(*id);
         }

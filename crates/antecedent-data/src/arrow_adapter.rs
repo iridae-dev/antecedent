@@ -44,20 +44,25 @@ use crate::sample_policy::MissingPolicy;
 use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
 
-mod convert;
 mod chunks;
+mod convert;
 mod schema;
 #[cfg(test)]
 mod tests;
 
-pub use self::convert::tabular_from_record_batch;
-pub use self::convert::tabular_from_arrow_c_columns;
 pub(crate) use self::convert::finish_load;
 pub(crate) use self::convert::level_text;
+pub use self::convert::tabular_from_arrow_c_columns;
+pub use self::convert::tabular_from_record_batch;
 
-use self::convert::{column_from_array};
-use self::chunks::{align_chunks, checked_row_total, concat_chunks, empty_column, owned_payload_bytes, remember_chunk_count, same_column_kind, variable_id};
-use self::schema::{detach_foreign, frame_payload_bytes, materialize_frame, resolve_order, scan_frame};
+use self::chunks::{
+    align_chunks, checked_row_total, concat_chunks, empty_column, owned_payload_bytes,
+    remember_chunk_count, same_column_kind, variable_id,
+};
+use self::convert::column_from_array;
+use self::schema::{
+    detach_foreign, frame_payload_bytes, materialize_frame, resolve_order, scan_frame,
+};
 
 /// Result of loading Arrow input into library-owned storage.
 #[derive(Clone, Debug)]
@@ -125,11 +130,10 @@ impl FrozenArrowStudy {
     /// Always. A frozen study refuses a mutable foreign alias.
     pub fn bind_foreign_alias(&self, alias: ArrowCColumn) -> Result<(), DataError> {
         drop(alias);
-        Err(DataError::InvalidArgument {
-            message: "a frozen study refuses a mutable foreign alias; its columns were copied at \
-                      freeze and a later write through the exporter is not the study"
-                .into(),
-        })
+        Err(DataError::unsupported(
+            "freezing a mutable foreign alias",
+            "its columns were copied at freeze and a later write through the exporter is not the study",
+        ))
     }
 }
 
@@ -142,9 +146,7 @@ impl ArrowFrameView {
     /// or inexact type.
     pub fn from_c_columns(columns: Vec<ArrowCColumn>) -> Result<Self, DataError> {
         if columns.is_empty() {
-            return Err(DataError::InvalidArgument {
-                message: "Arrow CDI import needs ≥1 column".into(),
-            });
+            return Err(DataError::empty("Arrow CDI import columns"));
         }
         let mut frame_columns = Vec::with_capacity(columns.len());
         let mut diagnostics = DiagnosticSet::new();
@@ -201,9 +203,7 @@ impl ArrowFrameView {
     /// Empty input, mismatched schemas, or an unsupported column type.
     pub fn from_record_batches(batches: Vec<RecordBatch>) -> Result<Self, DataError> {
         let Some(first) = batches.first() else {
-            return Err(DataError::InvalidArgument {
-                message: "Arrow record-batch import needs ≥1 batch".into(),
-            });
+            return Err(DataError::empty("Arrow record-batch import batches"));
         };
         let schema = first.schema();
         Self::from_schema_batches(&schema, batches)
@@ -232,9 +232,10 @@ impl ArrowFrameView {
     ///
     /// When `index` is past the last column.
     pub fn column_chunks(&self, index: usize) -> Result<&[OwnedColumn], DataError> {
-        self.columns.get(index).map(|column| column.chunks.as_slice()).ok_or(
-            DataError::InvalidArgument { message: format!("Arrow frame has no column {index}") },
-        )
+        self.columns
+            .get(index)
+            .map(|column| column.chunks.as_slice())
+            .ok_or(DataError::out_of_range("Arrow frame column", index, self.columns.len()))
     }
 
     /// Logical row count, the sum of chunk lengths.
@@ -303,15 +304,13 @@ impl ArrowFrameView {
             match column.chunks.as_slice() {
                 [one] => columns.push(one.clone()),
                 [] => {
-                    return Err(DataError::InvalidArgument {
-                        message: "Arrow column has no chunks to load".into(),
-                    });
+                    return Err(DataError::empty("Arrow column chunks to load"));
                 }
                 _ => {
-                    return Err(DataError::InvalidArgument {
-                        message: "Arrow column has several chunks; concatenate them explicitly"
-                            .into(),
-                    });
+                    return Err(DataError::precondition(
+                        "loading an Arrow column",
+                        "a single chunk; concatenate the chunks explicitly",
+                    ));
                 }
             }
         }
@@ -333,9 +332,7 @@ impl ArrowFrameView {
         batches: Vec<RecordBatch>,
     ) -> Result<Self, DataError> {
         if schema.fields().is_empty() {
-            return Err(DataError::InvalidArgument {
-                message: "Arrow stream has no columns".into(),
-            });
+            return Err(DataError::empty("Arrow stream columns"));
         }
         let mut frame_columns = Vec::with_capacity(schema.fields().len());
         for (index, field) in schema.fields().iter().enumerate() {
@@ -359,12 +356,9 @@ impl ArrowFrameView {
                 if batch_field.name() != field.name()
                     || batch_field.data_type() != field.data_type()
                 {
-                    return Err(DataError::InvalidArgument {
-                        message: format!(
-                            "Arrow stream batch column {} disagrees with the stream schema",
-                            field.name()
-                        ),
-                    });
+                    return Err(DataError::mismatch(
+                        "Arrow stream batch column and the stream schema",
+                    ));
                 }
                 let id = variable_id(index)?;
                 let (owned, borrowed, copied, diag) = column_from_array(
@@ -433,10 +427,12 @@ impl ArrowFrameView {
         categories: &[(VariableId, Contrast)],
         controls: PreparationControls,
     ) -> Result<EstimatorFrame, DataError> {
-        controls
-            .backend
-            .admit()
-            .map_err(|refusal| DataError::InvalidArgument { message: refusal.to_string() })?;
+        controls.backend.admit().map_err(|_| {
+            DataError::unsupported(
+                "estimator preparation on the lazy backend",
+                "the lazy backend is not adopted; prepare through the direct_arrow path",
+            )
+        })?;
         let order = resolve_order(self.n_columns(), order)?;
         let bytes = frame_payload_bytes(self)?;
         let budget = controls.budget.map_or(bytes, crate::materialize::PreparationBudget::bytes);
@@ -445,11 +441,7 @@ impl ArrowFrameView {
             EstimatorStreamNeed::CannotStream => "materialization",
         };
         if bytes > budget {
-            return Err(DataError::InvalidArgument {
-                message: format!(
-                    "preparation refused: {noun} of {bytes} bytes exceeds budget {budget}"
-                ),
-            });
+            return Err(DataError::budget_refused(noun, bytes, Some(budget)));
         }
         match controls.stream {
             EstimatorStreamNeed::CanStream => Ok(EstimatorFrame::Scan(scan_frame(

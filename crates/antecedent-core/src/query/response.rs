@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::{InterventionFault, ResponseFault};
 use std::sync::Arc;
 
 use crate::canonical_encode::{
@@ -97,10 +98,7 @@ impl FeedbackDeclaration {
     /// a negative innovation variance.
     pub fn validate(&self) -> Result<(), QueryError> {
         if self.delay_ticks == 0 {
-            return Err(QueryError::InvalidResponse(
-                "feedback delay must be at least one tick; zero is contemporaneous transmission"
-                    .into(),
-            ));
+            return Err(QueryError::InvalidResponse(ResponseFault::FeedbackDelay));
         }
         let numbers = [
             self.level,
@@ -110,14 +108,10 @@ impl FeedbackDeclaration {
             self.initial_state,
         ];
         if numbers.iter().any(|value| !value.is_finite()) {
-            return Err(QueryError::InvalidResponse(
-                "feedback level, coefficients, variance, and initial state must be finite".into(),
-            ));
+            return Err(QueryError::InvalidResponse(ResponseFault::FeedbackNotFinite));
         }
         if self.innovation_variance < 0.0 {
-            return Err(QueryError::InvalidResponse(
-                "feedback innovation variance must not be negative".into(),
-            ));
+            return Err(QueryError::InvalidResponse(ResponseFault::FeedbackNegativeVariance));
         }
         Ok(())
     }
@@ -199,11 +193,9 @@ impl TemporalResponseSpec {
         match tag {
             Self::POLICY_PULSE => Ok(TemporalPolicy::pulse(at)),
             Self::POLICY_SUSTAINED => Ok(TemporalPolicy::sustained(at, at)),
-            other => Err(QueryError::InvalidResponse(format!(
-                "temporal response policy must be {} or {}; got {other}",
-                Self::POLICY_PULSE,
-                Self::POLICY_SUSTAINED
-            ))),
+            other => Err(QueryError::InvalidResponse(ResponseFault::UnsupportedPolicy {
+                got: other.into(),
+            })),
         }
     }
 
@@ -241,32 +233,24 @@ impl TemporalResponseSpec {
     /// [`QueryError::InvalidResponse`] or temporal-policy errors.
     pub fn validate(&self) -> Result<(), QueryError> {
         if self.horizons.is_empty() {
-            return Err(QueryError::InvalidResponse(
-                "temporal response requires at least one horizon".into(),
-            ));
+            return Err(QueryError::InvalidResponse(ResponseFault::HorizonsEmpty));
         }
         if self.horizons.iter().any(|h| *h == 0) {
             return Err(QueryError::NonPositiveHorizon);
         }
         if self.horizons.windows(2).any(|w| w[0] >= w[1]) {
-            return Err(QueryError::InvalidResponse(
-                "temporal response horizons must be strictly increasing".into(),
-            ));
+            return Err(QueryError::InvalidResponse(ResponseFault::HorizonsOrder));
         }
         self.policy.validate().map_err(|e| match e {
             crate::intervention::InterventionError::InvalidTemporalWindow { from, until } => {
                 QueryError::InvalidTemporalWindow { from, until }
             }
-            other => QueryError::InvalidIntervention(other.to_string()),
+            other => QueryError::InvalidIntervention(InterventionFault::Rejected(other)),
         })?;
         match &self.policy {
             TemporalPolicy::Pulse { .. } | TemporalPolicy::Sustained { .. } => {}
             TemporalPolicy::Dynamic { .. } => {
-                return Err(QueryError::InvalidResponse(
-                    "temporal response policy must be pulse or sustained; \
-                     Dynamic is a TemporalEffect spelling, not a ResponseCurve cell"
-                        .into(),
-                ));
+                return Err(QueryError::InvalidResponse(ResponseFault::DynamicPolicyNotACell));
             }
         }
         if let Some(feedback) = &self.feedback {
@@ -382,9 +366,7 @@ impl GridSpec {
             Self::Linspace { start, end, points } => {
                 let mut out = Vec::new();
                 out.try_reserve_exact(*points).map_err(|_| {
-                    QueryError::InvalidResponse(
-                        "linspace point count exceeds available memory".into(),
-                    )
+                    QueryError::InvalidResponse(ResponseFault::LinspaceExceedsMemory)
                 })?;
                 let step = (end - start) / (*points - 1) as f64;
                 out.extend((0..*points).map(|i| start + i as f64 * step));
@@ -402,22 +384,16 @@ impl GridSpec {
         match self {
             Self::Values(values) => {
                 if values.len() < 2 {
-                    return Err(QueryError::InvalidResponse(
-                        "a response grid requires at least two points".into(),
-                    ));
+                    return Err(QueryError::InvalidResponse(ResponseFault::GridTooShort));
                 }
                 if values.iter().any(|v| !v.is_finite()) || values.windows(2).any(|w| w[0] >= w[1])
                 {
-                    return Err(QueryError::InvalidResponse(
-                        "response-grid values must be finite and strictly increasing".into(),
-                    ));
+                    return Err(QueryError::InvalidResponse(ResponseFault::GridValuesOrder));
                 }
             }
             Self::Linspace { start, end, points } => {
                 if !start.is_finite() || !end.is_finite() || start >= end || *points < 2 {
-                    return Err(QueryError::InvalidResponse(
-                        "linspace requires finite start < end and at least two points".into(),
-                    ));
+                    return Err(QueryError::InvalidResponse(ResponseFault::LinspaceBounds));
                 }
             }
         }
@@ -904,19 +880,14 @@ impl ResponseQuery {
                     DerivativeWeighting::Uniform { lower, upper }
                         if !lower.is_finite() || !upper.is_finite() || lower >= upper =>
                     {
-                        return Err(QueryError::InvalidResponse(
-                            "uniform derivative weighting requires finite lower < upper".into(),
-                        ));
+                        return Err(QueryError::InvalidResponse(ResponseFault::UniformWeightBounds));
                     }
                     DerivativeWeighting::Custom(weights)
                         if weights.is_empty()
                             || weights.iter().any(|w| !w.is_finite() || *w < 0.0)
                             || weights.iter().all(|w| *w == 0.0) =>
                     {
-                        return Err(QueryError::InvalidResponse(
-                            "custom derivative weights must be finite, non-negative, and non-zero"
-                                .into(),
-                        ));
+                        return Err(QueryError::InvalidResponse(ResponseFault::CustomWeights));
                     }
                     _ => {}
                 }
@@ -926,16 +897,12 @@ impl ResponseQuery {
                     return Err(QueryError::TreatmentEqualsOutcome { id: *outcome });
                 }
                 if !at.is_finite() || !matches!(order, 1 | 2) {
-                    return Err(QueryError::InvalidResponse(
-                        "point derivative requires a finite point and order one or two".into(),
-                    ));
+                    return Err(QueryError::InvalidResponse(ResponseFault::PointDerivative));
                 }
                 if matches!(scale, DerivativeScale::LogTreatment | DerivativeScale::LogLog)
                     && *at <= 0.0
                 {
-                    return Err(QueryError::InvalidResponse(
-                        "log-treatment derivative scales require a positive treatment point".into(),
-                    ));
+                    return Err(QueryError::InvalidResponse(ResponseFault::LogScalePoint));
                 }
             }
             ResponseFunctional::DirectionalDerivative { outcomes, treatments, at, direction } => {
@@ -945,9 +912,7 @@ impl ResponseQuery {
                     || at.iter().chain(direction.iter()).any(|v| !v.is_finite())
                     || direction.iter().all(|v| *v == 0.0)
                 {
-                    return Err(QueryError::InvalidResponse(
-                        "directional derivative dimensions/values are inconsistent".into(),
-                    ));
+                    return Err(QueryError::InvalidResponse(ResponseFault::DirectionalDimensions));
                 }
             }
             ResponseFunctional::Jacobian { outcomes, treatments, at, scale } => {
@@ -955,28 +920,22 @@ impl ResponseQuery {
                     || at.len() != treatments.len()
                     || at.iter().any(|v| !v.is_finite())
                 {
-                    return Err(QueryError::InvalidResponse(
-                        "Jacobian dimensions/values are inconsistent".into(),
-                    ));
+                    return Err(QueryError::InvalidResponse(ResponseFault::JacobianDimensions));
                 }
                 if matches!(scale, DerivativeScale::LogTreatment | DerivativeScale::LogLog)
                     && at.iter().any(|v| *v <= 0.0)
                 {
-                    return Err(QueryError::InvalidResponse(
-                        "log-treatment Jacobians require positive treatment coordinates".into(),
-                    ));
+                    return Err(QueryError::InvalidResponse(ResponseFault::LogScaleJacobian));
                 }
             }
             ResponseFunctional::InterventionResponse { outcome, interventions } => {
                 if interventions.is_empty() {
-                    return Err(QueryError::InvalidResponse(
-                        "intervention response requires at least one intervention".into(),
-                    ));
+                    return Err(QueryError::InvalidResponse(ResponseFault::NoIntervention));
                 }
                 for intervention in interventions.iter() {
                     intervention
                         .validate()
-                        .map_err(|e| QueryError::InvalidIntervention(e.to_string()))?;
+                        .map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
                     if intervention.target_variables().contains(outcome) {
                         return Err(QueryError::TreatmentEqualsOutcome { id: *outcome });
                     }
@@ -998,9 +957,7 @@ impl ResponseQuery {
                     // materialization.
                     treatment.grid.point_count().checked_mul(temporal.horizons.len()).ok_or_else(
                         || {
-                            QueryError::InvalidResponse(
-                                "temporal response dose-by-horizon cell count overflow".into(),
-                            )
+                            QueryError::InvalidResponse(ResponseFault::DoseHorizonCellOverflow)
                         },
                     )?;
                 }
@@ -1029,12 +986,12 @@ impl ResponseQuery {
                 if self.observation_assumptions.is_empty() {
                     Ok(())
                 } else {
-                    Err(QueryError::InvalidResponse(TEMPORAL_OBSERVATION_UNLICENSED.into()))
+                    Err(QueryError::InvalidResponse(ResponseFault::TemporalObservationUnlicensed))
                 }
             }
             ObservationSpec::Selected { .. } => match single_observation_assumption(self) {
                 Some(ObservationAssumption::OutcomeIndependentGiven(_)) => Ok(()),
-                _ => Err(QueryError::InvalidResponse(TEMPORAL_OBSERVATION_UNLICENSED.into())),
+                _ => Err(QueryError::InvalidResponse(ResponseFault::TemporalObservationUnlicensed)),
             },
             ObservationSpec::RightCensored { .. } | ObservationSpec::LeftCensored { .. } => {
                 match single_observation_assumption(self) {
@@ -1044,11 +1001,11 @@ impl ResponseQuery {
                     {
                         Ok(())
                     }
-                    _ => Err(QueryError::InvalidResponse(TEMPORAL_OBSERVATION_UNLICENSED.into())),
+                    _ => Err(QueryError::InvalidResponse(ResponseFault::TemporalObservationUnlicensed)),
                 }
             }
             ObservationSpec::IntervalCensored { .. } | ObservationSpec::Truncated { .. } => {
-                Err(QueryError::InvalidResponse(TEMPORAL_OBSERVATION_UNLICENSED.into()))
+                Err(QueryError::InvalidResponse(ResponseFault::TemporalObservationUnlicensed))
             }
         }
     }

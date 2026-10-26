@@ -89,20 +89,18 @@ impl CategoryDomain {
 
     fn validate(&self) -> Result<(), DataError> {
         if self.levels.is_empty() {
-            return Err(DataError::InvalidValidity {
-                message: "category domain requires at least one level",
-            });
+            return Err(DataError::empty("category domain levels"));
         }
         let n = u32::try_from(self.levels.len())
-            .map_err(|_| DataError::InvalidValidity { message: "too many category levels" })?;
+            .map_err(|_| DataError::overflow("category level count"))?;
         if let Some(r) = self.reference {
             if r.raw() >= n {
-                return Err(DataError::InvalidValidity { message: "reference code out of range" });
+                return Err(DataError::invalid_value("reference code", "is out of range"));
             }
         }
         if let UnknownCategoryPolicy::MapToOther { other } = self.unknown_policy {
             if other.raw() >= n {
-                return Err(DataError::InvalidValidity { message: "Other code out of range" });
+                return Err(DataError::invalid_value("Other code", "is out of range"));
             }
         }
         Ok(())
@@ -162,9 +160,8 @@ impl CategoricalColumn {
                 context: "categorical validity",
             });
         }
-        let n_levels = u32::try_from(domain.len()).map_err(|_| DataError::InvalidArgument {
-            message: "category domain too large for u32 codes".into(),
-        })?;
+        let n_levels = u32::try_from(domain.len())
+            .map_err(|_| DataError::overflow("category domain size as u32 codes"))?;
         let mut remapped: Option<Vec<CategoryCode>> = None;
         let mut n_remapped_unknown = 0usize;
         for (i, code) in codes.iter().enumerate() {
@@ -174,9 +171,10 @@ impl CategoricalColumn {
             if code.raw() >= n_levels {
                 match domain.unknown_policy {
                     UnknownCategoryPolicy::Fail => {
-                        return Err(DataError::InvalidValidity {
-                            message: "unknown category code under Fail policy",
-                        });
+                        return Err(DataError::invalid_value(
+                            "category code",
+                            "is unknown under the Fail policy",
+                        ));
                     }
                     UnknownCategoryPolicy::MapToOther { other } => {
                         // `other` is validated in-range at domain construction.
@@ -264,9 +262,7 @@ impl ContrastMatrix {
     ) -> Result<Self, DataError> {
         let values = values.into();
         if values.len()
-            != n_levels
-                .checked_mul(n_columns)
-                .ok_or(DataError::InvalidValidity { message: "contrast shape overflow" })?
+            != n_levels.checked_mul(n_columns).ok_or(DataError::overflow("contrast shape"))?
         {
             return Err(DataError::LengthMismatch {
                 expected: n_levels * n_columns,
@@ -342,9 +338,7 @@ pub fn expand_contrast(
         }
         let level = column.codes[row].as_usize();
         if level >= matrix.n_levels {
-            return Err(DataError::InvalidValidity {
-                message: "category code does not index the contrast",
-            });
+            return Err(DataError::invalid_value("category code", "does not index the contrast"));
         }
         for (col, column) in columns.iter_mut().enumerate() {
             column[row] = matrix.values[level + col * matrix.n_levels];
@@ -385,9 +379,7 @@ pub fn compile_contrast_matrix(
         }
         Contrast::Treatment { reference } => {
             if reference.raw() as usize >= k {
-                return Err(DataError::InvalidValidity {
-                    message: "treatment reference out of range",
-                });
+                return Err(DataError::invalid_value("treatment reference", "is out of range"));
             }
             let cols = k - 1;
             let mut values = vec![0.0; k * cols];
@@ -437,9 +429,7 @@ pub fn compile_contrast_matrix(
         }
         Contrast::Polynomial => {
             if !domain.ordered {
-                return Err(DataError::InvalidValidity {
-                    message: "polynomial contrasts require an ordered domain",
-                });
+                return Err(DataError::precondition("polynomial contrasts", "an ordered domain"));
             }
             // Orthogonal polynomial contrasts on equally spaced scores 1..=k
             // (R's `contr.poly`), from the Stieltjes recurrence on centred
@@ -492,9 +482,10 @@ fn orthonormal_polynomial_basis(k: usize) -> Result<Vec<f64>, DataError> {
         }
         let beta = v.iter().map(|e| e * e).sum::<f64>().sqrt();
         if !beta.is_finite() || beta <= 0.0 {
-            return Err(DataError::InvalidArgument {
-                message: format!("polynomial contrasts are degenerate at degree {}", d + 1),
-            });
+            return Err(DataError::invalid_value(
+                "polynomial contrasts",
+                "are degenerate at the requested degree",
+            ));
         }
         for r in 0..k {
             basis[r + (d + 1) * k] = v[r] / beta;
@@ -510,11 +501,7 @@ fn orthonormal_polynomial_basis(k: usize) -> Result<Vec<f64>, DataError> {
         }
     }
     if worst >= ORTHOGONALITY_TOL {
-        return Err(DataError::InvalidArgument {
-            message: format!(
-                "polynomial contrasts for {k} levels are not orthonormal (max deviation {worst:.2e})"
-            ),
-        });
+        return Err(DataError::invalid_value("polynomial contrasts", "are not orthonormal"));
     }
     Ok(basis)
 }
@@ -636,7 +623,7 @@ mod tests {
     fn polynomial_requires_ordered_domain() {
         let d = domain();
         let err = compile_contrast_matrix(&d, &Contrast::Polynomial).unwrap_err();
-        assert!(matches!(err, DataError::InvalidValidity { .. }));
+        assert!(matches!(err, DataError::Precondition { .. }));
         let ordered = Arc::new(
             CategoryDomain::try_new(
                 CategoryDomainId::from_raw(0),
@@ -800,7 +787,7 @@ mod tests {
             d,
         )
         .unwrap_err();
-        assert!(matches!(err, DataError::InvalidValidity { .. }));
+        assert!(matches!(err, DataError::InvalidValue { .. }));
     }
 
     #[test]

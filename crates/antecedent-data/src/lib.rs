@@ -85,7 +85,7 @@ pub use column::{
 };
 pub use dataset::{TabularData, TimeSeriesData};
 pub use discrete::DiscreteColumn;
-pub use error::DataError;
+pub use error::{DataError, ValidityFault};
 pub use event::EventData;
 pub use global_index::{ChunkIndex, GlobalId, GlobalIndexError};
 pub use lagged_frame::{LaggedFrame, LaggedFrameOptions};

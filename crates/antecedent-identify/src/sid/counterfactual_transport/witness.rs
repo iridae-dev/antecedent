@@ -633,6 +633,31 @@ fn nullspace(rows: &[Vec<i128>], cols: usize) -> Option<Vec<Vec<i128>>> {
     Some(basis)
 }
 
+/// Append every non-empty bidirected clique extending `current` with variables drawn from
+/// `candidates` (all above the last member and adjacent to every member), ascending, charging
+/// one operation per clique found.
+fn extend_cliques(
+    problem: &Problem,
+    current: &mut Vec<usize>,
+    candidates: u32,
+    out: &mut Vec<Vec<usize>>,
+    charge: &mut dyn FnMut(usize, u64) -> Result<(), SearchStop>,
+) -> Result<(), SearchStop> {
+    let mut remaining = candidates;
+    while remaining != 0 {
+        let v = remaining.trailing_zeros() as usize;
+        remaining &= remaining - 1;
+        current.push(v);
+        charge(0, (out.len() as u64 + 1).saturating_mul(64))?;
+        out.push(current.clone());
+        let above = u32::MAX.checked_shl(u32::try_from(v + 1).unwrap_or(32)).unwrap_or(0);
+        let next = candidates & problem.bidirected_mask[v] & above;
+        extend_cliques(problem, current, next, out, charge)?;
+        current.pop();
+    }
+    Ok(())
+}
+
 /// Search for a verified witness; see the module documentation.
 #[allow(
     clippy::too_many_lines,
@@ -651,14 +676,11 @@ pub(super) fn search_witness(
         Err(reason) => return Ok(WitnessOutcome::NotFound(reason)),
     };
     let n = model.n;
-    // Cliques of the bidirected graph, largest first, then ascending mask.
+    // Cliques of the bidirected graph, largest first, then ascending mask. They are grown
+    // by extension and charged one by one, so the work follows the number of cliques the
+    // budget pays for, not the `2^n` subsets of the variables.
     let mut cliques: Vec<Vec<usize>> = Vec::new();
-    for mask in 1u32..(1u32 << n) {
-        let vars: Vec<usize> = (0..n).filter(|v| (mask >> *v) & 1 == 1).collect();
-        if is_clique(wp.problem, &vars) {
-            cliques.push(vars);
-        }
-    }
+    extend_cliques(wp.problem, &mut Vec::new(), u32::MAX >> (32 - n), &mut cliques, charge)?;
     cliques.sort_by(|a, b| b.len().cmp(&a.len()).then_with(|| a.cmp(b)));
     let mut reasons: Vec<String> = Vec::new();
     for clique in &cliques {

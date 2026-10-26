@@ -124,6 +124,9 @@ pub fn fit_2sls(
     if exogenous_colmajor.len() < z_nrows.saturating_mul(x_ncols) {
         return Err(StatsError::Shape { message: "exogenous buffer too short" });
     }
+    if instruments_colmajor.len() < z_nrows.saturating_mul(z_ncols) {
+        return Err(StatsError::Shape { message: "instrument buffer too short" });
+    }
     // Full instrument set: excluded instruments plus included exogenous regressors.
     let stage1_ncols = z_ncols + x_ncols;
     let mut x1 = vec![0.0; z_nrows * stage1_ncols];

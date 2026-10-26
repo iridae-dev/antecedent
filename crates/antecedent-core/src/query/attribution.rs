@@ -287,6 +287,9 @@ pub struct ShapleyConfig {
     pub allow_exact_override: bool,
     /// RNG seed for approximate modes.
     pub seed: u64,
+    /// Ceiling on planned coalition evaluations times per-coalition sample draws for the
+    /// sampled change-attribution payoffs; `None` keeps the default ceiling.
+    pub sample_budget: Option<u64>,
 }
 
 impl CanonicalEncode for ShapleyConfig {
@@ -296,6 +299,11 @@ impl CanonicalEncode for ShapleyConfig {
             .word(count(self.max_exact_components))
             .word(flag(self.allow_exact_override))
             .word(self.seed);
+        // Appended only when set, so every configuration that keeps the default ceiling
+        // encodes exactly as it always has.
+        if let Some(budget) = self.sample_budget {
+            writer.word(budget);
+        }
     }
 }
 
@@ -308,6 +316,7 @@ impl ShapleyConfig {
             max_exact_components: 12,
             allow_exact_override: false,
             seed: 0,
+            sample_budget: None,
         }
     }
 
@@ -319,6 +328,7 @@ impl ShapleyConfig {
             max_exact_components: 12,
             allow_exact_override: false,
             seed: 0,
+            sample_budget: None,
         }
     }
 
@@ -330,6 +340,7 @@ impl ShapleyConfig {
             max_exact_components: 12,
             allow_exact_override: false,
             seed: 0,
+            sample_budget: None,
         }
     }
 
@@ -344,6 +355,13 @@ impl ShapleyConfig {
     #[must_use]
     pub const fn with_exact_override(mut self, allow: bool) -> Self {
         self.allow_exact_override = allow;
+        self
+    }
+
+    /// Override the ceiling on planned coalition evaluations times per-coalition sample draws.
+    #[must_use]
+    pub const fn with_sample_budget(mut self, budget: u64) -> Self {
+        self.sample_budget = Some(budget);
         self
     }
 

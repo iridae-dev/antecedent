@@ -7,6 +7,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::{InterventionFault, SimulateFault};
 use std::sync::Arc;
 
 use crate::canonical_encode::{CanonicalEncode, count, encode_list};
@@ -124,7 +125,7 @@ fn encode_schedule(writer: &mut CanonicalWriter, schedule: &InterventionSequence
 
 fn validate_interventions(interventions: &[Intervention]) -> Result<(), QueryError> {
     for intervention in interventions {
-        intervention.validate().map_err(|e| QueryError::InvalidIntervention(e.to_string()))?;
+        intervention.validate().map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
     }
     Ok(())
 }
@@ -261,16 +262,16 @@ impl SimulateQuery {
     /// [`QueryError::InvalidSimulate`] for no draws, fewer than two policy
     /// draws, non-finite levels, or a treatment that is also the outcome.
     pub fn validate(&self) -> Result<(), QueryError> {
-        let invalid = |message: &str| Err(QueryError::InvalidSimulate(message.to_owned()));
+        let invalid = |fault: SimulateFault| Err(QueryError::InvalidSimulate(fault));
         match &self.target {
             SimulationTarget::InterventionalSample { interventions, draws, .. } => {
                 for intervention in interventions.iter() {
                     intervention
                         .validate()
-                        .map_err(|e| QueryError::InvalidIntervention(e.to_string()))?;
+                        .map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
                 }
                 if *draws == 0 {
-                    return invalid("an interventional sample needs at least one draw");
+                    return invalid(SimulateFault::SampleDraws);
                 }
                 Ok(())
             }
@@ -278,12 +279,10 @@ impl SimulateQuery {
                 for intervention in interventions.iter() {
                     intervention
                         .validate()
-                        .map_err(|e| QueryError::InvalidIntervention(e.to_string()))?;
+                        .map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
                 }
                 if *draws < 2 {
-                    return invalid(
-                        "a policy value needs at least two draws to report its simulation error",
-                    );
+                    return invalid(SimulateFault::PolicyValueDraws);
                 }
                 Ok(())
             }
@@ -292,24 +291,24 @@ impl SimulateQuery {
                     return Err(QueryError::TreatmentEqualsOutcome { id: *treatment });
                 }
                 if !active.is_finite() || !control.is_finite() {
-                    return invalid("unit effects need finite treatment levels");
+                    return invalid(SimulateFault::UnitEffectLevels);
                 }
                 Ok(())
             }
             SimulationTarget::NoiseSample { interventions, draws } => {
                 validate_interventions(interventions)?;
                 if *draws == 0 {
-                    return invalid("a noise sample needs at least one draw");
+                    return invalid(SimulateFault::NoiseSampleDraws);
                 }
                 Ok(())
             }
             SimulationTarget::NoiseReplay { interventions, noise, n_rows, .. } => {
                 validate_interventions(interventions)?;
                 if *n_rows == 0 || noise.is_empty() || noise.len() % *n_rows != 0 {
-                    return invalid("replayed noise needs n_rows > 0 values for each variable");
+                    return invalid(SimulateFault::ReplayedNoiseShape);
                 }
                 if noise.iter().any(|value| !value.is_finite()) {
-                    return invalid("replayed noise must be finite");
+                    return invalid(SimulateFault::ReplayedNoiseNotFinite);
                 }
                 Ok(())
             }
@@ -325,10 +324,10 @@ impl SimulateQuery {
                     schedule.steps.iter().map(|step| step.intervention.clone()).collect();
                 validate_interventions(&steps)?;
                 if *n_rows == 0 || *n_steps == 0 {
-                    return invalid("a rollout needs at least one row and one step");
+                    return invalid(SimulateFault::RolloutShape);
                 }
                 if history.len() % *n_rows != 0 {
-                    return invalid("rollout history needs n_rows values per variable and step");
+                    return invalid(SimulateFault::RolloutHistoryShape);
                 }
                 Ok(())
             }
@@ -344,16 +343,16 @@ impl SimulateQuery {
                     schedule.steps.iter().map(|step| step.intervention.clone()).collect();
                 validate_interventions(&steps)?;
                 if *n_rows == 0 || *n_steps == 0 {
-                    return invalid("a panel replay needs at least one unit and one step");
+                    return invalid(SimulateFault::PanelReplayShape);
                 }
                 if panel.len() % (n_rows.saturating_mul(*n_steps)) != 0 || panel.is_empty() {
-                    return invalid("the panel needs n_rows values per variable at every step");
+                    return invalid(SimulateFault::PanelValuesShape);
                 }
                 if history.len() % *n_rows != 0 {
-                    return invalid("panel history needs n_rows values per variable and step");
+                    return invalid(SimulateFault::PanelHistoryShape);
                 }
                 if panel.iter().chain(history.iter()).any(|value| !value.is_finite()) {
-                    return invalid("the panel and its history must be finite");
+                    return invalid(SimulateFault::PanelNotFinite);
                 }
                 Ok(())
             }

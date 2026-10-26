@@ -495,11 +495,10 @@ impl PreparationReceipt {
     /// The route is marked bounded and the estimator still sees a scan.
     pub fn prove_bound_hides_stream(&self) -> Result<(), DataError> {
         if self.is_bounded_end_to_end_route() && self.estimator_sees_unbounded_stream() {
-            return Err(DataError::InvalidArgument {
-                message: "a streaming scan was described as a bounded end-to-end route while the \
-                          estimator still sees the scan"
-                    .into(),
-            });
+            return Err(DataError::invalid_value(
+                "a streaming scan",
+                "cannot be a bounded end-to-end route while the estimator still sees the scan",
+            ));
         }
         Ok(())
     }
@@ -511,9 +510,10 @@ impl PreparationReceipt {
     /// The delivery is a scan the estimator still sees.
     pub fn into_materialized_from_scan(self) -> Result<Self, DataError> {
         let DeliveryRecord::Finite { rows } = self.delivery else {
-            return Err(DataError::InvalidArgument {
-                message: "only a finite delivery can be recorded as a materialized scan".into(),
-            });
+            return Err(DataError::precondition(
+                "recording a materialized scan",
+                "a finite delivery",
+            ));
         };
         let mut receipt = Self { delivery: DeliveryRecord::MaterializedFromScan { rows }, ..self };
         receipt.digest = Arc::from(receipt_digest(&receipt, &[]));
@@ -637,11 +637,10 @@ pub fn prepare_table(
 ) -> Result<PreparationProduct, DataError> {
     admit_backend(controls.backend)?;
     if matches!(controls.stream, EstimatorStreamNeed::CanStream) {
-        return Err(DataError::InvalidArgument {
-            message: "a finite table is not opened as an unbounded scan; stream a chunked frame \
-                      or read the table"
-                .into(),
-        });
+        return Err(DataError::unsupported(
+            "opening a finite table as an unbounded scan",
+            "stream a chunked frame or read the table",
+        ));
     }
     let order = unique_order(order);
     let schema = convert_schema(table, &order)?;
@@ -730,9 +729,10 @@ pub fn finish_scan(
     budget: u64,
 ) -> Result<StreamingScan, DataError> {
     if missing.population_bound {
-        return Err(DataError::InvalidArgument {
-            message: "a streaming scan must not record a population bound".into(),
-        });
+        return Err(DataError::invalid_value(
+            "a streaming scan",
+            "must not record a population bound",
+        ));
     }
     scan_receipt(schema, categories, Some(missing), chunk_rows, scratch, budget)
 }
@@ -771,27 +771,24 @@ fn scan_receipt(
 }
 
 fn admit_backend(backend: PreparationBackend) -> Result<(), DataError> {
-    backend.admit().map(|_| ()).map_err(|refusal: LazyBackendRefusal| DataError::InvalidArgument {
-        message: refusal.to_string(),
+    backend.admit().map(|_| ()).map_err(|_: LazyBackendRefusal| {
+        DataError::unsupported(
+            "preparation on the lazy backend",
+            "the lazy backend is not adopted; prepare through the direct_arrow path",
+        )
     })
 }
 
-fn admit_bytes(estimated: u64, budget: u64, what: &str) -> Result<(), DataError> {
+fn admit_bytes(estimated: u64, budget: u64, what: &'static str) -> Result<(), DataError> {
     if estimated > budget {
-        return Err(DataError::InvalidArgument {
-            message: format!(
-                "preparation refused: {what} of {estimated} bytes exceeds budget {budget}"
-            ),
-        });
+        return Err(DataError::budget_refused(what, estimated, Some(budget)));
     }
     Ok(())
 }
 
-fn required_estimate(estimate: Option<u64>, what: &str) -> Result<u64, DataError> {
-    estimate.ok_or_else(|| DataError::InvalidArgument {
-        message: format!(
-            "preparation refused: {what} estimate is absent; an absent estimate is not zero"
-        ),
+fn required_estimate(estimate: Option<u64>, what: &'static str) -> Result<u64, DataError> {
+    estimate.ok_or_else(|| {
+        DataError::invalid_value(what, "has no byte estimate; an absent estimate is not zero")
     })
 }
 
@@ -841,11 +838,10 @@ fn convert_categories(
             continue;
         };
         let Some((_, contrast)) = categories.iter().find(|(variable, _)| *variable == id) else {
-            return Err(DataError::InvalidArgument {
-                message: format!(
-                    "category conversion requires an explicit contrast for variable {id}"
-                ),
-            });
+            return Err(DataError::invalid_column(
+                id,
+                "needs an explicit contrast for its category conversion",
+            ));
         };
         expanded.push(expand_contrast(categorical, contrast)?);
         levels.push(CategoryLevels {
@@ -860,9 +856,10 @@ fn convert_categories(
     }
     for (id, _) in categories {
         if !order.contains(id) {
-            return Err(DataError::InvalidArgument {
-                message: format!("category contrast for variable {id} is not in the column order"),
-            });
+            return Err(DataError::invalid_column(
+                *id,
+                "has a category contrast but is not in the column order",
+            ));
         }
         if !matches!(physical_column(table, *id)?, OwnedColumn::Categorical(_)) {
             return Err(DataError::TypeMismatch { id: *id, expected: "categorical" });
@@ -876,8 +873,12 @@ fn convert_missing(
     order: &[VariableId],
     policy: MissingPolicy,
 ) -> Result<(MissingConversion, Vec<bool>), DataError> {
-    let (conversion, keep) =
-        MissingConversion::convert_and_select(table, table.storage().analysis_mask(), order, policy)?;
+    let (conversion, keep) = MissingConversion::convert_and_select(
+        table,
+        table.storage().analysis_mask(),
+        order,
+        policy,
+    )?;
     Ok((conversion, keep.to_bools()))
 }
 
@@ -969,12 +970,11 @@ fn checked_usize(count: usize, width: usize) -> Result<usize, DataError> {
 }
 
 fn payload_overflow() -> DataError {
-    DataError::InvalidArgument { message: "column payload size overflows".into() }
+    DataError::overflow("column payload size")
 }
 
 fn fit_u64(value: usize) -> Result<u64, DataError> {
-    u64::try_from(value)
-        .map_err(|_| DataError::InvalidArgument { message: "value does not fit u64".into() })
+    u64::try_from(value).map_err(|_| DataError::overflow("value as u64"))
 }
 
 fn receipt_digest(receipt: &PreparationReceipt, chunk_rows: &[u64]) -> String {

@@ -2,22 +2,26 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
 use super::convert::*;
+use super::*;
 
 /// Sum chunk lengths. A total above `u32::MAX` is a valid `usize` on a 64-bit
 /// target; this function does not reject it.
-pub(super) fn checked_row_total(chunk_rows: impl IntoIterator<Item = usize>) -> Result<usize, DataError> {
+pub(super) fn checked_row_total(
+    chunk_rows: impl IntoIterator<Item = usize>,
+) -> Result<usize, DataError> {
     let mut total = 0usize;
     for rows in chunk_rows {
-        total = total.checked_add(rows).ok_or_else(|| DataError::InvalidArgument {
-            message: "Arrow chunk row counts overflow usize".into(),
-        })?;
+        total =
+            total.checked_add(rows).ok_or_else(|| DataError::overflow("Arrow chunk row counts"))?;
     }
     Ok(total)
 }
 
-pub(super) fn remember_chunk_count(seen: &mut Option<usize>, count: usize) -> Result<(), DataError> {
+pub(super) fn remember_chunk_count(
+    seen: &mut Option<usize>,
+    count: usize,
+) -> Result<(), DataError> {
     match *seen {
         None => *seen = Some(count),
         Some(expected) if expected == count => {}
@@ -59,9 +63,8 @@ pub(super) fn align_chunks(columns: &[FrameColumn]) -> Result<(), DataError> {
 }
 
 pub(super) fn variable_id(index: usize) -> Result<VariableId, DataError> {
-    let raw = u32::try_from(index).map_err(|_| DataError::InvalidArgument {
-        message: "too many Arrow columns for VariableId".into(),
-    })?;
+    let raw = u32::try_from(index)
+        .map_err(|_| DataError::overflow("Arrow column count as a VariableId"))?;
     Ok(VariableId::from_raw(raw))
 }
 
@@ -74,16 +77,12 @@ pub(super) fn owned_payload_bytes(column: &OwnedColumn) -> Result<u64, DataError
         OwnedColumn::Categorical(column) => (column.len(), core::mem::size_of::<CategoryCode>()),
         OwnedColumn::FixedVector(column) => (column.values.len(), core::mem::size_of::<f64>()),
     };
-    let values = n_values.checked_mul(width).ok_or_else(|| DataError::InvalidArgument {
-        message: "column payload size overflows usize".into(),
-    })?;
+    let values =
+        n_values.checked_mul(width).ok_or_else(|| DataError::overflow("column payload size"))?;
     let validity = column.as_view().validity().len().div_ceil(8);
-    let total = values.checked_add(validity).ok_or_else(|| DataError::InvalidArgument {
-        message: "column payload size overflows usize".into(),
-    })?;
-    u64::try_from(total).map_err(|_| DataError::InvalidArgument {
-        message: "column payload size does not fit u64".into(),
-    })
+    let total =
+        values.checked_add(validity).ok_or_else(|| DataError::overflow("column payload size"))?;
+    u64::try_from(total).map_err(|_| DataError::overflow("column payload size as u64"))
 }
 
 pub(super) fn empty_column(
@@ -96,7 +95,10 @@ pub(super) fn empty_column(
     Ok(column)
 }
 
-pub(super) fn same_column_kind(previous: &OwnedColumn, next: &OwnedColumn) -> Result<(), DataError> {
+pub(super) fn same_column_kind(
+    previous: &OwnedColumn,
+    next: &OwnedColumn,
+) -> Result<(), DataError> {
     let same = match (previous, next) {
         (OwnedColumn::Float64(_), OwnedColumn::Float64(_))
         | (OwnedColumn::Int64(_), OwnedColumn::Int64(_))
@@ -111,17 +113,13 @@ pub(super) fn same_column_kind(previous: &OwnedColumn, next: &OwnedColumn) -> Re
     if same {
         Ok(())
     } else {
-        Err(DataError::InvalidArgument {
-            message: "Arrow chunks of one column disagree in type or category domain".into(),
-        })
+        Err(DataError::mismatch("Arrow chunks of one column (type or category domain)"))
     }
 }
 
 pub(super) fn concat_chunks(chunks: &[OwnedColumn]) -> Result<OwnedColumn, DataError> {
     let Some(first) = chunks.first() else {
-        return Err(DataError::InvalidArgument {
-            message: "Arrow column has no chunks to concatenate".into(),
-        });
+        return Err(DataError::empty("Arrow column chunks to concatenate"));
     };
     if chunks.len() == 1 {
         return Ok(first.clone());
@@ -135,9 +133,10 @@ pub(super) fn concat_chunks(chunks: &[OwnedColumn]) -> Result<OwnedColumn, DataE
         OwnedColumn::Timestamp(_) => concat_timestamp(chunks),
         OwnedColumn::Categorical(_) => concat_categorical(chunks),
         OwnedColumn::FixedVector(_) => concat_vectors(chunks),
-        OwnedColumn::Boolean(_) => Err(DataError::InvalidArgument {
-            message: "boolean Arrow chunks are not concatenated".into(),
-        }),
+        OwnedColumn::Boolean(_) => Err(DataError::unsupported(
+            "concatenating Arrow chunks",
+            "boolean columns are not concatenated",
+        )),
     }
 }
 
@@ -154,9 +153,7 @@ pub(super) fn concat_float(chunks: &[OwnedColumn]) -> Result<OwnedColumn, DataEr
         values.extend_from_slice(column.values.as_slice());
         len = append_validity(&mut validity, len, &column.validity)?;
     }
-    let id = id.ok_or_else(|| DataError::InvalidArgument {
-        message: "Arrow column has no chunks to concatenate".into(),
-    })?;
+    let id = id.ok_or_else(|| DataError::empty("Arrow column chunks to concatenate"))?;
     Ok(OwnedColumn::Float64(Float64Column::new(
         id,
         F64Buffer::owned(Arc::<[f64]>::from(values)),
@@ -177,9 +174,7 @@ pub(super) fn concat_int(chunks: &[OwnedColumn]) -> Result<OwnedColumn, DataErro
         values.extend_from_slice(&column.values);
         len = append_validity(&mut validity, len, &column.validity)?;
     }
-    let id = id.ok_or_else(|| DataError::InvalidArgument {
-        message: "Arrow column has no chunks to concatenate".into(),
-    })?;
+    let id = id.ok_or_else(|| DataError::empty("Arrow column chunks to concatenate"))?;
     Ok(OwnedColumn::Int64(Int64Column::new(
         id,
         values,
@@ -200,9 +195,7 @@ pub(super) fn concat_timestamp(chunks: &[OwnedColumn]) -> Result<OwnedColumn, Da
         values.extend_from_slice(&column.values_ns);
         len = append_validity(&mut validity, len, &column.validity)?;
     }
-    let id = id.ok_or_else(|| DataError::InvalidArgument {
-        message: "Arrow column has no chunks to concatenate".into(),
-    })?;
+    let id = id.ok_or_else(|| DataError::empty("Arrow column chunks to concatenate"))?;
     Ok(OwnedColumn::Timestamp(TimestampColumn::new(
         id,
         values,
@@ -263,9 +256,9 @@ pub(super) fn append_validity(
     len: usize,
     source: &ValidityBitmap,
 ) -> Result<usize, DataError> {
-    let new_len = len.checked_add(source.len()).ok_or_else(|| DataError::InvalidArgument {
-        message: "Arrow chunk row counts overflow usize".into(),
-    })?;
+    let new_len = len
+        .checked_add(source.len())
+        .ok_or_else(|| DataError::overflow("Arrow chunk row counts"))?;
     bytes.resize(new_len.div_ceil(8), 0);
     for row in 0..source.len() {
         if source.is_valid(row) {

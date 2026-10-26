@@ -11,9 +11,8 @@ use antecedent_core::{
 };
 use antecedent_graph::{Admg, DenseNodeId, Pag};
 use antecedent_identify::{
-    CAPPED_COMPLETION_DIAGNOSTIC_CODE, GeneralizedAdjustmentConfig,
-    GeneralizedAdjustmentIdentifier, JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
-    MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
+    GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier,
+    JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE, MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
 };
 
 fn n(i: u32) -> DenseNodeId {
@@ -30,8 +29,11 @@ fn joint(t1: VariableId, t2: VariableId, y: VariableId) -> ResponseQuery {
     })
 }
 
+/// A declared ceiling skips the search for a smaller joint set, not the decision: one test on
+/// the maximal candidate set already certified it, so it is returned, flagged as the result
+/// of a bounded search.
 #[test]
-fn joint_candidate_cap_is_execution_not_scientific() {
+fn joint_candidate_cap_keeps_the_certified_set_and_is_execution_not_scientific() {
     let mut admg = Admg::with_variables(20);
     let t1 = n(0);
     let t2 = n(1);
@@ -52,13 +54,14 @@ fn joint_candidate_cap_is_execution_not_scientific() {
     .unwrap();
     assert_eq!(
         id.status,
-        IdentificationStatus::NotIdentified,
-        "cap keeps NotIdentified: {:?}",
+        IdentificationStatus::NonparametricallyIdentified,
+        "the ceiling does not withdraw the certified set: {:?}",
         id.derivation
     );
+    assert_eq!(id.estimands[0].adjustment_set.len(), 17);
     assert!(
         id.diagnostics.iter().any(|d| {
-            d.code.as_ref() == CAPPED_COMPLETION_DIAGNOSTIC_CODE
+            d.code.as_ref() == JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE
                 && d.kind == DiagnosticKind::Execution
         }),
         "cap must be an execution diagnostic: {:?}",
@@ -72,8 +75,8 @@ fn joint_candidate_cap_is_execution_not_scientific() {
 }
 
 /// The joint search's budget is the configured `max_examinations`: three separation tests
-/// cannot reach the only valid joint set (all seventeen common causes), so the result is an
-/// undecided search that the envelope counts as truncated, never a proof.
+/// cannot reach a smaller set than all seventeen common causes, so the result is the maximal
+/// set one test already certified, flagged as a bounded search the envelope counts as truncated.
 #[test]
 fn joint_search_budget_comes_from_the_config() {
     let mut admg = Admg::with_variables(20);
@@ -94,7 +97,7 @@ fn joint_search_budget_comes_from_the_config() {
     }
     .identify_joint_admg_response(&admg, &query)
     .unwrap();
-    assert_eq!(id.status, IdentificationStatus::NotIdentified);
+    assert_eq!(id.status, IdentificationStatus::NonparametricallyIdentified);
     assert_eq!(id.performance.candidates_examined, 3);
     assert!(
         id.diagnostics.iter().any(|d| {

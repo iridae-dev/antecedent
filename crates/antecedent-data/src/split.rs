@@ -53,11 +53,10 @@ pub(crate) fn ensure_random_allowed_on_temporal(
     match policy {
         #[cfg(test)]
         TemporalRandomPolicy::Allow => Ok(()),
-        TemporalRandomPolicy::Refuse => Err(DataError::InvalidArgument {
-            message:
-                "random IID split refused on temporal/panel/event data without explicit opt-in"
-                    .into(),
-        }),
+        TemporalRandomPolicy::Refuse => Err(DataError::unsupported(
+            "random IID split",
+            "refused on temporal, panel or event data without explicit opt-in",
+        )),
     }
 }
 
@@ -94,11 +93,10 @@ impl DiscoveryEstimationSplit {
         validate_range(series_len, discovery, "discovery")?;
         validate_range(series_len, estimation, "estimation")?;
         if discovery.end > estimation.start {
-            return Err(DataError::InvalidArgument {
-                message:
-                    "discovery window must end at or before estimation start (with optional gap)"
-                        .into(),
-            });
+            return Err(DataError::invalid_value(
+                "discovery window",
+                "must end at or before the estimation start (with the optional gap)",
+            ));
         }
         let gap = estimation.start - discovery.end;
         Ok(Self { discovery, estimation, gap, series_len })
@@ -116,18 +114,20 @@ impl DiscoveryEstimationSplit {
         estimation_len: usize,
     ) -> Result<Self, DataError> {
         if discovery_len == 0 || estimation_len == 0 {
-            return Err(DataError::InvalidArgument {
-                message: "discovery and estimation windows must be non-empty".into(),
-            });
+            return Err(DataError::invalid_value(
+                "discovery and estimation windows",
+                "must be non-empty",
+            ));
         }
         let need = discovery_len
             .checked_add(gap)
             .and_then(|v| v.checked_add(estimation_len))
-            .ok_or(DataError::InvalidArgument { message: "split sizes overflow".into() })?;
+            .ok_or(DataError::overflow("split sizes"))?;
         if need != series_len {
-            return Err(DataError::InvalidArgument {
-                message: "discovery + gap + estimation must equal series_len".into(),
-            });
+            return Err(DataError::invalid_value(
+                "discovery + gap + estimation",
+                "must equal series_len",
+            ));
         }
         let discovery = TimeRange { start: 0, end: discovery_len };
         let estimation = TimeRange { start: discovery_len + gap, end: series_len };
@@ -146,14 +146,13 @@ impl DiscoveryEstimationSplit {
         gap: usize,
     ) -> Result<Self, DataError> {
         if !(discovery_frac > 0.0 && discovery_frac < 1.0) {
-            return Err(DataError::InvalidArgument {
-                message: "discovery_frac must be in (0, 1)".into(),
-            });
+            return Err(DataError::invalid_value("discovery_frac", "must be in (0, 1)"));
         }
         if series_len <= gap + 1 {
-            return Err(DataError::InvalidArgument {
-                message: "series too short for gap and two non-empty windows".into(),
-            });
+            return Err(DataError::invalid_value(
+                "series length",
+                "is too short for the gap and two non-empty windows",
+            ));
         }
         let usable = series_len - gap;
         #[allow(
@@ -190,13 +189,10 @@ impl DiscoveryEstimationSplit {
         let bound = design
             .apply_splitting_with_embargo(SplittingRule::ContiguousBlock, embargo)
             .map_err(DataError::SamplingDesign)?;
-        let required = usize::try_from(bound.embargo()).map_err(|_| {
-            DataError::InvalidArgument { message: "embargo does not fit in usize".into() }
-        })?;
+        let required = usize::try_from(bound.embargo())
+            .map_err(|_| DataError::overflow("embargo as usize"))?;
         if self.gap < required {
-            return Err(DataError::InvalidArgument {
-                message: "contiguous split leaks across the embargo".into(),
-            });
+            return Err(DataError::invalid_value("contiguous split", "leaks across the embargo"));
         }
         Ok(self)
     }
@@ -216,9 +212,7 @@ impl DiscoveryEstimationSplit {
         embargo: u32,
         estimation_len: usize,
     ) -> Result<Self, DataError> {
-        let gap = usize::try_from(embargo).map_err(|_| DataError::InvalidArgument {
-            message: "embargo does not fit in usize".into(),
-        })?;
+        let gap = usize::try_from(embargo).map_err(|_| DataError::overflow("embargo as usize"))?;
         let split = Self::from_sizes(series_len, discovery_len, gap, estimation_len)?;
         split.bind_embargo(design, embargo)
     }
@@ -241,14 +235,10 @@ impl EnvHoldoutSplit {
     /// Empty total, or `n_discovery` not in `1..n_env`.
     pub fn try_prefix(n_env: usize, n_discovery: usize) -> Result<Self, DataError> {
         if n_env == 0 {
-            return Err(DataError::InvalidArgument {
-                message: "env holdout needs ≥1 environment".into(),
-            });
+            return Err(DataError::empty("env holdout environments"));
         }
         if n_discovery == 0 || n_discovery >= n_env {
-            return Err(DataError::InvalidArgument {
-                message: "n_discovery must be in 1..n_env".into(),
-            });
+            return Err(DataError::invalid_value("n_discovery", "must be in 1..n_env"));
         }
         Ok(Self {
             discovery_envs: Arc::from((0..n_discovery).collect::<Vec<_>>()),
@@ -257,16 +247,16 @@ impl EnvHoldoutSplit {
     }
 }
 
-fn validate_range(series_len: usize, range: TimeRange, label: &str) -> Result<(), DataError> {
+fn validate_range(
+    series_len: usize,
+    range: TimeRange,
+    label: &'static str,
+) -> Result<(), DataError> {
     if range.is_empty() {
-        return Err(DataError::InvalidArgument {
-            message: format!("{label} window must be non-empty"),
-        });
+        return Err(DataError::invalid_value(label, "window must be non-empty"));
     }
     if range.end > series_len {
-        return Err(DataError::InvalidArgument {
-            message: format!("{label} window exceeds series_len"),
-        });
+        return Err(DataError::invalid_value(label, "window exceeds series_len"));
     }
     Ok(())
 }

@@ -16,8 +16,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use antecedent_stats::faer_backend::{SolverTraffic, observe_solver_traffic};
 use antecedent_stats::{
-    FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, IvBlocks, LeastSquaresWorkspace, StatsError,
-    fit_2sls, fit_glm, fit_glm_weighted, fit_ridge, fit_wls,
+    FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, IvBlocks, LeastSquaresWorkspace, RidgeIntercept,
+    StatsError,
+    fit_2sls, fit_glm, fit_glm_weighted, fit_ridge_with, fit_wls,
 };
 
 /// System allocator that tracks live and peak bytes.
@@ -255,7 +256,7 @@ fn estimator_families_gather_once_and_hold_one_design() {
 
     // Ridge works from the Gram matrix and never copies the design.
     let (_, peak, traffic) = measure(|| {
-        fit_ridge(&x, n, p, &y, 1.0, &FaerBackend, &mut LeastSquaresWorkspace::default()).unwrap()
+        fit_ridge_with(&x, n, p, &y, 1.0, RidgeIntercept::sniff(&x, n, p)).unwrap()
     });
     assert_eq!(traffic.design_gathers, 0);
     assert!(peak < design_bytes / 4, "ridge peak {peak}");

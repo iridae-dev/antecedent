@@ -38,16 +38,12 @@ impl PanelData {
     pub fn try_new(units: impl Into<Arc<[PanelUnit]>>) -> Result<Self, DataError> {
         let units = units.into();
         if units.is_empty() {
-            return Err(DataError::InvalidArgument {
-                message: "panel data needs ≥1 unit".into()
-            });
+            return Err(DataError::empty("panel data units"));
         }
         let schema = Arc::new(units[0].series.schema().clone());
         for u in units.iter().skip(1) {
             if u.series.schema() != schema.as_ref() {
-                return Err(DataError::InvalidArgument {
-                    message: "panel unit schemas must match".into(),
-                });
+                return Err(DataError::mismatch("panel unit schemas"));
             }
         }
         Ok(Self { schema, units })
@@ -71,9 +67,7 @@ impl PanelData {
     ///
     /// Out of range.
     pub fn unit(&self, i: usize) -> Result<&PanelUnit, DataError> {
-        self.units
-            .get(i)
-            .ok_or(DataError::InvalidArgument { message: "panel unit index out of range".into() })
+        self.units.get(i).ok_or(DataError::out_of_range("panel unit", i, self.units.len()))
     }
 
     /// All units.
@@ -107,9 +101,7 @@ impl PanelData {
     ) -> Result<Self, DataError> {
         let mut units: Vec<PanelUnit> = self.units.to_vec();
         let Some(slot) = units.get_mut(index) else {
-            return Err(DataError::InvalidArgument {
-                message: "panel unit index out of range".into(),
-            });
+            return Err(DataError::out_of_range("panel unit", index, self.units.len()));
         };
         slot.series = series;
         Self::try_new(units)
@@ -123,9 +115,7 @@ impl PanelData {
     pub fn with_unit_id(&self, index: usize, unit_id: u32) -> Result<Self, DataError> {
         let mut units: Vec<PanelUnit> = self.units.to_vec();
         let Some(slot) = units.get_mut(index) else {
-            return Err(DataError::InvalidArgument {
-                message: "panel unit index out of range".into(),
-            });
+            return Err(DataError::out_of_range("panel unit", index, self.units.len()));
         };
         slot.unit_id = unit_id;
         Self::try_new(units)

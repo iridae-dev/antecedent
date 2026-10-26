@@ -154,7 +154,7 @@ pub use quantile::{
 };
 pub use regularized::{
     LassoFit, LassoOptions, RidgeIntercept, first_col_is_exact_ones, fit_lasso,
-    fit_lasso_with_ones_column, fit_ridge, fit_ridge_with, predict_lasso, ridge_gram_inverse,
+    fit_lasso_with_ones_column, fit_ridge_with, predict_lasso, ridge_gram_inverse,
     ridge_gram_inverse_with, soft_threshold,
 };
 pub use response::{

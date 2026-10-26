@@ -961,7 +961,7 @@ fn every_design_query_field_reaches_the_encoding() {
             &|q| {
                 q.design = RandomizationDesign::MultiArm {
                     assignment: Arc::from([0_usize, 1]),
-                    probabilities: Arc::from(vec![vec![0.5, 0.5]; 2]),
+                    probabilities: vec![vec![0.5, 0.5]; 2].into(),
                     arms: labels(&["control", "treated"]),
                 };
             },

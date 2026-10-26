@@ -1,6 +1,7 @@
 //! Declared local-polynomial fuzzy discontinuity and regression kink design.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::LocalPolynomialRatioFault;
 use super::QueryError;
 use crate::canonical_encode::{CanonicalEncode, encode_variables, flag};
 use crate::identity::CanonicalWriter;
@@ -102,20 +103,14 @@ impl LocalPolynomialRatioQuery {
             || self.outcome == self.running
             || self.treatment == self.running
         {
-            return Err(QueryError::InvalidLocalPolynomialRatio(
-                "outcome, treatment, and running variable must be distinct".into(),
-            ));
+            return Err(QueryError::InvalidLocalPolynomialRatio(LocalPolynomialRatioFault::VariablesNotDistinct));
         }
         if !self.cutoff.is_finite() || !self.bandwidth.is_finite() || self.bandwidth <= 0.0 {
-            return Err(QueryError::InvalidLocalPolynomialRatio(
-                "cutoff must be finite and bandwidth positive".into(),
-            ));
+            return Err(QueryError::InvalidLocalPolynomialRatio(LocalPolynomialRatioFault::CutoffOrBandwidth));
         }
         if let Some(options) = &self.options {
             if options.temporal_replicates.is_some_and(|replicates| replicates < 2) {
-                return Err(QueryError::InvalidLocalPolynomialRatio(
-                    "a calendar-time block bootstrap needs at least two replicates".into(),
-                ));
+                return Err(QueryError::InvalidLocalPolynomialRatio(LocalPolynomialRatioFault::BootstrapReplicates));
             }
             let distinct =
                 options.balance_covariates.iter().collect::<std::collections::BTreeSet<_>>();
@@ -124,9 +119,7 @@ impl LocalPolynomialRatioQuery {
                     [self.outcome, self.treatment, self.running].contains(covariate)
                 })
             {
-                return Err(QueryError::InvalidLocalPolynomialRatio(
-                    "balance covariates must be distinct columns other than the outcome, treatment and running variable".into(),
-                ));
+                return Err(QueryError::InvalidLocalPolynomialRatio(LocalPolynomialRatioFault::BalanceCovariates));
             }
         }
         Ok(())

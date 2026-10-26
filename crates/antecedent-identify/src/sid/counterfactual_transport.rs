@@ -3,10 +3,12 @@
 //! # Scope
 //!
 //! One frozen contract, [`COUNTERFACTUAL_TRANSPORT_CONTRACT`]: finitely many
-//! observed variables (the declared model class holds at most
-//! [`COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES`]) with finitely many declared levels (at most
-//! [`COUNTERFACTUAL_TRANSPORT_MAX_LEVELS`]); the numbers of worlds, atoms, sources,
-//! controllable variables and regimes are bounded only by the search budget,
+//! observed variables (their number is limited only by the width of the
+//! variable sets, [`COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES`]) with finitely many declared
+//! levels; the numbers of variables, levels, worlds, atoms, sources,
+//! controllable variables and regimes are bounded only by the search budget, which every
+//! enumeration of subsets, cliques and level cells is charged to (a request the budget cannot
+//! pay for ends as an exhausted search with a receipt, never a verdict),
 //! an acyclic graph with bidirected edges for latent confounding, one selection
 //! diagram per source population (the variables whose mechanism may differ from
 //! the target's), and population- and regime-labelled evidence laws. The query is a
@@ -87,14 +89,13 @@ use witness::{WitnessOutcome, WitnessProblem, search_witness, verify_witness};
 /// The contract a derivation attests.
 pub const COUNTERFACTUAL_TRANSPORT_CONTRACT: &str =
     "static_finite_semi_markovian_counterfactual_transport_v1";
-/// Most observed variables of the declared model class. The closure enumerates the
-/// ancestrally closed subsets of every law (`2^n`) before it can charge them one by one, and
-/// the witness model enumerates `2^n` cliques, so this is the enumeration bound of the class
-/// itself, not a count of the request.
-pub const COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES: usize = 8;
-/// Most declared levels of one variable in the declared model class (with
-/// [`COUNTERFACTUAL_TRANSPORT_MAX_CELLS`] the joint cells of the declared levels).
-pub const COUNTERFACTUAL_TRANSPORT_MAX_LEVELS: usize = 4;
+/// Most observed variables the representation holds: variable sets are `u32` bit sets (also
+/// in the stored items and regimes of a derivation), and the full set of `n` variables needs
+/// `n < 32`. This is the width of the representation, not a work bound: the ancestrally
+/// closed subsets of every law, the cliques of the witness search, the subsets of every
+/// controllable set and the cells of a summation are each charged to the search budget as
+/// they are visited.
+pub const COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES: usize = 31;
 /// Worlds of one query under the earlier fixed ceiling. Not enforced by the decision: the
 /// work grows with the request and is charged to the search budget (a bound of stored
 /// artifacts only).
@@ -116,8 +117,6 @@ pub const COUNTERFACTUAL_TRANSPORT_MAX_REGIMES: usize = 64;
 /// Former ceiling on the joint level cells of the variables a derivation sums over. No longer
 /// enforced: a summation is quoted from the caller's search budget.
 pub const COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS: usize = 1 << 16;
-/// Most joint cells of the declared levels (the dense evaluation table).
-pub const COUNTERFACTUAL_TRANSPORT_MAX_CELLS: usize = 1 << 16;
 /// Nesting of the binary consistency complement tried first. A derivation that fails with a
 /// complement left untried at this nesting is retried one level deeper, on the same budget,
 /// until no complement is cut off (the binary atoms bound the nesting) or the budget stops it.
@@ -266,9 +265,9 @@ impl CounterfactualTransportProblem {
     /// # Errors
     ///
     /// `counterfactual_transport.bounds_exceeded` beyond
-    /// [`COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES`] variables,
-    /// [`COUNTERFACTUAL_TRANSPORT_MAX_LEVELS`] levels or
-    /// [`COUNTERFACTUAL_TRANSPORT_MAX_CELLS`] joint cells;
+    /// [`COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES`] variables (the width of the variable
+    /// sets; levels and joint cells are not bounded here, the decision's search budget
+    /// pays for them);
     /// `counterfactual_transport.invalid_query` for no variables, a repeated
     /// variable, an empty, repeated or non-finite level list, or an edge naming an
     /// unknown variable or a self-loop;
@@ -282,7 +281,7 @@ impl CounterfactualTransportProblem {
         if n == 0 {
             return Err(invalid_query("the graph has no variables"));
         }
-        if n > COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES {
+        if n > COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES {
             return Err(bounds_exceeded());
         }
         let mut sorted: Vec<&(VariableId, Vec<f64>)> = variables.iter().collect();
@@ -292,11 +291,7 @@ impl CounterfactualTransportProblem {
         }
         let ids: Vec<VariableId> = sorted.iter().map(|(id, _)| *id).collect();
         let mut levels: Vec<Vec<u64>> = Vec::with_capacity(n);
-        let mut cells: usize = 1;
         for (id, list) in &sorted {
-            if list.len() > COUNTERFACTUAL_TRANSPORT_MAX_LEVELS {
-                return Err(bounds_exceeded());
-            }
             let bits: Vec<u64> = list.iter().map(|x| (x + 0.0).to_bits()).collect();
             let distinct: BTreeSet<u64> = bits.iter().copied().collect();
             if list.is_empty()
@@ -304,16 +299,11 @@ impl CounterfactualTransportProblem {
                 || distinct.len() != bits.len()
             {
                 return Err(invalid_query(format!(
-                    "variable {} needs one to {} distinct finite levels",
-                    id.raw(),
-                    COUNTERFACTUAL_TRANSPORT_MAX_LEVELS
+                    "variable {} needs at least one distinct finite level",
+                    id.raw()
                 )));
             }
-            cells = cells.saturating_mul(list.len());
             levels.push(bits);
-        }
-        if cells > COUNTERFACTUAL_TRANSPORT_MAX_CELLS {
-            return Err(bounds_exceeded());
         }
         let index_of = |v: VariableId| ids.iter().position(|id| *id == v);
         let mut directed_idx: Vec<(usize, usize)> = Vec::with_capacity(directed.len());
@@ -607,22 +597,81 @@ fn push_id_list(out: &mut String, ids: impl IntoIterator<Item = VariableId>) {
 // Derivation types.
 // ---------------------------------------------------------------------------
 
+/// Defines an index newtype whose `Debug` is the bare number, so the canonical text of a
+/// derivation (which renders derivation types with `{:?}`) is the text it had when these
+/// indices were plain `usize`s.
+macro_rules! index_newtype {
+    ($(#[$meta:meta])* $name:ident) => {
+        $(#[$meta])*
+        #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name(usize);
+
+        impl $name {
+            /// The index `index`.
+            #[must_use]
+            pub const fn new(index: usize) -> Self {
+                Self(index)
+            }
+
+            /// The index as a `usize`.
+            #[must_use]
+            pub const fn get(self) -> usize {
+                self.0
+            }
+        }
+
+        impl std::fmt::Debug for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                std::fmt::Debug::fmt(&self.0, f)
+            }
+        }
+
+        impl From<usize> for $name {
+            fn from(index: usize) -> Self {
+                Self(index)
+            }
+        }
+
+        impl From<$name> for usize {
+            fn from(index: $name) -> Self {
+                index.0
+            }
+        }
+    };
+}
+
+index_newtype! {
+    /// Internal index of an observed variable of a [`CounterfactualTransportProblem`] (its
+    /// position in the ascending order of variable ids).
+    CounterfactualVariableIndex
+}
+
+index_newtype! {
+    /// Index of a declared level among the declared levels of one variable, in declared order.
+    CounterfactualLevelIndex
+}
+
+index_newtype! {
+    /// Identity of a summation symbol, unique within one functional.
+    CounterfactualSymbolId
+}
+
 /// A level argument of a factor: a declared level index or a summation symbol.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CounterfactualLevel {
     /// A declared level, by index into the variable's declared levels.
-    Fixed(usize),
+    Fixed(CounterfactualLevelIndex),
     /// The summation symbol of the free node with this id.
-    Symbol(usize),
+    Symbol(CounterfactualSymbolId),
 }
 
 /// A summation symbol: a free node of the unnested network and its variable.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CounterfactualSymbol {
     /// Symbol id, unique within one functional.
-    pub id: usize,
+    pub id: CounterfactualSymbolId,
     /// Internal variable index whose levels the symbol ranges over.
-    pub variable: usize,
+    pub variable: CounterfactualVariableIndex,
 }
 
 /// One single-world factor `Q[S](outputs | parents)` of the target population.
@@ -631,9 +680,9 @@ pub struct CounterfactualFactor {
     /// Item of the derivation that supplies the law.
     pub item: usize,
     /// `(variable, level)` of every member of the factor's district.
-    pub outputs: Vec<(usize, CounterfactualLevel)>,
+    pub outputs: Vec<(CounterfactualVariableIndex, CounterfactualLevel)>,
     /// `(variable, level)` of every parent outside the district.
-    pub parents: Vec<(usize, CounterfactualLevel)>,
+    pub parents: Vec<(CounterfactualVariableIndex, CounterfactualLevel)>,
 }
 
 /// A sum over free nodes of a product of single-world factors.
@@ -656,7 +705,7 @@ pub enum CounterfactualFunctional {
     /// two-level variable (the consistency complement).
     Complement {
         /// Internal variable index of the complemented atom.
-        variable: usize,
+        variable: CounterfactualVariableIndex,
         /// The conjunction with the atom removed.
         whole: Box<CounterfactualFunctional>,
         /// The conjunction with the atom at the variable's other level.
@@ -708,9 +757,9 @@ pub struct CounterfactualMovedAtom {
     /// World index in the query.
     pub world: usize,
     /// Internal variable index.
-    pub variable: usize,
+    pub variable: CounterfactualVariableIndex,
     /// Declared level index.
-    pub level: usize,
+    pub level: CounterfactualLevelIndex,
 }
 
 /// A cited catalog regime.
@@ -1414,8 +1463,8 @@ fn mask_text(problem: &CounterfactualTransportProblem, mask: u32) -> String {
 
 fn lift_level(level: Level) -> CounterfactualLevel {
     match level {
-        Level::Fixed(l) => CounterfactualLevel::Fixed(l),
-        Level::Symbol(s) => CounterfactualLevel::Symbol(s),
+        Level::Fixed(l) => CounterfactualLevel::Fixed(CounterfactualLevelIndex::new(l)),
+        Level::Symbol(s) => CounterfactualLevel::Symbol(CounterfactualSymbolId::new(s)),
     }
 }
 
@@ -1446,12 +1495,12 @@ fn derive_conjunction(
                         outputs: term
                             .outputs
                             .iter()
-                            .map(|&(v, level)| (v, lift_level(level)))
+                            .map(|&(v, level)| (CounterfactualVariableIndex::new(v), lift_level(level)))
                             .collect(),
                         parents: term
                             .parents
                             .iter()
-                            .map(|&(v, level)| (v, lift_level(level)))
+                            .map(|&(v, level)| (CounterfactualVariableIndex::new(v), lift_level(level)))
                             .collect(),
                     });
                 } else {
@@ -1467,7 +1516,10 @@ fn derive_conjunction(
                     return Ok(Some(CounterfactualFunctional::Sum(CounterfactualSum {
                         symbols: symbols
                             .iter()
-                            .map(|&(id, variable)| CounterfactualSymbol { id, variable })
+                            .map(|&(id, variable)| CounterfactualSymbol {
+                                id: CounterfactualSymbolId::new(id),
+                                variable: CounterfactualVariableIndex::new(variable),
+                            })
                             .collect(),
                         factors,
                     })));
@@ -1517,7 +1569,7 @@ fn derive_conjunction(
                 continue;
             };
             return Ok(Some(CounterfactualFunctional::Complement {
-                variable,
+                variable: CounterfactualVariableIndex::new(variable),
                 whole: Box::new(a),
                 flipped: Box::new(b),
             }));
@@ -1613,7 +1665,11 @@ fn reduce_conditioning(
             for (v, id) in row.iter().enumerate() {
                 if *id == node && node.is_some() {
                     worlds[w].fixed.insert(v, level);
-                    moved.push(CounterfactualMovedAtom { world: w, variable: v, level });
+                    moved.push(CounterfactualMovedAtom {
+                        world: w,
+                        variable: CounterfactualVariableIndex::new(v),
+                        level: CounterfactualLevelIndex::new(level),
+                    });
                 }
             }
         }
@@ -1906,8 +1962,13 @@ fn supplied_seeds(validated: &Validated) -> Vec<Seed> {
 
 /// Seeds of the declared family not supplied in full: every population's
 /// observational law and every source's experiments on subsets of its
-/// controllable set, each measuring every non-intervened variable.
-fn candidate_seeds(validated: &Validated, problem: &CounterfactualTransportProblem) -> Vec<Seed> {
+/// controllable set, each measuring every non-intervened variable. Every subset visited is
+/// charged to the search, so a controllable set the budget cannot enumerate stops the decision.
+fn candidate_seeds(
+    validated: &Validated,
+    problem: &CounterfactualTransportProblem,
+    charge: &mut dyn FnMut(usize, u64) -> Result<(), SearchStop>,
+) -> Result<Vec<Seed>, SearchStop> {
     let full = problem.full_mask();
     let mut seeds: Vec<Seed> = Vec::new();
     for population in 0..validated.populations.len() {
@@ -1915,6 +1976,7 @@ fn candidate_seeds(validated: &Validated, problem: &CounterfactualTransportProbl
         // Every subset of the controllable set, the empty one included.
         let mut subset = control;
         loop {
+            charge(0, (seeds.len() as u64 + 1).saturating_mul(32))?;
             let supplied = validated.usable.iter().any(|u| {
                 u.population == population && u.intervened == subset && u.measured == full & !subset
             });
@@ -1933,7 +1995,7 @@ fn candidate_seeds(validated: &Validated, problem: &CounterfactualTransportProbl
         }
     }
     seeds.sort_by_key(|s| (s.population, s.intervened, s.measured, s.regime));
-    seeds
+    Ok(seeds)
 }
 
 #[allow(
@@ -1959,7 +2021,9 @@ fn run_stages(
         return Ok(CounterfactualTransportDecision::Identified(Box::new(derivation)));
     }
     // Stage 2: the declared family.
-    let candidates = candidate_seeds(validated, problem);
+    let candidates = candidate_seeds(validated, problem, &mut |depth, bytes| {
+        search.charge(depth, bytes)
+    })?;
     let declared_closure =
         close(problem, &validated.selected, &supplied, &candidates, &mut |depth, bytes| {
             search.charge(depth, bytes)
@@ -2178,7 +2242,7 @@ pub fn verify_counterfactual_transport_witness(
     };
     let bad = || IdentificationError::invalid_derivation(INVALID_WITNESS);
     let supplied = supplied_seeds(&validated);
-    let candidates = candidate_seeds(&validated, problem);
+    let candidates = candidate_seeds(&validated, problem, &mut |_, _| Ok(())).map_err(|_| bad())?;
     let mut family: Vec<(usize, u32)> = supplied
         .iter()
         .chain(&candidates)

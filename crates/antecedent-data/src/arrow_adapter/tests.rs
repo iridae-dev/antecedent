@@ -255,10 +255,9 @@ fn stream_keeps_chunks_until_contiguous() {
     .unwrap();
     let batches: Vec<Result<RecordBatch, ArrowError>> = vec![Ok(first), Ok(empty), Ok(second)];
     let reader = RecordBatchIterator::new(batches.into_iter(), Arc::clone(&schema));
-    let frame = ArrowFrameView::from_stream(crate::arrow_ffi::ArrowCStream::from_reader(
-        Box::new(reader),
-    ))
-    .unwrap();
+    let frame =
+        ArrowFrameView::from_stream(crate::arrow_ffi::ArrowCStream::from_reader(Box::new(reader)))
+            .unwrap();
     assert_eq!(frame.n_chunks(), 3);
     let chunks = frame.column_chunks(0).unwrap();
     match &chunks[0] {
@@ -327,15 +326,13 @@ fn dictionary_categories_keep_codes_and_labels() {
     use arrow_array::types::Int32Type;
     use arrow_array::{DictionaryArray, Int32Array, StringArray};
 
-    let values =
-        Arc::new(StringArray::from(vec!["red", "blue", "green"])) as arrow_array::ArrayRef;
+    let values = Arc::new(StringArray::from(vec!["red", "blue", "green"])) as arrow_array::ArrayRef;
     let keys = Int32Array::from(vec![Some(2), Some(0), None]);
     let dict = DictionaryArray::<Int32Type>::new(keys, Arc::clone(&values));
     let sliced = dict.slice(1, 2);
-    let loaded = tabular_from_arrow_c_columns(vec![
-        ArrowCColumn::from_arrow_array("arm", &sliced).unwrap(),
-    ])
-    .unwrap();
+    let loaded =
+        tabular_from_arrow_c_columns(vec![ArrowCColumn::from_arrow_array("arm", &sliced).unwrap()])
+            .unwrap();
     match loaded.data.column(VariableId::from_raw(0)).unwrap() {
         crate::column::ColumnView::Categorical(column) => {
             assert_eq!(column.codes[0].raw(), 0);
@@ -390,9 +387,8 @@ fn stream_error_releases_the_reader() {
     let released = Arc::new(AtomicBool::new(false));
     let schema = Arc::new(Schema::new(vec![Field::new("x", DataType::Float64, true)]));
     let reader = Flaky { schema, step: 0, _guard: ReleaseOnDrop(Arc::clone(&released)) };
-    let loaded = ArrowFrameView::from_stream(crate::arrow_ffi::ArrowCStream::from_reader(
-        Box::new(reader),
-    ));
+    let loaded =
+        ArrowFrameView::from_stream(crate::arrow_ffi::ArrowCStream::from_reader(Box::new(reader)));
     assert!(loaded.is_err());
     assert!(released.load(Ordering::SeqCst));
 }
@@ -454,11 +450,9 @@ fn two_chunk_frame() -> ArrowFrameView {
         vec![Arc::new(Float64Array::from(vec![1.0, 2.0]))],
     )
     .unwrap();
-    let second = RecordBatch::try_new(
-        Arc::clone(&schema),
-        vec![Arc::new(Float64Array::from(vec![3.0]))],
-    )
-    .unwrap();
+    let second =
+        RecordBatch::try_new(Arc::clone(&schema), vec![Arc::new(Float64Array::from(vec![3.0]))])
+            .unwrap();
     ArrowFrameView::from_record_batches(vec![first, second]).unwrap()
 }
 
@@ -487,15 +481,11 @@ fn an_estimator_that_cannot_stream_materializes_or_refuses() {
     // No budget was given, so the copy is recorded as unmetered rather than admitted.
     assert!(!product.receipt.is_bounded_end_to_end_route());
     assert!(
-        diagnostics
-            .entries
-            .iter()
-            .any(|entry| { entry.code.contains("materialize.estimator") })
+        diagnostics.entries.iter().any(|entry| { entry.code.contains("materialize.estimator") })
     );
 
     controls.stream = EstimatorStreamNeed::CanStream;
-    let scan =
-        frame.open_for_estimator(&[], MissingPolicy::CompleteCase, &[], controls).unwrap();
+    let scan = frame.open_for_estimator(&[], MissingPolicy::CompleteCase, &[], controls).unwrap();
     let EstimatorFrame::Scan(scan) = scan else {
         panic!("a streaming estimator keeps the chunks");
     };

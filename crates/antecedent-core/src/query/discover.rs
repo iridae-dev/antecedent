@@ -9,6 +9,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::DiscoverFault;
 use std::sync::Arc;
 
 use crate::canonical_encode::{CanonicalEncode, count, encode_variables, flag};
@@ -538,12 +539,12 @@ impl CanonicalEncode for DiscoverQuery {
 /// A wrapper is checked against what it wraps: a class posterior collapses a DAG posterior
 /// that lists its graphs, and a stability search re-runs one frequentist search that
 /// returns a structure.
-fn method_fault(method: &DiscoveryMethod) -> Option<&'static str> {
+fn method_fault(method: &DiscoveryMethod) -> Option<DiscoverFault> {
     match method {
         DiscoveryMethod::DirectLingam { prune_threshold }
             if !(prune_threshold.is_finite() && *prune_threshold >= 0.0) =>
         {
-            Some("the LiNGAM prune threshold must be finite and non-negative")
+            Some(DiscoverFault::LingamPruneThreshold)
         }
         DiscoveryMethod::Notears { lambda, threshold, .. }
             if !(lambda.is_finite()
@@ -551,26 +552,20 @@ fn method_fault(method: &DiscoveryMethod) -> Option<&'static str> {
                 && threshold.is_finite()
                 && *threshold >= 0.0) =>
         {
-            Some("the NOTEARS penalty and threshold must be finite and non-negative")
+            Some(DiscoverFault::NotearsPenalty)
         }
-        DiscoveryMethod::Ges { max_subset: Some(0), .. } => {
-            Some("the GES subset cap must be at least 1")
-        }
+        DiscoveryMethod::Ges { max_subset: Some(0), .. } => Some(DiscoverFault::GesSubsetCap),
         DiscoveryMethod::ClassPosterior { base } => match &**base {
             DiscoveryMethod::ExactDagPosterior
             | DiscoveryMethod::OrderMcmc { .. }
             | DiscoveryMethod::StructureMcmc
             | DiscoveryMethod::CiScreenedPosterior { .. }
             | DiscoveryMethod::DbnPosterior { .. } => method_fault(base),
-            _ => Some(
-                "a class posterior collapses the graphs of an exact, order-MCMC, \
-                 structure-MCMC, CI-screened or bounded-lag template posterior; the exact edge \
-                 marginals list no graphs",
-            ),
+            _ => Some(DiscoverFault::ClassPosteriorBase),
         },
         DiscoveryMethod::BootstrapStability { base, replicates } => {
             if *replicates < 2 {
-                return Some("a stability search draws at least 2 resamples");
+                return Some(DiscoverFault::StabilityResamples);
             }
             match &**base {
                 DiscoveryMethod::Pc
@@ -584,11 +579,7 @@ fn method_fault(method: &DiscoveryMethod) -> Option<&'static str> {
                 | DiscoveryMethod::Lpcmci
                 | DiscoveryMethod::JpcmciPlus
                 | DiscoveryMethod::Rpcmci { .. } => method_fault(base),
-                _ => Some(
-                    "a stability search re-runs PC, FCI, RFCI, GES, LiNGAM, NOTEARS, PCMCI, \
-                     PCMCI+, LPCMCI, J-PCMCI+ or regime PCMCI; a posterior has its own sampling \
-                     error",
-                ),
+                _ => Some(DiscoverFault::StabilityBase),
             }
         }
         _ => None,
@@ -627,24 +618,24 @@ impl DiscoverQuery {
     /// static method, a non-finite or negative method threshold, or a sampled
     /// posterior without a schedule (or with a zero chain, draw or thinning count).
     pub fn validate(&self) -> Result<(), QueryError> {
-        let invalid = |message: &str| Err(QueryError::InvalidDiscover(message.to_owned()));
+        let invalid = |fault: DiscoverFault| Err(QueryError::InvalidDiscover(fault));
         if self.variables.is_empty() {
-            return invalid("a structure search needs at least one variable");
+            return invalid(DiscoverFault::NoVariables);
         }
         let mut sorted = self.variables.to_vec();
         sorted.sort_unstable();
         if sorted.windows(2).any(|pair| pair[0] == pair[1]) {
-            return invalid("a searched variable is listed twice");
+            return invalid(DiscoverFault::RepeatedVariable);
         }
         if self.method.uses_independence_tests()
             && !(self.bounds.alpha.is_finite()
                 && self.bounds.alpha > 0.0
                 && self.bounds.alpha < 1.0)
         {
-            return invalid("the significance level must be in (0, 1)");
+            return invalid(DiscoverFault::SignificanceLevel);
         }
         if !self.method.is_temporal() && self.bounds.max_lag != 0 {
-            return invalid("a static search takes no lag; set max_lag to 0");
+            return invalid(DiscoverFault::StaticSearchLag);
         }
         if let Some(fault) = method_fault(&self.method) {
             return invalid(fault);
@@ -654,9 +645,9 @@ impl DiscoverQuery {
                 Some(schedule)
                     if schedule.chains >= 1 && schedule.draws >= 1 && schedule.thin >= 1 => {}
                 Some(_) => {
-                    return invalid("an MCMC schedule needs at least one chain, draw and thin");
+                    return invalid(DiscoverFault::McmcSchedule);
                 }
-                None => return invalid("a sampled structure posterior needs an MCMC schedule"),
+                None => return invalid(DiscoverFault::PosteriorNeedsSchedule),
             }
         }
         Ok(())

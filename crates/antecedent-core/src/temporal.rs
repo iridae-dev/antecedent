@@ -10,12 +10,27 @@ use crate::ids::{Lag, VariableId};
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum TemporalIndexError {
-    /// Invalid constructor arguments.
-    #[error("{message}")]
-    Invalid {
-        /// Message.
-        message: &'static str,
-    },
+    /// The variable count or the horizon is zero.
+    #[error("variable_count and horizon must be non-zero")]
+    EmptyDimension,
+    /// History plus horizon overflows the slice counter.
+    #[error("history+horizon overflow")]
+    WindowOverflow,
+    /// The number of dense nodes overflows.
+    #[error("dense index space overflow")]
+    DenseSpaceOverflow,
+    /// A node offset lies outside the unfolding window.
+    #[error("temporal offset outside unfolding window")]
+    OffsetOutsideWindow,
+    /// A dense index does not fit in 32 bits.
+    #[error("dense id exceeds u32")]
+    DenseIdExceedsU32,
+    /// A dense index is not a node of the indexer.
+    #[error("dense id out of range")]
+    DenseIdOutOfRange,
+    /// A recovered offset does not fit in 32 bits.
+    #[error("offset overflow")]
+    OffsetOverflow,
     /// Variable id outside the indexer.
     #[error("unknown variable id {}", id.raw())]
     UnknownVariable {
@@ -75,18 +90,16 @@ impl TemporalIndexer {
         horizon: u32,
     ) -> Result<Self, TemporalIndexError> {
         if variable_count == 0 || horizon == 0 {
-            return Err(TemporalIndexError::Invalid {
-                message: "variable_count and horizon must be non-zero",
-            });
+            return Err(TemporalIndexError::EmptyDimension);
         }
         let slices = history
             .checked_add(horizon)
-            .ok_or(TemporalIndexError::Invalid { message: "history+horizon overflow" })?;
+            .ok_or(TemporalIndexError::WindowOverflow)?;
         let dense_u32 = variable_count
             .checked_mul(slices)
-            .ok_or(TemporalIndexError::Invalid { message: "dense index space overflow" })?;
+            .ok_or(TemporalIndexError::DenseSpaceOverflow)?;
         let dense_len = usize::try_from(dense_u32)
-            .map_err(|_| TemporalIndexError::Invalid { message: "dense index space overflow" })?;
+            .map_err(|_| TemporalIndexError::DenseSpaceOverflow)?;
         Ok(Self { variable_count, history, horizon, dense_len })
     }
 
@@ -126,16 +139,13 @@ impl TemporalIndexer {
         }
         let slice = i64::from(key.offset) + i64::from(self.history);
         if slice < 0 || slice >= i64::from(self.history) + i64::from(self.horizon) {
-            return Err(TemporalIndexError::Invalid {
-                message: "temporal offset outside unfolding window",
-            });
+            return Err(TemporalIndexError::OffsetOutsideWindow);
         }
-        let slice_u = u64::try_from(slice).map_err(|_| TemporalIndexError::Invalid {
-            message: "temporal offset outside unfolding window",
-        })?;
+        let slice_u =
+            u64::try_from(slice).map_err(|_| TemporalIndexError::OffsetOutsideWindow)?;
         let dense = slice_u * u64::from(self.variable_count) + u64::from(v);
         u32::try_from(dense)
-            .map_err(|_| TemporalIndexError::Invalid { message: "dense id exceeds u32" })
+            .map_err(|_| TemporalIndexError::DenseIdExceedsU32)
     }
 
     /// Invert a dense index to a stable key.
@@ -145,15 +155,15 @@ impl TemporalIndexer {
     /// Out of range dense id.
     pub fn key_of(&self, dense: u32) -> Result<TemporalNodeKey, TemporalIndexError> {
         let dense_usize = usize::try_from(dense)
-            .map_err(|_| TemporalIndexError::Invalid { message: "dense id out of range" })?;
+            .map_err(|_| TemporalIndexError::DenseIdOutOfRange)?;
         if dense_usize >= self.dense_len() {
-            return Err(TemporalIndexError::Invalid { message: "dense id out of range" });
+            return Err(TemporalIndexError::DenseIdOutOfRange);
         }
         let vc = self.variable_count;
         let slice = dense / vc;
         let var = dense % vc;
         let offset = i32::try_from(i64::from(slice) - i64::from(self.history))
-            .map_err(|_| TemporalIndexError::Invalid { message: "offset overflow" })?;
+            .map_err(|_| TemporalIndexError::OffsetOverflow)?;
         Ok(TemporalNodeKey { variable: VariableId::from_raw(var), offset })
     }
 }

@@ -575,9 +575,7 @@ impl TabularData {
         let selection = classify_mask(keep);
         let mut shared = zeroed_shared(selection.count());
         let Some(dest) = Arc::get_mut(&mut shared) else {
-            return Err(DataError::InvalidArgument {
-                message: "a freshly built shared slice is not unique".into(),
-            });
+            return Err(DataError::internal("a freshly built shared slice is unique"));
         };
         fill_selected(values, keep, selection, dest)?;
         Ok(shared)

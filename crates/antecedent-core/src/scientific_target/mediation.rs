@@ -12,7 +12,7 @@ use std::sync::Arc;
 use super::model::{
     TimeKind, canonical_intervention, ensure_policy_within_horizon, ensure_portable,
 };
-use super::{ScientificTargetError, TimeFrame, WorldBinding};
+use super::{ActionFault, ScientificTargetError, TimeFrame, WorldBinding};
 
 /// Which mediation functional is the target.
 ///
@@ -162,7 +162,7 @@ fn expect_treatment(
             got: variable,
         }),
         None => Err(ScientificTargetError::InvalidAction {
-            reason: "mediation treatment intervention must target one variable".into(),
+            reason: ActionFault::MediationTreatmentTarget,
         }),
     }
 }
@@ -210,7 +210,9 @@ impl MediationTarget {
         if let Some(policy) = &schedule {
             policy
                 .validate()
-                .map_err(|err| ScientificTargetError::InvalidAction { reason: err.to_string() })?;
+                .map_err(|err| ScientificTargetError::InvalidAction {
+                    reason: ActionFault::Intervention(err),
+                })?;
             ensure_policy_within_horizon(policy, &time)?;
         }
         let schedule_matches = matches!(

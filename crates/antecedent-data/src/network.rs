@@ -48,7 +48,8 @@ impl NetworkData {
     ///
     /// # Errors
     ///
-    /// [`DataError::InvalidArgument`] when an edge is invalid for the unit table.
+    /// [`DataError::InvalidValue`], [`DataError::Duplicate`] or [`DataError::OutOfRange`] when an edge is
+    /// invalid for the unit table.
     pub fn try_new(
         units: TabularData,
         edges: impl Into<Arc<[NetworkEdge]>>,
@@ -61,19 +62,16 @@ impl NetworkData {
             let from = table_row(edge.from, n)?;
             let to = table_row(edge.to, n)?;
             if from == to {
-                return Err(DataError::InvalidArgument {
-                    message: "network self-edges are not allowed".into(),
-                });
+                return Err(DataError::invalid_value("network edge", "must not be a self-edge"));
             }
             if !edge.weight.is_finite() || edge.weight < 0.0 {
-                return Err(DataError::InvalidArgument {
-                    message: "network weights must be finite and non-negative".into(),
-                });
+                return Err(DataError::invalid_value(
+                    "network weights",
+                    "must be finite and non-negative",
+                ));
             }
             if i > 0 && (sorted[i - 1].from, sorted[i - 1].to) == (edge.from, edge.to) {
-                return Err(DataError::InvalidArgument {
-                    message: "duplicate network edge".into(),
-                });
+                return Err(DataError::duplicate("network edge"));
             }
         }
         let edges: Arc<[NetworkEdge]> = sorted.into();
@@ -113,27 +111,27 @@ impl NetworkData {
     ///
     /// # Errors
     ///
-    /// [`DataError::InvalidArgument`] when `unit` is outside the table.
+    /// [`DataError::OutOfRange`] when `unit` is outside the table.
     pub fn incoming(&self, unit: usize) -> Result<&[NetworkEdge], DataError> {
         if unit + 1 >= self.incoming_offsets.len() {
-            return Err(DataError::InvalidArgument {
-                message: "network unit index is out of range".into(),
-            });
+            return Err(DataError::out_of_range(
+                "network unit",
+                unit,
+                self.incoming_offsets.len().saturating_sub(1),
+            ));
         }
         Ok(&self.incoming_edges[self.incoming_offsets[unit]..self.incoming_offsets[unit + 1]])
     }
 }
 
 fn table_row(id: GlobalId, n: usize) -> Result<usize, DataError> {
-    let index = usize::try_from(id.get()).map_err(|_| DataError::InvalidArgument {
-        message: "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. \
-                  A u32 backend feature flag is not that attempt"
-            .into(),
+    let index = usize::try_from(id.get()).map_err(|_| {
+        DataError::overflow(
+            "row address (a GlobalId past usize; keep ChunkIndex inside one bounded chunk)",
+        )
     })?;
     if index >= n {
-        return Err(DataError::InvalidArgument {
-            message: "network edge row index is outside the unit table".into(),
-        });
+        return Err(DataError::out_of_range("network edge row index", index, n));
     }
     Ok(index)
 }
@@ -160,6 +158,7 @@ mod tests {
         let table = TabularData::from_f64_columns([("y", values.as_slice())]).unwrap();
         let err = NetworkData::try_new(table, [edge]).unwrap_err();
         let message = err.to_string();
-        assert!(message.contains("network edge row index is outside the unit table"));
+        assert!(message.contains("network edge row index"), "{message}");
+        assert!(message.contains("out of range"), "{message}");
     }
 }

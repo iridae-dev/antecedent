@@ -167,7 +167,7 @@ antecedent_core::impl_refused!(PanelPreparationError);
 
 impl From<PanelPreparationError> for DataError {
     fn from(error: PanelPreparationError) -> Self {
-        Self::InvalidArgument { message: error.to_string() }
+        Self::Panel(error)
     }
 }
 
@@ -1268,7 +1268,7 @@ mod tests {
         let mismatch = PanelLayout::assess(&["a", "b"], &[1], &[true, true]).unwrap_err();
         assert_eq!(mismatch.detail(), LENGTH_DETAIL);
         let data: DataError = mismatch.into();
-        assert!(matches!(data, DataError::InvalidArgument { .. }));
+        assert!(matches!(data, DataError::Panel(_)));
     }
 
     #[test]

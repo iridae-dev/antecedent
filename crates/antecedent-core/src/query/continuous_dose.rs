@@ -1,6 +1,7 @@
 //! Caller-supplied conditional continuous-dose response design.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::PolicyValueFault;
 use super::QueryError;
 use crate::canonical_encode::{CanonicalEncode, count, encode_option};
 use crate::identity::CanonicalWriter;
@@ -49,9 +50,7 @@ impl FixedGroupDosePolicy {
         let observed =
             baseline_groups.iter().map(|group| &**group).collect::<std::collections::BTreeSet<_>>();
         if observed.is_empty() {
-            return Err(QueryError::InvalidPolicyValue(
-                "fixed dose rules require observed baseline groups".into(),
-            ));
+            return Err(QueryError::InvalidPolicyValue(PolicyValueFault::FixedDoseNoGroups));
         }
         for rule in [&self.policy_doses, &self.reference_doses] {
             let mut seen = std::collections::BTreeSet::new();
@@ -62,8 +61,7 @@ impl FixedGroupDosePolicy {
                         || !seen.insert(group.as_ref())
                 })
             {
-                return Err(QueryError::InvalidPolicyValue(
-                    "fixed dose rules must name every observed baseline group exactly once with finite targets".into()));
+                return Err(QueryError::InvalidPolicyValue(PolicyValueFault::FixedDoseGroupCoverage));
             }
         }
         Ok(())
@@ -134,9 +132,7 @@ impl ContinuousDoseResponseQuery {
             || self.min_local_support < 2
             || !matches!(self.density_provenance.as_ref(), "known" | "externally_estimated")
         {
-            return Err(QueryError::InvalidPolicyValue(
-                "continuous-dose response requires distinct columns, aligned non-empty baseline groups, finite targets, positive bandwidth, local support of at least two, and known or externally_estimated density provenance".into(),
-            ));
+            return Err(QueryError::InvalidPolicyValue(PolicyValueFault::ContinuousDoseDeclaration));
         }
         if let Some(policy) = &self.fixed_policy {
             policy.validate(&self.baseline_groups)?;

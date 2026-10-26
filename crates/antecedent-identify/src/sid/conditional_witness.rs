@@ -1189,17 +1189,10 @@ pub fn search_conditional_witness_within(
 ) -> Result<WitnessSearch, IdentificationError> {
     validate(diagram, query)?;
     let shape = Shape::new(diagram)?;
-    let levels = QueryLevels::new(&shape, query)?;
-    let cells =
-        law_cells(shape.n).ok_or_else(|| rejected("witness exceeds the enumeration bound"))?;
-    let target_cells: Vec<(bool, usize, usize)> =
-        cells.iter().copied().filter(|(target, _, _)| *target).collect();
-    // The target law under do(x): every world, from which each level's
-    // numerator and denominator are sums.
-    let query_worlds = crate::pow2::checked_pow2(shape.n)
-        .ok_or_else(|| rejected("witness exceeds the enumeration bound"))?;
-    let query_cells: Vec<(bool, usize, usize)> =
-        (0..query_worlds).map(|world| (true, levels.x_mask, world)).collect();
+    // The law cells (`4^n + 2^n` of them) and query cells are built only once an attempt's
+    // quote, whose work counts every law cell, has been admitted: a diagram too wide for any
+    // attempt is refused without materialising them.
+    let mut prepared: Option<SearchCells> = None;
     let mut attempted = false;
     let mut budget_refused = false;
     // Order measured on the three- and four-node classes: three latent levels
@@ -1234,6 +1227,13 @@ pub fn search_conditional_witness_within(
                 Err(_) => continue,
             };
             attempted = true;
+            if prepared.is_none() {
+                prepared = Some(SearchCells::new(&shape, query)?);
+            }
+            let Some(SearchCells { levels, cells, target_cells, query_cells }) = prepared.as_ref()
+            else {
+                continue;
+            };
             let blocks: Vec<Block> = (0..shape.n)
                 .filter(|j| shape.selected[*j])
                 .map(Block::Target)
@@ -1354,6 +1354,32 @@ impl WitnessCertification<'_> {
             Err(IdentificationError::Cancelled) => Err(IdentificationError::Cancelled),
             _ => Ok(None),
         }
+    }
+}
+
+/// The cells a witness search screens: every supplied law cell, its target-population
+/// part, and the target law under do(x) at every world.
+struct SearchCells {
+    levels: QueryLevels,
+    cells: Vec<(bool, usize, usize)>,
+    target_cells: Vec<(bool, usize, usize)>,
+    query_cells: Vec<(bool, usize, usize)>,
+}
+
+impl SearchCells {
+    fn new(shape: &Shape, query: &ConditionalTransportQuery) -> Result<Self, IdentificationError> {
+        let bound = || rejected("witness exceeds the enumeration bound");
+        if shape.n >= usize::BITS as usize {
+            return Err(bound());
+        }
+        let levels = QueryLevels::new(shape, query)?;
+        let cells = law_cells(shape.n).ok_or_else(bound)?;
+        let target_cells = cells.iter().copied().filter(|(target, _, _)| *target).collect();
+        // The target law under do(x): every world, from which each level's
+        // numerator and denominator are sums.
+        let query_worlds = crate::pow2::checked_pow2(shape.n).ok_or_else(bound)?;
+        let query_cells = (0..query_worlds).map(|world| (true, levels.x_mask, world)).collect();
+        Ok(Self { levels, cells, target_cells, query_cells })
     }
 }
 

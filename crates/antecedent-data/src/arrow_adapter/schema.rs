@@ -2,8 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
 use super::chunks::*;
+use super::*;
 
 pub(super) fn schema_binding(
     column: &OwnedColumn,
@@ -27,11 +27,12 @@ pub(super) fn schema_binding(
             (value_type, SmallRoleSet::from_hint(RoleHint::Context), Some(column.domain.id))
         }
         OwnedColumn::FixedVector(column) => {
-            let width = NonZeroU32::new(u32::try_from(column.dim).map_err(|_| {
-                DataError::InvalidArgument { message: "FixedSizeList width must fit u32".into() }
-            })?)
-            .ok_or_else(|| DataError::InvalidArgument {
-                message: "FixedSizeList width must be > 0".into(),
+            let width = NonZeroU32::new(
+                u32::try_from(column.dim)
+                    .map_err(|_| DataError::overflow("FixedSizeList width as u32"))?,
+            )
+            .ok_or_else(|| {
+                DataError::invalid_value("FixedSizeList width", "must be greater than zero")
             })?;
             (
                 ValueType::Vector { width, element: ScalarType::Float64 },
@@ -47,10 +48,10 @@ pub(super) fn resolve_order(n_columns: usize, order: &[usize]) -> Result<Vec<usi
     let mut seen = vec![false; n_columns];
     for &index in &order {
         if index >= n_columns || seen[index] {
-            return Err(DataError::InvalidArgument {
-                message: format!(
-                    "preparation order index {index} is outside the frame or repeated"
-                ),
+            return Err(if index >= n_columns {
+                DataError::out_of_range("preparation order index", index, n_columns)
+            } else {
+                DataError::duplicate("preparation order index")
             });
         }
         seen[index] = true;
@@ -62,9 +63,9 @@ pub(super) fn frame_payload_bytes(frame: &ArrowFrameView) -> Result<u64, DataErr
     let mut total = 0u64;
     for column in &frame.columns {
         for chunk in &column.chunks {
-            total = total.checked_add(owned_payload_bytes(chunk)?).ok_or_else(|| {
-                DataError::InvalidArgument { message: "column payload size overflows".into() }
-            })?;
+            total = total
+                .checked_add(owned_payload_bytes(chunk)?)
+                .ok_or_else(|| DataError::overflow("column payload size"))?;
         }
     }
     Ok(total)
@@ -100,18 +101,20 @@ pub(super) fn scan_categories(
         };
         let id = variable_id(index)?;
         let Some((_, contrast)) = categories.iter().find(|(variable, _)| *variable == id) else {
-            return Err(DataError::InvalidArgument {
-                message: format!(
-                    "category conversion requires an explicit contrast for variable {id}"
-                ),
-            });
+            return Err(DataError::invalid_column(
+                id,
+                "needs an explicit contrast for its category conversion",
+            ));
         };
         recorded.push(crate::categorical::expand_contrast(column, contrast)?.conversion);
     }
     Ok(recorded)
 }
 
-pub(super) fn scan_schema(frame: &ArrowFrameView, order: &[usize]) -> Result<SchemaConversion, DataError> {
+pub(super) fn scan_schema(
+    frame: &ArrowFrameView,
+    order: &[usize],
+) -> Result<SchemaConversion, DataError> {
     let mut columns = Vec::with_capacity(order.len());
     for &index in order {
         let column = &frame.columns[index];
@@ -163,15 +166,12 @@ pub(super) fn chunk_missing(
             .iter()
             .any(|&column| !frame.columns[column].chunks[index].as_view().validity().is_valid(row));
         if invalid {
-            let row = u64::try_from(row).map_err(|_| DataError::InvalidArgument {
-                message: "chunk row does not fit u64".into(),
-            })?;
+            let row = u64::try_from(row).map_err(|_| DataError::overflow("chunk row (u64)"))?;
             dropped.push(row);
         }
     }
-    let rows_kept = rows
-        .checked_sub(dropped.len())
-        .ok_or_else(|| DataError::InvalidArgument { message: "chunk kept rows overflow".into() })?;
+    let rows_kept =
+        rows.checked_sub(dropped.len()).ok_or_else(|| DataError::overflow("chunk kept rows"))?;
     Ok(ChunkMissing {
         rows_total: rows,
         rows_kept,
@@ -188,9 +188,7 @@ pub(super) fn chunk_row_counts(frame: &ArrowFrameView) -> Result<Vec<u64>, DataE
         .iter()
         .map(|chunk| u64::try_from(chunk.len()))
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| DataError::InvalidArgument {
-            message: "chunk row count does not fit u64".into(),
-        })
+        .map_err(|_| DataError::overflow("chunk row count (u64)"))
 }
 
 pub(super) fn materialize_frame(

@@ -230,12 +230,10 @@ impl RowAccounting {
         variables: &[VariableId],
     ) -> Result<Self, DataError> {
         if policy.imputation().is_none() {
-            return Err(DataError::InvalidArgument {
-                message: format!(
-                    "imputed row accounting needs the multiple_imputation policy, got `{}`",
-                    policy.name()
-                ),
-            });
+            return Err(DataError::precondition(
+                "imputed row accounting",
+                "the multiple_imputation policy",
+            ));
         }
         let keep = complete_rows(table, analysis_mask, &[])?;
         Self::from_selection(table, analysis_mask, policy, variables, &keep)
@@ -360,17 +358,10 @@ pub fn complete_float_columns(
             });
         }
         if values.iter().any(|v| !v.is_finite()) {
-            return Err(DataError::InvalidArgument {
-                message: format!("completed column {} holds a non-finite value", id.raw()),
-            });
+            return Err(DataError::invalid_column(*id, "holds a non-finite completed value"));
         }
         if !storage.columns().iter().any(|c| matches!(c, OwnedColumn::Float64(f) if f.id == *id)) {
-            return Err(DataError::InvalidArgument {
-                message: format!(
-                    "variable {} is not a float column; only float columns are imputed",
-                    id.raw()
-                ),
-            });
+            return Err(DataError::TypeMismatch { id: *id, expected: "float64" });
         }
     }
     let mut columns = Vec::with_capacity(storage.columns().len());
@@ -520,10 +511,10 @@ impl MissingConversion {
         if policy == MissingPolicy::ErrorOnMissing
             && chunks.iter().any(|chunk| chunk.rows_kept != chunk.rows_total)
         {
-            return Err(DataError::InvalidArgument {
-                message: "missing-value conversion found a missing cell under error-on-missing"
-                    .into(),
-            });
+            return Err(DataError::precondition(
+                "missing-value conversion under error-on-missing",
+                "no missing cell",
+            ));
         }
         Ok(Self { policy, chunks, population_bound: false })
     }
@@ -550,13 +541,13 @@ impl MissingConversion {
 fn executable_policy(policy: MissingPolicy) -> Result<(), DataError> {
     match policy {
         MissingPolicy::CompleteCase | MissingPolicy::ErrorOnMissing => Ok(()),
-        other => Err(DataError::InvalidArgument {
-            message: format!(
-                "missing-value conversion does not execute `{}`; executable policies are \
-                 complete_case, error",
+        other => Err(DataError::unsupported(
+            "missing-value conversion",
+            format!(
+                "the policy `{}` is not executed; executable policies are complete_case, error",
                 other.name()
             ),
-        }),
+        )),
     }
 }
 
@@ -567,12 +558,11 @@ fn refuse_error_on_missing<T: TableView>(
     let Some(cell) = first_missing_cell(table, variables)? else {
         return Ok(());
     };
-    Err(DataError::InvalidArgument {
-        message: policy_required_text(
-            &cell,
-            "missing-value conversion",
-            &[MissingPolicy::CompleteCase, MissingPolicy::ErrorOnMissing],
-        ),
+    Err(DataError::MissingPolicyRequired {
+        route: "missing-value conversion",
+        variable: Arc::clone(&cell.variable),
+        row: cell.row,
+        available: vec![MissingPolicy::CompleteCase.name(), MissingPolicy::ErrorOnMissing.name()],
     })
 }
 
@@ -771,7 +761,7 @@ mod tests {
         let pairwise =
             MissingConversion::convert(&data, None, &ids(), MissingPolicy::PairwiseAvailable);
         let message = pairwise.expect_err("pairwise is not executed").to_string();
-        assert!(message.contains("does not execute `pairwise_available`"), "{message}");
+        assert!(message.contains("`pairwise_available` is not executed"), "{message}");
     }
 
     #[test]

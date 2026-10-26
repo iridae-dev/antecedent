@@ -290,6 +290,7 @@ fn escape(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::query::TransportFault;
     use crate::query::transport_catalog::RegimeBinding;
 
     fn ids(raw: &[u32]) -> Vec<VariableId> {
@@ -469,7 +470,7 @@ mod tests {
             blank.origin = LawOrigin::Recovered { derivation: Arc::from(empty) };
             assert!(matches!(
                 blank.validate_descriptor(),
-                Err(QueryError::InvalidTransport(message)) if message.contains("recovered law derivation")
+                Err(QueryError::InvalidTransport(TransportFault::DerivationIdentityEmpty))
             ));
             assert!(EvidenceCatalog::try_new([], [blank], [], None).is_err());
         }

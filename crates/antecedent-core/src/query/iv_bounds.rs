@@ -1,6 +1,7 @@
 //! Sharp bounds on the average effect of a binary treatment under a binary instrument.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::IvBoundsFault;
 use super::QueryError;
 use crate::canonical_encode::{CanonicalEncode, encode_option};
 use crate::identity::CanonicalWriter;
@@ -64,9 +65,7 @@ impl IvBoundsQuery {
         sorted.sort_unstable();
         sorted.dedup();
         if sorted.len() != columns.len() {
-            return Err(QueryError::InvalidIvBounds(
-                "declare distinct outcome, treatment, instrument and weight columns".into(),
-            ));
+            return Err(QueryError::InvalidIvBounds(IvBoundsFault::Columns));
         }
         Ok(())
     }

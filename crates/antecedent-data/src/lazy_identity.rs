@@ -105,9 +105,10 @@ impl FullContentIdentity {
         };
         let scanned = source.borrow().storage().content_digest();
         if recorded != scanned {
-            return Err(DataError::InvalidArgument {
-                message: "snapshot digest is not version 1 of the storage content digest".into(),
-            });
+            return Err(DataError::invalid_value(
+                "snapshot digest",
+                "must be version 1 of the storage content digest",
+            ));
         }
         Ok(Self {
             version: FULL_CONTENT_VERSION,
@@ -143,14 +144,10 @@ impl LazyViewIdentity {
     /// `full` is not version 1, or `chunk` names a different parent digest.
     pub fn from_chunk(full: &FullContentIdentity, chunk: &RowChunk) -> Result<Self, DataError> {
         if full.version != FULL_CONTENT_VERSION {
-            return Err(DataError::InvalidArgument {
-                message: "full content identity is not version 1".into(),
-            });
+            return Err(DataError::invalid_value("full content identity", "must be version 1"));
         }
         if chunk.parent() != full.digest {
-            return Err(DataError::InvalidArgument {
-                message: "chunk parent is not the full content digest".into(),
-            });
+            return Err(DataError::mismatch("chunk parent and the full content digest"));
         }
         let rows = chunk.rows();
         Self::seal(full.digest, full.binding, rows.start, rows.end)
@@ -272,12 +269,8 @@ fn lazy_digest(
     start: usize,
     end: usize,
 ) -> Result<[u8; 32], DataError> {
-    let start = u64::try_from(start).map_err(|_| DataError::InvalidArgument {
-        message: "chunk start does not fit in u64".into(),
-    })?;
-    let end = u64::try_from(end).map_err(|_| DataError::InvalidArgument {
-        message: "chunk end does not fit in u64".into(),
-    })?;
+    let start = u64::try_from(start).map_err(|_| DataError::overflow("chunk start as u64"))?;
+    let end = u64::try_from(end).map_err(|_| DataError::overflow("chunk end as u64"))?;
     let mut hasher = blake3::Hasher::new_derive_key(LAZY_DOMAIN);
     hasher.update(&LAZY_VIEW_VERSION.to_le_bytes());
     hasher.update(parent);
@@ -370,9 +363,7 @@ fn finish(hasher: &blake3::Hasher) -> [u8; 32] {
 }
 
 fn projection_refused() -> DataError {
-    DataError::InvalidArgument {
-        message: "a projected column set is not the full-source identity".into(),
-    }
+    DataError::invalid_value("a projected column set", "is not the full-source identity")
 }
 
 #[cfg(test)]

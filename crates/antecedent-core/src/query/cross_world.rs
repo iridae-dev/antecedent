@@ -14,6 +14,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::InterventionFault;
 use super::error::QueryError;
 use crate::ids::VariableId;
 
@@ -78,25 +79,21 @@ impl WorldSpec {
                     // One level, one spelling: -0.0 and 0.0 are the same value.
                     Ok((variable, (value + 0.0).to_bits()))
                 } else {
-                    Err(QueryError::InvalidIntervention(
-                        "cross-world intervention values must be finite".into(),
-                    ))
+                    Err(QueryError::InvalidIntervention(InterventionFault::CrossWorldValueNotFinite))
                 }
             })
             .collect::<Result<_, _>>()?;
         interventions.sort_unstable();
         if interventions.windows(2).any(|w| w[0].0 == w[1].0) {
-            return Err(QueryError::InvalidIntervention(
-                "a variable is intervened twice in one world".into(),
-            ));
+            return Err(QueryError::InvalidIntervention(InterventionFault::VariableIntervenedTwice));
         }
         let mut routes: Vec<EdgeRoute> = routes.into_iter().collect();
         routes.sort_unstable();
         if routes.iter().any(|r| r.parent == r.child) {
-            return Err(QueryError::InvalidIntervention("an edge route is a self-edge".into()));
+            return Err(QueryError::InvalidIntervention(InterventionFault::SelfEdgeRoute));
         }
         if routes.windows(2).any(|w| (w[0].parent, w[0].child) == (w[1].parent, w[1].child)) {
-            return Err(QueryError::InvalidIntervention("an edge is routed twice".into()));
+            return Err(QueryError::InvalidIntervention(InterventionFault::EdgeRoutedTwice));
         }
         Ok(Self { interventions, routes })
     }
@@ -194,31 +191,22 @@ impl CrossWorldQuery {
     pub fn validate(&self) -> Result<(), QueryError> {
         let n = self.worlds.len();
         if !(2..=WorldId::CAPACITY).contains(&n) {
-            return Err(QueryError::InvalidIntervention(
-                "a cross-world query names at least two worlds, each addressable by a world index"
-                    .into(),
-            ));
+            return Err(QueryError::InvalidIntervention(InterventionFault::CrossWorldWorlds));
         }
         for (index, world) in self.worlds.iter().enumerate() {
             for route in &world.routes {
                 if route.source.index() >= n || route.source.index() == index {
-                    return Err(QueryError::InvalidIntervention(
-                        "an edge route reads an unknown world or its own world".into(),
-                    ));
+                    return Err(QueryError::InvalidIntervention(InterventionFault::RouteUnknownWorld));
                 }
             }
         }
         for observation in [self.plus, self.minus] {
             if observation.world.index() >= n {
-                return Err(QueryError::InvalidIntervention(
-                    "an observation names an unknown world".into(),
-                ));
+                return Err(QueryError::InvalidIntervention(InterventionFault::ObservationUnknownWorld));
             }
         }
         if self.plus == self.minus {
-            return Err(QueryError::InvalidIntervention(
-                "a cross-world contrast needs two distinct observations".into(),
-            ));
+            return Err(QueryError::InvalidIntervention(InterventionFault::ContrastObservationsNotDistinct));
         }
         Ok(())
     }
@@ -273,23 +261,19 @@ impl CrossWorldQuery {
         intervened_edges: &[(VariableId, VariableId)],
     ) -> Result<Self, QueryError> {
         if treatment == outcome {
-            return Err(QueryError::InvalidIntervention(
-                "treatment and outcome must be distinct".into(),
-            ));
+            return Err(QueryError::InvalidIntervention(InterventionFault::TreatmentOutcomeNotDistinct));
         }
         if !control.is_finite()
             || !active.is_finite()
             || (control + 0.0).to_bits() == (active + 0.0).to_bits()
         {
-            return Err(QueryError::InvalidIntervention(
-                "treatment levels must be finite and distinct".into(),
-            ));
+            return Err(QueryError::InvalidIntervention(InterventionFault::PathSpecificLevels));
         }
         if let Some(edge) = intervened_edges.iter().find(|e| !graph_edges.contains(e)) {
-            return Err(QueryError::InvalidIntervention(format!(
-                "intervened edge {} -> {} is not a graph edge",
-                edge.0, edge.1
-            )));
+            return Err(QueryError::InvalidIntervention(InterventionFault::IntervenedEdgeNotInGraph {
+                parent: edge.0,
+                child: edge.1,
+            }));
         }
         let baseline = WorldId::new(0);
         let routes = graph_edges

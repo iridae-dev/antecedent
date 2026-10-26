@@ -1,6 +1,7 @@
 //! Randomized survival and competing-risk query contract.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::SurvivalFault;
 use super::{ObservationAssumption, QueryError};
 use crate::canonical_encode::{CanonicalEncode, encode_option, encode_variables, i64_bits};
 use crate::identity::CanonicalWriter;
@@ -117,26 +118,20 @@ impl SurvivalQuery {
                 entry == self.duration || entry == self.event || entry == self.treatment
             })
         {
-            return Err(QueryError::InvalidSurvival(
-                "duration, event, treatment, and entry must name distinct columns".into(),
-            ));
+            return Err(QueryError::InvalidSurvival(SurvivalFault::ColumnsNotDistinct));
         }
         if !self.tau.is_finite() || self.tau <= 0.0 {
-            return Err(QueryError::InvalidSurvival("tau must be finite and positive".into()));
+            return Err(QueryError::InvalidSurvival(SurvivalFault::Horizon));
         }
         if matches!(self.functional, SurvivalFunctional::CumulativeIncidence { target_cause } if target_cause <= 0)
         {
-            return Err(QueryError::InvalidSurvival(
-                "target cause must be a positive event code".into(),
-            ));
+            return Err(QueryError::InvalidSurvival(SurvivalFault::TargetCause));
         }
         if let Some(known) = &self.known_censoring {
             if self.delayed_entry.is_some()
                 && !matches!(&self.observation_assumption, ObservationAssumption::IndependentGiven(vars) if vars.is_empty())
             {
-                return Err(QueryError::InvalidSurvival(
-                    "combined delayed entry and known censoring requires marginal IndependentGiven(())".into(),
-                ));
+                return Err(QueryError::InvalidSurvival(SurvivalFault::EntryWithKnownCensoring));
             }
             if known.times.len() < 2
                 || known.columns.len() != known.times.len()
@@ -157,16 +152,12 @@ impl SurvivalQuery {
                     .enumerate()
                     .any(|(index, id)| known.columns[..index].contains(id))
             {
-                return Err(QueryError::InvalidSurvival(
-                    "known censoring requires aligned columns, increasing times from zero through tau, and a positive probability floor".into(),
-                ));
+                return Err(QueryError::InvalidSurvival(SurvivalFault::KnownCensoring));
             }
         }
         if !matches!(&self.observation_assumption, ObservationAssumption::IndependentGiven(vars) if self.known_censoring.is_some() || vars.is_empty())
         {
-            return Err(QueryError::InvalidSurvival(
-                "randomized survival requires IndependentGiven; conditional censoring also requires known censoring survival".into(),
-            ));
+            return Err(QueryError::InvalidSurvival(SurvivalFault::RandomizedCensoring));
         }
         Ok(())
     }

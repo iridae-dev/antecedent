@@ -5,9 +5,10 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+    AssumptionRecord, AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity,
 };
-use antecedent_expr::CausalExprArena;
+use antecedent_expr::{CausalExprArena, EstimandMethod};
 
 use crate::hedge::HedgeCertificate;
 
@@ -312,6 +313,83 @@ impl IdentificationResult {
         out.estimand_claims = vec![claim];
         Some(out)
     }
+
+    /// Add `restriction` to the claim and weaken a nonparametric status to a parametric one.
+    ///
+    /// The restriction is a premise on the structural model under which an estimator's target
+    /// is the identified functional (for example the constant-effect restriction of a Wald
+    /// ratio). It joins the result's assumptions and every listed estimand's own claim; a
+    /// status that is already weaker than nonparametric identification is kept.
+    pub fn restrict_claim(&mut self, restriction: &AssumptionRecord) {
+        let weaken = |status: &mut IdentificationStatus| {
+            if *status == IdentificationStatus::NonparametricallyIdentified {
+                *status = IdentificationStatus::IdentifiedUnderParametricRestrictions;
+            }
+        };
+        weaken(&mut self.status);
+        self.required_assumptions.extend_unique([restriction]);
+        for own in &mut self.estimand_claims {
+            weaken(&mut own.status);
+            own.required_assumptions.extend_unique([restriction]);
+        }
+    }
+
+    /// Index of the one listed estimand `compatible` accepts, with no silent `.first()`.
+    ///
+    /// A single listed estimand is the choice. Otherwise exactly one compatible estimand wins;
+    /// when several are compatible, a criterion estimand (back-door adjustment, front-door,
+    /// path-specific, ...) beats the general-ID functional that is listed beside it as the
+    /// fallback for the same query, if exactly one compatible estimand is not general-ID. That
+    /// tiebreak does not fire when every compatible estimand is general-ID (for example a mean
+    /// curve's one general-ID estimand per grid level): those are distinct functionals, not a
+    /// criterion against a fallback.
+    ///
+    /// # Errors
+    ///
+    /// [`EstimandSelectionError::NoEstimand`] for an empty listing, and
+    /// [`EstimandSelectionError::Ambiguous`] when no unique estimand is compatible.
+    pub fn select_estimand_index(
+        &self,
+        compatible: impl Fn(&IdentifiedEstimand) -> bool,
+    ) -> Result<usize, EstimandSelectionError> {
+        let estimands = &self.estimands;
+        match estimands.len() {
+            0 => return Err(EstimandSelectionError::NoEstimand),
+            1 => return Ok(0),
+            _ => {}
+        }
+        let matches: Vec<usize> =
+            (0..estimands.len()).filter(|&i| compatible(&estimands[i])).collect();
+        if let [only] = matches[..] {
+            return Ok(only);
+        }
+        let mut non_general = matches
+            .iter()
+            .copied()
+            .filter(|&i| estimands[i].method_kind() != Ok(EstimandMethod::GeneralId));
+        if let (Some(only), None) = (non_general.next(), non_general.next()) {
+            return Ok(only);
+        }
+        Err(EstimandSelectionError::Ambiguous {
+            methods: estimands.iter().map(|estimand| Arc::clone(&estimand.method)).collect(),
+            matched: matches.len(),
+        })
+    }
+}
+
+/// Why [`IdentificationResult::select_estimand_index`] chose no estimand.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum EstimandSelectionError {
+    /// The result lists no estimand.
+    NoEstimand,
+    /// Several estimands are listed and none is the unique compatible one.
+    Ambiguous {
+        /// The method of every listed estimand, in listing order.
+        methods: Vec<Arc<str>>,
+        /// How many listed estimands were compatible.
+        matched: usize,
+    },
 }
 
 #[cfg(test)]
@@ -371,5 +449,76 @@ mod tests {
         );
         assert_eq!(fd.mediators.as_ref(), &[VariableId::from_raw(4)]);
         assert!(fd.instruments.is_empty());
+    }
+
+    fn listing(methods: &[&str]) -> IdentificationResult {
+        IdentificationResult::identified(
+            CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+            )),
+            methods
+                .iter()
+                .map(|method| {
+                    IdentifiedEstimand::backdoor(*method, Arc::from([]), ExprId::from_raw(0))
+                })
+                .collect(),
+            CausalExprArena::default(),
+            DerivationTrace::default(),
+            AssumptionSet::new(),
+            IdentificationPerformanceRecord::default(),
+        )
+    }
+
+    #[test]
+    fn selection_takes_the_unique_compatible_estimand_and_prefers_a_criterion_to_general_id() {
+        let result = listing(&["general.id", "backdoor.adjustment", "frontdoor"]);
+        let by = |wanted: &'static [&'static str]| {
+            result.select_estimand_index(move |e| wanted.contains(&e.method.as_ref()))
+        };
+        assert_eq!(by(&["frontdoor"]), Ok(2));
+        // A criterion estimand beats the general-ID fallback listed beside it.
+        assert_eq!(by(&["general.id", "backdoor.adjustment"]), Ok(1));
+        // Two criterion estimands, or only general-ID ones, are ambiguous.
+        assert_eq!(
+            by(&["backdoor.adjustment", "frontdoor"]),
+            Err(EstimandSelectionError::Ambiguous {
+                methods: vec!["general.id".into(), "backdoor.adjustment".into(), "frontdoor".into()],
+                matched: 2,
+            })
+        );
+        assert!(matches!(
+            by(&["nothing"]),
+            Err(EstimandSelectionError::Ambiguous { matched: 0, .. })
+        ));
+        assert_eq!(listing(&[]).select_estimand_index(|_| true), Err(EstimandSelectionError::NoEstimand));
+        // A single listed estimand is the choice whatever the predicate says.
+        assert_eq!(listing(&["iv"]).select_estimand_index(|_| false), Ok(0));
+    }
+
+    #[test]
+    fn restricting_a_claim_weakens_only_a_nonparametric_status_and_adds_the_premise_once() {
+        use antecedent_core::{Assumption, AssumptionScope, AssumptionSource, AssumptionStatus};
+        let restriction = AssumptionRecord {
+            assumption: Assumption::Custom {
+                id: Arc::from("restriction"),
+                description: Arc::from("a structural restriction"),
+            },
+            source: AssumptionSource::UserDeclared,
+            scope: AssumptionScope::Identification,
+            status: AssumptionStatus::Declared,
+        };
+        let mut result = listing(&["backdoor.adjustment"]);
+        assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
+        result.restrict_claim(&restriction);
+        result.restrict_claim(&restriction);
+        assert_eq!(result.status, IdentificationStatus::IdentifiedUnderParametricRestrictions);
+        assert_eq!(result.required_assumptions.entries, vec![restriction.clone()]);
+        // A status that is already weaker is kept.
+        let mut partial = listing(&["backdoor.adjustment"]);
+        partial.status = IdentificationStatus::PartiallyIdentified;
+        partial.restrict_claim(&restriction);
+        assert_eq!(partial.status, IdentificationStatus::PartiallyIdentified);
+        assert_eq!(partial.required_assumptions.entries, vec![restriction]);
     }
 }

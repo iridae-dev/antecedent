@@ -15,7 +15,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 use std::sync::Arc;
 
-use super::ScientificTargetError;
+use super::{ActionFault, ScientificTargetError};
 
 /// Id of one intervention world inside a target.
 ///
@@ -125,7 +125,7 @@ impl OutcomeQuantity {
         units: QuantityUnits,
     ) -> Result<Self, ScientificTargetError> {
         functional.validate().map_err(|_| ScientificTargetError::InvalidAction {
-            reason: "outcome functional is not a valid scientific quantity".into(),
+            reason: ActionFault::OutcomeFunctional,
         })?;
         Ok(Self { outcome, functional, units })
     }
@@ -611,7 +611,9 @@ impl WorldBinding {
     ) -> Result<Self, ScientificTargetError> {
         population
             .validate()
-            .map_err(|err| ScientificTargetError::InvalidAction { reason: err.to_string() })?;
+            .map_err(|err| ScientificTargetError::InvalidAction {
+                reason: ActionFault::Population(err),
+            })?;
         if conditioning.variables().contains(&outcome.outcome()) {
             return Err(ScientificTargetError::ConditioningIncludesOutcome);
         }
@@ -682,10 +684,10 @@ enum StructuralKind {
     InitialState { variable: VariableId, law: Arc<str>, level_bits: u64 },
 }
 
-fn finite_bits(value: f64, what: &str) -> Result<u64, ScientificTargetError> {
+fn finite_bits(value: f64, what: &'static str) -> Result<u64, ScientificTargetError> {
     if !value.is_finite() {
         return Err(ScientificTargetError::InvalidAction {
-            reason: format!("{what} must be a finite level"),
+            reason: ActionFault::NonFiniteLevel { what },
         });
     }
     Ok(if value == 0.0 { 0.0_f64.to_bits() } else { value.to_bits() })
@@ -900,7 +902,9 @@ impl WorldAction {
         ensure_portable(&intervention)?;
         policy
             .validate()
-            .map_err(|err| ScientificTargetError::InvalidAction { reason: err.to_string() })?;
+            .map_err(|err| ScientificTargetError::InvalidAction {
+                reason: ActionFault::Intervention(err),
+            })?;
         Ok(Self { kind: ActionKind::Schedule { intervention, policy } })
     }
 
@@ -956,9 +960,7 @@ fn canonical_interventions(
     let mut interventions: Vec<Intervention> =
         interventions.into_iter().map(canonical_intervention).collect();
     if interventions.is_empty() {
-        return Err(ScientificTargetError::InvalidAction {
-            reason: "a world needs at least one intervention".into(),
-        });
+        return Err(ScientificTargetError::InvalidAction { reason: ActionFault::NoIntervention });
     }
     let mut seen = Vec::new();
     for intervention in &interventions {
@@ -981,7 +983,9 @@ fn min_target(intervention: &Intervention) -> u32 {
 pub(super) fn ensure_portable(intervention: &Intervention) -> Result<(), ScientificTargetError> {
     intervention
         .validate()
-        .map_err(|err| ScientificTargetError::InvalidAction { reason: err.to_string() })?;
+        .map_err(|err| ScientificTargetError::InvalidAction {
+                reason: ActionFault::Intervention(err),
+            })?;
     ensure_concrete_levels(intervention)?;
     match intervention.portability() {
         Portability::Portable => Ok(()),
@@ -996,7 +1000,9 @@ fn ensure_concrete_levels(intervention: &Intervention) -> Result<(), ScientificT
     match intervention {
         Intervention::Set { value: level, .. } | Intervention::Shift { delta: level, .. } => level
             .validate_concrete_intervention_level()
-            .map_err(|err| ScientificTargetError::InvalidAction { reason: err.to_string() }),
+            .map_err(|err| ScientificTargetError::InvalidAction {
+                reason: ActionFault::Level(err),
+            }),
         Intervention::Sequence(sequence) => {
             sequence.steps.iter().try_for_each(|step| ensure_concrete_levels(&step.intervention))
         }

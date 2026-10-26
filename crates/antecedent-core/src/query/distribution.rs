@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::InterventionFault;
 use std::sync::Arc;
 
 use crate::canonical_encode::{
@@ -88,7 +89,7 @@ impl InterventionalDistributionQuery {
             return Err(QueryError::EmptyDistributionOutcomes);
         }
         for iv in self.interventions.iter() {
-            iv.validate().map_err(|e| QueryError::InvalidIntervention(e.to_string()))?;
+            iv.validate().map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
         }
         for &y in self.outcomes.iter() {
             if self.interventions.iter().any(|iv| iv.primary_variable() == Some(y)) {

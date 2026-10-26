@@ -3,7 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
-use antecedent_stats::{FaerBackend, LeastSquaresWorkspace, fit_ridge};
+use antecedent_stats::{RidgeIntercept, fit_ridge_with};
 
 use crate::dense::{gather_physical, materialize_dense_colmajor};
 use crate::design::{DesignView, TargetView};
@@ -11,7 +11,7 @@ use crate::error::LearnError;
 use crate::learner::{FittedPredictor, LearnerCapabilities, LearnerFactory, PredictionTask};
 use crate::spec::RidgeSpec;
 
-/// Ridge regression via [`fit_ridge`].
+/// Ridge regression via [`fit_ridge_with`].
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RidgeLearner {
     spec: RidgeSpec,
@@ -67,6 +67,8 @@ impl LearnerFactory for RidgeLearner {
             return Err(LearnError::Shape { message: "target length != physical rows" });
         }
         let mut gathered_y = gather_physical(y.values(), x, nrows)?;
+        // Judge the intercept before √w scaling makes a ones column non-constant.
+        let intercept = RidgeIntercept::sniff(&design, nrows, ncols);
         if let Some(w) = weights {
             // Prior-weighted ridge `Σ w_i (y_i − x_iβ)² + λ|β|²`: scale each row of the design
             // and the target by √w_i and solve the ordinary ridge problem.
@@ -88,9 +90,7 @@ impl LearnerFactory for RidgeLearner {
                 *value *= weight.sqrt();
             }
         }
-        let mut ws = LeastSquaresWorkspace::default();
-        let fit =
-            fit_ridge(&design, nrows, ncols, &gathered_y, self.spec.lambda, &FaerBackend, &mut ws)?;
+        let fit = fit_ridge_with(&design, nrows, ncols, &gathered_y, self.spec.lambda, intercept)?;
         Ok(Box::new(crate::coefficient::CoefficientPredictor::new(
             fit.coefficients,
             false,

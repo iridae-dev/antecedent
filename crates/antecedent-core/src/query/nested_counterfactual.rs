@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::InterventionFault;
 use super::error::QueryError;
 use crate::canonical_encode::CanonicalEncode;
 use crate::identity::CanonicalWriter;
@@ -69,9 +70,7 @@ impl NestedCounterfactualQuery {
             || !active.is_finite()
             || control.partial_cmp(&active) == Some(std::cmp::Ordering::Equal)
         {
-            return Err(QueryError::InvalidIntervention(
-                "nested treatment levels must be finite and distinct".into(),
-            ));
+            return Err(QueryError::InvalidIntervention(InterventionFault::NestedLevels));
         }
         let query = Self {
             treatment,
@@ -95,17 +94,13 @@ impl NestedCounterfactualQuery {
             || self.treatment == self.outcome
             || self.mediator == self.outcome
         {
-            return Err(QueryError::InvalidIntervention(
-                "nested treatment, mediator, and outcome must be distinct".into(),
-            ));
+            return Err(QueryError::InvalidIntervention(InterventionFault::NestedRolesNotDistinct));
         }
         if !self.control_value().is_finite()
             || !self.active_value().is_finite()
             || self.control_bits == self.active_bits
         {
-            return Err(QueryError::InvalidIntervention(
-                "nested treatment levels must be finite and distinct".into(),
-            ));
+            return Err(QueryError::InvalidIntervention(InterventionFault::NestedLevels));
         }
         Ok(())
     }

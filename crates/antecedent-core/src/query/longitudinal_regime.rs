@@ -1,6 +1,7 @@
 //! Longitudinal regime value contract for one outcome row per subject.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::LongitudinalRegimeFault;
 use super::QueryError;
 use crate::canonical_encode::{CanonicalEncode, count, encode_flags, encode_u32s, flag};
 use crate::identity::CanonicalWriter;
@@ -168,14 +169,12 @@ impl LongitudinalRegimeQuery {
                 .any(|value| value.as_ref().is_none_or(|text| text.trim().is_empty()))
                 || self.method == LongitudinalRegimeMethod::MarginalStructuralModel)
         {
-            return Err(QueryError::InvalidLongitudinalRegime(
-                "dynamic rule requires a nonempty ID, version, and provenance and a regime-value method".into(),
-            ));
+            return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::DynamicRuleIdentity));
         }
         let n = self.subject_ids.len();
         let cells = n
             .checked_mul(self.periods)
-            .ok_or_else(|| QueryError::InvalidLongitudinalRegime("dimensions overflow".into()))?;
+            .ok_or_else(|| QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::DimensionsOverflow))?;
         if n < 2
             || self.periods == 0
             || self.treatment_history.len() != cells
@@ -185,9 +184,7 @@ impl LongitudinalRegimeQuery {
             || self.outcome_observed.len() != n
             || self.fold_ids.len() != n
         {
-            return Err(QueryError::InvalidLongitudinalRegime(
-                "histories, probabilities, outcomes, subjects, and folds must align".into(),
-            ));
+            return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::Alignment));
         }
         match (self.method, &self.period_outcome_predictions) {
             (LongitudinalRegimeMethod::Ipw, None) => {}
@@ -204,33 +201,23 @@ impl LongitudinalRegimeQuery {
                     && self.excluded_fold_predictions
                     && self.fold_ids.iter().collect::<std::collections::HashSet<_>>().len() >= 2
                     && self.outcome_observed.iter().any(|&x| x) => {}
-            _ => return Err(QueryError::InvalidLongitudinalRegime(
-                "method requires aligned finite predictions, observation history, and subject-owned folds"
-                    .into(),
-            )),
+            _ => return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::MethodPredictions)),
         }
         if self.known_fixed_outcome_predictions && self.method != LongitudinalRegimeMethod::GFormula
         {
-            return Err(QueryError::InvalidLongitudinalRegime(
-                "known fixed outcome predictions require g_formula".into(),
-            ));
+            return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::FixedPredictionsNeedGFormula));
         }
         if self.method != LongitudinalRegimeMethod::SequentialDoublyRobust
             && (self.q_predictions.is_some()
                 || self.observation_history.is_some()
                 || self.prediction_fold_ids.is_some())
         {
-            return Err(QueryError::InvalidLongitudinalRegime(
-                "sequential DR fields require the sequential doubly robust method".into(),
-            ));
+            return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::SequentialDrFields));
         }
         if self.method != LongitudinalRegimeMethod::MarginalStructuralModel
             && self.stabilizing_numerator_probabilities.is_some()
         {
-            return Err(QueryError::InvalidLongitudinalRegime(
-                "stabilizing numerator probabilities require the marginal structural model method"
-                    .into(),
-            ));
+            return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::StabilizingNumerator));
         }
         if let Some(observed) = &self.observation_history {
             for i in 0..n {
@@ -239,30 +226,22 @@ impl LongitudinalRegimeQuery {
                         !observed[i * self.periods + t - 1] && observed[i * self.periods + t]
                     })
                 {
-                    return Err(QueryError::InvalidLongitudinalRegime(
-                        "observation history must be monotone and agree with endpoint observation"
-                            .into(),
-                    ));
+                    return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::ObservationHistory));
                 }
             }
         }
         if self.subject_ids.iter().any(|id| id.trim().is_empty())
             || self.subject_ids.iter().collect::<std::collections::HashSet<_>>().len() != n
         {
-            return Err(QueryError::InvalidLongitudinalRegime(
-                "subject IDs must be unique and nonempty; one outcome row owns the whole history"
-                    .into(),
-            ));
+            return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::SubjectIds));
         }
         if !self.probabilities_known_by_design && !self.excluded_fold_predictions {
-            return Err(QueryError::InvalidLongitudinalRegime("probabilities require a known sequential design or subject-level excluded-fold ownership".into()));
+            return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::ProbabilityOwnership));
         }
         if self.excluded_fold_predictions
             && self.fold_ids.iter().collect::<std::collections::HashSet<_>>().len() < 2
         {
-            return Err(QueryError::InvalidLongitudinalRegime(
-                "excluded-fold prediction ownership requires at least two subject folds".into(),
-            ));
+            return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::ExcludedFoldCount));
         }
         let floor = self.minimum_probability;
         if !(floor.is_finite() && 0.0 < floor && floor <= 0.5)
@@ -272,9 +251,7 @@ impl LongitudinalRegimeQuery {
                 .any(|p| !p.is_finite() || *p < floor || *p > 1.0 - floor)
             || self.censoring_probabilities.iter().any(|p| !p.is_finite() || *p < floor || *p > 1.0)
         {
-            return Err(QueryError::InvalidLongitudinalRegime(
-                "sequential treatment or censoring positivity fails at the declared floor".into(),
-            ));
+            return Err(QueryError::InvalidLongitudinalRegime(LongitudinalRegimeFault::PositivityFloor));
         }
         Ok(())
     }

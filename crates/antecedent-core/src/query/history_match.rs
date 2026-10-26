@@ -1,6 +1,7 @@
 //! Declared nearest-neighbor contrast on pre-outcome histories within calendar periods.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::HistoryMatchFault;
 use std::sync::Arc;
 
 use super::QueryError;
@@ -59,14 +60,10 @@ impl HistoryMatchQuery {
         sorted.sort_unstable();
         sorted.dedup();
         if self.history.is_empty() || sorted.len() != columns.len() {
-            return Err(QueryError::InvalidHistoryMatch(
-                "declare at least one history column and distinct outcome, treatment, history, period and weight columns".into(),
-            ));
+            return Err(QueryError::InvalidHistoryMatch(HistoryMatchFault::HistoryColumns));
         }
         if self.caliper.is_some_and(|limit| !(limit.is_finite() && limit >= 0.0)) {
-            return Err(QueryError::InvalidHistoryMatch(
-                "the caliper must be finite and non-negative".into(),
-            ));
+            return Err(QueryError::InvalidHistoryMatch(HistoryMatchFault::Caliper));
         }
         Ok(())
     }

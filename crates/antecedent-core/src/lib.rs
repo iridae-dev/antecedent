@@ -69,6 +69,7 @@ pub mod recalc;
 pub mod refusal;
 pub mod response;
 pub mod rng_key;
+pub mod row_mask;
 pub mod route_memory;
 pub mod sampling_design;
 pub mod schema;
@@ -129,7 +130,7 @@ pub use inference_realization::{
 pub use interval::IntervalMethod;
 pub use intervention::{
     Intervention, InterventionError, InterventionSequence, MechanismOverride,
-    SequencedIntervention, StochasticPolicy, TemporalPolicy,
+    SequencedIntervention, StochasticPolicy, StochasticPolicyFault, TemporalPolicy,
 };
 pub use node::NodeRef;
 pub use operator::{
@@ -164,7 +165,8 @@ pub use query::{
     MechanismChangeQuery, MediationContrast, MediationQuery, MultiActionPolicyInputs,
     NestedCounterfactualQuery, ObservationAssumption, ObservationSpec, OrderedFloatBits,
     OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery,
-    PopulationRegistry, PopulationSelection, PopulationSelector, PredicateExpr, QueryError, QueryVariant, RandomizedEffectFault,
+    PopulationRegistry, PopulationSelection, PopulationSelector, PredicateExpr, ProbabilityRows, ProbabilityTable,
+    AssociationFault, AttributeFault, DiscoverFault, HistoryMatchFault, InterferenceFault, InterventionFault, IvBoundsFault, LocalPolynomialRatioFault, LongitudinalRegimeFault, PanelDesignFault, PolicyValueFault, ResponseFault, SequentialContrastFault, SimulateFault, SurvivalFault, TemporalDesignFault, TransportFault, QueryError, QueryVariant, RandomizedEffectFault,
     RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand, RegimeBinding, RegimeKind,
     ResponseFunctional, ResponseQuery, SamplingDesign, SamplingSelection, SequentialContrastQuery,
     ShapleyConfig, ShapleyMode, SharedData, SurvivalFunctional, SurvivalQuery,
@@ -211,6 +213,7 @@ pub use rng_key::{
     BatchSize, ChainId, DeclaredTolerance, FailedRngAttempt, FoldId, ReductionPolicy, ReplicateId,
     RngKey, SemanticOperation, StreamRequest, ToleranceError, WorkerId,
 };
+pub use row_mask::{RowMask, RowMaskError};
 pub use route_memory::{
     AdmittedRouteMemory, EncodedWidth, RouteBudget, RouteMemoryComponent, RouteMemoryDeclaration,
     RouteMemoryError, RouteMemoryEstimate,
@@ -226,7 +229,7 @@ pub use schema::{
     ValueType, VariableInProgress, VariableSchema,
 };
 pub use scientific_target::{
-    Conditioning, ContrastForm, ContrastTerm, CrossWorldPremise, DoseTimeSurface, GraphFamily,
+    ActionFault, ContrastIncoherence, DoseGridFault, Conditioning, ContrastForm, ContrastTerm, CrossWorldPremise, DoseTimeSurface, GraphFamily,
     HistoryWindow, InferenceSelection, InitialLaw, InterventionContrast, InterventionWorld,
     MediationArms, MediationComponent, MediationTarget, ModelAssumptions, ObservationUnit,
     OutcomeQuantity, QuantityUnits, SCIENTIFIC_TARGET_FORMAT, SCIENTIFIC_TARGET_IDENTITY_TAG,

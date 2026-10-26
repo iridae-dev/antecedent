@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::TransportFault;
 use std::{collections::BTreeSet, sync::Arc};
 
 use crate::{EvidenceCatalog, EvidenceKind, EvidenceRegime, QueryError, RegimeId};
@@ -27,9 +28,7 @@ impl EvidenceCatalogDelta {
         let mut ids: BTreeSet<RegimeId> = base.regimes.iter().map(|regime| regime.id).collect();
         for regime in proposed_regimes.iter() {
             if regime.evidence_kind != EvidenceKind::Proposed || !ids.insert(regime.id) {
-                return Err(QueryError::InvalidTransport(
-                    "catalog delta requires distinct proposed regimes".into(),
-                ));
+                return Err(QueryError::InvalidTransport(TransportFault::DeltaRegimesNotDistinct));
             }
         }
         let mut combined = base.regimes.to_vec();

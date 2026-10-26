@@ -32,33 +32,32 @@ mod series;
 #[cfg(test)]
 mod tests;
 
-pub use self::indexes::fill_circular_block_indexes;
 pub use self::indexes::circular_block_length;
-pub(crate) use self::replicates::fill_resample_weights;
-pub use self::replicates::fill_resample_index_replicate;
-pub use self::replicates::fill_resample_weight_replicate;
+pub use self::indexes::fill_circular_block_indexes;
 pub use self::replicates::fill_resample_index_batch;
+pub use self::replicates::fill_resample_index_replicate;
 #[cfg(test)]
 pub(crate) use self::replicates::fill_resample_weight_batch;
+pub use self::replicates::fill_resample_weight_replicate;
+pub(crate) use self::replicates::fill_resample_weights;
 pub use self::series::resample_timeseries;
 pub(crate) use self::series::resample_timeseries_grouped;
 pub(crate) use self::series::resample_timeseries_with_policy;
 
-use self::indexes::{declared_design_error, design_independent_of_time_column, draw_contiguous_block, draw_grouped_units, fill_indexes_prepared, prepare_clusters, refuse_row_iid};
+use self::indexes::{
+    declared_design_error, design_independent_of_time_column, draw_contiguous_block,
+    draw_grouped_units, fill_indexes_prepared, prepare_clusters, refuse_row_iid,
+};
 
 fn row_id(index: usize) -> Result<GlobalId, DataError> {
-    u64::try_from(index).map(GlobalId::new).map_err(|_| DataError::InvalidArgument {
-        message: "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. \
-                  A u32 backend feature flag is not that attempt"
-            .into(),
-    })
+    u64::try_from(index)
+        .map(GlobalId::new)
+        .map_err(|_| DataError::overflow("row index as a GlobalId"))
 }
 
 fn row_pos(id: GlobalId) -> Result<usize, DataError> {
-    usize::try_from(id.get()).map_err(|_| DataError::InvalidArgument {
-        message: "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. \
-                  A u32 backend feature flag is not that attempt"
-            .into(),
+    usize::try_from(id.get()).map_err(|_| {
+        DataError::overflow("GlobalId as a row position (keep ChunkIndex inside one bounded chunk)")
     })
 }
 
@@ -165,9 +164,10 @@ pub fn fill_resample_indexes(
     out: &mut Vec<GlobalId>,
 ) -> Result<(), DataError> {
     if plan.needs_clusters() {
-        return Err(DataError::InvalidArgument {
-            message: "clustered plan requires fill_resample_indexes_grouped".into(),
-        });
+        return Err(DataError::precondition(
+            "a clustered resampling plan",
+            "fill_resample_indexes_grouped",
+        ));
     }
     fill_resample_indexes_grouped(plan, n, None, rng, out)
 }

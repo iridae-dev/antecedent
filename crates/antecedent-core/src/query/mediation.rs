@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::ResponseFault;
 use std::sync::Arc;
 
 use crate::canonical_encode::{CanonicalEncode, encode_u32s, encode_variable_set};
@@ -123,17 +124,13 @@ impl MediationQuery {
 
     fn validate_horizons(&self) -> Result<(), QueryError> {
         if self.horizons.is_empty() {
-            return Err(QueryError::InvalidResponse(
-                "temporal mediation requires at least one horizon".into(),
-            ));
+            return Err(QueryError::InvalidResponse(ResponseFault::MediationHorizonsEmpty));
         }
         if self.horizons.iter().any(|h| *h == 0) {
             return Err(QueryError::NonPositiveHorizon);
         }
         if self.horizons.windows(2).any(|w| w[0] >= w[1]) {
-            return Err(QueryError::InvalidResponse(
-                "temporal mediation horizons must be strictly increasing".into(),
-            ));
+            return Err(QueryError::InvalidResponse(ResponseFault::MediationHorizonsOrder));
         }
         Ok(())
     }

@@ -25,6 +25,10 @@ pub enum StateError {
     /// Numerical failure in sufficient statistics.
     #[error("state numerical failure: {0}")]
     Numerical(String),
+    /// A fit whose likelihood is unbounded (zero residual scale or variance): no finite score
+    /// exists, and a search should treat the candidate as unusable rather than abort.
+    #[error("degenerate score: {0}")]
+    DegenerateScore(String),
     /// A cache was asked to score data other than the data it was filled from.
     #[error("cache bound to different data: {0}")]
     StaleCache(String),

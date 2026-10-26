@@ -66,9 +66,7 @@ impl TabularData {
             let code = u32::try_from(levels.len())
                 .ok()
                 .filter(|&c| c != DiscreteColumn::MISSING)
-                .ok_or(DataError::InvalidArgument {
-                message: "discrete column has more levels than a u32 code can index".into(),
-            })?;
+                .ok_or(DataError::overflow("discrete column level count as u32 codes"))?;
             index.insert(value.clone(), code);
             levels.push(value);
             Ok(code)

@@ -4,41 +4,59 @@
 
 use std::sync::Arc;
 
-use antecedent_core::VariableId;
+use antecedent_core::{RowMask, RowMaskError, VariableId};
 use antecedent_kernels::{BitMaskView, F64VectorView};
 
 use crate::buffer::F64Buffer;
 use crate::categorical::CategoricalColumn;
-use crate::error::DataError;
+use crate::error::{DataError, ValidityFault};
 
 /// Packed validity bitmap (`1` = valid), LSB-first.
 ///
 /// The bitmap is authoritative for missingness. [`Float64Column`] keeps it in
 /// lockstep with its values: a row is invalid exactly when it holds `NaN`, so
 /// neither value-only nor bitmap-only readers can mistake a missing cell for an
-/// observation.
-#[derive(Clone, Debug, Default)]
+/// observation. The bit machinery is [`RowMask`], shared with the target-population
+/// keep-mask in `antecedent-core`; this type adds the data crate's error vocabulary and the
+/// kernel view.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ValidityBitmap {
-    bytes: Arc<[u8]>,
-    len: usize,
-    /// Known all-valid (set by [`Self::all_valid`]); `false` means unknown.
-    known_all_valid: bool,
+    mask: RowMask,
 }
 
-impl PartialEq for ValidityBitmap {
-    fn eq(&self, other: &Self) -> bool {
-        self.len == other.len && self.bytes == other.bytes
+impl From<RowMask> for ValidityBitmap {
+    fn from(mask: RowMask) -> Self {
+        Self { mask }
     }
 }
 
-impl Eq for ValidityBitmap {}
+impl From<ValidityBitmap> for RowMask {
+    fn from(bitmap: ValidityBitmap) -> Self {
+        bitmap.mask
+    }
+}
+
+/// Row-mask failures carry no data-crate context of their own; each caller names it.
+fn mask_error(error: RowMaskError, context: &'static str) -> DataError {
+    match error {
+        RowMaskError::LengthMismatch { expected, actual } => {
+            DataError::LengthMismatch { expected, actual, context }
+        }
+        RowMaskError::RowOutOfRange { .. } => {
+            DataError::InvalidValidity { fault: ValidityFault::RowMapExceedsBitmap }
+        }
+        RowMaskError::BufferTooShort { .. } => {
+            DataError::InvalidValidity { fault: ValidityFault::BufferTooShort }
+        }
+        _ => DataError::InvalidValidity { fault: ValidityFault::MaskViewRejectedBuffer },
+    }
+}
 
 impl ValidityBitmap {
     /// All-valid bitmap of `len` bits.
     #[must_use]
     pub fn all_valid(len: usize) -> Self {
-        let n = len.div_ceil(8);
-        Self { bytes: Arc::from(vec![0xFFu8; n].into_boxed_slice()), len, known_all_valid: true }
+        Self { mask: RowMask::all_set(len) }
     }
 
     /// Construct from raw bytes.
@@ -47,28 +65,32 @@ impl ValidityBitmap {
     ///
     /// When the buffer is shorter than `ceil(len/8)`.
     pub fn from_bytes(bytes: impl Into<Arc<[u8]>>, len: usize) -> Result<Self, DataError> {
-        let bytes = bytes.into();
-        if bytes.len() < len.div_ceil(8) {
-            return Err(DataError::InvalidValidity { message: "validity buffer too short" });
-        }
-        Ok(Self { bytes, len, known_all_valid: false })
+        RowMask::from_bytes(bytes, len)
+            .map(|mask| Self { mask })
+            .map_err(|error| mask_error(error, "validity bytes"))
+    }
+
+    /// The shared packed representation.
+    #[must_use]
+    pub const fn as_row_mask(&self) -> &RowMask {
+        &self.mask
     }
 
     /// Bit length.
     #[must_use]
     pub const fn len(&self) -> usize {
-        self.len
+        self.mask.len()
     }
 
     /// Stored bytes, least-significant bit first; bits past [`Self::len`] are padding.
     pub(crate) fn raw_bytes(&self) -> &[u8] {
-        &self.bytes
+        self.mask.as_bytes()
     }
 
     /// Whether empty.
     #[must_use]
     pub const fn is_empty(&self) -> bool {
-        self.len == 0
+        self.mask.is_empty()
     }
 
     /// Borrow as a kernel mask view.
@@ -77,31 +99,21 @@ impl ValidityBitmap {
     ///
     /// Propagates view construction errors.
     pub fn as_mask_view(&self) -> Result<BitMaskView<'_>, DataError> {
-        BitMaskView::new(&self.bytes, self.len)
-            .map_err(|_| DataError::InvalidValidity { message: "mask view rejected buffer" })
+        BitMaskView::new(self.mask.as_bytes(), self.mask.len()).map_err(|_| {
+            DataError::InvalidValidity { fault: ValidityFault::MaskViewRejectedBuffer }
+        })
     }
 
     /// Whether row `i` is valid.
     #[must_use]
     pub fn is_valid(&self, i: usize) -> bool {
-        self.as_mask_view().is_ok_and(|m| m.get(i))
+        self.mask.get(i)
     }
 
     /// Whether every bit is valid.
     #[must_use]
     pub fn is_all_valid(&self) -> bool {
-        if self.known_all_valid {
-            return true;
-        }
-        let full = self.len / 8;
-        let tail = self.len % 8;
-        let mut words = self.bytes[..full].chunks_exact(8);
-        words.by_ref().all(|w| u64::from_le_bytes(w.try_into().unwrap_or([0; 8])) == u64::MAX)
-            && words.remainder().iter().all(|&b| b == 0xFF)
-            && (tail == 0 || {
-                let want = (1u8 << tail) - 1;
-                self.bytes[full] & want == want
-            })
+        self.mask.is_all_set()
     }
 
     /// Gather bits through a row map (`out[i] = self[row_map[i]]`).
@@ -110,7 +122,10 @@ impl ValidityBitmap {
     ///
     /// When a mapped row is out of range.
     pub fn gather(&self, row_map: &[u32]) -> Result<Self, DataError> {
-        self.gather_validated(row_map.len(), row_map.iter().map(|&r| r as usize))
+        self.mask
+            .gather(row_map)
+            .map(|mask| Self { mask })
+            .map_err(|error| mask_error(error, "validity gather"))
     }
 
     /// Gather bits through a `usize` row map.
@@ -119,105 +134,38 @@ impl ValidityBitmap {
     ///
     /// When a mapped row is out of range.
     pub fn gather_rows(&self, row_map: &[usize]) -> Result<Self, DataError> {
-        self.gather_validated(row_map.len(), row_map.iter().copied())
-    }
-
-    /// The one gather behind [`Self::gather`] and [`Self::gather_rows`].
-    ///
-    /// The map is range-checked in one pass before any bit is read, so the copy loop reads
-    /// the stored bytes without a per-row bound test or error branch, and an all-valid source
-    /// writes its result without reading the map again.
-    fn gather_validated(
-        &self,
-        n: usize,
-        rows: impl Iterator<Item = usize> + Clone,
-    ) -> Result<Self, DataError> {
-        if rows.clone().any(|r| r >= self.len) {
-            return Err(DataError::InvalidValidity { message: "row map exceeds bitmap" });
-        }
-        let mut bytes = vec![0u8; n.div_ceil(8)];
-        if self.is_all_valid() {
-            let (full, tail) = (n / 8, n % 8);
-            bytes[..full].fill(0xFF);
-            if tail != 0 {
-                bytes[full] = (1u8 << tail) - 1;
-            }
-        } else {
-            for (i, r) in rows.enumerate() {
-                if (self.bytes[r / 8] >> (r % 8)) & 1 == 1 {
-                    bytes[i / 8] |= 1 << (i % 8);
-                }
-            }
-        }
-        Self::from_bytes(bytes, n)
-    }
-
-    /// Bits of the last stored byte that lie inside the bitmap (all eight for a full byte).
-    fn used_bits_in_byte(&self, byte: usize) -> u8 {
-        let start = byte * 8;
-        if start + 8 <= self.len {
-            0xFF
-        } else {
-            // Fewer than eight bits remain, so the shift is below eight.
-            (1u8 << (self.len - start)) - 1
-        }
+        self.mask
+            .gather_rows(row_map)
+            .map(|mask| Self { mask })
+            .map_err(|error| mask_error(error, "validity gather"))
     }
 
     /// Number of valid rows.
     #[must_use]
     pub fn count_valid(&self) -> usize {
-        if self.known_all_valid {
-            return self.len;
-        }
-        (0..self.len.div_ceil(8))
-            .map(|byte| (self.bytes[byte] & self.used_bits_in_byte(byte)).count_ones() as usize)
-            .sum()
-    }
-
-    /// Rows whose bit equals `want`, ascending, found a byte at a time.
-    fn rows_with_bit(&self, want: bool) -> impl Iterator<Item = usize> + '_ {
-        (0..self.len.div_ceil(8)).flat_map(move |byte| {
-            let stored = if want { self.bytes[byte] } else { !self.bytes[byte] };
-            let mut bits = stored & self.used_bits_in_byte(byte);
-            std::iter::from_fn(move || {
-                if bits == 0 {
-                    return None;
-                }
-                let bit = bits.trailing_zeros() as usize;
-                bits &= bits - 1;
-                Some(byte * 8 + bit)
-            })
-        })
+        self.mask.count_set()
     }
 
     /// Valid rows in ascending order.
     pub fn iter_valid(&self) -> impl Iterator<Item = usize> + '_ {
-        self.rows_with_bit(true)
+        self.mask.iter_set()
     }
 
     /// Invalid rows in ascending order.
     pub fn iter_invalid(&self) -> impl Iterator<Item = usize> + '_ {
-        self.rows_with_bit(false)
+        self.mask.iter_unset()
     }
 
     /// Pack one flag per row (`true` = valid).
     #[must_use]
     pub fn from_bools(flags: &[bool]) -> Self {
-        let mut bytes = vec![0u8; flags.len().div_ceil(8)];
-        for (row, _) in flags.iter().enumerate().filter(|(_, flag)| **flag) {
-            bytes[row / 8] |= 1 << (row % 8);
-        }
-        Self { bytes: Arc::from(bytes), len: flags.len(), known_all_valid: false }
+        Self { mask: RowMask::from_bools(flags) }
     }
 
     /// One flag per row (`true` = valid).
     #[must_use]
     pub fn to_bools(&self) -> Vec<bool> {
-        let mut flags = vec![false; self.len];
-        for row in self.iter_valid() {
-            flags[row] = true;
-        }
-        flags
+        self.mask.to_bools()
     }
 
     /// Rows valid in every one of `parts`, over `len` rows: a word-wise AND of the stored
@@ -227,32 +175,10 @@ impl ValidityBitmap {
     ///
     /// A part whose length is not `len`.
     pub fn intersection(len: usize, parts: &[&Self]) -> Result<Self, DataError> {
-        if let Some(part) = parts.iter().find(|part| part.len != len) {
-            return Err(DataError::LengthMismatch {
-                expected: len,
-                actual: part.len,
-                context: "validity intersection",
-            });
-        }
-        let used = len.div_ceil(8);
-        let mut bytes = vec![0xFFu8; used];
-        for part in parts {
-            let source = &part.bytes[..used];
-            let mut dst = bytes.chunks_exact_mut(8);
-            let mut src = source.chunks_exact(8);
-            for (d, s) in dst.by_ref().zip(src.by_ref()) {
-                let word = u64::from_le_bytes(d.try_into().unwrap_or([0; 8]))
-                    & u64::from_le_bytes(s.try_into().unwrap_or([0; 8]));
-                d.copy_from_slice(&word.to_le_bytes());
-            }
-            for (d, s) in dst.into_remainder().iter_mut().zip(src.remainder()) {
-                *d &= *s;
-            }
-        }
-        if len % 8 != 0 {
-            bytes[used - 1] &= (1u8 << (len % 8)) - 1;
-        }
-        Self::from_bytes(bytes, len)
+        let masks: Vec<&RowMask> = parts.iter().map(|part| &part.mask).collect();
+        RowMask::intersection(len, &masks)
+            .map(|mask| Self { mask })
+            .map_err(|error| mask_error(error, "validity intersection"))
     }
 
     /// Compact to the rows `keep` marks valid.
@@ -261,21 +187,10 @@ impl ValidityBitmap {
     ///
     /// Length mismatch.
     pub fn compact(&self, keep: &Self) -> Result<Self, DataError> {
-        if keep.len != self.len {
-            return Err(DataError::LengthMismatch {
-                expected: self.len,
-                actual: keep.len,
-                context: "validity compact keep",
-            });
-        }
-        let n_new = keep.count_valid();
-        let mut bytes = vec![0u8; n_new.div_ceil(8)];
-        for (j, row) in keep.iter_valid().enumerate() {
-            if self.is_valid(row) {
-                bytes[j / 8] |= 1 << (j % 8);
-            }
-        }
-        Self::from_bytes(bytes, n_new)
+        self.mask
+            .compact(&keep.mask)
+            .map(|mask| Self { mask })
+            .map_err(|error| mask_error(error, "validity compact keep"))
     }
 
     /// Concatenate bitmaps end-to-end.
@@ -287,25 +202,10 @@ impl ValidityBitmap {
     ///
     /// Propagates bitmap construction errors.
     pub fn concat(parts: &[&Self]) -> Result<Self, DataError> {
-        let n: usize = parts.iter().map(|p| p.len).sum();
-        let mut bytes = vec![0u8; n.div_ceil(8)];
-        let mut offset = 0usize;
-        for part in parts {
-            if offset % 8 == 0 {
-                let used = part.len.div_ceil(8);
-                let start = offset / 8;
-                for (byte, dst) in bytes[start..start + used].iter_mut().enumerate() {
-                    *dst = part.bytes[byte] & part.used_bits_in_byte(byte);
-                }
-            } else {
-                for i in part.iter_valid() {
-                    let j = offset + i;
-                    bytes[j / 8] |= 1 << (j % 8);
-                }
-            }
-            offset += part.len;
-        }
-        Self::from_bytes(bytes, n)
+        let masks: Vec<&RowMask> = parts.iter().map(|part| &part.mask).collect();
+        RowMask::concat(&masks)
+            .map(|mask| Self { mask })
+            .map_err(|error| mask_error(error, "validity concat"))
     }
 }
 
@@ -452,7 +352,7 @@ fn scan_against_validity(values: &[f64], validity: &ValidityBitmap) -> ValidityS
     let n = values.len();
     let mut scan = ValidityScan::default();
     let mut rows = values.chunks_exact(8);
-    for (&byte, chunk) in validity.bytes.iter().zip(rows.by_ref()) {
+    for (&byte, chunk) in validity.raw_bytes().iter().zip(rows.by_ref()) {
         let (nan_under_valid, observed_under_invalid) = flags(byte, chunk);
         scan.nan_under_valid |= nan_under_valid == 1;
         scan.observed_under_invalid |= observed_under_invalid == 1;
@@ -462,7 +362,7 @@ fn scan_against_validity(values: &[f64], validity: &ValidityBitmap) -> ValidityS
     }
     let tail = rows.remainder();
     if !tail.is_empty() {
-        let (nan_under_valid, observed_under_invalid) = flags(validity.bytes[n / 8], tail);
+        let (nan_under_valid, observed_under_invalid) = flags(validity.raw_bytes()[n / 8], tail);
         scan.nan_under_valid |= nan_under_valid == 1;
         scan.observed_under_invalid |= observed_under_invalid == 1;
     }
@@ -471,7 +371,7 @@ fn scan_against_validity(values: &[f64], validity: &ValidityBitmap) -> ValidityS
 
 /// Clear the validity bit of every `NaN` row (copies the bitmap).
 fn clear_nan_rows(values: &[f64], validity: &ValidityBitmap) -> Result<ValidityBitmap, DataError> {
-    let mut bytes = validity.bytes[..values.len().div_ceil(8)].to_vec();
+    let mut bytes = validity.raw_bytes()[..values.len().div_ceil(8)].to_vec();
     for (i, v) in values.iter().enumerate() {
         if v.is_nan() {
             bytes[i / 8] &= !(1 << (i % 8));
@@ -659,13 +559,11 @@ impl FixedVectorColumn {
         validity: ValidityBitmap,
     ) -> Result<Self, DataError> {
         if dim == 0 {
-            return Err(DataError::InvalidValidity { message: "fixed vector dim must be > 0" });
+            return Err(DataError::invalid_value("fixed vector dim", "must be greater than zero"));
         }
         let values = values.into();
-        let expected = validity
-            .len()
-            .checked_mul(dim)
-            .ok_or(DataError::InvalidValidity { message: "fixed vector shape overflow" })?;
+        let expected =
+            validity.len().checked_mul(dim).ok_or(DataError::overflow("fixed vector shape"))?;
         if values.len() != expected {
             return Err(DataError::LengthMismatch {
                 expected,
@@ -796,7 +694,7 @@ impl ColumnView<'_> {
     /// When a mapped row is out of range.
     pub fn gather_rows(self, rows: &[usize]) -> Result<OwnedColumn, DataError> {
         if rows.iter().any(|&r| r >= self.len()) {
-            return Err(DataError::InvalidValidity { message: "row map exceeds column" });
+            return Err(DataError::invalid_value("row map", "exceeds the column"));
         }
         let validity = self.validity().gather_rows(rows)?;
         Ok(match self {
@@ -981,10 +879,10 @@ mod tests {
 
         // Without NaN values the given bitmap is kept as is.
         let validity = ValidityBitmap::all_valid(3);
-        let bits = validity.bytes.as_ptr();
+        let bits = validity.raw_bytes().as_ptr();
         let col =
             Float64Column::new(VariableId::from_raw(0), vec![1.0, 2.0, 3.0], validity).unwrap();
-        assert_eq!(col.validity.bytes.as_ptr(), bits, "no bitmap copy without NaN values");
+        assert_eq!(col.validity.raw_bytes().as_ptr(), bits, "no bitmap copy without NaN values");
     }
 
     #[test]

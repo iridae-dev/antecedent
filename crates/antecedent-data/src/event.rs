@@ -56,15 +56,11 @@ impl EventData {
             });
         }
         if n == 0 {
-            return Err(DataError::InvalidArgument {
-                message: "event data requires ≥1 event".into(),
-            });
+            return Err(DataError::empty("event data events"));
         }
         for w in event_times_ns.windows(2) {
             if w[1] < w[0] {
-                return Err(DataError::InvalidArgument {
-                    message: "event times must be non-decreasing".into(),
-                });
+                return Err(DataError::not_ordered("event times"));
             }
         }
         Ok(Self { storage, event_times_ns })
@@ -121,13 +117,12 @@ impl EventData {
     ///
     /// # Errors
     ///
-    /// Always returns [`DataError::InvalidArgument`].
+    /// Always returns [`DataError::Unsupported`].
     pub fn reject_integer_lag_planning(&self) -> Result<(), DataError> {
-        Err(DataError::InvalidArgument {
-            message:
-                "integer lags are not valid on EventData; use duration windows or event models"
-                    .into(),
-        })
+        Err(DataError::unsupported(
+            "integer lags on EventData",
+            "use duration windows or event models",
+        ))
     }
 
     /// Align irregular events onto a regular grid via duration bins.
@@ -160,22 +155,17 @@ impl EventData {
     /// # Errors
     ///
     /// As [`Self::align_to_grid`], [`DataError::Cancelled`] when the context is cancelled, or an
-    /// [`DataError::InvalidArgument`] naming the bytes needed when the pool cannot admit them.
+    /// [`DataError::BudgetRefused`] naming the bytes needed when the pool cannot admit them.
     pub fn align_to_grid_in(
         &self,
         interval_ns: u64,
         ctx: &ExecutionContext,
     ) -> Result<TimeSeriesData, DataError> {
         let mut lease = None;
-        let aligned = self.align_with(interval_ns, |n_bins, bytes| {
+        let aligned = self.align_with(interval_ns, |_n_bins, bytes| {
             lease = Some(ctx.acquire_admission(0, bytes).map_err(|error| match error {
                 AdmissionError::Cancelled => DataError::Cancelled,
-                other => DataError::InvalidArgument {
-                    message: format!(
-                        "align_to_grid needs {bytes} bytes for {n_bins} bins, which the \
-                         execution's memory budget does not admit ({other})"
-                    ),
-                },
+                _ => DataError::budget_refused("align_to_grid", bytes, None),
             })?);
             Ok(())
         });
@@ -193,7 +183,9 @@ impl EventData {
             .iter()
             .map(|column| {
                 let width = match column {
-                    OwnedColumn::Float64(_) | OwnedColumn::Int64(_) | OwnedColumn::Timestamp(_) => 8,
+                    OwnedColumn::Float64(_) | OwnedColumn::Int64(_) | OwnedColumn::Timestamp(_) => {
+                        8
+                    }
                     OwnedColumn::Boolean(_) | OwnedColumn::Categorical(_) => 1,
                     OwnedColumn::FixedVector(c) => {
                         8u64.saturating_mul(u64::try_from(c.dim).unwrap_or(u64::MAX))
@@ -220,32 +212,27 @@ impl EventData {
         admit: impl FnOnce(u64, u64) -> Result<(), DataError>,
     ) -> Result<TimeSeriesData, DataError> {
         if interval_ns == 0 {
-            return Err(DataError::InvalidArgument {
-                message: "align_to_grid requires interval_ns > 0".into(),
-            });
+            return Err(DataError::invalid_value(
+                "align_to_grid interval_ns",
+                "must be greater than zero",
+            ));
         }
         let times = self.event_times_ns.as_ref();
         let t0 = times[0];
         let t_last = times[times.len() - 1];
-        let span = t_last.checked_sub(t0).ok_or_else(|| DataError::InvalidArgument {
-            message: "event time span overflows i64".into(),
-        })?;
+        let span =
+            t_last.checked_sub(t0).ok_or_else(|| DataError::overflow("event time span as i64"))?;
         if span < 0 {
-            return Err(DataError::InvalidArgument {
-                message: "event times must be non-decreasing".into(),
-            });
+            return Err(DataError::not_ordered("event times"));
         }
-        let span = u64::try_from(span).map_err(|_| DataError::InvalidArgument {
-            message: "event time span does not fit u64".into(),
-        })?;
-        let n_bins =
-            span.checked_div(interval_ns).and_then(|q| q.checked_add(1)).ok_or_else(|| {
-                DataError::InvalidArgument { message: "align_to_grid bin count overflowed".into() }
-            })?;
+        let span =
+            u64::try_from(span).map_err(|_| DataError::overflow("event time span as u64"))?;
+        let n_bins = span
+            .checked_div(interval_ns)
+            .and_then(|q| q.checked_add(1))
+            .ok_or_else(|| DataError::overflow("align_to_grid bin count"))?;
         admit(n_bins, n_bins.saturating_mul(self.bytes_per_bin()))?;
-        let too_large = || DataError::InvalidArgument {
-            message: format!("align_to_grid cannot allocate {n_bins} bins"),
-        };
+        let too_large = || DataError::overflow("align_to_grid bin count as usize");
         let n_bins = usize::try_from(n_bins).map_err(|_| too_large())?;
 
         // Last event index per bin (None = empty).
@@ -396,9 +383,10 @@ fn align_column(
                 ValidityBitmap::from_bytes(valid_bytes, n_bins)?,
             )?))
         }
-        OwnedColumn::Categorical(_) => Err(DataError::InvalidArgument {
-            message: "align_to_grid does not support categorical mark columns".into(),
-        }),
+        OwnedColumn::Categorical(_) => Err(DataError::unsupported(
+            "align_to_grid",
+            "categorical mark columns are not supported",
+        )),
     }
 }
 
@@ -547,8 +535,8 @@ mod tests {
         assert!(refused.to_string().contains("memory budget"), "{refused}");
         assert_eq!(tight.admission().available().bytes(), 1_000, "a refusal holds nothing");
 
-        let roomy = ExecutionContext::for_tests(1)
-            .with_admission(AdmissionPool::fixed(1, 1_000_000_000));
+        let roomy =
+            ExecutionContext::for_tests(1).with_admission(AdmissionPool::fixed(1, 1_000_000_000));
         let series = data.align_to_grid_in(10, &roomy).unwrap();
         assert_eq!(series.row_count(), 2_000_001);
         assert_eq!(roomy.admission().available().bytes(), 1_000_000_000, "the lease is released");

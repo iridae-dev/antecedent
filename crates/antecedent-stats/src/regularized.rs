@@ -4,7 +4,7 @@
 
 use crate::error::StatsError;
 use crate::gram::{column_is_constant, form_xtx, invert_square, solve_spd};
-use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};
+use crate::linalg::{FitDiagnostics, LeastSquaresFit};
 
 /// Relative spread below which a (centered) column is treated as constant: its standard
 /// deviation must exceed this fraction of the column's own RMS. Relative, so a genuinely
@@ -68,7 +68,7 @@ pub enum RidgeIntercept {
 }
 
 impl RidgeIntercept {
-    /// The compatibility rule of [`fit_ridge`]: column 0 is an unpenalized intercept exactly
+    /// The conventional rule: column 0 is an unpenalized intercept exactly
     /// when it is constant (judged against its own magnitude).
     #[must_use]
     pub fn sniff(x_colmajor: &[f64], nrows: usize, ncols: usize) -> Self {
@@ -196,28 +196,6 @@ pub fn fit_ridge_with(
         rss,
         diagnostics: FitDiagnostics::new(ncols, None, "ridge", 0),
     })
-}
-
-/// Ridge regression leaving a constant first column unpenalized ([`RidgeIntercept::sniff`]).
-///
-/// Kept for existing callers: the backend and workspace arguments are not used, because the
-/// penalized normal equations are solved by Cholesky. New code should call [`fit_ridge_with`],
-/// which states the intercept handling instead of inferring it.
-///
-/// # Errors
-///
-/// Shape mismatch or singular penalized Gram matrix.
-pub fn fit_ridge(
-    x_colmajor: &[f64],
-    nrows: usize,
-    ncols: usize,
-    y: &[f64],
-    lambda: f64,
-    _backend: &impl DenseLinearAlgebra,
-    _workspace: &mut LeastSquaresWorkspace,
-) -> Result<LeastSquaresFit, StatsError> {
-    let intercept = RidgeIntercept::sniff(x_colmajor, nrows, ncols);
-    fit_ridge_with(x_colmajor, nrows, ncols, y, lambda, intercept)
 }
 
 /// Lasso via coordinate descent with an explicit intercept / standardization contract.
@@ -508,6 +486,7 @@ pub fn first_col_is_exact_ones(x_colmajor: &[f64], nrows: usize) -> bool {
 mod tests {
     use super::*;
     use crate::faer_backend::FaerBackend;
+    use crate::linalg::{DenseLinearAlgebra, LeastSquaresWorkspace};
 
     /// A public entry point must refuse malformed input, not panic on it.
     #[test]
@@ -531,7 +510,8 @@ mod tests {
         }
         let mut ws = LeastSquaresWorkspace::default();
         let ols = FaerBackend.least_squares(&x, n, 2, &y, &mut ws).unwrap();
-        let ridge = fit_ridge(&x, n, 2, &y, 5.0, &FaerBackend, &mut ws).unwrap();
+        let ridge =
+            fit_ridge_with(&x, n, 2, &y, 5.0, RidgeIntercept::sniff(&x, n, 2)).unwrap();
         assert!(
             ridge.coefficients[1].abs() < ols.coefficients[1].abs(),
             "ridge={} ols={}",
@@ -545,8 +525,7 @@ mod tests {
     fn ridge_matches_closed_form_four_row() {
         let x = vec![1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 2.0, 3.0];
         let y = vec![1.0, 4.0, 7.0, 10.0];
-        let mut ws = LeastSquaresWorkspace::default();
-        let fit = fit_ridge(&x, 4, 2, &y, 5.0, &FaerBackend, &mut ws).unwrap();
+        let fit = fit_ridge_with(&x, 4, 2, &y, 5.0, RidgeIntercept::sniff(&x, 4, 2)).unwrap();
         assert!((fit.coefficients[0] - 3.25).abs() < 1e-9);
         assert!((fit.coefficients[1] - 1.5).abs() < 1e-9);
     }
@@ -1019,13 +998,13 @@ mod tests {
         let lambda = 1.0;
         let sxx: f64 = x.iter().map(|v| v * v).sum();
         let sxy: f64 = x.iter().zip(&y).map(|(a, b)| a * b).sum();
-        let mut ws = LeastSquaresWorkspace::default();
-        let fit = fit_ridge(&x, n, 1, &y, lambda, &FaerBackend, &mut ws).unwrap();
+        let fit =
+            fit_ridge_with(&x, n, 1, &y, lambda, RidgeIntercept::sniff(&x, n, 1)).unwrap();
         let expected = sxy / (sxx + lambda);
         assert!((fit.coefficients[0] - expected).abs() <= 1e-9 * expected.abs());
         assert!(fit.coefficients[0] < 1e-9, "penalized coefficient must be shrunk to ~0");
         // ncols == 0 used to index x_colmajor[0] and panic.
-        assert!(fit_ridge(&[], 5, 0, &[0.0; 5], 1.0, &FaerBackend, &mut ws).is_err());
+        assert!(fit_ridge_with(&[], 5, 0, &[0.0; 5], 1.0, RidgeIntercept::None).is_err());
     }
 
     #[test]

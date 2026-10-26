@@ -20,10 +20,13 @@ use crate::workspace::GraphWorkspace;
 /// Static CPDAG over variables .
 ///
 /// Distinct from [`TemporalCpdag`]: accepts only [`NodeRef::Static`].
+///
+/// The node and adjacency storage is shared copy-on-write, so cloning a CPDAG (to keep one as
+/// evidence beside the review built from it) copies nothing until one of the two is edited.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Cpdag {
-    nodes: Vec<NodeRef>,
-    adj: Vec<Vec<AdjEntry>>,
+    nodes: Arc<Vec<NodeRef>>,
+    adj: Arc<Vec<Vec<AdjEntry>>>,
 }
 
 impl Cpdag {
@@ -32,7 +35,7 @@ impl Cpdag {
     /// Empty static CPDAG.
     #[must_use]
     pub fn empty() -> Self {
-        Self { nodes: Vec::new(), adj: Vec::new() }
+        Self { nodes: Arc::default(), adj: Arc::default() }
     }
 
     /// One static node per variable `0..n`.
@@ -75,8 +78,8 @@ impl Cpdag {
             });
         }
         let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
-        self.nodes.push(node);
-        self.adj.push(Vec::new());
+        Arc::make_mut(&mut self.nodes).push(node);
+        Arc::make_mut(&mut self.adj).push(Vec::new());
         Ok(DenseNodeId::from_raw(id))
     }
 
@@ -96,7 +99,7 @@ impl Cpdag {
         if edge.a == edge.b {
             return Err(GraphError::Cycle { from: edge.a.raw(), to: edge.b.raw() });
         }
-        marked_storage::insert_marked_finish(&mut self.adj, edge)
+        marked_storage::insert_marked_finish(Arc::make_mut(&mut self.adj).as_mut_slice(), edge)
     }
 
     /// Insert directed edge `from -> to`.
@@ -129,7 +132,7 @@ impl Cpdag {
     pub fn remove_edge(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError> {
         self.validate_node(a)?;
         self.validate_node(b)?;
-        marked_storage::remove_edge(&mut self.adj, a, b);
+        marked_storage::remove_edge(Arc::make_mut(&mut self.adj).as_mut_slice(), a, b);
         Ok(())
     }
 
@@ -145,7 +148,7 @@ impl Cpdag {
     ) -> Result<(), GraphError> {
         self.validate_node(from)?;
         self.validate_node(to)?;
-        marked_storage::orient_undirected_finish(&mut self.adj, from, to)
+        marked_storage::orient_undirected_finish(Arc::make_mut(&mut self.adj).as_mut_slice(), from, to)
     }
 
     /// Mark an existing edge as an `x-x` conflict.
@@ -156,7 +159,7 @@ impl Cpdag {
     pub fn mark_conflict(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError> {
         self.validate_node(a)?;
         self.validate_node(b)?;
-        marked_storage::mark_conflict_finish(&mut self.adj, a, b)
+        marked_storage::mark_conflict_finish(Arc::make_mut(&mut self.adj).as_mut_slice(), a, b)
     }
 
     /// All adjacency neighbors (any mark).
@@ -190,7 +193,7 @@ impl Cpdag {
     /// Propagates insert failures.
     pub fn to_directed_skeleton(&self) -> Result<Dag, GraphError> {
         let mut dag = Dag::empty();
-        for node in &self.nodes {
+        for node in self.nodes.iter() {
             dag.add_node(*node)?;
         }
         for e in self.edges() {

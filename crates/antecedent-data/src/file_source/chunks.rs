@@ -2,8 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
 use super::schema::*;
+use super::*;
 
 /// An Arrow C stream read once, in bounded chunks.
 pub struct TableStream {
@@ -391,7 +391,11 @@ impl TableChunkReader {
     }
 
     /// An Arrow C stream's batch was sized by its producer, so the remedy names the producer.
-    pub(super) fn producer_remedy(&self, error: FileSourceError, batch_bytes: u64) -> FileSourceError {
+    pub(super) fn producer_remedy(
+        &self,
+        error: FileSourceError,
+        batch_bytes: u64,
+    ) -> FileSourceError {
         match (&self.origin, error) {
             (
                 Origin::Stream,
@@ -419,7 +423,11 @@ impl TableChunkReader {
         }
     }
 
-    pub(super) fn lease(&self, stage: MemoryStage, bytes: u64) -> Result<AdmissionLease, FileSourceError> {
+    pub(super) fn lease(
+        &self,
+        stage: MemoryStage,
+        bytes: u64,
+    ) -> Result<AdmissionLease, FileSourceError> {
         match self.ctx.acquire_admission(0, bytes) {
             Ok(lease) => Ok(lease),
             Err(AdmissionError::Cancelled) => Err(FileSourceError::Cancelled),

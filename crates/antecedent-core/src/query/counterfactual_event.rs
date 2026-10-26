@@ -15,6 +15,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::InterventionFault;
 use super::cross_world::{ExogenousCoupling, WorldId, WorldSpec};
 use super::error::QueryError;
 use crate::ids::VariableId;
@@ -35,9 +36,7 @@ impl CounterfactualEvent {
     /// [`QueryError::InvalidIntervention`] for a non-finite level.
     pub fn new(world: WorldId, variable: VariableId, level: f64) -> Result<Self, QueryError> {
         if !level.is_finite() {
-            return Err(QueryError::InvalidIntervention(
-                "a counterfactual event level must be finite".into(),
-            ));
+            return Err(QueryError::InvalidIntervention(InterventionFault::EventLevelNotFinite));
         }
         // One level, one spelling: -0.0 and 0.0 are the same level.
         let level = level + 0.0;
@@ -115,20 +114,13 @@ impl CounterfactualEventQuery {
     /// See [`Self::new`].
     pub fn validate(&self) -> Result<(), QueryError> {
         if !(1..=WorldId::CAPACITY).contains(&self.worlds.len()) {
-            return Err(QueryError::InvalidIntervention(
-                "a counterfactual event query names at least one world, each addressable by a world index"
-                    .into(),
-            ));
+            return Err(QueryError::InvalidIntervention(InterventionFault::EventWorlds));
         }
         if self.event.is_empty() {
-            return Err(QueryError::InvalidIntervention(
-                "a counterfactual event query needs at least one event".into(),
-            ));
+            return Err(QueryError::InvalidIntervention(InterventionFault::EventsEmpty));
         }
         if self.event.iter().chain(&self.given).any(|a| a.world.index() >= self.worlds.len()) {
-            return Err(QueryError::InvalidIntervention(
-                "a counterfactual event names an unknown world".into(),
-            ));
+            return Err(QueryError::InvalidIntervention(InterventionFault::EventUnknownWorld));
         }
         Ok(())
     }
@@ -151,18 +143,13 @@ impl CounterfactualEventQuery {
         outcome_level: f64,
     ) -> Result<Self, QueryError> {
         if treatment == outcome {
-            return Err(QueryError::InvalidIntervention(
-                "treatment and outcome must be distinct".into(),
-            ));
+            return Err(QueryError::InvalidIntervention(InterventionFault::TreatmentOutcomeNotDistinct));
         }
         if !active.is_finite()
             || !observed.is_finite()
             || (active + 0.0).to_bits() == (observed + 0.0).to_bits()
         {
-            return Err(QueryError::InvalidIntervention(
-                "the counterfactual and the observed treatment levels must be finite and distinct"
-                    .into(),
-            ));
+            return Err(QueryError::InvalidIntervention(InterventionFault::EffectOnTreatedLevels));
         }
         let natural = WorldId::new(0);
         let treated = WorldId::new(1);

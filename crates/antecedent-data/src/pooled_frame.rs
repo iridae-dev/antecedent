@@ -122,7 +122,7 @@ pub fn pool_multi_env_lagged_frame(
 /// # Errors
 ///
 /// As [`pool_multi_env_lagged_frame`], [`DataError::Cancelled`] when the context is
-/// cancelled, or an [`DataError::InvalidArgument`] naming the bytes needed when the pool
+/// cancelled, or a [`DataError::BudgetRefused`] naming the bytes needed when the pool
 /// cannot admit the one-hot block.
 pub fn pool_multi_env_lagged_frame_within(
     data: &MultiEnvironmentData,
@@ -144,14 +144,10 @@ fn pool_impl(
     budget: Option<&ExecutionContext>,
 ) -> Result<PooledLaggedFrame, DataError> {
     if data.env_count() == 0 {
-        return Err(DataError::InvalidArgument {
-            message: "pooled lagged frame needs ≥1 environment".into(),
-        });
+        return Err(DataError::empty("pooled lagged frame environments"));
     }
     if variables.is_empty() {
-        return Err(DataError::InvalidArgument {
-            message: "pooled lagged frame needs ≥1 variable".into(),
-        });
+        return Err(DataError::empty("pooled lagged frame variables"));
     }
 
     let mut frames = Vec::with_capacity(data.env_count());
@@ -212,26 +208,17 @@ fn pool_impl(
                         .saturating_mul(pooled.n_effective() as u64)
                         .saturating_mul(8)
                         .saturating_mul(2);
-                    block_lease = Some(ctx.acquire_admission(0, bytes).map_err(|error| {
-                        match error {
+                    block_lease =
+                        Some(ctx.acquire_admission(0, bytes).map_err(|error| match error {
                             AdmissionError::Cancelled => DataError::Cancelled,
-                            other => DataError::InvalidArgument {
-                                message: format!(
-                                    "time one-hot: {} distinct levels need {bytes} bytes, which \
-                                     the execution's memory budget does not admit ({other})",
-                                    levels.len()
-                                ),
-                            },
-                        }
-                    })?);
+                            _ => DataError::budget_refused("time one-hot block", bytes, None),
+                        })?);
                 } else if levels.len() > dummies.max_time_one_hot_levels {
-                    return Err(DataError::InvalidArgument {
-                        message: format!(
-                            "time one-hot: {} distinct levels exceeds max_time_one_hot_levels={}",
-                            levels.len(),
-                            dummies.max_time_one_hot_levels
-                        ),
-                    });
+                    return Err(DataError::exceeds_limit(
+                        "time one-hot distinct levels",
+                        u64::try_from(levels.len()).unwrap_or(u64::MAX),
+                        u64::try_from(dummies.max_time_one_hot_levels).unwrap_or(u64::MAX),
+                    ));
                 }
                 // T≤1 → constant; no identifiable dummy columns.
                 if levels.len() > 1 {
@@ -274,16 +261,17 @@ fn effective_raw_times(
         let series = data.environment(env_idx)?;
         let n_raw = series.row_count();
         if base + n_eff > n_raw {
-            return Err(DataError::InvalidArgument {
-                message: format!(
-                    "time dummy: env {env_idx} effective {n_eff} + depth {frame_depth} exceeds rows {n_raw}"
-                ),
-            });
+            return Err(DataError::exceeds_limit(
+                "time dummy effective rows plus depth",
+                u64::try_from(base + n_eff).unwrap_or(u64::MAX),
+                u64::try_from(n_raw).unwrap_or(u64::MAX),
+            ));
         }
         for j in 0..n_eff {
-            times.push(u32::try_from(base + j).map_err(|_| DataError::InvalidArgument {
-                message: "time dummy: raw time index exceeds u32".into(),
-            })?);
+            times.push(
+                u32::try_from(base + j)
+                    .map_err(|_| DataError::overflow("time dummy raw time index as u32"))?,
+            );
         }
     }
     Ok(times)
@@ -525,8 +513,7 @@ mod tests {
         assert!(err.to_string().contains("memory budget"), "unexpected error: {err}");
         assert_eq!(tight.admission().available().bytes(), 64, "a refusal holds nothing");
 
-        let roomy =
-            ExecutionContext::for_tests(1).with_admission(AdmissionPool::fixed(1, 1 << 20));
+        let roomy = ExecutionContext::for_tests(1).with_admission(AdmissionPool::fixed(1, 1 << 20));
         let pooled = pool_multi_env_lagged_frame_within(
             &multi,
             &vars,

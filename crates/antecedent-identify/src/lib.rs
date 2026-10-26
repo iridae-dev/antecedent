@@ -142,15 +142,16 @@ pub use sid::{
 };
 pub use sid::{
     COUNTERFACTUAL_TRANSPORT_CONTRACT, COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS,
-    COUNTERFACTUAL_TRANSPORT_MAX_ATOMS, COUNTERFACTUAL_TRANSPORT_MAX_CELLS,
-    COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE, COUNTERFACTUAL_TRANSPORT_MAX_LEVELS,
+    COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES, COUNTERFACTUAL_TRANSPORT_MAX_ATOMS,
+    COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE,
     COUNTERFACTUAL_TRANSPORT_MAX_LIMITS, COUNTERFACTUAL_TRANSPORT_MAX_NODES,
     COUNTERFACTUAL_TRANSPORT_MAX_REGIMES, COUNTERFACTUAL_TRANSPORT_MAX_SOURCES,
-    COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS, COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES,
+    COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS,
     COUNTERFACTUAL_TRANSPORT_MAX_WORLDS, COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES,
     CounterfactualCitedRegime, CounterfactualFactor, CounterfactualFunctional, CounterfactualItem,
-    CounterfactualItemSource, CounterfactualLevel, CounterfactualMissingRegime,
-    CounterfactualMovedAtom, CounterfactualSum, CounterfactualSymbol,
+    CounterfactualItemSource, CounterfactualLevel, CounterfactualLevelIndex,
+    CounterfactualMissingRegime, CounterfactualMovedAtom, CounterfactualSum, CounterfactualSymbol,
+    CounterfactualSymbolId, CounterfactualVariableIndex,
     CounterfactualTransportDecision, CounterfactualTransportDerivation,
     CounterfactualTransportInspection, CounterfactualTransportMissing,
     CounterfactualTransportObstruction, CounterfactualTransportProblem,
@@ -258,8 +259,9 @@ pub use rd::{SharpRdConfig, SharpRdIdentifier};
 pub use response::ResponseIdentifier;
 pub use response_id::{identify_cpdag_response_general, identify_pag_response_general};
 pub use result::{
-    DerivationStep, DerivationTrace, EstimandClaim, IdentificationPerformanceRecord,
-    IdentificationResult, IdentificationResultParts, IdentificationStatus, IdentifiedEstimand,
+    DerivationStep, DerivationTrace, EstimandClaim, EstimandSelectionError,
+    IdentificationPerformanceRecord, IdentificationResult, IdentificationResultParts,
+    IdentificationStatus, IdentifiedEstimand,
 };
 pub use temporal_backdoor::{
     PARENT_ADJUSTMENT_RULE, TemporalBackdoorIdentifier, TemporalIdentificationResult,

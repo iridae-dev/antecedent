@@ -2,9 +2,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
 use super::chunks::*;
 use super::schema::*;
+use super::*;
 
 /// Load float64 and fixed-size float64-list columns from an Arrow record batch.
 ///
@@ -19,7 +19,7 @@ use super::schema::*;
 /// than `u32::MAX` columns.
 pub fn tabular_from_record_batch(batch: &RecordBatch) -> Result<ArrowLoadResult, DataError> {
     if batch.num_columns() == 0 {
-        return Err(DataError::InvalidArgument { message: "record batch has no columns".into() });
+        return Err(DataError::empty("record batch columns"));
     }
     let mut builder = CausalSchemaBuilder::new();
     let mut columns = Vec::with_capacity(batch.num_columns());
@@ -66,9 +66,10 @@ pub(super) fn push_record_column(
     array: &ArrayRef,
     n_rows: usize,
 ) -> Result<(), DataError> {
-    let id = VariableId::from_raw(u32::try_from(index).map_err(|_| {
-        DataError::InvalidArgument { message: "too many Arrow columns for VariableId".into() }
-    })?);
+    let id = VariableId::from_raw(
+        u32::try_from(index)
+            .map_err(|_| DataError::overflow("Arrow column count as a VariableId"))?,
+    );
     if let Some(floats) = array.as_any().downcast_ref::<Float64Array>() {
         import
             .builder
@@ -91,18 +92,18 @@ pub(super) fn push_record_column(
         return Ok(());
     }
     if let Some(list) = array.as_any().downcast_ref::<FixedSizeListArray>() {
-        let dim = usize::try_from(list.value_length()).map_err(|_| DataError::InvalidArgument {
-            message: "FixedSizeList width must fit usize".into(),
-        })?;
+        let dim = usize::try_from(list.value_length())
+            .map_err(|_| DataError::overflow("FixedSizeList width as usize"))?;
         if dim == 0 {
-            return Err(DataError::InvalidArgument {
-                message: "FixedSizeList width must be > 0".into(),
-            });
+            return Err(DataError::invalid_value(
+                "FixedSizeList width",
+                "must be greater than zero",
+            ));
         }
-        let width = NonZeroU32::new(u32::try_from(dim).map_err(|_| {
-            DataError::InvalidArgument { message: "FixedSizeList width must fit u32".into() }
-        })?)
-        .ok_or(DataError::InvalidArgument { message: "FixedSizeList width must be > 0".into() })?;
+        let width = NonZeroU32::new(
+            u32::try_from(dim).map_err(|_| DataError::overflow("FixedSizeList width as u32"))?,
+        )
+        .ok_or(DataError::invalid_value("FixedSizeList width", "must be greater than zero"))?;
         import
             .builder
             .add_variable(
@@ -198,9 +199,7 @@ pub(super) fn fixed_vector_from_list(
         .as_any()
         .downcast_ref::<Float64Array>()
         .ok_or(DataError::TypeMismatch { id, expected: "FixedSizeList<float64>" })?;
-    let span = || DataError::InvalidArgument {
-        message: "FixedSizeList value span does not fit the child buffer".into(),
-    };
+    let span = || DataError::overflow("FixedSizeList value span (child buffer)");
     let cells = n_rows.checked_mul(dim).ok_or_else(span)?;
     // Validity is per row, so a vector with any null component is a missing row;
     // every component of a missing row holds NaN.
@@ -303,9 +302,8 @@ pub(super) fn column_from_array(
         return float64_column_from_array(id, array);
     }
     if let Some(list) = array.as_any().downcast_ref::<FixedSizeListArray>() {
-        let dim = usize::try_from(list.value_length()).map_err(|_| DataError::InvalidArgument {
-            message: "FixedSizeList width must fit usize".into(),
-        })?;
+        let dim = usize::try_from(list.value_length())
+            .map_err(|_| DataError::overflow("FixedSizeList width as usize"))?;
         let (col, copied) = fixed_vector_from_list(id, list, list.len(), dim)?;
         let diag =
             materialization_diagnostic(MaterializationReason::ForeignBufferIncompatible, copied);
@@ -343,7 +341,10 @@ pub(super) fn typed_owned_column(
     Ok(Some(column))
 }
 
-pub(super) fn int64_from_signed<T>(id: VariableId, array: &PrimitiveArray<T>) -> Result<OwnedColumn, DataError>
+pub(super) fn int64_from_signed<T>(
+    id: VariableId,
+    array: &PrimitiveArray<T>,
+) -> Result<OwnedColumn, DataError>
 where
     T: arrow_array::types::ArrowPrimitiveType,
     T::Native: Into<i64>,
@@ -373,9 +374,8 @@ where
             continue;
         }
         let raw = array.value(row).into();
-        let value = i64::try_from(raw).map_err(|_| DataError::InvalidArgument {
-            message: format!("unsigned id {raw} does not fit an exact int64"),
-        })?;
+        let value =
+            i64::try_from(raw).map_err(|_| DataError::overflow("unsigned id (exact int64)"))?;
         values.push(value);
     }
     Ok(OwnedColumn::Int64(Int64Column::new(id, values, validity)?))
@@ -400,9 +400,9 @@ pub(super) fn timestamp_column(
             continue;
         }
         let raw = timestamp_raw(array, unit, row);
-        let nanos = raw.checked_mul(scale).ok_or_else(|| DataError::InvalidArgument {
-            message: format!("timestamp {raw} in {unit:?} overflows exact nanoseconds"),
-        })?;
+        let nanos = raw
+            .checked_mul(scale)
+            .ok_or_else(|| DataError::overflow("timestamp (exact nanoseconds)"))?;
         values.push(nanos);
     }
     Ok(OwnedColumn::Timestamp(TimestampColumn::new(id, values, validity)?))
@@ -433,9 +433,10 @@ pub(super) fn categorical_column(
         DataType::UInt8 => dict_from::<UInt8Type>(id, domain_id, array.as_dictionary()),
         DataType::UInt16 => dict_from::<UInt16Type>(id, domain_id, array.as_dictionary()),
         DataType::UInt32 => dict_from::<UInt32Type>(id, domain_id, array.as_dictionary()),
-        other => Err(DataError::InvalidArgument {
-            message: format!("dictionary key type {other} is not an exact category code"),
-        }),
+        other => Err(DataError::unsupported(
+            "importing a dictionary column",
+            format!("key type {other} is not an exact category code"),
+        )),
     }
 }
 
@@ -460,9 +461,8 @@ where
     for row in 0..array.len() {
         let code = match array.key(row) {
             None => 0,
-            Some(key) => u32::try_from(key).map_err(|_| DataError::InvalidArgument {
-                message: format!("dictionary key {key} does not fit a category code"),
-            })?,
+            Some(key) => u32::try_from(key)
+                .map_err(|_| DataError::overflow("dictionary key (category code)"))?,
         };
         codes.push(CategoryCode::from_raw(code));
     }
@@ -471,16 +471,12 @@ where
 
 pub(super) fn dictionary_labels(values: &ArrayRef) -> Result<Vec<CategoryLevel>, DataError> {
     if values.is_empty() {
-        return Err(DataError::InvalidArgument {
-            message: "dictionary category domain has no levels".into(),
-        });
+        return Err(DataError::empty("dictionary category domain levels"));
     }
     let mut labels = Vec::with_capacity(values.len());
     for row in 0..values.len() {
         if values.is_null(row) {
-            return Err(DataError::InvalidArgument {
-                message: format!("dictionary level {row} is null"),
-            });
+            return Err(DataError::invalid_value("dictionary level", "is null"));
         }
         labels.push(CategoryLevel { label: Arc::<str>::from(level_text(values.as_ref(), row)?) });
     }
@@ -507,9 +503,10 @@ pub(crate) fn level_text(values: &dyn Array, row: usize) -> Result<String, DataE
         DataType::UInt32 => values.as_primitive::<UInt32Type>().value(row).to_string(),
         DataType::UInt64 => values.as_primitive::<UInt64Type>().value(row).to_string(),
         other => {
-            return Err(DataError::InvalidArgument {
-                message: format!("dictionary values of type {other} are not category labels"),
-            });
+            return Err(DataError::unsupported(
+                "importing dictionary values",
+                format!("values of type {other} are not category labels"),
+            ));
         }
     };
     Ok(rendered)

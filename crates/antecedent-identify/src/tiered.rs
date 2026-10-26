@@ -828,8 +828,8 @@ mod tests {
 
         let admg = background.to_admg(&schema).unwrap();
         let query = joint_query(&schema, "t1", "t2", "y");
-        // Generic subset search lists z + every co-facet. Declare a 16-candidate ceiling so this
-        // fixture overflows it; the default (no ceiling) is covered by the default-limit tests.
+        // The generic search's maximal set is z + every co-facet. Declare a 16-candidate ceiling so
+        // this fixture overflows it; the default (no ceiling) is covered by the default-limit tests.
         let generic = GeneralizedAdjustmentIdentifier {
             config: crate::generalized::GeneralizedAdjustmentConfig {
                 max_candidates: 16,
@@ -840,22 +840,22 @@ mod tests {
         .unwrap();
         assert_eq!(
             generic.status,
-            IdentificationStatus::NotIdentified,
-            "generic search must cap on this graph: {:?}",
+            IdentificationStatus::NonparametricallyIdentified,
+            "the ceiling skips the search for a smaller set, not the decision: {:?}",
             generic.diagnostics
         );
+        let mut generic_set = generic.estimands[0].adjustment_set.to_vec();
+        generic_set.sort_unstable();
+        let mut expected_set = expected.to_vec();
+        expected_set.sort_unstable();
+        assert_eq!(generic_set, expected_set, "the certified maximal set is the tier closure");
         assert!(
             generic.diagnostics.iter().any(|d| {
                 d.kind == DiagnosticKind::Execution
-                    && d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
+                    && d.code.as_ref() == crate::JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE
             }),
-            "cap is execution, not a third status: {:?}",
+            "the unfinished search is execution, not a third status: {:?}",
             generic.diagnostics
-        );
-        assert!(
-            generic.diagnostics.iter().any(|d| {
-                d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
-            })
         );
 
         let started = std::time::Instant::now();

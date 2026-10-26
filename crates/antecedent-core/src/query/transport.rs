@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::TransportFault;
 use std::sync::Arc;
 
 use crate::VariableId;
@@ -74,9 +75,7 @@ impl TransportQuery {
         if !self.source_experiments.is_empty()
             && !same_variable_set(&self.source_experiments, &derived)
         {
-            return Err(QueryError::InvalidTransport(
-                "source_experiments disagree with the evidence catalog".into(),
-            ));
+            return Err(QueryError::InvalidTransport(TransportFault::SourceExperimentsDisagree));
         }
         if self.source_experiments.is_empty() {
             self.source_experiments = derived;
@@ -117,24 +116,18 @@ impl TransportQuery {
             || self.target_population.trim().is_empty()
             || self.source_population == self.target_population
         {
-            return Err(QueryError::InvalidTransport(
-                "source and target population keys must be non-empty and distinct".into(),
-            ));
+            return Err(QueryError::InvalidTransport(TransportFault::PopulationKeys));
         }
         let mut experiments = self.source_experiments.to_vec();
         experiments.sort_unstable_by_key(|id| id.raw());
         if experiments.windows(2).any(|pair| pair[0] == pair[1]) {
-            return Err(QueryError::InvalidTransport(
-                "source experiment variables must be unique".into(),
-            ));
+            return Err(QueryError::InvalidTransport(TransportFault::SourceExperimentsNotUnique));
         }
         if let Some(catalog) = &self.catalog {
             catalog.validate()?;
             let derived = catalog.source_experiment_variables(&self.source_population);
             if !same_variable_set(&self.source_experiments, &derived) {
-                return Err(QueryError::InvalidTransport(
-                    "source_experiments disagree with the evidence catalog".into(),
-                ));
+                return Err(QueryError::InvalidTransport(TransportFault::SourceExperimentsDisagree));
             }
         }
         Ok(())

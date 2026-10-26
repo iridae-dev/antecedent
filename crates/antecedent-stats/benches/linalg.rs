@@ -5,8 +5,8 @@
 )]
 
 use antecedent_stats::{
-    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, SandwichKind, cholesky_spd,
-    coefficient_covariance, fit_ridge, fit_wls, form_xtx,
+    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, RidgeIntercept, SandwichKind, cholesky_spd,
+    coefficient_covariance, fit_ridge_with, fit_wls, form_xtx,
 };
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use faer::Mat;
@@ -143,18 +143,11 @@ fn bench_linalg(c: &mut Criterion) {
     });
 
     c.bench_function("ridge_n400_p12", |b| {
-        let mut ws = LeastSquaresWorkspace::default();
+        let intercept = RidgeIntercept::sniff(&ols.x, ols.nrows, ols.ncols);
         b.iter(|| {
-            let fit = fit_ridge(
-                black_box(&ols.x),
-                ols.nrows,
-                ols.ncols,
-                &ols.y,
-                0.1,
-                &FaerBackend,
-                &mut ws,
-            )
-            .unwrap();
+            let fit =
+                fit_ridge_with(black_box(&ols.x), ols.nrows, ols.ncols, &ols.y, 0.1, intercept)
+                    .unwrap();
             black_box(fit.rss);
         });
     });

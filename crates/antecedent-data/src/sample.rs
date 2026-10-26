@@ -111,7 +111,11 @@ impl LagMap {
             });
         }
         if lag.raw() > self.max_lag {
-            return Err(DataError::InvalidArgument { message: "lag exceeds max_lag".into() });
+            return Err(DataError::exceeds_limit(
+                "lag",
+                u64::from(lag.raw()),
+                u64::from(self.max_lag),
+            ));
         }
         // `lag <= max_lag <= base_t` and `i < n_effective`, checked above.
         for (i, slot) in out.iter_mut().enumerate() {
@@ -191,9 +195,7 @@ impl LaggedSamplePlan {
     ) -> Result<Self, DataError> {
         let columns = columns.into();
         if columns.is_empty() {
-            return Err(DataError::InvalidArgument {
-                message: "sample plan needs ≥1 column".into(),
-            });
+            return Err(DataError::empty("sample plan columns"));
         }
         let lag_map = Arc::new(LagMap::with_reference(series_len, max_lag, reference)?);
         Self::validate_columns(lag_map.max_lag(), &columns)?;
@@ -210,9 +212,7 @@ impl LaggedSamplePlan {
         columns: Arc<[LaggedColumn]>,
     ) -> Result<Self, DataError> {
         if columns.is_empty() {
-            return Err(DataError::InvalidArgument {
-                message: "sample plan needs ≥1 column".into(),
-            });
+            return Err(DataError::empty("sample plan columns"));
         }
         Self::validate_columns(lag_map.max_lag(), &columns)?;
         Ok(Self { columns, lag_map })
@@ -221,9 +221,11 @@ impl LaggedSamplePlan {
     fn validate_columns(max_lag: u32, columns: &[LaggedColumn]) -> Result<(), DataError> {
         for c in columns {
             if c.lag.raw() > max_lag {
-                return Err(DataError::InvalidArgument {
-                    message: "planned column lag exceeds max_lag".into(),
-                });
+                return Err(DataError::exceeds_limit(
+                    "planned column lag",
+                    u64::from(c.lag.raw()),
+                    u64::from(max_lag),
+                ));
             }
         }
         Ok(())
@@ -386,7 +388,7 @@ impl LaggedSamplePlan {
                 &workspace.row_indexes[..n],
                 dst,
             )
-            .map_err(|err| DataError::InvalidArgument { message: err.to_string() })?;
+            .map_err(|err| DataError::external("gather", err))?;
         }
         Ok(complete)
     }

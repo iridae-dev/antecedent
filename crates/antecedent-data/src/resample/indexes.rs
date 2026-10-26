@@ -17,9 +17,7 @@ pub(super) fn design_independent_of_time_column(
 pub(super) fn refuse_row_iid(design: DeclaredSamplingDesign) -> DataError {
     match design.apply_resampling(ResamplingRule::RowIid) {
         Err(error) => declared_design_error(error),
-        Ok(_) => DataError::InvalidArgument {
-            message: "a trajectory design refuses a row-IID draw".into(),
-        },
+        Ok(_) => DataError::unsupported("a row-IID draw", "a trajectory design refuses it"),
     }
 }
 
@@ -41,15 +39,13 @@ pub(super) fn draw_grouped_units(
     design.apply_resampling(resampling).map_err(declared_design_error)?;
     design.apply_splitting_with_embargo(splitting, embargo).map_err(declared_design_error)?;
     if n == 0 {
-        return Err(DataError::InvalidArgument { message: "resample needs n > 0".into() });
+        return Err(DataError::invalid_value("resample n", "must be greater than zero"));
     }
     let Some(ids) = unit_ids else {
         if missing_units_are_a_row_bootstrap {
             return Err(refuse_row_iid(design));
         }
-        return Err(DataError::InvalidArgument {
-            message: "clustered resampling requires cluster_ids".into(),
-        });
+        return Err(DataError::precondition("clustered resampling", "cluster_ids"));
     };
     if ids.len() != n {
         return Err(DataError::LengthMismatch {
@@ -90,25 +86,23 @@ pub(super) fn fill_embargoed_contiguous_block(
     out: &mut Vec<GlobalId>,
 ) -> Result<(), DataError> {
     if n == 0 {
-        return Err(DataError::InvalidArgument { message: "resample needs n > 0".into() });
+        return Err(DataError::invalid_value("resample n", "must be greater than zero"));
     }
-    let embargo = usize::try_from(embargo).map_err(|_| DataError::InvalidArgument {
-        message: "embargo does not fit in usize".into(),
-    })?;
-    let margin = embargo.checked_mul(2).ok_or_else(|| DataError::InvalidArgument {
-        message: "embargo does not fit in the series".into(),
-    })?;
+    let embargo = usize::try_from(embargo).map_err(|_| DataError::overflow("embargo as usize"))?;
+    let margin = embargo.checked_mul(2).ok_or_else(|| DataError::overflow("twice the embargo"))?;
     if margin >= n {
-        return Err(DataError::InvalidArgument {
-            message: "embargo leaves no observation to draw".into(),
-        });
+        return Err(DataError::invalid_value("embargo", "leaves no observation to draw"));
     }
     let span = n - margin;
     if length == 0 || length > span {
-        return Err(DataError::InvalidArgument {
-            message: format!(
-                "block length {length} exceeds the series length {span} left after the embargo"
-            ),
+        return Err(if length == 0 {
+            DataError::invalid_value("block length", "must be greater than zero")
+        } else {
+            DataError::exceeds_limit(
+                "block length (series length left after the embargo)",
+                u64::try_from(length).unwrap_or(u64::MAX),
+                u64::try_from(span).unwrap_or(u64::MAX),
+            )
         });
     }
     let mut indexes = vec![0usize; span];
@@ -129,20 +123,19 @@ pub(super) fn prepare_clusters(
     cluster_ids: Option<&[u32]>,
 ) -> Result<Option<ClusterIndex>, DataError> {
     if n == 0 {
-        return Err(DataError::InvalidArgument { message: "resample needs n > 0".into() });
+        return Err(DataError::invalid_value("resample n", "must be greater than zero"));
     }
     if plan.is_weight_plan() {
-        return Err(DataError::InvalidArgument {
-            message: "BayesianBootstrap yields weights; use fill_resample_weights".into(),
-        });
+        return Err(DataError::unsupported(
+            "BayesianBootstrap index draws",
+            "BayesianBootstrap yields weights; use fill_resample_weights",
+        ));
     }
     if !plan.needs_clusters() {
         return Ok(None);
     }
     let Some(ids) = cluster_ids else {
-        return Err(DataError::InvalidArgument {
-            message: "clustered resampling requires cluster_ids".into(),
-        });
+        return Err(DataError::precondition("clustered resampling", "cluster_ids"));
     };
     if ids.len() != n {
         return Err(DataError::LengthMismatch {
@@ -205,9 +198,10 @@ pub(super) fn fill_indexes_prepared(
             }
         }
         ResamplingPlan::BayesianBootstrap => {
-            return Err(DataError::InvalidArgument {
-                message: "BayesianBootstrap yields weights; use fill_resample_weights".into(),
-            });
+            return Err(DataError::unsupported(
+                "BayesianBootstrap index draws",
+                "BayesianBootstrap yields weights; use fill_resample_weights",
+            ));
         }
         ResamplingPlan::MovingBlock { length } | ResamplingPlan::CircularBlock { length } => {
             let mut indexes = vec![0usize; n];
@@ -228,9 +222,7 @@ pub(super) fn fill_indexes_prepared(
         }
         ResamplingPlan::ClusterBootstrap { .. } => {
             let Some(clusters) = clusters else {
-                return Err(DataError::InvalidArgument {
-                    message: "clustered resampling requires cluster_ids".into(),
-                });
+                return Err(DataError::precondition("clustered resampling", "cluster_ids"));
             };
             fill_cluster_bootstrap(clusters, rng, out)?;
         }
@@ -246,9 +238,7 @@ pub(super) fn fill_indexes_prepared(
         }
         ResamplingPlan::Permutation(PermutationScheme::WithinCluster) => {
             let Some(clusters) = clusters else {
-                return Err(DataError::InvalidArgument {
-                    message: "clustered resampling requires cluster_ids".into(),
-                });
+                return Err(DataError::precondition("clustered resampling", "cluster_ids"));
             };
             fill_within_cluster_permutation(n, clusters, rng, out)?;
         }
@@ -271,7 +261,7 @@ pub fn fill_circular_block_indexes(
     out: &mut [usize],
 ) -> Result<(), DataError> {
     if n == 0 {
-        return Err(DataError::InvalidArgument { message: "resample needs n > 0".into() });
+        return Err(DataError::invalid_value("resample n", "must be greater than zero"));
     }
     if out.len() != n {
         return Err(DataError::LengthMismatch {
@@ -292,12 +282,14 @@ pub(super) fn fill_block_slice<T: Copy>(
     cast: impl Fn(usize) -> Result<T, DataError>,
 ) -> Result<(), DataError> {
     if length == 0 {
-        return Err(DataError::InvalidArgument { message: "block length must be > 0".into() });
+        return Err(DataError::invalid_value("block length", "must be greater than zero"));
     }
     if length > n {
-        return Err(DataError::InvalidArgument {
-            message: format!("block length {length} exceeds series length {n}"),
-        });
+        return Err(DataError::exceeds_limit(
+            "block length (series length)",
+            u64::try_from(length).unwrap_or(u64::MAX),
+            u64::try_from(n).unwrap_or(u64::MAX),
+        ));
     }
     let n_starts = if circular { n } else { n.saturating_sub(length).saturating_add(1) };
     let mut written = 0;
@@ -326,9 +318,10 @@ pub(super) fn fill_stationary(
     out: &mut Vec<GlobalId>,
 ) -> Result<(), DataError> {
     if !(expected_length.is_finite() && expected_length >= 1.0) {
-        return Err(DataError::InvalidArgument {
-            message: "stationary expected_length must be finite and ≥ 1".into(),
-        });
+        return Err(DataError::invalid_value(
+            "stationary expected_length",
+            "must be finite and at least 1",
+        ));
     }
     // Geometric block length with mean L: P(L=k) = p(1-p)^{k-1}, p = 1/L, drawn by inverting
     // the survival function P(L > k) = (1-p)^k: one uniform per block, and none at all when
@@ -367,7 +360,7 @@ pub(super) fn fill_cluster_bootstrap(
 ) -> Result<(), DataError> {
     let g = clusters.n_clusters();
     if g == 0 {
-        return Err(DataError::InvalidArgument { message: "no clusters".into() });
+        return Err(DataError::empty("clusters"));
     }
     // G IID draws from the empirical cluster distribution. Conditioning on
     // exactly n rows changes that distribution when clusters have unequal sizes.

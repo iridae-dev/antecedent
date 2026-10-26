@@ -227,6 +227,57 @@ pub fn chol_inverse(chol: &[f64], n: usize) -> Vec<f64> {
     inv
 }
 
+/// Lower Cholesky factor `L` (row-major `p x p`) of the Gram matrix `XᵀX` of a column-major
+/// `n x p` design, or `None` when the design is rank deficient.
+///
+/// The factorization runs on the column-equilibrated Gram (unit diagonal, so each pivot reads
+/// as the share of its column the preceding ones leave unexplained): a column's scale cannot
+/// hide or fake a rank loss. A column norm that is zero or non-finite, a pivot at or below
+/// `max(n, p) · ε`, or any non-finite entry refuses the design. The factor is rescaled back
+/// to the original columns before it is returned. `None` also when `design` holds fewer than
+/// `n * p` entries.
+#[must_use]
+pub fn design_gram_cholesky(design: &[f64], n: usize, p: usize) -> Option<Vec<f64>> {
+    if design.len() < n.checked_mul(p)? {
+        return None;
+    }
+    let column = |c: usize| &design[c * n..(c + 1) * n];
+    let norms: Vec<f64> =
+        (0..p).map(|c| column(c).iter().map(|v| v * v).sum::<f64>().sqrt()).collect();
+    if norms.iter().any(|norm| !(norm.is_finite() && *norm > 0.0)) {
+        return None;
+    }
+    let mut l = vec![0.0; p * p];
+    let floor = n.max(p) as f64 * f64::EPSILON;
+    for i in 0..p {
+        for j in 0..=i {
+            let dot: f64 = column(i)
+                .iter()
+                .zip(column(j))
+                .map(|(a, b)| (a / norms[i]) * (b / norms[j]))
+                .sum();
+            let mut acc = dot;
+            for q in 0..j {
+                acc -= l[i * p + q] * l[j * p + q];
+            }
+            if i == j {
+                if !(acc.is_finite() && acc > floor) {
+                    return None;
+                }
+                l[i * p + i] = acc.sqrt();
+            } else {
+                l[i * p + j] = acc / l[j * p + j];
+            }
+        }
+    }
+    for i in 0..p {
+        for j in 0..=i {
+            l[i * p + j] *= norms[i];
+        }
+    }
+    l.iter().all(|v| v.is_finite()).then_some(l)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -241,6 +292,27 @@ mod tests {
         let mut l = [9.0; 4];
         cholesky_spd_into(&[4.0, 2.0, 2.0, 5.0], 2, &mut l).unwrap();
         assert_eq!(l, [2.0, 0.0, 1.0, 2.0]);
+    }
+
+    #[test]
+    fn design_gram_factor_reproduces_the_gram_and_refuses_rank_loss() {
+        // Columns of very different scale: the factor must still satisfy L L' = X'X.
+        let n = 5;
+        let design = [1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 1.0e3, 2.0e3, 3.0e3, 4.0e3];
+        let l = design_gram_cholesky(&design, n, 2).expect("full rank");
+        let gram = |i: usize, j: usize| -> f64 {
+            (0..n).map(|r| design[i * n + r] * design[j * n + r]).sum()
+        };
+        for i in 0..2 {
+            for j in 0..=i {
+                let rebuilt: f64 = (0..=j).map(|q| l[i * 2 + q] * l[j * 2 + q]).sum();
+                assert!((rebuilt - gram(i, j)).abs() <= 1e-9 * gram(i, i).max(gram(j, j)));
+            }
+        }
+        let collinear = [1.0, 2.0, 3.0, 4.0, 5.0, 2.0, 4.0, 6.0, 8.0, 10.0];
+        assert!(design_gram_cholesky(&collinear, n, 2).is_none());
+        assert!(design_gram_cholesky(&[1.0, f64::NAN, 2.0, 3.0], 2, 2).is_none());
+        assert!(design_gram_cholesky(&[1.0, 2.0], 2, 2).is_none());
     }
 
     #[test]

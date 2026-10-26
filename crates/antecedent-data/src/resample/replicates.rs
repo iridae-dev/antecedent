@@ -2,8 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
 use super::indexes::*;
+use super::*;
 
 /// Fill `out` with length-`n` Bayesian-bootstrap weights (normalized Exp(1) draws).
 ///
@@ -20,12 +20,10 @@ pub(crate) fn fill_resample_weights(
     out: &mut Vec<f64>,
 ) -> Result<(), DataError> {
     if n == 0 {
-        return Err(DataError::InvalidArgument { message: "resample needs n > 0".into() });
+        return Err(DataError::invalid_value("resample n", "must be greater than zero"));
     }
     if !matches!(plan, ResamplingPlan::BayesianBootstrap) {
-        return Err(DataError::InvalidArgument {
-            message: "fill_resample_weights requires BayesianBootstrap".into(),
-        });
+        return Err(DataError::precondition("fill_resample_weights", "BayesianBootstrap"));
     }
     // The workspace endpoint policy and mean-one normalization are the kernel's: one uniform
     // per slot in order, floored at `f64::MIN_POSITIVE` (only the exact-zero and `2^-53`
@@ -36,9 +34,7 @@ pub(crate) fn fill_resample_weights(
     // Every raw exponential is strictly positive and finite, so a non-positive or non-finite
     // weight can only come from a zero or non-finite total.
     if !out.iter().all(|w| w.is_finite() && *w > 0.0) {
-        return Err(DataError::InvalidArgument {
-            message: "BayesianBootstrap weight sum non-positive".into(),
-        });
+        return Err(DataError::invalid_value("BayesianBootstrap weight sum", "must be positive"));
     }
     Ok(())
 }
@@ -49,13 +45,12 @@ pub(super) fn resample_rng(ctx: &ExecutionContext, stream_base: u64, replicate: 
 
 pub(super) fn checked_batch_len(n: usize, n_replicates: usize) -> Result<usize, DataError> {
     if n == 0 || n_replicates == 0 {
-        return Err(DataError::InvalidArgument {
-            message: "batch resample needs n > 0 and n_replicates > 0".into(),
-        });
+        return Err(DataError::invalid_value(
+            "batch resample n and n_replicates",
+            "must both be greater than zero",
+        ));
     }
-    n.checked_mul(n_replicates).ok_or_else(|| DataError::InvalidArgument {
-        message: "batch resample dimensions overflow usize".into(),
-    })
+    n.checked_mul(n_replicates).ok_or_else(|| DataError::overflow("batch resample dimensions"))
 }
 
 pub(super) fn check_resampling_cancelled(ctx: &ExecutionContext) -> Result<(), DataError> {
@@ -145,14 +140,14 @@ pub fn fill_resample_index_batch(
         });
     }
     if plan.is_weight_plan() {
-        return Err(DataError::InvalidArgument {
-            message: "BayesianBootstrap yields weights; use fill_resample_weight_batch".into(),
-        });
+        return Err(DataError::unsupported(
+            "BayesianBootstrap index draws",
+            "BayesianBootstrap yields weights; use fill_resample_weight_batch",
+        ));
     }
     if matches!(plan, ResamplingPlan::ClusterBootstrap { .. }) {
-        let ids = cluster_ids.ok_or_else(|| DataError::InvalidArgument {
-            message: "clustered resampling requires cluster_ids".into(),
-        })?;
+        let ids = cluster_ids
+            .ok_or_else(|| DataError::precondition("clustered resampling", "cluster_ids"))?;
         if ids.len() != n {
             return Err(DataError::LengthMismatch {
                 expected: n,
@@ -167,10 +162,10 @@ pub fn fill_resample_index_batch(
         let mut sizes = counts.values();
         let first = sizes.next();
         if sizes.any(|size| Some(size) != first) {
-            return Err(DataError::InvalidArgument {
-                message: "unequal cluster sizes cannot be represented by fixed-width batch output"
-                    .into(),
-            });
+            return Err(DataError::unsupported(
+                "fixed-width batch output",
+                "unequal cluster sizes cannot be represented",
+            ));
         }
     }
     let clusters = prepare_clusters(plan, n, cluster_ids)?;
@@ -204,9 +199,7 @@ pub(crate) fn fill_resample_weight_batch(
         });
     }
     if !matches!(plan, ResamplingPlan::BayesianBootstrap) {
-        return Err(DataError::InvalidArgument {
-            message: "fill_resample_weight_batch requires BayesianBootstrap".into(),
-        });
+        return Err(DataError::precondition("fill_resample_weight_batch", "BayesianBootstrap"));
     }
     fill_replicate_rows(ctx, n, n_replicates, out, |r, scratch| {
         let mut rng = resample_rng(ctx, stream_base, r as u64);
@@ -288,18 +281,16 @@ pub(super) fn admit_resample_scratch<T>(
     n: usize,
     n_replicates: usize,
 ) -> Result<ScratchLease, DataError> {
-    let per_worker =
-        n.checked_mul(size_of::<T>()).and_then(|bytes| u64::try_from(bytes).ok()).ok_or_else(
-            || DataError::InvalidArgument { message: "resample scratch size overflow".into() },
-        )?;
+    let per_worker = n
+        .checked_mul(size_of::<T>())
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .ok_or_else(|| DataError::overflow("resample scratch size"))?;
     ctx.admit_scratch(n_replicates, per_worker).map_err(|refusal| match refusal {
-        ScratchRefusal::Overflow => {
-            DataError::InvalidArgument { message: "resample scratch size overflow".into() }
+        ScratchRefusal::Overflow => DataError::overflow("resample scratch size"),
+        ScratchRefusal::PoolShort { bytes } => {
+            DataError::budget_refused("resample scratch", bytes, None)
         }
-        ScratchRefusal::PoolShort { .. } => DataError::InvalidArgument {
-            message: "admission pool cannot fund the resample scratch".into(),
-        },
         ScratchRefusal::Cancelled => DataError::Cancelled,
-        _ => DataError::InvalidArgument { message: refusal.to_string() },
+        _ => DataError::external("resample scratch admission", refusal),
     })
 }

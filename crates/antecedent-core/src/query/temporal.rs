@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::InterventionFault;
 use std::sync::Arc;
 
 use crate::canonical_encode::{CanonicalEncode, encode_variable_set};
@@ -145,9 +146,7 @@ impl TemporalEffectQuery {
             .iter()
             .any(|modifier| *modifier == self.treatment || *modifier == self.outcome)
         {
-            return Err(QueryError::InvalidIntervention(
-                "a temporal conditional modifier cannot be the treatment or the outcome".into(),
-            ));
+            return Err(QueryError::InvalidIntervention(InterventionFault::ModifierIsTreatmentOrOutcome));
         }
         if self.horizon_steps == 0 {
             return Err(QueryError::NonPositiveHorizon);
@@ -156,7 +155,7 @@ impl TemporalEffectQuery {
             crate::intervention::InterventionError::InvalidTemporalWindow { from, until } => {
                 QueryError::InvalidTemporalWindow { from, until }
             }
-            other => QueryError::InvalidIntervention(other.to_string()),
+            other => QueryError::InvalidIntervention(InterventionFault::Rejected(other)),
         })?;
         self.target_population.validate()?;
         let control_var =

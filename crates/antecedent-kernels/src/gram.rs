@@ -90,9 +90,24 @@ fn divide_by_scale_pair(value: f64, left: f64, right: f64) -> f64 {
 /// when the pivot policy declares the matrix singular.
 #[must_use]
 pub fn gauss_jordan_solve(a: &mut [f64], rhs: &mut [f64], n: usize, nrhs: usize) -> bool {
+    gauss_jordan_solve_with_pivot(a, rhs, n, nrhs).is_some()
+}
+
+/// [`gauss_jordan_solve`] that also reports the smallest accepted pivot as a fraction of the
+/// matrix scale (the largest diagonal magnitude). `None` exactly when the solve refuses.
+///
+/// For a unit-diagonal Gram this is an inexpensive conditioning indicator: a small value
+/// means the matrix is close to the refusal floor and the solution has lost digits.
+#[must_use]
+pub fn gauss_jordan_solve_with_pivot(
+    a: &mut [f64],
+    rhs: &mut [f64],
+    n: usize,
+    nrhs: usize,
+) -> Option<f64> {
     let nn = n.saturating_mul(n);
     if n == 0 || a.len() < nn || rhs.len() < nrhs.saturating_mul(n) {
-        return false;
+        return None;
     }
     let mut diag_scale = 0.0_f64;
     let mut entry_scale = 0.0_f64;
@@ -104,9 +119,10 @@ pub fn gauss_jordan_solve(a: &mut [f64], rhs: &mut [f64], n: usize, nrhs: usize)
     }
     let scale = if diag_scale > 0.0 { diag_scale } else { entry_scale };
     if !(scale.is_finite() && scale > 0.0) {
-        return false;
+        return None;
     }
     let tol = EQUILIBRATED_PIVOT_FLOOR * scale;
+    let mut smallest = f64::INFINITY;
     for col in 0..n {
         let mut best_row = col;
         let mut best = a[col * n + col].abs();
@@ -118,8 +134,9 @@ pub fn gauss_jordan_solve(a: &mut [f64], rhs: &mut [f64], n: usize, nrhs: usize)
             }
         }
         if !best.is_finite() || best <= tol {
-            return false;
+            return None;
         }
+        smallest = smallest.min(best);
         if best_row != col {
             for j in 0..n {
                 a.swap(col * n + j, best_row * n + j);
@@ -148,7 +165,7 @@ pub fn gauss_jordan_solve(a: &mut [f64], rhs: &mut [f64], n: usize, nrhs: usize)
             }
         }
     }
-    true
+    Some(smallest / scale)
 }
 
 /// Invert a small dense row-major matrix.
@@ -198,6 +215,18 @@ mod tests {
         let a = [100.0, 0.0, 0.0, 9e14];
         assert_eq!(symmetric_scales(&a, 2), [8.0, 2.0_f64.powi(25)]);
         assert_eq!(symmetric_scales(&[0.0, 1.0, 1.0, 4.0], 2), [1.0, 2.0]);
+    }
+
+    #[test]
+    fn solve_with_pivot_reports_the_smallest_relative_pivot() {
+        let mut a = [1.0, 0.0, 0.0, 1e-6];
+        let mut rhs = [1.0, 1.0];
+        let pivot = gauss_jordan_solve_with_pivot(&mut a, &mut rhs, 2, 1).expect("regular");
+        assert_eq!(pivot, 1e-6);
+        assert_eq!(rhs, [1.0, 1e6]);
+        let mut singular = [1.0, 0.0, 0.0, 1e-13];
+        assert!(gauss_jordan_solve_with_pivot(&mut singular, &mut [1.0, 1.0], 2, 1).is_none());
+        assert!(!gauss_jordan_solve(&mut [1.0, 0.0, 0.0, 1e-13], &mut [1.0, 1.0], 2, 1));
     }
 
     #[test]

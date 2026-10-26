@@ -88,9 +88,7 @@ impl ArrowCColumn {
         chunks: Vec<(FFI_ArrowArray, FFI_ArrowSchema)>,
     ) -> Result<Self, DataError> {
         if chunks.is_empty() {
-            return Err(DataError::InvalidArgument {
-                message: "Arrow CDI column needs ≥1 chunk".into(),
-            });
+            return Err(DataError::empty("Arrow CDI column chunks"));
         }
         let parts = chunks.into_iter().map(|(array, schema)| FfiPair { array, schema }).collect();
         Ok(Self { name: name.into(), parts })
@@ -102,9 +100,8 @@ impl ArrowCColumn {
     ///
     /// When Arrow cannot export the array through the C Data Interface.
     pub fn from_arrow_array(name: impl Into<String>, array: &dyn Array) -> Result<Self, DataError> {
-        let (ffi_array, ffi_schema) = to_ffi(&array.to_data()).map_err(|e| {
-            DataError::InvalidArgument { message: format!("Arrow CDI export failed: {e}") }
-        })?;
+        let (ffi_array, ffi_schema) =
+            to_ffi(&array.to_data()).map_err(|e| DataError::external("Arrow CDI export", e))?;
         Ok(Self {
             name: name.into(),
             parts: vec![FfiPair { array: ffi_array, schema: ffi_schema }],
@@ -127,14 +124,12 @@ impl ArrowCColumn {
     pub fn into_array(self) -> Result<ArrayRef, DataError> {
         let mut chunks = self.into_chunk_arrays()?;
         if chunks.len() == 1 {
-            return chunks.pop().ok_or_else(|| DataError::InvalidArgument {
-                message: "Arrow chunk list was empty".into(),
-            });
+            return chunks.pop().ok_or_else(|| DataError::empty("Arrow chunk list"));
         }
-        Err(DataError::InvalidArgument {
-            message: "Arrow column has several chunks; import the frame view instead of one array"
-                .into(),
-        })
+        Err(DataError::precondition(
+            "importing one Arrow array",
+            "a single-chunk column; import the frame view for several chunks",
+        ))
     }
 
     /// Import every chunk. A failure releases the chunks already imported and
@@ -186,9 +181,8 @@ impl ArrowCStream {
     ///
     /// The stream is released when the reader is dropped.
     pub(crate) fn into_reader(self) -> Result<ArrowArrayStreamReader, DataError> {
-        ArrowArrayStreamReader::try_new(self.inner).map_err(|e| DataError::InvalidArgument {
-            message: format!("Arrow stream schema import failed: {e}"),
-        })
+        ArrowArrayStreamReader::try_new(self.inner)
+            .map_err(|e| DataError::external("Arrow stream schema import", e))
     }
 
     /// Read every batch. Chunks are not concatenated.
@@ -224,18 +218,14 @@ impl ArrowCStream {
         let mut batches = Vec::new();
         let mut retained = 0u64;
         for batch in reader {
-            let batch = batch.map_err(|e| DataError::InvalidArgument {
-                message: format!("Arrow stream batch import failed: {e}"),
-            })?;
+            let batch = batch.map_err(|e| DataError::external("Arrow stream batch import", e))?;
             retained = retained.saturating_add(batch_footprint(&batch));
             if retained > max_bytes {
-                return Err(DataError::InvalidArgument {
-                    message: format!(
-                        "Arrow stream retains more than the {max_bytes}-byte import budget \
-                         after {} batches",
-                        batches.len() + 1
-                    ),
-                });
+                return Err(DataError::exceeds_limit(
+                    "Arrow stream retained bytes",
+                    retained,
+                    max_bytes,
+                ));
             }
             batches.push(batch);
         }
@@ -259,15 +249,14 @@ fn batch_footprint(batch: &RecordBatch) -> u64 {
 ///
 /// # Errors
 ///
-/// Returns [`DataError::InvalidArgument`] when the FFI pair cannot be decoded.
+/// Returns [`DataError::External`] when the FFI pair cannot be decoded.
 pub(crate) unsafe fn import_array(
     array: FFI_ArrowArray,
     schema: &FFI_ArrowSchema,
 ) -> Result<ArrayRef, DataError> {
     // SAFETY: caller guarantees a valid CDI pair; from_ffi releases on drop/error.
-    let data = unsafe { from_ffi(array, schema) }.map_err(|e| DataError::InvalidArgument {
-        message: format!("Arrow CDI import failed: {e}"),
-    })?;
+    let data = unsafe { from_ffi(array, schema) }
+        .map_err(|e| DataError::external("Arrow CDI import", e))?;
     Ok(arrow_array::make_array(data))
 }
 
@@ -353,9 +342,8 @@ pub(crate) fn validity_from_array(array: &dyn Array) -> Result<(ValidityBitmap, 
             validity_bytes[row / 8] |= 1 << (row % 8);
         }
     }
-    let copied = u64::try_from(validity_bytes.len()).map_err(|_| DataError::InvalidArgument {
-        message: "validity bitmap length does not fit u64".into(),
-    })?;
+    let copied = u64::try_from(validity_bytes.len())
+        .map_err(|_| DataError::overflow("validity bitmap length (u64)"))?;
     Ok((ValidityBitmap::from_bytes(validity_bytes, n)?, copied))
 }
 
@@ -511,9 +499,7 @@ mod tests {
             .into_batches_within(budget)
             .expect_err("byte budget");
         match err {
-            DataError::InvalidArgument { message } => {
-                assert!(message.contains(&budget.to_string()), "{message}");
-            }
+            DataError::ExceedsLimit { limit, .. } => assert_eq!(limit, budget),
             other => panic!("expected the byte budget, got {other}"),
         }
     }

@@ -2,8 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
 use super::plan::*;
+use super::*;
 
 /// Schema of a table source and the per-column decode estimate.
 #[derive(Clone, Debug)]
@@ -15,7 +15,11 @@ pub(super) struct SchemaView {
 }
 
 impl SchemaView {
-    pub(super) fn new(schema: SchemaRef, decode_per_row: Vec<Option<u64>>, reader_bytes: u64) -> Self {
+    pub(super) fn new(
+        schema: SchemaRef,
+        decode_per_row: Vec<Option<u64>>,
+        reader_bytes: u64,
+    ) -> Self {
         let columns = schema
             .fields()
             .iter()
@@ -111,7 +115,11 @@ pub(super) fn arrow_decode_width(data_type: &DataType, options: ReadOptions) -> 
     }
 }
 
-pub(super) fn same_schema(first: &Schema, next: &Schema, path: &Path) -> Result<(), FileSourceError> {
+pub(super) fn same_schema(
+    first: &Schema,
+    next: &Schema,
+    path: &Path,
+) -> Result<(), FileSourceError> {
     if first.fields().len() != next.fields().len() {
         return Err(FileSourceError::SchemaMismatch {
             path: path.to_path_buf(),

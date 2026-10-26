@@ -11,6 +11,7 @@
 //! target and the refusals of point, stochastic, coarsened and derivative targets are
 //! what keep the routes apart.
 
+use super::fault::ResponseFault;
 use super::TransportQuery;
 use super::{ContinuousDomain, GridSpec, QueryError, ResponseFunctional, ResponseQuery};
 use crate::ids::VariableId;
@@ -99,13 +100,7 @@ impl SmoothedDoseTransportQuery {
             || self.source_population == self.target_population
             || self.density_provenance.trim().is_empty()
         {
-            return Err(QueryError::InvalidResponse(
-                "a smoothed dose-response transport query needs distinct dose and outcome \
-                 coordinates, a non-empty grid of distinct finite doses, a positive finite \
-                 bandwidth, a finite dose support lo < hi, distinct population keys and a \
-                 density provenance"
-                    .into(),
-            ));
+            return Err(QueryError::InvalidResponse(ResponseFault::SmoothedDoseDeclaration));
         }
         Ok(())
     }

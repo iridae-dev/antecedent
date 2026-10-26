@@ -318,9 +318,10 @@ struct Builder {
 impl Builder {
     fn new(kind: &FileColumnKind, reserve: usize) -> Result<Self, FileSourceError> {
         let refused = |_| {
-            FileSourceError::Data(DataError::InvalidArgument {
-                message: "the allocator refused the resident column buffer".into(),
-            })
+            FileSourceError::Data(DataError::external(
+                "allocator",
+                "refused the resident column buffer",
+            ))
         };
         let values = match kind {
             FileColumnKind::Float64 => {

@@ -16,6 +16,7 @@ mod did;
 mod discover;
 mod distribution;
 mod error;
+mod fault;
 mod functional;
 mod history_match;
 mod interference;
@@ -27,6 +28,7 @@ mod nested_counterfactual;
 mod policy_value;
 mod population;
 mod probability;
+mod probability_rows;
 mod randomized;
 mod response;
 mod sequential_contrast;
@@ -96,6 +98,26 @@ pub use policy_value::{
     policy_graphless_coordinate,
 };
 pub use population::{PopulationRegistry, PopulationSelection};
+pub use fault::{
+    AssociationFault,
+    AttributeFault,
+    DiscoverFault,
+    HistoryMatchFault,
+    InterferenceFault,
+    InterventionFault,
+    IvBoundsFault,
+    LocalPolynomialRatioFault,
+    LongitudinalRegimeFault,
+    PanelDesignFault,
+    PolicyValueFault,
+    ResponseFault,
+    SequentialContrastFault,
+    SimulateFault,
+    SurvivalFault,
+    TemporalDesignFault,
+    TransportFault,
+};
+pub use probability_rows::{ProbabilityRows, ProbabilityTable};
 pub use randomized::{
     RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand, randomized_graphless_coordinate,
 };

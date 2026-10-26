@@ -440,6 +440,11 @@ impl OlsRefresh {
         ))
     }
 
+    /// Refuse `operation` when this block's retention cannot serve it.
+    pub(crate) fn require_rows(&self, operation: RetainedOperation) -> Result<(), StateError> {
+        self.require(operation)
+    }
+
     fn require(&self, operation: RetainedOperation) -> Result<(), StateError> {
         self.retention.require(operation).map_err(|_| refuse_retention(operation, self.retention))
     }

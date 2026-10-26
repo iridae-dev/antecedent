@@ -21,11 +21,11 @@
 //! `max_candidates` is identified by the ancestral set, which the test already certified
 //! (valid, not minimal): only the choice of a smaller set is skipped, and the result carries
 //! an Execution diagnostic [`MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE`]. The joint multi-treatment
-//! search has no such certified set, so above `max_candidates` it stays undecided: status
-//! [`IdentificationStatus::NotIdentified`] with an Execution diagnostic
-//! [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`], counted in
-//! [`IdentificationEnvelope::truncated_completions`]. A completed search that finds no set is
-//! also [`IdentificationStatus::NotIdentified`], but with a Scientific diagnostic.
+//! search decides existence the same way (one test per treatment on the maximal candidate set,
+//! see the `joint_response` module) and returns that set, with the Execution diagnostic
+//! [`crate::JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE`], when the search for a smaller one is
+//! stopped. A decided absence of any set is [`IdentificationStatus::NotIdentified`] with a
+//! Scientific diagnostic.
 //!
 //! This is **generalized adjustment**, not the full ID/IDC algorithm (see roadmap P5.3).
 //! Sets outside the ancestor candidate family are not searched.
@@ -61,14 +61,14 @@ use crate::result::{
 pub(crate) const CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str =
     "identify.conditional.search_bounded";
 
-/// Diagnostic code attached to a per-completion [`IdentificationResult`] when adjustment-set
-/// enumeration was capped by `max_candidates` before it could search — as opposed to
-/// searching exhaustively and finding no valid set. A cap keeps
-/// [`IdentificationStatus::NotIdentified`] and is an
-/// Execution diagnostic, not a scientific open-back-door. Both cases still fold
-/// into [`IdentificationEnvelope::unidentified_weight`] (unidentified mass is
-/// preserved either way); [`IdentificationEnvelope::truncated_completions`]
-/// counts only this diagnostic.
+/// Diagnostic code of a per-completion [`IdentificationResult`] whose adjustment-set search
+/// was capped before it could decide — as opposed to searching exhaustively and finding no
+/// valid set. Such a result keeps [`IdentificationStatus::NotIdentified`] and is an Execution
+/// diagnostic, not a scientific open-back-door. The in-tree searches no longer stop undecided
+/// (each decides existence in one test and falls back to the certified set), so none emits it;
+/// it stays recognised by [`search_truncated`](crate::envelope::search_truncated) for stored
+/// and externally built results, which [`IdentificationEnvelope::truncated_completions`]
+/// counts.
 pub const CAPPED_COMPLETION_DIAGNOSTIC_CODE: &str =
     "identify.generalized_adjustment.completion_capped";
 
@@ -104,10 +104,9 @@ pub struct GeneralizedAdjustmentConfig {
     /// Separation tests one adjustment search may run before it stops looking for a smaller
     /// set (work budget, not an output cap).
     ///
-    /// Whether a single-treatment set exists is decided by one test on the ancestral set,
-    /// which is returned when the budget ends the search for a smaller one. The joint
-    /// multi-treatment search has no such shortcut: its budget ends the whole search and the
-    /// result is a bounded search, not a refutation.
+    /// Whether a single-treatment or a joint multi-treatment set exists is decided by one
+    /// test on the maximal candidate set, which is returned when the budget ends the search
+    /// for a smaller one.
     pub max_examinations: u64,
     /// Operations the completion search may charge: one per endpoint assignment or partial
     /// orientation visited, and one per m-separation query of the equivalence audit. A stop is
@@ -1178,32 +1177,6 @@ pub(crate) fn not_identified(query: CausalQuery, detail: &str) -> Identification
         AssumptionSet::default(),
         IdentificationPerformanceRecord::default(),
     )
-}
-
-/// Execution-capped result: the candidate family exceeded the declared ceiling before
-/// enumeration could start. Status stays [`IdentificationStatus::NotIdentified`].
-/// Honesty is [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`] as
-/// [`DiagnosticKind::Execution`], not a scientific open-back-door.
-pub(crate) fn capped_completion_result(
-    query: CausalQuery,
-    n_candidates: usize,
-    max_candidates: usize,
-) -> IdentificationResult {
-    let mut result =
-        not_identified(query, "generalized adjustment candidate set exceeds enumeration limit");
-    result.diagnostics.push(Diagnostic::new(
-        CAPPED_COMPLETION_DIAGNOSTIC_CODE,
-        DiagnosticKind::Execution,
-        DiagnosticSeverity::Warning,
-        format!(
-            "generalized adjustment candidate set ({n_candidates}) exceeds the declared \
-             candidate ceiling ({max_candidates}) or the storage the context can lease; \
-             enumeration was not attempted on this completion, so \
-             identifiability could not be determined (not the same as a proven non-\
-             identifiable completion)"
-        ),
-    ));
-    result
 }
 
 pub(crate) fn mag_to_admg(mag: &Pag) -> Option<Admg> {

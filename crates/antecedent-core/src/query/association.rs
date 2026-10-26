@@ -1,6 +1,7 @@
 //! Descriptive association of an outcome with predictors, stated as a noncausal query.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::AssociationFault;
 use std::sync::Arc;
 
 use super::QueryError;
@@ -269,44 +270,38 @@ impl AssociationQuery {
     /// and a predictive model take a predictor, fewer than two folds), or the recorded
     /// refusal reason is empty or too long.
     pub fn validate(&self) -> Result<(), QueryError> {
-        let invalid = |message: &str| Err(QueryError::InvalidAssociation(message.to_owned()));
+        let invalid = |fault: AssociationFault| Err(QueryError::InvalidAssociation(fault));
         let columns = self.columns();
         let mut sorted = columns.clone();
         sorted.sort_unstable();
         sorted.dedup();
         if sorted.len() != columns.len() {
-            return invalid(
-                "declare distinct outcome, predictor, conditioning and weight columns; a column \
-                 cannot take two roles",
-            );
+            return invalid(AssociationFault::ColumnRoles);
         }
         match self.functional {
             AssociationFunctional::Auto | AssociationFunctional::Conditional => {}
             AssociationFunctional::Coefficients => {
                 if self.predictors.is_empty() {
-                    return invalid("regression coefficients need at least one predictor");
+                    return invalid(AssociationFault::CoefficientsPredictor);
                 }
             }
             AssociationFunctional::Measure(_) => {
                 if self.predictors.len() != 1 || !self.conditioning.is_empty() {
-                    return invalid(
-                        "an association measure relates the outcome to exactly one predictor and \
-                         holds nothing fixed; use coefficients to adjust for conditioning columns",
-                    );
+                    return invalid(AssociationFault::MeasureShape);
                 }
             }
             AssociationFunctional::Predictive { folds } => {
                 if self.predictors.is_empty() {
-                    return invalid("a predictive model needs at least one predictor");
+                    return invalid(AssociationFault::PredictiveModelPredictor);
                 }
                 if folds < MIN_PREDICTIVE_FOLDS {
-                    return invalid("a predictive model is scored over at least 2 folds");
+                    return invalid(AssociationFault::PredictiveModelFolds);
                 }
             }
         }
         if let Some(reason) = &self.refused_after {
             if reason.is_empty() || reason.len() > MAX_REFUSED_AFTER_BYTES {
-                return invalid("the recorded refusal reason must be 1 to 256 bytes");
+                return invalid(AssociationFault::RefusalReasonLength);
             }
         }
         Ok(())

@@ -1,6 +1,7 @@
 //! Declared observational two-decision contrast of two static regimes.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::SequentialContrastFault;
 use std::sync::Arc;
 
 use super::QueryError;
@@ -71,30 +72,22 @@ impl SequentialContrastQuery {
         sorted.sort_unstable();
         sorted.dedup();
         if sorted.len() != columns.len() {
-            return Err(QueryError::InvalidSequentialContrast(
-                "outcome, both actions and every covariate must be distinct columns".into(),
-            ));
+            return Err(QueryError::InvalidSequentialContrast(SequentialContrastFault::ColumnsNotDistinct));
         }
         if self.active.iter().chain(&self.control).any(|action| *action > 1) {
-            return Err(QueryError::InvalidSequentialContrast(
-                "a regime action must be 0 or 1".into(),
-            ));
+            return Err(QueryError::InvalidSequentialContrast(SequentialContrastFault::RegimeAction));
         }
         if self.fold_count < 2
             || self.fold_of_row.is_empty()
             || self.fold_of_row.iter().any(|fold| *fold >= self.fold_count)
         {
-            return Err(QueryError::InvalidSequentialContrast(
-                "cross-fitting needs at least two folds and a fold in range for every row".into(),
-            ));
+            return Err(QueryError::InvalidSequentialContrast(SequentialContrastFault::CrossFitting));
         }
         if !(self.min_probability.is_finite()
             && self.min_probability > 0.0
             && self.min_probability <= 0.5)
         {
-            return Err(QueryError::InvalidSequentialContrast(
-                "min_probability must be in (0, 0.5]".into(),
-            ));
+            return Err(QueryError::InvalidSequentialContrast(SequentialContrastFault::MinProbability));
         }
         Ok(())
     }

@@ -45,9 +45,7 @@ impl TabularData {
         let collected: Vec<(Arc<str>, &'a [f64])> =
             columns.into_iter().map(|(n, v)| (n.into(), v)).collect();
         if collected.is_empty() {
-            return Err(DataError::InvalidArgument {
-                message: "from_f64_columns requires at least one column".into(),
-            });
+            return Err(DataError::empty("from_f64_columns columns"));
         }
         let n = collected[0].1.len();
         let mut b = CausalSchemaBuilder::new();
@@ -90,17 +88,17 @@ impl TabularData {
         let n_vars = schema.len();
         let mut by_name: std::collections::HashMap<&str, &[f64]> = columns.into_iter().collect();
         if by_name.len() != n_vars {
-            return Err(DataError::InvalidArgument {
-                message: format!("expected {} columns for schema, got {}", n_vars, by_name.len()),
+            return Err(DataError::LengthMismatch {
+                expected: n_vars,
+                actual: by_name.len(),
+                context: "try_from_schema_f64 column count",
             });
         }
         let mut row_count = None;
         let mut owned = Vec::with_capacity(n_vars);
         for var in schema.variables() {
             let Some(values) = by_name.remove(var.name.as_ref()) else {
-                return Err(DataError::InvalidArgument {
-                    message: format!("missing column for schema variable '{}'", var.name),
-                });
+                return Err(DataError::absent("column for schema variable", var.name.to_string()));
             };
             let n = *row_count.get_or_insert(values.len());
             if values.len() != n {
@@ -119,9 +117,7 @@ impl TabularData {
         }
         if !by_name.is_empty() {
             let extra: Vec<_> = by_name.keys().copied().collect();
-            return Err(DataError::InvalidArgument {
-                message: format!("columns not in schema: {extra:?}"),
-            });
+            return Err(DataError::absent("schema variable for column", format!("{extra:?}")));
         }
         let storage = OwnedColumnarStorage::try_new(schema, owned, None, None)?;
         Ok(Self::new(storage))

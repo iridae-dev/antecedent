@@ -129,6 +129,45 @@ fn ancestral_in(problem: &Problem, within: u32, subset: u32) -> bool {
     bits(subset).all(|v| ancestors_within(problem, within, v) & !subset == 0)
 }
 
+/// The proper non-empty subsets of `mask` closed under ancestors in the graph induced on
+/// `mask`, descending numerically. The subsets are the leaves of a decision tree over the
+/// variables of `mask` in topological order (a variable may be taken only when all its
+/// parents inside `mask` were), so no branch is dead and the work between two leaves is at
+/// most the number of variables. `visit` is called with the running leaf count once per
+/// closed subset reached (the empty and the whole mask included) and may stop the walk.
+fn ancestral_subsets(
+    problem: &Problem,
+    mask: u32,
+    visit: &mut dyn FnMut(usize) -> Result<(), SearchStop>,
+) -> Result<Vec<u32>, SearchStop> {
+    fn walk(
+        problem: &Problem,
+        order: &[usize],
+        mask: u32,
+        chosen: u32,
+        out: &mut Vec<u32>,
+        visit: &mut dyn FnMut(usize) -> Result<(), SearchStop>,
+    ) -> Result<(), SearchStop> {
+        let Some((&v, rest)) = order.split_first() else {
+            visit(out.len() + 1)?;
+            out.push(chosen);
+            return Ok(());
+        };
+        walk(problem, rest, mask, chosen, out, visit)?;
+        if problem.parent_mask[v] & mask & !chosen == 0 {
+            walk(problem, rest, mask, chosen | (1u32 << v), out, visit)?;
+        }
+        Ok(())
+    }
+    let order: Vec<usize> =
+        problem.topo.iter().copied().filter(|&v| (mask >> v) & 1 == 1).collect();
+    let mut all = Vec::new();
+    walk(problem, &order, mask, 0, &mut all, visit)?;
+    all.retain(|&sub| sub != 0 && sub != mask);
+    all.sort_unstable_by(|a, b| b.cmp(a));
+    Ok(all)
+}
+
 /// Districts (bidirected-connected components) of the graph induced on `mask`.
 pub(super) fn districts_of(problem: &Problem, mask: u32) -> Vec<u32> {
     let mut remaining = mask;
@@ -169,8 +208,8 @@ pub(super) fn regime_measured_is_factor(problem: &Problem, intervened: u32, meas
 /// item they derive keeps a derivation that cites supplied regimes only; the
 /// `extra` seeds (declared but absent regimes) are then added and the closure
 /// continues, deriving only what the supplied closure did not. `charge` is called
-/// once per processed item with `(depth, estimated live bytes)` and may stop the
-/// search.
+/// once per processed item and once per ancestrally closed subset of an item that is
+/// visited, with `(depth, estimated live bytes)`, and may stop the search.
 pub(super) fn close(
     problem: &Problem,
     selected: &[u32],
@@ -212,18 +251,19 @@ pub(super) fn close(
                     depth: item.depth + 1,
                 });
             }
-            // Proper non-empty ancestrally closed subsets, descending numerically.
-            let mut sub = item.mask.wrapping_sub(1) & item.mask;
-            while sub != 0 {
-                if ancestral_in(problem, item.mask, sub) {
-                    produced.push(Item {
-                        population: item.population,
-                        mask: sub,
-                        source: ItemSource::Marginal { from: head },
-                        depth: item.depth + 1,
-                    });
-                }
-                sub = sub.wrapping_sub(1) & item.mask;
+            // Proper non-empty ancestrally closed subsets, descending numerically. They are
+            // enumerated lazily and charged one by one, so the work follows the number of
+            // closed subsets the budget pays for, not the `2^n` subsets of the mask.
+            let base = closure.items.len() as u64;
+            for sub in ancestral_subsets(problem, item.mask, &mut |visited| {
+                charge(item.depth, base.saturating_add(visited as u64).saturating_mul(64))
+            })? {
+                produced.push(Item {
+                    population: item.population,
+                    mask: sub,
+                    source: ItemSource::Marginal { from: head },
+                    depth: item.depth + 1,
+                });
             }
             for district in districts_of(problem, item.mask) {
                 if district != item.mask {
@@ -265,4 +305,54 @@ pub(super) fn reachable(closure: &Closure, roots: &[usize]) -> Vec<usize> {
         }
     }
     (0..seen.len()).filter(|i| seen[*i]).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_core::VariableId;
+
+    use super::*;
+
+    fn problem(n: u32, directed: &[(u32, u32)]) -> Problem {
+        let variables: Vec<(VariableId, Vec<f64>)> =
+            (0..n).map(|i| (VariableId::from_raw(i), vec![0.0, 1.0])).collect();
+        let edges: Vec<(VariableId, VariableId)> = directed
+            .iter()
+            .map(|&(a, b)| (VariableId::from_raw(a), VariableId::from_raw(b)))
+            .collect();
+        Problem::new(&variables, &edges, &[]).unwrap()
+    }
+
+    #[test]
+    fn ancestral_subsets_of_a_chain_are_its_prefixes() {
+        let chain = problem(3, &[(0, 1), (1, 2)]);
+        let mut visited = 0usize;
+        let subsets = ancestral_subsets(&chain, 0b111, &mut |_| {
+            visited += 1;
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(subsets, vec![0b011, 0b001]);
+        // The empty set, the two prefixes and the whole mask are the leaves visited.
+        assert_eq!(visited, 4);
+    }
+
+    #[test]
+    fn ancestral_subsets_match_the_closure_predicate_and_stop_on_a_charge() {
+        let diamond = problem(4, &[(0, 1), (0, 2), (1, 3), (2, 3)]);
+        let full = diamond.full_mask();
+        let expected: Vec<u32> =
+            (1..full).rev().filter(|&sub| ancestral_in(&diamond, full, sub)).collect();
+        let subsets = ancestral_subsets(&diamond, full, &mut |_| Ok(())).unwrap();
+        assert_eq!(subsets, expected);
+        let mut left = 2usize;
+        let stopped = ancestral_subsets(&diamond, full, &mut |_| {
+            if left == 0 {
+                return Err(SearchStop::Operations);
+            }
+            left -= 1;
+            Ok(())
+        });
+        assert_eq!(stopped, Err(SearchStop::Operations));
+    }
 }

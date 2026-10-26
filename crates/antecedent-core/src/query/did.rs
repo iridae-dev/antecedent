@@ -1,6 +1,7 @@
 //! Two-period and selected staggered group-time difference-in-differences queries.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::PanelDesignFault;
 use super::QueryError;
 use crate::canonical_encode::{
     CanonicalEncode, encode_flags, encode_i64s, encode_option, encode_variables, flag, i64_bits,
@@ -570,22 +571,16 @@ impl PanelDidQuery {
     pub fn validate(&self) -> Result<(), QueryError> {
         let n = self.treated.len();
         if n < 4 || self.post.len() != n || self.subjects.len() != n || self.clusters.len() != n {
-            return Err(QueryError::InvalidRandomizedEffect(
-                "DiD requires at least four aligned rows and metadata vectors".into(),
-            ));
+            return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::DidRows));
         }
         if self.subjects.iter().any(|x| x.trim().is_empty())
             || self.clusters.iter().any(|x| x.trim().is_empty())
         {
-            return Err(QueryError::InvalidRandomizedEffect(
-                "subject and cluster labels must be non-empty".into(),
-            ));
+            return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::BlankLabels));
         }
         if self.design == DidSamplingDesign::AugmentedPanel {
             let Some(nuisance) = &self.augmented else {
-                return Err(QueryError::InvalidRandomizedEffect(
-                    "augmented panel DiD requires nuisance columns".into(),
-                ));
+                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::AugmentedNeedsNuisance));
             };
             let variables = [
                 self.outcome,
@@ -600,15 +595,10 @@ impl PanelDidQuery {
                 || !self.cohorts.is_empty()
                 || self.target.is_some()
             {
-                return Err(QueryError::InvalidRandomizedEffect(
-                    "augmented panel DiD requires distinct columns and one unique subject per row"
-                        .into(),
-                ));
+                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::AugmentedColumns));
             }
         } else if self.augmented.is_some() {
-            return Err(QueryError::InvalidRandomizedEffect(
-                "nuisance columns require augmented panel DiD".into(),
-            ));
+            return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::NuisanceNeedsAugmented));
         }
         if matches!(
             self.design,
@@ -616,9 +606,7 @@ impl PanelDidQuery {
         ) {
             let (cohort, period) = if self.design == DidSamplingDesign::StaggeredGroupTime {
                 let Some((cohort, period)) = self.target else {
-                    return Err(QueryError::InvalidRandomizedEffect(
-                        "staggered DiD requires a selected cohort and period".into(),
-                    ));
+                    return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::StaggeredTarget));
                 };
                 (cohort, period)
             } else {
@@ -631,7 +619,7 @@ impl PanelDidQuery {
                 || self.periods.iter().any(|p| *p <= 0)
                 || self.cohorts.iter().any(|g| *g < 0)
             {
-                return Err(QueryError::InvalidRandomizedEffect("staggered DiD requires aligned positive periods, nonnegative cohorts, and a post-adoption target with an observed pre-period".into()));
+                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::StaggeredPeriods));
             }
         }
         self.validate_rollout()
@@ -647,14 +635,10 @@ impl PanelDidQuery {
         );
         match (&self.robust, rollout) {
             (Some(_), false) => {
-                return Err(QueryError::InvalidRandomizedEffect(
-                    "a heterogeneity-robust specification requires the staggered heterogeneity-robust or covariate-adjusted design".into(),
-                ));
+                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::RobustSpecificationDesign));
             }
             (None, true) => {
-                return Err(QueryError::InvalidRandomizedEffect(
-                    "the heterogeneity-robust designs require their specification".into(),
-                ));
+                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::RobustDesignSpecification));
             }
             _ => {}
         }
@@ -667,36 +651,27 @@ impl PanelDidQuery {
                 || self.target.is_some()
                 || self.augmented.is_some()
             {
-                return Err(QueryError::InvalidRandomizedEffect(
-                    "a rollout requires aligned positive periods, non-negative cohorts with at least one treated cohort, and no selected target or supplied nuisance".into(),
-                ));
+                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::RolloutPeriods));
             }
             if robust.covariates.contains(&self.outcome)
                 || robust.covariates.iter().collect::<std::collections::BTreeSet<_>>().len()
                     != robust.covariates.len()
             {
-                return Err(QueryError::InvalidRandomizedEffect(
-                    "rollout covariates must be distinct baseline columns other than the outcome"
-                        .into(),
-                ));
+                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::RolloutCovariates));
             }
             if self.design == DidSamplingDesign::CovariateAdjustedTwoPeriod
                 && (robust.covariates.is_empty()
                     || robust.estimator != RolloutDidEstimator::CallawaySantAnna
                     || robust.anticipation != 0)
             {
-                return Err(QueryError::InvalidRandomizedEffect(
-                    "a covariate-adjusted two-period DiD needs at least one covariate, the 2x2 estimator and no anticipation".into(),
-                ));
+                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::CovariateAdjustedTwoPeriod));
             }
         }
         if let Some(resampling) = &self.resampling {
             if resampling.replicates < 2
                 || !(rollout || self.design == DidSamplingDesign::AugmentedPanel)
             {
-                return Err(QueryError::InvalidRandomizedEffect(
-                    "a whole-procedure resample needs at least two replicates and a rollout or augmented panel design".into(),
-                ));
+                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::WholeProcedureResample));
             }
         }
         Ok(())

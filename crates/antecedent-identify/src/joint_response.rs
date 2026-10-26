@@ -4,11 +4,22 @@
 //! of any target in Z, and each target's back-door paths blocked by Z plus
 //! the other targets. This is sufficient, not complete general response ID.
 //!
-//! The subset search is exhaustive by size and bounded by
-//! [`crate::GeneralizedAdjustmentConfig::max_examinations`]. There is no one-test existence
-//! shortcut as for a single treatment: each treatment is separated in its own proper
-//! back-door graph, so no single ancestral set decides the common one. A search the budget
-//! stops is `identify.joint.search_bounded` (undecided), never a refutation.
+//! Existence is decided by one set, as for a single treatment. Let `R` be the candidates: the
+//! ancestors of the targets and the outcome that descend from no target. Treatment `x` must be
+//! separated from the outcome in its own proper back-door graph by `Z` together with the
+//! other targets `I = X \ {x}`. In that graph the ancestral hull of `{x, y} ∪ I` contains
+//! `R ∪ I` (a directed path from an ancestor to its first target or outcome never leaves `x`
+//! by an edge the cut removed), so by the constructive separator theorem (Tian, Paz and
+//! Pearl 1998; van der Zander et al. 2014) `R` separates for `x` whenever any admissible `Z`
+//! does. `R` is therefore a common set for every treatment exactly when a joint set exists:
+//! one separation test per treatment on `R` decides existence, and a failure is a proof that
+//! no joint set exists.
+//!
+//! When `R` passes, the search for a smaller set is exhaustive by size and bounded by
+//! [`crate::GeneralizedAdjustmentConfig::max_examinations`], the declared candidate ceiling
+//! and the storage the context can lease. A search any of them stops returns `R` itself,
+//! already certified (valid, not minimal), with `identify.joint.search_bounded` as an
+//! Execution diagnostic.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -20,7 +31,7 @@ use antecedent_core::{
 use antecedent_expr::{CausalExprArena, DomainRef, ExprNode, OutcomeExprId};
 use antecedent_graph::{Admg, Cpdag, DSeparationWorkspace, Dag, DenseNodeId, Endpoint, Pag};
 
-use crate::generalized::{capped_completion_result, directed_closure, mag_to_admg, not_identified};
+use crate::generalized::{directed_closure, mag_to_admg, not_identified};
 use crate::{
     DerivationTrace, GeneralizedAdjustmentIdentifier, IdentificationEnvelope, IdentificationError,
     IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
@@ -231,28 +242,14 @@ fn identify_joint_within(
         .collect();
     let context = crate::exact_search::context_or_default(context);
     let mut exact = crate::exact_search::ExactSearch::open(&context)?;
-    // A declared candidate ceiling retains the capped, undecided result. A denied
-    // storage lease is a resource refusal; joint adjustment has no ancestral fallback.
-    if candidates.len() > max_candidates {
-        return Ok(capped_completion_result(query, candidates.len(), max_candidates));
-    }
-    // The joint search retains one set.
-    if !exact.fund_enumeration(candidates.len(), max_candidates, 1)? {
-        return Err(IdentificationError::budget(crate::IdentificationBudget::Memory));
-    }
     let backdoor_graphs = targets
         .iter()
         .map(|&target| backdoor_graph(graph, target, &visible_edge))
         .collect::<Result<Vec<_>, _>>()?;
-    // Unlike the single-treatment search there is no one-test existence shortcut here: each
-    // treatment is separated from the outcome in its own proper back-door graph while the
-    // other treatments are conditioned on, so the ancestral sets of the individual
-    // separations differ and no single ancestral set is known to decide the common one.
-    // The search is therefore exhaustive by size, and a budget that stops it is reported as
-    // undecided.
     let mut workspace = DSeparationWorkspace::default();
-    let search = crate::enum_masks::first_set_by_size(&candidates, 0, max_examinations, |z| {
-        exact.observe()?;
+    // Each treatment is separated from the outcome in its own proper back-door graph while the
+    // other treatments are conditioned on.
+    let mut separates = |z: &[DenseNodeId]| -> Result<bool, IdentificationError> {
         for (index, &target) in targets.iter().enumerate() {
             let mut conditioned = z.to_vec();
             conditioned.extend(targets.iter().copied().filter(|&v| v != target));
@@ -264,50 +261,77 @@ fn identify_joint_within(
             }
         }
         Ok(true)
-    })?;
-    let Some(z) = search.found else {
-        if search.budget_exhausted {
-            return Ok(joint_search_bounded(query, search.examined, max_examinations));
-        }
-        return Ok(joint_scientifically_unidentified(query, search.examined));
     };
-    Ok(joint_result(query, nodes, &z, &treatments, outcome, search.examined))
+    // One test on the maximal candidate set decides existence (see the module documentation).
+    exact.observe()?;
+    if !separates(&candidates)? {
+        return Ok(joint_scientifically_unidentified(query, 1));
+    }
+    // The joint search retains one set. Above the declared ceiling, or when the context cannot
+    // lease the enumeration's storage, the subset search is skipped, not the decision: the
+    // maximal set just tested is a valid joint adjustment set.
+    if !exact.fund_enumeration(candidates.len(), max_candidates, 1)? {
+        return Ok(joint_result_bounded(query, nodes, &candidates, &treatments, outcome, 1));
+    }
+    let search = crate::enum_masks::first_set_by_size(&candidates, 1, max_examinations, |z| {
+        exact.observe()?;
+        if z == candidates.as_slice() {
+            return Ok(true);
+        }
+        separates(z)
+    })?;
+    // The budget ended the search for a smaller set; the maximal set is already certified.
+    Ok(match search.found {
+        Some(z) => joint_result(query, nodes, &z, &treatments, outcome, search.examined),
+        None => joint_result_bounded(
+            query,
+            nodes,
+            &candidates,
+            &treatments,
+            outcome,
+            search.examined,
+        ),
+    })
 }
 
-/// Diagnostic code of a joint search that spent its `max_examinations` before it
-/// finished: identifiability is undecided, not refuted.
+/// Diagnostic code of a joint search for a smaller set that stopped at its budget: the
+/// identified result carries the certified maximal set, valid but not minimal.
 pub const JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str = "identify.joint.search_bounded";
 
-/// The joint search stopped at its examination budget with subsets left untested.
-fn joint_search_bounded(
+/// The joint search for a smaller set stopped (examination budget, declared candidate ceiling
+/// or leasable storage): the certified maximal set is returned, valid but not minimal, with the
+/// Execution diagnostic of a bounded search.
+fn joint_result_bounded(
     query: CausalQuery,
+    nodes: &[NodeRef],
+    z: &[DenseNodeId],
+    treatments: &[antecedent_core::VariableId],
+    outcome: antecedent_core::VariableId,
     examined: u64,
-    max_examinations: u64,
 ) -> IdentificationResult {
-    let mut result = not_identified(
-        query,
-        "joint generalized back-door search stopped at its examination budget; undecided",
-    );
-    result.performance.candidates_examined = examined;
+    let mut result = joint_result(query, nodes, z, treatments, outcome, examined);
     result.diagnostics.push(crate::result::search_bounded_diagnostic(
         JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
         format!(
-            "joint adjustment search ran {examined} separation tests (budget \
-             {max_examinations}) without finding a set and without exhausting the candidate \
-             subsets; identifiability is undecided, not refuted"
+            "joint adjustment search ran {examined} separation tests before its examination \
+             budget, declared candidate ceiling or leasable storage stopped it; the returned \
+             set (all {} admissible candidates) separates every treatment from the outcome \
+             but a smaller set may exist",
+            z.len()
         ),
     ));
     result
 }
 
-/// Proven non-ID after an exhaustive joint search (not a budget miss).
+/// Proven non-ID: the maximal candidate set does not separate, so no joint set exists (not a
+/// budget miss).
 pub(crate) fn joint_scientifically_unidentified(
     query: CausalQuery,
     examined: u64,
 ) -> IdentificationResult {
     let mut result = not_identified(
         query,
-        "no joint generalized back-door set found; general response ID not attempted",
+        "no joint generalized back-door set exists; general response ID not attempted",
     );
     result.performance.candidates_examined = examined;
     result.diagnostics.push(Diagnostic::new(
@@ -479,12 +503,14 @@ mod tests {
             let cancelled = antecedent_core::ExecutionContext::for_tests(86);
             cancelled.cancellation.cancel();
             assert_eq!(identify(Some(cancelled)).unwrap_err(), IdentificationError::Cancelled);
+            // A context that cannot lease the enumeration's storage skips the search for a
+            // smaller set, not the decision: the certified maximal set is returned, flagged.
             let limited =
                 antecedent_core::ExecutionContext::for_tests(86).with_memory_limit(Some(1));
-            assert_eq!(
-                identify(Some(limited)).unwrap_err(),
-                IdentificationError::budget(crate::IdentificationBudget::Memory),
-            );
+            let bounded = identify(Some(limited)).unwrap();
+            assert_eq!(bounded.status, baseline.status);
+            assert_eq!(bounded.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(0)]);
+            assert!(crate::envelope::search_truncated(&bounded));
         }
     }
 
@@ -604,9 +630,10 @@ mod tests {
 
     /// Seventeen common causes of both treatments and the outcome: the only joint set is all
     /// of them, reached last by a search that grows the set size. Stopping after three
-    /// separation tests decides nothing about identifiability.
+    /// separation tests leaves the maximal set, already certified by one test, as the answer:
+    /// valid, not minimal, and flagged as the result of a bounded search.
     #[test]
-    fn joint_examination_budget_exit_is_a_bounded_search_not_a_refutation() {
+    fn joint_examination_budget_exit_returns_the_certified_maximal_set() {
         let mut admg = Admg::with_variables(20);
         admg.insert_directed(n(0), n(2)).unwrap();
         admg.insert_directed(n(1), n(2)).unwrap();
@@ -618,8 +645,9 @@ mod tests {
         let query =
             joint(VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
         let bounded = identify_joint(&admg, admg.nodes(), &query, 40, 3, |_, _| true).unwrap();
-        assert_eq!(bounded.status, IdentificationStatus::NotIdentified);
+        assert_eq!(bounded.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(bounded.performance.candidates_examined, 3);
+        assert_eq!(bounded.estimands[0].adjustment_set.len(), 17);
         let kinds: Vec<_> =
             bounded.diagnostics.iter().map(|d| (d.code.as_ref().to_owned(), d.kind)).collect();
         assert_eq!(
@@ -628,12 +656,9 @@ mod tests {
                 JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE.to_owned(),
                 antecedent_core::DiagnosticKind::Execution
             )],
-            "an unfinished search carries no scientific negative"
+            "an unfinished search for a smaller set carries no scientific negative"
         );
-        assert!(
-            crate::envelope::search_truncated(&bounded),
-            "a class envelope must count this completion as undecided, not as refuted"
-        );
+        assert!(crate::envelope::search_truncated(&bounded));
 
         let full = identify_joint(
             &admg,
@@ -646,10 +671,35 @@ mod tests {
         .unwrap();
         assert_eq!(full.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(full.estimands[0].adjustment_set.len(), 17);
+        assert!(full.diagnostics.is_empty());
+    }
+
+    /// `T1 <-> Y` with thirty common causes: the bidirected edge is an open path no joint set
+    /// can block, and one separation test per treatment on the maximal set proves it, where an
+    /// exhaustive search would visit `2^30` subsets. The proof is scientific, not a budget miss.
+    #[test]
+    fn joint_non_identification_is_decided_by_one_test_per_treatment() {
+        let causes = 30u32;
+        let mut admg = Admg::with_variables(3 + causes);
+        admg.insert_directed(n(0), n(2)).unwrap();
+        admg.insert_directed(n(1), n(2)).unwrap();
+        admg.insert_bidirected(n(0), n(2)).unwrap();
+        for i in 0..causes {
+            for child in [n(0), n(1), n(2)] {
+                admg.insert_directed(n(3 + i), child).unwrap();
+            }
+        }
+        let query =
+            joint(VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let id = identify_joint(&admg, admg.nodes(), &query, usize::MAX, 4, |_, _| true).unwrap();
+        assert_eq!(id.status, IdentificationStatus::NotIdentified);
+        assert_eq!(id.performance.candidates_examined, 1);
+        assert!(id.diagnostics.iter().any(|d| d.kind == antecedent_core::DiagnosticKind::Scientific));
+        assert!(!crate::envelope::search_truncated(&id));
     }
 
     #[test]
-    fn joint_candidate_cap_is_execution_not_scientific() {
+    fn joint_candidate_ceiling_keeps_the_certified_set_and_flags_the_unfinished_search() {
         let mut admg = Admg::with_variables(20);
         let t1 = n(0);
         let t2 = n(1);
@@ -671,21 +721,22 @@ mod tests {
         .unwrap();
         assert_eq!(
             id.status,
-            IdentificationStatus::NotIdentified,
-            "cap keeps NotIdentified: {:?}",
+            IdentificationStatus::NonparametricallyIdentified,
+            "the ceiling skips the search for a smaller set, not the decision: {:?}",
             id.derivation
         );
+        assert_eq!(id.estimands[0].adjustment_set.len(), 17);
         assert!(
             id.diagnostics.iter().any(|d| {
-                d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
+                d.code.as_ref() == JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE
                     && d.kind == antecedent_core::DiagnosticKind::Execution
             }),
-            "cap must be an execution diagnostic: {:?}",
+            "the unfinished search is an execution diagnostic: {:?}",
             id.diagnostics
         );
         assert!(
             !id.diagnostics.iter().any(|d| d.kind == antecedent_core::DiagnosticKind::Scientific),
-            "cap must not be stamped scientific: {:?}",
+            "the ceiling must not be stamped scientific: {:?}",
             id.diagnostics
         );
     }

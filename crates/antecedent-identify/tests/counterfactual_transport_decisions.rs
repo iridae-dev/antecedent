@@ -434,10 +434,15 @@ fn budget_cancellation_and_bounds_are_typed_stops_not_verdicts() {
         counterfactual_transport_refusal(&error),
         Some(("route_not_supported", "counterfactual_transport.bounds_exceeded"))
     );
-    // Nine variables are outside the frozen contract.
+    // Nine variables and five levels are declarable: the search budget, not a count, pays for them.
     let nine: Vec<(VariableId, Vec<f64>)> =
-        (0..9).map(|i| (VariableId::from_raw(i), vec![0.0, 1.0])).collect();
-    let error = CounterfactualTransportProblem::new(&nine, &[], &[]).unwrap_err();
+        (0..9).map(|i| (VariableId::from_raw(i), vec![0.0, 1.0, 2.0, 3.0, 4.0])).collect();
+    assert!(CounterfactualTransportProblem::new(&nine, &[], &[]).is_ok());
+    // Past the width of the variable sets the problem cannot be represented.
+    let wide: Vec<(VariableId, Vec<f64>)> = (0..32)
+        .map(|i| (VariableId::from_raw(i), vec![0.0, 1.0]))
+        .collect();
+    let error = CounterfactualTransportProblem::new(&wide, &[], &[]).unwrap_err();
     assert_eq!(
         counterfactual_transport_refusal(&error),
         Some(("route_not_supported", "counterfactual_transport.bounds_exceeded"))

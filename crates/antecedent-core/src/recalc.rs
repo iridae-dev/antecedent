@@ -128,6 +128,9 @@ impl fmt::Display for StageIdentity {
 pub struct Branch(u8);
 
 impl Branch {
+    /// The first branch, which every layout admits.
+    pub const ZERO: Self = Self(0);
+
     /// Branch `index`, or `None` when it is not below [`MAX_EXTERNAL_BRANCHES`].
     #[must_use]
     pub const fn new(index: u8) -> Option<Self> {

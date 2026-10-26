@@ -173,9 +173,10 @@ impl OwnedSource {
         modality: SourceModality,
     ) -> Result<Self, DataError> {
         if matches!(modality, SourceModality::Tabular) {
-            return Err(DataError::InvalidArgument {
-                message: "a time series is not a tabular source; it carries a time index".into(),
-            });
+            return Err(DataError::unsupported(
+                "building a tabular source from a time series",
+                "a time series carries a time index",
+            ));
         }
         Ok(series_source(series, modality))
     }
@@ -202,9 +203,10 @@ impl OwnedSource {
     /// decrease.
     pub fn with_event_times(mut self, times_ns: &[i64]) -> Result<Self, DataError> {
         if self.contract.modality != SourceModality::EventSeries {
-            return Err(DataError::InvalidArgument {
-                message: "event timestamps belong to an event series".into(),
-            });
+            return Err(DataError::unsupported(
+                "event timestamps on this source",
+                "they belong to an event series",
+            ));
         }
         if times_ns.len() != self.contract.rows {
             return Err(DataError::LengthMismatch {
@@ -214,9 +216,7 @@ impl OwnedSource {
             });
         }
         if times_ns.windows(2).any(|pair| pair[1] < pair[0]) {
-            return Err(DataError::InvalidArgument {
-                message: "event times must be non-decreasing".into(),
-            });
+            return Err(DataError::not_ordered("event times"));
         }
         self.contract.event_times = Some(event_times_digest(times_ns));
         Ok(self)
@@ -315,9 +315,10 @@ impl OwnedSource {
     pub fn with_splits(mut self, splits: Vec<SplitSpan>) -> Result<Self, DataError> {
         for split in &splits {
             if split.rows.end > self.contract.rows || split.rows.start > split.rows.end {
-                return Err(DataError::InvalidArgument {
-                    message: format!("split '{}' is outside the source", split.label),
-                });
+                return Err(DataError::invalid_value(
+                    "split range",
+                    "must lie inside the source with start not after end",
+                ));
             }
         }
         self.contract.splits = splits;
@@ -331,11 +332,10 @@ impl OwnedSource {
     /// [`TimeIndex::length`] is not the source row count.
     pub fn with_time_index(mut self, time_index: TimeIndex) -> Result<Self, DataError> {
         if time_index.length != self.contract.rows {
-            return Err(DataError::InvalidArgument {
-                message: format!(
-                    "time index length {} is not the source row count {}",
-                    time_index.length, self.contract.rows
-                ),
+            return Err(DataError::LengthMismatch {
+                expected: self.contract.rows,
+                actual: time_index.length,
+                context: "time index length",
             });
         }
         self.contract.time_index = Some(time_index);
@@ -350,9 +350,10 @@ impl OwnedSource {
     /// invalid exactly when the value is NaN. The snapshot contract refuses it too.
     pub fn with_validity(mut self, validity: ValidityPolicy) -> Result<Self, DataError> {
         if matches!(validity, ValidityPolicy::NullDistinctFromNan) {
-            return Err(DataError::InvalidArgument {
-                message: "null-distinct-from-NaN validity is declared but not adopted; f64 columns are invalid exactly when the value is NaN".into(),
-            });
+            return Err(DataError::unsupported(
+                "null-distinct-from-NaN validity",
+                "it is declared but not adopted; f64 columns are invalid exactly when the value is NaN",
+            ));
         }
         self.contract.validity = validity;
         Ok(self)
@@ -365,27 +366,26 @@ impl OwnedSource {
     /// An empty list, a repeated column, or a column id past the schema.
     pub fn project(&self, columns: &[u32]) -> Result<SnapshotContract, DataError> {
         if columns.is_empty() {
-            return Err(DataError::InvalidArgument {
-                message: "a column projection names no variables and is not the full source".into(),
-            });
+            return Err(DataError::empty("column projection variables"));
         }
         let width = u32::try_from(self.contract.schema_names.len()).unwrap_or(u32::MAX);
         for (index, &column) in columns.iter().enumerate() {
             if column >= width {
-                return Err(DataError::InvalidArgument {
-                    message: format!("projected column {column} is outside the schema"),
-                });
+                return Err(DataError::out_of_range(
+                    "projected column",
+                    column as usize,
+                    width as usize,
+                ));
             }
             if columns[..index].contains(&column) {
-                return Err(DataError::InvalidArgument {
-                    message: "column projection repeats a variable".into(),
-                });
+                return Err(DataError::duplicate("projected column"));
             }
         }
         let SourceIdentity::Full(parent) = self.contract.identity else {
-            return Err(DataError::InvalidArgument {
-                message: "project a full source, not a projection".into(),
-            });
+            return Err(DataError::precondition(
+                "projecting a source",
+                "a full source, not a projection",
+            ));
         };
         let mut projected = self.contract.clone();
         projected.identity = SourceIdentity::Projected { parent, columns: fingerprint(columns) };
@@ -399,9 +399,7 @@ impl OwnedSource {
     /// A range outside the source, or a source that is not a full identity.
     pub fn chunk(&self, start: usize, end: usize) -> Result<RowChunk, DataError> {
         let SourceIdentity::Full(parent) = self.contract.identity else {
-            return Err(DataError::InvalidArgument {
-                message: "chunks address a full source".into(),
-            });
+            return Err(DataError::precondition("chunking a source", "a full source"));
         };
         RowChunk::new(parent, self.contract.rows, start, end)
     }
@@ -483,14 +481,12 @@ impl SegmentedSource {
     /// `index` is past the parts, or `part` has another modality.
     pub fn with_part(mut self, index: usize, part: OwnedSource) -> Result<Self, DataError> {
         if part.contract().modality != self.modality {
-            return Err(DataError::InvalidArgument {
-                message: "a replacement part must keep the segmented modality".into(),
-            });
+            return Err(DataError::mismatch(
+                "replacement part modality and the segmented modality",
+            ));
         }
         let Some(slot) = self.parts.get_mut(index) else {
-            return Err(DataError::InvalidArgument {
-                message: format!("segment {index} is past {} parts", self.parts.len()),
-            });
+            return Err(DataError::out_of_range("segment", index, self.parts.len()));
         };
         *slot = part;
         Ok(self)
@@ -519,9 +515,10 @@ impl SnapshotContract {
 impl RowChunk {
     fn new(parent: [u8; 32], rows: usize, start: usize, end: usize) -> Result<Self, DataError> {
         if start > end || end > rows {
-            return Err(DataError::InvalidArgument {
-                message: format!("chunk {start}..{end} is outside 0..{rows}"),
-            });
+            return Err(DataError::invalid_value(
+                "chunk range",
+                "must satisfy start <= end <= row count",
+            ));
         }
         Ok(Self { parent, start, end })
     }
@@ -707,7 +704,7 @@ mod tests {
         let cohort = owned.clone().with_cohort(CohortOrder::Labeled(Arc::from("arrival")));
         assert!(matches!(
             owned.clone().with_validity(ValidityPolicy::NullDistinctFromNan),
-            Err(DataError::InvalidArgument { .. })
+            Err(DataError::Unsupported { .. })
         ));
         let same = owned.clone().with_validity(ValidityPolicy::F64InvalidIffNan).unwrap();
         assert_eq!(owned.contract(), same.contract());

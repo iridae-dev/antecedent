@@ -25,9 +25,10 @@ pub fn resample_timeseries(
     index_scratch: &mut Vec<GlobalId>,
 ) -> Result<TimeSeriesData, DataError> {
     if plan.needs_clusters() {
-        return Err(DataError::InvalidArgument {
-            message: "clustered plan requires resample_timeseries_grouped".into(),
-        });
+        return Err(DataError::precondition(
+            "a clustered resampling plan",
+            "resample_timeseries_grouped",
+        ));
     }
     resample_timeseries_grouped(data, plan, None, rng, index_scratch)
 }
@@ -72,9 +73,10 @@ pub(crate) fn resample_timeseries_with_policy(
 ) -> Result<TimeSeriesData, DataError> {
     if matches!(plan, ResamplingPlan::IidBootstrap | ResamplingPlan::BayesianBootstrap) {
         crate::split::ensure_random_allowed_on_temporal(policy).map_err(|_| {
-            DataError::InvalidArgument {
-                message: "IID bootstrap refused on time-series data (ignores serial dependence); use a block plan or pass TemporalRandomPolicy::Allow".into(),
-            }
+            DataError::unsupported(
+                "IID bootstrap of time-series data",
+                "it ignores serial dependence; use a block plan or pass TemporalRandomPolicy::Allow",
+            )
         })?;
     }
     let n = data.row_count();
@@ -87,7 +89,10 @@ pub(crate) fn resample_timeseries_with_policy(
     apply_row_map(data, index_scratch)
 }
 
-pub(super) fn apply_weight_plan(data: &TimeSeriesData, weights: &[f64]) -> Result<TimeSeriesData, DataError> {
+pub(super) fn apply_weight_plan(
+    data: &TimeSeriesData,
+    weights: &[f64],
+) -> Result<TimeSeriesData, DataError> {
     let n = data.row_count();
     if weights.len() != n {
         return Err(DataError::LengthMismatch {
@@ -114,7 +119,10 @@ pub(super) fn apply_weight_plan(data: &TimeSeriesData, weights: &[f64]) -> Resul
     TimeSeriesData::try_new(storage, data.time_index().clone())
 }
 
-pub(super) fn apply_row_map(data: &TimeSeriesData, row_map: &[GlobalId]) -> Result<TimeSeriesData, DataError> {
+pub(super) fn apply_row_map(
+    data: &TimeSeriesData,
+    row_map: &[GlobalId],
+) -> Result<TimeSeriesData, DataError> {
     let n = row_map.len();
     let positions = row_map.iter().copied().map(row_pos).collect::<Result<Vec<_>, _>>()?;
     let schema = data.schema().clone();

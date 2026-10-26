@@ -4,6 +4,26 @@
 
 use crate::ids::VariableId;
 
+use super::fault::{
+    AssociationFault,
+    AttributeFault,
+    DiscoverFault,
+    HistoryMatchFault,
+    InterferenceFault,
+    InterventionFault,
+    IvBoundsFault,
+    LocalPolynomialRatioFault,
+    LongitudinalRegimeFault,
+    PanelDesignFault,
+    PolicyValueFault,
+    ResponseFault,
+    SequentialContrastFault,
+    SimulateFault,
+    SurvivalFault,
+    TemporalDesignFault,
+    TransportFault,
+};
+
 /// Why a randomized-effect declaration is refused. Each variant is one violated
 /// contract; the display text is the stable human-readable statement of it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
@@ -116,55 +136,55 @@ pub enum RandomizedEffectFault {
 pub enum QueryError {
     /// Invalid continuous-response configuration.
     #[error("invalid response query: {0}")]
-    InvalidResponse(String),
+    InvalidResponse(ResponseFault),
     /// Invalid transportability configuration.
     #[error("invalid transport query: {0}")]
-    InvalidTransport(String),
+    InvalidTransport(TransportFault),
     /// Invalid randomization/interference configuration.
     #[error("invalid interference query: {0}")]
-    InvalidInterference(String),
+    InvalidInterference(InterferenceFault),
     /// Invalid randomized experiment contract.
     #[error("invalid randomized-effect query: {0}")]
-    InvalidRandomizedEffect(String),
+    InvalidRandomizedEffect(PanelDesignFault),
     /// A randomized-effect declaration violates one named contract.
     #[error("invalid randomized-effect query: {0}")]
     RandomizedEffectRefused(RandomizedEffectFault),
     /// Invalid held-out policy value contract.
     #[error("invalid policy-value query: {0}")]
-    InvalidPolicyValue(String),
+    InvalidPolicyValue(PolicyValueFault),
     /// Invalid survival or competing-risk observation contract.
     #[error("invalid survival query: {0}")]
-    InvalidSurvival(String),
+    InvalidSurvival(SurvivalFault),
     /// Invalid longitudinal regime value or subject-level fold contract.
     #[error("invalid longitudinal-regime query: {0}")]
-    InvalidLongitudinalRegime(String),
+    InvalidLongitudinalRegime(LongitudinalRegimeFault),
     /// Invalid within-period history match.
     #[error("invalid history-match query: {0}")]
-    InvalidHistoryMatch(String),
+    InvalidHistoryMatch(HistoryMatchFault),
     /// Invalid instrumental-variable bounds declaration.
     #[error("invalid iv-bounds query: {0}")]
-    InvalidIvBounds(String),
+    InvalidIvBounds(IvBoundsFault),
     /// Invalid noncausal association declaration.
     #[error("invalid association query: {0}")]
-    InvalidAssociation(String),
+    InvalidAssociation(AssociationFault),
     /// Invalid observational sequential regime contrast.
     #[error("invalid sequential-contrast query: {0}")]
-    InvalidSequentialContrast(String),
+    InvalidSequentialContrast(SequentialContrastFault),
     /// Invalid fixed-cutoff local-polynomial ratio design.
     #[error("invalid local-polynomial ratio query: {0}")]
-    InvalidLocalPolynomialRatio(String),
+    InvalidLocalPolynomialRatio(LocalPolynomialRatioFault),
     /// Invalid structure-discovery query.
     #[error("invalid discover query: {0}")]
-    InvalidDiscover(String),
+    InvalidDiscover(DiscoverFault),
     /// Invalid attribution query on a fitted structural model.
     #[error("invalid attribute query: {0}")]
-    InvalidAttribute(String),
+    InvalidAttribute(AttributeFault),
     /// Invalid simulation query on a fitted structural model.
     #[error("invalid simulate query: {0}")]
-    InvalidSimulate(String),
+    InvalidSimulate(SimulateFault),
     /// Invalid sequentially randomized unit-period design.
     #[error("invalid temporal-design query: {0}")]
-    InvalidTemporalDesign(String),
+    InvalidTemporalDesign(TemporalDesignFault),
     /// Treatment and outcome are the same variable.
     #[error("treatment and outcome are the same variable {id}")]
     TreatmentEqualsOutcome {
@@ -198,7 +218,7 @@ pub enum QueryError {
     NonPositiveHorizon,
     /// Nested intervention failed validation.
     #[error("invalid intervention: {0}")]
-    InvalidIntervention(String),
+    InvalidIntervention(InterventionFault),
     /// Counterfactual query has no outcomes.
     #[error("counterfactual query requires at least one outcome")]
     EmptyCounterfactualOutcomes,

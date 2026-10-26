@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::InterferenceFault;
 use std::sync::Arc;
 
 use crate::VariableId;
@@ -267,23 +268,15 @@ impl InterferenceQuery {
                 if probabilities.is_empty()
                     || probabilities.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p >= 1.0) =>
             {
-                return Err(QueryError::InvalidInterference(
-                    "Bernoulli probabilities must be finite and strictly between zero and one"
-                        .into(),
-                ));
+                return Err(QueryError::InvalidInterference(InterferenceFault::BernoulliProbabilities));
             }
             AssignmentDesign::CompleteRandomization { treated } if *treated == 0 => {
-                return Err(QueryError::InvalidInterference(
-                    "complete randomization requires at least one treated unit".into(),
-                ));
+                return Err(QueryError::InvalidInterference(InterferenceFault::CompleteTreatedUnits));
             }
             AssignmentDesign::ClusterRandomization { clusters, treated_clusters }
                 if clusters.is_empty() || *treated_clusters == 0 =>
             {
-                return Err(QueryError::InvalidInterference(
-                    "cluster randomization requires clusters and at least one treated cluster"
-                        .into(),
-                ));
+                return Err(QueryError::InvalidInterference(InterferenceFault::ClusterTreatedClusters));
             }
             AssignmentDesign::TwoStageSaturation {
                 clusters,
@@ -300,9 +293,7 @@ impl InterferenceQuery {
                 || low_probability >= high_probability
                 || *high_clusters == 0 =>
             {
-                return Err(QueryError::InvalidInterference(
-                    "two-stage saturation requires aligned clusters, 0 < low < high < 1, and high_clusters > 0".into(),
-                ));
+                return Err(QueryError::InvalidInterference(InterferenceFault::TwoStageSaturation));
             }
             AssignmentDesign::ObservedExposure {
                 clusters,
@@ -319,9 +310,7 @@ impl InterferenceQuery {
                     .chain(propensity_to.iter())
                     .any(|p| !p.is_finite() || *p <= 0.0 || *p > 1.0) =>
             {
-                return Err(QueryError::InvalidInterference(
-                    "observational exposure requires aligned positive propensities and an explicit network exchangeability assumption".into(),
-                ));
+                return Err(QueryError::InvalidInterference(InterferenceFault::ObservedExposure));
             }
             _ => {}
         }
@@ -330,10 +319,7 @@ impl InterferenceQuery {
             || exposure_levels_match(*from, *to)
             || self.probability_draws == 0
         {
-            return Err(QueryError::InvalidInterference(
-                "exposure levels must be finite/distinct and probability_draws must be positive"
-                    .into(),
-            ));
+            return Err(QueryError::InvalidInterference(InterferenceFault::ExposureLevels));
         }
         Ok(())
     }
