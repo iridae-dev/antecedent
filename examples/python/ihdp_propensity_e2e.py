@@ -74,9 +74,7 @@ def make_ihdp_like(seed: int = 42) -> dict[str, np.ndarray]:
     x = np.hstack([cont, binary])
 
     # Soft selection on the continuous confounders → good overlap for IPW.
-    logit = -0.2 + 0.15 * (
-        0.8 * x[:, 0] + 0.6 * x[:, 1] + 0.4 * x[:, 2] - 0.3 * x[:, 3]
-    )
+    logit = -0.2 + 0.15 * (0.8 * x[:, 0] + 0.6 * x[:, 1] + 0.4 * x[:, 2] - 0.3 * x[:, 3])
     propensity = 1.0 / (1.0 + np.exp(-logit))
     treatment = (rng.uniform(size=N_ROWS) < propensity).astype(np.float64)
     outcome = (
@@ -118,9 +116,7 @@ def main() -> None:
 
     print("Assumed DAG edges:", graph)
     print("Assumed adjustment set:", ADJUSTMENT)
-    print(
-        f"IHDP-like table: n={N_ROWS}, covariates={N_COVARS} (binary x7–x25 not in DAG)"
-    )
+    print(f"IHDP-like table: n={N_ROWS}, covariates={N_COVARS} (binary x7–x25 not in DAG)")
 
     ipw = analyze(
         data,

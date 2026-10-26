@@ -146,11 +146,7 @@ def nonlinear_nll(weights, intercepts, regimes, activation, sd=0.5):
         for start in range(0, len(values), 512):
             x = values[start : start + 512]
             predictor = x @ weights.T
-            active = (
-                (predictor > 0).astype(float)
-                if activation == "relu"
-                else np.ones_like(x)
-            )
+            active = (predictor > 0).astype(float) if activation == "relu" else np.ones_like(x)
             mechanism = np.maximum(predictor, 0) if activation == "relu" else predictor
             residual = (x - intercepts - mechanism)[:, free]
             jac = (
@@ -186,9 +182,7 @@ def nodags(args, seed, output):
     observational_count = 20000 if args.full else 0
     if observational_count:
         training.extend(
-            rows(
-                equilibrium_data(rng, weights, (), observational_count, activation), ()
-            )
+            rows(equilibrium_data(rng, weights, (), observational_count, activation), ())
         )
     for i in range(n):
         data = equilibrium_data(rng, weights, (i,), per_regime, activation)
@@ -204,22 +198,14 @@ def nodags(args, seed, output):
         (equilibrium_data(rng, weights, target, per_regime, activation), target)
         for target in test_targets
     ]
-    initial = (
-        rng.uniform(-0.001, 0.001, (n, n)) if activation == "relu" else np.zeros((n, n))
-    )
+    initial = rng.uniform(-0.001, 0.001, (n, n)) if activation == "relu" else np.zeros((n, n))
     np.fill_diagonal(initial, 0)
     template = EquilibriumModel(
-        tuple(
-            Equation(f"mechanism:{i}", 0.0, tuple(initial[i]), activation)
-            for i in range(n)
-        ),
+        tuple(Equation(f"mechanism:{i}", 0.0, tuple(initial[i]), activation) for i in range(n)),
         tuple((np.eye(n) * 0.25).ravel()),
     )
     parameters = [{"kind": "intercept", "equation": i} for i in range(n)] + [
-        {"kind": "weight", "equation": i, "parent": j}
-        for i in range(n)
-        for j in range(n)
-        if i != j
+        {"kind": "weight", "equation": i, "parent": j} for i in range(n) for j in range(n) if i != j
     ]
     attempts = []
     best = None
@@ -228,11 +214,7 @@ def nodags(args, seed, output):
             template.fit_adam(
                 parameters,
                 training,
-                [
-                    row
-                    for values, targets in validation
-                    for row in rows(values, targets)
-                ],
+                [row for values, targets in validation for row in rows(values, targets)],
                 policy=AdamPolicy(
                     max_epochs=min(args.max_iterations, 200),
                     minimum_epochs=20,
@@ -256,8 +238,7 @@ def nodags(args, seed, output):
         if activation == "relu":
             fit = dict(
                 fit,
-                converged=fit["validation_converged"]
-                or fit["training_score_converged"],
+                converged=fit["validation_converged"] or fit["training_score_converged"],
                 score_norm=fit["training_score_per_row"] * len(training),
                 iterations=fit["epochs"],
                 line_search_exhausted=False,
@@ -369,10 +350,7 @@ def bicycle(args, seed, output):
         mask, beta = erdos(rng, n, bicycle=True)
         drift = beta - np.eye(n)
         targets = [()] + [(i,) for i in range(n)] + pairs
-        if all(
-            ou_law(drift, np.ones(n), np.eye(n) * 0.1, t)[0] is not None
-            for t in targets
-        ):
+        if all(ou_law(drift, np.ones(n), np.eye(n) * 0.1, t)[0] is not None for t in targets):
             break
         rejected += 1
         if rejected > 1000:
@@ -479,9 +457,7 @@ def bicycle(args, seed, output):
             "artifact": replay(result, case),
         }
         if reference_error > 1e-7:
-            raise AssertionError(
-                "native OU law differs from independent SciPy reference"
-            )
+            raise AssertionError("native OU law differs from independent SciPy reference")
         write(case / "request.json", json.loads(prepared.request_json))
         write(case / "native_report.json", result.report)
         write(case / "metrics.json", row)
@@ -542,13 +518,9 @@ def main():
         report["wall_seconds"] = time.monotonic() - start
         write(output / "metrics.json", report)
         reports.append(report)
-        write(
-            args.output_dir / "results.json", {"manifest": manifest, "trials": reports}
-        )
+        write(args.output_dir / "results.json", {"manifest": manifest, "trials": reports})
         print(
-            json.dumps(
-                {"completed_seed": seed, "wall_seconds": report["wall_seconds"]}
-            ),
+            json.dumps({"completed_seed": seed, "wall_seconds": report["wall_seconds"]}),
             flush=True,
         )
 

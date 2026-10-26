@@ -44,9 +44,7 @@ def run(output_dir: Path) -> None:
             0.03 * z[2],
         ]
         clamps = (
-            []
-            if i % 4 == 0
-            else [{"variable": i % 4 - 1, "value": 1.0 if i % 8 < 4 else -1.0}]
+            [] if i % 4 == 0 else [{"variable": i % 4 - 1, "value": 1.0 if i % 8 < 4 else -1.0}]
         )
         imposed = {clamp["variable"]: clamp["value"] for clamp in clamps}
         a, b, c = 0.0, 0.0, 0.0

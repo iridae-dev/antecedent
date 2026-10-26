@@ -24,9 +24,7 @@ def ml_prepare():
         data,
         graph=[("z", "a"), ("z", "y"), ("a", "y")],
         query=ac.AverageEffect(treatment="a", outcome="y"),
-        estimator=DRLearner(
-            outcome=Ridge(0.1), treatment=Logistic(), final_learner=Linear()
-        ),
+        estimator=DRLearner(outcome=Ridge(0.1), treatment=Logistic(), final_learner=Linear()),
         inference=ac.Frequentist(bootstrap=0),
         refute=False,
         execution=ac.Execution(seed=9, threads=1),

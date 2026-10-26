@@ -30,9 +30,7 @@ def produce(directory):
     (directory / "expected.json").write_text(
         json.dumps(envelope.expectation.to_dict()["identity"]), encoding="utf-8"
     )
-    assert ant.load(
-        envelope.data, expected=envelope.expectation
-    ).acceptance.identity_bound
+    assert ant.load(envelope.data, expected=envelope.expectation).acceptance.identity_bound
     print("Producer effect:", result.answer.value)
 
 

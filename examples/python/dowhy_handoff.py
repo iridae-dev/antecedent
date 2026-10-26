@@ -71,9 +71,7 @@ def antecedent_side(data: dict[str, np.ndarray]) -> dict[str, Any]:
     }
 
 
-def dowhy_side(
-    data: dict[str, np.ndarray], antecedent_dot: str
-) -> dict[str, Any] | None:
+def dowhy_side(data: dict[str, np.ndarray], antecedent_dot: str) -> dict[str, Any] | None:
     """Optional DoWhy half: Antecedent DOT → DoWhy, and DoWhy DOT → Antecedent."""
     try:
         import pandas as pd
