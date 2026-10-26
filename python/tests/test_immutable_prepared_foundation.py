@@ -109,3 +109,19 @@ def test_population_retarget_uses_retained_scores_without_refitting(monkeypatch)
     loaded = ant.load(targeted.export())
     assert loaded.study is None
     assert loaded.inspect().target_weights_id == targeted.inspect().target_weights_id
+
+
+def test_refutation_executes_on_an_independent_completed_study():
+    outcome = estimate(_prepare())
+    value = require_success(outcome)
+    before = bytes(outcome.export())
+    original_inspection = outcome.study.inspect()
+    checked = outcome.study.refute(suite="cheap")
+    result = require_success(checked)
+    assert result.validation.count > 0
+    assert checked.answer.value == pytest.approx(outcome.answer.value)
+    assert checked.study is result.study
+    assert checked.study is not outcome.study
+    assert outcome.study.inspect() == original_inspection
+    assert bytes(outcome.export()) == before
+    assert value.study is outcome.study

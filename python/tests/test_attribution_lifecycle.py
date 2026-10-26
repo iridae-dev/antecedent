@@ -4,7 +4,7 @@ The two licensed GCM cells run on ``analyze`` and retain a study::
 
     result = ant.analyze(data, graph=Dag, query=query)
     study = result.study
-    updated = study.refresh(new_data)
+    updated = study.rebind(data=new_data).estimate()
     report = result.inspect().to_dict()
     loaded = ant.load(result.export())
 
@@ -21,8 +21,8 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent.errors import CausalUnsupportedError
-from antecedent.estimation import PreparedAnalysis
 from antecedent.outcomes import require_success
+from antecedent.prepared import PreparedAnalysis
 
 from _repo_text import REPO_ROOT, read_text
 from _sealed_loads import assert_answer_kept
@@ -76,7 +76,7 @@ def _golden(data, graph, query, new_data):
         warnings.simplefilter("error")
         result = require_success(ant.analyze(data, graph=graph, query=query))
         study = result.study
-        updated = require_success(study.refresh(new_data))
+        updated = require_success(study.rebind(data=new_data).estimate())
         report = result.inspect().to_dict()
         loaded = require_success(ant.load(bytes(result.export())))
     return result, study, updated, report, loaded
@@ -88,8 +88,9 @@ def _assert_identities(result, study, updated, report, loaded, *, fresh, coordin
     assert updated.data_snapshot_id != result.data_snapshot_id
     assert updated.data_snapshot_id == fresh.data_snapshot_id
     again = require_success(study.estimate())
-    assert again.answer == updated.answer
-    assert again.claim_id == updated.claim_id
+    assert again.answer == result.answer
+    assert again.claim_id == result.claim_id
+    assert study.inspect().data_snapshot_id == result.data_snapshot_id
 
     assert report["identification"]["available"] is True
     assert report["calibration"]["status"] in {"calibrated", "scope_not_assessed", "unavailable"}
@@ -182,7 +183,7 @@ def test_second_click_refuter_suite_refuses(query):
     data = _outlier_chain() if isinstance(query, ant.AnomalyAttribution) else _two_period_chain()
     result = require_success(ant.analyze(data, graph=_dag(), query=query))
     with pytest.raises(CausalUnsupportedError) as raised:
-        result.study.refute({"x": [0.0], "y": [0.0]}, suite="placebo")
+        require_success(result.study.refute(suite="placebo"))
     assert raised.value.reason_code == "option_not_applicable"
 
 
@@ -196,12 +197,10 @@ def test_bootstrap_runs_unlicensed_and_cheap_full_refuse(query):
     )
     assert bootstrapped.evidence_status != "licensed"
     assert any("gcm.frequentist_bootstrap" in note for note in bootstrapped.diagnostics)
-    # The Bayesian cell keeps its Bayesian-bootstrap posterior and refuses bootstrap=.
-    with pytest.raises(CausalUnsupportedError) as raised:
-        require_success(
-            ant.analyze(data, graph=_dag(), query=query, bootstrap=50, inference=ant.Bayesian())
-        )
-    assert raised.value.reason_code == "option_not_applicable"
+    # Bayesian contribution uncertainty uses its own posterior declaration;
+    # a frequentist replicate budget is not a Bayesian configuration field.
+    with pytest.raises(TypeError, match="bootstrap"):
+        ant.Bayesian(bootstrap=50)
     # Cheap and full validation refit the whole contribution vector on perturbed data: the
     # table needs noise for the refits to vary, and the result stays unlicensed.
     noisy = {name: values + _NOISE[: len(values)] for name, values in data.items()}
@@ -213,7 +212,7 @@ def test_bootstrap_runs_unlicensed_and_cheap_full_refuse(query):
 def test_retarget_refuses():
     result = require_success(ant.analyze(_outlier_chain(), graph=_dag(), query=_anomaly_query()))
     with pytest.raises(CausalUnsupportedError) as raised:
-        result.study.retarget(np.ones(len(result.study._native.names)), [])
+        require_success(result.study.retarget(np.ones(len(_outlier_chain()["x"])), depends_on=[]))
     assert raised.value.reason_code == "population_not_estimable"
 
 
@@ -257,7 +256,6 @@ def test_fixed_anomaly_reference_runs_through_analyze_and_artifact():
             graph=_dag(),
             query=query,
             inference=ant.Bayesian(n_draws=32),
-            return_posterior_artifact=True,
         )
     )
     empirical = require_success(
@@ -265,8 +263,8 @@ def test_fixed_anomaly_reference_runs_through_analyze_and_artifact():
     )
     assert result.anomaly[0].scores != empirical.anomaly[0].scores
     assert result.posterior is not None
-    posterior = ant.inference.decode_posterior_artifact(result.posterior.artifact)
-    assert posterior.quantity_names == ["mean_anomaly_score[1]"]
+    posterior = require_success(ant.load(result.export(quantity="posterior")))
+    assert posterior.quantity_names == ("mean_anomaly_score[1]",)
     assert posterior.q025[0] < posterior.q975[0]
     loaded = require_success(ant.load(bytes(result.export())))
     assert loaded.answer == result.answer

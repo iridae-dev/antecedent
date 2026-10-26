@@ -62,6 +62,9 @@ class PreparedAnalysis(Generic[T]):
     def plan_view(self) -> Any:
         return plan_view(self)
 
+    def refute(self, *, suite: Any = "placebo") -> Outcome[Any]:
+        return refute(self, suite=suite)
+
     def inspect(self) -> Any:
         if self._refused is not None:
             return self._refused.inspect().model_copy(
@@ -457,6 +460,37 @@ def plan_view(study: PreparedAnalysis[Any]) -> Any:
             reason_code="plan_view_unavailable",
         )
     return study._engine.plan_view()
+
+
+def refute(study: PreparedAnalysis[Any], *, suite: Any = "placebo") -> Outcome[Any]:
+    """Execute a native validation suite on an independently retained run header."""
+    from .errors import CausalUnsupportedError
+
+    if not isinstance(study, PreparedAnalysis):
+        raise CausalTypeError("refute requires a PreparedAnalysis")
+    if study._refused is not None:
+        return _finish_outcome(study, study._refused)
+    native = getattr(study._engine, "_native", None)
+    if native is None or not callable(getattr(native, "snapshot", None)):
+        raise CausalUnsupportedError(
+            "this preparation retains no completed run for a validation suite",
+            reason_code="option_not_applicable",
+        )
+    engine = copy.copy(study._engine)
+    engine._native = study.execution._call(native.snapshot)
+    engine._last_result = None
+    outcome = capture_outcome(
+        study.execution._call,
+        engine.refute,
+        suite=suite,
+        seed=study.execution.seed,
+        threads=study.execution.threads,
+        cancel=study.execution.cancel,
+    )
+    execution = getattr(outcome.value, "_execution", None)
+    if execution is not None:
+        engine._native = execution
+    return _finish_outcome(replace(study, _engine=engine), outcome)
 
 
 def retarget(
