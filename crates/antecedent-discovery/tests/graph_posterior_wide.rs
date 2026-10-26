@@ -1,13 +1,13 @@
 //! Graph posteriors above eight variables.
 //!
-//! Adjacency is a multi-word [`AdjacencyMask`] (up to 16 variables). These tests check the
+//! Adjacency is a growable multi-word [`AdjacencyMask`] (any number of variables). These tests check the
 //! samplers against references that do not share their code:
 //!
 //! * five variables: order and structure MCMC against exhaustive enumeration of all 29 281 DAGs;
 //! * twelve variables: both samplers against an exhaustive enumeration of the 3^12 states of a
 //!   twelve-pair candidate skeleton, scored by a separate Gaussian-BIC implementation;
 //! * the published ten-variable workflow conditions against the publication gate;
-//! * sixteen variables, the full packing.
+//! * sixteen and eighteen variables, past the words an adjacency holds inline.
 //!
 //! Closed-form prior-only references for the proposal kernels are unit tests in
 //! `structure_mcmc.rs` and `order_mcmc.rs`.
@@ -30,8 +30,8 @@ use antecedent_discovery::adjacency_mask::{
 };
 use antecedent_discovery::{
     AdjacencyMask, DiscoveryConstraints, DiscoveryWorkspace, EXACT_MARGINAL_MAX_NODES,
-    ExactDagPosterior, GraphPosterior, GraphPrior, LaggedLink, MAX_POSTERIOR_NODES, OrderMcmc,
-    StructureMcmc, exact_dag_marginals,
+    ExactDagPosterior, GraphPosterior, GraphPrior, LaggedLink, OrderMcmc, StructureMcmc,
+    exact_dag_marginals,
 };
 use antecedent_state::GraphScoreFamily;
 
@@ -182,32 +182,32 @@ fn run_order(
 
 /// Every cell within `0.03 + 5 x` its own Monte-Carlo standard error of the reference.
 fn assert_marginals_match(label: &str, post: &GraphPosterior, exact: &[f64]) {
-    let mcse = post.edge_mcse.as_ref().expect("a sampled posterior carries edge MCSE");
-    for (cell, (&got, &want)) in post.edge_marginals.iter().zip(exact).enumerate() {
+    let mcse = post.edge_mcse().expect("a sampled posterior carries edge MCSE");
+    for (cell, (&got, &want)) in post.edge_marginals().iter().zip(exact).enumerate() {
         let band = 0.03 + 5.0 * mcse[cell];
         assert!(
             (got - want).abs() <= band,
             "{label}: cell {cell} (from {} to {}) is {got}, exact {want}, band {band}",
-            cell / post.n_vars,
-            cell % post.n_vars
+            cell / post.n_vars(),
+            cell % post.n_vars()
         );
     }
 }
 
 /// The per-edge chain diagnostics agree with the summary the publication gate reads.
 fn assert_chain_diagnostics_consistent(label: &str, post: &GraphPosterior) {
-    let cells = post.n_vars * post.n_vars;
-    let rhat = post.edge_rhat.as_ref().expect("per-edge R-hat");
-    let ess = post.edge_ess.as_ref().expect("per-edge ESS");
+    let cells = post.n_vars() * post.n_vars();
+    let rhat = post.edge_rhat().expect("per-edge R-hat");
+    let ess = post.edge_ess().expect("per-edge ESS");
     assert_eq!((rhat.len(), ess.len()), (cells, cells), "{label}");
-    let rhat_max = post.diagnostics.rhat_max.expect("R-hat summary");
+    let rhat_max = post.diagnostics().rhat_max.expect("R-hat summary");
     let worst = rhat.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     // Cells that never varied report 1, so the worst cell is the summary or 1.
     assert!(
         worst >= rhat_max - 1e-9 && worst <= rhat_max.max(1.0) + 1e-9,
         "{label}: max edge R-hat {worst} vs {rhat_max}"
     );
-    let ess_min = post.diagnostics.ess_bulk_min.expect("ESS summary");
+    let ess_min = post.diagnostics().ess_bulk_min.expect("ESS summary");
     let smallest = ess.iter().copied().fold(f64::INFINITY, f64::min);
     assert!(smallest <= ess_min + 1e-9, "{label}: min edge ESS {smallest} vs {ess_min}");
 }
@@ -227,21 +227,21 @@ fn mcmc_matches_exhaustive_enumeration_on_five_variables() {
             &ExecutionContext::for_tests(1),
         )
         .unwrap();
-    assert_eq!(exact.n_graphs, 29_281 - exact.rejected_invalid as usize);
-    let support: HashSet<AdjacencyMask> = exact.atoms.iter().copied().collect();
-    assert!(exact.atoms.iter().all(|&mask| mask_is_dag(mask, 5)));
+    assert_eq!(exact.n_graphs(), 29_281 - exact.rejected_invalid() as usize);
+    let support: HashSet<AdjacencyMask> = exact.atoms().iter().cloned().collect();
+    assert!(exact.atoms().iter().all(|mask| mask_is_dag(mask, 5)));
 
     let structure =
         StructureMcmc::new().with_schedule(4, 1000, 8000, 1).with_diagnostics_gate(false);
     let post = run_structure(&structure, &data, &vars, &prior, 11);
-    assert_marginals_match("structure", &post, &exact.edge_marginals);
-    assert!(post.atoms.iter().all(|mask| support.contains(mask)));
+    assert_marginals_match("structure", &post, exact.edge_marginals());
+    assert!(post.atoms().iter().all(|mask| support.contains(mask)));
     assert_chain_diagnostics_consistent("structure", &post);
 
     let order = OrderMcmc::new().with_schedule(4, 1000, 8000, 1).with_diagnostics_gate(false);
     let post = run_order(&order, &data, &vars, &prior, 12);
-    assert_marginals_match("order", &post, &exact.edge_marginals);
-    assert!(post.atoms.iter().all(|mask| support.contains(mask)));
+    assert_marginals_match("order", &post, exact.edge_marginals());
+    assert!(post.atoms().iter().all(|mask| support.contains(mask)));
     assert_chain_diagnostics_consistent("order", &post);
 }
 
@@ -301,7 +301,8 @@ fn restricted_exact_marginals(
     let mut log_w = Vec::with_capacity(states);
     let mut valid = Vec::with_capacity(states);
     for state in 0..states {
-        let mut parent_bits = [0u16; MAX_POSTERIOR_NODES];
+        // Per node, its parents as a bit set over the nodes.
+        let mut parent_bits = vec![0usize; n];
         let mut rest = state;
         for &(a, b) in pairs {
             match rest % 3 {
@@ -311,7 +312,7 @@ fn restricted_exact_marginals(
             }
             rest /= 3;
         }
-        let mut remaining: u16 = (1 << n) - 1;
+        let mut remaining: usize = (1 << n) - 1;
         loop {
             let before = remaining;
             for v in 0..n {
@@ -332,7 +333,7 @@ fn restricted_exact_marginals(
         }
         let mut total = 0.0;
         for v in 0..n {
-            let slot = &mut local[(v << n) | usize::from(parent_bits[v])];
+            let slot = &mut local[(v << n) | parent_bits[v]];
             if slot.is_nan() {
                 let pa: Vec<usize> = (0..n).filter(|&p| parent_bits[v] & (1 << p) != 0).collect();
                 *slot = local_bic(cols, v, &pa);
@@ -381,13 +382,13 @@ fn assert_restricted_samplers_match_exact(cols: &[Vec<f64>], pairs: &[(usize, us
     let structure =
         published_structure().with_candidate_pairs(Arc::<[(u32, u32)]>::from(candidate));
     let post = run_structure(&structure, &data, &vars, &max_parents(3), 5);
-    assert!(post.diagnostics.converged, "structure: {:?}", post.diagnostics);
+    assert!(post.diagnostics().converged, "structure: {:?}", post.diagnostics());
     assert_marginals_match("structure", &post, &exact);
     assert!(
-        n <= 8 || post.atoms.iter().any(|mask| mask.to_word().is_none()),
+        n <= 8 || post.atoms().iter().any(|mask| mask.to_word().is_none()),
         "atoms use words past the first"
     );
-    assert!(post.atoms.iter().all(|&mask| mask_is_dag(mask, n)));
+    assert!(post.atoms().iter().all(|mask| mask_is_dag(mask, n)));
     assert_chain_diagnostics_consistent("structure", &post);
 
     // The order sampler has no candidate list: forbid every directed pair off the candidates.
@@ -401,9 +402,9 @@ fn assert_restricted_samplers_match_exact(cols: &[Vec<f64>], pairs: &[(usize, us
         .collect();
     prior.constraints.forbidden = Arc::from(forbidden);
     let post = run_order(&published_order(), &data, &vars, &prior, 6);
-    assert!(post.diagnostics.converged, "order: {:?}", post.diagnostics);
+    assert!(post.diagnostics().converged, "order: {:?}", post.diagnostics());
     assert_marginals_match("order", &post, &exact);
-    assert!(post.atoms.iter().all(|&mask| mask_is_dag(mask, n)));
+    assert!(post.atoms().iter().all(|mask| mask_is_dag(mask, n)));
     assert_chain_diagnostics_consistent("order", &post);
 }
 
@@ -454,7 +455,7 @@ fn strong_signal_concentrates_on_the_true_twelve_variable_structure() {
         // the more probable one.
         for &(from, to) in &truth_edges {
             let (forward, backward) =
-                (post.edge_marginals[from * n + to], post.edge_marginals[to * n + from]);
+                (post.edge_marginals()[from * n + to], post.edge_marginals()[to * n + from]);
             assert!(
                 forward + backward >= 0.95,
                 "{label}: P({from} - {to}) = {}",
@@ -469,32 +470,31 @@ fn strong_signal_concentrates_on_the_true_twelve_variable_structure() {
         let stray: f64 = (0..n)
             .flat_map(|i| (0..n).map(move |j| (i, j)))
             .filter(|&(i, j)| i != j && !on_truth.contains(&(i, j)) && !on_truth.contains(&(j, i)))
-            .map(|(i, j)| post.edge_marginals[i * n + j])
+            .map(|(i, j)| post.edge_marginals()[i * n + j])
             .sum();
         // 120 off-skeleton directed cells; the saturated triangle puts a share of each block's
         // mass on the edge between its two parents, and BIC admits a few chance edges at 400 rows.
         assert!(stray < 14.0, "{label}: off-skeleton mass {stray}");
         let top = post
-            .weights
+            .weights()
             .iter()
             .enumerate()
             .max_by(|a, b| a.1.total_cmp(b.1))
-            .map(|(i, _)| post.atoms[i])
+            .map(|(i, _)| post.atoms()[i].clone())
             .unwrap();
         for &(from, to) in &truth_edges {
             assert!(
-                antecedent_discovery::adjacency_mask::has_edge(top, n, from, to)
-                    || antecedent_discovery::adjacency_mask::has_edge(top, n, to, from),
+                top.has_edge(n, from, to) || top.has_edge(n, to, from),
                 "{label}: the maximum-weight graph lacks the adjacency {from} - {to}"
             );
         }
-        assert!(post.atoms.iter().all(|&mask| {
+        assert!(post.atoms().iter().all(|mask| {
             mask_is_dag(mask, n) && (0..n).all(|v| parents_of(mask, n, v).len() <= 3)
         }));
-        let dag = dag_from_adjacency_mask(top, n).unwrap();
+        let dag = dag_from_adjacency_mask(&top, n).unwrap();
         assert!(dag.edges().count() >= truth_edges.len());
-        let keys: HashSet<u64> = post.graph_keys.iter().copied().collect();
-        let masks: HashSet<AdjacencyMask> = post.atoms.iter().copied().collect();
+        let keys: HashSet<u64> = post.graph_keys().iter().copied().collect();
+        let masks: HashSet<AdjacencyMask> = post.atoms().iter().cloned().collect();
         assert_eq!(keys.len(), masks.len(), "{label}: one graph key per distinct graph");
     }
 }
@@ -517,10 +517,10 @@ fn assert_colliders_clear_the_gate(blocks: usize, extra: usize, rows: usize) {
     let cols = collider_block_columns(blocks, extra, 0.5, rows, 41);
     let (data, vars) = table(&names(n), &cols);
     let post = run_structure(&published_structure(), &data, &vars, &max_parents(3), 21);
-    assert!(post.diagnostics.converged, "structure n={n}: {:?}", post.diagnostics);
+    assert!(post.diagnostics().converged, "structure n={n}: {:?}", post.diagnostics());
     assert_chain_diagnostics_consistent("structure", &post);
     let post = run_order(&published_order(), &data, &vars, &max_parents(3), 22);
-    assert!(post.diagnostics.converged, "order n={n}: {:?}", post.diagnostics);
+    assert!(post.diagnostics().converged, "order n={n}: {:?}", post.diagnostics());
     assert_chain_diagnostics_consistent("order", &post);
 }
 
@@ -545,26 +545,26 @@ fn assert_ring_clears_the_gate_and_is_recovered(k: usize, coef: f64, rows: usize
     let structure = run_structure(&published_structure(), &data, &vars, &max_parents(3), 21);
     let order = run_order(&published_order(), &data, &vars, &max_parents(3), 22);
     for (label, post) in [("structure", &structure), ("order", &order)] {
-        assert!(post.diagnostics.converged, "{label} n={n}: {:?}", post.diagnostics);
+        assert!(post.diagnostics().converged, "{label} n={n}: {:?}", post.diagnostics());
         assert_chain_diagnostics_consistent(label, post);
         // Adjacency is the sharp claim: the saturated triangle on a collider's nodes keeps some
         // mass on reversed edges, so BIC does not make the direction certain (the exhaustive
         // reference tests assert it against an exact enumeration instead).
         for (from, to) in ring_edges(k) {
-            let adjacent = post.edge_marginals[from * n + to] + post.edge_marginals[to * n + from];
+            let adjacent = post.edge_marginals()[from * n + to] + post.edge_marginals()[to * n + from];
             assert!(adjacent >= 0.95, "{label}: P({from} - {to}) = {adjacent}");
         }
     }
     let (mcse_s, mcse_o) =
-        (structure.edge_mcse.as_ref().unwrap(), order.edge_mcse.as_ref().unwrap());
+        (structure.edge_mcse().unwrap(), order.edge_mcse().unwrap());
     for cell in 0..n * n {
         let band = 0.03 + 5.0 * (mcse_s[cell] + mcse_o[cell]);
-        let gap = (structure.edge_marginals[cell] - order.edge_marginals[cell]).abs();
+        let gap = (structure.edge_marginals()[cell] - order.edge_marginals()[cell]).abs();
         assert!(
             gap <= band,
             "cell {cell}: structure {} vs order {} (band {band})",
-            structure.edge_marginals[cell],
-            order.edge_marginals[cell]
+            structure.edge_marginals()[cell],
+            order.edge_marginals()[cell]
         );
     }
 }
@@ -591,15 +591,15 @@ fn published_schedule_agrees_with_a_five_times_longer_run_on_the_twelve_variable
     let published = run_structure(&published_structure(), &data, &vars, &max_parents(3), 31);
     let long = StructureMcmc::new().with_schedule(4, 15_000, 60_000, 2);
     let long = run_structure(&long, &data, &vars, &max_parents(3), 32);
-    let (a, b) = (published.edge_mcse.as_ref().unwrap(), long.edge_mcse.as_ref().unwrap());
+    let (a, b) = (published.edge_mcse().unwrap(), long.edge_mcse().unwrap());
     for cell in 0..n * n {
         let band = 0.02 + 5.0 * (a[cell] + b[cell]);
-        let gap = (published.edge_marginals[cell] - long.edge_marginals[cell]).abs();
+        let gap = (published.edge_marginals()[cell] - long.edge_marginals()[cell]).abs();
         assert!(
             gap <= band,
             "cell {cell}: published {} vs long {} (band {band})",
-            published.edge_marginals[cell],
-            long.edge_marginals[cell]
+            published.edge_marginals()[cell],
+            long.edge_marginals()[cell]
         );
     }
 }
@@ -640,37 +640,62 @@ fn a_short_twelve_variable_schedule_is_refused_by_the_gate() {
     }
 }
 
-/// The full node limit: sixteen variables, 240 edge bits.
+/// Sixteen variables: 240 edge bits, the most the inline words of an adjacency hold.
 #[test]
-fn structure_mcmc_runs_on_the_full_sixteen_variable_packing() {
+fn structure_mcmc_runs_on_sixteen_variables() {
     let k = 8;
     let n = 2 * k;
-    assert_eq!(n, MAX_POSTERIOR_NODES);
     let cols = ring_columns(k, 0.6, 400, 13);
     let (data, vars) = table(&names(n), &cols);
     let structure = StructureMcmc::new().with_schedule(2, 300, 300, 1).with_diagnostics_gate(false);
     let post = run_structure(&structure, &data, &vars, &max_parents(3), 4);
-    assert_eq!(post.n_vars, 16);
-    assert_eq!(post.edge_marginals.len(), 256);
-    assert!(post.atoms.iter().all(|&mask| mask_is_dag(mask, n)));
-    assert!(post.atoms.iter().any(|mask| mask.words()[1] != 0), "edge bits past word 0");
-    let top = post.atoms[0];
-    assert!(dag_from_adjacency_mask(top, n).is_ok());
+    assert_eq!(post.n_vars(), 16);
+    assert_eq!(post.edge_marginals().len(), 256);
+    assert!(post.atoms().iter().all(|mask| mask_is_dag(mask, n)));
+    assert!(post.atoms().iter().any(|mask| mask.words()[1] != 0), "edge bits past word 0");
+    let top = post.atoms()[0].clone();
+    assert!(dag_from_adjacency_mask(&top, n).is_ok());
+}
 
-    let seventeen = names(17);
-    let wide: Vec<Vec<f64>> = (0..17).map(|i| cols[i % cols.len()].clone()).collect();
-    let (data, vars) = table(&seventeen, &wide);
-    let err = structure
-        .run(
-            &data,
-            &vars,
-            &GraphPrior::uniform(),
-            GraphScoreFamily::GaussianBic,
-            &mut DiscoveryWorkspace::default(),
-            &ExecutionContext::for_tests(4),
-        )
-        .unwrap_err();
-    assert!(err.to_string().contains("at most 16 variables"), "{err}");
+/// Eighteen variables: the 306 edge bits no longer fit the inline words, and a parent set is a
+/// node set wider than sixteen bits. Both samplers run (order MCMC's subset DP is beyond its work
+/// budget at eighteen nodes, so it hands the graph to structure MCMC and says so), every atom is a
+/// DAG within the parent cap, and an edge required between the two highest nodes is in every
+/// atom, which puts its bit past the inline words.
+#[test]
+fn samplers_run_on_eighteen_variables_past_the_inline_words() {
+    let k = 9;
+    let n = 2 * k;
+    let cols = ring_columns(k, 0.6, 400, 13);
+    let (data, vars) = table(&names(n), &cols);
+    let mut prior = max_parents(3);
+    prior.constraints.required = Arc::from([link(&vars, n - 1, n - 2)]);
+
+    let structure = StructureMcmc::new().with_schedule(2, 300, 300, 1).with_diagnostics_gate(false);
+    let order = OrderMcmc::new().with_schedule(2, 300, 300, 1).with_diagnostics_gate(false);
+    for (label, post) in [
+        ("structure", run_structure(&structure, &data, &vars, &prior, 4)),
+        ("order", run_order(&order, &data, &vars, &prior, 5)),
+    ] {
+        assert_eq!(post.n_vars(), n, "{label}");
+        if label == "order" {
+            assert_eq!(post.algorithm().map(|a| &**a), Some("order_mcmc_via_structure_mcmc"));
+        }
+        assert_eq!(post.edge_marginals().len(), n * n, "{label}");
+        assert!(
+            post.atoms().iter().all(|mask| {
+                mask_is_dag(mask, n)
+                    && mask.has_edge(n, n - 1, n - 2)
+                    && mask.words().len() > 4
+                    && (0..n).all(|v| parents_of(mask, n, v).len() <= 3)
+            }),
+            "{label}"
+        );
+        assert!((post.edge_marginals()[(n - 1) * n + (n - 2)] - 1.0).abs() < 1e-12, "{label}");
+        let keys: HashSet<u64> = post.graph_keys().iter().copied().collect();
+        let masks: HashSet<AdjacencyMask> = post.atoms().iter().cloned().collect();
+        assert_eq!(keys.len(), masks.len(), "{label}: one graph key per distinct graph");
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -852,7 +877,7 @@ fn assert_exact_posterior_matches_enumeration(n: usize, seed: u64) {
             .unwrap();
         assert_close(
             &format!("enumerating engine, {n} variables"),
-            &engine.edge_marginals,
+            engine.edge_marginals(),
             &reference,
         );
     }
@@ -936,7 +961,11 @@ fn samplers_agree_with_the_exact_marginals_at_ten_and_twelve_variables() {
         )
         .unwrap();
         let structure = run_structure(&published_structure(), &data, &vars, &prior, 21);
-        assert!(structure.diagnostics.converged, "{label} structure: {:?}", structure.diagnostics);
+        assert!(
+            structure.diagnostics().converged,
+            "{label} structure: {:?}",
+            structure.diagnostics()
+        );
         assert_marginals_match(&format!("{label} structure"), &structure, &exact.edge_marginals);
         assert_chain_diagnostics_consistent(&format!("{label} structure"), &structure);
         // This exact-oracle comparison uses twice the order-chain effort of the
@@ -945,7 +974,7 @@ fn samplers_agree_with_the_exact_marginals_at_ten_and_twelve_variables() {
         // give its convergence checks more sampling headroom, never a wider bar.
         let order_engine = OrderMcmc::new().with_schedule(4, 12_000, 48_000, 2);
         let order = run_order(&order_engine, &data, &vars, &prior, 22);
-        assert!(order.diagnostics.converged, "{label} order: {:?}", order.diagnostics);
+        assert!(order.diagnostics().converged, "{label} order: {:?}", order.diagnostics());
         assert_marginals_match(&format!("{label} order"), &order, &exact.edge_marginals);
         assert_chain_diagnostics_consistent(&format!("{label} order"), &order);
     }

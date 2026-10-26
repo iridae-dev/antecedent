@@ -42,6 +42,7 @@ use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_state::GraphScoreFamily;
 
+use crate::adjacency_mask::AdjacencyMask;
 use crate::error::DiscoveryError;
 use crate::graph_posterior::{GraphPrior, GraphPriorTable};
 use crate::graph_score::{ChainTarget, ScoredTarget, tabular_score_data};
@@ -56,8 +57,8 @@ const fn exact_marginal_work(n: usize) -> u128 {
 }
 
 /// Most variables the exact marginals are computed for: the largest `n` whose work
-/// ([`exact_marginal_work`]) fits the budget, `3^15 * 15 * 211` visits at fifteen. The parent
-/// sets of a node are packed into sixteen bits, which would stop the recursion at sixteen.
+/// ([`exact_marginal_work`]) fits the budget, `3^15 * 15 * 211` visits at fifteen. The budget,
+/// not the representation of a parent set, is the limit.
 pub const EXACT_MARGINAL_MAX_NODES: usize = 15;
 
 /// The exact edge marginals of a DAG posterior.
@@ -98,9 +99,9 @@ pub fn exact_dag_marginals(
             "exact DAG marginals require at least one variable",
         ));
     }
-    if n > crate::adjacency_mask::MAX_POSTERIOR_NODES
-        || exact_marginal_work(n) > EXACT_MARGINAL_WORK_BUDGET
-    {
+    // The subset tables are indexed by `1 << n`, and `3^n` pairs in `u128` stay in range below
+    // `usize::BITS` nodes; the work budget is far tighter.
+    if n >= usize::BITS as usize || exact_marginal_work(n) > EXACT_MARGINAL_WORK_BUDGET {
         return Err(DiscoveryError::unsupported(
             "exact DAG marginals exceed their work budget beyond 15 variables \
              (EXACT_MARGINAL_MAX_NODES); use order_mcmc or structure_mcmc",
@@ -126,10 +127,8 @@ pub fn exact_dag_marginals(
             if parents & (1 << node) != 0 {
                 continue;
             }
-            let bits = u16::try_from(parents).map_err(|_| {
-                DiscoveryError::unsupported("a parent set does not fit the 16-variable packing")
-            })?;
-            if let Some(score) = target.node_score(node, bits) {
+            let set = AdjacencyMask::from_word(u64::try_from(parents).unwrap_or(u64::MAX));
+            if let Some(score) = target.node_score(node, &set) {
                 *slot = score;
             }
         }

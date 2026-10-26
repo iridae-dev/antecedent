@@ -53,7 +53,7 @@ fn named_marginals(post: &GraphPosterior, names: &[String]) -> BTreeMap<String, 
             if from != to {
                 out.insert(
                     format!("{}->{}", names[from], names[to]),
-                    post.edge_marginals[from * names.len() + to],
+                    post.edge_marginals()[from * names.len() + to],
                 );
             }
         }

@@ -24,7 +24,7 @@ use antecedent_prob::{
 };
 use antecedent_state::GraphScoreFamily;
 
-use crate::adjacency_mask::{AdjacencyMask, MAX_POSTERIOR_NODES, parent_bits};
+use crate::adjacency_mask::{AdjacencyMask, LagMask, edge_bits_fit, parent_bits};
 use crate::constraints::DiscoveryConstraints;
 use crate::error::DiscoveryError;
 use crate::result::LaggedLink;
@@ -32,8 +32,7 @@ use crate::result::LaggedLink;
 /// Hard cap on labeled nodes for exact DAG enumeration (~3.8M DAGs at 6).
 ///
 /// This is a product limit for [`crate::ExactDagPosterior`]. Larger `n` must use
-/// MCMC (`OrderMcmc` / `StructureMcmc` / `CiScreenedPosterior`, up to
-/// [`MAX_POSTERIOR_NODES`] variables).
+/// MCMC (`OrderMcmc` / `StructureMcmc` / `CiScreenedPosterior`).
 pub const EXACT_ENUM_MAX_NODES: usize = 6;
 
 /// Prior over DAG structures for Bayesian discovery.
@@ -139,10 +138,15 @@ impl GraphPosteriorAtomKind {
 
 /// Columnar graph posterior.
 ///
-/// Edge / orientation marginals are packed length `n_vars * n_vars` (row-major
-/// `from * n_vars + to`; diagonal unused / zero). Adjacency samples are packed
-/// directed-edge sets ([`AdjacencyMask`], bit layout [`edge_bit`]) over at most
-/// [`MAX_POSTERIOR_NODES`] variables.
+/// Edge marginals are packed length `n_vars * n_vars` (row-major `from * n_vars + to`; diagonal
+/// unused / zero). Adjacency samples are packed directed-edge sets ([`AdjacencyMask`], bit
+/// layout [`edge_bit`]) over any number of variables whose edge bits a `u32` addresses.
+///
+/// The fields are private: [`Self::from_atoms`] validates that every per-atom and per-cell
+/// column agrees in length with the atoms and the variable count, and the builder methods keep
+/// that true, so a posterior that exists is consistent. The atoms are the one canonical
+/// description of the graphs; the keys, the single-word packings and the orientation
+/// marginals are derived from them or from the edge marginals.
 ///
 /// When the search was restricted to a candidate set (for example
 /// [`crate::CiScreenedPosterior`], which proposes only pairs its CI screen kept), the
@@ -151,88 +155,25 @@ impl GraphPosteriorAtomKind {
 /// [`InferenceDiagnostics::notes`].
 #[derive(Clone, Debug)]
 pub struct GraphPosterior {
-    /// Number of variables.
-    pub n_vars: usize,
-    /// Number of retained graph atoms (unique DAGs or MCMC samples).
-    pub n_graphs: usize,
-    /// Normalized posterior weights (length `n_graphs`).
-    pub weights: Arc<[f64]>,
-    /// Packed adjacency bitmasks (length `n_graphs`); see [`edge_bit`].
-    ///
-    /// The single-word packing of [`Self::atoms`], the earlier representation: populated when
-    /// every atom fits one word (a graph on at most eight nodes), empty otherwise. A posterior
-    /// over more than eight nodes carries its graphs in [`Self::atoms`] only.
-    pub adjacency: Arc<[u64]>,
-    /// Packed adjacency sets (length `n_graphs`); see [`edge_bit`]. Authoritative for every
-    /// node count up to [`MAX_POSTERIOR_NODES`].
-    pub atoms: Arc<[AdjacencyMask]>,
-    /// Opaque keys: [`AdjacencyMask::key`] of each adjacency set (the single-word mask itself
-    /// for a graph on at most eight nodes). Distinct sets always carry distinct keys.
-    pub graph_keys: Arc<[u64]>,
-    /// Directed-edge inclusion, length `n_vars * n_vars`.
-    ///
-    /// For a DAG mask this is `P(i → j)`. It is the same event as
-    /// [`Self::orientation_marginals`]: the mask has no separate undirected bit.
-    pub edge_marginals: Arc<[f64]>,
-    /// `P(i → j)`, same values as [`Self::edge_marginals`].
-    ///
-    /// Kept as its own vector so a CI-screen floor can be applied without aliasing the
-    /// two fields. A PAG atom's circle marks live in [`Self::mark_masks`], not here.
-    pub orientation_marginals: Arc<[f64]>,
-    /// Kish effective number of graphs, `(Σw)² / Σw²`, of the weight vector.
-    ///
-    /// A measure of how concentrated the posterior is over graphs (1 = a single graph),
-    /// **not** a sampling effective sample size: a sharply identified exact posterior has a
-    /// value near 1. Sampling accuracy of MCMC posteriors is in
-    /// [`InferenceDiagnostics::ess_bulk_min`] and [`Self::edge_mcse`].
-    pub ess: f64,
-    /// Chain / analytic diagnostics.
-    pub diagnostics: InferenceDiagnostics,
-    /// Graphs rejected as cyclic / constraint-invalid during search.
-    pub rejected_invalid: u64,
-    /// Monte-Carlo standard error of each entry of [`Self::edge_marginals`] (same packing),
-    /// `sqrt(p(1-p) / ESS)` from the chains' bulk ESS. `None` for exact posteriors, whose
-    /// marginals carry no sampling error; `0` for an indicator that never varied.
-    pub edge_mcse: Option<Arc<[f64]>>,
-    /// Split R-hat of each entry of [`Self::edge_marginals`]'s indicator across the chains
-    /// (same packing). `None` for exact posteriors. A cell whose indicator never varied, or was
-    /// not sampled, reports `1`; an indicator the chains disagree on without moving reports `∞`.
-    pub edge_rhat: Option<Arc<[f64]>>,
-    /// Bulk effective sample size of each entry of [`Self::edge_marginals`]'s indicator across
-    /// the chains (same packing). `None` for exact posteriors. A cell whose indicator never
-    /// varied, or was not sampled, reports the total retained draw count.
-    pub edge_ess: Option<Arc<[f64]>>,
-    /// Monte-Carlo standard error of each entry of [`Self::lagged_edge_marginals`].
-    pub lagged_edge_mcse: Option<Arc<[f64]>>,
-    /// Optional lagged-edge marginals for DBN templates
-    /// (packing `(lag - 1) * n_vars * n_vars + from * n_vars + to`, lag ≥ 1).
-    pub lagged_edge_marginals: Option<Arc<[f64]>>,
-    /// Max lag encoded in `lagged_edge_marginals` (`None` if static).
-    pub max_lag: Option<u32>,
-    /// Optional per-atom lag-edge bitmasks (DBN templates; same length as `adjacency`).
-    pub lag_masks: Option<Arc<[u64]>>,
-    /// Optional per-atom lagged latent-confounder bitmasks (same length and bit layout as
-    /// [`Self::lag_masks`]): bit `(lag - 1) * n_vars² + from * n_vars + to` is
-    /// `from(t - lag) ↔ to(t)`. Present only for lagged [`GraphPosteriorAtomKind::TemporalAdmg`]
-    /// atoms, whose directed lagged edges are [`Self::lag_masks`].
-    pub lag_bidirected_masks: Option<Arc<[u64]>>,
-    /// Class of every atom. [`GraphPosterior::new`] leaves this as
-    /// [`GraphPosteriorAtomKind::Dag`].
-    pub atom_kind: GraphPosteriorAtomKind,
-    /// Optional PAG circle-endpoint masks, same length as [`Self::adjacency`].
-    /// Bit `(from, to)` means the `from` endpoint of that ordered pair is a
-    /// circle. Unused for DAG and CPDAG atoms. The single-word packing of
-    /// [`Self::mark_atoms`]: empty when an atom needs more than one word.
-    pub mark_masks: Option<Arc<[u64]>>,
-    /// Optional PAG circle-endpoint sets, same length as [`Self::atoms`]; authoritative for
-    /// every node count up to [`MAX_POSTERIOR_NODES`].
-    pub mark_atoms: Option<Arc<[AdjacencyMask]>>,
-    /// Which structure-learning algorithm produced this posterior.
-    ///
-    /// `None` when the producer did not tag it. Carried so downstream plan records and
-    /// artifacts can name the real algorithm rather than a generic label — a posterior
-    /// handed to a study no longer arrives with that provenance implied by the call.
-    pub algorithm: Option<Arc<str>>,
+    n_vars: usize,
+    weights: Arc<[f64]>,
+    atoms: Arc<[AdjacencyMask]>,
+    graph_keys: Arc<[u64]>,
+    edge_marginals: Arc<[f64]>,
+    ess: f64,
+    diagnostics: InferenceDiagnostics,
+    rejected_invalid: u64,
+    edge_mcse: Option<Arc<[f64]>>,
+    edge_rhat: Option<Arc<[f64]>>,
+    edge_ess: Option<Arc<[f64]>>,
+    lagged_edge_mcse: Option<Arc<[f64]>>,
+    lagged_edge_marginals: Option<Arc<[f64]>>,
+    max_lag: Option<u32>,
+    lag_masks: Option<Arc<[LagMask]>>,
+    lag_bidirected_masks: Option<Arc<[LagMask]>>,
+    atom_kind: GraphPosteriorAtomKind,
+    mark_atoms: Option<Arc<[AdjacencyMask]>>,
+    algorithm: Option<Arc<str>>,
 }
 
 /// How a posterior's atoms were produced: the sampler's effective sample size, its
@@ -283,10 +224,16 @@ impl GraphPosterior {
     /// weight. `atoms` takes [`AdjacencyMask`]s or the single-word `u64` packing of a graph on
     /// at most eight nodes.
     ///
+    /// `orientation_marginals` is the same directed-edge inclusion as `edge_marginals` (a DAG
+    /// mask has no separate undirected bit); it is accepted for the call shape of the earlier
+    /// constructor and refused when it differs, so a caller cannot believe two distinct
+    /// quantities were stored.
+    ///
     /// # Errors
     ///
-    /// Empty ensemble, length mismatch, non-finite weights, non-positive mass, more than
-    /// [`MAX_POSTERIOR_NODES`] variables, or two distinct adjacency sets with one key.
+    /// Empty ensemble, length mismatch, non-finite weights, non-positive mass, a variable count
+    /// whose edge bits a `u32` does not address, orientation marginals that differ from the
+    /// edge marginals, or two distinct adjacency sets with one key.
     #[allow(
         clippy::neg_cmp_op_on_partial_ord,
         reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
@@ -311,14 +258,23 @@ impl GraphPosterior {
         if atoms.len() != n_graphs {
             return Err(DiscoveryError::unsupported("adjacency/weights length mismatch"));
         }
-        if n_vars > MAX_POSTERIOR_NODES {
+        if !edge_bits_fit(n_vars) {
             return Err(DiscoveryError::unsupported(
-                "graph posterior supports at most 16 variables (MAX_POSTERIOR_NODES)",
+                "graph posterior has more edge bits than a u32 bit index addresses",
             ));
         }
         let cell = n_vars.saturating_mul(n_vars);
         if edge_marginals.len() != cell || orientation_marginals.len() != cell {
             return Err(DiscoveryError::unsupported("edge/orientation marginal length mismatch"));
+        }
+        if edge_marginals
+            .iter()
+            .zip(orientation_marginals.iter())
+            .any(|(edge, orientation)| edge.to_bits() != orientation.to_bits())
+        {
+            return Err(DiscoveryError::unsupported(
+                "orientation marginals are the directed-edge marginals and must equal them",
+            ));
         }
         let mut total = 0.0;
         for &w in weights.iter() {
@@ -334,16 +290,12 @@ impl GraphPosterior {
             return Err(DiscoveryError::unsupported("invalid ESS"));
         }
         let graph_keys = distinct_graph_keys(&atoms)?;
-        let adjacency = single_words(&atoms);
         Ok(Self {
             n_vars,
-            n_graphs,
             weights,
-            adjacency,
             atoms,
             graph_keys,
             edge_marginals,
-            orientation_marginals,
             ess,
             diagnostics,
             rejected_invalid,
@@ -356,10 +308,213 @@ impl GraphPosterior {
             lag_masks: None,
             lag_bidirected_masks: None,
             atom_kind: GraphPosteriorAtomKind::Dag,
-            mark_masks: None,
             mark_atoms: None,
             algorithm: None,
         })
+    }
+
+    /// Number of variables.
+    #[must_use]
+    pub fn n_vars(&self) -> usize {
+        self.n_vars
+    }
+
+    /// Number of retained graph atoms (unique DAGs or MCMC samples).
+    #[must_use]
+    pub fn n_graphs(&self) -> usize {
+        self.weights.len()
+    }
+
+    /// Normalized posterior weights (length [`Self::n_graphs`]).
+    #[must_use]
+    pub fn weights(&self) -> &Arc<[f64]> {
+        &self.weights
+    }
+
+    /// Packed adjacency sets (length [`Self::n_graphs`]); see [`edge_bit`]. The canonical
+    /// description of the graphs.
+    #[must_use]
+    pub fn atoms(&self) -> &Arc<[AdjacencyMask]> {
+        &self.atoms
+    }
+
+    /// The single-word packing of [`Self::atoms`], the earlier representation: `None` unless
+    /// every atom fits one word (a graph on at most eight nodes).
+    #[must_use]
+    pub fn adjacency_words(&self) -> Option<Vec<u64>> {
+        self.atoms.iter().map(AdjacencyMask::to_word).collect()
+    }
+
+    /// Opaque keys: [`AdjacencyMask::key`] of each adjacency set (the single-word mask itself
+    /// for a graph on at most eight nodes). Distinct sets always carry distinct keys.
+    #[must_use]
+    pub fn graph_keys(&self) -> &Arc<[u64]> {
+        &self.graph_keys
+    }
+
+    /// Directed-edge inclusion, length `n_vars * n_vars`.
+    ///
+    /// For a DAG mask this is `P(i → j)`. It is the same event as
+    /// [`Self::orientation_marginals`]: the mask has no separate undirected bit.
+    #[must_use]
+    pub fn edge_marginals(&self) -> &Arc<[f64]> {
+        &self.edge_marginals
+    }
+
+    /// `P(i → j)`: the same values as [`Self::edge_marginals`]. A PAG atom's circle marks live
+    /// in [`Self::mark_atoms`], not here.
+    #[must_use]
+    pub fn orientation_marginals(&self) -> &Arc<[f64]> {
+        &self.edge_marginals
+    }
+
+    /// Kish effective number of graphs, `(Σw)² / Σw²`, of the weight vector.
+    ///
+    /// A measure of how concentrated the posterior is over graphs (1 = a single graph),
+    /// **not** a sampling effective sample size: a sharply identified exact posterior has a
+    /// value near 1. Sampling accuracy of MCMC posteriors is in
+    /// [`InferenceDiagnostics::ess_bulk_min`] and [`Self::edge_mcse`].
+    #[must_use]
+    pub fn ess(&self) -> f64 {
+        self.ess
+    }
+
+    /// Chain / analytic diagnostics.
+    #[must_use]
+    pub fn diagnostics(&self) -> &InferenceDiagnostics {
+        &self.diagnostics
+    }
+
+    /// Graphs rejected as cyclic / constraint-invalid during search.
+    #[must_use]
+    pub fn rejected_invalid(&self) -> u64 {
+        self.rejected_invalid
+    }
+
+    /// Monte-Carlo standard error of each entry of [`Self::edge_marginals`] (same packing),
+    /// `sqrt(p(1-p) / ESS)` from the chains' bulk ESS. `None` for exact posteriors, whose
+    /// marginals carry no sampling error; `0` for an indicator that never varied.
+    #[must_use]
+    pub fn edge_mcse(&self) -> Option<&Arc<[f64]>> {
+        self.edge_mcse.as_ref()
+    }
+
+    /// Split R-hat of each entry of [`Self::edge_marginals`]'s indicator across the chains
+    /// (same packing). `None` for exact posteriors. A cell whose indicator never varied, or was
+    /// not sampled, reports `1`; an indicator the chains disagree on without moving reports `∞`.
+    #[must_use]
+    pub fn edge_rhat(&self) -> Option<&Arc<[f64]>> {
+        self.edge_rhat.as_ref()
+    }
+
+    /// Bulk effective sample size of each entry of [`Self::edge_marginals`]'s indicator across
+    /// the chains (same packing). `None` for exact posteriors. A cell whose indicator never
+    /// varied, or was not sampled, reports the total retained draw count.
+    #[must_use]
+    pub fn edge_ess(&self) -> Option<&Arc<[f64]>> {
+        self.edge_ess.as_ref()
+    }
+
+    /// Monte-Carlo standard error of each entry of [`Self::lagged_edge_marginals`].
+    #[must_use]
+    pub fn lagged_edge_mcse(&self) -> Option<&Arc<[f64]>> {
+        self.lagged_edge_mcse.as_ref()
+    }
+
+    /// Optional lagged-edge marginals for DBN templates
+    /// (packing `(lag - 1) * n_vars * n_vars + from * n_vars + to`, lag ≥ 1).
+    #[must_use]
+    pub fn lagged_edge_marginals(&self) -> Option<&Arc<[f64]>> {
+        self.lagged_edge_marginals.as_ref()
+    }
+
+    /// Max lag encoded in [`Self::lagged_edge_marginals`] (`None` if static).
+    #[must_use]
+    pub fn max_lag(&self) -> Option<u32> {
+        self.max_lag
+    }
+
+    /// Optional per-atom lag-edge sets (DBN templates; same length as [`Self::atoms`]); bit
+    /// `(lag - 1) * n_vars² + from * n_vars + to` is the edge `from(t - lag) → to(t)`.
+    #[must_use]
+    pub fn lag_masks(&self) -> Option<&Arc<[LagMask]>> {
+        self.lag_masks.as_ref()
+    }
+
+    /// Optional per-atom lagged latent-confounder sets (same length and bit layout as
+    /// [`Self::lag_masks`]): bit `(lag - 1) * n_vars² + from * n_vars + to` is
+    /// `from(t - lag) ↔ to(t)`. Present only for lagged [`GraphPosteriorAtomKind::TemporalAdmg`]
+    /// atoms, whose directed lagged edges are [`Self::lag_masks`].
+    #[must_use]
+    pub fn lag_bidirected_masks(&self) -> Option<&Arc<[LagMask]>> {
+        self.lag_bidirected_masks.as_ref()
+    }
+
+    /// Class of every atom. [`GraphPosterior::from_atoms`] leaves this as
+    /// [`GraphPosteriorAtomKind::Dag`].
+    #[must_use]
+    pub fn atom_kind(&self) -> GraphPosteriorAtomKind {
+        self.atom_kind
+    }
+
+    /// Optional PAG circle-endpoint sets, same length as [`Self::atoms`]. Bit `(from, to)`
+    /// means the `from` endpoint of that ordered pair is a circle. Unused for DAG and CPDAG
+    /// atoms.
+    #[must_use]
+    pub fn mark_atoms(&self) -> Option<&Arc<[AdjacencyMask]>> {
+        self.mark_atoms.as_ref()
+    }
+
+    /// The single-word packing of [`Self::mark_atoms`]: `None` unless there are marks and every
+    /// one fits one word.
+    #[must_use]
+    pub fn mark_words(&self) -> Option<Vec<u64>> {
+        self.mark_atoms.as_ref()?.iter().map(AdjacencyMask::to_word).collect()
+    }
+
+    /// The circle-endpoint set of atom `index`: empty when the posterior carries no marks.
+    #[must_use]
+    pub fn mark_atom(&self, index: usize) -> AdjacencyMask {
+        self.mark_atoms
+            .as_ref()
+            .and_then(|marks| marks.get(index))
+            .cloned()
+            .unwrap_or(AdjacencyMask::EMPTY)
+    }
+
+    /// Which structure-learning algorithm produced this posterior.
+    ///
+    /// `None` when the producer did not tag it. Carried so downstream plan records and
+    /// artifacts can name the real algorithm rather than a generic label — a posterior
+    /// handed to a study no longer arrives with that provenance implied by the call.
+    #[must_use]
+    pub fn algorithm(&self) -> Option<&Arc<str>> {
+        self.algorithm.as_ref()
+    }
+
+    /// Replace the edge marginals (the orientation marginals follow), keeping their length.
+    ///
+    /// For a producer that floors or otherwise adjusts the marginals after the fact; the
+    /// per-edge Monte-Carlo columns are untouched.
+    ///
+    /// # Errors
+    ///
+    /// Length differs from `n_vars²`.
+    pub(crate) fn replace_edge_marginals(
+        &mut self,
+        marginals: impl Into<Arc<[f64]>>,
+    ) -> Result<(), DiscoveryError> {
+        let marginals = marginals.into();
+        if marginals.len() != self.edge_marginals.len() {
+            return Err(DiscoveryError::unsupported("edge marginal length mismatch"));
+        }
+        self.edge_marginals = marginals;
+        Ok(())
+    }
+
+    /// Record a note in the diagnostics of the run.
+    pub(crate) fn push_note(&mut self, note: impl Into<Arc<str>>) {
+        self.diagnostics.notes.push(note.into());
     }
 
     /// Attach Monte-Carlo standard errors of the edge marginals (`n_vars²` packing).
@@ -415,8 +570,8 @@ impl GraphPosterior {
         self
     }
 
-    /// Attach PAG circle-endpoint masks (same length as [`Self::adjacency`]), single-word
-    /// bitmasks: [`Self::with_mark_atoms`] for a graph on at most eight nodes.
+    /// Attach PAG circle-endpoint masks (same length as [`Self::atoms`]), single-word
+    /// bitmasks: [`Self::with_mark_atoms`] takes them too.
     ///
     /// # Errors
     ///
@@ -436,10 +591,9 @@ impl GraphPosterior {
         marks: impl IntoIterator<Item = impl Into<AdjacencyMask>>,
     ) -> Result<Self, DiscoveryError> {
         let marks: Arc<[AdjacencyMask]> = marks.into_iter().map(Into::into).collect();
-        if marks.len() != self.n_graphs {
+        if marks.len() != self.n_graphs() {
             return Err(DiscoveryError::unsupported("mark_masks/adjacency length mismatch"));
         }
-        self.mark_masks = Some(single_words(&marks));
         self.mark_atoms = Some(marks);
         Ok(self)
     }
@@ -471,21 +625,37 @@ impl GraphPosterior {
         Ok(self)
     }
 
-    /// Attach per-atom lag-edge bitmasks (same length as `adjacency`).
+    /// Attach per-atom lag-edge sets (same length as the atoms): single-word `u64` packings or
+    /// [`LagMask`]s of any width.
     ///
     /// # Errors
     ///
     /// Length mismatch.
-    pub fn with_lag_masks(mut self, masks: impl Into<Arc<[u64]>>) -> Result<Self, DiscoveryError> {
-        let masks = masks.into();
-        if masks.len() != self.n_graphs {
+    pub fn with_lag_masks(
+        mut self,
+        masks: impl IntoIterator<Item = impl Into<LagMask>>,
+    ) -> Result<Self, DiscoveryError> {
+        let masks: Arc<[LagMask]> = masks.into_iter().map(Into::into).collect();
+        if masks.len() != self.n_graphs() {
             return Err(DiscoveryError::unsupported("lag_masks/adjacency length mismatch"));
         }
         self.lag_masks = Some(masks);
         Ok(self)
     }
 
-    /// Attach per-atom lagged latent-confounder bitmasks to a lagged temporal-ADMG posterior.
+    /// Drop the lag template (lag masks, latent-confounder lag masks, lagged marginals and
+    /// their errors, `max_lag`), leaving the contemporaneous atoms.
+    #[must_use]
+    pub fn without_lag_template(mut self) -> Self {
+        self.lag_masks = None;
+        self.lag_bidirected_masks = None;
+        self.lagged_edge_marginals = None;
+        self.lagged_edge_mcse = None;
+        self.max_lag = None;
+        self
+    }
+
+    /// Attach per-atom lagged latent-confounder sets to a lagged temporal-ADMG posterior.
     ///
     /// The directed lagged edges are [`Self::lag_masks`] and the contemporaneous ADMG is
     /// [`Self::atoms`]; with this the atom of position `i` is
@@ -497,9 +667,9 @@ impl GraphPosterior {
     /// `max_lag` yet, or the masks differ in length from the atoms.
     pub fn with_lag_bidirected_masks(
         mut self,
-        masks: impl Into<Arc<[u64]>>,
+        masks: impl IntoIterator<Item = impl Into<LagMask>>,
     ) -> Result<Self, DiscoveryError> {
-        let masks = masks.into();
+        let masks: Arc<[LagMask]> = masks.into_iter().map(Into::into).collect();
         if self.atom_kind != GraphPosteriorAtomKind::TemporalAdmg {
             return Err(DiscoveryError::unsupported(
                 "lagged latent-confounder masks belong to TemporalAdmg atoms",
@@ -510,7 +680,7 @@ impl GraphPosterior {
                 "lagged latent-confounder masks require the directed lag masks and max_lag first",
             ));
         }
-        if masks.len() != self.n_graphs {
+        if masks.len() != self.n_graphs() {
             return Err(DiscoveryError::unsupported(
                 "lag_bidirected_masks/adjacency length mismatch",
             ));
@@ -532,16 +702,16 @@ impl GraphPosterior {
     /// index outside it.
     #[must_use]
     pub fn temporal_admg_atom(&self, index: usize) -> Option<crate::TemporalAdmgAtom> {
-        if !self.is_lagged_temporal_admg() || index >= self.n_graphs {
+        if !self.is_lagged_temporal_admg() || index >= self.n_graphs() {
             return None;
         }
-        let directed = *self.lag_masks.as_ref()?.get(index)?;
+        let directed = self.lag_masks.as_ref()?.get(index)?.clone();
         let bidirected = match self.lag_bidirected_masks.as_ref() {
-            Some(masks) => *masks.get(index)?,
-            None => 0,
+            Some(masks) => masks.get(index)?.clone(),
+            None => LagMask::EMPTY,
         };
         Some(crate::TemporalAdmgAtom {
-            contemporaneous: *self.atoms.get(index)?,
+            contemporaneous: self.atoms.get(index)?.clone(),
             lagged_directed: directed,
             lagged_bidirected: bidirected,
         })
@@ -555,7 +725,7 @@ impl GraphPosterior {
     pub fn to_weighted_samples(&self) -> Result<WeightedGraphSamples, DiscoveryError> {
         if self.atom_kind == GraphPosteriorAtomKind::Dag {
             for atom in self.atoms.iter() {
-                if !crate::adjacency_mask::mask_is_dag(*atom, self.n_vars) {
+                if !crate::adjacency_mask::mask_is_dag(atom, self.n_vars) {
                     let refusal = antecedent_graph::error::CyclicDagRefusal::unlicensed(
                         antecedent_graph::error::DagOperation::GraphPosterior,
                         "graph_posterior",
@@ -568,14 +738,14 @@ impl GraphPosterior {
                 }
             }
         }
-        let identified = Arc::from(vec![GraphIdentFlag::Identified; self.n_graphs]);
+        let identified = Arc::from(vec![GraphIdentFlag::Identified; self.n_graphs()]);
         let mut g = WeightedGraphSamples::new(
             Arc::clone(&self.weights),
             identified,
             Arc::clone(&self.graph_keys),
         )?;
         g.edge_marginals = Some(Arc::clone(&self.edge_marginals));
-        g.orientation_marginals = Some(Arc::clone(&self.orientation_marginals));
+        g.orientation_marginals = Some(Arc::clone(&self.edge_marginals));
         Ok(g)
     }
 
@@ -612,11 +782,11 @@ impl GraphPosterior {
             std::collections::HashMap::with_capacity(self.atoms.len());
         let mut classes: Vec<AdjacencyMask> = Vec::new();
         let mut mass: Vec<f64> = Vec::new();
-        for (&atom, &weight) in self.atoms.iter().zip(self.weights.iter()) {
+        for (atom, &weight) in self.atoms.iter().zip(self.weights.iter()) {
             let dag = crate::adjacency_mask::dag_from_adjacency_mask(atom, n)?;
             let cpdag = crate::ges::dag_to_cpdag(&dag)?;
             let class = crate::adjacency_mask::adjacency_mask_from_cpdag(&cpdag)?;
-            let at = *slot.entry(class).or_insert_with(|| {
+            let at = *slot.entry(class.clone()).or_insert_with(|| {
                 classes.push(class);
                 mass.push(0.0);
                 classes.len() - 1
@@ -631,7 +801,7 @@ impl GraphPosterior {
         let mut diagnostics = self.diagnostics.clone();
         diagnostics.notes.push(Arc::from(format!(
             "equivalence_class_collapse dag_atoms={} classes={} effective_class_count={ess:.4}",
-            self.n_graphs,
+            self.n_graphs(),
             classes.len()
         )));
         let collapsed = Self::from_atoms(
@@ -671,35 +841,32 @@ impl GraphPosterior {
         let lags = max_lag as usize;
         let cell = lags * p * p;
         let slots = 2 * lags + 1;
-        if cell > 64 || slots * p > 255 {
+        if slots * p > 255 {
             return Err(DiscoveryError::unsupported("the unrolled window is too wide to collapse"));
         }
-        let mut slot: std::collections::HashMap<(AdjacencyMask, u64), usize> =
+        let mut slot: std::collections::HashMap<(AdjacencyMask, LagMask), usize> =
             std::collections::HashMap::with_capacity(self.atoms.len());
         let mut classes: Vec<AdjacencyMask> = Vec::new();
-        let mut lag_keys: Vec<u64> = Vec::new();
+        let mut lag_keys: Vec<LagMask> = Vec::new();
         let mut mass: Vec<f64> = Vec::new();
         let node = |index: usize| DenseNodeId::from_raw(crate::indexing::dense_u32(index));
-        for ((&atom, &lag_mask), &weight) in
+        for ((atom, lag_mask), &weight) in
             self.atoms.iter().zip(lag_masks.iter()).zip(self.weights.iter())
         {
             let mut window = Dag::with_variables(crate::indexing::dense_u32(slots * p));
             for slot in 0..=lags {
                 for i in 0..p {
                     for j in 0..p {
-                        if i != j && crate::adjacency_mask::has_edge(atom, p, i, j) {
+                        if i != j && atom.has_edge(p, i, j) {
                             window.insert_directed(node(slot * p + i), node(slot * p + j))?;
                         }
                     }
                 }
-                for b in 0..cell {
-                    if (lag_mask >> b) & 1 == 1 {
-                        let lag = b / (p * p) + 1;
-                        let from = (b % (p * p)) / p;
-                        let to = b % p;
-                        window
-                            .insert_directed(node((slot + lag) * p + from), node(slot * p + to))?;
-                    }
+                for b in lag_mask.set_bits().map(|b| b as usize).filter(|&b| b < cell) {
+                    let lag = b / (p * p) + 1;
+                    let from = (b % (p * p)) / p;
+                    let to = b % p;
+                    window.insert_directed(node((slot + lag) * p + from), node(slot * p + to))?;
                 }
             }
             let cpdag = crate::ges::dag_to_cpdag_with_known(&window, |from, to| {
@@ -712,21 +879,15 @@ impl GraphPosterior {
                     continue;
                 }
                 if edge.is_undirected() {
-                    class = crate::adjacency_mask::set_edge(class, p, i, j, true);
-                    class = crate::adjacency_mask::set_edge(class, p, j, i, true);
+                    class.set_edge(p, i, j, true);
+                    class.set_edge(p, j, i, true);
                 } else if let Some((from, to)) = edge.parent_child() {
-                    class = crate::adjacency_mask::set_edge(
-                        class,
-                        p,
-                        from.as_usize(),
-                        to.as_usize(),
-                        true,
-                    );
+                    class.set_edge(p, from.as_usize(), to.as_usize(), true);
                 }
             }
-            let at = *slot.entry((class, lag_mask)).or_insert_with(|| {
+            let at = *slot.entry((class.clone(), lag_mask.clone())).or_insert_with(|| {
                 classes.push(class);
-                lag_keys.push(lag_mask);
+                lag_keys.push(lag_mask.clone());
                 mass.push(0.0);
                 classes.len() - 1
             });
@@ -741,7 +902,7 @@ impl GraphPosterior {
         diagnostics.notes.push(Arc::from(format!(
             "temporal_equivalence_class_collapse template_atoms={} classes={} \
              window_slots={slots}",
-            self.n_graphs,
+            self.n_graphs(),
             classes.len()
         )));
         let mut collapsed = Self::from_atoms(
@@ -796,21 +957,21 @@ pub const fn n_directed_edges(n: usize) -> usize {
     n.saturating_mul(n.saturating_sub(1))
 }
 
-/// Refuse a node count whose adjacency does not fit an [`AdjacencyMask`].
+/// Refuse a node count whose edge bits a `u32` bit index does not address.
 ///
 /// `message` stays the caller's: order MCMC, structure MCMC and the DBN posterior each name
 /// their own engine.
 ///
 /// # Errors
 ///
-/// [`DiscoveryError::Unsupported`] with `message` when `n` exceeds [`MAX_POSTERIOR_NODES`].
+/// [`DiscoveryError::Unsupported`] with `message` when `n * (n - 1)` exceeds `u32::MAX`.
 pub(crate) fn ensure_nodes_fit(n: usize, message: &'static str) -> Result<(), DiscoveryError> {
-    if n > MAX_POSTERIOR_NODES { Err(DiscoveryError::unsupported(message)) } else { Ok(()) }
+    if edge_bits_fit(n) { Ok(()) } else { Err(DiscoveryError::unsupported(message)) }
 }
 
 // The single-word functions below are the earlier `u64` API, kept for graphs on at most eight
-// nodes (`n * (n - 1) <= 64` edge bits). The same operations over [`AdjacencyMask`], for up to
-// `MAX_POSTERIOR_NODES` nodes, live in `crate::adjacency_mask`.
+// nodes (`n * (n - 1) <= 64` edge bits). The same operations over [`AdjacencyMask`], for any
+// node count, live in `crate::adjacency_mask`.
 
 /// Refuse a node count whose directed edges do not fit one `u64` (`n * (n - 1) > 64`).
 fn require_word_capacity(n_vars: usize, what: &str) -> Result<(), DiscoveryError> {
@@ -946,24 +1107,16 @@ pub fn adjacency_mask_from_admg(admg: &Admg) -> Result<u64, DiscoveryError> {
     into_word(crate::adjacency_mask::adjacency_mask_from_admg(admg)?, "adjacency_mask_from_admg")
 }
 
-/// The single-word packing of every set, or an empty slice when one needs a wider word.
-fn single_words(sets: &[AdjacencyMask]) -> Arc<[u64]> {
-    sets.iter()
-        .map(|set| set.to_word())
-        .collect::<Option<Vec<u64>>>()
-        .map_or_else(|| Arc::from(Vec::new()), Arc::from)
-}
-
 /// One key per adjacency set, in atom order.
 ///
 /// A key is the set itself on at most eight nodes and a 64-bit digest beyond, so two distinct
 /// sets could in principle share one. Downstream caches index atoms by key; a shared key would
 /// merge two graphs, so it is refused instead.
 fn distinct_graph_keys(adjacency: &[AdjacencyMask]) -> Result<Arc<[u64]>, DiscoveryError> {
-    let mut owner: std::collections::HashMap<u64, AdjacencyMask> =
+    let mut owner: std::collections::HashMap<u64, &AdjacencyMask> =
         std::collections::HashMap::with_capacity(adjacency.len());
     let mut keys = Vec::with_capacity(adjacency.len());
-    for &mask in adjacency {
+    for mask in adjacency {
         let key = mask.key();
         if owner.insert(key, mask).is_some_and(|other| other != mask) {
             return Err(DiscoveryError::unsupported(
@@ -1063,7 +1216,7 @@ pub(crate) fn edge_required(
 /// Log prior for a constraint-valid DAG mask (`−∞` encoded as `None` if invalid).
 #[must_use]
 pub(crate) fn log_prior_mask(
-    mask: AdjacencyMask,
+    mask: &AdjacencyMask,
     n: usize,
     prior: &GraphPrior,
     variables: &[VariableId],
@@ -1078,11 +1231,20 @@ pub(crate) struct GraphPriorTable {
     forbidden: AdjacencyMask,
     required: AdjacencyMask,
     /// Per node: the parents constraints forbid / require, as node bitsets.
-    forbidden_parents: Vec<u16>,
-    required_parents: Vec<u16>,
+    forbidden_parents: Vec<AdjacencyMask>,
+    required_parents: Vec<AdjacencyMask>,
     max_parents: usize,
     /// `(ln p, ln (1 - p))` of the Bernoulli edge prior, when one is set.
     edge_logs: Option<(f64, f64)>,
+}
+
+/// The fixed inputs of one parent-set enumeration.
+struct ParentSetSearch<'a> {
+    node: usize,
+    /// Candidate parents that are neither forbidden nor required, in increasing order.
+    free: &'a [usize],
+    required: &'a AdjacencyMask,
+    limit: usize,
 }
 
 impl GraphPriorTable {
@@ -1104,13 +1266,13 @@ impl GraphPriorTable {
                 }
             }
         }
-        let node_sets = |mask: AdjacencyMask| -> Vec<u16> {
+        let node_sets = |mask: &AdjacencyMask| -> Vec<AdjacencyMask> {
             (0..n).map(|node| parent_bits(mask, n, node)).collect()
         };
         Self {
             n,
-            forbidden_parents: node_sets(forbidden),
-            required_parents: node_sets(required),
+            forbidden_parents: node_sets(&forbidden),
+            required_parents: node_sets(&required),
             forbidden,
             required,
             max_parents: prior.constraints.max_parents.unwrap_or(n.saturating_sub(1)),
@@ -1128,56 +1290,104 @@ impl GraphPriorTable {
     ///
     /// The sum of this over the nodes is [`Self::log_prior`] of the graph they form (before the
     /// acyclicity test), term for term: a Bernoulli edge prior factorises over parent sets.
-    pub(crate) fn node_log_prior(&self, node: usize, parents: u16) -> Option<f64> {
-        if parents & self.forbidden_parents[node] != 0
-            || self.required_parents[node] & !parents != 0
-            || parents.count_ones() as usize > self.max_parents
+    pub(crate) fn node_log_prior(&self, node: usize, parents: &AdjacencyMask) -> Option<f64> {
+        if parents.intersects(&self.forbidden_parents[node])
+            || !parents.contains_all(&self.required_parents[node])
+            || parents.count_ones() > self.max_parents
         {
             return None;
         }
         let Some((lp, lq)) = self.edge_logs else {
             return Some(0.0);
         };
-        let candidates = self.n - 1 - self.forbidden_parents[node].count_ones() as usize;
-        let present = parents.count_ones() as usize;
+        let candidates = self.n - 1 - self.forbidden_parents[node].count_ones();
+        let present = parents.count_ones();
         Some(present as f64 * lp + (candidates - present) as f64 * lq)
     }
 
-    /// Every parent set constraints allow for `node`, as node bitsets, or `None` when there are
-    /// more than `limit` of them.
-    pub(crate) fn allowed_parent_sets(&self, node: usize, limit: usize) -> Option<Vec<u16>> {
-        let others: Vec<usize> = (0..self.n).filter(|&p| p != node).collect();
+    /// Every parent set constraints allow for `node`, as node bitsets in increasing numeric
+    /// order of the set (node `p` is bit `p`), or `None` when there are more than `limit` of
+    /// them. Only as many sets as the limit are ever generated.
+    pub(crate) fn allowed_parent_sets(
+        &self,
+        node: usize,
+        limit: usize,
+    ) -> Option<Vec<AdjacencyMask>> {
+        let required = &self.required_parents[node];
+        let free: Vec<usize> = (0..self.n)
+            .filter(|&p| {
+                p != node
+                    && !self.forbidden_parents[node].bit(crate::indexing::dense_u32(p))
+                    && !required.bit(crate::indexing::dense_u32(p))
+            })
+            .collect();
+        let Some(spare) = self.max_parents.checked_sub(required.count_ones()) else {
+            return Some(Vec::new());
+        };
         let mut out = Vec::new();
-        for pattern in 0u32..(1u32 << others.len()) {
-            if pattern.count_ones() as usize > self.max_parents {
-                continue;
+        let mut chosen = Vec::new();
+        let complete = self.extend_parent_sets(
+            &ParentSetSearch { node, free: &free, required, limit },
+            free.len(),
+            spare,
+            &mut chosen,
+            &mut out,
+        );
+        complete.then_some(out)
+    }
+
+    /// Emit, in increasing numeric order, the allowed sets made of `required` plus at most
+    /// `spare` of the first `upto` free nodes, `chosen` holding the higher nodes already taken.
+    /// `false` once more than `search.limit` sets exist.
+    fn extend_parent_sets(
+        &self,
+        search: &ParentSetSearch<'_>,
+        upto: usize,
+        spare: usize,
+        chosen: &mut Vec<usize>,
+        out: &mut Vec<AdjacencyMask>,
+    ) -> bool {
+        if upto == 0 {
+            let mut set = search.required.clone();
+            for &p in chosen.iter() {
+                set.set_bit(crate::indexing::dense_u32(p), true);
             }
-            let set = others
-                .iter()
-                .enumerate()
-                .filter(|&(bit, _)| (pattern >> bit) & 1 == 1)
-                .fold(0u16, |acc, (_, &p)| acc | (1 << p));
-            if self.node_log_prior(node, set).is_none() {
-                continue;
+            if self.node_log_prior(search.node, &set).is_none() {
+                return true;
             }
-            if out.len() == limit {
-                return None;
+            if out.len() == search.limit {
+                return false;
             }
             out.push(set);
+            return true;
         }
-        Some(out)
+        // Sets without the highest remaining node are numerically smaller than those with it.
+        if !self.extend_parent_sets(search, upto - 1, spare, chosen, out) {
+            return false;
+        }
+        if spare == 0 {
+            return true;
+        }
+        chosen.push(search.free[upto - 1]);
+        let complete = self.extend_parent_sets(search, upto - 1, spare - 1, chosen, out);
+        chosen.pop();
+        complete
     }
 
     /// Log prior of `mask`, `None` when it violates a constraint or is cyclic.
-    pub(crate) fn log_prior(&self, mask: AdjacencyMask) -> Option<f64> {
+    pub(crate) fn log_prior(&self, mask: &AdjacencyMask) -> Option<f64> {
         let n = self.n;
-        if mask.intersects(self.forbidden) || !mask.contains_all(self.required) {
+        if mask.intersects(&self.forbidden) || !mask.contains_all(&self.required) {
             return None;
         }
-        if self.max_parents < n.saturating_sub(1)
-            && (0..n).any(|j| parent_bits(mask, n, j).count_ones() as usize > self.max_parents)
-        {
-            return None;
+        if self.max_parents < n.saturating_sub(1) {
+            let mut in_degree = vec![0usize; n];
+            for (_, to) in mask.edges(n) {
+                in_degree[to] += 1;
+            }
+            if in_degree.iter().any(|&d| d > self.max_parents) {
+                return None;
+            }
         }
         if !crate::adjacency_mask::mask_is_dag(mask, n) {
             return None;
@@ -1236,7 +1446,7 @@ pub(crate) fn accumulate_marginals(
     masks: &[AdjacencyMask],
 ) -> (Vec<f64>, Vec<f64>) {
     let mut edge = vec![0.0; n * n];
-    for (&w, &mask) in weights.iter().zip(masks.iter()) {
+    for (&w, mask) in weights.iter().zip(masks.iter()) {
         // Only the set bits: a sparse graph costs its edge count, not `n²`.
         for (from, to) in mask.edges(n) {
             edge[from * n + to] += w;
@@ -1736,18 +1946,18 @@ mod tests {
         )
         .unwrap();
         let classes = posterior.to_equivalence_classes().unwrap();
-        assert_eq!(classes.atom_kind, GraphPosteriorAtomKind::Cpdag);
-        assert_eq!(classes.n_graphs, 2);
-        assert!((classes.weights[0] - 0.6).abs() < 1e-12);
-        assert!((classes.weights[1] - 0.4).abs() < 1e-12);
+        assert_eq!(classes.atom_kind(), GraphPosteriorAtomKind::Cpdag);
+        assert_eq!(classes.n_graphs(), 2);
+        assert!((classes.weights()[0] - 0.6).abs() < 1e-12);
+        assert!((classes.weights()[1] - 0.4).abs() < 1e-12);
         // The chain class leaves both edges undirected (both bits); the collider is directed.
-        assert!(has_edge(classes.atoms[0], n, 0, 1) && has_edge(classes.atoms[0], n, 1, 0));
-        assert!(has_edge(classes.atoms[0], n, 1, 2) && has_edge(classes.atoms[0], n, 2, 1));
-        assert!(has_edge(classes.atoms[1], n, 0, 1) && !has_edge(classes.atoms[1], n, 1, 0));
-        assert!(has_edge(classes.atoms[1], n, 2, 1) && !has_edge(classes.atoms[1], n, 1, 2));
-        assert!((classes.ess - 1.0 / (0.6 * 0.6 + 0.4 * 0.4)).abs() < 1e-12);
-        assert_eq!(classes.algorithm.as_deref(), Some("class_posterior"));
-        assert!(classes.edge_mcse.is_none());
+        assert!(has_edge(&classes.atoms()[0], n, 0, 1) && has_edge(&classes.atoms()[0], n, 1, 0));
+        assert!(has_edge(&classes.atoms()[0], n, 1, 2) && has_edge(&classes.atoms()[0], n, 2, 1));
+        assert!(has_edge(&classes.atoms()[1], n, 0, 1) && !has_edge(&classes.atoms()[1], n, 1, 0));
+        assert!(has_edge(&classes.atoms()[1], n, 2, 1) && !has_edge(&classes.atoms()[1], n, 1, 2));
+        assert!((classes.ess() - 1.0 / (0.6 * 0.6 + 0.4 * 0.4)).abs() < 1e-12);
+        assert_eq!(classes.algorithm().map(|a| &**a), Some("class_posterior"));
+        assert!(classes.edge_mcse().is_none());
         // Collapsing is not repeated on classes.
         assert!(classes.to_equivalence_classes().is_err());
     }
@@ -1780,16 +1990,16 @@ mod tests {
         .with_lag_masks(lags.to_vec())
         .unwrap();
         let classes = posterior.to_equivalence_classes().unwrap();
-        assert_eq!(classes.atom_kind, GraphPosteriorAtomKind::Cpdag);
+        assert_eq!(classes.atom_kind(), GraphPosteriorAtomKind::Cpdag);
         // Without the lagged parent the two orientations are one undirected class; with it
         // each is compelled.
-        assert_eq!(classes.n_graphs, 3);
-        assert!((classes.weights[0] - 0.3).abs() < 1e-12);
-        assert!(has_edge(classes.atoms[0], p, 0, 1) && has_edge(classes.atoms[0], p, 1, 0));
-        assert!(has_edge(classes.atoms[1], p, 0, 1) && !has_edge(classes.atoms[1], p, 1, 0));
-        assert!(has_edge(classes.atoms[2], p, 1, 0) && !has_edge(classes.atoms[2], p, 0, 1));
-        assert_eq!(classes.max_lag, Some(1));
-        assert_eq!(classes.lag_masks.as_deref(), Some(&[0_u64, 1, 1][..]));
+        assert_eq!(classes.n_graphs(), 3);
+        assert!((classes.weights()[0] - 0.3).abs() < 1e-12);
+        assert!(has_edge(&classes.atoms()[0], p, 0, 1) && has_edge(&classes.atoms()[0], p, 1, 0));
+        assert!(has_edge(&classes.atoms()[1], p, 0, 1) && !has_edge(&classes.atoms()[1], p, 1, 0));
+        assert!(has_edge(&classes.atoms()[2], p, 1, 0) && !has_edge(&classes.atoms()[2], p, 0, 1));
+        assert_eq!(classes.max_lag(), Some(1));
+        assert_eq!(classes.lag_masks().map(|m| m.iter().map(|x| x.to_word().unwrap()).collect::<Vec<_>>()), Some(vec![0_u64, 1, 1]));
     }
 
     #[test]
@@ -2099,14 +2309,14 @@ mod tests {
         assert_eq!(d.ess_bulk_min, None);
     }
 
-    /// The packing holds 16 nodes (240 edge bits) and refuses a 17th; the message is the
-    /// caller's.
+    /// The packing has no node limit but the `u32` edge bit index; the message is the caller's.
     #[test]
-    fn adjacency_fits_through_sixteen_nodes() {
-        assert!(ensure_nodes_fit(16, "order MCMC supports at most 16 variables").is_ok());
-        let err = ensure_nodes_fit(17, "structure MCMC supports at most 16 variables").unwrap_err();
+    fn adjacency_is_limited_only_by_the_edge_bit_index() {
+        assert!(ensure_nodes_fit(16, "order MCMC").is_ok());
+        assert!(ensure_nodes_fit(1000, "order MCMC").is_ok());
+        let err = ensure_nodes_fit(70_000, "structure MCMC edge bits").unwrap_err();
         assert!(
-            matches!(err, DiscoveryError::Unsupported { message } if message == "structure MCMC supports at most 16 variables"),
+            matches!(err, DiscoveryError::Unsupported { message } if message == "structure MCMC edge bits"),
             "{err}"
         );
         assert_eq!(n_directed_edges(16), 240);
@@ -2233,10 +2443,10 @@ mod tests {
             sampling,
         )
         .unwrap();
-        assert_ne!(post.graph_keys[0], post.graph_keys[1]);
-        assert_eq!(post.graph_keys[0], post.graph_keys[2]);
-        assert_eq!(post.atoms[0], a);
-        assert!(post.adjacency.is_empty(), "a wide atom has no single-word packing");
+        assert_ne!(post.graph_keys()[0], post.graph_keys()[1]);
+        assert_eq!(post.graph_keys()[0], post.graph_keys()[2]);
+        assert_eq!(post.atoms()[0], a);
+        assert!(post.adjacency_words().is_none(), "a wide atom has no single-word packing");
     }
 
     /// Per-edge R̂ and ESS follow the summary: constant indicators report a perfect score and

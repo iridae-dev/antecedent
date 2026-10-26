@@ -12,7 +12,6 @@ use antecedent_data::{
 };
 
 use crate::adjacency_mask::AdjacencyMask;
-use crate::adjacency_mask::has_edge;
 use crate::constraints::DiscoveryConstraints;
 use crate::graph_posterior::{GraphPrior, GraphPriorTable};
 use crate::graph_score::ChainTarget;
@@ -107,7 +106,7 @@ pub(crate) fn assert_rooted_forest_law(
     let counts = |mask: &AdjacencyMask| -> usize {
         (0..n)
             .flat_map(|i| (0..n).map(move |j| (i, j)))
-            .filter(|&(i, j)| has_edge(*mask, n, i, j))
+            .filter(|&(i, j)| mask.has_edge(n, i, j))
             .count()
     };
     let mut histogram = vec![0.0; n];
@@ -140,7 +139,7 @@ pub(crate) fn assert_rooted_forest_law(
     );
     let inclusion = expected_edges / (n * (n - 1)) as f64;
     for &(from, to) in probe {
-        let z_edge = z(&|m| f64::from(u8::from(has_edge(*m, n, from, to))), inclusion);
+        let z_edge = z(&|m| f64::from(u8::from(m.has_edge(n, from, to))), inclusion);
         assert!(
             z_edge.abs() < 5.0,
             "P({from} -> {to}) is {z_edge} standard errors from {inclusion}"
@@ -152,11 +151,11 @@ pub(crate) fn assert_rooted_forest_law(
 pub(crate) struct PriorOnlyTarget<'a>(pub(crate) &'a GraphPriorTable);
 
 impl ChainTarget for PriorOnlyTarget<'_> {
-    fn score(&mut self, mask: AdjacencyMask) -> Option<f64> {
+    fn score(&mut self, mask: &AdjacencyMask) -> Option<f64> {
         self.0.log_prior(mask)
     }
 
-    fn node_score(&mut self, node: usize, parents: u16) -> Option<f64> {
+    fn node_score(&mut self, node: usize, parents: &AdjacencyMask) -> Option<f64> {
         self.0.node_log_prior(node, parents)
     }
 }

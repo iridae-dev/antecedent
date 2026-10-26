@@ -32,7 +32,6 @@ use antecedent_data::TabularData;
 use antecedent_state::GraphScoreFamily;
 
 use crate::adjacency_mask::AdjacencyMask;
-use crate::adjacency_mask::{has_edge, set_edge};
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::DiscoveryWorkspace;
 use crate::graph_posterior::{GraphPosterior, GraphPrior};
@@ -98,7 +97,7 @@ fn sparse_sem_with_magnitudes(
             let pick = pool.swap_remove(crate::indexing::bounded_index(rng.next_u64(), pool.len()));
             let sign = if rng.next_f64() < 0.5 { -1.0 } else { 1.0 };
             parents[order[pos]].push((pick, sign * (floor + span * rng.next_f64())));
-            truth = set_edge(truth, n, pick, order[pos], true);
+            truth.set_edge(n, pick, order[pos], true);
         }
     }
     let mut cols = vec![vec![0.0; rows]; n];
@@ -115,13 +114,13 @@ fn sparse_sem_with_magnitudes(
 type BinCells = [(f64, f64, f64); N_BINS];
 
 /// One published replicate's skeleton marginals against the generating graph.
-fn bin_skeleton(n: usize, post: &GraphPosterior, truth: AdjacencyMask) -> BinCells {
-    bin_edge_marginals(n, &post.edge_marginals, truth)
+fn bin_skeleton(n: usize, post: &GraphPosterior, truth: &AdjacencyMask) -> BinCells {
+    bin_edge_marginals(n, post.edge_marginals(), truth)
 }
 
 /// The skeleton marginals of directed-edge marginals `edge` (row-major `from * n + to`) against
 /// the generating graph.
-fn bin_edge_marginals(n: usize, edge: &[f64], truth: AdjacencyMask) -> BinCells {
+fn bin_edge_marginals(n: usize, edge: &[f64], truth: &AdjacencyMask) -> BinCells {
     let mut cells = [(0.0, 0.0, 0.0); N_BINS];
     for i in 0..n {
         for j in (i + 1)..n {
@@ -130,7 +129,7 @@ fn bin_edge_marginals(n: usize, edge: &[f64], truth: AdjacencyMask) -> BinCells 
             let bin = (1..N_BINS)
                 .filter(|&b| scaled >= f64::from(u32::try_from(b).unwrap_or(u32::MAX)))
                 .count();
-            let adjacent = has_edge(truth, n, i, j) || has_edge(truth, n, j, i);
+            let adjacent = truth.has_edge(n, i, j) || truth.has_edge(n, j, i);
             cells[bin].0 += 1.0;
             cells[bin].1 += p;
             cells[bin].2 += f64::from(u8::from(adjacent));
@@ -160,7 +159,7 @@ const EXACT_MATCH_FLOOR: f64 = 1e-3;
 /// `[0.05, 0.95]`, where an indicator flips often enough for its ESS to be estimated. `None`
 /// when no edge is in that range.
 fn chain_effective_draws(post: &GraphPosterior, exact: &[f64]) -> Option<f64> {
-    let ess = post.edge_ess.as_ref()?;
+    let ess = post.edge_ess()?;
     let mut informative: Vec<f64> = exact
         .iter()
         .zip(ess.iter())
@@ -220,17 +219,17 @@ fn assert_marginals_match_the_exact_posterior(
             println!("exact-posterior-match {label} n={n} rep={rep} sampler error");
             continue;
         };
-        let published = post.diagnostics.converged;
+        let published = post.diagnostics().converged;
         let exact =
             crate::exact_dag_marginals(&data, &vars, &prior, GraphScoreFamily::GaussianBic, &ctx)
                 .unwrap();
-        let mcse = post.edge_mcse.as_ref().expect("a posterior reports its mcse");
+        let mcse = post.edge_mcse().expect("a posterior reports its mcse");
         let n_eff = chain_effective_draws(&post, &exact.edge_marginals);
         // A rarely-flipping edge has fewer effective draws than the chain's median; its own ESS,
         // when finite, bounds the draws its marginal is estimated from.
         let edge_draws = |k: usize| {
             let own =
-                post.edge_ess.as_ref().map(|ess| ess[k]).filter(|e| e.is_finite() && *e > 0.0);
+                post.edge_ess().map(|ess| ess[k]).filter(|e| e.is_finite() && *e > 0.0);
             match (n_eff, own) {
                 (Some(chain), Some(own)) => Some(chain.min(own)),
                 (chain, own) => chain.or(own),
@@ -244,7 +243,7 @@ fn assert_marginals_match_the_exact_posterior(
                     continue;
                 }
                 let k = i * n + j;
-                let difference = (post.edge_marginals[k] - exact.edge_marginals[k]).abs();
+                let difference = (post.edge_marginals()[k] - exact.edge_marginals[k]).abs();
                 if difference > worst.0 {
                     worst = (difference, i, j);
                 }
@@ -253,13 +252,13 @@ fn assert_marginals_match_the_exact_posterior(
                     violation = Some(format!(
                         "{label} n={n} rep={rep} edge {i}->{j}: sampler {:.5} vs exact {:.5} \
                          (error {error_k:.5})",
-                        post.edge_marginals[k], exact.edge_marginals[k],
+                        post.edge_marginals()[k], exact.edge_marginals[k],
                     ));
                 }
                 if i < j {
                     let r = j * n + i;
                     let (sampled, expected) = (
-                        post.edge_marginals[k] + post.edge_marginals[r],
+                        post.edge_marginals()[k] + post.edge_marginals()[r],
                         exact.edge_marginals[k] + exact.edge_marginals[r],
                     );
                     let error = marginal_error(mcse[k], exact.edge_marginals[k], edge_draws(k))
@@ -276,7 +275,7 @@ fn assert_marginals_match_the_exact_posterior(
             }
         }
         let gate: Vec<&str> =
-            post.diagnostics.notes.iter().filter_map(|note| note.strip_prefix("gate_")).collect();
+            post.diagnostics().notes.iter().filter_map(|note| note.strip_prefix("gate_")).collect();
         println!(
             "exact-posterior-match {label} n={n} rep={rep} published={published} \
              worst_error={:.5} at {}->{} outside_tolerance={} gate=[{}]",
@@ -292,7 +291,7 @@ fn assert_marginals_match_the_exact_posterior(
         if let Some(message) = violation {
             failures.push(message);
         }
-        truth_bins.push(bin_skeleton(n, &post, truth));
+        truth_bins.push(bin_skeleton(n, &post, &truth));
     }
     let rate = truth_bins.len() as f64 / N_SIM as f64;
     println!("exact-posterior-match {label} n={n} published={}/{N_SIM}", truth_bins.len());
@@ -492,7 +491,7 @@ fn exact_marginals_locate_the_skeleton_overstatement() {
         let cells: Vec<BinCells> = (0..DIAGNOSTIC_EXACT_REPLICATES)
             .map(|rep| {
                 let (data, truth) = draw(magnitudes, rep);
-                bin_edge_marginals(n, &exact_of(&data, rep).edge_marginals, truth)
+                bin_edge_marginals(n, &exact_of(&data, rep).edge_marginals, &truth)
             })
             .collect();
         for (bin, &(pairs, predicted, observed)) in pool(&cells).iter().enumerate() {
@@ -524,7 +523,7 @@ fn exact_marginals_locate_the_skeleton_overstatement() {
                 for j in (i + 1)..n {
                     let exact_skeleton =
                         exact.edge_marginals[i * n + j] + exact.edge_marginals[j * n + i];
-                    let sampled = post.edge_marginals[i * n + j] + post.edge_marginals[j * n + i];
+                    let sampled = post.edge_marginals()[i * n + j] + post.edge_marginals()[j * n + i];
                     worst_gap = worst_gap.max((sampled - exact_skeleton).abs());
                     gap_all += sampled - exact_skeleton;
                     if exact_skeleton < 1.0 / N_BINS as f64 {
@@ -535,13 +534,13 @@ fn exact_marginals_locate_the_skeleton_overstatement() {
                 }
             }
             let (mcse, rhat, ess) = (
-                post.edge_mcse.as_ref().unwrap(),
-                post.edge_rhat.as_ref().unwrap(),
-                post.edge_ess.as_ref().unwrap(),
+                post.edge_mcse().unwrap(),
+                post.edge_rhat().unwrap(),
+                post.edge_ess().unwrap(),
             );
             let worst = (0..n * n).max_by(|&a, &b| mcse[a].total_cmp(&mcse[b])).unwrap();
             let (wi, wj) = (worst / n, worst % n);
-            let d = &post.diagnostics;
+            let d = post.diagnostics();
             refused += u64::from(!d.converged);
             println!(
                 "skeleton-diagnostic {label} rep={rep} published={} rhat_max={:?} \
@@ -583,8 +582,8 @@ mod tests {
     fn sparse_sem_returns_its_generating_graph() {
         for n in [10usize, 12] {
             let (cols, truth) = sparse_sem(n, N_ROWS, 17);
-            assert!(crate::adjacency_mask::mask_is_dag(truth, n));
-            assert!((0..n).all(|v| crate::adjacency_mask::parents_of(truth, n, v).len() <= 2));
+            assert!(crate::adjacency_mask::mask_is_dag(&truth, n));
+            assert!((0..n).all(|v| crate::adjacency_mask::parents_of(&truth, n, v).len() <= 2));
             assert!(cols.iter().all(|c| c.len() == N_ROWS && c.iter().all(|x| x.is_finite())));
         }
     }
@@ -593,7 +592,7 @@ mod tests {
     #[test]
     fn binning_places_a_pair_by_its_skeleton_marginal() {
         let n = 3;
-        let truth = set_edge(AdjacencyMask::EMPTY, n, 0, 1, true);
+        let truth = crate::adjacency_mask::set_edge(AdjacencyMask::EMPTY, n, 0, 1, true);
         let mut edge = vec![0.0; n * n];
         edge[1] = 0.25;
         edge[n] = 0.5; // P(1 -> 0) = 0.5: skeleton pair (0, 1) at 0.75
@@ -601,7 +600,7 @@ mod tests {
         let post = GraphPosterior::from_atoms(
             n,
             vec![1.0],
-            vec![truth],
+            vec![truth.clone()],
             edge.clone(),
             edge,
             crate::graph_posterior::SamplingSummary {
@@ -611,7 +610,7 @@ mod tests {
             },
         )
         .unwrap();
-        let cells = bin_skeleton(n, &post, truth);
+        let cells = bin_skeleton(n, &post, &truth);
         assert_eq!(cells[7], (1.0, 0.75, 1.0));
         assert_eq!(cells[0], (2.0, 0.05, 0.0));
     }

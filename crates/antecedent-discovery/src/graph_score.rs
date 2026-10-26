@@ -9,9 +9,9 @@ use antecedent_data::TabularData;
 use antecedent_state::{GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache};
 
 use crate::adjacency_mask::AdjacencyMask;
-use crate::adjacency_mask::{fill_parents, parent_bits, set_edge};
+use crate::adjacency_mask::{fill_parents, parent_bits};
 use crate::error::DiscoveryError;
-use crate::graph_posterior::{GraphPrior, GraphPriorTable, edge_required};
+use crate::graph_posterior::{EXACT_ENUM_MAX_NODES, GraphPrior, GraphPriorTable, edge_required};
 use crate::pc::collect_float_columns;
 
 /// Version stamped on every discovery [`GraphScoreCacheKey`].
@@ -65,7 +65,7 @@ pub(crate) fn tabular_score_data(
 /// Uses [`LocalScoreCache::local_score`] only (does not mutate cached parent sets),
 /// so MCMC proposals can reject without restoring graph state.
 pub(crate) fn score_dag_mask(
-    mask: AdjacencyMask,
+    mask: &AdjacencyMask,
     n: usize,
     data: &GraphScoreData,
     cache: &mut LocalScoreCache,
@@ -84,7 +84,7 @@ pub(crate) fn score_dag_mask(
 /// run on a dozen variables. The stored local score is still keyed by a fresh `Arc` of those
 /// indexes, in the same increasing order [`crate::graph_posterior::parents_of`] produces.
 pub(crate) fn score_dag_mask_with_parents(
-    mask: AdjacencyMask,
+    mask: &AdjacencyMask,
     n: usize,
     data: &GraphScoreData,
     cache: &mut LocalScoreCache,
@@ -113,10 +113,10 @@ pub(crate) fn score_dag_mask_with_parents(
 /// with the data removed.
 pub(crate) trait ChainTarget {
     /// Log target of `mask`; `None` when it is invalid (constraints, cycle, no finite score).
-    fn score(&mut self, mask: AdjacencyMask) -> Option<f64>;
+    fn score(&mut self, mask: &AdjacencyMask) -> Option<f64>;
     /// Log target of `node` having parent set `parents`; `None` when that is invalid. The sum
     /// over a valid graph's nodes is [`Self::score`].
-    fn node_score(&mut self, node: usize, parents: u16) -> Option<f64>;
+    fn node_score(&mut self, node: usize, parents: &AdjacencyMask) -> Option<f64>;
 }
 
 /// [`ChainTarget`] scoring Gaussian BIC + prior, with its own local-score cache and parent-list
@@ -147,7 +147,7 @@ impl<'a> ScoredTarget<'a> {
 }
 
 impl ChainTarget for ScoredTarget<'_> {
-    fn score(&mut self, mask: AdjacencyMask) -> Option<f64> {
+    fn score(&mut self, mask: &AdjacencyMask) -> Option<f64> {
         score_dag_mask_with_parents(
             mask,
             self.n,
@@ -158,12 +158,9 @@ impl ChainTarget for ScoredTarget<'_> {
         )
     }
 
-    fn node_score(&mut self, node: usize, parents: u16) -> Option<f64> {
+    fn node_score(&mut self, node: usize, parents: &AdjacencyMask) -> Option<f64> {
         let prior = self.prior.node_log_prior(node, parents)?;
-        let set: Arc<[u32]> = (0..self.n)
-            .filter(|&p| (parents >> p) & 1 == 1)
-            .map(crate::indexing::dense_u32)
-            .collect();
+        let set: Arc<[u32]> = parents.set_bits().filter(|&p| (p as usize) < self.n).collect();
         let local =
             self.cache.local_score(self.data, crate::indexing::dense_u32(node), &set).ok()?;
         local.is_finite().then_some(prior + local)
@@ -180,11 +177,11 @@ impl<T> Clone for SharedTarget<T> {
 }
 
 impl<T: ChainTarget> ChainTarget for SharedTarget<T> {
-    fn score(&mut self, mask: AdjacencyMask) -> Option<f64> {
+    fn score(&mut self, mask: &AdjacencyMask) -> Option<f64> {
         self.0.borrow_mut().score(mask)
     }
 
-    fn node_score(&mut self, node: usize, parents: u16) -> Option<f64> {
+    fn node_score(&mut self, node: usize, parents: &AdjacencyMask) -> Option<f64> {
         self.0.borrow_mut().node_score(node, parents)
     }
 }
@@ -193,11 +190,13 @@ impl<T: ChainTarget> ChainTarget for SharedTarget<T> {
 ///
 /// Over `n` labelled nodes there are only `n * 2^(n-1)` distinct `(node, parent set)` local
 /// scores, so each is computed once up front and a mask is then scored by summation, in node
-/// order, exactly as [`score_dag_mask`] does.
+/// order, exactly as [`score_dag_mask`] does. The table has `n * 2^n` entries, so it is built
+/// only for the node counts exhaustive enumeration reaches ([`EXACT_ENUM_MAX_NODES`]); a parent
+/// set is indexed by the subset of the `n` nodes it names.
 pub(crate) struct DagScorer {
     n: usize,
     prior: GraphPriorTable,
-    /// `local[node << n | parents]`: `None` when the score is not finite or not computable.
+    /// `local[node << n | subset]` (`subset` has bit `p` for parent `p`): `None` when the score is not finite or not computable.
     local: Vec<Option<f64>>,
 }
 
@@ -209,6 +208,10 @@ impl DagScorer {
         prior: &GraphPrior,
         variables: &[VariableId],
     ) -> Self {
+        assert!(
+            n <= EXACT_ENUM_MAX_NODES,
+            "DagScorer tabulates n * 2^n local scores and serves exhaustive enumeration only"
+        );
         let mut cache = LocalScoreCache::new(graph_score_cache_key(family, n, data.n_rows));
         let mut local = vec![None; n << n];
         for node in 0..n {
@@ -230,11 +233,12 @@ impl DagScorer {
     }
 
     /// BIC + log prior of `mask` (`None` if invalid), bit-identical to [`score_dag_mask`].
-    pub(crate) fn score(&self, mask: AdjacencyMask) -> Option<f64> {
+    pub(crate) fn score(&self, mask: &AdjacencyMask) -> Option<f64> {
         let n = self.n;
         let mut total = self.prior.log_prior(mask)?;
         for node in 0..n {
-            let parents = usize::from(parent_bits(mask, n, node));
+            let parents =
+                parent_bits(mask, n, node).set_bits().fold(0usize, |subset, p| subset | (1 << p));
             total += self.local[(node << n) | parents]?;
         }
         Some(total)
@@ -254,12 +258,12 @@ pub(crate) fn initial_scored_mask(
     for i in 0..n {
         for j in 0..n {
             if i != j && edge_required(&prior.constraints, variables, i, j) {
-                mask = set_edge(mask, n, i, j, true);
+                mask.set_edge(n, i, j, true);
             }
         }
     }
     let mut cache = LocalScoreCache::new(graph_score_cache_key(family, n, data.n_rows));
-    let score = score_dag_mask(mask, n, data, &mut cache, prior, variables)
+    let score = score_dag_mask(&mask, n, data, &mut cache, prior, variables)
         .filter(|s| s.is_finite())
         .ok_or_else(|| {
             DiscoveryError::unsupported(

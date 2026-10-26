@@ -30,7 +30,7 @@ use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::{TableView, TimeSeriesData};
 use antecedent_prob::kish_ess;
 
-use crate::adjacency_mask::{AdjacencyMask, has_edge};
+use crate::adjacency_mask::{AdjacencyMask, LagMask, edge_bits_fit};
 use crate::error::DiscoveryError;
 use crate::graph_posterior::{
     GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, accumulate_marginals,
@@ -38,8 +38,6 @@ use crate::graph_posterior::{
 };
 use crate::temporal_admg_atoms::{TemporalAdmgAtom, has_lagged_edge};
 
-/// Most variables a candidate family may span (the posterior packing's own bound).
-const MAX_VARIABLES: usize = crate::adjacency_mask::MAX_POSTERIOR_NODES;
 /// Sweeps of iterative conditional fitting before the fit is taken as converged.
 const MAX_SWEEPS: usize = 500;
 /// Relative log-likelihood change below which a sweep ends the fit.
@@ -78,9 +76,10 @@ impl TemporalAdmgPosterior {
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
         let p = variables.len();
-        if p == 0 || p > MAX_VARIABLES {
+        if p == 0 || !edge_bits_fit(p) {
             return Err(DiscoveryError::unsupported(
-                "a temporal ADMG posterior covers between one and sixteen variables",
+                "a temporal ADMG posterior needs at least one variable, and edge bits that a \
+                 u32 bit index addresses",
             ));
         }
         if candidates.is_empty() {
@@ -91,9 +90,10 @@ impl TemporalAdmgPosterior {
                 "log prior and candidate family differ in length",
             ));
         }
-        if (self.max_lag as usize).saturating_mul(p * p) > 64 {
+        let cells = (self.max_lag as usize).saturating_mul(p.saturating_mul(p));
+        if u32::try_from(cells).is_err() {
             return Err(DiscoveryError::unsupported(
-                "the lag space exceeds the 64 bits of a lag word (max_lag * n_vars^2 <= 64)",
+                "the lag-edge bits (max_lag * n_vars^2) are not addressable by a u32 bit index",
             ));
         }
         for candidate in candidates {
@@ -113,7 +113,7 @@ impl TemporalAdmgPosterior {
                 continue;
             };
             let prior = log_prior.map_or(0.0, |prior| prior[index]);
-            kept.push(*candidate);
+            kept.push(candidate.clone());
             log_weights.push(-0.5 * bic + prior);
         }
         if kept.is_empty() {
@@ -123,13 +123,12 @@ impl TemporalAdmgPosterior {
         }
         let weights = normalize_log_weights(&log_weights)?;
         let ess = kish_ess(&weights);
-        let masks: Vec<AdjacencyMask> = kept.iter().map(|atom| atom.contemporaneous).collect();
+        let masks: Vec<AdjacencyMask> = kept.iter().map(|atom| atom.contemporaneous.clone()).collect();
         let (edge, orient) = accumulate_marginals(p, &weights, &masks);
-        let cells = self.max_lag as usize * p * p;
         let mut lagged = vec![0.0; cells];
         for (atom, &weight) in kept.iter().zip(&weights) {
-            for (bit, cell) in lagged.iter_mut().enumerate() {
-                if (atom.lagged_directed >> bit) & 1 == 1 {
+            for bit in atom.lagged_directed.set_bits() {
+                if let Some(cell) = lagged.get_mut(bit as usize) {
                     *cell += weight;
                 }
             }
@@ -145,9 +144,9 @@ impl TemporalAdmgPosterior {
         )?
         .with_atom_kind(GraphPosteriorAtomKind::TemporalAdmg)
         .with_lagged_marginals(self.max_lag, lagged)?
-        .with_lag_masks(kept.iter().map(|atom| atom.lagged_directed).collect::<Vec<_>>())?
+        .with_lag_masks(kept.iter().map(|atom| atom.lagged_directed.clone()).collect::<Vec<_>>())?
         .with_lag_bidirected_masks(
-            kept.iter().map(|atom| atom.lagged_bidirected).collect::<Vec<_>>(),
+            kept.iter().map(|atom| atom.lagged_bidirected.clone()).collect::<Vec<_>>(),
         )?
         .with_algorithm(Arc::<str>::from("temporal_admg_posterior")))
     }
@@ -325,15 +324,15 @@ fn score(design: &Design, candidate: &TemporalAdmgAtom, p: usize, max_lag: u32) 
         let parents: Vec<usize> = (0..p)
             .filter(|&i| {
                 i != j
-                    && has_edge(candidate.contemporaneous, p, i, j)
-                    && !has_edge(candidate.contemporaneous, p, j, i)
+                    && candidate.contemporaneous.has_edge(p, i, j)
+                    && !candidate.contemporaneous.has_edge(p, j, i)
             })
             .collect();
         let spouses: Vec<usize> = (0..p)
             .filter(|&i| {
                 i != j
-                    && has_edge(candidate.contemporaneous, p, i, j)
-                    && has_edge(candidate.contemporaneous, p, j, i)
+                    && candidate.contemporaneous.has_edge(p, i, j)
+                    && candidate.contemporaneous.has_edge(p, j, i)
             })
             .collect();
         let mut lagged = Vec::new();
@@ -341,8 +340,8 @@ fn score(design: &Design, candidate: &TemporalAdmgAtom, p: usize, max_lag: u32) 
             for i in 0..p {
                 // A lagged latent-confounder edge and a lagged directed edge are one free
                 // coefficient of the regression on the past.
-                if has_lagged_edge(candidate.lagged_directed, p, lag, i, j)
-                    || has_lagged_edge(candidate.lagged_bidirected, p, lag, i, j)
+                if has_lagged_edge(&candidate.lagged_directed, p, lag, i, j)
+                    || has_lagged_edge(&candidate.lagged_bidirected, p, lag, i, j)
                 {
                     lagged.push((lag as usize - 1) * p + i);
                 }
@@ -531,7 +530,11 @@ mod tests {
     }
 
     fn atom(mask: AdjacencyMask) -> TemporalAdmgAtom {
-        TemporalAdmgAtom { contemporaneous: mask, lagged_directed: 0, lagged_bidirected: 0 }
+        TemporalAdmgAtom {
+            contemporaneous: mask,
+            lagged_directed: LagMask::EMPTY,
+            lagged_bidirected: LagMask::EMPTY,
+        }
     }
 
     #[test]
@@ -570,11 +573,11 @@ mod tests {
         let posterior =
             TemporalAdmgPosterior::new(1).run(&data, &variables(2), &family, None, &ctx).unwrap();
         // The three dependent templates are one likelihood; the empty template is far worse.
-        let w = &posterior.weights;
+        let w = posterior.weights();
         assert!((w[0] - w[1]).abs() < 1e-6 && (w[0] - w[2]).abs() < 1e-6, "{w:?}");
         assert!(w[3] < 1e-6, "{w:?}");
         assert!(posterior.is_lagged_temporal_admg());
-        assert_eq!(posterior.atom_kind, GraphPosteriorAtomKind::TemporalAdmg);
+        assert_eq!(posterior.atom_kind(), GraphPosteriorAtomKind::TemporalAdmg);
         assert_eq!(posterior.temporal_admg_atom(2).unwrap(), family[2]);
     }
 
@@ -588,17 +591,17 @@ mod tests {
             .map(|t| if t == 0 { 0.0 } else { 0.8 * x[t - 1] } + 0.5 * noise.normal())
             .collect();
         let data = series(&[x, y]);
-        let lagged = with_lagged_edge(0, 2, 1, 0, 1, true).unwrap();
+        let lagged = with_lagged_edge(0u64, 2, 1, 0, 1, true).unwrap();
         let with_edge = TemporalAdmgAtom { lagged_directed: lagged, ..atom(AdjacencyMask::EMPTY) };
         let without = atom(AdjacencyMask::EMPTY);
         let ctx = ExecutionContext::for_tests(2);
         let posterior = TemporalAdmgPosterior::new(1)
             .run(&data, &variables(2), &[with_edge, without], None, &ctx)
             .unwrap();
-        assert!(posterior.weights[0] > 0.999, "{:?}", posterior.weights);
+        assert!(posterior.weights()[0] > 0.999, "{:?}", posterior.weights());
         // The lagged marginal of x(t-1) -> y(t) is the mass of the first template.
-        let marginals = posterior.lagged_edge_marginals.as_ref().unwrap();
-        assert!((marginals[1] - posterior.weights[0]).abs() < 1e-12);
+        let marginals = posterior.lagged_edge_marginals().unwrap();
+        assert!((marginals[1] - posterior.weights()[0]).abs() < 1e-12);
     }
 
     #[test]
@@ -610,14 +613,15 @@ mod tests {
             .map(|t| if t == 0 { 0.0 } else { 0.7 * x[t - 1] } + 0.5 * noise.normal())
             .collect();
         let data = series(&[x, y]);
-        let bit = with_lagged_edge(0, 2, 1, 0, 1, true).unwrap();
-        let directed = TemporalAdmgAtom { lagged_directed: bit, ..atom(AdjacencyMask::EMPTY) };
+        let bit = with_lagged_edge(0u64, 2, 1, 0, 1, true).unwrap();
+        let directed =
+            TemporalAdmgAtom { lagged_directed: bit.clone(), ..atom(AdjacencyMask::EMPTY) };
         let confounded = TemporalAdmgAtom { lagged_bidirected: bit, ..atom(AdjacencyMask::EMPTY) };
         let ctx = ExecutionContext::for_tests(3);
         let posterior = TemporalAdmgPosterior::new(1)
-            .run(&data, &variables(2), &[directed, confounded], None, &ctx)
+            .run(&data, &variables(2), &[directed, confounded.clone()], None, &ctx)
             .unwrap();
-        assert!((posterior.weights[0] - posterior.weights[1]).abs() < 1e-9);
+        assert!((posterior.weights()[0] - posterior.weights()[1]).abs() < 1e-9);
         assert_eq!(posterior.temporal_admg_atom(1).unwrap(), confounded);
     }
 
@@ -631,7 +635,7 @@ mod tests {
         let posterior = TemporalAdmgPosterior::new(1)
             .run(&data, &variables(2), &family, Some(&prior), &ctx)
             .unwrap();
-        assert!((posterior.weights[1] / posterior.weights[0] - 3.0).abs() < 1e-6);
+        assert!((posterior.weights()[1] / posterior.weights()[0] - 3.0).abs() < 1e-6);
     }
 
     #[test]

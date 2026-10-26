@@ -165,17 +165,19 @@ impl CiScreenedPosterior {
         let mcmc = self.mcmc.clone().with_candidate_pairs(Arc::clone(&pair_arc));
         let mut post = mcmc.run(data, variables, &prior, score_family, workspace, ctx)?;
         if let Some(note) = soft_note {
-            post.diagnostics.notes.push(note);
+            post.push_note(note);
         }
-        post.diagnostics.notes.push(Arc::from(format!("ci_screened_pairs={}", pair_arc.len())));
+        post.push_note(format!("ci_screened_pairs={}", pair_arc.len()));
         if merged_caller_constraints {
-            post.diagnostics.notes.push(Arc::from(
+            post.push_note(
                 "ci_screened_prior_constraints_merged=caller required/forbidden/max_parents/tiers \
                  combined with screening constraints, not overwritten",
-            ));
+            );
         }
-        post.diagnostics.notes.extend(screened_out_note(data, variables, &pair_arc));
-        apply_screened_out_floor(&mut post, &effective, variables, &pair_arc, prior.edge_inclusion);
+        if let Some(note) = screened_out_note(data, variables, &pair_arc) {
+            post.push_note(note);
+        }
+        apply_screened_out_floor(&mut post, &effective, variables, &pair_arc, prior.edge_inclusion)?;
         Ok(post)
     }
 }
@@ -301,20 +303,24 @@ fn screened_out_note(
 /// both edge directions since screening does not determine orientation. Pairs
 /// the caller (or the engine) explicitly forbade keep their exact 0.0 — that
 /// zero was asked for, not imposed by the screen.
+///
+/// # Errors
+///
+/// The posterior refuses the replacement marginals (length mismatch).
 fn apply_screened_out_floor(
     post: &mut GraphPosterior,
     effective: &DiscoveryConstraints,
     variables: &[VariableId],
     screened_in: &[(u32, u32)],
     edge_inclusion_prior: Option<f64>,
-) {
-    let Some(p) = edge_inclusion_prior else { return };
+) -> Result<(), DiscoveryError> {
+    let Some(p) = edge_inclusion_prior else { return Ok(()) };
     if p <= 0.0 {
-        return;
+        return Ok(());
     }
     let floor = p.min(effective.alpha);
     if floor <= 0.0 {
-        return;
+        return Ok(());
     }
     let n = variables.len();
     let screened_in: HashSet<(u32, u32)> = screened_in.iter().copied().collect();
@@ -329,7 +335,7 @@ fn apply_screened_out_floor(
         .collect();
 
     let mut floored = 0usize;
-    let mut marginals = post.edge_marginals.to_vec();
+    let mut marginals = post.edge_marginals().to_vec();
     for i in 0..n {
         for j in (i + 1)..n {
             let key = (crate::indexing::dense_u32(i), crate::indexing::dense_u32(j));
@@ -349,35 +355,17 @@ fn apply_screened_out_floor(
         }
     }
     if floored > 0 {
-        // Orientation marginals are the same accumulator as edge marginals (see
-        // `accumulate_marginals`). Floor both so `to_weighted_samples` does not report a
+        // The orientation marginals are the edge marginals (one stored accumulator), so
+        // flooring them once floors both and `to_weighted_samples` cannot report a
         // screened-out edge as floored in one field and exactly 0 in the other.
-        let mut orientation = post.orientation_marginals.to_vec();
-        for i in 0..n {
-            for j in (i + 1)..n {
-                let key = (crate::indexing::dense_u32(i), crate::indexing::dense_u32(j));
-                if screened_in.contains(&key) || forbidden_idx.contains(&key) {
-                    continue;
-                }
-                let half = floor / 2.0;
-                let cell_ij = i * n + j;
-                let cell_ji = j * n + i;
-                if orientation[cell_ij] < half {
-                    orientation[cell_ij] = half;
-                }
-                if orientation[cell_ji] < half {
-                    orientation[cell_ji] = half;
-                }
-            }
-        }
-        post.edge_marginals = Arc::from(marginals);
-        post.orientation_marginals = Arc::from(orientation);
-        post.diagnostics.notes.push(Arc::from(format!(
+        post.replace_edge_marginals(marginals)?;
+        post.push_note(format!(
             "ci_screened_floor pairs={floored} floor={floor:.4} \
              (min of caller edge_inclusion prior and screen alpha; screened-out \
              pairs are reported as unlikely, not certainly absent)"
-        )));
+        ));
     }
+    Ok(())
 }
 
 impl GraphPosteriorEngine for CiScreenedPosterior {
@@ -503,8 +491,8 @@ mod tests {
         let post = eng
             .run(&data, &vars, &GraphPrior::uniform(), GraphScoreFamily::GaussianBic, &mut ws, &ctx)
             .unwrap();
-        assert!(post.n_graphs >= 1);
-        assert!(post.diagnostics.notes.iter().any(|n| n.contains("ci_screened_pairs")));
+        assert!(post.n_graphs() >= 1);
+        assert!(post.diagnostics().notes.iter().any(|n| n.contains("ci_screened_pairs")));
     }
 
     /// With the default prior (no `edge_inclusion`), `a—c` is screened out and its marginal is
@@ -521,11 +509,11 @@ mod tests {
             .run(&data, &vars, &GraphPrior::uniform(), GraphScoreFamily::GaussianBic, &mut ws, &ctx)
             .unwrap();
         let note = post
-            .diagnostics
+            .diagnostics()
             .notes
             .iter()
             .find(|n| n.starts_with("ci_screened_out"))
-            .unwrap_or_else(|| panic!("{:?}", post.diagnostics.notes));
+            .unwrap_or_else(|| panic!("{:?}", post.diagnostics().notes));
         assert!(note.contains("a-c"), "{note}");
         assert!(!note.contains("a-b") && !note.contains("b-c"), "{note}");
     }
@@ -546,23 +534,23 @@ mod tests {
         let post =
             eng.run(&data, &vars, &prior, GraphScoreFamily::GaussianBic, &mut ws, &ctx).unwrap();
         let n = 3;
-        let ac = post.edge_marginals[2] + post.edge_marginals[2 * n];
+        let ac = post.edge_marginals()[2] + post.edge_marginals()[2 * n];
         assert!(ac > 0.0, "screened-out a—c marginal reported as exact 0.0 (ac={ac})");
         assert!(
-            post.diagnostics.notes.iter().any(|note| note.contains("ci_screened_floor")),
+            post.diagnostics().notes.iter().any(|note| note.contains("ci_screened_floor")),
             "no diagnostic disclosed the screened-out floor: {:?}",
-            post.diagnostics.notes
+            post.diagnostics().notes
         );
         let samples = post.to_weighted_samples().unwrap();
-        assert_eq!(samples.edge_marginals.as_deref(), Some(post.edge_marginals.as_ref()));
+        assert_eq!(samples.edge_marginals.as_deref(), Some(post.edge_marginals().as_ref()));
         assert_eq!(
             samples.orientation_marginals.as_deref(),
-            Some(post.orientation_marginals.as_ref())
+            Some(post.orientation_marginals().as_ref())
         );
-        assert_eq!(post.edge_marginals.as_ref(), post.orientation_marginals.as_ref());
+        assert_eq!(post.edge_marginals().as_ref(), post.orientation_marginals().as_ref());
         let half = ac / 2.0;
-        assert!((post.orientation_marginals[2] - half).abs() < 1e-12);
-        assert!((post.orientation_marginals[2 * n] - half).abs() < 1e-12);
+        assert!((post.orientation_marginals()[2] - half).abs() < 1e-12);
+        assert!((post.orientation_marginals()[2 * n] - half).abs() < 1e-12);
     }
 
     /// A caller's explicit `required` link is an explicit prior belief, not a
@@ -584,9 +572,9 @@ mod tests {
         let post =
             eng.run(&data, &vars, &prior, GraphScoreFamily::GaussianBic, &mut ws, &ctx).unwrap();
         assert!(
-            post.diagnostics.notes.iter().any(|n| n.contains("ci_screened_pairs=3")),
+            post.diagnostics().notes.iter().any(|n| n.contains("ci_screened_pairs=3")),
             "caller's required a—c link was dropped from the screened candidate set: {:?}",
-            post.diagnostics.notes
+            post.diagnostics().notes
         );
     }
 

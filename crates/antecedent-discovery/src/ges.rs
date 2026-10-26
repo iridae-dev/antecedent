@@ -812,6 +812,11 @@ impl Footprint {
         }
     }
 
+    fn contains(&self, node: DenseNodeId) -> bool {
+        let index = node.as_usize();
+        self.words.get(index / 64).is_some_and(|word| word & (1u64 << (index % 64)) != 0)
+    }
+
     fn meets(&self, other: &Self) -> bool {
         self.words.iter().zip(&other.words).any(|(a, b)| a & b != 0)
     }
@@ -920,6 +925,8 @@ struct GesDeltaCache {
     scratch: Vec<u32>,
     /// Per-pair Insert results of the forward phase.
     pairs: InsertPairCache,
+    /// Per-candidate Insert results of the turning phase.
+    reverses: ReverseCache,
 }
 
 fn cached_operator_delta(
@@ -1050,26 +1057,13 @@ struct InsertOperator {
     neu: Vec<u32>,
 }
 
-/// The valid Insert(X, Y, T) operators of a non-adjacent pair within `max_parents`.
+/// The valid Insert(X, Y, T) operators of a non-adjacent pair within `max_parents`, and whether
+/// the clique enumeration stopped at the budget.
 ///
 /// `T ⊆ Ne(Y) \ adj(X)` with `NA(Y,X) ∪ T` a clique and every semi-directed path `Y ↝ X`
-/// blocked by it. Only cliques are enumerated (see [`clique_subsets`]).
-fn valid_inserts(
-    cpdag: &Cpdag,
-    x: DenseNodeId,
-    y: DenseNodeId,
-    adj_x: &HashSet<DenseNodeId>,
-    search: &GesSearch<'_>,
-) -> Vec<InsertOperator> {
-    let (ops, truncated) = collect_inserts(cpdag, x, y, adj_x, search, None);
-    search.note_pruned(truncated);
-    ops
-}
-
-/// [`valid_inserts`] without the pruning note: the operators, and whether the clique
-/// enumeration stopped at the budget. Every node whose edges the answer depends on is added to
-/// `footprint`: the pair, `Ne(Y)` (the candidate and clique tests read edges among them and to
-/// `X`), and each node the path search expands.
+/// blocked by it. Only cliques are enumerated (see [`clique_subsets`]). Every node whose edges
+/// the answer depends on is added to `footprint`: the pair, `Ne(Y)` (the candidate and clique
+/// tests read edges among them and to `X`), and each node the path search expands.
 fn collect_inserts(
     cpdag: &Cpdag,
     x: DenseNodeId,
@@ -1242,11 +1236,74 @@ fn best_delete(
     Ok(best)
 }
 
+/// The Insert(Y, X, T) operators of a reversal candidate on its post-delete graph, with the
+/// score gain of each, and the edges the search read.
+struct ReverseInsert {
+    /// Edges of the post-delete graph incident to the nodes the Insert search read, sorted.
+    read_edges: Vec<((u32, u32), (Endpoint, Endpoint))>,
+    footprint: Footprint,
+    /// Each valid `T` in search order with the delta of the Insert it names.
+    ops: Vec<(Vec<DenseNodeId>, f64)>,
+    truncated: bool,
+}
+
+/// Most reversal results kept across the iterations of the turning phase.
+const REVERSE_CACHE_ENTRY_BUDGET: usize = 1 << 16;
+
+/// Insert results of the reversal candidates `(X, Y, H)`, kept across turning iterations.
+///
+/// The post-delete graph of a candidate is a global function of the current CPDAG (the
+/// conversion to a DAG and back can re-orient edges far from `X`, `Y`), so it is rebuilt every
+/// iteration. The Insert search on it, which dominates the cost, reads only the edges incident to
+/// its footprint, so its result is reused whenever those edges are the same in the rebuilt graph.
+#[derive(Default)]
+struct ReverseCache {
+    entries: HashMap<(u32, u32, Vec<u32>), ReverseInsert>,
+}
+
+/// The edges of `cpdag` incident to a node of `footprint`, normalized and sorted.
+fn edges_incident_to(
+    cpdag: &Cpdag,
+    footprint: &Footprint,
+) -> Vec<((u32, u32), (Endpoint, Endpoint))> {
+    let mut out = Vec::new();
+    for e in cpdag.edges() {
+        if !footprint.contains(e.a) && !footprint.contains(e.b) {
+            continue;
+        }
+        let (lo, hi, at_lo, at_hi) = if e.a.raw() <= e.b.raw() {
+            (e.a.raw(), e.b.raw(), e.at_a, e.at_b)
+        } else {
+            (e.b.raw(), e.a.raw(), e.at_b, e.at_a)
+        };
+        out.push(((lo, hi), (at_lo, at_hi)));
+    }
+    out.sort_unstable_by_key(|(key, _)| *key);
+    out
+}
+
 fn best_reverse(
     cpdag: &Cpdag,
     search: GesSearch<'_>,
     cache: &mut LocalScoreCache,
     deltas: &mut GesDeltaCache,
+) -> Result<Option<ReverseCand>, DiscoveryError> {
+    let mut previous = std::mem::take(&mut deltas.reverses.entries);
+    let mut kept: HashMap<(u32, u32, Vec<u32>), ReverseInsert> = HashMap::new();
+    let best = best_reverse_with(cpdag, search, cache, deltas, &mut previous, &mut kept);
+    // Only the candidates of this iteration are carried over, which bounds the cache by the
+    // number of candidates a single search visits.
+    deltas.reverses.entries = kept;
+    best
+}
+
+fn best_reverse_with(
+    cpdag: &Cpdag,
+    search: GesSearch<'_>,
+    cache: &mut LocalScoreCache,
+    deltas: &mut GesDeltaCache,
+    previous: &mut HashMap<(u32, u32, Vec<u32>), ReverseInsert>,
+    kept: &mut HashMap<(u32, u32, Vec<u32>), ReverseInsert>,
 ) -> Result<Option<ReverseCand>, DiscoveryError> {
     let mut best: Option<ReverseCand> = None;
     let mut edges = cpdag.edges();
@@ -1265,21 +1322,43 @@ fn best_reverse(
             let d_del = delete_delta(cpdag, cache, deltas, search.data, x, y, &h)?;
             let mut tmp = cpdag.clone();
             apply_delete(&mut tmp, x, y, &h)?;
-            // Insert opposite Y → X
-            let adj_y: HashSet<DenseNodeId> = tmp.adjacent(y).into_iter().collect();
-            for op in valid_inserts(&tmp, y, x, &adj_y, &search) {
-                let d_ins = cached_operator_delta(
-                    cache,
-                    deltas,
-                    search.data,
-                    x.raw(),
-                    &op.base,
-                    &op.neu,
-                )?;
+            let key = (x.raw(), y.raw(), h.iter().map(|n| n.raw()).collect::<Vec<u32>>());
+            let reusable = previous
+                .remove(&key)
+                .filter(|entry| edges_incident_to(&tmp, &entry.footprint) == entry.read_edges);
+            let entry = match reusable {
+                Some(entry) => entry,
+                None => {
+                    // Insert opposite Y → X
+                    let adj_y: HashSet<DenseNodeId> = tmp.adjacent(y).into_iter().collect();
+                    let mut footprint = Footprint::new(tmp.node_count());
+                    let (inserts, truncated) =
+                        collect_inserts(&tmp, y, x, &adj_y, &search, Some(&mut footprint));
+                    let mut ops = Vec::with_capacity(inserts.len());
+                    for op in inserts {
+                        let d_ins = cached_operator_delta(
+                            cache,
+                            deltas,
+                            search.data,
+                            x.raw(),
+                            &op.base,
+                            &op.neu,
+                        )?;
+                        ops.push((op.t, d_ins));
+                    }
+                    let read_edges = edges_incident_to(&tmp, &footprint);
+                    ReverseInsert { read_edges, footprint, ops, truncated }
+                }
+            };
+            search.note_pruned(entry.truncated);
+            for (t, d_ins) in &entry.ops {
                 let delta = d_del + d_ins;
                 if best.as_ref().is_none_or(|b| delta > b.delta) {
-                    best = Some(ReverseCand { x, y, h: h.clone(), t: op.t, delta });
+                    best = Some(ReverseCand { x, y, h: h.clone(), t: t.clone(), delta });
                 }
+            }
+            if kept.len() < REVERSE_CACHE_ENTRY_BUDGET {
+                kept.insert(key, entry);
             }
         }
     }
@@ -1621,6 +1700,25 @@ mod tests {
                     assert_eq!(a.delta.to_bits(), b.delta.to_bits(), "step {steps}");
                 }
                 _ => panic!("cached and fresh searches disagree at step {steps}"),
+            }
+            // The turning phase keeps its per-candidate results across graphs too.
+            let turned = best_reverse(&cpdag, search, &mut kept, &mut kept_deltas).unwrap();
+            let turned_fresh = best_reverse(
+                &cpdag,
+                search,
+                &mut LocalScoreCache::new(key()),
+                &mut GesDeltaCache::default(),
+            )
+            .unwrap();
+            match (&turned, &turned_fresh) {
+                (None, None) => {}
+                (Some(a), Some(b)) => {
+                    assert_eq!((a.x, a.y), (b.x, b.y), "turn step {steps}");
+                    assert_eq!(a.h, b.h, "turn step {steps}");
+                    assert_eq!(a.t, b.t, "turn step {steps}");
+                    assert_eq!(a.delta.to_bits(), b.delta.to_bits(), "turn step {steps}");
+                }
+                _ => panic!("cached and fresh turning searches disagree at step {steps}"),
             }
             let Some(best) = reused else { break };
             if best.delta <= 0.0 {

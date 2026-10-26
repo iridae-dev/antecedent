@@ -8,7 +8,7 @@ use std::sync::Arc;
 use antecedent_core::{CausalRng, ExecutionContext};
 use antecedent_prob::{InferenceDiagnostics, kish_ess};
 
-use crate::adjacency_mask::{AdjacencyMask, parent_bits, set_edge};
+use crate::adjacency_mask::{AdjacencyMask, parent_bits};
 use crate::error::DiscoveryError;
 use crate::graph_posterior::{
     ChainAgreement, GraphChainSummary, GraphMcmcRun, GraphPosterior, MAX_EDGE_MCSE,
@@ -263,12 +263,14 @@ pub(crate) const EQUIVALENCE_WALK_PROBABILITY: f64 = 0.25;
 /// the same Gaussian-BIC score, and every two members of a class are joined by a sequence of such
 /// reversals. Single-edge moves that propose an arbitrary reversal rarely hit one of the few
 /// covered edges, which is why the orientation of an edge inside a class mixes slowly.
-pub(crate) fn covered_edges(mask: AdjacencyMask, n: usize) -> Vec<(usize, usize)> {
-    let parents: Vec<u16> = (0..n).map(|node| parent_bits(mask, n, node)).collect();
+pub(crate) fn covered_edges(mask: &AdjacencyMask, n: usize) -> Vec<(usize, usize)> {
+    let parents: Vec<AdjacencyMask> = (0..n).map(|node| parent_bits(mask, n, node)).collect();
     let mut covered = Vec::new();
-    for (y, &pa_y) in parents.iter().enumerate() {
-        for x in (0..n).filter(|&x| (pa_y >> x) & 1 == 1) {
-            if pa_y == parents[x] | (1 << x) {
+    for (y, pa_y) in parents.iter().enumerate() {
+        for x in pa_y.set_bits().map(|x| x as usize) {
+            // `Pa(y) = Pa(x) ∪ {x}`: `x` is a parent of `y` and never of itself, so it is
+            // enough that `Pa(x)` lies inside `Pa(y)` and `Pa(y)` has exactly one more member.
+            if pa_y.count_ones() == parents[x].count_ones() + 1 && pa_y.contains_all(&parents[x]) {
                 covered.push((x, y));
             }
         }
@@ -282,7 +284,7 @@ pub(crate) fn covered_edges(mask: AdjacencyMask, n: usize) -> Vec<(usize, usize)
 /// Completing the move is [`accept_covered_reversal`], which supplies the Hastings factor
 /// `|covered(G)| / |covered(G')|` of the uniform choice.
 pub(crate) fn propose_covered_reversal(
-    mask: AdjacencyMask,
+    mask: &AdjacencyMask,
     n: usize,
     rng: &mut CausalRng,
 ) -> Option<(usize, usize, usize)> {
@@ -295,8 +297,11 @@ pub(crate) fn propose_covered_reversal(
 }
 
 /// `mask` with the edge `x -> y` replaced by `y -> x`.
-pub(crate) fn reversed_edge(mask: AdjacencyMask, n: usize, x: usize, y: usize) -> AdjacencyMask {
-    set_edge(set_edge(mask, n, x, y, false), n, y, x, true)
+pub(crate) fn reversed_edge(mask: &AdjacencyMask, n: usize, x: usize, y: usize) -> AdjacencyMask {
+    let mut reversed = mask.clone();
+    reversed.set_edge(n, x, y, false);
+    reversed.set_edge(n, y, x, true);
+    reversed
 }
 
 /// Metropolis–Hastings decision of a covered-edge reversal at inverse temperature `beta`, from a
@@ -305,7 +310,7 @@ pub(crate) fn reversed_edge(mask: AdjacencyMask, n: usize, x: usize, y: usize) -
 pub(crate) fn accept_covered_reversal(
     (beta, current, proposed): (f64, f64, f64),
     covered_before: usize,
-    after: AdjacencyMask,
+    after: &AdjacencyMask,
     n: usize,
     rng: &mut CausalRng,
 ) -> bool {
@@ -543,8 +548,12 @@ pub(crate) fn aggregate_mask_posterior(
 ) -> Result<GraphPosterior, DiscoveryError> {
     let mut counts: HashMap<AdjacencyMask, u64> = HashMap::new();
     for chain_samples in sample_masks {
-        for &m in chain_samples {
-            *counts.entry(m).or_insert(0) += 1;
+        for m in chain_samples {
+            if let Some(count) = counts.get_mut(m) {
+                *count += 1;
+            } else {
+                counts.insert(m.clone(), 1);
+            }
         }
     }
     let total: f64 = counts.values().map(|&c| c as f64).sum();
@@ -554,7 +563,7 @@ pub(crate) fn aggregate_mask_posterior(
     // Atoms in mask order, so one seed gives one posterior object (a hash map's order differs
     // from run to run).
     let mut counted: Vec<(AdjacencyMask, u64)> = counts.into_iter().collect();
-    counted.sort_unstable_by_key(|&(mask, _)| mask);
+    counted.sort_unstable_by(|a, b| a.0.cmp(&b.0));
     let mut masks = Vec::with_capacity(counted.len());
     let mut weights = Vec::with_capacity(counted.len());
     for (m, c) in counted {
@@ -684,15 +693,17 @@ mod tests {
     fn covered_edges_match_hand_checked_graphs() {
         let n = 3;
         let build = |edges: &[(usize, usize)]| {
-            edges.iter().fold(AdjacencyMask::EMPTY, |m, &(a, b)| set_edge(m, n, a, b, true))
+            edges.iter().fold(AdjacencyMask::EMPTY, |m, &(a, b)| {
+                crate::adjacency_mask::set_edge(m, n, a, b, true)
+            })
         };
-        assert_eq!(covered_edges(build(&[(0, 1), (0, 2)]), n), [(0, 1), (0, 2)]);
-        assert_eq!(covered_edges(build(&[(0, 1), (1, 2)]), n), [(0, 1)]);
-        assert!(covered_edges(build(&[(0, 2), (1, 2)]), n).is_empty());
+        assert_eq!(covered_edges(&build(&[(0, 1), (0, 2)]), n), [(0, 1), (0, 2)]);
+        assert_eq!(covered_edges(&build(&[(0, 1), (1, 2)]), n), [(0, 1)]);
+        assert!(covered_edges(&build(&[(0, 2), (1, 2)]), n).is_empty());
         // Reversing a covered edge keeps the covered edge covered, in the other direction.
         let fork = build(&[(0, 1), (0, 2)]);
-        let flipped = reversed_edge(fork, n, 0, 1);
-        assert_eq!(covered_edges(flipped, n), [(1, 0)]);
+        let flipped = reversed_edge(&fork, n, 0, 1);
+        assert_eq!(covered_edges(&flipped, n), [(1, 0)]);
     }
 
     /// The ladder must start at the target and cool strictly.

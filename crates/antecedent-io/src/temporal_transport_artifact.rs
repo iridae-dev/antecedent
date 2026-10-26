@@ -46,6 +46,19 @@ use std::sync::Arc;
 pub const TEMPORAL_TRANSPORT_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const TEMPORAL_TRANSPORT_ARTIFACT_FEATURE: &str = "temporal_transport_sequence_v1";
+/// The artifact format of a sequence with any other number of steps.
+pub const TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_VERSION: u32 = 2;
+/// The feature marker of that format.
+pub const TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_FEATURE: &str = "temporal_transport_sequence_v2";
+
+/// The format version and feature marker of a sequence with `horizon` steps.
+fn layout(horizon: usize) -> (u32, &'static str) {
+    if horizon == 2 {
+        (TEMPORAL_TRANSPORT_ARTIFACT_VERSION, TEMPORAL_TRANSPORT_ARTIFACT_FEATURE)
+    } else {
+        (TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_VERSION, TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_FEATURE)
+    }
+}
 
 pub use antecedent_io_core::transport_errors::TemporalTransportArtifactError;
 /// A refused sequence, window or bound as a reason-coded refusal.
@@ -104,10 +117,10 @@ impl Default for TemporalTransportConsumeLimits {
 pub struct TemporalSlotsWire {
     /// Baseline covariates.
     pub baseline: Vec<u32>,
-    /// Covariates observed before each action.
-    pub covariates: [Vec<u32>; 2],
+    /// Covariates observed before each action, one group per step.
+    pub covariates: Vec<Vec<u32>>,
     /// The action of each step.
-    pub actions: [u32; 2],
+    pub actions: Vec<u32>,
     /// The outcome.
     pub outcome: u32,
 }
@@ -259,7 +272,7 @@ pub struct TemporalSequenceArtifactWire {
     pub version: u32,
     /// Required feature marker.
     pub required_features: Vec<String>,
-    /// Horizon (two).
+    /// Horizon: the number of steps.
     pub horizon: usize,
     /// The unrolled causal graph.
     pub graph: AdmgWire,
@@ -409,8 +422,8 @@ fn slots_wire(slots: &TemporalSlots) -> TemporalSlotsWire {
     let raw = |ids: &[VariableId]| ids.iter().map(|v| v.raw()).collect::<Vec<_>>();
     TemporalSlotsWire {
         baseline: raw(&slots.baseline),
-        covariates: [raw(&slots.covariates[0]), raw(&slots.covariates[1])],
-        actions: [slots.actions[0].raw(), slots.actions[1].raw()],
+        covariates: slots.covariates.iter().map(|group| raw(group)).collect(),
+        actions: slots.actions.iter().map(|a| a.raw()).collect(),
         outcome: slots.outcome.raw(),
     }
 }
@@ -432,9 +445,10 @@ impl TemporalSequenceArtifactWire {
         let decision = prepared.decision();
         let limits = prepared.limits();
         let laws = canonical_laws(prepared.data())?;
+        let (version, feature) = layout(decision.spec.horizon());
         let mut wire = Self {
-            version: TEMPORAL_TRANSPORT_ARTIFACT_VERSION,
-            required_features: vec![TEMPORAL_TRANSPORT_ARTIFACT_FEATURE.into()],
+            version,
+            required_features: vec![feature.into()],
             horizon: decision.spec.horizon(),
             graph: admg_to_wire(decision.spec.diagram().causal_graph())?,
             selections: decision
@@ -495,13 +509,20 @@ impl TemporalSequenceArtifactWire {
     /// [`IoError::UnsupportedVersion`], a decoding failure, or a foreign feature.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
         let wire: Self = crate::decode_with_version(bytes, |version| {
-            if version == TEMPORAL_TRANSPORT_ARTIFACT_VERSION {
+            if version == TEMPORAL_TRANSPORT_ARTIFACT_VERSION
+                || version == TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_VERSION
+            {
                 Ok(())
             } else {
                 Err(IoError::UnsupportedVersion { version })
             }
         })?;
-        if wire.required_features != [TEMPORAL_TRANSPORT_ARTIFACT_FEATURE] {
+        let feature = if wire.version == TEMPORAL_TRANSPORT_ARTIFACT_VERSION {
+            TEMPORAL_TRANSPORT_ARTIFACT_FEATURE
+        } else {
+            TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_FEATURE
+        };
+        if wire.required_features != [feature] {
             return Err(
                 TemporalTransportArtifactError::UnsupportedSemantics("required features").into()
             );
@@ -557,11 +578,8 @@ impl TemporalSequenceArtifactWire {
         .map_err(|e| IoError::Convert(e.to_string()))?;
         let slots = TemporalSlots {
             baseline: ids(&self.slots.baseline),
-            covariates: [ids(&self.slots.covariates[0]), ids(&self.slots.covariates[1])],
-            actions: [
-                VariableId::from_raw(self.slots.actions[0]),
-                VariableId::from_raw(self.slots.actions[1]),
-            ],
+            covariates: self.slots.covariates.iter().map(|group| ids(group)).collect(),
+            actions: self.slots.actions.iter().copied().map(VariableId::from_raw).collect(),
             outcome: VariableId::from_raw(self.slots.outcome),
         };
         TemporalSequenceSpec::try_new(self.horizon, slots, diagram, coordinates)

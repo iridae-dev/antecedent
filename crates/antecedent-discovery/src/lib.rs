@@ -91,7 +91,7 @@ mod test_tables;
 pub mod uncovered_paths;
 pub mod weakly_minimal;
 
-pub use adjacency_mask::{AdjacencyMask, MAX_POSTERIOR_NODES};
+pub use adjacency_mask::{AdjacencyMask, LagMask, edge_bits_fit};
 pub use ci::{
     CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery, CiResult, CiWorkspace,
     ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod, PartialCorrelation,

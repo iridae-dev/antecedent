@@ -59,7 +59,7 @@ pub struct BayesianTransportPosteriorWire {
     pub estimator: String,
     pub interval_method: PosteriorIntervalMethodWire,
     #[serde(default)]
-    pub interval_reason: Option<String>,
+    pub interval_reason: Option<antecedent_estimate::TransportIntervalReason>,
     pub draws_requested: u32,
     pub draws_ok: u32,
     pub draws_failed: u32,

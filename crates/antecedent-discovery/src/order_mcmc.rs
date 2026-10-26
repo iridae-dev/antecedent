@@ -14,7 +14,6 @@ use antecedent_data::TabularData;
 use antecedent_state::GraphScoreFamily;
 
 use crate::adjacency_mask::AdjacencyMask;
-use crate::adjacency_mask::{has_edge, set_edge};
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::graph_mcmc::{
@@ -29,12 +28,30 @@ use crate::graph_posterior::{
 use crate::graph_score::{
     ChainTarget, ScoredTarget, SharedTarget, initial_scored_mask, tabular_score_data,
 };
+use crate::structure_mcmc::StructureMcmc;
+
+/// Work and memory budget of the topological-order count: the most states of its subset dynamic
+/// program (one `u64` count per subset of the nodes, so 512 KiB, and `n * 2^n` transitions per
+/// scored proposal) that order MCMC is willing to run per step.
+pub(crate) const ORDER_DP_MAX_STATES: usize = 64 * 1024;
+
+/// The most nodes whose subset DP fits [`ORDER_DP_MAX_STATES`]: `floor(log2(budget))`.
+///
+/// A graph on more nodes is sampled by structure MCMC instead (see [`OrderMcmc::run`]).
+#[must_use]
+pub(crate) const fn order_dp_max_nodes() -> usize {
+    (usize::BITS - 1 - ORDER_DP_MAX_STATES.leading_zeros()) as usize
+}
 
 /// Order MCMC over topological orders and compatible forward edges.
 ///
-/// Supports up to [`crate::MAX_POSTERIOR_NODES`] variables; each step costs a `2^n`-state dynamic
-/// program (the topological-order correction), so it doubles with every variable. Cap the parents
-/// of any node with `GraphPrior::constraints.max_parents`.
+/// Each step costs a `2^n`-state dynamic program (the topological-order correction), so it
+/// doubles with every variable; the program is run for as many nodes as its work budget allows
+/// (`ORDER_DP_MAX_STATES` states). A graph on more nodes is not refused: it is sampled by
+/// [`StructureMcmc`], which has no such program, with the same schedule, temperatures and
+/// diagnostics gate; the posterior is tagged `order_mcmc_via_structure_mcmc` and its diagnostics
+/// carry a note saying so. Cap the parents of any node with
+/// `GraphPrior::constraints.max_parents`.
 ///
 /// Above eight variables a quarter of the iterations instead reverse a uniformly chosen covered
 /// edge and exchange the two endpoints in the order (a deterministic partner of the reversal,
@@ -124,6 +141,36 @@ impl OrderMcmc {
         }
     }
 
+    /// Sample a graph whose topological-order subset DP exceeds [`ORDER_DP_MAX_STATES`] with
+    /// structure MCMC under this sampler's schedule, temperatures and diagnostics gate.
+    fn run_via_structure_mcmc(
+        &self,
+        (data, variables, prior, score_family): (
+            &TabularData,
+            &[VariableId],
+            &GraphPrior,
+            GraphScoreFamily,
+        ),
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<GraphPosterior, DiscoveryError> {
+        let mut routed = StructureMcmc::new();
+        routed.n_chains = self.n_chains;
+        routed.n_warmup = self.n_warmup;
+        routed.n_draws = self.n_draws;
+        routed.thin = self.thin;
+        routed.require_diagnostics_gate = self.require_diagnostics_gate;
+        routed.temperatures.clone_from(&self.temperatures);
+        let mut posterior = routed
+            .run(data, variables, prior, score_family, workspace, ctx)?
+            .with_algorithm("order_mcmc_via_structure_mcmc");
+        posterior.push_note(format!(
+            "order MCMC subset DP exceeds its work budget at {} nodes; sampled with structure MCMC",
+            variables.len()
+        ));
+        Ok(posterior)
+    }
+
     /// Run order MCMC.
     ///
     /// # Errors
@@ -139,7 +186,7 @@ impl OrderMcmc {
         variables: &[VariableId],
         prior: &GraphPrior,
         score_family: GraphScoreFamily,
-        _workspace: &mut DiscoveryWorkspace,
+        workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
         prior.constraints.validate()?;
@@ -147,10 +194,6 @@ impl OrderMcmc {
         if n == 0 {
             return Err(DiscoveryError::unsupported("order MCMC requires at least one variable"));
         }
-        crate::graph_posterior::ensure_nodes_fit(
-            n,
-            "order MCMC supports at most 16 variables (MAX_POSTERIOR_NODES)",
-        )?;
         if !matches!(score_family, GraphScoreFamily::GaussianBic | GraphScoreFamily::LaplaceBic) {
             return Err(DiscoveryError::unsupported(
                 "order MCMC supports the Gaussian and Laplace BIC scores only",
@@ -158,6 +201,13 @@ impl OrderMcmc {
         }
         let schedule = self.schedule();
         schedule.require_min_chains(2, "order MCMC requires at least 2 chains for R-hat")?;
+        if n > order_dp_max_nodes() {
+            return self.run_via_structure_mcmc(
+                (data, variables, prior, score_family),
+                workspace,
+                ctx,
+            );
+        }
         validate_temperatures(&self.temperatures)?;
         let ladder = tempering_ladder(&self.temperatures, n);
 
@@ -172,14 +222,14 @@ impl OrderMcmc {
                     !initial_order.contains(node)
                         && (0..n).all(|parent| {
                             parent == *node
-                                || !has_edge(initial_mask, n, parent, *node)
+                                || !initial_mask.has_edge(n, parent, *node)
                                 || initial_order.contains(&parent)
                         })
                 })
                 .expect("validated required-edge DAG has a topological order");
             initial_order.push(next);
         }
-        let initial_score = initial_score - log_topological_order_count(initial_mask, n);
+        let initial_score = initial_score - log_topological_order_count(&initial_mask, n);
 
         let (n_chains, n_warmup, n_draws, thin) = schedule.as_usize();
         let n_params = n_directed_edges(n);
@@ -196,10 +246,10 @@ impl OrderMcmc {
                         n,
                         target: target.clone(),
                         order: initial_order.clone(),
-                        mask: initial_mask,
+                        mask: initial_mask.clone(),
                         cur: initial_score,
                         pending_order: initial_order.clone(),
-                        pending_mask: initial_mask,
+                        pending_mask: initial_mask.clone(),
                         pos_scratch: Vec::with_capacity(n),
                     })
                     .collect();
@@ -272,24 +322,24 @@ impl<T: ChainTarget> OrderWalker<T> {
     /// its own inverse, and no child of `y` lies between the two, so the reverse move exists
     /// exactly when the forward one does and the proposal ratio is the ratio of covered counts.
     fn reverse_covered_edge(&mut self, beta: f64, rng: &mut CausalRng) {
-        let Some((x, y, covered)) = propose_covered_reversal(self.mask, self.n, rng) else {
+        let Some((x, y, covered)) = propose_covered_reversal(&self.mask, self.n, rng) else {
             return;
         };
         fill_position_map(&self.order, &mut self.pos_scratch);
         let (a, b) = (self.pos_scratch[x], self.pos_scratch[y]);
         debug_assert!(a < b, "an edge points forward in the order");
-        if a >= b || self.order[a + 1..b].iter().any(|&z| has_edge(self.mask, self.n, x, z)) {
+        if a >= b || self.order[a + 1..b].iter().any(|&z| self.mask.has_edge(self.n, x, z)) {
             return;
         }
-        let proposal = reversed_edge(self.mask, self.n, x, y);
+        let proposal = reversed_edge(&self.mask, self.n, x, y);
         let Some(score) = self
             .target
-            .score(proposal)
-            .map(|score| score - log_topological_order_count(proposal, self.n))
+            .score(&proposal)
+            .map(|score| score - log_topological_order_count(&proposal, self.n))
         else {
             return;
         };
-        if accept_covered_reversal((beta, self.cur, score), covered, proposal, self.n, rng) {
+        if accept_covered_reversal((beta, self.cur, score), covered, &proposal, self.n, rng) {
             self.order.swap(a, b);
             self.mask = proposal;
             self.cur = score;
@@ -325,7 +375,7 @@ impl<T: ChainTarget> MaskChain for OrderWalker<T> {
     fn propose(&mut self, rng: &mut CausalRng) -> u64 {
         self.pending_mask = propose_order(
             &self.order,
-            self.mask,
+            &self.mask,
             self.n,
             rng,
             &mut self.pending_order,
@@ -336,13 +386,13 @@ impl<T: ChainTarget> MaskChain for OrderWalker<T> {
 
     fn proposed_score(&mut self) -> Option<f64> {
         self.target
-            .score(self.pending_mask)
-            .map(|score| score - log_topological_order_count(self.pending_mask, self.n))
+            .score(&self.pending_mask)
+            .map(|score| score - log_topological_order_count(&self.pending_mask, self.n))
     }
 
     fn commit(&mut self, score: f64) {
         self.order.clone_from(&self.pending_order);
-        self.mask = self.pending_mask;
+        self.mask = self.pending_mask.clone();
         self.cur = score;
     }
 
@@ -353,20 +403,20 @@ impl<T: ChainTarget> MaskChain for OrderWalker<T> {
                 if i == j {
                     continue;
                 }
-                row[p] = if has_edge(self.mask, self.n, i, j) { 1.0 } else { 0.0 };
+                row[p] = if self.mask.has_edge(self.n, i, j) { 1.0 } else { 0.0 };
                 p += 1;
             }
         }
     }
 
     fn sample(&self) -> AdjacencyMask {
-        self.mask
+        self.mask.clone()
     }
 }
 
 fn propose_order(
     order: &[usize],
-    mask: AdjacencyMask,
+    mask: &AdjacencyMask,
     n: usize,
     rng: &mut CausalRng,
     new_order: &mut Vec<usize>,
@@ -374,7 +424,7 @@ fn propose_order(
 ) -> AdjacencyMask {
     new_order.clear();
     new_order.extend_from_slice(order);
-    let mut new_mask = mask;
+    let mut new_mask = mask.clone();
     let u = rng.next_f64();
     // Above the equivalence-walk size a share of the transpositions becomes node relocations:
     // an adjacent transposition moves an order by one place, so over `n!` orders it is a slow
@@ -407,8 +457,8 @@ fn propose_order(
         if a != b {
             fill_position_map(new_order, pos);
             let (from, to) = if pos[a] < pos[b] { (a, b) } else { (b, a) };
-            let on = has_edge(new_mask, n, from, to);
-            new_mask = set_edge(new_mask, n, from, to, !on);
+            let on = new_mask.has_edge(n, from, to);
+            new_mask.set_edge(n, from, to, !on);
         }
     }
     new_mask
@@ -423,7 +473,7 @@ fn fill_position_map(order: &[usize], pos: &mut Vec<usize>) {
 }
 
 fn reorient_skeleton(
-    mask: AdjacencyMask,
+    mask: &AdjacencyMask,
     order: &[usize],
     n: usize,
     pos: &mut Vec<usize>,
@@ -432,9 +482,9 @@ fn reorient_skeleton(
     let mut out = AdjacencyMask::EMPTY;
     for a in 0..n {
         for b in a + 1..n {
-            if has_edge(mask, n, a, b) || has_edge(mask, n, b, a) {
+            if mask.has_edge(n, a, b) || mask.has_edge(n, b, a) {
                 let (from, to) = if pos[a] < pos[b] { (a, b) } else { (b, a) };
-                out = set_edge(out, n, from, to, true);
+                out.set_edge(n, from, to, true);
             }
         }
     }
@@ -442,11 +492,23 @@ fn reorient_skeleton(
 }
 
 /// `ln` of the number of linear extensions of the DAG `mask`: a `2^n`-state subset DP, so the
-/// per-step cost of order MCMC grows as `n * 2^n`.
-fn log_topological_order_count(mask: AdjacencyMask, n: usize) -> f64 {
+/// per-step cost of order MCMC grows as `n * 2^n`; callers keep `n` within
+/// [`order_dp_max_nodes`].
+///
+/// The counts are `u64` and saturate. A partial count never exceeds `n!`, which fits a `u64` up to
+/// `n = 20`, so the count is exact for every `n` the budget allows (`n <= order_dp_max_nodes()`)
+/// and the values are the same ones the sampler has always used.
+fn log_topological_order_count(mask: &AdjacencyMask, n: usize) -> f64 {
+    debug_assert!(n <= order_dp_max_nodes(), "the subset DP is bounded by its state budget");
     let states = 1usize << n;
-    let parents: Vec<usize> =
-        (0..n).map(|node| usize::from(crate::adjacency_mask::parent_bits(mask, n, node))).collect();
+    // Per node, its parents as a subset index of the `n` nodes.
+    let parents: Vec<usize> = (0..n)
+        .map(|node| {
+            crate::adjacency_mask::parent_bits(mask, n, node)
+                .set_bits()
+                .fold(0usize, |subset, p| subset | (1 << p))
+        })
+        .collect();
     let mut ways = vec![0u64; states];
     ways[0] = 1;
     for placed in 0..states {
@@ -473,6 +535,7 @@ mod tests {
 
     use antecedent_data::TabularData;
 
+    use crate::adjacency_mask::set_edge;
     use crate::graph_posterior::GraphPrior;
 
     #[test]
@@ -480,14 +543,23 @@ mod tests {
         let n = 3;
         // Empty DAG: all 3! = 6 orders.
         assert!(
-            (log_topological_order_count(AdjacencyMask::EMPTY, n) - (6.0f64).ln()).abs() < 1e-12
+            (log_topological_order_count(&AdjacencyMask::EMPTY, n) - (6.0f64).ln()).abs() < 1e-12
         );
         // Chain 0→1→2: unique order.
         let chain = set_edge(set_edge(AdjacencyMask::EMPTY, n, 0, 1, true), n, 1, 2, true);
-        assert!((log_topological_order_count(chain, n) - 0.0).abs() < 1e-12);
+        assert!((log_topological_order_count(&chain, n) - 0.0).abs() < 1e-12);
         // V-structure 0→2←1: two orders (0 before 1, or 1 before 0).
         let v = set_edge(set_edge(AdjacencyMask::EMPTY, n, 0, 2, true), n, 1, 2, true);
-        assert!((log_topological_order_count(v, n) - (2.0f64).ln()).abs() < 1e-12);
+        assert!((log_topological_order_count(&v, n) - (2.0f64).ln()).abs() < 1e-12);
+    }
+
+    #[test]
+    fn the_subset_dp_budget_sets_the_node_count_it_serves() {
+        let max = order_dp_max_nodes();
+        assert!(1usize << max <= ORDER_DP_MAX_STATES);
+        assert!(1usize << (max + 1) > ORDER_DP_MAX_STATES);
+        // The sampler has always served sixteen nodes; the budget is not below that.
+        assert!(max >= 16, "{max}");
     }
 
     /// The order kernel with its `log |orders|` correction and replica exchange, with the data
@@ -512,7 +584,7 @@ mod tests {
                         target: crate::test_tables::PriorOnlyTarget(&table),
                         order: (0..n).collect(),
                         mask: AdjacencyMask::EMPTY,
-                        cur: -log_topological_order_count(AdjacencyMask::EMPTY, n),
+                        cur: -log_topological_order_count(&AdjacencyMask::EMPTY, n),
                         pending_order: (0..n).collect(),
                         pending_mask: AdjacencyMask::EMPTY,
                         pos_scratch: Vec::with_capacity(n),
@@ -549,14 +621,14 @@ mod tests {
         let (mut proposed, mut pos) = (Vec::new(), Vec::new());
         let mut moved_to = [false; 10];
         for _ in 0..4_000 {
-            let new_mask = propose_order(&order, mask, n, &mut rng, &mut proposed, &mut pos);
+            let new_mask = propose_order(&order, &mask, n, &mut rng, &mut proposed, &mut pos);
             let mut sorted = proposed.clone();
             sorted.sort_unstable();
             assert_eq!(sorted, (0..n).collect::<Vec<_>>());
             fill_position_map(&proposed, &mut pos);
             for i in 0..n {
                 for j in 0..n {
-                    assert!(!has_edge(new_mask, n, i, j) || pos[i] < pos[j]);
+                    assert!(!new_mask.has_edge(n, i, j) || pos[i] < pos[j]);
                 }
             }
             for p in (0..n).filter(|&p| proposed[p] != order[p]) {
@@ -567,11 +639,21 @@ mod tests {
         assert!(moved_to.iter().all(|&m| m), "{moved_to:?}");
     }
 
+    /// Past the subset-DP budget the sampler hands the graph to structure MCMC instead of
+    /// refusing it, and says so on the posterior and in its diagnostics.
     #[test]
-    fn more_than_sixteen_variables_are_refused_before_any_work() {
-        let data = crate::test_tables::tabular_n(17, 20);
-        let vars: Vec<_> = (0..17).map(VariableId::from_raw).collect();
-        let err = OrderMcmc::new()
+    fn a_graph_beyond_the_subset_dp_budget_is_sampled_by_structure_mcmc() {
+        let n = order_dp_max_nodes() + 1;
+        let mut source = antecedent_core::CausalRng::from_seed(13);
+        let cols: Vec<Vec<f64>> =
+            (0..n).map(|_| (0..60).map(|_| source.next_f64() * 2.0 - 1.0).collect()).collect();
+        let names: Vec<String> = (0..n).map(|i| format!("v{i}")).collect();
+        let refs: Vec<&str> = names.iter().map(String::as_str).collect();
+        let data = crate::test_tables::continuous_table(&refs, cols);
+        let vars: Vec<_> = (0..n).map(|i| VariableId::from_raw(u32::try_from(i).unwrap())).collect();
+        let post = OrderMcmc::new()
+            .with_schedule(2, 0, 12, 1)
+            .with_diagnostics_gate(false)
             .run(
                 &data,
                 &vars,
@@ -580,8 +662,18 @@ mod tests {
                 &mut DiscoveryWorkspace::default(),
                 &ExecutionContext::for_tests(1),
             )
-            .unwrap_err();
-        assert!(err.to_string().contains("at most 16 variables"), "{err}");
+            .unwrap();
+        assert_eq!(post.n_vars(), n);
+        assert_eq!(post.algorithm().map(|a| &**a), Some("order_mcmc_via_structure_mcmc"));
+        assert!(
+            post.diagnostics().notes.iter().any(|note| {
+                note.contains("subset DP exceeds its work budget")
+                    && note.contains("sampled with structure MCMC")
+            }),
+            "{:?}",
+            post.diagnostics().notes
+        );
+        assert!(post.atoms().iter().all(|mask| crate::adjacency_mask::mask_is_dag(mask, n)));
     }
 
     fn chain_data(n_rows: usize) -> (TabularData, Vec<VariableId>) {
@@ -611,13 +703,13 @@ mod tests {
             .run(&data, &vars, &GraphPrior::uniform(), GraphScoreFamily::GaussianBic, &mut ws, &ctx)
             .unwrap();
         let n = 3;
-        let sk01 = post.edge_marginals[1] + post.edge_marginals[n];
+        let sk01 = post.edge_marginals()[1] + post.edge_marginals()[n];
         assert!(sk01 > 0.25, "P(A—B)={sk01}");
         assert!(
-            !crate::graph_posterior::allows_graph_posterior(&post.diagnostics),
+            !crate::graph_posterior::allows_graph_posterior(post.diagnostics()),
             "short order-MCMC schedule should not clear the diagnostics bar (ess_bulk={:?}, rhat={:?})",
-            post.diagnostics.ess_bulk_min,
-            post.diagnostics.rhat_max
+            post.diagnostics().ess_bulk_min,
+            post.diagnostics().rhat_max
         );
     }
 
@@ -656,6 +748,6 @@ mod tests {
                 &ExecutionContext::for_tests(3),
             )
             .unwrap();
-        assert!(post.rejected_invalid > 0, "forbidden edges were reported as accepted proposals");
+        assert!(post.rejected_invalid() > 0, "forbidden edges were reported as accepted proposals");
     }
 }

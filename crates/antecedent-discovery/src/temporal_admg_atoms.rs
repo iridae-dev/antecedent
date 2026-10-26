@@ -5,7 +5,7 @@
 //! period) plus lagged edges `X_{t-ℓ} → Y_t` and lagged latent-confounder edges
 //! `X_{t-ℓ} ↔ Y_t` for `ℓ ∈ 1..=max_lag`. The contemporaneous part packs as an
 //! [`AdjacencyMask`] (a bidirected edge is both directed bits, as for a static ADMG atom); each
-//! lagged part packs as a `u64` whose bit `(ℓ - 1) * p² + from * p + to` is the edge from
+//! lagged part packs as a [`LagMask`] (a growable bit set of any width) whose bit `(ℓ - 1) * p² + from * p + to` is the edge from
 //! `from` at `t - ℓ` to `to` at `t`, the layout the DBN lag masks use.
 //!
 //! The atom of position `i` of a [`GraphPosterior`] is
@@ -17,11 +17,8 @@
 use antecedent_core::{Lag, NodeRef, VariableId};
 use antecedent_graph::{DenseNodeId, TemporalAdmg};
 
-use crate::adjacency_mask::{AdjacencyMask, admg_from_adjacency_mask};
+use crate::adjacency_mask::{AdjacencyMask, LagMask, admg_from_adjacency_mask};
 use crate::error::DiscoveryError;
-
-/// Lag-edge bits a `u64` holds.
-const LAG_WORD_BITS: usize = 64;
 
 /// Bit of the lagged edge `from(t - lag) → to(t)` (or `from(t - lag) ↔ to(t)`), `lag ≥ 1`.
 #[must_use]
@@ -30,50 +27,44 @@ pub fn lagged_edge_bit(n_vars: usize, lag: u32, from: usize, to: usize) -> u32 {
     crate::indexing::dense_u32(block.saturating_add(from.saturating_mul(n_vars)).saturating_add(to))
 }
 
-/// Whether a lag word holds the edge `from(t - lag) → to(t)`.
+/// Whether a lag set holds the edge `from(t - lag) → to(t)`.
 #[must_use]
-pub fn has_lagged_edge(word: u64, n_vars: usize, lag: u32, from: usize, to: usize) -> bool {
+pub fn has_lagged_edge(mask: &LagMask, n_vars: usize, lag: u32, from: usize, to: usize) -> bool {
     if from >= n_vars || to >= n_vars || lag == 0 {
         return false;
     }
-    let bit = lagged_edge_bit(n_vars, lag, from, to);
-    (bit as usize) < LAG_WORD_BITS && (word >> bit) & 1 == 1
+    mask.bit(lagged_edge_bit(n_vars, lag, from, to))
 }
 
-/// Set or clear the lagged edge `from(t - lag) → to(t)` in a lag word.
+/// Set or clear the lagged edge `from(t - lag) → to(t)` in a lag set (a [`LagMask`] or the
+/// single-word `u64` packing of one).
 ///
 /// # Errors
 ///
-/// A lag, variable or bit outside the word (`max_lag * n_vars² > 64`).
+/// A lag of zero or a variable outside the template.
 pub fn with_lagged_edge(
-    word: u64,
+    mask: impl Into<LagMask>,
     n_vars: usize,
     lag: u32,
     from: usize,
     to: usize,
     present: bool,
-) -> Result<u64, DiscoveryError> {
+) -> Result<LagMask, DiscoveryError> {
     if from >= n_vars || to >= n_vars || lag == 0 {
         return Err(DiscoveryError::unsupported("lagged edge outside the template"));
     }
-    let bit = lagged_edge_bit(n_vars, lag, from, to);
-    if (bit as usize) >= LAG_WORD_BITS {
-        return Err(DiscoveryError::unsupported(
-            "lagged edge space exceeds the 64 bits of a lag word (max_lag * n_vars^2 <= 64)",
-        ));
-    }
-    Ok(if present { word | (1u64 << bit) } else { word & !(1u64 << bit) })
+    Ok(mask.into().with_bit(lagged_edge_bit(n_vars, lag, from, to), present))
 }
 
 /// One atom of a lagged temporal-ADMG posterior.
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
 pub struct TemporalAdmgAtom {
     /// Contemporaneous ADMG: both directed bits of a pair are a latent-confounder edge.
     pub contemporaneous: AdjacencyMask,
     /// Lagged directed edges `X_{t-ℓ} → Y_t`.
-    pub lagged_directed: u64,
+    pub lagged_directed: LagMask,
     /// Lagged latent-confounder edges `X_{t-ℓ} ↔ Y_t`.
-    pub lagged_bidirected: u64,
+    pub lagged_bidirected: LagMask,
 }
 
 fn node_of(
@@ -97,8 +88,8 @@ impl TemporalAdmgAtom {
     ///
     /// # Errors
     ///
-    /// A variable count that differs from `n_vars`, a lag space wider than a lag word, a
-    /// contemporaneous mask that is not an acyclic ADMG, or an edge the template rejects.
+    /// A variable count that differs from `n_vars`, a contemporaneous mask that is not an
+    /// acyclic ADMG, or an edge the template rejects.
     pub fn to_template(
         &self,
         n_vars: usize,
@@ -110,13 +101,7 @@ impl TemporalAdmgAtom {
                 "temporal ADMG atom: variables length differs from n_vars",
             ));
         }
-        let lag_bits = (max_lag as usize).saturating_mul(n_vars.saturating_mul(n_vars));
-        if lag_bits > LAG_WORD_BITS {
-            return Err(DiscoveryError::unsupported(
-                "temporal ADMG atom: lag space exceeds the 64 bits of a lag word",
-            ));
-        }
-        let contemporaneous = admg_from_adjacency_mask(self.contemporaneous, n_vars)?;
+        let contemporaneous = admg_from_adjacency_mask(&self.contemporaneous, n_vars)?;
         let mut graph = TemporalAdmg::empty();
         for (from, to) in contemporaneous.directed_edge_pairs_sorted() {
             let from = node_of(&mut graph, variables[from as usize], Lag::CONTEMPORANEOUS)?;
@@ -131,8 +116,8 @@ impl TemporalAdmgAtom {
         for lag in 1..=max_lag {
             for from in 0..n_vars {
                 for to in 0..n_vars {
-                    let directed = has_lagged_edge(self.lagged_directed, n_vars, lag, from, to);
-                    let bidirected = has_lagged_edge(self.lagged_bidirected, n_vars, lag, from, to);
+                    let directed = has_lagged_edge(&self.lagged_directed, n_vars, lag, from, to);
+                    let bidirected = has_lagged_edge(&self.lagged_bidirected, n_vars, lag, from, to);
                     if !directed && !bidirected {
                         continue;
                     }
@@ -152,21 +137,25 @@ impl TemporalAdmgAtom {
 }
 
 /// Build the stationary [`TemporalAdmg`] template of a contemporaneous ADMG mask and two lag
-/// words: [`TemporalAdmgAtom::to_template`] for loose parts.
+/// sets: [`TemporalAdmgAtom::to_template`] for loose parts.
 ///
 /// # Errors
 ///
 /// As [`TemporalAdmgAtom::to_template`].
 pub fn temporal_admg_from_lagged_atoms(
     contemporaneous: impl Into<AdjacencyMask>,
-    lagged_directed: u64,
-    lagged_bidirected: u64,
+    lagged_directed: impl Into<LagMask>,
+    lagged_bidirected: impl Into<LagMask>,
     n_vars: usize,
     max_lag: u32,
     variables: &[VariableId],
 ) -> Result<TemporalAdmg, DiscoveryError> {
-    TemporalAdmgAtom { contemporaneous: contemporaneous.into(), lagged_directed, lagged_bidirected }
-        .to_template(n_vars, max_lag, variables)
+    TemporalAdmgAtom {
+        contemporaneous: contemporaneous.into(),
+        lagged_directed: lagged_directed.into(),
+        lagged_bidirected: lagged_bidirected.into(),
+    }
+    .to_template(n_vars, max_lag, variables)
 }
 
 #[cfg(test)]
@@ -185,11 +174,25 @@ mod tests {
         assert_eq!(lagged_edge_bit(3, 1, 2, 1), 7);
         assert_eq!(lagged_edge_bit(3, 2, 0, 0), 9);
         assert_eq!(lagged_edge_bit(3, 2, 1, 2), 9 + 5);
-        let word = with_lagged_edge(0, 3, 2, 1, 2, true).unwrap();
-        assert!(has_lagged_edge(word, 3, 2, 1, 2));
-        assert!(!has_lagged_edge(word, 3, 1, 1, 2));
-        assert_eq!(with_lagged_edge(word, 3, 2, 1, 2, false).unwrap(), 0);
-        assert!(with_lagged_edge(0, 8, 2, 7, 7, true).is_err(), "bit 127 does not fit a word");
+        let word = with_lagged_edge(0u64, 3, 2, 1, 2, true).unwrap();
+        assert!(has_lagged_edge(&word, 3, 2, 1, 2));
+        assert!(!has_lagged_edge(&word, 3, 1, 1, 2));
+        assert_eq!(with_lagged_edge(word, 3, 2, 1, 2, false).unwrap(), LagMask::EMPTY);
+        assert!(with_lagged_edge(0u64, 3, 0, 1, 2, true).is_err(), "lag 0 is not a lagged edge");
+        assert!(with_lagged_edge(0u64, 3, 1, 3, 0, true).is_err(), "variable outside the template");
+    }
+
+    #[test]
+    fn a_wide_lag_space_works() {
+        // Bit 127 is far past one word.
+        let word = with_lagged_edge(0u64, 8, 2, 7, 7, true).unwrap();
+        assert_eq!(lagged_edge_bit(8, 2, 7, 7), 127);
+        assert!(has_lagged_edge(&word, 8, 2, 7, 7));
+        assert!(!has_lagged_edge(&word, 8, 2, 7, 6));
+        let directed = with_lagged_edge(word, 8, 12, 0, 1, true).unwrap();
+        let template =
+            temporal_admg_from_lagged_atoms(0u64, directed, 0u64, 8, 12, &variables(8)).unwrap();
+        assert_eq!(template.node_count(), 4);
     }
 
     #[test]
@@ -200,8 +203,8 @@ mod tests {
         contemporaneous = set_edge(contemporaneous, n, 0, 1, true);
         contemporaneous = set_edge(contemporaneous, n, 1, 2, true);
         contemporaneous = set_edge(contemporaneous, n, 2, 1, true);
-        let directed = with_lagged_edge(0, n, 1, 0, 1, true).unwrap();
-        let bidirected = with_lagged_edge(0, n, 1, 2, 0, true).unwrap();
+        let directed = with_lagged_edge(0u64, n, 1, 0, 1, true).unwrap();
+        let bidirected = with_lagged_edge(0u64, n, 1, 2, 0, true).unwrap();
         let atom = TemporalAdmgAtom {
             contemporaneous,
             lagged_directed: directed,
@@ -239,9 +242,10 @@ mod tests {
         let mut both = AdjacencyMask::EMPTY;
         both = set_edge(both, n, 0, 1, true);
         both = set_edge(both, n, 1, 0, true);
-        let template = temporal_admg_from_lagged_atoms(both, 0, 0, n, 1, &variables(n)).unwrap();
+        let template =
+            temporal_admg_from_lagged_atoms(both.clone(), 0u64, 0u64, n, 1, &variables(n)).unwrap();
         assert_eq!(template.node_count(), 2);
         assert!(template.has_bidirected());
-        assert!(temporal_admg_from_lagged_atoms(both, 0, 0, n, 1, &variables(3)).is_err());
+        assert!(temporal_admg_from_lagged_atoms(both, 0u64, 0u64, n, 1, &variables(3)).is_err());
     }
 }

@@ -1413,13 +1413,13 @@ pub struct PosteriorAtomIdentityWire {
 pub fn graph_posterior_atom_identities(
     posterior: &GraphPosterior,
 ) -> Result<Vec<PosteriorAtomIdentityWire>, IoError> {
-    let ids: Vec<VariableId> = (0..posterior.n_vars)
+    let ids: Vec<VariableId> = (0..posterior.n_vars())
         .map(|i| u32::try_from(i).map(VariableId::from_raw).map_err(|_| IoError::TooLarge))
         .collect::<Result<_, _>>()?;
-    let max_lag = posterior.max_lag.unwrap_or(1);
-    let mut atoms = Vec::with_capacity(posterior.n_graphs);
-    for (index, (&adjacency, &weight)) in
-        posterior.atoms.iter().zip(posterior.weights.iter()).enumerate()
+    let max_lag = posterior.max_lag().unwrap_or(1);
+    let mut atoms = Vec::with_capacity(posterior.n_graphs());
+    for (index, (adjacency, &weight)) in
+        posterior.atoms().iter().zip(posterior.weights().iter()).enumerate()
     {
         let graph = posterior_atom_graph_wire(posterior, index, adjacency, max_lag, &ids)?;
         atoms.push(PosteriorAtomIdentityWire {
@@ -1439,20 +1439,21 @@ pub fn graph_posterior_atom_identities(
 fn posterior_atom_graph_wire(
     posterior: &GraphPosterior,
     index: usize,
-    adjacency: AdjacencyMask,
+    adjacency: &AdjacencyMask,
     max_lag: u32,
     ids: &[VariableId],
 ) -> Result<PosteriorAtomGraphWire, IoError> {
-    if let Some(lag_masks) = posterior.lag_masks.as_ref() {
-        let lag_mask = *lag_masks
+    let n_vars = posterior.n_vars();
+    if let Some(lag_masks) = posterior.lag_masks() {
+        let lag_mask = lag_masks
             .get(index)
             .ok_or_else(|| IoError::Convert("posterior lag masks must align with atoms".into()))?;
-        return match posterior.atom_kind {
+        return match posterior.atom_kind() {
             GraphPosteriorAtomKind::Cpdag => {
                 let graph = temporal_cpdag_from_dbn_atoms(
                     adjacency,
                     lag_mask,
-                    posterior.n_vars,
+                    n_vars,
                     max_lag,
                     ids,
                 )
@@ -1470,7 +1471,7 @@ fn posterior_atom_graph_wire(
                 let atom = posterior.temporal_admg_atom(index).ok_or_else(|| {
                     IoError::Convert("posterior lag masks must align with atoms".into())
                 })?;
-                let Ok(temporal) = atom.to_template(posterior.n_vars, max_lag, ids) else {
+                let Ok(temporal) = atom.to_template(n_vars, max_lag, ids) else {
                     return Ok(PosteriorAtomGraphWire::Unrepresentable);
                 };
                 let GraphIdentityWire::TemporalAdmg(wire) = temporal_admg_identity(&temporal)?
@@ -1482,17 +1483,12 @@ fn posterior_atom_graph_wire(
                 Ok(PosteriorAtomGraphWire::TemporalAdmg(wire))
             }
             GraphPosteriorAtomKind::Pag => {
-                let mark_mask = posterior
-                    .mark_atoms
-                    .as_ref()
-                    .and_then(|masks| masks.get(index))
-                    .copied()
-                    .unwrap_or(AdjacencyMask::EMPTY);
+                let mark_mask = posterior.mark_atom(index);
                 let graph = temporal_pag_from_dbn_atoms(
                     adjacency,
                     lag_mask,
                     mark_mask,
-                    posterior.n_vars,
+                    n_vars,
                     max_lag,
                     ids,
                 )
@@ -1508,7 +1504,7 @@ fn posterior_atom_graph_wire(
                 let graph = temporal_dag_from_dbn_atoms(
                     adjacency,
                     lag_mask,
-                    posterior.n_vars,
+                    n_vars,
                     max_lag,
                     ids,
                 )
@@ -1517,15 +1513,15 @@ fn posterior_atom_graph_wire(
             }
         };
     }
-    match posterior.atom_kind {
+    match posterior.atom_kind() {
         GraphPosteriorAtomKind::Admg => {
-            let Ok(admg) = admg_from_adjacency_mask(adjacency, posterior.n_vars) else {
+            let Ok(admg) = admg_from_adjacency_mask(adjacency, n_vars) else {
                 return Ok(PosteriorAtomGraphWire::Unrepresentable);
             };
             Ok(PosteriorAtomGraphWire::Admg(canonical_admg_wire(&admg)?))
         }
         GraphPosteriorAtomKind::TemporalAdmg => {
-            let Ok(admg) = admg_from_adjacency_mask(adjacency, posterior.n_vars) else {
+            let Ok(admg) = admg_from_adjacency_mask(adjacency, n_vars) else {
                 return Ok(PosteriorAtomGraphWire::Unrepresentable);
             };
             let temporal = TemporalAdmg::from_static_contemporaneous(&admg)
@@ -1539,7 +1535,7 @@ fn posterior_atom_graph_wire(
         }
         GraphPosteriorAtomKind::Cpdag => {
             // A mask that is no CPDAG is unidentified mass, as for the other static kinds.
-            let Ok(cpdag) = cpdag_from_adjacency_mask(adjacency, posterior.n_vars) else {
+            let Ok(cpdag) = cpdag_from_adjacency_mask(adjacency, n_vars) else {
                 return Ok(PosteriorAtomGraphWire::Unrepresentable);
             };
             let GraphIdentityWire::Cpdag(wire) = cpdag_identity(&cpdag)? else {
@@ -1548,13 +1544,8 @@ fn posterior_atom_graph_wire(
             Ok(PosteriorAtomGraphWire::Cpdag(wire))
         }
         GraphPosteriorAtomKind::Pag => {
-            let mark_mask = posterior
-                .mark_atoms
-                .as_ref()
-                .and_then(|masks| masks.get(index))
-                .copied()
-                .unwrap_or(AdjacencyMask::EMPTY);
-            let Ok(pag) = pag_from_adjacency_mask(adjacency, mark_mask, posterior.n_vars) else {
+            let mark_mask = posterior.mark_atom(index);
+            let Ok(pag) = pag_from_adjacency_mask(adjacency, mark_mask, n_vars) else {
                 return Ok(PosteriorAtomGraphWire::Unrepresentable);
             };
             let GraphIdentityWire::Pag(wire) = pag_identity(&pag)? else {
@@ -1564,7 +1555,7 @@ fn posterior_atom_graph_wire(
         }
         _ => {
             // An atom that is not a DAG carries unidentified mass; it has no graph to encode.
-            let Ok(dag) = dag_from_adjacency_mask(adjacency, posterior.n_vars) else {
+            let Ok(dag) = dag_from_adjacency_mask(adjacency, n_vars) else {
                 return Ok(PosteriorAtomGraphWire::Unrepresentable);
             };
             Ok(PosteriorAtomGraphWire::Static(canonical_dag_wire(&dag)?))
@@ -3905,7 +3896,7 @@ mod tests {
     fn posterior_premises(posterior: &GraphPosterior) -> SemanticDigest {
         identification_digest(&premises(GraphIdentityWire::GraphPosterior {
             graph_class: "Dag".into(),
-            n_atoms: posterior.n_graphs as u64,
+            n_atoms: posterior.n_graphs() as u64,
             atoms: graph_posterior_atom_identities(posterior).unwrap(),
         }))
         .unwrap()
@@ -3915,12 +3906,21 @@ mod tests {
     fn static_posterior_identity_binds_atom_graphs_and_weights() {
         use antecedent_discovery::adjacency_mask::set_edge;
         let direct = set_edge(0, 3, 0, 1, true);
-        let adjusted = set_edge(set_edge(direct, 3, 2, 0, true), 3, 2, 1, true);
+        let adjusted = set_edge(set_edge(&direct, 3, 2, 0, true), 3, 2, 1, true);
         let reversed = set_edge(0, 3, 1, 0, true);
         let confounded = set_edge(set_edge(0, 3, 2, 0, true), 3, 2, 1, true);
-        let base = static_posterior([0.5, 0.3, 0.2], [direct, adjusted, reversed]);
-        let reweighted = static_posterior([0.2, 0.3, 0.5], [direct, adjusted, reversed]);
-        let regraphed = static_posterior([0.5, 0.3, 0.2], [direct, adjusted, confounded]);
+        let base = static_posterior(
+            [0.5, 0.3, 0.2],
+            [direct.clone(), adjusted.clone(), reversed.clone()],
+        );
+        let reweighted = static_posterior(
+            [0.2, 0.3, 0.5],
+            [direct.clone(), adjusted.clone(), reversed.clone()],
+        );
+        let regraphed = static_posterior(
+            [0.5, 0.3, 0.2],
+            [direct.clone(), adjusted.clone(), confounded],
+        );
         let reordered = static_posterior([0.2, 0.5, 0.3], [reversed, direct, adjusted]);
         assert_ne!(posterior_premises(&base), posterior_premises(&reweighted));
         assert_ne!(posterior_premises(&base), posterior_premises(&regraphed));
@@ -3944,8 +3944,9 @@ mod tests {
         let built = set_edge(set_edge(AdjacencyMask::EMPTY, n, 0, 1, true), n, 2, 0, true);
         assert_eq!(from_word, built);
         let empty = AdjacencyMask::EMPTY;
-        let legacy = static_posterior([0.5, 0.3, 0.2], [from_word, empty, empty]);
-        let wide = static_posterior([0.5, 0.3, 0.2], [built, empty, empty]);
+        let legacy =
+            static_posterior([0.5, 0.3, 0.2], [from_word, empty.clone(), empty.clone()]);
+        let wide = static_posterior([0.5, 0.3, 0.2], [built, empty.clone(), empty]);
         assert_eq!(posterior_premises(&legacy), posterior_premises(&wide));
         let mut dag = Dag::with_variables(3);
         dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -4024,8 +4025,8 @@ mod tests {
         assert_eq!(mask, built);
         assert_eq!(mask.to_word(), Some(stored));
         assert_eq!(mask.key(), stored, "an eight-variable atom keeps its word as its key");
-        let posterior = equal_weight_posterior(eight, vec![mask, AdjacencyMask::EMPTY]);
-        assert_eq!(posterior.graph_keys[0], stored);
+        let posterior = equal_weight_posterior(eight, vec![mask.clone(), AdjacencyMask::EMPTY]);
+        assert_eq!(posterior.graph_keys()[0], stored);
         let atoms = graph_posterior_atom_identities(&posterior).unwrap();
         let mut dag = Dag::with_variables(8);
         for &(from, to) in &edges {
@@ -4049,7 +4050,7 @@ mod tests {
         assert_eq!(wide.to_word(), None, "bit {} is past the first word", bit(nine, 8, 7));
         assert_eq!(bit(nine, 8, 7), 71);
         assert_ne!(wide.key(), wide.words()[0], "a wide atom's key is a hash of every word");
-        let posterior = equal_weight_posterior(nine, vec![wide, AdjacencyMask::EMPTY]);
+        let posterior = equal_weight_posterior(nine, vec![wide.clone(), AdjacencyMask::EMPTY]);
         let atoms = graph_posterior_atom_identities(&posterior).unwrap();
         let PosteriorAtomGraphWire::Static(wire) = &atoms[0].graph else {
             panic!("a nine-variable DAG atom encodes as a static graph");
@@ -4078,7 +4079,7 @@ mod tests {
         let posterior = GraphPosterior::from_atoms(
             3,
             vec![0.5, 0.5],
-            vec![contemporaneous; 2],
+            vec![contemporaneous.clone(), contemporaneous],
             vec![0.0; 9],
             vec![0.0; 9],
             SamplingSummary {
@@ -4092,7 +4093,7 @@ mod tests {
         .unwrap()
         .with_lag_masks(vec![confounder_to_outcome, treatment_to_outcome])
         .unwrap();
-        assert_eq!(posterior.graph_keys[0], posterior.graph_keys[1]);
+        assert_eq!(posterior.graph_keys()[0], posterior.graph_keys()[1]);
         let atoms = graph_posterior_atom_identities(&posterior).unwrap();
         assert_eq!(atoms.len(), 2);
         assert!(matches!(atoms[0].graph, PosteriorAtomGraphWire::Temporal(_)));

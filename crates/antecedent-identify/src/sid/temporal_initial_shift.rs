@@ -115,7 +115,11 @@ fn bind_source(
     }
     Ok((arena, mapped[result.estimands[0].functional.raw() as usize]))
 }
-/// Identify source joint (S0,Y)|do(A1,A2) before initial-law standardization.
+/// Identify source joint (S0,Y)|do(A1,...,AH) before initial-law standardization.
+///
+/// The coordinates are numbered in time order: the root state is `0`, the
+/// action of step `k` is `2k - 1`, the covariate before the action of step
+/// `k > 1` is `2k - 2` and the outcome is `2H`.
 /// Root S0 is unconfounded and every other DAG mechanism is invariant. Therefore
 /// conditioning the checked source intervention law on supported S0 and mixing
 /// the given target S0 law transports its response, without experimental evidence.
@@ -133,17 +137,24 @@ pub fn identify_initial_shift_source(
     }
     let graph = spec.diagram().causal_graph();
     let root = VariableId::from_raw(0);
-    if graph.node_count() != 5
+    let steps = spec.horizon();
+    let scope = || IdentificationError::unsupported("temporal_initial_shift.source_scope");
+    let coordinate = |index: usize| {
+        u32::try_from(index).map(VariableId::from_raw).map_err(|_| scope())
+    };
+    let actions = (0..steps).map(|step| coordinate(2 * step + 1)).collect::<Result<Vec<_>, _>>()?;
+    let outcome = coordinate(2 * steps)?;
+    if graph.node_count() != 2 * steps + 1
         || graph.has_bidirected()
         || spec.diagram().selection_targets() != [root]
         || !graph.parents(DenseNodeId::from_raw(0)).is_empty()
         || spec.slots().baseline != [root]
-        || spec.slots().actions != [VariableId::from_raw(1), VariableId::from_raw(3)]
-        || spec.slots().outcome != VariableId::from_raw(4)
+        || spec.slots().actions != actions
+        || spec.slots().outcome != outcome
     {
-        return Err(IdentificationError::unsupported("temporal_initial_shift.source_scope"));
+        return Err(scope());
     }
-    let variables = (0..5).map(VariableId::from_raw).collect::<Vec<_>>();
+    let variables = (0..=2 * steps).map(coordinate).collect::<Result<Vec<_>, _>>()?;
     let regime = catalog
         .satisfying_regime(&FactorNeed {
             population: "source",
@@ -164,13 +175,13 @@ pub fn identify_initial_shift_source(
     let prepared = identifier.prepare(graph)?;
     let query = CausalQuery::Distribution(
         InterventionalDistributionQuery::new(
-            VariableId::from_raw(4),
-            Arc::from([
-                Intervention::set(VariableId::from_raw(1), Value::f64(0.)),
-                Intervention::set(VariableId::from_raw(3), Value::f64(0.)),
-            ]),
+            outcome,
+            actions
+                .iter()
+                .map(|action| Intervention::set(*action, Value::f64(0.)))
+                .collect::<Arc<[_]>>(),
         )
-        .with_outcomes(Arc::from([root, VariableId::from_raw(4)])),
+        .with_outcomes(Arc::from([root, outcome])),
     );
     let result = identifier.identify(&prepared, &query, &mut IdentificationWorkspace::default())?;
     if ctx.cancellation.is_cancelled() {

@@ -97,7 +97,7 @@ fn index(names: &[&str], name: &str) -> usize {
 
 /// Posterior mass of the directed edge `from -> to` (`edge_marginals[from * n + to]`).
 fn directed(post: &GraphPosterior, n: usize, from: usize, to: usize) -> f64 {
-    post.edge_marginals[from * n + to]
+    post.edge_marginals()[from * n + to]
 }
 
 /// Runs every static engine the fixture names with its default configuration.
@@ -203,7 +203,7 @@ fn dag_posterior_engines_put_fixture_mass_on_the_true_structure() {
     let series = ["x", "y"];
     let (from, to) =
         (index(&series, edge[0].as_str().unwrap()), index(&series, edge[1].as_str().unwrap()));
-    let lagged = post.lagged_edge_marginals.as_ref().expect("lagged marginals");
+    let lagged = post.lagged_edge_marginals().expect("lagged marginals");
     let mass = lagged[from * 2 + to];
     assert!(mass >= min_mass, "DbnPosterior: P(x_(t-1) -> y_t) = {mass} < {min_mass}");
 }

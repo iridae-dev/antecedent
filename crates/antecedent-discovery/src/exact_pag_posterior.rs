@@ -932,7 +932,6 @@ mod tests {
     use antecedent_data::{TableView, TabularData};
 
     use super::*;
-    use crate::adjacency_mask::has_edge;
 
     fn normal(rng: &mut CausalRng) -> f64 {
         let u1 = rng.next_f64().max(1e-12);
@@ -1009,34 +1008,34 @@ mod tests {
         let (data, ids) = table(&[("a", a.clone()), ("b", b.clone()), ("c", c)]);
         let ctx = ExecutionContext::for_tests(1);
         let chain = exact_pag_posterior(&data, &ids, &ctx).unwrap();
-        assert_eq!(chain.atom_kind, GraphPosteriorAtomKind::Pag);
-        let top = (0..chain.n_graphs)
-            .max_by(|&i, &j| chain.weights[i].total_cmp(&chain.weights[j]))
+        assert_eq!(chain.atom_kind(), GraphPosteriorAtomKind::Pag);
+        let top = (0..chain.n_graphs())
+            .max_by(|&i, &j| chain.weights()[i].total_cmp(&chain.weights()[j]))
             .unwrap();
-        assert!(chain.weights[top] > 0.8, "{:?}", chain.weights);
-        let atom = chain.atoms[top];
-        assert!(has_edge(atom, 3, 0, 1) && has_edge(atom, 3, 1, 0));
-        assert!(has_edge(atom, 3, 1, 2) && has_edge(atom, 3, 2, 1));
-        assert!(!has_edge(atom, 3, 0, 2) && !has_edge(atom, 3, 2, 0));
-        let circles = chain.mark_atoms.as_ref().unwrap()[top];
-        assert!(has_edge(circles, 3, 0, 1) && has_edge(circles, 3, 1, 0));
+        assert!(chain.weights()[top] > 0.8, "{:?}", chain.weights());
+        let atom = chain.atoms()[top].clone();
+        assert!(atom.has_edge(3, 0, 1) && atom.has_edge(3, 1, 0));
+        assert!(atom.has_edge(3, 1, 2) && atom.has_edge(3, 2, 1));
+        assert!(!atom.has_edge(3, 0, 2) && !atom.has_edge(3, 2, 0));
+        let circles = chain.mark_atom(top);
+        assert!(circles.has_edge(3, 0, 1) && circles.has_edge(3, 1, 0));
 
         let x: Vec<f64> = (0..n).map(|_| normal(&mut rng)).collect();
         let z: Vec<f64> = (0..n).map(|_| normal(&mut rng)).collect();
         let y: Vec<f64> = x.iter().zip(&z).map(|(x, z)| x + z + 0.5 * normal(&mut rng)).collect();
         let (data, ids) = table(&[("x", x), ("y", y), ("z", z)]);
         let collider = exact_pag_posterior(&data, &ids, &ctx).unwrap();
-        let top = (0..collider.n_graphs)
-            .max_by(|&i, &j| collider.weights[i].total_cmp(&collider.weights[j]))
+        let top = (0..collider.n_graphs())
+            .max_by(|&i, &j| collider.weights()[i].total_cmp(&collider.weights()[j]))
             .unwrap();
-        let atom = collider.atoms[top];
+        let atom = collider.atoms()[top].clone();
         // x o-> y <-o z: the bidirected variants of the two edges are Markov equivalent to the
         // directed ones, so their tails are circles.
-        assert!(has_edge(atom, 3, 0, 1) && !has_edge(atom, 3, 1, 0));
-        assert!(has_edge(atom, 3, 2, 1) && !has_edge(atom, 3, 1, 2));
-        let circles = collider.mark_atoms.as_ref().unwrap()[top];
-        assert!(has_edge(circles, 3, 0, 1) && has_edge(circles, 3, 2, 1));
-        assert!(!has_edge(circles, 3, 1, 0) && !has_edge(circles, 3, 1, 2));
+        assert!(atom.has_edge(3, 0, 1) && !atom.has_edge(3, 1, 0));
+        assert!(atom.has_edge(3, 2, 1) && !atom.has_edge(3, 1, 2));
+        let circles = collider.mark_atom(top);
+        assert!(circles.has_edge(3, 0, 1) && circles.has_edge(3, 2, 1));
+        assert!(!circles.has_edge(3, 1, 0) && !circles.has_edge(3, 1, 2));
     }
 
     #[test]
@@ -1052,9 +1051,10 @@ mod tests {
         let sampled = pag_posterior_mcmc(&data, &ids, schedule, &ctx).unwrap();
         let exact = exact_pag_posterior(&data, &ids, &ctx).unwrap();
         let top = |g: &GraphPosterior| {
-            let at =
-                (0..g.n_graphs).max_by(|&i, &j| g.weights[i].total_cmp(&g.weights[j])).unwrap();
-            (g.atoms[at], g.mark_atoms.as_ref().unwrap()[at])
+            let at = (0..g.n_graphs())
+                .max_by(|&i, &j| g.weights()[i].total_cmp(&g.weights()[j]))
+                .unwrap();
+            (g.atoms()[at].clone(), g.mark_atom(at))
         };
         assert_eq!(top(&sampled), top(&exact));
         // Five variables: a chain with an independent fifth and fourth variable.
@@ -1063,8 +1063,8 @@ mod tests {
         let (wide, ids) = table(&[("a", a), ("b", b), ("c", c), ("d", d), ("e", e)]);
         let small = PagMcmcSchedule { chains: 2, warmup: 200, draws: 800, thin: 1 };
         let posterior = pag_posterior_mcmc(&wide, &ids, small, &ctx).unwrap();
-        assert_eq!(posterior.atom_kind, GraphPosteriorAtomKind::Pag);
-        let mass: f64 = posterior.weights.iter().sum();
+        assert_eq!(posterior.atom_kind(), GraphPosteriorAtomKind::Pag);
+        let mass: f64 = posterior.weights().iter().sum();
         assert!((mass - 1.0).abs() < 1e-9);
         assert!(
             pag_posterior_mcmc(&wide, &ids, PagMcmcSchedule { chains: 1, ..small }, &ctx).is_err()

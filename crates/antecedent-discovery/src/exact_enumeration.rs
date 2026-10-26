@@ -132,7 +132,7 @@ impl ExactDagPosterior {
             if inner.cancellation.is_cancelled() {
                 return Err(DiscoveryError::Cancelled);
             }
-            Ok(match scorer.score(masks[index]) {
+            Ok(match scorer.score(&masks[index]) {
                 Some(lw) => (lw, 0u64),
                 None => (f64::NEG_INFINITY, 1u64),
             })
@@ -195,11 +195,11 @@ impl ExactDagPosterior {
         let mut posterior = crate::OrderMcmc::new()
             .run(data, variables, prior, score_family, workspace, ctx)?
             .with_algorithm("order_mcmc");
-        posterior.diagnostics.notes.push(std::sync::Arc::from(format!(
+        posterior.push_note(format!(
             "{} variables exceed the enumeration limit of {cap}: the posterior was sampled by \
              order MCMC, not enumerated; its marginals carry Monte-Carlo error",
             variables.len()
-        )));
+        ));
         Ok(posterior)
     }
 }
@@ -362,8 +362,8 @@ mod tests {
         for word in 0..(1u64 << (n * (n - 1))) {
             let mask = AdjacencyMask::from_word(word);
             let direct =
-                crate::graph_score::score_dag_mask(mask, n, &score_data, &mut cache, &prior, &vars);
-            assert_eq!(scorer.score(mask).map(f64::to_bits), direct.map(f64::to_bits));
+                crate::graph_score::score_dag_mask(&mask, n, &score_data, &mut cache, &prior, &vars);
+            assert_eq!(scorer.score(&mask).map(f64::to_bits), direct.map(f64::to_bits));
         }
     }
 
@@ -376,14 +376,14 @@ mod tests {
         let mut ws = DiscoveryWorkspace::default();
         let post =
             eng.run(&data, &vars, &prior, GraphScoreFamily::GaussianBic, &mut ws, &ctx).unwrap();
-        assert!(post.diagnostics.converged);
-        assert_eq!(post.algorithm.as_deref(), Some("exact_dag_posterior"));
+        assert!(post.diagnostics().converged);
+        assert_eq!(post.algorithm().map(|a| &**a), Some("exact_dag_posterior"));
         let n = 3;
         // Chain A→B→C is Markov-equivalent to A←B←C and A←B→C; assert skeleton
         // mass, not a single orientation.
-        let sk01 = post.edge_marginals[1] + post.edge_marginals[n];
-        let sk12 = post.edge_marginals[n + 2] + post.edge_marginals[2 * n + 1];
-        let sk02 = post.edge_marginals[2] + post.edge_marginals[2 * n];
+        let sk01 = post.edge_marginals()[1] + post.edge_marginals()[n];
+        let sk12 = post.edge_marginals()[n + 2] + post.edge_marginals()[2 * n + 1];
+        let sk02 = post.edge_marginals()[2] + post.edge_marginals()[2 * n];
         assert!(sk01 > 0.5, "P(A—B)={sk01}");
         assert!(sk12 > 0.5, "P(B—C)={sk12}");
         assert!(sk02 < 0.3, "P(A—C)={sk02}");
@@ -442,7 +442,7 @@ mod tests {
         cyc = set_edge(cyc, n, 1, 2, true);
         cyc = set_edge(cyc, n, 2, 0, true);
         assert!(!enumerate_unique_dags(n).contains(&cyc));
-        assert!(!has_edge(0, n, 0, 1));
+        assert!(!has_edge(AdjacencyMask::EMPTY, n, 0, 1));
         let _ = edge_bit(n, 0, 1);
     }
     #[test]
@@ -499,7 +499,7 @@ mod tests {
             let t = Instant::now();
             let mut acc = 0.0;
             let mut dags = 0usize;
-            for &m in &masks {
+            for m in &masks {
                 if let Some(lp) = crate::graph_posterior::log_prior_mask(m, n, &prior, &vars) {
                     acc += lp;
                     dags += 1;
@@ -564,15 +564,15 @@ mod tests {
                     &ctx,
                 )
                 .unwrap();
-            let dig = post.weights.iter().fold(0xcbf2_9ce4_8422_2325_u64, |h, w| {
+            let dig = post.weights().iter().fold(0xcbf2_9ce4_8422_2325_u64, |h, w| {
                 (h ^ w.to_bits()).wrapping_mul(0x0100_0000_01b3)
             });
-            let edig = post.edge_marginals.iter().fold(0xcbf2_9ce4_8422_2325_u64, |h, w| {
+            let edig = post.edge_marginals().iter().fold(0xcbf2_9ce4_8422_2325_u64, |h, w| {
                 (h ^ w.to_bits()).wrapping_mul(0x0100_0000_01b3)
             });
             println!(
                 "n={n} run: {} graphs, weights {dig:016x}, edges {edig:016x}, {:?}",
-                post.weights.len(),
+                post.weights().len(),
                 t.elapsed()
             );
         }
