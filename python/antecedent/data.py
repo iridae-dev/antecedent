@@ -2,6 +2,8 @@
 
 Tables and frame partitions own mutable numeric input once. Their read-only
 views share native buffers with preparation, branching and compatible consumers.
+Tables also retain immutable label and time columns for declared design adapters;
+those columns never become numeric category codes implicitly.
 Explicit borrowed Arrow storage must remain unchanged for its retained lifetime.
 File sources retain their bounded, lazy ingestion contracts.
 """
