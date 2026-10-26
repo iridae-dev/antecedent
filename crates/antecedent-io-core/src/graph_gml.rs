@@ -510,10 +510,10 @@ mod tests {
 
     #[test]
     fn nested_blocks_are_skipped_and_do_not_refuse_real_documents() {
-        let gml = r#"graph [ directed 1 comment "x" meta [ a 1 inner [ b 2 ] ]
+        let gml = r##"graph [ directed 1 comment "x" meta [ a 1 inner [ b 2 ] ]
             node [ id 0 label "A" graphics [ x 1.5 y 2 w 10 ] ]
             node [ id 1 label "B" LabelGraphics [ text "B" ] ]
-            edge [ source 0 target 1 graphics [ fill "#000" ] ] ]"#;
+            edge [ source 0 target 1 graphics [ fill "#000" ] ] ]"##;
         let (dag, names) = dag_with_names_from_gml(gml).unwrap();
         assert_eq!(names, vec!["A".to_string(), "B".to_string()]);
         assert!(dag.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));

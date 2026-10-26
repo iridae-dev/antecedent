@@ -295,6 +295,7 @@ fn quantile(sorted: &[f64], p: f64) -> f64 {
 }
 
 /// Posterior of the control-function outcome regression.
+#[derive(Debug)]
 struct NormalPosterior {
     /// Posterior mean of `(intercept, effect, control-function loading)`.
     beta: [f64; 3],

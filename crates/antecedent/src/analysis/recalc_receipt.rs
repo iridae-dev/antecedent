@@ -1326,7 +1326,7 @@ impl RecalcSessionKind {
 }
 
 /// The first external-study branch, which every layout admits.
-fn branch_zero() -> antecedent_core::recalc::Branch {
+const fn branch_zero() -> antecedent_core::recalc::Branch {
     antecedent_core::recalc::Branch::new(0).expect("branch zero is below the branch limit")
 }
 

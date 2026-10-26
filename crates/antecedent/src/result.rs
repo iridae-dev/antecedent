@@ -1493,8 +1493,8 @@ impl StudyResult {
 /// `plain` variants hold the value directly; `boxed` variants hold it behind a `Box`.
 macro_rules! payload_accessors {
     (
-        plain: $($pvariant:ident => $pname:ident, $pinto:ident: $pty:ty;)*
-        boxed: $($bvariant:ident => $bname:ident, $binto:ident: $bty:ty;)*
+        plain: [$($pvariant:ident => $pname:ident, $pinto:ident: $pty:ty;)*]
+        boxed: [$($bvariant:ident => $bname:ident, $binto:ident: $bty:ty;)*]
     ) => {
         impl ResultPayload {
             $(
@@ -1569,7 +1569,7 @@ macro_rules! payload_accessors {
 }
 
 payload_accessors! {
-    plain:
+    plain: [
     Response => response, into_response: CausalResponse;
     Distribution => distribution, into_distribution: InterventionalDistributionEstimate;
     Counterfactual => counterfactual, into_counterfactual: IteResult;
@@ -1592,7 +1592,8 @@ payload_accessors! {
     SequentialContrast => sequential_contrast, into_sequential_contrast:
         SequentialContrastEstimate;
     HistoryMatch => history_match, into_history_match: HistoryMatchEstimate;
-    boxed:
+    ]
+    boxed: [
     TemporalDesign => temporal_design, into_temporal_design: TemporalDesignEstimate;
     IvBounds => iv_bounds, into_iv_bounds: antecedent_estimate::IvBoundsEstimate;
     Association => association, into_association:
@@ -1602,6 +1603,7 @@ payload_accessors! {
     Attribution => attribution, into_attribution:
         crate::analysis::structure_route::AttributionPayload;
     Simulation => simulation, into_simulation: crate::analysis::structure_route::SimulationPayload;
+    ]
 }
 
 impl StudyResult {
