@@ -106,10 +106,7 @@ pub fn randomized_quantile_posterior(
     #[allow(clippy::cast_precision_loss, reason = "draw counts are far below 2^52")]
     let unresolved_share = (draws - resolved) as f64 / draws as f64;
     if unresolved_share > MAX_UNRESOLVED_QUANTILE_SHARE {
-        return Err(EstimationError::unsupported(
-            "quantile posterior refused: the threshold grid does not bracket the quantile in \
-             enough posterior draws; widen the grid or move the level inside its range",
-        ));
+        return Err(EstimationError::QuantileGridUnresolved);
     }
     let differences: Vec<f64> =
         treated_draws.iter().zip(&control_draws).map(|(a, c)| a - c).collect();

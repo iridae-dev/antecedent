@@ -233,11 +233,12 @@ pub use identity::{
     transport_identity,
 };
 pub use joint_law_propagation_artifact::{
-    ConsumedJointLawPropagation, EnvelopeQueryWire, JOINT_LAW_PROPAGATION_ARTIFACT_FEATURE,
-    JOINT_LAW_PROPAGATION_ARTIFACT_VERSION, JOINT_LAW_PROPAGATION_MAX_INPUTS,
+    BoundsWire, ConsumedJointLawPropagation, EnvelopeQuantityWire, EnvelopeQueryWire,
+    JOINT_LAW_PROPAGATION_ARTIFACT_FEATURE, JOINT_LAW_PROPAGATION_ARTIFACT_VERSION,
+    JOINT_LAW_PROPAGATION_LEGACY_ARTIFACT_VERSION, JOINT_LAW_PROPAGATION_MAX_INPUTS,
     JointLawPropagationArtifactError, JointLawPropagationArtifactWire, MarginalWire,
-    PropagationInputWire, PropagationRequestWire, PropagationRuleWire, float_bits,
-    joint_law_propagation_identity,
+    PropagationInputWire, PropagationRequestWire, PropagationResultWire, PropagationRuleWire,
+    VerdictWire, float_bits, joint_law_propagation_identity,
 };
 pub use mechanism_composition_artifact::{
     CompositionQueryWire, CompositionResultWire, ConsumedMechanismComposition,

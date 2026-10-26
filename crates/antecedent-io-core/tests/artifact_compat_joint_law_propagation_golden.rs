@@ -1,12 +1,12 @@
 //! Golden fixture for the joint-law propagation artifact (`joint_law_propagation_v1`).
 //!
-//! The golden lives at `tests/fixtures/joint_law_propagation_v1.bin`. The loader decodes
-//! it, consumes it as a fresh consumer (the rule decides again from the stored declaration
-//! and the result is replayed rather than trusted) and requires the identity a producer
-//! derives today. A missing golden fails with the command that writes it.
-//!
-//! Generate or refresh it with
-//! `cargo test -p antecedent-io-core --test artifact_compat_joint_law_propagation_golden -- --ignored write_`
+//! The golden lives at `tests/fixtures/joint_law_propagation_v1.bin` and holds the earlier
+//! layout, whose result is a list of named entries (format version 1). It is a fixed
+//! fixture, never regenerated: the loader decodes it, maps the stored result into the typed
+//! result, consumes it as a fresh consumer (the rule decides again from the stored
+//! declaration and the result is replayed rather than trusted) and requires the identity a
+//! producer derives today, so artifacts stored in the earlier layout keep replaying. The
+//! writer below produces the current layout.
 //!
 //! Oracle: the contrast of effects with means 5 and 2, variances 4 and 9 and covariance 3
 //! has mean 3 and variance 4 + 9 - 2 * 3 = 7.
@@ -22,12 +22,11 @@ use antecedent_contract::{
 use antecedent_core::ExecutionContext;
 use antecedent_io_core::joint_law_propagation_artifact::{
     JOINT_LAW_PROPAGATION_ARTIFACT_FEATURE, JOINT_LAW_PROPAGATION_ARTIFACT_VERSION,
-    JointLawPropagationArtifactError, JointLawPropagationArtifactWire, PropagationRequestWire,
-    float_bits,
+    JOINT_LAW_PROPAGATION_LEGACY_ARTIFACT_VERSION, JointLawPropagationArtifactError,
+    JointLawPropagationArtifactWire, PropagationRequestWire, PropagationResultWire, float_bits,
 };
 use antecedent_test_support::read_fixture_bytes;
 
-const GENERATOR: &str = "cargo test -p antecedent-io-core --test artifact_compat_joint_law_propagation_golden -- --ignored write_";
 const GOLDEN: &str = "joint_law_propagation_v1.bin";
 
 fn fixture_dir() -> PathBuf {
@@ -66,21 +65,25 @@ fn contrast() -> JointLawPropagationArtifactWire {
 }
 
 #[test]
-#[ignore = "writes tests/fixtures; run with `-- --ignored write_`"]
-fn write_joint_law_propagation_golden() {
-    let dir = fixture_dir();
-    std::fs::create_dir_all(&dir).expect("create the fixture directory");
-    std::fs::write(dir.join(GOLDEN), contrast().export().expect("export"))
-        .expect("write the golden");
-}
-
-#[test]
 fn the_joint_law_propagation_golden_is_replayed_and_gated() {
     let bytes =
-        read_fixture_bytes(&fixture_dir(), GOLDEN, &format!("generate it with `{GENERATOR}`"));
+        read_fixture_bytes(&fixture_dir(), GOLDEN, "the earlier-layout fixture is checked in");
     let fresh = contrast();
     let decoded = JointLawPropagationArtifactWire::decode(&bytes).expect("decodes");
-    assert_eq!(decoded.version, JOINT_LAW_PROPAGATION_ARTIFACT_VERSION);
+    assert_eq!(decoded.version, JOINT_LAW_PROPAGATION_LEGACY_ARTIFACT_VERSION);
+    assert_eq!(
+        decoded.result,
+        PropagationResultWire::Moments { mean: 3.0_f64.to_bits(), variance: 7.0_f64.to_bits() }
+    );
+    assert_eq!(decoded.result, fresh.result);
+    assert_eq!(decoded.identity, fresh.identity);
+    // The earlier layout is read-only: it is not re-written under its old version.
+    assert_eq!(
+        decoded.export(),
+        Err(JointLawPropagationArtifactError::UnsupportedVersion {
+            version: JOINT_LAW_PROPAGATION_LEGACY_ARTIFACT_VERSION
+        })
+    );
     let consumed = decoded
         .consume(Some(&fresh.identity), &ctx())
         .expect("a fresh consumer replays the stored propagation");
@@ -94,7 +97,9 @@ fn the_joint_law_propagation_golden_is_replayed_and_gated() {
     let newer_bytes = antecedent_io_core::to_cbor(&newer).expect("encode");
     assert_eq!(
         JointLawPropagationArtifactWire::decode(&newer_bytes),
-        Err(JointLawPropagationArtifactError::UnsupportedVersion { version: 2 })
+        Err(JointLawPropagationArtifactError::UnsupportedVersion {
+            version: JOINT_LAW_PROPAGATION_ARTIFACT_VERSION + 1
+        })
     );
     let mut feature = decoded;
     feature.required_features = vec!["future_feature".into()];
@@ -104,4 +109,17 @@ fn the_joint_law_propagation_golden_is_replayed_and_gated() {
         Err(JointLawPropagationArtifactError::UnsupportedSemantics("required features"))
     );
     assert_eq!(JOINT_LAW_PROPAGATION_ARTIFACT_FEATURE, "joint_law_propagation_v1");
+}
+
+#[test]
+fn the_current_layout_round_trips_and_names_the_typed_result() {
+    let fresh = contrast();
+    assert_eq!(fresh.version, JOINT_LAW_PROPAGATION_ARTIFACT_VERSION);
+    let decoded = JointLawPropagationArtifactWire::decode(&fresh.export().expect("export"))
+        .expect("decodes");
+    assert_eq!(decoded, fresh);
+    let consumed = decoded.consume(Some(&fresh.identity), &ctx()).expect("replays");
+    assert_eq!(consumed.value("mean"), Some(3.0));
+    assert_eq!(consumed.n_rows(), None);
+    assert_eq!(consumed.verdict(), None);
 }

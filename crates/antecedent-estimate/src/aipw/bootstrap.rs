@@ -154,7 +154,7 @@ pub(crate) fn resampled_problem(
     );
     p.design_matrix = design.into();
     p.nrows = idx.len();
-    p.treatment = gather(&problem.treatment, idx).into();
+    p.set_treatment(gather(&problem.treatment, idx).into());
     p.outcome = gather(&problem.outcome, idx).into();
     p.row_index = idx.iter().map(|&i| problem.row_index[i]).collect::<Vec<_>>().into();
     p.fold_assignment = problem
@@ -376,9 +376,7 @@ impl AipwAte {
         let run = match run {
             Ok(run) => run,
             Err(DriveError::Estimator(error)) => return Err(error),
-            Err(DriveError::Wave(error)) => {
-                return Err(EstimationError::data_msg(error.to_string()));
-            }
+            Err(DriveError::Wave(error)) => return Err(EstimationError::Wave(error)),
         };
         // A wave discarded by cancellation leaves its penalties behind: keep exactly the
         // replicates whose estimates the run kept.

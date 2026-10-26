@@ -547,8 +547,7 @@ impl AipwAte {
             target.functional,
             target.functional,
             ProgramLimits::default(),
-        )
-        .map_err(|e| EstimationError::data_msg(format!("checked AIPW target program: {e}")))?;
+        )?;
         let problem = self.prepare(data, target, query)?;
         if problem.treatment_levels.excluded_rows > 0 {
             return Err(EstimationError::unsupported(

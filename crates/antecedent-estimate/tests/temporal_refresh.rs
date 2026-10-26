@@ -66,7 +66,7 @@ fn invalidation_detail(result: Result<impl std::fmt::Debug, EstimationError>) ->
         panic!("expected a coded refusal");
     };
     assert_eq!(code, "route_not_supported");
-    message
+    message.into_string()
 }
 
 #[test]

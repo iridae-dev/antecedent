@@ -19,7 +19,6 @@ use antecedent_contract::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
 use crate::error::IoError;
 use crate::external_binding_wire::ExternalBindingRefusalWire;
 use crate::external_claim_artifact::VerificationProbeWire;
@@ -290,11 +289,7 @@ pub fn receipt_to_bytes(
     receipt: &ProviderVerificationReceipt,
     artifact_id: &str,
 ) -> Result<Vec<u8>, IoError> {
-    if artifact_id.trim().is_empty() {
-        return Err(convert("missing artifact id"));
-    }
-    let meta = to_cbor(&ProviderVerificationReceiptWire::from(receipt))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned_io(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "provider_verification_receipt",
@@ -302,9 +297,11 @@ pub fn receipt_to_bytes(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection { id: META_SECTION, content_type: crate::CONTENT_CBOR, bytes: &meta }],
+        META_SECTION,
+        &ProviderVerificationReceiptWire::from(receipt),
+        &[],
+        "unsupported provider verification layout",
     )
-    .map_err(|error| error.into_io("unsupported provider verification layout"))
 }
 
 /// Load a receipt and check it against the digest the consumer retained.
@@ -332,25 +329,17 @@ pub fn receipt_from_bytes_within(
     if bytes.len() > max_bytes {
         return Err(IoError::TooLarge);
     }
-    let parts = crate::decode_container(
-        ARTIFACT_KIND,
-        max_bytes,
-        &[META_SECTION],
-        bytes,
-    )
-    .map_err(|error| error.into_io("unsupported provider verification layout"))?;
-    let Ok([meta]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(convert("unsupported provider verification layout"));
-    };
     // The version is gated from the untyped value before the typed shape is read.
-    let wire: ProviderVerificationReceiptWire =
-        crate::decode_with_version(&meta, |version: u16| {
-            if version == 1 {
-                Ok(())
-            } else {
-                Err(IoError::UnsupportedVersion { version: u32::from(version) })
-            }
-        })?;
+    let (wire, []): (ProviderVerificationReceiptWire, _) =
+        crate::artifact_codec::decode_sectioned_io_versioned(
+            ARTIFACT_KIND,
+            max_bytes,
+            META_SECTION,
+            &[],
+            "unsupported provider verification layout",
+            1,
+            bytes,
+        )?;
     if wire.digest != expected_digest {
         return Err(IoError::Refused {
             code: antecedent_core::reason_code!("external_binding_mismatch"),

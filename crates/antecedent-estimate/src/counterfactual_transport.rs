@@ -86,7 +86,7 @@ const DETAIL_COUNTED: &str = "counterfactual_transport.sampled_inference_closed"
 const DETAIL_BUDGET: &str = "counterfactual_transport.budget";
 
 fn refused(code: &'static str, detail: &str, message: impl AsRef<str>) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {}", message.as_ref()))
+    EstimationError::refused_detail(code, detail, message)
 }
 
 fn invalid(message: impl AsRef<str>) -> EstimationError {

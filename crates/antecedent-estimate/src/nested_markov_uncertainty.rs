@@ -100,9 +100,10 @@ mod internal {
     }
 
     fn refusal(detail: &str, message: &str) -> EstimationError {
-        EstimationError::refused(
+        EstimationError::refused_detail(
             antecedent_core::reason_code!("invalid_argument"),
-            format!("{detail}: {message}"),
+            detail,
+            message,
         )
     }
 

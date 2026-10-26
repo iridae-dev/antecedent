@@ -10,7 +10,6 @@ use antecedent_contract::ScientificQuantity;
 use serde::{Deserialize, Serialize};
 
 use crate::container::EncodedArtifact;
-use crate::convert::{from_cbor, to_cbor};
 use crate::error::IoError;
 use crate::posterior::{
     CausalPosteriorWire, PosteriorQuantityWire, decode_posterior_artifact, validate_posterior_meta,
@@ -463,15 +462,11 @@ impl DistributionArtifact {
     /// A payload larger than the declared bound or invalid metadata is refused.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, IoError> {
         validate(&self.metadata, &self.draws)?;
-        if artifact_id.trim().is_empty() {
-            return Err(IoError::Convert("missing artifact id".into()));
-        }
-        let meta_bytes = to_cbor(&self.metadata)?;
         let mut draw_bytes = Vec::with_capacity(self.draws.len() * 8);
         for value in &self.draws {
             draw_bytes.extend_from_slice(&value.to_le_bytes());
         }
-        crate::encode_container(
+        crate::artifact_codec::encode_sectioned_io(
             &crate::ArtifactContainer {
                 kind: ARTIFACT_KIND,
                 note: "aligned_joint_distribution",
@@ -479,20 +474,15 @@ impl DistributionArtifact {
                 artifact_id,
                 library_version: env!("CARGO_PKG_VERSION"),
             },
-            &[
-                crate::OutSection {
-                    id: META_SECTION,
-                    content_type: crate::CONTENT_CBOR,
-                    bytes: &meta_bytes,
-                },
-                crate::OutSection {
-                    id: DRAW_SECTION,
-                    content_type: crate::CONTENT_BYTES,
-                    bytes: &draw_bytes,
-                },
-            ],
+            META_SECTION,
+            &self.metadata,
+            &[crate::OutSection {
+                id: DRAW_SECTION,
+                content_type: crate::CONTENT_BYTES,
+                bytes: &draw_bytes,
+            }],
+            "unsupported distribution artifact layout",
         )
-        .map_err(|error| error.into_io("unsupported distribution artifact layout"))
     }
 
     /// Load and check against an independently retained scientific identity.
@@ -509,17 +499,15 @@ impl DistributionArtifact {
             return Err(IoError::TooLarge);
         }
         expected.validate()?;
-        let parts = crate::decode_container(
-            ARTIFACT_KIND,
-            MAX_DISTRIBUTION_ARTIFACT_BYTES,
-            &[META_SECTION, DRAW_SECTION],
-            bytes,
-        )
-        .map_err(|error| error.into_io("unsupported distribution artifact layout"))?;
-        let Ok([meta_bytes, draw_bytes]) = <[Vec<u8>; 2]>::try_from(parts) else {
-            return Err(IoError::Convert("unsupported distribution artifact layout".into()));
-        };
-        let metadata: DistributionMetadata = from_cbor(&meta_bytes)?;
+        let (metadata, [draw_bytes]): (DistributionMetadata, _) =
+            crate::artifact_codec::decode_sectioned_io(
+                ARTIFACT_KIND,
+                MAX_DISTRIBUTION_ARTIFACT_BYTES,
+                META_SECTION,
+                &[DRAW_SECTION],
+                "unsupported distribution artifact layout",
+                bytes,
+            )?;
         if metadata.identity != *expected {
             return Err(IoError::Refused {
                 code: antecedent_core::reason_code!("quantity_semantics_mismatch"),
@@ -1032,7 +1020,7 @@ mod tests {
                 .unwrap();
         let mut newer = original.metadata.clone();
         newer.version = 2;
-        let meta_bytes = to_cbor(&newer).unwrap();
+        let meta_bytes = crate::convert::to_cbor(&newer).unwrap();
         encoded.manifest.sections[0] =
             section_descriptor(META_SECTION, "application/cbor", &meta_bytes);
         encoded.sections[0] = SectionBytes::new(META_SECTION, meta_bytes);

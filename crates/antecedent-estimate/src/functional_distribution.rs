@@ -2261,9 +2261,10 @@ fn construct_cpt_entries(
         cells.checked_mul(column.levels.len()).filter(|&product| product <= 1_000_000)
     });
     if cells.is_none() {
-        return Err(EstimationError::refused(
+        return Err(EstimationError::refused_detail(
             antecedent_core::reason_code!("invalid_argument"),
-            "functional.factor_cell_budget: empirical factor exceeds one million Cartesian cells",
+            "functional.factor_cell_budget",
+            "empirical factor exceeds one million Cartesian cells",
         ));
     }
     let radices = |cols: &[&EncodedColumn]| -> Vec<u64> {

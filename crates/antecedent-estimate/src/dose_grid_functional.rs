@@ -309,9 +309,10 @@ impl DoseGridRow {
 }
 
 pub(crate) fn refuse(code: &'static str, detail: &'static str, message: &str) -> EstimationError {
-    EstimationError::refused_with_fields(
+    EstimationError::refused_detail_with_fields(
         code,
-        format!("{detail}: {message}"),
+        detail,
+        message,
         RefusalFields {
             stage: Some("dose_grid".to_owned()),
             reason: Some(detail.to_owned()),

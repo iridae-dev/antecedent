@@ -308,7 +308,7 @@ where
             run.stop == StopReason::Converged,
         )),
         Err(DriveError::Estimator(error)) => Err(error),
-        Err(DriveError::Wave(error)) => Err(EstimationError::data_msg(error.to_string())),
+        Err(DriveError::Wave(error)) => Err(EstimationError::Wave(error)),
     }
 }
 

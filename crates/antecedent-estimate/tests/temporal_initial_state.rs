@@ -41,7 +41,7 @@ const SEQUENCE: [u32; 2] = [0, 0];
 
 fn refused(error: EstimationError) -> (&'static str, String) {
     match error {
-        EstimationError::Refused { code, message } => (code, message),
+        EstimationError::Refused { code, message } => (code, message.into_string()),
         other => panic!("expected a registered refusal, got {other:?}"),
     }
 }
@@ -71,14 +71,14 @@ fn panel() -> TemporalUnitPanel {
                         let n_cell = n_l / 2;
                         let ones = n_cell / 10 * (M10[s0][a1][l][a2] + shift) as u64;
                         for k in 0..n_cell {
-                            histories.push(SequenceHistory {
-                                time_id: histories.len() as u64,
-                                s0: s0 as u32,
-                                a1: a1 as u32,
-                                l2: l as u32,
-                                a2: a2 as u32,
-                                y: if k < ones { 1.0 } else { 0.0 },
-                            });
+                            histories.push(SequenceHistory::two_step(
+                                histories.len() as u64,
+                                s0 as u32,
+                                a1 as u32,
+                                l as u32,
+                                a2 as u32,
+                                if k < ones { 1.0 } else { 0.0 },
+                            ));
                         }
                     }
                 }
@@ -184,14 +184,14 @@ fn initial_state_sum_differs_from_fixing_the_state_at_its_mode() {
     let marginalized = target_query(0.7).effect(&p).unwrap();
     // The mode of the target law is s0 = 1; fixing it is the wrong answer to the
     // target-marginal question.
-    let at_mode = FixedStateQuery { sequence: SEQUENCE, s0: 1 }.effect(&p).unwrap();
+    let at_mode = FixedStateQuery { sequence: SEQUENCE.to_vec(), s0: 1 }.effect(&p).unwrap();
     assert!((at_mode.value - 0.46).abs() < 1e-12);
     assert!((marginalized.value - at_mode.value).abs() > 0.03, "fixing the state is wrong here");
-    let at_zero = FixedStateQuery { sequence: SEQUENCE, s0: 0 }.effect(&p).unwrap();
+    let at_zero = FixedStateQuery { sequence: SEQUENCE.to_vec(), s0: 0 }.effect(&p).unwrap();
     assert!((at_zero.value - 0.33).abs() < 1e-12);
     assert!(at_zero.value < marginalized.value && marginalized.value < at_mode.value);
     // The panel's own observed-state law is yet another quantity.
-    let observed = ObservedStateSequence { sequence: SEQUENCE };
+    let observed = ObservedStateSequence { sequence: SEQUENCE.to_vec() };
     let units = p.units().iter().collect::<Vec<_>>();
     let observed = observed.estimate(&units).unwrap();
     assert!((observed - 0.395).abs() < 1e-12);
@@ -201,14 +201,14 @@ fn initial_state_sum_differs_from_fixing_the_state_at_its_mode() {
 #[test]
 fn initial_state_sum_results_are_typed_and_labelled_distinctly() {
     let p = panel();
-    let fixed = FixedStateQuery { sequence: SEQUENCE, s0: 1 }.effect(&p).unwrap();
+    let fixed = FixedStateQuery { sequence: SEQUENCE.to_vec(), s0: 1 }.effect(&p).unwrap();
     let marginalized = target_query(0.7).effect(&p).unwrap();
     assert_eq!(fixed.label(), "fixed_initial_state");
     assert_eq!(marginalized.label(), "marginalized_initial_state");
     assert_ne!(FixedStateEffect::LABEL, MarginalizedEffect::LABEL);
     assert_eq!(fixed.s0, 1);
     assert_eq!(fixed.sequence, SEQUENCE);
-    let fixed_estimator = FixedStateQuery { sequence: SEQUENCE, s0: 1 };
+    let fixed_estimator = FixedStateQuery { sequence: SEQUENCE.to_vec(), s0: 1 };
     let marginal_estimator = target_query(0.7);
     assert_eq!(TemporalEstimator::label(&fixed_estimator), "fixed_initial_state");
     assert_eq!(TemporalEstimator::label(&marginal_estimator), "marginalized_initial_state");
@@ -267,7 +267,7 @@ fn source_state_only_refuses_support_gaps_bounds_and_malformed_laws() {
     assert_eq!(code, "transport_support_failure");
     assert!(message.contains("initial_state.support_gap"), "{message}");
     let (_, message) =
-        refused(FixedStateQuery { sequence: SEQUENCE, s0: 7 }.effect(&panel()).unwrap_err());
+        refused(FixedStateQuery { sequence: SEQUENCE.to_vec(), s0: 7 }.effect(&panel()).unwrap_err());
     assert!(message.contains("initial_state.support_gap"), "{message}");
 
     let many = (0..=INITIAL_STATE_MAX_STATES as u32)

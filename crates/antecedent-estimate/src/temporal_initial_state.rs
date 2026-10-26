@@ -1,9 +1,10 @@
-//! Uncertain pre-action state of the finite two-step sequence.
+//! Uncertain pre-action state of the finite action sequence.
 //!
-//! The target two-step mean marginalized over the initial state is
+//! The target sequence mean marginalized over the initial state is
 //! `sum_{s0} P_target(s0) * R(s0)`, where `R(s0)` is the whole sequence's
 //! response given `s0` read from the histories (the history-conditioned
-//! functional): `R(s0) = sum_l P(l | s0, a1) E[y | s0, a1, l, a2]`. The initial
+//! functional): with two steps `R(s0) = sum_l P(l | s0, a1) E[y | s0, a1, l, a2]`,
+//! and with more steps the covariate laws nest step by step. The initial
 //! state is supplied as a finite target law with its own snapshot id; a source
 //! law or a single state cannot answer a target-marginal query. Fixing the
 //! state is a different estimand with its own result type, and neither type
@@ -42,32 +43,35 @@ pub(crate) const INITIAL_STATE_SUPPORT_GAP: &str = "initial_state.support_gap";
 /// The refusal of the public initial-state route until its evidence passes.
 #[must_use]
 pub fn route_frozen_refusal() -> EstimationError {
-    EstimationError::refused(
+    EstimationError::refused_detail(
         reason_code!("cell_not_licensed"),
-        format!(
-            "{INITIAL_STATE_ROUTE_FROZEN}: the target initial-state distribution route has not \
-             passed truth and artifact evidence"
-        ),
+        INITIAL_STATE_ROUTE_FROZEN,
+        "the target initial-state distribution route has not passed truth and artifact evidence",
     )
 }
 
 fn target_law_missing(message: &str) -> EstimationError {
-    EstimationError::refused(
+    EstimationError::refused_detail(
         reason_code!("transport_missing_evidence"),
-        format!("{INITIAL_STATE_TARGET_LAW_MISSING}: {message}"),
+        INITIAL_STATE_TARGET_LAW_MISSING,
+        message,
     )
 }
 
 pub(crate) fn support_gap(s0: u32, gap: ResponseGap) -> EstimationError {
     let what = match gap {
         ResponseGap::NoState => "no history starts in it under the first action".to_owned(),
-        ResponseGap::NoCell { l2 } => {
-            format!("no history with step-2 covariate {l2} takes the second action")
+        ResponseGap::NoCell { step: 2, covariate } => {
+            format!("no history with step-2 covariate {covariate} takes the second action")
+        }
+        ResponseGap::NoCell { step, covariate } => {
+            format!("no history with step-{step} covariate {covariate} takes the step-{step} action")
         }
     };
-    EstimationError::refused(
+    EstimationError::refused_detail(
         reason_code!("transport_support_failure"),
-        format!("{INITIAL_STATE_SUPPORT_GAP}: initial state {s0} has target mass but {what}"),
+        INITIAL_STATE_SUPPORT_GAP,
+        format!("initial state {s0} has target mass but {what}"),
     )
 }
 
@@ -103,11 +107,11 @@ impl InitialStateLaw {
     ) -> Result<Self, EstimationError> {
         let snapshot_id = snapshot_id.into();
         if states.len() > INITIAL_STATE_MAX_STATES {
-            return Err(EstimationError::refused(
+            return Err(EstimationError::refused_detail(
                 reason_code!("route_not_supported"),
+                INITIAL_STATE_TOO_MANY_STATES,
                 format!(
-                    "{INITIAL_STATE_TOO_MANY_STATES}: {} support points exceed the cap of \
-                     {INITIAL_STATE_MAX_STATES}",
+                    "{} support points exceed the cap of {INITIAL_STATE_MAX_STATES}",
                     states.len()
                 ),
             ));
@@ -187,8 +191,8 @@ pub struct StateContribution {
 pub struct FixedStateEffect {
     /// The response `R(s0)`.
     pub value: f64,
-    /// Actions of the two steps.
-    pub sequence: [u32; 2],
+    /// The action of each step.
+    pub sequence: Vec<u32>,
     /// The fixed state.
     pub s0: u32,
     /// Snapshot of the panel the histories came from.
@@ -211,8 +215,8 @@ impl FixedStateEffect {
 pub struct MarginalizedEffect {
     /// `sum_s0 P_target(s0) R(s0)`.
     pub value: f64,
-    /// Actions of the two steps.
-    pub sequence: [u32; 2],
+    /// The action of each step.
+    pub sequence: Vec<u32>,
     /// Every positive-mass state with its mass and conditional response.
     pub contributions: Vec<StateContribution>,
     /// Snapshot id of the target initial-state law.
@@ -237,17 +241,17 @@ impl MarginalizedEffect {
 }
 
 /// The fixed-state estimand of a sequence.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FixedStateQuery {
-    /// Actions of the two steps.
-    pub sequence: [u32; 2],
+    /// The action of each step.
+    pub sequence: Vec<u32>,
     /// The state held fixed.
     pub s0: u32,
 }
 
 impl FixedStateQuery {
     fn response(&self, units: &[&UnitHistories]) -> Result<f64, EstimationError> {
-        SequenceTallies::of(units, self.sequence)
+        SequenceTallies::of(units, &self.sequence)
             .response(self.s0)
             .map_err(|gap| support_gap(self.s0, gap))
     }
@@ -260,7 +264,7 @@ impl FixedStateQuery {
         let units = panel.units().iter().collect::<Vec<_>>();
         Ok(FixedStateEffect {
             value: self.response(&units)?,
-            sequence: self.sequence,
+            sequence: self.sequence.clone(),
             s0: self.s0,
             panel_snapshot_id: panel.snapshot_id().to_owned(),
         })
@@ -280,7 +284,7 @@ impl TemporalEstimator for FixedStateQuery {
 /// The target-marginal estimand of a sequence: only a target law can form it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MarginalizedQuery {
-    sequence: [u32; 2],
+    sequence: Vec<u32>,
     law: InitialStateLaw,
 }
 
@@ -290,7 +294,11 @@ impl MarginalizedQuery {
     /// # Errors
     /// `transport_missing_evidence` / `initial_state.target_law_missing` for a point
     /// state or a source-population law.
-    pub fn new(sequence: [u32; 2], spec: InitialStateSpec) -> Result<Self, EstimationError> {
+    pub fn new(
+        sequence: impl Into<Vec<u32>>,
+        spec: InitialStateSpec,
+    ) -> Result<Self, EstimationError> {
+        let sequence = sequence.into();
         match spec {
             InitialStateSpec::Point(s0) => Err(target_law_missing(&format!(
                 "a single state ({s0}) is not a target initial-state law; fixing it is a \
@@ -312,11 +320,17 @@ impl MarginalizedQuery {
         &self.law
     }
 
+    /// The action of each step.
+    #[must_use]
+    pub fn sequence(&self) -> &[u32] {
+        &self.sequence
+    }
+
     fn contributions(
         &self,
         units: &[&UnitHistories],
     ) -> Result<Vec<StateContribution>, EstimationError> {
-        crate::temporal_history_fit::FittedSequenceHistory::fit(units, self.sequence)
+        crate::temporal_history_fit::FittedSequenceHistory::fit(units, &self.sequence)
             .contributions(&self.law)
     }
 
@@ -330,7 +344,7 @@ impl MarginalizedQuery {
         let contributions = self.contributions(&units)?;
         Ok(MarginalizedEffect {
             value: contributions.iter().map(|c| c.mass * c.response).sum(),
-            sequence: self.sequence,
+            sequence: self.sequence.clone(),
             contributions,
             state_snapshot_id: self.law.snapshot_id.clone(),
             state_law_digest: self.law.digest,

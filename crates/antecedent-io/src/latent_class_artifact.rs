@@ -95,15 +95,16 @@ crate::sectioned_artifact_error!(
     true
 );
 
-fn budget_refusal((code, message): BudgetRefusal) -> LatentClassArtifactError {
-    LatentClassArtifactError::Refused { code, message }
+fn budget_refusal((code, detail, explanation): BudgetRefusal) -> LatentClassArtifactError {
+    LatentClassArtifactError::refused(code, detail, explanation)
 }
 
 fn invalid_request(message: &str) -> LatentClassArtifactError {
-    LatentClassArtifactError::Refused {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        message: format!("latent_class.invalid_request: {message}"),
-    }
+    LatentClassArtifactError::refused(
+        antecedent_core::reason_code!("invalid_argument"),
+        "latent_class.invalid_request",
+        message,
+    )
 }
 
 /// Fit configuration on the wire.
@@ -610,19 +611,13 @@ fn identity_diff(
     stored: &LatentClassIdentity,
     other: &LatentClassIdentity,
 ) -> Option<&'static str> {
-    if stored.premises_id != other.premises_id {
-        Some("premises")
-    } else if stored.config_id != other.config_id {
-        Some("config")
-    } else if stored.data_id != other.data_id {
-        Some("data")
-    } else if stored.result_id != other.result_id {
-        Some("result")
-    } else if stored.digest != other.digest {
-        Some("identity")
-    } else {
-        None
-    }
+    crate::first_identity_difference!(stored, other, {
+        premises_id => "premises",
+        config_id => "config",
+        data_id => "data",
+        result_id => "result",
+        digest => "identity",
+    })
 }
 
 /// Encode a metadata section and a data section as a checksummed container.
@@ -856,18 +851,12 @@ impl LatentClassArtifact {
     ) -> Result<Self, LatentClassArtifactError> {
         let (meta, payload) = decode_parts_impl(bytes)?;
         let unsupported = LatentClassArtifactError::UnsupportedSemantics;
-        if meta.feature != LATENT_CLASS_ARTIFACT_FEATURE {
-            return Err(unsupported("feature marker"));
-        }
-        if meta.inference_claim != LATENT_CLASS_INFERENCE_CLAIM {
-            return Err(unsupported("inference claim"));
-        }
-        if meta.calibration != LATENT_CLASS_ARTIFACT_CALIBRATION {
-            return Err(unsupported("calibration"));
-        }
-        if meta.caveat != LATENT_CLASS_CAVEAT {
-            return Err(unsupported("caveat"));
-        }
+        crate::artifact_codec::require_markers::<LatentClassArtifactError>(&[
+            (meta.feature == LATENT_CLASS_ARTIFACT_FEATURE, "feature marker"),
+            (meta.inference_claim == LATENT_CLASS_INFERENCE_CLAIM, "inference claim"),
+            (meta.calibration == LATENT_CLASS_ARTIFACT_CALIBRATION, "calibration"),
+            (meta.caveat == LATENT_CLASS_CAVEAT, "caveat"),
+        ])?;
         let request = match (meta.data_binding.as_deref(), data) {
             (None, None) => request_of(&meta, &payload)?,
             (None, Some(_)) => {
@@ -877,14 +866,15 @@ impl LatentClassArtifact {
                 bound_request(&meta, &payload, supplied)?
             }
             (Some(DATA_BOUND_BY_DIGEST), None) => {
-                return Err(LatentClassArtifactError::Refused {
-                    code: antecedent_core::reason_code!("route_not_supported"),
-                    message: format!(
-                        "latent_class.data_required: the artifact is bound to its dataset by \
-                         digest {}; supply the dataset to replay it",
+                return Err(LatentClassArtifactError::refused(
+                    antecedent_core::reason_code!("route_not_supported"),
+                    "latent_class.data_required",
+                    format!(
+                        "the artifact is bound to its dataset by digest {}; supply the dataset \
+                         to replay it",
                         meta.identity.data_id
                     ),
-                });
+                ));
             }
             (Some(_), _) => return Err(unsupported("data binding")),
         };

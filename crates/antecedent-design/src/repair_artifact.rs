@@ -82,6 +82,27 @@ pub(crate) const MAX_REPAIR_OUTCOMES: usize = REPAIR_MAX_OPERATIONS;
 /// Most obligations a stored report may carry.
 pub(crate) const MAX_REPAIR_OBLIGATIONS: usize = 1024;
 
+/// Maxima a consumer accepts of a stored report's size, refused before any replay.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RepairReadLimits {
+    /// Largest container, in bytes.
+    pub max_bytes: usize,
+    /// Most outcomes beyond one per declared candidate.
+    pub max_outcomes: usize,
+    /// Most obligations.
+    pub max_obligations: usize,
+}
+
+impl Default for RepairReadLimits {
+    fn default() -> Self {
+        Self {
+            max_bytes: MAX_REPAIR_ARTIFACT_BYTES,
+            max_outcomes: MAX_REPAIR_OUTCOMES,
+            max_obligations: MAX_REPAIR_OBLIGATIONS,
+        }
+    }
+}
+
 const BODY_SECTION: &str = "repair_body";
 
 /// A refused artifact: a registered reason code and a stable detail.
@@ -1330,9 +1351,20 @@ impl RepairReportArtifact {
     /// `repair_artifact.invalid_artifact` for a corrupt container, another
     /// layout or a report beyond the declared collection bounds.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, RepairArtifactError> {
+        Self::from_bytes_with_limits(bytes, RepairReadLimits::default())
+    }
+
+    /// [`Self::from_bytes`] under the caller's maxima instead of the defaults.
+    ///
+    /// # Errors
+    /// Those of [`Self::from_bytes`], with `limits` in place of the default bounds.
+    pub fn from_bytes_with_limits(
+        bytes: &[u8],
+        limits: RepairReadLimits,
+    ) -> Result<Self, RepairArtifactError> {
         let parts = antecedent_io_core::decode_container(
             REPAIR_ARTIFACT_KIND,
-            MAX_REPAIR_ARTIFACT_BYTES,
+            limits.max_bytes,
             &[BODY_SECTION],
             bytes,
         )
@@ -1354,11 +1386,11 @@ impl RepairReportArtifact {
             ));
         };
         let artifact: Self = from_cbor(&body).map_err(|e| RepairArtifactError::from_io(&e))?;
-        artifact.check_shape()?;
+        artifact.check_shape(limits)?;
         Ok(artifact)
     }
 
-    fn check_shape(&self) -> Result<(), RepairArtifactError> {
+    fn check_shape(&self, limits: RepairReadLimits) -> Result<(), RepairArtifactError> {
         if self.version != REPAIR_ARTIFACT_VERSION || self.kind != REPAIR_ARTIFACT_KIND {
             return Err(RepairArtifactError::unsupported_version(
                 "unsupported repair artifact version",
@@ -1366,8 +1398,8 @@ impl RepairReportArtifact {
         }
         let receipt = &self.report.receipt;
         if self.report.outcomes.len()
-            > MAX_REPAIR_OUTCOMES.saturating_add(self.premises.candidates.len())
-            || self.report.obligations.len() > MAX_REPAIR_OBLIGATIONS
+            > limits.max_outcomes.saturating_add(self.premises.candidates.len())
+            || self.report.obligations.len() > limits.max_obligations
             || receipt.explored.len() > REPAIR_RECEIPT_REGIONS
             || receipt.unevaluated.len() > REPAIR_RECEIPT_REGIONS
             || receipt.stop.as_ref().is_some_and(|s| {
@@ -1676,7 +1708,20 @@ impl RepairReportArtifact {
         limits: RepairConsumeLimits,
         ctx: &ExecutionContext,
     ) -> Result<RepairReport, RepairArtifactError> {
-        self.check_shape()?;
+        self.consume_with_read_limits(limits, RepairReadLimits::default(), ctx)
+    }
+
+    /// [`Self::consume`] accepting the stored-report sizes `read` allows instead of the defaults.
+    ///
+    /// # Errors
+    /// Those of [`Self::consume`], with `read` in place of the default size bounds.
+    pub fn consume_with_read_limits(
+        &self,
+        limits: RepairConsumeLimits,
+        read: RepairReadLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<RepairReport, RepairArtifactError> {
+        self.check_shape(read)?;
         let stored = self.premises.limits;
         let memory_cap = ctx
             .memory_limit_bytes()

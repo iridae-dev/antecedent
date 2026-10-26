@@ -84,7 +84,7 @@ mod inference;
 pub mod ou_mechanisms;
 pub mod polynomial_scm;
 pub mod population_aipw;
-pub mod population_atc;
+mod population_atc;
 pub use antecedent_stats::identified_set;
 pub mod heterogeneity_robust_did;
 pub mod interference;
@@ -149,10 +149,10 @@ pub mod sequential_crossfit;
 pub mod serial_dependence;
 pub mod staggered_event_study;
 pub mod statistical_transport;
-pub mod streamed_adjustment;
-pub mod streamed_aipw;
+mod streamed_adjustment;
+mod streamed_aipw;
 pub mod streamed_iv;
-pub mod streamed_propensity;
+mod streamed_propensity;
 mod streamed_rows;
 pub mod survival;
 pub mod survival_posterior;
@@ -309,7 +309,9 @@ pub use envelope::{
     EnvelopeOptions, GraphEffectDraws, aggregate_effect_envelope,
     aggregate_mixture_functional_envelope,
 };
-pub use error::{EstimationError, ExactF64, RefusalFields};
+pub use error::{
+    CapacityFault, CapacityFaultKind, EstimationError, ExactF64, RefusalFields, RefusalMessage,
+};
 pub use estimator::Estimator;
 pub use arm::TreatmentArm;
 pub use fit_plan::JointFitPlan;
@@ -424,7 +426,8 @@ pub use serial_dependence::{
 pub use statistical_transport::{
     BayesianStatisticalTransportEstimate, INTERVAL_NUMERICAL_FAILURE, NominalZTransportInterval,
     PERCENTILE_BOOTSTRAP, POSTERIOR_EQUAL_TAIL, StatisticalTransportEstimate,
-    TransportUncertaintyRow, Z_TRANSPORT_INTERVAL_NOT_MEASURED, bayesian_z_transport_interval,
+    TransportIntervalReason, TransportUncertaintyRow, Z_TRANSPORT_INTERVAL_NOT_MEASURED,
+    bayesian_z_transport_interval,
     evaluate_bayesian_statistical_transport, evaluate_bayesian_statistical_transport_grid,
     evaluate_statistical_transport, mz_interval_withheld_reason, mz_sampling_dependence,
     nominal_z_transport_interval, percentile_interval, z_transport_bootstrap_law_draws,

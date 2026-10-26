@@ -1,4 +1,9 @@
-//! Source-bound empirical two-step history recalculation artifact.
+//! Source-bound empirical history recalculation artifact.
+//!
+//! The two-step layout is format version 1 and its bytes are the original ones. A
+//! recalculation over any other number of steps is format version 2 under its own
+//! feature marker; the two layouts share every type, and version 1 stays the only
+//! accepted layout of a two-step request.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::IoError;
@@ -9,25 +14,109 @@ use serde::{Deserialize, Serialize};
 
 /// Empirical history points, not supplied-exact laws or calibrated intervals.
 pub const TEMPORAL_RECALC_FEATURE: &str = "temporal_observational_initial_shift_v1";
+/// The feature marker of a recalculation over a number of steps other than two.
+pub const TEMPORAL_RECALC_HORIZON_FEATURE: &str = "temporal_observational_initial_shift_v2";
+/// The format version of a two-step recalculation.
+pub const TEMPORAL_RECALC_VERSION: u32 = 1;
+/// The format version of a recalculation over a number of steps other than two.
+pub const TEMPORAL_RECALC_HORIZON_VERSION: u32 = 2;
+/// The number of steps of the original layout.
+const ORIGINAL_HORIZON: usize = 2;
+/// Most steps an artifact may declare.
+const MAX_HORIZON: usize = 64;
 /// Published inference scope.
 pub const TEMPORAL_RECALC_INFERENCE: &str = "empirical_point_only";
 
 /// A complete history of one repeated unit.
+///
+/// A two-step history is written as the fields `s0, a1, l2, a2, y` (the original
+/// layout); any other number of steps is written with the `actions` and
+/// `covariates` lists.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[serde(try_from = "HistoryLayout", into = "HistoryLayout")]
 pub struct TemporalHistoryWire {
-    /// Start of this two-step window.
+    /// Start of this window.
     pub time_id: u64,
     /// Binary pre-action state.
     pub s0: u32,
-    /// Binary first action.
-    pub a1: u32,
-    /// Binary covariate before the second action.
-    pub l2: u32,
-    /// Binary second action.
-    pub a2: u32,
-    /// Binary outcome after the second action.
+    /// Binary action of each step, in order.
+    pub actions: Vec<u32>,
+    /// Binary covariate before the action of each step after the first.
+    pub covariates: Vec<u32>,
+    /// Binary outcome after the last action.
     pub y: f64,
+}
+
+impl TemporalHistoryWire {
+    /// A two-step history.
+    #[must_use]
+    pub fn two_step(time_id: u64, s0: u32, a1: u32, l2: u32, a2: u32, y: f64) -> Self {
+        Self { time_id, s0, actions: vec![a1, a2], covariates: vec![l2], y }
+    }
+
+    /// Whether the history has one action per step and one covariate per later step.
+    #[must_use]
+    pub fn is_well_formed(&self, horizon: usize) -> bool {
+        self.actions.len() == horizon && self.covariates.len() + 1 == horizon
+    }
+}
+
+/// The serialized fields of a history: the original two-step fields, or the lists.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HistoryLayout {
+    time_id: u64,
+    s0: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    a1: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    l2: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    a2: Option<u32>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    actions: Vec<u32>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    covariates: Vec<u32>,
+    y: f64,
+}
+
+impl From<TemporalHistoryWire> for HistoryLayout {
+    fn from(h: TemporalHistoryWire) -> Self {
+        let original = h.actions.len() == ORIGINAL_HORIZON && h.covariates.len() == 1;
+        let (a1, l2, a2) = if original {
+            (Some(h.actions[0]), Some(h.covariates[0]), Some(h.actions[1]))
+        } else {
+            (None, None, None)
+        };
+        let (actions, covariates) =
+            if original { (Vec::new(), Vec::new()) } else { (h.actions, h.covariates) };
+        Self { time_id: h.time_id, s0: h.s0, a1, l2, a2, actions, covariates, y: h.y }
+    }
+}
+
+impl TryFrom<HistoryLayout> for TemporalHistoryWire {
+    type Error = String;
+
+    fn try_from(l: HistoryLayout) -> Result<Self, String> {
+        match (l.a1, l.l2, l.a2) {
+            (Some(a1), Some(l2), Some(a2)) if l.actions.is_empty() && l.covariates.is_empty() => {
+                Ok(Self::two_step(l.time_id, l.s0, a1, l2, a2, l.y))
+            }
+            (None, None, None) if !l.actions.is_empty() => {
+                if l.actions.len() == ORIGINAL_HORIZON && l.covariates.len() == 1 {
+                    return Err("a two-step history is written as the fields s0, a1, l2, a2".into());
+                }
+                Ok(Self {
+                    time_id: l.time_id,
+                    s0: l.s0,
+                    actions: l.actions,
+                    covariates: l.covariates,
+                    y: l.y,
+                })
+            }
+            _ => Err("a history is either the two-step fields or the actions and covariates".into()),
+        }
+    }
 }
 /// Histories remain owned by their repeated unit, including in resampling.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -44,29 +133,30 @@ pub struct TemporalUnitWire {
 pub enum TemporalFunctionalWire {
     /// Mean response to one supported whole action sequence.
     Response {
-        /// The two ordered actions.
-        sequence: [u32; 2],
+        /// The ordered actions, one per step.
+        sequence: Vec<u32>,
     },
     /// Difference of two supported sequence response means.
     Effect {
         /// Active ordered actions.
-        active: [u32; 2],
+        active: Vec<u32>,
         /// Control ordered actions.
-        control: [u32; 2],
+        control: Vec<u32>,
     },
 }
 impl TemporalFunctionalWire {
     /// Required whole-sequence means, in publication order.
     #[must_use]
-    pub fn sequences(&self) -> Vec<[u32; 2]> {
-        match *self {
-            Self::Response { sequence } => vec![sequence],
-            Self::Effect { active, control } => vec![active, control],
+    pub fn sequences(&self) -> Vec<Vec<u32>> {
+        match self {
+            Self::Response { sequence } => vec![sequence.clone()],
+            Self::Effect { active, control } => vec![active.clone(), control.clone()],
         }
     }
 }
 /// All actual data and premises required by a fresh checked consumer.
-/// Coordinates are fixed: s0=0, a1=1, l2=2, a2=3, y=4.
+/// Coordinates are numbered in time order: s0=0, a1=1, then each later step's covariate
+/// and action, and the outcome last (with two steps: l2=2, a2=3, y=4).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct TemporalRecalcRequestWire {
@@ -76,10 +166,10 @@ pub struct TemporalRecalcRequestWire {
     pub bidirected: Vec<(u32, u32)>,
     /// Only the root initial state may differ between populations.
     pub selection_targets: Vec<u32>,
-    /// Only two is supported.
+    /// The number of steps; two is format version 1, any other number version 2.
     pub horizon: usize,
-    /// Coordinate-to-slice alignment, in variable-id order: 0,1,2,2,2.
-    pub lag_alignment: [u8; 5],
+    /// Coordinate-to-slice alignment, in variable-id order: with two steps 0,1,2,2,2.
+    pub lag_alignment: Vec<u8>,
     /// Declared half-open observation period containing every complete history window.
     pub period: (u64, u64),
     /// Raw complete histories with their stable repeated-unit ownership.
@@ -104,7 +194,7 @@ pub struct TemporalInitialShiftReportWire {
     /// Frozen DAG/root-selection sufficient-rule coordinate.
     pub rule: String,
     /// Ordered whole-sequence action assignment.
-    pub sequence: [u32; 2],
+    pub sequence: Vec<u32>,
     /// Actual checked SID joint-source proof, bound to measured observational data.
     pub source_proof: TemporalSourceIdProofWire,
     /// Executed joint source distribution over S0 and Y under both actions.
@@ -158,6 +248,21 @@ pub struct TemporalRecalcArtifactWire {
     /// Canonical complete source data and target-law identity.
     pub data_digest: String,
 }
+/// The format version and feature marker a request over `horizon` steps is written under.
+fn layout(horizon: usize) -> (u32, &'static str) {
+    if horizon == ORIGINAL_HORIZON {
+        (TEMPORAL_RECALC_VERSION, TEMPORAL_RECALC_FEATURE)
+    } else {
+        (TEMPORAL_RECALC_HORIZON_VERSION, TEMPORAL_RECALC_HORIZON_FEATURE)
+    }
+}
+
+/// Most directed or bidirected edges a request over `horizon` steps may carry.
+fn max_edges(horizon: usize) -> usize {
+    let variables = 2 * horizon + 1;
+    25.max(variables.saturating_mul(variables - 1) / 2)
+}
+
 impl TemporalRecalcArtifactWire {
     /// Seal a checked producer's full reports and raw source inputs.
     /// # Errors
@@ -168,9 +273,10 @@ impl TemporalRecalcArtifactWire {
         reports: Vec<TemporalInitialShiftReportWire>,
         value: f64,
     ) -> Result<Self, IoError> {
+        let (version, feature) = layout(request.horizon);
         let mut wire = Self {
-            version: 1,
-            required_features: vec![TEMPORAL_RECALC_FEATURE.into()],
+            version,
+            required_features: vec![feature.into()],
             request,
             seed,
             reports,
@@ -198,7 +304,7 @@ impl TemporalRecalcArtifactWire {
         crate::digest_hex(
             IdentityDomain::TransportCertificate,
             &(
-                TEMPORAL_RECALC_FEATURE,
+                layout(r.horizon).1,
                 self.seed,
                 edges,
                 bidirected,
@@ -227,17 +333,36 @@ impl TemporalRecalcArtifactWire {
             code: antecedent_core::reason_code!("invalid_argument"),
             message: format!("temporal_recalc.artifact_invalid: {s}"),
         };
-        if self.version != 1 {
+        let horizon = self.request.horizon;
+        if horizon == 0 || horizon > MAX_HORIZON {
+            return Err(invalid_temporal_artifact("unsupported or unbounded empirical point shape"));
+        }
+        let (version, feature) = layout(horizon);
+        if self.version != version {
             return Err(IoError::UnsupportedVersion { version: self.version });
         }
-        if self.required_features != [TEMPORAL_RECALC_FEATURE]
+        if self.required_features != [feature]
             || self.inference != TEMPORAL_RECALC_INFERENCE
             || !self.value.is_finite()
             || self.reports.len() != self.request.functional.sequences().len()
             || self.request.units.len() > 8192
             || self.request.units.iter().map(|u| u.histories.len()).sum::<usize>() > 131_072
-            || self.request.edges.len() > 25
-            || self.request.bidirected.len() > 25
+            || self.request.edges.len() > max_edges(horizon)
+            || self.request.bidirected.len() > max_edges(horizon)
+            || self.request.lag_alignment.len() != 2 * horizon + 1
+            || self
+                .request
+                .units
+                .iter()
+                .flat_map(|u| &u.histories)
+                .any(|h| !h.is_well_formed(horizon))
+            || self
+                .request
+                .functional
+                .sequences()
+                .iter()
+                .chain(self.reports.iter().map(|r| &r.sequence))
+                .any(|sequence| sequence.len() != horizon)
         {
             return Err(invalid_temporal_artifact(
                 "unsupported or unbounded empirical point shape",

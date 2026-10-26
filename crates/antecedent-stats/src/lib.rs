@@ -96,9 +96,10 @@ pub use gam::{
     fit_gam, fit_gam_weighted, fit_gam_weighted_design, predict_gam,
 };
 pub use glm::{
-    DEFAULT_RIDGE_ON_SEPARATION, GlmDesignRef, GlmFamily, GlmFit, GlmOptions, MultinomialDesignRef,
-    MultinomialFit, NbAlphaPolicy, fit_glm, fit_glm_ridge, fit_glm_ridge_weighted,
-    fit_glm_weighted, fit_logistic_weighted, fit_multinomial_logit, fit_multinomial_logit_weighted,
+    DEFAULT_RIDGE_ON_SEPARATION, GlmDesignRef, GlmFamily, GlmFit, GlmLaplaceFit, GlmOptions,
+    MultinomialDesignRef, MultinomialFit, NbAlphaPolicy, fit_glm, fit_glm_ridge,
+    fit_glm_ridge_weighted, fit_glm_weighted, fit_logistic_weighted, fit_logit_laplace,
+    fit_multinomial_logit, fit_multinomial_logit_weighted, logit_working_row,
 };
 pub use gram::{
     accumulate_xtx_xty_row, chol_log_det, chol_solve, cholesky_spd, column_is_constant, form_xtx,

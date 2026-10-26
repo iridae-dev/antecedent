@@ -138,16 +138,14 @@ pub fn prepare_sequence_level(
             .key_of(u32::try_from(dense).unwrap_or(u32::MAX))
     };
     let outcome = indexer
-        .dense_id(TemporalNodeKey { variable: outcome, offset: outcome_offset })
-        .map_err(|e| EstimationError::data_msg(e.to_string()))? as usize;
+        .dense_id(TemporalNodeKey { variable: outcome, offset: outcome_offset })? as usize;
     let mut overlay_at = vec![None; node_count];
     for &overlay in overlays {
         let dense = indexer
             .dense_id(TemporalNodeKey {
                 variable: overlay.node.variable,
                 offset: overlay.node.offset,
-            })
-            .map_err(|e| EstimationError::data_msg(e.to_string()))? as usize;
+            })? as usize;
         if overlay_at[dense].is_some() {
             return Err(EstimationError::unsupported(
                 "Sequence assigns the same (variable, time) twice; refuse rather than collapse",

@@ -143,6 +143,7 @@ mod tests {
     use antecedent_kernels::standard_normal;
 
     use super::*;
+    use crate::arm::TreatmentArm;
     use crate::error::EstimationError;
     use crate::overlap::OverlapPolicy;
     use crate::propensity::weighting::{hajek_difference, hajek_influence_se};
@@ -538,7 +539,8 @@ mod tests {
         let treatment = [1.0, 1.0, 0.0, 0.0];
         let outcome = [3.0, 4.0, 1.0, 2.0];
         let weights = [0.0, 0.0, 1.0, 1.0];
-        let err = hajek_difference(&treatment, &outcome, &weights).unwrap_err();
+        let err = hajek_difference(&TreatmentArm::classify(&treatment), &outcome, &weights)
+            .unwrap_err();
         assert!(matches!(err, EstimationError::Data(_)), "err={err:?}");
     }
 
@@ -549,11 +551,13 @@ mod tests {
         let t_full = [1.0, 1.0, 0.0, 0.0];
         let y_full = [3.0, 5.0, 1.0, 2.0];
         let w_full = [2.0, 0.0, 1.0, 1.0];
-        let se_full = hajek_influence_se(&t_full, &y_full, &w_full, None).unwrap();
+        let se_full =
+            hajek_influence_se(&TreatmentArm::classify(&t_full), &y_full, &w_full, None).unwrap();
         let t_kept = [1.0, 0.0, 0.0];
         let y_kept = [3.0, 1.0, 2.0];
         let w_kept = [2.0, 1.0, 1.0];
-        let se_kept = hajek_influence_se(&t_kept, &y_kept, &w_kept, None).unwrap();
+        let se_kept =
+            hajek_influence_se(&TreatmentArm::classify(&t_kept), &y_kept, &w_kept, None).unwrap();
         assert!(
             se_kept > se_full,
             "finite-sample corrections differ for zero-weight rows; full={se_full} kept={se_kept}"

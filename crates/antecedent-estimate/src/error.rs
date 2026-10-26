@@ -55,6 +55,19 @@ pub enum EstimationError {
     /// A tiled prediction request was refused before any value was streamed.
     #[error(transparent)]
     Tile(#[from] crate::tiled_prediction::TileError),
+    /// A causal expression leaf or program could not be built from the declared roles.
+    #[error(transparent)]
+    Expr(#[from] antecedent_expr::ExprError),
+    /// An execution-admission lease was refused.
+    #[error(transparent)]
+    Admission(#[from] antecedent_core::execution::AdmissionError),
+    /// The adaptive resampling wave procedure refused (an unusable rule, too many failed
+    /// replicates, or a cancellation that is refused rather than reported).
+    #[error(transparent)]
+    Wave(#[from] crate::adaptive_resample_waves::WaveError),
+    /// The out-of-core weighted-Gaussian reduction refused (see [`CapacityFault`]).
+    #[error(transparent)]
+    Capacity(#[from] CapacityFault),
     /// A nuisance learner failed (fit, prediction or shape); a cancelled fit is the coded
     /// `cancelled_no_claim` refusal instead.
     #[error(transparent)]
@@ -87,6 +100,14 @@ pub enum EstimationError {
     /// Effect modifiers not supported on this estimator path.
     #[error("effect modifiers are not supported on this estimator path")]
     EffectModifiers,
+    /// A quantile posterior's threshold grid does not bracket the requested quantile in enough
+    /// posterior draws. Callers that turn this into a next attempt match this variant, never
+    /// its text.
+    #[error(
+        "quantile posterior refused: the threshold grid does not bracket the quantile in enough \
+         posterior draws; widen the grid or move the level inside its range"
+    )]
+    QuantileGridUnresolved,
     /// Target population not supported on this estimator path: a refusal with
     /// the registered `population_not_estimable` reason code.
     #[error(
@@ -163,8 +184,9 @@ pub enum EstimationError {
     Refused {
         /// Registered reason code (checked with `antecedent_core::reason_code!`).
         code: &'static str,
-        /// What was refused and what the caller can do instead.
-        message: String,
+        /// What was refused and what the caller can do instead, with the stable detail
+        /// identifier apart from the explanation when the refusal names one.
+        message: RefusalMessage,
     },
     /// [`Self::Refused`] that also carries structured diagnostics (see
     /// [`RefusalFields`]). The rendered message is byte-identical to the
@@ -175,10 +197,124 @@ pub enum EstimationError {
         /// Registered reason code (checked with `antecedent_core::reason_code!`).
         code: &'static str,
         /// What was refused and what the caller can do instead.
-        message: String,
+        message: RefusalMessage,
         /// Structured diagnostics of the failing step; absent entries stay absent.
         fields: Box<RefusalFields>,
     },
+}
+
+/// The text of a coded refusal: an optional stable `detail` identifier (a dotted name such as
+/// `nested_markov.cancelled`) and the `explanation` of what was refused.
+///
+/// The two parts are supplied separately by the producer and kept apart, so a boundary that
+/// stores a refusal as `(code, detail, explanation)` reads them back and never splits the
+/// rendered text. The rendering is `detail: explanation` when there is a detail and the
+/// explanation alone otherwise; it is what [`Display`](std::fmt::Display) and the `str`
+/// dereference give.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RefusalMessage {
+    /// The rendered text, `detail: explanation` or the explanation alone.
+    text: String,
+    /// Byte length of the detail prefix, when the refusal names one.
+    detail_len: Option<usize>,
+}
+
+impl RefusalMessage {
+    /// A refusal that names no detail identifier.
+    #[must_use]
+    pub fn plain(explanation: impl Into<String>) -> Self {
+        Self { text: explanation.into(), detail_len: None }
+    }
+
+    /// A refusal with a stable `detail` identifier and its `explanation`. An empty explanation
+    /// renders as the detail alone.
+    #[must_use]
+    pub fn detailed(detail: impl AsRef<str>, explanation: impl AsRef<str>) -> Self {
+        let (detail, explanation) = (detail.as_ref(), explanation.as_ref());
+        let text = if explanation.is_empty() {
+            detail.to_owned()
+        } else {
+            format!("{detail}: {explanation}")
+        };
+        Self { text, detail_len: Some(detail.len()) }
+    }
+
+    /// The detail identifier, when the producer named one.
+    #[must_use]
+    pub fn detail(&self) -> Option<&str> {
+        self.detail_len.map(|len| &self.text[..len])
+    }
+
+    /// What was refused and what the caller can do instead, without the detail prefix.
+    #[must_use]
+    pub fn explanation(&self) -> &str {
+        match self.detail_len {
+            Some(len) => self.text.get(len + ": ".len()..).unwrap_or(""),
+            None => &self.text,
+        }
+    }
+
+    /// The rendered text, `detail: explanation` or the explanation alone.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.text
+    }
+
+    /// The rendered text, owned.
+    #[must_use]
+    pub fn into_string(self) -> String {
+        self.text
+    }
+}
+
+impl std::ops::Deref for RefusalMessage {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        &self.text
+    }
+}
+
+impl std::fmt::Display for RefusalMessage {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.text)
+    }
+}
+
+impl AsRef<str> for RefusalMessage {
+    fn as_ref(&self) -> &str {
+        &self.text
+    }
+}
+
+impl From<RefusalMessage> for String {
+    fn from(message: RefusalMessage) -> Self {
+        message.text
+    }
+}
+
+impl serde::Serialize for RefusalMessage {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.text)
+    }
+}
+
+impl PartialEq<str> for RefusalMessage {
+    fn eq(&self, other: &str) -> bool {
+        self.text == other
+    }
+}
+
+impl PartialEq<&str> for RefusalMessage {
+    fn eq(&self, other: &&str) -> bool {
+        self.text == *other
+    }
+}
+
+impl PartialEq<String> for RefusalMessage {
+    fn eq(&self, other: &String) -> bool {
+        &self.text == other
+    }
 }
 
 /// A float compared by its bit pattern, so a refusal that carries diagnostics stays
@@ -193,6 +329,98 @@ impl PartialEq for ExactF64 {
 }
 
 impl Eq for ExactF64 {}
+
+impl std::fmt::Display for ExactF64 {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
+/// The cause class of a refusal of the out-of-core weighted-Gaussian reduction.
+///
+/// The reduction's own error holds an I/O error and an allocator error, so it is neither
+/// `Clone` nor `Eq`; this is the part of it a caller branches on.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum CapacityFaultKind {
+    /// The run was cancelled; nothing was written or kept.
+    Cancelled,
+    /// The memory charges do not fit the declared ceiling.
+    OverCeiling {
+        /// Declared ceiling in bytes.
+        ceiling: u64,
+        /// Bytes the refused reservation needed.
+        total: u64,
+        /// Bytes by which the reservation exceeds the ceiling.
+        over_by: u64,
+    },
+    /// The weighted Gram is singular, or the reduced design was refused by the solve.
+    Singular,
+    /// No positively weighted rows.
+    Empty,
+    /// A weight, design entry or response is invalid or not finite.
+    InvalidRow,
+    /// The batch bound, window or design shape is unusable.
+    Shape,
+    /// The row source, spill file or row file failed or changed between passes.
+    Source,
+    /// Any other cause; the message names it.
+    Other,
+}
+
+/// A refusal of the out-of-core weighted-Gaussian reduction: its cause class and the
+/// engine's own text.
+#[derive(Clone, Debug, Eq, PartialEq, Error)]
+#[error("{message}")]
+pub struct CapacityFault {
+    /// The cause class.
+    pub kind: CapacityFaultKind,
+    message: String,
+}
+
+impl CapacityFault {
+    /// The engine's rendered refusal.
+    #[must_use]
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+}
+
+impl From<antecedent_io_core::capacity_account::WeightedCapacityError> for CapacityFault {
+    fn from(error: antecedent_io_core::capacity_account::WeightedCapacityError) -> Self {
+        use antecedent_io_core::capacity_account::WeightedCapacityError as Engine;
+        let kind = match &error {
+            Engine::Cancelled => CapacityFaultKind::Cancelled,
+            Engine::OverCeiling { ceiling, total, over_by, .. } => {
+                CapacityFaultKind::OverCeiling {
+                    ceiling: *ceiling,
+                    total: *total,
+                    over_by: *over_by,
+                }
+            }
+            Engine::Singular | Engine::Solve(_) => CapacityFaultKind::Singular,
+            Engine::Empty => CapacityFaultKind::Empty,
+            Engine::Weight { .. } | Engine::NonFinite { .. } => CapacityFaultKind::InvalidRow,
+            Engine::BatchBound | Engine::ReadPastBatch { .. } | Engine::Shape(_) => {
+                CapacityFaultKind::Shape
+            }
+            Engine::Spill(_)
+            | Engine::SpillPool(_)
+            | Engine::Io { .. }
+            | Engine::RowFile(_)
+            | Engine::SourceChanged { .. }
+            | Engine::RowSource { .. } => CapacityFaultKind::Source,
+            _ => CapacityFaultKind::Other,
+        };
+        Self { kind, message: error.to_string() }
+    }
+}
+
+impl From<antecedent_io_core::capacity_account::WeightedCapacityError> for EstimationError {
+    fn from(error: antecedent_io_core::capacity_account::WeightedCapacityError) -> Self {
+        Self::Capacity(error.into())
+    }
+}
 
 /// Structured diagnostics of a refusal: which treatment or cell failed, at which stage
 /// and why, plus whatever numbers the failing step actually produced.
@@ -286,10 +514,27 @@ impl EstimationError {
         }
     }
 
-    /// A refusal with a registered runtime reason code.
+    /// A refusal with a registered runtime reason code and no detail identifier.
     #[must_use]
     pub fn refused(code: &'static str, message: impl Into<String>) -> Self {
-        Self::Refused { code, message: message.into() }
+        Self::Refused { code, message: RefusalMessage::plain(message) }
+    }
+
+    /// A refusal with a registered runtime reason code, a stable `detail` identifier and its
+    /// `explanation`, kept apart so a boundary reads them back without splitting text.
+    #[must_use]
+    pub fn refused_detail(
+        code: &'static str,
+        detail: impl AsRef<str>,
+        explanation: impl AsRef<str>,
+    ) -> Self {
+        Self::Refused { code, message: RefusalMessage::detailed(detail, explanation) }
+    }
+
+    /// A refusal with a registered runtime reason code and an already built message.
+    #[must_use]
+    pub fn refused_message(code: &'static str, message: RefusalMessage) -> Self {
+        Self::Refused { code, message }
     }
 
     /// A refusal with a registered runtime reason code and structured diagnostics.
@@ -299,7 +544,38 @@ impl EstimationError {
         message: impl Into<String>,
         fields: RefusalFields,
     ) -> Self {
-        Self::RefusedWithFields { code, message: message.into(), fields: Box::new(fields) }
+        Self::RefusedWithFields {
+            code,
+            message: RefusalMessage::plain(message),
+            fields: Box::new(fields),
+        }
+    }
+
+    /// [`Self::refused_detail`] with structured diagnostics.
+    #[must_use]
+    pub fn refused_detail_with_fields(
+        code: &'static str,
+        detail: impl AsRef<str>,
+        explanation: impl AsRef<str>,
+        fields: RefusalFields,
+    ) -> Self {
+        Self::RefusedWithFields {
+            code,
+            message: RefusalMessage::detailed(detail, explanation),
+            fields: Box::new(fields),
+        }
+    }
+
+    /// The refusal's code and message, when it is a coded refusal (with or without
+    /// diagnostics).
+    #[must_use]
+    pub fn coded_refusal(&self) -> Option<(&'static str, &RefusalMessage)> {
+        match self {
+            Self::Refused { code, message } | Self::RefusedWithFields { code, message, .. } => {
+                Some((*code, message))
+            }
+            _ => None,
+        }
     }
 
     /// Structured diagnostics of a refusal that carries them: one built with
@@ -406,7 +682,9 @@ fn stats_refusal_fields(error: &StatsError) -> Option<RefusalFields> {
 impl From<EstimationError> for antecedent_io_core::IoError {
     fn from(error: EstimationError) -> Self {
         match error {
-            EstimationError::Refused { code, message } => Self::Refused { code, message },
+            EstimationError::Refused { code, message } => {
+                Self::Refused { code, message: message.into_string() }
+            }
             other => Self::Convert(other.to_string()),
         }
     }
@@ -450,7 +728,7 @@ impl From<antecedent_learn::FittedEffectError> for EstimationError {
 
 #[cfg(test)]
 mod tests {
-    use super::{EstimationError, RefusalFields};
+    use super::{EstimationError, RefusalFields, RefusalMessage};
 
     /// Only a refusal built with a remedy carries one; every other error reads
     /// `None`, and attaching a remedy never changes the rendered message.
@@ -465,6 +743,25 @@ mod tests {
         let remedied = EstimationError::unsupported_with_remedy("refused", "do this instead");
         assert_eq!(remedied.remedy(), Some("do this instead"));
         assert_eq!(remedied.to_string(), plain.to_string());
+    }
+
+    /// The refusal text keeps its detail apart from its explanation and renders both.
+    #[test]
+    fn refusal_message_keeps_detail_and_explanation_apart() {
+        let detailed = EstimationError::refused_detail("route_not_supported", "area.reason", "no: go");
+        let (code, message) = detailed.coded_refusal().expect("a coded refusal");
+        assert_eq!(code, "route_not_supported");
+        assert_eq!(message.detail(), Some("area.reason"));
+        assert_eq!(message.explanation(), "no: go");
+        assert_eq!(message.as_str(), "area.reason: no: go");
+        assert!(detailed.to_string().ends_with("route_not_supported: area.reason: no: go"));
+        let plain = EstimationError::refused("route_not_supported", "no: go");
+        let (_, message) = plain.coded_refusal().expect("a coded refusal");
+        assert_eq!(message.detail(), None);
+        assert_eq!(message.explanation(), "no: go");
+        let bare = RefusalMessage::detailed("area.reason", "");
+        assert_eq!(bare.as_str(), "area.reason");
+        assert_eq!(bare.explanation(), "");
     }
 
     /// Structured fields ride beside a refusal without changing its code or message, and

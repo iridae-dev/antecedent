@@ -44,7 +44,7 @@ fn ctx() -> ExecutionContext {
 
 fn refused(error: EstimationError) -> (&'static str, String) {
     match error {
-        EstimationError::Refused { code, message } => (code, message),
+        EstimationError::Refused { code, message } => (code, message.into_string()),
         other => panic!("expected a registered refusal, got {other:?}"),
     }
 }
@@ -85,7 +85,7 @@ fn unit_rows(unit: usize) -> Vec<(u32, u32, u32, u32, f64)> {
 }
 
 fn history(time_id: u64, row: (u32, u32, u32, u32, f64)) -> SequenceHistory {
-    SequenceHistory { time_id, s0: row.0, a1: row.1, l2: row.2, a2: row.3, y: row.4 }
+    SequenceHistory::two_step(time_id, row.0, row.1, row.2, row.3, row.4)
 }
 
 /// Complete repeated-unit histories for the studentized SCM fixture.
@@ -123,7 +123,7 @@ fn dynamic_scm_interval_point_equals_enumerated_truth() {
     assert_eq!(p.unit_count(), 30);
     assert_eq!(p.history_count(), 30 * 800);
     for (s0, hand) in [(0_u32, 0.33), (1, 0.46)] {
-        let fixed = FixedStateQuery { sequence: SEQUENCE, s0 }.effect(&p).unwrap().value;
+        let fixed = FixedStateQuery { sequence: SEQUENCE.to_vec(), s0 }.effect(&p).unwrap().value;
         assert!((fixed - truth_given_state(SEQUENCE, s0 as usize)).abs() < 1e-12);
         assert!((fixed - hand).abs() < 1e-12, "{fixed} vs hand-enumerated {hand}");
     }
@@ -238,7 +238,7 @@ fn dynamic_scm_interval_observed_state_estimand_is_labelled_distinctly() {
     let observed = dependent_unit_interval(
         &p,
         &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Observed(
-            ObservedStateSequence { sequence: SEQUENCE },
+            ObservedStateSequence { sequence: SEQUENCE.to_vec() },
         ),
         &config(5),
         &ctx(),
@@ -250,7 +250,7 @@ fn dynamic_scm_interval_observed_state_estimand_is_labelled_distinctly() {
     let fixed = dependent_unit_interval(
         &p,
         &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Fixed(
-            FixedStateQuery { sequence: SEQUENCE, s0: 1 },
+            FixedStateQuery { sequence: SEQUENCE.to_vec(), s0: 1 },
         ),
         &config(5),
         &ctx(),
@@ -282,7 +282,7 @@ fn dynamic_scm_interval_refuses_bounds_unsupported_histories_and_cancellation() 
         })
         .collect();
     let unsupported = TemporalUnitPanel::new("no-support", Some(units)).unwrap();
-    let query = FixedStateQuery { sequence: SEQUENCE, s0: 0 };
+    let query = FixedStateQuery { sequence: SEQUENCE.to_vec(), s0: 0 };
     let (code, message) =
         refused(dependent_unit_interval(&unsupported, &query, &config(1), &ctx()).unwrap_err());
     assert_eq!(code, "route_not_supported");

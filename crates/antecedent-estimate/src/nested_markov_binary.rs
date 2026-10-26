@@ -119,30 +119,34 @@ const CONSTRAINT_TOLERANCE: f64 = 1e-9;
 const BISECTION_STEPS: usize = 100;
 
 fn outside(message: &str) -> EstimationError {
-    EstimationError::refused(
+    EstimationError::refused_detail(
         antecedent_core::reason_code!("route_not_supported"),
-        format!("{OUTSIDE_PILOT}: {message}"),
+        OUTSIDE_PILOT,
+        message,
     )
 }
 
 fn invalid(detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(
+    EstimationError::refused_detail(
         antecedent_core::reason_code!("invalid_argument"),
-        format!("nested_markov.{detail}: {message}"),
+        format!("nested_markov.{detail}"),
+        message,
     )
 }
 
 fn positivity(message: &str) -> EstimationError {
-    EstimationError::refused(
+    EstimationError::refused_detail(
         antecedent_core::reason_code!("transport_support_failure"),
-        format!("nested_markov.positivity: {message}"),
+        "nested_markov.positivity",
+        message,
     )
 }
 
 fn numerical(detail: &str, message: &str, fields: RefusalFields) -> EstimationError {
-    EstimationError::refused_with_fields(
+    EstimationError::refused_detail_with_fields(
         antecedent_core::reason_code!("transport_numerical_failure"),
-        format!("nested_markov.{detail}: {message}"),
+        format!("nested_markov.{detail}"),
+        message,
         fields,
     )
 }
@@ -151,12 +155,11 @@ fn numerical(detail: &str, message: &str, fields: RefusalFields) -> EstimationEr
 /// the exact functional, likelihood and calibration gates have not all passed.
 #[must_use]
 pub fn refuse_public_interval_route() -> EstimationError {
-    EstimationError::refused(
+    EstimationError::refused_detail(
         antecedent_core::reason_code!("cell_not_licensed"),
-        format!(
-            "{ROUTE_FROZEN}: the binary nested-Markov pilot is a closed research route; \
-             calibration is unmeasured and no interval or posterior is published"
-        ),
+        ROUTE_FROZEN,
+        "the binary nested-Markov pilot is a closed research route; calibration is unmeasured \
+         and no interval or posterior is published",
     )
 }
 
@@ -777,9 +780,10 @@ fn boundary_stats(params: &NestedParameters, cells: &[f64; CELL_COUNT]) -> (f64,
 
 fn cancelled(diagnostics: &FitDiagnostics) -> Refusal {
     with(
-        EstimationError::refused(
+        EstimationError::refused_detail(
             antecedent_core::reason_code!("transport_budget_cancel"),
-            "nested_markov.cancelled: the fit was cancelled; no estimate is reported",
+            "nested_markov.cancelled",
+            "the fit was cancelled; no estimate is reported",
         ),
         diagnostics,
     )
@@ -815,9 +819,10 @@ pub fn fit_nested_markov(
 ) -> Result<NestedMarkovFit, Refusal> {
     validate_options(options).map_err(plain)?;
     if ctx.cancellation.is_cancelled() {
-        return Err(plain(EstimationError::refused(
+        return Err(plain(EstimationError::refused_detail(
             antecedent_core::reason_code!("transport_budget_cancel"),
-            "nested_markov.cancelled: the fit was cancelled; no estimate is reported",
+            "nested_markov.cancelled",
+            "the fit was cancelled; no estimate is reported",
         )));
     }
     let n = counts.counts();
@@ -1119,9 +1124,10 @@ fn checked_pilot_identification(input: &NestedMarkovInput) -> Result<(), Estimat
     use antecedent_graph::{Admg, DenseNodeId};
     use antecedent_identify::{IdIdentifier, IdentificationWorkspace};
     let unavailable = || {
-        EstimationError::refused(
+        EstimationError::refused_detail(
             antecedent_core::reason_code!("effect_not_identified"),
-            "nested_markov.identification_unavailable: the checked general-ID engine did not identify the selected pilot contrast",
+            "nested_markov.identification_unavailable",
+            "the checked general-ID engine did not identify the selected pilot contrast",
         )
     };
     let (_, directed, bidirected) = input.graph.canonical();

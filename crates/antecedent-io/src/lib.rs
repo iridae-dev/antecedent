@@ -129,6 +129,7 @@ pub use antecedent_io_core::{
     response_value_to_wire, response_wire, result_digest, schema_from_wire, schema_to_wire,
     schema_wire_from_v01, score_reuse_digest, score_wire, search_bounds, section_descriptor,
     section_descriptor_with_policy, sectioned_artifact_enum, sectioned_artifact_error,
+    first_identity_difference,
     stored_law_bounds, support_empirical, target_weights_digest, temporal_admg_identity,
     temporal_counterfactual_artifact, temporal_counterfactual_general_artifact,
     temporal_cpdag_identity, temporal_dag_from_wire,

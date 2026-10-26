@@ -35,18 +35,18 @@ fn refusal(error: EstimationError) -> (&'static str, String) {
     checks::coded_refusal(error)
 }
 
-fn treatment(name: &str, values: &[f64]) -> TreatmentColumn {
+fn treatment(name: &str, values: &[f64]) -> TreatmentColumn<'static> {
     TreatmentColumn {
-        name: name.into(),
-        values: values.to_vec(),
+        name: name.to_owned().into(),
+        values: values.to_vec().into(),
         adjustment_set: vec![],
         row_snapshot: "snap".into(),
     }
 }
 
-fn base_input() -> VectorTreatmentInput {
+fn base_input() -> VectorTreatmentInput<'static> {
     VectorTreatmentInput {
-        outcome: Y.to_vec(),
+        outcome: Y.to_vec().into(),
         row_snapshot: "snap".into(),
         adjustment: vec![],
         treatments: vec![treatment("t1", &X1), treatment("t2", &X2)],
@@ -249,7 +249,7 @@ fn residualize(v: &[f64], z: &[f64]) -> Vec<f64> {
 fn vector_adjustment_matches_frisch_waugh_closed_form() {
     let z = [0.0, 1.0, 2.0, 0.0, 1.0, 2.0];
     let mut input = base_input();
-    input.adjustment = vec![NamedColumn { name: "z".into(), values: z.to_vec() }];
+    input.adjustment = vec![NamedColumn::new("z", z.to_vec())];
     for t in &mut input.treatments {
         t.adjustment_set = vec!["z".into()];
     }
@@ -297,7 +297,7 @@ fn vector_treatment_order_permutes_the_covariance_consistently() {
 fn vector_refuses_different_adjustment_sets() {
     let mut input = base_input();
     input.adjustment =
-        vec![NamedColumn { name: "z".into(), values: vec![0.0, 1.0, 2.0, 0.0, 1.0, 3.0] }];
+        vec![NamedColumn::new("z", vec![0.0, 1.0, 2.0, 0.0, 1.0, 3.0])];
     input.treatments[0].adjustment_set = vec!["z".into()];
     // t2 was declared against an empty set while the shared block holds `z`.
     let (code, message) = refusal(
@@ -325,7 +325,7 @@ fn vector_refuses_different_row_snapshots_and_row_counts() {
     assert_eq!(code, "route_not_supported");
     assert!(message.contains("vector_treatment.row_snapshot_mismatch"), "{message}");
     let mut short = base_input();
-    short.treatments[1].values.pop();
+    short.treatments[1].values.to_mut().pop();
     let (code, message) = refusal(
         fit_vector_treatment(&short, &options(VectorCovariance::ModelBased, vec![])).unwrap_err(),
     );
@@ -356,7 +356,7 @@ fn vector_refuses_constant_collinear_and_rank_deficient_designs() {
     assert!(message.contains("`t2`"), "{message}");
 
     let mut duplicated_adjustment = base_input();
-    duplicated_adjustment.adjustment = vec![NamedColumn { name: "w".into(), values: vec![1.0; 6] }];
+    duplicated_adjustment.adjustment = vec![NamedColumn::new("w", vec![1.0; 6])];
     for t in &mut duplicated_adjustment.treatments {
         t.adjustment_set = vec!["w".into()];
     }
@@ -385,7 +385,7 @@ fn vector_refuses_malformed_requests() {
     assert!(message.contains("vector_treatment.duplicate_name"), "{message}");
 
     let mut non_finite = base_input();
-    non_finite.outcome[0] = f64::NAN;
+    non_finite.outcome.to_mut()[0] = f64::NAN;
     let (_, message) = run(&non_finite, vec![]);
     assert!(message.contains("vector_treatment.non_finite_value"), "{message}");
 
@@ -395,7 +395,7 @@ fn vector_refuses_malformed_requests() {
 
     // Three rows cannot support an intercept plus two treatments and a residual degree of freedom.
     let tiny = VectorTreatmentInput {
-        outcome: vec![1.0, 2.0, 4.0],
+        outcome: vec![1.0, 2.0, 4.0].into(),
         row_snapshot: "snap".into(),
         adjustment: vec![],
         treatments: vec![treatment("t1", &[1.0, 0.0, 1.0]), treatment("t2", &[0.0, 1.0, 1.0])],

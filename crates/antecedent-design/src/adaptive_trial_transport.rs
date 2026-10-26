@@ -69,8 +69,6 @@ use crate::transported_policy::{MechanismStatus, TRANSPORTED_POLICY_INFERENCE, t
 
 /// Version word written into every adaptive-transport identity.
 pub const ADAPTIVE_TRANSPORT_IDENTITY_VERSION: u64 = 1;
-/// Most strata a target law may name.
-pub const MAX_TRANSPORT_STRATA: usize = 1024;
 /// Tolerance for the target law summing to one.
 const LAW_TOLERANCE: f64 = 1e-9;
 /// Tolerance for a law declared invariant to equal the trial's empirical law.
@@ -358,7 +356,7 @@ fn check_shape(
     law: &[f64],
 ) -> SequentialResult<()> {
     let strata = request.stratum_labels.len();
-    let labels_ok = (1..=MAX_TRANSPORT_STRATA).contains(&strata)
+    let labels_ok = strata >= 1
         && request.stratum_labels.iter().all(|label| !label.trim().is_empty());
     let mut sorted: Vec<&str> = request.stratum_labels.iter().map(String::as_str).collect();
     sorted.sort_unstable();
@@ -367,9 +365,7 @@ fn check_shape(
         return Err(adaptive_refusal(
             antecedent_core::reason_code!("invalid_argument"),
             "adaptive_transport.strata",
-            format!(
-                "a transport needs 1 to {MAX_TRANSPORT_STRATA} distinct non-blank stratum labels"
-            ),
+            "a transport needs at least one stratum and distinct, non-blank stratum labels",
             "name the strata the target law is declared over",
         ));
     }

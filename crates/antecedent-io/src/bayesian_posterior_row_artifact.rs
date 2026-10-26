@@ -125,33 +125,30 @@ pub(crate) fn from_estimation(error: EstimationError, prefix: &str) -> Posterior
     match error {
         EstimationError::Refused { code, message }
         | EstimationError::RefusedWithFields { code, message, .. } => {
-            let split = message
-                .split_once(": ")
-                .filter(|(detail, _)| detail.contains('.'))
-                .map(|(detail, text)| (detail.to_owned(), text.to_owned()));
-            match split {
-                Some((detail, text)) => {
-                    PosteriorRowArtifactError::Refused { code, detail, message: text }
-                }
+            let detail = message.detail().filter(|detail| detail.contains('.')).map(str::to_owned);
+            match detail {
+                Some(detail) => PosteriorRowArtifactError::Refused {
+                    code,
+                    detail,
+                    message: message.explanation().to_owned(),
+                },
                 None => PosteriorRowArtifactError::Refused {
                     code,
                     detail: format!("{prefix}.refused"),
-                    message,
+                    message: message.into_string(),
                 },
             }
         }
-        EstimationError::Unsupported { message } => {
-            let detail = if message.contains("threshold grid") {
-                format!("{prefix}.unresolved_draws")
-            } else {
-                format!("{prefix}.unsupported")
-            };
-            PosteriorRowArtifactError::Refused {
-                code: antecedent_core::reason_code!("route_not_supported"),
-                detail,
-                message: message.to_owned(),
-            }
-        }
+        EstimationError::Unsupported { message } => PosteriorRowArtifactError::Refused {
+            code: antecedent_core::reason_code!("route_not_supported"),
+            detail: format!("{prefix}.unsupported"),
+            message: message.to_owned(),
+        },
+        unresolved @ EstimationError::QuantileGridUnresolved => PosteriorRowArtifactError::Refused {
+            code: antecedent_core::reason_code!("route_not_supported"),
+            detail: format!("{prefix}.unresolved_draws"),
+            message: unresolved.to_string(),
+        },
         other => PosteriorRowArtifactError::Refused {
             code: antecedent_core::reason_code!("invalid_argument"),
             detail: format!("{prefix}.invalid_request"),

@@ -998,6 +998,7 @@ mod tests {
             design_ncols: 2,
             nrows: 2,
             treatment: Arc::from([0., 1.]),
+            arms: Arc::from([crate::arm::TreatmentArm::Control, crate::arm::TreatmentArm::Treated]),
             treatment_levels: crate::propensity::DeclaredTreatmentLevels {
                 active: 1.0,
                 control: 0.0,

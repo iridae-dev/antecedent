@@ -147,8 +147,11 @@ impl From<EstimationError> for DoseGridArtifactError {
             }
             EstimationError::Refused { code, message }
             | EstimationError::RefusedWithFields { code, message, .. } => {
-                let (detail, text) = message.split_once(": ").unwrap_or(("dose_grid.refused", ""));
-                Self::Refused { code, detail: detail.to_owned(), message: text.to_owned() }
+                Self::Refused {
+                    code,
+                    detail: message.detail().unwrap_or("dose_grid.refused").to_owned(),
+                    message: message.explanation().to_owned(),
+                }
             }
             other => Self::Refused {
                 code: antecedent_core::reason_code!("invalid_argument"),

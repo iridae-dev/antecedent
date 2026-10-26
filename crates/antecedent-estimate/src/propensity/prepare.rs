@@ -35,6 +35,10 @@ pub struct PreparedPropensityProblem {
     /// Arm indicator, length `nrows`: `1.0` at the active level and `0.0` at the control
     /// level declared on the query, whatever the treatment column's own coding.
     pub treatment: Arc<[f64]>,
+    /// The arm of every row of [`Self::treatment`], classified once at preparation. Estimators
+    /// that read arms (the Hájek weighting helpers) take this column instead of re-reading
+    /// the indicator; [`Self::set_treatment`] keeps the two in step.
+    pub arms: Arc<[TreatmentArm]>,
     /// The declared levels the treatment was recoded from, and the rows at neither level
     /// that preparation excluded under an explicit policy.
     pub treatment_levels: DeclaredTreatmentLevels,
@@ -93,6 +97,12 @@ pub struct PreparedPropensityProblem {
 }
 
 impl PreparedPropensityProblem {
+    /// Replace the arm indicator column, re-classifying [`Self::arms`] with it.
+    pub(crate) fn set_treatment(&mut self, treatment: Arc<[f64]>) {
+        self.arms = Arc::from(TreatmentArm::classify(&treatment));
+        self.treatment = treatment;
+    }
+
     /// Source-table indices of the complete-case rows, converted once from their identities and
     /// refusing an identity the address space cannot hold. Only source-row cluster labels read
     /// them, so a caller without those labels passes `needed = false` and gets an empty list.
@@ -503,6 +513,7 @@ pub(crate) fn prepare_propensity_problem_with_levels(
         design_matrix: Arc::from(design),
         design_ncols: ncols,
         nrows,
+        arms: Arc::from(TreatmentArm::classify(&t)),
         treatment: Arc::from(t),
         treatment_levels,
         outcome: Arc::from(y),

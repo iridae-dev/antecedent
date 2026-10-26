@@ -151,8 +151,7 @@ fn stream_response_grid(
             return;
         }
         sums[grid_index * n_draws + draw_index] += family.mean_from_eta(value);
-    })
-    .map_err(|error| EstimationError::data_msg(error.to_string()))?
+    })?
     .summary;
     if refused {
         return Err(EstimationError::data_msg(

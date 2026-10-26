@@ -325,12 +325,12 @@ impl PropensityNuisance {
         // The failed primary fit's own record (stage, reason, iterations, rank, ...) rides on
         // the refusal; whatever that fit did not measure stays absent.
         let fields = error.refusal_fields().map(std::borrow::Cow::into_owned);
-        EstimationError::refused_with_fields(
+        EstimationError::refused_detail_with_fields(
             antecedent_core::reason_code!("nuisance_fallback_not_licensed"),
+            "penalized_propensity.fallback_closed",
             format!(
-                "penalized_propensity.fallback_closed: the primary nuisance fit failed \
-                 ({error}); {tail}, so the failed fit is reported and no fallback result is \
-                 produced"
+                "the primary nuisance fit failed ({error}); {tail}, so the failed fit is \
+                 reported and no fallback result is produced"
             ),
             fields.unwrap_or_default(),
         )

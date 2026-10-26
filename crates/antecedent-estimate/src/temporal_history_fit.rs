@@ -1,4 +1,4 @@
-//! Retained existing two-step history mechanisms and empirical source joint.
+//! Retained existing sequence history mechanisms and empirical source joint.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::EstimationError;
@@ -13,25 +13,25 @@ use std::sync::Arc;
 /// No response value is substituted for these mechanisms.
 #[derive(Debug)]
 pub struct FittedSequenceHistory {
-    sequence: [u32; 2],
+    sequence: Vec<u32>,
     tallies: SequenceTallies,
 }
 impl FittedSequenceHistory {
     /// Fit the existing whole-history mechanism tallies once.
     #[must_use]
-    pub fn fit(units: &[&UnitHistories], sequence: [u32; 2]) -> Self {
+    pub fn fit(units: &[&UnitHistories], sequence: &[u32]) -> Self {
         let attempt = antecedent_core::execution_attempt::OperationGuard::begin(
             antecedent_core::execution_attempt::Operation::FactorConstruction,
         );
         let tallies = SequenceTallies::of(units, sequence);
         note_static_work(StaticWork::FactorBuild);
         attempt.complete();
-        Self { sequence, tallies }
+        Self { sequence: sequence.to_vec(), tallies }
     }
     /// Construct several existing sequence mechanisms in one history traversal.
     /// The counter records each constructed mechanism, not each raw traversal.
     #[must_use]
-    pub fn fit_many(units: &[&UnitHistories], sequences: &[[u32; 2]]) -> Vec<Self> {
+    pub fn fit_many(units: &[&UnitHistories], sequences: &[Vec<u32>]) -> Vec<Self> {
         let attempts: Vec<_> = sequences
             .iter()
             .map(|_| {
@@ -44,17 +44,17 @@ impl FittedSequenceHistory {
             .into_iter()
             .zip(sequences)
             .zip(attempts)
-            .map(|((tallies, &sequence), attempt)| {
+            .map(|((tallies, sequence), attempt)| {
                 note_static_work(StaticWork::FactorBuild);
                 attempt.complete();
-                Self { sequence, tallies }
+                Self { sequence: sequence.clone(), tallies }
             })
             .collect()
     }
     /// The fitted whole-sequence intervention history.
     #[must_use]
-    pub const fn sequence(&self) -> [u32; 2] {
-        self.sequence
+    pub fn sequence(&self) -> &[u32] {
+        &self.sequence
     }
     /// Project the existing mechanism response onto a declared target initial law.
     /// This reads retained counts and validates every positive-mass target history.
@@ -65,9 +65,10 @@ impl FittedSequenceHistory {
         law: &InitialStateLaw,
     ) -> Result<Vec<StateContribution>, EstimationError> {
         if law.population() != InitialStatePopulation::Target {
-            return Err(EstimationError::refused(
+            return Err(EstimationError::refused_detail(
                 reason_code!("transport_missing_evidence"),
-                "initial_state.target_law_missing: only a source initial-state law was supplied",
+                "initial_state.target_law_missing",
+                "only a source initial-state law was supplied",
             ));
         }
         law.states()
@@ -109,10 +110,12 @@ pub fn fit_binary_history_units(
 }
 
 /// Fit one empirical joint source factor from complete histories whose state, actions,
-/// covariate and outcome are categorical codes `0..k` (each coordinate has as many levels as its
+/// covariates and outcome are categorical codes `0..k` (each coordinate has as many levels as its
 /// largest observed code plus one, and at least two). The joint is labeled empirical and
-/// carries reconciled counts. The cell index is the mixed radix of the five level counts, so
-/// binary histories reproduce [`fit_binary_history_joint`] exactly.
+/// carries reconciled counts. The cell index is the mixed radix of the level counts, so
+/// binary histories reproduce [`fit_binary_history_joint`] exactly. A history of `H` steps has
+/// `2H + 1` coordinates in time order: the state, the first action, each later covariate and
+/// action, and the outcome code; every history must have the same number of steps.
 /// # Errors
 /// No histories, an outcome that is not a non-negative integer code, a joint cell table the
 /// admission pool cannot fund, or an invalid frequency law.
@@ -143,12 +146,18 @@ fn outcome_code(y: f64) -> Option<u32> {
     (y.is_finite() && y >= 0.0 && y.fract() == 0.0 && y < f64::from(u32::MAX)).then(|| y as u32)
 }
 
-/// Coordinates of a history in axis order: state, first action, covariate, second action,
-/// outcome code.
+/// Coordinates of a history in axis order (the state, the first action, each later covariate
+/// and action, the outcome code), written into `out`; `false` when the outcome has no code.
 fn history_coordinates(
     h: &crate::temporal_dependent_interval::SequenceHistory,
-) -> Option<[u32; 5]> {
-    Some([h.s0, h.a1, h.l2, h.a2, outcome_code(h.y)?])
+    out: &mut Vec<u32>,
+) -> bool {
+    out.clear();
+    out.extend(h.coordinates());
+    outcome_code(h.y).is_some_and(|code| {
+        out.push(code);
+        true
+    })
 }
 
 /// `cap` bounds the levels of every coordinate (`Some(2)` is the binary route); `None` takes
@@ -156,7 +165,7 @@ fn history_coordinates(
 #[allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
-    reason = "the panel is bounded far below 2^53, and a coordinate index is one of five"
+    reason = "the panel is bounded far below 2^53, and a coordinate index is far below 2^32"
 )]
 fn fit_history_units(
     snapshot: &str,
@@ -164,27 +173,37 @@ fn fit_history_units(
     cap: Option<u32>,
 ) -> Result<ExactDiscreteLaw, EstimationError> {
     let scope = || {
-        EstimationError::refused(
+        EstimationError::refused_detail(
             reason_code!("route_not_supported"),
-            "temporal_recalc.binary_history_scope: only binary state, actions, covariate and outcome",
+            "temporal_recalc.binary_history_scope",
+            "only binary state, actions, covariate and outcome",
         )
     };
     antecedent_core::execution_attempt::run_operation(
         antecedent_core::execution_attempt::Operation::FactorConstruction,
         || {
             // Level count of each coordinate: its largest code plus one, and at least two.
-            let mut levels = [BINARY_LEVELS; 5];
+            let mut levels: Vec<u32> = Vec::new();
+            let mut coordinates = Vec::new();
             for h in units.iter().flat_map(|u| &u.histories) {
-                let Some(coordinates) = history_coordinates(h) else {
+                if !history_coordinates(h, &mut coordinates) {
                     return Err(if cap.is_some() {
                         scope()
                     } else {
                         EstimationError::data_msg("temporal_recalc.invalid_history_outcome")
                     });
-                };
+                }
+                if levels.is_empty() {
+                    levels = vec![BINARY_LEVELS; coordinates.len()];
+                } else if levels.len() != coordinates.len() {
+                    return Err(EstimationError::data_msg("temporal_recalc.history_horizon_mismatch"));
+                }
                 for (level, &code) in levels.iter_mut().zip(&coordinates) {
                     *level = (*level).max(code.saturating_add(1));
                 }
+            }
+            if levels.is_empty() {
+                return Err(EstimationError::data_msg("temporal_recalc.empty_histories"));
             }
             if cap.is_some_and(|cap| levels.iter().any(|&level| level > cap)) {
                 return Err(scope());
@@ -196,9 +215,9 @@ fn fit_history_units(
             let _lease = crate::util::admit_bound_array::<u64>(cells, 2)?;
             let mut counts = vec![0_u64; cells];
             for h in units.iter().flat_map(|u| &u.histories) {
-                let Some(coordinates) = history_coordinates(h) else {
+                if !history_coordinates(h, &mut coordinates) {
                     return Err(EstimationError::data_msg("temporal_recalc.invalid_history_fit"));
-                };
+                }
                 let cell = coordinates
                     .iter()
                     .zip(&levels)
@@ -245,15 +264,15 @@ fn fit_history_units(
 #[doc(hidden)]
 pub fn history_interval_candidate(
     panel: &TemporalUnitPanel,
-    active: [u32; 2],
-    control: Option<[u32; 2]>,
+    active: &[u32],
+    control: Option<&[u32]>,
     law: &InitialStateLaw,
     config: &crate::temporal_dependent_interval::DependentIntervalConfig,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<crate::temporal_dependent_interval::DependentInterval, EstimationError> {
     struct PairedHistory<'a> {
-        active: [u32; 2],
-        control: Option<[u32; 2]>,
+        active: Vec<u32>,
+        control: Option<Vec<u32>>,
         law: &'a InitialStateLaw,
     }
     impl crate::temporal_dependent_interval::TemporalEstimator for PairedHistory<'_> {
@@ -261,8 +280,10 @@ pub fn history_interval_candidate(
             if self.control.is_some() { "paired_sequence_effect" } else { "sequence_response" }
         }
         fn estimate(&self, units: &[&UnitHistories]) -> Result<f64, EstimationError> {
-            let sequences =
-                [Some(self.active), self.control].into_iter().flatten().collect::<Vec<_>>();
+            let sequences = [Some(self.active.clone()), self.control.clone()]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
             let fits = FittedSequenceHistory::fit_many(units, &sequences);
             let project = |fit: &FittedSequenceHistory| -> Result<f64, EstimationError> {
                 Ok(fit.contributions(self.law)?.iter().map(|c| c.mass * c.response).sum())
@@ -273,7 +294,7 @@ pub fn history_interval_candidate(
     }
     crate::temporal_dependent_interval::dependent_unit_interval(
         panel,
-        &PairedHistory { active, control, law },
+        &PairedHistory { active: active.to_vec(), control: control.map(<[u32]>::to_vec), law },
         config,
         ctx,
     )
@@ -307,14 +328,14 @@ mod tests {
                                     + 0.5 * f64::from(l2)
                                     + 0.01 * f64::from(unit);
                                 for _ in 0..2 {
-                                    histories.push(SequenceHistory {
-                                        time_id: u64::try_from(histories.len()).unwrap() * 2,
+                                    histories.push(SequenceHistory::two_step(
+                                        u64::try_from(histories.len()).unwrap() * 2,
                                         s0,
                                         a1,
                                         l2,
                                         a2,
                                         y,
-                                    });
+                                    ));
                                 }
                             }
                         }
@@ -329,7 +350,7 @@ mod tests {
     fn shared_history_accumulator_matches_each_existing_single_sequence_tally() {
         let panel = panel();
         let units = panel.units().iter().collect::<Vec<_>>();
-        let sequences = [[0, 0], [0, 1], [1, 0], [1, 1]];
+        let sequences = [vec![0, 0], vec![0, 1], vec![1, 0], vec![1, 1]];
         let law = InitialStateLaw::new(
             InitialStatePopulation::Target,
             "target",
@@ -337,7 +358,7 @@ mod tests {
         )
         .unwrap();
         let fitted = FittedSequenceHistory::fit_many(&units, &sequences);
-        for (fit, &sequence) in fitted.iter().zip(&sequences) {
+        for (fit, sequence) in fitted.iter().zip(&sequences) {
             let original = SequenceTallies::of(&units, sequence);
             for c in fit.contributions(&law).unwrap() {
                 assert_eq!(c.response.to_bits(), original.response(c.s0).unwrap().to_bits());
@@ -369,8 +390,8 @@ mod tests {
             ..DependentIntervalConfig::default()
         };
         let ctx = ExecutionContext::for_tests(19);
-        for control in [Some([0, 0]), None] {
-            let error = history_interval_candidate(&panel, [1, 1], control, &law, &config, &ctx)
+        for control in [Some(&[0, 0][..]), None] {
+            let error = history_interval_candidate(&panel, &[1, 1], control, &law, &config, &ctx)
                 .unwrap_err();
             assert!(matches!(
                 error,
@@ -384,7 +405,7 @@ mod tests {
         // the same histories in both arms, so the unit disturbance cancels.
         for selection in [vec![0, 23, 23, 7], vec![7, 0, 23, 23], (0..24).collect()] {
             let units = selection.iter().map(|&index| &panel.units()[index]).collect::<Vec<_>>();
-            let fits = FittedSequenceHistory::fit_many(&units, &[[1, 1], [0, 0]]);
+            let fits = FittedSequenceHistory::fit_many(&units, &[vec![1, 1], vec![0, 0]]);
             let project = |fit: &FittedSequenceHistory| {
                 fit.contributions(&law).unwrap().iter().map(|c| c.mass * c.response).sum::<f64>()
             };
@@ -409,13 +430,8 @@ mod categorical_tests {
             histories: histories
                 .iter()
                 .enumerate()
-                .map(|(i, &(s0, a1, l2, a2, y))| SequenceHistory {
-                    time_id: i as u64 * 2,
-                    s0,
-                    a1,
-                    l2,
-                    a2,
-                    y,
+                .map(|(i, &(s0, a1, l2, a2, y))| {
+                    SequenceHistory::two_step(i as u64 * 2, s0, a1, l2, a2, y)
                 })
                 .collect(),
         }
@@ -450,5 +466,29 @@ mod categorical_tests {
         assert_eq!(counts[cell([0, 1, 0, 0, 2])], 1);
         assert_eq!(counts.iter().sum::<u64>(), 2);
         assert!(fit_categorical_history_units("s", &[&unit(&[(0, 0, 0, 0, 0.5)])]).is_err());
+    }
+
+    #[test]
+    fn a_three_step_history_has_seven_coordinates_in_time_order() {
+        let history = SequenceHistory {
+            time_id: 0,
+            s0: 1,
+            actions: vec![0, 1, 0],
+            covariates: vec![1, 0],
+            y: 1.0,
+        };
+        let u = UnitHistories { unit_id: 0, histories: vec![history] };
+        let law = fit_binary_history_units("s", &[&u]).unwrap();
+        assert_eq!(law.axes().len(), 7);
+        let counts = law.empirical_counts().unwrap();
+        assert_eq!(counts.len(), 128);
+        // cell = s0, a1, l2, a2, l3, a3, y read as binary digits: 1011001.
+        assert_eq!(counts[0b101_1001], 1);
+        // Histories of different horizons cannot share one joint.
+        let two = UnitHistories {
+            unit_id: 1,
+            histories: vec![SequenceHistory::two_step(0, 0, 0, 0, 0, 0.0)],
+        };
+        assert!(fit_binary_history_units("s", &[&u, &two]).is_err());
     }
 }

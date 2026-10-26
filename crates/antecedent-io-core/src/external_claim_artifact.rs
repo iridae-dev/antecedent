@@ -12,7 +12,6 @@ use antecedent_contract::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::{from_cbor, to_cbor};
 use crate::error::IoError;
 use crate::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
 
@@ -516,15 +515,11 @@ impl ExternalClaimArtifact {
     /// Invalid content or an oversized payload refuses.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, IoError> {
         validate(&self.metadata, &self.values)?;
-        if artifact_id.trim().is_empty() {
-            return Err(IoError::Convert("missing artifact id".into()));
-        }
-        let meta_bytes = to_cbor(&self.metadata)?;
         let mut value_bytes = Vec::with_capacity(self.values.len() * 8);
         for value in &self.values {
             value_bytes.extend_from_slice(&value.to_le_bytes());
         }
-        crate::encode_container(
+        crate::artifact_codec::encode_sectioned_io(
             &crate::ArtifactContainer {
                 kind: ARTIFACT_KIND,
                 note: "external_response_claim",
@@ -532,20 +527,15 @@ impl ExternalClaimArtifact {
                 artifact_id,
                 library_version: env!("CARGO_PKG_VERSION"),
             },
-            &[
-                crate::OutSection {
-                    id: META_SECTION,
-                    content_type: crate::CONTENT_CBOR,
-                    bytes: &meta_bytes,
-                },
-                crate::OutSection {
-                    id: VALUES_SECTION,
-                    content_type: crate::CONTENT_BYTES,
-                    bytes: &value_bytes,
-                },
-            ],
+            META_SECTION,
+            &self.metadata,
+            &[crate::OutSection {
+                id: VALUES_SECTION,
+                content_type: crate::CONTENT_BYTES,
+                bytes: &value_bytes,
+            }],
+            "unsupported external claim layout",
         )
-        .map_err(|error| error.into_io("unsupported external claim layout"))
     }
 
     /// Load and check against an independently retained identity.
@@ -570,17 +560,15 @@ impl ExternalClaimArtifact {
             return Err(IoError::TooLarge);
         }
         expected.validate()?;
-        let parts = crate::decode_container(
-            ARTIFACT_KIND,
-            max_bytes,
-            &[META_SECTION, VALUES_SECTION],
-            bytes,
-        )
-        .map_err(|error| error.into_io("unsupported external claim layout"))?;
-        let Ok([meta_bytes, raw]) = <[Vec<u8>; 2]>::try_from(parts) else {
-            return Err(IoError::Convert("unsupported external claim layout".into()));
-        };
-        let metadata: ExternalClaimMetadata = from_cbor(&meta_bytes)?;
+        let (metadata, [raw]): (ExternalClaimMetadata, _) =
+            crate::artifact_codec::decode_sectioned_io(
+                ARTIFACT_KIND,
+                max_bytes,
+                META_SECTION,
+                &[VALUES_SECTION],
+                "unsupported external claim layout",
+                bytes,
+            )?;
         if metadata.identity != *expected {
             return Err(IoError::Refused {
                 code: antecedent_core::reason_code!("external_binding_mismatch"),

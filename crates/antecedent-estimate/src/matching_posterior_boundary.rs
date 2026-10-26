@@ -71,7 +71,7 @@ mod tests {
         match refuse_matching_posterior(request) {
             EstimationError::Refused { code, message } => {
                 assert_eq!(code, "route_not_supported");
-                message
+                message.into_string()
             }
             other => panic!("expected a registered refusal, got {other}"),
         }

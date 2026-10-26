@@ -77,6 +77,7 @@ use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 use crate::arm::TreatmentArm;
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
+use crate::inference::InferenceSpec;
 use crate::overlap::OverlapPolicy;
 use crate::se::AnalyticSeKind;
 use crate::util::{BootstrapSeResult};
@@ -192,8 +193,11 @@ pub struct RdWorkspace {
 pub struct SharpRegressionDiscontinuity {
     /// Dense linear-algebra backend.
     pub backend: FaerBackend,
-    /// Bootstrap replicates (0 = skip bootstrap).
-    pub bootstrap_replicates: u32,
+    /// Inference declarations. Sharp RD reads the bootstrap size and the analytic standard-error
+    /// kind: HC1 residual sandwich (default), HC0/HC2/HC3, or the classical homoskedastic
+    /// formula on explicit opt-in. Cluster / multiway / HAC kinds are refused (the RD problem
+    /// carries no labels), and every other declaration is refused rather than ignored.
+    pub inference: InferenceSpec,
     /// Overlap policy (must be [`OverlapPolicy::ExplicitOverride`]).
     pub overlap: OverlapPolicy,
     /// Running (assignment) variable.
@@ -202,10 +206,6 @@ pub struct SharpRegressionDiscontinuity {
     pub cutoff: f64,
     /// Symmetric bandwidth around the cutoff (`|R − cutoff| ≤ bandwidth` is retained).
     pub bandwidth: f64,
-    /// Analytic SE kind: HC1 residual sandwich (default), HC0/HC2/HC3, or the
-    /// classical homoskedastic formula on explicit opt-in. Cluster / multiway /
-    /// HAC kinds are refused (the RD problem carries no labels).
-    pub se_kind: AnalyticSeKind,
 }
 
 impl SharpRegressionDiscontinuity {
@@ -217,18 +217,25 @@ impl SharpRegressionDiscontinuity {
     pub fn new(running_variable: VariableId, cutoff: f64, bandwidth: f64) -> Self {
         Self {
             backend: FaerBackend,
-            bootstrap_replicates: 200,
+            inference: InferenceSpec { se_kind: AnalyticSeKind::Hc1, ..InferenceSpec::new(200) },
             overlap: OverlapPolicy::ExplicitOverride,
             running_variable,
             cutoff,
             bandwidth,
-            se_kind: AnalyticSeKind::Hc1,
         }
     }
 
-    crate::inference::with_se_kind!();
+    crate::inference::with_se_kind!(inference);
 
-    crate::inference::with_bootstrap_replicates!();
+    crate::inference::with_bootstrap_replicates!(inference);
+
+    /// Refuse the inference declarations sharp RD does not read.
+    fn require_read_inference(&self) -> Result<(), EstimationError> {
+        self.inference.require_read_declarations(
+            "SharpRegressionDiscontinuity",
+            crate::inference::ReadDeclarations::default(),
+        )
+    }
 
     /// Set the overlap policy. Must remain [`OverlapPolicy::ExplicitOverride`] — RD is not a
     /// propensity-based method.
@@ -261,6 +268,7 @@ impl SharpRegressionDiscontinuity {
             self.overlap,
             "SharpRegressionDiscontinuity requires ExplicitOverride overlap policy",
         )?;
+        self.require_read_inference()?;
         if estimand.method_kind().ok() != Some(antecedent_expr::EstimandMethod::RdSharp) {
             return Err(EstimationError::IncompatibleEstimand {
                 message: "SharpRegressionDiscontinuity expects an \"rd.sharp\" estimand",
@@ -431,8 +439,7 @@ impl SharpRegressionDiscontinuity {
             target.functional,
             executable,
             ProgramLimits::default(),
-        )
-        .map_err(|e| EstimationError::data_msg(format!("checked RD program: {e}")))?;
+        )?;
         let factor_requirements: Arc<[FactorRequirement]> =
             Arc::from(program.factor_requirements().to_vec());
         let problem = self.prepare(data, target, query)?;
@@ -469,6 +476,7 @@ impl SharpRegressionDiscontinuity {
         ctx: &ExecutionContext,
         mut assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        self.require_read_inference()?;
         let fit = self
             .backend
             .least_squares(
@@ -480,7 +488,7 @@ impl SharpRegressionDiscontinuity {
             )
             .map_err(crate::error::EstimationError::from)?;
         let ate = fit.coefficients[RD_TREATMENT_COL];
-        let se_analytic = match self.se_kind {
+        let se_analytic = match self.inference.se_kind {
             AnalyticSeKind::Homoskedastic => {
                 let n = problem.nrows as f64;
                 let p = RD_NCOLS as f64;
@@ -492,7 +500,7 @@ impl SharpRegressionDiscontinuity {
             | AnalyticSeKind::Hc2
             | AnalyticSeKind::Hc3 => crate::se::residual_sandwich_coef_se(
                 crate::se::SeSpec {
-                    kind: self.se_kind,
+                    kind: self.inference.se_kind,
                     cluster_ids: None,
                     multiway_ids: None,
                     panel_times: None,
@@ -511,7 +519,7 @@ impl SharpRegressionDiscontinuity {
             }
         };
 
-        let (id, description) = if matches!(self.se_kind, AnalyticSeKind::Homoskedastic) {
+        let (id, description) = if matches!(self.inference.se_kind, AnalyticSeKind::Homoskedastic) {
             (
                 "rd.sharp.homoskedastic_se",
                 "se_analytic is the classical sigma^2 (X'X)^-1 jump-coefficient SE, selected explicitly: it assumes one outcome variance on both sides of the cutoff and along the running variable inside the window; the default se_kind Hc1 and se_bootstrap do not",
@@ -551,7 +559,7 @@ impl SharpRegressionDiscontinuity {
             }
         }
 
-        let boot = if self.bootstrap_replicates == 0 {
+        let boot = if self.inference.bootstrap_replicates == 0 {
             None
         } else {
             Some(self.bootstrap_se(problem, workspace, ctx)?)
@@ -559,7 +567,7 @@ impl SharpRegressionDiscontinuity {
 
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_preparation(Some(crate::prepare::preparation_summary(&problem.preparation)))
-            .with_se_kind(self.se_kind)
+            .with_se_kind(self.inference.se_kind)
             .with_bootstrap(boot))
     }
 
@@ -583,10 +591,10 @@ impl SharpRegressionDiscontinuity {
         // Each worker holds at most `n * RD_NCOLS` design cells, `n` outcomes and `n` counts
         // (the distinct rows of a resample, scaled by the root of their multiplicity).
         let _gather =
-            crate::util::admit_gather_scratch(ctx, n, RD_NCOLS + 2, self.bootstrap_replicates)?;
+            crate::util::admit_gather_scratch(ctx, n, RD_NCOLS + 2, self.inference.bootstrap_replicates)?;
         // Replicates own a cold workspace; parallel workers cannot share the caller's.
         crate::util::bootstrap_se_with_scratch(
-            self.bootstrap_replicates,
+            self.inference.bootstrap_replicates,
             ctx,
             0x5D0C_u64,
             n,
@@ -857,10 +865,8 @@ mod tests {
     #[test]
     fn targets_the_cutoff_effect_not_the_window_or_population_average() {
         let data = heterogeneous_curved_scm(60_000, 11);
-        let est = SharpRegressionDiscontinuity {
-            bootstrap_replicates: 0,
-            ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, KNOWN_TRUTH_BANDWIDTH)
-        };
+        let est = SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, KNOWN_TRUTH_BANDWIDTH)
+            .with_bootstrap_replicates(0);
         let prep = est.prepare(&data, &rd_estimand(), &local_query(0.0)).unwrap();
         let mut ws = RdWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
@@ -877,10 +883,8 @@ mod tests {
         let bandwidth = 0.4;
         let query = local_query(0.0);
         let identification = checked_rd_result(query, bandwidth);
-        let estimator = SharpRegressionDiscontinuity {
-            bootstrap_replicates: 0,
-            ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, bandwidth)
-        };
+        let estimator = SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, bandwidth)
+            .with_bootstrap_replicates(0);
         let checked = estimator.prepare_checked(&data, &identification, 0).unwrap();
         assert_eq!(checked.lowering().running_variable, VariableId::from_raw(2));
         assert_eq!(checked.lowering().bandwidth, bandwidth);
@@ -964,10 +968,8 @@ mod tests {
     #[test]
     fn verified_assignment_marks_the_sharpness_assumption_supported() {
         let (data, estimand) = sharp_rd_scm(800, 7);
-        let est = SharpRegressionDiscontinuity {
-            bootstrap_replicates: 0,
-            ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
-        };
+        let est = SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
+            .with_bootstrap_replicates(0);
         let prep = est.prepare(&data, &estimand, &local_query(0.0)).unwrap();
         assert_eq!(prep.assignment_verified_rows, 800);
         let mut declared = AssumptionSet::new();
@@ -1010,10 +1012,8 @@ mod tests {
     #[test]
     fn recovers_jump_of_three() {
         let (data, estimand) = sharp_rd_scm(6000, 1);
-        let est = SharpRegressionDiscontinuity {
-            bootstrap_replicates: 30,
-            ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
-        };
+        let est = SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
+            .with_bootstrap_replicates(30);
         let query = local_query(0.0);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = RdWorkspace::default();
@@ -1028,11 +1028,9 @@ mod tests {
     fn hc1_is_the_default_se_and_homoskedastic_is_opt_in() {
         let (data, estimand) = sharp_rd_scm(800, 4);
         let query = local_query(0.0);
-        let robust = SharpRegressionDiscontinuity {
-            bootstrap_replicates: 0,
-            ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
-        };
-        assert_eq!(robust.se_kind, AnalyticSeKind::Hc1);
+        let robust = SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
+            .with_bootstrap_replicates(0);
+        assert_eq!(robust.inference.se_kind, AnalyticSeKind::Hc1);
         let explicit_hc1 = robust.clone().with_se_kind(AnalyticSeKind::Hc1);
         let classical = robust.clone().with_se_kind(AnalyticSeKind::Homoskedastic);
         let prep = robust.prepare(&data, &estimand, &query).unwrap();
@@ -1069,6 +1067,23 @@ mod tests {
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
         assert!(matches!(err, EstimationError::IncompatibleEstimand { .. }));
+    }
+
+    #[test]
+    fn inference_declarations_rd_does_not_read_are_refused() {
+        let (data, estimand) = sharp_rd_scm(200, 3);
+        let query = local_query(0.0);
+        let mut clustered = SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0);
+        clustered.inference.cluster_ids = Some(vec![0; 200]);
+        let err = clustered.prepare(&data, &estimand, &query).unwrap_err();
+        assert!(
+            matches!(err, EstimationError::Refused { code: "estimator_inference_mismatch", .. }),
+            "{err:?}"
+        );
+        let read = SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
+            .with_se_kind(AnalyticSeKind::Hc3)
+            .with_bootstrap_replicates(0);
+        assert!(read.prepare(&data, &estimand, &query).is_ok());
     }
 
     #[test]

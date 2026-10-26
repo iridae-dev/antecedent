@@ -333,8 +333,7 @@ pub fn evaluate_gaussian_cyclic_functional(
         return Err(invalid("Gaussian program variable exceeds observational law shape"));
     }
     let _lease = ctx
-        .acquire_admission(1, (checked.arena().len() * ((n * n + n) * 32 + 256) + 65536) as u64)
-        .map_err(invalid)?;
+        .acquire_admission(1, (checked.arena().len() * ((n * n + n) * 32 + 256) + 65536) as u64)?;
     let (mean, covariance, fitted_rows) = if let Some(density) = frozen_density {
         if density.mean.len() != n || density.covariance.len() != n * n {
             return Err(invalid("Gaussian retained density shape"));

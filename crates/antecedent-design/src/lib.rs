@@ -118,7 +118,8 @@ pub use repair::{
     TransportRepairFamily, repair,
 };
 pub use repair_artifact::{
-    RepairArtifactError, RepairConsumeLimits, RepairFamilyRef, RepairReportArtifact,
+    RepairArtifactError, RepairConsumeLimits, RepairFamilyRef, RepairReadLimits,
+    RepairReportArtifact,
 };
 pub use result::{ConstraintViolation, RankedCandidate, ScoreEvaluation, ScoredDesignRanking};
 pub use structure_identification::{

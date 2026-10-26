@@ -149,15 +149,15 @@ fn vector_artifact_calibration_is_unmeasured_and_says_so() {
 fn vector_artifact_summary_replay_is_bit_identical_to_the_core_fit() {
     let artifact = VectorTreatmentArtifact::seal(&adjusted_request()).unwrap();
     let input = VectorTreatmentInput {
-        outcome: Y.to_vec(),
+        outcome: Y.to_vec().into(),
         row_snapshot: "snap".into(),
-        adjustment: vec![NamedColumn { name: "w".into(), values: W.to_vec() }],
+        adjustment: vec![NamedColumn::new("w", W.to_vec())],
         treatments: ["t1", "t2"]
             .iter()
             .zip([X1, X2])
             .map(|(name, values)| TreatmentColumn {
                 name: (*name).into(),
-                values: values.to_vec(),
+                values: values.to_vec().into(),
                 adjustment_set: vec!["w".into()],
                 row_snapshot: "snap".into(),
             })
@@ -230,21 +230,21 @@ fn row_fit(
     covariance: VectorCovariance,
 ) -> antecedent_estimate::vector_treatment::VectorTreatmentFit {
     let input = VectorTreatmentInput {
-        outcome: request.outcome.clone(),
-        row_snapshot: request.row_snapshot.clone(),
+        outcome: request.outcome.as_slice().into(),
+        row_snapshot: request.row_snapshot.as_str().into(),
         adjustment: request
             .adjustment
             .iter()
-            .map(|c| NamedColumn { name: c.name.clone(), values: c.values.clone() })
+            .map(|c| NamedColumn::new(c.name.as_str(), c.values.as_slice()))
             .collect(),
         treatments: request
             .treatments
             .iter()
             .map(|t| TreatmentColumn {
-                name: t.name.clone(),
-                values: t.values.clone(),
-                adjustment_set: t.adjustment_set.clone(),
-                row_snapshot: t.row_snapshot.clone(),
+                name: t.name.as_str().into(),
+                values: t.values.as_slice().into(),
+                adjustment_set: t.adjustment_set.iter().map(|a| a.as_str().into()).collect(),
+                row_snapshot: t.row_snapshot.as_str().into(),
             })
             .collect(),
     };

@@ -22,7 +22,7 @@ fn close(actual: f64, expected: f64, what: &str) {
     assert!((actual - expected).abs() <= 1e-8, "{what}: {actual} vs {expected}");
 }
 
-fn input() -> CategoricalTreatmentInput {
+fn input() -> CategoricalTreatmentInput<'static> {
     let rows = [
         ("c", 9.0),
         ("a", 1.0),

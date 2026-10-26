@@ -20,7 +20,10 @@ mod count;
 mod gaussian;
 mod multinomial;
 
-pub use binomial::{fit_glm_ridge, fit_glm_ridge_weighted, fit_logistic_weighted};
+pub use binomial::{
+    GlmLaplaceFit, fit_glm_ridge, fit_glm_ridge_weighted, fit_logistic_weighted, fit_logit_laplace,
+    logit_working_row,
+};
 pub use multinomial::{
     MultinomialDesignRef, MultinomialFit, fit_multinomial_logit, fit_multinomial_logit_weighted,
 };

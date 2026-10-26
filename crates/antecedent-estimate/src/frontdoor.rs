@@ -317,8 +317,7 @@ pub(crate) fn prepare_frontdoor_checked(
         target.functional,
         executable,
         ProgramLimits::default(),
-    )
-    .map_err(|e| EstimationError::data_msg(format!("checked front-door program: {e}")))?;
+    )?;
     let factor_requirements: Arc<[FactorRequirement]> =
         Arc::from(program.factor_requirements().to_vec());
     let problem = prepare_frontdoor_problem(data, target, query, overlap)?;

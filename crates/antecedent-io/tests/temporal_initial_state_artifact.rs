@@ -51,13 +51,7 @@ fn panel(snapshot: &str) -> TemporalUnitPanel {
                         let n_cell = n_l / 2;
                         let ones = n_cell * M10[s0][a1][l][a2] / 10;
                         for k in 0..n_cell {
-                            histories.push(SequenceHistory {
-                                time_id: histories.len() as u64,
-                                s0: s0 as u32,
-                                a1: a1 as u32,
-                                l2: l as u32,
-                                a2: a2 as u32,
-                                y: if k < ones { 1.0 } else { 0.0 },
+                            histories.push(SequenceHistory::two_step(histories.len() as u64, s0 as u32, a1 as u32, l as u32, a2 as u32, if k < ones { 1.0) else { 0.0 },
                             });
                         }
                     }
@@ -89,7 +83,7 @@ fn artifact() -> TemporalInitialStateArtifactWire {
     let query =
         MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Law(target_law("target-state", 0.7)))
             .unwrap();
-    let fixed = FixedStateQuery { sequence: SEQUENCE, s0: 1 };
+    let fixed = FixedStateQuery { sequence: SEQUENCE.to_vec(), s0: 1 };
     TemporalInitialStateArtifactWire::checked(
         premises(),
         SEQUENCE,

@@ -17,6 +17,40 @@ use crate::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
 const SECTION_REPLAY: ReplayTolerance =
     ReplayTolerance::new(1e-9, ReplayScale::OnePlusReplayed, ReplayNonFinite::Refuse);
 
+/// Replay policy of a recomputed quantity that is a closed-form function of other stored
+/// numbers (a ratio, a half-sum, a variance identity): absolute to `1e-8`, non-finite refused.
+const REPLAY_ABSOLUTE_LOOSE: ReplayTolerance =
+    ReplayTolerance::new(1e-8, ReplayScale::Absolute, ReplayNonFinite::Refuse);
+/// Replay policy of a quantity recomputed by the same arithmetic as the stored one: absolute to
+/// `1e-10`, non-finite refused.
+const REPLAY_ABSOLUTE: ReplayTolerance =
+    ReplayTolerance::new(1e-10, ReplayScale::Absolute, ReplayNonFinite::Refuse);
+/// Replay policy of a quantity that is exact up to one rounding (a probability or a stored copy
+/// of a variance): absolute to `1e-12`, non-finite refused.
+const REPLAY_ABSOLUTE_TIGHT: ReplayTolerance =
+    ReplayTolerance::new(1e-12, ReplayScale::Absolute, ReplayNonFinite::Refuse);
+/// Replay policy of two numbers that are both recomputed: a relative `1e-10` of one plus the sum
+/// of their magnitudes; non-finite is refused.
+const REPLAY_PAIR: ReplayTolerance =
+    ReplayTolerance::new(1e-10, ReplayScale::OnePlusSum, ReplayNonFinite::Refuse);
+
+/// Relative tolerance of an interval bound against `center -/+ span`.
+const INTERVAL_BOUND_RELATIVE: f64 = 1e-10;
+/// Relative tolerance of an interval bound whose half-width is recomputed from a stored variance.
+const INTERVAL_BOUND_RELATIVE_LOOSE: f64 = 1e-8;
+/// Relative tolerance of a pooled interval bound.
+const INTERVAL_BOUND_RELATIVE_POOLED: f64 = 1e-9;
+
+/// Replay policy of an interval bound against `center -/+ span`: `relative` of one plus the
+/// magnitudes of the center and the half-width.
+fn interval_bound_replay(relative: f64, center: f64, span: f64) -> ReplayTolerance {
+    ReplayTolerance::new(
+        relative * (1.0 + center.abs() + span.abs()),
+        ReplayScale::Absolute,
+        ReplayNonFinite::Refuse,
+    )
+}
+
 /// Expected rows in each arm of an independent Bernoulli intention-to-treat interval (the support
 /// row's `min_expected_arm_units`, restated for this self-contained recompute).
 const MIN_EXPECTED_ARM_UNITS: f64 = 40.0;
@@ -61,7 +95,7 @@ fn late_ratio_matches(effect: f64, intention: Option<f64>, first_stage: Option<f
         (Some(intention), Some(first_stage))
             if intention.is_finite() && first_stage.is_finite() && first_stage > f64::EPSILON =>
         {
-            (effect - intention / first_stage).abs() <= 1e-10
+            REPLAY_ABSOLUTE.close(effect, intention / first_stage)
         }
         _ => false,
     }
@@ -227,7 +261,7 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
                     || query
                         .assignment_probabilities
                         .iter()
-                        .all(|p| (*p - query.assignment_probabilities[0]).abs() <= 1e-12))
+                        .all(|p| REPLAY_ABSOLUTE_TIGHT.close(*p, query.assignment_probabilities[0])))
         }
         crate::RandomizationDesignWire::Complete { .. }
         | crate::RandomizationDesignWire::Cluster { .. } => control >= 30 && treated >= 30,
@@ -491,26 +525,26 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
                     && query.realized_assignment.len() >= MIN_SMALL_ARM_ROWS
                     && control >= MIN_SMALL_ARM_UNITS
                     && treated >= MIN_SMALL_ARM_UNITS
-                    && ((lower + upper) / 2.0 - randomized.effect).abs() <= 1e-8
+                    && REPLAY_ABSOLUTE_LOOSE.close((lower + upper) / 2.0, randomized.effect)
                     && critical >= z95 - 1e-8
                     && critical <= antecedent_stats::student_t_ppf(0.975, 1.0) + 1e-8
             } else {
                 interval_supported
                     && interval_uncertainty.is_some()
-                    && (lower - (randomized.effect - z95 * se)).abs() <= 1e-8
-                    && (upper - (randomized.effect + z95 * se)).abs() <= 1e-8
+                    && REPLAY_ABSOLUTE_LOOSE.close(lower, randomized.effect - z95 * se)
+                    && REPLAY_ABSOLUTE_LOOSE.close(upper, randomized.effect + z95 * se)
             };
             interval_matches
                 && se.is_finite()
                 && se > 0.0
-                && result.standard_error.is_some_and(|top| (top - se).abs() <= 1e-10)
+                && result.standard_error.is_some_and(|top| REPLAY_ABSOLUTE.close(top, se))
                 && lower.is_finite()
                 && upper.is_finite()
                 && (matches!(
                     query.design,
                     crate::RandomizationDesignWire::Bernoulli
                         | crate::RandomizationDesignWire::MultiArm
-                ) || (se * se - randomized.variance).abs() <= 1e-8)
+                ) || REPLAY_ABSOLUTE_LOOSE.close(se * se, randomized.variance))
         }
         _ => false,
     };
@@ -532,10 +566,10 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
                     Some(interaction_var),
                     Some([il, iu]),
                 ) if has_interval => {
-                    (sl - (second - z95 * second_var.sqrt())).abs() <= 1e-8
-                        && (su - (second + z95 * second_var.sqrt())).abs() <= 1e-8
-                        && (il - (interaction - z95 * interaction_var.sqrt())).abs() <= 1e-8
-                        && (iu - (interaction + z95 * interaction_var.sqrt())).abs() <= 1e-8
+                    REPLAY_ABSOLUTE_LOOSE.close(sl, second - z95 * second_var.sqrt())
+                        && REPLAY_ABSOLUTE_LOOSE.close(su, second + z95 * second_var.sqrt())
+                        && REPLAY_ABSOLUTE_LOOSE.close(il, interaction - z95 * interaction_var.sqrt())
+                        && REPLAY_ABSOLUTE_LOOSE.close(iu, interaction + z95 * interaction_var.sqrt())
                 }
                 (_, _, None, _, _, None) if !has_interval => true,
                 _ => false,
@@ -559,7 +593,7 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
                                 lower.is_finite()
                                     && upper.is_finite()
                                     && lower < upper
-                                    && ((lower + upper) / 2.0 - contrast).abs() <= 1e-8
+                                    && REPLAY_ABSOLUTE_LOOSE.close((lower + upper) / 2.0, contrast)
                             })
                         },
                     )
@@ -610,10 +644,10 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
         || randomized.second_factor_effect.is_some_and(|value| !value.is_finite())
         || randomized.factorial_interaction.is_some_and(|value| !value.is_finite())
         || randomized.second_factor_variance.is_some_and(|value| {
-            !value.is_finite() || value < 0.0 || (value - randomized.variance).abs() > 1e-12
+            !value.is_finite() || value < 0.0 || !REPLAY_ABSOLUTE_TIGHT.close(value, randomized.variance)
         })
         || randomized.factorial_interaction_variance.is_some_and(|value| {
-            !value.is_finite() || value < 0.0 || (value - 4.0 * randomized.variance).abs() > 1e-12
+            !value.is_finite() || value < 0.0 || !REPLAY_ABSOLUTE_TIGHT.close(value, 4.0 * randomized.variance)
         })
         || (matches!(query.design, crate::RandomizationDesignWire::MultiArm)
             == randomized.multi_arm_values.is_empty())
@@ -634,11 +668,12 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
                     },
                 )
                 || randomized.multi_arm_values.get(1).is_none_or(|(_, value, variance, _)| {
-                    (randomized.effect - (value - randomized.multi_arm_values[0].1)).abs() > 1e-10
-                        || (randomized.variance
-                            - 2.0 * (variance + randomized.multi_arm_values[0].2))
-                            .abs()
-                            > 1e-10
+                    !REPLAY_ABSOLUTE
+                        .close(randomized.effect, value - randomized.multi_arm_values[0].1)
+                        || !REPLAY_ABSOLUTE.close(
+                            randomized.variance,
+                            2.0 * (variance + randomized.multi_arm_values[0].2),
+                        )
                 })))
         || (query.exact_randomization_test
             && randomized.randomization_p_value.is_none_or(|p| {
@@ -664,7 +699,7 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
         || randomized.treatment_arms != query.treatment_arms
         || randomized.control_units != control
         || randomized.treatment_units != treated
-        || (randomized.minimum_assignment_probability - minimum_probability).abs() > 1e-12
+        || !REPLAY_ABSOLUTE_TIGHT.close(randomized.minimum_assignment_probability, minimum_probability)
     {
         return Err(IoError::Convert("invalid randomized payload or fabricated interval".into()));
     }
@@ -686,10 +721,10 @@ pub(in crate::analysis_result_artifact) fn validate_ratio_graphless(
     let z = antecedent_stats::normal_ppf(0.975);
     let lower = fit.effect - z * fit.standard_error;
     let upper = fit.effect + z * fit.standard_error;
-    let tolerance = 1e-10 * (1.0 + fit.effect.abs() + (z * fit.standard_error).abs());
+    let tolerance = interval_bound_replay(INTERVAL_BOUND_RELATIVE, fit.effect, z * fit.standard_error);
     let bounds_match = |bounds: Option<f64>, expected: f64| {
         if interval_available {
-            bounds.is_some_and(|value| value.is_finite() && (value - expected).abs() <= tolerance)
+            bounds.is_some_and(|value| value.is_finite() && tolerance.close(value, expected))
         } else {
             bounds.is_none()
         }
@@ -911,17 +946,17 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
         Some(bounds) => {
             let se = regime.value_standard_error.unwrap_or(f64::NAN);
             let span = antecedent_stats::normal_ppf(0.975) * se;
-            let tolerance = 1e-10 * (1.0 + regime.value.abs() + span.abs());
+            let tolerance = interval_bound_replay(INTERVAL_BOUND_RELATIVE, regime.value, span);
             (eligible_ipw || eligible_msm || eligible_dr || g_formula_expected.is_some())
                 && g_formula_expected.is_none_or(|(value, (expected_se, expected_bounds))| {
-                    (regime.value - value).abs() <= 1e-10
-                        && (se - expected_se).abs() <= 1e-10
+                    REPLAY_ABSOLUTE.close(regime.value, value)
+                        && REPLAY_ABSOLUTE.close(se, expected_se)
                         && bounds == expected_bounds
                 })
                 && bounds[0].is_finite()
                 && bounds[1].is_finite()
-                && (bounds[0] - (regime.value - span)).abs() <= tolerance
-                && (bounds[1] - (regime.value + span)).abs() <= tolerance
+                && tolerance.close(bounds[0], regime.value - span)
+                && tolerance.close(bounds[1], regime.value + span)
         }
         None => true,
     };
@@ -938,11 +973,11 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
                 .zip(&regime.standard_errors)
                 .all(|((bounds, center), se)| {
                     let span = antecedent_stats::normal_ppf(0.975) * se;
-                    let tolerance = 1e-10 * (1.0 + center.abs() + span.abs());
+                    let tolerance = interval_bound_replay(INTERVAL_BOUND_RELATIVE, *center, span);
                     bounds[0].is_finite()
                         && bounds[1].is_finite()
-                        && (bounds[0] - (center - span)).abs() <= tolerance
-                        && (bounds[1] - (center + span)).abs() <= tolerance
+                        && tolerance.close(bounds[0], center - span)
+                        && tolerance.close(bounds[1], center + span)
                 })
     };
     // Support evidence is read from the same wire fields the executor used to
@@ -1219,7 +1254,10 @@ pub(in crate::analysis_result_artifact) fn validate_continuous_dose_graphless(
         if value.policy_doses != expected_policy
             || value.reference_doses != expected_reference
             || !centers.iter().chain(&variances).all(|number| number.is_finite())
-            || (value.policy_value - value.reference_value - value.incremental_value).abs() > 1e-8
+            || !REPLAY_ABSOLUTE_LOOSE.close(
+                value.policy_value - value.reference_value,
+                value.incremental_value,
+            )
             || variances.iter().any(|variance| *variance < 0.0)
             || value.minimum_local_rows < query.min_local_support
             || !value.minimum_effective_sample_size.is_finite()
@@ -1240,8 +1278,8 @@ pub(in crate::analysis_result_artifact) fn validate_continuous_dose_graphless(
                     let radius = antecedent_stats::NORMAL_Q975 * variance.sqrt();
                     !lower.is_finite()
                         || !upper.is_finite()
-                        || (lower - (center - radius)).abs() > 1e-8
-                        || (upper - (center + radius)).abs() > 1e-8
+                        || !REPLAY_ABSOLUTE_LOOSE.close(lower, center - radius)
+                        || !REPLAY_ABSOLUTE_LOOSE.close(upper, center + radius)
                 })
             })
         {
@@ -1329,10 +1367,10 @@ pub(in crate::analysis_result_artifact) fn validate_policy_graphless(
             return true;
         };
         let span = z * se;
-        let tolerance = 1e-10 * (1.0 + center.abs() + span.abs());
+        let tolerance = interval_bound_replay(INTERVAL_BOUND_RELATIVE, center, span);
         expected_interval
-            && (bounds[0] - (center - span)).abs() <= tolerance
-            && (bounds[1] - (center + span)).abs() <= tolerance
+            && tolerance.close(bounds[0], center - span)
+            && tolerance.close(bounds[1], center + span)
     };
     if result.estimate.is_some()
         || ![
@@ -1444,7 +1482,7 @@ pub(in crate::analysis_result_artifact) fn validate_policy_graphless(
             lower = lower.max(difference - span);
             upper = upper.max(difference + span);
         }
-        let close = |a: f64, b: f64| (a - b).abs() <= 1e-10 * (1.0 + a.abs() + b.abs());
+        let close = |a: f64, b: f64| REPLAY_PAIR.close(a, b);
         if !close(selected, policy.policy_value)
             || !close(point, regret.regret)
             || !close(lower, regret.interval_95[0])
@@ -1470,7 +1508,7 @@ pub(in crate::analysis_result_artifact) fn validate_policy_graphless(
             let controls = rows.len() - treated;
             let interval_valid = bin.interval_95.is_none_or(|bounds| {
                 let span = z * bin.standard_error;
-                let tolerance = 1e-10 * (1.0 + bin.effect.abs() + span.abs());
+                let tolerance = interval_bound_replay(INTERVAL_BOUND_RELATIVE, bin.effect, span);
                 rows.len() >= 300
                     && treated >= 50
                     && controls >= 50
@@ -1481,8 +1519,8 @@ pub(in crate::analysis_result_artifact) fn validate_policy_graphless(
                         .all(|id| !query.evaluation_subject_ids.contains(id))
                     && bin.standard_error > 0.0
                     && bounds.iter().all(|value| value.is_finite())
-                    && (bounds[0] - (bin.effect - span)).abs() <= tolerance
-                    && (bounds[1] - (bin.effect + span)).abs() <= tolerance
+                    && tolerance.close(bounds[0], bin.effect - span)
+                    && tolerance.close(bounds[1], bin.effect + span)
             });
             bin.rank != rank
                 || bin.evaluation_rows != rows.len()
@@ -1525,15 +1563,16 @@ pub(in crate::analysis_result_artifact) fn validate_policy_graphless(
                 });
                 let interval_valid = point.interval_95.is_none_or(|bounds| {
                     let span = z * point.standard_error;
-                    let tolerance = 1e-10 * (1.0 + point.effect.abs() + span.abs());
+                    let tolerance =
+                        interval_bound_replay(INTERVAL_BOUND_RELATIVE, point.effect, span);
                     rows.len() >= 300
                         && observed_action >= 50
                         && observed_control >= 50
                         && strong_overlap
                         && point.standard_error > 0.0
                         && bounds.iter().all(|value| value.is_finite())
-                        && (bounds[0] - (point.effect - span)).abs() <= tolerance
-                        && (bounds[1] - (point.effect + span)).abs() <= tolerance
+                        && tolerance.close(bounds[0], point.effect - span)
+                        && tolerance.close(bounds[1], point.effect + span)
                 });
                 point.group != group.as_str()
                     || point.action != multi.action_labels[action].as_str()
@@ -1818,11 +1857,12 @@ pub(in crate::analysis_result_artifact) fn validate_did_graphless(
                     match interval {
                         Some(bounds) if supported => {
                             let span = antecedent_stats::normal_ppf(0.975) * effect.6;
-                            let tolerance = 1e-10 * (1.0 + effect.3.abs() + span.abs());
+                            let tolerance =
+                                interval_bound_replay(INTERVAL_BOUND_RELATIVE, effect.3, span);
                             bounds[0].is_finite()
                                 && bounds[1].is_finite()
-                                && (bounds[0] - (effect.3 - span)).abs() <= tolerance
-                                && (bounds[1] - (effect.3 + span)).abs() <= tolerance
+                                && tolerance.close(bounds[0], effect.3 - span)
+                                && tolerance.close(bounds[1], effect.3 + span)
                         }
                         None => !supported,
                         _ => false,
@@ -1925,7 +1965,12 @@ pub(in crate::analysis_result_artifact) fn validate_did_graphless(
                 (Some(_), Some(section_se), Some(reported_se)) => {
                     section_se.is_finite()
                         && section_se > 0.0
-                        && (reported_se - section_se).abs() <= 1e-10 * (1.0 + section_se.abs())
+                        && ReplayTolerance::new(
+                            INTERVAL_BOUND_RELATIVE,
+                            ReplayScale::OnePlusReplayed,
+                            ReplayNonFinite::Refuse,
+                        )
+                        .close(reported_se, section_se)
                 }
                 (None, _, None) => true,
                 _ => false,
@@ -1935,13 +1980,12 @@ pub(in crate::analysis_result_artifact) fn validate_did_graphless(
         match (did.interval_95, did.standard_error) {
             (Some(bounds), Some(se)) if interval_supported && se.is_finite() && se > 0.0 => {
                 let radius = antecedent_stats::NORMAL_Q975 * se;
-                let tolerance = 1e-8 * (1.0 + did.effect.abs() + radius.abs());
+                let tolerance =
+                    interval_bound_replay(INTERVAL_BOUND_RELATIVE_LOOSE, did.effect, radius);
                 bounds.iter().all(|value| value.is_finite())
-                    && (bounds[0] - (did.effect - radius)).abs() <= tolerance
-                    && (bounds[1] - (did.effect + radius)).abs() <= tolerance
-                    && result
-                        .standard_error
-                        .is_some_and(|reported| (reported - se).abs() <= tolerance)
+                    && tolerance.close(bounds[0], did.effect - radius)
+                    && tolerance.close(bounds[1], did.effect + radius)
+                    && result.standard_error.is_some_and(|reported| tolerance.close(reported, se))
                     && did.uncertainty == "cluster_robust_normal_interval_independent_clusters"
             }
             (Some(bounds), Some(se))
@@ -1953,9 +1997,10 @@ pub(in crate::analysis_result_artifact) fn validate_did_graphless(
                 // The unlicensed whole-cluster resample interval: the normal interval of its
                 // interquartile bootstrap standard error, never published as the scalar's.
                 let radius = antecedent_stats::NORMAL_Q975 * se;
-                let tolerance = 1e-8 * (1.0 + did.effect.abs() + radius.abs());
-                (bounds[0] - (did.effect - radius)).abs() <= tolerance
-                    && (bounds[1] - (did.effect + radius)).abs() <= tolerance
+                let tolerance =
+                    interval_bound_replay(INTERVAL_BOUND_RELATIVE_LOOSE, did.effect, radius);
+                tolerance.close(bounds[0], did.effect - radius)
+                    && tolerance.close(bounds[1], did.effect + radius)
                     && result.standard_error.is_none()
                     && did.graphless_support_status.is_none()
             }
@@ -2129,7 +2174,7 @@ pub(in crate::analysis_result_artifact) fn validate_survival_graphless(
                 && band.upper.len() == curve.times.len()
                 && band.difference.iter().zip(&curve.treated).zip(&curve.control).all(
                     |((&difference, &treated), &control)| {
-                        (difference - (treated - control)).abs() <= 1e-10
+                        REPLAY_ABSOLUTE.close(difference, treated - control)
                     },
                 )
                 && band.lower.iter().zip(&band.difference).zip(&band.upper).all(
@@ -2392,11 +2437,11 @@ pub(in crate::analysis_result_artifact) fn validate_sequential_contrast_graphles
     let squares: f64 = fit.contrast_scores.iter().map(|s| (s - centre) * (s - centre)).sum();
     let expected_se = (squares / ((n - 1.0) * n)).sqrt();
     let span = antecedent_stats::normal_ppf(0.5 + fit.coverage / 2.0) * expected_se;
-    let tolerance = 1e-9 * (1.0 + centre.abs() + span.abs());
+    let tolerance = interval_bound_replay(INTERVAL_BOUND_RELATIVE_POOLED, centre, span);
     if expected_se.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater)
         || !near(se, expected_se)
-        || (bounds[0] - (centre - span)).abs() > tolerance
-        || (bounds[1] - (centre + span)).abs() > tolerance
+        || !tolerance.close(bounds[0], centre - span)
+        || !tolerance.close(bounds[1], centre + span)
     {
         return fail("sequential contrast interval is not the normal interval of its scores");
     }

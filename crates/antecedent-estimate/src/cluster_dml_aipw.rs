@@ -638,9 +638,10 @@ fn refuse_counted(
     message: &str,
     facts: &CountFacts,
 ) -> EstimationError {
-    EstimationError::refused_with_fields(
+    EstimationError::refused_detail_with_fields(
         code,
-        format!("{detail}: {message}"),
+        detail,
+        message,
         RefusalFields {
             stage: Some("cluster_dml".to_string()),
             reason: Some(facts.reason.to_string()),

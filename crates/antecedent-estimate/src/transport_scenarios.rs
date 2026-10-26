@@ -434,7 +434,11 @@ pub const SCENARIO_EXACT_PROVIDER: &str = "transport.exact_supplied_laws";
 fn refuse_scenario(
     refusal: antecedent_identify::sid::scenarios::ScenarioSetRefusal,
 ) -> EstimationError {
-    EstimationError::refused(refusal.code, format!("{}: {}", refusal.detail, refusal.message))
+    EstimationError::refused_detail(
+        refusal.code,
+        refusal.detail.to_string(),
+        refusal.message.to_string(),
+    )
 }
 
 /// Check every sample row and intervention against the set's shared coordinate
@@ -507,10 +511,11 @@ fn refuse_counted_laws(data: &antecedent_expr::ExactTransportData) -> Result<(),
 }
 
 fn conditional_counts_refusal() -> EstimationError {
-    EstimationError::refused(
+    EstimationError::refused_detail(
         antecedent_core::reason_code!("cell_not_licensed"),
-        "admg_transport.interval_withheld: counted laws are not licensed for a conditional \
-         scenario question; the route publishes exact-law points only",
+        "admg_transport.interval_withheld",
+        "counted laws are not licensed for a conditional scenario question; the route \
+         publishes exact-law points only",
     )
 }
 

@@ -64,6 +64,7 @@ use antecedent_estimate::vector_treatment::{
     DesignSummary, NamedColumn, RobustDesignSummary, VectorCovariance,
 };
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 
 use crate::artifact_budget::{
     BudgetDetails, BudgetRefusal, admit_export, admit_regression, unbounded_context,
@@ -117,8 +118,8 @@ crate::sectioned_artifact_error!(
     false
 );
 
-fn budget_refusal((code, message): BudgetRefusal) -> CategoricalTreatmentArtifactError {
-    CategoricalTreatmentArtifactError::Refused { code, message }
+fn budget_refusal((code, detail, explanation): BudgetRefusal) -> CategoricalTreatmentArtifactError {
+    CategoricalTreatmentArtifactError::refused(code, detail, explanation)
 }
 
 /// The declared design of the categorical regime on the wire.
@@ -1074,29 +1075,18 @@ fn identity_diff(
     stored: &CategoricalTreatmentIdentity,
     other: &CategoricalTreatmentIdentity,
 ) -> Option<&'static str> {
-    if stored.snapshot_id != other.snapshot_id {
-        Some("row_snapshot")
-    } else if stored.adjustment_set_id != other.adjustment_set_id {
-        Some("adjustment_set")
-    } else if stored.level_scale_id != other.level_scale_id {
-        Some("level_scale")
-    } else if stored.design_id != other.design_id {
-        Some("design")
-    } else if stored.covariance_id != other.covariance_id {
-        Some("covariance_kind")
-    } else if stored.family_id != other.family_id {
-        Some("family")
-    } else if stored.omnibus_null != other.omnibus_null {
-        Some("null")
-    } else if stored.monotonicity_null != other.monotonicity_null {
-        Some("monotonicity_null")
-    } else if stored.result_id != other.result_id {
-        Some("result")
-    } else if stored.digest != other.digest {
-        Some("identity")
-    } else {
-        None
-    }
+    crate::first_identity_difference!(stored, other, {
+        snapshot_id => "row_snapshot",
+        adjustment_set_id => "adjustment_set",
+        level_scale_id => "level_scale",
+        design_id => "design",
+        covariance_id => "covariance_kind",
+        family_id => "family",
+        omnibus_null => "null",
+        monotonicity_null => "monotonicity_null",
+        result_id => "result",
+        digest => "identity",
+    })
 }
 
 struct Computed {
@@ -1134,18 +1124,15 @@ fn posterior_wire(
         },
         Replay::Rows { outcome, adjustment, levels } => {
             let input = CategoricalTreatmentInput {
-                outcome: outcome.clone(),
-                row_snapshot: decl.row_snapshot.clone(),
+                outcome: Cow::Borrowed(outcome),
+                row_snapshot: Cow::Borrowed(&decl.row_snapshot),
                 adjustment: decl
                     .adjustment
                     .iter()
                     .zip(adjustment)
-                    .map(|(name, values)| NamedColumn {
-                        name: name.clone(),
-                        values: values.clone(),
-                    })
+                    .map(|(name, values)| NamedColumn::new(name.as_str(), values.as_slice()))
                     .collect(),
-                levels: levels.clone(),
+                levels: Cow::Borrowed(levels),
             };
             summarize_categorical_design(&input, &spec)?
         }
@@ -1183,18 +1170,15 @@ fn compute(
         }
         Replay::Rows { outcome, adjustment, levels } => {
             let input = CategoricalTreatmentInput {
-                outcome: outcome.clone(),
-                row_snapshot: decl.row_snapshot.clone(),
+                outcome: Cow::Borrowed(outcome),
+                row_snapshot: Cow::Borrowed(&decl.row_snapshot),
                 adjustment: decl
                     .adjustment
                     .iter()
                     .zip(adjustment)
-                    .map(|(name, values)| NamedColumn {
-                        name: name.clone(),
-                        values: values.clone(),
-                    })
+                    .map(|(name, values)| NamedColumn::new(name.as_str(), values.as_slice()))
                     .collect(),
-                levels: levels.clone(),
+                levels: Cow::Borrowed(levels),
             };
             fit_categorical_treatment(&input, &spec)?
         }
@@ -1354,14 +1338,14 @@ impl CategoricalTreatmentArtifact {
         check_decl(&decl)?;
         admit_regression(BUDGET, decl.n_rows, decl.columns(), ctx).map_err(budget_refusal)?;
         let input = CategoricalTreatmentInput {
-            outcome: request.outcome.clone(),
-            row_snapshot: request.row_snapshot.clone(),
+            outcome: Cow::Borrowed(&request.outcome),
+            row_snapshot: Cow::Borrowed(&request.row_snapshot),
             adjustment: request
                 .adjustment
                 .iter()
-                .map(|c| NamedColumn { name: c.name.clone(), values: c.values.clone() })
+                .map(|c| NamedColumn::new(c.name.as_str(), c.values.as_slice()))
                 .collect(),
-            levels: request.levels.clone(),
+            levels: Cow::Borrowed(&request.levels),
         };
         let replay = if spec.covariance == VectorCovariance::ModelBased {
             Replay::Summary(summarize_categorical_design(&input, &spec)?)
@@ -1472,12 +1456,11 @@ impl CategoricalTreatmentArtifact {
         match &self.meta.data_digest {
             Some(stored) if *stored == data_digest(request) => Ok(()),
             Some(_) => Err(CategoricalTreatmentArtifactError::IdentityMismatch { field: "data" }),
-            None => Err(CategoricalTreatmentArtifactError::Refused {
-                code: antecedent_core::reason_code!("route_not_supported"),
-                message: "categorical_treatment.data_not_bound: this artifact embeds its rows \
-                          and records no data digest"
-                    .to_owned(),
-            }),
+            None => Err(CategoricalTreatmentArtifactError::refused(
+                antecedent_core::reason_code!("route_not_supported"),
+                "categorical_treatment.data_not_bound",
+                "this artifact embeds its rows and records no data digest",
+            )),
         }
     }
 
@@ -1543,15 +1526,11 @@ impl CategoricalTreatmentArtifact {
         if meta.null != CATEGORICAL_OMNIBUS_NULL {
             return Err(CategoricalTreatmentArtifactError::IdentityMismatch { field: "null" });
         }
-        if meta.inference_claim != CATEGORICAL_INFERENCE_CLAIM {
-            return Err(CategoricalTreatmentArtifactError::UnsupportedSemantics("inference claim"));
-        }
-        if meta.calibration != CATEGORICAL_TREATMENT_CALIBRATION {
-            return Err(CategoricalTreatmentArtifactError::UnsupportedSemantics("calibration"));
-        }
-        if meta.caveats != standing_caveats() {
-            return Err(CategoricalTreatmentArtifactError::UnsupportedSemantics("caveats"));
-        }
+        crate::artifact_codec::require_markers::<CategoricalTreatmentArtifactError>(&[
+            (meta.inference_claim == CATEGORICAL_INFERENCE_CLAIM, "inference claim"),
+            (meta.calibration == CATEGORICAL_TREATMENT_CALIBRATION, "calibration"),
+            (meta.caveats == standing_caveats(), "caveats"),
+        ])?;
         let decl = Decl::from_meta(&meta)?;
         check_decl(&decl)?;
         if raw.len() % 8 != 0 {

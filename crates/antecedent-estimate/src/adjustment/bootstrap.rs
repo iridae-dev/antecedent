@@ -4,6 +4,15 @@
 
 use super::*;
 
+/// Per-worker buffers of the count-weighted resample gather: the scaled distinct-row design and
+/// outcome, and the multiplicity of every source row.
+#[derive(Default)]
+struct CountWeightedScratch {
+    x: Vec<f64>,
+    y: Vec<f64>,
+    counts: Vec<u32>,
+}
+
 impl LinearAdjustmentAte {
     /// Attach bootstrap SE onto a point estimate (progressive uncertainty stage).
     ///
@@ -118,6 +127,51 @@ impl LinearAdjustmentAte {
             .coefficients)
     }
 
+    /// The coefficients of the fit of a resample, formed from the distinct rows it drew scaled
+    /// by the root of their multiplicity ([`crate::util::gather_count_weighted`]) instead of
+    /// from the repeated rows. For the ordinary-least-squares fit this is the fit of the
+    /// repeated rows; every other fit kind keeps the repeated-row gather
+    /// ([`Self::fit_resampled_coefficients`]).
+    fn fit_count_weighted_coefficients(
+        &self,
+        problem: &PreparedEstimationProblem,
+        workspace: &mut EstimationWorkspace,
+        row_src: &[usize],
+        gathered: &mut CountWeightedScratch,
+    ) -> Result<Vec<f64>, EstimationError> {
+        let rows = problem.design.nrows;
+        let p = problem.design.ncols;
+        if row_src.iter().any(|&src| src >= rows) {
+            return Err(EstimationError::data_msg("row resample index out of range"));
+        }
+        if self.fit_kind != LinearFitKind::Ols {
+            let n = row_src.len();
+            gathered.x.resize(n * p, 0.0);
+            gathered.y.resize(n, 0.0);
+            return self.fit_resampled_coefficients(
+                problem,
+                workspace,
+                row_src,
+                &mut gathered.x,
+                &mut gathered.y,
+            );
+        }
+        crate::util::resample_counts(&mut gathered.counts, rows, row_src);
+        let distinct = crate::util::gather_count_weighted(
+            &mut gathered.x,
+            &mut gathered.y,
+            &problem.design.matrix,
+            &problem.design.outcome,
+            rows,
+            p,
+            &gathered.counts,
+            p,
+        );
+        self.backend
+            .least_squares_coefficients(&gathered.x, distinct, p, &gathered.y)
+            .map_err(EstimationError::from)
+    }
+
     pub(super) fn bootstrap_clusters(
         &self,
         problem: &PreparedEstimationProblem,
@@ -187,12 +241,11 @@ impl LinearAdjustmentAte {
             || {
                 (
                     EstimationWorkspace::default(),
-                    Vec::new(),
-                    Vec::new(),
+                    CountWeightedScratch::default(),
                     antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace::default(),
                 )
             },
-            |(ws, x_boot, y_boot, summary_ws), idx| {
+            |(ws, gathered, summary_ws), idx| {
                 let same_length = idx.len() == n;
                 let candidate = if same_length {
                     match &resampling {
@@ -204,12 +257,7 @@ impl LinearAdjustmentAte {
                 };
                 let coefficients = match candidate {
                     Ok(Some(coefs)) => Ok(coefs),
-                    Ok(None) => {
-                        let m = idx.len();
-                        x_boot.resize(m * p, 0.0);
-                        y_boot.resize(m, 0.0);
-                        self.fit_resampled_coefficients(problem, ws, idx, x_boot, y_boot)
-                    }
+                    Ok(None) => self.fit_count_weighted_coefficients(problem, ws, idx, gathered),
                     Err(error) => Err(EstimationError::from(error)),
                 };
                 match coefficients {

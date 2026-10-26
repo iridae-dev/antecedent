@@ -37,7 +37,7 @@ fn normal_p(z: f64) -> f64 {
     erfc(z.abs() / 2.0_f64.sqrt())
 }
 
-fn abc_input() -> CategoricalTreatmentInput {
+fn abc_input() -> CategoricalTreatmentInput<'static> {
     let rows = [
         ("c", 9.0),
         ("a", 1.0),
@@ -220,7 +220,7 @@ fn categorical_two_level_factor_is_supported() {
 }
 
 /// Three ordered levels `lo, mid, hi`, three rows each: `mean_g + [-1, 0, 1]`.
-fn grouped(means: [f64; 3]) -> CategoricalTreatmentInput {
+fn grouped(means: [f64; 3]) -> CategoricalTreatmentInput<'static> {
     let labels = ["lo", "mid", "hi"];
     let mut outcome = Vec::new();
     let mut levels = Vec::new();
@@ -230,7 +230,12 @@ fn grouped(means: [f64; 3]) -> CategoricalTreatmentInput {
             levels.push((*label).to_string());
         }
     }
-    CategoricalTreatmentInput { outcome, row_snapshot: "snap".into(), adjustment: vec![], levels }
+    CategoricalTreatmentInput {
+        outcome: outcome.into(),
+        row_snapshot: "snap".into(),
+        adjustment: vec![],
+        levels: levels.into(),
+    }
 }
 
 fn monotone_spec(direction: MonotonicityDirection) -> CategoricalTreatmentSpec {
@@ -406,7 +411,7 @@ fn categorical_refuses_malformed_declarations() {
     assert!(message.contains("categorical_treatment.unknown_level"), "{message}");
 
     let mut short = abc_input();
-    short.levels.pop();
+    short.levels.to_mut().pop();
     let (code, message) = run(&base, &short);
     assert_eq!(code, "route_not_supported");
     assert!(message.contains("categorical_treatment.row_count_mismatch"), "{message}");

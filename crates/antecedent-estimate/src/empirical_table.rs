@@ -508,14 +508,14 @@ pub fn fit_empirical_joint(
     rows: Option<&[antecedent_data::GlobalId]>,
 ) -> Result<ExactDiscreteLaw, EstimationError> {
     if options.estimator != EmpiricalTableEstimator::Plugin {
-        return Err(EstimationError::Refused {
-            code: antecedent_core::reason_code!("transport_unsupported_evaluator"),
-            message: format!(
+        return Err(EstimationError::refused(
+            antecedent_core::reason_code!("transport_unsupported_evaluator"),
+            format!(
                 "{} is not a licensed transport provider; use {}",
                 options.estimator.as_str(),
                 EMPIRICAL_TABLE_PLUGIN
             ),
-        });
+        ));
     }
     validate_options(options)?;
     let n = sample.n();
@@ -701,10 +701,10 @@ fn assemble_laws(
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ExactTransportData, EstimationError> {
     if options.estimator == EmpiricalTableEstimator::Dirichlet {
-        return Err(EstimationError::Refused {
-            code: antecedent_core::reason_code!("transport_unsupported_evaluator"),
-            message: format!("{} is not licensed", options.estimator.as_str()),
-        });
+        return Err(EstimationError::refused(
+            antecedent_core::reason_code!("transport_unsupported_evaluator"),
+            format!("{} is not licensed", options.estimator.as_str()),
+        ));
     }
     validate_options(options)?;
     let catalog = functional.catalog();
@@ -962,10 +962,10 @@ fn require_leaf_providers(
     for (_, leaf) in functional.leaf_factors() {
         let population = leaf.binding.population.as_ref();
         let Some(regime) = leaf.binding.regime else {
-            return Err(EstimationError::Refused {
-                code: antecedent_core::reason_code!("transport_missing_provider"),
-                message: "certified leaf is missing a catalog regime binding".into(),
-            });
+            return Err(EstimationError::refused(
+                antecedent_core::reason_code!("transport_missing_provider"),
+                "certified leaf is missing a catalog regime binding",
+            ));
         };
         let covered =
             laws.iter().any(|law| law.population() == population && law.regime() == regime)
@@ -973,12 +973,12 @@ fn require_leaf_providers(
                     sample.population.as_ref() == population && sample.regime == regime
                 });
         if !covered {
-            return Err(EstimationError::Refused {
-                code: antecedent_core::reason_code!("transport_missing_provider"),
-                message: format!(
+            return Err(EstimationError::refused(
+                antecedent_core::reason_code!("transport_missing_provider"),
+                format!(
                     "available regime {regime:?} in {population} has neither a supplied law nor a bound sample"
                 ),
-            });
+            ));
         }
     }
     Ok(())

@@ -326,9 +326,9 @@ fn every_resealed_semantic_mutation_is_refused() {
     // A removed contract element.
     let outcome = resealed(|meta| meta.contract.declaration.exposure = None);
     match outcome.unwrap_err() {
-        Error::Refused { code, message } => {
+        Error::Refused { code, detail, .. } => {
             assert_eq!(code, "adaptive_contract_incomplete");
-            assert!(message.starts_with("adaptive_inference.exposure_history_missing"));
+            assert!(detail.starts_with("adaptive_inference.exposure_history_missing"));
         }
         other => panic!("{other}"),
     }

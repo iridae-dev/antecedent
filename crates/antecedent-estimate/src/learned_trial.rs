@@ -219,10 +219,10 @@ fn strata(input: &TrialAipwInput) -> [Vec<usize>; 3] {
 }
 fn cancelled(ctx: &ExecutionContext) -> Result<(), EstimationError> {
     if ctx.cancellation.is_cancelled() {
-        Err(EstimationError::Refused {
-            code: antecedent_core::reason_code!("transport_budget_cancel"),
-            message: "trial transport cancelled".into(),
-        })
+        Err(EstimationError::refused(
+            antecedent_core::reason_code!("transport_budget_cancel"),
+            "trial transport cancelled",
+        ))
     } else {
         Ok(())
     }
@@ -245,18 +245,20 @@ pub fn check_trial_aipw_resources(
         .and_then(|p| n.checked_mul(p))
         .and_then(|n| n.checked_mul(8))
         .and_then(|n| n.checked_add(usize::try_from(options.bootstrap).ok()?.checked_mul(16)?))
-        .ok_or_else(|| EstimationError::Refused {
-            code: antecedent_core::reason_code!("transport_budget_cancel"),
-            message: "trial workspace overflow".into(),
+        .ok_or_else(|| {
+            EstimationError::refused(
+                antecedent_core::reason_code!("transport_budget_cancel"),
+                "trial workspace overflow",
+            )
         })?;
     if ctx
         .memory_limit_bytes()
         .is_some_and(|limit| u64::try_from(bytes).map_or(true, |bytes| bytes > limit))
     {
-        return Err(EstimationError::Refused {
-            code: antecedent_core::reason_code!("transport_budget_cancel"),
-            message: "trial workspace budget".into(),
-        });
+        return Err(EstimationError::refused(
+            antecedent_core::reason_code!("transport_budget_cancel"),
+            "trial workspace budget",
+        ));
     }
     Ok(())
 }

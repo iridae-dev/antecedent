@@ -287,3 +287,33 @@ fn deliberate_ridge_fit_is_penalized_but_not_separated() {
     assert!(fit.penalized && !fit.separated && !fit.boundary_saturated);
     assert!(fit.require_ok().is_ok(), "an ordinary ridge fit must pass require_ok");
 }
+
+#[test]
+fn laplace_fit_penalizes_every_coefficient_and_returns_the_inverse_information() {
+    let n = 40usize;
+    let mut x = vec![0.0; n * 2];
+    let mut y = vec![0.0; n];
+    for i in 0..n {
+        let t = if i < n / 2 { 0.0 } else { 1.0 };
+        x[i] = 1.0;
+        x[n + i] = t;
+        // Complete separation: the outcome equals the second column.
+        y[i] = t;
+    }
+    let design = GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y };
+    let mut ws = LeastSquaresWorkspace::default();
+    let fit = fit_logit_laplace(design, None, 1.0, &mut ws, &GlmOptions::new(100, 1e-10)).unwrap();
+    assert!(fit.fit.converged);
+    assert!(fit.fit.coefficients.iter().all(|b| b.is_finite()));
+    // The intercept is penalized too: it is pulled below the unpenalized -infinity, not left free.
+    assert!(fit.fit.coefficients[1] > 0.0);
+    assert_eq!(fit.covariance.len(), 4);
+    assert!(fit.covariance[0] > 0.0 && fit.covariance[3] > 0.0);
+    assert!((fit.covariance[1] - fit.covariance[2]).abs() < 1e-12);
+    // Unit case weights are the unweighted fit.
+    let ones = vec![1.0; n];
+    let weighted =
+        fit_logit_laplace(design, Some(&ones), 1.0, &mut ws, &GlmOptions::new(100, 1e-10)).unwrap();
+    assert_eq!(weighted.fit.coefficients, fit.fit.coefficients);
+    assert!(fit_logit_laplace(design, None, 0.0, &mut ws, &GlmOptions::default()).is_err());
+}

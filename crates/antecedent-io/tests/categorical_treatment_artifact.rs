@@ -356,14 +356,14 @@ fn row_fit(request: &CategoricalTreatmentRequest) -> CategoricalTreatmentFit {
     .find(|kind| CovarianceKindWire::from(*kind) == request.spec.covariance)
     .unwrap();
     let input = CategoricalTreatmentInput {
-        outcome: request.outcome.clone(),
-        row_snapshot: request.row_snapshot.clone(),
+        outcome: request.outcome.as_slice().into(),
+        row_snapshot: request.row_snapshot.as_str().into(),
         adjustment: request
             .adjustment
             .iter()
-            .map(|c| NamedColumn { name: c.name.clone(), values: c.values.clone() })
+            .map(|c| NamedColumn::new(c.name.as_str(), c.values.as_slice()))
             .collect(),
-        levels: request.levels.clone(),
+        levels: request.levels.as_slice().into(),
     };
     let spec = CategoricalTreatmentSpec {
         declared_levels: request.spec.declared_levels.clone(),

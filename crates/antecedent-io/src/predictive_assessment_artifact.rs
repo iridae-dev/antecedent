@@ -89,10 +89,7 @@ crate::sectioned_artifact_error!(
 type Error = PredictiveAssessmentArtifactError;
 
 fn refused(error: &PredictiveAssessmentError) -> Error {
-    Error::Refused {
-        code: error.reason_code(),
-        message: format!("{}: {}", error.detail(), error.message),
-    }
+    Error::refused(error.reason_code(), error.detail(), error.message.clone())
 }
 
 fn malformed(text: &str) -> Error {

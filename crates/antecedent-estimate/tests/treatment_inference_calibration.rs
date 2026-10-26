@@ -36,7 +36,7 @@ fn kinds(hetero: bool) -> Vec<VectorCovariance> {
     }
     v
 }
-fn vector_input(n: usize, seed: u64, hetero: bool, beta: [f64; 2]) -> VectorTreatmentInput {
+fn vector_input(n: usize, seed: u64, hetero: bool, beta: [f64; 2]) -> VectorTreatmentInput<'static> {
     let mut rng = candidate::Generator::new(seed);
     let (mut y, mut t1, mut t2, mut z) = (
         Vec::with_capacity(n),
@@ -54,16 +54,16 @@ fn vector_input(n: usize, seed: u64, hetero: bool, beta: [f64; 2]) -> VectorTrea
         t2.push(b);
         z.push(w);
     }
-    let treatment = |name: &str, values| TreatmentColumn {
-        name: name.into(),
-        values,
+    let treatment = |name: &str, values: Vec<f64>| TreatmentColumn {
+        name: name.to_owned().into(),
+        values: values.into(),
         adjustment_set: vec!["z".into()],
         row_snapshot: "vector_balanced".into(),
     };
     VectorTreatmentInput {
-        outcome: y,
+        outcome: y.into(),
         row_snapshot: "vector_balanced".into(),
-        adjustment: vec![NamedColumn { name: "z".into(), values: z }],
+        adjustment: vec![NamedColumn::new("z", z)],
         treatments: vec![treatment("t1", t1), treatment("t2", t2)],
     }
 }
@@ -135,7 +135,7 @@ fn categorical_input(
     seed: u64,
     hetero: bool,
     means: [f64; 3],
-) -> CategoricalTreatmentInput {
+) -> CategoricalTreatmentInput<'static> {
     let mut rng = candidate::Generator::new(seed);
     let (mut levels, mut outcome) = (Vec::with_capacity(n), Vec::with_capacity(n));
     for i in 0..n {
@@ -145,10 +145,10 @@ fn categorical_input(
         outcome.push(means[g] + sd * rng.normal());
     }
     CategoricalTreatmentInput {
-        outcome,
+        outcome: outcome.into(),
         row_snapshot: "categorical_balanced".into(),
         adjustment: vec![],
-        levels,
+        levels: levels.into(),
     }
 }
 fn spec(

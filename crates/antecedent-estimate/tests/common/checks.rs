@@ -19,5 +19,5 @@ pub fn coded_refusal(error: EstimationError) -> (&'static str, String) {
     let EstimationError::Refused { code, message } = error else {
         panic!("expected a coded refusal, got {error:?}");
     };
-    (code, message)
+    (code, message.into_string())
 }

@@ -162,7 +162,7 @@ fn run(
 
 fn refusal_message(r: Result<NonlinearMediationEstimate, EstimationError>) -> String {
     match r {
-        Err(EstimationError::Refused { message, .. }) => message,
+        Err(EstimationError::Refused { message, .. }) => message.into_string(),
         other => panic!("expected a refusal, got {other:?}"),
     }
 }

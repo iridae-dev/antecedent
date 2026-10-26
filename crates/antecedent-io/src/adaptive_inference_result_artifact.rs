@@ -77,12 +77,13 @@ impl From<AdaptiveMonitoringContractError> for Error {
     fn from(error: AdaptiveMonitoringContractError) -> Self {
         match error {
             AdaptiveMonitoringContractError::Refused { code, detail, message } => {
-                let message = if message.starts_with(&detail) {
-                    message
-                } else {
-                    format!("{detail}: {message}")
+                // The contract's message may already begin with its detail.
+                let explanation = match message.strip_prefix(detail.as_str()) {
+                    Some("") => "",
+                    Some(rest) => rest.strip_prefix(": ").unwrap_or(&message),
+                    None => &message,
                 };
-                Self::Refused { code, message }
+                Self::refused(code, detail.clone(), explanation)
             }
             AdaptiveMonitoringContractError::IdentityMismatch { field } => {
                 Self::IdentityMismatch { field }
@@ -713,7 +714,7 @@ fn close(stored: f64, recomputed: f64) -> bool {
 }
 
 fn result_refusal(error: &AdaptiveResultError) -> Error {
-    Error::Refused { code: error.code, message: format!("{}: {}", error.detail, error.message) }
+    Error::refused(error.code, error.detail.to_string(), error.message.to_string())
 }
 
 fn check(

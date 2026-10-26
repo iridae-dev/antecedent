@@ -1126,11 +1126,7 @@ fn encode_parts_impl(
     numbers: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, IoError> {
-    if artifact_id.trim().is_empty() {
-        return Err(IoError::Convert("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta)?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned_io(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "sensitivity_decision_assumption_range",
@@ -1138,20 +1134,15 @@ fn encode_parts_impl(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[
-            crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            },
-            crate::OutSection {
-                id: NUMBERS_SECTION,
-                content_type: crate::CONTENT_BYTES,
-                bytes: numbers,
-            },
-        ],
+        META_SECTION,
+        meta,
+        &[crate::OutSection {
+            id: NUMBERS_SECTION,
+            content_type: crate::CONTENT_BYTES,
+            bytes: numbers,
+        }],
+        "unsupported sensitivity artifact layout",
     )
-    .map_err(|error| error.into_io("unsupported sensitivity artifact layout"))
 }
 
 /// Decode the two sections of a container, refusing another version before the metadata
@@ -1168,23 +1159,15 @@ pub fn decode_parts(bytes: &[u8]) -> Result<(SensitivityMeta, Vec<u8>), IoError>
 }
 
 fn decode_parts_impl(bytes: &[u8]) -> Result<(SensitivityMeta, Vec<u8>), IoError> {
-    let parts = crate::decode_container(
+    let (meta, [payload]) = crate::artifact_codec::decode_sectioned_io_versioned(
         ARTIFACT_KIND,
         MAX_SENSITIVITY_ARTIFACT_BYTES,
-        &[META_SECTION, NUMBERS_SECTION],
+        META_SECTION,
+        &[NUMBERS_SECTION],
+        "unsupported sensitivity artifact layout",
+        SENSITIVITY_ARTIFACT_VERSION,
         bytes,
-    )
-    .map_err(|error| error.into_io("unsupported sensitivity artifact layout"))?;
-    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
-        return Err(IoError::Convert("unsupported sensitivity artifact layout".into()));
-    };
-    let meta = crate::decode_with_version(&meta_bytes, |version: u16| {
-        if version == SENSITIVITY_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(IoError::UnsupportedVersion { version: u32::from(version) })
-        }
-    })?;
+    )?;
     Ok((meta, payload))
 }
 

@@ -312,12 +312,15 @@ macro_rules! sectioned_artifact_error {
                 variants {
                     /// A stored result differs from the recomputed one.
                     ResultMismatch(&'static str),
-                    /// The core estimator refused. The message begins with its detail.
+                    /// A registered refusal: the core estimator's, or one the artifact states.
                     Refused {
                         /// Registered reason code.
                         code: &'static str,
-                        /// `detail: explanation`.
-                        message: String,
+                        /// Namespaced detail identifier.
+                        detail: String,
+                        /// What was refused and the next attempt; empty when the refusal
+                        /// carries only its detail.
+                        explanation: String,
                     },
                 }
                 display(f) {
@@ -327,12 +330,28 @@ macro_rules! sectioned_artifact_error {
                         noun = $noun,
                         replay = $replay,
                     ),
-                    Self::Refused { message, .. } => f.write_str(message),
+                    Self::Refused { detail, explanation, .. } if explanation.is_empty() => {
+                        f.write_str(detail)
+                    }
+                    Self::Refused { detail, explanation, .. } => {
+                        write!(f, "{detail}: {explanation}")
+                    }
                 }
             }
         }
 
         impl $name {
+            /// A registered refusal the artifact states itself, with its detail identifier and
+            /// explanation kept apart.
+            #[must_use]
+            pub fn refused(
+                code: &'static str,
+                detail: impl Into<String>,
+                explanation: impl Into<String>,
+            ) -> Self {
+                Self::Refused { code, detail: detail.into(), explanation: explanation.into() }
+            }
+
             /// The registered refusal this error carries: `(code, detail, explanation)`.
             ///
             /// Present for a core refusal, a changed identity and, when the artifact
@@ -341,10 +360,8 @@ macro_rules! sectioned_artifact_error {
             #[must_use]
             pub fn refusal(&self) -> Option<(&'static str, String, String)> {
                 match self {
-                    Self::Refused { code, message } => {
-                        let (detail, text) =
-                            message.split_once(": ").unwrap_or((message.as_str(), ""));
-                        Some((*code, detail.to_owned(), text.to_owned()))
+                    Self::Refused { code, detail, explanation } => {
+                        Some((*code, detail.clone(), explanation.clone()))
                     }
                     Self::IdentityMismatch { field } => {
                         Some(antecedent_core::refusal::changed_identity(
@@ -378,7 +395,18 @@ macro_rules! sectioned_artifact_error {
                         code,
                         message,
                         ..
-                    } => Self::Refused { code, message },
+                    } => match message.detail() {
+                        Some(detail) => Self::Refused {
+                            code,
+                            detail: detail.to_owned(),
+                            explanation: message.explanation().to_owned(),
+                        },
+                        None => Self::Refused {
+                            code,
+                            detail: message.explanation().to_owned(),
+                            explanation: String::new(),
+                        },
+                    },
                     other => Self::Malformed(other.to_string()),
                 }
             }
@@ -582,6 +610,16 @@ pub fn require_semantics<E: ArtifactFamilyError>(holds: bool, what: &'static str
     if holds { Ok(()) } else { Err(E::from_check(ArtifactCheckError::UnsupportedSemantics(what))) }
 }
 
+/// [`require_semantics`] over an ordered list of `(holds, what)` markers: the first that does not
+/// hold is the refusal. Every marker is evaluated before the first is checked, so a marker is a
+/// plain comparison and not a check with a side effect.
+///
+/// # Errors
+/// The artifact's `UnsupportedSemantics(what)` of the first marker that does not hold.
+pub fn require_markers<E: ArtifactFamilyError>(markers: &[(bool, &'static str)]) -> Result<(), E> {
+    markers.iter().try_for_each(|&(holds, what)| require_semantics::<E>(holds, what))
+}
+
 /// Write a CBOR metadata section followed by `payloads` as one checksummed container.
 ///
 /// A blank artifact id is refused before the metadata is encoded; a file over the header's
@@ -664,6 +702,166 @@ pub fn decode_sectioned<E: ArtifactFamilyError, M: DeserializeOwned>(
         }
     })?;
     Ok((meta, parts))
+}
+
+/// Read a container laid out as the metadata section followed by one of several alternative
+/// `payload_layouts`, tried in order, for a format that grew an optional trailing section.
+///
+/// The first layout the container matches is read; when none matches, the first layout's refusal
+/// is returned. The metadata is gated on `accepts_version` before it is interpreted as `M`.
+/// Returns the metadata, the index of the matched layout and its payload sections.
+///
+/// # Errors
+/// The artifact's `Decode`, `LimitsExceeded`, `Malformed` or `UnsupportedVersion`.
+pub fn decode_sectioned_layouts<E: ArtifactFamilyError, M: DeserializeOwned>(
+    kind: &str,
+    max_bytes: usize,
+    meta_section: &str,
+    payload_layouts: &[&[&str]],
+    accepts_version: impl Fn(u16) -> bool,
+    bytes: &[u8],
+) -> Result<(M, usize, Vec<Vec<u8>>), E> {
+    let mut first_refusal = None;
+    let mut matched = None;
+    for (index, payload_sections) in payload_layouts.iter().enumerate() {
+        let mut ids = Vec::with_capacity(payload_sections.len() + 1);
+        ids.push(meta_section);
+        ids.extend_from_slice(payload_sections);
+        match decode_container(kind, max_bytes, &ids, bytes) {
+            Ok(parts) => {
+                matched = Some((index, ids.len(), parts));
+                break;
+            }
+            Err(error) => {
+                first_refusal.get_or_insert(error);
+            }
+        }
+    }
+    let Some((index, expected_sections, mut parts)) = matched else {
+        let refusal = first_refusal.map_or_else(
+            || ArtifactCheckError::Malformed("unsupported container layout".into()),
+            CodecError::into_check,
+        );
+        return Err(E::from_check(refusal));
+    };
+    if parts.len() != expected_sections {
+        return Err(E::from_check(ArtifactCheckError::Malformed(
+            "unsupported container layout".into(),
+        )));
+    }
+    let meta_bytes = parts.remove(0);
+    let meta = decode_with_version(&meta_bytes, |version: u16| {
+        if accepts_version(version) {
+            Ok(())
+        } else {
+            Err(E::from_check(ArtifactCheckError::UnsupportedVersion { version: version.into() }))
+        }
+    })?;
+    Ok((meta, index, parts))
+}
+
+/// [`encode_sectioned`] for an artifact whose error is [`IoError`]: a CBOR metadata section
+/// followed by `payloads`, with a container-level failure mapped by [`CodecError::into_io`] using
+/// `layout` as the convert message of a foreign layout.
+///
+/// A blank artifact id is refused before the metadata is encoded.
+///
+/// # Errors
+/// A blank id, an encoding failure, or a file over the header's `max_bytes`.
+pub fn encode_sectioned_io<M: Serialize>(
+    header: &ArtifactContainer<'_>,
+    meta_section: &str,
+    meta: &M,
+    payloads: &[OutSection<'_>],
+    layout: &'static str,
+) -> Result<Vec<u8>, IoError> {
+    if header.artifact_id.trim().is_empty() {
+        return Err(CodecError::MissingArtifactId.into_io(layout));
+    }
+    let meta_bytes = crate::convert::to_cbor(meta)?;
+    let mut sections = Vec::with_capacity(payloads.len() + 1);
+    sections.push(OutSection { id: meta_section, content_type: CONTENT_CBOR, bytes: &meta_bytes });
+    sections.extend(payloads.iter().map(|section| OutSection {
+        id: section.id,
+        content_type: section.content_type,
+        bytes: section.bytes,
+    }));
+    encode_container(header, &sections).map_err(|error| error.into_io(layout))
+}
+
+/// Read a container of a metadata section followed by `payload_sections` for an artifact whose
+/// error is [`IoError`], returning the metadata bytes and the payload sections in order. The
+/// metadata is not interpreted; [`decode_sectioned_io`] and [`decode_sectioned_io_versioned`]
+/// add the CBOR decode.
+///
+/// A file over `max_bytes` is [`IoError::TooLarge`]; a foreign layout is the convert message
+/// `layout`.
+///
+/// # Errors
+/// Oversize, truncated, corrupt, or differently laid out containers.
+pub fn decode_sectioned_io_raw<const N: usize>(
+    kind: &str,
+    max_bytes: usize,
+    meta_section: &str,
+    payload_sections: &[&str; N],
+    layout: &'static str,
+    bytes: &[u8],
+) -> Result<(Vec<u8>, [Vec<u8>; N]), IoError> {
+    let mut ids = Vec::with_capacity(N + 1);
+    ids.push(meta_section);
+    ids.extend_from_slice(payload_sections);
+    let mut parts =
+        decode_container(kind, max_bytes, &ids, bytes).map_err(|error| error.into_io(layout))?;
+    let meta = parts.remove(0);
+    let payloads =
+        <[Vec<u8>; N]>::try_from(parts).map_err(|_| IoError::Convert(layout.into()))?;
+    Ok((meta, payloads))
+}
+
+/// [`decode_sectioned_io_raw`] with the metadata decoded as CBOR, for a format that carries no
+/// version word.
+///
+/// # Errors
+/// As [`decode_sectioned_io_raw`], and a metadata section that is not an `M`.
+pub fn decode_sectioned_io<M: DeserializeOwned, const N: usize>(
+    kind: &str,
+    max_bytes: usize,
+    meta_section: &str,
+    payload_sections: &[&str; N],
+    layout: &'static str,
+    bytes: &[u8],
+) -> Result<(M, [Vec<u8>; N]), IoError> {
+    let (meta_bytes, payloads) =
+        decode_sectioned_io_raw(kind, max_bytes, meta_section, payload_sections, layout, bytes)?;
+    Ok((crate::convert::from_cbor(&meta_bytes)?, payloads))
+}
+
+/// [`decode_sectioned_io_raw`] with the metadata gated on its `version` word before it is
+/// interpreted as `M`, so another version is [`IoError::UnsupportedVersion`] and not a shape
+/// error.
+///
+/// # Errors
+/// As [`decode_sectioned_io_raw`], an unsupported version, and a metadata section that is not an
+/// `M`.
+pub fn decode_sectioned_io_versioned<M: DeserializeOwned, const N: usize>(
+    kind: &str,
+    max_bytes: usize,
+    meta_section: &str,
+    payload_sections: &[&str; N],
+    layout: &'static str,
+    supported_version: u16,
+    bytes: &[u8],
+) -> Result<(M, [Vec<u8>; N]), IoError> {
+    let (meta_bytes, payloads) =
+        decode_sectioned_io_raw(kind, max_bytes, meta_section, payload_sections, layout, bytes)?;
+    let meta = decode_with_version(&meta_bytes, |version: u16| {
+        if version == supported_version {
+            Ok(())
+        } else {
+            Err(IoError::UnsupportedVersion { version: u32::from(version) })
+        }
+    })?;
+    Ok((meta, payloads))
 }
 
 /// Write `sections` in order as one checksummed container.
@@ -860,6 +1058,19 @@ fn version_of<V: VersionWord>(value: &ciborium::Value) -> Result<V, IoError> {
     Ok(peek.version)
 }
 
+/// The first field of two identity records that differs, as the name the artifact reports.
+///
+/// The fields are compared in the order they are listed, which is the order the artifact's
+/// contract names them; `None` when every listed field is equal. Each field type needs
+/// `PartialEq`.
+#[macro_export]
+macro_rules! first_identity_difference {
+    ($stored:expr, $other:expr, { $($field:ident => $name:literal),+ $(,)? }) => {{
+        let (stored, other) = (&$stored, &$other);
+        $( if stored.$field != other.$field { Some($name) } else )+ { None }
+    }};
+}
+
 /// Map a [`CodecError`] onto an artifact error that implements [`ArtifactFamilyError`] (every
 /// error generated by [`sectioned_artifact_enum!`]).
 #[macro_export]
@@ -888,5 +1099,121 @@ mod le_real_tests {
         let mut trailing = bytes;
         trailing.push(0x7f);
         assert_eq!(f64s_from_le_bytes(&trailing).len(), values.len());
+    }
+}
+
+#[cfg(test)]
+mod sectioned_io_tests {
+    use super::{
+        ArtifactContainer, CONTENT_BYTES, OutSection, decode_sectioned_io,
+        decode_sectioned_io_raw, decode_sectioned_io_versioned, encode_sectioned_io,
+    };
+    use crate::error::IoError;
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
+    struct Meta {
+        version: u16,
+        label: String,
+    }
+
+    const KIND: &str = "sectioned_io_test";
+    const LAYOUT: &str = "unsupported test layout";
+
+    fn header(artifact_id: &str) -> ArtifactContainer<'_> {
+        ArtifactContainer {
+            kind: KIND,
+            note: "test",
+            max_bytes: 1 << 16,
+            artifact_id,
+            library_version: env!("CARGO_PKG_VERSION"),
+        }
+    }
+
+    fn encode(version: u16) -> Vec<u8> {
+        encode_sectioned_io(
+            &header("test:1"),
+            "test.meta",
+            &Meta { version, label: "a".into() },
+            &[OutSection { id: "test.payload", content_type: CONTENT_BYTES, bytes: b"xyz" }],
+            LAYOUT,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn round_trip_returns_metadata_and_payloads_in_order() {
+        let bytes = encode(1);
+        let (meta, [payload]): (Meta, _) =
+            decode_sectioned_io(KIND, 1 << 16, "test.meta", &["test.payload"], LAYOUT, &bytes)
+                .unwrap();
+        assert_eq!(meta, Meta { version: 1, label: "a".into() });
+        assert_eq!(payload, b"xyz");
+    }
+
+    #[test]
+    fn blank_artifact_id_is_refused_before_encoding() {
+        let result = encode_sectioned_io(
+            &header("  "),
+            "test.meta",
+            &Meta { version: 1, label: String::new() },
+            &[],
+            LAYOUT,
+        );
+        assert!(matches!(result, Err(IoError::Convert(message)) if message == "missing artifact id"));
+    }
+
+    #[test]
+    fn a_foreign_layout_is_the_callers_convert_message() {
+        let bytes = encode(1);
+        let wrong = decode_sectioned_io_raw(KIND, 1 << 16, "test.meta", &[], LAYOUT, &bytes);
+        assert!(matches!(wrong, Err(IoError::Convert(message)) if message == LAYOUT));
+        let oversize = decode_sectioned_io_raw(KIND, 4, "test.meta", &["test.payload"], LAYOUT, &bytes);
+        assert!(matches!(oversize, Err(IoError::TooLarge)));
+    }
+
+    #[test]
+    fn another_version_is_refused_before_the_metadata_is_interpreted() {
+        let bytes = encode(2);
+        let result: Result<(Meta, [Vec<u8>; 1]), IoError> = decode_sectioned_io_versioned(
+            KIND,
+            1 << 16,
+            "test.meta",
+            &["test.payload"],
+            LAYOUT,
+            1,
+            &bytes,
+        );
+        assert!(matches!(result, Err(IoError::UnsupportedVersion { version: 2 })));
+    }
+}
+
+#[cfg(test)]
+mod identity_difference_tests {
+    struct Identity {
+        snapshot: String,
+        design: String,
+        digest: String,
+    }
+
+    fn identity(snapshot: &str, design: &str, digest: &str) -> Identity {
+        Identity { snapshot: snapshot.into(), design: design.into(), digest: digest.into() }
+    }
+
+    fn diff(stored: &Identity, other: &Identity) -> Option<&'static str> {
+        crate::first_identity_difference!(stored, other, {
+            snapshot => "row_snapshot",
+            design => "design",
+            digest => "identity",
+        })
+    }
+
+    #[test]
+    fn the_first_differing_field_in_listed_order_is_named() {
+        let base = identity("s", "d", "h");
+        assert_eq!(diff(&base, &identity("s", "d", "h")), None);
+        assert_eq!(diff(&base, &identity("s", "d", "x")), Some("identity"));
+        assert_eq!(diff(&base, &identity("s", "x", "x")), Some("design"));
+        assert_eq!(diff(&base, &identity("x", "x", "x")), Some("row_snapshot"));
     }
 }

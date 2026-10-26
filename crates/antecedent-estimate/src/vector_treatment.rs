@@ -34,6 +34,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 
 use antecedent_core::reason_code;
@@ -101,39 +102,53 @@ impl VectorCovariance {
     }
 }
 
-/// A named numeric column.
+/// A named numeric column; owned or borrowed from the caller's storage.
 #[derive(Clone, Debug, PartialEq)]
-pub struct NamedColumn {
+pub struct NamedColumn<'a> {
     /// Unique column name.
-    pub name: String,
+    pub name: Cow<'a, str>,
     /// One value per row of the snapshot.
-    pub values: Vec<f64>,
+    pub values: Cow<'a, [f64]>,
+}
+
+impl<'a> NamedColumn<'a> {
+    /// A column from a name and values, owned or borrowed.
+    #[must_use]
+    pub fn new(name: impl Into<Cow<'a, str>>, values: impl Into<Cow<'a, [f64]>>) -> Self {
+        Self { name: name.into(), values: values.into() }
+    }
+
+    /// A view of this column that borrows its storage.
+    #[must_use]
+    pub fn borrowed(&self) -> NamedColumn<'_> {
+        NamedColumn { name: Cow::Borrowed(&*self.name), values: Cow::Borrowed(&*self.values) }
+    }
 }
 
 /// One treatment of the vector, with the adjustment set and snapshot it was prepared under.
 #[derive(Clone, Debug, PartialEq)]
-pub struct TreatmentColumn {
+pub struct TreatmentColumn<'a> {
     /// Unique treatment name (the coefficient name).
-    pub name: String,
+    pub name: Cow<'a, str>,
     /// One value per row of the snapshot.
-    pub values: Vec<f64>,
+    pub values: Cow<'a, [f64]>,
     /// Names of the adjustment columns this treatment was declared against.
-    pub adjustment_set: Vec<String>,
+    pub adjustment_set: Vec<Cow<'a, str>>,
     /// Identity of the row snapshot this treatment column was taken from.
-    pub row_snapshot: String,
+    pub row_snapshot: Cow<'a, str>,
 }
 
 /// Joint fit input: one outcome, one shared adjustment block, one snapshot, `k >= 2` treatments.
 #[derive(Clone, Debug, PartialEq)]
-pub struct VectorTreatmentInput {
+pub struct VectorTreatmentInput<'a> {
     /// Outcome, one value per row of the snapshot.
-    pub outcome: Vec<f64>,
+    pub outcome: Cow<'a, [f64]>,
     /// Identity of the shared row snapshot.
-    pub row_snapshot: String,
+    pub row_snapshot: Cow<'a, str>,
     /// The shared adjustment columns (may be empty).
-    pub adjustment: Vec<NamedColumn>,
+    pub adjustment: Vec<NamedColumn<'a>>,
     /// The treatments, in coefficient order.
-    pub treatments: Vec<TreatmentColumn>,
+    pub treatments: Vec<TreatmentColumn<'a>>,
 }
 
 /// A declared linear contrast of the named treatment coefficients.
@@ -278,13 +293,13 @@ fn build_design(input: &VectorTreatmentInput) -> Design {
     let mut names = vec![VECTOR_TREATMENT_INTERCEPT.to_string()];
     let mut cols = vec![vec![1.0; n]];
     for column in &input.adjustment {
-        names.push(column.name.clone());
-        cols.push(column.values.clone());
+        names.push(column.name.to_string());
+        cols.push(column.values.to_vec());
     }
     let first_treatment = cols.len();
     for treatment in &input.treatments {
-        names.push(treatment.name.clone());
-        cols.push(treatment.values.clone());
+        names.push(treatment.name.to_string());
+        cols.push(treatment.values.to_vec());
     }
     Design { names, cols, first_treatment }
 }
@@ -317,8 +332,8 @@ pub(crate) fn validate_input(
     let all_names = input
         .adjustment
         .iter()
-        .map(|c| c.name.as_str())
-        .chain(input.treatments.iter().map(|t| t.name.as_str()));
+        .map(|c| &*c.name)
+        .chain(input.treatments.iter().map(|t| &*t.name));
     for name in all_names {
         if name.is_empty() || name == VECTOR_TREATMENT_INTERCEPT || !seen.insert(name) {
             return Err(refuse(
@@ -337,9 +352,9 @@ fn validate_shared(input: &VectorTreatmentInput) -> Result<(), EstimationError> 
     let incompatible = reason_code!("route_not_supported");
     let n = input.outcome.len();
     let k = input.treatments.len();
-    let declared: BTreeSet<&str> = input.adjustment.iter().map(|c| c.name.as_str()).collect();
+    let declared: BTreeSet<&str> = input.adjustment.iter().map(|c| &*c.name).collect();
     for treatment in &input.treatments {
-        let theirs: BTreeSet<&str> = treatment.adjustment_set.iter().map(String::as_str).collect();
+        let theirs: BTreeSet<&str> = treatment.adjustment_set.iter().map(|s| &**s).collect();
         if theirs != declared {
             return Err(refuse(
                 incompatible,
@@ -771,7 +786,7 @@ pub(crate) fn fit_joint_retained(
             let n = input.outcome.len();
             let p = design.cols.len();
             let solved = Solved {
-                names: input.treatments.iter().map(|t| t.name.clone()).collect(),
+                names: input.treatments.iter().map(|t| t.name.to_string()).collect(),
                 beta: &ols.beta,
                 full: &full,
                 first_treatment: design.first_treatment,

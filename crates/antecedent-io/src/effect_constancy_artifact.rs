@@ -61,10 +61,11 @@ crate::sectioned_artifact_error!(
 );
 
 fn invalid_request(message: &str) -> EffectConstancyArtifactError {
-    EffectConstancyArtifactError::Refused {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        message: format!("effect_constancy.invalid_request: {message}"),
-    }
+    EffectConstancyArtifactError::refused(
+        antecedent_core::reason_code!("invalid_argument"),
+        "effect_constancy.invalid_request",
+        message,
+    )
 }
 
 /// The shared effect estimand on the wire.
@@ -496,23 +497,15 @@ fn identity_diff(
     stored: &EffectConstancyIdentity,
     other: &EffectConstancyIdentity,
 ) -> Option<&'static str> {
-    if stored.partition_id != other.partition_id {
-        Some("partition_identity")
-    } else if stored.estimand_id != other.estimand_id {
-        Some("estimand")
-    } else if stored.covariance_id != other.covariance_id {
-        Some("covariance")
-    } else if stored.null != other.null {
-        Some("null")
-    } else if stored.family_id != other.family_id {
-        Some("multiplicity_family")
-    } else if stored.evidence_id != other.evidence_id {
-        Some("evidence")
-    } else if stored.digest != other.digest {
-        Some("identity")
-    } else {
-        None
-    }
+    crate::first_identity_difference!(stored, other, {
+        partition_id => "partition_identity",
+        estimand_id => "estimand",
+        covariance_id => "covariance",
+        null => "null",
+        family_id => "multiplicity_family",
+        evidence_id => "evidence",
+        digest => "identity",
+    })
 }
 
 fn numbers_of(request: &EffectConstancyRequestWire) -> Vec<u8> {
@@ -791,15 +784,11 @@ impl EffectConstancyArtifact {
         if meta.null != EFFECT_CONSTANCY_NULL {
             return Err(EffectConstancyArtifactError::IdentityMismatch { field: "null" });
         }
-        if meta.inference_claim != EFFECT_CONSTANCY_INFERENCE_CLAIM {
-            return Err(EffectConstancyArtifactError::UnsupportedSemantics("inference claim"));
-        }
-        if meta.calibration != EFFECT_CONSTANCY_CALIBRATION {
-            return Err(EffectConstancyArtifactError::UnsupportedSemantics("calibration"));
-        }
-        if meta.caveats != [NON_REJECTION_CAVEAT, POWER_CAVEAT] {
-            return Err(EffectConstancyArtifactError::UnsupportedSemantics("caveats"));
-        }
+        crate::artifact_codec::require_markers::<EffectConstancyArtifactError>(&[
+            (meta.inference_claim == EFFECT_CONSTANCY_INFERENCE_CLAIM, "inference claim"),
+            (meta.calibration == EFFECT_CONSTANCY_CALIBRATION, "calibration"),
+            (meta.caveats == [NON_REJECTION_CAVEAT, POWER_CAVEAT], "caveats"),
+        ])?;
         let request = request_of(&meta, &numbers)?;
         let computed = compute(&request)?;
         if let Some(field) = identity_diff(&meta.identity, &computed.identity) {

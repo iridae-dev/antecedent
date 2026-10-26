@@ -11,7 +11,6 @@
 use antecedent_contract::{BoundExternalClaim, ColumnClaim};
 use serde::{Deserialize, Serialize};
 
-use crate::convert::{from_cbor, to_cbor};
 use crate::error::IoError;
 use crate::external_claim_artifact::{ExternalClaimIdentity, values_digest};
 
@@ -201,11 +200,7 @@ impl ExternalColumnClaimArtifact {
     /// A blank artifact id or an oversized payload refuses.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, IoError> {
         validate(&self.metadata)?;
-        if artifact_id.trim().is_empty() {
-            return Err(IoError::Convert("missing artifact id".into()));
-        }
-        let meta_bytes = to_cbor(&self.metadata)?;
-        crate::encode_container(
+        crate::artifact_codec::encode_sectioned_io(
             &crate::ArtifactContainer {
                 kind: ARTIFACT_KIND,
                 note: "external_column_claim",
@@ -213,13 +208,11 @@ impl ExternalColumnClaimArtifact {
                 artifact_id,
                 library_version: env!("CARGO_PKG_VERSION"),
             },
-            &[crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            }],
+            META_SECTION,
+            &self.metadata,
+            &[],
+            "unsupported external column claim layout",
         )
-        .map_err(|error| error.into_io("unsupported external column claim layout"))
     }
 
     /// Load and check against an independently retained identity.
@@ -244,17 +237,15 @@ impl ExternalColumnClaimArtifact {
             return Err(IoError::TooLarge);
         }
         expected.validate()?;
-        let parts = crate::decode_container(
-            ARTIFACT_KIND,
-            max_bytes,
-            &[META_SECTION],
-            bytes,
-        )
-        .map_err(|error| error.into_io("unsupported external column claim layout"))?;
-        let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-            return Err(IoError::Convert("unsupported external column claim layout".into()));
-        };
-        let metadata: ExternalColumnClaimMetadata = from_cbor(&meta_bytes)?;
+        let (metadata, []): (ExternalColumnClaimMetadata, _) =
+            crate::artifact_codec::decode_sectioned_io(
+                ARTIFACT_KIND,
+                max_bytes,
+                META_SECTION,
+                &[],
+                "unsupported external column claim layout",
+                bytes,
+            )?;
         if metadata.identity != *expected {
             return Err(IoError::Refused {
                 code: antecedent_core::reason_code!("external_binding_mismatch"),

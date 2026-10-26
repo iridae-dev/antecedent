@@ -76,9 +76,6 @@ use crate::decision_eval::{
 };
 use crate::decision_structural::{AtomEvidence, StructuralAtom};
 
-/// Most actions one query may enumerate.
-pub const MAX_INVERSE_GRID: usize = 4096;
-
 /// What a result is and is not, carried on every report.
 pub const INVERSE_QUERY_SCOPE_NOTE: &str = "Feasibility is relative to the declared finite action grid and the supplied forward claims; an action outside the grid is unresolved, not excluded. Point, interval-region, identified-set, all-scenario and posterior-probability feasibility are separate fields and none is derived from another. No coverage or calibration claim is made, and one found point is never a global feasibility claim over a continuous domain.";
 
@@ -433,7 +430,7 @@ pub struct InverseResult {
 /// Why an inverse query refused.
 #[derive(Clone, Debug, PartialEq)]
 pub enum InverseQueryError {
-    /// The grid is empty, too large, repeats an action or names an undeclared one.
+    /// The grid is empty, repeats an action or names an undeclared one.
     InvalidGrid(&'static str),
     /// No constraint was declared.
     NoConstraints,
@@ -1003,9 +1000,6 @@ fn validate_grid(query: &InverseQuery) -> Result<(), InverseQueryError> {
     let grid = &query.grid_order;
     if grid.is_empty() {
         return Err(InverseQueryError::InvalidGrid("the action grid is empty"));
-    }
-    if grid.len() > MAX_INVERSE_GRID {
-        return Err(InverseQueryError::InvalidGrid("the action grid exceeds the bound"));
     }
     let mut seen = HashSet::new();
     for id in grid {

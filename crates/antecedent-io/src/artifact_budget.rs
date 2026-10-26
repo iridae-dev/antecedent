@@ -20,8 +20,8 @@ pub(crate) struct BudgetDetails {
     pub(crate) export: &'static str,
 }
 
-/// A typed refusal: the registered reason code and `detail: explanation`.
-pub(crate) type BudgetRefusal = (&'static str, String);
+/// A typed refusal: the registered reason code, the detail identifier and the explanation.
+pub(crate) type BudgetRefusal = (&'static str, &'static str, String);
 
 /// The context the size-independent entry points run under: no memory limit, not cancelled.
 pub(crate) fn unbounded_context() -> ExecutionContext {
@@ -48,17 +48,18 @@ pub(crate) fn admit_computation(
     if ctx.cancellation.is_cancelled() {
         return Err((
             details.cancelled.0,
-            format!("{}: cancelled before the work started", details.cancelled.1),
+            details.cancelled.1,
+            "cancelled before the work started".to_owned(),
         ));
     }
     let planned = planned.unwrap_or(u64::MAX);
     match ctx.memory_limit_bytes() {
         Some(limit) if planned > limit => Err((
             antecedent_core::reason_code!("route_not_supported"),
+            details.memory,
             format!(
-                "{}: the work needs about {planned} bytes, over the {limit}-byte memory budget \
-                 of the execution context",
-                details.memory
+                "the work needs about {planned} bytes, over the {limit}-byte memory budget \
+                 of the execution context"
             ),
         )),
         _ => Ok(()),
@@ -90,10 +91,10 @@ pub(crate) fn admit_export(
     if needed > budget {
         return Err((
             antecedent_core::reason_code!("route_not_supported"),
+            details.export,
             format!(
-                "{}: the artifact needs {needed} bytes, over the export budget of {budget} \
-                 bytes; the fit is complete and stays in memory",
-                details.export
+                "the artifact needs {needed} bytes, over the export budget of {budget} \
+                 bytes; the fit is complete and stays in memory"
             ),
         ));
     }

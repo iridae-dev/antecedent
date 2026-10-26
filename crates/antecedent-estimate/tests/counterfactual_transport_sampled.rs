@@ -183,7 +183,7 @@ fn estimate(
 
 fn refusal(error: &EstimationError) -> (&'static str, String) {
     match error {
-        EstimationError::Refused { code, message } => (code, message.clone()),
+        EstimationError::Refused { code, message } => (code, message.to_string()),
         other => panic!("expected a registered refusal, got {other:?}"),
     }
 }

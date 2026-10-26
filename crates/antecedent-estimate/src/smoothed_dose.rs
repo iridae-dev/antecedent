@@ -492,10 +492,10 @@ fn unsupported(detail: &str, message: &str) -> EstimationError {
 
 fn cancelled(ctx: &ExecutionContext) -> Result<(), EstimationError> {
     if ctx.cancellation.is_cancelled() {
-        Err(EstimationError::Refused {
-            code: antecedent_core::reason_code!("transport_budget_cancel"),
-            message: "smoothed dose transport cancelled".into(),
-        })
+        Err(EstimationError::refused(
+            antecedent_core::reason_code!("transport_budget_cancel"),
+            "smoothed dose transport cancelled",
+        ))
     } else {
         Ok(())
     }
@@ -1422,14 +1422,14 @@ fn check_workspace(bytes: Option<u64>, ctx: &ExecutionContext) -> Result<(), Est
     let cap = smoothed_dose_memory_cap(ctx);
     match bytes {
         Some(bytes) if bytes <= cap => Ok(()),
-        _ => Err(EstimationError::Refused {
-            code: antecedent_core::reason_code!("transport_budget_cancel"),
-            message: format!(
+        _ => Err(EstimationError::refused(
+            antecedent_core::reason_code!("transport_budget_cancel"),
+            format!(
                 "the smoothed dose workspace estimate of {} bytes exceeds the memory cap of \
                  {cap} bytes",
                 bytes.map_or_else(|| "more than u64::MAX".into(), |b| b.to_string())
             ),
-        }),
+        )),
     }
 }
 
@@ -1535,8 +1535,8 @@ fn dose_structural_refusal(
     }
     let refused = |error: EstimationError| match error {
         EstimationError::Refused { code, message } => {
-            let detail = message.split(':').next().map(str::to_owned);
-            Some(MenuRefusal { code: code.into(), detail, reason: message })
+            let detail = message.detail().map(str::to_owned);
+            Some(MenuRefusal { code: code.into(), detail, reason: message.into_string() })
         }
         other => Some(menu_refusal(
             antecedent_core::reason_code!("invalid_argument"),
@@ -1584,8 +1584,8 @@ fn dose_provider_refusal(options: &SmoothedDoseOptions) -> Option<MenuRefusal> {
     Some(match error {
         EstimationError::Refused { code, message } => MenuRefusal {
             code: code.into(),
-            detail: message.split(':').next().map(str::to_owned),
-            reason: message,
+            detail: message.detail().map(str::to_owned),
+            reason: message.into_string(),
         },
         other => {
             menu_refusal(antecedent_core::reason_code!("invalid_argument"), None, other.to_string())

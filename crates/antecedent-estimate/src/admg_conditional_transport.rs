@@ -23,9 +23,10 @@ use std::sync::Arc;
 const INVALID_REQUEST: &str = "admg_transport.invalid_request";
 
 fn invalid_request(message: &str) -> EstimationError {
-    EstimationError::refused(
+    EstimationError::refused_detail(
         antecedent_core::reason_code!("invalid_argument"),
-        format!("{INVALID_REQUEST}: {message}"),
+        INVALID_REQUEST,
+        message,
     )
 }
 
@@ -108,9 +109,10 @@ pub(crate) fn condition(
     // Fixed order and plain summation: a consumer recomputes the same bits.
     let total: f64 = masses.iter().sum();
     if !total.is_finite() || total <= 0.0 {
-        return Err(EstimationError::refused(
+        return Err(EstimationError::refused_detail(
             antecedent_core::reason_code!("transport_support_failure"),
-            "admg_transport.support_failure: the conditioning event has zero mass at the requested treatment level",
+            "admg_transport.support_failure",
+            "the conditioning event has zero mass at the requested treatment level",
         ));
     }
     Ok(ExactDistribution {
@@ -141,9 +143,10 @@ pub fn prepare_exact_admg_conditional_transport(
     // does not license (no coverage record): refused before anything compiles,
     // as the facade and Python preparations refuse them.
     if data.laws().iter().any(|law| law.empirical_counts().is_some()) {
-        return Err(EstimationError::refused(
+        return Err(EstimationError::refused_detail(
             antecedent_core::reason_code!("cell_not_licensed"),
-            "admg_transport.interval_withheld: counted laws are not licensed; the route publishes exact-law points only",
+            "admg_transport.interval_withheld",
+            "counted laws are not licensed; the route publishes exact-law points only",
         ));
     }
     let (joint_request, conditioning) = split_request(functional, request)?;

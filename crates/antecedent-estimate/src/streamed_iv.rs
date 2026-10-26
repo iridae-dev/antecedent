@@ -141,8 +141,7 @@ impl TwoStageLeastSquares {
         let mut source = MaskedRows::new(true, columns, RowMode::Plain { outcome }, &row_mask);
         let p = x_ncols + z_ncols + 1;
         let options = CapacityOptions::new(batch_rows, ceiling_bytes, OutputRetention::SummaryOnly);
-        let result = run_weighted_capacity(CapacityControl::Glm, &mut source, &options)
-            .map_err(crate::streamed_rows::capacity_error)?
+        let result = run_weighted_capacity(CapacityControl::Glm, &mut source, &options)?
             .into_resident()
             .ok_or_else(|| EstimationError::data_msg("the reduction summary was not resident"))?;
         let n = usize::try_from(result.residual.positive_weight_rows).unwrap_or(usize::MAX);

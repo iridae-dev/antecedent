@@ -222,8 +222,7 @@ impl LinearAdjustmentAte {
         };
         let p = source.ncols();
         let options = CapacityOptions::new(batch_rows, ceiling_bytes, OutputRetention::SummaryOnly);
-        let result = run_weighted_capacity(CapacityControl::Glm, &mut source, &options)
-            .map_err(crate::streamed_rows::capacity_error)?
+        let result = run_weighted_capacity(CapacityControl::Glm, &mut source, &options)?
             .into_resident()
             .ok_or_else(|| EstimationError::data_msg("the reduction summary was not resident"))?;
         let t_col = 1;

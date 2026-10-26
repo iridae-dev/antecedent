@@ -1427,11 +1427,9 @@ fn rd_cutoff_query(cutoff: f64) -> AverageEffectQuery {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn rd_sharp_analytic_ci_coverage() {
     let query = rd_cutoff_query(0.0);
-    let est = SharpRegressionDiscontinuity {
-        bootstrap_replicates: 0,
-        se_kind: AnalyticSeKind::Homoskedastic,
-        ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
-    };
+    let est = SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
+        .with_bootstrap_replicates(0)
+        .with_se_kind(AnalyticSeKind::Homoskedastic);
     let ctx = ExecutionContext::for_tests(6);
     let mut tally = Tally::for_record("rd_sharp_analytic_ci_coverage", "rd_scm");
     let effects = map_replicates(n_sim(), |s| {
@@ -1487,11 +1485,9 @@ fn rd_sharp_hc1_curved_heterogeneous_probe() {
     let query = rd_cutoff_query(0.0);
     let ctx = ExecutionContext::for_tests(26);
     for bandwidth in [0.4, 0.8] {
-        let est = SharpRegressionDiscontinuity {
-            bootstrap_replicates: 0,
-            se_kind: AnalyticSeKind::Hc1,
-            ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, bandwidth)
-        };
+        let est = SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, bandwidth)
+            .with_bootstrap_replicates(0)
+            .with_se_kind(AnalyticSeKind::Hc1);
         let mut probe = Tally::default();
         let effects = map_replicates(n_sim(), |s| {
             // Only about `4h/9` of rows fall in the window, so draw ten times `n_obs`.
@@ -1513,13 +1509,11 @@ fn rd_sharp_hc1_curved_heterogeneous_probe() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn rd_sharp_hc1_heteroskedastic_ci_coverage() {
     let query = rd_cutoff_query(0.0);
-    let hc1 = SharpRegressionDiscontinuity {
-        bootstrap_replicates: 0,
-        se_kind: AnalyticSeKind::Hc1,
-        ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
-    };
+    let hc1 = SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
+        .with_bootstrap_replicates(0)
+        .with_se_kind(AnalyticSeKind::Hc1);
     let classical =
-        SharpRegressionDiscontinuity { se_kind: AnalyticSeKind::Homoskedastic, ..hc1.clone() };
+        hc1.clone().with_se_kind(AnalyticSeKind::Homoskedastic);
     let ctx = ExecutionContext::for_tests(16);
     let mut tally = Tally::for_record("rd_sharp_hc1_heteroskedastic_ci_coverage", "rd_scm");
     // Out-of-assumption probe (homoskedastic SE on a heteroskedastic law): no record.
@@ -1786,11 +1780,9 @@ fn ipw_hajek_weak_overlap_adversarial_ci_coverage() {
 fn rd_sharp_hc1_curved_adversarial_ci_coverage() {
     const CUTOFF_EFFECT: f64 = 2.0;
     let query = rd_cutoff_query(0.0);
-    let est = SharpRegressionDiscontinuity {
-        bootstrap_replicates: 0,
-        se_kind: AnalyticSeKind::Hc1,
-        ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 0.8)
-    };
+    let est = SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 0.8)
+        .with_bootstrap_replicates(0)
+        .with_se_kind(AnalyticSeKind::Hc1);
     let ctx = ExecutionContext::for_tests(73);
     let mut tally = Tally::for_record(
         "rd_sharp_hc1_curved_adversarial_ci_coverage",

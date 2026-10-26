@@ -828,27 +828,17 @@ fn identity_diff(
     stored: &TransportedCounterfactualIdentity,
     other: &TransportedCounterfactualIdentity,
 ) -> Option<&'static str> {
-    if stored.premises_digest != other.premises_digest {
-        Some("premises")
-    } else if stored.model_digest != other.model_digest {
-        Some("model")
-    } else if stored.source_law_digest != other.source_law_digest {
-        Some("source_law")
-    } else if stored.target_law_digest != other.target_law_digest {
-        Some("target_law")
-    } else if stored.selection_digest != other.selection_digest {
-        Some("selection")
-    } else if stored.assignment_digest != other.assignment_digest {
-        Some("assignment")
-    } else if stored.evidence_digest != other.evidence_digest {
-        Some("evidence")
-    } else if stored.spec_id != other.spec_id {
-        Some("request")
-    } else if stored.result_digest != other.result_digest {
-        Some("result")
-    } else {
-        None
-    }
+    crate::first_identity_difference!(stored, other, {
+        premises_digest => "premises",
+        model_digest => "model",
+        source_law_digest => "source_law",
+        target_law_digest => "target_law",
+        selection_digest => "selection",
+        assignment_digest => "assignment",
+        evidence_digest => "evidence",
+        spec_id => "request",
+        result_digest => "result",
+    })
 }
 
 fn same_real(a: f64, b: f64) -> bool {

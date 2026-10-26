@@ -31,7 +31,6 @@ use antecedent_stats::measurement_error::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::{from_cbor, to_cbor};
 use crate::error::IoError;
 
 /// Maximum artifact bytes accepted before decode allocation.
@@ -1298,11 +1297,7 @@ impl MeasurementModelArtifact {
     /// A blank artifact id, an invalid state or an oversized payload refuses.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, IoError> {
         validate_metadata(&self.metadata)?;
-        if artifact_id.trim().is_empty() {
-            return Err(convert("missing artifact id"));
-        }
-        let meta_bytes = to_cbor(&self.metadata)?;
-        crate::encode_container(
+        crate::artifact_codec::encode_sectioned_io(
             &crate::ArtifactContainer {
                 kind: ARTIFACT_KIND,
                 note: "measurement_model",
@@ -1310,13 +1305,11 @@ impl MeasurementModelArtifact {
                 artifact_id,
                 library_version: env!("CARGO_PKG_VERSION"),
             },
-            &[crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            }],
+            META_SECTION,
+            &self.metadata,
+            &[],
+            "unsupported measurement model layout",
         )
-        .map_err(|error| error.into_io("unsupported measurement model layout"))
     }
 
     /// Load, check against an independently retained model identity, and
@@ -1347,17 +1340,15 @@ impl MeasurementModelArtifact {
             return Err(IoError::TooLarge);
         }
         digest_from_hex(expected_model_identity)?;
-        let parts = crate::decode_container(
-            ARTIFACT_KIND,
-            max_bytes,
-            &[META_SECTION],
-            bytes,
-        )
-        .map_err(|error| error.into_io("unsupported measurement model layout"))?;
-        let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-            return Err(convert("unsupported measurement model layout"));
-        };
-        let metadata: MeasurementModelMetadata = from_cbor(&meta_bytes)?;
+        let (metadata, []): (MeasurementModelMetadata, _) =
+            crate::artifact_codec::decode_sectioned_io(
+                ARTIFACT_KIND,
+                max_bytes,
+                META_SECTION,
+                &[],
+                "unsupported measurement model layout",
+                bytes,
+            )?;
         if metadata.identities.model != expected_model_identity {
             return Err(refused(
                 "the artifact's model identity differs from the identity the consumer retained",

@@ -63,14 +63,14 @@ pub fn require_ordinary_temporal_curve_posterior(
 ) -> Result<(), EstimationError> {
     match temporal_curve_posterior_meaning(serial) {
         TemporalCurvePosteriorMeaning::OrdinaryLikelihood => Ok(()),
-        TemporalCurvePosteriorMeaning::TemperedGeneralized => Err(EstimationError::refused(
+        TemporalCurvePosteriorMeaning::TemperedGeneralized => Err(EstimationError::refused_detail(
             antecedent_core::reason_code!("cell_not_licensed"),
-            "temporal_curve.ordinary_posterior_not_licensed: the innovation dependence is not \
-             part of the likelihood, so the curve posterior is the tempered generalized \
-             posterior and not the posterior of a joint law of the series; next attempt: \
-             attest independent innovations given the modelled history, add an explicit \
-             autoregressive innovation law to the likelihood, or read the tempered posterior \
-             as a generalized posterior",
+            "temporal_curve.ordinary_posterior_not_licensed",
+            "the innovation dependence is not part of the likelihood, so the curve posterior is \
+             the tempered generalized posterior and not the posterior of a joint law of the \
+             series; next attempt: attest independent innovations given the modelled history, \
+             add an explicit autoregressive innovation law to the likelihood, or read the \
+             tempered posterior as a generalized posterior",
         )),
     }
 }

@@ -194,10 +194,9 @@ impl WeightedRowSource for MaskedRows<'_> {
                 }
                 RowMode::LogisticWorking { treatment, active, beta } => {
                     let eta: f64 = cells.iter().zip(beta).map(|(x, b)| x * b).sum();
-                    let mean = clamped_mean(eta);
-                    let variance = mean * (1.0 - mean);
                     let coded = if treatment[row] == active { 1.0 } else { 0.0 };
-                    y[taken] = eta + (coded - mean) / variance;
+                    let (variance, response) = antecedent_stats::logit_working_row(eta, coded);
+                    y[taken] = response;
                     weights[taken] = variance;
                 }
             }
@@ -229,15 +228,6 @@ impl EngineFacts {
     }
 }
 
-/// A refusal of the weighted-Gaussian capacity engine as an estimation error. The engine's
-/// error is neither `Clone` nor `Eq`, so it cannot be held by [`crate::EstimationError`]; its
-/// rendered text is the data-layer message.
-pub(crate) fn capacity_error(
-    error: antecedent_io_core::capacity_account::WeightedCapacityError,
-) -> crate::error::EstimationError {
-    crate::error::EstimationError::data_msg(error.to_string())
-}
-
 /// One pass of the weighted-Gaussian engine over `source`.
 ///
 /// # Errors
@@ -252,8 +242,7 @@ pub(crate) fn run_engine(
     crate::error::EstimationError,
 > {
     use antecedent_io_core::capacity_account::{CapacityControl, run_weighted_capacity};
-    let result = run_weighted_capacity(CapacityControl::Glm, source, options)
-        .map_err(capacity_error)?
+    let result = run_weighted_capacity(CapacityControl::Glm, source, options)?
         .into_resident()
         .ok_or_else(|| {
             crate::error::EstimationError::data_msg("the reduction summary was not resident")

@@ -28,18 +28,18 @@ fn refusal(error: EstimationError) -> String {
     format!("{code} {message}")
 }
 
-fn treatment(name: &str, values: &[f64]) -> TreatmentColumn {
+fn treatment(name: &str, values: &[f64]) -> TreatmentColumn<'static> {
     TreatmentColumn {
-        name: name.into(),
-        values: values.to_vec(),
+        name: name.to_owned().into(),
+        values: values.to_vec().into(),
         adjustment_set: vec![],
         row_snapshot: "snap".into(),
     }
 }
 
-fn vector_input() -> VectorTreatmentInput {
+fn vector_input() -> VectorTreatmentInput<'static> {
     VectorTreatmentInput {
-        outcome: vec![3.0, 2.0, 5.0, 1.0, 0.0, 4.0],
+        outcome: vec![3.0, 2.0, 5.0, 1.0, 0.0, 4.0].into(),
         row_snapshot: "snap".into(),
         adjustment: vec![],
         treatments: vec![
@@ -93,7 +93,7 @@ fn vector_posterior_consumer_replays_the_hand_normal_equations() {
     let _ = summarize_vector_design(&vector_input()).unwrap();
 }
 
-fn categorical_input() -> CategoricalTreatmentInput {
+fn categorical_input() -> CategoricalTreatmentInput<'static> {
     let rows = [
         ("c", 9.0),
         ("a", 1.0),

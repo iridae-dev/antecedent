@@ -472,7 +472,7 @@ impl PropensityWeighting {
                 &mut weights,
             )?;
         }
-        let ate = hajek_difference(&problem.treatment, &problem.outcome, &weights)?;
+        let ate = hajek_difference(&problem.arms, &problem.outcome, &weights)?;
         let (psi, linearization) = if self.covariate_balance {
             let (psi, linearization) = balanced_influence_values(
                 &problem.design_matrix,
@@ -489,7 +489,7 @@ impl PropensityWeighting {
         } else {
             (
                 hajek_influence_values(
-                    &problem.treatment,
+                    &problem.arms,
                     &problem.outcome,
                     &weights,
                     Some(HajekPropensity {
@@ -584,12 +584,14 @@ impl PropensityWeighting {
         let m = idx.len();
         let tw = problem.target_weights.as_deref();
         let sampling = problem.sampling_weights.as_ref().map(|s| &*s.weights);
-        let IpwReplicate { workspace, x, t, y, clipped, w, s } = scratch;
+        let IpwReplicate { workspace, x, t, arms, y, clipped, w, s } = scratch;
         x.resize(m * ncols, 0.0);
         for buffer in [&mut *t, &mut *y, &mut *clipped, &mut *w, &mut *s] {
             buffer.resize(m, 0.0);
         }
         crate::util::gather_bootstrap_vector(t, &problem.treatment, idx);
+        arms.clear();
+        arms.extend(idx.iter().map(|&i| problem.arms[i]));
         crate::util::gather_bootstrap_vector(y, &problem.outcome, idx);
         crate::util::gather_cols(x, &problem.design_matrix, n, ncols, idx);
         let fitted = match sampling {
@@ -636,7 +638,7 @@ impl PropensityWeighting {
         if self.covariate_balance {
             balance_arm_weights(x, ncols, t, sampling.map(|_| s.as_slice()), w).ok()?;
         }
-        hajek_difference(t, y, w).ok()
+        hajek_difference(arms, y, w).ok()
     }
 }
 
@@ -646,6 +648,7 @@ struct IpwReplicate {
     workspace: PropensityEstimationWorkspace,
     x: Vec<f64>,
     t: Vec<f64>,
+    arms: Vec<TreatmentArm>,
     y: Vec<f64>,
     clipped: Vec<f64>,
     w: Vec<f64>,
@@ -698,18 +701,18 @@ pub(crate) fn compute_ipw_weights_into(
     }
 }
 
-/// Compensated `(Σ w·y, Σ w)` of the rows of one arm (`want_treated` selects the treated arm of
-/// the indicator, see [`TreatmentArm`]).
+/// Compensated `(Σ w·y, Σ w)` of the rows of one arm (`want_treated` selects the treated arm,
+/// see [`TreatmentArm`]).
 fn arm_weighted_sums(
-    treatment: &[f64],
+    arms: &[TreatmentArm],
     outcome: &[f64],
     weights: &[f64],
     want_treated: bool,
 ) -> (f64, f64) {
     use antecedent_kernels::numeric::CompensatedSum;
     let (mut numerator, mut denominator) = (CompensatedSum::default(), CompensatedSum::default());
-    for ((&t, &y), &w) in treatment.iter().zip(outcome).zip(weights) {
-        if (TreatmentArm::is_treated_indicator(t)) == want_treated {
+    for ((&arm, &y), &w) in arms.iter().zip(outcome).zip(weights) {
+        if arm.is_treated() == want_treated {
             numerator.add(w * y);
             denominator.add(w);
         }
@@ -723,12 +726,12 @@ fn arm_weighted_sums(
 /// value without both arms, and a caller reports the refusal. See [`hajek_weighted_mean`] for
 /// the single-arm form, whose unavailable arm is a `NaN` that the replicate loops discard.
 pub(crate) fn hajek_difference(
-    treatment: &[f64],
+    arms: &[TreatmentArm],
     outcome: &[f64],
     weights: &[f64],
 ) -> Result<f64, EstimationError> {
-    let (num1, den1) = arm_weighted_sums(treatment, outcome, weights, true);
-    let (num0, den0) = arm_weighted_sums(treatment, outcome, weights, false);
+    let (num1, den1) = arm_weighted_sums(arms, outcome, weights, true);
+    let (num0, den0) = arm_weighted_sums(arms, outcome, weights, false);
     if den1 <= 0.0 || den0 <= 0.0 {
         return Err(EstimationError::data_msg(
             "IPW weighting left an arm with zero total weight (trimming/clipping removed all treated or all control units)",
@@ -741,12 +744,12 @@ pub(crate) fn hajek_difference(
 /// per-arm quantity inside a bootstrap or cross-fit loop stays a value whose non-finiteness the
 /// loop's own finiteness check reports (see [`hajek_difference`] for the refusing form).
 pub(crate) fn hajek_weighted_mean(
-    treatment: &[f64],
+    arms: &[TreatmentArm],
     outcome: &[f64],
     weights: &[f64],
     want_treated: bool,
 ) -> f64 {
-    let (num, den) = arm_weighted_sums(treatment, outcome, weights, want_treated);
+    let (num, den) = arm_weighted_sums(arms, outcome, weights, want_treated);
     if den > 0.0 { num / den } else { f64::NAN }
 }
 
@@ -779,12 +782,12 @@ pub(crate) struct HajekPropensity<'a> {
 ///
 /// A mismatch between rows and the propensity inputs, or singular logistic information.
 pub(crate) fn hajek_influence_values(
-    treatment: &[f64],
+    arms: &[TreatmentArm],
     outcome: &[f64],
     weights: &[f64],
     propensity: Option<HajekPropensity<'_>>,
 ) -> Result<Vec<f64>, EstimationError> {
-    let n = treatment.len();
+    let n = arms.len();
     if n < 2 || weights.len() != n || outcome.len() != n {
         return Ok(Vec::new());
     }
@@ -797,11 +800,11 @@ pub(crate) fn hajek_influence_values(
             return Err(EstimationError::data_msg("Hajek propensity design/score length mismatch"));
         }
     }
-    let mu1 = hajek_weighted_mean(treatment, outcome, weights, true);
-    let mu0 = hajek_weighted_mean(treatment, outcome, weights, false);
+    let mu1 = hajek_weighted_mean(arms, outcome, weights, true);
+    let mu0 = hajek_weighted_mean(arms, outcome, weights, false);
     let (mut sum_w1, mut sum_w0) = (0.0, 0.0);
     for i in 0..n {
-        if TreatmentArm::is_treated_indicator(treatment[i]) {
+        if arms[i].is_treated() {
             sum_w1 += weights[i];
         } else {
             sum_w0 += weights[i];
@@ -813,7 +816,7 @@ pub(crate) fn hajek_influence_values(
     let nf = n as f64;
     let mut psi = vec![0.0; n];
     for i in 0..n {
-        let (w1, w0) = if treatment[i] > 0.5 { (weights[i], 0.0) } else { (0.0, weights[i]) };
+        let (w1, w0) = if arms[i].is_treated() { (weights[i], 0.0) } else { (0.0, weights[i]) };
         // Linearized Hajek ratio contributions (E[ψ]=0).
         psi[i] = nf * (w1 / sum_w1) * (outcome[i] - mu1) - nf * (w0 / sum_w0) * (outcome[i] - mu0);
     }
@@ -828,7 +831,7 @@ pub(crate) fn hajek_influence_values(
             let log_weight_derivative = if clipped {
                 0.0
             } else {
-                match (p.target, TreatmentArm::is_treated_indicator(treatment[i])) {
+                match (p.target, arms[i].is_treated()) {
                     (IpwTarget::Ate | IpwTarget::Custom, true) => -(1.0 - e),
                     (IpwTarget::Ate | IpwTarget::Custom, false) => e,
                     (IpwTarget::Att, true) | (IpwTarget::Atc, false) => 0.0,
@@ -837,7 +840,7 @@ pub(crate) fn hajek_influence_values(
                 }
             };
             let mass = p.row_mass.map_or(1.0, |mass| mass[i]);
-            score_mult[i] = mass * (treatment[i] - e);
+            score_mult[i] = mass * (arms[i].indicator() - e);
             information_weight[i] = mass * e * (1.0 - e);
             derivative_weight[i] = psi[i] * log_weight_derivative;
         }
@@ -878,18 +881,19 @@ pub(crate) fn hajek_iid_se(psi: &[f64], ncols: usize) -> f64 {
 /// As [`hajek_influence_values`].
 #[cfg(test)]
 pub(crate) fn hajek_influence_se(
-    treatment: &[f64],
+    arms: &[TreatmentArm],
     outcome: &[f64],
     weights: &[f64],
     propensity: Option<HajekPropensity<'_>>,
 ) -> Result<f64, EstimationError> {
     let ncols = propensity.as_ref().map_or(0, |p| p.ncols);
-    let psi = hajek_influence_values(treatment, outcome, weights, propensity)?;
+    let psi = hajek_influence_values(arms, outcome, weights, propensity)?;
     Ok(hajek_iid_se(&psi, ncols))
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::arm::TreatmentArm;
     use crate::overlap::IpwTarget;
     use crate::propensity::ipw_oracle::oracle_fit;
     use crate::util::solve_spd;
@@ -919,7 +923,7 @@ mod tests {
                     e.iter().map(|&p| clip.map_or(p, |c| p.clamp(c, 1.0 - c))).collect();
                 let w = super::compute_ipw_weights(&t, &clipped, &e, target, trim);
                 let actual = super::hajek_influence_se(
-                    &t,
+                    &TreatmentArm::classify(&t),
                     &y,
                     &w,
                     Some(super::HajekPropensity {

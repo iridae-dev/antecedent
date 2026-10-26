@@ -145,7 +145,7 @@ pub(crate) fn refused(
     detail: &str,
     message: impl AsRef<str>,
 ) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {}", message.as_ref()))
+    EstimationError::refused_detail(code, detail, message)
 }
 
 pub(crate) fn invalid_counts(message: impl AsRef<str>) -> EstimationError {

@@ -83,6 +83,33 @@ pub(crate) const MAX_RANKING_STATES: usize = 65_536;
 /// Largest number of table cells (states times actions or observation values).
 pub(crate) const MAX_RANKING_CELLS: usize = 4 * 1024 * 1024;
 
+/// Maxima a consumer accepts of a stored ranking, refused before any table is replayed.
+///
+/// The defaults are the `MAX_*` constants of this module; a consumer replaying larger catalogs or
+/// tables raises them through [`consume_with_limits`] and its siblings.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DesignRankingReadLimits {
+    /// Largest container, in bytes, decoded.
+    pub max_bytes: usize,
+    /// Most candidates the artifact may retain, and the largest `max_candidates` it may declare.
+    pub max_candidates: usize,
+    /// Most prior draws, actions or signal support values a retained table may have.
+    pub max_states: usize,
+    /// Most cells (states times actions or observation values) of a retained table.
+    pub max_cells: usize,
+}
+
+impl Default for DesignRankingReadLimits {
+    fn default() -> Self {
+        Self {
+            max_bytes: MAX_DESIGN_RANKING_ARTIFACT_BYTES,
+            max_candidates: MAX_RANKING_CANDIDATES,
+            max_states: MAX_RANKING_STATES,
+            max_cells: MAX_RANKING_CELLS,
+        }
+    }
+}
+
 const BODY_SECTION: &str = "design_ranking_body";
 /// Relative tolerance of a replayed number against the stored one.
 const REPLAY_TOLERANCE: f64 = 1e-8;
@@ -834,6 +861,7 @@ fn recompute(
     decision: &DecisionWire,
     base: &Baseline,
     method: IntegrationMethod,
+    max_states: usize,
 ) -> std::result::Result<Recomputed, &'static str> {
     let n = candidate.sample_size;
     let k = finite_rows(decision).map_or(0, |(_, k)| k);
@@ -871,7 +899,7 @@ fn recompute(
             let Ok(n_us) = usize::try_from(n) else {
                 return Err("law");
             };
-            if !states.iter().all(|s| (0.0..=1.0).contains(s)) || n_us >= MAX_RANKING_STATES {
+            if !states.iter().all(|s| (0.0..=1.0).contains(s)) || n_us >= max_states {
                 return Err("law");
             }
             let table = binomial_table(states, n_us);
@@ -1209,9 +1237,18 @@ impl DesignRankingArtifactWire {
     ///
     /// Corruption, truncation, oversize, an unknown layout, or an unknown major version.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        Self::from_bytes_with_limits(bytes, &DesignRankingReadLimits::default())
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte maximum instead of the default.
+    ///
+    /// # Errors
+    ///
+    /// Those of [`Self::from_bytes`], with `limits.max_bytes` in place of the default cap.
+    pub fn from_bytes_with_limits(bytes: &[u8], limits: &DesignRankingReadLimits) -> Result<Self> {
         let parts = antecedent_io_core::decode_container(
             DESIGN_RANKING_ARTIFACT_KIND,
-            MAX_DESIGN_RANKING_ARTIFACT_BYTES,
+            limits.max_bytes,
             &[BODY_SECTION],
             bytes,
         )
@@ -1535,17 +1572,17 @@ fn seal_with_laws<A: Clone>(
 
 // -- consuming --------------------------------------------------------------------------
 
-fn check_bounds(wire: &DesignRankingArtifactWire) -> Result<()> {
+fn check_bounds(wire: &DesignRankingArtifactWire, limits: &DesignRankingReadLimits) -> Result<()> {
     if wire.candidates.is_empty() {
         return Err(DesignRankingArtifactError::InvalidWire("no candidates"));
     }
-    if wire.candidates.len() > MAX_RANKING_CANDIDATES
-        || !usize::try_from(wire.max_candidates).is_ok_and(|m| m <= MAX_RANKING_CANDIDATES)
+    if wire.candidates.len() > limits.max_candidates
+        || !usize::try_from(wire.max_candidates).is_ok_and(|m| m <= limits.max_candidates)
     {
         return Err(DesignRankingArtifactError::Bounds("candidates"));
     }
     let actions = wire.decision.action_ids.len();
-    if actions == 0 || actions > MAX_RANKING_STATES {
+    if actions == 0 || actions > limits.max_states {
         return Err(DesignRankingArtifactError::Bounds("actions"));
     }
     let states = match &wire.decision.prior {
@@ -1553,8 +1590,8 @@ fn check_bounds(wire: &DesignRankingArtifactWire) -> Result<()> {
         PriorWire::Normal { .. } => 1,
     };
     if states == 0
-        || states > MAX_RANKING_STATES
-        || states.saturating_mul(actions) > MAX_RANKING_CELLS
+        || states > limits.max_states
+        || states.saturating_mul(actions) > limits.max_cells
     {
         return Err(DesignRankingArtifactError::Bounds("decision_table"));
     }
@@ -1569,7 +1606,7 @@ fn check_bounds(wire: &DesignRankingArtifactWire) -> Result<()> {
             | LawWire::FinitePosterior { statistics, .. } => statistics.len(),
             LawWire::DecisionValues { branch_probabilities, .. } => branch_probabilities.len(),
         };
-        if support > MAX_RANKING_STATES || support.saturating_mul(states) > MAX_RANKING_CELLS {
+        if support > limits.max_states || support.saturating_mul(states) > limits.max_cells {
             return Err(DesignRankingArtifactError::Bounds("signal_table"));
         }
     }
@@ -1783,6 +1820,7 @@ fn verify_candidate(
     wire: &DesignRankingArtifactWire,
     candidate: &EvsiCandidateWire,
     base: &Baseline,
+    max_states: usize,
 ) -> Result<ConsumedCandidate> {
     let id = &candidate.semantic_id;
     let mismatch = |quantity: &'static str| DesignRankingArtifactError::ReplayMismatch {
@@ -1816,7 +1854,7 @@ fn verify_candidate(
     }
     let method = parse_method(&candidate.integration)
         .ok_or(DesignRankingArtifactError::InvalidWire("integration method"))?;
-    let recomputed = recompute(candidate, &wire.decision, base, method).map_err(|slot| {
+    let recomputed = recompute(candidate, &wire.decision, base, method, max_states).map_err(|slot| {
         DesignRankingArtifactError::SignalInconsistent { candidate: id.clone(), slot }
     })?;
     if !close(candidate.evpi, recomputed.evpi) {
@@ -1995,13 +2033,33 @@ pub fn consume_wire_with_receipts(
     expectation: &ConsumeExpectation,
     verified_candidates: &BTreeSet<String>,
 ) -> Result<ConsumedDesignRanking> {
+    consume_wire_with_limits(
+        wire,
+        expectation,
+        verified_candidates,
+        &DesignRankingReadLimits::default(),
+    )
+}
+
+/// [`consume_wire_with_receipts`] accepting the table sizes `limits` allows instead of the
+/// defaults.
+///
+/// # Errors
+///
+/// Those of [`consume_wire_with_receipts`], with `limits` in place of the default bounds.
+pub fn consume_wire_with_limits(
+    wire: &DesignRankingArtifactWire,
+    expectation: &ConsumeExpectation,
+    verified_candidates: &BTreeSet<String>,
+    limits: &DesignRankingReadLimits,
+) -> Result<ConsumedDesignRanking> {
     if wire.version != DESIGN_RANKING_ARTIFACT_VERSION {
         return Err(DesignRankingArtifactError::UnsupportedVersion(wire.version));
     }
     if wire.kind != DESIGN_RANKING_ARTIFACT_KIND {
         return Err(DesignRankingArtifactError::InvalidWire("kind"));
     }
-    check_bounds(wire)?;
+    check_bounds(wire, limits)?;
     let digest = wire.compute_digest()?;
     if digest != wire.digest {
         return Err(DesignRankingArtifactError::DigestMismatch);
@@ -2036,7 +2094,7 @@ pub fn consume_wire_with_receipts(
     }
     let mut consumed = Vec::with_capacity(wire.candidates.len());
     for candidate in &wire.candidates {
-        let mut one = verify_candidate(wire, candidate, &base)?;
+        let mut one = verify_candidate(wire, candidate, &base, limits.max_states)?;
         if one.trust == SignalTrustLabel::ExactRequestVerified
             && !verified_candidates.contains(&candidate.semantic_id)
         {
@@ -2101,6 +2159,19 @@ pub fn consume_wire_with_receipts(
 /// Corruption, oversize, unknown version, or any inconsistency of
 /// [`consume_wire`].
 pub fn consume(bytes: &[u8], expectation: &ConsumeExpectation) -> Result<ConsumedDesignRanking> {
-    let wire = DesignRankingArtifactWire::from_bytes(bytes)?;
-    consume_wire(&wire, expectation)
+    consume_with_limits(bytes, expectation, &DesignRankingReadLimits::default())
+}
+
+/// [`consume`] accepting the container and table sizes `limits` allows instead of the defaults.
+///
+/// # Errors
+///
+/// Those of [`consume`], with `limits` in place of the default bounds.
+pub fn consume_with_limits(
+    bytes: &[u8],
+    expectation: &ConsumeExpectation,
+    limits: &DesignRankingReadLimits,
+) -> Result<ConsumedDesignRanking> {
+    let wire = DesignRankingArtifactWire::from_bytes_with_limits(bytes, limits)?;
+    consume_wire_with_limits(&wire, expectation, &BTreeSet::new(), limits)
 }

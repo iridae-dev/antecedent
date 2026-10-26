@@ -953,7 +953,7 @@ mod tests {
                 Box::new(|p| {
                     let mut t = p.treatment.to_vec();
                     t[0] = 1.0 - t[0];
-                    p.treatment = Arc::from(t);
+                    p.set_treatment(Arc::from(t));
                 }),
             ),
             (
@@ -1149,7 +1149,7 @@ mod tests {
         for row in (1..n).step_by(5) {
             treatment[row] = 1.0 - treatment[row];
         }
-        problem.treatment = Arc::from(treatment);
+        problem.set_treatment(Arc::from(treatment));
         problem.fold_assignment =
             Some(Arc::from((0..n).map(|row| u32::try_from(row % 5).unwrap()).collect::<Vec<_>>()));
         problem.propensity = PropensityNuisance::default().with_fallback(

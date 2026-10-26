@@ -50,14 +50,7 @@ fn panel() -> TemporalUnitPanel {
                     let level =
                         (unit * 7 + u64::from(s0) * 3 + u64::from(l2) * 5 + u64::from(a2)) % 10;
                     for a1 in 0..2 {
-                        histories.push(SequenceHistory {
-                            time_id: histories.len() as u64,
-                            s0,
-                            a1,
-                            l2,
-                            a2,
-                            y: level as f64 / 10.0,
-                        });
+                        histories.push(SequenceHistory::two_step(histories.len() as u64, s0, a1, l2, a2, level as f64 / 10.0));
                     }
                 }
             }
@@ -93,7 +86,7 @@ fn artifact_for(
 
 fn artifact() -> TemporalIntervalArtifactWire {
     artifact_for(
-        &ObservedStateSequence { sequence: SEQUENCE },
+        &ObservedStateSequence { sequence: SEQUENCE.to_vec() },
         IntervalEstimatorWire::observed(SEQUENCE),
     )
 }
@@ -126,7 +119,7 @@ fn dependent_interval_artifact_replays_the_whole_resampling() {
     let p = panel();
     let estimator =
         antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Observed(
-            ObservedStateSequence { sequence: SEQUENCE },
+            ObservedStateSequence { sequence: SEQUENCE.to_vec() },
         );
     let interval = dependent_unit_interval(&p, &estimator, &config(), &ctx()).unwrap();
     let wire = artifact();
@@ -300,7 +293,7 @@ fn dependent_interval_artifact_links_the_refresh_that_produced_its_panel() {
     let p = panel();
     let estimator =
         antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Observed(
-            ObservedStateSequence { sequence: SEQUENCE },
+            ObservedStateSequence { sequence: SEQUENCE.to_vec() },
         );
     let interval = dependent_unit_interval(&p, &estimator, &config(), &ctx()).unwrap();
     let wire = TemporalIntervalArtifactWire::checked(
@@ -337,7 +330,7 @@ fn dependent_interval_artifact_refuses_an_interval_of_another_panel() {
     let p = panel();
     let estimator =
         antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Observed(
-            ObservedStateSequence { sequence: SEQUENCE },
+            ObservedStateSequence { sequence: SEQUENCE.to_vec() },
         );
     let interval = dependent_unit_interval(&p, &estimator, &config(), &ctx()).unwrap();
     let mut units = p.units().to_vec();

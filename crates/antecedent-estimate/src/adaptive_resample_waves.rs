@@ -74,7 +74,7 @@ use antecedent_data::DataError;
 use antecedent_kernels::sample_std;
 use thiserror::Error;
 
-use crate::error::EstimationError;
+use crate::error::{EstimationError, ExactF64};
 use crate::statistical_transport::percentile_interval;
 
 /// What a cancelled run returns.
@@ -111,7 +111,7 @@ pub struct WaveStoppingRule {
 }
 
 /// Refusals of the wave procedure.
-#[derive(Debug, Error)]
+#[derive(Clone, Debug, Eq, PartialEq, Error)]
 pub enum WaveError {
     /// The declared rule is not usable.
     #[error("invalid adaptive wave rule: {0}")]
@@ -128,8 +128,8 @@ pub enum WaveError {
         attempted: u32,
         /// Failed replicates so far.
         failed: u32,
-        /// Declared limit.
-        max_fraction: f64,
+        /// Declared limit, compared by its bit pattern.
+        max_fraction: ExactF64,
     },
     /// Cancelled under [`CancelPolicy::Refuse`].
     #[error(
@@ -591,7 +591,7 @@ fn drive_waves(
                 wave,
                 attempted: ledger.attempted,
                 failed: ledger.failed,
-                max_fraction: rule.max_failure_fraction,
+                max_fraction: ExactF64(rule.max_failure_fraction),
             }));
         }
         wave += 1;

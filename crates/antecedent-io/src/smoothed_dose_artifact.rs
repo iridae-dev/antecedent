@@ -259,7 +259,7 @@ type Refusal = SmoothedDoseArtifactError;
 
 fn replay_refusal(error: EstimationError) -> Refusal {
     match error {
-        EstimationError::Refused { code, message } => Refusal::ReplayRefused { code, message },
+        EstimationError::Refused { code, message } => Refusal::ReplayRefused { code, message: message.into_string() },
         other => Refusal::InvalidRequest(other.to_string()),
     }
 }

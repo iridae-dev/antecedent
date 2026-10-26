@@ -11,6 +11,7 @@ use antecedent_data::{ResamplingPlan, fill_resample_indexes};
 use antecedent_expr::{Assignment, ExactDiscreteLaw, ExactDistribution, ExactEvaluationLimits};
 use antecedent_identify::BoundTransportFunctional;
 use antecedent_stats::{QuantileRule, equal_tail_interval_sorted};
+use serde::{Deserialize, Serialize};
 
 use crate::empirical_table::{
     BayesianLawDrawer, BayesianTransportLawProvider, EmpiricalTableOptions,
@@ -30,6 +31,74 @@ pub const POSTERIOR_EQUAL_TAIL: &str = "posterior_equal_tail";
 pub const Z_TRANSPORT_INTERVAL_NOT_MEASURED: &str = "estimator_grid_not_measured";
 /// Why an interval is withheld when a replicate summary is not a finite number.
 pub const INTERVAL_NUMERICAL_FAILURE: &str = "bootstrap_numerical_failure";
+
+/// Why a Bayesian transport posterior publishes, or withholds, its intervals.
+///
+/// The serialized spelling of each reason is the estimator's own stable string, so artifacts
+/// written before the reason was a closed set keep reading; a payload naming any other reason
+/// fails at deserialisation.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum TransportIntervalReason {
+    /// The intervals are published; coverage is measured in the release calibration pass
+    /// ([`Z_TRANSPORT_INTERVAL_NOT_MEASURED`]).
+    #[serde(rename = "estimator_grid_not_measured")]
+    NotMeasured,
+    /// The draws exceeded the bootstrap failure budget.
+    #[serde(rename = "bootstrap_failure_fraction")]
+    BootstrapFailureFraction,
+    /// An interval endpoint was not a finite number ([`INTERVAL_NUMERICAL_FAILURE`]).
+    #[serde(rename = "bootstrap_numerical_failure")]
+    NumericalFailure,
+    /// Fewer posterior draws than a nominal interval needs.
+    #[serde(rename = "insufficient_bootstrap_replicates")]
+    InsufficientDraws,
+    /// The evidence's dependence structure licenses no resampling.
+    #[serde(rename = "transport.unsupported_dependence")]
+    UnsupportedDependence,
+    /// The catalog binds no estimated regime to draw.
+    #[serde(rename = "no_estimated_regime")]
+    NoEstimatedRegime,
+}
+
+impl TransportIntervalReason {
+    /// Every reason, in declaration order.
+    pub const ALL: [Self; 6] = [
+        Self::NotMeasured,
+        Self::BootstrapFailureFraction,
+        Self::NumericalFailure,
+        Self::InsufficientDraws,
+        Self::UnsupportedDependence,
+        Self::NoEstimatedRegime,
+    ];
+
+    /// The stable string form.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::NotMeasured => Z_TRANSPORT_INTERVAL_NOT_MEASURED,
+            Self::BootstrapFailureFraction => "bootstrap_failure_fraction",
+            Self::NumericalFailure => INTERVAL_NUMERICAL_FAILURE,
+            Self::InsufficientDraws => "insufficient_bootstrap_replicates",
+            Self::UnsupportedDependence => "transport.unsupported_dependence",
+            Self::NoEstimatedRegime => "no_estimated_regime",
+        }
+    }
+
+    /// The reason a stable string names, or `None` for a string that is not a reason.
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|reason| reason.as_str() == text)
+    }
+
+    /// The reason a dependence refusal ([`dependence_refusal`]) names.
+    fn from_dependence_refusal(reason: &str) -> Self {
+        if reason == Self::NoEstimatedRegime.as_str() {
+            Self::NoEstimatedRegime
+        } else {
+            Self::UnsupportedDependence
+        }
+    }
+}
 
 /// Random-stream layout of every statistical transport draw.
 ///
@@ -78,8 +147,8 @@ pub struct BayesianStatisticalTransportEstimate {
     pub atom_intervals: Arc<[(f64, f64)]>,
     /// Pointwise equal-tail posterior intervals by outcome mean.
     pub mean_intervals: Arc<[(VariableId, f64, f64)]>,
-    /// Why the intervals are withheld, or [`Z_TRANSPORT_INTERVAL_NOT_MEASURED`] when they are published.
-    pub interval_reason: Option<Arc<str>>,
+    /// Why the intervals are withheld, or [`TransportIntervalReason::NotMeasured`] when they are published.
+    pub interval_reason: Option<TransportIntervalReason>,
     /// Requested joint posterior draws.
     pub draws_requested: u32,
     /// Successfully evaluated draws.
@@ -164,13 +233,13 @@ impl ReplicateColumns {
 
     /// Equal-tail intervals of every atom and outcome mean, or the reason none
     /// can be published.
-    fn intervals(&self, level: f64) -> Result<PointwiseIntervals, &'static str> {
+    fn intervals(&self, level: f64) -> Result<PointwiseIntervals, TransportIntervalReason> {
         let atoms = self
             .atoms
             .iter()
             .map(|column| percentile_interval(column, level))
             .collect::<Option<Arc<[_]>>>()
-            .ok_or(INTERVAL_NUMERICAL_FAILURE)?;
+            .ok_or(TransportIntervalReason::NumericalFailure)?;
         let means = self
             .outcomes
             .iter()
@@ -179,7 +248,7 @@ impl ReplicateColumns {
                 percentile_interval(column, level).map(|(lower, upper)| (*outcome, lower, upper))
             })
             .collect::<Option<Arc<[_]>>>()
-            .ok_or(INTERVAL_NUMERICAL_FAILURE)?;
+            .ok_or(TransportIntervalReason::NumericalFailure)?;
         Ok(PointwiseIntervals { atoms, means })
     }
 }
@@ -298,7 +367,10 @@ pub fn evaluate_bayesian_statistical_transport_grid(
         }
     }
     let successful = options.draws.saturating_sub(failed);
-    let withhold = ReplicatePolicy::BOOTSTRAP.decide(options.draws, successful, failed).err();
+    let withhold = ReplicatePolicy::BOOTSTRAP
+        .decide(options.draws, successful, failed)
+        .err()
+        .map(|_| TransportIntervalReason::BootstrapFailureFraction);
     per_request
         .into_iter()
         .zip(distributions)
@@ -307,7 +379,7 @@ pub fn evaluate_bayesian_statistical_transport_grid(
                 Some(reason) => (Arc::from([]), Arc::from([]), reason),
                 None => match columns.intervals(options.coverage_level) {
                     Ok(intervals) => {
-                        (intervals.atoms, intervals.means, Z_TRANSPORT_INTERVAL_NOT_MEASURED)
+                        (intervals.atoms, intervals.means, TransportIntervalReason::NotMeasured)
                     }
                     Err(reason) => (Arc::from([]), Arc::from([]), reason),
                 },
@@ -318,7 +390,7 @@ pub fn evaluate_bayesian_statistical_transport_grid(
                 distributions: distributions.into(),
                 atom_intervals,
                 mean_intervals,
-                interval_reason: Some(Arc::from(interval_reason)),
+                interval_reason: Some(interval_reason),
                 draws_requested: options.draws,
                 draws_ok: successful,
                 draws_failed: failed,
@@ -342,7 +414,7 @@ fn withheld_bayesian_grid(
             distributions: Arc::from([]),
             atom_intervals: Arc::from([]),
             mean_intervals: Arc::from([]),
-            interval_reason: Some(Arc::from(reason)),
+            interval_reason: Some(TransportIntervalReason::from_dependence_refusal(reason)),
             draws_requested: draws,
             draws_ok: ok,
             draws_failed: failed,
@@ -1941,6 +2013,26 @@ pub fn percentile_interval(values: &[f64], level: f64) -> Option<(f64, f64)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn interval_reasons_keep_their_stable_strings() {
+        assert_eq!(
+            TransportIntervalReason::BootstrapFailureFraction.as_str(),
+            ReplicatePolicy::BOOTSTRAP.reason
+        );
+        assert_eq!(
+            TransportIntervalReason::InsufficientDraws.as_str(),
+            ReplicatePolicy::percentile_floor(0).reason
+        );
+        for reason in TransportIntervalReason::ALL {
+            assert_eq!(TransportIntervalReason::parse(reason.as_str()), Some(reason));
+        }
+        assert_eq!(TransportIntervalReason::parse("not_a_reason"), None);
+        assert_eq!(
+            TransportIntervalReason::NotMeasured.as_str(),
+            Z_TRANSPORT_INTERVAL_NOT_MEASURED
+        );
+    }
 
     #[test]
     fn percentile_interval_is_pointwise_and_ordered() {

@@ -1,8 +1,10 @@
 //! Small dense solves of the temporal designs: Cholesky factors of symmetric positive-definite
-//! matrices of a few dozen coordinates at most, and the penalized logistic Newton fit of the
-//! regime survival models.
+//! matrices of a few dozen coordinates at most, and the penalized logistic fit of the regime
+//! survival models (the stats engine with a prior on every coefficient).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use antecedent_stats::{GlmDesignRef, GlmOptions, LeastSquaresWorkspace, fit_logit_laplace};
 
 use crate::error::EstimationError;
 
@@ -43,13 +45,15 @@ pub(crate) struct LogisticFit {
     pub covariance_factor: Vec<f64>,
 }
 
-/// Fit `P(y = 1 | x) = expit(x'beta)` by Newton steps on rows of `x` (row-major `n x p`) with
-/// nonnegative case weights.
+/// Fit `P(y = 1 | x) = expit(x'beta)` on rows of `x` (row-major `n x p`) with nonnegative case
+/// weights, through the stats GLM engine's Laplace logistic fit: the posterior mode under an
+/// independent `N(0, 1/prior_precision)` prior on every coefficient and the inverse penalized
+/// information beside it.
 ///
 /// # Errors
 /// Shape mismatch, an outcome other than 0 or 1, a singular penalized information (separation
-/// without a prior), or no convergence in 100 steps.
-#[allow(clippy::float_cmp, reason = "binary outcomes and zero case weights are exact codes")]
+/// without a prior), or no convergence in 100 Newton steps.
+#[allow(clippy::float_cmp, reason = "binary outcomes are exact codes")]
 pub(crate) fn fit_logistic(
     x: &[f64],
     p: usize,
@@ -64,58 +68,51 @@ pub(crate) fn fit_logistic(
     if y.iter().any(|value| *value != 0.0 && *value != 1.0) {
         return Err(EstimationError::data_msg("logistic outcomes must be 0 or 1"));
     }
-    // A vanishing ridge keeps a well-posed MLE step numerically symmetric positive definite;
-    // it is far below any data information and is not a prior.
-    let ridge = prior_precision.max(1e-10);
-    let mut beta = vec![0.0; p];
-    for _ in 0..100 {
-        let mut information = vec![0.0; p * p];
-        let mut gradient = vec![0.0; p];
-        for i in 0..n {
-            let w = weights.map_or(1.0, |weights| weights[i]);
-            if w == 0.0 {
-                continue;
-            }
-            let row = &x[i * p..(i + 1) * p];
-            let eta: f64 = row.iter().zip(&beta).map(|(a, b)| a * b).sum();
-            let mu = antecedent_kernels::sigmoid(eta).clamp(1e-12, 1.0 - 1e-12);
-            let v = w * mu * (1.0 - mu);
-            for a in 0..p {
-                gradient[a] += w * (y[i] - mu) * row[a];
-                for b in 0..p {
-                    information[a * p + b] += v * row[a] * row[b];
-                }
-            }
-        }
-        for a in 0..p {
-            gradient[a] -= ridge * beta[a];
-            information[a * p + a] += ridge;
-        }
-        let Some(factor) = cholesky(&information, p) else {
-            return Err(EstimationError::stats_msg(
-                "the logistic information is singular (separated or collinear covariates)",
-            ));
-        };
-        let step = cholesky_solve(&factor, p, &gradient);
-        let largest = step.iter().fold(0.0_f64, |acc, value| acc.max(value.abs()));
-        for (coefficient, delta) in beta.iter_mut().zip(&step) {
-            *coefficient += delta;
-        }
-        if !largest.is_finite() || beta.iter().any(|value| value.abs() > 1e6) {
-            return Err(EstimationError::stats_msg(
-                "the logistic fit diverged (separated covariates)",
-            ));
-        }
-        if largest < 1e-10 {
-            let covariance = cholesky_inverse(&factor, p);
-            let covariance_factor = cholesky(&covariance, p).ok_or_else(|| {
-                EstimationError::stats_msg("the logistic covariance is not positive definite")
-            })?;
-            return Ok(LogisticFit { coefficients: beta, covariance, covariance_factor });
+    // A vanishing precision keeps a well-posed MLE step numerically symmetric positive
+    // definite; it is far below any data information and is not a prior.
+    let precision = if prior_precision.is_nan() { 1e-10 } else { prior_precision.max(1e-10) };
+    let mut x_colmajor = vec![0.0; n * p];
+    for (i, row) in x.chunks_exact(p).enumerate() {
+        for (column, value) in row.iter().enumerate() {
+            x_colmajor[column * n + i] = *value;
         }
     }
-    Err(EstimationError::stats_msg("the logistic fit did not converge in 100 Newton steps"))
+    let design = GlmDesignRef { x_colmajor: &x_colmajor, nrows: n, ncols: p, y };
+    let mut workspace = LeastSquaresWorkspace::default();
+    let laplace = fit_logit_laplace(
+        design,
+        weights,
+        precision,
+        &mut workspace,
+        &GlmOptions::new(LOGISTIC_MAX_STEPS, LOGISTIC_STEP_TOLERANCE),
+    )?;
+    let coefficients = laplace.fit.coefficients;
+    if !laplace.fit.converged {
+        return Err(EstimationError::stats_msg(
+            "the logistic fit did not converge in 100 Newton steps (separated covariates)",
+        ));
+    }
+    if coefficients.iter().any(|value| !value.is_finite() || value.abs() > 1e6) {
+        return Err(EstimationError::stats_msg("the logistic fit diverged (separated covariates)"));
+    }
+    let mut covariance = laplace.covariance;
+    for a in 0..p {
+        for b in (a + 1)..p {
+            let mean = 0.5 * (covariance[a * p + b] + covariance[b * p + a]);
+            covariance[a * p + b] = mean;
+            covariance[b * p + a] = mean;
+        }
+    }
+    let covariance_factor = cholesky(&covariance, p).ok_or_else(|| {
+        EstimationError::stats_msg("the logistic covariance is not positive definite")
+    })?;
+    Ok(LogisticFit { coefficients, covariance, covariance_factor })
 }
+
+/// Newton steps of [`fit_logistic`] before it reports no convergence.
+const LOGISTIC_MAX_STEPS: u32 = 100;
+/// Largest coefficient change below which [`fit_logistic`] has converged.
+const LOGISTIC_STEP_TOLERANCE: f64 = 1e-10;
 
 /// A conjugate Gaussian linear regression: the posterior of `(beta, sigma^2)` under the prior
 /// `beta | sigma^2 ~ N(0, sigma^2 / precision I)`, `sigma^2 ~ InvGamma(a0, b0)`.

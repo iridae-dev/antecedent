@@ -65,8 +65,6 @@ use antecedent_io_core::distribution_artifact::{
 
 use crate::signal::RefusalBuilder;
 
-/// Most scenarios one query may declare.
-pub const MAX_OBSERVATIONAL_SCENARIOS: usize = 1024;
 /// Version word of the result identity encoding.
 pub const OBSERVATIONAL_SCENARIO_VERSION: u64 = 1;
 
@@ -349,11 +347,6 @@ fn column_of(
 fn validate(query: &ObservationalScenarioQuery) -> Result<(), ObservationalScenarioError> {
     if query.scenarios.is_empty() {
         return Err(ObservationalScenarioError::InvalidScenarios("at least one scenario"));
-    }
-    if query.scenarios.len() > MAX_OBSERVATIONAL_SCENARIOS {
-        return Err(ObservationalScenarioError::InvalidScenarios(
-            "scenario count exceeds the bound",
-        ));
     }
     if !query.event.threshold().is_finite() {
         return Err(ObservationalScenarioError::InvalidParameter("event threshold is finite"));

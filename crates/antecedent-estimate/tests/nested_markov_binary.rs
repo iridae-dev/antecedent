@@ -88,7 +88,7 @@ fn input_for(cells: Vec<f64>) -> NestedMarkovInput {
 fn coded(error: &EstimationError) -> (&'static str, String) {
     match error {
         EstimationError::Refused { code, message }
-        | EstimationError::RefusedWithFields { code, message, .. } => (*code, message.clone()),
+        | EstimationError::RefusedWithFields { code, message, .. } => (*code, message.to_string()),
         other => panic!("not a coded refusal: {other:?}"),
     }
 }

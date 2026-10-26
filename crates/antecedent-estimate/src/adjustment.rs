@@ -519,8 +519,7 @@ impl LinearAdjustmentAte {
             target.functional,
             executable,
             ProgramLimits::default(),
-        )
-        .map_err(|e| EstimationError::data_msg(format!("checked adjustment program: {e}")))?;
+        )?;
         let factor_requirements: Arc<[FactorRequirement]> =
             Arc::from(program.factor_requirements().to_vec());
 

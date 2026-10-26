@@ -975,24 +975,15 @@ fn encode_meta(
     source_draws: Option<&[u8]>,
     artifact_id: &str,
 ) -> Result<Vec<u8>, ScientificBridgeArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(ScientificBridgeArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes =
-        to_cbor(meta).map_err(|error| ScientificBridgeArtifactError::Encode(error.to_string()))?;
-    let mut sections = vec![crate::OutSection {
-        id: META_SECTION,
-        content_type: crate::CONTENT_CBOR,
-        bytes: &meta_bytes,
-    }];
-    if let Some(draws) = source_draws {
-        sections.push(crate::OutSection {
+    let payloads: Vec<crate::OutSection<'_>> = source_draws
+        .map(|draws| crate::OutSection {
             id: DRAWS_SECTION,
             content_type: crate::CONTENT_BYTES,
             bytes: draws,
-        });
-    }
-    crate::encode_container(
+        })
+        .into_iter()
+        .collect();
+    crate::artifact_codec::encode_sectioned::<ScientificBridgeArtifactError, _>(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "scientific_bridge",
@@ -1000,9 +991,10 @@ fn encode_meta(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &sections,
+        META_SECTION,
+        meta,
+        &payloads,
     )
-    .map_err(|error| crate::map_artifact_check!(error, ScientificBridgeArtifactError))
 }
 
 /// The stored metadata and, for a bridge of draws, the embedded source table.
@@ -1011,48 +1003,21 @@ type Decoded = (ScientificBridgeMeta, Option<Vec<u8>>);
 fn decode_meta(bytes: &[u8]) -> Result<Decoded, ScientificBridgeArtifactError> {
     // A bridge of draws is a second section; try the layout of a single section first so a
     // version-1 artifact is read exactly as before.
-    let (meta_bytes, source_draws) = match crate::decode_container(
+    let (meta, _layout, mut payloads) = crate::artifact_codec::decode_sectioned_layouts::<
+        ScientificBridgeArtifactError,
+        ScientificBridgeMeta,
+    >(
         ARTIFACT_KIND,
         MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES,
-        &[META_SECTION],
-        bytes,
-    ) {
-        Ok(parts) => {
-            let Ok([meta]) = <[Vec<u8>; 1]>::try_from(parts) else {
-                return Err(ScientificBridgeArtifactError::Malformed(
-                    "unsupported container layout".into(),
-                ));
-            };
-            (meta, None)
-        }
-        Err(first) => match crate::decode_container(
-            ARTIFACT_KIND,
-            MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES,
-            &[META_SECTION, DRAWS_SECTION],
-            bytes,
-        ) {
-            Ok(parts) => {
-                let Ok([meta, draws]) = <[Vec<u8>; 2]>::try_from(parts) else {
-                    return Err(ScientificBridgeArtifactError::Malformed(
-                        "unsupported container layout".into(),
-                    ));
-                };
-                (meta, Some(draws))
-            }
-            Err(_) => {
-                return Err(crate::map_artifact_check!(first, ScientificBridgeArtifactError));
-            }
+        META_SECTION,
+        &[&[], &[DRAWS_SECTION]],
+        |version| {
+            version == SCIENTIFIC_BRIDGE_ARTIFACT_VERSION
+                || version == SCIENTIFIC_BRIDGE_EXTENDED_ARTIFACT_VERSION
         },
-    };
-    let meta = crate::decode_with_version(&meta_bytes, |version: u16| {
-        if version == SCIENTIFIC_BRIDGE_ARTIFACT_VERSION
-            || version == SCIENTIFIC_BRIDGE_EXTENDED_ARTIFACT_VERSION
-        {
-            Ok(())
-        } else {
-            Err(ScientificBridgeArtifactError::UnsupportedVersion { version })
-        }
-    })?;
+        bytes,
+    )?;
+    let source_draws = payloads.pop();
     Ok((meta, source_draws))
 }
 

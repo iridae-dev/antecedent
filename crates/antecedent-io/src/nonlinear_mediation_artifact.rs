@@ -111,15 +111,16 @@ crate::sectioned_artifact_error!(
     true
 );
 
-fn budget_refusal((code, message): BudgetRefusal) -> NonlinearMediationArtifactError {
-    NonlinearMediationArtifactError::Refused { code, message }
+fn budget_refusal((code, detail, explanation): BudgetRefusal) -> NonlinearMediationArtifactError {
+    NonlinearMediationArtifactError::refused(code, detail, explanation)
 }
 
 fn invalid_request(message: &str) -> NonlinearMediationArtifactError {
-    NonlinearMediationArtifactError::Refused {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        message: format!("nonlinear_mediation.invalid_request: {message}"),
-    }
+    NonlinearMediationArtifactError::refused(
+        antecedent_core::reason_code!("invalid_argument"),
+        "nonlinear_mediation.invalid_request",
+        message,
+    )
 }
 
 /// Declared graph premises on the wire.
@@ -668,19 +669,13 @@ fn identity_diff(
     stored: &NonlinearMediationIdentity,
     other: &NonlinearMediationIdentity,
 ) -> Option<&'static str> {
-    if stored.premises_id != other.premises_id {
-        Some("premises")
-    } else if stored.config_id != other.config_id {
-        Some("config")
-    } else if stored.data_id != other.data_id {
-        Some("data")
-    } else if stored.result_id != other.result_id {
-        Some("result")
-    } else if stored.digest != other.digest {
-        Some("identity")
-    } else {
-        None
-    }
+    crate::first_identity_difference!(stored, other, {
+        premises_id => "premises",
+        config_id => "config",
+        data_id => "data",
+        result_id => "result",
+        digest => "identity",
+    })
 }
 
 /// Encode a metadata section and a data section as a checksummed container.
@@ -905,24 +900,14 @@ impl NonlinearMediationArtifact {
     ) -> Result<Self, NonlinearMediationArtifactError> {
         let (meta, payload) = decode_parts_impl(bytes)?;
         let unsupported = NonlinearMediationArtifactError::UnsupportedSemantics;
-        if meta.feature != NONLINEAR_MEDIATION_ARTIFACT_FEATURE {
-            return Err(unsupported("feature marker"));
-        }
-        if meta.estimand != ESTIMAND_NATURAL {
-            return Err(unsupported("estimand"));
-        }
-        if meta.inference_claim != NONLINEAR_MEDIATION_ARTIFACT_CLAIM {
-            return Err(unsupported("inference claim"));
-        }
-        if meta.calibration != NONLINEAR_MEDIATION_CALIBRATION {
-            return Err(unsupported("calibration"));
-        }
-        if meta.interval_status != NONLINEAR_MEDIATION_INTERVAL_STATUS {
-            return Err(unsupported("interval status"));
-        }
-        if meta.caveats != NONLINEAR_MEDIATION_ARTIFACT_CAVEATS {
-            return Err(unsupported("caveats"));
-        }
+        crate::artifact_codec::require_markers::<NonlinearMediationArtifactError>(&[
+            (meta.feature == NONLINEAR_MEDIATION_ARTIFACT_FEATURE, "feature marker"),
+            (meta.estimand == ESTIMAND_NATURAL, "estimand"),
+            (meta.inference_claim == NONLINEAR_MEDIATION_ARTIFACT_CLAIM, "inference claim"),
+            (meta.calibration == NONLINEAR_MEDIATION_CALIBRATION, "calibration"),
+            (meta.interval_status == NONLINEAR_MEDIATION_INTERVAL_STATUS, "interval status"),
+            (meta.caveats == NONLINEAR_MEDIATION_ARTIFACT_CAVEATS, "caveats"),
+        ])?;
         let request = match (meta.data_binding.as_deref(), data) {
             (None, None) => request_of(&meta, &payload)?,
             (None, Some(_)) => {
@@ -932,14 +917,15 @@ impl NonlinearMediationArtifact {
                 bound_request(&meta, &payload, supplied)?
             }
             (Some(DATA_BOUND_BY_DIGEST), None) => {
-                return Err(NonlinearMediationArtifactError::Refused {
-                    code: antecedent_core::reason_code!("route_not_supported"),
-                    message: format!(
-                        "nonlinear_mediation.data_required: the artifact is bound to its dataset \
-                         by digest {}; supply the dataset to replay it",
+                return Err(NonlinearMediationArtifactError::refused(
+                    antecedent_core::reason_code!("route_not_supported"),
+                    "nonlinear_mediation.data_required",
+                    format!(
+                        "the artifact is bound to its dataset by digest {}; supply the dataset \
+                         to replay it",
                         meta.identity.data_id
                     ),
-                });
+                ));
             }
             (Some(_), _) => return Err(unsupported("data binding")),
         };

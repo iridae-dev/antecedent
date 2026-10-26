@@ -127,10 +127,10 @@ pub(in crate::contract_section) fn verify_nested_counterfactual_result(
         || fit.complete_case_rows < 4
         || fit.complete_case_rows > snapshot.row_count
         || fit.gram.iter().chain(&fit.outcome_cross).any(|value| !value.is_finite())
-        || (fit.gram[0] - fit.complete_case_rows as f64).abs() > 1e-9
+        || !GRAM_ENTRY_REPLAY.close(fit.gram[0], fit.complete_case_rows as f64)
         || (0..3).any(|row| {
             (0..3).any(|column| {
-                (fit.gram[row * 3 + column] - fit.gram[column * 3 + row]).abs() > 1e-9
+                !GRAM_ENTRY_REPLAY.close(fit.gram[row * 3 + column], fit.gram[column * 3 + row])
             })
         })
     {
@@ -253,10 +253,10 @@ pub(in crate::contract_section) fn natural_direct_from_fit(
         || fit.complete_case_rows < 4
         || fit.complete_case_rows > snapshot_rows
         || fit.gram.iter().chain(&fit.outcome_cross).any(|value| !value.is_finite())
-        || (fit.gram[0] - fit.complete_case_rows as f64).abs() > 1e-9
+        || !GRAM_ENTRY_REPLAY.close(fit.gram[0], fit.complete_case_rows as f64)
         || (0..3).any(|row| {
             (0..3).any(|column| {
-                (fit.gram[row * 3 + column] - fit.gram[column * 3 + row]).abs() > 1e-9
+                !GRAM_ENTRY_REPLAY.close(fit.gram[row * 3 + column], fit.gram[column * 3 + row])
             })
         })
     {
@@ -621,12 +621,16 @@ pub(in crate::contract_section) fn verify_linear_fit_moments(
         return Err(ContractReason::DataSnapshotLinearFitMoments);
     }
     let scale = moments.gram.iter().map(|v| v.abs()).fold(0.0_f64, f64::max);
+    let symmetry = ReplayTolerance::new(
+        LINEAR_GRAM_SYMMETRY_RELATIVE * scale.max(1.0),
+        ReplayScale::Absolute,
+        ReplayNonFinite::Refuse,
+    );
     if scale == 0.0
         || !scale.is_finite()
         || (0..p).any(|row| {
             (0..p).any(|column| {
-                (moments.gram[row * p + column] - moments.gram[column * p + row]).abs()
-                    > 1e-10 * scale.max(1.0)
+                !symmetry.close(moments.gram[row * p + column], moments.gram[column * p + row])
             })
         })
     {
@@ -710,6 +714,17 @@ pub(in crate::contract_section) fn apply_moment_inverse(
 /// estimator took, so the two agree to the conditioning of the solve, not to an ulp.
 const CONTRACT_REPLAY_VALUE: ReplayTolerance =
     ReplayTolerance::new(1e-8, ReplayScale::ReplayedOrOne, ReplayNonFinite::Refuse);
+
+/// Replay policy of a stored three-by-three Gram entry: the intercept entry against the complete
+/// case count, and each off-diagonal pair against its mirror, absolute to `1e-9`; non-finite
+/// is refused.
+const GRAM_ENTRY_REPLAY: ReplayTolerance =
+    ReplayTolerance::new(1e-9, ReplayScale::Absolute, ReplayNonFinite::Refuse);
+
+/// Symmetry bound of a stored linear-fit Gram matrix, relative to its largest entry (at least
+/// one): the matrix is a sum of outer products and is symmetric up to the rounding of the
+/// accumulation.
+const LINEAR_GRAM_SYMMETRY_RELATIVE: f64 = 1e-10;
 
 pub(in crate::contract_section) fn close_replay_value(actual: f64, expected: f64) -> bool {
     CONTRACT_REPLAY_VALUE.close(actual, expected)

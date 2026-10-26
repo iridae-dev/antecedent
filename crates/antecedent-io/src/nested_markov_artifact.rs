@@ -92,7 +92,7 @@ fn estimation_refusal(error: &EstimationError) -> IoError {
     match error {
         EstimationError::Refused { code, message }
         | EstimationError::RefusedWithFields { code, message, .. } => {
-            IoError::Refused { code, message: message.clone() }
+            IoError::Refused { code, message: message.to_string() }
         }
         other => IoError::Convert(other.to_string()),
     }

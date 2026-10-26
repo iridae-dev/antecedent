@@ -30,5 +30,5 @@ pub(crate) fn refuse_explicit_override(
 /// A structured refusal whose message is `"{detail}: {message}"`: `detail` is the namespaced
 /// reason literal a caller keys on, `message` the human text.
 pub(crate) fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
+    EstimationError::refused_detail(code, detail, message)
 }

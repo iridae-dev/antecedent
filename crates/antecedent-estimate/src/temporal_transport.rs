@@ -1,4 +1,4 @@
-//! Exact point evaluation of one finite two-step temporal transport sequence.
+//! Exact point evaluation of one finite temporal transport sequence.
 //!
 //! The provider is the finite discrete exact evaluator: the whole sequence's
 //! identified functional is compiled once against supplied exact laws and
@@ -39,11 +39,11 @@ pub const TEMPORAL_INFERENCE_CLAIM: &str = "point_only";
 /// One history's support at one step.
 #[derive(Clone, Debug, PartialEq)]
 pub struct HistorySupportRow {
-    /// Step: 1 for an initial state, 2 for a complete history.
+    /// Step: 1 for an initial state, the horizon for a complete history.
     pub step: u8,
     /// The covariate values, in the coordinates of the step.
     pub history: Vec<Value>,
-    /// Mass of the history (with the first action for step 2) under the target's
+    /// Mass of the history (with the first action for a complete history) under the target's
     /// observational law; `None` when no supplied target law covers it.
     pub target_mass: Option<f64>,
     /// `supported`, `unreached` (served, but no target mass) or `outside_support`.
@@ -55,7 +55,8 @@ pub struct HistorySupportRow {
 pub struct HistorySupportReport {
     /// Coordinates of a step-1 row: baseline and step-1 covariates.
     pub initial_coordinates: Vec<VariableId>,
-    /// Coordinates of a step-2 row: the initial state and the step-2 covariates.
+    /// Coordinates of a complete-history row: the initial state and the covariates of every
+    /// later step.
     pub history_coordinates: Vec<VariableId>,
     /// Whether a target observational law covered the reachability masses.
     pub target_law_used: bool,
@@ -263,7 +264,7 @@ fn conditioning_has_mass(
 /// gives them mass, supported when the first action also has target mass there
 /// whenever the proof reads the target's law over the first action (otherwise
 /// reached is supported).
-/// Step 2 rows are complete histories: outside support unless the supplied laws
+/// Complete-history rows (step = the horizon): outside support unless the supplied laws
 /// serve every leaf the identified proof cites at the history and the sequence
 /// (the evaluator reads them for every history of the lattice, reached or not),
 /// `unreached` when served but the target law gives the history no mass, else
@@ -295,6 +296,7 @@ pub fn history_support(
     let initial_coordinates = slots.initial_state();
     let history_coordinates = slots.history_coordinates();
     let key = |values: &[Value]| values.iter().map(|v| bits(v).unwrap_or(0)).collect::<Vec<_>>();
+    let complete_step = u8::try_from(slots.horizon()).unwrap_or(u8::MAX);
     let mut rows = Vec::new();
     let mut initial_ok = BTreeMap::new();
     for state in &decision.histories.initial {
@@ -339,7 +341,7 @@ pub fn history_support(
             "unreached"
         };
         rows.push(HistorySupportRow {
-            step: 2,
+            step: complete_step,
             history: history.clone(),
             target_mass: mass,
             status,
@@ -370,7 +372,11 @@ fn window(data: &ExactTransportData) -> BTreeSet<(String, u32, Vec<u32>, Vec<u32
 }
 
 fn refuse(refusal: &TemporalRefusal) -> EstimationError {
-    EstimationError::refused(refusal.code, format!("{}: {}", refusal.detail, refusal.message))
+    EstimationError::refused_detail(
+        refusal.code,
+        refusal.detail.to_string(),
+        refusal.message.to_string(),
+    )
 }
 
 /// Refuse a decision that identified nothing, with the reason its outcome names.
@@ -382,26 +388,27 @@ fn require_identified(
     };
     match &decision.outcome {
         TemporalOutcome::Identified(bound) => Ok(bound),
-        TemporalOutcome::StructurallyUnidentified(_) => Err(EstimationError::refused(
+        TemporalOutcome::StructurallyUnidentified(_) => Err(EstimationError::refused_detail(
             reason_code!("transport_proven_non_transportable"),
-            format!(
-                "{TEMPORAL_CHECKED_OBSTRUCTION}: the sequence is not transportable on the \
-                 unrolled diagram even with every source experiment (verified s-hedge)"
-            ),
+            TEMPORAL_CHECKED_OBSTRUCTION,
+            "the sequence is not transportable on the unrolled diagram even with every \
+             source experiment (verified s-hedge)",
         )),
-        TemporalOutcome::MissingEvidence { obligations } => Err(EstimationError::refused(
+        TemporalOutcome::MissingEvidence { obligations } => Err(EstimationError::refused_detail(
             reason_code!("transport_missing_evidence"),
-            format!("{TEMPORAL_MISSING_EVIDENCE}: {}", joined(obligations)),
+            TEMPORAL_MISSING_EVIDENCE,
+            joined(obligations),
         )),
-        TemporalOutcome::NotCertified { obligations } => Err(EstimationError::refused(
+        TemporalOutcome::NotCertified { obligations } => Err(EstimationError::refused_detail(
             reason_code!("transport_not_certified"),
-            format!("{TEMPORAL_SEARCH_INCOMPLETE}: {}", joined(obligations)),
+            TEMPORAL_SEARCH_INCOMPLETE,
+            joined(obligations),
         )),
-        TemporalOutcome::Stopped { stop } => Err(EstimationError::refused(
+        TemporalOutcome::Stopped { stop } => Err(EstimationError::refused_detail(
             reason_code!("transport_budget_cancel"),
+            TEMPORAL_HISTORY_BUDGET,
             format!(
-                "{TEMPORAL_HISTORY_BUDGET}: {}; the decision is a receipt, not a \
-                 non-identification verdict{}",
+                "{}; the decision is a receipt, not a non-identification verdict{}",
                 stop.code(),
                 decision
                     .receipt
@@ -413,7 +420,7 @@ fn require_identified(
 }
 
 /// Check every law against the unrolled window and the declared domains. A
-/// coordinate outside the window is a period the two-step sequence does not have.
+/// coordinate outside the window is a period the sequence does not have.
 fn check_window(
     decision: &TemporalSequenceDecision,
     data: &ExactTransportData,
@@ -423,7 +430,7 @@ fn check_window(
         let context = format!("the {} law of regime {}", law.population(), law.regime().raw());
         let unknown = |v: VariableId| {
             refuse(&TemporalRefusal::horizon(format!(
-                "{context} covers coordinate {} outside the two-step window; a new period \
+                "{context} covers coordinate {} outside the unrolled window; a new period \
                  needs a new preparation",
                 v.raw()
             )))
@@ -502,7 +509,7 @@ static NEXT_PREPARATION: AtomicU64 = AtomicU64::new(1);
 /// The evaluated sequence: its point response and everything it rests on.
 #[derive(Clone, Debug)]
 pub struct TemporalSequenceReport {
-    /// Always two.
+    /// The number of steps of the decided sequence.
     pub horizon: usize,
     /// The action of each step.
     pub sequence: Vec<Value>,
@@ -514,7 +521,7 @@ pub struct TemporalSequenceReport {
     pub support: HistorySupportReport,
     /// Every coordinate's mechanism assumption per time slice.
     pub invariances: Vec<SliceInvariance>,
-    /// Time-varying confounders of the second action.
+    /// Time-varying confounders of the actions after the first.
     pub time_varying_confounders: Vec<VariableId>,
     /// Which catalog evidence touches each time slice.
     pub evidence: Vec<SliceEvidence>,
@@ -537,7 +544,7 @@ impl TemporalSequenceReport {
 /// # Errors
 /// A decision that identified nothing (its outcome names the refusal: a checked
 /// obstruction, missing evidence, `temporal_transport.search_incomplete`, or the
-/// `temporal_transport.history_budget` receipt); a law outside the two-step
+/// `temporal_transport.history_budget` receipt); a law outside the unrolled
 /// window (`temporal_transport.horizon`) or the declared domains; a reached
 /// history outside certified support
 /// (`temporal_transport.history_outside_support`); or provider and resource

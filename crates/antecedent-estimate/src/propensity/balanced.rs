@@ -587,7 +587,7 @@ mod tests {
         let mut weights: Vec<f64> =
             (0..n).map(|i| mass[i] / if TreatmentArm::is_treated_indicator(t[i]) { e[i] } else { 1.0 - e[i] }).collect();
         balance_arm_weights(&design, 2, &t, Some(&mass), &mut weights).unwrap();
-        let point = hajek_difference(&t, &y, &weights).unwrap();
+        let point = hajek_difference(&TreatmentArm::classify(&t), &y, &weights).unwrap();
         let (psi, linear) = balanced_influence_values(
             &design,
             2,
@@ -609,7 +609,7 @@ mod tests {
         for column in 0..n {
             let mut outcome = vec![0.0; n];
             outcome[column] = 1.0;
-            let point = hajek_difference(&t, &outcome, &weights).unwrap();
+            let point = hajek_difference(&TreatmentArm::classify(&t), &outcome, &weights).unwrap();
             assert!((linear.point_coefficients[column] - point).abs() < 1e-10);
             let (values, _) = balanced_influence_values(
                 &design,

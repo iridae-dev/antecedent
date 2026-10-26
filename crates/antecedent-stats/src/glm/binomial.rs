@@ -73,6 +73,17 @@ fn binomial_diagnostics_at(
     BinomialDiagnostics { deviance, saturated, min_margin, n_saturated, perfectly_classified }
 }
 
+/// One row of a logistic IRLS step at linear predictor `eta` and 0/1 outcome `y`: the Fisher
+/// weight `mu (1 - mu)` and the working response `eta + (y - mu) / (mu (1 - mu))`, with the mean
+/// kept `1e-9` away from 0 and 1. The resident fits and the out-of-core reduction build their
+/// least-squares rows from this one definition.
+#[must_use]
+pub fn logit_working_row(eta: f64, y: f64) -> (f64, f64) {
+    let mu = sigmoid(eta).clamp(PROB_CLIP, 1.0 - PROB_CLIP);
+    let variance = mu * (1.0 - mu);
+    (variance, eta + (y - mu) / variance)
+}
+
 #[allow(clippy::float_cmp, reason = "binomial outcomes must be exactly the coded values 0 or 1")]
 pub(super) fn fit_logistic(
     design: GlmDesignRef<'_>,
@@ -90,10 +101,8 @@ pub(super) fn fit_logistic(
 
     let (beta, iterations, converged) =
         irls_fit(design, backend, workspace, options, false, |eta, yi| {
-            let mu = sigmoid(eta);
-            let mu_clamped = mu.clamp(PROB_CLIP, 1.0 - PROB_CLIP);
-            let w = (mu_clamped * (1.0 - mu_clamped)).sqrt();
-            let z = eta + (yi - mu_clamped) / (mu_clamped * (1.0 - mu_clamped));
+            let (fisher, z) = logit_working_row(eta, yi);
+            let w = fisher.sqrt();
             (w, z * w)
         })?;
 
@@ -148,9 +157,8 @@ pub fn fit_logistic_weighted(
         Some(&root_weights),
         None,
         |eta, yi| {
-            let mu = sigmoid(eta).clamp(PROB_CLIP, 1.0 - PROB_CLIP);
-            let w = (mu * (1.0 - mu)).sqrt();
-            let z = eta + (yi - mu) / (mu * (1.0 - mu));
+            let (fisher, z) = logit_working_row(eta, yi);
+            let w = fisher.sqrt();
             (w, z * w)
         },
     )?;
@@ -323,10 +331,6 @@ pub(super) fn accumulate_weighted_normal_equations(
 /// Ridge-penalized binomial IRLS: the separation fallback (`fallback_separated` is the
 /// unpenalized fit's verdict, which the penalized fit must not clear) or the deliberate
 /// always-on ridge of [`fit_glm_ridge`] (`None`: the verdict is taken at the ridge solution).
-#[allow(
-    clippy::needless_range_loop,
-    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
-)]
 fn fit_binomial_ridge(
     family: GlmFamily,
     design: GlmDesignRef<'_>,
@@ -336,6 +340,46 @@ fn fit_binomial_ridge(
     fallback_separated: Option<bool>,
     prior: Option<&[f64]>,
 ) -> Result<GlmFit, StatsError> {
+    fit_binomial_penalized(
+        family,
+        design,
+        workspace,
+        options,
+        lambda,
+        PenaltyScope::SkipConstantFirstColumn,
+        fallback_separated,
+        prior,
+    )
+    .map(|(fit, _)| fit)
+}
+
+/// Which coefficients the ridge penalty `½ λ |β|²` applies to.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PenaltyScope {
+    /// A constant first design column is the unpenalized intercept.
+    SkipConstantFirstColumn,
+    /// Every coefficient carries the penalty: a `N(0, 1/λ)` prior on all of them.
+    EveryCoefficient,
+}
+
+/// The penalized binomial IRLS behind [`fit_binomial_ridge`] and [`fit_logit_laplace`], with the
+/// inverse of the penalized information `X'WX + Λ` of the last iteration (row-major
+/// `ncols x ncols`).
+#[allow(
+    clippy::needless_range_loop,
+    clippy::too_many_arguments,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
+fn fit_binomial_penalized(
+    family: GlmFamily,
+    design: GlmDesignRef<'_>,
+    workspace: &mut LeastSquaresWorkspace,
+    options: &GlmOptions,
+    lambda: f64,
+    scope: PenaltyScope,
+    fallback_separated: Option<bool>,
+    prior: Option<&[f64]>,
+) -> Result<(GlmFit, Vec<f64>), StatsError> {
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
     let mut beta = vec![0.0; ncols];
     let mut beta_new = vec![0.0; ncols];
@@ -347,7 +391,10 @@ fn fit_binomial_ridge(
     let mut converged = false;
     let mut iterations = 0u32;
     // The intercept column does not change between iterations.
-    let unpenalize0 = ncols > 0 && column_is_constant(x_colmajor, nrows, 0);
+    let unpenalize0 = scope == PenaltyScope::SkipConstantFirstColumn
+        && ncols > 0
+        && column_is_constant(x_colmajor, nrows, 0);
+    let mut covariance = Vec::new();
 
     for iter in 1..=options.max_iter {
         iterations = iter;
@@ -394,6 +441,7 @@ fn fit_binomial_ridge(
             beta_new[i] = s;
             max_delta = max_delta.max((s - beta[i]).abs());
         }
+        covariance = inv;
         beta.copy_from_slice(&beta_new);
         if max_delta < options.tol {
             converged = true;
@@ -407,7 +455,7 @@ fn fit_binomial_ridge(
     let diag = binomial_diagnostics_at(family, design, &beta);
     let separated = fallback_separated.unwrap_or_else(|| diag.separated(converged));
 
-    Ok(GlmFit {
+    let fit = GlmFit {
         coefficients: beta,
         iterations,
         converged,
@@ -419,7 +467,69 @@ fn fit_binomial_ridge(
         deviance: diag.deviance,
         nb_alpha: None,
         diagnostics: FitDiagnostics::new(ncols, None, "glm-irls", workspace.grow_count),
-    })
+    };
+    Ok((fit, covariance))
+}
+
+/// A logistic posterior mode under an independent `N(0, 1/precision)` prior on every
+/// coefficient, with its Laplace covariance.
+#[derive(Clone, Debug)]
+pub struct GlmLaplaceFit {
+    /// The penalized fit.
+    pub fit: GlmFit,
+    /// Row-major inverse penalized observed information `(X'WX + precision I)^-1` at the last
+    /// iterate: the Laplace covariance of the coefficients.
+    pub covariance: Vec<f64>,
+}
+
+/// Fit `P(y = 1 | x) = expit(x'beta)` for the posterior mode under a `N(0, 1/precision)` prior
+/// on every coefficient (the intercept included), with optional nonnegative case weights, and
+/// return the Laplace covariance beside it.
+///
+/// Unlike [`fit_glm_ridge`], no column is exempt from the penalty, so the penalized
+/// information stays positive definite for any design and a separated outcome has a finite
+/// mode.
+///
+/// # Errors
+///
+/// Invalid shapes, outcomes or weights, a precision that is not finite and positive, or a
+/// numerical solver failure.
+#[allow(clippy::float_cmp, reason = "binomial outcomes must be exactly the coded values 0 or 1")]
+pub fn fit_logit_laplace(
+    design: GlmDesignRef<'_>,
+    weights: Option<&[f64]>,
+    precision: f64,
+    workspace: &mut LeastSquaresWorkspace,
+    options: &GlmOptions,
+) -> Result<GlmLaplaceFit, StatsError> {
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::GlmFit,
+        || {
+            match weights {
+                Some(weights) => check_prior_weights(design, weights)?,
+                None => validate_glm_shape(design)?,
+            }
+            if !precision.is_finite() || precision <= 0.0 {
+                return Err(StatsError::Shape {
+                    message: "prior precision must be finite and positive",
+                });
+            }
+            if design.y.iter().any(|&yi| yi != 0.0 && yi != 1.0) {
+                return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
+            }
+            let (fit, covariance) = fit_binomial_penalized(
+                GlmFamily::BinomialLogit,
+                design,
+                workspace,
+                options,
+                precision,
+                PenaltyScope::EveryCoefficient,
+                None,
+                weights,
+            )?;
+            Ok(GlmLaplaceFit { fit, covariance })
+        },
+    )
 }
 
 /// Fit a binomial GLM with an always-active ridge penalty.

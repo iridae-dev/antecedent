@@ -83,7 +83,7 @@ fn close(actual: f64, expected: f64, tolerance: f64) {
 
 fn refusal(result: Result<LatentClassResult, EstimationError>) -> (&'static str, String) {
     match result {
-        Err(EstimationError::Refused { code, message }) => (code, message),
+        Err(EstimationError::Refused { code, message }) => (code, message.into_string()),
         other => panic!("expected a refusal, got {other:?}"),
     }
 }

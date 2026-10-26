@@ -79,7 +79,7 @@ fn refusal_code(error: &EstimationError) -> &'static str {
 
 fn refusal_message(error: &EstimationError) -> String {
     match error {
-        EstimationError::Refused { message, .. } => message.clone(),
+        EstimationError::Refused { message, .. } => message.to_string(),
         other => panic!("expected a registered refusal, got {other:?}"),
     }
 }

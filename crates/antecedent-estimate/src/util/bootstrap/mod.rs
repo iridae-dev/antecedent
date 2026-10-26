@@ -462,7 +462,7 @@ where
     match run {
         Ok(run) => Ok(WaveBootstrap::from_run(run)),
         Err(DriveError::Estimator(error)) => Err(error),
-        Err(DriveError::Wave(error)) => Err(EstimationError::data_msg(error.to_string())),
+        Err(DriveError::Wave(error)) => Err(EstimationError::Wave(error)),
     }
 }
 

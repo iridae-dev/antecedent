@@ -72,6 +72,70 @@ impl Default for InferenceSpec {
     }
 }
 
+/// The declarations of an [`InferenceSpec`] one estimator reads. The bootstrap size and the
+/// analytic standard-error kind are read by every estimator that embeds the spec; the rest are
+/// listed here, and a declaration an estimator does not read is refused, never ignored.
+#[derive(Clone, Copy, Debug, Default)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "one independent flag per declaration of the shared specification"
+)]
+pub(crate) struct ReadDeclarations {
+    /// A requested bootstrap interval is read.
+    pub(crate) bootstrap_interval: bool,
+    /// Cluster labels aligned to the prepared rows are read.
+    pub(crate) cluster_ids: bool,
+    /// Source-table cluster labels are read.
+    pub(crate) source_cluster_ids: bool,
+    /// Multiway cluster labels are read.
+    pub(crate) multiway_ids: bool,
+    /// Panel time labels are read.
+    pub(crate) panel_times: bool,
+    /// A declared sampling design is read.
+    pub(crate) sampling_design: bool,
+}
+
+impl InferenceSpec {
+    /// Refuse a declaration `estimator` does not read, instead of ignoring it: every field of
+    /// the spec that `read` leaves out must stay at its undeclared default.
+    ///
+    /// # Errors
+    ///
+    /// `estimator_inference_mismatch` naming the declarations that were set but are not read.
+    pub(crate) fn require_read_declarations(
+        &self,
+        estimator: &str,
+        read: ReadDeclarations,
+    ) -> Result<(), crate::error::EstimationError> {
+        let unread = [
+            ("bootstrap_interval", !read.bootstrap_interval && self.bootstrap_interval.is_some()),
+            ("cluster_ids", !read.cluster_ids && self.cluster_ids.is_some()),
+            ("source_cluster_ids", !read.source_cluster_ids && self.source_cluster_ids.is_some()),
+            ("multiway_ids", !read.multiway_ids && self.multiway_ids.is_some()),
+            ("panel_times", !read.panel_times && self.panel_times.is_some()),
+            (
+                "sampling_design",
+                !read.sampling_design
+                    && !matches!(self.sampling_design, SamplingDeclaration::Undeclared),
+            ),
+        ]
+        .into_iter()
+        .filter_map(|(name, declared)| declared.then_some(name))
+        .collect::<Vec<_>>();
+        if unread.is_empty() {
+            return Ok(());
+        }
+        Err(crate::error::EstimationError::refused(
+            antecedent_core::reason_code!("estimator_inference_mismatch"),
+            format!(
+                "{estimator} does not read the inference declaration(s) {}; they would be \
+                 silently ignored, so they must stay undeclared",
+                unread.join(", ")
+            ),
+        ))
+    }
+}
+
 /// `with_bootstrap_replicates`: the bootstrap replicate count (`0` skips the bootstrap).
 macro_rules! with_bootstrap_replicates {
     ($($via:ident)?) => {

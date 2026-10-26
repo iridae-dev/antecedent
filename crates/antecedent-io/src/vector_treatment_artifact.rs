@@ -49,6 +49,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 
 use antecedent_core::{CanonicalWriter, ExecutionContext};
@@ -107,15 +108,16 @@ crate::sectioned_artifact_error!(
     false
 );
 
-fn budget_refusal((code, message): BudgetRefusal) -> VectorTreatmentArtifactError {
-    VectorTreatmentArtifactError::Refused { code, message }
+fn budget_refusal((code, detail, explanation): BudgetRefusal) -> VectorTreatmentArtifactError {
+    VectorTreatmentArtifactError::refused(code, detail, explanation)
 }
 
 fn invalid_request(message: &str) -> VectorTreatmentArtifactError {
-    VectorTreatmentArtifactError::Refused {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        message: format!("vector_treatment.invalid_request: {message}"),
-    }
+    VectorTreatmentArtifactError::refused(
+        antecedent_core::reason_code!("invalid_argument"),
+        "vector_treatment.invalid_request",
+        message,
+    )
 }
 
 /// One declared contrast of the named coefficients.
@@ -636,27 +638,17 @@ fn identity_diff(
     stored: &VectorTreatmentIdentity,
     other: &VectorTreatmentIdentity,
 ) -> Option<&'static str> {
-    if stored.snapshot_id != other.snapshot_id {
-        Some("row_snapshot")
-    } else if stored.adjustment_set_id != other.adjustment_set_id {
-        Some("adjustment_set")
-    } else if stored.treatment_id != other.treatment_id {
-        Some("treatment_vector")
-    } else if stored.design_id != other.design_id {
-        Some("design")
-    } else if stored.covariance_id != other.covariance_id {
-        Some("covariance_kind")
-    } else if stored.contrast_id != other.contrast_id {
-        Some("contrasts")
-    } else if stored.null != other.null {
-        Some("null")
-    } else if stored.result_id != other.result_id {
-        Some("result")
-    } else if stored.digest != other.digest {
-        Some("identity")
-    } else {
-        None
-    }
+    crate::first_identity_difference!(stored, other, {
+        snapshot_id => "row_snapshot",
+        adjustment_set_id => "adjustment_set",
+        treatment_id => "treatment_vector",
+        design_id => "design",
+        covariance_id => "covariance_kind",
+        contrast_id => "contrasts",
+        null => "null",
+        result_id => "result",
+        digest => "identity",
+    })
 }
 
 pub(crate) fn reals_to_bytes(values: &[f64]) -> Vec<u8> {
@@ -712,26 +704,27 @@ fn compute(
         }
         Replay::Rows { outcome, adjustment, treatments } => {
             let input = VectorTreatmentInput {
-                outcome: outcome.clone(),
-                row_snapshot: decl.row_snapshot.clone(),
+                outcome: Cow::Borrowed(outcome),
+                row_snapshot: Cow::Borrowed(&decl.row_snapshot),
                 adjustment: decl
                     .adjustment
                     .iter()
                     .zip(adjustment)
-                    .map(|(name, values)| NamedColumn {
-                        name: name.clone(),
-                        values: values.clone(),
-                    })
+                    .map(|(name, values)| NamedColumn::new(name.as_str(), values.as_slice()))
                     .collect(),
                 treatments: decl
                     .treatments
                     .iter()
                     .zip(treatments)
                     .map(|(name, values)| TreatmentColumn {
-                        name: name.clone(),
-                        values: values.clone(),
-                        adjustment_set: decl.adjustment.clone(),
-                        row_snapshot: decl.row_snapshot.clone(),
+                        name: Cow::Borrowed(name),
+                        values: Cow::Borrowed(values),
+                        adjustment_set: decl
+                            .adjustment
+                            .iter()
+                            .map(|a| Cow::Borrowed(a.as_str()))
+                            .collect(),
+                        row_snapshot: Cow::Borrowed(&decl.row_snapshot),
                     })
                     .collect(),
             };
@@ -896,21 +889,25 @@ impl VectorTreatmentArtifact {
         check_decl(&decl)?;
         admit_regression(BUDGET, decl.n_rows, decl.columns(), ctx).map_err(budget_refusal)?;
         let input = VectorTreatmentInput {
-            outcome: request.outcome.clone(),
-            row_snapshot: request.row_snapshot.clone(),
+            outcome: Cow::Borrowed(&request.outcome),
+            row_snapshot: Cow::Borrowed(&request.row_snapshot),
             adjustment: request
                 .adjustment
                 .iter()
-                .map(|c| NamedColumn { name: c.name.clone(), values: c.values.clone() })
+                .map(|c| NamedColumn::new(c.name.as_str(), c.values.as_slice()))
                 .collect(),
             treatments: request
                 .treatments
                 .iter()
                 .map(|t| TreatmentColumn {
-                    name: t.name.clone(),
-                    values: t.values.clone(),
-                    adjustment_set: t.adjustment_set.clone(),
-                    row_snapshot: t.row_snapshot.clone(),
+                    name: Cow::Borrowed(&t.name),
+                    values: Cow::Borrowed(&t.values),
+                    adjustment_set: t
+                        .adjustment_set
+                        .iter()
+                        .map(|a| Cow::Borrowed(a.as_str()))
+                        .collect(),
+                    row_snapshot: Cow::Borrowed(&t.row_snapshot),
                 })
                 .collect(),
         };
@@ -996,12 +993,11 @@ impl VectorTreatmentArtifact {
         match &self.meta.data_digest {
             Some(stored) if *stored == data_digest(request) => Ok(()),
             Some(_) => Err(VectorTreatmentArtifactError::IdentityMismatch { field: "data" }),
-            None => Err(VectorTreatmentArtifactError::Refused {
-                code: antecedent_core::reason_code!("route_not_supported"),
-                message: "vector_treatment.data_not_bound: this artifact embeds its rows and \
-                          records no data digest"
-                    .to_owned(),
-            }),
+            None => Err(VectorTreatmentArtifactError::refused(
+                antecedent_core::reason_code!("route_not_supported"),
+                "vector_treatment.data_not_bound",
+                "this artifact embeds its rows and records no data digest",
+            )),
         }
     }
 
@@ -1064,15 +1060,11 @@ impl VectorTreatmentArtifact {
         if meta.null != VECTOR_TREATMENT_NULL {
             return Err(VectorTreatmentArtifactError::IdentityMismatch { field: "null" });
         }
-        if meta.inference_claim != VECTOR_TREATMENT_INFERENCE_CLAIM {
-            return Err(VectorTreatmentArtifactError::UnsupportedSemantics("inference claim"));
-        }
-        if meta.calibration != VECTOR_TREATMENT_CALIBRATION {
-            return Err(VectorTreatmentArtifactError::UnsupportedSemantics("calibration"));
-        }
-        if meta.caveats != standing_caveats() {
-            return Err(VectorTreatmentArtifactError::UnsupportedSemantics("caveats"));
-        }
+        crate::artifact_codec::require_markers::<VectorTreatmentArtifactError>(&[
+            (meta.inference_claim == VECTOR_TREATMENT_INFERENCE_CLAIM, "inference claim"),
+            (meta.calibration == VECTOR_TREATMENT_CALIBRATION, "calibration"),
+            (meta.caveats == standing_caveats(), "caveats"),
+        ])?;
         let decl = Decl::from_meta(&meta)?;
         check_decl(&decl)?;
         if raw.len() % 8 != 0 {

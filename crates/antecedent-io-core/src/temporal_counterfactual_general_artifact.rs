@@ -32,7 +32,6 @@ use antecedent_counterfactual::temporal_cross_world::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
 use crate::temporal_counterfactual_artifact::{RefusalWire, TemporalCounterfactualRefusalWire, UnitDrawWire, WitnessWire};
 
 /// The artifact major version this reader writes and accepts.
@@ -482,23 +481,15 @@ fn identity_diff(
     stored: &GeneralTemporalIdentity,
     other: &GeneralTemporalIdentity,
 ) -> Option<&'static str> {
-    if stored.snapshot != other.snapshot {
-        Some("snapshot")
-    } else if stored.fit_digest != other.fit_digest {
-        Some("mechanism_fit")
-    } else if stored.factual_digest != other.factual_digest {
-        Some("unit_history")
-    } else if stored.world_digests != other.world_digests {
-        Some("action_history")
-    } else if stored.exogenous_digest != other.exogenous_digest {
-        Some("shared_abduction")
-    } else if stored.receipt_digest != other.receipt_digest {
-        Some("receipt")
-    } else if stored.spec_id != other.spec_id {
-        Some("request")
-    } else {
-        None
-    }
+    crate::first_identity_difference!(stored, other, {
+        snapshot => "snapshot",
+        fit_digest => "mechanism_fit",
+        factual_digest => "unit_history",
+        world_digests => "action_history",
+        exogenous_digest => "shared_abduction",
+        receipt_digest => "receipt",
+        spec_id => "request",
+    })
 }
 
 /// Reals stored per unit: the factual nodes, then one outcome per world.
@@ -520,11 +511,7 @@ fn encode_parts_impl(
     values: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, Error> {
-    if artifact_id.trim().is_empty() {
-        return Err(Error::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta).map_err(|error| Error::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "temporal_counterfactual_general_shared_abduction_point_only",
@@ -532,16 +519,10 @@ fn encode_parts_impl(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[
-            crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            },
-            crate::OutSection { id: VALUES_SECTION, content_type: crate::CONTENT_BYTES, bytes: values },
-        ],
+        META_SECTION,
+        meta,
+        &[crate::OutSection { id: VALUES_SECTION, content_type: crate::CONTENT_BYTES, bytes: values }],
     )
-    .map_err(|error| crate::map_artifact_check!(error, GeneralTemporalCounterfactualArtifactError))
 }
 
 /// Encode a metadata section and a values section as a checksummed container.
@@ -564,23 +545,15 @@ pub fn encode_parts(
 fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<(GeneralTemporalCounterfactualMeta, Vec<u8>), Error> {
-    let parts = crate::decode_container(
+    let (meta, mut parts) = crate::artifact_codec::decode_sectioned::<Error, _>(
         ARTIFACT_KIND,
         MAX_GENERAL_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES,
-        &[META_SECTION, VALUES_SECTION],
+        META_SECTION,
+        &[VALUES_SECTION],
+        GENERAL_TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION,
         bytes,
-    )
-    .map_err(|error| crate::map_artifact_check!(error, GeneralTemporalCounterfactualArtifactError))?;
-    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
-        return Err(Error::Malformed("unsupported container layout".into()));
-    };
-    let meta = crate::decode_with_version(&meta_bytes, |version| {
-        if version == GENERAL_TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(Error::UnsupportedVersion { version })
-        }
-    })?;
+    )?;
+    let payload = parts.remove(0);
     Ok((meta, payload))
 }
 

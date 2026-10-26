@@ -35,7 +35,7 @@ pub enum PosteriorRequest {
 }
 
 fn refuse(code: &'static str, detail: &'static str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: posterior mean only"))
+    EstimationError::refused_detail(code, detail, "posterior mean only")
 }
 
 fn scale_of(

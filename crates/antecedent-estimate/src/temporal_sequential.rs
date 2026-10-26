@@ -714,8 +714,7 @@ impl SequentialSetup {
         let dag = &unfolded.dag;
         let node_count = dag.node_count();
         let outcome = indexer
-            .dense_id(TemporalNodeKey { variable: outcome, offset: outcome_offset })
-            .map_err(|e| EstimationError::data_msg(e.to_string()))? as usize;
+            .dense_id(TemporalNodeKey { variable: outcome, offset: outcome_offset })? as usize;
         let mut intervention = vec![false; node_count];
         let mut overlay_at = vec![None; node_count];
         for &overlay in overlays {
@@ -723,8 +722,7 @@ impl SequentialSetup {
                 .dense_id(TemporalNodeKey {
                     variable: overlay.node.variable,
                     offset: overlay.node.offset,
-                })
-                .map_err(|e| EstimationError::data_msg(e.to_string()))?
+                })?
                 as usize;
             if intervention[dense] {
                 return Err(EstimationError::unsupported(

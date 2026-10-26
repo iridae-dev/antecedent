@@ -13,8 +13,9 @@ use antecedent_contract::{
 };
 use antecedent_core::ExecutionContext;
 use antecedent_io_core::joint_law_propagation_artifact::{
-    EnvelopeQueryWire, JointLawPropagationArtifactError, JointLawPropagationArtifactWire,
-    MarginalWire, PropagationRequestWire, float_bits, joint_law_propagation_identity,
+    EnvelopeQueryWire, JOINT_LAW_PROPAGATION_ARTIFACT_VERSION, JointLawPropagationArtifactError,
+    JointLawPropagationArtifactWire, MarginalWire, PropagationRequestWire, PropagationResultWire,
+    VerdictWire, float_bits, joint_law_propagation_identity,
 };
 
 fn ctx() -> ExecutionContext {
@@ -53,8 +54,7 @@ fn bits(value: f64) -> u64 {
 }
 
 fn value(wire: &JointLawPropagationArtifactWire, name: &str) -> f64 {
-    let (_, b) = wire.result.iter().find(|(n, _)| n == name).expect("named value");
-    f64::from_bits(*b)
+    wire.result.value(name).expect("named value")
 }
 
 fn details(error: &JointLawPropagationArtifactError) -> Vec<(String, String)> {
@@ -247,7 +247,7 @@ fn an_aligned_nonlinear_functional_matches_the_finite_joint_law_enumeration() {
     assert_eq!(product.route, "aligned_joint_law");
     assert_eq!(product.alignment_id.as_deref(), Some("joint_7"));
     assert!((value(&product, "mean") - 0.4).abs() < 1e-15);
-    assert_eq!(product.result.iter().find(|(n, _)| n == "n_rows").map(|(_, v)| *v), Some(10));
+    assert_eq!(product.result.n_rows(), Some(10));
     let minimum = aligned_product("minimum", ("x", "y"), &xs, &ys);
     assert!((value(&minimum, "mean") - 0.2).abs() < 1e-15);
     let bytes = product.export().expect("export");
@@ -430,7 +430,7 @@ fn semantic_mutations_are_refused() {
     assert_eq!(edited.consume(None, &ctx()), Err(JointLawPropagationArtifactError::ResultMismatch));
     // An unresealed edit of the stored result.
     let mut result_edit = wire.clone();
-    result_edit.result[1].1 = bits(6.0);
+    result_edit.result = PropagationResultWire::Moments { mean: bits(3.0), variance: bits(6.0) };
     assert_eq!(
         result_edit.consume(None, &ctx()),
         Err(JointLawPropagationArtifactError::ResultMismatch)
@@ -474,11 +474,13 @@ fn semantic_mutations_are_refused() {
     );
     // Another format version is refused before the payload is interpreted.
     let mut future = wire.clone();
-    future.version = 2;
-    let bytes = future.export().expect("export");
+    future.version = JOINT_LAW_PROPAGATION_ARTIFACT_VERSION + 1;
+    let bytes = antecedent_io_core::to_cbor(&future).expect("encode");
     assert_eq!(
         JointLawPropagationArtifactWire::decode(&bytes),
-        Err(JointLawPropagationArtifactError::UnsupportedVersion { version: 2 })
+        Err(JointLawPropagationArtifactError::UnsupportedVersion {
+            version: JOINT_LAW_PROPAGATION_ARTIFACT_VERSION + 1
+        })
     );
     // The original still replays against the retained identity.
     wire.consume(Some(&id), &ctx()).expect("original replays");
@@ -616,7 +618,7 @@ fn an_exceedance_decision_reports_its_monte_carlo_band_and_verdict() {
     assert!((value(&below, "standard_error") - 0.121_11).abs() < 1e-4);
     assert!((value(&below, "band") - 1.959_964 * value(&below, "standard_error")).abs() < 1e-8);
     let code = |wire: &JointLawPropagationArtifactWire| {
-        wire.result.iter().find(|(n, _)| n == "verdict_code").map(|(_, v)| *v)
+        wire.result.named_entries().iter().find(|(n, _)| n == "verdict_code").map(|(_, v)| *v)
     };
     assert_eq!(code(&below), Some(1), "0.2 + 0.237 is below the 0.5 cutoff");
     assert_eq!(code(&decide(0.1).expect("seal")), Some(2), "0.1 is inside the band");
@@ -627,10 +629,8 @@ fn an_exceedance_decision_reports_its_monte_carlo_band_and_verdict() {
     assert_eq!(details(&error)[0].1, "joint_law_propagation.invalid_request");
     // An edited verdict code does not replay.
     let mut edited = below.clone();
-    for entry in &mut edited.result {
-        if entry.0 == "verdict_code" {
-            entry.1 = 0;
-        }
+    if let PropagationResultWire::AlignedExceedance { verdict, .. } = &mut edited.result {
+        *verdict = VerdictWire::Act;
     }
     assert_eq!(edited.consume(None, &ctx()), Err(JointLawPropagationArtifactError::ResultMismatch));
 }

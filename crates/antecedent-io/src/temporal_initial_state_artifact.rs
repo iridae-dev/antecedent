@@ -241,7 +241,8 @@ pub struct PanelSummaryWire {
 }
 
 impl PanelSummaryWire {
-    /// Summarize a panel for a fixed action sequence.
+    /// Summarize a panel for a fixed two-step action sequence. A history of another
+    /// number of steps is a history of no two-step sequence and is not tallied.
     #[must_use]
     pub fn from_panel(panel: &TemporalUnitPanel, sequence: [u32; 2]) -> Self {
         let mut cells: BTreeMap<(u32, u32), (u64, u64, f64)> = BTreeMap::new();
@@ -250,12 +251,16 @@ impl PanelSummaryWire {
         for history in panel.units().iter().flat_map(|u| u.histories.iter()) {
             time_min = Some(time_min.map_or(history.time_id, |t| t.min(history.time_id)));
             time_max = Some(time_max.map_or(history.time_id, |t| t.max(history.time_id)));
-            if history.a1 != sequence[0] {
+            let (&[a1, a2], &[l2]) = (history.actions.as_slice(), history.covariates.as_slice())
+            else {
+                continue;
+            };
+            if a1 != sequence[0] {
                 continue;
             }
-            let cell = cells.entry((history.s0, history.l2)).or_insert((0, 0, 0.0));
+            let cell = cells.entry((history.s0, l2)).or_insert((0, 0, 0.0));
             cell.0 += 1;
-            if history.a2 == sequence[1] {
+            if a2 == sequence[1] {
                 cell.1 += 1;
                 cell.2 += history.y;
             }
@@ -468,6 +473,9 @@ impl TemporalInitialStateArtifactWire {
         panel: &TemporalUnitPanel,
     ) -> Result<Self, IoError> {
         premises.validate()?;
+        if panel.horizon().is_some_and(|steps| steps != sequence.len()) {
+            return Err(mismatch(PREFIX, "horizon"));
+        }
         let effect = query.effect(panel)?;
         if effect.sequence != sequence || fixed.is_some_and(|q| q.sequence != sequence) {
             return Err(mismatch(PREFIX, "sequence"));

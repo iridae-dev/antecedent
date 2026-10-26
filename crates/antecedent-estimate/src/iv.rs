@@ -175,8 +175,7 @@ impl CheckedIvPreparation {
                 &self.target.instruments,
                 &Value::f64(active),
                 &Value::f64(control),
-            )
-            .map_err(|e| EstimationError::data_msg(format!("invalid retained IV roles: {e}")))?;
+            )?;
         if self.outcome_program().schema() != &schema
             || self.treatment_program().schema() != &schema
             || self.lowering.functional != self.target.functional
@@ -303,8 +302,7 @@ fn prepare_iv_checked(
             &target.instruments,
             &Value::f64(active),
             &Value::f64(control),
-        )
-        .map_err(|e| EstimationError::data_msg(format!("invalid checked IV target: {e}")))?;
+        )?;
     if expected != target.functional {
         return Err(EstimationError::data_msg(
             "selected IV functional does not match query treatment/outcome and instrument roles",
@@ -350,16 +348,14 @@ fn prepare_iv_checked(
         outcome_root,
         outcome_root,
         ProgramLimits::default(),
-    )
-    .map_err(|e| EstimationError::data_msg(format!("checked IV outcome child program: {e}")))?;
+    )?;
     let treatment_program = FunctionalProgram::new(
         arena,
         schema,
         treatment_root,
         treatment_root,
         ProgramLimits::default(),
-    )
-    .map_err(|e| EstimationError::data_msg(format!("checked IV treatment child program: {e}")))?;
+    )?;
     let factor_requirements: Arc<[FactorRequirement]> = Arc::from(
         outcome_program
             .factor_requirements()
@@ -653,13 +649,17 @@ impl WaldIv {
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
         let n = problem.nrows;
-        let binary_single = problem.instruments.len() == 1
-            && problem.adjustment_set.is_empty()
-            && (0..n).all(|r| {
-                let v = problem.instruments_matrix[n + r];
-                TreatmentArm::exact(v).is_some()
-            });
-        if !binary_single {
+        // The arm of every row's instrument when there is exactly one instrument, no covariate
+        // and the instrument is coded exactly 0 or 1.
+        let instrument_arms: Option<Vec<TreatmentArm>> =
+            (problem.instruments.len() == 1 && problem.adjustment_set.is_empty())
+                .then(|| {
+                    (0..n)
+                        .map(|r| TreatmentArm::exact(problem.instruments_matrix[n + r]))
+                        .collect()
+                })
+                .flatten();
+        let Some(instrument_arms) = instrument_arms else {
             // The ratio of two arm differences is the one-binary-instrument case. Several or
             // multi-valued instruments and exogenous covariates are its instrument-weighted
             // generalization, which is exactly what two-stage least squares estimates.
@@ -678,10 +678,10 @@ impl WaldIv {
                 ctx,
                 assumptions,
             );
-        }
+        };
         let z: Vec<f64> = (0..n).map(|r| problem.instruments_matrix[n + r]).collect();
 
-        let wald = wald_ratio(&z, &problem.treatment, &problem.outcome)?;
+        let wald = wald_ratio(&instrument_arms, &problem.treatment, &problem.outcome)?;
         let ate = wald.ratio * problem.treatment_delta;
         let mut first_stage_diagnostics = wald_first_stage_diagnostics(&z, &problem.treatment);
         attach_anderson_rubin(
@@ -714,10 +714,13 @@ struct WaldResult {
 }
 
 /// Ratio-of-differences point estimate.
-fn wald_ratio(z: &[f64], t: &[f64], y: &[f64]) -> Result<WaldResult, EstimationError> {
-    let arms = TreatmentArm::classify(z);
-    let outcome = arm_moments(&arms, y);
-    let treatment = arm_moments(&arms, t);
+fn wald_ratio(
+    instrument_arms: &[TreatmentArm],
+    t: &[f64],
+    y: &[f64],
+) -> Result<WaldResult, EstimationError> {
+    let outcome = arm_moments(instrument_arms, y);
+    let treatment = arm_moments(instrument_arms, t);
     if outcome.n[0] == 0 || outcome.n[1] == 0 {
         return Err(EstimationError::data_msg(
             "Wald IV requires both instrument arms (Z=0 and Z=1) to be present",

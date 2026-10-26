@@ -213,7 +213,7 @@ pub fn seal_provider_envelope_within(
     }
     let artifact = envelope.external_artifact.as_deref().unwrap_or(&[]);
     let artifact_id = envelope.header.artifact_id();
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned_io(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "provider_result",
@@ -221,20 +221,16 @@ pub fn seal_provider_envelope_within(
             artifact_id: &artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[
-            crate::OutSection {
-                id: HEADER_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &header,
-            },
-            crate::OutSection {
-                id: ARTIFACT_SECTION,
-                content_type: crate::CONTENT_BYTES,
-                bytes: artifact,
-            },
-        ],
+        HEADER_SECTION,
+        &envelope.header,
+        &[crate::OutSection {
+            id: ARTIFACT_SECTION,
+            content_type: crate::CONTENT_BYTES,
+            bytes: artifact,
+        }],
+        "unsupported provider result layout",
     )
-    .map_err(|error| error.into_io("unsupported provider result layout").to_string())
+    .map_err(|error| error.to_string())
 }
 
 /// Whether `bytes` are a provider result, in the container or the original frame.
@@ -335,17 +331,15 @@ fn decode_container_frame(
     bytes: &[u8],
     limits: &ProviderEnvelopeLimits,
 ) -> Result<(ProviderEnvelopeHeader, Option<Vec<u8>>), String> {
-    let layout = "unsupported provider result layout";
-    let parts = crate::decode_container(
+    let (header, [artifact]) = crate::artifact_codec::decode_sectioned_io_raw(
         ARTIFACT_KIND,
         limits.max_envelope_bytes(),
-        &[HEADER_SECTION, ARTIFACT_SECTION],
+        HEADER_SECTION,
+        &[ARTIFACT_SECTION],
+        "unsupported provider result layout",
         bytes,
     )
-    .map_err(|error| error.into_io(layout).to_string())?;
-    let Ok([header, artifact]) = <[Vec<u8>; 2]>::try_from(parts) else {
-        return Err(layout.into());
-    };
+    .map_err(|error| error.to_string())?;
     if header.len() > limits.max_header_bytes || artifact.len() > limits.max_artifact_bytes {
         return Err("provider envelope section lengths are invalid".into());
     }

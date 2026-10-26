@@ -67,10 +67,11 @@ crate::sectioned_artifact_error!(
 );
 
 fn invalid_request(message: &str) -> MechanismDiscrepancyArtifactError {
-    MechanismDiscrepancyArtifactError::Refused {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        message: format!("mechanism_discrepancy.invalid_request: {message}"),
-    }
+    MechanismDiscrepancyArtifactError::refused(
+        antecedent_core::reason_code!("invalid_argument"),
+        "mechanism_discrepancy.invalid_request",
+        message,
+    )
 }
 
 /// One parent on the wire.
@@ -495,21 +496,14 @@ fn identity_diff(
     stored: &MechanismDiscrepancyIdentity,
     other: &MechanismDiscrepancyIdentity,
 ) -> Option<&'static str> {
-    if stored.measurement_id != other.measurement_id {
-        Some("measurement")
-    } else if stored.source_evidence_id != other.source_evidence_id {
-        Some("source_evidence")
-    } else if stored.target_evidence_id != other.target_evidence_id {
-        Some("target_evidence")
-    } else if stored.null != other.null {
-        Some("null")
-    } else if stored.design_id != other.design_id {
-        Some("design")
-    } else if stored.digest != other.digest {
-        Some("identity")
-    } else {
-        None
-    }
+    crate::first_identity_difference!(stored, other, {
+        measurement_id => "measurement",
+        source_evidence_id => "source_evidence",
+        target_evidence_id => "target_evidence",
+        null => "null",
+        design_id => "design",
+        digest => "identity",
+    })
 }
 
 fn numbers_of(request: &MechanismDiscrepancyRequestWire) -> Vec<u8> {
@@ -676,25 +670,20 @@ fn check_semantics(
     if meta.null != MECHANISM_DISCREPANCY_NULL {
         return Err(E::IdentityMismatch { field: "null" });
     }
-    if meta.inference_claim != MECHANISM_DISCREPANCY_INFERENCE_CLAIM {
-        return Err(E::UnsupportedSemantics("inference claim"));
-    }
-    if meta.calibration != MECHANISM_DISCREPANCY_CALIBRATION {
-        return Err(E::UnsupportedSemantics("calibration"));
-    }
-    if meta.caveats != [MECHANISM_DISCREPANCY_CAVEAT, MECHANISM_DISCREPANCY_POWER_CAVEAT] {
-        return Err(E::UnsupportedSemantics("caveats"));
-    }
-    if meta.alignment != MECHANISM_DISCREPANCY_ALIGNMENT {
-        return Err(E::UnsupportedSemantics("alignment"));
-    }
-    if meta.dependence_assumption != MECHANISM_DISCREPANCY_DEPENDENCE {
-        return Err(E::UnsupportedSemantics("dependence assumption"));
-    }
-    if meta.result.non_rejection_certifies_invariance {
-        return Err(E::UnsupportedSemantics("non-rejection certifies invariance"));
-    }
-    Ok(())
+    crate::artifact_codec::require_markers::<E>(&[
+        (meta.inference_claim == MECHANISM_DISCREPANCY_INFERENCE_CLAIM, "inference claim"),
+        (meta.calibration == MECHANISM_DISCREPANCY_CALIBRATION, "calibration"),
+        (
+            meta.caveats == [MECHANISM_DISCREPANCY_CAVEAT, MECHANISM_DISCREPANCY_POWER_CAVEAT],
+            "caveats",
+        ),
+        (meta.alignment == MECHANISM_DISCREPANCY_ALIGNMENT, "alignment"),
+        (meta.dependence_assumption == MECHANISM_DISCREPANCY_DEPENDENCE, "dependence assumption"),
+        (
+            !meta.result.non_rejection_certifies_invariance,
+            "non-rejection certifies invariance",
+        ),
+    ])
 }
 
 /// A produced or consumed discrepancy artifact: the declared request, the recomputed result and

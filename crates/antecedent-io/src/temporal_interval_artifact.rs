@@ -1,7 +1,8 @@
 //! Internal replay artifact for the dependence-preserving temporal interval
 //! (`dependent_temporal_interval`).
 //!
-//! Format version 1. **Internal**: the public interval route is closed while the
+//! Format version 1 (two steps; version 2 for any other number of steps, under its own
+//! feature marker). **Internal**: the public interval route is closed while the
 //! interval's calibration is unmeasured, so no public producer writes this artifact;
 //! it exists so the interval's whole resampling is reproducible and checkable. The
 //! artifact embeds the unit panel (snapshot id, unit ids, time ids and values), the
@@ -29,15 +30,29 @@ use antecedent_estimate::temporal_initial_state::{
 use antecedent_estimate::temporal_refresh::RefreshReceipt;
 use serde::{Deserialize, Serialize};
 
-/// The artifact format this reader writes and accepts.
+/// The artifact format of a two-step panel.
 pub const TEMPORAL_INTERVAL_ARTIFACT_VERSION: u32 = 1;
-/// The feature marker of the accepted format.
+/// The feature marker of the two-step format.
 pub const TEMPORAL_INTERVAL_ARTIFACT_FEATURE: &str = "temporal_dependent_interval_v1";
+/// The artifact format of a panel with any other number of steps.
+pub const TEMPORAL_INTERVAL_HORIZON_ARTIFACT_VERSION: u32 = 2;
+/// The feature marker of that format.
+pub const TEMPORAL_INTERVAL_HORIZON_ARTIFACT_FEATURE: &str = "temporal_dependent_interval_v2";
 /// The artifact kind; a different kind is a different artifact.
 pub const TEMPORAL_INTERVAL_ARTIFACT_KIND: &str =
     crate::artifact_kinds::TEMPORAL_DEPENDENT_INTERVAL;
 
 const PREFIX: &str = "temporal_interval_artifact";
+
+/// The format version and feature marker of a panel with `horizon` steps (`None` for a panel
+/// without histories, which has the original layout).
+fn layout(horizon: Option<usize>) -> (u32, &'static str) {
+    if horizon.is_none_or(|steps| steps == 2) {
+        (TEMPORAL_INTERVAL_ARTIFACT_VERSION, TEMPORAL_INTERVAL_ARTIFACT_FEATURE)
+    } else {
+        (TEMPORAL_INTERVAL_HORIZON_ARTIFACT_VERSION, TEMPORAL_INTERVAL_HORIZON_ARTIFACT_FEATURE)
+    }
+}
 
 /// Consumer bounds. Nothing the artifact stores raises them.
 #[derive(Clone, Copy, Debug)]
@@ -56,23 +71,9 @@ impl Default for TemporalIntervalConsumeLimits {
     }
 }
 
-/// One complete history on the wire.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct HistoryWire {
-    /// Period id.
-    pub time_id: u64,
-    /// Pre-action state.
-    pub s0: u32,
-    /// First action.
-    pub a1: u32,
-    /// Step-2 covariate.
-    pub l2: u32,
-    /// Second action.
-    pub a2: u32,
-    /// Outcome.
-    pub y: f64,
-}
+/// One complete history on the wire: the two-step fields `s0, a1, l2, a2, y`, or the
+/// `actions` and `covariates` lists of any other number of steps.
+pub use antecedent_io_core::temporal_recalc_artifact::TemporalHistoryWire as HistoryWire;
 
 /// One repeated unit on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -111,9 +112,8 @@ impl UnitPanelWire {
                         .map(|h| HistoryWire {
                             time_id: h.time_id,
                             s0: h.s0,
-                            a1: h.a1,
-                            l2: h.l2,
-                            a2: h.a2,
+                            actions: h.actions.clone(),
+                            covariates: h.covariates.clone(),
                             y: h.y,
                         })
                         .collect(),
@@ -138,9 +138,8 @@ impl UnitPanelWire {
                     .map(|h| SequenceHistory {
                         time_id: h.time_id,
                         s0: h.s0,
-                        a1: h.a1,
-                        l2: h.l2,
-                        a2: h.a2,
+                        actions: h.actions.clone(),
+                        covariates: h.covariates.clone(),
                         y: h.y,
                     })
                     .collect(),
@@ -156,8 +155,8 @@ impl UnitPanelWire {
 pub struct IntervalEstimatorWire {
     /// `observed_initial_state`, `fixed_initial_state` or `marginalized_initial_state`.
     pub kind: String,
-    /// Actions of the two steps.
-    pub sequence: [u32; 2],
+    /// The action of each step.
+    pub sequence: Vec<u32>,
     /// The fixed state (kind `fixed_initial_state` only).
     pub state: Option<u32>,
     /// The target law (kind `marginalized_initial_state` only).
@@ -167,8 +166,13 @@ pub struct IntervalEstimatorWire {
 impl IntervalEstimatorWire {
     /// The estimator over the panel's observed initial-state law.
     #[must_use]
-    pub fn observed(sequence: [u32; 2]) -> Self {
-        Self { kind: ObservedStateSequence::LABEL.into(), sequence, state: None, law: None }
+    pub fn observed(sequence: impl Into<Vec<u32>>) -> Self {
+        Self {
+            kind: ObservedStateSequence::LABEL.into(),
+            sequence: sequence.into(),
+            state: None,
+            law: None,
+        }
     }
 
     /// The fixed-state estimator.
@@ -176,7 +180,7 @@ impl IntervalEstimatorWire {
     pub fn fixed(query: &FixedStateQuery) -> Self {
         Self {
             kind: FixedStateEffect::LABEL.into(),
-            sequence: query.sequence,
+            sequence: query.sequence.clone(),
             state: Some(query.s0),
             law: None,
         }
@@ -184,10 +188,10 @@ impl IntervalEstimatorWire {
 
     /// The target-marginal estimator.
     #[must_use]
-    pub fn marginalized(sequence: [u32; 2], query: &MarginalizedQuery) -> Self {
+    pub fn marginalized(sequence: impl Into<Vec<u32>>, query: &MarginalizedQuery) -> Self {
         Self {
             kind: MarginalizedEffect::LABEL.into(),
-            sequence,
+            sequence: sequence.into(),
             state: None,
             law: Some(InitialStateLawWire::from_law(query.law())),
         }
@@ -200,14 +204,14 @@ impl IntervalEstimatorWire {
     pub fn to_estimator(&self) -> Result<Box<dyn TemporalEstimator>, IoError> {
         match (self.kind.as_str(), self.state, &self.law) {
             (ObservedStateSequence::LABEL, None, None) => {
-                Ok(Box::new(antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Observed(ObservedStateSequence { sequence: self.sequence })))
+                Ok(Box::new(antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Observed(ObservedStateSequence { sequence: self.sequence.clone() })))
             }
             (FixedStateEffect::LABEL, Some(s0), None) => {
-                Ok(Box::new(antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Fixed(FixedStateQuery { sequence: self.sequence, s0 })))
+                Ok(Box::new(antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Fixed(FixedStateQuery { sequence: self.sequence.clone(), s0 })))
             }
             (MarginalizedEffect::LABEL, None, Some(law)) => {
                 let query = MarginalizedQuery::new(
-                    self.sequence,
+                    self.sequence.clone(),
                     InitialStateSpec::Law(law.to_law_unchecked()?),
                 )?;
                 law.check_digest(query.law())?;
@@ -437,9 +441,10 @@ impl TemporalIntervalArtifactWire {
         if interval.panel_digest != panel.digest() || interval.snapshot_id != panel.snapshot_id() {
             return Err(mismatch(PREFIX, "foreign_interval"));
         }
+        let (version, feature) = layout(panel.horizon());
         let mut wire = Self {
-            version: TEMPORAL_INTERVAL_ARTIFACT_VERSION,
-            required_features: vec![TEMPORAL_INTERVAL_ARTIFACT_FEATURE.into()],
+            version,
+            required_features: vec![feature.into()],
             kind: TEMPORAL_INTERVAL_ARTIFACT_KIND.into(),
             estimator,
             panel: UnitPanelWire::from_panel(panel),
@@ -480,15 +485,20 @@ impl TemporalIntervalArtifactWire {
     /// An unsupported version, a decoding failure, or a foreign feature or kind.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
         let wire: Self = crate::decode_with_version(bytes, |version| {
-            if version == TEMPORAL_INTERVAL_ARTIFACT_VERSION {
+            if version == TEMPORAL_INTERVAL_ARTIFACT_VERSION
+                || version == TEMPORAL_INTERVAL_HORIZON_ARTIFACT_VERSION
+            {
                 Ok(())
             } else {
                 Err(IoError::UnsupportedVersion { version })
             }
         })?;
-        if wire.required_features != [TEMPORAL_INTERVAL_ARTIFACT_FEATURE]
-            || wire.kind != TEMPORAL_INTERVAL_ARTIFACT_KIND
-        {
+        let feature = if wire.version == TEMPORAL_INTERVAL_ARTIFACT_VERSION {
+            TEMPORAL_INTERVAL_ARTIFACT_FEATURE
+        } else {
+            TEMPORAL_INTERVAL_HORIZON_ARTIFACT_FEATURE
+        };
+        if wire.required_features != [feature] || wire.kind != TEMPORAL_INTERVAL_ARTIFACT_KIND {
             return Err(mismatch(PREFIX, "unsupported_semantics"));
         }
         Ok(wire)
@@ -527,6 +537,9 @@ impl TemporalIntervalArtifactWire {
             return Err(mismatch(PREFIX, "calibration"));
         }
         let panel = self.panel.to_panel()?;
+        if layout(panel.horizon()).0 != self.version {
+            return Err(mismatch(PREFIX, "version"));
+        }
         if let Some(receipt) = &self.refresh_receipt {
             let receipt = receipt.to_receipt()?;
             receipt.verify()?;

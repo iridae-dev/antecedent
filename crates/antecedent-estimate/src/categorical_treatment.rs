@@ -46,6 +46,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_core::reason_code;
@@ -94,15 +95,15 @@ pub enum MonotonicityDirection {
 
 /// Rows with their level label.
 #[derive(Clone, Debug, PartialEq)]
-pub struct CategoricalTreatmentInput {
+pub struct CategoricalTreatmentInput<'a> {
     /// Outcome, one value per row.
-    pub outcome: Vec<f64>,
+    pub outcome: Cow<'a, [f64]>,
     /// Identity of the row snapshot.
-    pub row_snapshot: String,
+    pub row_snapshot: Cow<'a, str>,
     /// Shared adjustment columns (may be empty).
-    pub adjustment: Vec<NamedColumn>,
+    pub adjustment: Vec<NamedColumn<'a>>,
     /// Level label of each row.
-    pub levels: Vec<String>,
+    pub levels: Cow<'a, [String]>,
 }
 
 /// Declared design of the categorical regime.
@@ -365,24 +366,27 @@ pub(crate) fn count_levels(
     Ok(out)
 }
 
-pub(crate) fn dummy_columns(
-    input: &CategoricalTreatmentInput,
+pub(crate) fn dummy_columns<'a>(
+    input: &'a CategoricalTreatmentInput<'_>,
     order: &[String],
     reference: &str,
-) -> Vec<TreatmentColumn> {
-    let adjustment_set: Vec<String> = input.adjustment.iter().map(|c| c.name.clone()).collect();
+) -> Vec<TreatmentColumn<'a>> {
+    let adjustment_set: Vec<Cow<'a, str>> =
+        input.adjustment.iter().map(|c| Cow::Borrowed(&*c.name)).collect();
     order
         .iter()
         .filter(|level| level.as_str() != reference)
         .map(|level| TreatmentColumn {
-            name: dummy_name(level),
-            values: input
-                .levels
-                .iter()
-                .map(|label| if label == level { 1.0 } else { 0.0 })
-                .collect(),
+            name: Cow::Owned(dummy_name(level)),
+            values: Cow::Owned(
+                input
+                    .levels
+                    .iter()
+                    .map(|label| if label == level { 1.0 } else { 0.0 })
+                    .collect(),
+            ),
             adjustment_set: adjustment_set.clone(),
-            row_snapshot: input.row_snapshot.clone(),
+            row_snapshot: Cow::Borrowed(&*input.row_snapshot),
         })
         .collect()
 }
@@ -470,9 +474,9 @@ pub fn fit_categorical_treatment(
     let counts = count_levels(input, spec, &order)?;
     let (contrasts, n_levels, n_pairs) = declared_contrasts(spec, &order);
     let vector_input = VectorTreatmentInput {
-        outcome: input.outcome.clone(),
-        row_snapshot: input.row_snapshot.clone(),
-        adjustment: input.adjustment.clone(),
+        outcome: Cow::Borrowed(&*input.outcome),
+        row_snapshot: Cow::Borrowed(&*input.row_snapshot),
+        adjustment: input.adjustment.iter().map(NamedColumn::borrowed).collect(),
         treatments: dummy_columns(input, &order, &spec.reference),
     };
     let options = VectorTreatmentOptions { covariance: spec.covariance, contrasts };
@@ -504,9 +508,9 @@ pub fn summarize_categorical_design(
     let order = validate_spec(spec)?;
     let counts = count_levels(input, spec, &order)?;
     let vector_input = VectorTreatmentInput {
-        outcome: input.outcome.clone(),
-        row_snapshot: input.row_snapshot.clone(),
-        adjustment: input.adjustment.clone(),
+        outcome: Cow::Borrowed(&*input.outcome),
+        row_snapshot: Cow::Borrowed(&*input.row_snapshot),
+        adjustment: input.adjustment.iter().map(NamedColumn::borrowed).collect(),
         treatments: dummy_columns(input, &order, &spec.reference),
     };
     let design = summarize_joint(&vector_input, 1)?;
@@ -560,9 +564,9 @@ pub fn summarize_categorical_design_robust(
     let order = validate_spec(spec)?;
     let counts = count_levels(input, spec, &order)?;
     let vector_input = VectorTreatmentInput {
-        outcome: input.outcome.clone(),
-        row_snapshot: input.row_snapshot.clone(),
-        adjustment: input.adjustment.clone(),
+        outcome: Cow::Borrowed(&*input.outcome),
+        row_snapshot: Cow::Borrowed(&*input.row_snapshot),
+        adjustment: input.adjustment.iter().map(NamedColumn::borrowed).collect(),
         treatments: dummy_columns(input, &order, &spec.reference),
     };
     let design = summarize_joint_robust(&vector_input, 1, spec.covariance)?;

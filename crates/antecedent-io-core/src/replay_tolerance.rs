@@ -21,6 +21,8 @@ pub enum ReplayScale {
     OnePlusReplayed,
     /// `1 + max(|stored|, |replayed|)`.
     OnePlusLarger,
+    /// `1 + |stored| + |replayed|`.
+    OnePlusSum,
 }
 
 /// How a [`ReplayTolerance`] treats a non-finite value.
@@ -81,6 +83,7 @@ impl ReplayTolerance {
             ReplayScale::LargerOrOne => stored.abs().max(replayed.abs()).max(1.0),
             ReplayScale::OnePlusReplayed => 1.0 + replayed.abs(),
             ReplayScale::OnePlusLarger => 1.0 + stored.abs().max(replayed.abs()),
+            ReplayScale::OnePlusSum => 1.0 + stored.abs() + replayed.abs(),
         };
         (stored - replayed).abs() <= self.tolerance * scale
     }

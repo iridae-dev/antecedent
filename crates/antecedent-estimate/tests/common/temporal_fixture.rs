@@ -52,8 +52,8 @@ pub fn v(i: usize) -> VariableId {
 pub fn slots() -> TemporalSlots {
     TemporalSlots {
         baseline: vec![v(B)],
-        covariates: [vec![v(L1)], vec![v(L2)]],
-        actions: [v(A1), v(A2)],
+        covariates: vec![vec![v(L1)], vec![v(L2)]],
+        actions: vec![v(A1), v(A2)],
         outcome: v(Y),
     }
 }

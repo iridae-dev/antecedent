@@ -248,7 +248,7 @@ fn evaluation_refusal(error: &EstimationError) -> Error {
     match error {
         EstimationError::Refused { code, message }
         | EstimationError::RefusedWithFields { code, message, .. } => {
-            Error::Replay { code, message: message.clone() }
+            Error::Replay { code, message: message.to_string() }
         }
         other => Error::LawInvalid(other.to_string()),
     }
