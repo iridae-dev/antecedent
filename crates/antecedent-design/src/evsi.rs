@@ -3,7 +3,7 @@
 //!
 //! Every candidate's signal comes from its [`SignalProvider`]. A provider that supplies
 //! an observation law (native or external likelihood) is scored through the existing
-//! [`DesignObjective::ReduceDecisionRegret`] path of [`DesignRanker`] (one
+//! [`DesignObjective::ReduceDecisionRegret`] path of [`crate::ranker::DesignRanker`] (one
 //! preposterior analysis per candidate, scheduled with `map_indexed`), with EVPI and the current
 //! Bayes action read from [`PreposteriorAnalysis`]. A provider that supplies externally
 //! computed per-branch decision values is evaluated as
@@ -42,7 +42,7 @@ use crate::preposterior::{
     DecisionPrior, DecisionSignal, EvsiMonteCarlo, PreposteriorAnalysis, expected_max_affine,
 };
 use crate::rank_rows::{AdjacentRank, evsi_bound_violation, rank_rows};
-use crate::ranker::{DesignRankConfig, DesignRanker};
+use crate::ranker::DesignRankConfig;
 use crate::signal::{
     ExternalDecisionValues, PreparedLaw, RefusalBuilder, SignalError, SignalProvider,
     SignalReceipt, SignalTrustLabel, SignalUpdateMode, remember_prepared, state_key,
@@ -338,6 +338,27 @@ impl From<SignalError> for EvsiError {
         Self::Signal(error)
     }
 }
+
+/// Write a refusal as `detail` plus its offending coordinate, the text an error built from it
+/// shows (never a `Debug` rendering).
+pub(crate) fn write_refusal(
+    f: &mut std::fmt::Formatter<'_>,
+    refusal: &ExternalRefusal,
+) -> std::fmt::Result {
+    f.write_str(&refusal.detail)?;
+    match &refusal.offending {
+        Some(offending) => write!(f, ": {offending}"),
+        None => Ok(()),
+    }
+}
+
+impl std::fmt::Display for EvsiError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_refusal(f, &self.to_refusal())
+    }
+}
+
+impl std::error::Error for EvsiError {}
 
 impl EvsiError {
     /// Structured refusal under the `evsi` namespace (signal refusals keep
@@ -693,8 +714,6 @@ fn likelihood_value<A>(
     request: &EvsiRequest,
     ctx: &ExecutionContext,
 ) -> Result<Valued, EvsiError> {
-    let ranker = DesignRanker::new().with_config(request.rank_config.clone());
-    ranker.validate_config()?;
     let analysis = PreposteriorAnalysis::new(problem, prior, signal.as_ref())?;
     let n = signal
         .sample_size(&candidate.design)
@@ -744,6 +763,7 @@ fn values_value<A>(
     prior: &DecisionPrior<f64>,
     values: &ExternalDecisionValues,
     request: &EvsiRequest,
+    evpi: Option<f64>,
     id: &str,
 ) -> Result<Valued, EvsiError> {
     let DecisionPrior::Draws(states) = prior else {
@@ -800,7 +820,8 @@ fn values_value<A>(
         converged: true,
         early_stopped: false,
     };
-    let evpi = evaluate_decision(problem, states)?.posterior_regret;
+    // The per-request value of perfect information, shared by every candidate.
+    let evpi = evpi.ok_or(EvsiError::DecisionValuesNeedDraws)?;
     Ok(Valued {
         evsi: after - prior_best,
         integration,
@@ -817,6 +838,7 @@ fn evaluate_candidate<A: Clone>(
     request: &EvsiRequest,
     candidate: &EvsiCandidate,
     evidence: Option<&EvsiEvidence<'_>>,
+    prior_evpi: Option<f64>,
     ctx: &ExecutionContext,
 ) -> Result<Evaluated, EvsiError> {
     let id = &candidate.semantic_id;
@@ -847,7 +869,9 @@ fn evaluate_candidate<A: Clone>(
             }
             likelihood_value(problem, prior, signal, candidate, request, ctx)?
         }
-        PreparedLaw::DecisionValues(values) => values_value(problem, prior, values, request, id)?,
+        PreparedLaw::DecisionValues(values) => {
+            values_value(problem, prior, values, request, prior_evpi, id)?
+        }
     };
     let Valued { evsi, integration, evpi, prior_expected_utility, bayes_action, stream_digest } =
         valued;
@@ -988,6 +1012,12 @@ fn evaluate_in_context<A: Clone + Sync>(
     let mut ctx = ctx.clone();
     ctx.rng = antecedent_core::RngFactory::from_seed(request.rng_seed);
     validate_request(problem, request)?;
+    request.rank_config.validate()?;
+    // The value of perfect information depends on the problem and the prior draws alone.
+    let prior_evpi = match prior {
+        DecisionPrior::Draws(states) => Some(evaluate_decision(problem, states)?.posterior_regret),
+        DecisionPrior::Normal { .. } => None,
+    };
     let mut ordered: Vec<&EvsiCandidate> = request.candidates.iter().collect();
     ordered.sort_by(|a, b| a.semantic_id.cmp(&b.semantic_id));
     let supplied = ordered.len();
@@ -1001,7 +1031,7 @@ fn evaluate_in_context<A: Clone + Sync>(
         if ctx.cancellation.is_cancelled() {
             return Err(EvsiError::Cancelled);
         }
-        evaluate_candidate(problem, prior, request, ordered[index], evidence, ctx)
+        evaluate_candidate(problem, prior, request, ordered[index], evidence, prior_evpi, ctx)
     })?;
     let search = SearchReceipt {
         supplied,

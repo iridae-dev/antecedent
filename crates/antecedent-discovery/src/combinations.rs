@@ -84,20 +84,38 @@ impl<'a, T: Copy> Combinations<'a, T> {
     }
 }
 
-impl<T: Copy> Iterator for Combinations<'_, T> {
-    type Item = Vec<T>;
-
-    fn next(&mut self) -> Option<Vec<T>> {
+impl<T: Copy> Combinations<'_, T> {
+    /// Move to the next combination; `false` once they are exhausted (and on every later call).
+    fn step(&mut self) -> bool {
         if self.done {
-            return None;
+            return false;
         }
         if self.first {
             self.first = false;
         } else if !advance_combination(&mut self.idx, self.items.len()) {
             self.done = true;
-            return None;
+            return false;
         }
-        Some(self.idx.iter().map(|&i| self.items[i]).collect())
+        true
+    }
+
+    /// Append the next combination to `out`, or return `false` when none is left. The same
+    /// sequence as the iterator, without a fresh `Vec` per combination.
+    pub(crate) fn next_into(&mut self, out: &mut Vec<T>) -> bool {
+        if !self.step() {
+            return false;
+        }
+        out.extend(self.idx.iter().map(|&i| self.items[i]));
+        true
+    }
+}
+
+impl<T: Copy> Iterator for Combinations<'_, T> {
+    type Item = Vec<T>;
+
+    fn next(&mut self) -> Option<Vec<T>> {
+        let mut combo = Vec::with_capacity(self.idx.len());
+        self.next_into(&mut combo).then_some(combo)
     }
 }
 

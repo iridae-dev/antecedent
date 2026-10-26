@@ -430,10 +430,11 @@ fn decode(bytes: &[u8]) -> Result<StructuralBody, IoError> {
 }
 
 fn refused(slot: &str, message: &str) -> IoError {
-    IoError::Refused {
-        code: antecedent_core::reason_code!("decision_contract_unsatisfied"),
-        message: format!("decision_artifact.{slot}: {message}"),
-    }
+    crate::plan_common::refused_with(
+        antecedent_core::reason_code!("decision_contract_unsatisfied"),
+        &format!("decision_artifact.{slot}"),
+        message,
+    )
 }
 
 /// Each atom's retained id and, for an evaluated atom, the digest of its draws.

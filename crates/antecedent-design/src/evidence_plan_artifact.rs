@@ -50,6 +50,27 @@ pub const MAX_PLAN_ROUTES: usize = 16;
 /// Most options a stored plan may list.
 pub const MAX_PLAN_OPTIONS: usize = 16_384;
 
+/// Maxima a consumer accepts of a stored plan, refused before any embedded artifact is read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EvidencePlanReadLimits {
+    /// Largest container, in bytes.
+    pub max_bytes: usize,
+    /// Most embedded theorem routes.
+    pub max_routes: usize,
+    /// Most listed options.
+    pub max_options: usize,
+}
+
+impl Default for EvidencePlanReadLimits {
+    fn default() -> Self {
+        Self {
+            max_bytes: MAX_EVIDENCE_PLAN_ARTIFACT_BYTES,
+            max_routes: MAX_PLAN_ROUTES,
+            max_options: MAX_PLAN_OPTIONS,
+        }
+    }
+}
+
 const BODY_SECTION: &str = "plan_body";
 
 /// A refused plan artifact: a registered reason code and a stable detail.
@@ -360,9 +381,20 @@ impl EvidencePlanArtifact {
     /// `evidence_plan_artifact.unsupported_version` for another version or kind and
     /// `evidence_plan_artifact.invalid_artifact` for a corrupt container.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, EvidencePlanArtifactError> {
+        Self::from_bytes_with_limits(bytes, EvidencePlanReadLimits::default())
+    }
+
+    /// [`Self::from_bytes`] under the caller's maxima instead of the defaults.
+    ///
+    /// # Errors
+    /// Those of [`Self::from_bytes`], with `limits` in place of the default bounds.
+    pub fn from_bytes_with_limits(
+        bytes: &[u8],
+        limits: EvidencePlanReadLimits,
+    ) -> Result<Self, EvidencePlanArtifactError> {
         let parts = antecedent_io_core::decode_container(
             EVIDENCE_PLAN_ARTIFACT_KIND,
-            MAX_EVIDENCE_PLAN_ARTIFACT_BYTES,
+            limits.max_bytes,
             &[BODY_SECTION],
             bytes,
         )
@@ -397,8 +429,8 @@ impl EvidencePlanArtifact {
             ));
         }
         if artifact.repairs.is_empty()
-            || artifact.repairs.len() > MAX_PLAN_ROUTES
-            || artifact.options.len() > MAX_PLAN_OPTIONS
+            || artifact.repairs.len() > limits.max_routes
+            || artifact.options.len() > limits.max_options
         {
             return Err(EvidencePlanArtifactError::bounds(
                 "a stored collection exceeds the evidence plan artifact's declared bounds",

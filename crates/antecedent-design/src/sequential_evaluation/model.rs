@@ -12,7 +12,7 @@ use antecedent_core::measurement_model::{
 
 use super::policy::HistoryKey;
 use super::{
-    MAX_ACTIONS, MAX_HORIZON, MAX_LABEL_BYTES, MAX_STATES, PROBABILITY_TOLERANCE,
+    MAX_ACTIONS, MAX_HORIZON, MAX_LABEL_BYTES, MAX_MODEL_WORK, MAX_STATES, PROBABILITY_TOLERANCE,
     SEQUENTIAL_EVALUATION_IDENTITY_VERSION, SequentialEvaluationError, SequentialResult,
 };
 use antecedent_core::named_variants;
@@ -474,6 +474,21 @@ impl FiniteSequentialModel {
                 "sequential_evaluation.model_actions",
                 format!("a model needs 1 to {MAX_ACTIONS} actions"),
                 "declare the finite action set",
+            ));
+        }
+        let work = (states as u128)
+            .saturating_mul(states as u128)
+            .saturating_mul(self.actions.len() as u128)
+            .saturating_mul(self.horizon as u128);
+        if work > MAX_MODEL_WORK {
+            return Err(refusal!(
+                "invalid_argument",
+                "sequential_evaluation.model_work",
+                format!(
+                    "the model's states x states x actions x horizon is {work}, over the \
+                     budget of {MAX_MODEL_WORK}"
+                ),
+                "reduce the latent states, the actions or the horizon",
             ));
         }
         if self.terminal_utility.len() != states || !finite_all(&self.terminal_utility) {

@@ -56,7 +56,7 @@ pub use batch::{
 pub use compile::{
     CompiledCausalModel, CompiledMechanismStore, DynamicMechanism, InvertibleStructuralCausalModel,
     MechanismSlot, ModelOutputLayout, ParentGatherPlan, ProbabilisticCausalModel,
-    StructuralCausalModel,
+    StructuralCausalModel, standard_normal_log_density,
 };
 pub use cyclic_component::{
     CYCLE_GATE_NEXT_ATTEMPT, ComponentDependency, ComponentOrder, CycleGateError, CyclicComponent,
@@ -64,13 +64,14 @@ pub use cyclic_component::{
     check_component_composition, check_provenance_chain,
 };
 pub use do_sampler::{
-    DoSampleResult, KdeDoSampler, McmcDoSampler, WeightingDoSampler, interventional_mean,
+    DEFAULT_ROOT_MATCH_TOLERANCE, DoSampleResult, KdeDoSampler, McmcDoSampler, WeightingDoSampler,
+    interventional_mean,
 };
 pub use error::ModelError;
 pub use evaluate::{ModelEvaluationReport, ModelEvaluator};
 pub use falsify::{
     DEFAULT_MAX_CI_TESTS, GraphFalsificationConfig, GraphFalsificationOutcome,
-    GraphFalsificationReport, GraphUninformativeReason, MAX_GRAPH_PERMUTATIONS,
+    GraphFalsificationReport, GraphUninformativeReason, MAX_ENUMERATED_RELABELLINGS,
     MarkovImplicationTest, falsify_graph,
 };
 pub use lgssm::{kalman_filter, rts_smooth};
@@ -101,8 +102,9 @@ pub use registry::{
     ValidationSplits,
 };
 pub use sample::{
-    ConditionEvidence, PredictiveDraws, refuse_cross_family_soft,
-    sample_conditional_interventional, sample_interventional, sample_observational,
+    ConditionEvidence, ConditionalSampleMethod, ConditionalSampleReport, EssShortfall,
+    PredictiveDraws, refuse_cross_family_soft, sample_conditional_interventional,
+    sample_conditional_interventional_reported, sample_interventional, sample_observational,
     sample_observational_into, sample_posterior_predictive, sample_stochastic, sample_with_overlay,
     sample_with_overlay_into, soft_to_slot,
 };

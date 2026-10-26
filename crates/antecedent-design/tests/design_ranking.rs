@@ -29,7 +29,14 @@ use antecedent_design::{
     AffineUtility, CandidateDesign, DecisionPrior, DecisionProblem, DesignCost, DesignRankConfig,
     SamplingPlan, StudyCost,
 };
-use antecedent_test_support::near_le_1e12 as near;
+use antecedent_test_support::within;
+
+const NEAR_TOLERANCE: f64 = 1e-12;
+
+fn near(a: f64, b: f64) -> bool {
+    within(a, b, NEAR_TOLERANCE)
+}
+
 
 mod common;
 

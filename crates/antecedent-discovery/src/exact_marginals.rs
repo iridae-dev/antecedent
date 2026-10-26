@@ -6,7 +6,7 @@
 //! factors over the DAGs, `P(G) ∝ Π_v f_v(Pa_v(G))`, and for such a product the sum over all
 //! DAGs, and the sum over the DAGs that contain a given edge, are computed without enumerating
 //! them. The result is the exact `P(i → j)` of every ordered pair, the quantity the samplers
-//! estimate, for up to [`EXACT_MARGINAL_MAX_NODES`] variables.
+//! estimate, for as many variables as fit the work budget ([`EXACT_MARGINAL_MAX_NODES`]).
 //!
 //! # The recursion
 //!
@@ -46,9 +46,19 @@ use crate::error::DiscoveryError;
 use crate::graph_posterior::{GraphPrior, GraphPriorTable};
 use crate::graph_score::{ChainTarget, ScoredTarget, tabular_score_data};
 
-/// Most variables the exact marginals are computed for: `3^12` subset pairs per pass and
-/// `12 * 11 + 1` passes.
-pub const EXACT_MARGINAL_MAX_NODES: usize = 12;
+/// Work, in subset-pair visits, one exact-marginal computation may cost: `3^n` pairs per pass,
+/// `n` factors per pair, and `n (n - 1) + 1` passes.
+const EXACT_MARGINAL_WORK_BUDGET: u128 = 1 << 36;
+
+/// The subset-pair visits an exact-marginal run on `n` variables costs.
+const fn exact_marginal_work(n: usize) -> u128 {
+    3u128.pow(n as u32) * n as u128 * (n * n.saturating_sub(1) + 1) as u128
+}
+
+/// Most variables the exact marginals are computed for: the largest `n` whose work
+/// ([`exact_marginal_work`]) fits the budget, `3^15 * 15 * 211` visits at fifteen. The parent
+/// sets of a node are packed into sixteen bits, which would stop the recursion at sixteen.
+pub const EXACT_MARGINAL_MAX_NODES: usize = 15;
 
 /// The exact edge marginals of a DAG posterior.
 #[derive(Clone, Debug, PartialEq)]
@@ -88,10 +98,12 @@ pub fn exact_dag_marginals(
             "exact DAG marginals require at least one variable",
         ));
     }
-    if n > EXACT_MARGINAL_MAX_NODES {
+    if n > crate::adjacency_mask::MAX_POSTERIOR_NODES
+        || exact_marginal_work(n) > EXACT_MARGINAL_WORK_BUDGET
+    {
         return Err(DiscoveryError::unsupported(
-            "exact DAG marginals require at most 12 variables (EXACT_MARGINAL_MAX_NODES); use \
-             order_mcmc or structure_mcmc",
+            "exact DAG marginals exceed their work budget beyond 15 variables \
+             (EXACT_MARGINAL_MAX_NODES); use order_mcmc or structure_mcmc",
         ));
     }
     if !matches!(score_family, GraphScoreFamily::GaussianBic) {
@@ -276,6 +288,12 @@ mod tests {
     const NEG: f64 = f64::NEG_INFINITY;
 
     /// Two nodes: the DAGs are the empty graph and the two single edges.
+    #[test]
+    fn the_advertised_size_is_the_largest_within_the_work_budget() {
+        assert!(exact_marginal_work(EXACT_MARGINAL_MAX_NODES) <= EXACT_MARGINAL_WORK_BUDGET);
+        assert!(exact_marginal_work(EXACT_MARGINAL_MAX_NODES + 1) > EXACT_MARGINAL_WORK_BUDGET);
+    }
+
     #[test]
     fn two_nodes_have_the_three_dags_of_the_closed_form() {
         // Parent sets are node bitsets: node 0 has {} (0) and {1} (2); node 1 has {} (0) and

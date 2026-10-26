@@ -5,6 +5,23 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+/// Replicates whose stream is the historical `base + r`. Bases of the refuters above are
+/// `0x1000` apart at the closest, so those offsets cannot alias a neighbouring refuter.
+const ADDITIVE_REPLICATES: u32 = 0x1000;
+
+/// Stream of replicate `r` of a refuter whose streams start at `base`.
+///
+/// Replicates below `0x1000` keep the historical `base + r` stream. Larger indices would run
+/// into the next refuter's base, so they use a derived, hash-separated stream instead; any
+/// replicate count is therefore accepted without two refuters sharing a draw.
+pub(crate) const fn replicate_stream(base: u64, r: u32) -> u64 {
+    if r < ADDITIVE_REPLICATES {
+        base.wrapping_add(r as u64)
+    } else {
+        antecedent_core::derive_stream(base, r as u64)
+    }
+}
+
 /// Placebo refit replicates.
 pub(crate) const PLACEBO_REFIT: u64 = 0xA7E0_0001_0000;
 /// Placebo treatment shuffle within a replicate.

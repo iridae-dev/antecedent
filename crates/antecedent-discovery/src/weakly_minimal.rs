@@ -61,7 +61,7 @@ pub fn make_sepset_weakly_minimal(
         return Ok(z.to_vec());
     }
 
-    best_sepsets.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    best_sepsets.sort_by(|a, b| b.0.total_cmp(&a.0));
     let top = best_sepsets[0].0;
     if let Some((_, cand)) = best_sepsets.iter().find(|(s, _)| (*s - top).abs() <= 1e-12) {
         return make_sepset_weakly_minimal(engine, frame, link, cand, ancs, workspace, ctx);

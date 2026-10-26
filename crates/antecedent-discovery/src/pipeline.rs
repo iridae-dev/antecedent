@@ -99,6 +99,53 @@ pub(crate) fn push_diagnostic(
         .push(DiscoveryDiagnostic { code: Arc::from(code), message: Arc::from(message.into()) });
 }
 
+/// The static structure-learning algorithms whose identity is recorded in results.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum StaticAlgorithm {
+    Pc,
+    Fci,
+    Rfci,
+    Ges,
+    DirectLingam,
+    Notears,
+}
+
+impl StaticAlgorithm {
+    /// The id the algorithm carries in algorithm records, assumptions and evidence sources.
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Pc => "pc",
+            Self::Fci => "fci",
+            Self::Rfci => "rfci",
+            Self::Ges => "ges",
+            Self::DirectLingam => "direct_lingam",
+            Self::Notears => "notears",
+        }
+    }
+}
+
+/// Multiple-testing control of the static algorithms: Benjamini–Hochberg over every tested
+/// undirected edge when `enabled`, none otherwise.
+pub(crate) fn static_fdr(enabled: bool) -> Option<antecedent_stats::FdrAdjustment> {
+    enabled.then(static_bh_fdr)
+}
+
+/// Benjamini–Hochberg over all static edges, the default of the static algorithms.
+pub(crate) fn static_bh_fdr() -> antecedent_stats::FdrAdjustment {
+    antecedent_stats::FdrAdjustment::bh().with_exclude_contemporaneous(false)
+}
+
+/// A count as the `u64` of a result record.
+///
+/// # Errors
+///
+/// [`DiscoveryError::Resource`] when the count does not fit, rather than a saturated value
+/// that would read as a real one.
+pub(crate) fn count_u64(count: usize) -> Result<u64, DiscoveryError> {
+    u64::try_from(count)
+        .map_err(|_| DiscoveryError::Resource(format!("count {count} does not fit in u64")))
+}
+
 /// Copy performance counters and set retained-link count.
 #[must_use]
 pub(crate) fn with_links_retained(

@@ -16,11 +16,19 @@
 //! this quantity; drawing fresh noise per world would answer a different question
 //! (an interventional, not a counterfactual, one).
 //!
+//! This module is the fixed two-slice, two-world route with its stable receipt layout; the
+//! [`general`] module runs the same abduction-action-prediction argument for any horizon and any
+//! number of named action histories.
+//!
 //! The mechanism class is chosen as linear-Gaussian additive noise (closed-form
 //! abduction) rather than the static finite-SCM engine, because the engine's
 //! structural-equation compiler has no lagged slice. Abduction, action and
 //! prediction happen in one function; there is no entry point that abduces
 //! separately from predicting.
+//!
+//! This module is the fixed two-slice, two-world route with its stable receipt layout; the
+//! [`general`] module runs the same abduction-action-prediction argument for any horizon and any
+//! number of named action histories.
 //!
 //! The Gaussian assumption is never used numerically (additive noise makes
 //! abduction an exact residual); an optional per-node `noise_halfwidth` declares a
@@ -28,6 +36,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+pub mod general;
 pub mod staged;
 
 use std::collections::BTreeSet;
@@ -38,9 +47,11 @@ use thiserror::Error;
 
 /// Maximum number of units.
 pub const MAX_UNITS: usize = 100_000;
-/// Maximum number of worlds (the two named action histories).
+/// Number of worlds of the fixed two-slice route (the two named action histories). Any other
+/// world count goes through [`general::evaluate_general_temporal_counterfactual`].
 pub const MAX_WORLDS: usize = 2;
-/// Maximum (and only supported) horizon, in slices.
+/// Horizon, in slices, of the fixed two-slice route. Any other horizon goes through
+/// [`general::evaluate_general_temporal_counterfactual`].
 pub const MAX_HORIZON: usize = 2;
 /// Mechanism class of this route.
 pub const MECHANISM_CLASS: &str = "linear_gaussian_additive_noise";

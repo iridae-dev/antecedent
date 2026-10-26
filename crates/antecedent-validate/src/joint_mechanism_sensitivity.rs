@@ -44,25 +44,35 @@ use crate::mechanism_sensitivity::{
     z_surrogate_kernels_metered,
 };
 
-/// Hard cap on declared factors: the two factors of the surrogate formula (a
-/// third declaration is always a duplicate or an out-of-scope factor, so it
-/// refuses by count).
-pub const JOINT_SENSITIVITY_MAX_FACTORS: usize = 2;
-/// Hard cap on shared-parent levels.
-pub const JOINT_SENSITIVITY_MAX_PARENT_LEVELS: usize = 64;
-/// Hard cap on outcome categories.
-pub const JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES: usize = 32;
-/// Hard cap on frontier grid points.
-pub const JOINT_SENSITIVITY_MAX_FRONTIER_POINTS: usize = 33;
+/// Sanity bound on shared-parent levels; the scan is charged to the shared operation and
+/// memory budgets, which are the working limits.
+pub const JOINT_SENSITIVITY_MAX_PARENT_LEVELS: usize = 4096;
+/// Sanity bound on outcome categories; the scan is charged to the shared operation and
+/// memory budgets, which are the working limits.
+pub const JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES: usize = 1024;
+/// Hard cap on frontier grid points (a resolution choice, each point one bisection).
+pub const JOINT_SENSITIVITY_MAX_FRONTIER_POINTS: usize = 257;
 /// Hard cap on the operation limit of the shared budget.
 pub const JOINT_SENSITIVITY_MAX_OPERATIONS: usize = 100_000;
-/// Hard cap on the depth limit (bisection iterations per bracket).
+/// Number of source factors of the registered formula `psi = sum_w P_W(w) [m(w, 1) - m(w, 0)]`
+/// (the outcome kernel and the shared parent marginal). This is the formula's arity, not a
+/// work limit: every declaration beyond it is a duplicate of one of the two factors or a factor
+/// the formula does not contain, so the count is refused before the kind is examined. A formula
+/// with another factor set is a different registered formula with its own range.
+pub const JOINT_SENSITIVITY_MAX_FACTORS: usize = 2;
+/// Cap on the depth limit (bisection iterations per bracket). Every bracket lies inside the
+/// unit interval of contamination fractions, so 64 halvings reach the spacing of `f64`
+/// (53 significant bits): a deeper bisection cannot narrow a bracket further and the cap is a
+/// numerical fact of the representation, not a work limit.
 pub const JOINT_SENSITIVITY_MAX_DEPTH: usize = 64;
 /// Default memory cap of the shared budget.
 pub(crate) const JOINT_SENSITIVITY_DEFAULT_MEMORY_BYTES: u64 = 64 * 1024 * 1024;
 /// Hard ceiling on a declared memory cap (the shared search default).
 pub const JOINT_SENSITIVITY_MAX_MEMORY_BYTES: u64 = antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES;
-/// Hard cap on replicates of the (closed) endpoint bootstrap.
+/// Hard cap on replicates of the (closed) endpoint bootstrap. This is the upper end of the
+/// replicate range the recorded coverage measurements of the route cover (record
+/// `sensitivity.joint_uncertainty`, bound `max_bootstrap_internal`), so it moves only with a new
+/// measurement, not with a work budget.
 pub const JOINT_SENSITIVITY_MAX_BOOTSTRAP: u32 = 2000;
 /// Smallest admitted bracketing tolerance.
 pub const JOINT_SENSITIVITY_MIN_TOLERANCE: f64 = crate::tipping::MIN_TOLERANCE;
@@ -599,7 +609,7 @@ fn validate_spec(spec: &JointDeviationSpec) -> Result<JointBox, JointSensitivity
             reason_code!("route_not_supported"),
             "joint_sensitivity.bounds_exceeded",
             format!(
-                "frontier grid {} (1-33), operations {} (<= 100000), depth {} (<= 64) or memory cap {} (<= 512 MiB) is outside the declared bounds",
+                "frontier grid {} (1-{JOINT_SENSITIVITY_MAX_FRONTIER_POINTS}), operations {} (<= 100000), depth {} (<= 64) or memory cap {} (<= 512 MiB) is outside the declared bounds",
                 spec.frontier_points,
                 spec.limits.operations,
                 spec.limits.depth,
@@ -619,7 +629,9 @@ fn check_shape(levels: usize, categories: usize) -> Result<(), JointSensitivityE
         return Err(refuse(
             reason_code!("route_not_supported"),
             "joint_sensitivity.bounds_exceeded",
-            format!("{levels} parent levels (<= 64) or {categories} outcome categories (<= 32)"),
+            format!(
+                "{levels} parent levels (<= {JOINT_SENSITIVITY_MAX_PARENT_LEVELS}) or {categories} outcome categories (<= {JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES})"
+            ),
         ));
     }
     Ok(())

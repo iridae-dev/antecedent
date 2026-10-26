@@ -9,10 +9,14 @@
 //! Reuse is never a license: the matrix, the closed readings and the joint-law
 //! rule are applied to every request before any work, reused or not.
 //!
-//! The row is exact enumeration: nothing is sampled, so `shared_draws` is
-//! always zero and no interval or posterior is produced (those readings are
-//! closed; see `docs/cross-world-execution.md` for the recorded calibration
-//! design that would be required to open a sampled route).
+//! The row is exact: nothing is sampled, so `shared_draws` is always zero and no
+//! interval or posterior is produced (those readings are closed; see
+//! `docs/cross-world-execution.md` for the recorded calibration design that
+//! would be required to open a sampled route). Up to the joint-state bound the
+//! exogenous posterior is enumerated and retained; past it the same quantity is
+//! computed by exact variable elimination ([`super::factorized`]), which retains
+//! nothing (its work depends on the worlds and the quantity) and records its plan
+//! in [`FiniteExecutionResult::elimination`].
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -25,9 +29,11 @@ use antecedent_contract::{
 };
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 
+use super::factorized::{EliminationWork, infer_unit};
 use super::finite_scm::{
-    FactualUnit, FiniteQuantity, FiniteScm, FiniteWorld, MAX_ABDUCTION_WORK, Posterior, WorldPlan,
-    abduct_unit, evaluate_worlds, validate_units, validate_worlds,
+    CompensatedSum, CompiledScm, FactualUnit, FiniteQuantity, FiniteScm, FiniteWorld, MAX_ABDUCTION_WORK,
+    MAX_EVALUATION_WORK, Posterior, WorldPlan, abduct_unit, evaluate_worlds, validate_units,
+    validate_worlds,
 };
 use super::matrix::{
     CapabilityStatus, ConditioningKind, EvidenceKind, HistoryKind, InterventionKind, MatrixRefusal,
@@ -77,6 +83,44 @@ pub enum ExogenousInference {
     ExactEnumeration,
     /// Posterior sampling: closed, no coverage record exists.
     PosteriorSampling,
+}
+
+/// How an execution obtained the exogenous posterior it evaluated the worlds under.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ExogenousMethod {
+    /// Every joint exogenous state was enumerated; the posterior is retained per unit.
+    JointEnumeration,
+    /// The joint space exceeded the enumeration bound: the quantity was computed exactly by
+    /// variable elimination over the factor graph, and nothing is retained.
+    VariableElimination,
+}
+
+impl ExogenousMethod {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::JointEnumeration => "joint_enumeration",
+            Self::VariableElimination => "variable_elimination",
+        }
+    }
+}
+
+/// The plan and work of an exact variable-elimination execution, over all its units.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EliminationReceipt {
+    /// Units eliminated.
+    pub units: u64,
+    /// Most variables of one unit's factor graph.
+    pub max_nodes: u64,
+    /// Most factors one unit's graph started with.
+    pub max_factors: u64,
+    /// Entries of the largest table formed.
+    pub peak_table_entries: u64,
+    /// Multiply-accumulate operations over all units.
+    pub multiplications: u64,
+    /// Digest over every unit's elimination order.
+    pub plan_digest: String,
 }
 
 /// A cross-world request over a fully declared finite SCM.
@@ -168,6 +212,10 @@ pub struct FiniteExecutionResult {
     pub receipt: ExecutionReceipt,
     /// The inference label (`point_only`).
     pub label: &'static str,
+    /// How the exogenous posterior was obtained.
+    pub method: ExogenousMethod,
+    /// The elimination plan and work, when [`Self::method`] is variable elimination.
+    pub elimination: Option<EliminationReceipt>,
 }
 
 /// A selective executor over the fully declared finite SCM rows.
@@ -181,11 +229,20 @@ fn digest(tag: &str) -> CanonicalWriter {
     CanonicalWriter::new(&format!("antecedent.counterfactual.selective.{tag}.v1"))
 }
 
-fn abduction_identity(mechanism: &str, evidence: &str, shared_exogenous: bool) -> String {
+fn abduction_identity(
+    mechanism: &str,
+    evidence: &str,
+    shared_exogenous: bool,
+    method: ExogenousMethod,
+) -> String {
     let structure =
         if shared_exogenous { "shared_exogenous_joint" } else { "independent_exogenous_markov" };
+    let inference = match method {
+        ExogenousMethod::JointEnumeration => "exact_enumeration",
+        ExogenousMethod::VariableElimination => "exact_variable_elimination",
+    };
     let mut w = digest("abduction");
-    w.text(mechanism).text(evidence).text("exact_enumeration").text(structure);
+    w.text(mechanism).text(evidence).text(inference).text(structure);
     w.finish_hex()
 }
 
@@ -371,12 +428,27 @@ impl FiniteScmExecutor {
     ) -> Result<FiniteExecutionResult, CrossWorldExecutionError> {
         poll(ctx)?;
         Self::static_checks(request)?;
-        let compiled = request.scm.compile()?;
+        let compiled = request.scm.compile_layout()?;
         let units = validate_units(&request.scm, &request.units)?;
         validate_worlds(&request.scm, &request.worlds)?;
         request.quantity.validate(&request.scm, request.worlds.len())?;
-        if units.len().saturating_mul(compiled.joint_states) > MAX_ABDUCTION_WORK {
-            return Err(invalid("cross_world_execution.bounds_exceeded", "abduction_work"));
+        let method = if compiled.enumerable() {
+            ExogenousMethod::JointEnumeration
+        } else {
+            ExogenousMethod::VariableElimination
+        };
+        if method == ExogenousMethod::JointEnumeration {
+            if units.len().saturating_mul(compiled.joint_states) > MAX_ABDUCTION_WORK {
+                return Err(invalid("cross_world_execution.bounds_exceeded", "abduction_work"));
+            }
+            if compiled
+                .joint_states
+                .saturating_mul(request.scm.variables.len())
+                .saturating_mul(request.worlds.len())
+                > MAX_EVALUATION_WORK
+            {
+                return Err(invalid("cross_world_execution.bounds_exceeded", "evaluation_work"));
+            }
         }
         let involved = request.quantity.involved_worlds(&request.worlds);
         let conditioning = if units.iter().all(|u| u.observed.is_empty()) {
@@ -405,7 +477,10 @@ impl FiniteScmExecutor {
             .iter()
             .map(|u| {
                 let evidence = u.digest();
-                (abduction_identity(&mechanism, &evidence, compiled.shared_exogenous), evidence)
+                (
+                    abduction_identity(&mechanism, &evidence, compiled.shared_exogenous, method),
+                    evidence,
+                )
             })
             .collect();
         let mut set = digest("abduction_set");
@@ -419,6 +494,17 @@ impl FiniteScmExecutor {
         }
         let evidence_ids = evidence_set.finish_hex();
         Self::check_pairing(request, row, &involved, &evidence_ids, &abduction_set)?;
+        if method == ExogenousMethod::VariableElimination {
+            return self.execute_eliminated(
+                request,
+                &compiled,
+                &units,
+                row,
+                (&mechanism, &abduction_set),
+                &identities,
+                ctx,
+            );
+        }
 
         // Abduction (stage 2) and exogenous draws (stage 3): reuse by identity.
         let before = self.counters;
@@ -461,18 +547,19 @@ impl FiniteScmExecutor {
         let n_vars = request.scm.variables.len();
         let mut values = vec![vec![0u8; n_vars]; request.worlds.len()];
         let mut answers = Vec::with_capacity(units.len());
-        let mut total = 0.0;
+        let mut total = CompensatedSum::default();
         for (unit, retained) in units.iter().zip(&resolved) {
             poll(ctx)?;
-            let mut value = 0.0;
+            let mut expectation = CompensatedSum::default();
             for (state, weight) in &retained.posterior.states {
                 evaluate_worlds(&compiled, &plans, *state as usize, &mut values);
-                value += weight * request.quantity.at_state(&values);
+                expectation.add(weight * request.quantity.at_state(&values));
             }
+            let value = expectation.total();
             counters.world_predictions += request.worlds.len() as u64;
             counters.posterior_states_predicted +=
                 (retained.posterior.states.len() * request.worlds.len()) as u64;
-            total += value;
+            total.add(value);
             answers.push(UnitAnswer {
                 unit: unit.unit.clone(),
                 value,
@@ -480,7 +567,7 @@ impl FiniteScmExecutor {
             });
         }
         counters.summaries += 1;
-        let mean = total / answers.len() as f64;
+        let mean = total.total() / answers.len() as f64;
 
         let (receipt, stages) =
             Self::receipts(request, &mechanism, &resolved, computed, &abduction_set);
@@ -502,6 +589,106 @@ impl FiniteScmExecutor {
             work: counters.since(before),
             receipt,
             label: INFERENCE_LABEL,
+            method,
+            elimination: None,
+        })
+    }
+
+    /// The execution past the enumeration bound: per unit, exact variable elimination of the
+    /// factor graph of the exogenous terms and the per-world variables.
+    ///
+    /// The elimination depends on the worlds and the quantity as well as the evidence, so no
+    /// abduction is retained and none is reused; every stage reports `Computed`.
+    #[allow(clippy::too_many_arguments, reason = "the identities one execution has already derived")]
+    fn execute_eliminated(
+        &mut self,
+        request: &FiniteExecutionRequest,
+        compiled: &CompiledScm<'_>,
+        units: &[FactualUnit],
+        row: &MatrixRow,
+        (mechanism, abduction_set): (&str, &str),
+        identities: &[(String, String)],
+        ctx: &ExecutionContext,
+    ) -> Result<FiniteExecutionResult, CrossWorldExecutionError> {
+        let before = self.counters;
+        let mut counters = self.counters;
+        // The factual world is one more world, with no interventions and no routes.
+        let mut extended = request.worlds.clone();
+        extended.push(FiniteWorld {
+            name: "factual".to_owned(),
+            interventions: Vec::new(),
+            routes: Vec::new(),
+        });
+        let plans: Vec<WorldPlan> =
+            (0..extended.len()).map(|w| WorldPlan::new(&request.scm, &extended, w)).collect();
+        let mut work = EliminationWork::default();
+        let mut resolved: Vec<Arc<RetainedAbduction>> = Vec::with_capacity(units.len());
+        let mut answers = Vec::with_capacity(units.len());
+        let mut total = CompensatedSum::default();
+        let mut plan_digests = digest("elimination_plans");
+        let mut elimination = EliminationReceipt {
+            units: 0,
+            max_nodes: 0,
+            max_factors: 0,
+            peak_table_entries: 0,
+            multiplications: 0,
+            plan_digest: String::new(),
+        };
+        for (unit, (identity, evidence)) in units.iter().zip(identities) {
+            poll(ctx)?;
+            let inferred = infer_unit(compiled, &plans, &request.quantity, unit, &mut work, ctx)?;
+            counters.abductions += 1;
+            counters.world_predictions += request.worlds.len() as u64;
+            elimination.units += 1;
+            elimination.max_nodes = elimination.max_nodes.max(inferred.nodes);
+            elimination.max_factors = elimination.max_factors.max(inferred.factors);
+            elimination.peak_table_entries =
+                elimination.peak_table_entries.max(inferred.peak_table_entries);
+            elimination.multiplications =
+                elimination.multiplications.saturating_add(inferred.multiplications);
+            plan_digests.text(&inferred.plan_digest);
+            let posterior = Posterior {
+                states: Vec::new(),
+                evidence_probability: inferred.evidence_probability,
+            };
+            let mut draws = digest("draws");
+            draws.text(identity).text(&unit.unit).text(&inferred.plan_digest);
+            draws.word(request.scm.exogenous.len() as u64);
+            for exo in &request.scm.exogenous {
+                draws.text(&stream_identity(&unit.unit, &exo.name, PURPOSE_POSTERIOR_STATE));
+            }
+            draws.real(inferred.evidence_probability);
+            resolved.push(Arc::new(RetainedAbduction {
+                identity: identity.clone(),
+                unit: unit.unit.clone(),
+                mechanism_digest: mechanism.to_owned(),
+                evidence_digest: evidence.clone(),
+                posterior,
+                draws_digest: draws.finish_hex(),
+            }));
+            total.add(inferred.value);
+            answers.push(UnitAnswer {
+                unit: unit.unit.clone(),
+                value: inferred.value,
+                evidence_probability: inferred.evidence_probability,
+            });
+        }
+        elimination.plan_digest = plan_digests.finish_hex();
+        counters.summaries += 1;
+        let mean = total.total() / answers.len() as f64;
+        let (receipt, stages) =
+            Self::receipts(request, mechanism, &resolved, units.len(), abduction_set);
+        self.counters = counters;
+        Ok(FiniteExecutionResult {
+            matrix_row: row.id,
+            value: mean,
+            units: answers,
+            stages,
+            work: counters.since(before),
+            receipt,
+            label: INFERENCE_LABEL,
+            method: ExogenousMethod::VariableElimination,
+            elimination: Some(elimination),
         })
     }
 

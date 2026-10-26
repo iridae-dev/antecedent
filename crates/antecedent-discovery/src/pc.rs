@@ -39,6 +39,9 @@ use crate::static_skeleton::{
     static_edge_evidence,
 };
 
+/// Identity of this algorithm in its records.
+const ALGORITHM: &str = crate::pipeline::StaticAlgorithm::Pc.as_str();
+
 /// Static PC discovery result (`Cpdag` evidence + review).
 pub type StaticCpdagDiscoveryResult = DiscoveryResult<Cpdag, CpdagReview>;
 
@@ -79,7 +82,7 @@ impl Pc {
                 ..DiscoveryConstraints::default()
             },
             ci: Arc::new(PartialCorrelation),
-            fdr: Some(FdrAdjustment::bh().with_exclude_contemporaneous(false)),
+            fdr: Some(crate::pipeline::static_bh_fdr()),
         }
     }
 
@@ -93,7 +96,7 @@ impl Pc {
     /// Enable / disable BH FDR (all static edges in family).
     #[must_use]
     pub fn with_fdr(mut self, fdr: bool) -> Self {
-        self.fdr = fdr.then(|| FdrAdjustment::bh().with_exclude_contemporaneous(false));
+        self.fdr = crate::pipeline::static_fdr(fdr);
         self
     }
 
@@ -116,10 +119,6 @@ impl Pc {
     /// # Errors
     ///
     /// Data, CI, or orientation failures.
-    #[allow(
-        clippy::too_many_lines,
-        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
-    )]
     pub fn run(
         &self,
         data: &TabularData,
@@ -154,8 +153,6 @@ impl Pc {
             ctx,
         );
 
-        let alpha = self.constraints.alpha;
-        let max_cond = self.constraints.max_cond_size;
         let skel = run_static_skeleton(
             &StaticSkeletonInput {
                 covariance: covariance.as_ref(),
@@ -169,29 +166,85 @@ impl Pc {
             workspace,
             ctx,
         )?;
+        let (family_p, family_edge) = skel.family_columns();
         let mut scored = skeleton_scored_links(&skel);
         let StaticSkeleton {
-            mut adj,
-            sepsets,
-            ci_tests,
-            iterations,
-            family_p,
-            family_edge,
-            parent_limit_removed,
-            ..
+            mut adj, sepsets, ci_tests, iterations, parent_limit_removed, ..
         } = skel;
 
-        // Multiplicity correction (when configured) covers the edges that were actually
-        // tested; constraint-required edges carry no test and pass through untouched.
-        let (tested, untested): (Vec<ScoredLink>, Vec<ScoredLink>) =
-            scored.drain(..).partition(|s| s.p_value.is_finite());
-        // The family is one hypothesis per tested edge (see `retain_after_family_fdr`).
-        let family_size = if family_p.len() == family_edge.len() && !family_edge.is_empty() {
-            family_edge.iter().collect::<HashSet<_>>().len()
-        } else {
-            tested.len()
+        let fdr_diagnostic =
+            self.correct_multiplicity(&mut scored, &mut adj, &family_p, &family_edge);
+        let (cpdag, conflicts) = self.orient(&adj, &sepsets, variables, &var_index)?;
+
+        let mut diagnostics: Vec<_> = fdr_diagnostic.into_iter().collect();
+        diagnostics.extend(crate::static_skeleton::parent_limit_diagnostic(
+            &parent_limit_removed,
+            ALGORITHM,
+        ));
+        if conflicts > 0 {
+            diagnostics.push(DiscoveryDiagnostic {
+                code: Arc::from("pc.orientation_conflict"),
+                message: Arc::from(format!("{conflicts} orientation conflict(s)")),
+            });
+        }
+
+        let edge_evidence = static_edge_evidence(&scored, &sepsets, ALGORITHM);
+        let evidence = GraphEvidence {
+            graph: cpdag.clone(),
+            edge_evidence: Arc::from(edge_evidence),
+            links: Arc::from(scored),
+            source: EvidenceSource::Discovery { algorithm: Arc::from(ALGORITHM) },
         };
-        let fdr_diagnostic = self.fdr.and_then(|_| {
+        let review = CpdagReview::from_cpdag(cpdag, ALGORITHM);
+
+        Ok(DiscoveryResult {
+            evidence,
+            review,
+            algorithm: crate::pipeline::algorithm_record(
+                ALGORITHM,
+                format!(
+                    "alpha={},max_cond={},fdr={}{}",
+                    self.constraints.alpha,
+                    self.constraints.max_cond_size,
+                    self.fdr.is_some(),
+                    self.constraints.knowledge_config()
+                ),
+            ),
+            assumptions: discovery_assumptions(ALGORITHM, true),
+            iterations,
+            diagnostics,
+            performance: DiscoveryPerformanceRecord {
+                ci_tests,
+                links_retained: crate::pipeline::count_u64(adj.len())?,
+                targets: crate::pipeline::count_u64(variables.len())?,
+                lagged_frame_bytes: 0,
+                worker_threads: 1,
+            },
+            sepsets,
+        })
+    }
+
+    /// Multiplicity correction (when configured) over the edges that were actually tested;
+    /// constraint-required edges carry no test and pass through untouched. With a correction
+    /// configured, edges that fail it leave `adj`. Returns the diagnostic for a family finer
+    /// than the CI test resolves, if any.
+    fn correct_multiplicity(
+        &self,
+        scored: &mut Vec<ScoredLink>,
+        adj: &mut UndirectedAdj,
+        family_p: &[f64],
+        family_edge: &[(u32, u32)],
+    ) -> Option<DiscoveryDiagnostic> {
+        let alpha = self.constraints.alpha;
+        let (tested, untested): (Vec<ScoredLink>, Vec<ScoredLink>) =
+            scored.drain(..).partition(ScoredLink::is_tested);
+        // The family is one hypothesis per tested edge (see `retain_after_family_fdr`).
+        let family_size = if family_edge.is_empty() {
+            tested.len()
+        } else {
+            family_edge.iter().collect::<HashSet<_>>().len()
+        };
+        let diagnostic = self.fdr.and_then(|_| {
             crate::ci::fdr_resolution_diagnostic(
                 &*self.ci,
                 self.constraints.significance,
@@ -199,28 +252,32 @@ impl Pc {
                 family_size,
             )
         });
-        scored = retain_after_family_fdr(tested, &family_p, &family_edge, self.fdr, alpha);
+        *scored = retain_after_family_fdr(tested, family_p, family_edge, self.fdr, alpha);
         scored.extend(untested);
-        let kept: HashSet<(u32, u32)> =
-            scored.iter().map(|s| edge_key(s.link.source, s.link.target)).collect();
-        // If FDR ran, drop edges that failed; if FDR off, keep skeleton as-is.
         if self.fdr.is_some() {
+            let kept: HashSet<(u32, u32)> =
+                scored.iter().map(|s| edge_key(s.link.source, s.link.target)).collect();
             adj.retain(|k| kept.contains(k));
         }
+        diagnostic
+    }
 
-        // Build undirected CPDAG skeleton.
-        let mut cpdag = Cpdag::with_variables(u32::try_from(variables.len()).unwrap_or(u32::MAX));
-        // Map VariableId → dense: assume variables are 0..n contiguous for with_variables,
-        // otherwise rebuild with explicit add_node order matching `variables`.
-        if variables.iter().enumerate().any(|(i, v)| v.raw() as usize != i) {
-            cpdag = Cpdag::empty();
-            for &v in variables {
-                cpdag
-                    .add_node(antecedent_graph::NodeRef::Static(v))
-                    .map_err(DiscoveryError::from)?;
-            }
+    /// The CPDAG of the skeleton `adj`: colliders from the separating sets, background
+    /// knowledge, then Meek's rules. Also the number of orientation conflicts met.
+    fn orient(
+        &self,
+        adj: &UndirectedAdj,
+        sepsets: &crate::result::PcSepsets,
+        variables: &[VariableId],
+        var_index: &HashMap<VariableId, usize>,
+    ) -> Result<(Cpdag, u32), DiscoveryError> {
+        // Nodes are added in `variables` order, so a variable's dense id is its index whatever
+        // its raw id is.
+        let mut cpdag = Cpdag::empty();
+        for &v in variables {
+            cpdag.add_node(antecedent_graph::NodeRef::Static(v)).map_err(DiscoveryError::from)?;
         }
-        let dense_of = |v: VariableId| crate::pipeline::dense_of(&var_index, v);
+        let dense_of = |v: VariableId| crate::pipeline::dense_of(var_index, v);
         for (lo, hi) in adj.edge_pairs() {
             let a = dense_of(VariableId::from_raw(lo))?;
             let b = dense_of(VariableId::from_raw(hi))?;
@@ -228,61 +285,13 @@ impl Pc {
         }
 
         let mut state = OrientationState::default();
-        load_sepsets_into_state(&sepsets, &dense_of, &mut state)?;
+        load_sepsets_into_state(sepsets, &dense_of, &mut state)?;
         orient_fixed_directions(&mut cpdag, &self.constraints, variables, &dense_of, &mut state)?;
 
         let rules: [&dyn OrientationRule<antecedent_graph::Cpdag>; 5] =
             [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
         let orient_delta = run_static_orientation_to_fixed_point(&mut cpdag, &rules, &mut state)?;
-
-        let mut diagnostics: Vec<_> = fdr_diagnostic.into_iter().collect();
-        diagnostics
-            .extend(crate::static_skeleton::parent_limit_diagnostic(&parent_limit_removed, "pc"));
-        if state.conflicts > 0 || orient_delta.conflicts > 0 {
-            diagnostics.push(DiscoveryDiagnostic {
-                code: Arc::from("pc.orientation_conflict"),
-                message: Arc::from(format!(
-                    "{} orientation conflict(s)",
-                    state.conflicts.max(orient_delta.conflicts)
-                )),
-            });
-        }
-
-        let edge_evidence = static_edge_evidence(&scored, &sepsets, "pc");
-
-        let evidence = GraphEvidence {
-            graph: cpdag.clone(),
-            edge_evidence: Arc::from(edge_evidence),
-            links: Arc::from(scored),
-            source: EvidenceSource::Discovery { algorithm: Arc::from("pc") },
-        };
-        let review = CpdagReview::from_cpdag(cpdag, "pc");
-
-        Ok(DiscoveryResult {
-            evidence,
-            review,
-            algorithm: crate::pipeline::algorithm_record(
-                "pc",
-                format!(
-                    "alpha={},max_cond={},fdr={}{}",
-                    alpha,
-                    max_cond,
-                    self.fdr.is_some(),
-                    self.constraints.knowledge_config()
-                ),
-            ),
-            assumptions: discovery_assumptions("pc", true),
-            iterations,
-            diagnostics,
-            performance: DiscoveryPerformanceRecord {
-                ci_tests,
-                links_retained: u64::try_from(adj.len()).unwrap_or(u64::MAX),
-                targets: u64::try_from(variables.len()).unwrap_or(u64::MAX),
-                lagged_frame_bytes: 0,
-                worker_threads: 1,
-            },
-            sepsets,
-        })
+        Ok((cpdag, state.conflicts.max(orient_delta.conflicts)))
     }
 }
 

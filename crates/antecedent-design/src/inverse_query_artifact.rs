@@ -81,6 +81,25 @@ pub const MAX_INVERSE_QUERY_CLAIMS: usize = 256;
 /// the byte cap.
 pub const MAX_INVERSE_QUERY_SOURCE_EVIDENCE: usize = 8;
 
+/// Counts a consumer accepts of a stored inverse-query artifact, refused before any claim or
+/// source artifact is replayed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InverseQueryReadLimits {
+    /// Most embedded forward claims.
+    pub max_claims: usize,
+    /// Most original source artifacts, each replayed in full.
+    pub max_source_evidence: usize,
+}
+
+impl Default for InverseQueryReadLimits {
+    fn default() -> Self {
+        Self {
+            max_claims: MAX_INVERSE_QUERY_CLAIMS,
+            max_source_evidence: MAX_INVERSE_QUERY_SOURCE_EVIDENCE,
+        }
+    }
+}
+
 const ARTIFACT_KIND: &str = "inverse_functional_query_v1";
 const META_SECTION: &str = "inverse_query.meta";
 const CONTRACT_SECTION: &str = "inverse_query.contract";
@@ -146,10 +165,11 @@ pub fn artifact_kind_remedy(kind: &str) -> &'static str {
 }
 
 fn refused(detail: &str, text: &str) -> IoError {
-    IoError::Refused {
-        code: antecedent_core::reason_code!("inverse_functional_unsupported"),
-        message: format!("{detail}: {text}"),
-    }
+    crate::plan_common::refused_with(
+        antecedent_core::reason_code!("inverse_functional_unsupported"),
+        detail,
+        text,
+    )
 }
 
 fn wrong_contract(text: &str) -> IoError {
@@ -1509,17 +1529,29 @@ impl InverseQueryArtifact {
         bytes: &[u8],
         expected: Option<&InverseQueryIdentity>,
     ) -> Result<Self, IoError> {
+        Self::from_bytes_with_limits(bytes, expected, InverseQueryReadLimits::default())
+    }
+
+    /// [`Self::from_bytes`] accepting the counts `limits` allows instead of the defaults.
+    ///
+    /// # Errors
+    /// Those of [`Self::from_bytes`].
+    pub fn from_bytes_with_limits(
+        bytes: &[u8],
+        expected: Option<&InverseQueryIdentity>,
+        limits: InverseQueryReadLimits,
+    ) -> Result<Self, IoError> {
         let (meta, contract_bytes, data) = decode_parts(bytes)?;
         if meta.feature != INVERSE_QUERY_ARTIFACT_FEATURE
             || meta.inference_claim != INVERSE_QUERY_INFERENCE_CLAIM
         {
             return Err(wrong_contract("feature marker or inference claim is not this format's"));
         }
-        if meta.claims.len() > MAX_INVERSE_QUERY_CLAIMS {
+        if meta.claims.len() > limits.max_claims {
             return Err(refused(BOUNDS, "too many embedded claims"));
         }
         // Counted before any nested artifact is replayed.
-        if meta.source_evidence.len() > MAX_INVERSE_QUERY_SOURCE_EVIDENCE {
+        if meta.source_evidence.len() > limits.max_source_evidence {
             return Err(refused(BOUNDS, "too many original source artifacts"));
         }
         let contract =

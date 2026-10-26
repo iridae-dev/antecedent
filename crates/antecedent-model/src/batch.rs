@@ -6,6 +6,68 @@ use std::sync::Arc;
 
 use crate::error::ModelError;
 
+/// Borrow column `node` of a column-major `n_rows x n_nodes` buffer, validating the
+/// declared shape against the buffer so a mismatched batch is a [`ModelError::Shape`]
+/// rather than a slice panic.
+fn checked_column<'a>(
+    values: &'a [f64],
+    n_rows: usize,
+    n_nodes: usize,
+    node: usize,
+    label: &str,
+) -> Result<&'a [f64], ModelError> {
+    if node >= n_nodes {
+        return Err(ModelError::Shape { message: format!("{label} column out of range") });
+    }
+    let range = column_range(values.len(), n_rows, node, label)?;
+    Ok(&values[range])
+}
+
+/// Mutable counterpart of [`checked_column`].
+fn checked_column_mut<'a>(
+    values: &'a mut [f64],
+    n_rows: usize,
+    n_nodes: usize,
+    node: usize,
+    label: &str,
+) -> Result<&'a mut [f64], ModelError> {
+    if node >= n_nodes {
+        return Err(ModelError::Shape { message: format!("{label} column out of range") });
+    }
+    let range = column_range(values.len(), n_rows, node, label)?;
+    Ok(&mut values[range])
+}
+
+fn column_range(
+    len: usize,
+    n_rows: usize,
+    node: usize,
+    label: &str,
+) -> Result<std::ops::Range<usize>, ModelError> {
+    let start = node.checked_mul(n_rows);
+    let end = start.and_then(|s| s.checked_add(n_rows));
+    match (start, end) {
+        (Some(start), Some(end)) if end <= len => Ok(start..end),
+        _ => Err(ModelError::Shape {
+            message: format!("{label} batch buffer is shorter than its declared shape"),
+        }),
+    }
+}
+
+/// Value at `(row, node)` of a checked column-major buffer.
+fn checked_get(
+    values: &[f64],
+    n_rows: usize,
+    n_nodes: usize,
+    row: usize,
+    node: usize,
+) -> Result<f64, ModelError> {
+    if row >= n_rows || node >= n_nodes {
+        return Err(ModelError::Shape { message: "value index out of range".into() });
+    }
+    Ok(checked_column(values, n_rows, n_nodes, node, "value")?[row])
+}
+
 /// Column-major batch of continuous values: `values[node * n_rows + row]`.
 #[derive(Clone, Debug, Default)]
 pub struct ValueBatch {
@@ -30,11 +92,7 @@ impl ValueBatch {
     ///
     /// Out of range.
     pub fn column(&self, node: usize) -> Result<&[f64], ModelError> {
-        if node >= self.n_nodes {
-            return Err(ModelError::Shape { message: "value column out of range".into() });
-        }
-        let start = node * self.n_rows;
-        Ok(&self.values[start..start + self.n_rows])
+        checked_column(&self.values, self.n_rows, self.n_nodes, node, "value")
     }
 
     /// Value at `(row, node)`.
@@ -43,10 +101,7 @@ impl ValueBatch {
     ///
     /// Out of range.
     pub fn get(&self, row: usize, node: usize) -> Result<f64, ModelError> {
-        if row >= self.n_rows || node >= self.n_nodes {
-            return Err(ModelError::Shape { message: "value index out of range".into() });
-        }
-        Ok(self.values[node * self.n_rows + row])
+        checked_get(&self.values, self.n_rows, self.n_nodes, row, node)
     }
 }
 
@@ -80,11 +135,7 @@ impl<'a> ValueBatchMut<'a> {
     ///
     /// Out of range.
     pub fn column_mut(&mut self, node: usize) -> Result<&mut [f64], ModelError> {
-        if node >= self.n_nodes {
-            return Err(ModelError::Shape { message: "value column out of range".into() });
-        }
-        let start = node * self.n_rows;
-        Ok(&mut self.values[start..start + self.n_rows])
+        checked_column_mut(self.values, self.n_rows, self.n_nodes, node, "value")
     }
 
     /// Set `(row, node)`.
@@ -96,7 +147,7 @@ impl<'a> ValueBatchMut<'a> {
         if row >= self.n_rows || node >= self.n_nodes {
             return Err(ModelError::Shape { message: "value index out of range".into() });
         }
-        self.values[node * self.n_rows + row] = v;
+        checked_column_mut(self.values, self.n_rows, self.n_nodes, node, "value")?[row] = v;
         Ok(())
     }
 
@@ -135,11 +186,7 @@ impl NoiseBatch {
     ///
     /// Out of range.
     pub fn column(&self, node: usize) -> Result<&[f64], ModelError> {
-        if node >= self.n_nodes {
-            return Err(ModelError::Shape { message: "noise column out of range".into() });
-        }
-        let start = node * self.n_rows;
-        Ok(&self.values[start..start + self.n_rows])
+        checked_column(&self.values, self.n_rows, self.n_nodes, node, "noise")
     }
 }
 
@@ -173,11 +220,7 @@ impl<'a> NoiseBatchMut<'a> {
     ///
     /// Out of range.
     pub fn column(&self, node: usize) -> Result<&[f64], ModelError> {
-        if node >= self.n_nodes {
-            return Err(ModelError::Shape { message: "noise column out of range".into() });
-        }
-        let start = node * self.n_rows;
-        Ok(&self.values[start..start + self.n_rows])
+        checked_column(&*self.values, self.n_rows, self.n_nodes, node, "noise")
     }
 
     /// Mutable column.
@@ -186,11 +229,7 @@ impl<'a> NoiseBatchMut<'a> {
     ///
     /// Out of range.
     pub fn column_mut(&mut self, node: usize) -> Result<&mut [f64], ModelError> {
-        if node >= self.n_nodes {
-            return Err(ModelError::Shape { message: "noise column out of range".into() });
-        }
-        let start = node * self.n_rows;
-        Ok(&mut self.values[start..start + self.n_rows])
+        checked_column_mut(self.values, self.n_rows, self.n_nodes, node, "noise")
     }
 
     /// Freeze.
@@ -231,8 +270,18 @@ impl<'a> ParentBatch<'a> {
         if p >= self.n_parents {
             return Err(ModelError::Shape { message: "parent column out of range".into() });
         }
-        let start = p * self.n_rows;
-        Ok(&self.values[start..start + self.n_rows])
+        let range = column_range(self.values.len(), self.n_rows, p, "parent")?;
+        Ok(&self.values[range])
+    }
+
+    /// Every parent column, validated once. Row loops index the returned slices instead of
+    /// re-validating and re-slicing through [`Self::column`] per element.
+    ///
+    /// # Errors
+    ///
+    /// The flat buffer is shorter than `n_parents * n_rows`.
+    pub fn columns(&self) -> Result<Vec<&'a [f64]>, ModelError> {
+        (0..self.n_parents).map(|p| self.column(p)).collect()
     }
 }
 
@@ -263,5 +312,23 @@ impl MechanismWorkspace {
             self.grow_count = self.grow_count.saturating_add(1);
         }
         self.scratch.resize(n_rows, 0.0);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_batch_whose_buffer_is_shorter_than_its_shape_reports_a_shape_error() {
+        let batch = ValueBatch { n_rows: 3, n_nodes: 2, values: Arc::from(vec![0.0; 4]) };
+        assert!(batch.column(0).is_ok());
+        assert!(matches!(batch.column(1), Err(ModelError::Shape { .. })));
+        assert!(matches!(batch.get(2, 1), Err(ModelError::Shape { .. })));
+        let mut buffer = vec![0.0; 4];
+        let mut mutable =
+            ValueBatchMut { n_rows: 3, n_nodes: 2, values: &mut buffer };
+        assert!(matches!(mutable.column_mut(1), Err(ModelError::Shape { .. })));
+        assert!(matches!(mutable.set(2, 1, 1.0), Err(ModelError::Shape { .. })));
     }
 }

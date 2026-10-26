@@ -1312,7 +1312,7 @@ mod tests {
         let (data, estimand) = toy();
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let est = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = EstimationWorkspace::default();
         let ctx = ExecutionContext::for_tests(2);
@@ -1515,7 +1515,10 @@ mod tests {
         assert_eq!(stored.replicates, fresh.replicates);
         assert_eq!(stored.alpha.to_bits(), fresh.alpha.to_bits());
         assert_eq!(stored.mode, fresh.mode);
-        assert_eq!(stored.estimator.bootstrap_replicates, fresh.estimator.bootstrap_replicates);
+        assert_eq!(
+            stored.estimator.inference.bootstrap_replicates,
+            fresh.estimator.inference.bootstrap_replicates
+        );
 
         let custom = PlaceboTreatment { replicates: 7, ..PlaceboTreatment::new() };
         let kept = ValidationSuite::new()

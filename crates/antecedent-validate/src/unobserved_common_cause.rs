@@ -134,7 +134,7 @@ impl UnobservedCommonCause {
                 fill_gaussian(
                     u,
                     ctx,
-                    crate::streams::UNOBSERVED_COMMON_CAUSE.wrapping_add(u64::from(r)),
+                    crate::streams::replicate_stream(crate::streams::UNOBSERVED_COMMON_CAUSE, r),
                 );
                 let t: Vec<f64> = t0.iter().zip(&*u).map(|(&t, &u)| t + kt * u).collect();
                 let y: Vec<f64> = y0.iter().zip(&*u).map(|(&y, &u)| y + ky * u).collect();

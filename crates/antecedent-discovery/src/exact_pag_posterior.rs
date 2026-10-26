@@ -14,7 +14,8 @@
 //! The weights are `exp(BIC)` under a uniform prior over MAGs, the BIC approximation to the
 //! marginal likelihood, so the posterior inherits that approximation. Selection variables are
 //! not modelled (no undirected edges). Above four variables the candidate space is no longer
-//! enumerated; a sampler over MAGs is the next attempt.
+//! enumerated, and [`exact_pag_posterior`] hands the problem to the sampler over MAGs,
+//! [`pag_posterior_mcmc`], with its default schedule.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -483,8 +484,9 @@ enum Mark {
 ///
 /// # Errors
 ///
-/// More than [`PAG_ENUM_MAX_NODES`] variables, fewer than two rows, a non-finite value, or no
-/// MAG with a finite score.
+/// Fewer than two rows, a non-finite value, or no MAG with a finite score; and, above
+/// [`PAG_ENUM_MAX_NODES`] variables, the refusals of [`pag_posterior_mcmc`], to which the
+/// problem is routed (the result is then a sampled posterior, tagged `pag_mcmc`).
 #[allow(
     clippy::too_many_lines,
     clippy::cast_precision_loss,
@@ -500,10 +502,8 @@ pub fn exact_pag_posterior(
         return Err(DiscoveryError::unsupported("a PAG posterior needs at least two variables"));
     }
     if p > PAG_ENUM_MAX_NODES {
-        return Err(DiscoveryError::unsupported(
-            "the exact PAG posterior enumerates the maximal ancestral graphs of at most four \
-             variables; use the PAG sampler for up to eight",
-        ));
+        // The graphs cannot be listed (4^(p(p-1)/2) candidates): sample them.
+        return pag_posterior_mcmc(data, variables, PagMcmcSchedule::default(), ctx);
     }
     let (s, n) = covariance_of(data, variables)?;
     let mags = enumerate_mags(p);
@@ -645,8 +645,13 @@ fn finish_posterior(
     .with_algorithm(algorithm))
 }
 
-/// Most variables the MAG sampler searches.
-pub const PAG_MCMC_MAX_NODES: usize = 8;
+/// Most variables the MAG sampler can represent: node sets are `u32` masks. The cost of a run
+/// is refused by a work budget ([`PAG_MCMC_WORK_BUDGET`]), well before this width.
+pub const PAG_MCMC_MAX_NODES: usize = 31;
+
+/// Most m-separation queries one sampler run may cost: moves times the `pairs * 2^p` queries
+/// that sign one graph.
+pub const PAG_MCMC_WORK_BUDGET: u128 = 1 << 36;
 /// Largest equivalence class completed by exploration before its marks are flagged as possibly
 /// over-claimed.
 const CLASS_COMPLETION_CAP: usize = 4000;
@@ -700,6 +705,21 @@ pub struct PagMcmcSchedule {
     pub thin: usize,
 }
 
+impl Default for PagMcmcSchedule {
+    fn default() -> Self {
+        Self { chains: 4, warmup: 1_000, draws: 4_000, thin: 1 }
+    }
+}
+
+impl PagMcmcSchedule {
+    /// The m-separation queries a run on `p` variables costs: every move signs one graph.
+    fn work(&self, p: usize) -> u128 {
+        let moves = (self.chains as u128) * ((self.warmup + self.draws) as u128);
+        let pairs = (p * p.saturating_sub(1) / 2) as u128;
+        moves.saturating_mul(pairs).saturating_mul(1u128 << p.min(40))
+    }
+}
+
 /// Maps a uniform draw on `[0, 1)` to an index below `bound`.
 #[allow(
     clippy::cast_possible_truncation,
@@ -729,8 +749,9 @@ fn uniform_index(draw: f64, bound: usize) -> usize {
 ///
 /// # Errors
 ///
-/// Fewer than two or more than [`PAG_MCMC_MAX_NODES`] variables, fewer than two chains, an
-/// empty schedule, missing or non-finite values, or no scorable graph.
+/// Fewer than two or more than [`PAG_MCMC_MAX_NODES`] variables, a schedule whose work exceeds
+/// [`PAG_MCMC_WORK_BUDGET`], fewer than two chains, an empty schedule, missing or non-finite
+/// values, or no scorable graph.
 #[allow(
     clippy::too_many_lines,
     clippy::cast_precision_loss,
@@ -745,13 +766,20 @@ pub fn pag_posterior_mcmc(
     let p = variables.len();
     if !(2..=PAG_MCMC_MAX_NODES).contains(&p) {
         return Err(DiscoveryError::unsupported(
-            "the PAG sampler searches between two and eight variables",
+            "the PAG sampler searches between two and 31 variables",
         ));
     }
     if schedule.chains < 2 || schedule.draws == 0 || schedule.thin == 0 {
         return Err(DiscoveryError::unsupported(
             "the PAG sampler needs at least two chains, one draw and a positive thinning",
         ));
+    }
+    if schedule.work(p) > PAG_MCMC_WORK_BUDGET {
+        return Err(DiscoveryError::Resource(format!(
+            "the PAG sampler would make about {} m-separation queries on {p} variables, over its \
+             budget of {PAG_MCMC_WORK_BUDGET}; shorten the schedule or reduce the variables",
+            schedule.work(p)
+        )));
     }
     let (s, n) = covariance_of(data, variables)?;
     let pairs = p * (p - 1) / 2;
@@ -1044,12 +1072,9 @@ mod tests {
     }
 
     #[test]
-    fn more_than_four_variables_are_refused() {
-        let cols: Vec<(&str, Vec<f64>)> = ["a", "b", "c", "d", "e"]
-            .iter()
-            .map(|n| (*n, (0..10).map(f64::from).collect()))
-            .collect();
-        let (data, ids) = table(&cols);
-        assert!(exact_pag_posterior(&data, &ids, &ExecutionContext::for_tests(1)).is_err());
+    fn the_sampler_work_budget_refuses_wide_problems_and_not_narrow_ones() {
+        let schedule = PagMcmcSchedule::default();
+        assert!(schedule.work(8) <= PAG_MCMC_WORK_BUDGET, "eight variables fit the default run");
+        assert!(schedule.work(20) > PAG_MCMC_WORK_BUDGET, "twenty variables do not");
     }
 }

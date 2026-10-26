@@ -39,7 +39,14 @@ use antecedent_io_core::quantity_wire::DistributionMeaningWire;
 use FeasibilityStatus::{
     Feasible, Infeasible, StructurallyAmbiguous, Unevaluated, Unidentified, Unsupported,
 };
-use antecedent_test_support::near_lt_1e9 as near;
+use antecedent_test_support::within;
+
+const NEAR_TOLERANCE: f64 = 1e-9;
+
+fn near(a: f64, b: f64) -> bool {
+    within(a, b, NEAR_TOLERANCE)
+}
+
 
 const REGIMES: [&str; 3] = ["do(a=0)", "do(a=1)", "do(a=2)"];
 const IDS: [&str; 3] = ["a0", "a1", "a2"];

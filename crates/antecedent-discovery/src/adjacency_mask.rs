@@ -97,6 +97,32 @@ impl AdjacencyMask {
         self
     }
 
+    /// Indexes of the set bits in ascending order.
+    pub(crate) fn set_bits(self) -> impl Iterator<Item = u32> {
+        self.0.into_iter().enumerate().flat_map(|(index, mut word)| {
+            std::iter::from_fn(move || {
+                if word == 0 {
+                    return None;
+                }
+                let bit = word.trailing_zeros();
+                word &= word - 1;
+                Some(crate::indexing::dense_u32(index) * 64 + bit)
+            })
+        })
+    }
+
+    /// The edges `(from, to)` of a mask on `n` nodes, in bit order (the inverse of
+    /// [`edge_bit`]).
+    pub(crate) fn edges(self, n: usize) -> impl Iterator<Item = (usize, usize)> {
+        let width = n.saturating_sub(1).max(1);
+        self.set_bits().filter_map(move |bit| {
+            let bit = bit as usize;
+            let (from, rest) = (bit / width, bit % width);
+            let to = if rest < from { rest } else { rest + 1 };
+            (from < n && to < n && n > 1).then_some((from, to))
+        })
+    }
+
     /// Whether the two sets share an edge.
     #[must_use]
     pub fn intersects(self, other: Self) -> bool {

@@ -803,7 +803,7 @@ use select::classify_node;
 use selection::resolve_candidates;
 
 #[cfg(feature = "gaussian-process")]
-pub use fit::GP_FAMILY_MAX_ROWS;
+pub use fit::{GP_EXACT_MAX_ROWS, GP_INDUCING_POINTS};
 
 #[cfg(test)]
 use cv::*;
@@ -1050,13 +1050,13 @@ mod tests {
         }
     }
 
-    /// Above [`GP_FAMILY_MAX_ROWS`] the GP family must refuse (recorded in
-    /// `failed_families`) instead of running the multi-minute O(n³) grid, and
-    /// selection must still pick another family.
+    /// Above [`GP_EXACT_MAX_ROWS`] the GP family is fit with inducing points instead of the
+    /// O(n³) exact grid and stays a scored candidate (the sparse fit keeps at most
+    /// [`GP_INDUCING_POINTS`] training rows in its slot).
     #[cfg(feature = "gaussian-process")]
     #[test]
-    fn gp_family_refuses_above_row_cap_and_selection_falls_back() {
-        let n = GP_FAMILY_MAX_ROWS + 1;
+    fn gp_family_uses_inducing_points_above_the_exact_row_limit() {
+        let n = GP_EXACT_MAX_ROWS + 1;
         let mut b = CausalSchemaBuilder::new();
         for name in ["x", "y"] {
             b.add_variable(
@@ -1091,14 +1091,12 @@ mod tests {
             .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
             .unwrap();
         let child = assigns.iter().find(|a| a.node == DenseNodeId::from_raw(1)).unwrap();
-        let gp_failure = child
-            .failed_families
-            .iter()
-            .find(|(f, _)| *f == MechanismFamily::GaussianProcess)
-            .expect("GP refusal must be recorded, not silently absent");
-        assert!(gp_failure.1.contains("limited to"), "message: {}", gp_failure.1);
-        assert_ne!(child.selected, MechanismFamily::GaussianProcess);
-        assert!(!child.candidates.iter().any(|c| c.family == MechanismFamily::GaussianProcess));
+        assert!(
+            !child.failed_families.iter().any(|(f, _)| *f == MechanismFamily::GaussianProcess),
+            "failed: {:?}",
+            child.failed_families
+        );
+        assert!(child.candidates.iter().any(|c| c.family == MechanismFamily::GaussianProcess));
     }
 
     #[test]

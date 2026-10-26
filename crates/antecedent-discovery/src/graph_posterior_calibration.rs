@@ -3,8 +3,9 @@
 //!
 //! Two kinds of claim, kept apart.
 //!
-//! *The samplers reproduce their target.* Under the published conditions (at most three parents,
-//! a sparse Bernoulli edge prior, four chains, the schedules below) the publication gate passes
+//! *The samplers reproduce their target.* Under the published conditions (a parent cap that is a
+//! design input, three by default and checked at two and four as well; a sparse Bernoulli edge
+//! prior, four chains, the schedules below) the publication gate passes
 //! on at least 80% of replicates, and on a published replicate every directed-edge and skeleton
 //! marginal agrees with [`crate::exact_dag_marginals`] (same data, score and prior) within a
 //! tolerance derived from the marginal's reported Monte-Carlo standard error. The
@@ -46,8 +47,11 @@ const N_SIM: u64 = 100;
 const N_BINS: usize = 10;
 /// Fraction of replicates the publication gate must pass.
 const MIN_PUBLISHED_FRACTION: f64 = 0.8;
-/// Published cap on the parents of any node.
+/// Default cap on the parents of any node; the designs take the cap as an input and the
+/// parent-cap designs below run others.
 const MAX_PARENTS: usize = 3;
+/// Other parent caps the standing designs are run at.
+const OTHER_MAX_PARENTS: [usize; 2] = [2, 4];
 /// Bernoulli edge-inclusion probability of the published prior. A posterior is calibrated for
 /// data drawn from its own prior, so the prior states the generator's sparsity: a node has one
 /// parent on average, which at ten to twelve variables is about 0.19 to 0.16 of the pairs
@@ -135,10 +139,10 @@ fn bin_edge_marginals(n: usize, edge: &[f64], truth: AdjacencyMask) -> BinCells 
     cells
 }
 
-/// The published prior of the designs.
-fn design_prior() -> GraphPrior {
+/// The prior of the designs, with at most `max_parents` parents per node.
+fn design_prior(max_parents: usize) -> GraphPrior {
     GraphPrior::bernoulli_edges(EDGE_INCLUSION).unwrap().with_constraints(DiscoveryConstraints {
-        max_parents: Some(MAX_PARENTS),
+        max_parents: Some(max_parents),
         ..Default::default()
     })
 }
@@ -194,10 +198,16 @@ fn marginal_error(reported: f64, exact: f64, effective_draws: Option<f64>) -> f6
 /// disagreement is visibly either withheld (correct) or published (a failure). All published
 /// disagreements are listed before the test fails.
 #[allow(clippy::too_many_lines, reason = "one replicate loop printing every comparison in order")]
-fn assert_marginals_match_the_exact_posterior(label: &str, n: usize, sampler: GatedSampler) {
+fn assert_marginals_match_the_exact_posterior(
+    label: &str,
+    n: usize,
+    max_parents: usize,
+    sampler: GatedSampler,
+) {
     let vars: Vec<VariableId> =
         (0..n).map(|i| VariableId::from_raw(u32::try_from(i).unwrap())).collect();
-    let prior = design_prior();
+    let prior = design_prior(max_parents);
+    let label = &format!("{label} max_parents={max_parents}");
     let names: Vec<String> = (0..n).map(|i| format!("v{i}")).collect();
     let name_refs: Vec<&str> = names.iter().map(String::as_str).collect();
     let mut truth_bins: Vec<BinCells> = Vec::new();
@@ -358,25 +368,61 @@ fn order_sampler_gated(
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn structure_mcmc_marginals_match_the_exact_posterior_at_ten_variables() {
-    assert_marginals_match_the_exact_posterior("structure_mcmc", 10, structure_sampler_gated);
+    assert_marginals_match_the_exact_posterior(
+        "structure_mcmc",
+        10,
+        MAX_PARENTS,
+        structure_sampler_gated,
+    );
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn structure_mcmc_marginals_match_the_exact_posterior_at_twelve_variables() {
-    assert_marginals_match_the_exact_posterior("structure_mcmc", 12, structure_sampler_gated);
+    assert_marginals_match_the_exact_posterior(
+        "structure_mcmc",
+        12,
+        MAX_PARENTS,
+        structure_sampler_gated,
+    );
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn order_mcmc_marginals_match_the_exact_posterior_at_ten_variables() {
-    assert_marginals_match_the_exact_posterior("order_mcmc", 10, order_sampler_gated);
+    assert_marginals_match_the_exact_posterior("order_mcmc", 10, MAX_PARENTS, order_sampler_gated);
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn order_mcmc_marginals_match_the_exact_posterior_at_twelve_variables() {
-    assert_marginals_match_the_exact_posterior("order_mcmc", 12, order_sampler_gated);
+    assert_marginals_match_the_exact_posterior("order_mcmc", 12, MAX_PARENTS, order_sampler_gated);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn structure_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps() {
+    for max_parents in OTHER_MAX_PARENTS {
+        assert_marginals_match_the_exact_posterior(
+            "structure_mcmc",
+            10,
+            max_parents,
+            structure_sampler_gated,
+        );
+    }
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn order_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps() {
+    for max_parents in OTHER_MAX_PARENTS {
+        assert_marginals_match_the_exact_posterior(
+            "order_mcmc",
+            10,
+            max_parents,
+            order_sampler_gated,
+        );
+    }
 }
 
 /// Replicates of the diagnostic below that run the exact computation only (cheap).
@@ -422,7 +468,7 @@ fn exact_marginals_locate_the_skeleton_overstatement() {
     let n = 10;
     let vars: Vec<VariableId> =
         (0..n).map(|i| VariableId::from_raw(u32::try_from(i).unwrap())).collect();
-    let prior = design_prior();
+    let prior = design_prior(MAX_PARENTS);
     let names: Vec<String> = (0..n).map(|i| format!("v{i}")).collect();
     let name_refs: Vec<&str> = names.iter().map(String::as_str).collect();
     let draw = |magnitudes: (f64, f64), rep: u64| {

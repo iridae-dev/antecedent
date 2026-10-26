@@ -92,24 +92,6 @@ pub fn within(a: f64, b: f64, tol: f64) -> bool {
     (a - b).abs() <= tol
 }
 
-/// `|a - b| < 1e-12` (strict).
-#[must_use]
-pub fn near_lt_1e12(a: f64, b: f64) -> bool {
-    (a - b).abs() < 1e-12
-}
-
-/// `|a - b| <= 1e-12` (inclusive).
-#[must_use]
-pub fn near_le_1e12(a: f64, b: f64) -> bool {
-    (a - b).abs() <= 1e-12
-}
-
-/// `|a - b| < 1e-9` (strict).
-#[must_use]
-pub fn near_lt_1e9(a: f64, b: f64) -> bool {
-    (a - b).abs() < 1e-9
-}
-
 /// Dot product of two slices, truncated to the shorter.
 ///
 /// Kept here rather than calling `antecedent_kernels::dot`: this crate depends on no Antecedent

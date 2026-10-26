@@ -52,6 +52,9 @@ use crate::result::{
 
 use solver::{NotearsWorkspace, SolveFailure, SolverConfig, solve_notears};
 
+/// Identity of this algorithm in its records.
+const ALGORITHM: &str = crate::pipeline::StaticAlgorithm::Notears.as_str();
+
 /// NOTEARS discovery result: hard DAG review plus soft weight matrix for mechanism seeding.
 #[derive(Clone, Debug)]
 pub struct NotearsDiscoveryResult {
@@ -214,9 +217,10 @@ impl Notears {
             });
         }
         // The analysis mask is not consulted here (as before); only missing cells are.
-        let keep = complete_rows(data, None, variables)?;
+        let keep_bitmap = complete_rows(data, None, variables)?;
+        let keep = keep_bitmap.to_bools();
         let mut row_accounting =
-            RowAccounting::from_selection(data, None, policy, variables, &keep)?;
+            RowAccounting::from_selection(data, None, policy, variables, &keep_bitmap)?;
         let mut pairwise = None;
         if row_accounting.rows_dropped() > 0 {
             if policy == MissingPolicy::ErrorOnMissing {
@@ -340,9 +344,7 @@ impl Notears {
             }
         }
         for parents in &mut by_child {
-            parents.sort_by(|a, b| {
-                b.1.abs().partial_cmp(&a.1.abs()).unwrap_or(std::cmp::Ordering::Equal)
-            });
+            parents.sort_by(|a, b| b.1.abs().total_cmp(&a.1.abs()));
             if parents.len() > max_parents {
                 parents.truncate(max_parents);
             }
@@ -375,7 +377,7 @@ impl Notears {
         // Stronger edges are inserted first. A directed cycle refuses the whole
         // set before any edge is given to the DAG.
         edge_coefs
-            .sort_by(|a, b| b.2.abs().partial_cmp(&a.2.abs()).unwrap_or(std::cmp::Ordering::Equal));
+            .sort_by(|a, b| b.2.abs().total_cmp(&a.2.abs()));
         let directed = dense_edge_ids(&edge_coefs);
         if antecedent_graph::error::directed_edges_contain_cycle(d, &directed) {
             return Err(DiscoveryError::stats_msg(notears_cycle_refusal()));
@@ -415,7 +417,7 @@ impl Notears {
                 adjusted_p_value: None,
                 interval: None,
                 separating_set: None,
-                provenance: Arc::from([Arc::from("notears")]),
+                provenance: Arc::from([Arc::from(ALGORITHM)]),
             })
             .collect();
 
@@ -430,19 +432,19 @@ impl Notears {
             .collect();
 
         let edge_count = dag.edges().count();
-        let review = DagReview::from_dag(dag.clone(), "notears");
+        let review = DagReview::from_dag(dag.clone(), ALGORITHM);
         let evidence = GraphEvidence {
             graph: dag,
             edge_evidence: Arc::from(edge_evidence),
             links: Arc::from(links),
-            source: EvidenceSource::Discovery { algorithm: Arc::from("notears") },
+            source: EvidenceSource::Discovery { algorithm: Arc::from(ALGORITHM) },
         };
 
         let discovery = DiscoveryResult {
             evidence,
             review,
             algorithm: AlgorithmRecord {
-                id: Arc::from("notears"),
+                id: Arc::from(ALGORITHM),
                 config: Arc::from(format!(
                     "lambda={} threshold={} standardize={} max_iter={} h_tol={}{}",
                     self.lambda,
@@ -453,7 +455,7 @@ impl Notears {
                     self.constraints.knowledge_config()
                 )),
             },
-            assumptions: discovery_assumptions("notears", true),
+            assumptions: discovery_assumptions(ALGORITHM, true),
             iterations: Vec::<DiscoveryIteration>::new(),
             diagnostics: vec![DiscoveryDiagnostic {
                 code: Arc::from("notears.hard_threshold"),
@@ -465,8 +467,8 @@ impl Notears {
             }],
             performance: DiscoveryPerformanceRecord {
                 ci_tests: 0,
-                links_retained: u64::try_from(edge_count).unwrap_or(u64::MAX),
-                targets: u64::try_from(d).unwrap_or(u64::MAX),
+                links_retained: crate::pipeline::count_u64(edge_count)?,
+                targets: crate::pipeline::count_u64(d)?,
                 lagged_frame_bytes: 0,
                 worker_threads: 1,
             },
@@ -606,7 +608,7 @@ fn pairwise_accounting(
 fn notears_cycle_refusal() -> String {
     antecedent_graph::error::CyclicDagRefusal::unlicensed(
         antecedent_graph::error::DagOperation::Discovery,
-        "notears",
+        ALGORITHM,
         "thresholded weights that contain a directed cycle are not a DAG; read the feedback \
          from CyclicDigraph::condensation. This search does not drop the weaker edges",
     )

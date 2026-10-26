@@ -11,10 +11,34 @@
 
 use std::collections::BTreeSet;
 
+use std::sync::Arc;
+
 use antecedent_core::{
     EvidenceCatalog, EvidenceCatalogDelta, EvidenceKind, EvidenceRegime, InterventionAssignment,
     RegimeKind, VariableDomain, VariableId,
 };
+
+/// Raw ids of `variables`, ascending and comma-joined: the order-independent text of a variable
+/// list in labels, contract ids and receipts (repeats are kept).
+pub(crate) fn id_list(variables: &[VariableId]) -> String {
+    let mut ids: Vec<u32> = variables.iter().map(|v| v.raw()).collect();
+    ids.sort_unstable();
+    ids.iter().map(ToString::to_string).collect::<Vec<_>>().join(",")
+}
+
+/// A refusal of an artifact under the registered reason `code`: the message is `detail: message`.
+pub(crate) fn refused_with(
+    code: &'static str,
+    detail: &str,
+    message: impl std::fmt::Display,
+) -> antecedent_io_core::error::IoError {
+    antecedent_io_core::error::IoError::Refused { code, message: format!("{detail}: {message}") }
+}
+
+/// The variables with the raw ids `raw`, in order.
+pub(crate) fn variable_ids(raw: &[u32]) -> Arc<[VariableId]> {
+    raw.iter().copied().map(VariableId::from_raw).collect()
+}
 
 /// Every proposed regime is present in `actual` as available evidence with
 /// exactly the proposed kind, population, interventions, levels, measured set,

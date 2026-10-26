@@ -45,6 +45,9 @@ use crate::static_skeleton::{
     skeleton_scored_links, static_ci_test, static_edge_evidence,
 };
 
+/// Identity of this algorithm in its records.
+const ALGORITHM: &str = crate::pipeline::StaticAlgorithm::Fci.as_str();
+
 /// Static FCI discovery result (`Pag` evidence + review).
 pub type StaticPagDiscoveryResult = DiscoveryResult<Pag, PagReview>;
 
@@ -252,10 +255,11 @@ impl Fci {
                     true
                 });
                 for z in &depth_sets {
-                    let (_stat, p) = static_ci_test(&input, x, y, z, workspace, ctx)?;
+                    let outcome = static_ci_test(&input, x, y, z, workspace, ctx)?;
                     pds_tests += 1;
                     ci_tests += 1;
-                    if p > alpha {
+                    // An untestable query carries no information and never separates.
+                    if outcome.is_some_and(|(_stat, p)| p > alpha) {
                         independent = true;
                         best_sep = Arc::from(z.as_slice());
                         break 'pds_depth;
@@ -293,7 +297,7 @@ impl Fci {
 
         let mut diagnostics = Vec::new();
         diagnostics
-            .extend(crate::static_skeleton::parent_limit_diagnostic(&parent_limit_removed, "fci"));
+            .extend(crate::static_skeleton::parent_limit_diagnostic(&parent_limit_removed, ALGORITHM));
         if !state.discriminating_skipped.is_empty() {
             diagnostics.push(DiscoveryDiagnostic {
                 code: Arc::from("fci.discriminating_path_budget"),
@@ -304,7 +308,7 @@ impl Fci {
                 )),
             });
         }
-        diagnostics.extend(crate::rule_scheduling::pd_path_budget_diagnostic(&state, "fci"));
+        diagnostics.extend(crate::rule_scheduling::pd_path_budget_diagnostic(&state, ALGORITHM));
         if state.conflicts > 0 || orient_delta.conflicts > 0 {
             diagnostics.push(DiscoveryDiagnostic {
                 code: Arc::from("fci.orientation_conflict"),
@@ -318,21 +322,21 @@ impl Fci {
         // Refresh scored links to surviving edges.
         scored.retain(|s| adj.contains(edge_key(s.link.source, s.link.target)));
 
-        let edge_evidence = static_edge_evidence(&scored, &sepsets, "fci");
+        let edge_evidence = static_edge_evidence(&scored, &sepsets, ALGORITHM);
 
         let evidence = GraphEvidence {
             graph: pag.clone(),
             edge_evidence: Arc::from(edge_evidence),
             links: Arc::from(scored),
-            source: EvidenceSource::Discovery { algorithm: Arc::from("fci") },
+            source: EvidenceSource::Discovery { algorithm: Arc::from(ALGORITHM) },
         };
-        let review = PagReview::from_pag(pag, "fci");
+        let review = PagReview::from_pag(pag, ALGORITHM);
 
         Ok(DiscoveryResult {
             evidence,
             review,
             algorithm: crate::pipeline::algorithm_record(
-                "fci",
+                ALGORITHM,
                 format!(
                     "alpha={},max_cond={},fdr={},pds_max={}{}",
                     alpha,
@@ -342,13 +346,13 @@ impl Fci {
                     self.constraints.knowledge_config()
                 ),
             ),
-            assumptions: discovery_assumptions("fci", false),
+            assumptions: discovery_assumptions(ALGORITHM, false),
             iterations,
             diagnostics,
             performance: DiscoveryPerformanceRecord {
                 ci_tests,
-                links_retained: u64::try_from(adj.len()).unwrap_or(u64::MAX),
-                targets: u64::try_from(variables.len()).unwrap_or(u64::MAX),
+                links_retained: crate::pipeline::count_u64(adj.len())?,
+                targets: crate::pipeline::count_u64(variables.len())?,
                 lagged_frame_bytes: 0,
                 worker_threads: 1,
             },
@@ -411,12 +415,9 @@ pub(crate) fn build_pag_circle_skeleton(
     var_index: &HashMap<VariableId, usize>,
     adj: &UndirectedAdj,
 ) -> Result<Pag, DiscoveryError> {
-    let mut pag = Pag::with_variables(u32::try_from(variables.len()).unwrap_or(u32::MAX));
-    if variables.iter().enumerate().any(|(i, v)| v.raw() as usize != i) {
-        pag = Pag::empty();
-        for &v in variables {
-            pag.add_node(antecedent_graph::NodeRef::Static(v)).map_err(DiscoveryError::from)?;
-        }
+    let mut pag = Pag::empty();
+    for &v in variables {
+        pag.add_node(antecedent_graph::NodeRef::Static(v)).map_err(DiscoveryError::from)?;
     }
     for (lo, hi) in adj.edge_pairs() {
         let a_idx = *var_index

@@ -17,12 +17,15 @@
 //! colliders outside the closure are kept in every resolution, exactly as in a conflict-free
 //! run. Every subset of the implicated colliders is oriented again from the skeleton, and the
 //! node's edges are compared across the subsets that leave no conflict anywhere. The number of
-//! subsets is bounded: past the bound the answer is [`ConflictResolution::BudgetExceeded`],
-//! never a partial comparison.
+//! subsets is bounded by the caller: past the bound the resolutions cannot all be compared, and
+//! the answer is [`ConflictResolution::Varies`] only when a sample of them already contains two
+//! consistent resolutions that disagree (a witness needs no exhaustiveness), and
+//! [`ConflictResolution::BudgetExceeded`] otherwise: invariance is never claimed from a partial
+//! comparison.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use antecedent_core::VariableId;
@@ -38,8 +41,13 @@ use crate::pc::{load_sepsets_into_state, orient_fixed_directions};
 use crate::pipeline::dense_of;
 use crate::result::PcSepsets;
 
-/// Largest implicated-collider bound a caller may request: the resolutions are `2^bound`.
-pub const MAX_IMPLICATED_COLLIDERS: usize = 16;
+/// Largest implicated-collider bound a caller may request: the resolutions are `2^bound`, indexed
+/// by a machine word. The cost of an exhaustive comparison is the caller's to choose through the
+/// bound.
+pub const MAX_IMPLICATED_COLLIDERS: usize = 32;
+
+/// Resolutions sampled when the implicated colliders exceed the bound.
+const SAMPLED_RESOLUTIONS: usize = 256;
 
 /// How the edges at one node are oriented in one resolution, as sorted raw variable ids.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -53,7 +61,7 @@ pub struct IncidentOrientation {
 }
 
 /// What the resolutions of the conflicting colliders say about one node's edges.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ConflictResolution {
     /// Every conflict-free resolution orients the node's edges in this way.
     Invariant(IncidentOrientation),
@@ -67,6 +75,10 @@ pub enum ConflictResolution {
         implicated: usize,
         /// The bound.
         budget: usize,
+        /// Fraction of the `2^implicated` resolutions the sample compared (distinct
+        /// resolutions drawn over all of them), in `[0, 1]`. Invariance is not claimed at any
+        /// coverage below the exhaustive comparison the bound would have allowed.
+        coverage: f64,
     },
 }
 
@@ -198,6 +210,45 @@ impl<'a> Resolver<'a> {
         Ok(fresh)
     }
 
+    /// Whether a sample of the resolutions of `implicated` already holds two conflict-free ones
+    /// that orient the node's edges differently, and the fraction of all `2^|implicated|`
+    /// resolutions the sample covered.
+    ///
+    /// The subsets are drawn from a stream keyed by the node and the implicated set, so the
+    /// answer is reproducible. A `true` is a witness; a `false` proves nothing.
+    fn sampled_resolutions_disagree(
+        &self,
+        memo: &mut Memo,
+        implicated: &BTreeSet<usize>,
+        node: VariableId,
+    ) -> Result<(bool, f64), DiscoveryError> {
+        let members: Vec<usize> = implicated.iter().copied().collect();
+        let seed = members
+            .iter()
+            .fold(u64::from(node.raw()) ^ 0x9E37_79B9_7F4A_7C15, |acc, &k| {
+                acc.rotate_left(7) ^ (k as u64).wrapping_mul(0xBF58_476D_1CE4_E5B9)
+            });
+        let mut rng = antecedent_core::CausalRng::from_seed(seed);
+        let mut first: Option<IncidentOrientation> = None;
+        let mut drawn: HashSet<BTreeSet<usize>> = HashSet::new();
+        for _ in 0..SAMPLED_RESOLUTIONS {
+            let dropped: BTreeSet<usize> =
+                members.iter().copied().filter(|_| rng.next_f64() < 0.5).collect();
+            let trial = self.trial(memo, &dropped)?;
+            drawn.insert(dropped);
+            if !trial.conflicts.is_empty() {
+                continue;
+            }
+            match &first {
+                None => first = Some(trial.incident),
+                Some(known) if *known != trial.incident => return Ok((true, 0.0)),
+                Some(_) => {}
+            }
+        }
+        let total = 2f64.powi(i32::try_from(members.len()).unwrap_or(i32::MAX));
+        Ok((false, (drawn.len() as f64 / total).min(1.0)))
+    }
+
     /// The colliders kept in `dropped`'s resolution that conflict evidence rests on: those with
     /// a leg on a conflicted edge, and those whose removal changes which edges conflict (a
     /// conflict reached through Meek propagation has its colliders upstream of the conflicted
@@ -259,9 +310,15 @@ pub fn resolve_incident_orientation(
     let mut implicated: BTreeSet<usize> = BTreeSet::new();
     loop {
         if implicated.len() > max_implicated {
+            let (disagree, coverage) =
+                resolver.sampled_resolutions_disagree(&mut memo, &implicated, node)?;
+            if disagree {
+                return Ok(ConflictResolution::Varies);
+            }
             return Ok(ConflictResolution::BudgetExceeded {
                 implicated: implicated.len(),
                 budget: max_implicated,
+                coverage,
             });
         }
         let members: Vec<usize> = implicated.iter().copied().collect();
@@ -381,10 +438,13 @@ mod tests {
 
     #[test]
     fn more_implicated_colliders_than_the_bound_are_reported_not_truncated() {
-        assert_eq!(
-            resolve(7, &EDGES, &SEPARATORS, 1, 1),
-            ConflictResolution::BudgetExceeded { implicated: 2, budget: 1 }
-        );
+        let ConflictResolution::BudgetExceeded { implicated, budget, coverage } =
+            resolve(7, &EDGES, &SEPARATORS, 1, 1)
+        else {
+            panic!("two implicated colliders exceed a bound of one");
+        };
+        assert_eq!((implicated, budget), (2, 1));
+        assert!(coverage > 0.0 && coverage <= 1.0, "coverage {coverage}");
     }
 
     #[test]

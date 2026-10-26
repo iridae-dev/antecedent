@@ -19,14 +19,18 @@
 /// Version of the descriptor semantics. Bumped whenever the meaning of a field
 /// changes, so a stored descriptor is never reread under newer semantics.
 pub const MECHANISM_DESCRIPTOR_VERSION: u32 = 1;
-/// Most mechanisms one composition may hold.
-pub const MAX_COMPOSED_MECHANISMS: usize = 64;
-/// Most parents one mechanism may declare.
-pub const MAX_PARENTS_PER_MECHANISM: usize = 16;
+/// Most mechanisms one composition may hold. A structural sanity bound on a declaration, not
+/// a work limit: only a finite enumeration is bounded by [`MAX_FINITE_STATES`].
+pub const MAX_COMPOSED_MECHANISMS: usize = 1024;
+/// Most parents one mechanism may declare. Joint enumeration over those parents is separately
+/// bounded by [`MAX_FINITE_STATES`].
+pub const MAX_PARENTS_PER_MECHANISM: usize = 256;
 /// Most distinct shared latent causes one composition may declare.
-pub const MAX_COMPOSED_LATENTS: usize = 32;
-/// Most levels one finite variable may declare.
-pub const MAX_LEVELS_PER_VARIABLE: usize = 64;
+pub const MAX_COMPOSED_LATENTS: usize = 256;
+/// Most levels one finite variable may declare. A structural sanity bound on a declaration;
+/// the cost of a table is bounded by its cell count and of an enumeration by
+/// [`MAX_FINITE_STATES`], so this does not limit the work either does.
+pub const MAX_LEVELS_PER_VARIABLE: usize = 4096;
 /// Most joint states a finite composition may enumerate.
 pub const MAX_FINITE_STATES: usize = 1 << 20;
 

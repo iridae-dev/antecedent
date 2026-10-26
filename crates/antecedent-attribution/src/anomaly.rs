@@ -50,7 +50,7 @@ use antecedent_model::{
     evaluate_batch_topo, reference_noise,
 };
 
-use crate::coalition::ensure_player_bitset;
+use crate::coalition::{Coalition, ensure_player_bitset};
 use crate::error::AttributionError;
 use crate::shapley::{CoalitionPayoff, estimate_shapley};
 
@@ -86,10 +86,10 @@ impl OutlierTail {
         if finite.is_empty() {
             return Self { center: 0.0, scale: 1.0 };
         }
-        finite.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        finite.sort_by(f64::total_cmp);
         let center = median_of_sorted(&finite);
         let mut dev: Vec<f64> = finite.iter().map(|v| (v - center).abs()).collect();
-        dev.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        dev.sort_by(f64::total_cmp);
         // 1.4826 · MAD is the consistent estimator of σ for a Gaussian.
         let mad = median_of_sorted(&dev);
         let scale = if mad > 0.0 {
@@ -348,7 +348,7 @@ fn score_anomalies_grouped(
             let score = tail.score(y_all[row])?;
             // v(∅): every noise term at the reference. Exact Shapley efficiency makes
             // score(y) − v(∅) equal Σφ, so publishing v(∅) closes the accounting.
-            let baseline = payoff.value(0)?;
+            let baseline = payoff.value(&Coalition::empty())?;
             let est = estimate_shapley(&players, &shapley, &mut payoff, worker)?;
             Ok::<_, AttributionError>((score, baseline, est.values))
         })?;
@@ -413,12 +413,31 @@ struct NoiseShapleyPayoff<'a> {
 }
 
 impl CoalitionPayoff for NoiseShapleyPayoff<'_> {
-    fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+    fn fork<'a>(&'a self) -> Option<Box<dyn CoalitionPayoff + Send + 'a>> {
+        // Every player's noise is rewritten from the coalition on each call, and the buffers are
+        // scratch: the value is a pure function of the coalition.
+        Some(Box::new(NoiseShapleyPayoff {
+            model: self.model,
+            target: self.target,
+            players: self.players,
+            group_bit: self.group_bit,
+            eval_order: self.eval_order,
+            eval_gathers: self.eval_gathers,
+            player_reference: self.player_reference.clone(),
+            player_factual: self.player_factual.clone(),
+            tail: self.tail,
+            noise_buf: self.noise_buf.clone(),
+            value_buf: vec![0.0; self.value_buf.len()],
+            ws: MechanismWorkspace::default(),
+        }))
+    }
+
+    fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
         let n_nodes = self.model.n_nodes();
         // Reference and factual noise are fixed for the row. A coalition only
         // swaps player slots; non-ancestors keep factual noise and are not evaluated.
         for (i, &node) in self.players.iter().enumerate() {
-            self.noise_buf[node.as_usize()] = if mask & (1u64 << self.group_bit[i]) != 0 {
+            self.noise_buf[node.as_usize()] = if coalition.contains(self.group_bit[i]) {
                 self.player_factual[i]
             } else {
                 self.player_reference[i]

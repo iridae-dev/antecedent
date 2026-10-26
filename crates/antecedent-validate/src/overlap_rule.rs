@@ -242,7 +242,7 @@ mod tests {
         let (data, estimand) = toy();
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let est = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = EstimationWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);

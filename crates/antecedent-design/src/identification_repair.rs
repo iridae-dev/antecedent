@@ -49,20 +49,34 @@ use antecedent_identify::{
 };
 
 use crate::repair::{
-    BackdoorRepairFamily, FamilyVerdict, RepairCancelled, RepairDerivation, RepairError,
-    RepairFamily, dense_of, graph_variables,
+    BackdoorRepairFamily, FailedContract, FamilyVerdict, RepairCancelled, RepairDerivation,
+    RepairError, RepairFamily, dense_of, graph_variables,
 };
+use crate::plan_common::id_list;
 use crate::study_candidate::DurableStudyCandidate;
 
 /// Most candidate mediator sets or instruments one search collects.
 const MAX_CANDIDATES: usize = 4096;
-/// Largest mediator set the front-door search enumerates.
-const MAX_MEDIATOR_SET: usize = 4;
+/// Mediator subsets the front-door search may enumerate: the work budget that sets how deep it
+/// goes.
+const MEDIATOR_SEARCH_SUBSETS: u128 = 1 << 20;
 
-fn id_list(variables: &[VariableId]) -> String {
-    let mut ids: Vec<u32> = variables.iter().map(|v| v.raw()).collect();
-    ids.sort_unstable();
-    ids.iter().map(ToString::to_string).collect::<Vec<_>>().join(",")
+/// Largest mediator set the front-door search enumerates over `pool` candidate nodes: every set
+/// size while the number of subsets stays within [`MEDIATOR_SEARCH_SUBSETS`] (so a graph of up
+/// to twenty nodes is searched in full), and below that the deepest size the budget affords.
+fn max_mediator_set_size(pool: usize) -> usize {
+    let mut subsets: u128 = 1;
+    let mut choose: u128 = 1;
+    let mut size = 0;
+    while size < pool {
+        choose = choose * (pool - size) as u128 / (size + 1) as u128;
+        if subsets.saturating_add(choose) > MEDIATOR_SEARCH_SUBSETS {
+            break;
+        }
+        subsets += choose;
+        size += 1;
+    }
+    size.max(1)
 }
 
 fn invalid(message: impl Into<String>) -> RepairError {
@@ -512,7 +526,7 @@ impl Route {
                 let identifier = FrontDoorIdentifier {
                     config: FrontDoorSearchConfig {
                         max_results: MAX_CANDIDATES,
-                        max_mediator_set_size: MAX_MEDIATOR_SET,
+                        max_mediator_set_size: max_mediator_set_size(failure.dag.node_count()),
                     },
                 };
                 let prepared = identifier.prepare(&failure.dag).map_err(|e| e.to_string())?;
@@ -580,6 +594,7 @@ impl Route {
         let source = failure.contract(self.name());
         let build = Build { family: self.name(), source: &source };
         let (sets, bounded) = self.candidates(failure).map_err(invalid)?;
+        let mediator_bound = max_mediator_set_size(failure.dag.node_count());
         let missing =
             |set: &Vec<VariableId>| set.iter().filter(|v| !failure.base_law.contains(*v)).count();
         let best = sets.into_iter().min_by_key(|set| {
@@ -652,7 +667,7 @@ impl Route {
                 format!(
                     "no front-door mediator set was found in the graph{}",
                     if bounded {
-                        format!(" within the search bound (sets of at most {MAX_MEDIATOR_SET})")
+                        format!(" within the search bound (sets of at most {mediator_bound})")
                     } else {
                         String::new()
                     }
@@ -801,42 +816,6 @@ macro_rules! graph_route_family {
                 &self.core.failure.dag
             }
 
-            /// The treatment variable.
-            #[must_use]
-            pub const fn treatment(&self) -> VariableId {
-                self.core.failure.treatment
-            }
-
-            /// The outcome variable.
-            #[must_use]
-            pub const fn outcome(&self) -> VariableId {
-                self.core.failure.outcome
-            }
-
-            /// The contract's population.
-            #[must_use]
-            pub fn population(&self) -> &str {
-                &self.core.failure.population
-            }
-
-            /// The variables currently observed jointly with treatment and outcome.
-            #[must_use]
-            pub fn base_law(&self) -> Vec<VariableId> {
-                self.core.failure.base_law.iter().copied().collect()
-            }
-
-            /// The proposed regimes `studies` would deliver, with consecutive
-            /// ids from zero.
-            ///
-            /// # Errors
-            /// The failure reasons of an invalid study.
-            pub fn hypothetical_regimes(
-                &self,
-                studies: &[&DurableStudyCandidate],
-            ) -> Result<Vec<EvidenceRegime>, Vec<String>> {
-                regimes_of(studies)
-            }
-
             /// Re-run the route's identifier on already-proposed `regimes` (the
             /// stored hypothetical delta of an artifact), exactly as
             /// [`RepairFamily::check`] reads a study's expected evidence.
@@ -852,6 +831,24 @@ macro_rules! graph_route_family {
             }
         }
 
+        impl FailedContract for $name {
+            fn treatment(&self) -> VariableId {
+                self.core.failure.treatment
+            }
+
+            fn outcome(&self) -> VariableId {
+                self.core.failure.outcome
+            }
+
+            fn population(&self) -> &str {
+                &self.core.failure.population
+            }
+
+            fn base_law(&self) -> Vec<VariableId> {
+                self.core.failure.base_law.iter().copied().collect()
+            }
+        }
+
         impl RepairFamily for $name {
             fn family_id(&self) -> &'static str {
                 $id
@@ -863,6 +860,13 @@ macro_rules! graph_route_family {
 
             fn unresolved_obligations(&self) -> Vec<EvidenceObligation> {
                 self.core.obligations.clone()
+            }
+
+            fn hypothetical_regimes(
+                &self,
+                studies: &[&DurableStudyCandidate],
+            ) -> Result<Vec<EvidenceRegime>, Vec<String>> {
+                regimes_of(studies)
             }
 
             fn check(
@@ -1084,30 +1088,6 @@ impl HedgeRepairFamily {
         &self.admg
     }
 
-    /// The treatment variable.
-    #[must_use]
-    pub const fn treatment(&self) -> VariableId {
-        self.treatment
-    }
-
-    /// The outcome variable.
-    #[must_use]
-    pub const fn outcome(&self) -> VariableId {
-        self.outcome
-    }
-
-    /// The contract's population.
-    #[must_use]
-    pub fn population(&self) -> &str {
-        &self.population
-    }
-
-    /// The variables currently observed jointly.
-    #[must_use]
-    pub fn base_law(&self) -> Vec<VariableId> {
-        self.base_law.iter().copied().collect()
-    }
-
     /// The hedge witness the ID algorithm produced and the verifier confirmed.
     #[must_use]
     pub fn certificate(&self) -> Option<&HedgeCertificate> {
@@ -1118,17 +1098,6 @@ impl HedgeRepairFamily {
     #[must_use]
     pub fn surrogates(&self) -> &[VariableId] {
         &self.surrogates
-    }
-
-    /// The proposed regimes `studies` would deliver, with consecutive ids from zero.
-    ///
-    /// # Errors
-    /// The failure reasons of an invalid study.
-    pub fn hypothetical_regimes(
-        &self,
-        studies: &[&DurableStudyCandidate],
-    ) -> Result<Vec<EvidenceRegime>, Vec<String>> {
-        regimes_of(studies)
     }
 
     /// The verdict over the single-target experiments on offer, as
@@ -1226,6 +1195,24 @@ fn outcome_available(distribution: &DistributionAvailability, outcome: VariableI
     }
 }
 
+impl FailedContract for HedgeRepairFamily {
+    fn treatment(&self) -> VariableId {
+        self.treatment
+    }
+
+    fn outcome(&self) -> VariableId {
+        self.outcome
+    }
+
+    fn population(&self) -> &str {
+        &self.population
+    }
+
+    fn base_law(&self) -> Vec<VariableId> {
+        self.base_law.iter().copied().collect()
+    }
+}
+
 impl RepairFamily for HedgeRepairFamily {
     fn family_id(&self) -> &'static str {
         "hedge"
@@ -1242,6 +1229,13 @@ impl RepairFamily for HedgeRepairFamily {
 
     fn unresolved_obligations(&self) -> Vec<EvidenceObligation> {
         self.obligations.clone()
+    }
+
+    fn hypothetical_regimes(
+        &self,
+        studies: &[&DurableStudyCandidate],
+    ) -> Result<Vec<EvidenceRegime>, Vec<String>> {
+        regimes_of(studies)
     }
 
     fn check(
@@ -1443,30 +1437,6 @@ impl SensitivityRepairFamily {
         &self.base
     }
 
-    /// The treatment variable.
-    #[must_use]
-    pub const fn treatment(&self) -> VariableId {
-        self.inner.treatment()
-    }
-
-    /// The outcome variable.
-    #[must_use]
-    pub const fn outcome(&self) -> VariableId {
-        self.inner.outcome()
-    }
-
-    /// The contract's population.
-    #[must_use]
-    pub fn population(&self) -> &str {
-        self.inner.population()
-    }
-
-    /// The variables currently observed jointly.
-    #[must_use]
-    pub fn base_law(&self) -> Vec<VariableId> {
-        self.inner.base_law()
-    }
-
     /// The finding.
     #[must_use]
     pub const fn finding(&self) -> SensitivityFinding {
@@ -1477,17 +1447,6 @@ impl SensitivityRepairFamily {
     #[must_use]
     pub const fn confounder(&self) -> VariableId {
         self.confounder
-    }
-
-    /// The proposed regimes `studies` would deliver, with consecutive ids from zero.
-    ///
-    /// # Errors
-    /// The failure reasons of an invalid study.
-    pub fn hypothetical_regimes(
-        &self,
-        studies: &[&DurableStudyCandidate],
-    ) -> Result<Vec<EvidenceRegime>, Vec<String>> {
-        self.inner.hypothetical_regimes(studies)
     }
 
     fn relabel(&self, verdict: FamilyVerdict) -> FamilyVerdict {
@@ -1514,6 +1473,24 @@ impl SensitivityRepairFamily {
     }
 }
 
+impl FailedContract for SensitivityRepairFamily {
+    fn treatment(&self) -> VariableId {
+        self.inner.treatment()
+    }
+
+    fn outcome(&self) -> VariableId {
+        self.inner.outcome()
+    }
+
+    fn population(&self) -> &str {
+        self.inner.population()
+    }
+
+    fn base_law(&self) -> Vec<VariableId> {
+        self.inner.base_law()
+    }
+}
+
 impl RepairFamily for SensitivityRepairFamily {
     fn family_id(&self) -> &'static str {
         "sensitivity"
@@ -1531,6 +1508,13 @@ impl RepairFamily for SensitivityRepairFamily {
 
     fn unresolved_obligations(&self) -> Vec<EvidenceObligation> {
         self.obligations.clone()
+    }
+
+    fn hypothetical_regimes(
+        &self,
+        studies: &[&DurableStudyCandidate],
+    ) -> Result<Vec<EvidenceRegime>, Vec<String>> {
+        RepairFamily::hypothetical_regimes(&self.inner, studies)
     }
 
     fn check(

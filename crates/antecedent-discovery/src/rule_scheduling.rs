@@ -18,7 +18,7 @@ use crate::orientation::{
     OrientationError, OrientationQueue, OrientationState, PagOps, RuleDelta, drive_to_fixed_point,
     focus_nodes,
 };
-use crate::uncovered_paths::{EndpointPattern, uncovered_pd_paths_with_budget};
+use crate::uncovered_paths::{EndpointPattern, for_each_uncovered_pd_path};
 
 /// Enqueue a changed node and its adjacency (local delta, not full-graph re-seed).
 fn enqueue_local<G: PagOps>(graph: &G, id: DenseNodeId, queue: &mut OrientationQueue) {
@@ -511,11 +511,6 @@ fn apply_r8<G: PagOps>(
     Ok(delta)
 }
 
-/// Per-search bounds on the uncovered potentially-directed path enumeration of R9 / R10.
-const PD_PATH_MAX_PATHS: usize = 8;
-/// Maximum path length (nodes) for the R9 / R10 enumeration.
-const PD_PATH_MAX_LEN: usize = 8;
-
 /// Diagnostic for edges R9 / R10 left open because their path search ran out of budget.
 #[must_use]
 pub(crate) fn pd_path_budget_diagnostic(
@@ -525,9 +520,9 @@ pub(crate) fn pd_path_budget_diagnostic(
     (!state.pd_path_skipped.is_empty()).then(|| crate::result::DiscoveryDiagnostic {
         code: std::sync::Arc::from(format!("{algorithm}.pd_path_budget")),
         message: std::sync::Arc::from(format!(
-            "R9/R10 uncovered potentially-directed path search exceeded {PD_PATH_MAX_PATHS} \
-             paths of up to {PD_PATH_MAX_LEN} nodes on {} edge(s) without finding a licensing \
-             path; their circle marks were left unresolved (sound, possibly incomplete)",
+            "R9/R10 uncovered potentially-directed path search exhausted its effort budget on \
+             {} edge(s) without finding a licensing path; their circle marks were left \
+             unresolved (sound, possibly incomplete)",
             state.pd_path_skipped.len()
         )),
     })
@@ -573,17 +568,22 @@ fn apply_r9<G: PagOps>(
                     EndpointPattern::circle_arrow(),
                     EndpointPattern::directed(),
                 ];
-                let (paths, truncated) = uncovered_pd_paths_with_budget(
+                let mut qualifies = false;
+                let truncated = for_each_uncovered_pd_path(
                     graph,
                     b1,
                     c,
                     &initial,
-                    PD_PATH_MAX_PATHS,
-                    PD_PATH_MAX_LEN,
+                    state.pd_path_budget,
+                    |path| {
+                        if !path.contains(&a) && !graph.has_edge(a, path[1]) {
+                            qualifies = true;
+                            std::ops::ControlFlow::Break(())
+                        } else {
+                            std::ops::ControlFlow::Continue(())
+                        }
+                    },
                 );
-                let qualifies = paths.iter().any(|path| {
-                    path.len() >= 3 && !path.contains(&a) && !graph.has_edge(a, path[1])
-                });
                 if !qualifies {
                     // Any path found licenses the orientation; a truncated search that found
                     // none cannot rule one out, so the edge is left open and recorded.
@@ -643,50 +643,48 @@ fn apply_r10<G: PagOps>(
         ];
         for &a in &o_arrow_into {
             // Need two distinct parents (≠ a) with node-disjoint uncovered PD paths from a.
-            let mut path_for_parent: Vec<(DenseNodeId, Vec<DenseNodeId>)> = Vec::new();
+            let mut paths_for_parent: Vec<(DenseNodeId, Vec<Vec<DenseNodeId>>)> = Vec::new();
             let mut any_truncated = false;
             for &p in &parents_into {
                 if p == a {
                     continue;
                 }
-                let (paths, truncated) = uncovered_pd_paths_with_budget(
+                let mut paths: Vec<Vec<DenseNodeId>> = Vec::new();
+                any_truncated |= for_each_uncovered_pd_path(
                     graph,
                     a,
                     p,
                     &initial,
-                    PD_PATH_MAX_PATHS,
-                    PD_PATH_MAX_LEN,
+                    state.pd_path_budget,
+                    |path| {
+                        if path.len() >= 3 && !path.contains(&c) {
+                            paths.push(path.to_vec());
+                        }
+                        std::ops::ControlFlow::Continue(())
+                    },
                 );
-                any_truncated |= truncated;
-                if let Some(path) = paths.into_iter().find(|p| p.len() >= 3 && !p.contains(&c)) {
-                    path_for_parent.push((p, path));
+                if !paths.is_empty() {
+                    paths_for_parent.push((p, paths));
                 }
             }
-            let mut found_pair = false;
-            'pair: for i in 0..path_for_parent.len() {
-                for j in (i + 1)..path_for_parent.len() {
-                    let (p1, ref path1) = path_for_parent[i];
-                    let (p2, ref path2) = path_for_parent[j];
-                    if p1 == p2 {
-                        continue;
-                    }
-                    // Node-disjoint except `a`, and first successors of `a` non-adjacent.
-                    if !paths_node_disjoint_except_a(path1, path2, a) {
-                        continue;
-                    }
-                    let Some(&u) = path1.get(1) else {
-                        continue;
-                    };
-                    let Some(&v) = path2.get(1) else {
-                        continue;
-                    };
-                    if u == v || graph.has_edge(u, v) {
-                        continue;
-                    }
-                    found_pair = true;
-                    break 'pair;
-                }
-            }
+            let found_pair = (0..paths_for_parent.len()).any(|i| {
+                ((i + 1)..paths_for_parent.len()).any(|j| {
+                    let (p1, ref paths1) = paths_for_parent[i];
+                    let (p2, ref paths2) = paths_for_parent[j];
+                    p1 != p2
+                        && paths1.iter().any(|path1| {
+                            paths2.iter().any(|path2| {
+                                // Node-disjoint except `a`, and first successors of `a`
+                                // distinct and non-adjacent.
+                                paths_node_disjoint_except_a(path1, path2, a)
+                                    && match (path1.get(1), path2.get(1)) {
+                                        (Some(&u), Some(&v)) => u != v && !graph.has_edge(u, v),
+                                        _ => false,
+                                    }
+                            })
+                        })
+                })
+            });
             if !found_pair {
                 // A pair found within budget licenses the orientation; without one, a
                 // truncated search cannot rule one out, so the edge is left open and recorded.
@@ -983,11 +981,10 @@ impl LpcmciOrientationRule for LpcmciR9 {
 /// Incomplete by construction (sound, may leave circles R10′ would orient):
 /// - paths of two nodes are excluded (`p.len() >= 3`), so the case where the parent is
 ///   itself the first node after `a` (μ = β in Zhang's notation) is never used;
-/// - only the first qualifying path per parent is kept, so a pair that is node-disjoint
-///   only through a later path is missed;
-/// - the path enumeration is bounded (8 paths of up to 8 nodes per parent); an edge whose
-///   search runs out without a licensing pair is left open and reported as
-///   `<algorithm>.pd_path_budget` rather than failing the run.
+/// - the path enumeration is exhaustive up to an effort budget
+///   ([`OrientationState::pd_path_budget`], path extensions per search, no limit on path
+///   length or count); an edge whose search runs out without a licensing pair is left open and
+///   reported as `<algorithm>.pd_path_budget` rather than failing the run.
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct LpcmciR10;
 

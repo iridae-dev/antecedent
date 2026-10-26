@@ -110,27 +110,128 @@ fn round_u64(x: f64) -> u64 {
 /// Split `total` units over `weights` by the largest-remainder rule; ties go to
 /// the earlier entry. Every planned layout (arms, cells, strata) is allocated
 /// by this rule, and the simulation allocates the same way.
+///
+/// The weights must be nonempty, finite, nonnegative, and sum to a positive finite value; the
+/// result is empty when they do not (use [`try_allocate`] to learn why). The returned counts
+/// always sum to `total`.
 #[must_use]
 pub fn allocate(total: u64, weights: &[f64]) -> Vec<u64> {
-    let sum: f64 = weights.iter().sum();
-    let raw: Vec<f64> = weights.iter().map(|w| total as f64 * w / sum).collect();
-    let mut out: Vec<u64> = raw.iter().map(|r| floor_u64(*r)).collect();
-    let assigned: u64 = out.iter().sum();
-    let mut left = total.saturating_sub(assigned);
-    let mut order: Vec<usize> = (0..weights.len()).collect();
-    order.sort_by(|&a, &b| {
-        let fa = raw[a] - raw[a].floor();
-        let fb = raw[b] - raw[b].floor();
-        fb.total_cmp(&fa).then(a.cmp(&b))
-    });
-    for index in order {
-        if left == 0 {
-            break;
-        }
-        out[index] += 1;
-        left -= 1;
+    try_allocate(total, weights).unwrap_or_default()
+}
+
+/// [`allocate`] that refuses weights that do not describe a split.
+///
+/// The shares are floored in floating point, so for very large `total` the floors can sum to
+/// more or less than `total`; the remainder is reconciled in integers (removing from the
+/// smallest fractional parts when the floors overshoot, adding to the largest when they
+/// fall short), so the counts sum to `total` exactly.
+///
+/// # Errors
+///
+/// [`PlanningRefusal`] for no weights, a weight that is negative or not finite, or a total
+/// weight that is zero or not finite.
+pub fn try_allocate(total: u64, weights: &[f64]) -> Result<Vec<u64>, PlanningRefusal> {
+    if weights.is_empty() {
+        return Err(PlanningRefusal::invalid("planning.allocation", "no weights to split over"));
     }
-    out
+    if weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
+        return Err(PlanningRefusal::invalid(
+            "planning.allocation",
+            "allocation weights must be finite and nonnegative",
+        ));
+    }
+    let sum: f64 = weights.iter().sum();
+    if !sum.is_finite() || sum <= 0.0 {
+        return Err(PlanningRefusal::invalid(
+            "planning.allocation",
+            "allocation weights must have a positive finite total",
+        ));
+    }
+    let raw: Vec<f64> = weights.iter().map(|w| total as f64 * w / sum).collect();
+    let mut out: Vec<u64> = raw.iter().map(|r| floor_u64(*r).min(total)).collect();
+    let fractional = |index: usize| raw[index] - raw[index].floor();
+    let mut assigned: u64 = out.iter().sum();
+    // Overshoot (floating error at large totals): take back from the smallest remainders.
+    if assigned > total {
+        let mut order: Vec<usize> = (0..weights.len()).filter(|&i| out[i] > 0).collect();
+        order.sort_by(|&a, &b| fractional(a).total_cmp(&fractional(b)).then(b.cmp(&a)));
+        while assigned > total {
+            let mut changed = false;
+            for &index in &order {
+                if assigned == total {
+                    break;
+                }
+                if out[index] > 0 {
+                    out[index] -= 1;
+                    assigned -= 1;
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+    }
+    // Shortfall: largest remainders first, earlier entries on ties; wrap if it exceeds one
+    // unit per entry (floating error at large totals).
+    let mut order: Vec<usize> = (0..weights.len()).collect();
+    order.sort_by(|&a, &b| fractional(b).total_cmp(&fractional(a)).then(a.cmp(&b)));
+    let mut left = total - assigned;
+    let each = left / weights.len() as u64;
+    if each > 0 {
+        for count in &mut out {
+            *count += each;
+        }
+        left -= each * weights.len() as u64;
+    }
+    for &index in order.iter().take(left as usize) {
+        out[index] += 1;
+    }
+    debug_assert_eq!(out.iter().sum::<u64>(), total);
+    Ok(out)
+}
+
+/// [`allocate`] over two weights without allocating: the `(first, second)` split.
+///
+/// Identical to `allocate(total, &[first, second])` for valid weights. Two parts is the hot
+/// case (every arm split), and the rule is simple: both floors, then the unit that remains (if
+/// any) to the larger fractional part, the first entry on a tie.
+fn split_two(total: u64, first: f64, second: f64) -> (u64, u64) {
+    let sum = first + second;
+    let (raw_first, raw_second) = (total as f64 * first / sum, total as f64 * second / sum);
+    let (mut a, mut b) = (floor_u64(raw_first).min(total), floor_u64(raw_second).min(total));
+    let assigned = a + b;
+    if assigned > total {
+        // Floating overshoot at huge totals: the smaller remainder gives the unit back.
+        if raw_first - raw_first.floor() <= raw_second - raw_second.floor() && a > 0 {
+            a -= 1;
+        } else if b > 0 {
+            b -= 1;
+        } else {
+            a -= 1;
+        }
+        return (a, b);
+    }
+    let left = total - assigned;
+    // Fractional parts of the two shares sum to an integer, so at most one unit remains in
+    // exact arithmetic; floating error at huge totals can leave more, split evenly.
+    let (each, extra) = (left / 2, left % 2);
+    a += each;
+    b += each;
+    if extra == 1 {
+        if raw_second - raw_second.floor() > raw_first - raw_first.floor() {
+            b += 1;
+        } else {
+            a += 1;
+        }
+    }
+    (a, b)
+}
+
+/// `effect / sqrt(variance)`, undefined (`None`) when the variance is zero, negative or not
+/// finite, where the ratio would be infinite or NaN.
+fn standardized_effect(effect: f64, variance: f64) -> Option<f64> {
+    (variance.is_finite() && variance > 0.0).then(|| effect / variance.sqrt())
 }
 
 fn rate(p: f64) -> f64 {
@@ -159,19 +260,476 @@ fn binomial_pmf(n: u64, k: u64, p: f64) -> f64 {
     .exp()
 }
 
+/// What differs between planned designs: how units become arms, which sizes are feasible and
+/// the law of the planned contrast. One implementation per design, chosen once by
+/// [`model_of`]; the planner's power, solves and records read only this interface.
+trait DesignModel {
+    /// Enrolled units per arm or cell, control first (empty when the design has no arms).
+    fn arm_units(&self, planner: &Planner<'_>, units: u64) -> Vec<u64>;
+
+    /// Individuals enrolled by `units` randomization units.
+    fn enrolled_individuals(&self, units: u64) -> f64 {
+        units as f64
+    }
+
+    /// Individuals the analysis uses.
+    fn analysed_individuals(&self, planner: &Planner<'_>, units: u64) -> f64 {
+        self.enrolled_individuals(units) * planner.kept()
+    }
+
+    /// Whether `units` gives every arm enough analysed units.
+    fn feasible(&self, planner: &Planner<'_>, units: u64) -> bool;
+
+    /// Law of the planned contrast at `units` and `effect`.
+    fn contrast_law(&self, planner: &Planner<'_>, units: u64, effect: f64) -> ContrastLaw;
+
+    /// Design-specific entries of the assumption record.
+    fn push_assumption_labels(&self, _labels: &mut Vec<String>) {}
+}
+
+/// The model of `design`.
+fn model_of(design: &PlannedDesign) -> Box<dyn DesignModel> {
+    match design {
+        PlannedDesign::Bernoulli => Box::new(BernoulliModel),
+        PlannedDesign::Complete => Box::new(CompleteModel),
+        PlannedDesign::Stratified { strata } => Box::new(StratifiedModel { strata: strata.clone() }),
+        PlannedDesign::Cluster { mean_cluster_size, icc, cluster_size_cv } => {
+            Box::new(ClusterModel(ClusterShape {
+                mean_cluster_size: *mean_cluster_size,
+                icc: *icc,
+                cluster_size_cv: *cluster_size_cv,
+            }))
+        }
+        PlannedDesign::MultiArm { treatment_arms, .. } => {
+            Box::new(MultiArmModel { treatment_arms: *treatment_arms })
+        }
+        PlannedDesign::Factorial { contrast } => Box::new(FactorialModel { contrast: *contrast }),
+        PlannedDesign::Switchback {
+            sequences,
+            periods_per_block,
+            autocorrelation,
+            carryover,
+            washout_periods,
+        } => Box::new(SwitchbackModel {
+            sequences: *sequences,
+            periods_per_block: *periods_per_block,
+            autocorrelation: *autocorrelation,
+            carryover: *carryover,
+            washout_periods: *washout_periods,
+        }),
+        PlannedDesign::GroupSequential { information_fractions, spending } => {
+            Box::new(GroupSequentialModel {
+                information_fractions: information_fractions.clone(),
+                spending: *spending,
+            })
+        }
+        PlannedDesign::Interference { exposure } => {
+            Box::new(InterferenceModel { exposure: *exposure })
+        }
+        PlannedDesign::OutcomeAdaptive { .. } => Box::new(OutcomeAdaptiveModel),
+    }
+}
+
+/// The law of a contrast no operating characteristic is defined for.
+fn undefined_law() -> ContrastLaw {
+    ContrastLaw::single(f64::INFINITY, None, None)
+}
+
+/// Two-arm complete randomization.
+struct CompleteModel;
+
+impl DesignModel for CompleteModel {
+    fn arm_units(&self, planner: &Planner<'_>, units: u64) -> Vec<u64> {
+        let (c, t) = planner.two_arm(units);
+        vec![c, t]
+    }
+
+    fn feasible(&self, planner: &Planner<'_>, units: u64) -> bool {
+        let enough = |n: u64| n as f64 * planner.kept() >= 2.0;
+        let (c, t) = planner.two_arm(units);
+        enough(c)
+            && enough(t)
+            && units as f64 * planner.kept()
+                > 2.0 + f64::from(planner.request.assumptions.covariates)
+    }
+
+    fn contrast_law(&self, planner: &Planner<'_>, units: u64, effect: f64) -> ContrastLaw {
+        two_arm_law(planner, units, effect)
+    }
+}
+
+/// The contrast law of a two-arm complete randomization (also the sequential design's).
+fn two_arm_law(planner: &Planner<'_>, units: u64, effect: f64) -> ContrastLaw {
+    let kept = planner.kept();
+    let (vc, vt) = planner.arm_variances(effect);
+    let covariates = f64::from(planner.request.assumptions.covariates);
+    let (c, t) = planner.two_arm(units);
+    let (nc, nt) = (c as f64 * kept, t as f64 * kept);
+    ContrastLaw::single(vc / nc + vt / nt, planner.df(nc + nt - 2.0 - covariates), None)
+}
+
+/// Independent Bernoulli assignment of each unit.
+struct BernoulliModel;
+
+impl DesignModel for BernoulliModel {
+    fn arm_units(&self, planner: &Planner<'_>, units: u64) -> Vec<u64> {
+        let treated = round_u64(units as f64 * planner.treatment_probability());
+        vec![units - treated.min(units), treated.min(units)]
+    }
+
+    fn feasible(&self, planner: &Planner<'_>, units: u64) -> bool {
+        let p = planner.treatment_probability();
+        units >= 4 && units as f64 * planner.kept() * p.min(1.0 - p) >= 2.0
+    }
+
+    fn contrast_law(&self, planner: &Planner<'_>, units: u64, effect: f64) -> ContrastLaw {
+        let kept = planner.kept();
+        let (vc, vt) = planner.arm_variances(effect);
+        let covariates = f64::from(planner.request.assumptions.covariates);
+        let p = planner.treatment_probability();
+        let n = units;
+        let component = |treated: u64, weight: f64| {
+            let (nc, nt) = ((n - treated) as f64 * kept, treated as f64 * kept);
+            let variance = if nc >= 2.0 && nt >= 2.0 { vc / nc + vt / nt } else { f64::INFINITY };
+            Component { weight, variance, df: planner.df(nc + nt - 2.0 - covariates) }
+        };
+        if n > BERNOULLI_MIXTURE_LIMIT {
+            return ContrastLaw {
+                components: vec![component(round_u64(n as f64 * p), 1.0)],
+                design_effect: None,
+            };
+        }
+        let mean = n as f64 * p;
+        let sd = (n as f64 * p * (1.0 - p)).sqrt();
+        let low = floor_u64((mean - 10.0 * sd - 1.0).max(0.0));
+        let high = (floor_u64(mean + 10.0 * sd + 2.0)).min(n);
+        let components = (low..=high).map(|k| component(k, binomial_pmf(n, k, p))).collect();
+        ContrastLaw { components, design_effect: None }
+    }
+}
+
+/// Complete randomization within strata.
+struct StratifiedModel {
+    strata: Vec<super::request::StratumSpec>,
+}
+
+impl StratifiedModel {
+    fn sizes(&self, units: u64) -> Vec<u64> {
+        allocate(units, &self.strata.iter().map(|s| s.share).collect::<Vec<_>>())
+    }
+}
+
+impl DesignModel for StratifiedModel {
+    fn arm_units(&self, planner: &Planner<'_>, units: u64) -> Vec<u64> {
+        let mut arms = vec![0, 0];
+        for size in self.sizes(units) {
+            let (c, t) = planner.two_arm(size);
+            arms[0] += c;
+            arms[1] += t;
+        }
+        arms
+    }
+
+    fn feasible(&self, planner: &Planner<'_>, units: u64) -> bool {
+        let enough = |n: u64| n as f64 * planner.kept() >= 2.0;
+        self.sizes(units).into_iter().all(|size| {
+            let (c, t) = planner.two_arm(size);
+            enough(c) && enough(t)
+        })
+    }
+
+    fn contrast_law(&self, planner: &Planner<'_>, units: u64, effect: f64) -> ContrastLaw {
+        let kept = planner.kept();
+        let sizes = self.sizes(units);
+        let total: f64 = sizes.iter().map(|s| *s as f64).sum();
+        let mut variance = 0.0;
+        for (stratum, size) in self.strata.iter().zip(&sizes) {
+            let (c, t) = planner.two_arm(*size);
+            let (nc, nt) = (c as f64 * kept, t as f64 * kept);
+            let (sc, st) = match planner.request.assumptions.outcome {
+                OutcomeModel::Continuous { .. } => {
+                    let v = stratum.within * stratum.within;
+                    (v, v)
+                }
+                OutcomeModel::Binary { .. } => {
+                    let (p0, p1) = (rate(stratum.within), rate(stratum.within + effect));
+                    (p0 * (1.0 - p0), p1 * (1.0 - p1))
+                }
+            };
+            let w = *size as f64 / total;
+            variance += w * w * (sc / nc + st / nt);
+        }
+        let df = total * kept - 2.0 * self.strata.len() as f64;
+        ContrastLaw::single(variance, planner.df(df), None)
+    }
+}
+
+/// Cluster size, intracluster correlation and size variation of a cluster-randomized design.
+#[derive(Clone, Copy)]
+struct ClusterShape {
+    mean_cluster_size: f64,
+    icc: f64,
+    cluster_size_cv: f64,
+}
+
+/// The contrast law of whole-cluster randomization.
+fn cluster_law(planner: &Planner<'_>, shape: ClusterShape, units: u64, effect: f64) -> ContrastLaw {
+    let kept = planner.kept();
+    let (vc, vt) = planner.arm_variances(effect);
+    let ClusterShape { mean_cluster_size, icc, cluster_size_cv } = shape;
+    let (kc, kt) = planner.two_arm(units);
+    let m = mean_cluster_size * kept;
+    let cv2 = cluster_size_cv * cluster_size_cv;
+    let design_effect = 1.0 + ((1.0 + cv2) * m - 1.0) * icc;
+    let (mc, mt) = (planner.control_level(), planner.control_level() + effect);
+    let arm = |level: f64, variance: f64, clusters: u64| {
+        (level * level * cv2 + variance * design_effect / m) / clusters as f64
+    };
+    let variance = arm(mc, vc, kc) + arm(mt, vt, kt);
+    ContrastLaw::single(variance, planner.df((kc + kt) as f64 - 2.0), Some(design_effect))
+}
+
+/// Whole clusters are randomized.
+struct ClusterModel(ClusterShape);
+
+impl DesignModel for ClusterModel {
+    fn arm_units(&self, planner: &Planner<'_>, units: u64) -> Vec<u64> {
+        let (c, t) = planner.two_arm(units);
+        vec![c, t]
+    }
+
+    fn enrolled_individuals(&self, units: u64) -> f64 {
+        units as f64 * self.0.mean_cluster_size
+    }
+
+    fn feasible(&self, planner: &Planner<'_>, units: u64) -> bool {
+        let (c, t) = planner.two_arm(units);
+        c >= 2 && t >= 2
+    }
+
+    fn contrast_law(&self, planner: &Planner<'_>, units: u64, effect: f64) -> ContrastLaw {
+        cluster_law(planner, self.0, units, effect)
+    }
+
+    fn push_assumption_labels(&self, labels: &mut Vec<String>) {
+        labels.push(format!("mean_cluster_size={}", self.0.mean_cluster_size));
+        labels.push(format!("icc={}", self.0.icc));
+        labels.push(format!("cluster_size_cv={}", self.0.cluster_size_cv));
+    }
+}
+
+/// `treatment_arms` arms against one shared control.
+struct MultiArmModel {
+    treatment_arms: usize,
+}
+
+impl DesignModel for MultiArmModel {
+    fn arm_units(&self, planner: &Planner<'_>, units: u64) -> Vec<u64> {
+        let mut weights = vec![1.0];
+        weights.extend(std::iter::repeat_n(planner.ratio(), self.treatment_arms));
+        allocate(units, &weights)
+    }
+
+    fn feasible(&self, planner: &Planner<'_>, units: u64) -> bool {
+        let kept = planner.kept();
+        let arms = self.arm_units(planner, units);
+        arms.iter().all(|n| *n as f64 * kept >= 2.0)
+            && units as f64 * kept > (self.treatment_arms + 1) as f64
+    }
+
+    fn contrast_law(&self, _planner: &Planner<'_>, _units: u64, _effect: f64) -> ContrastLaw {
+        undefined_law()
+    }
+}
+
+/// Balanced two-by-two factorial.
+struct FactorialModel {
+    contrast: FactorialContrast,
+}
+
+impl DesignModel for FactorialModel {
+    fn arm_units(&self, _planner: &Planner<'_>, units: u64) -> Vec<u64> {
+        allocate(units, &[1.0; 4])
+    }
+
+    fn feasible(&self, planner: &Planner<'_>, units: u64) -> bool {
+        let kept = planner.kept();
+        allocate(units, &[1.0; 4]).into_iter().all(|n| n as f64 * kept >= 2.0)
+            && units as f64 * kept > 4.0
+    }
+
+    fn contrast_law(&self, planner: &Planner<'_>, units: u64, effect: f64) -> ContrastLaw {
+        let kept = planner.kept();
+        let (vc, vt) = planner.arm_variances(effect);
+        let cells = allocate(units, &[1.0; 4]);
+        let treated_cells: &[usize] = match self.contrast {
+            FactorialContrast::MainEffect => &[1, 3],
+            FactorialContrast::Interaction => &[3],
+        };
+        let mut sum = 0.0;
+        for (index, n) in cells.iter().enumerate() {
+            let v = if treated_cells.contains(&index) { vt } else { vc };
+            sum += v / (*n as f64 * kept);
+        }
+        let variance = match self.contrast {
+            FactorialContrast::MainEffect => 0.25 * sum,
+            FactorialContrast::Interaction => sum,
+        };
+        ContrastLaw::single(variance, planner.df(units as f64 * kept - 4.0), None)
+    }
+}
+
+/// Sequences that switch between arms in randomized blocks of periods.
+struct SwitchbackModel {
+    sequences: u64,
+    periods_per_block: u64,
+    autocorrelation: f64,
+    carryover: f64,
+    washout_periods: u64,
+}
+
+impl DesignModel for SwitchbackModel {
+    fn arm_units(&self, _planner: &Planner<'_>, _units: u64) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn enrolled_individuals(&self, units: u64) -> f64 {
+        units.saturating_mul(self.sequences).saturating_mul(self.periods_per_block) as f64
+    }
+
+    fn analysed_individuals(&self, _planner: &Planner<'_>, units: u64) -> f64 {
+        units
+            .saturating_mul(self.sequences)
+            .saturating_mul(self.periods_per_block - self.washout_periods) as f64
+    }
+
+    fn feasible(&self, _planner: &Planner<'_>, units: u64) -> bool {
+        units >= 1
+    }
+
+    fn contrast_law(&self, planner: &Planner<'_>, units: u64, effect: f64) -> ContrastLaw {
+        let (vc, _) = planner.arm_variances(effect);
+        let analysed = self.periods_per_block - self.washout_periods;
+        let l = analysed as f64;
+        let p = planner.treatment_probability();
+        let mu = planner.control_level();
+        let noise = vc * l * block_inflation(analysed, self.autocorrelation);
+        let block = (l * l * (mu + effect).powi(2) + noise) / p
+            + (l * l * mu * mu + noise) / (1.0 - p)
+            - l * l * effect * effect;
+        let blocks = (self.sequences * units) as f64;
+        let inflation = block_inflation(analysed, self.autocorrelation);
+        ContrastLaw::single(
+            block / (blocks * l * l),
+            Some(self.sequences as f64 - 1.0),
+            Some(inflation),
+        )
+    }
+
+    fn push_assumption_labels(&self, labels: &mut Vec<String>) {
+        labels.push(format!("sequences={}", self.sequences));
+        labels.push(format!("periods_per_block={}", self.periods_per_block));
+        labels.push(format!("autocorrelation={}", self.autocorrelation));
+        labels.push(format!("carryover={}", self.carryover));
+        labels.push(format!("washout_periods={}", self.washout_periods));
+    }
+}
+
+/// Two-arm randomization with interim looks.
+struct GroupSequentialModel {
+    information_fractions: Vec<f64>,
+    spending: antecedent_stats::adaptive_inference::group_sequential::SpendingFunction,
+}
+
+impl DesignModel for GroupSequentialModel {
+    fn arm_units(&self, planner: &Planner<'_>, units: u64) -> Vec<u64> {
+        let (c, t) = planner.two_arm(units);
+        vec![c, t]
+    }
+
+    fn feasible(&self, planner: &Planner<'_>, units: u64) -> bool {
+        let enough = |n: u64| n as f64 * planner.kept() >= 2.0;
+        let looks = Planner::look_units(units, &self.information_fractions);
+        let increasing = looks.windows(2).all(|w| w[1] > w[0]);
+        let first = looks.first().copied().unwrap_or(0);
+        let (c, t) = planner.two_arm(first);
+        increasing && enough(c) && enough(t)
+    }
+
+    fn contrast_law(&self, planner: &Planner<'_>, units: u64, effect: f64) -> ContrastLaw {
+        two_arm_law(planner, units, effect)
+    }
+
+    fn push_assumption_labels(&self, labels: &mut Vec<String>) {
+        labels.push(format!("information_fractions={:?}", self.information_fractions));
+        labels.push(format!("spending={}", self.spending.as_str()));
+    }
+}
+
+/// Units that interfere with one another.
+struct InterferenceModel {
+    exposure: Option<super::request::InterferenceExposure>,
+}
+
+impl DesignModel for InterferenceModel {
+    fn arm_units(&self, _planner: &Planner<'_>, _units: u64) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn feasible(&self, _planner: &Planner<'_>, _units: u64) -> bool {
+        false
+    }
+
+    fn contrast_law(&self, planner: &Planner<'_>, units: u64, effect: f64) -> ContrastLaw {
+        match self.exposure {
+            Some(super::request::InterferenceExposure::ContainedInClusters {
+                mean_cluster_size,
+                icc,
+                cluster_size_cv,
+            }) => cluster_law(
+                planner,
+                ClusterShape { mean_cluster_size, icc, cluster_size_cv },
+                units,
+                effect,
+            ),
+            None => undefined_law(),
+        }
+    }
+}
+
+/// Allocation or stopping that adapts to outcomes.
+struct OutcomeAdaptiveModel;
+
+impl DesignModel for OutcomeAdaptiveModel {
+    fn arm_units(&self, _planner: &Planner<'_>, _units: u64) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn feasible(&self, _planner: &Planner<'_>, _units: u64) -> bool {
+        false
+    }
+
+    fn contrast_law(&self, _planner: &Planner<'_>, _units: u64, _effect: f64) -> ContrastLaw {
+        undefined_law()
+    }
+}
+
 /// The planner of one validated request.
 struct Planner<'a> {
     request: &'a PlanningRequest,
     design: PlannedDesign,
+    model: Box<dyn DesignModel>,
     dunnett: RefCell<BTreeMap<(u64, u64), f64>>,
     boundaries: RefCell<BTreeMap<Vec<u64>, Vec<f64>>>,
 }
 
 impl<'a> Planner<'a> {
     fn new(request: &'a PlanningRequest) -> Self {
+        let design = request.effective_design();
         Self {
             request,
-            design: request.effective_design(),
+            model: model_of(&design),
+            design,
             dunnett: RefCell::new(BTreeMap::new()),
             boundaries: RefCell::new(BTreeMap::new()),
         }
@@ -224,8 +782,7 @@ impl<'a> Planner<'a> {
     }
 
     fn two_arm(&self, units: u64) -> (u64, u64) {
-        let arms = allocate(units, &[1.0, self.ratio()]);
-        (arms[0], arms[1])
+        split_two(units, 1.0, self.ratio())
     }
 
     fn treatment_probability(&self) -> f64 {
@@ -234,111 +791,65 @@ impl<'a> Planner<'a> {
 
     /// Enrolled units per arm or cell, control first.
     fn arm_units(&self, units: u64) -> Vec<u64> {
-        match &self.design {
-            PlannedDesign::Bernoulli => {
-                let treated = round_u64(units as f64 * self.treatment_probability());
-                vec![units - treated.min(units), treated.min(units)]
-            }
-            PlannedDesign::Complete
-            | PlannedDesign::Cluster { .. }
-            | PlannedDesign::GroupSequential { .. } => {
-                let (c, t) = self.two_arm(units);
-                vec![c, t]
-            }
-            PlannedDesign::Stratified { strata } => {
-                let sizes = allocate(units, &strata.iter().map(|s| s.share).collect::<Vec<_>>());
-                let mut arms = vec![0, 0];
-                for size in sizes {
-                    let (c, t) = self.two_arm(size);
-                    arms[0] += c;
-                    arms[1] += t;
-                }
-                arms
-            }
-            PlannedDesign::MultiArm { treatment_arms, .. } => {
-                let mut weights = vec![1.0];
-                weights.extend(std::iter::repeat_n(self.ratio(), *treatment_arms));
-                allocate(units, &weights)
-            }
-            PlannedDesign::Factorial { .. } => allocate(units, &[1.0; 4]),
-            PlannedDesign::Switchback { .. }
-            | PlannedDesign::Interference { .. }
-            | PlannedDesign::OutcomeAdaptive { .. } => Vec::new(),
-        }
+        self.model.arm_units(self, units)
     }
 
     fn enrolled_individuals(&self, units: u64) -> f64 {
-        match &self.design {
-            PlannedDesign::Cluster { mean_cluster_size, .. } => units as f64 * mean_cluster_size,
-            PlannedDesign::Switchback { sequences, periods_per_block, .. } => {
-                units.saturating_mul(*sequences).saturating_mul(*periods_per_block) as f64
-            }
-            _ => units as f64,
-        }
+        self.model.enrolled_individuals(units)
     }
 
     fn analysed_individuals(&self, units: u64) -> f64 {
-        match &self.design {
-            PlannedDesign::Switchback { sequences, periods_per_block, washout_periods, .. } => {
-                units.saturating_mul(*sequences).saturating_mul(periods_per_block - washout_periods)
-                    as f64
-            }
-            _ => self.enrolled_individuals(units) * self.kept(),
-        }
+        self.model.analysed_individuals(self, units)
     }
 
     fn feasible(&self, units: u64) -> bool {
-        let kept = self.kept();
-        let enough = |n: u64| n as f64 * kept >= 2.0;
+        self.model.feasible(self, units)
+    }
+
+    /// Whether every arm size the design derives from `units` is nondecreasing in `units`.
+    ///
+    /// The two-part largest-remainder split is house-monotone (the Alabama paradox needs
+    /// three or more parts), equal weights give `⌊n/k⌋` plus a unit to the first `n mod k`
+    /// entries, and the Bernoulli expectation and the switchback block count are monotone;
+    /// with those, feasibility and the criterion are monotone in the size, so bisection finds
+    /// the smallest passing size. Three or more unequal parts (stratified with more than two
+    /// strata, many-to-one with unequal ratio) can lose a unit when the total grows, and the
+    /// planner then verifies the minimum by scan. Group-sequential look rounding is treated
+    /// as monotone.
+    fn arm_sizes_nondecreasing(&self) -> bool {
         match &self.design {
-            PlannedDesign::Bernoulli => {
-                let p = self.treatment_probability();
-                units >= 4 && units as f64 * kept * p.min(1.0 - p) >= 2.0
-            }
-            PlannedDesign::Complete => {
-                let (c, t) = self.two_arm(units);
-                enough(c)
-                    && enough(t)
-                    && units as f64 * kept > 2.0 + f64::from(self.request.assumptions.covariates)
-            }
-            PlannedDesign::Stratified { strata } => {
-                let sizes = allocate(units, &strata.iter().map(|s| s.share).collect::<Vec<_>>());
-                sizes.into_iter().all(|size| {
-                    let (c, t) = self.two_arm(size);
-                    enough(c) && enough(t)
-                })
-            }
-            PlannedDesign::Cluster { .. } => {
-                let (c, t) = self.two_arm(units);
-                c >= 2 && t >= 2
-            }
+            PlannedDesign::Stratified { strata } => strata.len() <= 2,
             PlannedDesign::MultiArm { treatment_arms, .. } => {
-                let arms = self.arm_units(units);
-                arms.iter().all(|n| enough(*n))
-                    && units as f64 * kept > (*treatment_arms + 1) as f64
+                *treatment_arms <= 1 || self.ratio().to_bits() == 1.0_f64.to_bits()
             }
-            PlannedDesign::Factorial { .. } => {
-                allocate(units, &[1.0; 4]).into_iter().all(enough) && units as f64 * kept > 4.0
-            }
-            PlannedDesign::Switchback { .. } => units >= 1,
-            PlannedDesign::GroupSequential { information_fractions, .. } => {
-                let looks = Self::look_units(units, information_fractions);
-                let increasing = looks.windows(2).all(|w| w[1] > w[0]);
-                let first = looks.first().copied().unwrap_or(0);
-                let (c, t) = self.two_arm(first);
-                increasing && enough(c) && enough(t)
-            }
-            PlannedDesign::Interference { .. } | PlannedDesign::OutcomeAdaptive { .. } => false,
+            _ => true,
         }
     }
 
     fn minimum_units(&self) -> Result<u64, PlanningRefusal> {
-        (1..=MINIMUM_SCAN).find(|&units| self.feasible(units)).ok_or_else(|| {
+        let none = || {
             PlanningRefusal::invalid(
                 "planning.size",
                 format!("no size up to {MINIMUM_SCAN} gives every arm two analysed units"),
             )
-        })
+        };
+        if !self.arm_sizes_nondecreasing() {
+            return (1..=MINIMUM_SCAN).find(|&units| self.feasible(units)).ok_or_else(none);
+        }
+        if !self.feasible(MINIMUM_SCAN) {
+            return Err(none());
+        }
+        // Feasibility is monotone here: the smallest feasible size is a bisection.
+        let (mut low, mut high) = (0, MINIMUM_SCAN);
+        while high - low > 1 {
+            let mid = low + (high - low) / 2;
+            if self.feasible(mid) {
+                high = mid;
+            } else {
+                low = mid;
+            }
+        }
+        Ok(high)
     }
 
     fn look_units(units: u64, fractions: &[f64]) -> Vec<u64> {
@@ -351,129 +862,8 @@ impl<'a> Planner<'a> {
     }
 
     /// Law of a single-contrast design at `units` and `effect`.
-    #[allow(clippy::too_many_lines, reason = "one arm per design")]
     fn contrast_law(&self, units: u64, effect: f64) -> ContrastLaw {
-        let kept = self.kept();
-        let (vc, vt) = self.arm_variances(effect);
-        let covariates = f64::from(self.request.assumptions.covariates);
-        match &self.design {
-            PlannedDesign::Complete | PlannedDesign::GroupSequential { .. } => {
-                let (c, t) = self.two_arm(units);
-                let (nc, nt) = (c as f64 * kept, t as f64 * kept);
-                ContrastLaw::single(vc / nc + vt / nt, self.df(nc + nt - 2.0 - covariates), None)
-            }
-            PlannedDesign::Bernoulli => {
-                let p = self.treatment_probability();
-                let n = units;
-                let component = |treated: u64, weight: f64| {
-                    let (nc, nt) = ((n - treated) as f64 * kept, treated as f64 * kept);
-                    let variance =
-                        if nc >= 2.0 && nt >= 2.0 { vc / nc + vt / nt } else { f64::INFINITY };
-                    Component { weight, variance, df: self.df(nc + nt - 2.0 - covariates) }
-                };
-                if n > BERNOULLI_MIXTURE_LIMIT {
-                    return ContrastLaw {
-                        components: vec![component(round_u64(n as f64 * p), 1.0)],
-                        design_effect: None,
-                    };
-                }
-                let mean = n as f64 * p;
-                let sd = (n as f64 * p * (1.0 - p)).sqrt();
-                let low = floor_u64((mean - 10.0 * sd - 1.0).max(0.0));
-                let high = (floor_u64(mean + 10.0 * sd + 2.0)).min(n);
-                let components =
-                    (low..=high).map(|k| component(k, binomial_pmf(n, k, p))).collect();
-                ContrastLaw { components, design_effect: None }
-            }
-            PlannedDesign::Stratified { strata } => {
-                let sizes = allocate(units, &strata.iter().map(|s| s.share).collect::<Vec<_>>());
-                let total: f64 = sizes.iter().map(|s| *s as f64).sum();
-                let mut variance = 0.0;
-                for (stratum, size) in strata.iter().zip(&sizes) {
-                    let (c, t) = self.two_arm(*size);
-                    let (nc, nt) = (c as f64 * kept, t as f64 * kept);
-                    let (sc, st) = match self.request.assumptions.outcome {
-                        OutcomeModel::Continuous { .. } => {
-                            let v = stratum.within * stratum.within;
-                            (v, v)
-                        }
-                        OutcomeModel::Binary { .. } => {
-                            let (p0, p1) = (rate(stratum.within), rate(stratum.within + effect));
-                            (p0 * (1.0 - p0), p1 * (1.0 - p1))
-                        }
-                    };
-                    let w = *size as f64 / total;
-                    variance += w * w * (sc / nc + st / nt);
-                }
-                let df = total * kept - 2.0 * strata.len() as f64;
-                ContrastLaw::single(variance, self.df(df), None)
-            }
-            PlannedDesign::Cluster { mean_cluster_size, icc, cluster_size_cv }
-            | PlannedDesign::Interference {
-                exposure:
-                    Some(super::request::InterferenceExposure::ContainedInClusters {
-                        mean_cluster_size,
-                        icc,
-                        cluster_size_cv,
-                    }),
-            } => {
-                let (kc, kt) = self.two_arm(units);
-                let m = mean_cluster_size * kept;
-                let cv2 = cluster_size_cv * cluster_size_cv;
-                let design_effect = 1.0 + ((1.0 + cv2) * m - 1.0) * icc;
-                let (mc, mt) = (self.control_level(), self.control_level() + effect);
-                let arm = |level: f64, variance: f64, clusters: u64| {
-                    (level * level * cv2 + variance * design_effect / m) / clusters as f64
-                };
-                let variance = arm(mc, vc, kc) + arm(mt, vt, kt);
-                ContrastLaw::single(variance, self.df((kc + kt) as f64 - 2.0), Some(design_effect))
-            }
-            PlannedDesign::Factorial { contrast } => {
-                let cells = allocate(units, &[1.0; 4]);
-                let treated_cells: &[usize] = match contrast {
-                    FactorialContrast::MainEffect => &[1, 3],
-                    FactorialContrast::Interaction => &[3],
-                };
-                let mut sum = 0.0;
-                for (index, n) in cells.iter().enumerate() {
-                    let v = if treated_cells.contains(&index) { vt } else { vc };
-                    sum += v / (*n as f64 * kept);
-                }
-                let variance = match contrast {
-                    FactorialContrast::MainEffect => 0.25 * sum,
-                    FactorialContrast::Interaction => sum,
-                };
-                ContrastLaw::single(variance, self.df(units as f64 * kept - 4.0), None)
-            }
-            PlannedDesign::Switchback {
-                sequences,
-                periods_per_block,
-                autocorrelation,
-                washout_periods,
-                ..
-            } => {
-                let analysed = periods_per_block - washout_periods;
-                let l = analysed as f64;
-                let p = self.treatment_probability();
-                let mu = self.control_level();
-                let noise = vc * l * block_inflation(analysed, *autocorrelation);
-                let block = (l * l * (mu + effect).powi(2) + noise) / p
-                    + (l * l * mu * mu + noise) / (1.0 - p)
-                    - l * l * effect * effect;
-                let blocks = (sequences * units) as f64;
-                let inflation = block_inflation(analysed, *autocorrelation);
-                ContrastLaw::single(
-                    block / (blocks * l * l),
-                    Some(*sequences as f64 - 1.0),
-                    Some(inflation),
-                )
-            }
-            PlannedDesign::MultiArm { .. }
-            | PlannedDesign::Interference { exposure: None }
-            | PlannedDesign::OutcomeAdaptive { .. } => {
-                ContrastLaw::single(f64::INFINITY, None, None)
-            }
-        }
+        self.model.contrast_law(self, units, effect)
     }
 
     fn single_contrast_power(&self, units: u64, effect: f64) -> PowerDetail {
@@ -496,7 +886,7 @@ impl<'a> Planner<'a> {
         PowerDetail {
             power: power.clamp(0.0, 1.0),
             variance,
-            noncentrality: Some(effect / variance.sqrt()),
+            noncentrality: standardized_effect(effect, variance),
             df,
             critical: Some(critical_value(alpha, df, two_sided)),
             design_effect: law.design_effect,
@@ -596,7 +986,7 @@ impl<'a> Planner<'a> {
                 PowerDetail {
                     power: value,
                     variance,
-                    noncentrality: Some(delta),
+                    noncentrality: standardized_effect(effect, variance),
                     df,
                     critical: critical.first().copied(),
                     design_effect: None,
@@ -665,7 +1055,7 @@ impl<'a> Planner<'a> {
         Ok(PowerDetail {
             power: alternative.iter().sum::<f64>().clamp(0.0, 1.0),
             variance,
-            noncentrality: Some(drift),
+            noncentrality: standardized_effect(effect, variance),
             df: None,
             critical: critical.last().copied(),
             design_effect: None,
@@ -857,6 +1247,16 @@ impl<'a> Planner<'a> {
                 low = mid;
             }
         }
+        if !self.arm_sizes_nondecreasing() {
+            // The criterion need not be monotone in the size, so bisection only proves that
+            // `high` passes. Every smaller size is checked, and the first that passes is the
+            // smallest.
+            for units in minimum..high {
+                if at(units)? {
+                    return Ok(units);
+                }
+            }
+        }
         Ok(high)
     }
 
@@ -987,31 +1387,7 @@ impl<'a> Planner<'a> {
             labels.push(format!("covariate_r_squared={}", a.covariate_r_squared));
             labels.push(format!("covariates={}", a.covariates));
         }
-        match &self.design {
-            PlannedDesign::Cluster { mean_cluster_size, icc, cluster_size_cv } => {
-                labels.push(format!("mean_cluster_size={mean_cluster_size}"));
-                labels.push(format!("icc={icc}"));
-                labels.push(format!("cluster_size_cv={cluster_size_cv}"));
-            }
-            PlannedDesign::Switchback {
-                sequences,
-                periods_per_block,
-                autocorrelation,
-                carryover,
-                washout_periods,
-            } => {
-                labels.push(format!("sequences={sequences}"));
-                labels.push(format!("periods_per_block={periods_per_block}"));
-                labels.push(format!("autocorrelation={autocorrelation}"));
-                labels.push(format!("carryover={carryover}"));
-                labels.push(format!("washout_periods={washout_periods}"));
-            }
-            PlannedDesign::GroupSequential { information_fractions, spending } => {
-                labels.push(format!("information_fractions={information_fractions:?}"));
-                labels.push(format!("spending={}", spending.as_str()));
-            }
-            _ => {}
-        }
+        self.model.push_assumption_labels(&mut labels);
         match self.request.criterion {
             PlanningCriterion::Assurance { design_prior, .. }
             | PlanningCriterion::CorrectDecision { design_prior, .. } => {
@@ -1157,4 +1533,48 @@ pub fn plan_analytic(request: &PlanningRequest) -> Result<PlanningResult, Planni
         assumptions: planner.assumption_labels(),
         calibration: PLANNING_CALIBRATION,
     })
+}
+
+#[cfg(test)]
+mod allocation_tests {
+    use super::*;
+
+    #[test]
+    fn invalid_weights_are_refused_not_split() {
+        assert!(try_allocate(10, &[]).is_err());
+        assert!(try_allocate(10, &[0.0, 0.0]).is_err());
+        assert!(try_allocate(10, &[1.0, -1.0]).is_err());
+        assert!(try_allocate(10, &[1.0, f64::NAN]).is_err());
+        assert!(try_allocate(10, &[f64::INFINITY, 1.0]).is_err());
+        assert!(allocate(10, &[0.0, 0.0]).is_empty());
+    }
+
+    #[test]
+    fn allocation_always_sums_to_the_total() {
+        for total in [0, 1, 7, 100, 12_345, (1 << 53) + 3, u64::MAX / 3] {
+            for weights in [&[1.0, 1.0][..], &[1.0, 3.0], &[0.2, 0.3, 0.5], &[1.0, 1.0, 1.0, 1.0]]
+            {
+                let counts = try_allocate(total, weights).unwrap();
+                assert_eq!(counts.iter().sum::<u64>(), total, "{total} over {weights:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_two_part_split_matches_the_general_rule() {
+        for total in 0..200_u64 {
+            for ratio in [1.0, 0.5, 2.0, 3.0, 1.7] {
+                let general = allocate(total, &[1.0, ratio]);
+                assert_eq!(split_two(total, 1.0, ratio), (general[0], general[1]), "{total} {ratio}");
+            }
+        }
+    }
+
+    #[test]
+    fn standardized_effect_is_undefined_without_variance() {
+        assert_eq!(standardized_effect(1.0, 4.0), Some(0.5));
+        assert_eq!(standardized_effect(1.0, 0.0), None);
+        assert_eq!(standardized_effect(1.0, f64::INFINITY), None);
+        assert_eq!(standardized_effect(1.0, f64::NAN), None);
+    }
 }

@@ -20,7 +20,7 @@ use antecedent_core::{CanonicalWriter, is_blank};
 use serde::{Deserialize, Serialize};
 
 use super::stream::{DrawSegment, StreamId};
-use super::{MAX_CANDIDATES, MAX_CELLS, MIN_DRAWS, ReliabilityError};
+use super::{MIN_DRAWS, ReliabilityError};
 
 /// What law the draws are realizations of, and so which paradigm a ranking statement
 /// carries.
@@ -342,16 +342,18 @@ impl DecisionDraws {
     /// identities contradict, or an adaptive set without its search record.
     pub fn validate(&self) -> Result<(), ReliabilityError> {
         let invalid = ReliabilityError::invalid;
-        if self.candidates.is_empty() || self.candidates.len() > MAX_CANDIDATES {
-            return Err(invalid("candidate_count", "between 1 and 65536 candidates are required"));
+        // The carrier is memory the caller already holds; the work done on it is admitted
+        // against the execution context's budgets, not against a size cap here.
+        if self.candidates.is_empty() {
+            return Err(invalid("candidate_count", "at least one candidate is required"));
         }
         if is_blank(&self.utility_unit) || is_blank(&self.producer) {
             return Err(invalid("blank_label", "utility unit and producer must be named"));
         }
         let n = self.n_draws();
         let cells = n.checked_mul(self.candidates.len());
-        if n < MIN_DRAWS || cells.is_none_or(|c| c > MAX_CELLS) {
-            return Err(invalid("draw_count", "at least 4 draws and at most 2^26 cells"));
+        if n < MIN_DRAWS || cells.is_none() {
+            return Err(invalid("draw_count", "at least 4 draws, with a representable cell count"));
         }
         let mut ids = std::collections::BTreeSet::new();
         for candidate in &self.candidates {

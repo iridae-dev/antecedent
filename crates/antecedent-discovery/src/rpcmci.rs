@@ -346,7 +346,7 @@ impl Rpcmci {
                 continue;
             }
             let masked = full_frame
-                .retain_effective(&keep)
+                .retain_effective(&antecedent_data::ValidityBitmap::from_bools(&keep))
                 .map_err(|e| DiscoveryError::data_msg(format!("regime mask: {e}")))?;
             let mut result = self.pcmci_plus.run_on_frame(&masked, variables, workspace, ctx)?;
             // Each regime graph assumes stationarity within its regime only.

@@ -162,6 +162,17 @@ impl GaussianMeanSignal {
     }
 }
 
+/// A sample mean needs at least one observation: a zero-size study carries no signal (its value
+/// of information is exactly zero, which the analysis returns itself), and is not the signal of
+/// a one-observation study.
+fn require_observations(n: u64) -> Result<(), DesignError> {
+    if n == 0 {
+        Err(DesignError::Config("a Gaussian sample mean needs at least one observation".into()))
+    } else {
+        Ok(())
+    }
+}
+
 fn finite_state(state: f64) -> Result<f64, DesignError> {
     if state.is_finite() {
         Ok(state)
@@ -182,7 +193,8 @@ impl DecisionSignal<f64> for GaussianMeanSignal {
         states: &[f64],
         out: &mut [f64],
     ) -> Result<(), DesignError> {
-        let var_n = self.noise_variance / n.max(1) as f64;
+        require_observations(n)?;
+        let var_n = self.noise_variance / n as f64;
         if !statistic.is_finite() || !var_n.is_finite() || var_n <= 0.0 {
             return Err(DesignError::Numerical(
                 "invalid Gaussian sample-mean statistic or variance".into(),
@@ -205,7 +217,8 @@ impl DecisionSignal<f64> for GaussianMeanSignal {
         n: u64,
         rng: &mut CausalRng,
     ) -> Result<f64, DesignError> {
-        let sd_n = (self.noise_variance / n.max(1) as f64).sqrt();
+        require_observations(n)?;
+        let sd_n = (self.noise_variance / n as f64).sqrt();
         Ok(finite_state(*state)? + sd_n * standard_normal(rng))
     }
 
@@ -227,6 +240,80 @@ fn probability_state(state: f64) -> Result<f64, DesignError> {
         Err(DesignError::Shape(format!(
             "binomial signal state {state} is not a probability in [0, 1]"
         )))
+    }
+}
+
+/// Trials below which a binomial count is the sum of Bernoulli draws, the exact stream the
+/// signal always used; larger studies use a constant-time sampler.
+const BERNOULLI_SUM_LIMIT: u64 = 64;
+
+/// A draw from `Binomial(n, p)`.
+///
+/// Up to [`BERNOULLI_SUM_LIMIT`] trials this sums Bernoulli draws. Beyond it the draw is made for
+/// `q = min(p, 1 − p)` (and reflected): by waiting-time inversion when the mean `n q` is below
+/// ten, whose cost is the mean, and otherwise by Hörmann's transformed rejection (BTRS), whose
+/// cost does not grow with `n`.
+fn sample_binomial(n: u64, p: f64, rng: &mut CausalRng) -> u64 {
+    if n <= BERNOULLI_SUM_LIMIT {
+        return (0..n).filter(|_| rng.next_f64() < p).count() as u64;
+    }
+    if p <= 0.0 {
+        return 0;
+    }
+    if p >= 1.0 {
+        return n;
+    }
+    let reflect = p > 0.5;
+    let q = if reflect { 1.0 - p } else { p };
+    let nf = n as f64;
+    let successes = if nf * q < 10.0 { binomial_inversion(n, q, rng) } else { binomial_btrs(n, q, rng) };
+    if reflect { n - successes } else { successes }
+}
+
+/// Binomial draw by waiting times: the geometric gaps between successes are summed until they
+/// pass `n` trials. Expected cost `n q + 1` draws.
+fn binomial_inversion(n: u64, q: f64, rng: &mut CausalRng) -> u64 {
+    let log_fail = (-q).ln_1p();
+    let mut position = 0.0_f64;
+    let mut successes = 0_u64;
+    loop {
+        // Trials until the next success is geometric: ⌈ln(U) / ln(1 − q)⌉, U in (0, 1].
+        let u = 1.0 - rng.next_f64();
+        position += (u.ln() / log_fail).floor() + 1.0;
+        if position > n as f64 {
+            return successes;
+        }
+        successes += 1;
+    }
+}
+
+/// Binomial draw by Hörmann's BTRS transformed rejection; valid for `n q ≥ 10`, `q ≤ 1/2`.
+fn binomial_btrs(n: u64, q: f64, rng: &mut CausalRng) -> u64 {
+    let nf = n as f64;
+    let spq = (nf * q * (1.0 - q)).sqrt();
+    let b = 1.15 + 2.53 * spq;
+    let a = -0.0873 + 0.0248 * b + 0.01 * q;
+    let c = nf * q + 0.5;
+    let v_r = 0.92 - 4.2 / b;
+    let alpha = (2.83 + 5.1 / b) * spq;
+    let lpq = (q / (1.0 - q)).ln();
+    let m = ((nf + 1.0) * q).floor();
+    let h = ln_gamma(m + 1.0) + ln_gamma(nf - m + 1.0);
+    loop {
+        let u = rng.next_f64() - 0.5;
+        let v = rng.next_f64();
+        let us = 0.5 - u.abs();
+        let k = ((2.0 * a / us + b) * u + c).floor();
+        if k < 0.0 || k > nf {
+            continue;
+        }
+        if us >= 0.07 && v <= v_r {
+            return k as u64;
+        }
+        let v = (v * alpha / (a / (us * us) + b)).ln();
+        if v <= h - ln_gamma(k + 1.0) - ln_gamma(nf - k + 1.0) + (k - m) * lpq {
+            return k as u64;
+        }
     }
 }
 
@@ -270,7 +357,7 @@ impl DecisionSignal<f64> for BinomialSignal {
         rng: &mut CausalRng,
     ) -> Result<f64, DesignError> {
         let theta = probability_state(*state)?;
-        Ok((0..n).filter(|_| rng.next_f64() < theta).count() as f64)
+        Ok(sample_binomial(n, theta, rng) as f64)
     }
 }
 
@@ -874,6 +961,40 @@ mod weighted_belief_tests {
         assert!(signal.log_likelihood(f64::INFINITY, 1, &[0.0], &mut [0.0]).is_err());
         let tiny = GaussianMeanSignal::new(f64::from_bits(1)).unwrap();
         assert!(tiny.log_likelihood(0.0, 100, &[0.0], &mut [0.0]).is_err());
+    }
+
+    #[test]
+    fn a_zero_size_gaussian_study_is_refused() {
+        let signal = GaussianMeanSignal::new(1.0).unwrap();
+        assert!(signal.log_likelihood(0.0, 0, &[0.0], &mut [0.0]).is_err());
+        let mut rng = evsi_replicate_rng(&RngFactory::from_seed(1), 0);
+        assert!(signal.sample_statistic(&0.0, 0, &mut rng).is_err());
+    }
+
+    #[test]
+    fn large_binomial_draws_have_the_binomial_moments() {
+        let mut rng = evsi_replicate_rng(&RngFactory::from_seed(7), 0);
+        for (n, p) in [(1_000_u64, 0.3), (50_000, 0.5), (200, 0.01), (1_000_000, 0.9999), (400, 0.75)] {
+            let draws = 4_000;
+            let mut sum = 0.0;
+            let mut sum_sq = 0.0;
+            for _ in 0..draws {
+                let x = sample_binomial(n, p, &mut rng);
+                assert!(x <= n);
+                let x = x as f64;
+                sum += x;
+                sum_sq += x * x;
+            }
+            let mean = sum / f64::from(draws);
+            let variance = sum_sq / f64::from(draws) - mean * mean;
+            let (true_mean, true_variance) = (n as f64 * p, n as f64 * p * (1.0 - p));
+            let mean_se = (true_variance / f64::from(draws)).sqrt();
+            assert!((mean - true_mean).abs() < 5.0 * mean_se.max(1e-9), "n={n} p={p} mean={mean}");
+            assert!(
+                (variance - true_variance).abs() < 0.2 * true_variance.max(1e-9) + 1e-6,
+                "n={n} p={p} variance={variance} vs {true_variance}"
+            );
+        }
     }
 
     #[test]

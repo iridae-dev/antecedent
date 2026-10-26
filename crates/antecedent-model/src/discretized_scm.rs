@@ -434,7 +434,7 @@ fn plan_level_counts(
             return Err(invalid(
                 DETAIL_LEVELS_OUT_OF_RANGE,
                 v.clone(),
-                "declare between 2 and 64 levels per variable",
+                "declare at least 2 levels per variable and no more than the bridge level bound",
             ));
         }
         joint = joint.saturating_mul(n);

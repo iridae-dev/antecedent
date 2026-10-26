@@ -875,6 +875,7 @@ fn exact_posterior_matches_independent_enumeration_on_tractable_cases() {
     let cols = tractable_columns(7, 200, 1);
     let (data, vars) = table(&names(7), &cols);
     let refused = ExactDagPosterior::new()
+        .with_route_larger(false)
         .run(
             &data,
             &vars,
@@ -913,7 +914,7 @@ fn exact_marginals_respect_the_parent_cap_and_refuse_beyond_their_size() {
         &ExecutionContext::for_tests(1),
     )
     .unwrap_err();
-    assert!(refused.to_string().contains("at most 12 variables"), "{refused}");
+    assert!(refused.to_string().contains("work budget"), "{refused}");
 }
 
 /// Both samplers against the exact posterior at ten and twelve variables on 2,000 rows:

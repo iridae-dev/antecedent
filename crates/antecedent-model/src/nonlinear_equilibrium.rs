@@ -13,8 +13,15 @@ use antecedent_kernels::gauss_jordan_solve;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-/// Maximum order admitted by this dense implementation.
-pub const MAX_ORDER: usize = 128;
+/// Bytes admitted for each dense `n x n` matrix the implementation materialises (noise
+/// covariance, Cholesky factor, Jacobian).
+pub const MAX_DENSE_MATRIX_BYTES: usize = 128 << 20;
+
+/// Maximum order admitted by this dense implementation: the largest `n` whose `n x n` `f64`
+/// matrix fits in [`MAX_DENSE_MATRIX_BYTES`] (4096).
+pub const MAX_ORDER: usize = 4096;
+
+const _: () = assert!(MAX_ORDER * MAX_ORDER * std::mem::size_of::<f64>() <= MAX_DENSE_MATRIX_BYTES);
 
 /// Serializable scalar mechanisms with global Lipschitz constant one.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]

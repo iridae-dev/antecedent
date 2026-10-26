@@ -390,6 +390,97 @@ pub fn sample_conditional_interventional(
     ws: &mut MechanismWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<ValueBatch, ModelError> {
+    let (batch, report) = sample_conditional_interventional_reported(
+        model,
+        interventions,
+        evidence,
+        n_rows,
+        rng,
+        ws,
+        ctx,
+    )?;
+    if let Some(shortfall) = report.ess_shortfall() {
+        return Err(ModelError::Numerical {
+            message: format!(
+                "conditional do: likelihood weights are degenerate (effective sample size \
+                 {:.2} of {} particles, need at least {:.1}, after growing the particle set \
+                 {LW_MAX_PARTICLE_GROWTH}x); the evidence is too far in the tail of the model \
+                 to condition on by likelihood weighting",
+                shortfall.effective_sample_size, report.particles, shortfall.floor
+            ),
+        });
+    }
+    Ok(batch)
+}
+
+/// How a conditional draw was produced.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConditionalSampleMethod {
+    /// Exact-match rejection sampling (discrete or point-mass evidence).
+    Rejection,
+    /// Likelihood weighting followed by systematic resampling.
+    LikelihoodWeighting,
+}
+
+/// A likelihood-weighting pass that stopped before its Kish effective sample size reached the
+/// floor, at the largest particle set the growth budget allows.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EssShortfall {
+    /// Kish effective sample size reached by the final particle set.
+    pub effective_sample_size: f64,
+    /// Effective sample size the pass required.
+    pub floor: f64,
+}
+
+/// Diagnostics of one conditional draw (see [`sample_conditional_interventional_reported`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ConditionalSampleReport {
+    /// Method that produced the rows.
+    pub method: ConditionalSampleMethod,
+    /// Particles (or candidate rows) the final pass used.
+    pub particles: usize,
+    /// Kish effective sample size of the final weights (`None` for rejection sampling,
+    /// whose accepted rows are unweighted).
+    pub effective_sample_size: Option<f64>,
+    /// Effective sample size the pass required (`None` for rejection sampling).
+    pub ess_floor: Option<f64>,
+}
+
+impl ConditionalSampleReport {
+    /// The shortfall against the effective-sample-size floor, or `None` when the floor was met
+    /// (always `None` for rejection sampling).
+    #[must_use]
+    pub fn ess_shortfall(&self) -> Option<EssShortfall> {
+        match (self.effective_sample_size, self.ess_floor) {
+            (Some(effective_sample_size), Some(floor))
+                if !(effective_sample_size.is_finite() && effective_sample_size >= floor) =>
+            {
+                Some(EssShortfall { effective_sample_size, floor })
+            }
+            _ => None,
+        }
+    }
+}
+
+/// [`sample_conditional_interventional`] that returns what the draw achieved instead of
+/// refusing a likelihood-weighting pass whose effective sample size stays below its floor.
+///
+/// The rows are then a resample of the largest particle set the growth budget allows; inspect
+/// [`ConditionalSampleReport::ess_shortfall`] before treating them as an adequate sample of the
+/// conditional law. Unusable weights (all zero or non-finite) are still an error.
+///
+/// # Errors
+///
+/// Empty condition, intervened condition nodes, density failures, or empty weights.
+pub fn sample_conditional_interventional_reported(
+    model: &CompiledCausalModel,
+    interventions: &[Intervention],
+    evidence: &ConditionEvidence<'_>,
+    n_rows: usize,
+    rng: &mut CausalRng,
+    ws: &mut MechanismWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<(ValueBatch, ConditionalSampleReport), ModelError> {
     let ConditionEvidence { nodes: condition_nodes, values: condition_values } = *evidence;
     if condition_nodes.is_empty() || condition_values.len() != condition_nodes.len() {
         return Err(ModelError::Shape {
@@ -484,7 +575,13 @@ pub fn sample_conditional_interventional(
         }
         if got >= n_rows {
             let _ = ctx;
-            return Ok(ValueBatch { n_rows, n_nodes, values: accepted.into() });
+            let report = ConditionalSampleReport {
+                method: ConditionalSampleMethod::Rejection,
+                particles: drawn,
+                effective_sample_size: None,
+                ess_floor: None,
+            };
+            return Ok((ValueBatch { n_rows, n_nodes, values: accepted.into() }, report));
         }
     }
 
@@ -500,7 +597,7 @@ fn sample_conditional_interventional_lw(
     rng: &mut CausalRng,
     ws: &mut MechanismWorkspace,
     ctx: &ExecutionContext,
-) -> Result<ValueBatch, ModelError> {
+) -> Result<(ValueBatch, ConditionalSampleReport), ModelError> {
     let ConditionEvidence { nodes: condition_nodes, values: condition_values } = *evidence;
     let n_nodes = model.n_nodes();
     let base_particles = n_rows.saturating_mul(20).max(64);
@@ -523,6 +620,7 @@ fn sample_conditional_interventional_lw(
     // represents draws no extra particles.
     let ess_floor = (0.05 * base_particles as f64).max(2.0);
     let mut n_particles = base_particles;
+    let mut ess;
     let (particle_buf, weights) = loop {
         let (particle_buf, log_w) = weighted_particles(
             NodeEvaluation { model, overlay: &overlay, ctx: Some(ctx) },
@@ -532,19 +630,13 @@ fn sample_conditional_interventional_lw(
             ws,
         )?;
         let weights = normalized_weights(&log_w)?;
-        let ess = kish_ess(&weights);
+        ess = kish_ess(&weights);
         if ess.is_finite() && ess >= ess_floor {
             break (particle_buf, weights);
         }
         if n_particles >= base_particles.saturating_mul(LW_MAX_PARTICLE_GROWTH) {
-            return Err(ModelError::Numerical {
-                message: format!(
-                    "conditional do: likelihood weights are degenerate (effective sample size \
-                     {ess:.2} of {n_particles} particles, need at least {ess_floor:.1}, after \
-                     growing the particle set {LW_MAX_PARTICLE_GROWTH}x); the evidence is too \
-                     far in the tail of the model to condition on by likelihood weighting"
-                ),
-            });
+            // Out of growth budget: keep the largest set and report the shortfall.
+            break (particle_buf, weights);
         }
         n_particles = n_particles.saturating_mul(2);
     };
@@ -570,11 +662,17 @@ fn sample_conditional_interventional_lw(
         }
     }
     let _ = ctx;
-    Ok(ValueBatch { n_rows, n_nodes, values: accepted.into() })
+    let report = ConditionalSampleReport {
+        method: ConditionalSampleMethod::LikelihoodWeighting,
+        particles: n_particles,
+        effective_sample_size: Some(ess),
+        ess_floor: Some(ess_floor),
+    };
+    Ok((ValueBatch { n_rows, n_nodes, values: accepted.into() }, report))
 }
 
 /// Largest multiple of the base particle count conditional likelihood weighting grows to
-/// (by doubling) before it refuses degenerate weights.
+/// (by doubling) before it stops and reports an effective-sample-size shortfall.
 const LW_MAX_PARTICLE_GROWTH: usize = 64;
 
 /// Evidence a likelihood-weighted pass clamps: which nodes, and to what value.

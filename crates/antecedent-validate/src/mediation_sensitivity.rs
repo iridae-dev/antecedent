@@ -242,25 +242,48 @@ pub fn residual_correlation(
     Ok(cross / (t.rss.sqrt() * y.rss.sqrt()))
 }
 
-/// Finest grid and bisection depth of the break-even search.
+/// Finest grid of the break-even search.
 const BREAK_EVEN_STEPS: usize = 398;
+/// Bisection halvings: a grid cell is `1.99 / 398 = 0.005` wide, so 80 halvings reach
+/// `0.005 * 2^-80`, far below the `f64` spacing near any `ρ` in `(−1, 1)`.
+const BISECTION_STEPS: usize = 80;
+
+/// Whether `a` and `b` have strictly opposite signs, compared by sign and not by product so
+/// that tiny values cannot underflow the product to zero or huge ones overflow it.
+fn opposite_signs(a: f64, b: f64) -> bool {
+    a != 0.0 && b != 0.0 && a.is_sign_negative() != b.is_sign_negative()
+}
 
 /// Smallest-magnitude `ρ` in `(−0.995, 0.995)` at which `f` changes sign, by a grid scan and
 /// bisection; `None` when `f` keeps one sign over the grid.
-fn first_root(f: impl Fn(f64) -> f64) -> Option<f64> {
+///
+/// # Errors
+///
+/// `f` is `NaN` at a probed point: a missing value is not "no sign change".
+fn first_root(f: impl Fn(f64) -> f64) -> Result<Option<f64>, ValidationError> {
     let at = |k: usize| -0.995 + 1.99 * (k as f64) / (BREAK_EVEN_STEPS as f64);
+    let checked = |x: f64| {
+        let value = f(x);
+        if value.is_nan() {
+            Err(ValidationError::estimation_msg(
+                "the break-even search met a non-finite sensitivity value",
+            ))
+        } else {
+            Ok(value)
+        }
+    };
     let mut best: Option<f64> = None;
-    let mut previous = (at(0), f(at(0)));
+    let mut previous = (at(0), checked(at(0))?);
     for k in 1..=BREAK_EVEN_STEPS {
         let x = at(k);
-        let value = f(x);
-        if previous.1 == 0.0 || previous.1 * value < 0.0 {
+        let value = checked(x)?;
+        if previous.1 == 0.0 || opposite_signs(previous.1, value) {
             let (mut lo, mut hi) = (previous.0, x);
             let mut f_lo = previous.1;
-            for _ in 0..80 {
+            for _ in 0..BISECTION_STEPS {
                 let mid = 0.5 * (lo + hi);
-                let f_mid = f(mid);
-                if f_lo * f_mid <= 0.0 {
+                let f_mid = checked(mid)?;
+                if f_lo == 0.0 || f_mid == 0.0 || opposite_signs(f_lo, f_mid) {
                     hi = mid;
                 } else {
                     lo = mid;
@@ -274,7 +297,7 @@ fn first_root(f: impl Fn(f64) -> f64) -> Option<f64> {
         }
         previous = (x, value);
     }
-    best
+    Ok(best)
 }
 
 /// The natural direct effect as a function of the mediator-outcome error correlation `ρ`, bound
@@ -302,7 +325,7 @@ pub fn natural_direct_range(
             "direct-effect sensitivity curve is not finite",
         ));
     }
-    let break_even = first_root(|rho| direct(rho).unwrap_or(f64::NAN));
+    let break_even = first_root(|rho| direct(rho).unwrap_or(f64::NAN))?;
     Ok(AssumptionRange::new(
         target,
         SensitivityAssumption::MediatorOutcomeConfounding,
@@ -359,6 +382,18 @@ pub fn cross_world_noise_range(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn first_root_compares_signs_and_surfaces_nan() {
+        // Tiny magnitudes whose product underflows to zero still change sign at 0.1.
+        let root = first_root(|rho| 1e-200 * (rho - 0.1)).unwrap().unwrap();
+        assert!((root - 0.1).abs() < 1e-9, "{root}");
+        // Huge magnitudes whose product overflows still change sign.
+        let root = first_root(|rho| 1e200 * (rho + 0.25)).unwrap().unwrap();
+        assert!((root + 0.25).abs() < 1e-9, "{root}");
+        assert_eq!(first_root(|rho| 1.0 + rho * rho).unwrap(), None);
+        assert!(first_root(|_| f64::NAN).is_err());
+    }
 
     fn data() -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
         let mut t = Vec::new();

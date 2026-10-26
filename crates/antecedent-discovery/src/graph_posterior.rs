@@ -1237,12 +1237,9 @@ pub(crate) fn accumulate_marginals(
 ) -> (Vec<f64>, Vec<f64>) {
     let mut edge = vec![0.0; n * n];
     for (&w, &mask) in weights.iter().zip(masks.iter()) {
-        for i in 0..n {
-            for j in 0..n {
-                if i != j && crate::adjacency_mask::has_edge(mask, n, i, j) {
-                    edge[i * n + j] += w;
-                }
-            }
+        // Only the set bits: a sparse graph costs its edge count, not `n²`.
+        for (from, to) in mask.edges(n) {
+            edge[from * n + to] += w;
         }
     }
     let orient = edge.clone();

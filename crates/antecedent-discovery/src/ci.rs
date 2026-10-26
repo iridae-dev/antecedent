@@ -49,6 +49,77 @@ pub(crate) fn run_ci_batch(
     Ok(chunks.into_iter().flatten().collect())
 }
 
+/// The statistic and p-value of `result`, refused when either is not finite.
+///
+/// # Errors
+///
+/// [`DiscoveryError::Stats`] for a non-finite statistic or p-value: a NaN must not pass as
+/// evidence either way.
+pub(crate) fn finite_outcome(result: &CiResult) -> Result<(f64, f64), DiscoveryError> {
+    if result.statistic.is_finite() && result.p_value.is_finite() {
+        Ok((result.statistic, result.p_value))
+    } else {
+        Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"))
+    }
+}
+
+/// Whether `error` says the CI test has no answer for this query (a constant variable or a
+/// collinear conditioning set), as opposed to the run being broken.
+///
+/// An unanswerable query carries no information about independence, so constraint-based
+/// search must neither delete the edge on it nor count it as a rejection.
+#[must_use]
+pub(crate) fn is_untestable(error: &DiscoveryError) -> bool {
+    matches!(
+        error,
+        DiscoveryError::Stats(StatsError::Unsupported { message })
+            if message.starts_with(UNDEFINED_PARTIAL_CORRELATION)
+    )
+}
+
+/// Leading words of the statistics crate's refusal of an undefined partial correlation.
+const UNDEFINED_PARTIAL_CORRELATION: &str = "partial correlation is undefined";
+
+/// One single-query CI batch, its only result checked for finiteness.
+///
+/// # Errors
+///
+/// A CI failure (including [`is_untestable`] queries), an empty result, or a non-finite
+/// statistic or p-value.
+pub(crate) fn single_finite(
+    ci: &(dyn ConditionalIndependence + Sync),
+    prepared: &PreparedCiTest,
+    request: &CiBatchRequest<'_>,
+    workspace: &mut CiWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<(f64, f64), DiscoveryError> {
+    let results =
+        run_ci_batch(ci, prepared, request, workspace, ctx).map_err(DiscoveryError::from)?;
+    let result = results
+        .first()
+        .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
+    finite_outcome(result)
+}
+
+/// [`single_finite`] where a query the test cannot answer ([`is_untestable`]) is `Ok(None)`.
+///
+/// # Errors
+///
+/// Every failure of [`single_finite`] other than an untestable query.
+pub(crate) fn single_finite_or_untestable(
+    ci: &(dyn ConditionalIndependence + Sync),
+    prepared: &PreparedCiTest,
+    request: &CiBatchRequest<'_>,
+    workspace: &mut CiWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<Option<(f64, f64)>, DiscoveryError> {
+    match single_finite(ci, prepared, request, workspace, ctx) {
+        Ok(outcome) => Ok(Some(outcome)),
+        Err(error) if is_untestable(&error) => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
 /// Sizes of the successive chunks of a scan that stops at its first hit.
 ///
 /// A serial context evaluates one test at a time, exactly as an unbatched loop would. A
@@ -283,5 +354,28 @@ mod tests {
         assert!(
             ensure_ci_decisions_meaningful(&PartialCorrelation, significance, 0.05, true).is_ok()
         );
+    }
+
+    #[test]
+    fn undefined_partial_correlation_is_untestable_not_independent() {
+        let n = 60usize;
+        let constant = vec![1.5; n];
+        let y: Vec<f64> = (0..n).map(|i| (i as f64 * 0.31).sin()).collect();
+        let z: Vec<f64> = (0..n).map(|i| (i as f64 * 0.17).cos()).collect();
+        let columns: [&[f64]; 3] = [&constant, &y, &z];
+        let ctx = ExecutionContext::for_tests(5);
+        let ci = PartialCorrelation;
+        let plan = CiPreparationPlan {
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
+        };
+        let prepared = ci.prepare(&columns, &plan, &ctx).unwrap();
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let z_flat = [2usize];
+        let request = ci_batch_request(&columns, &queries, &z_flat, SignificanceMethod::Analytic);
+        let mut workspace = CiWorkspace::default();
+        let outcome =
+            single_finite_or_untestable(&ci, &prepared, &request, &mut workspace, &ctx).unwrap();
+        assert!(outcome.is_none(), "a constant variable has no partial correlation: {outcome:?}");
     }
 }

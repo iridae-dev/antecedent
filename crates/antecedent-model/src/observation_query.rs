@@ -44,7 +44,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
 use antecedent_core::ExecutionContext;
 
@@ -56,11 +56,16 @@ use antecedent_core::named_variants;
 /// Largest observation count an evidence-requirement solve may search or return.
 pub const MAX_REQUIRED_OBSERVATIONS: u64 = 1 << 24;
 /// Most hypotheses a declared finite Bayes model may hold.
-pub const MAX_BAYES_HYPOTHESES: usize = 256;
+pub const MAX_BAYES_HYPOTHESES: usize = 4096;
 /// Most observation levels a declared finite Bayes model may hold.
-pub const MAX_BAYES_OBSERVATION_LEVELS: usize = 256;
-/// Most observations one posterior update may consume.
-pub const MAX_BAYES_SEQUENCE: usize = 1 << 20;
+pub const MAX_BAYES_OBSERVATION_LEVELS: usize = 4096;
+/// Most likelihood-table cells (`hypotheses x observation levels`) a declared finite Bayes
+/// model may hold: the work and memory budget that bounds the two counts jointly.
+pub const MAX_BAYES_TABLE_CELLS: usize = 1 << 22;
+/// Most work units one posterior update may spend: observations tallied plus likelihood-table
+/// cells folded. A budget on cost rather than on the count of observations, so a long stream
+/// over a small model is accepted while a huge model still refuses.
+pub const MAX_BAYES_UPDATE_WORK: u64 = 1 << 32;
 /// Slack, in log-odds (or probability for the conjugate solve), within which a
 /// level counts as reached. The boundary itself is reached.
 pub const LEVEL_TOLERANCE: f64 = 1e-12;
@@ -761,6 +766,7 @@ impl FiniteBayesModel {
         distinct_names(&observation_levels, "observation levels must be distinct non-blank names")?;
         if hypotheses.len() > MAX_BAYES_HYPOTHESES
             || observation_levels.len() > MAX_BAYES_OBSERVATION_LEVELS
+            || hypotheses.len().saturating_mul(observation_levels.len()) > MAX_BAYES_TABLE_CELLS
         {
             return Err(ObservationQueryError::Invalid("the Bayes model exceeds its size bound"));
         }
@@ -808,23 +814,36 @@ impl FiniteBayesModel {
         &self.likelihood
     }
 
+    /// Refuse an update whose tally (`observations` items) plus table fold exceeds the budget.
+    fn check_update_work(&self, observations: u64) -> Result<(), ObservationQueryError> {
+        let cells =
+            (self.hypotheses.len() as u64).saturating_mul(self.observation_levels.len() as u64);
+        if observations.saturating_add(cells) > MAX_BAYES_UPDATE_WORK {
+            return Err(ObservationQueryError::Invalid("the Bayes update exceeds its work budget"));
+        }
+        Ok(())
+    }
+
     /// The posterior after `observations` (level names; any order).
     ///
     /// # Errors
-    /// An unknown observation level, more than [`MAX_BAYES_SEQUENCE`]
-    /// observations, or observations of probability zero under every
-    /// hypothesis.
+    /// An unknown observation level, a tally plus table fold above
+    /// [`MAX_BAYES_UPDATE_WORK`], or observations of probability zero under
+    /// every hypothesis.
     pub fn posterior(
         &self,
         observations: &[&str],
     ) -> Result<BayesPosterior, ObservationQueryError> {
-        if observations.len() > MAX_BAYES_SEQUENCE {
-            return Err(ObservationQueryError::Invalid("too many observations"));
-        }
-        let o = self.observation_levels.len();
-        let mut counts = vec![0_u64; o];
+        self.check_update_work(observations.len() as u64)?;
+        let index: HashMap<&str, usize> = self
+            .observation_levels
+            .iter()
+            .enumerate()
+            .map(|(i, level)| (level.as_str(), i))
+            .collect();
+        let mut counts = vec![0_u64; self.observation_levels.len()];
         for level in observations {
-            let Some(i) = self.observation_levels.iter().position(|l| l == level) else {
+            let Some(&i) = index.get(level) else {
                 return Err(ObservationQueryError::UnknownLevel {
                     variable: "observation".to_owned(),
                     level: (*level).to_owned(),
@@ -832,6 +851,28 @@ impl FiniteBayesModel {
             };
             counts[i] += 1;
         }
+        self.posterior_from_counts(&counts)
+    }
+
+    /// The posterior after observing level `i` exactly `counts[i]` times (the sufficient
+    /// statistic of [`Self::posterior`]); the stream itself is never materialised, so the
+    /// sequence length is bounded only by `u64` arithmetic.
+    ///
+    /// # Errors
+    /// A count slice that does not match the observation levels, a table fold above
+    /// [`MAX_BAYES_UPDATE_WORK`], or observations of probability zero under every
+    /// hypothesis.
+    pub fn posterior_from_counts(
+        &self,
+        counts: &[u64],
+    ) -> Result<BayesPosterior, ObservationQueryError> {
+        let o = self.observation_levels.len();
+        if counts.len() != o {
+            return Err(ObservationQueryError::Invalid(
+                "one count per observation level is required",
+            ));
+        }
+        self.check_update_work(0)?;
         let log_weights: Vec<f64> = (0..self.hypotheses.len())
             .map(|h| {
                 let mut w = self.prior[h].ln();

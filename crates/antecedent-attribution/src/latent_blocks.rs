@@ -43,7 +43,7 @@ use crate::change_common::{
     CachedOutcomeLawPayoff, ChangeAllocation, DISTRIBUTION_STREAM, DifferenceMeasure,
     attribution_stream, run_change_allocation, total_change,
 };
-use crate::coalition::full_coalition_mask;
+use crate::coalition::{Coalition, full_coalition_mask};
 use crate::distribution_change::{
     DistributionChangeOptions, PopulationRefit, joint_players, refit_populations,
     validate_distribution_change_query,
@@ -358,7 +358,7 @@ pub fn distribution_change_blocks(
         slots: baseline_store.slots.to_vec(),
         baseline: baseline_store,
         comparison: comparison_store,
-        scratch_mask: 0,
+        scratch: Coalition::empty(),
         players_dense,
         group_bit,
         baseline_noise,
@@ -378,8 +378,8 @@ pub fn distribution_change_blocks(
         values_buf: vec![0.0; n_nodes * n_samples],
         ws: MechanismWorkspace::default(),
     };
-    let v0 = payoff.value(0)?;
-    let v_full = payoff.value(full_coalition_mask(components.len())?)?;
+    let v0 = payoff.value(&Coalition::empty())?;
+    let v_full = payoff.value(&full_coalition_mask(components.len())?)?;
     let total = total_change(options.measure, v0, v_full);
     let request = ChangeAllocation {
         outcome: query.outcome,
@@ -404,11 +404,11 @@ fn row_below(u: f64, units: usize) -> usize {
 /// The coalition payoff of a block change attribution: the outcome summary of the hybrid
 /// system that takes the comparison mechanisms and noise rows for the blocks of the coalition.
 struct BlockSwapPayoff {
-    /// Mechanism slots of the hybrid at `scratch_mask`.
+    /// Mechanism slots of the hybrid at `scratch`.
     slots: Vec<MechanismSlot>,
     baseline: CompiledMechanismStore,
     comparison: CompiledMechanismStore,
-    scratch_mask: u64,
+    scratch: Coalition,
     players_dense: Vec<DenseNodeId>,
     group_bit: Vec<usize>,
     /// Abducted noise of each population, `noise[node * units + unit]`.
@@ -444,14 +444,13 @@ impl CachedOutcomeLawPayoff for BlockSwapPayoff {
         self.baseline_law = Some(law);
     }
 
-    fn law_at(&mut self, mask: u64) -> Result<(f64, f64), AttributionError> {
+    fn law_at(&mut self, coalition: &Coalition) -> Result<(f64, f64), AttributionError> {
         let n = self.n_samples;
-        let changed = mask ^ self.scratch_mask;
         for (position, &node) in self.players_dense.iter().enumerate() {
             let group = self.group_bit[position];
-            let from_comparison = mask & (1u64 << group) != 0;
+            let from_comparison = coalition.contains(group);
             let index = node.as_usize();
-            if changed & (1u64 << group) != 0 {
+            if from_comparison != self.scratch.contains(group) {
                 let source = if from_comparison { &self.comparison } else { &self.baseline };
                 self.slots[index] = source.slots[index].clone();
             }
@@ -465,7 +464,7 @@ impl CachedOutcomeLawPayoff for BlockSwapPayoff {
                 self.noise_buf[index * n + draw] = noise[index * units + row];
             }
         }
-        self.scratch_mask = mask;
+        self.scratch = coalition.clone();
         self.values_buf.fill(0.0);
         let noise = NoiseBatchMut::new(n, self.n_nodes, &mut self.noise_buf)?;
         let mut values = ValueBatchMut::new(n, self.n_nodes, &mut self.values_buf)?;
@@ -484,7 +483,36 @@ impl CachedOutcomeLawPayoff for BlockSwapPayoff {
 }
 
 impl CoalitionPayoff for BlockSwapPayoff {
-    fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
-        self.cached_payoff_value(mask)
+    fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
+        self.cached_payoff_value(coalition)
+    }
+
+    fn fork<'a>(&'a self) -> Option<Box<dyn CoalitionPayoff + Send + 'a>> {
+        // The outcome law is a pure function of the coalition: every player's noise rows are
+        // rewritten from it on each call and the slot array is patched to match it.
+        Some(Box::new(Self {
+            slots: self.slots.clone(),
+            baseline: self.baseline.clone(),
+            comparison: self.comparison.clone(),
+            scratch: self.scratch.clone(),
+            players_dense: self.players_dense.clone(),
+            group_bit: self.group_bit.clone(),
+            baseline_noise: Arc::clone(&self.baseline_noise),
+            baseline_units: self.baseline_units,
+            comparison_noise: Arc::clone(&self.comparison_noise),
+            comparison_units: self.comparison_units,
+            baseline_rows: self.baseline_rows.clone(),
+            comparison_rows: self.comparison_rows.clone(),
+            eval_order: self.eval_order.clone(),
+            eval_gathers: self.eval_gathers.clone(),
+            outcome: self.outcome,
+            n_nodes: self.n_nodes,
+            n_samples: self.n_samples,
+            measure: self.measure,
+            baseline_law: self.baseline_law,
+            noise_buf: self.noise_buf.clone(),
+            values_buf: vec![0.0; self.n_nodes * self.n_samples],
+            ws: MechanismWorkspace::default(),
+        }))
     }
 }

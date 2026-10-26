@@ -57,10 +57,10 @@ use crate::obligation_adapters::{assumption_obligations, transport_result_obliga
 use crate::plan_common::valid_intervention_values;
 use crate::study_candidate::DurableStudyCandidate;
 
-/// Largest candidate list one repair request may declare.
-pub const REPAIR_MAX_CANDIDATES: usize = 16;
-/// Largest subset size (search depth) a repair request may declare.
-pub const REPAIR_MAX_DEPTH: usize = 4;
+/// Subset size (search depth) a repair search reaches unless the request says otherwise. The
+/// candidate count and the depth are not bounded as such: the operation count below bounds
+/// the work, whatever its shape.
+pub const REPAIR_DEFAULT_DEPTH: usize = 4;
 /// Largest operation count a repair request may declare.
 pub const REPAIR_MAX_OPERATIONS: usize = 100_000;
 /// Largest memory cap, in bytes, a repair request may declare.
@@ -150,6 +150,16 @@ pub trait RepairFamily {
     /// source proof step.
     fn unresolved_obligations(&self) -> Vec<EvidenceObligation>;
 
+    /// The regimes `studies` would deliver on top of the contract's evidence, as a
+    /// hypothesis, with ids the family assigns.
+    ///
+    /// # Errors
+    /// The failure reasons of an invalid study.
+    fn hypothetical_regimes(
+        &self,
+        studies: &[&DurableStudyCandidate],
+    ) -> Result<Vec<EvidenceRegime>, Vec<String>>;
+
     /// Re-run the theorem-specific identifier/validator with the evidence the
     /// `studies` would deliver, as a hypothesis.
     ///
@@ -160,6 +170,22 @@ pub trait RepairFamily {
         studies: &[&DurableStudyCandidate],
         ctx: &ExecutionContext,
     ) -> Result<FamilyVerdict, RepairCancelled>;
+}
+
+/// A family frozen from a failed contract about one treatment's effect on one outcome in one
+/// population, with the variables currently observed jointly.
+pub trait FailedContract: RepairFamily {
+    /// The treatment variable.
+    fn treatment(&self) -> VariableId;
+
+    /// The outcome variable.
+    fn outcome(&self) -> VariableId;
+
+    /// The contract's population.
+    fn population(&self) -> &str;
+
+    /// The variables currently observed jointly with treatment and outcome.
+    fn base_law(&self) -> Vec<VariableId>;
 }
 
 /// How sufficient subsets are ranked.
@@ -250,14 +276,11 @@ impl RepairError {
 
 impl RepairLimits {
     fn check_bounds(&self, candidates: usize) -> Result<(), RepairError> {
-        if candidates > REPAIR_MAX_CANDIDATES
-            || self.search.depth > REPAIR_MAX_DEPTH
-            || self.search.operations > REPAIR_MAX_OPERATIONS
+        if self.search.operations > REPAIR_MAX_OPERATIONS
             || self.memory_limit_bytes > REPAIR_MAX_MEMORY_BYTES
         {
             return Err(RepairError::bounds(format!(
-                "a repair request declares at most {REPAIR_MAX_CANDIDATES} candidates, subset \
-                 depth {REPAIR_MAX_DEPTH}, {REPAIR_MAX_OPERATIONS} operations and \
+                "a repair request declares at most {REPAIR_MAX_OPERATIONS} operations and \
                  {REPAIR_MAX_MEMORY_BYTES} bytes"
             )));
         }
@@ -911,6 +934,13 @@ impl RepairFamily for TransportRepairFamily {
         self.obligations.clone()
     }
 
+    fn hypothetical_regimes(
+        &self,
+        studies: &[&DurableStudyCandidate],
+    ) -> Result<Vec<EvidenceRegime>, Vec<String>> {
+        hypothetical_regimes(&self.base, studies)
+    }
+
     fn check(
         &self,
         studies: &[&DurableStudyCandidate],
@@ -946,17 +976,6 @@ impl TransportRepairFamily {
     #[must_use]
     pub const fn sid_limits(&self) -> SidLimits {
         self.limits
-    }
-
-    /// The proposed regimes `studies` would deliver on top of the base catalog.
-    ///
-    /// # Errors
-    /// The failure reasons of an invalid study.
-    pub fn hypothetical_regimes(
-        &self,
-        studies: &[&DurableStudyCandidate],
-    ) -> Result<Vec<EvidenceRegime>, Vec<String>> {
-        hypothetical_regimes(&self.base, studies)
     }
 
     /// Re-run the transport identifier and verifier on already-proposed
@@ -1243,6 +1262,24 @@ impl BackdoorRepairFamily {
     }
 }
 
+impl FailedContract for BackdoorRepairFamily {
+    fn treatment(&self) -> VariableId {
+        self.treatment
+    }
+
+    fn outcome(&self) -> VariableId {
+        self.outcome
+    }
+
+    fn population(&self) -> &str {
+        &self.population
+    }
+
+    fn base_law(&self) -> Vec<VariableId> {
+        self.base_law.iter().copied().collect()
+    }
+}
+
 impl RepairFamily for BackdoorRepairFamily {
     fn family_id(&self) -> &'static str {
         "backdoor"
@@ -1259,6 +1296,20 @@ impl RepairFamily for BackdoorRepairFamily {
 
     fn unresolved_obligations(&self) -> Vec<EvidenceObligation> {
         self.obligations.clone()
+    }
+
+    fn hypothetical_regimes(
+        &self,
+        studies: &[&DurableStudyCandidate],
+    ) -> Result<Vec<EvidenceRegime>, Vec<String>> {
+        let mut next = 0_u32;
+        let mut regimes = Vec::new();
+        for study in studies {
+            let produced = study.proposed_regimes(next).map_err(|e| vec![e.to_string()])?;
+            next = next.saturating_add(u32::try_from(produced.len()).unwrap_or(u32::MAX));
+            regimes.extend(produced);
+        }
+        Ok(regimes)
     }
 
     fn check(
@@ -1307,49 +1358,6 @@ impl BackdoorRepairFamily {
     #[must_use]
     pub fn dag(&self) -> &Dag {
         &self.dag
-    }
-
-    /// The treatment variable.
-    #[must_use]
-    pub const fn treatment(&self) -> VariableId {
-        self.treatment
-    }
-
-    /// The outcome variable.
-    #[must_use]
-    pub const fn outcome(&self) -> VariableId {
-        self.outcome
-    }
-
-    /// The contract's population.
-    #[must_use]
-    pub fn population(&self) -> &str {
-        &self.population
-    }
-
-    /// The variables currently observed jointly with treatment and outcome.
-    #[must_use]
-    pub fn base_law(&self) -> Vec<VariableId> {
-        self.base_law.iter().copied().collect()
-    }
-
-    /// The proposed regimes `studies` would deliver, with consecutive ids from
-    /// zero (a back-door contract has no base catalog).
-    ///
-    /// # Errors
-    /// The failure reasons of an invalid study.
-    pub fn hypothetical_regimes(
-        &self,
-        studies: &[&DurableStudyCandidate],
-    ) -> Result<Vec<EvidenceRegime>, Vec<String>> {
-        let mut next = 0_u32;
-        let mut regimes = Vec::new();
-        for study in studies {
-            let produced = study.proposed_regimes(next).map_err(|e| vec![e.to_string()])?;
-            next = next.saturating_add(u32::try_from(produced.len()).unwrap_or(u32::MAX));
-            regimes.extend(produced);
-        }
-        Ok(regimes)
     }
 
     /// Re-run the back-door identifier on already-proposed `regimes` (the stored

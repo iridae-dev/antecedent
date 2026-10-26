@@ -429,6 +429,13 @@ fn finite_bayes_update_matches_the_hand_computed_posterior() {
     let none = model.posterior(&[]).unwrap();
     near(none.hypotheses[0].1, 0.01);
     near(none.evidence_probability, 1.0);
+
+    // The count form is the same update, without materialising the stream.
+    let counts = model.posterior_from_counts(&[1, 2]).unwrap();
+    assert_eq!(counts, a);
+    assert!(model.posterior_from_counts(&[1]).is_err());
+    let long = model.posterior_from_counts(&[0, 5_000_000]).unwrap();
+    assert!(long.hypotheses[0].1 > 1.0 - 1e-6);
 }
 
 #[test]

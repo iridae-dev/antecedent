@@ -9,11 +9,11 @@
 
 use antecedent_contract::RequestedReading;
 use antecedent_core::ExecutionContext;
-use antecedent_counterfactual::selective::finite_scm::{MAX_UNITS, abduct_unit};
+use antecedent_counterfactual::selective::finite_scm::abduct_unit;
 use antecedent_counterfactual::selective::{
     ExogenousInference, ExogenousVariable, FactualUnit, FiniteExecutionRequest, FiniteQuantity,
-    FiniteScm, FiniteScmExecutor, FiniteVariable, FiniteWorld, NoiseCoupling, StageStatus,
-    WorldAtom, WorldRoute,
+    ExogenousMethod, FiniteScm, FiniteScmExecutor, FiniteVariable, FiniteWorld, NoiseCoupling,
+    StageStatus, WorldAtom, WorldRoute,
 };
 
 const TOL: f64 = 1e-12;
@@ -523,10 +523,10 @@ fn unsupported_requests_are_scientific_refusals_that_do_no_work() {
         "cross_world_execution.invalid_quantity"
     );
 
-    // Bounds.
-    let mut many = base;
-    many.units = (0..=MAX_UNITS).map(|i| unit(&format!("u{i}"), &[])).collect();
-    assert_eq!(refusal_of(exec.execute(&many, &ctx())).1, "cross_world_execution.bounds_exceeded");
+    // Bounds: an empty unit set is outside the declaration bound.
+    let mut none = base;
+    none.units = Vec::new();
+    assert_eq!(refusal_of(exec.execute(&none, &ctx())).1, "cross_world_execution.bounds_exceeded");
 
     // None of the refusals did abduction work or retained anything.
     assert_eq!(exec.counters().abductions, 0);
@@ -758,8 +758,9 @@ fn a_shared_term_keeps_one_realization_across_the_factual_and_counterfactual_wor
 }
 
 #[test]
-fn a_declared_but_oversized_joint_state_is_unsupported_not_unidentified() {
-    // Six exogenous terms of eight states: 8^6 joint states, one variable each.
+fn a_joint_state_space_past_enumeration_is_eliminated_exactly_not_refused() {
+    // Six exogenous terms of eight states: 8^6 joint states, one variable each. The queried
+    // variable depends on one term only, so the exact answer needs none of the others.
     let scm = FiniteScm {
         population: "pop-a".to_owned(),
         history: "regime-1".to_owned(),
@@ -783,12 +784,137 @@ fn a_declared_but_oversized_joint_state_is_unsupported_not_unidentified() {
         FiniteQuantity::Probability(atom(0, 1, 1)),
     );
     let mut exec = FiniteScmExecutor::new();
-    let (code, detail) = refusal_of(exec.execute(&req, &ctx()));
-    assert_eq!(
-        (code.as_str(), detail.as_str()),
-        ("route_not_supported", "cross_world_execution.joint_state_bound_exceeded")
+    let out = exec.execute(&req, &ctx()).unwrap();
+    assert!((out.value - 0.5).abs() < TOL, "{}", out.value);
+    assert_eq!(out.method, ExogenousMethod::VariableElimination);
+    assert_eq!(exec.counters().abductions, 1);
+    assert_eq!(out.work.abduction_states_enumerated, 0, "no joint state is enumerated");
+    assert_eq!(out.work.shared_draws, 0, "elimination is exact, not sampled");
+    assert_eq!(out.label, "point_only");
+    let receipt = out.elimination.as_ref().expect("the elimination plan is receipted");
+    assert_eq!(receipt.units, 1);
+    assert!(receipt.peak_table_entries > 0 && receipt.multiplications > 0);
+    assert_eq!(receipt.plan_digest.len(), 64);
+    assert_eq!(exec.retained_len(), 0, "an eliminated execution retains nothing");
+    // The same request again gives the same receipt, bit for bit.
+    let again = FiniteScmExecutor::new().execute(&req, &ctx()).unwrap();
+    assert_eq!(again.receipt, out.receipt);
+    assert_eq!(again.elimination, out.elimination);
+    assert_eq!(again.value.to_bits(), out.value.to_bits());
+}
+
+/// `extra` independent binary variables, each with its own binary exogenous term, appended to
+/// `scm`: the joint exogenous space grows by `2^extra` and no query of the original variables
+/// changes.
+fn pad(mut scm: FiniteScm, extra: usize) -> FiniteScm {
+    for k in 0..extra {
+        let term = scm.exogenous.len();
+        scm.exogenous.push(ExogenousVariable { name: format!("pad_u{k}"), pmf: vec![0.5, 0.5] });
+        scm.variables.push(FiniteVariable {
+            name: format!("pad_v{k}"),
+            levels: 2,
+            parents: vec![],
+            exogenous: term,
+            table: vec![0, 1],
+        });
+    }
+    scm
+}
+
+#[test]
+fn elimination_agrees_with_enumeration_on_evidence_routes_and_shared_terms() {
+    // 2^17 padded states put every case past the enumeration bound; the unpadded model is
+    // enumerated. Both must give the same unit values and evidence probabilities.
+    let cases: Vec<(FiniteScm, Vec<FactualUnit>, Vec<FiniteWorld>, FiniteQuantity)> = vec![
+        (
+            response_types([0.2, 0.5, 0.1, 0.2]),
+            vec![unit("case", &[(0, 1), (1, 1)])],
+            vec![do_x("x0", 0), do_x("x1", 1)],
+            FiniteQuantity::Probability(atom(0, 1, 0)),
+        ),
+        (
+            response_types([0.2, 0.5, 0.1, 0.2]),
+            vec![unit("a", &[]), unit("b", &[(0, 0)])],
+            vec![do_x("x0", 0), do_x("x1", 1)],
+            joint_y1_y0(),
+        ),
+        (
+            mediation(),
+            vec![unit("u", &[(2, 1)])],
+            mediation_worlds(),
+            FiniteQuantity::MeanContrast { plus: (3, 2), minus: (2, 2) },
+        ),
+        (
+            mediation(),
+            vec![unit("u", &[])],
+            mediation_worlds(),
+            FiniteQuantity::JointProbability(vec![atom(3, 2, 1), atom(2, 2, 0)]),
+        ),
+        (
+            mediation_scm(),
+            vec![unit("u", &[(0, 1), (2, 0)])],
+            nested_worlds(0, 1),
+            FiniteQuantity::Probability(atom(1, 2, 1)),
+        ),
+        (
+            three_mechanisms_one_term(),
+            vec![unit("case", &[(1, 1)])],
+            vec![do_x("x0", 0), do_x("x1", 1)],
+            FiniteQuantity::Probability(atom(0, 2, 1)),
+        ),
+    ];
+    for (index, (scm, units, worlds, quantity)) in cases.into_iter().enumerate() {
+        let enumerated = FiniteScmExecutor::new()
+            .execute(&request(scm.clone(), units.clone(), worlds.clone(), quantity.clone()), &ctx())
+            .unwrap();
+        assert_eq!(enumerated.method, ExogenousMethod::JointEnumeration, "case {index}");
+        let eliminated = FiniteScmExecutor::new()
+            .execute(&request(pad(scm, 17), units, worlds, quantity), &ctx())
+            .unwrap();
+        assert_eq!(eliminated.method, ExogenousMethod::VariableElimination, "case {index}");
+        assert!(
+            (eliminated.value - enumerated.value).abs() < 1e-10,
+            "case {index}: {} vs {}",
+            eliminated.value,
+            enumerated.value
+        );
+        for (a, b) in eliminated.units.iter().zip(&enumerated.units) {
+            assert_eq!(a.unit, b.unit);
+            assert!((a.value - b.value).abs() < 1e-10, "case {index} unit {}", a.unit);
+            assert!(
+                (a.evidence_probability - b.evidence_probability).abs() < 1e-10,
+                "case {index} unit {}: {} vs {}",
+                a.unit,
+                a.evidence_probability,
+                b.evidence_probability
+            );
+        }
+    }
+}
+
+#[test]
+fn elimination_refuses_refuted_evidence_and_keeps_the_joint_law_rule() {
+    // Contradictory evidence on a shared term, past the enumeration bound.
+    let scm = pad(three_mechanisms_one_term(), 17);
+    let refuted = request(
+        scm.clone(),
+        vec![unit("case", &[(0, 1), (1, 0)])],
+        vec![do_x("x0", 0), do_x("x1", 1)],
+        FiniteQuantity::Probability(atom(0, 2, 1)),
     );
-    assert_eq!(exec.counters().abductions, 0);
+    assert_eq!(
+        refusal_of(FiniteScmExecutor::new().execute(&refuted, &ctx())).1,
+        "cross_world_execution.evidence_outside_model_support"
+    );
+    // An undeclared coupling is refused exactly as on the enumerating route.
+    let mut undeclared = request(
+        scm,
+        vec![unit("case", &[])],
+        vec![do_x("x0", 0), do_x("x1", 1)],
+        joint_y1_y0(),
+    );
+    undeclared.coupling = NoiseCoupling::Undeclared;
+    assert_eq!(refusal_of(FiniteScmExecutor::new().execute(&undeclared, &ctx())).0, "joint_law_required");
 }
 
 // One exogenous term U ~ (0.7, 0.3) is named by all three mechanisms:
@@ -882,7 +1008,7 @@ fn bound_probe(last_states: usize) -> FiniteScm {
 }
 
 #[test]
-fn the_joint_state_bound_holds_at_its_edge_and_refuses_one_term_past_it() {
+fn the_enumeration_bound_holds_at_its_edge_and_elimination_takes_over_past_it() {
     use antecedent_counterfactual::selective::finite_scm::MAX_JOINT_STATES;
     assert_eq!(8usize.pow(5) * 2, MAX_JOINT_STATES);
     let ask = |scm: FiniteScm| {
@@ -897,15 +1023,14 @@ fn the_joint_state_bound_holds_at_its_edge_and_refuses_one_term_past_it() {
     let at_edge = exec.execute(&ask(bound_probe(2)), &ctx()).unwrap();
     // v1 takes the odd state of an eight-state term: probability 1/2.
     assert!((at_edge.value - 0.5).abs() < TOL);
+    assert_eq!(at_edge.method, ExogenousMethod::JointEnumeration);
     assert_eq!(at_edge.work.abduction_states_enumerated, u64::try_from(MAX_JOINT_STATES).unwrap());
 
-    let (code, detail) = refusal_of(exec.execute(&ask(bound_probe(3)), &ctx()));
-    assert_eq!(
-        (code.as_str(), detail.as_str()),
-        ("route_not_supported", "cross_world_execution.joint_state_bound_exceeded")
-    );
-    // The refusal did no abduction and retained nothing beyond the accepted run.
-    assert_eq!(exec.counters().abductions, 1);
+    let past_edge = exec.execute(&ask(bound_probe(3)), &ctx()).unwrap();
+    assert!((past_edge.value - at_edge.value).abs() < TOL);
+    assert_eq!(past_edge.method, ExogenousMethod::VariableElimination);
+    assert_eq!(past_edge.work.abduction_states_enumerated, 0);
+    assert_eq!(exec.counters().abductions, 2);
 }
 
 #[test]

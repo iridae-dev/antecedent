@@ -9,11 +9,11 @@ use super::{
 
 /// One original sampling block. Multiple blocks of a unit resample together.
 #[derive(Clone, Debug)]
-pub struct SelectionDataBlock<D> {
+pub struct SelectionDataBlock<'a, D: Clone> {
     /// Actual observational unit and full preprocessing/lookback span.
     pub span: ObservationalSpan,
-    /// Observations read by the method owner.
-    pub observations: D,
+    /// Observations read by the method owner; borrowed when the caller already holds them.
+    pub observations: std::borrow::Cow<'a, D>,
 }
 /// A program returned by the search stage, after operational feasibility checks.
 #[derive(Clone, Debug)]
@@ -227,7 +227,7 @@ fn run<D, P: ProgramSelectionProcedure<D>>(
         heldout,
     })
 }
-fn clusters<D>(data: &[SelectionDataBlock<D>]) -> Vec<Vec<usize>> {
+fn clusters<D: Clone>(data: &[SelectionDataBlock<'_, D>]) -> Vec<Vec<usize>> {
     let mut groups = std::collections::BTreeMap::<&str, Vec<usize>>::new();
     for (i, block) in data.iter().enumerate() {
         groups.entry(&block.span.unit).or_default().push(i);
@@ -282,10 +282,10 @@ fn selection_quote(
 /// # Errors
 /// Invalid/overlapping partitions, original-procedure failure, changed targets,
 /// cancellation, resources or invalid tie tolerance.
-pub fn execute_heldout_selection<D, P: ProgramSelectionProcedure<D>>(
+pub fn execute_heldout_selection<D: Clone, P: ProgramSelectionProcedure<D>>(
     owner: &P,
-    training: &[SelectionDataBlock<D>],
-    validation: &[SelectionDataBlock<D>],
+    training: &[SelectionDataBlock<'_, D>],
+    validation: &[SelectionDataBlock<'_, D>],
     required_gap: u64,
     repetitions: usize,
     tie_tolerance: f64,
@@ -319,12 +319,12 @@ pub fn execute_heldout_selection<D, P: ProgramSelectionProcedure<D>>(
         ctx.acquire_admission(0, quote as u64)
             .map_err(|e| ProgramSearchError::Resource(e.to_string()))?,
     );
-    let train = training.iter().map(|b| &b.observations).collect::<Vec<_>>();
-    let valid = validation.iter().map(|b| &b.observations).collect::<Vec<_>>();
+    let train = training.iter().map(|b| &*b.observations).collect::<Vec<_>>();
+    let valid = validation.iter().map(|b| &*b.observations).collect::<Vec<_>>();
     let observed = run(owner, &train, &valid, 0, ctx).map_err(|(stage, error)| match error {
         ProgramSearchError::Cancelled => ProgramSearchError::Cancelled,
         error @ ProgramSearchError::Resource(_) => error,
-        error => invalid(format!("{stage:?}: {error}")),
+        error => ProgramSearchError::upstream(format!("{stage:?}"), error),
     })?;
     let mut rows = Vec::with_capacity(repetitions);
     let mut optimism = 0.0;
@@ -339,8 +339,8 @@ pub fn execute_heldout_selection<D, P: ProgramSelectionProcedure<D>>(
         );
         let ti = sample(&train_clusters, &mut rng);
         let vi = sample(&validation_clusters, &mut rng);
-        let train = ti.iter().map(|i| &training[*i].observations).collect::<Vec<_>>();
-        let valid = vi.iter().map(|i| &validation[*i].observations).collect::<Vec<_>>();
+        let train = ti.iter().map(|i| &*training[*i].observations).collect::<Vec<_>>();
+        let valid = vi.iter().map(|i| &*validation[*i].observations).collect::<Vec<_>>();
         let result = run(owner, &train, &valid, replicate + 1, ctx);
         cancelled(ctx)?;
         let (result, failure) = match result {
@@ -396,6 +396,7 @@ mod tests {
     use crate::program_search::certified::*;
     use antecedent_core::{ValueExpr, VariableId};
     use std::cell::Cell;
+    #[derive(Clone)]
     struct Observation {
         validation: bool,
         value: f64,
@@ -506,7 +507,7 @@ mod tests {
             })
         }
     }
-    fn data(seed: u64, validation: bool, n: usize) -> Vec<SelectionDataBlock<Observation>> {
+    fn data(seed: u64, validation: bool, n: usize) -> Vec<SelectionDataBlock<'static, Observation>> {
         let mut rng = antecedent_core::execution::CausalRng::from_seed(seed);
         (0..n)
             .map(|i| {
@@ -518,7 +519,7 @@ mod tests {
                         first: 0,
                         last: 0,
                     },
-                    observations: Observation { validation, value: 0.3 + normal },
+                    observations: std::borrow::Cow::Owned(Observation { validation, value: 0.3 + normal }),
                 }
             })
             .collect()

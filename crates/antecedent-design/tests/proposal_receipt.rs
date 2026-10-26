@@ -37,8 +37,8 @@ use antecedent_design::signal::{
 };
 use antecedent_design::{
     AffineUtility, BackdoorRepairFamily, CandidateDesign, DecisionPrior, DecisionProblem,
-    DesignCost, DesignRankConfig, DurableStudyCandidate, ExpectedEvidence, RepairFamilyRef,
-    RepairLimits, RepairObjective, RepairReportArtifact, SamplingPlan, StudyCostDeclaration,
+    DesignCost, DesignRankConfig, DurableStudyCandidate, ExpectedEvidence, RepairFamily,
+    RepairFamilyRef, RepairLimits, RepairObjective, RepairReportArtifact, SamplingPlan, StudyCostDeclaration,
     StudyKind, TransportRepairFamily, UnitRules, repair,
 };
 use antecedent_graph::{Admg, Dag, DenseNodeId, SelectionDiagram};

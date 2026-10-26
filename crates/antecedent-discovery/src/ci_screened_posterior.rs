@@ -97,7 +97,7 @@ impl CiScreenedPosterior {
                 ..DiscoveryConstraints::default()
             },
             ci: Arc::new(PartialCorrelation),
-            fdr: Some(FdrAdjustment::bh().with_exclude_contemporaneous(false)),
+            fdr: Some(crate::pipeline::static_bh_fdr()),
             soft_weight: CiSoftWeight::None,
             mcmc: StructureMcmc::new().with_schedule(2, 300, 600, 1),
         }

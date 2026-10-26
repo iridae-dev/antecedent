@@ -199,10 +199,11 @@ pub fn evaluate_column(
                     message: "linear gaussian coeff length != n_parents".into(),
                 });
             }
+            let cols = parents.columns()?;
             for r in 0..n {
                 let mut eta = *intercept + noise[r];
-                for p in 0..parents.n_parents {
-                    eta += coeffs[p] * parents.column(p)?[r];
+                for (coeff, col) in coeffs.iter().zip(&cols) {
+                    eta += coeff * col[r];
                 }
                 output[r] = eta;
             }
@@ -220,6 +221,7 @@ pub fn evaluate_column(
                 return Err(ModelError::Shape { message: "empty discrete support".into() });
             }
             let k = support.len();
+            let cols = parents.columns()?;
             let mut row_probs = vec![0.0; k];
             let mut expanded = vec![0.0; basis.n_terms()];
             let mut row = vec![0.0; basis.n_parents()];
@@ -228,7 +230,7 @@ pub fn evaluate_column(
                     basis,
                     logit_coeffs,
                     k,
-                    parents,
+                    &cols,
                     r,
                     &mut expanded,
                     &mut row,
@@ -318,9 +320,10 @@ pub fn evaluate_column(
                             message: "discrete logit_coeffs length mismatch".into(),
                         });
                     }
+                    let cols = parents.columns()?;
                     let mut row_probs = vec![0.0; k];
                     for r in 0..n {
-                        softmax_row_probs(logits, k, width, parents, r, &mut row_probs)?;
+                        softmax_row_probs(logits, k, width, &cols, r, &mut row_probs)?;
                         let u = categorical_noise(noise[r])?;
                         output[r] = categorical_draw(support, &row_probs, u);
                     }
@@ -359,11 +362,12 @@ pub(crate) fn basis_mean_column(
         });
     }
     let n = parents.n_rows;
+    let cols = parents.columns()?;
     let mut row = vec![0.0; basis.n_parents()];
     let mut expanded = vec![0.0; basis.n_terms()];
     for r in 0..n {
         for (p, slot) in row.iter_mut().enumerate() {
-            *slot = basis.standardize(p, parents.column(p)?[r]);
+            *slot = basis.standardize(p, cols[p][r]);
         }
         basis.expand_standardized(&row, &mut expanded)?;
         let mut eta = intercept;
@@ -377,28 +381,45 @@ pub(crate) fn basis_mean_column(
 
 /// Softmax probabilities of a [`MechanismSlot::DiscreteBasis`] at one row.
 #[allow(clippy::too_many_arguments, reason = "row index plus three reused scratch buffers")]
-#[allow(
-    clippy::needless_range_loop,
-    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
-)]
 fn basis_softmax_row_probs(
     basis: &ParentBasis,
     logits: &[f64],
     k: usize,
-    parents: ParentBatch<'_>,
+    cols: &[&[f64]],
+    row_index: usize,
+    expanded: &mut [f64],
+    row: &mut [f64],
+    out: &mut [f64],
+) -> Result<(), ModelError> {
+    basis_row_logits(basis, logits, k, cols, row_index, expanded, row, out)?;
+    softmax_in_place(&mut out[..k]);
+    Ok(())
+}
+
+/// Per-category linear predictors of a [`MechanismSlot::DiscreteBasis`] at one row.
+#[allow(clippy::too_many_arguments, reason = "row index plus three reused scratch buffers")]
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
+fn basis_row_logits(
+    basis: &ParentBasis,
+    logits: &[f64],
+    k: usize,
+    cols: &[&[f64]],
     row_index: usize,
     expanded: &mut [f64],
     row: &mut [f64],
     out: &mut [f64],
 ) -> Result<(), ModelError> {
     let width = 1 + basis.n_terms();
-    if logits.len() != k * width || basis.n_parents() != parents.n_parents {
+    if logits.len() != k * width || basis.n_parents() != cols.len() {
         return Err(ModelError::Shape {
             message: "discrete basis logit_coeffs length mismatch".into(),
         });
     }
     for (p, slot) in row.iter_mut().enumerate() {
-        *slot = basis.standardize(p, parents.column(p)?[row_index]);
+        *slot = basis.standardize(p, cols[p][row_index]);
     }
     basis.expand_standardized(row, expanded)?;
     for cat in 0..k {
@@ -409,7 +430,6 @@ fn basis_softmax_row_probs(
         }
         out[cat] = pred;
     }
-    softmax_in_place(&mut out[..k]);
     Ok(())
 }
 
@@ -442,13 +462,31 @@ pub(crate) fn gp_predictive_mean_column(
     output: &mut [f64],
 ) -> Result<(), ModelError> {
     let n = parents.n_rows;
+    if !(length_scale.is_finite() && length_scale > 0.0) {
+        return Err(ModelError::Numerical {
+            message: "GP length_scale must be positive and finite".into(),
+        });
+    }
+    if n_parents != parents.n_parents {
+        return Err(ModelError::Shape { message: "GP n_parents mismatch".into() });
+    }
+    if alpha.len() < n_train
+        || x_train.len() < n_train.saturating_mul(n_parents)
+        || output.len() < n
+    {
+        return Err(ModelError::Shape {
+            message: "GP fitted slot buffers are shorter than n_train and n_parents imply".into(),
+        });
+    }
+    let cols = parents.columns()?;
     let inv_l2 = 1.0 / (length_scale * length_scale);
     for r in 0..n {
         let mut mean = prior_mean;
         for i in 0..n_train {
+            let train = &x_train[i * n_parents..(i + 1) * n_parents];
             let mut d2 = 0.0;
-            for p in 0..parents.n_parents {
-                let d = parents.column(p)?[r] - x_train[i * n_parents + p];
+            for (col, &x) in cols.iter().zip(train) {
+                let d = col[r] - x;
                 d2 += d * d;
             }
             mean += alpha[i] * variance * (-0.5 * d2 * inv_l2).exp();
@@ -517,12 +555,10 @@ pub fn infer_noise_column_rng(
                     message: "linear gaussian coeff length != n_parents".into(),
                 });
             }
+            let mut mean = vec![0.0; n];
+            linear_mean_column(*intercept, coeffs, &parents.columns()?, &mut mean);
             for r in 0..n {
-                let mut eta = *intercept;
-                for p in 0..parents.n_parents {
-                    eta += coeffs[p] * parents.column(p)?[r];
-                }
-                output[r] = value[r] - eta;
+                output[r] = value[r] - mean[r];
             }
             Ok(NoiseInferenceMode::Invertible)
         }
@@ -627,6 +663,7 @@ pub fn infer_noise_column_rng(
             if k == 0 {
                 return Err(ModelError::Shape { message: "empty discrete support".into() });
             }
+            let cols = parents.columns()?;
             let mut row_probs = vec![0.0; k];
             let mut expanded = vec![0.0; basis.n_terms()];
             let mut row = vec![0.0; basis.n_parents()];
@@ -635,7 +672,7 @@ pub fn infer_noise_column_rng(
                     basis,
                     logit_coeffs,
                     k,
-                    parents,
+                    &cols,
                     r,
                     &mut expanded,
                     &mut row,
@@ -688,6 +725,7 @@ fn infer_discrete_posterior_noise(
         return Err(ModelError::Shape { message: "empty discrete support".into() });
     }
     let k = support.len();
+    let cols = parents.columns()?;
     let mut row_probs = vec![0.0; k];
     for r in 0..n {
         match logit_coeffs {
@@ -710,7 +748,7 @@ fn infer_discrete_posterior_noise(
                         message: "discrete logit_coeffs length mismatch".into(),
                     });
                 }
-                softmax_row_probs(logits, k, width, parents, r, &mut row_probs)?;
+                softmax_row_probs(logits, k, width, &cols, r, &mut row_probs)?;
             }
         }
         output[r] = categorical_inverse_cdf_draw(support, &row_probs, value[r], rng)?;
@@ -762,7 +800,51 @@ fn categorical_inverse_cdf_draw(
     Ok(u)
 }
 
+/// Tolerance within which an observed value selects a support point.
+const SUPPORT_TOLERANCE: f64 = 1e-12;
+
+/// Floor applied to a tree classifier's class score before its logarithm. Tree scores are
+/// leaf-mean estimates rather than a normalised model, so a held-out category can score
+/// exactly zero; the floor is this estimator's explicit smoothing and is not applied to the
+/// exact categorical families, which keep `ln(0) = -inf`.
+const TREE_CLASS_PROBABILITY_FLOOR: f64 = f64::EPSILON;
+
+/// Index of the support point `value` selects, if any.
+fn support_index(support: &[f64], value: f64) -> Option<usize> {
+    support.iter().position(|&s| (value - s).abs() < SUPPORT_TOLERANCE)
+}
+
+/// `Σ coeffsₚ · colsₚ[r] + intercept` for every row, accumulated parent by parent in row
+/// order (the order of the per-row `intercept + c₀x₀ + c₁x₁ + …` sum).
+fn linear_mean_column(intercept: f64, coeffs: &[f64], cols: &[&[f64]], out: &mut [f64]) {
+    for (r, slot) in out.iter_mut().enumerate() {
+        let mut eta = intercept;
+        for (coeff, col) in coeffs.iter().zip(cols) {
+            eta += coeff * col[r];
+        }
+        *slot = eta;
+    }
+}
+
+/// Gaussian log-density of `values` about `mean` with scale `sigma`, via the shared kernel.
+fn gaussian_log_prob(
+    values: &[f64],
+    mean: &[f64],
+    sigma: f64,
+    output: &mut [f64],
+) -> Result<(), ModelError> {
+    if !(sigma.is_finite() && sigma > 0.0) {
+        return Err(ModelError::Numerical { message: "sigma must be > 0".into() });
+    }
+    antecedent_kernels::gaussian_log_density(values, mean, sigma, output)
+        .map_err(|e| ModelError::Shape { message: e.to_string() })
+}
+
 /// Log-density of observed values under the mechanism (PCM path).
+///
+/// A categorical value outside the support, or a category with exactly zero model
+/// probability, scores `-inf`. Only the tree-categorical family smooths its class scores
+/// (see `TREE_CLASS_PROBABILITY_FLOOR`).
 ///
 /// # Errors
 ///
@@ -770,6 +852,10 @@ fn categorical_inverse_cdf_draw(
 #[allow(
     clippy::too_many_lines,
     reason = "one arm per mechanism family, each a self-contained log-density column"
+)]
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
 )]
 pub fn log_prob_column(
     slot: &MechanismSlot,
@@ -793,60 +879,51 @@ pub fn log_prob_column(
                     message: "linear gaussian coeff length != n_parents".into(),
                 });
             }
-            let inv_s = 1.0 / sigma;
-            let log_norm = -0.5 * (2.0 * std::f64::consts::PI).ln() - sigma.ln();
-            for r in 0..n {
-                let mut eta = *intercept;
-                for p in 0..parents.n_parents {
-                    eta += coeffs[p] * parents.column(p)?[r];
-                }
-                let z = (values[r] - eta) * inv_s;
-                output[r] = log_norm - 0.5 * z * z;
-            }
-            Ok(())
+            let mut mean = vec![0.0; n];
+            linear_mean_column(*intercept, coeffs, &parents.columns()?, &mut mean);
+            gaussian_log_prob(&values[..n], &mean, *sigma, &mut output[..n])
         }
         MechanismSlot::Constant { value } => {
             for r in 0..n {
-                output[r] =
-                    if (values[r] - *value).abs() < 1e-12 { 0.0 } else { f64::NEG_INFINITY };
+                output[r] = if (values[r] - *value).abs() < SUPPORT_TOLERANCE {
+                    0.0
+                } else {
+                    f64::NEG_INFINITY
+                };
             }
             Ok(())
         }
         MechanismSlot::Discrete { support, probs, logit_coeffs } => {
-            for r in 0..n {
-                let lp = match logit_coeffs {
-                    None => {
-                        let sum: f64 = probs.iter().sum();
-                        let mut found = f64::NEG_INFINITY;
-                        for (i, &s) in support.iter().enumerate() {
-                            if (values[r] - s).abs() < 1e-12 {
-                                found = (probs[i] / sum.max(f64::EPSILON)).ln();
-                                break;
-                            }
-                        }
-                        found
+            match logit_coeffs {
+                None => {
+                    if support.len() != probs.len() {
+                        return Err(ModelError::Shape {
+                            message: "discrete support/probs mismatch".into(),
+                        });
                     }
-                    Some(logits) => {
-                        let k = support.len();
-                        let width = 1 + parents.n_parents;
-                        if logits.len() != k * width {
-                            return Err(ModelError::Shape {
-                                message: "discrete logit_coeffs length mismatch".into(),
-                            });
-                        }
-                        let mut row_probs = vec![0.0; k];
-                        softmax_row_probs(logits, k, width, parents, r, &mut row_probs)?;
-                        let mut found = f64::NEG_INFINITY;
-                        for (i, &s) in support.iter().enumerate() {
-                            if (values[r] - s).abs() < 1e-12 {
-                                found = row_probs[i].max(f64::EPSILON).ln();
-                                break;
-                            }
-                        }
-                        found
+                    let total = probs.iter().sum::<f64>().max(f64::EPSILON);
+                    for r in 0..n {
+                        output[r] = support_index(support, values[r])
+                            .map_or(f64::NEG_INFINITY, |i| (probs[i] / total).ln());
                     }
-                };
-                output[r] = lp;
+                }
+                Some(logits) => {
+                    let k = support.len();
+                    let width = 1 + parents.n_parents;
+                    if logits.len() != k * width {
+                        return Err(ModelError::Shape {
+                            message: "discrete logit_coeffs length mismatch".into(),
+                        });
+                    }
+                    let cols = parents.columns()?;
+                    let mut row_logp = vec![0.0; k];
+                    for r in 0..n {
+                        softmax_row_logits(logits, k, width, &cols, r, &mut row_logp)?;
+                        log_softmax_in_place(&mut row_logp);
+                        output[r] = support_index(support, values[r])
+                            .map_or(f64::NEG_INFINITY, |i| row_logp[i]);
+                    }
+                }
             }
             Ok(())
         }
@@ -856,13 +933,7 @@ pub fn log_prob_column(
             }
             let mut mean = vec![0.0; n];
             basis_mean_column(*intercept, basis, coeffs, parents, &mut mean)?;
-            let inv_s = 1.0 / sigma;
-            let log_norm = -0.5 * (2.0 * std::f64::consts::PI).ln() - sigma.ln();
-            for r in 0..n {
-                let z = (values[r] - mean[r]) * inv_s;
-                output[r] = log_norm - 0.5 * z * z;
-            }
-            Ok(())
+            gaussian_log_prob(&values[..n], &mean, *sigma, &mut output[..n])
         }
         MechanismSlot::TreeAdditive { ensemble, sigma } => {
             if !(sigma.is_finite() && *sigma > 0.0) {
@@ -870,54 +941,39 @@ pub fn log_prob_column(
             }
             let mut mean = vec![0.0; n];
             ensemble.predict_column(parents, &mut mean)?;
-            let inv_s = 1.0 / sigma;
-            let log_norm = -0.5 * (2.0 * std::f64::consts::PI).ln() - sigma.ln();
-            for r in 0..n {
-                let z = (values[r] - mean[r]) * inv_s;
-                output[r] = log_norm - 0.5 * z * z;
-            }
-            Ok(())
+            gaussian_log_prob(&values[..n], &mean, *sigma, &mut output[..n])
         }
         MechanismSlot::TreeCategorical { support, classifiers, .. } => {
             let k = support.len();
             let mut row_probs = vec![0.0; n * k];
             class_probabilities(k, classifiers, parents, &mut row_probs)?;
             for r in 0..n {
-                let mut found = f64::NEG_INFINITY;
-                for (i, &s) in support.iter().enumerate() {
-                    if (values[r] - s).abs() < 1e-12 {
-                        found = row_probs[r * k + i].max(f64::EPSILON).ln();
-                        break;
-                    }
-                }
-                output[r] = found;
+                output[r] = support_index(support, values[r]).map_or(f64::NEG_INFINITY, |i| {
+                    row_probs[r * k + i].max(TREE_CLASS_PROBABILITY_FLOOR).ln()
+                });
             }
             Ok(())
         }
         MechanismSlot::DiscreteBasis { support, basis, logit_coeffs, .. } => {
             let k = support.len();
-            let mut row_probs = vec![0.0; k];
+            let cols = parents.columns()?;
+            let mut row_logp = vec![0.0; k];
             let mut expanded = vec![0.0; basis.n_terms()];
             let mut row = vec![0.0; basis.n_parents()];
             for r in 0..n {
-                basis_softmax_row_probs(
+                basis_row_logits(
                     basis,
                     logit_coeffs,
                     k,
-                    parents,
+                    &cols,
                     r,
                     &mut expanded,
                     &mut row,
-                    &mut row_probs,
+                    &mut row_logp,
                 )?;
-                let mut found = f64::NEG_INFINITY;
-                for (i, &s) in support.iter().enumerate() {
-                    if (values[r] - s).abs() < 1e-12 {
-                        found = row_probs[i].max(f64::EPSILON).ln();
-                        break;
-                    }
-                }
-                output[r] = found;
+                log_softmax_in_place(&mut row_logp);
+                output[r] =
+                    support_index(support, values[r]).map_or(f64::NEG_INFINITY, |i| row_logp[i]);
             }
             Ok(())
         }
@@ -996,13 +1052,7 @@ pub fn log_prob_column(
                 parents,
                 &mut mean,
             )?;
-            let inv_s = 1.0 / noise_std;
-            let log_norm = -0.5 * (2.0 * std::f64::consts::PI).ln() - noise_std.ln();
-            for r in 0..n {
-                let z = (values[r] - mean[r]) * inv_s;
-                output[r] = log_norm - 0.5 * z * z;
-            }
-            Ok(())
+            gaussian_log_prob(&values[..n], &mean, *noise_std, &mut output[..n])
         }
         MechanismSlot::Dynamic { mechanism, .. } => {
             mechanism.log_prob_column(values, parents, output)
@@ -1029,6 +1079,8 @@ pub(crate) fn sample_column(
     let n = parents.n_rows;
     ws.prepare(n, parents.n_parents.max(1));
     if let MechanismSlot::Discrete { support, probs, logit_coeffs } = slot {
+        let cols = parents.columns()?;
+        let mut row_probs = vec![0.0; support.len()];
         for r in 0..n {
             let u = rng.next_f64().max(f64::EPSILON);
             match logit_coeffs {
@@ -1043,8 +1095,7 @@ pub(crate) fn sample_column(
                             message: "discrete logit_coeffs length mismatch".into(),
                         });
                     }
-                    let mut row_probs = vec![0.0; k];
-                    softmax_row_probs(logits, k, width, parents, r, &mut row_probs)?;
+                    softmax_row_probs(logits, k, width, &cols, r, &mut row_probs)?;
                     output[r] = categorical_draw(support, &row_probs, u);
                 }
             }
@@ -1065,21 +1116,53 @@ fn softmax_row_probs(
     logits: &[f64],
     k: usize,
     width: usize,
-    parents: ParentBatch<'_>,
+    cols: &[&[f64]],
     row: usize,
     out: &mut [f64],
 ) -> Result<(), ModelError> {
-    // True multinomial-logit coefficients from Fisher/IRLS (`fit_multinomial_logit`).
+    softmax_row_logits(logits, k, width, cols, row, out)?;
+    softmax_in_place(&mut out[..k]);
+    Ok(())
+}
+
+/// Per-category linear predictors (multinomial-logit coefficients from Fisher/IRLS,
+/// `fit_multinomial_logit`) of one row, written to `out` before normalisation.
+fn softmax_row_logits(
+    logits: &[f64],
+    k: usize,
+    width: usize,
+    cols: &[&[f64]],
+    row: usize,
+    out: &mut [f64],
+) -> Result<(), ModelError> {
+    if logits.len() < k * width || width != 1 + cols.len() || out.len() < k {
+        return Err(ModelError::Shape {
+            message: "discrete logit_coeffs length mismatch".into(),
+        });
+    }
     for cat in 0..k {
         let base = cat * width;
         let mut pred = logits[base];
-        for p in 0..parents.n_parents {
-            pred += logits[base + 1 + p] * parents.column(p)?[row];
+        for (p, col) in cols.iter().enumerate() {
+            pred += logits[base + 1 + p] * col[row];
         }
         out[cat] = pred;
     }
-    softmax_in_place(&mut out[..k]);
     Ok(())
+}
+
+/// Replace linear predictors with their log-softmax: `xᵢ − logsumexp(x)`. Unlike
+/// `ln(softmax(x))` it stays finite when a category's probability underflows an `f64`.
+fn log_softmax_in_place(values: &mut [f64]) {
+    let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    if !max.is_finite() {
+        return;
+    }
+    let sum: f64 = values.iter().map(|v| (v - max).exp()).sum();
+    let log_norm = max + sum.ln();
+    for v in values {
+        *v -= log_norm;
+    }
 }
 
 fn categorical_draw(support: &[f64], probs: &[f64], u: f64) -> f64 {
@@ -1292,6 +1375,56 @@ mod tests {
                 Err(e) => assert!(matches!(e, ModelError::Numerical { .. }), "{e:?}"),
             }
         }
+    }
+
+    /// An exactly-zero category and a value outside the support score `-inf`; a category whose
+    /// softmax probability underflows `f64` stays finite through the log-softmax.
+    #[test]
+    fn categorical_log_prob_keeps_exact_zero_mass_and_finite_underflow() {
+        let parents = ParentBatch { n_rows: 1, n_parents: 0, values: &[] };
+        let unconditional = MechanismSlot::Discrete {
+            support: Arc::from(vec![0.0, 1.0, 2.0]),
+            probs: Arc::from(vec![0.5, 0.5, 0.0]),
+            logit_coeffs: None,
+        };
+        let mut lp = [0.0];
+        for (value, expected) in [(0.0, 0.5_f64.ln()), (2.0, f64::NEG_INFINITY), (7.0, f64::NEG_INFINITY)] {
+            log_prob_column(&unconditional, &[value], parents, &mut lp).unwrap();
+            assert_eq!(lp[0], expected, "value {value}");
+        }
+        // Logits 0 and -2000: P(1) = exp(-2000) underflows, its log-probability is -2000.
+        let logistic = MechanismSlot::Discrete {
+            support: Arc::from(vec![0.0, 1.0]),
+            probs: Arc::from(vec![0.5, 0.5]),
+            logit_coeffs: Some(Arc::from(vec![0.0, -2000.0])),
+        };
+        log_prob_column(&logistic, &[1.0], parents, &mut lp).unwrap();
+        assert!((lp[0] + 2000.0).abs() < 1e-9, "{}", lp[0]);
+    }
+
+    #[test]
+    fn gp_prediction_refuses_degenerate_or_mismatched_slots() {
+        let parent_vals = [0.0_f64, 1.0];
+        let parents = ParentBatch { n_rows: 2, n_parents: 1, values: &parent_vals };
+        let mut out = [0.0; 2];
+        let degenerate = gp_predictive_mean_column(
+            0.0, 1.0, 0.0, &[0.0], 1, 1, &[1.0], parents, &mut out,
+        );
+        assert!(matches!(degenerate, Err(ModelError::Numerical { .. })));
+        let short_alpha =
+            gp_predictive_mean_column(1.0, 1.0, 0.0, &[0.0, 1.0], 2, 1, &[1.0], parents, &mut out);
+        assert!(matches!(short_alpha, Err(ModelError::Shape { .. })));
+        let wrong_parents =
+            gp_predictive_mean_column(1.0, 1.0, 0.0, &[0.0], 1, 2, &[1.0], parents, &mut out);
+        assert!(matches!(wrong_parents, Err(ModelError::Shape { .. })));
+    }
+
+    #[test]
+    fn a_parent_buffer_shorter_than_its_shape_is_a_shape_error_not_a_panic() {
+        let short = [0.0_f64];
+        let parents = ParentBatch { n_rows: 2, n_parents: 1, values: &short };
+        assert!(matches!(parents.column(0), Err(ModelError::Shape { .. })));
+        assert!(parents.columns().is_err());
     }
 
     #[test]

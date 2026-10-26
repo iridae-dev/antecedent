@@ -13,7 +13,7 @@
     )
 )]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
@@ -32,9 +32,6 @@ use crate::result::{
     LaggedLink, PcSepsets, ScoredLink, discovery_assumptions,
 };
 
-/// A tested link and its conditioning set.
-type CiKey = (LaggedLink, Vec<(VariableId, Lag)>);
-
 /// The lagged frame and the link a scan of conditioning sets tests on it.
 #[derive(Clone, Copy)]
 pub(crate) struct CiProbe<'a> {
@@ -48,9 +45,31 @@ pub(crate) struct CiProbe<'a> {
 /// is answered from here instead of being run again.
 #[derive(Debug, Default)]
 pub(crate) struct CiMemo {
-    outcomes: HashMap<CiKey, (f64, f64)>,
+    outcomes: HashMap<LaggedLink, HashMap<Box<[(VariableId, Lag)]>, (f64, f64)>>,
     /// Tests actually run (memo misses).
     pub computed: u64,
+}
+
+/// `cond` in the canonical order the memo is keyed by: a conditioning set is a set, so the order
+/// a caller lists it in must not decide whether the test has been run.
+fn canonical_cond(cond: &[(VariableId, Lag)]) -> std::borrow::Cow<'_, [(VariableId, Lag)]> {
+    let key = |&(v, l): &(VariableId, Lag)| (v.raw(), l.raw());
+    if cond.windows(2).all(|w| key(&w[0]) <= key(&w[1])) {
+        return std::borrow::Cow::Borrowed(cond);
+    }
+    let mut sorted = cond.to_vec();
+    sorted.sort_unstable_by_key(key);
+    std::borrow::Cow::Owned(sorted)
+}
+
+impl CiMemo {
+    fn get(&self, link: LaggedLink, canonical: &[(VariableId, Lag)]) -> Option<(f64, f64)> {
+        self.outcomes.get(&link)?.get(canonical).copied()
+    }
+
+    fn insert(&mut self, link: LaggedLink, canonical: &[(VariableId, Lag)], outcome: (f64, f64)) {
+        self.outcomes.entry(link).or_default().insert(canonical.into(), outcome);
+    }
 }
 
 /// Live bytes of one partial-correlation CI query on `n_rows` rows with `z_len`
@@ -152,6 +171,8 @@ pub struct DiscoveryWorkspace {
     pub col_idxs: Vec<usize>,
     /// Flat conditioning indexes into the active CI column list (`2..`).
     pub z_flat: Vec<usize>,
+    /// Query scratch of a batched static scan, reused across its chunks.
+    pub queries: Vec<CiQuery>,
     /// Scratch “others” list while iterating PC candidates.
     pub others: Vec<(VariableId, Lag)>,
     /// Scratch removal list for one conditioning-size pass.
@@ -172,6 +193,36 @@ pub struct DiscoveryWorkspace {
     /// against the next in [`crate::rpcmci::Rpcmci::run`]), and a mask cached for a larger frame
     /// would otherwise be replayed against a smaller one and read past its rows.
     pub keep_cache: HashMap<(usize, Vec<usize>), Arc<[bool]>>,
+    /// Allocation of the per-frame column pointer table, reused across unmasked CI tests.
+    column_views: ColumnViewScratch,
+}
+
+/// Recycled allocation for the `&[f64]` table of a frame's columns.
+///
+/// The table borrows the frame, so a `Vec<&[f64]>` cannot be stored in the workspace under the
+/// borrow's lifetime. The buffer is kept empty with a `'static` lifetime instead: [`Self::lend`]
+/// refills it under the frame's lifetime and [`Self::recover`] empties it again. An empty vector
+/// holds no reference, so no borrow outlives the frame.
+#[derive(Clone, Debug, Default)]
+struct ColumnViewScratch {
+    buffer: Vec<&'static [f64]>,
+}
+
+impl ColumnViewScratch {
+    /// Every column of `frame`, in column order.
+    fn lend<'a>(&mut self, frame: &'a LaggedFrame) -> Vec<&'a [f64]> {
+        let mut views: Vec<&'a [f64]> = std::mem::take(&mut self.buffer);
+        views.clear();
+        views.extend((0..frame.ncols()).map(|i| frame.column(i)));
+        views
+    }
+
+    /// Take the allocation back from a table that is no longer in use.
+    fn recover(&mut self, mut views: Vec<&[f64]>) {
+        views.clear();
+        // The vector is empty, so the closure never runs; the collect reuses the allocation.
+        self.buffer = views.into_iter().map(|_| -> &'static [f64] { &[] }).collect();
+    }
 }
 
 /// Shared PCMCI engine core.
@@ -420,9 +471,7 @@ impl PcmciEngine {
             return Err(DiscoveryError::stats_msg("CI batch result length mismatch"));
         }
         for (pi, (result, combo)) in results.into_iter().zip(combos).enumerate() {
-            if !result.statistic.is_finite() || !result.p_value.is_finite() {
-                return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
-            }
+            let (statistic, p_value) = crate::ci::finite_outcome(&result)?;
             let (src, slag) = parents[pi];
             let link = LaggedLink {
                 source: src,
@@ -432,7 +481,7 @@ impl PcmciEngine {
             };
             record_pc_parent_outcome(
                 link,
-                (result.statistic, result.p_value),
+                (statistic, p_value),
                 &combo,
                 search.compiled,
                 self.constraints.alpha,
@@ -847,15 +896,8 @@ impl PcmciEngine {
         }
         let mut scored = Vec::with_capacity(links.len());
         for (link, result) in links.into_iter().zip(results) {
-            if !result.statistic.is_finite() || !result.p_value.is_finite() {
-                return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
-            }
-            scored.push(ScoredLink {
-                link,
-                statistic: result.statistic,
-                p_value: result.p_value,
-                adjusted_p_value: None,
-            });
+            let (statistic, p_value) = crate::ci::finite_outcome(&result)?;
+            scored.push(ScoredLink { link, statistic, p_value, adjusted_p_value: None });
         }
         Ok((scored, truncated))
     }
@@ -959,35 +1001,42 @@ impl PcmciEngine {
                 return Ok(None);
             }
 
-            let mut missing: Vec<&[(VariableId, Lag)]> = Vec::new();
-            for cond in &chunk {
-                let known = memo.outcomes.contains_key(&(link, cond.clone()))
-                    || missing.iter().any(|m| *m == cond.as_slice());
-                if !known {
-                    missing.push(cond);
+            // The sets the memo does not hold, once per canonical set (indexes into `chunk`).
+            let canonical: Vec<_> = chunk.iter().map(|cond| canonical_cond(cond)).collect();
+            let mut seen: HashSet<&[(VariableId, Lag)]> = HashSet::new();
+            let mut missing: Vec<usize> = Vec::new();
+            for (index, key) in canonical.iter().enumerate() {
+                if memo.get(link, key).is_none() && seen.insert(key) {
+                    missing.push(index);
                 }
             }
-            if let Some(results) = self.ci_batch(frame, link, &missing, workspace, ctx) {
-                for (cond, r) in missing.iter().zip(results) {
+            let missing_conds: Vec<&[(VariableId, Lag)]> =
+                missing.iter().map(|&index| chunk[index].as_slice()).collect();
+            if let Some(results) = self.ci_batch(frame, link, &missing_conds, workspace, ctx) {
+                for (&index, r) in missing.iter().zip(results) {
                     // A non-finite outcome is left out so that it errors where it is visited.
                     if r.statistic.is_finite() && r.p_value.is_finite() {
-                        memo.outcomes.insert((link, cond.to_vec()), (r.statistic, r.p_value));
+                        memo.insert(link, &canonical[index], (r.statistic, r.p_value));
                         memo.computed += 1;
                     }
                 }
             }
+            drop(seen);
+            drop(canonical);
 
-            for cond in chunk {
-                let key = (link, cond);
-                let (stat, p) = if let Some(&hit) = memo.outcomes.get(&key) {
+            for index in 0..chunk.len() {
+                let cond = std::mem::take(&mut chunk[index]);
+                let key = canonical_cond(&cond);
+                let (stat, p) = if let Some(hit) = memo.get(link, &key) {
                     hit
                 } else {
-                    let out = self.ci_statistic(frame, link, &key.1, workspace, ctx)?;
-                    memo.outcomes.insert(key.clone(), out);
+                    let out = self.ci_statistic(frame, link, &cond, workspace, ctx)?;
+                    memo.insert(link, &key, out);
                     memo.computed += 1;
                     out
                 };
-                if let std::ops::ControlFlow::Break(b) = visit(key.1, stat, p) {
+                drop(key);
+                if let std::ops::ControlFlow::Break(b) = visit(cond, stat, p) {
                     return Ok(Some(b));
                 }
             }
@@ -1027,8 +1076,8 @@ impl PcmciEngine {
         }
 
         if frame.is_fully_valid() {
-            let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
             self.ensure_prepared_ci(frame, workspace, ctx)?;
+            let cols = workspace.column_views.lend(frame);
             let queries = [CiQuery { x: xi, y: yi, z_start: 0, z_len: workspace.z_flat.len() }];
             let req = crate::ci::ci_batch_request(
                 &cols,
@@ -1036,19 +1085,14 @@ impl PcmciEngine {
                 &workspace.z_flat,
                 self.constraints.significance,
             );
-            let prepared = workspace
-                .prepared_ci
-                .as_ref()
-                .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
-            let result = crate::ci::run_ci_batch(&*self.ci, prepared, &req, &mut workspace.ci, ctx)
-                .map_err(DiscoveryError::from)?
-                .into_iter()
-                .next()
-                .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
-            if !result.statistic.is_finite() || !result.p_value.is_finite() {
-                return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
-            }
-            return Ok((result.statistic, result.p_value));
+            let outcome = match workspace.prepared_ci.as_ref() {
+                Some(prepared) => {
+                    crate::ci::single_finite(&*self.ci, prepared, &req, &mut workspace.ci, ctx)
+                }
+                None => Err(DiscoveryError::Unsupported { message: "CI test used before prepare()" }),
+            };
+            workspace.column_views.recover(cols);
+            return outcome;
         }
 
         // Masked / incomplete series: complete-case over selected (y,x,z) roles per mask_type,
@@ -1062,15 +1106,12 @@ impl PcmciEngine {
             expand_into(&mut workspace.involved_cols, yi, &self.column_blocks);
         }
         if mask_type.includes_z() {
-            let z_copy: Vec<usize> = workspace.z_flat.clone();
-            for &zi in &z_copy {
-                expand_into(&mut workspace.involved_cols, zi, &self.column_blocks);
+            let DiscoveryWorkspace { z_flat, involved_cols, .. } = &mut *workspace;
+            for &zi in z_flat.iter() {
+                expand_into(involved_cols, zi, &self.column_blocks);
             }
         }
-        if workspace.involved_cols.is_empty() {
-            // Degenerate mask_type with no participants: keep all rows.
-            workspace.involved_cols.clear();
-        }
+        // A `mask_type` with no participants leaves `involved_cols` empty: keep all rows.
         workspace.involved_cols.sort_unstable();
         workspace.involved_cols.dedup();
 
@@ -1085,7 +1126,7 @@ impl PcmciEngine {
                 let mask = frame
                     .keep_mask_for_columns(&workspace.involved_cols)
                     .map_err(DiscoveryError::from)?;
-                let arc: Arc<[bool]> = Arc::from(mask);
+                let arc: Arc<[bool]> = Arc::from(mask.to_bools());
                 workspace.keep_cache.insert(key, Arc::clone(&arc));
                 arc
             }
@@ -1122,32 +1163,17 @@ impl PcmciEngine {
                 }
             }
         }
-        {
-            let cols: Vec<&[f64]> = (0..n_sel)
-                .map(|c| &workspace.compact_values[c * n_keep..(c + 1) * n_keep])
-                .collect();
-            workspace.prepared_ci =
-                Some(crate::ci::prepare_ci(&*self.ci, &cols, self.constraints.significance, ctx)?);
-        }
         let cols: Vec<&[f64]> =
             (0..n_sel).map(|c| &workspace.compact_values[c * n_keep..(c + 1) * n_keep]).collect();
+        // The compacted-shape preparation is local: `workspace.prepared_ci` stays the frame's,
+        // so the next unmasked test does not re-prepare.
+        let prepared =
+            crate::ci::prepare_ci(&*self.ci, &cols, self.constraints.significance, ctx)?;
         let z_remap: Vec<usize> = (2..2 + z_len).collect();
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len }];
         let req =
             crate::ci::ci_batch_request(&cols, &queries, &z_remap, self.constraints.significance);
-        let prepared = workspace
-            .prepared_ci
-            .as_ref()
-            .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
-        let result = crate::ci::run_ci_batch(&*self.ci, prepared, &req, &mut workspace.ci, ctx)
-            .map_err(DiscoveryError::from)?
-            .into_iter()
-            .next()
-            .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
-        if !result.statistic.is_finite() || !result.p_value.is_finite() {
-            return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
-        }
-        Ok((result.statistic, result.p_value))
+        crate::ci::single_finite(&*self.ci, &prepared, &req, &mut workspace.ci, ctx)
     }
 }
 
@@ -1243,7 +1269,7 @@ pub(crate) fn parents_of_target(
 fn sort_by_strength(parents: &mut Vec<(VariableId, Lag)>, min_stat: &mut Vec<f64>) {
     let mut order: Vec<usize> = (0..parents.len()).collect();
     order.sort_by(|&i, &j| {
-        min_stat[j].partial_cmp(&min_stat[i]).unwrap_or(std::cmp::Ordering::Equal).then_with(|| {
+        min_stat[j].total_cmp(&min_stat[i]).then_with(|| {
             let (vi, li) = parents[i];
             let (vj, lj) = parents[j];
             (vi.raw(), li.raw()).cmp(&(vj.raw(), lj.raw()))

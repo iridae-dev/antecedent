@@ -384,10 +384,11 @@ pub struct SequentialEvaluationArtifact {
 // ---------------------------------------------------------------------------
 
 fn refused(detail: &'static str, text: impl AsRef<str>) -> IoError {
-    IoError::Refused {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        message: format!("{detail}: {}", text.as_ref()),
-    }
+    crate::plan_common::refused_with(
+        antecedent_core::reason_code!("invalid_argument"),
+        detail,
+        text.as_ref(),
+    )
 }
 
 fn identity_refused(field: &str) -> IoError {

@@ -27,7 +27,14 @@ use antecedent_io_core::distribution_artifact::{
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
 use antecedent_io_core::quantity_wire::DistributionMeaningWire;
-use antecedent_test_support::near_lt_1e12 as near;
+use antecedent_test_support::within;
+
+const NEAR_TOLERANCE: f64 = 1e-12;
+
+fn near(a: f64, b: f64) -> bool {
+    within(a, b, NEAR_TOLERANCE)
+}
+
 
 // ---------------------------------------------------------------------------
 // Shared builders

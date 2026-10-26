@@ -125,7 +125,7 @@ pub(crate) fn linear_original(
     estimand: &IdentifiedEstimand,
     query: &AverageEffectQuery,
 ) -> (EffectEstimate, EstimationWorkspace, ExecutionContext) {
-    let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+    let est = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
     let prep = est.prepare(data, estimand, query).unwrap();
     let mut workspace = EstimationWorkspace::default();
     let ctx = ExecutionContext::for_tests(5);

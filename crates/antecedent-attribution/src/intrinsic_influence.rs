@@ -55,11 +55,15 @@ use crate::change_common::stream_tag;
 use crate::error::AttributionError;
 use crate::population::subset_table;
 use crate::result::CacheStats;
+use crate::coalition::Coalition;
 use crate::shapley::{CoalitionPayoff, ShapleyEstimate, estimate_shapley};
 
-/// Largest source count for exact Shapley (`2^n` coalition values, each a nested simulation).
-/// [`IntrinsicAllocation::Auto`] enumerates up to this bound and samples permutations above it.
-pub const INTRINSIC_MAX_EXACT_PLAYERS: usize = 10;
+/// Largest source count for which [`IntrinsicAllocation::Auto`] enumerates: the largest `n`
+/// whose `2^n` coalition values (each a nested simulation) cost no more than the default
+/// permutation plan of `200 × (n + 1)` values. Above it `Auto` samples permutations.
+/// [`IntrinsicAllocation::Exact`] has no player bound of its own: its plan is refused by the
+/// shared simulation budget when it is too large.
+pub const INTRINSIC_MAX_EXACT_PLAYERS: usize = 11;
 
 /// Smallest bootstrap size from which a bootstrap standard error is reported.
 pub const MIN_FIT_BOOTSTRAP_REPLICATES: u32 = 10;
@@ -423,9 +427,11 @@ pub enum NoiseIndependence<'a> {
 /// How the variance game is allocated among the sources.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IntrinsicAllocation {
-    /// Exact up to [`INTRINSIC_MAX_EXACT_PLAYERS`] sources, permutation sampling above.
+    /// Exact while enumeration is no costlier than the default permutation plan (up to
+    /// [`INTRINSIC_MAX_EXACT_PLAYERS`] sources), permutation sampling above.
     Auto,
-    /// Exact Shapley over every coalition; refused above [`INTRINSIC_MAX_EXACT_PLAYERS`].
+    /// Exact Shapley over every coalition; refused when the plan exceeds the shared
+    /// simulation budget.
     Exact,
     /// Shapley by permutation sampling.
     Permutation {
@@ -870,28 +876,29 @@ fn require_noise_support(
     Ok(())
 }
 
+/// Whether enumerating `2^n` coalitions costs no more than the default permutation plan of
+/// [`DEFAULT_PERMUTATIONS`] permutations of `n + 1` coalition values each.
+fn exact_is_no_costlier(n_players: usize) -> bool {
+    n_players < 64
+        && (1u128 << n_players) <= (DEFAULT_PERMUTATIONS as u128) * (n_players as u128 + 1)
+}
+
 /// The Shapley configuration and its record for the query's allocation and source count.
 fn allocation_config(
     query: &IntrinsicInfluenceQuery,
     n_players: usize,
 ) -> Result<(ShapleyConfig, ShapleyMethod), AttributionError> {
     let exact = match query.allocation {
-        IntrinsicAllocation::Auto => n_players <= INTRINSIC_MAX_EXACT_PLAYERS,
-        IntrinsicAllocation::Exact => {
-            if n_players > INTRINSIC_MAX_EXACT_PLAYERS {
-                return Err(refuse(
-                    antecedent_core::reason_code!("route_not_supported"),
-                    "intrinsic_influence.exact_players_exceed_bound",
-                    "exact Shapley enumerates 2^n nested simulations; use permutation sampling \
-                     above the bound",
-                ));
-            }
-            true
-        }
+        IntrinsicAllocation::Auto => exact_is_no_costlier(n_players),
+        IntrinsicAllocation::Exact => true,
         IntrinsicAllocation::Permutation { .. } => false,
     };
     if exact {
-        return Ok((ShapleyConfig::exact().with_seed(query.seed), ShapleyMethod::Exact));
+        // The shared simulation budget, not a player count, bounds the enumeration.
+        return Ok((
+            ShapleyConfig::exact().with_exact_override(true).with_seed(query.seed),
+            ShapleyMethod::Exact,
+        ));
     }
     let n_permutations = match query.allocation {
         IntrinsicAllocation::Permutation { n_permutations } => n_permutations,
@@ -960,8 +967,8 @@ struct ReplicateBank<'a> {
     view: ModelView<'a>,
     n_nodes: usize,
     batches: Vec<Mutex<BatchState>>,
-    /// Coalition mask -> value in each replicate batch.
-    memo: HashMap<u64, Vec<f64>>,
+    /// Coalition -> value in each replicate batch.
+    memo: HashMap<Coalition, Vec<f64>>,
     /// Variance of the target over all rows of each batch with no coordinate fixed.
     direct_variance: Option<Vec<f64>>,
     ctx: &'a ExecutionContext,
@@ -1015,14 +1022,14 @@ impl<'a> ReplicateBank<'a> {
         Ok(Self { spec, view, n_nodes, batches, memo: HashMap::new(), direct_variance: None, ctx })
     }
 
-    /// `v̂(mask)` in every replicate batch, replaying each batch once on a miss.
-    fn values(&mut self, mask: u64) -> Result<&[f64], AttributionError> {
-        if self.memo.contains_key(&mask) {
-            return Ok(self.memo[&mask].as_slice());
+    /// `v̂(coalition)` in every replicate batch, replaying each batch once on a miss.
+    fn values(&mut self, coalition: &Coalition) -> Result<&[f64], AttributionError> {
+        if self.memo.contains_key(coalition) {
+            return Ok(self.memo[coalition].as_slice());
         }
         let mut fixed_nodes = vec![false; self.n_nodes];
-        for (bit, &node) in self.spec.player_nodes.iter().enumerate() {
-            fixed_nodes[node] = (mask >> bit) & 1 == 1;
+        for (player, &node) in self.spec.player_nodes.iter().enumerate() {
+            fixed_nodes[node] = coalition.contains(player);
         }
         let (outer, inner, target) = (self.spec.outer, self.spec.inner, self.spec.target);
         let n_rows = outer * inner;
@@ -1044,15 +1051,17 @@ impl<'a> ReplicateBank<'a> {
                         message: "the target produced a non-finite value".into(),
                     }));
                 }
-                let direct = if mask == 0 { variance_of(y) } else { f64::NAN };
+                let direct = if coalition.is_empty() { variance_of(y) } else { f64::NAN };
                 Ok((nested_variance(y, outer, inner), direct))
             },
         )?;
-        if mask == 0 {
+        if coalition.is_empty() {
             self.direct_variance = Some(evaluated.iter().map(|e| e.1).collect());
         }
-        let values =
-            self.memo.entry(mask).or_insert_with(|| evaluated.into_iter().map(|e| e.0).collect());
+        let values = self
+            .memo
+            .entry(coalition.clone())
+            .or_insert_with(|| evaluated.into_iter().map(|e| e.0).collect());
         Ok(values.as_slice())
     }
 }
@@ -1084,8 +1093,8 @@ fn nested_variance(y: &[f64], outer: usize, inner: usize) -> f64 {
 struct PooledPayoff<'b, 'a>(&'b mut ReplicateBank<'a>);
 
 impl CoalitionPayoff for PooledPayoff<'_, '_> {
-    fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
-        let values = self.0.values(mask)?;
+    fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
+        let values = self.0.values(coalition)?;
         Ok(values.iter().sum::<f64>() / values.len() as f64)
     }
 }
@@ -1097,8 +1106,8 @@ struct BatchPayoff<'b, 'a> {
 }
 
 impl CoalitionPayoff for BatchPayoff<'_, '_> {
-    fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
-        Ok(self.bank.values(mask)?[self.batch])
+    fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
+        Ok(self.bank.values(coalition)?[self.batch])
     }
 }
 
@@ -1128,7 +1137,7 @@ fn run_game(
     let mut bank = ReplicateBank::new(model, spec, first_replicate, ctx)?;
     let pooled = estimate_shapley(spec.players, &spec.config, &mut PooledPayoff(&mut bank), ctx)?;
     if bank.direct_variance.is_none() {
-        bank.values(0)?;
+        bank.values(&Coalition::empty())?;
     }
     let direct_variance = bank.direct_variance.clone().unwrap_or_default();
     let evaluations = bank.memo.len() as u64;

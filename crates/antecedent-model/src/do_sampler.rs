@@ -19,7 +19,14 @@ use crate::sample::sample_interventional;
 pub struct DoSampleResult {
     /// Sampled (or reweighted observational) outcomes for the target variable.
     pub values: Arc<[f64]>,
-    /// Optional importance weights (weighting sampler); empty if not used.
+    /// Per-value weights, empty when the sampler carries none.
+    ///
+    /// The scale depends on the route and is part of the contract: the confounded branch of
+    /// [`WeightingDoSampler`] returns importance weights **normalized to sum to one** (with
+    /// [`Self::ess`] reporting their concentration); the root-treatment branch returns
+    /// **unit weights** (every matched unit counts once, so averages are plain empirical
+    /// means and an ESS would equal the matched count); [`KdeDoSampler`] returns `1/n`.
+    /// Use [`WeightingDoSampler::weighted_mean`] rather than assuming a scale.
     pub weights: Arc<[f64]>,
     /// Sampler id.
     pub method: Arc<str>,
@@ -42,7 +49,10 @@ pub struct DoSampleResult {
 
 /// Weighting do-sampler for hard `do(T=t)`.
 ///
-/// - **Root treatment:** empirical outcomes among units with `T ≈ t`.
+/// - **Root treatment:** empirical outcomes among units with `|T − t| ≤ root_match_tolerance`
+///   (default [`DEFAULT_ROOT_MATCH_TOLERANCE`]). A tolerance of `0.0` is exact matching, which
+///   is the right reading for a discrete treatment; a positive tolerance is a continuous
+///   neighbourhood approximation and should be chosen from the treatment's resolution.
 /// - **Confounded continuous treatment:** Horvitz–Thompson (1952) with a **shrinking** Gaussian
 ///   kernel on the treatment margin (Silverman 1986 bandwidth) over the fitted conditional
 ///   density `f(T∣parents)`: `wᵢ ∝ Kₕ(Tᵢ − t) / f(Tᵢ∣parents)`. Hard interventions have a
@@ -58,13 +68,27 @@ pub struct WeightingDoSampler {
     pub treatment: VariableId,
     /// Outcome variable.
     pub outcome: VariableId,
+    /// Half-width of the absolute window around the intervention value that selects units
+    /// of a root treatment (see the type docs).
+    pub root_match_tolerance: f64,
 }
+
+/// Default root-treatment matching window: a numerical-equality neighbourhood for treatments
+/// stored as exact levels.
+pub const DEFAULT_ROOT_MATCH_TOLERANCE: f64 = 1e-9;
 
 impl WeightingDoSampler {
     /// Construct.
     #[must_use]
     pub fn new(treatment: VariableId, outcome: VariableId) -> Self {
-        Self { treatment, outcome }
+        Self { treatment, outcome, root_match_tolerance: DEFAULT_ROOT_MATCH_TOLERANCE }
+    }
+
+    /// Replace the root-treatment matching window (`0.0` matches exactly).
+    #[must_use]
+    pub fn with_root_match_tolerance(mut self, tolerance: f64) -> Self {
+        self.root_match_tolerance = tolerance;
+        self
     }
 
     /// Estimate E[Y | do(T=t)] via matching / Horvitz–Thompson (1952) on fitted model densities.
@@ -94,10 +118,16 @@ impl WeightingDoSampler {
         let mut notes = Vec::new();
 
         if gather.n_parents() == 0 {
-            // Root treatment: empirical outcomes among units with T ≈ t.
+            // Root treatment: empirical outcomes among units within the matching window.
+            if !(self.root_match_tolerance.is_finite() && self.root_match_tolerance >= 0.0) {
+                return Err(ModelError::Numerical {
+                    message: "weighting sampler: root match tolerance must be finite and >= 0"
+                        .into(),
+                });
+            }
             let mut selected = 0usize;
             for i in 0..n {
-                if (t[i] - treatment_value).abs() < 1e-9 {
+                if (t[i] - treatment_value).abs() <= self.root_match_tolerance {
                     values.push(y[i]);
                     weights[selected] = 1.0;
                     selected += 1;
@@ -109,7 +139,10 @@ impl WeightingDoSampler {
                     message: "weighting sampler: no observational units match do-value".into(),
                 });
             }
-            notes.push(Arc::from("root treatment: exact match reweighting"));
+            notes.push(Arc::from(format!(
+                "root treatment: {selected} units matched within +/-{:e} (unit weights)",
+                self.root_match_tolerance
+            )));
             return Ok(DoSampleResult {
                 values: Arc::from(values),
                 weights: Arc::from(weights),

@@ -19,12 +19,13 @@ use antecedent_core::{
 };
 use antecedent_kernels::sample_categorical;
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
-use antecedent_stats::{Welford, invert_square, normal_ppf};
+use antecedent_kernels::{chol_solve_into, cholesky_spd_into};
+use antecedent_stats::{Welford, normal_ppf};
 
 use crate::candidate::{CandidateDesign, DesignCost};
 use crate::decision::DecisionProblem;
 use crate::error::DesignError;
-use crate::objective::{DesignObjective, ObjectiveChannel, ObjectiveScorer};
+use crate::objective::{ObjectiveChannel, ObjectiveScorer};
 use crate::preposterior::{DecisionPrior, DecisionSignal, PreposteriorAnalysis};
 use crate::result::{ConstraintViolation, RankedCandidate, ScoreEvaluation, ScoredDesignRanking};
 
@@ -66,6 +67,26 @@ impl Default for DesignRankConfig {
 }
 
 impl DesignRankConfig {
+    /// Reject a batch schedule that cannot draw anything or that draws more than the ranker
+    /// allows.
+    ///
+    /// # Errors
+    ///
+    /// [`DesignError::Config`] for zero batches or zero batch size, or a schedule whose draws
+    /// exceed the ranker's bound.
+    pub fn validate(&self) -> Result<(), DesignError> {
+        if self.max_batches == 0 || self.batch_size == 0 {
+            return Err(DesignError::Config("max_batches and batch_size must be > 0".into()));
+        }
+        let draws = u64::from(self.max_batches) * u64::from(self.batch_size);
+        if draws > MAX_RANK_DRAWS {
+            return Err(DesignError::Config(format!(
+                "batch_size * max_batches = {draws} exceeds {MAX_RANK_DRAWS}"
+            )));
+        }
+        Ok(())
+    }
+
     /// Batch counts at which the stopping rule is evaluated: every batch from
     /// `min_batches` through `max_batches`.
     fn n_looks(&self) -> u32 {
@@ -89,7 +110,7 @@ impl DesignRankConfig {
     }
 }
 
-/// Linear-Gaussian effect-width context for [`DesignObjective::ReduceEffectPosteriorWidth`].
+/// Linear-Gaussian effect-width context for [`crate::DesignObjective::ReduceEffectPosteriorWidth`].
 #[derive(Clone, Debug)]
 pub struct EffectWidthContext {
     /// Current Gram `XᵀX` (row-major, `p×p`).
@@ -145,7 +166,7 @@ pub struct InterventionDesignEffect {
     pub n: u64,
 }
 
-/// Per-model log-likelihood draws for [`DesignObjective::DistinguishModels`].
+/// Per-model log-likelihood draws for [`crate::DesignObjective::DistinguishModels`].
 ///
 /// `loglik[model_slot][draw]` — model slots align with `DesignObjective::DistinguishModels.models`.
 #[derive(Clone, Debug)]
@@ -159,7 +180,7 @@ pub struct ModelLoglikDraws {
 }
 
 /// Decision problems plus the Bayesian model a candidate's data updates, for
-/// [`DesignObjective::ReduceDecisionRegret`] (problems keyed by [`crate::DecisionProblemId`]).
+/// [`crate::DesignObjective::ReduceDecisionRegret`] (problems keyed by [`crate::DecisionProblemId`]).
 pub struct DecisionRegistry<A, O> {
     /// Problems keyed by raw id order (sparse holes allowed via Option).
     pub problems: Vec<Option<DecisionProblem<A, O>>>,
@@ -251,19 +272,20 @@ impl DesignRanker {
     /// # Errors
     ///
     /// Empty inputs or invalid config.
-    pub fn rank<A, O>(
+    pub fn rank<S, A, O>(
         &self,
-        objective: &DesignObjective,
+        objective: &S,
         candidates: &[CandidateDesign],
         ctx_eval: &DesignEvaluationContext<'_, A, O>,
         ctx: &ExecutionContext,
     ) -> Result<ScoredDesignRanking, DesignError>
     where
+        S: ObjectiveScorer + Sync,
         A: Clone + Sync,
         O: Clone + Sync,
     {
         self.validate_rank_inputs(candidates, ctx_eval)?;
-        validate_objective_context(objective, ctx_eval)?;
+        objective.validate_context(ctx_eval)?;
         let analysis = prepare_decision(objective, ctx_eval)?;
 
         let (violations, active) = self.filter_active_candidates(candidates, analysis.as_ref());
@@ -275,7 +297,7 @@ impl DesignRanker {
             .map(|&cand_i| {
                 decision
                     .as_ref()
-                    .map_or_else(|| static_evaluation(objective), |d| d.evaluation(cand_i))
+                    .map_or_else(|| objective.static_evaluation(), |d| d.evaluation(cand_i))
             })
             .collect();
 
@@ -323,16 +345,7 @@ impl DesignRanker {
 
     /// Reject a batch schedule that cannot draw anything.
     pub(crate) fn validate_config(&self) -> Result<(), DesignError> {
-        if self.config.max_batches == 0 || self.config.batch_size == 0 {
-            return Err(DesignError::Config("max_batches and batch_size must be > 0".into()));
-        }
-        let draws = u64::from(self.config.max_batches) * u64::from(self.config.batch_size);
-        if draws > MAX_RANK_DRAWS {
-            return Err(DesignError::Config(format!(
-                "batch_size * max_batches = {draws} exceeds {MAX_RANK_DRAWS}"
-            )));
-        }
-        Ok(())
+        self.config.validate()
     }
 
     /// Split `candidates` into hard-constraint violations and the indices that remain
@@ -362,9 +375,9 @@ impl DesignRanker {
     /// decision replicate for all candidates, so pairwise differences are paired) alongside
     /// the realized sample count / budget / early-stop flag. When every active candidate is
     /// scored exactly (`all_exact`) a single draw is taken and reported as one sample.
-    fn run_mc_scoring_loop<A, O>(
+    fn run_mc_scoring_loop<S, A, O>(
         &self,
-        objective: &DesignObjective,
+        objective: &S,
         candidates: &[CandidateDesign],
         ctx_eval: &DesignEvaluationContext<'_, A, O>,
         ctx: &ExecutionContext,
@@ -372,6 +385,7 @@ impl DesignRanker {
         z: f64,
     ) -> Result<ScoringRun, DesignError>
     where
+        S: ObjectiveScorer + Sync,
         A: Clone + Sync,
         O: Clone + Sync,
     {
@@ -383,24 +397,21 @@ impl DesignRanker {
         let mut early_stopped = false;
         let mut rng = ctx.rng.stream_for(StreamDomain::Design, RANK_STREAM);
         // Per-ranking constants of the scoring channels, built once rather than per draw.
-        let channels = ScoringChannels::new(objective, ctx_eval);
+        let prepared = objective.prepare(ctx_eval);
 
         let min_batches = self.config.min_batches.max(1);
         let max_batches = self.config.max_batches.max(min_batches);
         let mut stats = RankDrawStats::new(active.len());
-        // The entropy channel's expectation depends only on the candidate, so it is
-        // computed once per candidate and reported as exact.
-        let entropy_gain: Option<Vec<f64>> =
-            matches!(objective.channel(), ObjectiveChannel::GraphEntropy).then(|| {
-                active
-                    .iter()
-                    .map(|&cand_i| {
-                        channels.entropy.as_ref().map_or(0.0, |channel| {
-                            channel.exact_gain(observation_reliability(&candidates[cand_i]))
-                        })
-                    })
-                    .collect()
-            });
+        // An objective whose expectation depends only on the candidate (the entropy channel)
+        // is computed once per candidate and reported as exact.
+        let entropy_gain: Option<Vec<f64>> = if active.is_empty() {
+            None
+        } else {
+            active
+                .iter()
+                .map(|&cand_i| objective.exact_expectation(&prepared, &candidates[cand_i]))
+                .collect()
+        };
 
         for batch_i in 0..max_batches {
             if ctx.cancellation.is_cancelled() {
@@ -431,11 +442,10 @@ impl DesignRanker {
                     let draw_seed = rng.next_u64();
                     ctx.map_indexed(active.len(), |slot, _ctx| {
                         let mut local = CausalRng::from_seed(draw_seed);
-                        score_candidate(
-                            objective,
+                        objective.score(
+                            &prepared,
                             &candidates[active[slot]],
                             ctx_eval,
-                            &channels,
                             g_idx,
                             &mut local,
                         )
@@ -749,38 +759,60 @@ fn shannon_entropy(weights: &[f64]) -> f64 {
 
 /// Ranking-invariant precomputation for the per-draw scoring channels, built once per
 /// `rank()` call instead of once per draw per candidate.
-struct ScoringChannels {
+pub struct ScoringChannels {
     entropy: Option<EntropyChannel>,
     /// `(row_i, row_j)` of every requested model pair present in the log-likelihood table.
     model_pairs: Vec<(usize, usize)>,
+    /// Gram side and standard error of the baseline treatment coefficient, which every
+    /// candidate's reduction is measured against.
+    effect_width_baseline: Option<(usize, f64)>,
 }
 
 impl ScoringChannels {
-    fn new<A, O>(objective: &DesignObjective, ctx: &DesignEvaluationContext<'_, A, O>) -> Self {
-        match objective.channel() {
+    /// The constants of `channel` over `ctx`, built once per ranking.
+    pub(crate) fn new<A, O>(
+        channel: ObjectiveChannel<'_>,
+        ctx: &DesignEvaluationContext<'_, A, O>,
+    ) -> Self {
+        match channel {
             ObjectiveChannel::GraphEntropy => Self {
                 entropy: EntropyChannel::new(ctx.graphs, ctx.graph_features),
                 model_pairs: Vec::new(),
+                effect_width_baseline: None,
             },
             ObjectiveChannel::ModelDistinction { models } => Self {
                 entropy: None,
                 model_pairs: ctx
                     .model_loglik
                     .map_or_else(Vec::new, |ll| model_pair_rows(ll, models)),
+                effect_width_baseline: None,
             },
-            _ => Self { entropy: None, model_pairs: Vec::new() },
+            ObjectiveChannel::EffectWidth { .. } => Self {
+                entropy: None,
+                model_pairs: Vec::new(),
+                // A baseline that cannot be solved was refused by `validate_objective_context`.
+                effect_width_baseline: ctx.effect_width.and_then(|ew| baseline_treatment_se(ew).ok()),
+            },
+            _ => Self { entropy: None, model_pairs: Vec::new(), effect_width_baseline: None },
         }
+    }
+
+    /// The channel's exact expectation for `candidate` when it does not depend on the draw.
+    pub(crate) fn exact_expectation(&self, candidate: &CandidateDesign) -> Option<f64> {
+        self.entropy
+            .as_ref()
+            .map(|channel| channel.exact_gain(observation_reliability(candidate)))
     }
 }
 
 /// Reject malformed per-objective context before any MC work runs. A context that cannot
 /// be evaluated is an error, never a silently "exact" zero score.
-fn validate_objective_context<A, O>(
-    objective: &DesignObjective,
+pub(crate) fn validate_channel_context<A, O>(
+    channel: ObjectiveChannel<'_>,
     ctx: &DesignEvaluationContext<'_, A, O>,
 ) -> Result<(), DesignError> {
     let n = ctx.graphs.n_samples;
-    match objective.channel() {
+    match channel {
         ObjectiveChannel::GraphEntropy => {
             if let Some(features) = ctx.graph_features {
                 if features.len() != n {
@@ -829,8 +861,8 @@ fn validate_objective_context<A, O>(
     Ok(())
 }
 
-fn score_candidate<A, O>(
-    objective: &DesignObjective,
+pub(crate) fn score_channel<A, O>(
+    channel: ObjectiveChannel<'_>,
     candidate: &CandidateDesign,
     ctx: &DesignEvaluationContext<'_, A, O>,
     channels: &ScoringChannels,
@@ -841,7 +873,7 @@ where
     A: Clone,
     O: Clone,
 {
-    match objective.channel() {
+    match channel {
         ObjectiveChannel::GraphEntropy => {
             Ok(channels.entropy.as_ref().map_or(0.0, |c| c.draw(candidate, graph_idx, rng)))
         }
@@ -852,7 +884,10 @@ where
                     "ReduceEffectPosteriorWidth requires effect_width context".into(),
                 ));
             };
-            effect_width_reduction(candidate, ew)
+            match channels.effect_width_baseline {
+                Some(baseline) => effect_width_reduction_from(candidate, ew, baseline),
+                None => effect_width_reduction(candidate, ew),
+            }
         }
         ObjectiveChannel::ModelDistinction { models } => {
             let Some(ll) = ctx.model_loglik else {
@@ -1040,7 +1075,7 @@ fn observation_reliability(candidate: &CandidateDesign) -> f64 {
 }
 
 /// Identification-mass gain of a candidate. `identified_under_intervention`, when present,
-/// has already been checked against the posterior size by [`validate_objective_context`].
+/// has already been checked against the posterior size by [`validate_channel_context`].
 fn id_prob_gain<A, O>(
     candidate: &CandidateDesign,
     ctx: &DesignEvaluationContext<'_, A, O>,
@@ -1128,9 +1163,17 @@ fn treatment_se(
             "{what}: residual variance must be positive and finite (got {sigma2})"
         )));
     }
-    let inv = invert_square(xtx, p)
-        .ok_or_else(|| DesignError::Numerical(format!("{what}: Gram is singular")))?;
-    Ok((sigma2 * inv[treatment_col * p + treatment_col].max(0.0)).sqrt())
+    // `[(XᵀX)⁻¹]_tt` is the t-th component of the solution of `XᵀX z = e_t`: one Cholesky
+    // factorization and one pair of triangular solves, not the full inverse.
+    let mut factor = vec![0.0; p * p];
+    cholesky_spd_into(xtx, p, &mut factor).map_err(|error| {
+        DesignError::Numerical(format!("{what}: Gram is singular or not positive definite ({error:?})"))
+    })?;
+    let mut unit = vec![0.0; p];
+    unit[treatment_col] = 1.0;
+    let (mut forward, mut solution) = (vec![0.0; p], vec![0.0; p]);
+    chol_solve_into(&factor, p, &unit, &mut forward, &mut solution);
+    Ok((sigma2 * solution[treatment_col].max(0.0)).sqrt())
 }
 
 fn gram_side_len(xtx: &[f64]) -> usize {
@@ -1177,8 +1220,15 @@ fn effect_width_reduction(
     candidate: &CandidateDesign,
     ew: &EffectWidthContext,
 ) -> Result<f64, DesignError> {
-    let (p, se0) = baseline_treatment_se(ew)?;
+    effect_width_reduction_from(candidate, ew, baseline_treatment_se(ew)?)
+}
 
+/// [`effect_width_reduction`] against a baseline `(p, se₀)` the caller already solved.
+fn effect_width_reduction_from(
+    candidate: &CandidateDesign,
+    ew: &EffectWidthContext,
+    (p, se0): (usize, f64),
+) -> Result<f64, DesignError> {
     match candidate {
         CandidateDesign::IncreaseSamplingRate(s) => {
             if s.additional_samples == 0 {
@@ -1318,16 +1368,10 @@ fn model_distinguish_score(
     if pairs.is_empty() { 0.0 } else { strength * gap / pairs.len() as f64 }
 }
 
-/// How non-decision objectives are evaluated: deterministic functionals are exact;
-/// scores that consume per-draw randomness are Monte Carlo estimates.
-fn static_evaluation(objective: &DesignObjective) -> ScoreEvaluation {
-    objective.static_evaluation()
-}
-
-/// Prepare the preposterior analysis for [`DesignObjective::ReduceDecisionRegret`]
+/// Prepare the preposterior analysis for [`crate::DesignObjective::ReduceDecisionRegret`]
 /// (utilities and admissibility evaluated once per ranking).
-fn prepare_decision<'a, A, O>(
-    objective: &DesignObjective,
+fn prepare_decision<'a, S: ObjectiveScorer, A, O>(
+    objective: &S,
     ctx: &DesignEvaluationContext<'a, A, O>,
 ) -> Result<Option<PreposteriorAnalysis<'a, O>>, DesignError> {
     let ObjectiveChannel::Decision { decision } = objective.channel() else {
@@ -1428,6 +1472,7 @@ mod tests {
         DesignCost, EnvironmentPlan, ExperimentPlan, MeasurementPlan, SamplingPlan,
     };
     use crate::decision::{DecisionConstraint, DecisionProblemId, Utility};
+    use crate::objective::DesignObjective;
     use antecedent_core::{CausalRng, EnvironmentId, VariableId};
     use antecedent_prob::GraphIdentFlag;
 

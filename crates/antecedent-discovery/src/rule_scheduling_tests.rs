@@ -755,8 +755,8 @@ fn discriminating_collider_branch_orients_both_ends_of_cb() {
     assert!(matches!(at_b, Endpoint::Arrow), "arrow at b");
 }
 
-/// More than 8 uncovered potentially directed paths exhaust the R9 search budget. The edge is
-/// left unresolved and recorded; the run does not fail.
+/// A search whose effort budget is spent on uncovered potentially directed paths exhausts the R9
+/// search. The edge is left unresolved and recorded; the run does not fail.
 #[test]
 fn r9_path_budget_exhaustion_skips_the_edge() {
     let id = DenseNodeId::from_raw;
@@ -780,6 +780,7 @@ fn r9_path_budget_exhaustion_skips_the_edge() {
     }
     let mut state = OrientationState::default();
     state.set_sepset(b1, c, std::sync::Arc::from([a]));
+    state.pd_path_budget = crate::uncovered_paths::PdPathBudget { max_expansions: 8 };
     let mut queue = OrientationQueue::new();
     let d = FciOrientationRule::apply(&LpcmciR9, &mut g, &mut state, &mut queue).unwrap();
     assert_eq!(d.edges_changed, 0);
@@ -790,7 +791,7 @@ fn r9_path_budget_exhaustion_skips_the_edge() {
     assert!(matches!(at_a, Endpoint::Circle));
 }
 
-/// The same for R10: nine paths from `a` to one parent exhaust the budget, the second parent
+/// The same for R10: nine paths from `a` to one parent exhaust a small budget, the second parent
 /// has none, and the edge is recorded instead of failing the run.
 #[test]
 fn r10_path_budget_exhaustion_skips_the_edge() {
@@ -806,6 +807,7 @@ fn r10_path_budget_exhaustion_skips_the_edge() {
         g.insert_directed(m, p1).unwrap();
     }
     let mut state = OrientationState::default();
+    state.pd_path_budget = crate::uncovered_paths::PdPathBudget { max_expansions: 8 };
     let mut queue = OrientationQueue::new();
     let d = FciOrientationRule::apply(&LpcmciR10, &mut g, &mut state, &mut queue).unwrap();
     assert_eq!(d.edges_changed, 0);

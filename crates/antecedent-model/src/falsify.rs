@@ -46,8 +46,10 @@ use antecedent_stats::ci::{
 
 use crate::error::ModelError;
 
-/// Most node relabellings a run may request.
-pub const MAX_GRAPH_PERMUTATIONS: usize = 100_000;
+/// Most relabellings enumerated and held in memory when `n!` fits the request. A larger
+/// request over a small graph is sampled instead (reported as not exhaustive), so any
+/// `n_permutations` is accepted while memory stays bounded.
+pub const MAX_ENUMERATED_RELABELLINGS: usize = 1 << 20;
 
 /// Default ceiling on distinct conditional-independence tests a run may evaluate.
 pub const DEFAULT_MAX_CI_TESTS: usize = 200_000;
@@ -117,13 +119,6 @@ impl GraphFalsificationConfig {
                     "max_equivalent_share must lie in (0, 1]",
                 ));
             }
-        }
-        if self.n_permutations > MAX_GRAPH_PERMUTATIONS {
-            return Err(refuse(
-                antecedent_core::reason_code!("route_not_supported"),
-                "graph_falsification.permutations_exceed_ceiling",
-                "n_permutations exceeds the ceiling on node relabellings held in memory",
-            ));
         }
         if self.n_permutations == 0
             || self.min_permutations == 0
@@ -390,8 +385,12 @@ fn next_permutation(perm: &mut [usize]) -> bool {
 }
 
 /// The relabellings to compare against and whether they are all of the non-identity ones.
-fn draw_permutations(n: usize, requested: usize, rng: &mut CausalRng) -> (Vec<Vec<usize>>, bool) {
-    if factorial_within(n, requested).is_some() {
+fn draw_permutations(
+    n: usize,
+    requested: usize,
+    rng: &mut CausalRng,
+) -> (RelabellingPlan, bool) {
+    if factorial_within(n, requested.min(MAX_ENUMERATED_RELABELLINGS)).is_some() {
         let mut perm: Vec<usize> = (0..n).collect();
         let mut all = Vec::new();
         while next_permutation(&mut perm) {
@@ -399,16 +398,44 @@ fn draw_permutations(n: usize, requested: usize, rng: &mut CausalRng) -> (Vec<Ve
         }
         // A prefix of the lexicographic order is not a random subset; a stopped run keeps one.
         shuffle(&mut all, rng);
-        return (all, true);
+        return (RelabellingPlan::Listed(all), true);
     }
-    // `requested` is capped by `MAX_GRAPH_PERMUTATIONS` in the config validation.
-    let mut drawn = Vec::with_capacity(requested);
-    for _ in 0..requested {
-        let mut perm: Vec<usize> = (0..n).collect();
-        shuffle(&mut perm, rng);
-        drawn.push(perm);
+    // Sampled relabellings are regenerated from the stream on demand, so memory does not
+    // grow with the request.
+    (RelabellingPlan::Sampled { n, count: requested, rng: rng.clone() }, false)
+}
+
+/// The relabellings of a run: an explicit list, or a counted deterministic stream.
+enum RelabellingPlan {
+    /// Every non-identity relabelling, in shuffled order.
+    Listed(Vec<Vec<usize>>),
+    /// `count` independent uniform relabellings regenerated from `rng` on each pass.
+    Sampled { n: usize, count: usize, rng: CausalRng },
+}
+
+impl RelabellingPlan {
+    fn len(&self) -> usize {
+        match self {
+            Self::Listed(all) => all.len(),
+            Self::Sampled { count, .. } => *count,
+        }
     }
-    (drawn, false)
+
+    /// One pass over the relabellings; every pass yields the same sequence.
+    fn iter(&self) -> Box<dyn Iterator<Item = Vec<usize>> + '_> {
+        match self {
+            Self::Listed(all) => Box::new(all.iter().cloned()),
+            Self::Sampled { n, count, rng } => {
+                let mut rng = rng.clone();
+                let n = *n;
+                Box::new((0..*count).map(move |_| {
+                    let mut perm: Vec<usize> = (0..n).collect();
+                    shuffle(&mut perm, &mut rng);
+                    perm
+                }))
+            }
+        }
+    }
 }
 
 /// Cached CI evaluation under a shared search budget.
@@ -731,8 +758,8 @@ pub fn falsify_graph(
 
     let mut counts = Vec::with_capacity(permutations.len());
     let mut stop = None;
-    for perm in &permutations {
-        let keys: Vec<CiKey> = implications.iter().map(|i| key_under(i, perm)).collect();
+    for perm in permutations.iter() {
+        let keys: Vec<CiKey> = implications.iter().map(|i| key_under(i, &perm)).collect();
         if let Some(reason) = session.ensure(&keys)? {
             stop = Some(reason);
             break;
@@ -907,12 +934,14 @@ mod tests {
         let (perms, exhaustive) = draw_permutations(4, 100, &mut rng);
         assert!(exhaustive);
         assert_eq!(perms.len(), 23);
-        let distinct: HashSet<_> = perms.iter().cloned().collect();
+        let distinct: HashSet<_> = perms.iter().collect();
         assert_eq!(distinct.len(), 23);
         assert!(!distinct.contains(&vec![0, 1, 2, 3]));
         let (sampled, exhaustive) = draw_permutations(8, 50, &mut rng);
         assert!(!exhaustive);
         assert_eq!(sampled.len(), 50);
+        assert_eq!(sampled.iter().collect::<Vec<_>>(), sampled.iter().collect::<Vec<_>>());
+        assert_eq!(sampled.iter().count(), 50);
     }
 
     #[test]

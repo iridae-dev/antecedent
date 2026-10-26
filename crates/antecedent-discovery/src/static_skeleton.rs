@@ -250,10 +250,8 @@ pub(crate) struct StaticSkeleton {
     pub ci_tests: u64,
     /// One entry per conditioning-set size.
     pub iterations: Vec<DiscoveryIteration>,
-    /// Every CI p-value, aligned with `family_edge`.
-    pub family_p: Vec<f64>,
-    /// Edge each entry of `family_p` tested.
-    pub family_edge: Vec<(u32, u32)>,
+    /// Every answered CI test as its edge and p-value (the multiplicity family).
+    pub family: Vec<((u32, u32), f64)>,
     /// Edges removed to honour the parent limit, weakest evidence first (see
     /// [`enforce_parent_limit`]). Empty without a limit or when it never bound.
     pub parent_limit_removed: Vec<(u32, u32)>,
@@ -293,16 +291,19 @@ impl<'a> StaticCiRun<'a> {
         Self { input, workspace, ctx, alpha, tests: 0 }
     }
 
-    /// One counted CI test `x ⊥ y | z`; returns the p-value.
-    pub(crate) fn p_value(
+    /// One counted CI test `x ⊥ y | z`: whether it accepts independence (`p > alpha`).
+    ///
+    /// A query the CI test cannot answer (a constant variable or a collinear conditioning set)
+    /// is missing information, not evidence of independence: it does not separate.
+    pub(crate) fn separates(
         &mut self,
         x: VariableId,
         y: VariableId,
         z: &[VariableId],
-    ) -> Result<f64, DiscoveryError> {
-        let (_stat, p) = static_ci_test(self.input, x, y, z, self.workspace, self.ctx)?;
+    ) -> Result<bool, DiscoveryError> {
+        let outcome = static_ci_test(self.input, x, y, z, self.workspace, self.ctx)?;
         self.tests += 1;
-        Ok(p)
+        Ok(outcome.is_some_and(|(_stat, p)| p > self.alpha))
     }
 
     /// Smallest subset of `z` (dropping one element at a time, in order) that still
@@ -316,11 +317,11 @@ impl<'a> StaticCiRun<'a> {
         let mut s = z.to_vec();
         let mut i = 0;
         while i < s.len() {
-            let mut trial = s.clone();
-            trial.remove(i);
-            if self.p_value(x, y, &trial)? > self.alpha {
-                s = trial;
-            } else {
+            // Drop element `i` in place, test, and restore it at `i` when the set stops
+            // separating: one working buffer, no clone per trial.
+            let removed = s.remove(i);
+            if !self.separates(x, y, &s)? {
+                s.insert(i, removed);
                 i += 1;
             }
         }
@@ -333,7 +334,8 @@ impl<'a> StaticCiRun<'a> {
 /// # Errors
 ///
 /// Unknown variables, CI failures, or a non-finite statistic / p-value (a NaN input must not
-/// pass as evidence either way).
+/// pass as evidence either way). `Ok(None)` is a query the test cannot answer (see
+/// [`crate::ci::is_untestable`]).
 pub(crate) fn static_ci_test(
     input: &StaticSkeletonInput<'_>,
     x: VariableId,
@@ -341,13 +343,18 @@ pub(crate) fn static_ci_test(
     z: &[VariableId],
     workspace: &mut DiscoveryWorkspace,
     ctx: &ExecutionContext,
-) -> Result<(f64, f64), DiscoveryError> {
+) -> Result<Option<(f64, f64)>, DiscoveryError> {
     let StaticSkeletonInput { ci, constraints, cols, var_index, .. } = *input;
-    let xi = *var_index.get(&x).ok_or_else(|| DiscoveryError::data_msg("missing x"))?;
-    let yi = *var_index.get(&y).ok_or_else(|| DiscoveryError::data_msg("missing y"))?;
+    let column_of = |v: VariableId, role: &str| {
+        var_index.get(&v).copied().ok_or_else(|| {
+            DiscoveryError::data_msg(format!("unknown {role} variable {} in a CI query", v.raw()))
+        })
+    };
+    let xi = column_of(x, "x")?;
+    let yi = column_of(y, "y")?;
     workspace.z_flat.clear();
     for &v in z {
-        let zi = *var_index.get(&v).ok_or_else(|| DiscoveryError::data_msg("missing z"))?;
+        let zi = column_of(v, "conditioning")?;
         workspace.z_flat.push(zi);
     }
     let prepared = workspace
@@ -359,19 +366,11 @@ pub(crate) fn static_ci_test(
         .covariance
         .and_then(|cov| cov.test(queries[0], &workspace.z_flat, prepared.plan.confidence))
     {
-        return Ok((result.statistic, result.p_value));
+        return crate::ci::finite_outcome(&result).map(Some);
     }
     let req =
         crate::ci::ci_batch_request(cols, &queries, &workspace.z_flat, constraints.significance);
-    let result = run_ci_batch(ci, prepared, &req, &mut workspace.ci, ctx)
-        .map_err(DiscoveryError::from)?
-        .into_iter()
-        .next()
-        .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
-    if !result.statistic.is_finite() || !result.p_value.is_finite() {
-        return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
-    }
-    Ok((result.statistic, result.p_value))
+    crate::ci::single_finite_or_untestable(ci, prepared, &req, &mut workspace.ci, ctx)
 }
 
 /// `x ⊥ y | z` for every `z` of `zs` as one (possibly threaded) CI batch, or `None` when it
@@ -382,26 +381,45 @@ fn static_ci_batch(
     input: &StaticSkeletonInput<'_>,
     x: VariableId,
     y: VariableId,
-    zs: &[Vec<VariableId>],
+    zs: &SetChunk,
     workspace: &mut DiscoveryWorkspace,
     ctx: &ExecutionContext,
 ) -> Option<Vec<antecedent_stats::CiResult>> {
     if zs.len() < 2 {
         return None;
     }
+    let xi = *input.var_index.get(&x)?;
+    let yi = *input.var_index.get(&y)?;
+    // The buffers are the workspace's, taken for the call so every chunk of a scan reuses them.
+    let mut queries = std::mem::take(&mut workspace.queries);
+    let mut z_flat = std::mem::take(&mut workspace.z_flat);
+    queries.clear();
+    z_flat.clear();
+    let results = static_ci_batch_with(input, (xi, yi), zs, &mut queries, &mut z_flat, workspace, ctx);
+    workspace.queries = queries;
+    workspace.z_flat = z_flat;
+    results
+}
+
+/// [`static_ci_batch`] once its scratch buffers are out of the workspace.
+fn static_ci_batch_with(
+    input: &StaticSkeletonInput<'_>,
+    (xi, yi): (usize, usize),
+    zs: &SetChunk,
+    queries: &mut Vec<CiQuery>,
+    z_flat: &mut Vec<usize>,
+    workspace: &mut DiscoveryWorkspace,
+    ctx: &ExecutionContext,
+) -> Option<Vec<antecedent_stats::CiResult>> {
     let StaticSkeletonInput { ci, constraints, cols, var_index, .. } = *input;
-    let xi = *var_index.get(&x)?;
-    let yi = *var_index.get(&y)?;
-    let mut queries = Vec::with_capacity(zs.len());
-    let mut z_flat = Vec::new();
-    for z in zs {
+    for z in zs.iter() {
         let z_start = z_flat.len();
         for v in z {
             z_flat.push(*var_index.get(v)?);
         }
         queries.push(CiQuery { x: xi, y: yi, z_start, z_len: z.len() });
     }
-    let req = crate::ci::ci_batch_request(cols, &queries, &z_flat, constraints.significance);
+    let req = crate::ci::ci_batch_request(cols, queries, z_flat, constraints.significance);
     let prepared = workspace.prepared_ci.as_ref()?;
     if let Some(cov) = input.covariance {
         // Small covariance solves are cheaper than spawning workers, but
@@ -409,7 +427,7 @@ fn static_ci_batch(
         // through the original worker scheduler, then restore query order.
         let mut results: Vec<_> = queries
             .iter()
-            .map(|&query| cov.test(query, &z_flat, prepared.plan.confidence))
+            .map(|&query| cov.test(query, z_flat, prepared.plan.confidence))
             .collect();
         let missing: Vec<_> = results
             .iter()
@@ -421,7 +439,7 @@ fn static_ci_batch(
             let fallback_request = crate::ci::ci_batch_request(
                 cols,
                 &fallback_queries,
-                &z_flat,
+                z_flat,
                 constraints.significance,
             );
             let fallback =
@@ -465,25 +483,99 @@ fn sorted_neighbours(
     out
 }
 
-/// Merge of two ascending streams without repeats into one ascending stream without repeats.
-fn sorted_union<T: Ord>(
-    a: impl Iterator<Item = T>,
-    b: impl Iterator<Item = T>,
-) -> impl Iterator<Item = T> {
-    let (mut a, mut b) = (a.peekable(), b.peekable());
-    std::iter::from_fn(move || match (a.peek(), b.peek()) {
-        (None, None) => None,
-        (Some(_), None) => a.next(),
-        (None, Some(_)) => b.next(),
-        (Some(l), Some(r)) => match l.cmp(r) {
-            std::cmp::Ordering::Less => a.next(),
-            std::cmp::Ordering::Greater => b.next(),
-            std::cmp::Ordering::Equal => {
-                b.next();
-                a.next()
-            }
-        },
-    })
+/// Merge of the size-`k` combinations of two ascending item lists into one ascending stream
+/// without repeats, written into a caller's buffer so no set is allocated on its own.
+struct SortedUnionSets<'a> {
+    a: Combinations<'a, VariableId>,
+    b: Combinations<'a, VariableId>,
+    head_a: Vec<VariableId>,
+    head_b: Vec<VariableId>,
+    have_a: bool,
+    have_b: bool,
+}
+
+impl<'a> SortedUnionSets<'a> {
+    fn new(a: &'a [VariableId], b: &'a [VariableId], k: usize) -> Self {
+        Self {
+            a: Combinations::new(a, k),
+            b: Combinations::new(b, k),
+            head_a: Vec::with_capacity(k),
+            head_b: Vec::with_capacity(k),
+            have_a: false,
+            have_b: false,
+        }
+    }
+
+    /// Append the next set to `out`, or return `false` when both streams are exhausted.
+    fn next_into(&mut self, out: &mut Vec<VariableId>) -> bool {
+        if !self.have_a {
+            self.head_a.clear();
+            self.have_a = self.a.next_into(&mut self.head_a);
+        }
+        if !self.have_b {
+            self.head_b.clear();
+            self.have_b = self.b.next_into(&mut self.head_b);
+        }
+        let take_a = match (self.have_a, self.have_b) {
+            (false, false) => return false,
+            (true, false) => true,
+            (false, true) => false,
+            (true, true) => match self.head_a.cmp(&self.head_b) {
+                std::cmp::Ordering::Less => true,
+                std::cmp::Ordering::Greater => false,
+                std::cmp::Ordering::Equal => {
+                    self.have_b = false;
+                    true
+                }
+            },
+        };
+        if take_a {
+            out.extend_from_slice(&self.head_a);
+            self.have_a = false;
+        } else {
+            out.extend_from_slice(&self.head_b);
+            self.have_b = false;
+        }
+        true
+    }
+}
+
+/// A run of equal-size conditioning sets stored back to back in one buffer.
+struct SetChunk {
+    size: usize,
+    count: usize,
+    flat: Vec<VariableId>,
+}
+
+impl SetChunk {
+    fn new(size: usize) -> Self {
+        Self { size, count: 0, flat: Vec::new() }
+    }
+
+    /// Replace the contents with up to `limit` next sets of `sets`.
+    fn fill(&mut self, sets: &mut SortedUnionSets<'_>, limit: usize) {
+        self.flat.clear();
+        self.count = 0;
+        while self.count < limit && sets.next_into(&mut self.flat) {
+            self.count += 1;
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.count
+    }
+
+    fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+
+    fn set(&self, index: usize) -> &[VariableId] {
+        &self.flat[index * self.size..(index + 1) * self.size]
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &[VariableId]> {
+        (0..self.count).map(|index| self.set(index))
+    }
 }
 
 /// Largest number of neighbours an endpoint of a remaining edge has besides the other endpoint.
@@ -526,34 +618,31 @@ fn scan_edge(
     let alpha = input.constraints.alpha;
     let nx = sorted_neighbours(x, y, &skel.adj, input.variables);
     let ny = sorted_neighbours(y, x, &skel.adj, input.variables);
-    let mut cand_sets = sorted_union(Combinations::new(&nx, depth), Combinations::new(&ny, depth));
+    let mut cand_sets = SortedUnionSets::new(&nx, &ny, depth);
+    let mut chunk = SetChunk::new(depth);
     let mut weakest: Option<(f64, f64)> = None;
     let mut schedule = ChunkSchedule::new(ctx);
     loop {
-        let chunk: Vec<Vec<VariableId>> = cand_sets.by_ref().take(schedule.next_size()).collect();
+        chunk.fill(&mut cand_sets, schedule.next_size());
         if chunk.is_empty() {
             return Ok((None, weakest));
         }
         let batch = static_ci_batch(input, x, y, &chunk, workspace, ctx);
-        for (k, z) in chunk.into_iter().enumerate() {
-            let (stat, p) = match &batch {
-                Some(results) => {
-                    let r = &results[k];
-                    if !r.statistic.is_finite() || !r.p_value.is_finite() {
-                        return Err(DiscoveryError::stats_msg(
-                            "non-finite CI statistic or p-value",
-                        ));
-                    }
-                    (r.statistic, r.p_value)
-                }
-                None => static_ci_test(input, x, y, &z, workspace, ctx)?,
+        for (k, z) in chunk.iter().enumerate() {
+            let outcome = match &batch {
+                Some(results) => Some(crate::ci::finite_outcome(&results[k])?),
+                None => static_ci_test(input, x, y, z, workspace, ctx)?,
             };
             skel.ci_tests += 1;
             *depth_tests += 1;
-            skel.family_p.push(p);
-            skel.family_edge.push(key);
+            // A query the test cannot answer is neither a separation nor a dependence: it
+            // joins no multiplicity family and never weakens the edge's evidence.
+            let Some((stat, p)) = outcome else {
+                continue;
+            };
+            skel.family.push((key, p));
             if p > alpha {
-                return Ok((Some(z), weakest));
+                return Ok((Some(z.to_vec()), weakest));
             }
             if weakest.is_none_or(|(_, wp)| p > wp) {
                 weakest = Some((stat, p));
@@ -587,8 +676,7 @@ pub(crate) fn run_static_skeleton(
         sepsets: PcSepsets::default(),
         ci_tests: 0,
         iterations: Vec::new(),
-        family_p: Vec::new(),
-        family_edge: Vec::new(),
+        family: Vec::new(),
         parent_limit_removed: Vec::new(),
     };
 
@@ -778,19 +866,22 @@ pub(crate) fn skeleton_scored_links(skel: &StaticSkeleton) -> Vec<ScoredLink> {
     keys.sort_unstable();
     keys.into_iter()
         .map(|(lo, hi)| {
-            skel.edge_scores.get(&(lo, hi)).copied().unwrap_or(ScoredLink {
-                link: LaggedLink {
-                    source: VariableId::from_raw(lo),
-                    source_lag: Lag::CONTEMPORANEOUS,
-                    target: VariableId::from_raw(hi),
-                    target_lag: Lag::CONTEMPORANEOUS,
-                },
-                statistic: f64::NAN,
-                p_value: f64::NAN,
-                adjusted_p_value: None,
-            })
+            skel.edge_scores.get(&(lo, hi)).copied().unwrap_or(ScoredLink::untested(LaggedLink {
+                source: VariableId::from_raw(lo),
+                source_lag: Lag::CONTEMPORANEOUS,
+                target: VariableId::from_raw(hi),
+                target_lag: Lag::CONTEMPORANEOUS,
+            }))
         })
         .collect()
+}
+
+impl StaticSkeleton {
+    /// The multiplicity family as parallel p-value and edge slices, the shape
+    /// [`crate::evidence::retain_after_family_fdr`] takes.
+    pub(crate) fn family_columns(&self) -> (Vec<f64>, Vec<(u32, u32)>) {
+        self.family.iter().map(|&(edge, p)| (p, edge)).unzip()
+    }
 }
 
 /// Per-edge evidence records for a static skeleton result.
@@ -808,7 +899,7 @@ pub(crate) fn static_edge_evidence(
             let separating_set = sepsets
                 .get(&(s.link.source, Lag::CONTEMPORANEOUS, s.link.target, Lag::CONTEMPORANEOUS))
                 .cloned();
-            let tested = s.p_value.is_finite() && s.statistic.is_finite();
+            let tested = s.is_tested();
             let mut provenance: Vec<Arc<str>> = vec![Arc::from(algorithm)];
             if !tested {
                 provenance.push(Arc::from("required"));
@@ -901,6 +992,31 @@ mod tests {
                 .max()
                 .unwrap_or(0)
         });
+    }
+
+    #[test]
+    fn set_chunks_merge_the_candidate_streams_in_order_without_repeats() {
+        let ids = |raw: &[u32]| raw.iter().map(|&r| VariableId::from_raw(r)).collect::<Vec<_>>();
+        let (nx, ny) = (ids(&[1, 2, 4]), ids(&[2, 3, 4]));
+        for depth in 0..=3 {
+            let mut expected: Vec<Vec<VariableId>> = Combinations::new(&nx, depth)
+                .chain(Combinations::new(&ny, depth))
+                .collect();
+            expected.sort();
+            expected.dedup();
+            let mut sets = SortedUnionSets::new(&nx, &ny, depth);
+            let mut chunk = SetChunk::new(depth);
+            let mut seen = Vec::new();
+            loop {
+                chunk.fill(&mut sets, 2);
+                if chunk.is_empty() {
+                    break;
+                }
+                assert!(chunk.len() <= 2);
+                seen.extend(chunk.iter().map(<[VariableId]>::to_vec));
+            }
+            assert_eq!(seen, expected, "depth {depth}");
+        }
     }
 
     #[test]

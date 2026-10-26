@@ -138,9 +138,12 @@ pub fn refute_temporal_mediation_with_gaps(
         .with_allow_natural_controlled_alias(true)
         .with_allow_gaps(gaps);
     let tabular = TabularData::new(data.storage().clone());
-    let mediator = *estimand.mediators.first().ok_or(ValidationError::NotApplicable {
-        message: "mediation validation requires an identified mediator",
-    })?;
+    if estimand.mediators.is_empty() {
+        return Err(ValidationError::NotApplicable {
+            message: "mediation validation requires an identified mediator",
+        });
+    }
+    let mediators = Arc::clone(&estimand.mediators);
     let mut placebo_query = query.clone();
     placebo_query.contrast = MediationContrast::Mediated;
     // The three refuters share one noise vector per replicate, so one pass drives all of them.
@@ -152,7 +155,15 @@ pub fn refute_temporal_mediation_with_gaps(
         |noise, ctx, replicate| {
             let replicate = u64::from(replicate);
             fill_gaussian(noise, ctx, 0xF014_0000 + replicate);
-            let replaced = with_replaced_float(&tabular, mediator, Arc::from(noise.clone()))?;
+            // Every mediator is replaced by noise; the first keeps the stream the single
+            // mediator used, further ones draw their own.
+            let mut replaced =
+                with_replaced_float(&tabular, mediators[0], Arc::from(noise.clone()))?;
+            for (j, &mediator) in mediators.iter().enumerate().skip(1) {
+                let mut extra_noise = vec![0.0; rows];
+                fill_gaussian(&mut extra_noise, ctx, 0xF014_8000 + replicate * 100 + j as u64);
+                replaced = with_replaced_float(&replaced, mediator, Arc::from(extra_noise))?;
+            }
             let series =
                 TimeSeriesData::try_new(replaced.storage().clone(), data.time_index().clone())?;
             let placebo_ate = estimator
@@ -200,14 +211,18 @@ pub fn refute_temporal_mediation_with_gaps(
     // Binary treatment permits a direct empirical mediator-support check. This
     // is a necessary range diagnostic, not a proof of conditional positivity.
     let treatment_lag = query.horizons.first().copied().filter(|&h| h >= 1).unwrap_or(1);
-    let mut columns = vec![
-        LaggedColumn {
-            variable: query.treatment,
-            lag: antecedent_core::Lag::from_raw(treatment_lag),
-        },
-        LaggedColumn { variable: mediator, lag: antecedent_core::Lag::CONTEMPORANEOUS },
-        LaggedColumn { variable: query.outcome, lag: antecedent_core::Lag::CONTEMPORANEOUS },
-    ];
+    let mut columns = vec![LaggedColumn {
+        variable: query.treatment,
+        lag: antecedent_core::Lag::from_raw(treatment_lag),
+    }];
+    columns.extend(mediators.iter().map(|&variable| LaggedColumn {
+        variable,
+        lag: antecedent_core::Lag::CONTEMPORANEOUS,
+    }));
+    columns.push(LaggedColumn {
+        variable: query.outcome,
+        lag: antecedent_core::Lag::CONTEMPORANEOUS,
+    });
     columns.extend_from_slice(adjustment);
     let max_lag = columns.iter().map(|c| c.lag.raw()).max().unwrap_or(1);
     let mut scan = antecedent_estimate::HistoryScan::plan(data, max_lag, Arc::from(columns))?;
@@ -217,15 +232,19 @@ pub fn refute_temporal_mediation_with_gaps(
     levels.sort_by(f64::total_cmp);
     levels.dedup();
     if levels.len() == 2 {
-        let mut ranges = [(f64::INFINITY, f64::NEG_INFINITY); 2];
-        for (&t, &m) in t.iter().zip(sample.column(1)) {
-            let group = usize::from(t == levels[1]);
-            ranges[group].0 = ranges[group].0.min(m);
-            ranges[group].1 = ranges[group].1.max(m);
+        // The shared fraction of each mediator's range; a set reports its least-shared mediator.
+        let mut fraction = f64::INFINITY;
+        for j in 0..mediators.len() {
+            let mut ranges = [(f64::INFINITY, f64::NEG_INFINITY); 2];
+            for (&t, &m) in t.iter().zip(sample.column(1 + j)) {
+                let group = usize::from(t == levels[1]);
+                ranges[group].0 = ranges[group].0.min(m);
+                ranges[group].1 = ranges[group].1.max(m);
+            }
+            let shared = (ranges[0].1.min(ranges[1].1) - ranges[0].0.max(ranges[1].0)).max(0.0);
+            let width = ranges[0].1.max(ranges[1].1) - ranges[0].0.min(ranges[1].0);
+            fraction = fraction.min(if width > 0.0 { shared / width } else { 0.0 });
         }
-        let shared = (ranges[0].1.min(ranges[1].1) - ranges[0].0.max(ranges[1].0)).max(0.0);
-        let width = ranges[0].1.max(ranges[1].1) - ranges[0].0.min(ranges[1].0);
-        let fraction = if width > 0.0 { shared / width } else { 0.0 };
         // A range diagnostic, not a re-estimate: the effect columns carry the published
         // contrast, and `comparison` is the shared fraction of the mediator range.
         reports.push(

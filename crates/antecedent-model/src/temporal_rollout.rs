@@ -114,7 +114,11 @@ pub fn rollout_temporal(
     if block.checked_mul(plan.n_steps).is_none() {
         return Err(shape_error("temporal rollout size overflows"));
     }
-    if plan.initial_history.iter().any(|b| b.n_rows != n_rows || b.n_nodes != n_nodes) {
+    if plan
+        .initial_history
+        .iter()
+        .any(|b| b.n_rows != n_rows || b.n_nodes != n_nodes || b.values.len() != block)
+    {
         return Err(shape_error("an initial history batch does not match the model and rows"));
     }
     if let TemporalNoise::Retained { steps, .. } = &noise {

@@ -598,9 +598,10 @@ fn undeclared_noise_a_mismatched_structure_and_unsupported_mechanisms_are_refuse
 }
 
 #[test]
-fn exact_allocation_above_its_bound_and_invalid_settings_are_refused() {
-    // A chain of eleven nodes has eleven sources for its last node.
-    let n = 11u32;
+fn exact_allocation_beyond_the_simulation_budget_and_invalid_settings_are_refused() {
+    // A chain of 26 nodes has 26 sources for its last node: 2^26 coalition values, each a
+    // nested simulation, is far beyond the shared draw budget.
+    let n = 26u32;
     let edges: Vec<(u32, u32)> = (1..n).map(|i| (i - 1, i)).collect();
     let slots = (0..n)
         .map(|i| if i == 0 { linear(0.0, &[], 1.0) } else { linear(0.0, &[0.5], 1.0) })
@@ -610,7 +611,7 @@ fn exact_allocation_above_its_bound_and_invalid_settings_are_refused() {
     let text = intrinsic_influence(&long, NoiseIndependence::Declared, None, &q, &ctx())
         .unwrap_err()
         .to_string();
-    assert!(text.contains("intrinsic_influence.exact_players_exceed_bound"), "{text}");
+    assert!(text.contains("intrinsic_influence.draw_budget_exceeded"), "{text}");
 
     let (m, _) = chain();
     for bad in [

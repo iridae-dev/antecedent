@@ -108,12 +108,18 @@ pub use rollout::{
 pub const SEQUENTIAL_EVALUATION_IDENTITY_VERSION: u64 = 1;
 /// The only inferential claim any route of this module carries.
 pub const SEQUENTIAL_EVALUATION_INFERENCE: &str = "point_only";
-/// Most latent states of a model.
-pub const MAX_STATES: usize = 32;
+/// Most latent states of a model: a structural bound on the declaration (a transition matrix is
+/// `states x states` per action). What a model may cost is bounded by [`MAX_MODEL_WORK`], not
+/// by each dimension alone.
+pub const MAX_STATES: usize = 4_096;
 /// Most actions of a model.
-pub const MAX_ACTIONS: usize = 16;
+pub const MAX_ACTIONS: usize = 1_024;
 /// Most decision times of a model.
-pub const MAX_HORIZON: usize = 12;
+pub const MAX_HORIZON: usize = 1_024;
+/// Most multiply-adds one backward pass over a model may cost: `states * states * actions *
+/// horizon`, the size of the transition tables applied once per decision time. A model past it
+/// is refused rather than evaluated slowly.
+pub const MAX_MODEL_WORK: u128 = 1 << 34;
 /// Most history entries a policy table may hold.
 pub const MAX_POLICY_ENTRIES: usize = 65_536;
 /// Most logged trajectories one off-policy evaluation accepts.

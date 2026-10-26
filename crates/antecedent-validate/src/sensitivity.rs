@@ -6,10 +6,12 @@
 //! and outcome on adjustment covariates with Nadaraya–Watson (Nadaraya 1964; Watson 1964) kernel
 //! regression, then runs the
 //! same partial-R² grid on the residualized series — a production nonparametric path distinct
-//! from the partial-linear shape stand-in. That smoother is quadratic in the sample size, so it
-//! is limited to [`MAX_NONPARAMETRIC_ROWS`] complete cases; [`NeighborhoodSensitivity`] is the
-//! separate construction for larger samples, with the Gaussian kernel truncated to a declared
-//! number of nearest neighbours.
+//! from the partial-linear shape stand-in. That smoother is quadratic in the sample size, so
+//! above [`MAX_NONPARAMETRIC_ROWS`] complete cases [`NonparametricSensitivity`] runs
+//! [`NeighborhoodSensitivity`] (the Gaussian kernel truncated to a declared number of nearest
+//! neighbours, found with an exact k-d tree) and says so: the report's refuter is then
+//! `sensitivity.nonparametric_neighborhood`, with that construction's own confounder stream,
+//! never `sensitivity.nonparametric`.
 //!
 //! The reported `robustness_value` is the *simulated tipping partial R²*: the smallest grid
 //! value at which adding `U` (added to the observed treatment and outcome, then refitting)
@@ -225,7 +227,7 @@ fn run_grid(
 /// per-point data pass.
 fn gram_applicable(problem: &RefutationProblem<'_>, estimator: &LinearAdjustmentAte) -> bool {
     problem.temporal.is_none()
-        && estimator.bootstrap_replicates == 0
+        && estimator.inference.bootstrap_replicates == 0
         && matches!(estimator.fit_kind, LinearFitKind::Ols)
 }
 
@@ -1136,7 +1138,8 @@ fn standardize_columns(cov: &mut [f64], n: usize, dim: usize) {
     }
 }
 
-/// Largest complete-case sample the O(n²·d) leave-one-out kernel smoother accepts.
+/// Largest complete-case sample the O(n²·d) leave-one-out kernel smoother runs on; above it
+/// [`NonparametricSensitivity`] routes to the neighbourhood construction.
 const MAX_NONPARAMETRIC_ROWS: usize = 20_000;
 
 /// Nonparametric sensitivity: kernel-residualize T and Y on Z, then partial-R² grid on residuals.
@@ -1191,7 +1194,17 @@ impl NonparametricSensitivity {
                 message: "nonparametric sensitivity requires a non-empty partial_r2_grid",
             });
         }
-        let residuals = kernel_residuals(problem, self.bandwidth, ctx, ResidualSmoother::Exact)?;
+        let (residuals, routed) = kernel_residuals(
+            problem,
+            self.bandwidth,
+            ctx,
+            ResidualSmoother::ExactUpTo { neighbors_beyond: DEFAULT_NEIGHBORHOOD },
+        )?;
+        let (refuter, stream) = if routed {
+            ("sensitivity.nonparametric_neighborhood", crate::streams::NEIGHBORHOOD_SENSITIVITY)
+        } else {
+            ("sensitivity.nonparametric", crate::streams::NONPARAMETRIC_SENSITIVITY)
+        };
         residual_grid_report(
             problem,
             ctx,
@@ -1199,8 +1212,8 @@ impl NonparametricSensitivity {
             &ResidualGrid {
                 partial_r2_grid: &self.partial_r2_grid,
                 pass_threshold: self.pass_threshold,
-                refuter: "sensitivity.nonparametric",
-                stream: crate::streams::NONPARAMETRIC_SENSITIVITY,
+                refuter,
+                stream,
             },
         )
     }
@@ -1309,8 +1322,10 @@ fn residual_grid_report(
 /// Nearest neighbours the [`NeighborhoodSensitivity`] kernel sums run over by default.
 const DEFAULT_NEIGHBORHOOD: usize = 256;
 
-/// Largest neighbour count [`NeighborhoodSensitivity`] accepts.
-const MAX_NEIGHBORHOOD: usize = 4_096;
+/// Largest `rows x neighbors` kernel-sum work [`NeighborhoodSensitivity`] accepts. The
+/// neighbour count has no separate bound: it is the same knob as the exact smoother's reach,
+/// and a request whose product exceeds this budget is better run with fewer neighbours.
+const MAX_NEIGHBORHOOD_WORK: u64 = 4_000_000_000;
 
 /// Nonparametric sensitivity for samples beyond [`MAX_NONPARAMETRIC_ROWS`]: kernel-residualize
 /// T and Y on Z with a nearest-neighbour-truncated Gaussian kernel, then the same partial-R²
@@ -1369,7 +1384,7 @@ impl NeighborhoodSensitivity {
     ///
     /// # Errors
     ///
-    /// Data failures, an empty `partial_r2_grid`, `neighbors` outside `1..=4096`, cancellation,
+    /// Data failures, an empty `partial_r2_grid`, zero `neighbors`, cancellation,
     /// or a footprint above the context's hard memory limit.
     #[allow(
         clippy::only_used_in_recursion,
@@ -1391,12 +1406,12 @@ impl NeighborhoodSensitivity {
                 message: "neighborhood sensitivity requires a non-empty partial_r2_grid",
             });
         }
-        if self.neighbors == 0 || self.neighbors > MAX_NEIGHBORHOOD {
+        if self.neighbors == 0 {
             return Err(ValidationError::NotApplicable {
-                message: "neighborhood sensitivity requires 1 to 4096 neighbors",
+                message: "neighborhood sensitivity requires at least one neighbor",
             });
         }
-        let residuals = kernel_residuals(
+        let (residuals, _) = kernel_residuals(
             problem,
             self.bandwidth,
             ctx,
@@ -1419,20 +1434,27 @@ impl NeighborhoodSensitivity {
 /// Which leave-one-out smoother residualizes treatment and outcome.
 #[derive(Clone, Copy)]
 enum ResidualSmoother {
-    /// Every other row enters the kernel sums (quadratic in the sample size).
-    Exact,
+    /// Every other row enters the kernel sums (quadratic in the sample size) up to
+    /// [`MAX_NONPARAMETRIC_ROWS`] complete cases; a larger sample runs the neighbourhood
+    /// smoother over `neighbors_beyond` neighbours instead.
+    ExactUpTo { neighbors_beyond: usize },
     /// Only the `neighbors` nearest other covariate rows enter them.
     Neighborhood { neighbors: usize },
 }
 
 /// Leave-one-out Nadaraya–Watson residuals of treatment and outcome on the adjustment
-/// covariates, over the complete cases, with the complete-case row count.
+/// covariates, over the complete cases, with the complete-case row count and whether the
+/// neighbourhood smoother ran in place of the exact one.
+#[allow(
+    clippy::type_complexity,
+    reason = "residuals, row count and the route flag are returned together"
+)]
 fn kernel_residuals(
     problem: &RefutationProblem<'_>,
     bandwidth: Option<f64>,
     ctx: &ExecutionContext,
     smoother: ResidualSmoother,
-) -> Result<(Vec<f64>, Vec<f64>, usize), ValidationError> {
+) -> Result<((Vec<f64>, Vec<f64>, usize), bool), ValidationError> {
     // Estimation complete cases (adjustment ∪ {T, Y} ∪ modifiers), shared by the
     // covariate matrix and the residualization pulls.
     let ids = problem.estimation_ids(true);
@@ -1449,13 +1471,13 @@ fn kernel_residuals(
             "nonparametric sensitivity requires at least 2 complete cases",
         ));
     }
-    if matches!(smoother, ResidualSmoother::Exact) && n > MAX_NONPARAMETRIC_ROWS {
-        return Err(ValidationError::NotApplicable {
-            message: "nonparametric sensitivity is quadratic in the sample size and is \
-                      limited to 20000 complete-case rows; NeighborhoodSensitivity runs \
-                      larger samples",
-        });
-    }
+    let routed = matches!(smoother, ResidualSmoother::ExactUpTo { .. }) && n > MAX_NONPARAMETRIC_ROWS;
+    let smoother = match smoother {
+        ResidualSmoother::ExactUpTo { neighbors_beyond } if routed => {
+            ResidualSmoother::Neighborhood { neighbors: neighbors_beyond }
+        }
+        other => other,
+    };
     // Covariates are standardized to unit SD, so Silverman's (1986) multivariate
     // normal-reference factor is the bandwidth. With no covariates every kernel distance
     // is zero and the width is immaterial.
@@ -1468,14 +1490,21 @@ fn kernel_residuals(
         ));
     }
     let (t_hat, y_hat) = match smoother {
-        ResidualSmoother::Exact => nw_loo_predict_pair(&t, &y, &cov, dim, h, ctx)?,
+        ResidualSmoother::ExactUpTo { .. } => nw_loo_predict_pair(&t, &y, &cov, dim, h, ctx)?,
         ResidualSmoother::Neighborhood { neighbors } => {
+            // Neighbours beyond the other rows add nothing, so the work is bounded by them.
+            if (n as u64).saturating_mul(neighbors.min(n) as u64) > MAX_NEIGHBORHOOD_WORK {
+                return Err(ValidationError::NotApplicable {
+                    message: "neighborhood sensitivity work (rows x neighbors) exceeds its \
+                              budget; use fewer neighbors",
+                });
+            }
             neighborhood_loo_predict_pair(&t, &y, &cov, dim, h, neighbors, ctx)?
         }
     };
     let t_res: Vec<f64> = t.iter().zip(&t_hat).map(|(&a, &b)| a - b).collect();
     let y_res: Vec<f64> = y.iter().zip(&y_hat).map(|(&a, &b)| a - b).collect();
-    Ok((t_res, y_res, n))
+    Ok(((t_res, y_res, n), routed))
 }
 
 /// Raw moments of `(t, y, u)` so `slope(a, b)` is the OLS slope of
@@ -1959,7 +1988,7 @@ mod robustness_value {
     ) {
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let est = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
         let prep = est.prepare(data, estimand, &query).unwrap();
         let mut ws = EstimationWorkspace::default();
         let ctx = ExecutionContext::for_tests(11);
@@ -2005,10 +2034,7 @@ mod robustness_value {
         let probe = LinearSensitivity {
             partial_r2_grid: grid.clone(),
             pass_threshold: 0.0,
-            estimator: LinearAdjustmentAte {
-                bootstrap_replicates: 0,
-                ..LinearAdjustmentAte::new()
-            },
+            estimator: LinearAdjustmentAte::new().with_bootstrap_replicates(0),
         };
         let tipped = probe.refute(&problem, &mut ws, &ctx).unwrap();
         assert!(
@@ -2044,10 +2070,7 @@ mod robustness_value {
         let probe = LinearSensitivity {
             partial_r2_grid: grid.clone(),
             pass_threshold: 0.0,
-            estimator: LinearAdjustmentAte {
-                bootstrap_replicates: 0,
-                ..LinearAdjustmentAte::new()
-            },
+            estimator: LinearAdjustmentAte::new().with_bootstrap_replicates(0),
         };
         let tipped = probe.refute(&problem, &mut ws, &ctx).unwrap();
         let rv = tipped.comparison;
@@ -2079,8 +2102,7 @@ mod robustness_value {
             None,
         );
         let grid = vec![0.01, 0.05, 0.1, 0.2, 0.5];
-        let estimator =
-            LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let estimator = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
         let tip = PartialLinearSensitivity {
             partial_r2_grid: grid.clone(),
             pass_threshold: 0.0,
@@ -2174,10 +2196,7 @@ mod robustness_value {
         let refuter = LinearSensitivity {
             partial_r2_grid: vec![1e-6],
             pass_threshold: 0.1,
-            estimator: LinearAdjustmentAte {
-                bootstrap_replicates: 0,
-                ..LinearAdjustmentAte::new()
-            },
+            estimator: LinearAdjustmentAte::new().with_bootstrap_replicates(0),
         };
         let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
         assert!(
@@ -2498,8 +2517,8 @@ mod scalable_cases {
         assert_eq!(neighborhood.refuter.as_ref(), "sensitivity.nonparametric_neighborhood");
     }
 
-    /// Beyond the exact cap: the exact refuter refuses and names the neighbourhood construction;
-    /// that construction (a) equals the exact refuter on a checkable subsample when its
+    /// Beyond the exact cap: the exact refuter routes to the neighbourhood construction and
+    /// reports its identity; that construction (a) equals the exact refuter on a checkable subsample when its
     /// neighbourhood covers every row, and (b) reports a tipping value whose grid interval
     /// contains the tipping value implied by the known residuals.
     fn assert_scalable_sensitivity(n: usize, seed: u64) {
@@ -2507,16 +2526,20 @@ mod scalable_cases {
         let bed = testbed(n, seed);
         let ctx = ExecutionContext::production(72, 4);
 
-        let refused = report_on(&bed.columns, |problem, ws| {
+        // The exact refuter does not refuse: it routes to the neighbourhood construction with its
+        // default neighbours, and the report says so by its identity.
+        let routed = report_on(&bed.columns, |problem, ws| {
             NonparametricSensitivity::new().refute(problem, ws, &ctx)
         })
-        .unwrap_err();
-        assert!(refused.to_string().contains("NeighborhoodSensitivity"), "{refused}");
+        .unwrap();
+        assert_eq!(routed.refuter.as_ref(), "sensitivity.nonparametric_neighborhood");
 
         let report = report_on(&bed.columns, |problem, ws| {
             NeighborhoodSensitivity::new().refute(problem, ws, &ctx)
         })
         .unwrap();
+        assert_eq!(routed.comparison.to_bits(), report.comparison.to_bits());
+        assert_eq!(routed.refuted_ate.to_bits(), report.refuted_ate.to_bits());
         assert_eq!(report.refuter.as_ref(), "sensitivity.nonparametric_neighborhood");
         let tipping = bed.true_tipping();
         let grid = default_grid();

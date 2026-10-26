@@ -319,6 +319,8 @@ pub struct OrientationState {
     /// Edges `(c, b)` whose discriminating-path search exhausted its budget and were left
     /// unresolved (circle kept at `c`) rather than failing the run.
     pub discriminating_skipped: HashSet<(u32, u32)>,
+    /// Effort bound of the R9 / R10 uncovered-path search.
+    pub pd_path_budget: crate::uncovered_paths::PdPathBudget,
     /// Edges `(a, c)` that R9 / R10 left unresolved (circle kept at `a`) because their
     /// uncovered potentially-directed path search exhausted its budget without finding a
     /// path that licenses the orientation.

@@ -19,7 +19,7 @@
 use std::sync::Arc;
 
 use antecedent_attribution::{
-    AttributionError, CoalitionPayoff, DistributionChangeOptions, distribution_change,
+    AttributionError, Coalition, CoalitionPayoff, DistributionChangeOptions, distribution_change,
     estimate_shapley, unit_change,
 };
 use antecedent_core::{
@@ -40,11 +40,11 @@ struct Heavy {
 }
 
 impl CoalitionPayoff for Heavy {
-    fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+    fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
         let mut acc = 0.0_f64;
         for round in 0..4_000 {
             for (i, &w) in self.weights.iter().enumerate() {
-                if mask & (1u64 << i) != 0 {
+                if coalition.contains(i) {
                     acc += (w * f64::from(round) * 1e-3).sin();
                 }
             }
@@ -60,8 +60,8 @@ impl CoalitionPayoff for Heavy {
 struct NoFork(Heavy);
 
 impl CoalitionPayoff for NoFork {
-    fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
-        self.0.value(mask)
+    fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
+        self.0.value(coalition)
     }
 }
 

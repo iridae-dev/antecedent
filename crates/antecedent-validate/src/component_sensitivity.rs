@@ -35,6 +35,7 @@ use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, s
 
 use crate::ValidationError;
 use crate::assumption_range::{AssumptionRange, RangePoint, SensitivityAssumption};
+use crate::common::{not_applicable, require_dimension};
 use crate::evalue_scales::{EValueBounds, EffectInterval, EffectScale};
 use crate::mediation_sensitivity::{MediationSensitivitySummary, mediation_sensitivity_fit};
 use crate::omitted_variable_bias::{LinearAdjustmentSummary, linear_adjustment_fit};
@@ -43,10 +44,6 @@ use crate::vector_sensitivity::{
     OvbPosterior, PosteriorEValue, evalue_posterior_range, evalue_vector_range,
     ovb_posterior_range, ovb_vector_range,
 };
-
-fn not_applicable(message: &'static str) -> ValidationError {
-    ValidationError::NotApplicable { message }
-}
 
 /// Probed mediator-outcome error correlations (the grid of the scalar analysis).
 const RHO_GRID: [f64; 13] =
@@ -173,16 +170,6 @@ pub fn mediation_components_fit(
     let mut ws = LeastSquaresWorkspace::default();
     let total = FaerBackend.least_squares(&design, n, p, outcome, &mut ws)?;
     MediationComponents::new(summary, total.coefficients[1])
-}
-
-fn require_dimension(target: &RefutationTarget, found: usize) -> Result<(), ValidationError> {
-    if found == target.dimension() {
-        Ok(())
-    } else {
-        Err(not_applicable(
-            "a sensitivity range of a vector target needs one input per coordinate of the target",
-        ))
-    }
 }
 
 /// The mediator-outcome sensitivity of a vector of mediation coordinates, read at the weakest.

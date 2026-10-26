@@ -1073,16 +1073,20 @@ pub fn fixed_graph_root_mechanism_sensitivity(
         .iter()
         .map(|row| (row.parent_levels.clone(), row.probability))
         .collect();
+    // Source parent-law rows omit the treatment coordinate.
+    let local = |position: usize| position - usize::from(position > treatment_position);
+    let mechanism_local = local(mechanism_position);
+    let other_local: Vec<_> = other_positions.iter().map(|position| local(*position)).collect();
     let mut mechanism_mass = vec![0.0; mechanism_cardinality];
     let mut other_mass = BTreeMap::<Vec<usize>, f64>::new();
     for (levels, probability) in &source_joint {
-        mechanism_mass[levels[mechanism_position]] += probability;
-        let other: Vec<_> = other_positions.iter().map(|position| levels[*position]).collect();
+        mechanism_mass[levels[mechanism_local]] += probability;
+        let other: Vec<_> = other_local.iter().map(|position| levels[*position]).collect();
         *other_mass.entry(other).or_default() += probability;
     }
     for (levels, probability) in &source_joint {
-        let other: Vec<_> = other_positions.iter().map(|position| levels[*position]).collect();
-        if (probability - mechanism_mass[levels[mechanism_position]] * other_mass[&other]).abs()
+        let other: Vec<_> = other_local.iter().map(|position| levels[*position]).collect();
+        if (probability - mechanism_mass[levels[mechanism_local]] * other_mass[&other]).abs()
             > 1e-10
         {
             return Err(FixedGraphSensitivityError::InvalidParentLaw);

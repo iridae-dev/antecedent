@@ -54,10 +54,11 @@ use super::selection::split_draws_in_context;
 pub const DERIVED_UNCERTAINTY_VERSION: u32 = 1;
 /// Smallest effective sample size at which the normal approximation is derived.
 pub const MIN_NORMAL_ESS: f64 = 30.0;
-/// Most candidates for which every pairwise paired comparison is computed.
+/// Most candidates for which every pairwise paired comparison is computed. Beyond it the
+/// best-candidate set is the dependence-free Bonferroni construction, the method the published
+/// interval calibration covers for larger candidate counts (so the switch is a calibrated
+/// method boundary, not a resource limit).
 pub const MAX_PAIRED_COMPARISON_CANDIDATES: usize = 64;
-/// Most candidate-pair-draw cells the paired comparisons may touch.
-pub const MAX_PAIRED_COMPARISON_CELLS: usize = 1 << 27;
 /// Largest nominal level a request may ask for (the tail mass must stay representable).
 pub const MAX_INTERVAL_LEVEL: f64 = 0.9999;
 /// Smallest nominal level a request may ask for.
@@ -510,12 +511,10 @@ fn confidence_set(
     if retained < 2 {
         return Ok(make(ConfidenceSetBasis::MarginalBonferroni, ids.clone(), 0.0));
     }
-    let cells = retained
-        .checked_mul(retained)
-        .and_then(|pairs| pairs.checked_mul(selection_draws.n_draws()));
-    let paired = retained <= MAX_PAIRED_COMPARISON_CANDIDATES
-        && cells.is_some_and(|c| c <= MAX_PAIRED_COMPARISON_CELLS);
-    if paired {
+    // The paired construction is chosen by the candidate count alone: the method an interval
+    // is licensed under must not change with the draw count. Its cost is cancellable and each
+    // difference estimate is admitted against the context's budgets.
+    if retained <= MAX_PAIRED_COMPARISON_CANDIDATES {
         let tail = alpha / (retained as f64 - 1.0);
         let members = paired_confidence_set(selection_draws, request, tail, ctx)?;
         return Ok(make(ConfidenceSetBasis::PairedComparisonsWithBest, members, critical(tail)));

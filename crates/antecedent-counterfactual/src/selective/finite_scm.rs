@@ -17,6 +17,11 @@
 //!
 //! # Abduction, action, prediction (exact)
 //!
+//! Up to [`MAX_JOINT_STATES`] joint exogenous states the posterior is enumerated
+//! (below). Past that bound the same quantity is computed exactly by variable
+//! elimination over the factor graph of the exogenous terms and the per-world
+//! variables ([`super::factorized`]), which never forms the joint space.
+//!
 //! For a unit with factual evidence `e`, the exogenous posterior is
 //! `P(u | e) = P(u) 1[f(u) is consistent with e] / P(e)` over the product of
 //! the exogenous supports (Pearl 2009 ch. 7; Balke and Pearl 1994). Each named
@@ -32,20 +37,61 @@ use antecedent_core::{CanonicalWriter, ExecutionContext};
 
 use super::refusal::{CrossWorldExecutionError, invalid, poll, refuse};
 
-/// Most endogenous variables.
-pub const MAX_VARIABLES: usize = 12;
-/// Most levels of a variable.
-pub const MAX_LEVELS: usize = 4;
-/// Most states of one exogenous term.
-pub const MAX_EXOGENOUS_STATES: usize = 8;
-/// Most joint exogenous states enumerated per unit.
+/// Most endogenous variables: a declaration sanity bound, since the cost of a request is
+/// bounded by [`MAX_JOINT_STATES`], [`MAX_ABDUCTION_WORK`] and [`MAX_TABLE_ENTRIES`], not by
+/// the variable count.
+pub const MAX_VARIABLES: usize = 4096;
+/// Most levels of a variable: the range of the `u8` level code.
+pub const MAX_LEVELS: usize = 256;
+/// Most states of one exogenous term: its own joint space must fit [`MAX_JOINT_STATES`].
+pub const MAX_EXOGENOUS_STATES: usize = MAX_JOINT_STATES;
+/// Most joint exogenous states enumerated per unit. A declaration with more joint states is
+/// executed by exact variable elimination instead ([`super::factorized`]).
 pub const MAX_JOINT_STATES: usize = 1 << 16;
-/// Most units per request.
-pub const MAX_UNITS: usize = 1024;
-/// Most worlds per request.
-pub const MAX_WORLDS: usize = 8;
 /// Most `units x joint states` of abduction work per request.
 pub const MAX_ABDUCTION_WORK: usize = 4_000_000;
+/// Most units per request: every unit enumerates at least one joint state, so the abduction
+/// work budget is the binding bound.
+pub const MAX_UNITS: usize = MAX_ABDUCTION_WORK;
+/// Most worlds per request: a sanity bound; world evaluation cost is bounded jointly by
+/// [`MAX_EVALUATION_WORK`].
+pub const MAX_WORLDS: usize = 256;
+/// Most `joint states x variables x worlds` of world-evaluation work per unit.
+pub const MAX_EVALUATION_WORK: usize = 1 << 28;
+/// Most entries of one mechanism table (`exogenous states x parent configurations`).
+pub const MAX_TABLE_ENTRIES: usize = 1 << 24;
+
+/// Neumaier-compensated accumulator for the masses and values summed over joint exogenous
+/// states.
+///
+/// A long enumeration adds many terms of one sign whose naive sum carries a rounding error that
+/// grows with the term count; the compensated total is accurate to a few ulps whatever the count.
+/// For at most two terms the total is the correctly rounded direct sum, so short enumerations
+/// keep their historical IEEE-754 bits. The declared pmfs are *not* summed this way: their
+/// `sum == 1.0` test decides whether the declared bits are retained (see `normalized_pmf`).
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct CompensatedSum {
+    total: f64,
+    correction: f64,
+}
+
+impl CompensatedSum {
+    /// Add one term.
+    pub(crate) fn add(&mut self, value: f64) {
+        let next = self.total + value;
+        self.correction += if self.total.abs() >= value.abs() {
+            (self.total - next) + value
+        } else {
+            (value - next) + self.total
+        };
+        self.total = next;
+    }
+
+    /// The sum of the terms added so far.
+    pub(crate) fn total(self) -> f64 {
+        self.total + self.correction
+    }
+}
 
 const PMF_TOLERANCE: f64 = 1e-9;
 const POLL_EVERY: usize = 1024;
@@ -64,7 +110,7 @@ pub struct ExogenousVariable {
 pub struct FiniteVariable {
     /// Name.
     pub name: String,
-    /// Number of levels, `2..=MAX_LEVELS`.
+    /// Number of levels, `2..=MAX_LEVELS` (the `u8` level code).
     pub levels: usize,
     /// Parent variable indices (all smaller than this variable's index).
     pub parents: Vec<usize>,
@@ -156,8 +202,9 @@ pub struct CompiledScm<'a> {
     /// Validated probability laws, normalized only when the declaration used
     /// the accepted simplex tolerance. The source declaration remains the
     /// input to `FiniteScm::digest`.
-    pmfs: Vec<Vec<f64>>,
-    /// Joint exogenous states.
+    pub(crate) pmfs: Vec<Vec<f64>>,
+    /// Joint exogenous states (saturating: meaningful as a count only when
+    /// [`Self::enumerable`]).
     pub joint_states: usize,
     /// Whether an exogenous term feeds more than one variable.
     pub shared_exogenous: bool,
@@ -173,7 +220,8 @@ fn bounds(what: &str) -> CrossWorldExecutionError {
 }
 
 /// The joint exogenous enumeration is too large to run exactly: the model is
-/// declared, but this route does not execute it.
+/// declared, but the enumerating route does not execute it (exact variable elimination
+/// does, see [`super::factorized`]).
 fn joint_state_bound() -> CrossWorldExecutionError {
     refuse(
         antecedent_core::reason_code!("route_not_supported"),
@@ -181,7 +229,8 @@ fn joint_state_bound() -> CrossWorldExecutionError {
         Some("joint_exogenous_states".to_owned()),
         "reduce the number of exogenous states or terms so their product is within the \
          documented bound; the model is declared, so the counterfactual is computable but not \
-         by this bounded enumeration",
+         by this bounded enumeration (the finite SCM executor runs such a model by exact \
+         variable elimination)",
     )
 }
 
@@ -207,13 +256,29 @@ fn unique_nonempty<'a>(
 }
 
 impl FiniteScm {
-    /// Validate the declaration and fix its enumeration layout.
+    /// Validate the declaration and fix its enumeration layout, for a route that enumerates
+    /// the joint exogenous states.
     ///
     /// # Errors
     /// `invalid_argument` for a malformed declaration or a declaration bound;
     /// `route_not_supported` (`cross_world_execution.joint_state_bound_exceeded`)
     /// when the joint exogenous enumeration exceeds [`MAX_JOINT_STATES`].
     pub fn compile(&self) -> Result<CompiledScm<'_>, CrossWorldExecutionError> {
+        let compiled = self.compile_layout()?;
+        Some(compiled.joint_states)
+            .filter(|joint| *joint <= MAX_JOINT_STATES)
+            .ok_or_else(joint_state_bound)?;
+        Ok(compiled)
+    }
+
+    /// Validate the declaration without bounding the joint exogenous space.
+    ///
+    /// The result enumerates only when [`CompiledScm::enumerable`]; a larger declaration is
+    /// executed by exact variable elimination ([`super::factorized`]).
+    ///
+    /// # Errors
+    /// `invalid_argument` for a malformed declaration or a declaration bound.
+    pub fn compile_layout(&self) -> Result<CompiledScm<'_>, CrossWorldExecutionError> {
         let n = self.variables.len();
         if n > MAX_VARIABLES || self.exogenous.len() > MAX_VARIABLES {
             return Err(bounds("variables"));
@@ -250,9 +315,13 @@ impl FiniteScm {
             if !well_formed {
                 return Err(invalid("cross_world_execution.invalid_scm", var.name.clone()));
             }
-            let cfg: usize =
-                var.parents.iter().map(|p| self.variables[*p].levels).product::<usize>();
             let size = self.exogenous[var.exogenous].pmf.len();
+            let cfg = var
+                .parents
+                .iter()
+                .try_fold(1usize, |acc, p| acc.checked_mul(self.variables[*p].levels))
+                .filter(|cfg| cfg.checked_mul(size).is_some_and(|t| t <= MAX_TABLE_ENTRIES))
+                .ok_or_else(|| bounds("mechanism_table"))?;
             let table_ok = var.table.len() == size * cfg
                 && var.table.iter().all(|l| usize::from(*l) < var.levels);
             if !table_ok {
@@ -267,16 +336,11 @@ impl FiniteScm {
                 self.exogenous[unused].name.clone(),
             ));
         }
-        let mut joint = 1usize;
-        for exo in &self.exogenous {
-            joint = joint
-                .checked_mul(exo.pmf.len())
-                .filter(|j| *j <= MAX_JOINT_STATES)
-                .ok_or_else(joint_state_bound)?;
-        }
+        let joint =
+            self.exogenous.iter().fold(1usize, |joint, exo| joint.saturating_mul(exo.pmf.len()));
         let mut radix = vec![1usize; self.exogenous.len()];
         for k in (0..self.exogenous.len().saturating_sub(1)).rev() {
-            radix[k] = radix[k + 1] * self.exogenous[k + 1].pmf.len();
+            radix[k] = radix[k + 1].saturating_mul(self.exogenous[k + 1].pmf.len());
         }
         let shared_exogenous = users.iter().any(|u| *u > 1);
         Ok(CompiledScm { scm: self, n_cfg, radix, pmfs, joint_states: joint, shared_exogenous })
@@ -308,6 +372,13 @@ impl FiniteScm {
 const MIN_LEVELS: usize = 2;
 
 impl CompiledScm<'_> {
+    /// Whether the joint exogenous space is within [`MAX_JOINT_STATES`], i.e. whether the
+    /// enumerating route can run this declaration.
+    #[must_use]
+    pub fn enumerable(&self) -> bool {
+        self.joint_states <= MAX_JOINT_STATES
+    }
+
     fn exogenous_state(&self, joint: usize, exogenous: usize) -> usize {
         (joint / self.radix[exogenous]) % self.scm.exogenous[exogenous].pmf.len()
     }
@@ -318,11 +389,11 @@ impl CompiledScm<'_> {
         (0..self.scm.exogenous.len()).map(|k| self.exogenous_state(joint, k)).collect()
     }
 
-    fn mechanism(&self, variable: usize, u_state: usize, cfg: usize) -> u8 {
+    pub(crate) fn mechanism(&self, variable: usize, u_state: usize, cfg: usize) -> u8 {
         self.scm.variables[variable].table[u_state * self.n_cfg[variable] + cfg]
     }
 
-    fn mass(&self, exogenous: usize, state: usize) -> f64 {
+    pub(crate) fn mass(&self, exogenous: usize, state: usize) -> f64 {
         self.pmfs[exogenous][state]
     }
 }
@@ -437,7 +508,7 @@ impl FactualUnit {
 }
 
 impl FiniteQuantity {
-    fn atoms(&self) -> Vec<(usize, usize)> {
+    pub(crate) fn atoms(&self) -> Vec<(usize, usize)> {
         match self {
             Self::Probability(a) => vec![(a.world, a.variable)],
             Self::MeanContrast { plus, minus } => vec![*plus, *minus],
@@ -540,7 +611,7 @@ pub fn abduct_unit(
     let n = scm.variables.len();
     let mut values = vec![0u8; n];
     let mut states: Vec<(u32, f64)> = Vec::new();
-    let mut total = 0.0;
+    let mut evidence = CompensatedSum::default();
     let mut matched_underflow = false;
     for joint in 0..compiled.joint_states {
         if joint % POLL_EVERY == 0 {
@@ -576,7 +647,7 @@ pub fn abduct_unit(
                     u32::try_from(joint).map_err(|_| bounds("joint_exogenous_states"))?,
                     weight,
                 ));
-                total += weight;
+                evidence.add(weight);
             }
         }
     }
@@ -597,8 +668,8 @@ pub fn abduct_unit(
              the mechanisms or the evidence (a refuted model is not repaired by conditioning)",
         ));
     }
-    // Keep direct-product and direct-sum arithmetic for representable masses
-    // so ordinary stored results retain their historical IEEE-754 bits.
+    // Weights are direct products and the evidence mass is their compensated sum (equal to the
+    // direct sum for at most two states, so short enumerations keep their IEEE-754 bits).
     // Fail closed if a matching positive state was lost to underflow: without
     // its mass, neither its evidence probability nor its posterior weight is
     // an honest result.
@@ -610,6 +681,7 @@ pub fn abduct_unit(
             "use an executor with probability arithmetic that can retain this positive posterior state mass; this f64 route cannot represent it",
         ));
     }
+    let total = evidence.total();
     for state in &mut states {
         state.1 /= total;
         let weight = state.1;
@@ -629,8 +701,8 @@ pub fn abduct_unit(
 /// from.
 #[derive(Clone, Debug)]
 pub struct WorldPlan {
-    fixed: Vec<Option<u8>>,
-    parent_source: Vec<Vec<usize>>,
+    pub(crate) fixed: Vec<Option<u8>>,
+    pub(crate) parent_source: Vec<Vec<usize>>,
 }
 
 impl WorldPlan {
@@ -694,12 +766,19 @@ impl FiniteQuantity {
     /// event, the contrast of level values for a mean contrast).
     #[must_use]
     pub fn at_state(&self, values: &[Vec<u8>]) -> f64 {
-        let hit = |a: &WorldAtom| values[a.world][a.variable] == a.level;
+        self.at_lookup(|world, variable| values[world][variable])
+    }
+
+    /// The quantity's value when `level_of(world, variable)` gives the level of every atom's
+    /// variable; only the atoms' variables are read.
+    #[must_use]
+    pub fn at_lookup(&self, level_of: impl Fn(usize, usize) -> u8) -> f64 {
+        let hit = |a: &WorldAtom| level_of(a.world, a.variable) == a.level;
         match self {
             Self::Probability(a) => f64::from(u8::from(hit(a))),
             Self::JointProbability(atoms) => f64::from(u8::from(atoms.iter().all(hit))),
             Self::MeanContrast { plus, minus } => {
-                f64::from(values[plus.0][plus.1]) - f64::from(values[minus.0][minus.1])
+                f64::from(level_of(plus.0, plus.1)) - f64::from(level_of(minus.0, minus.1))
             }
         }
     }

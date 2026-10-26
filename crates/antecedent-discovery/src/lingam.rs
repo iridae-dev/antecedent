@@ -31,6 +31,9 @@ use crate::result::{
     discovery_assumptions,
 };
 
+/// Identity of this algorithm in its records.
+const ALGORITHM: &str = crate::pipeline::StaticAlgorithm::DirectLingam.as_str();
+
 /// `(parent index, coefficient)` pairs of one regression target.
 type ParentCoefs = Vec<(usize, f64)>;
 
@@ -123,8 +126,8 @@ impl DirectLingam {
         }
 
         let p = variables.len();
-        // Working residual matrix (column-major via Vec per variable), centered.
-        let mut cols: Vec<Vec<f64>> = col_owned
+        // Centred columns (kept for the coefficient fits) and their standard deviations.
+        let centered: Vec<Vec<f64>> = col_owned
             .iter()
             .map(|c| {
                 let mut v = c.to_vec();
@@ -132,9 +135,28 @@ impl DirectLingam {
                 v
             })
             .collect();
-
-        let mut remaining: Vec<usize> = (0..p).collect();
-        let mut order: Vec<usize> = Vec::with_capacity(p);
+        let sd: Vec<f64> = centered
+            .iter()
+            .map(|c| (c.iter().map(|v| v * v).sum::<f64>() / n as f64).sqrt())
+            .collect();
+        for (i, raw) in col_owned.iter().enumerate() {
+            // A column is constant when its spread is rounding noise on its own magnitude.
+            let magnitude = raw.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
+            if !(sd[i] > 64.0 * f64::EPSILON * magnitude) {
+                return Err(DiscoveryError::data_msg(format!(
+                    "DirectLiNGAM refuses constant variable {}: a constant has no causal \
+                     order",
+                    variables[i].raw()
+                )));
+            }
+        }
+        // Working residual matrix, standardised so the degeneracy tests below are relative to
+        // each variable's own scale: rescaling a column cannot make it look degenerate.
+        let cols: Vec<Vec<f64>> = centered
+            .iter()
+            .zip(&sd)
+            .map(|(c, &s)| c.iter().map(|v| v / s).collect())
+            .collect();
 
         // Required contemporaneous edges as index pairs `(parent, child)`.
         let required_pairs: Vec<(usize, usize)> = self
@@ -151,79 +173,9 @@ impl DirectLingam {
             })
             .collect();
 
-        while remaining.len() > 1 {
-            if ctx.cancellation.is_cancelled() {
-                return Err(DiscoveryError::Cancelled);
-            }
-            let mut best_j = remaining[0];
-            let mut best_score = f64::INFINITY;
-            // A variable whose required parent is still unplaced cannot be exogenous yet:
-            // ordering it first would silently contradict the constraint.
-            let eligible: Vec<usize> = remaining
-                .iter()
-                .copied()
-                .filter(|&j| !required_pairs.iter().any(|&(a, b)| b == j && remaining.contains(&a)))
-                .collect();
-            if eligible.is_empty() {
-                return Err(DiscoveryError::unsupported(
-                    "required edges form a cycle: no causal order satisfies them",
-                ));
-            }
-            for &j in &eligible {
-                if ctx.cancellation.is_cancelled() {
-                    return Err(DiscoveryError::Cancelled);
-                }
-                let mut score = 0.0;
-                // `cols[j]` is residualized after this round, so the cache dies with `j`.
-                let y = DistanceY::new(&cols[j]);
-                for &i in &remaining {
-                    if i == j {
-                        continue;
-                    }
-                    let resid = regress_residual(&cols[i], &cols[j]);
-                    let d = y.correlate(&resid);
-                    if !d.is_finite() {
-                        return Err(DiscoveryError::stats_msg(
-                            "DirectLiNGAM independence score is non-finite",
-                        ));
-                    }
-                    score += d;
-                }
-                if score < best_score {
-                    best_score = score;
-                    best_j = j;
-                }
-            }
-            if !best_score.is_finite() {
-                return Err(DiscoveryError::stats_msg(
-                    "DirectLiNGAM causal-order search produced a non-finite score",
-                ));
-            }
-            // Residualize remaining on chosen exogenous.
-            for &i in &remaining {
-                if i == best_j {
-                    continue;
-                }
-                cols[i] = regress_residual(&cols[i], &cols[best_j]);
-            }
-            remaining.retain(|&i| i != best_j);
-            order.push(best_j);
-        }
-        if let Some(last) = remaining.pop() {
-            order.push(last);
-        }
+        let order = causal_order(cols, &required_pairs, ctx)?;
 
-        // Rebuild original centered columns for pruning and residual checks.
-        let orig: Vec<Vec<f64>> = col_owned
-            .iter()
-            .map(|c| {
-                let mut v = c.to_vec();
-                center_inplace(&mut v);
-                v
-            })
-            .collect();
-
-        let gaussian = gaussian_consistent_residuals(&orig, &order)?;
+        let gaussian = gaussian_consistent_residuals(&centered, &sd, &order)?;
         let mut diagnostics = Vec::new();
         if gaussian.len() >= 2 {
             let names: Vec<String> = gaussian
@@ -247,17 +199,117 @@ impl DirectLingam {
             });
         }
 
-        let max_parents = self.constraints.max_parents.unwrap_or(p.saturating_sub(1));
         let mut dag = Dag::empty();
         for &v in variables {
             dag.add_node(NodeRef::Static(v))?;
         }
 
+        let edge_coefs = self.fit_edges(&centered, &sd, &order, &required_pairs, variables)?;
+
+        // Every coefficient edge runs from a predecessor in the causal order (the regressors of
+        // `child` are `order[..pos]`), so each is a forward edge.
+        for &(par, child, _) in &edge_coefs {
+            let from = DenseNodeId::from_raw(crate::indexing::dense_u32(par));
+            let to = DenseNodeId::from_raw(crate::indexing::dense_u32(child));
+            if dag.children(from).contains(&to) {
+                continue;
+            }
+            insert_forward(&mut dag, from, to)?;
+        }
+
+        let edge_evidence: Vec<EdgeEvidence> = edge_coefs
+            .iter()
+            .map(|&(par, child, beta)| {
+                EdgeEvidence {
+                    link: LaggedLink {
+                        source: variables[par],
+                        source_lag: Lag::CONTEMPORANEOUS,
+                        target: variables[child],
+                        target_lag: Lag::CONTEMPORANEOUS,
+                    },
+                    statistic: Some(beta),
+                    p_value: None,
+                    adjusted_p_value: None,
+                    interval: None,
+                    separating_set: None,
+                    provenance: if required_pairs.contains(&(par, child)) {
+                        Arc::from([Arc::from(ALGORITHM), Arc::from("required")])
+                    } else {
+                        Arc::from([Arc::from(ALGORITHM)])
+                    },
+                }
+            })
+            .collect();
+
+        let links: Vec<ScoredLink> = edge_evidence
+            .iter()
+            .map(|e| ScoredLink {
+                link: e.link,
+                statistic: e.statistic.unwrap_or(0.0),
+                p_value: f64::NAN,
+                adjusted_p_value: None,
+            })
+            .collect();
+
+        let edge_count = dag.edges().count();
+        let review = DagReview::from_dag(dag.clone(), ALGORITHM);
+        let evidence = GraphEvidence {
+            graph: dag,
+            edge_evidence: Arc::from(edge_evidence),
+            links: Arc::from(links),
+            source: EvidenceSource::Discovery { algorithm: Arc::from(ALGORITHM) },
+        };
+
+        Ok(DiscoveryResult {
+            evidence,
+            review,
+            algorithm: AlgorithmRecord {
+                id: Arc::from(ALGORITHM),
+                config: Arc::from(format!(
+                    "prune_threshold={} order={order:?}{}",
+                    self.prune_threshold,
+                    self.constraints.knowledge_config()
+                )),
+            },
+            assumptions: discovery_assumptions(ALGORITHM, true),
+            iterations: Vec::<DiscoveryIteration>::new(),
+            diagnostics,
+            performance: DiscoveryPerformanceRecord {
+                ci_tests: 0,
+                links_retained: crate::pipeline::count_u64(edge_count)?,
+                targets: crate::pipeline::count_u64(p)?,
+                lagged_frame_bytes: 0,
+                worker_threads: 1,
+            },
+            sepsets: crate::result::PcSepsets::default(),
+        })
+    }
+}
+
+/// Insert a forward edge of a causal order. A directed cycle is refused and is
+/// not dropped.
+fn insert_forward(dag: &mut Dag, from: DenseNodeId, to: DenseNodeId) -> Result<(), DiscoveryError> {
+    dag.insert_directed(from, to).map_err(DiscoveryError::from)
+}
+
+impl DirectLingam {
+    /// The pruned `(parent, child, coefficient)` edges of the causal `order`: each variable is
+    /// regressed on its allowed predecessors, required parents are kept unconditionally, then
+    /// the largest standardised coefficients above the threshold up to `max_parents`.
+    fn fit_edges(
+        &self,
+        centered: &[Vec<f64>],
+        sd: &[f64],
+        order: &[usize],
+        required_pairs: &[(usize, usize)],
+        variables: &[VariableId],
+    ) -> Result<Vec<(usize, usize, f64)>, DiscoveryError> {
+        let p = variables.len();
+        let n = centered.first().map_or(0, Vec::len);
+        let max_parents = self.constraints.max_parents.unwrap_or(p.saturating_sub(1));
         let mut edge_coefs: Vec<(usize, usize, f64)> = Vec::new();
         let mut ls_ws = LeastSquaresWorkspace::default();
-        // Standard deviations for the unit-free coefficient scale.
-        let sd: Vec<f64> =
-            orig.iter().map(|c| (c.iter().map(|v| v * v).sum::<f64>() / n as f64).sqrt()).collect();
+        // `sd` gives the unit-free coefficient scale.
         let standardised = |par: usize, child: usize, beta: f64| {
             if sd[child] > 0.0 { beta * sd[par] / sd[child] } else { 0.0 }
         };
@@ -270,10 +322,7 @@ impl DirectLingam {
                 standardised(par, child, beta).abs() >= self.prune_threshold
             });
             optional.sort_by(|a, b| {
-                standardised(b.0, child, b.1)
-                    .abs()
-                    .partial_cmp(&standardised(a.0, child, a.1).abs())
-                    .unwrap_or(std::cmp::Ordering::Equal)
+                standardised(b.0, child, b.1).abs().total_cmp(&standardised(a.0, child, a.1).abs())
             });
             optional.truncate(max_parents.saturating_sub(kept.len()));
             kept.extend(optional);
@@ -303,111 +352,113 @@ impl DirectLingam {
             let mut x = vec![0.0; n * k];
             for (c, &par) in preds.iter().enumerate() {
                 for r in 0..n {
-                    x[c * n + r] = orig[par][r];
+                    x[c * n + r] = centered[par][r];
                 }
             }
-            let f = predecessor_regression(&x, n, k, &orig[child], &mut ls_ws)?;
+            let f = predecessor_regression(&x, n, k, &centered[child], &mut ls_ws)?;
             let coefs: Vec<(usize, f64)> =
                 preds.iter().enumerate().map(|(i, &par)| (par, f.coefficients[i])).collect();
             for (par, beta) in select(child, &coefs) {
                 edge_coefs.push((par, child, beta));
             }
         }
-
-        for &(par, child, _) in &edge_coefs {
-            let from = DenseNodeId::from_raw(crate::indexing::dense_u32(par));
-            let to = DenseNodeId::from_raw(crate::indexing::dense_u32(child));
-            if dag.children(from).contains(&to) {
-                continue;
-            }
-            // Respect causal order: parent must precede child.
-            let po = order.iter().position(|&x| x == par);
-            let co = order.iter().position(|&x| x == child);
-            if let (Some(pi), Some(ci)) = (po, co) {
-                if pi < ci {
-                    insert_forward(&mut dag, from, to)?;
-                }
-            }
-        }
-
-        let edge_evidence: Vec<EdgeEvidence> = edge_coefs
-            .iter()
-            .filter_map(|&(par, child, beta)| {
-                let po = order.iter().position(|&x| x == par)?;
-                let co = order.iter().position(|&x| x == child)?;
-                if po >= co {
-                    return None;
-                }
-                Some(EdgeEvidence {
-                    link: LaggedLink {
-                        source: variables[par],
-                        source_lag: Lag::CONTEMPORANEOUS,
-                        target: variables[child],
-                        target_lag: Lag::CONTEMPORANEOUS,
-                    },
-                    statistic: Some(beta),
-                    p_value: None,
-                    adjusted_p_value: None,
-                    interval: None,
-                    separating_set: None,
-                    provenance: if required_pairs.contains(&(par, child)) {
-                        Arc::from([Arc::from("direct_lingam"), Arc::from("required")])
-                    } else {
-                        Arc::from([Arc::from("direct_lingam")])
-                    },
-                })
-            })
-            .collect();
-
-        let links: Vec<ScoredLink> = edge_evidence
-            .iter()
-            .map(|e| ScoredLink {
-                link: e.link,
-                statistic: e.statistic.unwrap_or(0.0),
-                p_value: f64::NAN,
-                adjusted_p_value: None,
-            })
-            .collect();
-
-        let edge_count = dag.edges().count();
-        let review = DagReview::from_dag(dag.clone(), "direct_lingam");
-        let evidence = GraphEvidence {
-            graph: dag,
-            edge_evidence: Arc::from(edge_evidence),
-            links: Arc::from(links),
-            source: EvidenceSource::Discovery { algorithm: Arc::from("direct_lingam") },
-        };
-
-        Ok(DiscoveryResult {
-            evidence,
-            review,
-            algorithm: AlgorithmRecord {
-                id: Arc::from("direct_lingam"),
-                config: Arc::from(format!(
-                    "prune_threshold={} order={order:?}{}",
-                    self.prune_threshold,
-                    self.constraints.knowledge_config()
-                )),
-            },
-            assumptions: discovery_assumptions("direct_lingam", true),
-            iterations: Vec::<DiscoveryIteration>::new(),
-            diagnostics,
-            performance: DiscoveryPerformanceRecord {
-                ci_tests: 0,
-                links_retained: u64::try_from(edge_count).unwrap_or(u64::MAX),
-                targets: u64::try_from(p).unwrap_or(u64::MAX),
-                lagged_frame_bytes: 0,
-                worker_threads: 1,
-            },
-            sepsets: crate::result::PcSepsets::default(),
-        })
+        Ok(edge_coefs)
     }
 }
 
-/// Insert a forward edge of a causal order. A directed cycle is refused and is
-/// not dropped.
-fn insert_forward(dag: &mut Dag, from: DenseNodeId, to: DenseNodeId) -> Result<(), DiscoveryError> {
-    dag.insert_directed(from, to).map_err(DiscoveryError::from)
+/// The causal order by DirectLiNGAM's exogeneity search over the working `cols` (standardised
+/// columns, consumed as they are residualized): repeatedly the variable whose residuals on
+/// every other remaining variable are least dependent on it goes first, the rest are regressed
+/// on it, and the search continues. A variable whose required parent is still unplaced is not
+/// eligible.
+///
+/// # Errors
+///
+/// Cancellation, required edges that form a cycle, or a non-finite independence score.
+fn causal_order(
+    mut cols: Vec<Vec<f64>>,
+    required_pairs: &[(usize, usize)],
+    ctx: &ExecutionContext,
+) -> Result<Vec<usize>, DiscoveryError> {
+    let p = cols.len();
+    let n = cols.first().map_or(0, Vec::len);
+    let mut remaining: Vec<usize> = (0..p).collect();
+    let mut in_remaining = vec![true; p];
+    // Residual buffer reused by every pairwise score.
+    let mut resid = vec![0.0; n];
+    // Cross products of the current working columns, `gram[i * p + j] = <cols[i], cols[j]>`,
+    // formed once per round: every ordered pair's slope (and the residualization after the
+    // round) reads it instead of re-summing the two columns.
+    let mut gram = vec![0.0; p * p];
+    let mut order: Vec<usize> = Vec::with_capacity(p);
+        while remaining.len() > 1 {
+            if ctx.cancellation.is_cancelled() {
+                return Err(DiscoveryError::Cancelled);
+            }
+            fill_gram(&mut gram, &cols, &remaining);
+            let mut best_j = remaining[0];
+            let mut best_score = f64::INFINITY;
+            // A variable whose required parent is still unplaced cannot be exogenous yet:
+            // ordering it first would silently contradict the constraint.
+            let eligible: Vec<usize> = remaining
+                .iter()
+                .copied()
+                .filter(|&j| !required_pairs.iter().any(|&(a, b)| b == j && in_remaining[a]))
+                .collect();
+            if eligible.is_empty() {
+                return Err(DiscoveryError::unsupported(
+                    "required edges form a cycle: no causal order satisfies them",
+                ));
+            }
+            for &j in &eligible {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(DiscoveryError::Cancelled);
+                }
+                let mut score = 0.0;
+                // `cols[j]` is residualized after this round, so the cache dies with `j`.
+                let y = DistanceY::new(&cols[j]);
+                for &i in &remaining {
+                    if i == j {
+                        continue;
+                    }
+                    let beta = slope_from_gram(gram[i * p + j], gram[j * p + j], n);
+                    residual_into(&cols[i], &cols[j], beta, &mut resid);
+                    let d = y.correlate(&resid);
+                    if !d.is_finite() {
+                        return Err(DiscoveryError::stats_msg(
+                            "DirectLiNGAM independence score is non-finite",
+                        ));
+                    }
+                    score += d;
+                }
+                if score < best_score {
+                    best_score = score;
+                    best_j = j;
+                }
+            }
+            if !best_score.is_finite() {
+                return Err(DiscoveryError::stats_msg(
+                    "DirectLiNGAM causal-order search produced a non-finite score",
+                ));
+            }
+            // Residualize remaining on chosen exogenous.
+            let exogenous = std::mem::take(&mut cols[best_j]);
+            for &i in &remaining {
+                if i != best_j {
+                    let beta = slope_from_gram(gram[i * p + best_j], gram[best_j * p + best_j], n);
+                    for (yi, xi) in cols[i].iter_mut().zip(&exogenous) {
+                        *yi -= beta * xi;
+                    }
+                }
+            }
+            remaining.retain(|&i| i != best_j);
+            in_remaining[best_j] = false;
+            order.push(best_j);
+        }
+        if let Some(last) = remaining.pop() {
+            order.push(last);
+        }
+    Ok(order)
 }
 
 fn require_finite_column(col: &[f64]) -> Result<(), DiscoveryError> {
@@ -428,13 +479,15 @@ fn require_finite_column(col: &[f64]) -> Result<(), DiscoveryError> {
 /// reports that rather than refusing.
 fn gaussian_consistent_residuals(
     centered: &[Vec<f64>],
+    scales: &[f64],
     order: &[usize],
 ) -> Result<Vec<usize>, DiscoveryError> {
     let n = centered.first().map_or(0, Vec::len);
     if n < 8 || order.is_empty() {
         // Too few rows for a reliable moment test; still require at least one
         // variable with non-zero excess kurtosis as a weak gate.
-        let any_heavy = centered.iter().any(|c| excess_kurtosis(c).abs() > 0.5);
+        let any_heavy =
+            centered.iter().zip(scales).any(|(c, &scale)| excess_kurtosis(c, scale).abs() > 0.5);
         if !any_heavy {
             return Err(DiscoveryError::stats_msg(
                 "DirectLiNGAM refuses data consistent with Gaussian errors; order is unidentifiable",
@@ -450,7 +503,7 @@ fn gaussian_consistent_residuals(
         } else {
             residual_on_predecessors(&centered[idx], centered, &order[..pos])?
         };
-        if residual_looks_gaussian(&resid) {
+        if residual_looks_gaussian(&resid, scales[idx]) {
             gaussian.push(idx);
         }
     }
@@ -522,10 +575,21 @@ fn residual_on_predecessors(
 /// Jarque–Bera normality gate: `JB = n/6 (S² + K²/4)` with asymptotic χ²(2).
 /// Critical value at α=0.05 is 5.991; below that the residual is treated as
 /// Gaussian-consistent.
-fn residual_looks_gaussian(resid: &[f64]) -> bool {
+///
+/// This is a screening heuristic, not a calibrated test. The χ²(2) reference is an asymptotic
+/// result and the statistic converges to it slowly (the sample skewness and kurtosis are far
+/// from their normal limits for moderate `n`), so the realised size at `n` in the tens to low
+/// hundreds is not 5%. Below 8 rows the moment estimates are too unstable for the statistic
+/// at all and a fixed excess-kurtosis bound of 0.5 stands in. The verdict only feeds the
+/// `direct_lingam.gaussian_residuals` diagnostic and the refusal of data that look entirely
+/// Gaussian; it never changes the estimated order.
+///
+/// `scale` is the standard deviation of the variable the residual belongs to: a residual whose
+/// variance is below `1e-15` of that variable's own is degenerate whatever the units.
+fn residual_looks_gaussian(resid: &[f64], scale: f64) -> bool {
     let n = resid.len();
     if n < 8 {
-        return excess_kurtosis(resid).abs() <= 0.5;
+        return excess_kurtosis(resid, scale).abs() <= 0.5;
     }
     let nf = n as f64;
     let mean = resid.iter().sum::<f64>() / nf;
@@ -542,7 +606,7 @@ fn residual_looks_gaussian(resid: &[f64]) -> bool {
     m2 /= nf;
     m3 /= nf;
     m4 /= nf;
-    if m2 <= 1e-15 {
+    if m2 <= 1e-15 * scale * scale {
         // Degenerate residual — treat as Gaussian-consistent (no identifiable signal).
         return true;
     }
@@ -552,7 +616,8 @@ fn residual_looks_gaussian(resid: &[f64]) -> bool {
     jb < 5.991
 }
 
-fn excess_kurtosis(x: &[f64]) -> f64 {
+/// Excess kurtosis of `x`, `0` when its variance is below `1e-15` of `scale²`.
+fn excess_kurtosis(x: &[f64], scale: f64) -> f64 {
     let n = x.len();
     if n < 4 {
         return 0.0;
@@ -569,7 +634,7 @@ fn excess_kurtosis(x: &[f64]) -> f64 {
     }
     m2 /= nf;
     m4 /= nf;
-    if m2 <= 1e-15 {
+    if m2 <= 1e-15 * scale * scale {
         return 0.0;
     }
     m4 / (m2 * m2) - 3.0
@@ -585,20 +650,39 @@ fn center_inplace(v: &mut [f64]) {
     }
 }
 
-/// Residual of `y` after simple OLS on centered `x` (no intercept).
-fn regress_residual(y: &[f64], x: &[f64]) -> Vec<f64> {
-    let beta = simple_regression_coef(y, x);
-    y.iter().zip(x.iter()).map(|(yi, xi)| yi - beta * xi).collect()
+/// Fill the entries of `gram` among the `active` columns with their cross products.
+///
+/// Each unordered pair is summed once, in row order; `<a, b>` and `<b, a>` are the same sum, so
+/// the slopes read from it are the ones a column-by-column regression computes.
+fn fill_gram(gram: &mut [f64], cols: &[Vec<f64>], active: &[usize]) {
+    let p = cols.len();
+    for (position, &i) in active.iter().enumerate() {
+        for &j in &active[position..] {
+            let mut sum = 0.0;
+            for (a, b) in cols[i].iter().zip(&cols[j]) {
+                sum += a * b;
+            }
+            gram[i * p + j] = sum;
+            gram[j * p + i] = sum;
+        }
+    }
 }
 
-fn simple_regression_coef(y: &[f64], x: &[f64]) -> f64 {
-    let mut sxx = 0.0;
-    let mut sxy = 0.0;
-    for (yi, xi) in y.iter().zip(x.iter()) {
-        sxx += xi * xi;
-        sxy += xi * yi;
+/// Residual `y - beta * x`, written into `out`.
+fn residual_into(y: &[f64], x: &[f64], beta: f64, out: &mut [f64]) {
+    for ((o, yi), xi) in out.iter_mut().zip(y).zip(x) {
+        *o = yi - beta * xi;
     }
-    if sxx <= 1e-15 { 0.0 } else { sxy / sxx }
+}
+
+/// Least-squares slope of `y` on `x` from `sxy = <x, y>` and `sxx = <x, x>` over `n` rows; `0`
+/// when `x` has no variance.
+///
+/// The columns it sees are standardised (and their residuals), so `sxx` is compared with the
+/// `n` it would have at unit variance: `x` is degenerate when it has lost all but `1e-15` of
+/// the variance it started with.
+fn slope_from_gram(sxy: f64, sxx: f64, n: usize) -> f64 {
+    if sxx <= 1e-15 * n as f64 { 0.0 } else { sxy / sxx }
 }
 
 #[cfg(test)]

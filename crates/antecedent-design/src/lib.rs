@@ -95,7 +95,9 @@ pub use evidence_plan::{
     EvidencePlan, EvidencePlanError, OptionValue, PlanCost, PlanInputs, PlanOption, PlanOutcome,
     PlanRoute, PlanValue, PlanValueBasis, PlanValueRow, RouteBudget, UnverifiedRoute,
 };
-pub use evidence_plan_artifact::{EvidencePlanArtifact, EvidencePlanArtifactError};
+pub use evidence_plan_artifact::{
+    EvidencePlanArtifact, EvidencePlanArtifactError, EvidencePlanReadLimits,
+};
 pub use failure_routes::{FailureRoute, FailureRoutes, failure_routes};
 pub use identification_repair::{
     FrontDoorRepairFamily, HedgeRepairFamily, InstrumentRepairFamily, LatentCause,
@@ -108,10 +110,10 @@ pub use preposterior::{
 pub use ranker::{
     DecisionRegistry, DesignConstraints, DesignEvaluationContext, DesignRankConfig, DesignRanker,
     EffectWidthContext, EnvironmentGramSpec, InterventionDesignEffect, MeasureColumnSpec,
-    ModelLoglikDraws,
+    ModelLoglikDraws, ScoringChannels,
 };
 pub use repair::{
-    BackdoorRepairFamily, FamilyVerdict, RepairClassification, RepairError, RepairFamily,
+    BackdoorRepairFamily, FailedContract, FamilyVerdict, RepairClassification, RepairError, RepairFamily,
     RepairLimits, RepairObjective, RepairOutcome, RepairReceipt, RepairReport,
     TransportRepairFamily, repair,
 };

@@ -21,12 +21,8 @@ use super::{
 
 const REQUEST_TAG: &str = "antecedent.planning.request";
 
-/// Most strata a stratified plan declares.
-pub const MAX_STRATA: usize = 64;
 /// Most Monte Carlo replicates one simulation runs.
 pub const MAX_SIMULATION_REPLICATES: u32 = 1_000_000;
-/// Most covariates an adjusted analysis declares.
-pub const MAX_COVARIATES: u32 = 16;
 
 /// Which tails of the test statistic reject.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -737,13 +733,12 @@ impl PlanningRequest {
                 format!("covariate R² must lie in [0, 1) (got {})", a.covariate_r_squared),
             ));
         }
-        if (a.covariate_r_squared > 0.0) != (a.covariates > 0) || a.covariates > MAX_COVARIATES {
+        if (a.covariate_r_squared > 0.0) != (a.covariates > 0) {
             return Err(PlanningRefusal::invalid(
                 "planning.covariates",
                 format!(
-                    "a covariate R² above zero needs between 1 and {MAX_COVARIATES} declared \
-                     covariates, and covariates need an R² above zero (got R² {} and {} \
-                     covariates)",
+                    "a covariate R² above zero needs at least one declared covariate, and \
+                     covariates need an R² above zero (got R² {} and {} covariates)",
                     a.covariate_r_squared, a.covariates
                 ),
             ));
@@ -930,10 +925,10 @@ impl PlanningRequest {
             | PlannedDesign::Interference { .. }
             | PlannedDesign::OutcomeAdaptive { .. } => Ok(()),
             PlannedDesign::Stratified { strata } => {
-                if strata.is_empty() || strata.len() > MAX_STRATA {
+                if strata.is_empty() {
                     return Err(PlanningRefusal::invalid(
                         "planning.stratified",
-                        format!("a stratified plan declares between 1 and {MAX_STRATA} strata"),
+                        "a stratified plan declares at least one stratum",
                     ));
                 }
                 let total: f64 = strata.iter().map(|s| s.share).sum();

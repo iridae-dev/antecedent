@@ -26,6 +26,30 @@ use antecedent_stats::{
 };
 
 use crate::error::ValidationError;
+use crate::target_native::RefutationTarget;
+
+/// A [`ValidationError::NotApplicable`] with a fixed message.
+pub(crate) fn not_applicable(message: &'static str) -> ValidationError {
+    ValidationError::NotApplicable { message }
+}
+
+/// Require one sensitivity input per coordinate of a vector target.
+///
+/// # Errors
+///
+/// `found` differs from the target's dimension.
+pub(crate) fn require_dimension(
+    target: &RefutationTarget,
+    found: usize,
+) -> Result<(), ValidationError> {
+    if found == target.dimension() {
+        Ok(())
+    } else {
+        Err(not_applicable(
+            "a sensitivity range of a vector target needs one input per coordinate of the target",
+        ))
+    }
+}
 
 /// Context for lag-aware temporal refits (series or panel).
 #[derive(Clone, Copy, Debug)]
@@ -559,12 +583,12 @@ pub(crate) fn fit_once(
     if !query.effect_modifiers.is_empty() {
         // The conditional estimator is a different model. Settings that would
         // change its answer and that it cannot carry are a refusal, not a silent drop.
-        if estimator.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic
-            || estimator.cluster_ids.is_some()
-            || estimator.source_cluster_ids.is_some()
+        if estimator.inference.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic
+            || estimator.inference.cluster_ids.is_some()
+            || estimator.inference.source_cluster_ids.is_some()
             || estimator.sampling_weights.is_some()
-            || estimator.multiway_ids.is_some()
-            || estimator.panel_times.is_some()
+            || estimator.inference.multiway_ids.is_some()
+            || estimator.inference.panel_times.is_some()
             || !matches!(estimator.fit_kind, antecedent_estimate::LinearFitKind::Ols)
         {
             return Err(ValidationError::estimation_msg(
@@ -963,7 +987,7 @@ pub(crate) fn diagnostic_overlap_report_with(
 #[must_use]
 pub(crate) fn linear_estimator_no_bootstrap() -> LinearAdjustmentAte {
     let mut estimator = LinearAdjustmentAte::new();
-    estimator.bootstrap_replicates = 0;
+    estimator.inference.bootstrap_replicates = 0;
     estimator
 }
 
@@ -975,7 +999,7 @@ pub(crate) fn forced_refit_estimator(
     caller_estimator: &LinearAdjustmentAte,
 ) -> LinearAdjustmentAte {
     let mut estimator = caller_estimator.clone();
-    estimator.bootstrap_replicates = 0;
+    estimator.inference.bootstrap_replicates = 0;
     estimator.overlap = OverlapPolicy::ExplicitOverride;
     estimator
 }
@@ -1030,7 +1054,7 @@ pub(crate) fn noise_replace_refute(
         EstimationWorkspace::default,
         |problem, refit, workspace, ctx, r| {
             let mut noise = vec![0.0; n];
-            fill_gaussian(&mut noise, ctx, stream_base.wrapping_add(u64::from(r)));
+            fill_gaussian(&mut noise, ctx, crate::streams::replicate_stream(stream_base, r));
             let data = with_replaced_float(problem.data, replace_id, Arc::from(noise))?;
             let est = refit_effect_shared(
                 problem,
@@ -1081,7 +1105,7 @@ pub(crate) fn replicate_p_value(
             "non-finite replicate estimate: the refit did not produce a usable effect",
         ));
     }
-    let mean = samples.iter().sum::<f64>() / samples.len() as f64;
+    let mean = antecedent_kernels::mean(samples);
     let sd = sample_sd(samples);
     let scale = mean.abs().max(hypothesized.abs()).max(1.0);
     if !sd.is_finite() {
@@ -1104,22 +1128,13 @@ pub(crate) fn replicate_p_value(
     Ok(erfc(z.abs() / std::f64::consts::SQRT_2).clamp(0.0, 1.0))
 }
 
-/// Largest replicate count a refuter accepts. Per-replicate RNG streams are
-/// `base + r` with refuter bases `0x1000` apart at the closest (placebo Gaussian vs
-/// permute), so more replicates than this would alias two refuters' noise streams.
-pub(crate) const MAX_REFUTER_REPLICATES: u32 = 0x1000;
-
-/// Validate `2 ≤ replicates ≤ MAX_REFUTER_REPLICATES`.
+/// Validate `replicates >= 2`. There is no upper bound: the result buffers are leased from
+/// the admission pool ([`admit_replicate_results`]) and per-replicate streams stay disjoint
+/// at any count ([`crate::streams::replicate_stream`]).
 pub(crate) fn check_replicate_count(replicates: u32) -> Result<(), ValidationError> {
     if replicates < 2 {
         return Err(ValidationError::NotApplicable {
             message: "replicate-based refuter requires replicates >= 2",
-        });
-    }
-    if replicates > MAX_REFUTER_REPLICATES {
-        return Err(ValidationError::NotApplicable {
-            message: "replicate-based refuter supports at most 4096 replicates \
-                      (per-replicate RNG streams would alias)",
         });
     }
     Ok(())
@@ -1132,8 +1147,7 @@ pub(crate) fn check_cancelled(ctx: &ExecutionContext) -> Result<(), ValidationEr
 
 /// Mean of the replicate estimates.
 pub(crate) fn replicate_mean(ates: &[f64]) -> f64 {
-    let n = ates.len() as f64;
-    ates.iter().sum::<f64>() / n
+    antecedent_kernels::mean(ates)
 }
 
 /// Significance level of the replicate-stability checks that are not user-configurable
@@ -1760,10 +1774,19 @@ mod tests {
     }
 
     #[test]
-    fn replicate_count_bounds_keep_refuter_streams_disjoint() {
+    fn replicate_count_has_only_a_lower_bound_and_streams_stay_disjoint() {
         assert!(check_replicate_count(1).is_err());
         assert!(check_replicate_count(2).is_ok());
-        assert!(check_replicate_count(MAX_REFUTER_REPLICATES).is_ok());
-        assert!(check_replicate_count(MAX_REFUTER_REPLICATES + 1).is_err());
+        assert!(check_replicate_count(1 << 20).is_ok());
+        let base = crate::streams::PLACEBO_REFIT;
+        // Historical streams are unchanged below the aliasing distance.
+        assert_eq!(crate::streams::replicate_stream(base, 7), base + 7);
+        // Beyond it a replicate never reuses the neighbouring refuter's base-plus-offset.
+        let neighbour = crate::streams::PLACEBO_SHUFFLE;
+        assert_ne!(crate::streams::replicate_stream(base, 0x1000), neighbour);
+        assert_ne!(
+            crate::streams::replicate_stream(base, 0x1001),
+            crate::streams::replicate_stream(base, 0x1000)
+        );
     }
 }

@@ -99,11 +99,11 @@ pub trait DynamicMechanism: Send + Sync {
             });
         }
         let zeros = vec![0.0; n];
-        let mut mean = vec![0.0; n];
         let mut ws = crate::batch::MechanismWorkspace::default();
-        self.evaluate_column(parents, &zeros, &mut mean, &mut ws)?;
-        for i in 0..n {
-            output[i] = value[i] - mean[i];
+        // Evaluate the zero-noise mean straight into `output`, then turn it into the residual.
+        self.evaluate_column(parents, &zeros, &mut output[..n], &mut ws)?;
+        for (slot, &observed) in output[..n].iter_mut().zip(value) {
+            *slot = observed - *slot;
         }
         Ok(())
     }
@@ -135,6 +135,11 @@ pub trait DynamicMechanism: Send + Sync {
     ///
     /// Override for non-Gaussian / non-additive mechanisms.
     ///
+    /// The default scores the additive noise recovered by [`Self::infer_noise_column`] as a
+    /// standard normal draw. That is a modelling convention, not a recovery of an arbitrary
+    /// custom mechanism's noise law: a mechanism whose noise is not `N(0, 1)` must override
+    /// this method before it is used in a likelihood-sensitive operation.
+    ///
     /// # Errors
     ///
     /// Shape / evaluation failures.
@@ -150,12 +155,23 @@ pub trait DynamicMechanism: Send + Sync {
         }
         let mut resid = vec![0.0; n];
         self.infer_noise_column(values, parents, &mut resid)?;
-        let log_norm = -0.5 * (2.0 * std::f64::consts::PI).ln();
-        for i in 0..n {
-            output[i] = log_norm - 0.5 * resid[i] * resid[i];
-        }
-        Ok(())
+        // Convention: the inferred additive noise is scored as standard normal.
+        standard_normal_log_density(&resid, &mut output[..n])
     }
+}
+
+/// `ln N(r; 0, 1)` of each residual `r` into `output`: the density the default
+/// [`DynamicMechanism::log_prob_column`] assigns to inferred additive noise.
+///
+/// # Errors
+///
+/// `output` and `residuals` differ in length.
+pub fn standard_normal_log_density(
+    residuals: &[f64],
+    output: &mut [f64],
+) -> Result<(), ModelError> {
+    antecedent_kernels::gaussian_log_density_common_mean(residuals, 0.0, 1.0, output)
+        .map_err(|e| ModelError::Shape { message: e.to_string() })
 }
 
 /// Mechanism slot filled by fitting / registry.
@@ -562,6 +578,22 @@ impl CompiledCausalModel {
         reason = "node ids are u32 by construction (DenseNodeId), so every node position fits u32"
     )]
     pub fn compile(graph: Dag) -> Result<Self, ModelError> {
+        Self::compile_shared(Arc::new(graph))
+    }
+
+    /// Compile a static DAG that the caller already shares, without copying it.
+    ///
+    /// The compiled model keeps the same `Arc`, so a caller that refits one frozen graph
+    /// many times pays no per-fit graph clone.
+    ///
+    /// # Errors
+    ///
+    /// Cyclic graph or non-static nodes.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "node ids are u32 by construction (DenseNodeId), so every node position fits u32"
+    )]
+    pub fn compile_shared(graph: Arc<Dag>) -> Result<Self, ModelError> {
         let order = graph.topological_order().ok_or_else(|| ModelError::NotDag {
             message: crate::scc_compile::dag_license_refusal(),
         })?;
@@ -587,9 +619,8 @@ impl CompiledCausalModel {
         let mut gathers = Vec::with_capacity(order.len());
         let mut gather_slot = vec![0u32; n];
         for (gi, &child) in order.iter().enumerate() {
-            let parents = graph.parents(child).to_vec();
             gather_slot[child.as_usize()] = gi as u32;
-            gathers.push(ParentGatherPlan { child, parents: Arc::from(parents) });
+            gathers.push(ParentGatherPlan { child, parents: Arc::from(graph.parents(child)) });
         }
         let mut var_to_dense = std::collections::HashMap::with_capacity(n);
         for (i, &v) in variables.iter().enumerate() {
@@ -605,7 +636,7 @@ impl CompiledCausalModel {
             node_order,
             parent_gathers: Arc::from(gathers),
             mechanisms: CompiledMechanismStore::vacant(n),
-            graph: Arc::new(graph),
+            graph,
             var_to_dense: Arc::new(var_to_dense),
             gather_slot: Arc::from(gather_slot),
         })

@@ -469,8 +469,7 @@ fn contemp_mci_phase_inner(
             order.sort_by(|a, b| {
                 let sa = min_stat.get(&(target, a.0, a.1)).copied().unwrap_or(f64::INFINITY);
                 let sb = min_stat.get(&(target, b.0, b.1)).copied().unwrap_or(f64::INFINITY);
-                sb.partial_cmp(&sa)
-                    .unwrap_or(std::cmp::Ordering::Equal)
+                sb.total_cmp(&sa)
                     .then_with(|| (a.0.raw(), a.1.raw()).cmp(&(b.0.raw(), b.1.raw())))
             });
 

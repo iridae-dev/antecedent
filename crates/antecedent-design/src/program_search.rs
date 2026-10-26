@@ -95,9 +95,43 @@ pub enum ProgramSearchError {
     /// Caller resources refused before output allocation.
     #[error("program_search resource refusal: {0}")]
     Resource(String),
+    /// A typed upstream refusal (an estimator, codec or earlier stage) with its cause kept
+    /// reachable through [`std::error::Error::source`].
+    #[error("program_search: {context}: {source}")]
+    Upstream {
+        /// What the search was doing when the upstream error arose.
+        context: String,
+        /// The original typed error.
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
     /// Caller cancellation; no partial result is certified.
     #[error("program search cancelled")]
     Cancelled,
+}
+impl ProgramSearchError {
+    /// Wrap a typed upstream error, keeping it as the error source.
+    pub fn upstream(
+        context: impl Into<String>,
+        source: impl std::error::Error + Send + Sync + 'static,
+    ) -> Self {
+        Self::Upstream { context: context.into(), source: Box::new(source) }
+    }
+}
+#[cfg(test)]
+mod upstream_error_tests {
+    use super::ProgramSearchError;
+    use std::error::Error;
+
+    #[test]
+    fn an_upstream_error_keeps_its_typed_cause_reachable() {
+        let cause = "x".parse::<u32>().unwrap_err();
+        let error = ProgramSearchError::upstream("raw-dose feature index", cause.clone());
+        assert!(error.to_string().contains("raw-dose feature index"));
+        assert!(error.to_string().contains(&cause.to_string()));
+        let source = error.source().expect("source is retained");
+        assert_eq!(source.to_string(), cause.to_string());
+    }
 }
 fn invalid(error: impl std::fmt::Debug) -> ProgramSearchError {
     ProgramSearchError::Invalid(format!("{error:?}"))
@@ -105,13 +139,49 @@ fn invalid(error: impl std::fmt::Debug) -> ProgramSearchError {
 fn cancelled(ctx: &ExecutionContext) -> Result<(), ProgramSearchError> {
     if ctx.cancellation.is_cancelled() { Err(ProgramSearchError::Cancelled) } else { Ok(()) }
 }
+/// The operational bound that excluded a program.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum OperationalReason {
+    /// A control value lies outside its declared bounds.
+    ControlBounds,
+    /// The scheduled cost exceeds the budget.
+    Budget,
+    /// A declared operational restriction (by id) is exceeded.
+    Restriction(String),
+}
+
+impl OperationalReason {
+    /// The reason as the stable label the result has always carried: `control bounds`,
+    /// `budget`, or the restriction id.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::ControlBounds => "control bounds",
+            Self::Budget => "budget",
+            Self::Restriction(id) => id,
+        }
+    }
+}
+
+impl PartialEq<str> for OperationalReason {
+    fn eq(&self, other: &str) -> bool {
+        self.as_str() == other
+    }
+}
+
+impl std::fmt::Display for OperationalReason {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
 /// Operational or statistical feasibility of one finite program.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ProgramFeasibility {
     /// Every deterministic and law-based constraint passed.
     Feasible,
     /// This operational bound failed before a statistical ranking was attempted.
-    Operational(String),
+    Operational(OperationalReason),
     /// One or more hard risk constraints excluded this candidate.
     Risk(Vec<String>),
 }
@@ -386,9 +456,15 @@ impl PreparedFiniteProgramSearch {
             ProgramSearchSource::Law(law) => evaluate_contract_for_program_search(&decision, law),
         }
         .map_err(invalid)?;
+        // Actions by id, once: the rows are matched to them one by one below.
+        let mut actions: std::collections::HashMap<&str, &crate::decision_eval::ActionOutcome> =
+            std::collections::HashMap::with_capacity(outcome.actions.len());
+        for action in &outcome.actions {
+            actions.entry(action.id.as_str()).or_insert(action);
+        }
         for row in rows {
             cancelled(ctx)?;
-            if let Some(action) = outcome.actions.iter().find(|action| action.id == row.id) {
+            if let Some(action) = actions.get(row.id.as_str()).copied() {
                 if !action.admissible {
                     row.feasibility = ProgramFeasibility::Risk(
                         action.exclusions.iter().map(|x| x.constraint_id.clone()).collect(),
@@ -580,9 +656,9 @@ fn program_row(
         .zip(&domain.controls)
         .any(|(value, control)| *value < control.lower || *value > control.upper)
     {
-        Some("control bounds".to_owned())
+        Some(OperationalReason::ControlBounds)
     } else if domain.budget.is_some_and(|budget| cost > budget) {
-        Some("budget".to_owned())
+        Some(OperationalReason::Budget)
     } else {
         None
     };
@@ -597,7 +673,7 @@ fn program_row(
             return Err(invalid("non-finite operational restriction"));
         }
         if reason.is_none() && total > restriction.bound {
-            reason = Some(restriction.id.clone());
+            reason = Some(OperationalReason::Restriction(restriction.id.clone()));
         }
     }
     Ok(ProgramSearchRow {

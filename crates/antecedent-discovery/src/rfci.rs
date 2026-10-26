@@ -51,6 +51,9 @@ use crate::static_skeleton::{
     skeleton_scored_links, static_edge_evidence,
 };
 
+/// Identity of this algorithm in its records.
+const ALGORITHM: &str = crate::pipeline::StaticAlgorithm::Rfci.as_str();
+
 /// Classic RFCI over tabular (non-temporal) data.
 #[derive(Clone)]
 pub struct Rfci {
@@ -273,7 +276,7 @@ impl Rfci {
 
         let mut diagnostics = Vec::new();
         diagnostics
-            .extend(crate::static_skeleton::parent_limit_diagnostic(&parent_limit_removed, "rfci"));
+            .extend(crate::static_skeleton::parent_limit_diagnostic(&parent_limit_removed, ALGORITHM));
         if !state.discriminating_skipped.is_empty() {
             diagnostics.push(DiscoveryDiagnostic {
                 code: Arc::from("rfci.discriminating_path_budget"),
@@ -284,7 +287,7 @@ impl Rfci {
                 )),
             });
         }
-        diagnostics.extend(crate::rule_scheduling::pd_path_budget_diagnostic(&state, "rfci"));
+        diagnostics.extend(crate::rule_scheduling::pd_path_budget_diagnostic(&state, ALGORITHM));
         if state.conflicts > 0 || orient_conflicts > 0 {
             diagnostics.push(DiscoveryDiagnostic {
                 code: Arc::from("rfci.orientation_conflict"),
@@ -297,21 +300,21 @@ impl Rfci {
 
         scored.retain(|s| adj.contains(edge_key(s.link.source, s.link.target)));
 
-        let edge_evidence = static_edge_evidence(&scored, &sepsets, "rfci");
+        let edge_evidence = static_edge_evidence(&scored, &sepsets, ALGORITHM);
 
         let evidence = GraphEvidence {
             graph: pag.clone(),
             edge_evidence: Arc::from(edge_evidence),
             links: Arc::from(scored),
-            source: EvidenceSource::Discovery { algorithm: Arc::from("rfci") },
+            source: EvidenceSource::Discovery { algorithm: Arc::from(ALGORITHM) },
         };
-        let review = PagReview::from_pag(pag, "rfci");
+        let review = PagReview::from_pag(pag, ALGORITHM);
 
         Ok(DiscoveryResult {
             evidence,
             review,
             algorithm: crate::pipeline::algorithm_record(
-                "rfci",
+                ALGORITHM,
                 format!(
                     "alpha={},max_cond={},fdr={}{}",
                     alpha,
@@ -320,13 +323,13 @@ impl Rfci {
                     self.constraints.knowledge_config()
                 ),
             ),
-            assumptions: discovery_assumptions("rfci", false),
+            assumptions: discovery_assumptions(ALGORITHM, false),
             iterations,
             diagnostics,
             performance: DiscoveryPerformanceRecord {
                 ci_tests,
-                links_retained: u64::try_from(adj.len()).unwrap_or(u64::MAX),
-                targets: u64::try_from(variables.len()).unwrap_or(u64::MAX),
+                links_retained: crate::pipeline::count_u64(adj.len())?,
+                targets: crate::pipeline::count_u64(variables.len())?,
                 lagged_frame_bytes: 0,
                 worker_threads: 1,
             },
@@ -398,13 +401,13 @@ fn rfci_unshielded_triples(
         let cond: Vec<VariableId> = sep_ac.into_iter().filter(|&z| z != b).collect();
 
         // a ⊥? b | sep(a,c)\{b}
-        if ci.p_value(a, b, &cond)? > ci.alpha {
+        if ci.separates(a, b, &cond)? {
             let minimal = ci.minimize_sepset(a, b, &cond)?;
             remove_edge_update(ci, graph, (a, b), &minimal, &mut triples)?;
             continue;
         }
 
-        if ci.p_value(b, c, &cond)? > ci.alpha {
+        if ci.separates(b, c, &cond)? {
             let minimal = ci.minimize_sepset(b, c, &cond)?;
             remove_edge_update(ci, graph, (b, c), &minimal, &mut triples)?;
             continue;
@@ -479,7 +482,7 @@ fn rfci_discriminating_paths(
                     true
                 });
                 for z in &sets {
-                    if ci.p_value(u, v, z)? > ci.alpha {
+                    if ci.separates(u, v, z)? {
                         let minimal = ci.minimize_sepset(u, v, z)?;
                         remove = Some((u, v, minimal));
                         break 'pairs;

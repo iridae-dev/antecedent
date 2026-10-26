@@ -4,9 +4,14 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{ModelId, QueryId};
+use antecedent_core::{CausalRng, ModelId, QueryId};
 
+use crate::candidate::CandidateDesign;
 use crate::decision::DecisionProblemId;
+use crate::error::DesignError;
+use crate::ranker::{
+    DesignEvaluationContext, ScoringChannels, score_channel, validate_channel_context,
+};
 use crate::result::ScoreEvaluation;
 
 /// Objective maximized by candidate ranking.
@@ -82,16 +87,64 @@ pub enum ObjectiveChannel<'a> {
     },
 }
 
-/// The scoring questions a design objective answers without exposing its match arms.
+/// What the ranker needs of an objective: which channel it is, whether its score is exact, and
+/// how to validate its context, prepare its per-ranking constants and score one candidate at
+/// one posterior draw. The ranker is generic over this trait, so an objective is added by
+/// implementing it, not by editing the ranker.
 pub trait ObjectiveScorer {
+    /// Per-ranking constants, built once by [`Self::prepare`] and shared by every draw.
+    type Prepared: Sync;
+
     /// Channel the ranker, the facade and the Python binding dispatch on.
     fn channel(&self) -> ObjectiveChannel<'_>;
 
     /// Whether a non-decision score is an exact functional or a Monte Carlo estimate.
     fn static_evaluation(&self) -> ScoreEvaluation;
+
+    /// Mathematics actually scored, as named in a ranking's record.
+    fn implemented_functional(&self) -> &'static str;
+
+    /// Refuse a context the objective cannot be evaluated on, before any draw is taken.
+    ///
+    /// # Errors
+    ///
+    /// A missing or malformed per-objective context.
+    fn validate_context<A, O>(
+        &self,
+        ctx: &DesignEvaluationContext<'_, A, O>,
+    ) -> Result<(), DesignError>;
+
+    /// The ranking-invariant constants of this objective over `ctx`.
+    fn prepare<A, O>(&self, ctx: &DesignEvaluationContext<'_, A, O>) -> Self::Prepared;
+
+    /// The candidate's score when it does not depend on the draw (an exact expectation), or
+    /// `None` when each draw must be scored. Reported as exact when every candidate has one.
+    fn exact_expectation(
+        &self,
+        _prepared: &Self::Prepared,
+        _candidate: &CandidateDesign,
+    ) -> Option<f64> {
+        None
+    }
+
+    /// The candidate's score at posterior graph `graph_idx`, drawing any randomness from `rng`.
+    ///
+    /// # Errors
+    ///
+    /// A context that cannot be evaluated.
+    fn score<A: Clone, O: Clone>(
+        &self,
+        prepared: &Self::Prepared,
+        candidate: &CandidateDesign,
+        ctx: &DesignEvaluationContext<'_, A, O>,
+        graph_idx: usize,
+        rng: &mut CausalRng,
+    ) -> Result<f64, DesignError>;
 }
 
 impl ObjectiveScorer for DesignObjective {
+    type Prepared = ScoringChannels;
+
     fn channel(&self) -> ObjectiveChannel<'_> {
         match self {
             Self::ReduceGraphEntropy => ObjectiveChannel::GraphEntropy,
@@ -119,6 +172,45 @@ impl ObjectiveScorer for DesignObjective {
                 ScoreEvaluation::MonteCarlo
             }
         }
+    }
+
+    fn implemented_functional(&self) -> &'static str {
+        Self::implemented_functional(self)
+    }
+
+    fn validate_context<A, O>(
+        &self,
+        ctx: &DesignEvaluationContext<'_, A, O>,
+    ) -> Result<(), DesignError> {
+        validate_channel_context(self.channel(), ctx)
+    }
+
+    fn prepare<A, O>(&self, ctx: &DesignEvaluationContext<'_, A, O>) -> ScoringChannels {
+        ScoringChannels::new(self.channel(), ctx)
+    }
+
+    fn exact_expectation(
+        &self,
+        prepared: &ScoringChannels,
+        candidate: &CandidateDesign,
+    ) -> Option<f64> {
+        match self.channel() {
+            ObjectiveChannel::GraphEntropy => {
+                Some(prepared.exact_expectation(candidate).unwrap_or(0.0))
+            }
+            _ => None,
+        }
+    }
+
+    fn score<A: Clone, O: Clone>(
+        &self,
+        prepared: &ScoringChannels,
+        candidate: &CandidateDesign,
+        ctx: &DesignEvaluationContext<'_, A, O>,
+        graph_idx: usize,
+        rng: &mut CausalRng,
+    ) -> Result<f64, DesignError> {
+        score_channel(self.channel(), candidate, ctx, prepared, graph_idx, rng)
     }
 }
 

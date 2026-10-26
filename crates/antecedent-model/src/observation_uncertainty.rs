@@ -57,11 +57,14 @@ use crate::observation_query::{
 /// Fewest posterior draws a redraw may take.
 pub const MIN_REDRAWS: u32 = 2;
 /// Most posterior draws a redraw may take.
-pub const MAX_REDRAWS: u32 = 20_000;
+pub const MAX_REDRAWS: u32 = 1_000_000;
 /// Most coefficients (including the intercept) one retained regression may have.
-pub const MAX_RETAINED_REGRESSORS: usize = 32;
+pub const MAX_RETAINED_REGRESSORS: usize = 256;
 /// Most quantities one redraw may return.
-pub const MAX_REDRAW_QUANTITIES: usize = 256;
+pub const MAX_REDRAW_QUANTITIES: usize = 4096;
+/// Most values (`draws x quantities`) one redraw may hold: the memory budget that bounds the
+/// two counts jointly.
+pub const MAX_REDRAW_CELLS: usize = 1 << 26;
 
 /// Functional id of the conditional mean of a continuous outcome.
 pub const CONDITIONAL_MEAN: &str = "conditional_mean";
@@ -600,6 +603,11 @@ pub fn redraw_conditional(
     let quantities = target_quantities(spec, target)?;
     if quantities.len() > MAX_REDRAW_QUANTITIES {
         return Err(ObservationQueryError::Invalid("too many quantities for one redraw"));
+    }
+    if (draws as usize).saturating_mul(quantities.len()) > MAX_REDRAW_CELLS {
+        return Err(ObservationQueryError::Invalid(
+            "draws times quantities exceeds the redraw value budget",
+        ));
     }
     let plans = plan(spec, retained, prior)?;
     let point = evaluate(spec, target, ctx)?;

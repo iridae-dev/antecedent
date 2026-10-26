@@ -9,6 +9,7 @@ use antecedent_graph::DenseNodeId;
 use antecedent_model::{CompiledCausalModel, MechanismWorkspace, sample_observational_into};
 use antecedent_stats::{gaussian_kl, mean_var};
 
+use crate::coalition::Coalition;
 use crate::error::AttributionError;
 use crate::result::ChangeAttributionResult;
 use crate::shapley::{CoalitionPayoff, ShapleyEstimate, estimate_shapley, sequential_allocate};
@@ -148,7 +149,7 @@ pub(crate) fn total_change(measure: DifferenceMeasure, v0: f64, v_full: f64) -> 
 /// Evaluate a difference measure given hybrid `(μ, var)` and optional baseline law.
 pub(crate) fn measure_value(
     measure: DifferenceMeasure,
-    mask: u64,
+    coalition: &Coalition,
     mu: f64,
     var: f64,
     baseline_law: Option<(f64, f64)>,
@@ -157,7 +158,7 @@ pub(crate) fn measure_value(
         DifferenceMeasure::MeanDiff => Ok(mu),
         DifferenceMeasure::VarianceDiff => Ok(var),
         DifferenceMeasure::GaussianKl => {
-            if mask == 0 {
+            if coalition.is_empty() {
                 Ok(0.0)
             } else {
                 let (mu0, var0) = baseline_law.ok_or_else(|| {
@@ -174,7 +175,7 @@ pub(crate) fn measure_value(
 /// Both `MechanismSwapPayoff` ([`crate::distribution_change`]) and
 /// `StructureSwapPayoff` ([`crate::structure_change`]) memoize the mask-0
 /// all-baseline outcome law once (only needed for [`DifferenceMeasure::GaussianKl`])
-/// and then evaluate the coalition's difference measure at `mask`; they differ only
+/// and then evaluate the coalition's difference measure; they differ only
 /// in how they compute the outcome law itself ([`Self::law_at`]).
 pub(crate) trait CachedOutcomeLawPayoff {
     /// The configured difference measure.
@@ -183,21 +184,21 @@ pub(crate) trait CachedOutcomeLawPayoff {
     fn baseline_law(&self) -> Option<(f64, f64)>;
     /// Store the computed all-baseline law.
     fn set_baseline_law(&mut self, law: (f64, f64));
-    /// Compute `(μ, σ²)` of the hybrid outcome law at `mask`.
-    fn law_at(&mut self, mask: u64) -> Result<(f64, f64), AttributionError>;
+    /// Compute `(μ, σ²)` of the hybrid outcome law of `coalition`.
+    fn law_at(&mut self, coalition: &Coalition) -> Result<(f64, f64), AttributionError>;
 
     /// Shared `CoalitionPayoff::value` body.
-    fn cached_payoff_value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+    fn cached_payoff_value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
         if matches!(self.measure(), DifferenceMeasure::GaussianKl) && self.baseline_law().is_none()
         {
-            let (mu0, var0) = self.law_at(0)?;
+            let (mu0, var0) = self.law_at(&Coalition::empty())?;
             self.set_baseline_law((mu0, var0));
-            if mask == 0 {
+            if coalition.is_empty() {
                 return Ok(0.0);
             }
         }
-        let (mu, var) = self.law_at(mask)?;
-        measure_value(self.measure(), mask, mu, var, self.baseline_law())
+        let (mu, var) = self.law_at(coalition)?;
+        measure_value(self.measure(), coalition, mu, var, self.baseline_law())
     }
 }
 
@@ -302,11 +303,10 @@ fn path_based_change_allocation<P: CoalitionPayoff>(
     // split a player's already-correct total across its individual directed
     // paths to the outcome for reporting; they never determine how much of the
     // total change that player receives.
-    let v0 = payoff.value(0)?;
+    let v0 = payoff.value(&Coalition::empty())?;
     let mut raw_players = Vec::with_capacity(players.len());
     for i in 0..players.len() {
-        let bit = 1u64 << i;
-        let v_i = payoff.value(bit)?;
+        let v_i = payoff.value(&Coalition::empty().with(i))?;
         raw_players.push(v_i - v0);
     }
 
@@ -439,8 +439,8 @@ mod tests {
     struct AdditivePayoff;
 
     impl CoalitionPayoff for AdditivePayoff {
-        fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
-            Ok(f64::from(mask.count_ones()))
+        fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
+            Ok(coalition.len() as f64)
         }
     }
 

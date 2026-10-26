@@ -35,8 +35,8 @@ default = []
 # are multiples of the parents' RMS spread, noise levels multiples of the outcome's SD, the
 # signal variance is the outcome's variance and the prior mean its sample mean, so the fit
 # is equivariant to a change of units. The kernel is a single isotropic RBF (no ARD or
-# kernel selection) and the exact fit is O(n^3) per grid cell with no sparse/inducing-point
-# path, hence the `GP_FAMILY_MAX_ROWS` refusal. Family selection scores it out of fold, like
+# kernel selection) and the exact fit is O(n^3) per grid cell, so above `GP_EXACT_MAX_ROWS`
+# it switches to an inducing-point approximation. Family selection scores it out of fold, like
 # every other family. CI builds and tests this feature (`.github/workflows/ci.yml`).
 gaussian-process = []
 # Tree-ensemble mechanism families (registry auto-fit path only — a deserialized

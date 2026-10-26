@@ -862,15 +862,7 @@ fn hypothetical_of(
     family: RepairFamilyRef<'_>,
     candidate: &DurableStudyCandidate,
 ) -> Result<Vec<EvidenceRegime>> {
-    let regimes = match family {
-        RepairFamilyRef::Transport(f) => f.hypothetical_regimes(&[candidate]),
-        RepairFamilyRef::Backdoor(f) => f.hypothetical_regimes(&[candidate]),
-        RepairFamilyRef::ZTransport(f) => f.hypothetical_regimes(&[candidate]),
-        RepairFamilyRef::FrontDoor(f) => f.hypothetical_regimes(&[candidate]),
-        RepairFamilyRef::Instrument(f) => f.hypothetical_regimes(&[candidate]),
-        RepairFamilyRef::Hedge(f) => f.hypothetical_regimes(&[candidate]),
-        RepairFamilyRef::Sensitivity(f) => f.hypothetical_regimes(&[candidate]),
-    };
+    let regimes = owner(family).hypothetical_regimes(&[candidate]);
     regimes.map_err(|reasons| {
         ProposalReceiptError::invalid("proposal_receipt.invalid_delta", reasons.join("; "))
     })

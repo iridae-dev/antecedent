@@ -654,6 +654,37 @@ fn the_conditional_sampler_runs_programs_and_refuses_to_condition_on_them() {
     assert!(error.to_string().contains("value program"), "{error}");
 }
 
+#[test]
+fn tail_evidence_reports_an_effective_sample_size_shortfall_instead_of_failing() {
+    use antecedent_model::{
+        ConditionEvidence, ConditionalSampleMethod, sample_conditional_interventional,
+        sample_conditional_interventional_reported,
+    };
+    let slots = vec![gaussian(0.0, &[], 1.0), gaussian(0.0, &[1.0], 0.5)];
+    let model = model(2, &[(0, 1)], slots);
+    let ctx = ExecutionContext::for_tests(9);
+    let mut ws = MechanismWorkspace::default();
+    let evidence_nodes = [DenseNodeId::from_raw(1)];
+    let evidence_values = [1.0e3];
+    let evidence = ConditionEvidence { nodes: &evidence_nodes, values: &evidence_values };
+
+    let mut rng = CausalRng::from_seed(5);
+    let (batch, report) = sample_conditional_interventional_reported(
+        &model, &[], &evidence, 50, &mut rng, &mut ws, &ctx,
+    )
+    .unwrap();
+    assert_eq!(batch.n_rows, 50);
+    assert_eq!(report.method, ConditionalSampleMethod::LikelihoodWeighting);
+    let shortfall = report.ess_shortfall().expect("evidence far in the tail cannot meet the floor");
+    assert!(shortfall.effective_sample_size < shortfall.floor);
+
+    let mut rng = CausalRng::from_seed(5);
+    let error =
+        sample_conditional_interventional(&model, &[], &evidence, 50, &mut rng, &mut ws, &ctx)
+            .unwrap_err();
+    assert!(error.to_string().contains("degenerate"), "{error}");
+}
+
 /// Standard normal distribution function (Abramowitz and Stegun 7.1.26, |error| < 1.5e-7).
 fn normal_cdf(x: f64) -> f64 {
     let t = 1.0 / (1.0 + 0.327_591_1 * (x.abs() / std::f64::consts::SQRT_2));

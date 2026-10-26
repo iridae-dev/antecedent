@@ -24,6 +24,7 @@ use antecedent_core::{
     RegimeKind, VariableId, blake3_hex, is_blank, reason_code,
 };
 
+use crate::plan_common::id_list;
 use crate::{CandidateDesign, DesignCost, ExperimentPlan, MeasurementPlan, SamplingPlan};
 
 /// What the study does.
@@ -192,12 +193,6 @@ fn distinct(variables: &[VariableId]) -> bool {
 
 fn set(variables: &[VariableId]) -> BTreeSet<VariableId> {
     variables.iter().copied().collect()
-}
-
-fn id_list(variables: &[VariableId]) -> String {
-    let mut ids: Vec<u32> = variables.iter().map(|v| v.raw()).collect();
-    ids.sort_unstable();
-    ids.iter().map(ToString::to_string).collect::<Vec<_>>().join(",")
 }
 
 impl ExpectedEvidence {

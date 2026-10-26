@@ -53,8 +53,6 @@ const SENSITIVITY_RHO: f64 = 0.2;
 const MIN_COMPLETE_SHARE: f64 = 0.9;
 /// Bootstrap replicates when the study requested none.
 const DEFAULT_BOOTSTRAP_REPLICATES: u32 = 49;
-/// Upper bound on the bootstrap replicates.
-const MAX_BOOTSTRAP_REPLICATES: u32 = 199;
 
 /// Subset streams of the 80% and 50% refits, mediator permutations.
 const SUBSET_80: u64 = 0xF040_0000;
@@ -422,7 +420,7 @@ impl<'a> MediationSuite<'a> {
         let replicates = if self.bootstrap_replicates == 0 {
             DEFAULT_BOOTSTRAP_REPLICATES
         } else {
-            self.bootstrap_replicates.min(MAX_BOOTSTRAP_REPLICATES)
+            self.bootstrap_replicates
         };
         let estimator = FunctionalEffect::new()
             .with_bootstrap_replicates(replicates)

@@ -24,7 +24,7 @@ use crate::change_common::{
     ChangeAllocation, ChangeOptions, DISTRIBUTION_STREAM, run_change_allocation,
     sample_outcome_law, stream_tag, total_change,
 };
-use crate::coalition::full_coalition_mask;
+use crate::coalition::{Coalition, full_coalition_mask};
 use crate::error::AttributionError;
 use crate::prep::{require_mechanism_or_joint, resolve_change_populations, resolve_outcome_dense};
 use crate::result::ChangeAttributionResult;
@@ -469,7 +469,7 @@ fn distribution_change_with_mechanisms(
         comparison: comparison_mechs,
         player_kinds,
         player_dense,
-        scratch_mask: 0,
+        scratch: Coalition::empty(),
         outcome: outcome_dense,
         measure: options.measure,
         n_samples: options.n_samples,
@@ -480,9 +480,9 @@ fn distribution_change_with_mechanisms(
         baseline_law: None,
     };
 
-    let v0 = payoff.value(0)?;
+    let v0 = payoff.value(&Coalition::empty())?;
     let full_mask = full_coalition_mask(players.len())?;
-    let v_full = payoff.value(full_mask)?;
+    let v_full = payoff.value(&full_mask)?;
     let total = total_change(options.measure, v0, v_full);
 
     let request = ChangeAllocation {
@@ -587,7 +587,7 @@ pub(crate) fn joint_players(
 }
 
 struct MechanismSwapPayoff<'a> {
-    /// Hybrid model whose slots reflect `scratch_mask`: baseline slots everywhere except
+    /// Hybrid model whose slots reflect `scratch`: baseline slots everywhere except
     /// comparison slots for set mechanism-player bits.
     hybrid: CompiledCausalModel,
     baseline: CompiledMechanismStore,
@@ -595,8 +595,8 @@ struct MechanismSwapPayoff<'a> {
     player_kinds: Vec<PlayerKind>,
     /// Dense node per player, hoisted at construction.
     player_dense: Vec<Option<DenseNodeId>>,
-    /// Mask currently applied to `hybrid`.
-    scratch_mask: u64,
+    /// Coalition currently applied to `hybrid`.
+    scratch: Coalition,
     outcome: DenseNodeId,
     measure: DifferenceMeasure,
     n_samples: usize,
@@ -622,14 +622,14 @@ impl crate::change_common::CachedOutcomeLawPayoff for MechanismSwapPayoff<'_> {
         self.baseline_law = Some(law);
     }
 
-    fn law_at(&mut self, mask: u64) -> Result<(f64, f64), AttributionError> {
-        self.sample_outcome_law(mask)
+    fn law_at(&mut self, coalition: &Coalition) -> Result<(f64, f64), AttributionError> {
+        self.sample_outcome_law(coalition)
     }
 }
 
 impl CoalitionPayoff for MechanismSwapPayoff<'_> {
-    fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
-        crate::change_common::CachedOutcomeLawPayoff::cached_payoff_value(self, mask)
+    fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
+        crate::change_common::CachedOutcomeLawPayoff::cached_payoff_value(self, coalition)
     }
 
     fn fork<'a>(&'a self) -> Option<Box<dyn CoalitionPayoff + Send + 'a>> {
@@ -639,7 +639,7 @@ impl CoalitionPayoff for MechanismSwapPayoff<'_> {
             comparison: self.comparison.clone(),
             player_kinds: self.player_kinds.clone(),
             player_dense: self.player_dense.clone(),
-            scratch_mask: self.scratch_mask,
+            scratch: self.scratch.clone(),
             outcome: self.outcome,
             measure: self.measure,
             n_samples: self.n_samples,
@@ -653,7 +653,7 @@ impl CoalitionPayoff for MechanismSwapPayoff<'_> {
 }
 
 impl MechanismSwapPayoff<'_> {
-    /// Outcome law under the hybrid model selected by `mask`.
+    /// Outcome law under the hybrid model selected by `coalition`.
     ///
     /// A coalition bit means "use this player's comparison-fitted mechanism"; everything
     /// else stays at baseline. That mechanism swap is the *only* lever, and deliberately so.
@@ -665,24 +665,24 @@ impl MechanismSwapPayoff<'_> {
     /// distribution collapsed to a point mass, so a regime difference that preserved the
     /// mean — a variance shift, a shape change — produced identical coalition values and was
     /// attributed exactly zero.
-    fn sample_outcome_law(&mut self, mask: u64) -> Result<(f64, f64), AttributionError> {
+    fn sample_outcome_law(&mut self, coalition: &Coalition) -> Result<(f64, f64), AttributionError> {
         // Patch the hybrid's slot array incrementally: only bits that changed since the
         // previous mask are touched (restore to baseline on clear, swap in the comparison
         // slot on set). `Input`-kind players never swap slots; the resulting store is
         // value-identical to rebuilding the full hybrid from baseline for every coalition.
-        let diff = mask ^ self.scratch_mask;
-        if diff != 0 {
+        let changed = coalition.symmetric_difference(&self.scratch);
+        if !changed.is_empty() {
             let slots = unique_slots(&mut self.hybrid.mechanisms.slots);
-            for (i, dense) in self.player_dense.iter().enumerate() {
-                if diff & (1u64 << i) == 0 || matches!(self.player_kinds[i], PlayerKind::Input) {
+            for i in changed {
+                if matches!(self.player_kinds[i], PlayerKind::Input) {
                     continue;
                 }
-                let Some(d) = dense else { continue };
+                let Some(d) = self.player_dense[i] else { continue };
                 let idx = d.as_usize();
-                let src = if mask & (1u64 << i) != 0 { &self.comparison } else { &self.baseline };
+                let src = if coalition.contains(i) { &self.comparison } else { &self.baseline };
                 slots[idx] = src.slots[idx].clone();
             }
-            self.scratch_mask = mask;
+            self.scratch = coalition.clone();
         }
         sample_outcome_law(
             &self.hybrid,
@@ -1045,19 +1045,36 @@ mod tests {
         // KL(N(2,3) ‖ N(0,1)) = 0.5 * (ln(1/3) + (3 + (2-0)^2)/1 - 1)
         let expected = 0.5_f64 * ((1.0_f64 / 3.0).ln() + 7.0 - 1.0);
         let got =
-            measure_value(DifferenceMeasure::GaussianKl, 1, 2.0, 3.0, Some((0.0, 1.0))).unwrap();
+            measure_value(
+                DifferenceMeasure::GaussianKl,
+                &Coalition::from_bits(1),
+                2.0,
+                3.0,
+                Some((0.0, 1.0)),
+            )
+            .unwrap();
         assert!((got - expected).abs() < 1e-12, "got={got} expected={expected}");
 
         // The all-baseline coalition (mask == 0) is defined as exactly zero
         // divergence, regardless of the sampled (mu, var) passed in — matching
         // `v(∅) == 0` used by the efficiency identity above.
         let empty =
-            measure_value(DifferenceMeasure::GaussianKl, 0, 2.0, 3.0, Some((0.0, 1.0))).unwrap();
+            measure_value(
+                DifferenceMeasure::GaussianKl,
+                &Coalition::empty(),
+                2.0,
+                3.0,
+                Some((0.0, 1.0)),
+            )
+            .unwrap();
         assert!(empty.abs() < f64::EPSILON, "expected exact 0.0, got {empty}");
 
         // Missing cached baseline law with a non-empty mask is a hard error, not a
         // silent 0.0 — the payoff must have cached v(∅) first.
-        assert!(measure_value(DifferenceMeasure::GaussianKl, 1, 2.0, 3.0, None).is_err());
+        assert!(
+            measure_value(DifferenceMeasure::GaussianKl, &Coalition::from_bits(1), 2.0, 3.0, None)
+                .is_err()
+        );
     }
 
     #[test]

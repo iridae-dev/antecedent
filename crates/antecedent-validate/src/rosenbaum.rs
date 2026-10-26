@@ -11,8 +11,11 @@
 //!   the positive differences. Under `Γ`, `T⁺` is stochastically at most
 //!   `Σ rank_i · B_i` with independent `B_i ~ Bernoulli(Γ / (1 + Γ))`. The upper-bound
 //!   p-value is computed **exactly** by a dynamic program over the (doubled, hence integer)
-//!   rank sums for up to [`EXACT_PAIRS_LIMIT`] pairs, and by the normal approximation with
-//!   the tie-corrected variance `p(1 − p) Σ rank_i²` above it.
+//!   rank sums while the dynamic program stays within [`EXACT_WORK_LIMIT`] updates (about
+//!   `pairs × Σ doubled ranks`, i.e. cubic in the pair count), and by the normal approximation
+//!   with the tie-corrected variance `p(1 − p) Σ rank_i²` beyond it. Which law was used is
+//!   reported: [`SignedRankStatistic::upper_p_value`] returns it and
+//!   [`SignedRankSensitivity::exact`] records it.
 //! * **Sensitivity value.** [`signed_rank_sensitivity`] reports the upper-bound p-value on a
 //!   grid of `Γ` and the break-even `Γ*`: the largest `Γ` at which the upper bound is still
 //!   at most `α`.
@@ -35,8 +38,9 @@ use crate::assumption_range::{AssumptionRange, RangePoint, SensitivityAssumption
 use crate::common::admit_cells;
 use crate::target_native::RefutationTarget;
 
-/// Largest number of non-zero pairs whose upper-bound distribution is computed exactly.
-pub const EXACT_PAIRS_LIMIT: usize = 300;
+/// Largest dynamic-program work (`pairs × Σ doubled ranks` table updates) for which the
+/// upper-bound distribution is computed exactly; about 460 untied pairs.
+pub const EXACT_WORK_LIMIT: u64 = 100_000_000;
 
 /// Default grid of `Γ` values probed by [`signed_rank_sensitivity`].
 pub const DEFAULT_GAMMA_GRID: [f64; 10] = [1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0];
@@ -122,7 +126,7 @@ impl SignedRankStatistic {
             });
         }
         let p = gamma / (1.0 + gamma);
-        if self.pairs <= EXACT_PAIRS_LIMIT {
+        if self.exact_work() <= EXACT_WORK_LIMIT {
             return Ok((self.exact_upper(p, ctx)?, true));
         }
         let sum_r: f64 = self.doubled_ranks.iter().map(|&r| r as f64 / 2.0).sum();
@@ -130,6 +134,12 @@ impl SignedRankStatistic {
         let mean = p * sum_r;
         let sd = (p * (1.0 - p) * sum_r2).sqrt();
         Ok((norm_sf((self.statistic() - mean) / sd), false))
+    }
+
+    /// Table updates the exact dynamic program performs: `pairs × Σ doubled ranks`.
+    fn exact_work(&self) -> u64 {
+        let total: u64 = self.doubled_ranks.iter().sum();
+        total.saturating_mul(self.pairs as u64)
     }
 
     fn exact_upper(&self, p: f64, ctx: Option<&ExecutionContext>) -> Result<f64, ValidationError> {

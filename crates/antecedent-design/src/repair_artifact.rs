@@ -52,12 +52,13 @@ use antecedent_io_core::transport_catalog_wire::{EvidenceCatalogWire, EvidenceRe
 use antecedent_io_core::wire::{AdmgWire, DagWire};
 use serde::{Deserialize, Serialize};
 
+use crate::plan_common::variable_ids as ids;
 use crate::identification_repair::{
     FrontDoorRepairFamily, HedgeRepairFamily, InstrumentRepairFamily, SensitivityFinding,
     SensitivityMethod, SensitivityRepairFamily,
 };
 use crate::repair::{
-    BackdoorRepairFamily, FamilyVerdict, REPAIR_MAX_CANDIDATES, REPAIR_MAX_DEPTH,
+    BackdoorRepairFamily, FailedContract, FamilyVerdict, REPAIR_DEFAULT_DEPTH,
     REPAIR_MAX_MEMORY_BYTES, REPAIR_MAX_OPERATIONS, REPAIR_RECEIPT_REGIONS, RepairCancelled,
     RepairClassification, RepairError, RepairFamily, RepairLimits, RepairObjective, RepairOutcome,
     RepairReport, TransportRepairFamily, repair,
@@ -74,10 +75,10 @@ pub(crate) const REPAIR_ARTIFACT_VERSION: u32 = 1;
 pub(crate) const REPAIR_ARTIFACT_KIND: &str = "repair_search_receipt_v1";
 /// Largest container, in bytes, a consumer reads.
 pub(crate) const MAX_REPAIR_ARTIFACT_BYTES: usize = 8 * 1024 * 1024;
-/// Most outcomes a stored report may carry: every subset of at most
-/// [`REPAIR_MAX_DEPTH`] of [`REPAIR_MAX_CANDIDATES`] candidates, plus the
-/// refused candidates.
-pub(crate) const MAX_REPAIR_OUTCOMES: usize = 4096;
+/// Most outcomes a stored report may carry beyond one per declared candidate: a search charges
+/// one operation per subset it evaluates, so no more subsets than [`REPAIR_MAX_OPERATIONS`] are
+/// ever recorded.
+pub(crate) const MAX_REPAIR_OUTCOMES: usize = REPAIR_MAX_OPERATIONS;
 /// Most obligations a stored report may carry.
 pub(crate) const MAX_REPAIR_OBLIGATIONS: usize = 1024;
 
@@ -572,7 +573,7 @@ pub struct RepairConsumeLimits {
 impl Default for RepairConsumeLimits {
     fn default() -> Self {
         Self {
-            search: SearchLimits { operations: REPAIR_MAX_OPERATIONS, depth: REPAIR_MAX_DEPTH },
+            search: SearchLimits { operations: REPAIR_MAX_OPERATIONS, depth: REPAIR_DEFAULT_DEPTH },
             memory_limit_bytes: REPAIR_MAX_MEMORY_BYTES,
         }
     }
@@ -615,10 +616,6 @@ impl RepairFamilyRef<'_> {
 
 fn raw(variables: &[VariableId]) -> Vec<u32> {
     variables.iter().map(|v| v.raw()).collect()
-}
-
-fn ids(raw: &[u32]) -> Arc<[VariableId]> {
-    raw.iter().copied().map(VariableId::from_raw).collect()
 }
 
 fn strings(values: &[Arc<str>]) -> Vec<String> {
@@ -1203,16 +1200,9 @@ impl RepairReportArtifact {
                             })
                         })
                         .collect::<Result<Vec<_>, _>>()?;
-                    let regimes = match family {
-                        RepairFamilyRef::Transport(f) => f.hypothetical_regimes(&members),
-                        RepairFamilyRef::Backdoor(f) => f.hypothetical_regimes(&members),
-                        RepairFamilyRef::ZTransport(f) => f.hypothetical_regimes(&members),
-                        RepairFamilyRef::FrontDoor(f) => f.hypothetical_regimes(&members),
-                        RepairFamilyRef::Instrument(f) => f.hypothetical_regimes(&members),
-                        RepairFamilyRef::Hedge(f) => f.hypothetical_regimes(&members),
-                        RepairFamilyRef::Sensitivity(f) => f.hypothetical_regimes(&members),
-                    }
-                    .map_err(|reasons| RepairArtifactError::invalid(reasons.join("; ")))?;
+                    let regimes = owner
+                        .hypothetical_regimes(&members)
+                        .map_err(|reasons| RepairArtifactError::invalid(reasons.join("; ")))?;
                     Some(regimes_wire(&regimes)?)
                 }
             };
@@ -1375,8 +1365,8 @@ impl RepairReportArtifact {
             ));
         }
         let receipt = &self.report.receipt;
-        if self.premises.candidates.len() > REPAIR_MAX_CANDIDATES
-            || self.report.outcomes.len() > MAX_REPAIR_OUTCOMES
+        if self.report.outcomes.len()
+            > MAX_REPAIR_OUTCOMES.saturating_add(self.premises.candidates.len())
             || self.report.obligations.len() > MAX_REPAIR_OBLIGATIONS
             || receipt.explored.len() > REPAIR_RECEIPT_REGIONS
             || receipt.unevaluated.len() > REPAIR_RECEIPT_REGIONS

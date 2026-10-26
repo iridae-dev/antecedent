@@ -255,7 +255,12 @@ impl CounterfactualEngine {
     ) -> Result<ExogenousPosterior, CounterfactualError> {
         let n = data.row_count();
         let n_nodes = self.model.n_nodes();
-        let mut noise = vec![0.0; n * n_nodes];
+        // Built straight into the shared allocation (an exact-size iterator collects into an
+        // `Arc<[f64]>` without a second buffer), so publishing the posterior copies nothing.
+        let mut noise: Arc<[f64]> = std::iter::repeat_n(0.0, n * n_nodes).collect();
+        let noise_buf = Arc::get_mut(&mut noise).ok_or_else(|| {
+            CounterfactualError::model_msg("noise buffer is unexpectedly shared")
+        })?;
         let mut kind = NoiseInferenceKind::Invertible;
         let mut assumed_columns = vec![false; n_nodes];
 
@@ -300,7 +305,7 @@ impl CounterfactualEngine {
             }
             let node = gather.child;
             let idx = node.as_usize();
-            let out = &mut noise[idx * n..(idx + 1) * n];
+            let out = &mut noise_buf[idx * n..(idx + 1) * n];
             let need = gather.n_parents().max(1).saturating_mul(n);
             if parent_buf.len() < need {
                 parent_buf.resize(need, 0.0);
@@ -333,13 +338,7 @@ impl CounterfactualEngine {
             }
         }
 
-        Ok(ExogenousPosterior {
-            noise: Arc::from(noise),
-            n_units: n,
-            n_nodes,
-            kind,
-            assumed_columns: Arc::from(assumed_columns),
-        })
+        Ok(ExogenousPosterior { noise, n_units: n, n_nodes, kind, assumed_columns: Arc::from(assumed_columns) })
     }
 
     /// Predict counterfactual outcomes for worlds sharing abduced noise,
@@ -547,16 +546,16 @@ impl CounterfactualEngine {
             }
         }
 
-        Ok(CounterfactualResult {
-            values: Arc::from(all),
+        CounterfactualResult::new(
+            Arc::from(all),
             n_worlds,
             n_units,
             n_nodes,
-            retained_nodes: stored.map(Arc::from),
-            outcomes: Arc::from(outcome_dense),
-            noise_kind: exo.kind,
+            stored.map(Arc::from),
+            Arc::from(outcome_dense),
+            exo.kind,
             notes,
-        })
+        )
     }
 
     /// Individual treatment effect `Y_{do(a)} − Y_{do(c)}` per unit under the abduced noise.
@@ -592,33 +591,34 @@ impl CounterfactualEngine {
         let o = self.model.dense_of(outcome).ok_or_else(|| {
             CounterfactualError::model_msg(format!("unknown outcome variable {outcome}"))
         })?;
-        let mut ite = vec![0.0; exo.n_units];
-        for u in 0..exo.n_units {
-            let ya = res.get(0, o, u);
-            let yc = res.get(1, o, u);
-            ite[u] = ya - yc;
-        }
+        let ya = res.outcome_column(0, o)?;
+        let yc = res.outcome_column(1, o)?;
+        let ite: Vec<f64> = ya.iter().zip(yc).map(|(a, c)| a - c).collect();
         Ok(Arc::from(ite))
     }
 }
 
 /// Counterfactual result tensor (world × node × unit), columnar.
+///
+/// The storage layout is private: [`CounterfactualResult::new`] checks that the buffer holds
+/// exactly `n_worlds × stored_width × n_units` values, and every accessor then slices within
+/// it. A mismatch can never surface as a slice panic.
 #[derive(Clone, Debug)]
 pub struct CounterfactualResult {
     /// Flat storage: `n_worlds × stored_width × n_units`, node-major within a
     /// world. `stored_width` is `n_nodes` for full retention or
     /// `retained_nodes.len()` for outcomes-only results.
-    pub values: Arc<[f64]>,
+    values: Arc<[f64]>,
     /// Worlds.
     pub n_worlds: usize,
     /// Units.
-    pub n_units: usize,
+    n_units: usize,
     /// Nodes in the model (the logical width; storage may retain fewer).
-    pub n_nodes: usize,
+    n_nodes: usize,
     /// Node columns actually retained, in storage order; `None` = every node
     /// (the historical layout). Access values through [`Self::get`] /
     /// [`Self::outcome_column`], which resolve slots either way.
-    pub retained_nodes: Option<Arc<[DenseNodeId]>>,
+    retained_nodes: Option<Arc<[DenseNodeId]>>,
     /// Requested outcome dense ids.
     pub outcomes: Arc<[DenseNodeId]>,
     /// Noise inference kind (visible assumption).
@@ -627,7 +627,74 @@ pub struct CounterfactualResult {
     pub notes: Vec<Arc<str>>,
 }
 
+/// Mean of the finite outcomes of one world, with the population it was taken over.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct OutcomeMean {
+    /// Mean of the finite outcomes; `NaN` when none is finite.
+    pub mean: f64,
+    /// Units whose outcome was finite and entered the mean.
+    pub n_used: usize,
+    /// Units in the world; `n_units - n_used` were dropped as non-finite.
+    pub n_units: usize,
+}
+
 impl CounterfactualResult {
+    /// Build a result, checking the buffer against the declared shape.
+    ///
+    /// # Errors
+    ///
+    /// `values.len()` differs from `n_worlds × stored_width × n_units`, or a retained node
+    /// lies outside the model.
+    #[allow(clippy::too_many_arguments, reason = "the full result record, validated together")]
+    pub fn new(
+        values: Arc<[f64]>,
+        n_worlds: usize,
+        n_units: usize,
+        n_nodes: usize,
+        retained_nodes: Option<Arc<[DenseNodeId]>>,
+        outcomes: Arc<[DenseNodeId]>,
+        noise_kind: NoiseInferenceKind,
+        notes: Vec<Arc<str>>,
+    ) -> Result<Self, CounterfactualError> {
+        let width = retained_nodes.as_ref().map_or(n_nodes, |r| r.len());
+        let expected = n_worlds.checked_mul(width).and_then(|v| v.checked_mul(n_units));
+        if expected != Some(values.len()) {
+            return Err(CounterfactualError::model_msg(
+                "counterfactual result buffer does not match n_worlds x stored width x n_units",
+            ));
+        }
+        if retained_nodes.as_ref().is_some_and(|r| r.iter().any(|n| n.as_usize() >= n_nodes)) {
+            return Err(CounterfactualError::model_msg(
+                "counterfactual result retains a node outside the model",
+            ));
+        }
+        Ok(Self { values, n_worlds, n_units, n_nodes, retained_nodes, outcomes, noise_kind, notes })
+    }
+
+    /// The stored values, world-major then node-slot then unit.
+    #[must_use]
+    pub fn values(&self) -> &[f64] {
+        &self.values
+    }
+
+    /// Units per world.
+    #[must_use]
+    pub fn n_units(&self) -> usize {
+        self.n_units
+    }
+
+    /// Nodes in the model (the logical width; storage may retain fewer).
+    #[must_use]
+    pub fn n_nodes(&self) -> usize {
+        self.n_nodes
+    }
+
+    /// Node columns actually retained, in storage order; `None` = every node.
+    #[must_use]
+    pub fn retained_nodes(&self) -> Option<&[DenseNodeId]> {
+        self.retained_nodes.as_deref()
+    }
+
     /// Storage width per world (retained columns).
     #[must_use]
     pub fn stored_width(&self) -> usize {
@@ -643,51 +710,66 @@ impl CounterfactualResult {
         }
     }
 
-    /// Value at world/node/unit (`NaN` when out of range or not retained,
-    /// matching the historical out-of-range convention).
+    /// Value at world/node/unit, or `None` when the world or unit is out of range or the
+    /// node was not retained.
     #[must_use]
-    pub fn get(&self, world: usize, node: DenseNodeId, unit: usize) -> f64 {
+    pub fn try_get(&self, world: usize, node: DenseNodeId, unit: usize) -> Option<f64> {
         if world >= self.n_worlds || unit >= self.n_units {
-            return f64::NAN;
+            return None;
         }
-        let Some(slot) = self.slot_of(node) else {
-            return f64::NAN;
-        };
+        let slot = self.slot_of(node)?;
         let width = self.stored_width();
         let i = world * width * self.n_units + slot * self.n_units + unit;
-        self.values.get(i).copied().unwrap_or(f64::NAN)
+        self.values.get(i).copied()
+    }
+
+    /// Value at world/node/unit (`NaN` when out of range or not retained). Prefer
+    /// [`Self::try_get`], which keeps "absent" distinct from a genuine `NaN` value.
+    #[must_use]
+    pub fn get(&self, world: usize, node: DenseNodeId, unit: usize) -> f64 {
+        self.try_get(world, node, unit).unwrap_or(f64::NAN)
     }
 
     /// Units whose outcome is finite in `world` (the population
     /// [`Self::streaming_outcome_mean`] averages over).
     #[must_use]
     pub fn finite_outcome_count(&self, world: usize, outcome: DenseNodeId) -> usize {
-        (0..self.n_units).filter(|&u| self.get(world, outcome, u).is_finite()).count()
+        self.outcome_column(world, outcome)
+            .map_or(0, |column| column.iter().filter(|v| v.is_finite()).count())
     }
 
-    /// Streaming mean of the *finite* outcomes for one world (no full retention
-    /// required). Non-finite units are dropped; compare [`Self::finite_outcome_count`]
-    /// with `n_units` to learn how many. Returns `NaN` when no finite outcomes are
-    /// available.
+    /// Mean of the *finite* outcomes of one world together with how many units entered it,
+    /// so a caller never reads a mean over a different population than `n_units`. Non-finite
+    /// units are dropped; the mean is `NaN` when none is finite.
     #[must_use]
-    pub fn streaming_outcome_mean(&self, world: usize, outcome: DenseNodeId) -> f64 {
-        let mut sum = 0.0;
-        let mut n = 0usize;
-        for u in 0..self.n_units {
-            let v = self.get(world, outcome, u);
+    pub fn outcome_mean(&self, world: usize, outcome: DenseNodeId) -> OutcomeMean {
+        let Ok(column) = self.outcome_column(world, outcome) else {
+            return OutcomeMean { mean: f64::NAN, n_used: 0, n_units: 0 };
+        };
+        let (mut sum, mut n) = (0.0, 0usize);
+        for &v in column {
             if v.is_finite() {
                 sum += v;
                 n += 1;
             }
         }
-        if n == 0 { f64::NAN } else { sum / n as f64 }
+        let mean = if n == 0 { f64::NAN } else { sum / n as f64 };
+        OutcomeMean { mean, n_used: n, n_units: column.len() }
+    }
+
+    /// Streaming mean of the *finite* outcomes for one world (no full retention
+    /// required). Non-finite units are dropped; use [`Self::outcome_mean`] to receive the
+    /// number of units averaged with the mean. `NaN` when no finite outcomes are available.
+    #[must_use]
+    pub fn streaming_outcome_mean(&self, world: usize, outcome: DenseNodeId) -> f64 {
+        self.outcome_mean(world, outcome).mean
     }
 
     /// Borrowed outcome column for one world (`length = n_units`).
     ///
     /// # Errors
     ///
-    /// World out of range.
+    /// World out of range, or the outcome was not retained.
     pub fn outcome_column(
         &self,
         world: usize,
@@ -701,7 +783,9 @@ impl CounterfactualResult {
         })?;
         let width = self.stored_width();
         let start = world * width * self.n_units + slot * self.n_units;
-        Ok(&self.values[start..start + self.n_units])
+        self.values.get(start..start + self.n_units).ok_or_else(|| {
+            CounterfactualError::model_msg("counterfactual result buffer is shorter than its shape")
+        })
     }
 }
 
@@ -2341,16 +2425,35 @@ mod tests {
 
     #[test]
     fn result_access_does_not_alias_adjacent_units_or_invent_empty_mean() {
-        let result = CounterfactualResult {
-            values: Arc::from([1.0, 2.0, 3.0, 4.0]),
-            n_worlds: 1,
-            n_units: 2,
-            n_nodes: 2,
-            retained_nodes: None,
-            outcomes: Arc::from([DenseNodeId::from_raw(1)]),
-            noise_kind: NoiseInferenceKind::Invertible,
-            notes: Vec::new(),
-        };
+        let result = CounterfactualResult::new(
+            Arc::from([1.0, 2.0, 3.0, 4.0]),
+            1,
+            2,
+            2,
+            None,
+            Arc::from([DenseNodeId::from_raw(1)]),
+            NoiseInferenceKind::Invertible,
+            Vec::new(),
+        )
+        .unwrap();
+        assert!(
+            CounterfactualResult::new(
+                Arc::from([1.0, 2.0, 3.0]),
+                1,
+                2,
+                2,
+                None,
+                Arc::from([]),
+                NoiseInferenceKind::Invertible,
+                Vec::new(),
+            )
+            .is_err(),
+            "a buffer that does not match the shape is refused"
+        );
+        assert_eq!(result.try_get(0, DenseNodeId::from_raw(0), 2), None);
+        assert_eq!(result.try_get(0, DenseNodeId::from_raw(1), 1), Some(4.0));
+        let mean = result.outcome_mean(0, DenseNodeId::from_raw(1));
+        assert_eq!((mean.mean, mean.n_used, mean.n_units), (3.5, 2, 2));
         assert!(result.get(0, DenseNodeId::from_raw(0), 2).is_nan());
         assert!(result.get(usize::MAX, DenseNodeId::from_raw(0), 0).is_nan());
         assert!(result.streaming_outcome_mean(1, DenseNodeId::from_raw(0)).is_nan());

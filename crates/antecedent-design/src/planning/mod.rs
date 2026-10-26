@@ -44,10 +44,10 @@ mod result;
 
 use antecedent_core::NextAttempt;
 
-pub use analytic::{allocate, plan_analytic};
+pub use analytic::{allocate, plan_analytic, try_allocate};
 pub use request::{
-    ArmComparison, FactorialContrast, FamilyPower, InterferenceExposure, MAX_COVARIATES,
-    MAX_SIMULATION_REPLICATES, MAX_STRATA, Multiplicity, NormalPrior, OutcomeModel, PlannedDesign,
+    ArmComparison, FactorialContrast, FamilyPower, InterferenceExposure, MAX_SIMULATION_REPLICATES,
+    Multiplicity, NormalPrior, OutcomeModel, PlannedDesign,
     PlanningAssumptions, PlanningCriterion, PlanningGoal, PlanningRefusal, PlanningRequest,
     SimulationSpec, StratumSpec, SuccessCriterion, TestSidedness,
 };

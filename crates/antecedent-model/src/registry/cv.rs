@@ -142,18 +142,22 @@ pub(super) fn family_is_categorical(family: MechanismFamily) -> bool {
     family.is_categorical()
 }
 
-/// Dense stratum id per row for a categorical outcome (quantized value order).
+/// Dense stratum id per row for a categorical outcome: the rank of the row's exact value
+/// among the distinct values, in ascending value order (`-0.0` and `0.0` are one category).
 #[allow(
     clippy::cast_possible_truncation,
-    reason = "keys quantise outcomes to 1e-6 with a saturating cast that only merges values beyond 9e12 in magnitude, and a stratum id is a position among at most y.len() distinct keys, which fits u32"
+    reason = "a stratum id is a position among at most y.len() distinct values, which fits u32"
 )]
-/// Dense codes of the finite outcome values, in first-seen order.
 pub(super) fn category_strata(y: &[f64]) -> Vec<u32> {
-    let key = |v: f64| (v * 1e6).round() as i64;
-    let mut keys: Vec<i64> = y.iter().map(|&v| key(v)).collect();
-    keys.sort_unstable();
-    keys.dedup();
-    y.iter().map(|&v| keys.binary_search(&key(v)).map_or(0, |i| i as u32)).collect()
+    let canonical = |v: f64| if v == 0.0 { 0.0 } else { v };
+    let mut levels: Vec<f64> = y.iter().map(|&v| canonical(v)).collect();
+    levels.sort_unstable_by(f64::total_cmp);
+    levels.dedup_by(|a, b| a.total_cmp(b).is_eq());
+    y.iter()
+        .map(|&v| {
+            levels.binary_search_by(|level| level.total_cmp(&canonical(v))).map_or(0, |i| i as u32)
+        })
+        .collect()
 }
 
 /// Seeded fold of every row, shared by every family scored on the same node so
@@ -542,4 +546,20 @@ pub(super) fn score_family(
         },
         fitted,
     ))
+}
+
+#[cfg(test)]
+mod category_strata_tests {
+    use super::category_strata;
+
+    #[test]
+    fn categories_closer_than_a_micro_unit_stay_distinct() {
+        let y = [0.0, 1.0, 1.0 + 1e-9, 1.0, 0.0, -0.0];
+        let strata = category_strata(&y);
+        assert_eq!(strata[0], strata[4]);
+        assert_eq!(strata[0], strata[5], "negative zero is the category zero");
+        assert_eq!(strata[1], strata[3]);
+        assert_ne!(strata[1], strata[2]);
+        assert!(strata[0] < strata[1] && strata[1] < strata[2]);
+    }
 }

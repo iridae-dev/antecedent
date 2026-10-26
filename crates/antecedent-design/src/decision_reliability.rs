@@ -103,10 +103,6 @@ pub use selection::{
 };
 pub use stream::{DECISION_RELIABILITY_STREAM_DOMAIN, DrawSegment, StreamId, StreamPurpose};
 
-/// Most candidates one carrier may hold.
-pub const MAX_CANDIDATES: usize = 65_536;
-/// Most candidate-by-draw cells one carrier may hold (bounds memory and work).
-pub const MAX_CELLS: usize = 1 << 26;
 /// Fewest draws any estimate needs; below this no standard error is defined.
 pub const MIN_DRAWS: usize = 4;
 

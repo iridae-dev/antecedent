@@ -13,7 +13,7 @@
 
 use std::time::{Duration, Instant};
 
-use antecedent_attribution::{CoalitionPayoff, estimate_shapley};
+use antecedent_attribution::{Coalition, CoalitionPayoff, estimate_shapley};
 use antecedent_core::{CachePolicy, ComponentId, ExecutionContext, Parallelism, ShapleyConfig};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
@@ -22,10 +22,13 @@ struct AdditivePayoff {
 }
 
 impl CoalitionPayoff for AdditivePayoff {
-    fn value(&mut self, mask: u64) -> Result<f64, antecedent_attribution::AttributionError> {
+    fn value(
+        &mut self,
+        coalition: &Coalition,
+    ) -> Result<f64, antecedent_attribution::AttributionError> {
         let mut s = 0.0;
         for (i, &w) in self.weights.iter().enumerate() {
-            if mask & (1u64 << i) != 0 {
+            if coalition.contains(i) {
                 s += w;
             }
         }

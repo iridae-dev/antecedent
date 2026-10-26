@@ -61,17 +61,6 @@ impl ZTransportRepairFamily {
         self.limits
     }
 
-    /// Proposed regimes delivered by these study declarations.
-    ///
-    /// # Errors
-    /// Invalid study declarations.
-    pub fn hypothetical_regimes(
-        &self,
-        studies: &[&DurableStudyCandidate],
-    ) -> Result<Vec<EvidenceRegime>, Vec<String>> {
-        crate::repair::hypothetical_regimes(self.snapshot.catalog(), studies)
-    }
-
     /// Recheck a stored hypothetical delta against this frozen proof.
     ///
     /// # Errors
@@ -163,6 +152,13 @@ impl RepairFamily for ZTransportRepairFamily {
     }
     fn unresolved_obligations(&self) -> Vec<EvidenceObligation> {
         self.obligations.clone()
+    }
+
+    fn hypothetical_regimes(
+        &self,
+        studies: &[&DurableStudyCandidate],
+    ) -> Result<Vec<EvidenceRegime>, Vec<String>> {
+        crate::repair::hypothetical_regimes(self.snapshot.catalog(), studies)
     }
 
     fn check(

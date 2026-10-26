@@ -110,13 +110,15 @@ pub use dbn_posterior::{
     temporal_pag_from_dbn_masks,
 };
 pub use discriminating_paths::DiscriminatingPathBudget;
+pub use uncovered_paths::PdPathBudget;
 pub use engine::{DiscoveryWorkspace, PcmciEngine};
 pub use error::DiscoveryError;
 pub use evidence::threshold_scored_links;
 pub use exact_enumeration::ExactDagPosterior;
 pub use exact_marginals::{EXACT_MARGINAL_MAX_NODES, ExactDagMarginals, exact_dag_marginals};
 pub use exact_pag_posterior::{
-    PAG_ENUM_MAX_NODES, PAG_MCMC_MAX_NODES, PagMcmcSchedule, exact_pag_posterior,
+    PAG_ENUM_MAX_NODES, PAG_MCMC_MAX_NODES, PAG_MCMC_WORK_BUDGET, PagMcmcSchedule,
+    exact_pag_posterior,
     pag_posterior_mcmc,
 };
 pub use fci::{Fci, StaticPagDiscoveryResult};

@@ -84,6 +84,7 @@ pub use robust::{
     RobustChangeOptions, distribution_change_robust, distribution_change_robust_with_refit,
 };
 pub use root_cause::root_cause_rank;
+pub use coalition::Coalition;
 pub use shapley::{CoalitionPayoff, ShapleyEstimate, estimate_shapley};
 pub use structure_change::{StructureChangeOptions, structure_change, structure_change_with_refit};
 pub use unit_change::unit_change;

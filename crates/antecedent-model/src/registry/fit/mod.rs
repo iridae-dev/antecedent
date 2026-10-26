@@ -357,4 +357,4 @@ pub(super) fn fit_ar1(series: &[f64]) -> (f64, f64) {
 }
 
 #[cfg(feature = "gaussian-process")]
-pub use gp::GP_FAMILY_MAX_ROWS;
+pub use gp::{GP_EXACT_MAX_ROWS, GP_INDUCING_POINTS};

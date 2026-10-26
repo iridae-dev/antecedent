@@ -64,7 +64,9 @@ use antecedent_core::{CanonicalWriter, ExecutionContext};
 
 use super::finite_executor::{ExogenousInference, FiniteExecutionRequest, FiniteExecutionResult};
 use super::finite_scm::{
-    MAX_ABDUCTION_WORK, WorldPlan, abduct_unit, evaluate_worlds, validate_units, validate_worlds,
+    CompensatedSum, MAX_ABDUCTION_WORK, MAX_EVALUATION_WORK, WorldPlan, abduct_unit,
+    evaluate_worlds,
+    validate_units, validate_worlds,
 };
 use super::refusal::{CrossWorldExecutionError, from_external, invalid, poll, refuse};
 use super::stages::WorkCounters;
@@ -289,6 +291,14 @@ pub fn derive_whole_path_uncertainty(
     if units.len().saturating_mul(compiled.joint_states) > MAX_ABDUCTION_WORK {
         return Err(invalid("cross_world_uncertainty.bounds_exceeded", "abduction_work"));
     }
+    if compiled
+        .joint_states
+        .saturating_mul(request.scm.variables.len())
+        .saturating_mul(request.worlds.len())
+        > MAX_EVALUATION_WORK
+    {
+        return Err(invalid("cross_world_uncertainty.bounds_exceeded", "evaluation_work"));
+    }
     if result.units.len() != units.len() {
         return Err(mismatch("unit_count"));
     }
@@ -370,7 +380,7 @@ pub fn derive_whole_path_uncertainty(
     let mut values = vec![vec![0u8; n_vars]; request.worlds.len()];
     let mut work = WorkCounters::default();
     let mut unit_spreads = Vec::with_capacity(units.len());
-    let mut total = 0.0;
+    let mut total = CompensatedSum::default();
     let mut weight_defect = 0.0_f64;
     for (unit, executed) in units.iter().zip(&result.units) {
         poll(ctx)?;
@@ -381,15 +391,17 @@ pub fn derive_whole_path_uncertainty(
         work.abductions += 1;
         work.abduction_states_enumerated += compiled.joint_states as u64;
         let mut at_state = Vec::with_capacity(posterior.states.len());
-        let mut value = 0.0;
-        let mut weight_sum = 0.0;
+        let mut expectation = CompensatedSum::default();
+        let mut weight_sum = CompensatedSum::default();
         for (state, weight) in &posterior.states {
             evaluate_worlds(&compiled, &plans, *state as usize, &mut values);
             let g = request.quantity.at_state(&values);
             at_state.push((*weight, g));
-            value += weight * g;
-            weight_sum += weight;
+            expectation.add(weight * g);
+            weight_sum.add(*weight);
         }
+        let value = expectation.total();
+        let weight_sum = weight_sum.total();
         work.world_predictions += request.worlds.len() as u64;
         work.posterior_states_predicted += (posterior.states.len() * request.worlds.len()) as u64;
         if value.to_bits() != executed.value.to_bits() {
@@ -399,11 +411,11 @@ pub fn derive_whole_path_uncertainty(
         let predictive_variance: f64 =
             at_state.iter().map(|(w, g)| w * (g - value) * (g - value)).sum();
         weight_defect = weight_defect.max((weight_sum - 1.0).abs());
-        total += value;
+        total.add(value);
         unit_spreads.push(UnitSpread { unit: unit.unit.clone(), value, predictive_variance });
     }
     let n = unit_spreads.len() as f64;
-    let mean = total / n;
+    let mean = total.total() / n;
     if mean.to_bits() != result.value.to_bits() {
         return Err(mismatch("mean"));
     }

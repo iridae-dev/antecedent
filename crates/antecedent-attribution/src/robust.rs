@@ -28,7 +28,7 @@ use antecedent_model::{
 };
 
 use crate::change_common::{ROBUST_STREAM, attribution_stream};
-use crate::coalition::full_coalition_mask;
+use crate::coalition::{Coalition, full_coalition_mask};
 use crate::distribution_change::mechanism_players;
 use crate::error::AttributionError;
 use crate::prep::{
@@ -173,9 +173,9 @@ fn robust_impl(
             n_rows: 0,
         };
         payoff.fit(&baseline_mechs, &comparison_mechs)?;
-        let v0 = payoff.value(0)?;
+        let v0 = payoff.value(&Coalition::empty())?;
         let full = full_coalition_mask(players.len())?;
-        let v_full = payoff.value(full)?;
+        let v_full = payoff.value(&full)?;
         let estimate = estimate_shapley(&players, approximation, &mut payoff, ctx)?;
         (v0, v_full, estimate)
     } else {
@@ -189,9 +189,9 @@ fn robust_impl(
             McSampling { n_samples: options.n_samples, seed: options.seed },
             ctx,
         );
-        let v0 = payoff.value(0)?;
+        let v0 = payoff.value(&Coalition::empty())?;
         let full = full_coalition_mask(players.len())?;
-        let v_full = payoff.value(full)?;
+        let v_full = payoff.value(&full)?;
         let estimate = estimate_shapley(&players, approximation, &mut payoff, ctx)?;
         (v0, v_full, estimate)
     };
@@ -227,6 +227,7 @@ fn model_slot_is_linear(
 }
 
 /// Where a regression input column comes from at payoff-evaluation time.
+#[derive(Clone, Copy)]
 enum ParentSource {
     /// Predicted column of an earlier player (index into the player list).
     Player(usize),
@@ -234,6 +235,7 @@ enum ParentSource {
     Column(usize),
 }
 
+#[derive(Clone)]
 struct NodeRegression {
     baseline_beta: Vec<f64>,
     comparison_beta: Vec<f64>,
@@ -357,7 +359,21 @@ fn linear_beta(slot: &MechanismSlot, n_parents: usize) -> Result<Vec<f64>, Attri
 }
 
 impl CoalitionPayoff for RobustLinearPayoff<'_> {
-    fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+    fn fork<'a>(&'a self) -> Option<Box<dyn CoalitionPayoff + Send + 'a>> {
+        // The fitted regressions are read-only: the value is a pure function of the coalition.
+        Some(Box::new(RobustLinearPayoff {
+            model: self.model,
+            baseline: self.baseline,
+            players: self.players.clone(),
+            outcome: self.outcome,
+            fitted: self.fitted.clone(),
+            column_means: self.column_means.clone(),
+            outcome_idx: self.outcome_idx,
+            n_rows: self.n_rows,
+        }))
+    }
+
+    fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
         let Some(outcome_idx) = self.outcome_idx else {
             return Err(AttributionError::unsupported(
                 "robust payoff: outcome is not among Shapley players",
@@ -371,8 +387,7 @@ impl CoalitionPayoff for RobustLinearPayoff<'_> {
         let mut means = vec![0.0; self.players.len()];
         for i in 0..self.players.len() {
             let fit = &self.fitted[i];
-            let beta =
-                if mask & (1u64 << i) != 0 { &fit.comparison_beta } else { &fit.baseline_beta };
+            let beta = if coalition.contains(i) { &fit.comparison_beta } else { &fit.baseline_beta };
             let mut yhat = beta[0];
             for (pi, src) in fit.sources.iter().enumerate() {
                 let x = match *src {
@@ -515,7 +530,7 @@ impl CoalitionPayoff for RobustMechanismPayoff<'_> {
         }))
     }
 
-    fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+    fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
         let n = self.n_samples;
         // Ancestral Monte Carlo walk (`parent_gathers` is aligned with `node_order`,
         // so this iteration is the `node_order` + `gather_for` walk without the O(n)
@@ -534,7 +549,7 @@ impl CoalitionPayoff for RobustMechanismPayoff<'_> {
                 values: &self.parent_scratch[..n_parents.saturating_mul(n)],
             };
             let use_comparison =
-                matches!(self.node_player[node.as_usize()], Some(i) if mask & (1u64 << i) != 0);
+                matches!(self.node_player[node.as_usize()], Some(i) if coalition.contains(i));
             let slot =
                 if use_comparison { self.comparison.get(node) } else { self.baseline.get(node) };
             // A node-local stream prevents an upstream mechanism's draw count from
@@ -813,8 +828,8 @@ mod tests {
             &ctx,
         );
 
-        let unchanged_x = payoff.value(0).unwrap();
-        let changed_x_only = payoff.value(1).unwrap();
+        let unchanged_x = payoff.value(&Coalition::empty()).unwrap();
+        let changed_x_only = payoff.value(&Coalition::from_bits(1)).unwrap();
         assert_eq!(unchanged_x.to_bits(), changed_x_only.to_bits());
     }
 
@@ -880,10 +895,10 @@ mod tests {
             &ctx,
         );
 
-        let v_baseline = payoff.value(0).unwrap();
+        let v_baseline = payoff.value(&Coalition::empty()).unwrap();
         // Swap only X (player index 0) to its comparison (higher-variance) marginal;
         // Y stays at its baseline (identical, here) mechanism.
-        let v_x_swapped = payoff.value(1).unwrap();
+        let v_x_swapped = payoff.value(&Coalition::from_bits(1)).unwrap();
         let observed = v_x_swapped - v_baseline;
         let true_delta = 3.0; // Var(X): 4 - 1, means both 0.
 

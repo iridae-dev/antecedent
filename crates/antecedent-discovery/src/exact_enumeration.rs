@@ -1,8 +1,9 @@
 //! Exact DAG posterior enumeration for very small graphs.
 //!
-//! Hard product limit: labeled DAGs on **`n ≤ `[`EXACT_ENUM_MAX_NODES`]** nodes
-//! (Gaussian BIC). Larger graphs must use order / structure / CI-screened MCMC
-//! (`OrderMcmc`, `StructureMcmc`, `CiScreenedPosterior`).
+//! Enumeration lists every labeled DAG, so it reaches **`n ≤ `[`EXACT_ENUM_MAX_NODES`]**
+//! nodes (Gaussian BIC). Larger problems are routed to order MCMC, and the exact edge
+//! marginals of up to [`crate::EXACT_MARGINAL_MAX_NODES`] variables come from the subset
+//! recursion of [`crate::exact_dag_marginals`], which does not list graphs.
 //!
 //! "Exact" means every DAG is enumerated, not that the weights are exact posterior
 //! probabilities: each graph's weight is `exp(BIC + log prior)`, the BIC approximation to the
@@ -29,19 +30,36 @@ use crate::graph_score::{DagScorer, tabular_score_data};
 
 /// Exact enumeration engine for labeled DAGs on `n ≤ `[`EXACT_ENUM_MAX_NODES`] nodes.
 ///
-/// This is a hard combinatorial cap (not a soft heuristic). Prefer MCMC engines
-/// when `variables.len() > EXACT_ENUM_MAX_NODES`.
-#[derive(Clone, Debug, Default)]
+/// Enumeration cannot list the graphs of a larger problem (seven nodes have 1.1 billion), so
+/// above the cap the run is routed to [`crate::OrderMcmc`] when [`Self::route_larger`] is set
+/// (the default), and the posterior says so in its diagnostics notes and algorithm tag.
+/// Without routing the run is refused.
+#[derive(Clone, Debug)]
 pub struct ExactDagPosterior {
-    /// Optional hard node cap (defaults to [`EXACT_ENUM_MAX_NODES`]).
+    /// Node cap for enumeration (defaults to [`EXACT_ENUM_MAX_NODES`]).
     pub max_nodes: usize,
+    /// Sample larger problems with order MCMC instead of refusing them.
+    pub route_larger: bool,
+}
+
+impl Default for ExactDagPosterior {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ExactDagPosterior {
     /// Default exact engine.
     #[must_use]
     pub fn new() -> Self {
-        Self { max_nodes: EXACT_ENUM_MAX_NODES }
+        Self { max_nodes: EXACT_ENUM_MAX_NODES, route_larger: true }
+    }
+
+    /// Refuse, rather than sample, a problem above the enumeration cap.
+    #[must_use]
+    pub fn with_route_larger(mut self, route_larger: bool) -> Self {
+        self.route_larger = route_larger;
+        self
     }
 
     /// Override max nodes (still capped at [`EXACT_ENUM_MAX_NODES`]).
@@ -66,7 +84,7 @@ impl ExactDagPosterior {
         variables: &[VariableId],
         prior: &GraphPrior,
         score_family: GraphScoreFamily,
-        _workspace: &mut DiscoveryWorkspace,
+        workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
         prior.constraints.validate()?;
@@ -76,11 +94,17 @@ impl ExactDagPosterior {
                 "exact DAG posterior requires at least one variable",
             ));
         }
-        if n > self.max_nodes.min(EXACT_ENUM_MAX_NODES) {
-            return Err(DiscoveryError::unsupported(
-                "exact DAG posterior requires n ≤ 6 variables (EXACT_ENUM_MAX_NODES); \
-                 use order_mcmc, structure_mcmc, or ci_screened_posterior",
-            ));
+        let cap = self.max_nodes.min(EXACT_ENUM_MAX_NODES);
+        if n > cap {
+            if !self.route_larger {
+                return Err(DiscoveryError::unsupported(
+                    "exact DAG posterior requires n ≤ 6 variables (EXACT_ENUM_MAX_NODES); \
+                     use order_mcmc, structure_mcmc, or ci_screened_posterior",
+                ));
+            }
+            return Self::sample_instead(
+                data, variables, prior, score_family, workspace, ctx, cap,
+            );
         }
 
         let score_data = tabular_score_data(data, variables)?;
@@ -153,6 +177,30 @@ impl ExactDagPosterior {
             orient,
             SamplingSummary { ess, diagnostics, rejected_invalid: rejected },
         )
+        .map(|posterior| posterior.with_algorithm("exact_dag_posterior"))
+    }
+}
+
+impl ExactDagPosterior {
+    /// A problem above the enumeration cap, sampled by order MCMC and labelled as such.
+    fn sample_instead(
+        data: &TabularData,
+        variables: &[VariableId],
+        prior: &GraphPrior,
+        score_family: GraphScoreFamily,
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+        cap: usize,
+    ) -> Result<GraphPosterior, DiscoveryError> {
+        let mut posterior = crate::OrderMcmc::new()
+            .run(data, variables, prior, score_family, workspace, ctx)?
+            .with_algorithm("order_mcmc");
+        posterior.diagnostics.notes.push(std::sync::Arc::from(format!(
+            "{} variables exceed the enumeration limit of {cap}: the posterior was sampled by \
+             order MCMC, not enumerated; its marginals carry Monte-Carlo error",
+            variables.len()
+        )));
+        Ok(posterior)
     }
 }
 
@@ -329,6 +377,7 @@ mod tests {
         let post =
             eng.run(&data, &vars, &prior, GraphScoreFamily::GaussianBic, &mut ws, &ctx).unwrap();
         assert!(post.diagnostics.converged);
+        assert_eq!(post.algorithm.as_deref(), Some("exact_dag_posterior"));
         let n = 3;
         // Chain A→B→C is Markov-equivalent to A←B←C and A←B→C; assert skeleton
         // mass, not a single orientation.
@@ -411,7 +460,7 @@ mod tests {
         );
         assert!(matches!(result, Err(DiscoveryError::Resource(_))));
         // Public field mutation must not bypass the documented hard cap.
-        let engine = ExactDagPosterior { max_nodes: 100 };
+        let engine = ExactDagPosterior { max_nodes: 100, route_larger: false };
         let variables: Vec<_> = (0..7).map(VariableId::from_raw).collect();
         let error = engine
             .run(

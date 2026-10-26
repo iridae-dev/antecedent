@@ -15,14 +15,16 @@ use super::overlap::FitDeclaration;
 use super::refusal::{PredictiveAssessmentError, detail, invalid, refuse, unsupported};
 use antecedent_core::reason_code;
 
-/// Most cases an assessment accepts.
-pub const MAX_CASES: usize = 1_000_000;
-/// Most predictors an assessment compares.
-pub const MAX_PREDICTORS: usize = 32;
-/// Most atoms, draws or categories one case's law may carry.
-pub const MAX_LAW_ATOMS: usize = 65_536;
-/// Largest dimension of a joint law.
-pub const MAX_JOINT_DIMENSION: usize = 64;
+/// Sanity bound on cases; the working limit is [`super::MAX_ASSESSMENT_WORK`].
+pub const MAX_CASES: usize = 1 << 24;
+/// Sanity bound on predictors; the working limit is [`super::MAX_ASSESSMENT_WORK`].
+pub const MAX_PREDICTORS: usize = 1024;
+/// Sanity bound on atoms, draws or categories of one case's law; the working limit is
+/// [`super::MAX_ASSESSMENT_WORK`].
+pub const MAX_LAW_ATOMS: usize = 1 << 20;
+/// Sanity bound on the dimension of a joint law; the working limit is
+/// [`super::MAX_ASSESSMENT_WORK`].
+pub const MAX_JOINT_DIMENSION: usize = 1024;
 /// Tolerance on a probability vector summing to one.
 pub const PROBABILITY_SUM_TOLERANCE: f64 = 1e-9;
 

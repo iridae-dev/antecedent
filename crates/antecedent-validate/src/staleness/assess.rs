@@ -569,16 +569,17 @@ fn patterns(
         ev.skip("missingness_patterns", "the plan's columns differ between the snapshots");
         return;
     }
-    let keys: BTreeSet<u64> =
-        old.patterns.iter().chain(&current.patterns).map(|(p, _)| *p).collect();
-    if keys.iter().all(|p| *p == 0) {
+    let (old_counts, new_counts) = (old.word_patterns(), current.word_patterns());
+    let keys: BTreeSet<&Vec<u64>> =
+        old_counts.iter().chain(&new_counts).map(|(p, _)| p).collect();
+    if keys.iter().all(|p| p.is_empty()) {
         return;
     }
-    let count = |patterns: &[(u64, u64)], key: u64| {
-        patterns.iter().find(|(p, _)| *p == key).map_or(0, |(_, c)| *c)
+    let count = |patterns: &[(Vec<u64>, u64)], key: &Vec<u64>| {
+        patterns.iter().find(|(p, _)| p == key).map_or(0, |(_, c)| *c)
     };
-    let o: Vec<u64> = keys.iter().map(|k| count(&old.patterns, *k)).collect();
-    let c: Vec<u64> = keys.iter().map(|k| count(&current.patterns, *k)).collect();
+    let o: Vec<u64> = keys.iter().map(|k| count(&old_counts, k)).collect();
+    let c: Vec<u64> = keys.iter().map(|k| count(&new_counts, k)).collect();
     let Some((statistic, df, p)) = chi_square_homogeneity(&o, &c) else {
         return;
     };

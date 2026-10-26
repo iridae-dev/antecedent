@@ -2,6 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::ops::ControlFlow;
+
 use antecedent_graph::{DenseNodeId, Endpoint};
 
 use crate::orientation::PagOps;
@@ -73,69 +75,67 @@ fn matches_pattern(at_from: Endpoint, at_to: Endpoint, pat: EndpointPattern) -> 
     true
 }
 
-/// Find uncovered potentially directed paths from `start` to `end` (length ≥ 3 nodes).
+/// Effort bound on one uncovered-path search.
+///
+/// Deciding whether an uncovered potentially directed path exists is a search for a simple path
+/// that avoids forbidden transitions (a triple whose end nodes are adjacent), which has no known
+/// polynomial algorithm; the search is therefore exhaustive and bounded only by the number of
+/// nodes it extends a path with. A search that runs out is reported, never silently complete.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PdPathBudget {
+    /// Path extensions one search may make before it gives up.
+    pub max_expansions: usize,
+}
+
+impl Default for PdPathBudget {
+    fn default() -> Self {
+        Self { max_expansions: 1 << 22 }
+    }
+}
+
+/// Visit the uncovered potentially directed paths from `start` to `end` (length ≥ 3 nodes), in
+/// depth-first order, until `visit` breaks.
 ///
 /// Uncovered: no edge between non-consecutive nodes on the path (checked locally:
-/// `path[i]` not adjacent to `path[i+2]`).
+/// `path[i]` not adjacent to `path[i+2]`). Paths are simple and have any length.
 ///
-/// Returns `(paths, truncated)` where `truncated` is true if the search stopped because
-/// `max_paths` was reached, `max_len` pruned a path that had not reached `end`, or
-/// the budget was zero (`max_paths == 0`).
-#[must_use]
-pub(crate) fn uncovered_pd_paths_with_budget<G: PagOps>(
+/// Returns `true` when the search was cut short by `budget` before it finished and before
+/// `visit` broke, so the paths visited are valid but possibly not all of them.
+#[allow(clippy::items_after_statements, reason = "helpers defined next to their single use")]
+pub(crate) fn for_each_uncovered_pd_path<G: PagOps>(
     graph: &G,
     start: DenseNodeId,
     end: DenseNodeId,
     initial: &[EndpointPattern],
-    max_paths: usize,
-    max_len: usize,
-) -> (Vec<Vec<DenseNodeId>>, bool) {
-    if max_paths == 0 {
-        return (Vec::new(), true);
-    }
-    if start == end || max_len < 3 {
-        return (Vec::new(), max_len < 3 && start != end);
+    budget: PdPathBudget,
+    mut visit: impl FnMut(&[DenseNodeId]) -> ControlFlow<()>,
+) -> bool {
+    if start == end {
+        return false;
     }
 
-    /// Depth-first search state: the target, the budgets and the paths found so far.
-    #[allow(clippy::items_after_statements, reason = "helper defined next to its single use")]
-    struct Search {
+    /// Depth-first search state: the target, what is left of the budget and the visitor.
+    struct Search<'a> {
         end: DenseNodeId,
-        max_paths: usize,
-        max_len: usize,
-        out: Vec<Vec<DenseNodeId>>,
-        truncated: bool,
+        remaining: usize,
+        exhausted: bool,
+        visit: &'a mut dyn FnMut(&[DenseNodeId]) -> ControlFlow<()>,
     }
 
-    #[allow(clippy::items_after_statements, reason = "helper defined next to its single use")]
-    fn search<G: PagOps>(
+    /// Extend `path` (ending at `cur`) by every allowed next node. `false` stops the search:
+    /// the visitor broke or the budget ran out.
+    fn extend<G: PagOps>(
         graph: &G,
-        state: &mut Search,
+        state: &mut Search<'_>,
         path: &mut Vec<DenseNodeId>,
         allowed: &[EndpointPattern],
-    ) {
+    ) -> bool {
         let cur = *path.last().expect("non-empty");
         if cur == state.end {
-            if path.len() >= 3 {
-                state.out.push(path.clone());
-            }
-            return;
-        }
-        if path.len() >= state.max_len {
-            for (next, _, _) in graph.neighbors(cur) {
-                if !path.contains(&next) {
-                    state.truncated = true;
-                    break;
-                }
-            }
-            return;
+            return !(path.len() >= 3 && (state.visit)(&path[..]).is_break());
         }
         let nbrs: Vec<_> = graph.neighbors(cur).into_iter().map(|(n, _, _)| n).collect();
         for next in nbrs {
-            if state.out.len() >= state.max_paths {
-                state.truncated = true;
-                return;
-            }
             if path.contains(&next) {
                 continue;
             }
@@ -151,20 +151,25 @@ pub(crate) fn uncovered_pd_paths_with_budget<G: PagOps>(
             if !allowed.iter().any(|p| matches_pattern(at_from, at_to, *p)) {
                 continue;
             }
+            if state.remaining == 0 {
+                state.exhausted = true;
+                return false;
+            }
+            state.remaining -= 1;
             path.push(next);
-            search(graph, state, path, next_allowed_after(at_from, at_to));
+            let go_on = extend(graph, state, path, next_allowed_after(at_from, at_to));
             path.pop();
+            if !go_on {
+                return false;
+            }
         }
+        true
     }
 
-    let mut state = Search { end, max_paths, max_len, out: Vec::new(), truncated: false };
+    let mut state = Search { end, remaining: budget.max_expansions, exhausted: false, visit: &mut visit };
     let mut path = vec![start];
     let nbrs: Vec<_> = graph.neighbors(start).into_iter().map(|(n, _, _)| n).collect();
     for next in nbrs {
-        if state.out.len() >= max_paths {
-            state.truncated = true;
-            break;
-        }
         if next == end {
             continue; // need length ≥ 3
         }
@@ -174,11 +179,18 @@ pub(crate) fn uncovered_pd_paths_with_budget<G: PagOps>(
         if !initial.iter().any(|p| matches_pattern(at_from, at_to, *p)) {
             continue;
         }
+        if state.remaining == 0 {
+            return true;
+        }
+        state.remaining -= 1;
         path.push(next);
-        search(graph, &mut state, &mut path, next_allowed_after(at_from, at_to));
+        let go_on = extend(graph, &mut state, &mut path, next_allowed_after(at_from, at_to));
         path.pop();
+        if !go_on {
+            break;
+        }
     }
-    (state.out, state.truncated)
+    state.exhausted
 }
 
 #[cfg(test)]
@@ -195,33 +207,56 @@ mod tests {
         g
     }
 
-    #[test]
-    fn max_len_that_prunes_an_unfinished_path_is_truncated() {
-        let g = directed_chain4();
-        let a = DenseNodeId::from_raw(0);
-        let d = DenseNodeId::from_raw(3);
-        let b = DenseNodeId::from_raw(1);
-        let c = DenseNodeId::from_raw(2);
-        let initial = [EndpointPattern::directed()];
-        let (paths, truncated) = uncovered_pd_paths_with_budget(&g, a, d, &initial, 8, 3);
-        assert!(paths.is_empty());
-        assert!(truncated, "max_len=3 must not claim a complete search of a 4-node path");
-        let (paths, truncated) = uncovered_pd_paths_with_budget(&g, a, d, &initial, 8, 4);
-        assert_eq!(paths, vec![vec![a, b, c, d]]);
-        assert!(!truncated);
+    fn collect(
+        g: &Pag,
+        start: u32,
+        end: u32,
+        budget: PdPathBudget,
+    ) -> (Vec<Vec<DenseNodeId>>, bool) {
+        let mut paths = Vec::new();
+        let exhausted = for_each_uncovered_pd_path(
+            g,
+            DenseNodeId::from_raw(start),
+            DenseNodeId::from_raw(end),
+            &[EndpointPattern::directed()],
+            budget,
+            |path| {
+                paths.push(path.to_vec());
+                ControlFlow::Continue(())
+            },
+        );
+        (paths, exhausted)
     }
 
     #[test]
-    fn zero_path_budget_is_truncated() {
+    fn a_path_of_any_length_is_found_under_the_default_budget() {
+        let (paths, exhausted) = collect(&directed_chain4(), 0, 3, PdPathBudget::default());
+        let n = DenseNodeId::from_raw;
+        assert_eq!(paths, vec![vec![n(0), n(1), n(2), n(3)]]);
+        assert!(!exhausted);
+    }
+
+    #[test]
+    fn a_budget_that_stops_the_search_is_reported() {
+        let (paths, exhausted) =
+            collect(&directed_chain4(), 0, 3, PdPathBudget { max_expansions: 2 });
+        assert!(paths.is_empty());
+        assert!(exhausted, "two extensions cannot reach a four-node path");
+        let (_, exhausted) = collect(&directed_chain4(), 0, 3, PdPathBudget { max_expansions: 0 });
+        assert!(exhausted);
+    }
+
+    #[test]
+    fn a_visitor_that_breaks_ends_the_search_without_exhaustion() {
         let g = directed_chain4();
-        let (_, truncated) = uncovered_pd_paths_with_budget(
+        let exhausted = for_each_uncovered_pd_path(
             &g,
             DenseNodeId::from_raw(0),
             DenseNodeId::from_raw(3),
             &[EndpointPattern::directed()],
-            0,
-            8,
+            PdPathBudget::default(),
+            |_| ControlFlow::Break(()),
         );
-        assert!(truncated);
+        assert!(!exhausted);
     }
 }

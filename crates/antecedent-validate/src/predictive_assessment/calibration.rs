@@ -30,10 +30,10 @@ use super::refusal::{PredictiveAssessmentError, detail, invalid, unsupported};
 pub const DIAGNOSTIC_LABEL: &str = "diagnostic";
 /// The calibration status of every diagnostic of this route: not measured.
 pub const DIAGNOSTIC_CALIBRATION: &str = "unmeasured";
-/// Most PIT or reliability bins.
-pub const MAX_BINS: usize = 1000;
-/// Most interval levels.
-pub const MAX_INTERVAL_LEVELS: usize = 16;
+/// Most PIT or reliability bins: a resolution bound, since each is a count over the cases.
+pub const MAX_BINS: usize = 100_000;
+/// Most interval levels: each is one quantile pass over the cases.
+pub const MAX_INTERVAL_LEVELS: usize = 256;
 /// Pseudo-count added to every bin proportion of the population stability index.
 pub const PSI_PSEUDOCOUNT: f64 = 0.5;
 

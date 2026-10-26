@@ -114,6 +114,23 @@ pub struct ScoredLink {
     pub adjusted_p_value: Option<f64>,
 }
 
+impl ScoredLink {
+    /// A link that no CI test was run on (a constraint-required edge, or an edge whose strength
+    /// comes from a score rather than a test). Its statistic and p-value are `NaN` and mean
+    /// "not tested", never a fabricated significance; use [`Self::is_tested`] rather than
+    /// comparing against them.
+    #[must_use]
+    pub const fn untested(link: LaggedLink) -> Self {
+        Self { link, statistic: f64::NAN, p_value: f64::NAN, adjusted_p_value: None }
+    }
+
+    /// Whether a CI test produced this link's statistic and p-value.
+    #[must_use]
+    pub fn is_tested(&self) -> bool {
+        self.statistic.is_finite() && self.p_value.is_finite()
+    }
+}
+
 /// Algorithm metadata.
 #[derive(Clone, Debug)]
 pub struct AlgorithmRecord {

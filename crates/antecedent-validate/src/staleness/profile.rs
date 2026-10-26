@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 use antecedent_core::{SemanticOperation, ValueType, VariableId};
 use antecedent_data::{CategoricalColumn, ColumnView, TableView, TabularData};
 use antecedent_io_core::staleness_artifact::{
-    JointProfileWire, LevelCountWire, MissingPatternWire, NumericProfileWire, OutcomeModelWire,
+    JointProfileWire, LevelCountWire, MissingPatternWire, NARROW_PATTERN_COLUMNS, NumericProfileWire, OutcomeModelWire,
     OverlapSummaryWire, RecordedCheckWire, StalenessBaselineWire, StalenessColumnWire,
 };
 use antecedent_kernels::{Welford, update_scatter};
@@ -45,8 +45,6 @@ pub(crate) const AT_LEAST: &str = "at_least";
 
 /// Ridge of the diagnostic propensity fit.
 const PROPENSITY_RIDGE: f64 = 1e-4;
-/// Largest number of plan columns whose missingness patterns are counted as bit masks.
-const MAX_PATTERN_COLUMNS: usize = 63;
 
 /// One column, read for profiling.
 pub(crate) enum ColumnRead<'a> {
@@ -430,22 +428,46 @@ fn joint_profile(
 fn missing_patterns(table: &ReadTable<'_>, names: &[String]) -> Option<MissingPatternWire> {
     let reads: Vec<(&String, &ColumnRead<'_>)> =
         names.iter().filter_map(|n| table.get(n).map(|r| (n, r))).collect();
-    if reads.is_empty() || reads.len() > MAX_PATTERN_COLUMNS {
+    if reads.is_empty() {
         return None;
     }
-    let mut counts: BTreeMap<u64, u64> = BTreeMap::new();
+    let columns = reads.iter().map(|(n, _)| (*n).clone()).collect();
+    if reads.len() <= NARROW_PATTERN_COLUMNS {
+        let mut counts: BTreeMap<u64, u64> = BTreeMap::new();
+        for i in 0..table.rows {
+            let mut pattern = 0u64;
+            for (bit, (_, read)) in reads.iter().enumerate() {
+                if !read.observed(i) {
+                    pattern |= 1 << bit;
+                }
+            }
+            *counts.entry(pattern).or_insert(0) += 1;
+        }
+        return Some(MissingPatternWire {
+            columns,
+            patterns: counts.into_iter().collect(),
+            wide_patterns: Vec::new(),
+        });
+    }
+    // More columns than one word holds: the pattern is a vector of words, trailing zero words
+    // omitted so equal patterns are equal keys.
+    let mut counts: BTreeMap<Vec<u64>, u64> = BTreeMap::new();
     for i in 0..table.rows {
-        let mut pattern = 0u64;
+        let mut words = vec![0u64; reads.len().div_ceil(64)];
         for (bit, (_, read)) in reads.iter().enumerate() {
             if !read.observed(i) {
-                pattern |= 1 << bit;
+                words[bit / 64] |= 1 << (bit % 64);
             }
         }
-        *counts.entry(pattern).or_insert(0) += 1;
+        while words.last() == Some(&0) {
+            words.pop();
+        }
+        *counts.entry(words).or_insert(0) += 1;
     }
     Some(MissingPatternWire {
-        columns: reads.iter().map(|(n, _)| (*n).clone()).collect(),
-        patterns: counts.into_iter().collect(),
+        columns,
+        patterns: Vec::new(),
+        wide_patterns: counts.into_iter().collect(),
     })
 }
 
@@ -647,11 +669,17 @@ fn correlation_condition(joint: &JointProfileWire) -> f64 {
     })
 }
 
-/// Largest number of distinct treatment values that are read as arms.
-const MAX_ARMS: usize = 16;
+/// Distinct treatment values above which the treatment is read as continuous rather than as arms.
+///
+/// This is the classifier between a discrete and a continuous treatment, not a limit on how many
+/// arms a discrete treatment may have: the counts are a map, so it only decides when to stop
+/// collecting values that are evidently a continuum.
+const CONTINUOUS_TREATMENT_DISTINCT_VALUES: usize = 16;
 
 /// Treatment arms (distinct values or levels) and their counts over the complete rows; empty
-/// for a continuous treatment (more than [`MAX_ARMS`] distinct values) or no treatment.
+/// for a continuous treatment (more than [`CONTINUOUS_TREATMENT_DISTINCT_VALUES`] distinct
+/// numeric values) or no treatment. A categorical treatment is always read as arms, however many
+/// levels it has.
 pub(crate) fn treatment_arms(
     table: &ReadTable<'_>,
     plan: &StalenessPlan,
@@ -661,6 +689,7 @@ pub(crate) fn treatment_arms(
         return Vec::new();
     };
     let mut counts: BTreeMap<String, u64> = BTreeMap::new();
+    let numeric = matches!(treatment, ColumnRead::Numeric(_));
     for i in (0..table.rows).filter(|&i| complete[i]) {
         let key = match treatment {
             ColumnRead::Numeric(_) => format!("{}", treatment.value(i)),
@@ -671,7 +700,7 @@ pub(crate) fn treatment_arms(
             ColumnRead::Other { .. } => return Vec::new(),
         };
         *counts.entry(key).or_insert(0) += 1;
-        if counts.len() > MAX_ARMS {
+        if numeric && counts.len() > CONTINUOUS_TREATMENT_DISTINCT_VALUES {
             return Vec::new();
         }
     }

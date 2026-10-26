@@ -15,7 +15,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::descriptor::{
     ComposedModelSpec, Containment, ContextCoordinate, CrossCovarianceBlock, Domain,
-    MAX_COMPOSED_LATENTS, MAX_COMPOSED_MECHANISMS, MAX_LEVELS_PER_VARIABLE,
+    MAX_COMPOSED_LATENTS, MAX_COMPOSED_MECHANISMS, MAX_FINITE_STATES, MAX_LEVELS_PER_VARIABLE,
     MAX_PARENTS_PER_MECHANISM, MechanismDescriptor, MechanismFamily, MechanismForm,
     MechanismOrigin, MechanismUncertainty, ParameterId, ParameterTerm, PosteriorDependence,
 };
@@ -464,6 +464,10 @@ fn check_table_shape(
             out.push(table_defect("a parent of a finite mechanism needs a level domain"));
             return;
         }
+    }
+    if expected_rows.saturating_mul(levels.len()) > MAX_FINITE_STATES {
+        out.push(table_defect("the conditional table exceeds the cell bound"));
+        return;
     }
     let parent_names: Vec<&str> = d.parents.iter().map(|p| p.variable.as_str()).collect();
     let mut seen: BTreeSet<Vec<(String, String)>> = BTreeSet::new();

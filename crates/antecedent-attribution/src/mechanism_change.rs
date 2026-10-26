@@ -550,11 +550,16 @@ impl MechanismChangePosterior {
     }
 }
 
+/// Arithmetic mean through the shared compensated kernel; `0` for an empty sample.
+fn sample_mean(xs: &[f64]) -> f64 {
+    if xs.is_empty() { 0.0 } else { antecedent_kernels::mean(xs) }
+}
+
 /// Bartlett long-run variance inflation `1 + 2 Σ_{k<block} (1 − k/block) ρ_k` of the residuals
 /// of two populations, each centred on its own mean, floored at 1.
 fn serial_inflation(rb: &[f64], rc: &[f64], block: usize) -> f64 {
     let centred = |xs: &[f64]| {
-        let mean = xs.iter().sum::<f64>() / xs.len().max(1) as f64;
+        let mean = sample_mean(xs);
         xs.iter().map(|x| x - mean).collect::<Vec<f64>>()
     };
     let (a, b) = (centred(rb), centred(rc));
@@ -613,7 +618,7 @@ pub fn mechanism_change_posterior(
             let weight = 1.0 / inflation;
             let part = |xs: &[f64]| {
                 let n = xs.len() as f64;
-                let mean = xs.iter().sum::<f64>() / n.max(1.0);
+                let mean = sample_mean(xs);
                 let ss = xs.iter().map(|x| (x - mean).powi(2)).sum::<f64>();
                 (weight * n, mean, weight * ss)
             };

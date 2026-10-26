@@ -101,7 +101,7 @@ fn frequentist_estimate() -> crate::decision_eval::MeanEstimate {
 }
 
 fn refused(code: &'static str, detail: &str, message: impl std::fmt::Display) -> IoError {
-    IoError::Refused { code, message: format!("{detail}: {message}") }
+    crate::plan_common::refused_with(code, detail, message)
 }
 
 fn from_transported(error: &TransportedRefusal) -> IoError {

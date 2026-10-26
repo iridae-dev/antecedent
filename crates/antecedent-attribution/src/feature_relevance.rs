@@ -8,7 +8,7 @@ use antecedent_core::{
 use antecedent_data::{TableView, TabularData};
 use antecedent_model::{CompiledCausalModel, MechanismWorkspace, sample_interventional};
 
-use crate::coalition::MAX_COALITION_PLAYERS;
+use crate::coalition::Coalition;
 use crate::error::AttributionError;
 use crate::result::FeatureRelevance;
 use crate::shapley::{CoalitionPayoff, estimate_shapley};
@@ -50,13 +50,6 @@ pub fn feature_relevance(
             max: max_features,
         });
     }
-    if features.len() > MAX_COALITION_PLAYERS {
-        return Err(AttributionError::SizeLimit {
-            kind: "features",
-            requested: features.len(),
-            max: MAX_COALITION_PLAYERS,
-        });
-    }
     let outcome_dense =
         model.dense_of(outcome).ok_or_else(|| AttributionError::missing_var("outcome", outcome))?;
 
@@ -81,12 +74,15 @@ pub fn feature_relevance(
     };
     let shapley = ShapleyConfig::exact();
     let est = estimate_shapley(&players, &shapley, &mut payoff, ctx)?;
+    if est.values.iter().any(|v| !v.is_finite()) {
+        return Err(AttributionError::invalid_input("feature relevance is not finite"));
+    }
     let mut out: Vec<FeatureRelevance> = features
         .iter()
         .zip(est.values.iter())
         .map(|(&feature, &phi)| FeatureRelevance { feature, outcome, score: phi.abs() })
         .collect();
-    out.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    out.sort_by(|a, b| b.score.total_cmp(&a.score));
     Ok(out)
 }
 
@@ -117,10 +113,10 @@ impl CoalitionPayoff for FeaturePayoff<'_> {
         }))
     }
 
-    fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+    fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
         let mut interventions = Vec::new();
         for (i, &feat) in self.features.iter().enumerate() {
-            if mask & (1u64 << i) != 0 {
+            if coalition.contains(i) {
                 interventions.push(Intervention::set(feat, Value::f64(self.means[i] + self.delta)));
             }
         }

@@ -31,6 +31,7 @@ use antecedent_stats::student_t_ppf;
 
 use crate::ValidationError;
 use crate::assumption_range::{AssumptionRange, RangePoint, SensitivityAssumption};
+use crate::common::{not_applicable, require_dimension};
 use crate::evalue_scales::{
     EValueBounds, EffectInterval, EffectScale, STRENGTH_GRID, bounding_factor, evalue_bounds,
     ratio_to_risk_ratio, smd_to_risk_ratio,
@@ -38,20 +39,6 @@ use crate::evalue_scales::{
 use crate::omitted_variable_bias::{LinearAdjustmentSummary, R2DZ_GRID};
 use crate::rosenbaum::{SignedRankSensitivity, signed_rank_sensitivity};
 use crate::target_native::RefutationTarget;
-
-fn not_applicable(message: &'static str) -> ValidationError {
-    ValidationError::NotApplicable { message }
-}
-
-fn require_dimension(target: &RefutationTarget, found: usize) -> Result<(), ValidationError> {
-    if found == target.dimension() {
-        Ok(())
-    } else {
-        Err(not_applicable(
-            "a sensitivity range of a vector target needs one input per coordinate of the target",
-        ))
-    }
-}
 
 /// A risk ratio oriented away from the null: `max(rr, 1 / rr)`.
 fn oriented(rr: f64) -> f64 {

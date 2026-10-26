@@ -89,7 +89,7 @@ impl DataSubsetRefuter {
             self.replicates,
             EstimationWorkspace::default,
             |problem, refit, workspace, ctx, r| {
-                let stream = crate::streams::DATA_SUBSET.wrapping_add(u64::from(r));
+                let stream = crate::streams::replicate_stream(crate::streams::DATA_SUBSET, r);
                 let data = if is_temporal_series {
                     with_contiguous_row_window(problem.data, self.subset_fraction, ctx, stream)?
                 } else {

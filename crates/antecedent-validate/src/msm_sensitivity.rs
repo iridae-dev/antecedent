@@ -76,14 +76,20 @@ use antecedent_core::reason_code;
 
 use crate::joint_mechanism_sensitivity::{TippingBracket, TippingStatus};
 
-/// Hard cap on strata.
-pub const MSM_MAX_STRATA: usize = 4096;
-/// Hard cap on atoms of one outcome law.
-pub const MSM_MAX_OUTCOME_ATOMS: usize = 256;
-/// Hard cap on grid points.
-pub const MSM_MAX_GRID_POINTS: usize = 1024;
-/// Largest admitted `Lambda`.
-pub const MSM_MAX_LAMBDA: f64 = 1.0e3;
+/// Sanity bound on strata; the working limit is [`MSM_MAX_LAW_CELLS`].
+pub const MSM_MAX_STRATA: usize = 1 << 20;
+/// Sanity bound on atoms of one outcome law; the working limit is [`MSM_MAX_LAW_CELLS`].
+pub const MSM_MAX_OUTCOME_ATOMS: usize = 4096;
+/// Most outcome-law atoms (treated and control, summed over strata) held at once: the memory
+/// budget.
+pub const MSM_MAX_LAW_CELLS: usize = 1 << 24;
+/// Sanity bound on grid points; the working limit is [`MSM_MAX_WORK`].
+pub const MSM_MAX_GRID_POINTS: usize = 8192;
+/// Most `grid points x law cells` evaluations of one analysis: the compute budget.
+pub const MSM_MAX_WORK: u64 = 1 << 32;
+/// Largest admitted `Lambda`. Every `Lambda >= 1` is valid; the bound only keeps
+/// `Lambda - 1/Lambda` and `1/(Lambda + 1)` well inside `f64` range.
+pub const MSM_MAX_LAMBDA: f64 = 1.0e12;
 /// Smallest admitted bisection tolerance.
 pub const MSM_MIN_TOLERANCE: f64 = crate::tipping::MIN_TOLERANCE;
 /// Largest admitted bisection tolerance.
@@ -334,7 +340,9 @@ fn invalid_law(message: &str) -> MsmSensitivityError {
 fn prepare_arm(law: &MsmOutcomeLaw, hidden: f64) -> Result<Arm, MsmSensitivityError> {
     let n = law.values.len();
     if n == 0 || n > MSM_MAX_OUTCOME_ATOMS || law.probabilities.len() != n {
-        return Err(invalid_law("an outcome law needs 1 to 256 values with one probability each"));
+        return Err(invalid_law(&format!(
+            "an outcome law needs 1 to {MSM_MAX_OUTCOME_ATOMS} values with one probability each"
+        )));
     }
     if law.values.iter().any(|v| !v.is_finite())
         || law.probabilities.iter().any(|p| !p.is_finite() || *p < 0.0)
@@ -358,6 +366,16 @@ fn prepare(strata: &[MsmStratum]) -> Result<Vec<Prepared>, MsmSensitivityError> 
             reason_code!("route_not_supported"),
             "msm_sensitivity.bounds_exceeded",
             format!("{} strata declared; 1 to {MSM_MAX_STRATA} are admitted", strata.len()),
+        ));
+    }
+    let cells = strata.iter().try_fold(0usize, |acc, s| {
+        acc.checked_add(s.treated.values.len())?.checked_add(s.control.values.len())
+    });
+    if cells.is_none_or(|c| c > MSM_MAX_LAW_CELLS) {
+        return Err(refuse(
+            reason_code!("route_not_supported"),
+            "msm_sensitivity.bounds_exceeded",
+            format!("the outcome laws hold more than {MSM_MAX_LAW_CELLS} atoms in total"),
         ));
     }
     let mut total = 0.0;
@@ -590,6 +608,15 @@ pub fn msm_ate_sensitivity(
 ) -> Result<MsmSensitivityResult, MsmSensitivityError> {
     validate_spec(spec)?;
     let prepared = prepare(strata)?;
+    let cells: u64 =
+        prepared.iter().map(|p| (p.treated.atoms.len() + p.control.atoms.len()) as u64).sum();
+    if cells.saturating_mul(spec.grid_points as u64) > MSM_MAX_WORK {
+        return Err(refuse(
+            reason_code!("route_not_supported"),
+            "msm_sensitivity.bounds_exceeded",
+            format!("{} grid points over {cells} atoms exceeds the work budget", spec.grid_points),
+        ));
+    }
     let (identified, _) = ate_bounds(&prepared, 1.0);
     let grid = grid_of(spec)
         .into_iter()

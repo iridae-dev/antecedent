@@ -19,7 +19,7 @@ use antecedent_core::{
 use antecedent_design::obligation_adapters::{
     delta_obligations, factor_obligations, support_obligations,
 };
-use antecedent_design::repair::{REPAIR_MAX_CANDIDATES, RepairClassification};
+use antecedent_design::repair::{REPAIR_MAX_OPERATIONS, RepairClassification};
 use antecedent_design::{
     BackdoorRepairFamily, DurableStudyCandidate, ExpectedEvidence, RepairFamily, RepairLimits,
     RepairObjective, RepairOutcome, RepairReport, StudyCostDeclaration, StudyKind,
@@ -438,11 +438,18 @@ fn subsets_larger_than_the_declared_depth_are_not_examined_and_say_so() {
 #[test]
 fn bounds_and_cancellation_are_refusals_or_reports_not_verdicts() {
     let family = backdoor_family();
-    let many: Vec<_> = (0..=REPAIR_MAX_CANDIDATES as u64)
-        .map(|n| observation(&format!("n{n}"), &[T, Y, Z1], n + 1))
-        .collect();
-    let error =
-        repair(&family, &many, RepairObjective::MinimizeCost, defaults(), &ctx()).unwrap_err();
+    let too_many_operations = RepairLimits {
+        search: SearchLimits { operations: REPAIR_MAX_OPERATIONS + 1, depth: 1 },
+        ..defaults()
+    };
+    let error = repair(
+        &family,
+        &[observation("a", &[T, Y, Z1], 1)],
+        RepairObjective::MinimizeCost,
+        too_many_operations,
+        &ctx(),
+    )
+    .unwrap_err();
     assert_eq!(
         (error.code, error.detail),
         ("invalid_argument", "identification_repair.bounds_exceeded")

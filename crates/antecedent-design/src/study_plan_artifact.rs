@@ -45,6 +45,7 @@ use antecedent_io_core::transport_catalog_wire::EvidenceCatalogWire;
 use antecedent_io_core::transport_query_wire::{MixedSourceQueryWire, MzSourceWire};
 use serde::{Deserialize, Serialize};
 
+use crate::plan_common::variable_ids as ids;
 use crate::study_planner::{
     StudyCandidate, StudyCost, StudyPlanError, StudyPlanResult, plan_studies,
 };
@@ -319,10 +320,6 @@ impl Default for StudyPlanConsumeLimits {
 
 fn raw(variables: &[VariableId]) -> Vec<u32> {
     variables.iter().map(|v| v.raw()).collect()
-}
-
-fn ids(raw: &[u32]) -> Arc<[VariableId]> {
-    raw.iter().copied().map(VariableId::from_raw).collect()
 }
 
 fn strings(values: &[Arc<str>]) -> Vec<String> {

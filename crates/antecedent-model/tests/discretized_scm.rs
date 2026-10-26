@@ -25,7 +25,7 @@ use antecedent_model::compose::{
     ParameterTerm, ParentBinding, PosteriorDependence, TabularRow, UncertaintyMeaning,
 };
 use antecedent_model::discretized_scm::{
-    BRIDGE_CALIBRATION, BRIDGE_INFERENCE, DETAIL_CANCELLED, DETAIL_COMPOSITION_INCOHERENT,
+    BRIDGE_CALIBRATION, BRIDGE_INFERENCE, DETAIL_CANCELLED, MAX_BRIDGE_LEVELS, DETAIL_COMPOSITION_INCOHERENT,
     DETAIL_DEGENERATE_MARGINAL, DETAIL_INTERVENTION_INVALID, DETAIL_LATENT_CONFOUNDING,
     DETAIL_LEVELS_OUT_OF_RANGE, DETAIL_LEVELS_UNDECLARED, DETAIL_NON_GAUSSIAN,
     DETAIL_PARADIGM_CLOSED, DETAIL_POINT_ONLY, DETAIL_STATE_SPACE_TOO_LARGE,
@@ -298,7 +298,7 @@ fn undeclared_out_of_range_and_unknown_levels_are_refused() {
     assert_eq!(err.detail, DETAIL_LEVELS_UNDECLARED);
     assert_eq!(err.subject, "M");
 
-    for bad in [1_usize, 65] {
+    for bad in [1_usize, MAX_BRIDGE_LEVELS + 1] {
         let plan = plan_for(&chain(), bad);
         let err = DiscretizedLinearGaussian::from_spec(&spec, &plan, &ctx()).unwrap_err();
         assert_eq!(err.detail, DETAIL_LEVELS_OUT_OF_RANGE, "{bad}");
