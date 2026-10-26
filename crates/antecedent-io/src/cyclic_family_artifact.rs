@@ -857,7 +857,7 @@ fn bounded_json<T: Serialize>(
                 .checked_add(size.bytes as u64)
                 .ok_or_else(|| invalid("retained request size overflow"))?,
         )
-        .map_err(invalid)?;
+        .map_err(CyclicArtifactError::Admission)?;
     let bytes = serde_json::to_vec(value).map_err(invalid)?;
     Ok((bytes, retention))
 }
@@ -926,11 +926,13 @@ impl CyclicFamilyRequest {
         ctx: &ExecutionContext,
     ) -> Result<CyclicFamilyReport, CyclicArtifactError> {
         if ctx.cancellation.is_cancelled() {
-            return Err(invalid("cyclic execution cancelled"));
+            return Err(CyclicArtifactError::Cancelled);
         }
         let mut output_leases = Vec::new();
         let base = compiled::output_bytes(self)?;
-        output_leases.push(std::sync::Arc::new(ctx.acquire_admission(0, base).map_err(invalid)?));
+        output_leases.push(std::sync::Arc::new(
+            ctx.acquire_admission(0, base).map_err(CyclicArtifactError::Admission)?,
+        ));
         let answer = match self {
             Self::GaussianFunctional { law, assignments, .. } => {
                 CyclicFamilyAnswer::GaussianFunctional(
@@ -1456,6 +1458,16 @@ impl CyclicFamilyRequest {
                     ctx,
                 )?
             }
+            Self::System { request }
+                if matches!(frozen, Some(FrozenFamilyFitValue::SystemOwner(_))) =>
+            {
+                let Some(FrozenFamilyFitValue::SystemOwner(owner)) = frozen else { unreachable!() };
+                CyclicFamilyAnswer::System(if owner.request() == request {
+                    owner.estimate(ctx)?
+                } else {
+                    owner.rebind(request.clone(), ctx)?.estimate(ctx)?
+                })
+            }
             Self::System { request } => {
                 let fit = match (&request.fit, frozen) {
                     (None, _) => None,
@@ -1485,7 +1497,8 @@ impl CyclicFamilyRequest {
             .ok_or_else(|| invalid("report retention size overflow"))?;
         if required > held {
             output_leases.push(std::sync::Arc::new(
-                ctx.acquire_admission(0, required - held).map_err(invalid)?,
+                ctx.acquire_admission(0, required - held)
+                    .map_err(CyclicArtifactError::Admission)?,
             ));
         }
         let retention = crate::retained_allocation::RetainedAllocation(output_leases);
@@ -1542,7 +1555,8 @@ impl CyclicFamilyRequest {
             .and_then(|n| n.checked_mul(3))
             .and_then(|n| n.checked_add(65536))
             .ok_or_else(|| invalid("artifact encoding size overflow"))?;
-        let _encoding = ctx.acquire_admission(0, scratch).map_err(invalid)?;
+        let _encoding =
+            ctx.acquire_admission(0, scratch).map_err(CyclicArtifactError::Admission)?;
         let artifact = crate::encode_container(
             &crate::ArtifactContainer {
                 kind: "cyclic_family",
@@ -1555,7 +1569,7 @@ impl CyclicFamilyRequest {
         )
         .map_err(|e| invalid(e.into_io("cyclic family layout")))?;
         if ctx.cancellation.is_cancelled() {
-            return Err(invalid("cyclic family artifact export cancelled"));
+            return Err(CyclicArtifactError::Cancelled);
         }
         Ok(artifact)
     }

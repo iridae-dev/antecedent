@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from typing import Any, Literal, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
 
 from ._api import describe_refusal
 from ._artifact_protocol import ExportedArtifact, LoadContext
@@ -30,6 +30,9 @@ from .transport._impl import (
     TransportResponseGrid,
 )
 from .transport._restricted import RestrictedTransportExecution
+
+if TYPE_CHECKING:
+    from ._prepared_policy import PreparedPolicyAnalysis
 
 
 def prepare(
@@ -64,7 +67,7 @@ def prepare(
         "independent_subject_trajectories", "clustered_panel", "dependent_time_series"
     ]
     | None = None,
-) -> PreparedAnalysis[_PreparedResult]:
+) -> PreparedAnalysis[_PreparedResult] | PreparedPolicyAnalysis:
     """Prepare the same ordinary request as :func:`analyze`, stopping before estimation.
 
     Every argument :func:`analyze` accepts for a native query is accepted here,

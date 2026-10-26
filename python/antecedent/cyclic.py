@@ -26,6 +26,7 @@ from typing import Any, Literal
 from . import _native
 from ._artifact_protocol import (
     ExportedArtifact,
+    artifact_consumer,
     artifact_export,
     artifact_from_receipt,
     container_bytes,
@@ -38,6 +39,7 @@ from ._cyclic_typed import (
     DynamicPosterior,
     DynamicQuantity,
     DynamicQuantitySelector,
+    EvidenceSchema,
     ExperimentalFitOptions,
     ExperimentRegime,
     FlatCoefficients,
@@ -63,11 +65,23 @@ from ._cyclic_typed import (
     World,
     WorldAnswer,
     WorldSelector,
+    _seed,
+    _with_execution,
     prepare_experimental_recovery,
 )
+from ._cyclic_typed import EvidenceVariable as EvidenceVariable
 from .errors import CausalValueError, StructuredRefusal
+from .execution import Execution
 from .intervention import Set, Shift, Soft
 from .outcomes import outcome_operation, require_success
+
+
+def _reseed(request, seed):
+    if "seed" in request:
+        request["seed"] = seed
+    for key in ("sampling", "policy", "inference", "method", "request"):
+        if isinstance(request.get(key), dict):
+            _reseed(request[key], seed)
 
 
 class CyclicRefusal(StructuredRefusal):
@@ -189,10 +203,21 @@ class CyclicResult:
 
 
 @outcome_operation
+@_with_execution
+@artifact_consumer(
+    proof="cyclic.consume_artifact: independent native equilibrium request/identity verification and numerical refit/replay",
+    replayable=True,
+)
 def consume_artifact(
-    artifact: bytes, *, expected_identity: str, max_bytes: int | None = None, cancel: Any = None
+    artifact: bytes,
+    *,
+    expected_identity: str,
+    execution: Execution | None = None,
 ) -> CyclicResult:
     """Check identity/integrity and recompute in Rust, including any retained fit."""
+    assert execution is not None
+    max_bytes = None
+    cancel = None
     artifact = container_bytes(artifact)
     report, facts = _native.consume_cyclic_system(
         artifact, expected_identity, max_bytes=max_bytes, cancel=cancel
@@ -207,6 +232,7 @@ class EquilibriumModel:
     equations: tuple[Equation, ...]
     noise_covariance: tuple[float, ...]
 
+    @_with_execution
     def isolate(
         self,
         domain: list[dict[str, float]],
@@ -215,6 +241,7 @@ class EquilibriumModel:
         clamps: list[dict[str, Any]] | None = None,
         max_boxes: int = 10_000,
         minimum_width: float = 1e-8,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Bounded root isolation for eligible polynomial mechanism compositions.
 
@@ -223,6 +250,7 @@ class EquilibriumModel:
         this path. Unresolved boxes remain explicit; no root probabilities are
         inferred from their counts or solver initialization.
         """
+        assert execution is not None
         return PreparedCyclicFamily(
             json.dumps(
                 {
@@ -234,9 +262,11 @@ class EquilibriumModel:
                     "policy": {"max_boxes": max_boxes, "minimum_width": minimum_width},
                 },
                 allow_nan=False,
-            )
+            ),
+            execution=execution,
         )
 
+    @_with_execution
     def fit_adam(
         self,
         parameters: list[dict[str, Any]],
@@ -244,6 +274,7 @@ class EquilibriumModel:
         validation: list[dict[str, Any]],
         *,
         policy: AdamPolicy | None = None,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Projected nonlinear likelihood fitting with explicit validation stopping.
 
@@ -252,6 +283,7 @@ class EquilibriumModel:
         exhaustion are separate facts. Final test regimes must stay outside this
         request; a minibatch seed never supplies an equilibrium selection law.
         """
+        assert execution is not None
         return PreparedCyclicFamily(
             json.dumps(
                 {
@@ -260,12 +292,14 @@ class EquilibriumModel:
                     "parameters": parameters,
                     "training": training,
                     "validation": validation,
-                    "policy": asdict(policy or AdamPolicy()),
+                    "policy": dict(asdict(policy or AdamPolicy()), seed=_seed()),
                 },
                 allow_nan=False,
-            )
+            ),
+            execution=execution,
         )
 
+    @_with_execution
     def fit_gradient(
         self,
         parameters: list[dict[str, Any]],
@@ -275,8 +309,10 @@ class EquilibriumModel:
         score_tolerance: float = 1e-6,
         max_iterations: int = 1000,
         l1_penalty: float = 0.0,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Fit local expression/legacy parameters with the exact Jacobian score."""
+        assert execution is not None
         return PreparedCyclicFamily(
             json.dumps(
                 {
@@ -292,9 +328,11 @@ class EquilibriumModel:
                     },
                 },
                 allow_nan=False,
-            )
+            ),
+            execution=execution,
         )
 
+    @_with_execution
     def prepare(
         self,
         worlds: list[list[dict[str, Any]]],
@@ -306,8 +344,7 @@ class EquilibriumModel:
         parameters: list[dict[str, Any]] | None = None,
         rows: list[dict[str, Any]] | None = None,
         fit_options: FitOptions | None = None,
-        max_bytes: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> PreparedCyclicSystem:
         """Retain aligned intervention worlds and optional joint-likelihood fit.
 
@@ -316,6 +353,7 @@ class EquilibriumModel:
         ``{"kind": "weight", "equation": i, "parent": j}`` or
         ``{"kind": "intercept", "equation": i}``.
         """
+        assert execution is not None
         if (parameters is None) != (rows is None):
             raise CausalValueError("parameters and rows must be supplied together")
         fit = None
@@ -334,8 +372,9 @@ class EquilibriumModel:
             "policy": asdict(policy or SolvePolicy()),
             "factual": factual,
         }
-        return PreparedCyclicSystem._from_request(request, max_bytes=max_bytes, cancel=cancel)
+        return PreparedCyclicSystem._from_request(request, execution=execution)
 
+    @_with_execution
     def worlds(
         self,
         worlds: list[World],
@@ -344,8 +383,7 @@ class EquilibriumModel:
         variables: list[str] | None = None,
         initial: list[float] | None = None,
         policy: SolvePolicy | None = None,
-        max_bytes: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Typed worlds over shared disturbance draws, named by variable.
 
@@ -356,6 +394,7 @@ class EquilibriumModel:
         or a selection law. Compilation solves nothing; a world the family cannot take is
         refused with its next attempt.
         """
+        assert execution is not None
         from ._cyclic_typed import equilibrium_worlds
 
         return equilibrium_worlds(
@@ -365,8 +404,7 @@ class EquilibriumModel:
             variables=variables,
             initial=initial,
             policy=policy,
-            max_bytes=max_bytes,
-            cancel=cancel,
+            execution=execution,
         )
 
 
@@ -375,21 +413,27 @@ class PreparedCyclicSystem:
     """Frozen retained request; Rust validates and executes its complete program."""
 
     request_json: str
-    max_bytes: int | None = field(default=None, repr=False, compare=False)
-    cancel: Any = field(default=None, repr=False, compare=False)
+    execution: Execution = field(default_factory=Execution, repr=False, compare=False)
     _handle: Any = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(
             self,
             "_handle",
-            _native.prepare_cyclic_system(
-                self.request_json, max_bytes=self.max_bytes, cancel=self.cancel
-            ),
+            self.execution._call(_native.prepare_cyclic_system, self.request_json),
         )
 
     @classmethod
-    def _from_request(cls, request: dict[str, Any], *, max_bytes=None, cancel=None):
+    @_with_execution
+    def _from_request(
+        cls,
+        request: dict[str, Any],
+        *,
+        execution: Execution | None = None,
+    ):
+        assert execution is not None
+        max_bytes = None
+        cancel = None
         dimension = len(request["model"]["equations"])
         noise = _cyclic_numeric_rows(request["noise"], dimension)
         metadata = dict(request, noise=[])
@@ -406,8 +450,6 @@ class PreparedCyclicSystem:
         )
         result = object.__new__(cls)
         object.__setattr__(result, "request_json", None)
-        object.__setattr__(result, "max_bytes", max_bytes)
-        object.__setattr__(result, "cancel", cancel)
         object.__setattr__(result, "_handle", handle)
         object.__setattr__(result, "_use_buffers", noise.size * len(request["worlds"]) >= 64)
         return result
@@ -437,82 +479,102 @@ class PreparedCyclicSystem:
         result: dict[str, Any] = json.loads(self._handle.contract())
         return result
 
+    @_with_execution
     def to_family(
-        self, *, max_bytes: int | None = None, cancel: Any = None
+        self,
+        *,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """The same frozen request as a ``system`` family program.
 
         The family shares rebinding, evidence projection, keyed replay and fit reuse with
-        every other family. Compilation does not fit, and a fit already performed by this
-        handle is not transferred: the family keeps its own fit cache. Equation ``k`` is
+        every other family. Compilation does not fit; both views share their native fit
+        owner, including a fit first performed through either view. Equation ``k`` is
         named by its equation id.
         """
+        assert execution is not None
         handle = self._handle.to_family(
-            max_bytes=self.max_bytes if max_bytes is None else max_bytes,
-            cancel=self.cancel if cancel is None else cancel,
+            max_bytes=None,
+            cancel=None,
         )
         request = json.loads(self.request_json)
-        family = PreparedCyclicFamily(
+        return PreparedCyclicFamily._from_handle(
             json.dumps({"family": "system", "request": request}, allow_nan=False),
-            variable_names=tuple(equation["id"] for equation in request["model"]["equations"]),
+            tuple(equation["id"] for equation in request["model"]["equations"]),
+            handle,
+            execution,
         )
-        object.__setattr__(family, "_handle", handle)
-        return family
 
-    def retarget(
+    @_with_execution
+    def reconfigure(
         self,
-        worlds: list[list[dict[str, Any]]],
-        noise: list[list[float]],
+        worlds: list[list[dict[str, Any]]] | None = None,
+        noise: list[list[float]] | None = None,
         *,
         initial: list[float] | None = None,
+        model: EquilibriumModel | None = None,
+        policy: SolvePolicy | None = None,
+        execution: Execution | None = None,
     ) -> PreparedCyclicSystem:
-        """Retarget worlds with zero causal refits; source and inference remain frozen."""
-        noise_array = _cyclic_numeric_rows(noise, len(self._handle.initial_state()))
-        handle = self._handle.retarget_buffers(
-            json.dumps(worlds, allow_nan=False),
-            noise_array,
-            self._handle.initial_state() if initial is None else initial,
-        )
+        """Branch scientific inputs and share only compatible native fitting inputs."""
+        assert execution is not None
+        request = json.loads(self.request_json)
+        _reseed(request, execution.seed)
+        for key, value in (("worlds", worlds), ("noise", noise), ("initial", initial)):
+            if value is not None:
+                request[key] = value
+        if model is not None:
+            request["model"] = asdict(model)
+        if policy is not None:
+            request["policy"] = asdict(policy)
         result = object.__new__(PreparedCyclicSystem)
         object.__setattr__(result, "request_json", None)
-        object.__setattr__(result, "_handle", handle)
-        object.__setattr__(result, "_use_buffers", noise_array.size * len(worlds) >= 64)
-        object.__setattr__(result, "max_bytes", self.max_bytes)
-        object.__setattr__(result, "cancel", self.cancel)
+        object.__setattr__(
+            result, "_handle", self._handle.rebind(json.dumps(request, allow_nan=False))
+        )
+        object.__setattr__(result, "_use_buffers", self.__dict__.get("_use_buffers", False))
         return result
 
-    def refresh(self, rows: list[dict[str, Any]]) -> PreparedCyclicSystem:
+    @_with_execution
+    def rebind(
+        self, rows: list[dict[str, Any]], *, execution: Execution | None = None
+    ) -> PreparedCyclicSystem:
         """Replace training observations through a new preparation and refit."""
+        assert execution is not None
         observations = _cyclic_numeric_rows(
             [row["values"] for row in rows], len(self._handle.initial_state())
         )
         handle = self._handle.refresh_buffers(
             json.dumps([dict(row, values=[]) for row in rows], allow_nan=False),
             observations,
-            max_bytes=self.max_bytes,
-            cancel=self.cancel,
+            max_bytes=None,
+            cancel=None,
         )
         result = object.__new__(PreparedCyclicSystem)
         object.__setattr__(result, "request_json", None)
         object.__setattr__(result, "_handle", handle)
         object.__setattr__(result, "_use_buffers", self.__dict__.get("_use_buffers", False))
-        object.__setattr__(result, "max_bytes", self.max_bytes)
-        object.__setattr__(result, "cancel", self.cancel)
         return result
 
     @outcome_operation
-    def execute(self, *, max_bytes: int | None = None, cancel: Any = None) -> CyclicResult:
+    @_with_execution
+    def execute(
+        self,
+        *,
+        execution: Execution | None = None,
+    ) -> CyclicResult:
         """Execute the retained native product and produce its independent replay artifact."""
         # Tiny results are cheaper to decode directly; bulk values use NumPy buffers.
+        assert execution is not None
         if not self.__dict__.get("_use_buffers", False):
             report, artifact, facts = self._handle.execute(
-                max_bytes=self.max_bytes if max_bytes is None else max_bytes,
-                cancel=self.cancel if cancel is None else cancel,
+                max_bytes=None,
+                cancel=None,
             )
             return CyclicResult(json.loads(report), artifact, facts)
         report, artifact, values, counterfactuals, width, facts = self._handle.execute_buffers(
-            max_bytes=self.max_bytes if max_bytes is None else max_bytes,
-            cancel=self.cancel if cancel is None else cancel,
+            max_bytes=None,
+            cancel=None,
         )
         report = json.loads(report)
         offset = 0
@@ -527,6 +589,7 @@ class PreparedCyclicSystem:
         return CyclicResult(report, artifact, facts)
 
     @outcome_operation
+    @_with_execution
     def posterior(
         self,
         *,
@@ -535,9 +598,7 @@ class PreparedCyclicSystem:
         warmup: int = 500,
         draws: int = 1000,
         proposal_scale: float = 0.05,
-        seed: int = 0,
-        max_bytes: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> dict[str, Any]:
         """Conditional-structure posterior with an explicit normal parameter prior.
 
@@ -545,6 +606,8 @@ class PreparedCyclicSystem:
         ``diagnostics_pass`` before interpreting draws; structural-selection and
         covariance uncertainty are not included.
         """
+        assert execution is not None
+        seed = _seed()
         result: dict[str, Any] = json.loads(
             _native.cyclic_parameter_posterior(
                 self.request_json,
@@ -554,8 +617,8 @@ class PreparedCyclicSystem:
                 draws,
                 proposal_scale,
                 seed,
-                max_bytes=self.max_bytes if max_bytes is None else max_bytes,
-                cancel=self.cancel if cancel is None else cancel,
+                max_bytes=None,
+                cancel=None,
             )
         )
         return result
@@ -577,9 +640,27 @@ class PreparedCyclicFamily:
 
     request_json: str
     variable_names: tuple[str, ...] | None = field(default=None, repr=False, compare=False)
+    execution: Execution = field(default_factory=Execution, repr=False, compare=False)
     _handle: Any = field(default=None, init=False, repr=False, compare=False)
     _lock: Any = field(default_factory=threading.Lock, init=False, repr=False, compare=False)
     _law: Any = field(default=None, init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        self.execution._call(self._prepare, execution=self.execution)
+
+    @classmethod
+    def _from_handle(cls, request_json, variable_names, handle, execution):
+        result = object.__new__(cls)
+        for name, value in (
+            ("request_json", request_json),
+            ("variable_names", variable_names),
+            ("execution", execution),
+            ("_handle", handle),
+            ("_lock", threading.Lock()),
+            ("_law", None),
+        ):
+            object.__setattr__(result, name, value)
+        return result
 
     def inspect(self) -> dict[str, Any]:
         """Inspect retained work; this preflight never fits or executes a model.
@@ -602,7 +683,7 @@ class PreparedCyclicFamily:
         if self._handle is None and request["family"] == "experimental_recovery":
             # Compilation only: it admits the worlds and reads the clamp design, never fits.
             with self._lock:
-                self._prepare(max_bytes=None, cancel=None)
+                self._prepare(execution=self.execution)
         if self._handle is None:
             facts: dict[str, Any] = {
                 "family": request["family"],
@@ -616,7 +697,13 @@ class PreparedCyclicFamily:
             facts["variables"] = list(self.variable_names)
         return facts
 
-    def interventions(self, *, max_bytes: int | None = None, cancel: Any = None) -> Any:
+    @_with_execution
+    @outcome_operation
+    def interventions(
+        self,
+        *,
+        execution: Execution | None = None,
+    ) -> Any:
         """Execute and return the intervention worlds keyed by scientific world id.
 
         Returns :class:`CyclicInterventions`: a :class:`WorldAnswer` per world of a specified
@@ -624,10 +711,13 @@ class PreparedCyclicFamily:
         :class:`RecoveredWorldAnswer` per world of a recovered law (draw origin kept). A family
         without intervention worlds raises :class:`CyclicRefusal` naming the typed families.
         """
+        assert execution is not None
+        max_bytes = None
+        cancel = None
         from ._cyclic_typed import _next_attempt_refusal
 
         with self._lock:
-            self._prepare(max_bytes=max_bytes, cancel=cancel)
+            self._prepare(execution=execution)
             try:
                 payload, facts = self._handle.interventions(max_bytes=max_bytes, cancel=cancel)
             except ValueError as error:
@@ -637,13 +727,14 @@ class PreparedCyclicFamily:
                 raise refusal from error
         return CyclicInterventions._from_native(json.loads(payload), self.variable_names, facts)
 
+    @_with_execution
+    @outcome_operation
     def evidence(
         self,
-        schema: dict[str, Any],
+        schema: EvidenceSchema | dict[str, Any],
         selectors: list[Any],
         *,
-        max_bytes: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> CyclicEvidence:
         """Execute the retained program and project its native evidence.
 
@@ -654,28 +745,37 @@ class PreparedCyclicFamily:
         :class:`RecoveredResponseSelector`, :class:`RecoveredDrawSelector`,
         :class:`DynamicQuantitySelector`); a recovered law's port follows its draw origin.
         """
+        assert execution is not None
+        max_bytes = None
+        cancel = None
         wire = [
             item._wire(self.variable_names) if hasattr(item, "_wire") else item
             for item in selectors
         ]
         with self._lock:
-            self._prepare(max_bytes=max_bytes, cancel=cancel)
+            self._prepare(execution=execution)
         return CyclicEvidence(
             self._handle.evidence(
-                json.dumps(schema, allow_nan=False),
+                json.dumps(
+                    schema._wire() if isinstance(schema, EvidenceSchema) else schema,
+                    allow_nan=False,
+                ),
                 json.dumps(wire, allow_nan=False),
                 max_bytes=max_bytes,
                 cancel=cancel,
-            )
+            ),
+            execution=execution,
         )
 
+    @_with_execution
+    @outcome_operation
     def identified_functional(
         self,
         *,
-        max_bytes: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> IdentifiedCyclicFunctional:
         """Retain the checked functional and its exact graph/assumption source."""
+        assert execution is not None
         source = json.loads(self.request_json)
         if source.get("family") != "graph" or source["request"].get("operation") not in (
             "identify",
@@ -683,7 +783,7 @@ class PreparedCyclicFamily:
             "calculus",
         ):
             raise CausalValueError("expected a graph identification preparation")
-        result = require_success(self.execute(max_bytes=max_bytes, cancel=cancel))
+        result = require_success(self.execute(execution=execution))
         answer = result.report["answer"]
         # Serde's tagged answer stores the operation report in `result`.
         graph = answer.get("result", answer.get("answer", answer))
@@ -695,7 +795,12 @@ class PreparedCyclicFamily:
             raise CausalValueError("source did not identify a functional")
         return IdentifiedCyclicFunctional(source["request"], result.identity, graph["program"])
 
-    def contract(self, *, max_bytes: int | None = None, cancel: Any = None) -> dict[str, Any]:
+    @_with_execution
+    def contract(
+        self,
+        *,
+        execution: Execution | None = None,
+    ) -> dict[str, Any]:
         """The contract of this handle, derived without fitting, sampling or solving.
 
         Returns the layered identities (target, identification, identification product,
@@ -706,24 +811,135 @@ class PreparedCyclicFamily:
         family export writes in its contract section. The contract grants no scientific
         license.
         """
-        result: dict[str, Any] = json.loads(self._native_handle(max_bytes, cancel).contract())
+        assert execution is not None
+        result: dict[str, Any] = json.loads(self._native_handle(execution=execution).contract())
         return result
 
-    def _native_handle(self, max_bytes: int | None = None, cancel: Any = None) -> Any:
+    @_with_execution
+    def _native_handle(self, *, execution: Execution | None = None) -> Any:
         """The compiled native handle, compiling it first when needed (no fit)."""
+        assert execution is not None
         with self._lock:
-            self._prepare(max_bytes=max_bytes, cancel=cancel)
+            self._prepare(execution=execution)
             return self._handle
 
-    def refresh(self, request_json: str) -> PreparedCyclicFamily:
-        """Recompile changed inputs, reusing only compatible statistical products."""
-        refreshed = PreparedCyclicFamily(request_json, variable_names=self.variable_names)
-        with self._lock:
-            if self._handle is not None:
-                object.__setattr__(refreshed, "_handle", self._handle.rebind(request_json))
-        return refreshed
+    @_with_execution
+    def rebind(
+        self, data: dict[str, Any], *, execution: Execution | None = None
+    ) -> PreparedCyclicFamily:
+        """Replace declared observation fields on a new native preparation."""
+        assert execution is not None
+        request = json.loads(self.request_json)
+        target = request["request"] if request["family"] == "system" else request
+        if request["family"] == "dynamic_inference":
+            target = request["problem"]["problem"]
+        for key, value in data.items():
+            if key not in {
+                "rows",
+                "regimes",
+                "samples",
+                "observations",
+                "training",
+                "validation",
+                "heldout",
+                "noise",
+                "data",
+            }:
+                raise CausalValueError(f"{key!r} is not an observation field")
+            if key == "rows" and request["family"] == "system":
+                if target["fit"] is None:
+                    raise CausalValueError("rows require a fitted system")
+                target["fit"]["rows"] = value
+            elif (
+                request["family"] == "dynamic_inference"
+                and key == "observations"
+                and "data" in target
+            ):
+                target["data"] = value
+            elif key in target:
+                target[key] = value
+            else:
+                raise CausalValueError(f"this family has no {key!r} observations")
+        return self._branch(json.dumps(request, allow_nan=False), execution=execution)
 
-    def _prepare(self, *, max_bytes: int | None, cancel: Any) -> None:
+    @_with_execution
+    def reconfigure(
+        self,
+        *,
+        worlds: list[World] | None = None,
+        scientific: dict[str, Any] | None = None,
+        method: DynamicMethod | None = None,
+        uncertainty: RecoveryUncertainty | None = None,
+        execution: Execution | None = None,
+    ) -> PreparedCyclicFamily:
+        """Branch scientific declarations or named worlds, retaining compatible fits."""
+        assert execution is not None
+        from ._cyclic_typed import _worlds
+
+        request = json.loads(self.request_json)
+        _reseed(request, execution.seed)
+        if method is not None:
+            from ._cyclic_typed import _method_wire
+
+            if request["family"] != "dynamic_inference":
+                raise CausalValueError("method requires a dynamic inference family")
+            request["method"] = _method_wire(method, request["method"]["design"])
+        if uncertainty is not None:
+            from ._cyclic_typed import _inference_wire
+
+            if request["family"] != "experimental_recovery" or self.variable_names is None:
+                raise CausalValueError("uncertainty requires an experimental recovery")
+            observed = {unit for regime in request["regimes"] for unit in regime["units"]}
+            retained = [
+                name
+                for i, name in enumerate(self.variable_names)
+                if i in observed and i not in request["dropped"]
+            ]
+            design = request["inference"].get("design", request["options"].get("sampling_design"))
+            request["inference"] = _inference_wire(uncertainty, design, retained)
+        if scientific:
+            for key, value in scientific.items():
+                if key not in request or key in {
+                    "family",
+                    "rows",
+                    "regimes",
+                    "observations",
+                    "training",
+                    "validation",
+                }:
+                    raise CausalValueError(
+                        f"{key!r} is not a scientific declaration of this family"
+                    )
+                request[key] = value
+        if worlds is not None:
+            if self.variable_names is None or "worlds" not in request:
+                raise CausalValueError("this family has no named intervention worlds")
+            request["worlds"] = _worlds(
+                worlds, {name: i for i, name in enumerate(self.variable_names)}
+            )
+        return self._branch(json.dumps(request, allow_nan=False), execution=execution)
+
+    @_with_execution
+    def _branch(
+        self, request_json: str, *, execution: Execution | None = None
+    ) -> PreparedCyclicFamily:
+        """Recompile changed inputs, reusing only compatible statistical products."""
+        assert execution is not None
+        with self._lock:
+            handle = self._handle.rebind(request_json)
+        return PreparedCyclicFamily._from_handle(
+            request_json, self.variable_names, handle, execution
+        )
+
+    @_with_execution
+    def _prepare(
+        self,
+        *,
+        execution: Execution | None = None,
+    ) -> None:
+        assert execution is not None
+        max_bytes = None
+        cancel = None
         if self._handle is None:
             object.__setattr__(
                 self,
@@ -734,10 +950,18 @@ class PreparedCyclicFamily:
             )
 
     @outcome_operation
-    def execute(self, *, max_bytes: int | None = None, cancel: Any = None) -> CyclicResult:
+    @_with_execution
+    def execute(
+        self,
+        *,
+        execution: Execution | None = None,
+    ) -> CyclicResult:
         """Execute the retained program and encode its result, reusing compatible fits."""
+        assert execution is not None
+        max_bytes = None
+        cancel = None
         with self._lock:
-            self._prepare(max_bytes=max_bytes, cancel=cancel)
+            self._prepare(execution=execution)
             report, artifact, facts = self._handle.execute(max_bytes=max_bytes, cancel=cancel)
             decoded = json.loads(report)
             answer = decoded.get("answer", {})
@@ -746,6 +970,7 @@ class PreparedCyclicFamily:
         return CyclicResult(decoded, artifact, facts)
 
 
+@_with_execution
 def prepare_recovered_linear(
     nodes: list[int],
     draws: list[dict[str, Any]],
@@ -754,6 +979,7 @@ def prepare_recovered_linear(
     outcome: int,
     source_id: str,
     certifying_evidence: list[str],
+    execution: Execution | None = None,
 ) -> PreparedCyclicFamily:
     """Prepare a recovered linear law on the existing cyclic family handle.
 
@@ -763,6 +989,7 @@ def prepare_recovered_linear(
     The law stays conditional on the clamp-experiment recovery that produced it;
     compilation grants no scientific license.
     """
+    assert execution is not None
     return PreparedCyclicFamily(
         json.dumps(
             {
@@ -775,15 +1002,27 @@ def prepare_recovered_linear(
                 "certifying_evidence": certifying_evidence,
             },
             allow_nan=False,
-        )
+        ),
+        execution=execution,
     )
 
 
 @outcome_operation
+@_with_execution
+@artifact_consumer(
+    proof="cyclic.consume_family_artifact: independent native family contract/identity verification and numerical refit/replay",
+    replayable=True,
+)
 def consume_family_artifact(
-    artifact: bytes, *, expected_identity: str, max_bytes: int | None = None, cancel: Any = None
+    artifact: bytes,
+    *,
+    expected_identity: str,
+    execution: Execution | None = None,
 ) -> CyclicResult:
     """Recompute a dynamic/constraint answer with independent identity checking."""
+    assert execution is not None
+    max_bytes = None
+    cancel = None
     artifact = container_bytes(artifact)
     report, facts = _native.consume_cyclic_family(
         artifact, expected_identity, max_bytes=max_bytes, cancel=cancel
@@ -798,6 +1037,7 @@ class OdeSystem:
     equations: tuple[Equation, ...]
     decay: tuple[float, ...]
 
+    @_with_execution
     def prepare(
         self,
         initial: list[float],
@@ -805,8 +1045,10 @@ class OdeSystem:
         *,
         schedule: list[dict[str, Any]] | None = None,
         policy: OdePolicy | None = None,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Retain an initial-value problem and time-indexed sustained clamps."""
+        assert execution is not None
         return PreparedCyclicFamily(
             json.dumps(
                 {
@@ -818,9 +1060,11 @@ class OdeSystem:
                     "policy": asdict(policy or OdePolicy()),
                 },
                 allow_nan=False,
-            )
+            ),
+            execution=execution,
         )
 
+    @_with_execution
     def worlds(
         self,
         initial: list[float],
@@ -830,8 +1074,7 @@ class OdeSystem:
         variables: list[str] | None = None,
         initial_laws: list[str] | None = None,
         policy: OdePolicy | None = None,
-        max_bytes: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Typed worlds of this initial-value problem, named by variable.
 
@@ -842,6 +1085,7 @@ class OdeSystem:
         this family has no structural disturbance. Trajectories are numerical integrations,
         never certified solutions; times are in the system's own units.
         """
+        assert execution is not None
         from ._cyclic_typed import ode_worlds
 
         return ode_worlds(
@@ -852,10 +1096,10 @@ class OdeSystem:
             variables=variables,
             initial_laws=initial_laws,
             policy=policy,
-            max_bytes=max_bytes,
-            cancel=cancel,
+            execution=execution,
         )
 
+    @_with_execution
     def infer(
         self,
         parameters: list[dict[str, Any]],
@@ -868,8 +1112,7 @@ class OdeSystem:
         learning_rate: float = 0.1,
         score_tolerance: float = 1e-6,
         max_iterations: int = 1000,
-        max_bytes: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Fit drift once, then attach sampling-law, information or posterior uncertainty.
 
@@ -882,6 +1125,7 @@ class OdeSystem:
         bootstrap resamples the unit it names. Structure and observation variances are
         specified, not estimated.
         """
+        assert execution is not None
         from ._cyclic_typed import infer_ode
 
         return infer_ode(
@@ -895,10 +1139,10 @@ class OdeSystem:
             learning_rate=learning_rate,
             score_tolerance=score_tolerance,
             max_iterations=max_iterations,
-            max_bytes=max_bytes,
-            cancel=cancel,
+            execution=execution,
         )
 
+    @_with_execution
     def fit(
         self,
         parameters: list[dict[str, Any]],
@@ -908,8 +1152,10 @@ class OdeSystem:
         learning_rate: float = 0.1,
         score_tolerance: float = 1e-6,
         max_iterations: int = 1000,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Fit drift jointly using analytic sensitivities and known observation variances."""
+        assert execution is not None
         return PreparedCyclicFamily(
             json.dumps(
                 {
@@ -925,7 +1171,8 @@ class OdeSystem:
                     },
                 },
                 allow_nan=False,
-            )
+            ),
+            execution=execution,
         )
 
 
@@ -937,8 +1184,14 @@ class OrnsteinUhlenbeck:
     center: tuple[float, ...]
     diffusion: tuple[float, ...]
 
-    def stationary(self) -> PreparedCyclicFamily:
+    @_with_execution
+    def stationary(
+        self,
+        *,
+        execution: Execution | None = None,
+    ) -> PreparedCyclicFamily:
         """Request stationary covariance with a checked Lyapunov stability witness."""
+        assert execution is not None
         return PreparedCyclicFamily(
             json.dumps(
                 {
@@ -946,9 +1199,11 @@ class OrnsteinUhlenbeck:
                     "model": asdict(self),
                 },
                 allow_nan=False,
-            )
+            ),
+            execution=execution,
         )
 
+    @_with_execution
     def transient(
         self,
         initial_mean: list[float],
@@ -956,8 +1211,10 @@ class OrnsteinUhlenbeck:
         times: list[float],
         *,
         policy: OdePolicy | None = None,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Retain the explicit initial law and finite-horizon moment request."""
+        assert execution is not None
         return PreparedCyclicFamily(
             json.dumps(
                 {
@@ -969,21 +1226,25 @@ class OrnsteinUhlenbeck:
                     "policy": asdict(policy or OdePolicy()),
                 },
                 allow_nan=False,
-            )
+            ),
+            execution=execution,
         )
 
+    @_with_execution
     def fit(
         self,
         parameters: list[dict[str, Any]],
         rows: list[dict[str, Any]],
         *,
         policy: FitOptions | None = None,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Fit stationary drift/center under known regimes and specified diffusion.
 
         A numerical fit does not establish that stationary observations identify
         every requested drift coordinate.
         """
+        assert execution is not None
         return PreparedCyclicFamily(
             json.dumps(
                 {
@@ -994,9 +1255,11 @@ class OrnsteinUhlenbeck:
                     "policy": asdict(policy or FitOptions()),
                 },
                 allow_nan=False,
-            )
+            ),
+            execution=execution,
         )
 
+    @_with_execution
     def infer(
         self,
         parameters: list[dict[str, Any]],
@@ -1006,8 +1269,7 @@ class OrnsteinUhlenbeck:
         sampling_design: SamplingDesign,
         quantities: list[DynamicQuantity] | tuple[()] = (),
         options: FitOptions | None = None,
-        max_bytes: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Fit stationary drift/center once, then attach its declared uncertainty.
 
@@ -1018,6 +1280,7 @@ class OrnsteinUhlenbeck:
         replicate or draw. Diffusion is specified, not estimated. An observed-information
         covariance exists only for a regular likelihood; otherwise its reason is reported.
         """
+        assert execution is not None
         from ._cyclic_typed import infer_ou
 
         return infer_ou(
@@ -1028,8 +1291,7 @@ class OrnsteinUhlenbeck:
             quantities=quantities,
             sampling_design=sampling_design,
             options=options,
-            max_bytes=max_bytes,
-            cancel=cancel,
+            execution=execution,
         )
 
 
@@ -1064,10 +1326,16 @@ class PolynomialSystem:
         }
         return PolynomialSystem(self.variables, tuple(equations), self.domain)
 
+    @_with_execution
     def prepare(
-        self, *, max_boxes: int = 10_000, minimum_width: float = 1e-8
+        self,
+        *,
+        max_boxes: int = 10_000,
+        minimum_width: float = 1e-8,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Retain bounded root isolation; unresolved boxes never become certified roots."""
+        assert execution is not None
         return PreparedCyclicFamily(
             json.dumps(
                 {
@@ -1076,7 +1344,8 @@ class PolynomialSystem:
                     "policy": {"max_boxes": max_boxes, "minimum_width": minimum_width},
                 },
                 allow_nan=False,
-            )
+            ),
+            execution=execution,
         )
 
 
@@ -1088,6 +1357,7 @@ class CyclicGraph:
     directed: tuple[tuple[int, int], ...]
     bidirected: tuple[tuple[int, int], ...] = ()
 
+    @_with_execution
     def identify(
         self,
         outcomes: list[int],
@@ -1097,8 +1367,10 @@ class CyclicGraph:
         scc_product_density: bool,
         continuous: bool = True,
         max_steps: int = 1000,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Generalized cyclic ID with explicit theorem premises and bounded search."""
+        assert execution is not None
         return PreparedCyclicFamily(
             json.dumps(
                 {
@@ -1115,9 +1387,11 @@ class CyclicGraph:
                     },
                 },
                 allow_nan=False,
-            )
+            ),
+            execution=execution,
         )
 
+    @_with_execution
     def calculus(
         self,
         rule: Literal["observation", "exchange", "action"],
@@ -1129,12 +1403,14 @@ class CyclicGraph:
         io_scm: bool,
         standard_measurable_spaces: bool,
         max_checks: int = 1000,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Check Theorem 7.2 with indicators, fixed inputs and distinct bounded failure.
 
         The functional retains source and executable roots. A verified rewrite
         with remaining intervention factors does not become an identified effect.
         """
+        assert execution is not None
         return PreparedCyclicFamily(
             json.dumps(
                 {
@@ -1153,9 +1429,11 @@ class CyclicGraph:
                     },
                 },
                 allow_nan=False,
-            )
+            ),
+            execution=execution,
         )
 
+    @_with_execution
     def adjust(
         self,
         outcomes: list[int],
@@ -1165,8 +1443,10 @@ class CyclicGraph:
         io_scm: bool,
         standard_measurable_spaces: bool,
         continuous: bool = True,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Derive the executable cyclic backdoor adjustment functional when licensed."""
+        assert execution is not None
         return PreparedCyclicFamily(
             json.dumps(
                 {
@@ -1183,9 +1463,11 @@ class CyclicGraph:
                     },
                 },
                 allow_nan=False,
-            )
+            ),
+            execution=execution,
         )
 
+    @_with_execution
     def backdoor(
         self,
         outcomes: list[int],
@@ -1194,8 +1476,10 @@ class CyclicGraph:
         *,
         io_scm: bool,
         scc_product_density: bool,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Check the sufficient sigma-backdoor criterion; failure is not impossibility."""
+        assert execution is not None
         return PreparedCyclicFamily(
             json.dumps(
                 {
@@ -1211,11 +1495,20 @@ class CyclicGraph:
                     },
                 },
                 allow_nan=False,
-            )
+            ),
+            execution=execution,
         )
 
-    def oracle_discovery(self, *, simple_scm: bool, sigma_faithful: bool) -> PreparedCyclicFamily:
+    @_with_execution
+    def oracle_discovery(
+        self,
+        *,
+        simple_scm: bool,
+        sigma_faithful: bool,
+        execution: Execution | None = None,
+    ) -> PreparedCyclicFamily:
         """Exact sigma-CI reference reproduction; this does not learn from samples."""
+        assert execution is not None
         return _discovery_request(
             [[0.0] * 8 for _ in range(self.nodes)],
             simple_scm=simple_scm,
@@ -1229,6 +1522,7 @@ class CyclicGraph:
         )
 
 
+@_with_execution
 def _discovery_request(
     columns: list[list[float]],
     *,
@@ -1240,8 +1534,10 @@ def _discovery_request(
     alpha: float,
     max_cond_size: int,
     pds_max_nodes: int,
-    seed: int = 0,
+    execution: Execution | None = None,
 ) -> PreparedCyclicFamily:
+    assert execution is not None
+    seed = _seed()
     return PreparedCyclicFamily(
         json.dumps(
             {
@@ -1261,10 +1557,12 @@ def _discovery_request(
                 },
             },
             allow_nan=False,
-        )
+        ),
+        execution=execution,
     )
 
 
+@_with_execution
 def discover_cyclic(
     columns: list[list[float]],
     *,
@@ -1275,7 +1573,7 @@ def discover_cyclic(
     alpha: float = 0.05,
     max_cond_size: int | None = None,
     pds_max_nodes: int = 10_000,
-    seed: int = 0,
+    execution: Execution | None = None,
 ) -> PreparedCyclicFamily:
     """FCI for cyclic equivalence classes with the chosen existing CI procedure.
 
@@ -1283,6 +1581,7 @@ def discover_cyclic(
     is not an independence oracle for arbitrary nonlinear systems. All engine
     truncation diagnostics and the PAG inducing-path interpretation are retained.
     """
+    assert execution is not None
     return _discovery_request(
         columns,
         simple_scm=simple_scm,
@@ -1293,10 +1592,11 @@ def discover_cyclic(
         alpha=alpha,
         max_cond_size=len(columns) if max_cond_size is None else max_cond_size,
         pds_max_nodes=pds_max_nodes,
-        seed=seed,
+        execution=execution,
     )
 
 
+@_with_execution
 def learn_structure(
     model: EquilibriumModel,
     training: list[dict[str, Any]],
@@ -1304,7 +1604,7 @@ def learn_structure(
     heldout: list[dict[str, Any]] | None = None,
     threshold: float = 0.05,
     policy: FitOptions | None = None,
-    seed: int = 0,
+    execution: Execution | None = None,
     bootstrap_replicates: int = 0,
     design: Literal["fixed_assignments", "randomized_within_targets"] = "fixed_assignments",
 ) -> PreparedCyclicFamily:
@@ -1314,6 +1614,8 @@ def learn_structure(
     fit and never tune selection. Uncertainty conditional on the selected model
     must not be read as uncertainty for the complete selection procedure.
     """
+    assert execution is not None
+    seed = _seed()
     return PreparedCyclicFamily(
         json.dumps(
             {
@@ -1328,7 +1630,8 @@ def learn_structure(
                 "policy": asdict(policy or FitOptions(l1_penalty=1.0)),
             },
             allow_nan=False,
-        )
+        ),
+        execution=execution,
     )
 
 
@@ -1340,9 +1643,9 @@ class SamplingPolicy:
     warmup: int = 500
     draws: int = 1000
     proposal_scale: float = 0.05
-    seed: int = 0
 
 
+@_with_execution
 def posterior_responses(
     model: EquilibriumModel,
     parameters: list[dict[str, Any]],
@@ -1354,12 +1657,14 @@ def posterior_responses(
     initial: list[float] | None = None,
     sampling: SamplingPolicy | None = None,
     solve_policy: SolvePolicy | None = None,
+    execution: Execution | None = None,
 ) -> PreparedCyclicFamily:
     """Joint parameter/noise-aligned response program with a replayable posterior.
 
     Results retain world, parameter-draw, and supplied disturbance-row axes.
     Supplied disturbances are not automatically a population distribution.
     """
+    assert execution is not None
     return PreparedCyclicFamily(
         json.dumps(
             {
@@ -1368,17 +1673,19 @@ def posterior_responses(
                 "parameters": parameters,
                 "rows": rows,
                 "prior_sd": prior_sd,
-                "sampling": asdict(sampling or SamplingPolicy()),
+                "sampling": dict(asdict(sampling or SamplingPolicy()), seed=_seed()),
                 "worlds": worlds,
                 "noise": noise,
                 "initial": initial if initial is not None else [0.0] * len(model.equations),
                 "solve_policy": asdict(solve_policy or SolvePolicy()),
             },
             allow_nan=False,
-        )
+        ),
+        execution=execution,
     )
 
 
+@_with_execution
 def partial_counterfactual(
     model: EquilibriumModel,
     observations: list[float | None],
@@ -1388,12 +1695,14 @@ def partial_counterfactual(
     initial: list[float],
     sampling: SamplingPolicy | None = None,
     solve_policy: SolvePolicy | None = None,
+    execution: Execution | None = None,
 ) -> PreparedCyclicFamily:
     """Abduce under an explicit exact/noisy observation model and reuse disturbances.
 
     This conditions on a specified mechanism/noise model. Parameter uncertainty
     is separate from latent-state/measurement uncertainty.
     """
+    assert execution is not None
     return PreparedCyclicFamily(
         json.dumps(
             {
@@ -1402,12 +1711,13 @@ def partial_counterfactual(
                 "observations": observations,
                 "measurement_variances": measurement_variances,
                 "initial": initial,
-                "sampling": asdict(sampling or SamplingPolicy()),
+                "sampling": dict(asdict(sampling or SamplingPolicy()), seed=_seed()),
                 "worlds": worlds,
                 "solve_policy": asdict(solve_policy or SolvePolicy()),
             },
             allow_nan=False,
-        )
+        ),
+        execution=execution,
     )
 
 
@@ -1419,6 +1729,7 @@ class BipartiteCausalGraph:
     exogenous: tuple[int, ...]
     equations: tuple[tuple[int, ...], ...]
 
+    @_with_execution
     def b_separation(
         self,
         x: int,
@@ -1426,12 +1737,14 @@ class BipartiteCausalGraph:
         conditioning: list[int],
         *,
         replacement: tuple[int, int] | None = None,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Compute causal ordering and determinism-aware graphical B-separation.
 
         Markov interpretation requires independent exogenous inputs and measurable
         unique cluster solutions; matching alone establishes neither.
         """
+        assert execution is not None
         return PreparedCyclicFamily(
             json.dumps(
                 {
@@ -1446,20 +1759,25 @@ class BipartiteCausalGraph:
                     },
                 },
                 allow_nan=False,
-            )
+            ),
+            execution=execution,
         )
 
+    @_with_execution
     def domain_invariance(
         self,
         changed_equations: list[int],
         outcomes: list[int],
         conditioning: list[int],
+        *,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Check the BGCM domain-selector sufficient invariance criterion.
 
         Compatible unique cluster solutions must hold in every domain; only named
         equations may change. A failed separation check does not disprove invariance.
         """
+        assert execution is not None
         return PreparedCyclicFamily(
             json.dumps(
                 {
@@ -1473,16 +1791,19 @@ class BipartiteCausalGraph:
                     },
                 },
                 allow_nan=False,
-            )
+            ),
+            execution=execution,
         )
 
 
+@_with_execution
 def fit_polynomial_candidates(
     candidates: list[dict[str, Any]],
     measurements: list[dict[str, Any]],
     *,
     max_boxes: int = 10_000,
     minimum_width: float = 1e-8,
+    execution: Execution | None = None,
 ) -> PreparedCyclicFamily:
     """Fit a finite equation-parameter set under explicit root-selection/measurement laws.
 
@@ -1490,6 +1811,7 @@ def fit_polynomial_candidates(
     declared probabilities. A finite-set optimum certificate requires disjoint
     outward-rounded scores; unresolved roots/rankings retain a following attempt.
     """
+    assert execution is not None
     return PreparedCyclicFamily(
         json.dumps(
             {
@@ -1499,10 +1821,12 @@ def fit_polynomial_candidates(
                 "policy": {"max_boxes": max_boxes, "minimum_width": minimum_width},
             },
             allow_nan=False,
-        )
+        ),
+        execution=execution,
     )
 
 
+@_with_execution
 def joint_counterfactual(
     model: EquilibriumModel,
     parameters: list[dict[str, Any]],
@@ -1515,12 +1839,14 @@ def joint_counterfactual(
     initial: list[float],
     sampling: SamplingPolicy | None = None,
     solve_policy: SolvePolicy | None = None,
+    execution: Execution | None = None,
 ) -> PreparedCyclicFamily:
     """Update parameters and factual states jointly, then reuse each noise draw.
 
     Training and factual measurement evidence both enter the posterior. Structure
     and covariance are specified. Inspect joint chain diagnostics before use.
     """
+    assert execution is not None
     return PreparedCyclicFamily(
         json.dumps(
             {
@@ -1533,14 +1859,16 @@ def joint_counterfactual(
                 "measurement_variances": measurement_variances,
                 "worlds": worlds,
                 "initial": initial,
-                "sampling": asdict(sampling or SamplingPolicy()),
+                "sampling": dict(asdict(sampling or SamplingPolicy()), seed=_seed()),
                 "solve_policy": asdict(solve_policy or SolvePolicy()),
             },
             allow_nan=False,
-        )
+        ),
+        execution=execution,
     )
 
 
+@_with_execution
 def action_worlds(
     model: EquilibriumModel,
     worlds: list[dict[str, Any]],
@@ -1549,6 +1877,7 @@ def action_worlds(
     factual: list[float] | None = None,
     initial: list[float] | None = None,
     policy: SolvePolicy | None = None,
+    execution: Execution | None = None,
 ) -> PreparedCyclicFamily:
     """Retain named clamps, mechanism changes/replacements and additive shocks.
 
@@ -1558,6 +1887,7 @@ def action_worlds(
     shocks add to them after factual abduction. Clamps remove the mechanism.
     Failed numerical/certificate attempts retain their original response slots.
     """
+    assert execution is not None
     return PreparedCyclicFamily(
         json.dumps(
             {
@@ -1570,10 +1900,12 @@ def action_worlds(
                 "policy": asdict(policy or SolvePolicy()),
             },
             allow_nan=False,
-        )
+        ),
+        execution=execution,
     )
 
 
+@_with_execution
 def bootstrap_responses(
     model: EquilibriumModel,
     parameters: list[dict[str, Any]],
@@ -1583,7 +1915,7 @@ def bootstrap_responses(
     *,
     design: Literal["fixed_assignments", "randomized_within_targets"] = "fixed_assignments",
     replicates: int = 100,
-    seed: int = 0,
+    execution: Execution | None = None,
     policy: FitOptions | None = None,
     initial: list[float] | None = None,
     solve_policy: SolvePolicy | None = None,
@@ -1593,6 +1925,8 @@ def bootstrap_responses(
     Failed fits/response attempts retain their positions. This conditions on the
     declared structure and covariance; it does not claim calibrated coverage.
     """
+    assert execution is not None
+    seed = _seed()
     return PreparedCyclicFamily(
         json.dumps(
             {
@@ -1610,7 +1944,8 @@ def bootstrap_responses(
                 "solve_policy": asdict(solve_policy or SolvePolicy()),
             },
             allow_nan=False,
-        )
+        ),
+        execution=execution,
     )
 
 
@@ -1675,6 +2010,7 @@ class PolynomialCausalModel:
     candidates: tuple[PolynomialCausalCandidate, ...]
     worlds: tuple[PolynomialWorld, ...]
 
+    @_with_execution
     def prepare(
         self,
         factual: PolynomialObservation,
@@ -1682,8 +2018,10 @@ class PolynomialCausalModel:
         training: tuple[PolynomialObservation, ...] = (),
         max_boxes: int = 10_000,
         minimum_width: float = 1e-8,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Condition the finite parameter/selection law and retain coupled world states."""
+        assert execution is not None
         return PreparedCyclicFamily(
             json.dumps(
                 {
@@ -1696,7 +2034,8 @@ class PolynomialCausalModel:
                     },
                 },
                 allow_nan=False,
-            )
+            ),
+            execution=execution,
         )
 
 
@@ -1708,8 +2047,13 @@ class IdentifiedCyclicFunctional:
     source_identity: str
     program: dict[str, Any]
 
+    @_with_execution
     def evaluate_gaussian(
-        self, law: dict[str, Any], assignments: list[list[tuple[int, float]]]
+        self,
+        law: dict[str, Any],
+        assignments: list[list[tuple[int, float]]],
+        *,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Evaluate continuous identified densities with analytic Gaussian marginalization.
 
@@ -1719,6 +2063,7 @@ class IdentifiedCyclicFunctional:
         conditional on the original graphical premises; no latent recovery or
         statistical interval claim is added. Discrete sources refuse this path.
         """
+        assert execution is not None
         return PreparedCyclicFamily(
             json.dumps(
                 {
@@ -1730,14 +2075,18 @@ class IdentifiedCyclicFunctional:
                     "assignments": assignments,
                 },
                 allow_nan=False,
-            )
+            ),
+            execution=execution,
         )
 
+    @_with_execution
     def evaluate(
         self,
         support: list[list[float]],
         weights: list[float],
         assignments: list[list[tuple[int, float]]],
+        *,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Consume a finite joint law or empirical table; retain positivity failures.
 
@@ -1745,6 +2094,7 @@ class IdentifiedCyclicFunctional:
         and empirical counts are distinct scientific inputs; this operation
         evaluates their declared law without adding a nominal uncertainty claim.
         """
+        assert execution is not None
         return PreparedCyclicFamily(
             json.dumps(
                 {
@@ -1756,7 +2106,8 @@ class IdentifiedCyclicFunctional:
                     "assignments": assignments,
                 },
                 allow_nan=False,
-            )
+            ),
+            execution=execution,
         )
 
 
@@ -1781,6 +2132,7 @@ class LocalCyclicModel:
     mechanisms: tuple[LocalMechanism, ...]
 
     @outcome_operation
+    @_with_execution
     def execute(
         self,
         noise: list[float],
@@ -1791,8 +2143,7 @@ class LocalCyclicModel:
         tolerance: float = 1e-10,
         max_iterations: int = 1000,
         max_evaluations: int = 100_000,
-        max_bytes: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> dict[str, Any]:
         """Numerical SCC solve and optional shared-noise counterfactual.
 
@@ -1800,6 +2151,9 @@ class LocalCyclicModel:
         equilibrium selection law, and no probabilistic root selection is made.
         Rust checks residuals, derivative shapes, cancellation and call budgets.
         """
+        assert execution is not None
+        max_bytes = None
+        cancel = None
         request = {
             "mechanisms": [(m.id, m.reads) for m in self.mechanisms],
             "noise": noise,
@@ -1837,6 +2191,7 @@ class CyclicEvidence:
     """Native source-bound contract envelopes, uncertainty ports and decision inputs."""
 
     _handle: Any
+    execution: Execution = field(default_factory=Execution, repr=False, compare=False)
 
     @property
     def report(self) -> dict[str, Any]:
@@ -1844,52 +2199,93 @@ class CyclicEvidence:
         return dict(json.loads(self._handle.report()))
 
     @property
+    def quantities(self) -> tuple[Any, ...]:
+        """Typed scientific coordinates issued by the native evidence projection."""
+        from .joint_distribution import ScientificQuantity
+
+        return tuple(
+            ScientificQuantity.from_wire(column["quantity"]) for column in self.report["columns"]
+        )
+
+    @property
     def identity(self) -> str:
         """Source/schema/world/time/selector identity for independent consumption."""
         return str(self.report["identity"])
 
     @artifact_export
-    def export(self, *, max_bytes: int | None = None, cancel: Any = None) -> ExportedArtifact:
+    @_with_execution
+    def export(
+        self,
+        *,
+        execution: Execution | None = None,
+    ) -> ExportedArtifact:
         """Export original source and projection, preserving replay and uncertainty meaning."""
+        assert execution is not None
+        max_bytes = None
+        cancel = None
         return artifact_from_receipt(
             self, bytes(self._handle.export(max_bytes=max_bytes, cancel=cancel))
         )
 
-    def joint_law(self, *, max_bytes: int | None = None, cancel: Any = None) -> Any:
+    @_with_execution
+    @outcome_operation
+    def joint_law(
+        self,
+        *,
+        execution: Execution | None = None,
+    ) -> Any:
         """Use the existing joint-distribution/decision API for complete aligned laws.
 
         Bootstrap laws, numerical root sets, finite mass bounds, uncertified roots
         and failed posterior slots cannot be silently coerced to an outcome law.
         """
+        assert execution is not None
+        max_bytes = None
+        cancel = None
         from .joint_distribution import JointDistributionArtifact
 
         return JointDistributionArtifact._from_native(
             self._handle.joint_law(max_bytes=max_bytes, cancel=cancel)
         )
 
-    def decide_enclosures(self, contract: Any) -> dict[str, Any]:
+    @outcome_operation
+    @_with_execution
+    def decide_enclosures(
+        self, contract: Any, *, execution: Execution | None = None
+    ) -> dict[str, Any]:
         """Conservative robust decisions on model solution/scenario outer enclosures.
 
         Unresolved root boxes remain in the set; undefined selected-state mass
         refuses. This introduces neither equilibrium probabilities nor a
         nonparametric identification or statistical coverage claim.
         """
+        assert execution is not None
         return dict(json.loads(self._handle.decide_enclosures(json.dumps(contract._wire()))))
 
-    def decide_means(self, contract: Any) -> dict[str, Any]:
+    @outcome_operation
+    @_with_execution
+    def decide_means(self, contract: Any, *, execution: Execution | None = None) -> dict[str, Any]:
         """Evaluate an existing decision Contract on point/mean evidence only."""
+        assert execution is not None
         return dict(json.loads(self._handle.decide_means(json.dumps(contract._wire()))))
 
 
 @outcome_operation
+@_with_execution
+@artifact_consumer(
+    proof="cyclic.consume_evidence: independent native source replay and complete evidence schema/selector/identity verification",
+    replayable=True,
+)
 def consume_evidence(
     artifact: bytes,
     *,
     expected_identity: str,
-    max_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> CyclicEvidence:
     """Independently replay a cyclic source and recheck its entire evidence projection."""
+    assert execution is not None
+    max_bytes = None
+    cancel = None
     artifact = container_bytes(artifact)
     return CyclicEvidence(
         _native.consume_cyclic_evidence(
@@ -1912,6 +2308,7 @@ class OuMechanisms:
     forcing: tuple[float, ...]
     diffusion_factor: tuple[float, ...]
 
+    @_with_execution
     def prepare(
         self,
         worlds: list[list[dict[str, Any]]],
@@ -1921,6 +2318,7 @@ class OuMechanisms:
         learning_rate: float = 0.1,
         score_tolerance: float = 1e-6,
         max_iterations: int = 1000,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Evaluate or jointly fit independent stationary intervention regimes.
 
@@ -1930,6 +2328,7 @@ class OuMechanisms:
         else. Parameters are ``drift`` (equation,parent), ``forcing`` (equation)
         or ``diffusion`` (equation,source). Identifiability is a separate question.
         """
+        assert execution is not None
         return PreparedCyclicFamily(
             json.dumps(
                 {
@@ -1945,9 +2344,11 @@ class OuMechanisms:
                     },
                 },
                 allow_nan=False,
-            )
+            ),
+            execution=execution,
         )
 
+    @_with_execution
     def infer(
         self,
         parameters: list[dict[str, Any]],
@@ -1959,8 +2360,7 @@ class OuMechanisms:
         learning_rate: float = 0.1,
         score_tolerance: float = 1e-6,
         max_iterations: int = 1000,
-        max_bytes: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Fit shared mechanisms once, then attach their declared uncertainty.
 
@@ -1970,6 +2370,7 @@ class OuMechanisms:
         equation replacements, evaluated at every replicate or draw. Known target mechanisms
         stay fixed; identifiability of the estimated coordinates is a separate question.
         """
+        assert execution is not None
         from ._cyclic_typed import infer_ou_mechanisms
 
         return infer_ou_mechanisms(
@@ -1982,8 +2383,7 @@ class OuMechanisms:
             learning_rate=learning_rate,
             score_tolerance=score_tolerance,
             max_iterations=max_iterations,
-            max_bytes=max_bytes,
-            cancel=cancel,
+            execution=execution,
         )
 
 
@@ -2000,7 +2400,6 @@ class AdamPolicy:
     score_tolerance: float = 1e-3
     l1_penalty: float = 0.001
     contraction_margin: float = 0.95
-    seed: int = 0
 
 
 __all__ = [

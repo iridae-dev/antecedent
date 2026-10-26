@@ -200,7 +200,6 @@ from . import prediction as prediction
 from . import query as query
 from . import results as results
 from . import transport as transport
-from ._analyze import analyze
 from ._native import (
     Admg,
     CancellationToken,
@@ -221,15 +220,17 @@ if getattr(_native_module, "__build_optimized__", True) is False:
         RuntimeWarning,
         stacklevel=2,
     )
-from ._workflow import load, prepare
+from ._workflow import load
 from .accepted_graph import AcceptedGraph
 from .drift import staleness
 from .errors import CausalError, ReviewRequired
 from .execution import CachePolicy, Execution, ResourceLimits
-from .identify import Identification, estimate, identify
+from .identify import Identification, identify
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .interference import InterferenceQuery
+from .outcomes import Outcome, Refusal
+from .prepared import PreparedAnalysis, analyze, estimate, prepare, rebind, reconfigure
 from .query import (
     AnomalyAttribution,
     AnomalyReference,
@@ -268,6 +269,8 @@ __all__ = [
     # Verbs
     "analyze",
     "prepare",
+    "rebind",
+    "reconfigure",
     "load",
     "identify",
     "estimate",
@@ -275,6 +278,9 @@ __all__ = [
     # Structure and results
     "AcceptedGraph",
     "Identification",
+    "PreparedAnalysis",
+    "Outcome",
+    "Refusal",
     "Analysis",
     "AnalysisResult",
     # Queries

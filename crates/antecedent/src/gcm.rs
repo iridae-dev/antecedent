@@ -175,6 +175,34 @@ pub fn fit_gcm_with(
     Ok(FittedGcm { model: compiled.with_mechanisms(store), assignments })
 }
 
+/// Fit the existing registry selection while polling the caller's execution cancellation.
+/// Numerical selection and failure codes are the same as [`fit_gcm`] / [`fit_gcm_with`].
+///
+/// # Errors
+/// The existing fitting failures, or cancellation before a node, candidate or validation fold.
+#[doc(hidden)]
+pub fn fit_gcm_polled(
+    graph: Dag,
+    data: &TabularData,
+    selection: Option<(&MechanismRegistry, &SelectionOptions)>,
+    ctx: &ExecutionContext,
+) -> Result<FittedGcm, CausalError> {
+    let compiled = CompiledCausalModel::compile(graph)?;
+    let standard = MechanismRegistry::standard();
+    let defaults = SelectionOptions::default();
+    let (registry, options) = selection.unwrap_or((&standard, &defaults));
+    let (store, assignments) = registry
+        .assign_and_fit_with_polled(&compiled, data, SelectionPolicy::BestScore, options, &|| {
+            ctx.cancellation.is_cancelled()
+        })
+        .map_err(|error| match error {
+            ModelError::Cancelled => CausalError::Cancelled { stage: "policy_fit" },
+            other if selection.is_some() => map_mechanism_fit(other),
+            other => CausalError::from(other),
+        })?;
+    Ok(FittedGcm { model: compiled.with_mechanisms(store), assignments })
+}
+
 /// Every family a candidate token may name exactly, by its registry id.
 const ALL_FAMILIES: [MechanismFamily; 16] = [
     MechanismFamily::LinearGaussian,
@@ -957,6 +985,7 @@ fn policy_value_on(
 #[derive(Clone, Debug)]
 pub struct PreparedPolicy {
     interventions: Arc<[Intervention]>,
+    graph: Arc<Dag>,
     overlay: InterventionOverlay,
     support: PolicySupport,
     program_compilations: u64,
@@ -978,6 +1007,7 @@ impl PreparedPolicy {
         let support = policy_support(model, &interventions);
         Ok(Self {
             interventions: Arc::from(interventions),
+            graph: Arc::clone(&model.graph),
             overlay,
             support,
             program_compilations: 1,
@@ -993,9 +1023,14 @@ impl PreparedPolicy {
     ///
     /// A model that refuses the program.
     pub fn rebind(&self, model: &CompiledCausalModel) -> Result<Self, CausalError> {
-        let overlay = InterventionOverlay::from_interventions(model, &self.interventions)?;
+        let overlay = if model.graph.as_ref() == self.graph.as_ref() {
+            self.overlay.clone()
+        } else {
+            InterventionOverlay::from_interventions(model, &self.interventions)?
+        };
         Ok(Self {
             interventions: Arc::clone(&self.interventions),
+            graph: Arc::clone(&model.graph),
             overlay,
             support: policy_support(model, &self.interventions),
             program_compilations: self.program_compilations,

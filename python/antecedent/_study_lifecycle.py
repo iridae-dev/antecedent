@@ -75,6 +75,11 @@ def retain_preparation(fn: Callable[P, R]) -> Callable[P, R]:
         columns = _data_column_map(data, names) if names else {}
         resolved = resolve_columns(query, columns)
         result = fn(*args, **kwargs)
+        retained_backend = getattr(result, "_retain_preparation", None)
+        if callable(retained_backend):
+            # Immutable backends return a retained replacement rather than receiving
+            # mutation-only fields from the ordinary historical engine.
+            return cast(R, retained_backend(request, columns, query, resolved))
         # Native preparation owns the checked declaration. Detach its Python views too,
         # so a caller editing the original query cannot relabel that retained product.
         for attribute in ("_query", "_display_query", "_transport_stage"):

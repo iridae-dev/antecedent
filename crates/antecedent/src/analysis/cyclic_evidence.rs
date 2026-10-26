@@ -1166,7 +1166,7 @@ impl CyclicEvidence {
         ctx: &ExecutionContext,
     ) -> Result<Self, CyclicArtifactError> {
         if ctx.cancellation.is_cancelled() {
-            return Err(invalid("cancelled"));
+            return Err(CyclicArtifactError::Cancelled);
         }
         if schema.id.trim().is_empty()
             || schema.id.len() > 256
@@ -1226,7 +1226,8 @@ impl CyclicEvidence {
         let reserve = (artifact.len() as u64) * 4
             + (cyclic_serialized_size(&(source, &schema, &selectors), ctx)? as u64) * 8
             + 4096;
-        let mut retention = vec![ctx.acquire_admission(0, reserve).map_err(invalid)?];
+        let mut retention =
+            vec![ctx.acquire_admission(0, reserve).map_err(CyclicArtifactError::Admission)?];
         let identity =
             digest("antecedent.cyclic_evidence.v1", &(&source.identity, &schema, &selectors))?;
         let mut columns = Vec::new();
@@ -1237,7 +1238,10 @@ impl CyclicEvidence {
                 &(&p.diagnostics, &p.samples, &p.bounds, &p.masses, &p.world, &p.time),
                 ctx,
             )? as u64;
-            retention.push(ctx.acquire_admission(0, projection_bytes * 8 + 4096).map_err(invalid)?);
+            retention.push(
+                ctx.acquire_admission(0, projection_bytes * 8 + 4096)
+                    .map_err(CyclicArtifactError::Admission)?,
+            );
             let (name, units) = schema
                 .variables
                 .get(p.variable)
@@ -1396,7 +1400,7 @@ impl CyclicEvidence {
     /// Resource or container/size refusal.
     pub fn export(&self, ctx: &ExecutionContext) -> Result<Vec<u8>, CyclicArtifactError> {
         if ctx.cancellation.is_cancelled() {
-            return Err(invalid("cancelled"));
+            return Err(CyclicArtifactError::Cancelled);
         }
         let _admission = ctx
             .acquire_admission(
@@ -1407,7 +1411,7 @@ impl CyclicEvidence {
                         * 8
                     + 65536,
             )
-            .map_err(invalid)?;
+            .map_err(CyclicArtifactError::Admission)?;
         let bytes = antecedent_io::to_cbor(&Record {
             version: 2,
             source: self.source.to_vec(),
@@ -1420,8 +1424,9 @@ impl CyclicEvidence {
         if bytes.len() > MAX_CYCLIC_ARTIFACT_BYTES {
             return Err(invalid("cyclic evidence byte limit"));
         }
-        let _lease =
-            ctx.acquire_admission(0, (bytes.len() as u64).saturating_mul(4)).map_err(invalid)?;
+        let _lease = ctx
+            .acquire_admission(0, (bytes.len() as u64).saturating_mul(4))
+            .map_err(CyclicArtifactError::Admission)?;
         antecedent_io::encode_container(
             &antecedent_io::ArtifactContainer {
                 kind: "cyclic_evidence",

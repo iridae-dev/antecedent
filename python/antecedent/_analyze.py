@@ -791,7 +791,11 @@ def analyze(
         from .results import AnalysisResult
         from .results._report import copy_model
 
-        if not isinstance(result, AnalysisResult) or result.posterior is None:
+        if (
+            not isinstance(result, AnalysisResult)
+            or result.posterior is None
+            or not isinstance(prepared, PreparedAnalysis)
+        ):
             raise _Unsupported(
                 "return_posterior_artifact requires a scalar posterior",
                 reason_code="option_not_applicable",

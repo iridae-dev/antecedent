@@ -169,6 +169,8 @@ _OPERATIONAL_CODES = frozenset(
 
 def is_scientific_refusal(error: BaseException) -> bool:
     """Explicit typed classification; no exception-text matching or broad catch-all."""
+    if getattr(error, "_antecedent_operational_callback", False):
+        return False
     if isinstance(
         error,
         (
@@ -191,7 +193,17 @@ def is_scientific_refusal(error: BaseException) -> bool:
         return False
     return isinstance(error, (EffectNotIdentified, ReviewRequired, StructuredRefusal)) or (
         isinstance(error, CausalUnsupportedError)
-        and getattr(error, "reason_code", None) in {"effect_not_identified", "cell_not_licensed"}
+        and getattr(error, "reason_code", None)
+        in {
+            "effect_not_identified",
+            "cell_not_licensed",
+            "policy_dependency_circular",
+            "policy_dependency_unavailable",
+            "policy_directive_conflict",
+            "policy_output_type_invalid",
+            "policy_history_unavailable",
+            "policy_route_not_licensed",
+        }
     )
 
 
@@ -230,6 +242,8 @@ class Outcome(Generic[T]):
     refusal: Refusal | None = None
     _study: PreparedAnalysis | None = field(default=None, repr=False, compare=False)
     _acceptance: ArtifactAcceptance | None = field(default=None, repr=False, compare=False)
+    associational: Outcome[Any] | None = field(default=None, repr=False, compare=False)
+    evidence_plan: Any = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if self.refusal is not None and not isinstance(self.refusal, Refusal):
@@ -385,6 +399,17 @@ class Outcome(Generic[T]):
     def export(self, *args: Any, **kwargs: Any) -> ExportedArtifact[Any]:
         from ._artifact_protocol import exported_artifact
 
+        if self.associational is not None:
+            selection = kwargs.pop("quantity", None)
+            if selection == "associational":
+                return self.associational.export(*args, **kwargs)
+            if selection != "refusal":
+                from .errors import CausalValueError
+
+                raise CausalValueError(
+                    "a descriptive fallback contains two results; select quantity='refusal' "
+                    "or quantity='associational'"
+                )
         if self.refusal is not None:
             if args or kwargs:
                 raise TypeError("a refusal export takes no selection or artifact-id arguments")
@@ -404,7 +429,19 @@ def as_outcome(value: T | Outcome[T]) -> Outcome[T]:
     return value if isinstance(value, Outcome) else Outcome(value=value)
 
 
-def capture_outcome(fn: Callable[P, T], /, *args: P.args, **kwargs: P.kwargs) -> Outcome[T]:
+@overload
+def capture_outcome(
+    fn: Callable[P, Outcome[T]], /, *args: P.args, **kwargs: P.kwargs
+) -> Outcome[T]: ...
+
+
+@overload
+def capture_outcome(fn: Callable[P, T], /, *args: P.args, **kwargs: P.kwargs) -> Outcome[T]: ...
+
+
+def capture_outcome(
+    fn: Callable[P, T | Outcome[T]], /, *args: P.args, **kwargs: P.kwargs
+) -> Outcome[T]:
     """Shared boundary for existing family operations; never catches BaseException."""
     try:
         return as_outcome(fn(*args, **kwargs))

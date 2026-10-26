@@ -107,6 +107,12 @@ pub enum CyclicArtifactError {
     /// Family size, shape or version limit.
     #[error("cyclic artifact invalid: {0}")]
     Invalid(String),
+    /// Native admission rejected the requested memory or CPU reservation.
+    #[error(transparent)]
+    Admission(#[from] antecedent_core::execution::AdmissionError),
+    /// Execution was cancelled by its bound execution policy.
+    #[error("cyclic execution cancelled")]
+    Cancelled,
     /// Model or statistical computation failed.
     #[error(transparent)]
     Execution(#[from] antecedent_model::nonlinear_equilibrium::EquilibriumError),
@@ -204,7 +210,8 @@ impl CyclicExecutionRequest {
                 fit.map_or(Ok(0), crate::retained_allocation::allocation_bytes).map_err(invalid)?,
             )
             .ok_or_else(|| invalid("output size overflow"))?;
-        let retention = ctx.acquire_admission(0, retained).map_err(invalid)?;
+        let retention =
+            ctx.acquire_admission(0, retained).map_err(CyclicArtifactError::Admission)?;
         if fit.as_ref().is_some_and(|f| !f.converged) {
             return Err(invalid("fit did not converge"));
         }
@@ -283,7 +290,8 @@ fn encode_report(
         .checked_mul(4)
         .and_then(|bytes| bytes.checked_add(65536))
         .ok_or_else(|| invalid("artifact encoding size overflow"))?;
-    let _encoding = ctx.acquire_admission(0, bytes_quote).map_err(invalid)?;
+    let _encoding =
+        ctx.acquire_admission(0, bytes_quote).map_err(CyclicArtifactError::Admission)?;
     let bytes = serde_json::to_vec(&record).map_err(invalid)?;
     if bytes.len() > MAX_CYCLIC_ARTIFACT_BYTES {
         return Err(invalid("logical section byte limit"));
@@ -300,7 +308,7 @@ fn encode_report(
     )
     .map_err(|e| invalid(e.into_io("cyclic artifact layout")))?;
     if ctx.cancellation.is_cancelled() {
-        return Err(invalid("cyclic artifact export cancelled"));
+        return Err(CyclicArtifactError::Cancelled);
     }
     Ok(container)
 }
@@ -352,6 +360,19 @@ impl PreparedCyclicExecution {
             resource_context: ctx.clone(),
         })
     }
+    /// Branch the frozen request, sharing fits only when their inputs are unchanged.
+    pub fn rebind(
+        &self,
+        request: CyclicExecutionRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CyclicArtifactError> {
+        let mut next = Self::prepare(request, ctx)?;
+        if next.request.model == self.request.model && next.request.fit == self.request.fit {
+            next.fit = self.fit.clone();
+        }
+        Ok(next)
+    }
+
     /// Number of causal fits performed by execution on this handle (zero at compilation).
     #[must_use]
     pub fn fits_performed(&self) -> usize {
@@ -392,7 +413,7 @@ impl PreparedCyclicExecution {
         ctx: &ExecutionContext,
     ) -> Result<CyclicExecutionReport, CyclicArtifactError> {
         if ctx.cancellation.is_cancelled() {
-            return Err(invalid("cyclic execution cancelled"));
+            return Err(CyclicArtifactError::Cancelled);
         }
         self.retention.observe_current();
         antecedent_core::numerical_admission::with_context(ctx, || {
@@ -404,6 +425,10 @@ impl PreparedCyclicExecution {
                     antecedent_core::execution_attempt::record_physical(
                         antecedent_core::execution_attempt::PhysicalEvent::CacheHit,
                         1,
+                    );
+                    antecedent_core::execution_attempt::record_physical(
+                        antecedent_core::execution_attempt::PhysicalEvent::ModelFit,
+                        0,
                     );
                     fit.retention.observe_current();
                     Some(std::sync::Arc::clone(fit))
@@ -421,11 +446,10 @@ impl PreparedCyclicExecution {
                         .and_then(|bytes| bytes.checked_add(parameters.checked_mul(64)?))
                         .and_then(|bytes| bytes.checked_add(65536))
                         .ok_or_else(|| invalid("fit workspace size overflow"))?;
-                    if ctx.memory_limit_bytes().is_some_and(|limit| workspace > limit) {
-                        return Err(invalid("fit workspace exceeds memory limit"));
-                    }
-                    let workspace =
-                        std::sync::Arc::new(ctx.acquire_admission(0, workspace).map_err(invalid)?);
+                    let workspace = std::sync::Arc::new(
+                        ctx.acquire_admission(0, workspace)
+                            .map_err(CyclicArtifactError::Admission)?,
+                    );
                     let fit = antecedent_core::numerical_admission::with_reservation(
                         std::sync::Arc::clone(&workspace),
                         || {
@@ -443,7 +467,9 @@ impl PreparedCyclicExecution {
                     }
                     let bytes =
                         crate::retained_allocation::allocation_bytes(&fit).map_err(invalid)?;
-                    let retention = workspace.acquire_child(0, bytes).map_err(invalid)?;
+                    let retention = workspace
+                        .acquire_child(0, bytes)
+                        .map_err(CyclicArtifactError::Admission)?;
                     antecedent_core::execution_attempt::record_physical(
                         antecedent_core::execution_attempt::PhysicalEvent::RetainedBytes,
                         bytes,
@@ -454,6 +480,10 @@ impl PreparedCyclicExecution {
                     Some(fit)
                 }
             } else {
+                antecedent_core::execution_attempt::record_physical(
+                    antecedent_core::execution_attempt::PhysicalEvent::ModelFit,
+                    0,
+                );
                 None
             };
             drop(retained);
@@ -540,7 +570,9 @@ pub fn cyclic_decode_admission(
     if manifest_len > 16 * 1024 * 1024 || manifest_len > bytes.len() - 16 {
         return Err(invalid("cyclic manifest byte limit"));
     }
-    let metadata = ctx.acquire_admission(0, (manifest_len as u64) * 8 + 4096).map_err(invalid)?;
+    let metadata = ctx
+        .acquire_admission(0, (manifest_len as u64) * 8 + 4096)
+        .map_err(CyclicArtifactError::Admission)?;
     let reader = crate::ArtifactReader::open_seek(std::io::Cursor::new(bytes)).map_err(invalid)?;
     let logical = reader.manifest().sections.iter().try_fold(0u64, |sum, section| {
         sum.checked_add(section.uncompressed_size).ok_or_else(|| invalid("logical size overflow"))
@@ -551,7 +583,7 @@ pub fn cyclic_decode_admission(
     drop(reader);
     drop(metadata);
     ctx.acquire_admission(0, (bytes.len() as u64 + logical + manifest_len as u64) * 8 + 4096)
-        .map_err(invalid)
+        .map_err(CyclicArtifactError::Admission)
 }
 
 // Covers row/vector headers, retained models and the fitted copy, even for zeros.
@@ -561,7 +593,7 @@ fn retain_request(
 ) -> Result<antecedent_core::execution::AdmissionLease, CyclicArtifactError> {
     let bytes =
         cyclic_serialized_size(request, ctx)? * 8 + request.model.order().pow(2) * 32 + 4096;
-    ctx.acquire_admission(0, bytes as u64).map_err(invalid)
+    ctx.acquire_admission(0, bytes as u64).map_err(CyclicArtifactError::Admission)
 }
 
 /// Consume in a fresh process, checking the independently retained identity and

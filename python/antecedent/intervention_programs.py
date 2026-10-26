@@ -38,18 +38,26 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 import numpy as np
 from numpy.typing import NDArray
 
 from . import _native
-from ._artifact_protocol import container_bytes
-from .errors import CausalValueError
+from ._artifact_protocol import ArtifactAcceptance, container_bytes
+from ._scientific import ScientificResult
+from .errors import (
+    CausalSerializationError,
+    CausalTypeError,
+    CausalUnsupportedError,
+    CausalValueError,
+)
 
 __all__ = [
     "Expr",
+    "ConsumedPolicyProgram",
+    "consume_policy_program",
     "PolicyContract",
     "PolicyPreparation",
     "PolicyProgramResult",
@@ -413,6 +421,103 @@ def decode_policy_program(
     return _programs(_native.decode_policy_program(list(names), bytes(data)))
 
 
+@dataclass(frozen=True, slots=True, repr=False)
+class ConsumedPolicyProgram(ScientificResult):
+    """An independently verified program declaration, with its original encoding.
+
+    The ordered names are supplied by the consumer: historical program bytes
+    identify variables by position and do not attest their external labels.
+    This object contains no fitted mechanisms, observations or policy value.
+    """
+
+    identity: str
+    names: tuple[str, ...]
+    programs: tuple[Program, ...]
+    acceptance: ArtifactAcceptance
+    _artifact_bytes: bytes = field(repr=False, compare=False)
+
+    @property
+    def answer(self) -> Any:
+        from .outcomes import Answer
+
+        return Answer("unavailable", detail="verified_program_declaration_has_no_policy_value")
+
+    def inspect(self) -> Any:
+        from .results._report import InspectionReport, SlotModel
+
+        unavailable = SlotModel(
+            available=False, reason="program_declaration_only", summary="no execution retained"
+        )
+        return InspectionReport(
+            identification=unavailable,
+            support=SlotModel(
+                available=True,
+                summary="native decoder verified program version, identity and declared reads",
+            ),
+            uncertainty=unavailable,
+            assumptions=SlotModel(
+                available=True,
+                summary="variable labels supplied by consumer in native variable order",
+                payload={"names": self.names},
+            ),
+            answer=self.answer,
+            program_id=self.identity,
+            family="policy_program",
+            stage="consumed",
+            operations=("inspect", "to_dict", "export"),
+            details={"replayable": False, "resumable": False},
+        )
+
+
+def consume_policy_program(
+    artifact: bytes, *, expected_identity: str | None = None, supplied: Any = None
+) -> ConsumedPolicyProgram:
+    """Verify a historical policy encoding under explicitly supplied ordered names.
+
+    ``supplied`` is an ordered sequence of variable names, or ``{"names": ...}``.
+    No labels are inferred from a live study. The native decoder checks the
+    encoding version, expression identity, variable references and declared reads.
+    An optional independently retained identity is then checked against the
+    decoded program's native identity. Original bytes are retained unchanged.
+    """
+    names = supplied.get("names") if isinstance(supplied, Mapping) else supplied
+    if not isinstance(names, Sequence) or isinstance(names, (str, bytes, bytearray)):
+        raise CausalTypeError("policy program consumption needs supplied ordered variable names")
+    names = tuple(names)
+    if not names or any(not isinstance(name, str) or not name for name in names):
+        raise CausalValueError("supplied names must be a nonempty ordered sequence of names")
+    if len(set(names)) != len(names):
+        raise CausalValueError("supplied variable names must be unique")
+    if expected_identity is not None and (
+        not isinstance(expected_identity, str)
+        or len(expected_identity) != 64
+        or any(character not in "0123456789abcdefABCDEF" for character in expected_identity)
+    ):
+        raise CausalValueError(
+            "expected_identity must be a 64-character hexadecimal program identity"
+        )
+    data = container_bytes(artifact)
+    # Both operations go through native verification; Python performs no expression evaluation.
+    programs = decode_policy_program(names, data)
+    identity = policy_program_identity(names, programs)
+    if expected_identity is not None and identity != expected_identity.lower():
+        raise CausalSerializationError("policy program does not match the expected identity")
+    return ConsumedPolicyProgram(
+        identity=identity,
+        names=names,
+        programs=programs,
+        acceptance=ArtifactAcceptance(
+            "verified",
+            expected_identity is not None,
+            False,
+            False,
+            proof="native policy decoder verifies version, expression digest and declared reads; "
+            "native identity recomputation binds the optional consumer expectation",
+        ),
+        _artifact_bytes=data,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class RouteDecision:
     """One route's licence for a program.
@@ -655,8 +760,8 @@ class PolicyPreparation:
     runs: int
 
 
-@dataclass(frozen=True, slots=True)
-class PolicyProgramResult:
+@dataclass(frozen=True, slots=True, repr=False)
+class PolicyProgramResult(ScientificResult):
     """One run of the prepared policy question: the value, its licence, contract and provenance.
 
     ``value`` equals, bit for bit, :func:`policy_value` on the same fitted model, program and
@@ -668,6 +773,69 @@ class PolicyProgramResult:
     value: PolicyValueResult
     contract: PolicyContract
     preparation: PolicyPreparation
+    _native: Any = field(default=None, repr=False, compare=False)
+    _prepared: Any = field(default=None, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        from ._freeze import freeze
+
+        object.__setattr__(self, "contract", freeze(self.contract))
+
+    @property
+    def answer(self) -> Any:
+        from .outcomes import Answer
+
+        return Answer(
+            kind="policy_value",
+            value=self.value.policy_mean,
+            detail="model-based policy mean; Monte Carlo error only",
+        )
+
+    @property
+    def route(self) -> Any:
+        return None if self._native is None else self._native.last_route
+
+    def inspect(self) -> Any:
+        from .results._report import InspectionReport, SlotModel
+
+        return InspectionReport(
+            identification=SlotModel(available=True, summary="model-based policy value"),
+            support=SlotModel(
+                available=True,
+                summary="simulation route licensed",
+                payload={"support": self.support},
+            ),
+            uncertainty=SlotModel(
+                available=True,
+                summary="Monte Carlo error only; model uncertainty unquantified",
+                payload={
+                    "policy_simulation_stderr": self.value.policy_simulation_stderr,
+                    "difference_simulation_stderr": self.value.difference_simulation_stderr,
+                },
+            ),
+            assumptions=SlotModel(
+                available=True,
+                summary=f"{len(self.contract.assumptions)} assumptions",
+                payload={"assumptions": self.contract.assumptions},
+            ),
+            answer=self.answer,
+            program_id=self.contract.program_identity,
+            stage="executed",
+            family="policy_program",
+            operations=("inspect", "to_dict") + (("export",) if self._prepared is not None else ()),
+            details={"export_quantities": ("program",)},
+        )
+
+    def export(self, *, quantity: str) -> Any:
+        """Export the retained checked program; this does not export a fitted value."""
+        if quantity != "program" or self._prepared is None:
+            raise CausalUnsupportedError(
+                "this policy result exports only its retained program with quantity='program'",
+                reason_code="route_not_supported",
+            )
+        from ._artifact_protocol import artifact_from_receipt
+
+        return artifact_from_receipt(self, self._prepared._native.export_program())
 
     @property
     def support(self) -> PolicySupport:

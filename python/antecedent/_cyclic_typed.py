@@ -23,11 +23,15 @@ import json
 import math
 import re
 from collections.abc import Iterator, Mapping, Sequence
+from contextvars import ContextVar
 from dataclasses import asdict, dataclass, field
+from functools import wraps
+from inspect import signature
 from typing import TYPE_CHECKING, Any, Literal
 
 from . import _native
 from .errors import CausalValueError
+from .execution import Execution
 from .intervention import Set, Shift, Soft
 
 if TYPE_CHECKING:
@@ -56,6 +60,52 @@ _DESIGN_RESAMPLING: dict[str, str] = {
 }
 _NEXT_ATTEMPT = re.compile(r"next attempt:\s*(?P<sentence>.+)", re.IGNORECASE | re.DOTALL)
 _MAX_ID = 2**32 - 1
+
+
+_active_execution: ContextVar[Execution | None] = ContextVar("cyclic_execution", default=None)
+
+
+def _seed():
+    execution = _active_execution.get()
+    return 0 if execution is None else execution.seed
+
+
+def _with_execution(operation):
+    """Bind native context and retain the reusable policy on prepared branches."""
+    call_signature = signature(operation)
+
+    @wraps(operation)
+    def run(*args, **kwargs):
+        from .cyclic import CyclicEvidence, PreparedCyclicFamily, PreparedCyclicSystem
+
+        bound = call_signature.bind(*args, **kwargs)
+        owner = bound.arguments.get("self")
+        execution = bound.arguments.get("execution")
+        if execution is None:
+            execution = (
+                getattr(owner, "execution", None) or _active_execution.get() or Execution(seed=0)
+            )
+        if not isinstance(execution, Execution):
+            from .errors import CausalTypeError
+
+            raise CausalTypeError("execution must be an Execution")
+        if (
+            isinstance(owner, PreparedCyclicFamily)
+            and operation.__name__ in {"execute", "evidence", "interventions"}
+            and execution.seed != owner.execution.seed
+        ):
+            bound.arguments["self"] = owner.reconfigure(execution=execution)
+        bound.arguments["execution"] = execution
+        token = _active_execution.set(execution)
+        try:
+            result = execution._call(operation, *bound.args, **bound.kwargs)
+            if isinstance(result, (PreparedCyclicSystem, PreparedCyclicFamily, CyclicEvidence)):
+                object.__setattr__(result, "execution", execution)
+            return result
+        finally:
+            _active_execution.reset(token)
+
+    return run
 
 
 def _refusal(
@@ -273,16 +323,19 @@ def _worlds(worlds: Sequence[World], ids: Mapping[str, int]) -> list[dict[str, A
     return [world._wire(ids) for world in worlds]
 
 
+@_with_execution
 def _compiled(
     request: dict[str, Any],
     names: tuple[str, ...] | None,
     *,
     detail: str,
     experimental: bool = False,
-    max_bytes: int | None,
-    cancel: Any,
+    execution: Execution | None = None,
 ) -> PreparedCyclicFamily:
     """Compile now, so a refused world surfaces at preparation with its next attempt."""
+    assert execution is not None
+    max_bytes = None
+    cancel = None
     from .cyclic import PreparedCyclicFamily
 
     request_json = json.dumps(request, allow_nan=False)
@@ -298,9 +351,7 @@ def _compiled(
         if refusal is None:
             raise
         raise refusal from error
-    family = PreparedCyclicFamily(request_json, variable_names=names)
-    object.__setattr__(family, "_handle", handle)
-    return family
+    return PreparedCyclicFamily._from_handle(request_json, names, handle, execution)
 
 
 @dataclass(frozen=True)
@@ -376,6 +427,7 @@ class LinearCyclicModel:
             None if noise_mean is None else tuple(noise_mean),
         )
 
+    @_with_execution
     def worlds(
         self,
         worlds: Sequence[World],
@@ -384,8 +436,7 @@ class LinearCyclicModel:
         source_id: str,
         certifying_evidence: Sequence[str],
         certificate: Literal["required", "report_uncertified"] = "required",
-        max_bytes: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> PreparedCyclicFamily:
         """Prepare typed worlds of this model; compilation solves nothing.
 
@@ -396,6 +447,7 @@ class LinearCyclicModel:
         never a dropped world. ``source_id`` names where the model came from and does not
         certify the component; ``certifying_evidence`` must name other evidence.
         """
+        assert execution is not None
         if certificate not in ("required", "report_uncertified"):
             raise CausalValueError("certificate must be 'required' or 'report_uncertified'")
         ids = {name: index for index, name in enumerate(self.variables)}
@@ -420,11 +472,11 @@ class LinearCyclicModel:
             request,
             self.variables,
             detail="cyclic_world.linear",
-            max_bytes=max_bytes,
-            cancel=cancel,
+            execution=execution,
         )
 
 
+@_with_execution
 def equilibrium_worlds(
     model: EquilibriumModel,
     worlds: Sequence[World],
@@ -433,10 +485,10 @@ def equilibrium_worlds(
     variables: Sequence[str] | None = None,
     initial: Sequence[float] | None = None,
     policy: SolvePolicy | None = None,
-    max_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PreparedCyclicFamily:
     """Typed worlds of a specified nonlinear equilibrium over shared disturbance draws."""
+    assert execution is not None
     from .cyclic import SolvePolicy
 
     names = _names(variables if variables is not None else [e.id for e in model.equations])
@@ -453,11 +505,10 @@ def equilibrium_worlds(
         "initial": _reals(initial, "initial") if initial is not None else [0.0] * len(names),
         "policy": asdict(policy or SolvePolicy()),
     }
-    return _compiled(
-        request, names, detail="cyclic_world.equilibrium", max_bytes=max_bytes, cancel=cancel
-    )
+    return _compiled(request, names, detail="cyclic_world.equilibrium", execution=execution)
 
 
+@_with_execution
 def ode_worlds(
     system: OdeSystem,
     initial: Sequence[float],
@@ -467,10 +518,10 @@ def ode_worlds(
     variables: Sequence[str] | None = None,
     initial_laws: Sequence[str] | None = None,
     policy: OdePolicy | None = None,
-    max_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PreparedCyclicFamily:
     """Typed worlds of a specified continuous-time system and its initial-state laws."""
+    assert execution is not None
     from .cyclic import OdePolicy
 
     names = _names(variables if variables is not None else [e.id for e in system.equations])
@@ -490,7 +541,7 @@ def ode_worlds(
         "worlds": _worlds(worlds, ids),
         "policy": asdict(policy or OdePolicy()),
     }
-    return _compiled(request, names, detail="cyclic_world.ode", max_bytes=max_bytes, cancel=cancel)
+    return _compiled(request, names, detail="cyclic_world.ode", execution=execution)
 
 
 # ---------------------------------------------------------------------------
@@ -825,7 +876,6 @@ class AsymptoticNormal:
     """
 
     draws: int
-    seed: int = 0
 
 
 @dataclass(frozen=True)
@@ -839,7 +889,6 @@ class RecoveryBootstrap:
     """
 
     replicates: int
-    seed: int = 0
     rule: ResamplingRule | None = None
     block_length: int | None = None
 
@@ -890,7 +939,6 @@ class RecoveryPosterior:
     prior: RecoveryPrior
     draws: int
     burn_in: int = 0
-    seed: int = 0
 
 
 RecoveryUncertainty = AsymptoticNormal | RecoveryBootstrap | RecoveryPosterior
@@ -918,7 +966,7 @@ def _inference_wire(
         return {
             "method": "bootstrap",
             "replicates": _count(uncertainty.replicates, "replicates"),
-            "seed": _count(uncertainty.seed, "seed", minimum=0),
+            "seed": _seed(),
             "design": design,
             "rule": uncertainty.rule or _DESIGN_RESAMPLING[design],
             "block_length": uncertainty.block_length,
@@ -933,7 +981,7 @@ def _inference_wire(
         return {
             "method": "asymptotic_normal",
             "draws": _count(uncertainty.draws, "draws"),
-            "seed": _count(uncertainty.seed, "seed", minimum=0),
+            "seed": _seed(),
         }
     prior = uncertainty.prior
     if isinstance(prior.coefficients, NormalCoefficients):
@@ -966,10 +1014,11 @@ def _inference_wire(
         "prior": {"coefficients": coefficients, "disturbance": disturbance},
         "draws": _count(uncertainty.draws, "draws"),
         "burn_in": _count(uncertainty.burn_in, "burn_in", minimum=0),
-        "seed": _count(uncertainty.seed, "seed", minimum=0),
+        "seed": _seed(),
     }
 
 
+@_with_execution
 def prepare_experimental_recovery(
     variables: Sequence[str],
     regimes: Sequence[ExperimentRegime],
@@ -982,8 +1031,7 @@ def prepare_experimental_recovery(
     sampling_design: SamplingDesign | None = None,
     dropped: Sequence[str] = (),
     fit: ExperimentalFitOptions | None = None,
-    max_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PreparedCyclicFamily:
     """Prepare a linear equilibrium to be recovered from randomized clamp experiments.
 
@@ -1001,6 +1049,7 @@ def prepare_experimental_recovery(
     recipe and grants no scientific license; ``certifying_evidence`` must name evidence
     other than ``source_id``.
     """
+    assert execution is not None
     names = _names(variables)
     ids = {name: index for index, name in enumerate(names)}
     design = _design(sampling_design)
@@ -1033,8 +1082,7 @@ def prepare_experimental_recovery(
         names,
         detail="cyclic_recovery.world",
         experimental=True,
-        max_bytes=max_bytes,
-        cancel=cancel,
+        execution=execution,
     )
 
 
@@ -1149,7 +1197,6 @@ class DynamicBootstrap:
 
     replicates: int
     kind: Literal["parametric", "nonparametric"] = "nonparametric"
-    seed: int = 0
     resampling: ResamplingRule | None = None
     stratification: Literal["fixed_assignments", "randomized_within_targets"] = "fixed_assignments"
 
@@ -1173,7 +1220,6 @@ class DynamicPosterior:
 
     mean: tuple[float, ...]
     standard_deviation: tuple[float, ...]
-    seed: int = 0
     chains: int = 4
     warmup: int = 500
     draws: int = 1000
@@ -1193,7 +1239,7 @@ def _method_wire(method: Any, design: str) -> dict[str, Any]:
             "design": design,
             "resampling": method.resampling or _DESIGN_RESAMPLING[design],
             "stratification": method.stratification,
-            "seed": _count(method.seed, "seed", minimum=0),
+            "seed": _seed(),
         }
     if isinstance(method, ObservedInformation):
         return {"method": "information", "design": design}
@@ -1212,13 +1258,14 @@ def _method_wire(method: Any, design: str) -> dict[str, Any]:
                 "start_spread": method.start_spread,
             },
             "design": design,
-            "seed": _count(method.seed, "seed", minimum=0),
+            "seed": _seed(),
         }
     raise CausalValueError(
         "method must be DynamicBootstrap, ObservedInformation or DynamicPosterior"
     )
 
 
+@_with_execution
 def _dynamic_inference(
     family: str,
     problem: dict[str, Any],
@@ -1226,9 +1273,9 @@ def _dynamic_inference(
     method: DynamicMethod,
     quantities: Sequence[DynamicQuantity],
     sampling_design: SamplingDesign,
-    max_bytes: int | None,
-    cancel: Any,
+    execution: Execution | None = None,
 ) -> PreparedCyclicFamily:
+    assert execution is not None
     design = _design(sampling_design)
     if design is None:
         raise _refusal(
@@ -1244,11 +1291,10 @@ def _dynamic_inference(
         "method": _method_wire(method, design),
         "quantities": [quantity._wire() for quantity in quantities],
     }
-    return _compiled(
-        request, None, detail="cyclic_dynamic_inference", max_bytes=max_bytes, cancel=cancel
-    )
+    return _compiled(request, None, detail="cyclic_dynamic_inference", execution=execution)
 
 
+@_with_execution
 def infer_ode(
     system: OdeSystem,
     parameters: list[dict[str, Any]],
@@ -1261,10 +1307,10 @@ def infer_ode(
     learning_rate: float = 0.1,
     score_tolerance: float = 1e-6,
     max_iterations: int = 1000,
-    max_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PreparedCyclicFamily:
     """See :meth:`antecedent.cyclic.OdeSystem.infer`."""
+    assert execution is not None
     from .cyclic import OdePolicy
 
     problem = {
@@ -1284,11 +1330,11 @@ def infer_ode(
         method=method,
         quantities=quantities,
         sampling_design=sampling_design,
-        max_bytes=max_bytes,
-        cancel=cancel,
+        execution=execution,
     )
 
 
+@_with_execution
 def infer_ou(
     process: OrnsteinUhlenbeck,
     parameters: list[dict[str, Any]],
@@ -1298,10 +1344,10 @@ def infer_ou(
     quantities: Sequence[DynamicQuantity] = (),
     sampling_design: SamplingDesign,
     options: FitOptions | None = None,
-    max_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PreparedCyclicFamily:
     """See :meth:`antecedent.cyclic.OrnsteinUhlenbeck.infer`."""
+    assert execution is not None
     from .cyclic import FitOptions
 
     problem = {
@@ -1316,11 +1362,11 @@ def infer_ou(
         method=method,
         quantities=quantities,
         sampling_design=sampling_design,
-        max_bytes=max_bytes,
-        cancel=cancel,
+        execution=execution,
     )
 
 
+@_with_execution
 def infer_ou_mechanisms(
     mechanisms: OuMechanisms,
     parameters: list[dict[str, Any]],
@@ -1332,10 +1378,10 @@ def infer_ou_mechanisms(
     learning_rate: float = 0.1,
     score_tolerance: float = 1e-6,
     max_iterations: int = 1000,
-    max_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PreparedCyclicFamily:
     """See :meth:`antecedent.cyclic.OuMechanisms.infer`."""
+    assert execution is not None
     problem = {
         "template": asdict(mechanisms),
         "parameters": parameters,
@@ -1352,8 +1398,7 @@ def infer_ou_mechanisms(
         method=method,
         quantities=quantities,
         sampling_design=sampling_design,
-        max_bytes=max_bytes,
-        cancel=cancel,
+        execution=execution,
     )
 
 
@@ -1376,6 +1421,48 @@ def _selector_position(variable: int | str, names: Sequence[str] | None) -> int:
 
 
 @dataclass(frozen=True)
+class EvidenceVariable:
+    """Named evidence coordinate with its declared physical units."""
+
+    name: str
+    units: str
+
+    def __post_init__(self):
+        for value in (self.name, self.units):
+            if not isinstance(value, str) or not value.strip():
+                raise CausalValueError("evidence variable names and units must be nonempty strings")
+
+
+@dataclass(frozen=True)
+class EvidenceSchema:
+    """Source-bound output coordinates and their declared target population."""
+
+    id: str
+    population: str
+    variables: tuple[EvidenceVariable, ...]
+
+    def __post_init__(self):
+        if any(
+            not isinstance(value, str) or not value.strip() for value in (self.id, self.population)
+        ):
+            raise CausalValueError("schema id and population must be nonempty strings")
+        object.__setattr__(self, "variables", tuple(self.variables))
+        if not self.variables or any(
+            not isinstance(value, EvidenceVariable) for value in self.variables
+        ):
+            raise CausalValueError("schema variables must be EvidenceVariable values")
+        if len({value.name for value in self.variables}) != len(self.variables):
+            raise CausalValueError("schema variable names must be unique")
+
+    def _wire(self):
+        return {
+            "id": self.id,
+            "population": self.population,
+            "variables": [[value.name, value.units] for value in self.variables],
+        }
+
+
+@dataclass(frozen=True)
 class WorldSelector:
     """One typed world of a specified model, by scientific world id.
 
@@ -1394,7 +1481,7 @@ class WorldSelector:
             "kind": "world",
             "world": _identifier(self.world, "world id"),
             "variable": _selector_position(self.variable, names),
-            "time": self.time,
+            "time": None if self.time is None else _count(self.time, "time index", minimum=0),
         }
 
 

@@ -704,9 +704,45 @@ impl PreparedStudy {
         result: &StudyResult,
         ctx: &ExecutionContext,
     ) -> Result<(CausalContract, ClaimEnvelope), CausalError> {
+        self.execution_contract_with_quantity_labels(result, ctx, None)
+    }
+
+    /// Inspect the executed claim under explicit response measurement labels.
+    ///
+    /// Uses the same canonical claim derivation as export, without encoding an
+    /// artifact or materializing its payload in a host language.
+    ///
+    /// # Errors
+    /// Contract mismatches, unsupported response coordinates or canonical encoding failures.
+    pub fn execution_contract_with_quantity_labels(
+        &self,
+        result: &StudyResult,
+        ctx: &ExecutionContext,
+        labels: Option<&antecedent_contract::ResponseCoordinateLabels<'_>>,
+    ) -> Result<(CausalContract, ClaimEnvelope), CausalError> {
+        let quantities = labels
+            .map(|labels| {
+                let response = result.response().ok_or_else(|| CausalError::Compile {
+                    message: "scientific coordinates require a native response".into(),
+                })?;
+                antecedent_contract::response_coordinates(
+                    response,
+                    &|id| {
+                        self.schema()
+                            .variables()
+                            .get(id.as_usize())
+                            .map(|variable| variable.name.to_string())
+                    },
+                    labels,
+                )
+                .map_err(|refusal| CausalError::Compile {
+                    message: format!("{}: {}", refusal.code, refusal.detail),
+                })
+            })
+            .transpose()?;
         let (mut contract, _payloads) = self.contract_and_payloads_for_result(result)?;
         self.bind_reuse(&mut contract, result)?;
-        let claim = result.claim(&contract, ctx)?;
+        let (claim, _) = result.claim_with_body(&contract, ctx, quantities.as_deref())?;
         Ok((contract, claim))
     }
 

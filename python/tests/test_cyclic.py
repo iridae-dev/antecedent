@@ -23,7 +23,8 @@ from antecedent.cyclic import (
     consume_artifact,
     consume_family_artifact,
 )
-from antecedent.errors import CausalValueError
+from antecedent.errors import CausalCancelledError, CausalResourceError, CausalValueError
+from antecedent.execution import Execution, ResourceLimits
 from antecedent.outcomes import require_success
 
 
@@ -179,7 +180,7 @@ def test_prepared_fit_retarget_has_zero_refits_and_refresh_changes_identity() ->
     assert prepared.inspect()["fits_performed"] == 0
     original = require_success(prepared.execute())
     assert prepared.inspect()["fits_performed"] == 1
-    retargeted = prepared.retarget([[{"variable": 0, "value": 2.0}]], [[0.0, 0.0]])
+    retargeted = prepared.reconfigure([[{"variable": 0, "value": 2.0}]], [[0.0, 0.0]])
     assert retargeted.inspect()["fits_performed"] == 0
     result = require_success(retargeted.execute())
     assert result.report["fit"] == original.report["fit"]
@@ -191,7 +192,7 @@ def test_prepared_fit_retarget_has_zero_refits_and_refresh_changes_identity() ->
         == result.report
     )
     refreshed = require_success(
-        prepared.refresh(
+        prepared.rebind(
             [{"values": [x, 0.6 * x], "clamps": [{"variable": 0, "value": x}]} for x in [-1.0, 1.0]]
         )
     )
@@ -241,7 +242,7 @@ def test_aligned_parameter_and_partial_counterfactual_posterior_artifacts() -> N
         (Equation("a", 0.0, (0.0, 0.4), "identity"), Equation("b", 0.0, (0.5, 0.0), "identity")),
         (1.0, 0.0, 0.0, 1.0),
     )
-    sampling = SamplingPolicy(chains=2, warmup=16, draws=16, proposal_scale=0.2, seed=91)
+    sampling = SamplingPolicy(chains=2, warmup=16, draws=16, proposal_scale=0.2)
     worlds = [[], [{"variable": 0, "value": 2.0}]]
     partial = require_success(
         partial_counterfactual(
@@ -251,6 +252,7 @@ def test_aligned_parameter_and_partial_counterfactual_posterior_artifacts() -> N
             measurement_variances=[0.0, 0.0],
             initial=[1.0, 0.8],
             sampling=sampling,
+            execution=Execution(seed=91),
         ).execute()
     )
     result = partial.report["answer"]["result"]
@@ -275,6 +277,7 @@ def test_aligned_parameter_and_partial_counterfactual_posterior_artifacts() -> N
             [[0.0, 0.0]],
             prior_sd=1.0,
             sampling=sampling,
+            execution=Execution(seed=91),
         ).execute()
     )
     assert len(posterior.report["answer"]["result"]["worlds"][1]) == 32
@@ -357,15 +360,15 @@ def test_cyclic_execution_honors_resource_and_cancellation_controls() -> None:
         (Equation("a", 0.0, (0.0, 0.2)), Equation("b", 0.0, (0.2, 0.0))), (1.0, 0.0, 0.0, 1.0)
     )
     prepared = model.prepare([[]], [[0.0, 0.0]])
-    with pytest.raises(ValueError, match="(?i)(budget|memory|resource|limit|admission)"):
-        require_success(prepared.execute(max_bytes=1))
+    with pytest.raises(CausalResourceError, match="(?i)(budget|memory|resource|limit|admission)"):
+        require_success(prepared.execute(execution=Execution(limits=ResourceLimits(1))))
     token = _native.CancellationToken()
     token.cancel()
-    with pytest.raises(ValueError, match="cancel"):
-        require_success(prepared.execute(cancel=token))
+    with pytest.raises(CausalCancelledError, match="cancel"):
+        require_success(prepared.execute(execution=Execution(cancel=token)))
     family = OrnsteinUhlenbeck((-1.0,), (0.0,), (1.0,)).stationary()
-    with pytest.raises(ValueError, match="cancel"):
-        require_success(family.execute(cancel=token))
+    with pytest.raises(CausalCancelledError, match="cancel"):
+        require_success(family.execute(execution=Execution(cancel=token)))
 
 
 def test_recovered_linear_keeps_failed_draws_and_replays_in_a_fresh_process(tmp_path: Path) -> None:
@@ -488,7 +491,8 @@ def test_joint_parameter_factual_abduction_preserves_coupling_and_replays() -> N
             [[], [{"variable": 0, "value": 3.0}]],
             prior_sd=1.0,
             initial=[1.5],
-            sampling=SamplingPolicy(chains=2, warmup=32, draws=32, proposal_scale=0.5, seed=932),
+            sampling=SamplingPolicy(chains=2, warmup=32, draws=32, proposal_scale=0.5),
+            execution=Execution(seed=932),
         ).execute()
     )
     answer = result.report["answer"]["result"]
@@ -649,14 +653,14 @@ def test_family_preparation_reuses_products_and_refresh_invalidates_binding() ->
     assert request.inspect()["preparation_evaluations"] == 0
     assert require_success(request.execute()).report == first.report
     # Refreshing an already compiled family preserves the same public contract.
-    same = require_success(request.refresh(request.request_json))
+    same = require_success(request.reconfigure())
     assert same.inspect()["preparation_evaluations"] == 0
     assert require_success(same.execute()).report == first.report
-    with pytest.raises(ValueError, match="(?i)(memory|limit|budget|admission)"):
-        require_success(request.execute(max_bytes=1))
+    with pytest.raises(CausalResourceError, match="(?i)(memory|limit|budget|admission)"):
+        require_success(request.execute(execution=Execution(limits=ResourceLimits(1))))
     replacement = json.loads(request.request_json)
     replacement["model"]["center"] = [2.0]
-    refreshed = require_success(request.refresh(json.dumps(replacement)))
+    refreshed = require_success(request.reconfigure(scientific={"model": replacement["model"]}))
     assert refreshed.inspect()["preparation_evaluations"] == 0
     assert require_success(refreshed.execute()).identity != first.identity
     assert require_success(request.execute()).identity == first.identity
@@ -674,7 +678,9 @@ def test_frequentist_bootstrap_responses_keep_failed_replicate_slots() -> None:
         [[], [{"variable": 0, "value": 3.0}]],
         [[0.0]],
     )
-    result = require_success(bootstrap_responses(*inputs, replicates=6, seed=91).execute())
+    result = require_success(
+        bootstrap_responses(*inputs, replicates=6, execution=Execution(seed=91)).execute()
+    )
     answer = result.report["answer"]["result"]
     assert len(answer["parameters"]) == 6
     for values, observational, clamped in zip(
@@ -691,7 +697,7 @@ def test_frequentist_bootstrap_responses_keep_failed_replicate_slots() -> None:
     )
     failed = require_success(
         bootstrap_responses(
-            *inputs, replicates=4, seed=91, policy=FitOptions(max_sweeps=1)
+            *inputs, replicates=4, execution=Execution(seed=91), policy=FitOptions(max_sweeps=1)
         ).execute()
     ).report["answer"]["result"]
     assert failed["parameters"] == [None] * 4
@@ -752,18 +758,19 @@ def test_raw_and_convenience_cyclic_entries_honor_execution_controls() -> None:
         "warmup": 8,
         "draws": 8,
         "proposal_scale": 0.1,
-        "seed": 82,
     }
-    posterior = require_success(prepared.posterior(**options))
+    posterior = require_success(prepared.posterior(**options, execution=Execution(seed=82)))
     assert len(posterior["samples"]) == 16
-    with pytest.raises(ValueError, match="(?i)(admission|memory|limit|resource)"):
-        require_success(prepared.posterior(**options, max_bytes=1))
-    with pytest.raises(ValueError, match="(?i)(admission|memory|limit|resource)"):
+    with pytest.raises(CausalResourceError, match="(?i)(admission|memory|limit|resource)"):
+        require_success(
+            prepared.posterior(**options, execution=Execution(limits=ResourceLimits(1)))
+        )
+    with pytest.raises(CausalResourceError, match="(?i)(admission|memory|limit|resource)"):
         _native.execute_cyclic_system(prepared.request_json, max_bytes=1)
     token = _native.CancellationToken()
     token.cancel()
-    with pytest.raises(ValueError, match="cancel"):
-        require_success(prepared.posterior(**options, cancel=token))
+    with pytest.raises(CausalCancelledError, match="cancel"):
+        require_success(prepared.posterior(**options, execution=Execution(cancel=token)))
 
 
 def test_multiple_equilibrium_joint_selection_law_abduction_and_artifact(tmp_path: Path) -> None:
@@ -874,9 +881,11 @@ def test_multiple_equilibrium_joint_selection_law_abduction_and_artifact(tmp_pat
     from antecedent.joint_distribution import ScientificQuantity
 
     impossible = model(False).prepare(PolynomialObservation("factual", tuple(region(0.2, 0.3))))
-    impossible_evidence = impossible.evidence(
-        {"id": "cubic", "population": "unit", "variables": [["x", "unit"]]},
-        [{"kind": "polynomial_world", "world": "counterfactual", "variable": 0}],
+    impossible_evidence = require_success(
+        impossible.evidence(
+            {"id": "cubic", "population": "unit", "variables": [["x", "unit"]]},
+            [{"kind": "polynomial_world", "world": "counterfactual", "variable": 0}],
+        )
     )
     q = ScientificQuantity.from_wire(impossible_evidence.report["columns"][0]["quantity"])
     c = decision.Contract(
@@ -890,7 +899,7 @@ def test_multiple_equilibrium_joint_selection_law_abduction_and_artifact(tmp_pat
         structural_policy="maximin",
     )
     with pytest.raises(ValueError, match="positive"):
-        impossible_evidence.decide_enclosures(c)
+        require_success(impossible_evidence.decide_enclosures(c))
     path = tmp_path / "joint-selection.ant"
     path.write_bytes(answers[0].artifact)
     program = (
@@ -971,7 +980,7 @@ def test_typed_identified_cyclic_functional_evaluation_and_replay():
     source = CyclicGraph(3, ((0, 1), (1, 2), (2, 1))).identify(
         [2], [0], io_scm=True, scc_product_density=True, continuous=False
     )
-    functional = source.identified_functional()
+    functional = require_success(source.identified_functional())
     weights = []
     for cell in range(8):
         t, a, b = bool(cell & 1), bool(cell & 2), bool(cell & 4)
@@ -1016,7 +1025,7 @@ def test_local_callbacks_scc_counterfactual_budget_and_portability():
     with pytest.raises(CyclicRefusal, match="portable") as refused:
         bytes(local.export())
     assert refused.value.reason_code == "policy_callback_not_portable"
-    with pytest.raises(ValueError, match="budget"):
+    with pytest.raises(CausalResourceError, match="budget"):
         require_success(local.execute([0.0, 0.0], [], max_evaluations=1))
     with pytest.raises(ValueError, match="derivatives"):
         require_success(
@@ -1034,7 +1043,9 @@ def test_native_cyclic_evidence_decision_and_fresh_process_replay(tmp_path):
 
     prepared = OrnsteinUhlenbeck((-2.0,), (3.0,), (4.0,)).stationary()
     schema = {"id": "physical-system", "population": "system", "variables": [["position", "meter"]]}
-    evidence = prepared.evidence(schema, [{"kind": "ou_mean", "time": None, "variable": 0}])
+    evidence = require_success(
+        prepared.evidence(schema, [{"kind": "ou_mean", "time": None, "variable": 0}])
+    )
     assert prepared.inspect()["preparation_evaluations"] == 0
     assert evidence.report["columns"][0]["samples"] == [3.0]
     assert evidence.report["columns"][0]["port"] == "mean"
@@ -1048,7 +1059,7 @@ def test_native_cyclic_evidence_decision_and_fresh_process_replay(tmp_path):
         criterion=decision.Criterion.expected_utility(),
         target_population="system",
     )
-    result = evidence.decide_means(contract)
+    result = require_success(evidence.decide_means(contract))
     assert result["scope"] == "specified_or_fitted_model_conditional"
     assert result["evidence_identity"] == evidence.identity
     artifact = bytes(evidence.export())
@@ -1063,18 +1074,23 @@ def test_native_cyclic_evidence_decision_and_fresh_process_replay(tmp_path):
         [sys.executable, "-c", code], cwd=tmp_path, capture_output=True, text=True, check=True
     )
     assert json.loads(process.stdout) == evidence.report
-    changed = prepared.evidence(
-        {**schema, "population": "other-system"}, [{"kind": "ou_mean", "time": None, "variable": 0}]
+    changed = require_success(
+        prepared.evidence(
+            {**schema, "population": "other-system"},
+            [{"kind": "ou_mean", "time": None, "variable": 0}],
+        )
     )
     assert changed.identity != evidence.identity
     with pytest.raises(CausalSerializationError, match="identity"):
         require_success(consume_evidence(artifact, expected_identity=changed.identity))
     with pytest.raises(ValueError, match="port"):
-        evidence.joint_law()
+        require_success(evidence.joint_law())
     with pytest.raises(ValueError, match="schema"):
-        prepared.evidence(
-            {**schema, "variables": [["extra", "meter"], ["invalid", "meter"]]},
-            [{"kind": "ou_mean", "time": None, "variable": 1}],
+        require_success(
+            prepared.evidence(
+                {**schema, "variables": [["extra", "meter"], ["invalid", "meter"]]},
+                [{"kind": "ou_mean", "time": None, "variable": 1}],
+            )
         )
 
 
@@ -1091,12 +1107,13 @@ def test_cyclic_evidence_retains_posterior_bootstrap_and_algebraic_meanings():
         [[{"variable": 0, "value": 1.0}]],
         [[0.0, 0.0]],
         prior_sd=0.2,
-        sampling=SamplingPolicy(chains=2, warmup=8, draws=8, proposal_scale=0.01, seed=2),
+        sampling=SamplingPolicy(chains=2, warmup=8, draws=8, proposal_scale=0.01),
+        execution=Execution(seed=2),
     )
-    evidence = posterior.evidence(schema, selectors)
+    evidence = require_success(posterior.evidence(schema, selectors))
     assert evidence.report["columns"][0]["port"] == "parameter_posterior"
     assert evidence.report["columns"][0]["uncertainty_axes"] == ["parameter"]
-    law = evidence.joint_law()
+    law = require_success(evidence.joint_law())
     assert law.to_dict()["identity"]["semantic"] == "causal_functional_posterior"
     from antecedent import decision
     from antecedent.joint_distribution import ScientificQuantity
@@ -1128,10 +1145,10 @@ def test_cyclic_evidence_retains_posterior_bootstrap_and_algebraic_meanings():
         [[0.0, 0.0]],
         replicates=2,
     )
-    resampling = bootstrap.evidence(schema, selectors)
+    resampling = require_success(bootstrap.evidence(schema, selectors))
     assert resampling.report["columns"][0]["port"] == "sampling_law"
     with pytest.raises(ValueError, match="port"):
-        resampling.joint_law()
+        require_success(resampling.joint_law())
 
 
 def test_equilibrium_polynomial_bridge_and_robust_solution_decisions():
@@ -1157,7 +1174,7 @@ def test_equilibrium_polynomial_bridge_and_robust_solution_decisions():
     prepared = model.isolate([{"lower": -2.0, "upper": 2.0}], [0.0])
     answer = require_success(prepared.execute())
     assert len(answer.report["answer"]["result"]["roots"]) == 3
-    evidence = prepared.evidence(schema, [{"kind": "solution_set", "variable": 0}])
+    evidence = require_success(prepared.evidence(schema, [{"kind": "solution_set", "variable": 0}]))
     quantity = ScientificQuantity.from_wire(evidence.report["columns"][0]["quantity"])
     contract = decision.Contract(
         (
@@ -1169,12 +1186,14 @@ def test_equilibrium_polynomial_bridge_and_robust_solution_decisions():
         target_population="physical",
         structural_policy="maximin",
     )
-    result = evidence.decide_enclosures(contract)
+    result = require_success(evidence.decide_enclosures(contract))
     assert result["scope"] == "conditional_model_solution_outer_enclosure"
     assert "root_action" in result["verdict"]
     assert not result["selection_probabilities_inferred"]
     unresolved = model.isolate([{"lower": -2.0, "upper": 2.0}], [0.0], max_boxes=1)
-    retained = unresolved.evidence(schema, [{"kind": "solution_set", "variable": 0}])
+    retained = require_success(
+        unresolved.evidence(schema, [{"kind": "solution_set", "variable": 0}])
+    )
     assert retained.report["columns"][0]["diagnostics"]["unresolved_regions"] > 0
     other = ScientificQuantity.from_wire(retained.report["columns"][0]["quantity"])
     other_contract = decision.Contract(
@@ -1187,7 +1206,7 @@ def test_equilibrium_polynomial_bridge_and_robust_solution_decisions():
         target_population="physical",
         structural_policy="maximin",
     )
-    assert "constant" in retained.decide_enclosures(other_contract)["verdict"]
+    assert "constant" in require_success(retained.decide_enclosures(other_contract))["verdict"]
 
 
 def test_ou_equation_replacements_preserve_world_failures_and_artifact():
@@ -1214,8 +1233,8 @@ def test_ou_equation_replacements_preserve_world_failures_and_artifact():
         == answer.report
     )
     schema = {"id": "sde", "population": "physical", "variables": [["a", "unit"], ["b", "unit"]]}
-    evidence = prepared.evidence(
-        schema, [{"kind": "ou_regime", "world": 2, "variable": 0, "other": None}]
+    evidence = require_success(
+        prepared.evidence(schema, [{"kind": "ou_regime", "world": 2, "variable": 0, "other": None}])
     )
     assert evidence.report["columns"][0]["samples"] == [None]
     assert evidence.report["columns"][0]["diagnostics"]["failure"]
@@ -1230,7 +1249,7 @@ def test_calculus_adjustment_functional_and_bounded_status_replay():
     )
     assert require_success(source.execute()).report["answer"]["result"]["status"] == "verified_rule"
     result = require_success(
-        source.identified_functional()
+        require_success(source.identified_functional())
         .evaluate(
             [[0.0, 1.0]] * 2, [0.4, 0.1, 0.1, 0.4], [[(0, 0.0), (1, 1.0)], [(0, 1.0), (1, 1.0)]]
         )
@@ -1249,7 +1268,7 @@ def test_calculus_adjustment_functional_and_bounded_status_replay():
         [1], [0], [], io_scm=True, standard_measurable_spaces=True, continuous=False
     )
     answer = require_success(
-        adjusted.identified_functional()
+        require_success(adjusted.identified_functional())
         .evaluate([[0.0, 1.0]] * 2, [0.4, 0.1, 0.1, 0.4], [[(0, 1.0), (1, 1.0)]])
         .execute()
     )
@@ -1269,8 +1288,6 @@ def test_calculus_adjustment_functional_and_bounded_status_replay():
 
 
 def test_adam_public_replay_and_policy_data_invalidation():
-    from dataclasses import replace
-
     from antecedent.cyclic import AdamPolicy
 
     m = EquilibriumModel((Equation("one", 0.0, (0.0,), "relu"),), (1.0,))
@@ -1292,7 +1309,8 @@ def test_adam_public_replay_and_policy_data_invalidation():
                 [{"kind": "intercept", "equation": 0}],
                 training,
                 training,
-                policy=replace(p, seed=1),
+                policy=p,
+                execution=Execution(seed=1),
             ).execute()
         ).identity
         != result.identity
@@ -1377,14 +1395,24 @@ def test_numerical_roots_never_acquire_solution_enclosure_decision_contract():
         [[0.0]],
         policy=SolvePolicy(require_contraction=False),
     )
-    e = p.evidence(
-        {"id": "numeric", "population": "unit", "variables": [["x", "unit"]]},
-        [{"kind": "action", "world": 0, "noise_row": 0, "variable": 0, "counterfactual": False}],
+    e = require_success(
+        p.evidence(
+            {"id": "numeric", "population": "unit", "variables": [["x", "unit"]]},
+            [
+                {
+                    "kind": "action",
+                    "world": 0,
+                    "noise_row": 0,
+                    "variable": 0,
+                    "counterfactual": False,
+                }
+            ],
+        )
     )
     assert e.report["columns"][0]["numerical_enclosures"] == []
     assert e.report["columns"][0]["diagnostics"]["globally_unique"] is False
-    with pytest.raises(ValueError, match="admission|resource|limit|budget"):
-        bytes(e.export(max_bytes=1))
+    with pytest.raises(CausalResourceError, match="admission|resource|limit|budget"):
+        bytes(e.export(execution=Execution(limits=ResourceLimits(1))))
 
 
 def test_continuous_identification_gaussian_fitting_evidence_and_fresh_replay(tmp_path):
@@ -1393,7 +1421,7 @@ def test_continuous_identification_gaussian_fitting_evidence_and_fresh_replay(tm
     source = CyclicGraph(3, ((0, 1), (1, 2)), ((0, 2),)).identify(
         [2], [0], io_scm=True, scc_product_density=True, continuous=True
     )
-    functional = source.identified_functional()
+    functional = require_success(source.identified_functional())
     rows = []
     for mask in range(16):
         u, e, v, w = [1.0 if mask & (1 << i) else -1.0 for i in range(4)]
@@ -1411,13 +1439,15 @@ def test_continuous_identification_gaussian_fitting_evidence_and_fresh_replay(tm
     assert answer["fitted_rows"] == 16
     assert answer["values"][0]["value"] == pytest.approx(truth, abs=1e-12)
     assert answer["values"][1]["value"] is None
-    evidence = prepared.evidence(
-        {
-            "id": "continuous",
-            "population": "population",
-            "variables": [["x", "unit"], ["m", "unit"], ["y", "unit"]],
-        },
-        [{"kind": "functional", "assignment": 0}],
+    evidence = require_success(
+        prepared.evidence(
+            {
+                "id": "continuous",
+                "population": "population",
+                "variables": [["x", "unit"], ["m", "unit"], ["y", "unit"]],
+            },
+            [{"kind": "functional", "assignment": 0}],
+        )
     )
     assert evidence.report["columns"][0]["port"] == "likelihood"
     assert evidence.report["columns"][0]["quantity"]["variable_name"] == "y"
@@ -1429,8 +1459,8 @@ def test_continuous_identification_gaussian_fitting_evidence_and_fresh_replay(tm
         [sys.executable, "-c", code], cwd=tmp_path, capture_output=True, text=True, check=True
     )
     assert json.loads(replay.stdout) == result.report
-    with pytest.raises(ValueError, match="admission|limit|resource"):
-        require_success(prepared.execute(max_bytes=1))
+    with pytest.raises(CausalResourceError, match="admission|limit|resource"):
+        require_success(prepared.execute(execution=Execution(limits=ResourceLimits(1))))
     with pytest.raises(ValueError, match="IID|replicates"):
         require_success(
             functional.evaluate_gaussian(
@@ -1457,7 +1487,7 @@ def test_structure_and_discovery_semantic_seeds_bind_replay():
         "bootstrap_replicates": 2,
         "design": "randomized_within_targets",
     }
-    prepared = learn_structure(m, rows, seed=71, **kwargs)
+    prepared = learn_structure(m, rows, execution=Execution(seed=71), **kwargs)
     result = require_success(prepared.execute())
     assert any(value is not None for value in result.report["answer"]["result"]["bootstrap"])
     assert (
@@ -1467,14 +1497,19 @@ def test_structure_and_discovery_semantic_seeds_bind_replay():
         == result.report
     )
     assert (
-        require_success(learn_structure(m, rows, seed=72, **kwargs).execute()).identity
+        require_success(
+            learn_structure(m, rows, execution=Execution(seed=72), **kwargs).execute()
+        ).identity
         != result.identity
     )
     ci = {"simple_scm": True, "sigma_faithful": True, "independent_equilibrium_replicates": True}
     columns = [list(map(float, range(8))), [0.0, 0.5, 0.1, 2.0, 1.0, 0.5, 2.0, 1.5]]
-    graph = require_success(discover_cyclic(columns, seed=8, **ci).execute())
+    graph = require_success(discover_cyclic(columns, execution=Execution(seed=8), **ci).execute())
     assert (
-        require_success(discover_cyclic(columns, seed=9, **ci).execute()).identity != graph.identity
+        require_success(
+            discover_cyclic(columns, execution=Execution(seed=9), **ci).execute()
+        ).identity
+        != graph.identity
     )
     assert (
         require_success(
@@ -1486,7 +1521,6 @@ def test_structure_and_discovery_semantic_seeds_bind_replay():
 
 def test_cyclic_logical_retention_and_projection_resource_limits():
     from antecedent.cyclic import consume_evidence
-    from antecedent.errors import CausalSerializationError
 
     prepared = OrnsteinUhlenbeck((-2.0,), (3.0,), (4.0,)).stationary()
     result = require_success(prepared.execute())
@@ -1498,16 +1532,24 @@ def test_cyclic_logical_retention_and_projection_resource_limits():
     schema = {"id": "physical", "population": "system", "variables": [["position", "meter"]]}
     selector = {"kind": "ou_mean", "time": None, "variable": 0}
     with pytest.raises(ValueError, match="schema"):
-        prepared.evidence({**schema, "id": "x" * 257}, [selector])
-    evidence = prepared.evidence(schema, [selector] * 128)
+        require_success(prepared.evidence({**schema, "id": "x" * 257}, [selector]))
+    evidence = require_success(prepared.evidence(schema, [selector] * 128))
     artifact = bytes(evidence.export())
     # Repeated columns compress well; wire size is not the retained heap budget.
-    with pytest.raises(ValueError, match="admission|resource|limit|budget"):
-        prepared.evidence(schema, [selector] * 128, max_bytes=len(artifact) * 4)
-    with pytest.raises(CausalSerializationError, match="admission|resource|limit|budget"):
+    with pytest.raises(CausalResourceError, match="admission|resource|limit|budget"):
+        require_success(
+            prepared.evidence(
+                schema,
+                [selector] * 128,
+                execution=Execution(limits=ResourceLimits(len(artifact) * 4)),
+            )
+        )
+    with pytest.raises(CausalResourceError, match="admission|resource|limit|budget"):
         require_success(
             consume_evidence(
-                artifact, expected_identity=evidence.identity, max_bytes=len(artifact) * 4
+                artifact,
+                expected_identity=evidence.identity,
+                execution=Execution(limits=ResourceLimits(len(artifact) * 4)),
             )
         )
 
@@ -1528,8 +1570,8 @@ def test_cyclic_native_facts_survive_execution_cancellation_and_bad_artifact():
 
     token = _native.CancellationToken()
     token.cancel()
-    with pytest.raises(ValueError, match="cancel") as cancelled:
-        require_success(prepared.execute(cancel=token))
+    with pytest.raises(CausalCancelledError, match="cancel") as cancelled:
+        require_success(prepared.execute(execution=Execution(cancel=token)))
     assert cancelled.value.execution_facts.status() == "cancelled"
     with pytest.raises(_native.CausalSerializationError) as corrupt:
         require_success(consume_artifact(b"corrupt", expected_identity=result.identity))
@@ -1604,7 +1646,9 @@ def _clamp_regimes(designs, *, rows=400, seed=20_251_023):
     return regimes
 
 
-def _recovery(uncertainty, *, designs=(None, "A", "B"), worlds=None, sampling_design=None):
+def _recovery(
+    uncertainty, *, execution=None, designs=(None, "A", "B"), worlds=None, sampling_design=None
+):
     from antecedent.cyclic import Set, World, prepare_experimental_recovery
 
     return prepare_experimental_recovery(
@@ -1616,6 +1660,7 @@ def _recovery(uncertainty, *, designs=(None, "A", "B"), worlds=None, sampling_de
         source_id="clamp-experiments",
         certifying_evidence=["held-out-regime"],
         sampling_design=sampling_design,
+        execution=execution,
     )
 
 
@@ -1634,7 +1679,7 @@ def test_linear_worlds_reproduce_the_analytic_feedback_pair_and_replay(tmp_path:
     assert facts["worlds"] == [0, 1, 2, 3]
     assert facts["variables"] == ["A", "B"]
     assert facts["draw_origin"] is None
-    worlds = prepared.interventions()
+    worlds = require_success(prepared.interventions())
     assert list(worlds) == [0, 1, 2, 3]
     assert all(isinstance(world, WorldAnswer) for world in worlds.values())
     observational = worlds[0]
@@ -1661,7 +1706,7 @@ def test_linear_worlds_reproduce_the_analytic_feedback_pair_and_replay(tmp_path:
         consume_family_artifact(bytes(result.export()), expected_identity=result.identity)
     ).report == (result.report)
     schema = {"id": "feedback", "population": "model", "variables": [["A", "unit"], ["B", "unit"]]}
-    evidence = prepared.evidence(schema, [WorldSelector(3, "B")])
+    evidence = require_success(prepared.evidence(schema, [WorldSelector(3, "B")]))
     column = evidence.report["columns"][0]
     assert column["port"] == "interventional_law"
     assert column["samples"][0] == pytest.approx(0.625, abs=1e-10)
@@ -1687,13 +1732,15 @@ def test_unsolvable_clamp_is_failed_mass_and_reading_it_names_the_next_attempt()
         ["A", "B", "C"],
         {("A", "B"): 1.0, ("A", "C"): 1.0, ("B", "A"): 1.0, ("C", "A"): 1.0},
     )
-    worlds = model.worlds(
-        [World(0), World(1, Set("C", 1.0))],
-        component_id="loops",
-        source_id="specification",
-        certifying_evidence=["independent-bench-test"],
-        certificate="report_uncertified",
-    ).interventions()
+    worlds = require_success(
+        model.worlds(
+            [World(0), World(1, Set("C", 1.0))],
+            component_id="loops",
+            source_id="specification",
+            certifying_evidence=["independent-bench-test"],
+            certificate="report_uncertified",
+        ).interventions()
+    )
     assert not worlds[0].certified
     assert worlds[0].certificate["next_attempt"] is not None
     clamped = worlds[1]
@@ -1716,9 +1763,11 @@ def test_equilibrium_and_ode_worlds_share_draws_initial_laws_and_refuse_shocks()
         ),
         (1.0, 0.0, 0.0, 1.0),
     )
-    worlds = feedback.worlds(
-        [World(0), World(1, Set("a", 2.0))], [[0.0, 0.0], [1.0, 0.0]]
-    ).interventions()
+    worlds = require_success(
+        feedback.worlds(
+            [World(0), World(1, Set("a", 2.0))], [[0.0, 0.0], [1.0, 0.0]]
+        ).interventions()
+    )
     assert worlds[0].draws("b")[1] == pytest.approx(0.625, abs=1e-6)
     assert worlds[0].draws("a")[1] == pytest.approx(1.25, abs=1e-6)
     assert worlds[1].draws("b")[1] == pytest.approx(1.0, abs=1e-6)
@@ -1727,16 +1776,20 @@ def test_equilibrium_and_ode_worlds_share_draws_initial_laws_and_refuse_shocks()
     assert "draws()" in wrong_kind.value.next_attempt
 
     decay = OdeSystem((Equation("x", 0.0, (0.0,), "identity"),), (1.0,))
-    trajectories = decay.worlds(
-        [2.0], [0.0, 1.0], [World(0), World(1, initial_states=InitialState("x", 4.0))]
-    ).interventions()
+    trajectories = require_success(
+        decay.worlds(
+            [2.0], [0.0, 1.0], [World(0), World(1, initial_states=InitialState("x", 4.0))]
+        ).interventions()
+    )
     assert trajectories[0].trajectory("x")[1] == pytest.approx(2.0 * math.exp(-1.0), rel=1e-6)
     assert trajectories[1].trajectory("x")[1] == pytest.approx(4.0 * math.exp(-1.0), rel=1e-6)
     assert trajectories[1].certificate["gap"] == "numerical_integration_only"
     assert trajectories[1].actions[0]["kind"] == "initial_state_change"
     with pytest.raises(CyclicRefusal, match="shift") as refused:
         # Admission or evaluation refuses the shock; either names its next attempt.
-        decay.worlds([2.0], [0.0, 1.0], [World(0, Shift("x", 1.0))]).interventions()
+        require_success(
+            decay.worlds([2.0], [0.0, 1.0], [World(0, Shift("x", 1.0))]).interventions()
+        )
     assert refused.value.next_attempt
 
 
@@ -1755,22 +1808,23 @@ def test_experimental_recovery_keeps_each_draw_origin_through_worlds_evidence_an
     )
 
     posterior = RecoveryPosterior(
-        RecoveryPrior(FlatCoefficients(), KnownDisturbance({"A": 1.0, "B": 1.0})), draws=32, seed=3
+        RecoveryPrior(FlatCoefficients(), KnownDisturbance({"A": 1.0, "B": 1.0})), draws=32
     )
     cases = [
-        (AsymptoticNormal(64, seed=7), None, "asymptotic_normal", "sampling_law", 64),
+        (AsymptoticNormal(64), None, "asymptotic_normal", "sampling_law", 64, 7),
         (
-            RecoveryBootstrap(12, seed=4),
+            RecoveryBootstrap(12),
             "independent_subject_trajectories",
             "bootstrap",
             "sampling_law",
             12,
+            4,
         ),
-        (posterior, None, "posterior", "parameter_posterior", 32),
+        (posterior, None, "posterior", "parameter_posterior", 32, 3),
     ]
     schema = {"id": "feedback", "population": "units", "variables": [["A", "unit"], ["B", "unit"]]}
-    for uncertainty, design, origin, meaning, draws in cases:
-        prepared = _recovery(uncertainty, sampling_design=design)
+    for uncertainty, design, origin, meaning, draws, seed in cases:
+        prepared = _recovery(uncertainty, sampling_design=design, execution=Execution(seed=seed))
         facts = prepared.inspect()
         assert facts["family"] == "experimental_recovery"
         assert facts["preparation_evaluations"] == 0
@@ -1792,7 +1846,7 @@ def test_experimental_recovery_keeps_each_draw_origin_through_worlds_evidence_an
         assert law["law"]["origin"]["origin"] == origin
         assert len(law["law"]["draws"]) == draws
         assert prepared.inspect()["unresolved_directions"] == []
-        worlds = prepared.interventions()
+        worlds = require_success(prepared.interventions())
         assert list(worlds) == [1, 2]
         clamped = worlds[2]
         assert isinstance(clamped, RecoveredWorldAnswer)
@@ -1801,9 +1855,11 @@ def test_experimental_recovery_keeps_each_draw_origin_through_worlds_evidence_an
         assert require_success(
             consume_family_artifact(bytes(result.export()), expected_identity=result.identity)
         ).report == (result.report)
-        evidence = prepared.evidence(
-            schema,
-            [RecoveredResponseSelector(1, 1), RecoveredDrawSelector(1, 0, 1)],
+        evidence = require_success(
+            prepared.evidence(
+                schema,
+                [RecoveredResponseSelector(1, 1), RecoveredDrawSelector(1, 0, 1)],
+            )
         )
         response, within = evidence.report["columns"]
         assert response["port"] == meaning
@@ -1818,7 +1874,7 @@ def test_uncovered_recovery_rows_stay_unresolved_and_withhold_their_mass() -> No
     from antecedent.cyclic import AsymptoticNormal
 
     # Without a regime that clamps B, the row into A is uncovered: no draw completes it.
-    prepared = _recovery(AsymptoticNormal(16, seed=9), designs=(None, "A"))
+    prepared = _recovery(AsymptoticNormal(16), designs=(None, "A"), execution=Execution(seed=9))
     before = prepared.inspect()
     # Read from the clamp design by the native compiler, before any fit (A is 0, B is 1).
     assert before["design_unresolved"] == [{"target": 0, "missing_clamps": [1]}]
@@ -1828,7 +1884,7 @@ def test_uncovered_recovery_rows_stay_unresolved_and_withhold_their_mass() -> No
     facts = prepared.inspect()
     assert facts["unresolved_directions"]
     assert set(facts["draw_status"]) == {"unresolved"}
-    clamped = prepared.interventions()[2]
+    clamped = require_success(prepared.interventions())[2]
     assert clamped.mixture_mean is None
     assert clamped.withheld_mass == pytest.approx(1.0, abs=1e-12)
     with pytest.raises(CyclicRefusal, match="withheld") as refused:
@@ -1841,30 +1897,38 @@ def test_recovery_and_world_refusals_name_their_next_attempt() -> None:
     from antecedent.cyclic import AsymptoticNormal, RecoveryBootstrap, Set, Shift, World
 
     with pytest.raises(CyclicRefusal, match="hard clamps only") as shift:
-        _recovery(AsymptoticNormal(4, seed=1), worlds=[World(1), World(3, Shift("A", 1.0))])
+        _recovery(
+            AsymptoticNormal(4),
+            worlds=[World(1), World(3, Shift("A", 1.0))],
+            execution=Execution(seed=1),
+        )
     assert "linear_worlds" in shift.value.next_attempt
     assert shift.value.reason_code in _native.runtime_refusal_codes()
 
     with pytest.raises(CyclicRefusal, match="no sampling design") as undeclared:
-        _recovery(RecoveryBootstrap(8, seed=1))
+        _recovery(RecoveryBootstrap(8), execution=Execution(seed=1))
     assert undeclared.value.reason_code == "required_option_missing"
     assert "sampling_design=" in undeclared.value.next_attempt
 
     # Decided by Rust request compilation; Python passes the declared design through.
     for design in ("clustered_panel", "dependent_time_series"):
         with pytest.raises(CyclicRefusal, match=design) as clustered:
-            _recovery(AsymptoticNormal(8, seed=1), sampling_design=design)
+            _recovery(AsymptoticNormal(8), sampling_design=design, execution=Execution(seed=1))
         assert clustered.value.reason_code == "estimator_inference_mismatch"
         assert "bootstrap under the declared" in clustered.value.next_attempt
     assert (
         _recovery(
-            AsymptoticNormal(8, seed=1), sampling_design="independent_subject_trajectories"
+            AsymptoticNormal(8),
+            sampling_design="independent_subject_trajectories",
+            execution=Execution(seed=1),
         ).inspect()["family"]
         == "experimental_recovery"
     )
 
     with pytest.raises(CyclicRefusal, match="not declared") as unknown:
-        _recovery(AsymptoticNormal(8, seed=1), worlds=[World(1, Set("C", 1.0))])
+        _recovery(
+            AsymptoticNormal(8), worlds=[World(1, Set("C", 1.0))], execution=Execution(seed=1)
+        )
     assert unknown.value.reason_code == "unknown_variable"
     assert "'A'" in unknown.value.next_attempt
 
@@ -1878,7 +1942,7 @@ def test_recovery_and_world_refusals_name_their_next_attempt() -> None:
     assert "own id" in repeated.value.next_attempt
 
     with pytest.raises(CausalValueError, match="sampling_design"):
-        _recovery(AsymptoticNormal(8, seed=1), sampling_design="rows")
+        _recovery(AsymptoticNormal(8), sampling_design="rows", execution=Execution(seed=1))
 
 
 def test_system_family_and_families_without_worlds_refuse_interventions() -> None:
@@ -1899,7 +1963,7 @@ def test_system_family_and_families_without_worlds_refuse_interventions() -> Non
         consume_family_artifact(bytes(answer.export()), expected_identity=answer.identity)
     ).report == (answer.report)
     with pytest.raises(CyclicRefusal, match="no intervention worlds") as refused:
-        family.interventions()
+        require_success(family.interventions())
     assert "linear_worlds" in refused.value.next_attempt
 
 
@@ -1926,11 +1990,12 @@ def test_dynamic_inference_shares_its_fit_across_methods_and_binds_its_port(
     rows = _ou_rows()
     quantities = [OuStationaryMean(0)]
 
-    def infer(method):
+    def infer(method, *, execution=None):
         return process.infer(
             parameters,
             rows,
             method=method,
+            execution=execution,
             quantities=quantities,
             sampling_design="independent_subject_trajectories",
         )
@@ -1948,25 +2013,26 @@ def test_dynamic_inference_shares_its_fit_across_methods_and_binds_its_port(
     assert observed["quantity_standard_errors"][0] is not None
 
     bootstrap = require_success(
-        information.refresh(infer(DynamicBootstrap(20, seed=11)).request_json)
+        information.reconfigure(method=DynamicBootstrap(20), execution=Execution(seed=11))
     )
     result = require_success(bootstrap.execute())
     second = result.report["answer"]["result"]
     assert second["fit"] == first["fit"]
     assert len(second["inference"]["result"]["replicates"]) == 20
     schema = {"id": "process", "population": "system", "variables": [["x", "unit"]]}
-    evidence = bootstrap.evidence(schema, [DynamicQuantitySelector(0)])
+    evidence = require_success(bootstrap.evidence(schema, [DynamicQuantitySelector(0)]))
     assert evidence.report["columns"][0]["port"] == "sampling_law"
     assert len(evidence.report["columns"][0]["samples"]) == 20
 
     posterior = infer(
-        DynamicPosterior((-1.0, 0.0), (10.0, 10.0), seed=13, chains=2, warmup=50, draws=50)
+        DynamicPosterior((-1.0, 0.0), (10.0, 10.0), chains=2, warmup=50, draws=50),
+        execution=Execution(seed=13),
     )
     draws = require_success(posterior.execute()).report["answer"]["result"]["inference"]["result"]
     assert len(draws["quantity_draws"]) == 100
-    assert posterior.evidence(schema, [DynamicQuantitySelector(0)]).report["columns"][0][
-        "port"
-    ] == ("parameter_posterior")
+    assert require_success(posterior.evidence(schema, [DynamicQuantitySelector(0)])).report[
+        "columns"
+    ][0]["port"] == ("parameter_posterior")
 
     path = tmp_path / "dynamic.ant"
     path.write_bytes(bytes(result.export()))
@@ -1987,11 +2053,13 @@ def test_recovered_law_and_its_evidence_replay_in_a_fresh_process(tmp_path: Path
     from antecedent.cyclic import RecoveredResponseSelector, RecoveryBootstrap
 
     prepared = _recovery(
-        RecoveryBootstrap(8, seed=5), sampling_design="independent_subject_trajectories"
+        RecoveryBootstrap(8),
+        sampling_design="independent_subject_trajectories",
+        execution=Execution(seed=5),
     )
     result = require_success(prepared.execute())
     schema = {"id": "feedback", "population": "units", "variables": [["A", "unit"], ["B", "unit"]]}
-    evidence = prepared.evidence(schema, [RecoveredResponseSelector(1, 1)])
+    evidence = require_success(prepared.evidence(schema, [RecoveredResponseSelector(1, 1)]))
     family_path = tmp_path / "recovery.ant"
     family_path.write_bytes(bytes(result.export()))
     evidence_path = tmp_path / "recovery-evidence.ant"
@@ -2040,7 +2108,7 @@ def test_prepared_cyclic_handles_expose_their_contract_without_fitting() -> None
         "solution",
     }
 
-    recovery = _recovery(AsymptoticNormal(8, seed=2))
+    recovery = _recovery(AsymptoticNormal(8), execution=Execution(seed=2))
     recovered = recovery.contract()
     assert recovered["identification_kind"] == "experimental_recovery"
     assert len(recovered["recovery"]) == 64

@@ -146,7 +146,13 @@ impl PyPreparedAnalysis {
     }
 
     /// Inspection of the frozen execution, using the executed reasoning slots.
-    fn execution_contract(&self) -> PyResult<std::collections::HashMap<String, String>> {
+    #[pyo3(signature = (*, outcome_units=None, population="target", transform="identity"))]
+    fn execution_contract(
+        &self,
+        outcome_units: Option<&str>,
+        population: &str,
+        transform: &str,
+    ) -> PyResult<std::collections::HashMap<String, String>> {
         let result = self
             .last
             .as_ref()
@@ -162,7 +168,15 @@ impl PyPreparedAnalysis {
         // The contract the execution ran under, with the identities the export
         // carries: a retarget moves the target population and its weighting
         // identity, and a second-click refute moves the validation suite.
-        let (mut contract, claim) = inner.execution_contract(result, &ctx).map_err(py_err)?;
+        let labels =
+            outcome_units.map(|outcome_units| antecedent_contract::ResponseCoordinateLabels {
+                outcome_units,
+                population_id: population,
+                transform_id: transform,
+            });
+        let (mut contract, claim) = inner
+            .execution_contract_with_quantity_labels(result, &ctx, labels.as_ref())
+            .map_err(py_err)?;
         contract.reasoning = claim.reasoning;
         let mut report =
             contract_to_map(&contract, inner.schema(), inner.query(), inner.population_registry());

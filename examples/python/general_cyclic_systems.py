@@ -20,6 +20,8 @@ import tempfile
 from pathlib import Path
 
 from antecedent.cyclic import Equation, EquilibriumModel
+from antecedent.execution import Execution
+from antecedent.outcomes import require_success
 
 
 def run(output_dir: Path) -> None:
@@ -67,7 +69,7 @@ def run(output_dir: Path) -> None:
         ],
         rows=rows,
     )
-    result = prepared.execute()
+    result = require_success(prepared.execute(execution=Execution(seed=826)))
     assert result.report["fit"]["converged"]
     prediction = result.report["worlds"][1][0]["values"][0]
     counterfactual = result.report["counterfactuals"][1]["values"][0]
@@ -82,8 +84,8 @@ def run(output_dir: Path) -> None:
     (output_dir / "request.json").write_text(prepared.request_json + "\n")
     (output_dir / "report.json").write_text(json.dumps(result.report, indent=2) + "\n")
     consumer = (
-        "import json,pathlib;from antecedent.cyclic import consume_artifact;"
-        + f"r=consume_artifact(pathlib.Path({str(artifact.resolve())!r}).read_bytes(),expected_identity={result.identity!r});print(json.dumps(r.report,sort_keys=True))"
+        "import json,pathlib;from antecedent.cyclic import consume_artifact;from antecedent.outcomes import require_success;"
+        + f"r=require_success(consume_artifact(pathlib.Path({str(artifact.resolve())!r}).read_bytes(),expected_identity={result.identity!r}));print(json.dumps(r.report,sort_keys=True))"
     )
     replay = subprocess.run(
         [sys.executable, "-c", consumer],

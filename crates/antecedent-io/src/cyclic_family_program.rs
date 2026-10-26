@@ -35,6 +35,7 @@ pub(super) enum FrozenFamilyFitValue {
     OuFit(antecedent_estimate::cyclic_dynamics::OuFit),
     Recovered(super::RecoveredLawProduct),
     Dynamic(super::DynamicFitAnswer),
+    SystemOwner(crate::cyclic_system_artifact::PreparedCyclicExecution),
     System(antecedent_estimate::cyclic_likelihood::CyclicFit),
 }
 pub(crate) use antecedent_estimate::cyclic_gaussian_functional::FrozenGaussianDensity;
@@ -61,7 +62,7 @@ impl FrozenFit {
                 .checked_add(std::mem::size_of::<FrozenFamilyFitValue>() as u64)
                 .and_then(|bytes| bytes.checked_add(slots))
                 .ok_or_else(|| invalid("fit retention size overflow"))?;
-            let retention = ctx.acquire_admission(0, bytes).map_err(invalid)?;
+            let retention = ctx.acquire_admission(0, bytes).map_err(CyclicArtifactError::Admission)?;
             Ok((wrap(value.clone()), retention))
         }
         let (value, retention) = match answer {
@@ -143,7 +144,7 @@ impl CompiledCyclicFamilyProgram {
         previous: Option<&Self>,
     ) -> Result<Self, CyclicArtifactError> {
         if ctx.cancellation.is_cancelled() {
-            return Err(invalid("cyclic compilation cancelled"));
+            return Err(CyclicArtifactError::Cancelled);
         }
         let plans = compile_plans(request)?;
         let retained_source = previous
@@ -179,6 +180,20 @@ impl CompiledCyclicFamilyProgram {
             retention: Arc::new(retention),
         })
     }
+    /// Compile a system view retaining its synchronized native fit owner.
+    pub fn from_system(
+        product: crate::cyclic_system_artifact::PreparedCyclicExecution,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CyclicArtifactError> {
+        let mut program = Self::compile(&R::System { request: product.request().clone() }, ctx)?;
+        program.fit = Arc::new(Mutex::new(Some(FrozenFit {
+            kernel: ctx.kernel_policy,
+            value: FrozenFamilyFitValue::SystemOwner(product),
+            retention: ctx.acquire_admission(0, 0).map_err(CyclicArtifactError::Admission)?,
+        })));
+        Ok(program)
+    }
+
     /// Original typed request, including actual statistical and initial-law dependencies.
     #[must_use]
     pub fn request(&self) -> &R {
@@ -213,12 +228,15 @@ impl CompiledCyclicFamilyProgram {
         ctx: &ExecutionContext,
     ) -> Result<CyclicFamilyReport, CyclicArtifactError> {
         if ctx.cancellation.is_cancelled() {
-            return Err(invalid("cyclic execution cancelled"));
+            return Err(CyclicArtifactError::Cancelled);
         }
         self.retention.observe_current();
         antecedent_core::numerical_admission::with_context(ctx, || {
             let mut cache = self.fit.lock().map_err(|_| invalid("cyclic fit lock poisoned"))?;
-            let retained = cache.as_ref().filter(|fit| fit.kernel == ctx.kernel_policy);
+            let retained = cache.as_ref().filter(|fit| {
+                fit.kernel == ctx.kernel_policy
+                    || matches!(&fit.value, FrozenFamilyFitValue::SystemOwner(_))
+            });
             if let Some(fit) = retained {
                 fit.retention.observe_current();
                 record_physical(PhysicalEvent::CacheHit, 1);

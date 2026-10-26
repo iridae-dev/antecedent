@@ -187,6 +187,7 @@ from .transport.advanced import (
 _static_edges = _estimate_helpers._static_edges
 
 if TYPE_CHECKING:
+    from ._prepared_policy import PreparedPolicyAnalysis
     from .preflight import (
         CostEstimate,
         NuisanceFitDiagnostics,
@@ -1187,7 +1188,7 @@ class PreparedAnalysis(Generic[ResultT]):
         ]
         | None = None,
         retain_joint_horizons: bool = False,
-    ) -> PreparedAnalysis[_PreparedResult]:
+    ) -> PreparedAnalysis[_PreparedResult] | PreparedPolicyAnalysis:
         """Compile a durable plan for a licensed analysis cell.
 
         Every argument either reaches the compiled study or is refused with a
@@ -1983,7 +1984,9 @@ class PreparedAnalysis(Generic[ResultT]):
         return self._identification_view
 
     @describe_refusal
-    def reprepare(self, data: Any, *, query: Any = _UNSET) -> PreparedAnalysis[Any]:
+    def reprepare(
+        self, data: Any, *, query: Any = _UNSET
+    ) -> PreparedAnalysis[Any] | PreparedPolicyAnalysis:
         """Resolve the original declarations against a new table into a new study."""
         request = replay_declaration(getattr(self, "_preparation_request", {}))
         if not request:

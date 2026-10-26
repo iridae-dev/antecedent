@@ -1488,6 +1488,10 @@ class PreparedAnalysis:
     def has_execution_contract(self) -> bool: ...
     def execution_contract(
         self,
+        *,
+        outcome_units: str | None = None,
+        population: str = "target",
+        transform: str = "identity",
     ) -> dict[str, str]: ...
     def tier_diagnostics_json(self, *, cancel: CancellationToken | None = None) -> str: ...
     def export_artifact(
@@ -2695,6 +2699,34 @@ class DecisionEvaluation:
     expected_utility: float
     posterior_regret: float
     chosen_action: int
+
+class _PreparedPolicyAnalysis:
+    def __init__(
+        self,
+        names: list[str],
+        columns: list[Any],
+        edges: list[tuple[str, str]],
+        policies: str,
+        outcome: str,
+        *,
+        candidates: list[str] | None = None,
+        constraints: dict[str, Any] | None = None,
+        splits: str = "shuffled",
+        purge: int = 0,
+    ) -> None: ...
+    def fork(self) -> _PreparedPolicyAnalysis: ...
+    def bind(self, names: list[str], columns: list[Any]) -> _PreparedPolicyAnalysis: ...
+    @property
+    def identity(self) -> str | None: ...
+    @property
+    def fit_materialized(self) -> bool: ...
+    def quote(self, draws: int) -> dict[str, int]: ...
+    def materialize(
+        self,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[FittedGcm, PreparedPolicy]: ...
+    def export_program(self) -> bytes: ...
 
 class FittedGcm:
     names: list[str]
@@ -9946,6 +9978,13 @@ def consume_cyclic_family(
 ) -> tuple[str, ExecutionFacts]: ...
 
 class _PreparedCyclicSystem:
+    def rebind(
+        self,
+        request_json: str,
+        *,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _PreparedCyclicSystem: ...
     def execute(
         self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
     ) -> tuple[str, bytes, ExecutionFacts]: ...
@@ -10029,8 +10068,20 @@ class _CyclicEvidence:
     def joint_law(
         self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
     ) -> JointDistributionArtifact: ...
-    def decide_means(self, contract_json: str) -> str: ...
-    def decide_enclosures(self, contract_json: str) -> str: ...
+    def decide_means(
+        self,
+        contract_json: str,
+        *,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def decide_enclosures(
+        self,
+        contract_json: str,
+        *,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
 
 def consume_cyclic_evidence(
     bytes: bytes,

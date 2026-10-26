@@ -265,6 +265,16 @@ pub struct PyPreparedPolicy {
     identity: Option<String>,
 }
 
+impl PyPreparedPolicy {
+    pub(crate) fn from_template(
+        fitted: Py<PyFittedGcm>,
+        core: PreparedPolicy,
+        identity: Option<String>,
+    ) -> Self {
+        Self { fitted, core, identity }
+    }
+}
+
 #[pymethods]
 impl PyPreparedPolicy {
     #[new]
@@ -355,10 +365,14 @@ impl PyPreparedPolicy {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<Bound<'py, PyDict>> {
-        // The retained program runs through the compiled policy-value route, which runs the
-        // executor `PreparedPolicy::value` runs; the route records its contract on the model.
         let fitted = self.fitted.bind(py).borrow();
-        run_value(py, &fitted, self.core.interventions().to_vec(), outcome, n, seed, threads)
+        let id = fitted.data.schema().id_of(outcome).map_err(py_err)?;
+        let model = Arc::clone(&fitted.inner);
+        let value = detach_catch(py, || {
+            let ctx = py_execution_context(seed, resolve_user_threads(threads));
+            self.core.value(&model.model, id, n, &ctx).map_err(py_err)
+        })?;
+        value_dict(py, outcome, &value)
     }
 }
 

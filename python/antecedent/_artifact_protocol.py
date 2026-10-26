@@ -230,6 +230,14 @@ def inspect_artifact(value: Any) -> ArtifactInspection:
     from . import _native
 
     data = container_bytes(value)
+    if data.startswith(b"ANTPOLICYPROG"):
+        return ArtifactInspection(
+            "policy_program_v1",
+            {"artifact_kind": "policy_program_v1"},
+            {},
+            ArtifactAcceptance("unavailable", False, False, False),
+            data,
+        )
     if data.startswith(b"ANTECEDENT-TRANSPORT-VIEW\x01"):
         from .transport._wrap import _parse_view_envelope
 
@@ -382,6 +390,10 @@ def artifact_from_receipt(source: Any, receipt: Any) -> ExportedArtifact[Any]:
 
 # No consumer is selected by trying families until one accepts. The native manifest is the discriminator.
 _CONSUMERS: dict[str, tuple[str, str]] = {
+    "policy_program_v1": ("intervention_programs", "consume_policy_program"),
+    "cyclic_equilibrium": ("cyclic", "consume_artifact"),
+    "cyclic_family": ("cyclic", "consume_family_artifact"),
+    "cyclic_evidence": ("cyclic", "consume_evidence"),
     "scientific_refusal_v1": ("outcomes", "_consume_refusal"),
     "conditional_study_ranking_v1": ("recalc_composite", "ConditionalStudyRanking.consume"),
     "antecedent.model.discretized_scm_artifact": (
@@ -499,6 +511,8 @@ def load_scientific(
         consumer = getattr(consumer, name)
     parameters = inspect.signature(consumer).parameters
     kwargs: dict[str, Any] = {}
+    if "execution" in parameters and policy is not None:
+        kwargs["execution"] = policy
     if "expected_identity" in parameters:
         if expected is None and parameters["expected_identity"].default is inspect.Parameter.empty:
             raise CausalValueError(
@@ -526,7 +540,11 @@ def load_scientific(
         ):
             raise CausalValueError(f"{view.kind} does not consume bundle source context")
         if "supplied" in parameters:
-            kwargs.update(supplied=context.supplied_sources, actual_claims=context.actual_claims)
+            kwargs["supplied"] = context.supplied_sources
+            if "actual_claims" in parameters:
+                kwargs["actual_claims"] = context.actual_claims
+            elif context.actual_claims:
+                raise CausalValueError(f"{view.kind} does not consume claim context")
     from .outcomes import Outcome, require_success
 
     consumed = (

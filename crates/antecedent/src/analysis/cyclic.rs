@@ -200,6 +200,16 @@ impl PreparedStudy<CyclicPreparedState> {
         let lowered = Arc::new(lower_cyclic_system(product.request(), &lowering_context())?);
         Ok(Self { state: CyclicPreparedState { product, lowered } })
     }
+    /// Branch scientific inputs and share unchanged native fitting inputs.
+    pub fn rebind(
+        &self,
+        request: CyclicExecutionRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CyclicArtifactError> {
+        let product = self.state.product.rebind(request, ctx)?;
+        let lowered = Arc::new(lower_cyclic_system(product.request(), ctx)?);
+        Ok(Self { state: CyclicPreparedState { product, lowered } })
+    }
     /// Export a result without refitting; the consumer independently refits/replays.
     ///
     /// # Errors
@@ -217,8 +227,7 @@ impl PreparedStudy<CyclicPreparedState> {
     /// The same frozen request as a family program, which shares rebinding,
     /// evidence projection, keyed replay and fit reuse with every other family.
     ///
-    /// Compilation does not fit. The family program keeps its own fit cache: a fit
-    /// already performed by this handle is not transferred.
+    /// Compilation does not fit. Both views share the synchronized fit owner.
     ///
     /// # Errors
     /// Invalid program inputs, cancellation, or retained-resource refusal.
@@ -226,12 +235,8 @@ impl PreparedStudy<CyclicPreparedState> {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<PreparedStudy<CyclicFamilyPreparedState>, CyclicArtifactError> {
-        Study::prepare_cyclic_family(
-            &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::System {
-                request: self.request().clone(),
-            },
-            ctx,
-        )
+        let program = CompiledCyclicFamilyProgram::from_system(self.state.product.clone(), ctx)?;
+        Ok(PreparedStudy { state: CyclicFamilyPreparedState::lower(program)? })
     }
 }
 
