@@ -141,3 +141,57 @@ mapped. Generic prepared-state specializations remain distinct; same-spelled
 methods are not merged across scientific states. This makes missing or
 unreviewed lifecycle capabilities explicit without calling every accessor a
 separate missing Python function.
+
+## Bounded exact transport and checked mean evidence
+
+The optimized `/private/tmp/python-api-optimized-consumers.log` run passes all
+40 selected cases, including the build-profile assertion, checked-mean journeys
+and native consumer counterexamples. The extension reports
+`__build_optimized__ = True`; its serialized release build completed in 15m03s
+(`/private/tmp/python-api-sorted-release-build.log`). The new native exact
+resource/cancellation/format regression passes independently
+(`/private/tmp/python-api-exact-resource-rust.log`). These local logs do not
+replace the source/binary-bound executing manifest; its final receipt is still
+required before pass-wide acceptance.
+
+`<antecedent::PreparedMechanismComposition>::mean_contrast` has a reviewed
+mapping for its exact success/refusal contract. A Gaussian chain asserts the
+analytic contrast 6.5 and mean 7 through the real native handle, then retains
+producer ownership into an affine decision. The new refusal test sends valid
+contrast wires directly to that native handle for an unknown Gaussian outcome
+and an unsupported finite family. Both native refusals have
+`route_not_supported` and `mechanism_composition.request_unsupported`; the public
+Outcome preserves them. Adapter quantity errors do not substitute for those
+native counterexamples.
+
+`<antecedent::PreparedStudy<antecedent::ExactPreparedState>>::consume` has a
+reviewed mapping for its success/inspection/control/refusal/artifact contract.
+Public load reaches the Rust consumer through the specialized exact binding,
+which rebuilds the proof, binds evidence and laws, checks identities, recomputes
+the target law and compares atoms, support, probabilities and reasoning.
+Loaded read models retain this proof and replay standing without a public
+resume handle. Separate direct consumers may retain their specialized resume
+handle; the evidence distinguishes those surfaces.
+
+After producer release, the tests recover the independent conditional truth
+`.35/(.15+.35)=.7`, program identity and exact original bytes. All four semantic
+mutation parameters pass: a substituted proof graph signature fails derivation;
+a normalized substituted law or snapshot identity fails identity checking;
+changed target probabilities fail execution-claim checking. A test-only CBOR
+fixture editor first reframes an unchanged valid artifact, and a spy asserts
+every damaged artifact actually enters the native consumer. Malformed framing
+cannot substitute for semantic refusal.
+
+Those tests exposed and drove a native correction: memory, operation and depth
+exhaustion had been conflated with invalid format or cancellation. Separate
+native checks now preserve typed resource failures; only an actually cancelled
+token is cancellation. All five frozen control parameters pass, and valid
+original bytes remain consumable after every rejection. Tamper/format checks
+are unchanged. No expectations were weakened or skipped to obtain this result.
+
+These two exact methods cover no other aliases, families, uncertainty paths,
+lease-cleanup scenarios or lifecycle transitions. The native ATE Outcome decision
+journey separately preserves the actual execution and mean-difference coordinate
+and refuses nonlinear expected utility; it does not close the similarly named
+cohort evaluator or turn a mean into a distribution. Other inventory gaps remain
+open, and final executing-manifest freshness is not claimed here.

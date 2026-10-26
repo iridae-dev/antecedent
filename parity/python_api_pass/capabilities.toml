@@ -4753,3 +4753,74 @@ owner = "Python API integration"
 behavior = "Python data replacement creates immutable branch handles and explicit later execution."
 gap = "Current PreparedAnalysis.refresh mutates the retained handle and executes immediately. Implement approved branch semantics with parent/child snapshot independence and no hidden execution."
 required_dimensions = ["success", "inspection", "refusal", "branch", "lifecycle", "artifact"]
+
+[[capability]]
+id = "method.exact_transport.consume_checked_read_model"
+rust = ["<antecedent::PreparedStudy<antecedent::ExactPreparedState>>::consume"]
+status = "covered"
+owner = "Python exact transport artifact integration"
+behavior = "Independently consume exact transport bytes through the native proof and exact-law replay consumer, retain checked acceptance in the detached Python distribution, and bind an explicitly supplied execution identity."
+python = "antecedent.load"
+composed_caller = "antecedent.load -> _workflow._load_analysis -> transport._impl.exact.consume_exact -> _native.consume_exact_transport -> PreparedStudy<ExactPreparedState>::consume; _consumed_transport_view retains consumer acceptance and removes resumability from the read model"
+required_dimensions = ["success", "inspection", "controls", "refusal", "artifact"]
+[[capability.evidence]]
+test = "python/tests/test_checked_mean_interop.py::test_registered_legacy_transport_prefixes_keep_their_specialized_consumers"
+assertion_scopes = ["test_registered_legacy_transport_prefixes_keep_their_specialized_consumers"]
+dimensions = ["success", "artifact"]
+assertion_contract = "An actual exact-law execution exports; public load enters the exact transport native consumer and returns equal recorded probabilities and outcome mean. Artifact inspection retains the exact transport discriminator and forwards bytes unchanged; the independently carried transport certificate retains its outcome. This is recorded-law preservation, not adversarial native proof validation."
+observed_log = "/private/tmp/python-api-optimized-consumers.log"
+[[capability.evidence]]
+test = "python/tests/test_checked_mean_interop.py::test_legacy_transport_load_checks_explicit_native_execution_bindings"
+assertion_scopes = ["test_legacy_transport_load_checks_explicit_native_execution_bindings"]
+dimensions = ["inspection", "artifact"]
+assertion_contract = "Explicit original execution identity binds a replayable, nonresumable loaded exact-law view; wrong execution id, artifact kind and irrelevant load context are rejected at the Python loading boundary. These assertions do not establish native proof/law tamper refusal or resource controls."
+observed_log = "/private/tmp/python-api-optimized-consumers.log"
+
+[[capability.evidence]]
+test = "python/tests/test_capability_consumers.py::test_native_exact_consumer_rejects_semantically_changed_records"
+assertion_scopes = ["test_native_exact_consumer_rejects_semantically_changed_records", "_exact_bytes"]
+dimensions = ["success", "refusal", "artifact"]
+assertion_contract = "All four parameters first reframe an unchanged valid native artifact and replay the independent conditional law 0.3/0.7, then enter the real native consumer with changed proof graph signature, normalized embedded law, target probabilities or snapshot identity. Native serialization refusals distinguish invalid derivation, identity mismatch and execution-claim mismatch; a spy asserts the actual native entry received the damaged bytes."
+observed_log = "/private/tmp/python-api-optimized-consumers.log"
+[[capability.evidence]]
+test = "python/tests/test_capability_consumers.py::test_native_exact_consumer_replays_the_embedded_law_without_a_producer"
+assertion_scopes = ["test_native_exact_consumer_replays_the_embedded_law_without_a_producer", "_exact_bytes"]
+dimensions = ["success", "inspection", "artifact"]
+assertion_contract = "After producer model, catalog and law locals are released, the native consumer independently verifies the artifact, retains specialized replay/resume acceptance, preserves program identity and exact original bytes, and returns the independent 0.35/(0.15+0.35)=0.7 mean with no sampling uncertainty."
+observed_log = "/private/tmp/python-api-optimized-consumers.log"
+
+[[capability.evidence]]
+test = "python/tests/test_capability_consumers.py::test_native_exact_consumer_honors_limits_and_cancellation"
+assertion_scopes = ["test_native_exact_consumer_honors_limits_and_cancellation", "_exact_bytes"]
+dimensions = ["controls", "refusal", "artifact"]
+assertion_contract = "All five parameters enter the independent exact consumer: operation/depth caps and explicit/shared-context memory admission produce CausalResourceError, while only a cancelled token produces CausalCancelledError. Original producer bytes remain independently consumable with the known conditional mean 0.7 after every rejection. No scientific acceptance is inferred from argument parsing."
+observed_log = "/private/tmp/python-api-optimized-consumers.log"
+
+[[capability]]
+id = "method.mechanism_composition.mean_contrast_checked_adapter"
+rust = ["<antecedent::PreparedMechanismComposition>::mean_contrast"]
+status = "covered"
+owner = "Python checked mean composition integration"
+behavior = "Read the native Gaussian composed-model mean contrast through Outcome, retain its exact scalar and producer binding in a mean-only source, and compose that source into an affine decision without supplying a distribution."
+python = "antecedent.results.sources.adapt_mean_source"
+composed_caller = "Outcome.as_mean_source -> results.sources.adapt_mean_source -> PreparedMechanismComposition.mean_contrast -> native PreparedCompositionHandle.mean_contrast -> antecedent::PreparedMechanismComposition::mean_contrast; Contract.evaluate unwraps the resulting Outcome and calls native evaluate_decision_means"
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_checked_mean_interop.py::test_composed_mean_and_consumed_mean_handoffs_require_declarations"
+assertion_scopes = ["test_composed_mean_and_consumed_mean_handoffs_require_declarations"]
+dimensions = ["success"]
+assertion_contract = "For the declared Gaussian X/M/Y chain, the explicit ATE contrast at X=2 versus X=1 yields 6.5 through the native method's Outcome into MeanSource; an independently consumed composition records 13.5 under X=2. Missing quantity/contrast declarations refuse at the adapter."
+observed_log = "/private/tmp/python-api-optimized-consumers.log"
+[[capability.evidence]]
+test = "python/tests/test_checked_mean_interop.py::test_outcome_mean_adapter_composes_directly_with_affine_decision"
+assertion_scopes = ["test_outcome_mean_adapter_composes_directly_with_affine_decision"]
+dimensions = ["success"]
+assertion_contract = "An Outcome containing the retained composition adapts to the known analytic mean 7, passes directly into an affine decision, selects use and retains the actual MeanSource object. Explicit scientific quantity, units and population are required; mismatches remain adapter errors rather than native mean_contrast refusals."
+observed_log = "/private/tmp/python-api-optimized-consumers.log"
+
+[[capability.evidence]]
+test = "python/tests/test_capability_consumers.py::test_mean_contrast_refusals_come_from_the_actual_native_method"
+assertion_scopes = ["test_mean_contrast_refusals_come_from_the_actual_native_method"]
+dimensions = ["refusal"]
+assertion_contract = "A valid contrast wire names an unknown Gaussian outcome or asks a finite composition for a Gaussian mean contrast. Both parameters call the actual PreparedCompositionHandle.mean_contrast first and assert a native route_not_supported refusal, then assert the public Outcome preserves that reason and mechanism_composition.request_unsupported detail. No Python early validation substitutes for these Rust counterexamples."
+observed_log = "/private/tmp/python-api-optimized-consumers.log"

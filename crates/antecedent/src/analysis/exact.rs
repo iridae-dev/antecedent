@@ -835,17 +835,25 @@ impl PreparedStudy<ExactPreparedState> {
         limits: ExactEvaluationLimits,
         ctx: &ExecutionContext,
     ) -> Result<(Self, ExactStudyResult), IoError> {
-        if ctx.cancellation.is_cancelled()
-            || ctx.memory_limit_bytes().is_some_and(|limit| bytes.len() as u64 > limit)
-        {
-            return Err(err("transport artifact budget/cancellation"));
+        let budget = |message: &str| IoError::Refused {
+            code: antecedent_core::reason_code!("transport_budget_cancel"),
+            message: message.to_owned(),
+        };
+        if ctx.cancellation.is_cancelled() {
+            return Err(budget("transport artifact consumption cancelled"));
+        }
+        if ctx.memory_limit_bytes().is_some_and(|limit| bytes.len() as u64 > limit) {
+            return Err(budget("transport artifact memory budget exceeded"));
         }
         let wire: ExactExecutionWire = antecedent_io::from_cbor(bytes)?;
-        if wire.format != "antecedent.exact_transport.v1"
-            || wire.operations > limits.operations
-            || wire.depth > limits.depth
-        {
-            return Err(err("transport artifact format/limits"));
+        if wire.format != "antecedent.exact_transport.v1" {
+            return Err(err("transport artifact format"));
+        }
+        if wire.operations > limits.operations {
+            return Err(budget("transport artifact operation limit exceeded"));
+        }
+        if wire.depth > limits.depth {
+            return Err(budget("transport artifact depth limit exceeded"));
         }
         let (diagram, proof) = rebuild_checked_proof(
             &GraphFields {
@@ -1080,6 +1088,59 @@ mod tests {
         let result = prepared.refresh(data("three", [0.2, 0.3, 0.3, 0.2]), &ctx).unwrap();
         assert!((result.distribution().mean(v(1)).unwrap() - 0.4).abs() < 1e-12);
     }
+    #[test]
+    fn exact_consumer_distinguishes_resource_limits_cancellation_and_invalid_format() {
+        let ctx = ExecutionContext::for_tests(0);
+        let producer = prepared();
+        let result = producer.estimate_retained(&ctx).unwrap();
+        let bytes = producer.export(&result).unwrap();
+        let limits = ExactEvaluationLimits::default();
+        let assert_budget = |limits, context: &ExecutionContext, expected: &str| {
+            let Err(error) = PreparedStudy::<ExactPreparedState>::consume(&bytes, limits, context)
+            else {
+                panic!("the exact consumer must enforce the caller's resource controls");
+            };
+            let IoError::Refused { code, message } = error else {
+                panic!("resource controls must retain their typed operational refusal");
+            };
+            assert_eq!(code, antecedent_core::reason_code!("transport_budget_cancel"));
+            assert_eq!(message, expected);
+            assert!(!message.contains("cancel"));
+        };
+        assert_budget(
+            ExactEvaluationLimits { operations: 1, ..limits },
+            &ctx,
+            "transport artifact operation limit exceeded",
+        );
+        assert_budget(
+            ExactEvaluationLimits { depth: 1, ..limits },
+            &ctx,
+            "transport artifact depth limit exceeded",
+        );
+        let memory_limited = ExecutionContext::for_tests(0).with_memory_limit(Some(1));
+        assert_budget(limits, &memory_limited, "transport artifact memory budget exceeded");
+        let cancelled = ExecutionContext::for_tests(0);
+        cancelled.cancellation.cancel();
+        assert!(matches!(
+            PreparedStudy::<ExactPreparedState>::consume(&bytes, limits, &cancelled),
+            Err(IoError::Refused { code, message })
+                if code == antecedent_core::reason_code!("transport_budget_cancel")
+                    && message == "transport artifact consumption cancelled"
+        ));
+        let mut wire: ExactExecutionWire = antecedent_io::from_cbor(&bytes).unwrap();
+        wire.format = "substituted".into();
+        assert!(matches!(
+            PreparedStudy::<ExactPreparedState>::consume(
+                &antecedent_io::to_cbor(&wire).unwrap(), limits, &ctx,
+            ),
+            Err(IoError::Convert(message)) if message == "transport artifact format"
+        ));
+        let (_, consumed) =
+            PreparedStudy::<ExactPreparedState>::consume(&bytes, limits, &ctx).unwrap();
+        assert_eq!(result.identities(), consumed.identities());
+        assert_eq!(result.distribution().probabilities, consumed.distribution().probabilities);
+    }
+
     #[test]
     fn portable_execution_rejects_premise_query_evidence_and_claim_mutations() {
         let ctx = ExecutionContext::for_tests(0);
