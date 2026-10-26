@@ -934,7 +934,21 @@ class PreparedCyclicFamily:
             or graph.get("program") is None
             or graph.get("fully_observational") is False
         ):
-            raise CausalValueError("source did not identify a functional")
+            # The request was valid; the native procedure did not supply an
+            # observational functional. Preserve its exact standing and proof
+            # trace rather than reporting an argument error or nonidentifiability.
+            raise StructuredRefusal(
+                {
+                    "code": "effect_not_identified",
+                    "detail": "cyclic.observational_functional_unavailable",
+                    "stage": "identified_functional",
+                    "message": "the native cyclic procedure did not return an observational functional",
+                    "offending": result.identity,
+                    "native_identification": graph,
+                    "source_identity": result.identity,
+                    "remedy": "inspect the retained native status, theorem premises and search limits before choosing another identification request",
+                }
+            )
         return IdentifiedCyclicFunctional(source["request"], result.identity, graph["program"])
 
     @_with_execution

@@ -1287,6 +1287,38 @@ def test_calculus_adjustment_functional_and_bounded_status_replay():
     assert failed.report["answer"]["result"]["status"] == "not_licensed_by_criterion"
 
 
+@pytest.mark.parametrize(
+    ("rule", "max_checks", "status"),
+    [("exchange", 0, "budget_exhausted"), ("action", 1000, "not_licensed_by_criterion")],
+)
+def test_unavailable_cyclic_functional_is_a_scientific_refusal_with_native_evidence(
+    rule, max_checks, status
+):
+    from antecedent.cyclic import CyclicGraph
+
+    study = CyclicGraph(2, ((0, 1),)).calculus(
+        rule,
+        [0],
+        [1],
+        [],
+        [],
+        io_scm=True,
+        standard_measurable_spaces=True,
+        max_checks=max_checks,
+    )
+    original = require_success(study.execute())
+    refused = study.identified_functional()
+    assert refused.value is None
+    assert refused.answer.kind == "refused"
+    assert refused.refusal.code == "effect_not_identified"
+    assert refused.refusal.detail == "cyclic.observational_functional_unavailable"
+    assert refused.refusal.fields["native_identification"]["status"] == status
+    assert refused.refusal.fields["source_identity"] == original.identity
+    assert refused.refusal.fields["native_identification"] == original.report["answer"]["result"]
+    assert refused.refusal.remedy
+    assert require_success(study.execute()).to_dict() == original.to_dict()
+
+
 def test_adam_public_replay_and_policy_data_invalidation():
     from antecedent.cyclic import AdamPolicy
 
