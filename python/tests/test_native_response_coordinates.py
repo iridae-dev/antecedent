@@ -26,7 +26,9 @@ def _curve_data(seed: int = 23) -> dict[str, np.ndarray]:
 
 
 def _analyze_curve():
-    return analyze(_curve_data(), query=ResponseCurve("a", "y", grid=GRID), graph=[("a", "y")])
+    return require_success(
+        analyze(_curve_data(), query=ResponseCurve("a", "y", grid=GRID), graph=[("a", "y")])
+    )
 
 
 def test_native_coordinates_equal_the_python_derivation_and_the_hand_values():
@@ -143,7 +145,9 @@ def _transported_with_a_missing_coordinate():
             ),
         )
     )
-    return analyze(data, graph=Admg.from_edges(["x", "y"], [("x", "y")]), query=query)
+    return require_success(
+        analyze(data, graph=Admg.from_edges(["x", "y"], [("x", "y")]), query=query)
+    )
 
 
 def test_transport_grid_diagnostics_are_scoped_to_their_coordinate():
@@ -171,13 +175,15 @@ def test_transport_grid_diagnostics_are_scoped_to_their_coordinate():
 
 
 def test_analyze_populates_native_scientific_coordinates_with_declared_units():
-    result = analyze(
-        _curve_data(),
-        query=ResponseCurve("a", "y", grid=GRID),
-        graph=[("a", "y")],
-        outcome_units="mmHg",
-        quantity_population="clinic",
-        quantity_transform="identity",
+    result = require_success(
+        analyze(
+            _curve_data(),
+            query=ResponseCurve("a", "y", grid=GRID),
+            graph=[("a", "y")],
+            outcome_units="mmHg",
+            quantity_population="clinic",
+            quantity_transform="identity",
+        )
     )
     assert result.quantities == result.response_coordinates(
         outcome_units="mmHg", population="clinic"
@@ -206,12 +212,14 @@ def test_declared_response_coordinates_survive_a_fresh_checked_artifact_consumer
     from antecedent import artifacts
     from antecedent.errors import CausalSerializationError
 
-    result = analyze(
-        _curve_data(),
-        query=ResponseCurve("a", "y", grid=GRID),
-        graph=[("a", "y")],
-        outcome_units="mmHg",
-        quantity_population="clinic",
+    result = require_success(
+        analyze(
+            _curve_data(),
+            query=ResponseCurve("a", "y", grid=GRID),
+            graph=[("a", "y")],
+            outcome_units="mmHg",
+            quantity_population="clinic",
+        )
     )
     encoded = bytes(result.export())
     decoded = artifacts.loads(encoded)
@@ -284,11 +292,13 @@ def test_response_export_refuses_semantic_relabeling_of_the_executed_response():
 
     from antecedent.errors import CausalValueError
 
-    result = analyze(
-        _curve_data(),
-        query=ResponseCurve("a", "y", grid=GRID),
-        graph=[("a", "y")],
-        outcome_units="mmHg",
+    result = require_success(
+        analyze(
+            _curve_data(),
+            query=ResponseCurve("a", "y", grid=GRID),
+            graph=[("a", "y")],
+            outcome_units="mmHg",
+        )
     )
     changed = result.model_copy(
         update={"quantities": (replace(result.quantities[0], horizon=1), *result.quantities[1:])}
@@ -303,7 +313,7 @@ def test_response_export_refuses_semantic_relabeling_of_the_executed_response():
 def test_response_metadata_without_declared_units_is_refused(metadata):
     from antecedent.errors import CausalValueError
 
-    with pytest.raises(CausalValueError, match="require declared outcome_units"):
+    with pytest.raises(CausalValueError, match="require outcome_units"):
         analyze(
             _curve_data(), query=ResponseCurve("a", "y", grid=GRID), graph=[("a", "y")], **metadata
         )
@@ -328,7 +338,8 @@ def test_declared_native_response_coordinates_feed_public_decision_composition()
         result, outcome_units="kg", dose_units="mg", population="clinic", transform="log"
     )
     claim = program_claims.native_claim(result, program)
-    assert claim.coordinates == result.quantities
+    response = require_success(result)
+    assert claim.coordinates == response.quantities
     contract = decision.Contract(
         actions=(
             decision.Action("A", inputs=(claim.coordinates[0],), utility=decision.x(0)),
@@ -339,11 +350,17 @@ def test_declared_native_response_coordinates_feed_public_decision_composition()
         target_population="clinic",
     )
     source = claim.as_decision_source(contract)
-    assert source.coordinates == result.quantities
-    evaluated = contract.evaluate(source.source)
+    assert source.coordinates == response.quantities
+    evaluated = require_success(contract.evaluate(source.source))
     by_id = {action.id: action for action in evaluated.actions}
-    assert by_id["B"].expected_utility == pytest.approx(result.response.values[-1][0])
+    assert by_id["B"].expected_utility == pytest.approx(response.response.values[-1][0])
     assert evaluated.selected == ("B",)
+    direct = contract.evaluate(result, program=program)
+    assert direct.accepted
+    assert require_success(direct).selected == evaluated.selected
+    assert [action.expected_utility for action in require_success(direct).actions] == [
+        action.expected_utility for action in evaluated.actions
+    ]
     for changed in (
         replace(program, outcome_units="lb"),
         replace(program, population_id="elsewhere"),

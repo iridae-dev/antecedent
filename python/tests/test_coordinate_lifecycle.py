@@ -151,7 +151,7 @@ def test_lifecycle_identify_bind_inspect_decide_and_rank_a_study(tmp_path: Path)
 
     # decide on the bound claim: 2 * 1 - 1 = 1 and 2 * 5 - 1 = 9.
     contract = _contract(claim)
-    result = contract.evaluate(claim)
+    result = require_success(contract.evaluate(claim))
     assert result.selected == ("treat",)
     assert result.actions[0].expected_utility == pytest.approx(1.0)
     assert result.actions[1].expected_utility == pytest.approx(9.0)
@@ -530,13 +530,15 @@ def _joint_law_refusal() -> iq.InverseQueryRefusal:
     ]
     query = iq.InverseQuery(contract, ("risky", "safe"), (iq.target_mean(2.5),))
     with pytest.raises(iq.InverseQueryRefusal) as caught:
-        query.evaluate(inverse_fixtures._joint(columns, alignment="independent_marginals"))
+        require_success(
+            query.evaluate(inverse_fixtures._joint(columns, alignment="independent_marginals"))
+        )
     return caught.value
 
 
 def _raised(call: Callable[[], object], kind: type[_E]) -> _E:
     with pytest.raises(kind) as caught:
-        call()
+        require_success(call())
     return caught.value
 
 

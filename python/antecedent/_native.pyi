@@ -1068,6 +1068,7 @@ class PosteriorArtifact:
     hessian_condition: float
     quantity_names: list[str]
     treatment_contrast: float | None
+    def draws_view(self) -> NDArray[np.float64]: ...
     def __init__(
         self,
         n_draws: int,
