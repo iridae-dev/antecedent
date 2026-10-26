@@ -57,9 +57,9 @@ impl BootstrapIndexWave {
         }
         let slots = retained_index_slots(n, width)?;
         let mut indexes = Vec::new();
-        indexes
-            .try_reserve_exact(slots)
-            .map_err(|e| EstimationError::ResampleBuffer(ResampleBufferFault::IndexAllocation(e)))?;
+        indexes.try_reserve_exact(slots).map_err(|e| {
+            EstimationError::ResampleBuffer(ResampleBufferFault::IndexAllocation(e))
+        })?;
         indexes.resize(slots, 0);
         Ok(Self { indexes, n, width, filled: 0 })
     }
@@ -206,7 +206,7 @@ mod adaptive_resample {
     use antecedent_data::{DataError, GlobalId, ResamplingPlan};
 
     use super::retained_index_slots;
-    use crate::error::EstimationError;
+    use crate::error::{EstimationError, ResampleBufferFault};
     use crate::statistical_transport::percentile_interval;
     use crate::util::{adaptive_bootstrap_should_stop, finalize_bootstrap_se_ex};
 

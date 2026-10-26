@@ -728,7 +728,9 @@ fn summarize_bootstrap(
     estimate.replicate_ids = Some(boot.ids.clone());
     let decided = ReplicatePolicy::BOOTSTRAP
         .decide(options.bootstrap_replicates, boot.ok, boot.failed)
-        .and_then(|()| boot.columns.intervals(options.coverage_level));
+        .and_then(|()| {
+            boot.columns.intervals(options.coverage_level).map_err(TransportIntervalReason::as_str)
+        });
     match decided {
         Ok(intervals) => {
             estimate.atom_intervals = Some(intervals.atoms);
@@ -1930,7 +1932,7 @@ fn finish_z_interval(
     coverage_level: f64,
 ) -> Result<NominalZTransportInterval, &'static str> {
     ReplicatePolicy::BOOTSTRAP.decide(requested, columns.ok, failed)?;
-    let intervals = columns.intervals(coverage_level)?;
+    let intervals = columns.intervals(coverage_level).map_err(TransportIntervalReason::as_str)?;
     Ok(NominalZTransportInterval {
         method: Arc::from(method),
         reason: Arc::from(Z_TRANSPORT_INTERVAL_NOT_MEASURED),

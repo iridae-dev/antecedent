@@ -331,7 +331,7 @@ pub(crate) fn count_levels(
         ));
     }
     let mut counts: BTreeMap<&str, usize> = order.iter().map(|l| (l.as_str(), 0)).collect();
-    for label in &input.levels {
+    for label in input.levels.iter() {
         let Some(slot) = counts.get_mut(label.as_str()) else {
             return Err(refuse(
                 reason_code!("invalid_argument"),
@@ -379,11 +379,7 @@ pub(crate) fn dummy_columns<'a>(
         .map(|level| TreatmentColumn {
             name: Cow::Owned(dummy_name(level)),
             values: Cow::Owned(
-                input
-                    .levels
-                    .iter()
-                    .map(|label| if label == level { 1.0 } else { 0.0 })
-                    .collect(),
+                input.levels.iter().map(|label| if label == level { 1.0 } else { 0.0 }).collect(),
             ),
             adjustment_set: adjustment_set.clone(),
             row_snapshot: Cow::Borrowed(&*input.row_snapshot),

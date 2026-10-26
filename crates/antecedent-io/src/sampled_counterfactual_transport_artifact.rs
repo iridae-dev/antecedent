@@ -885,7 +885,7 @@ fn estimation_refusal(error: &antecedent_estimate::EstimationError) -> Error {
     use antecedent_estimate::EstimationError as E;
     match error {
         E::Refused { code, message } | E::RefusedWithFields { code, message, .. } => {
-            Error::Replay { code, message: message.clone() }
+            Error::Replay { code, message: message.to_string() }
         }
         other => Error::Malformed { slot: "tables", message: other.to_string() },
     }

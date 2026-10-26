@@ -300,7 +300,7 @@ impl RouteRecord {
     pub(crate) fn accept_posterior(&self) -> PyResult<HashMap<String, String>> {
         let accepted = self.execution.accept_posterior(&self.ctx).map_err(py_err)?;
         let mut out = provenance_map(accepted.provenance());
-        out.insert("atoms".to_owned(), accepted.posterior().weights.len().to_string());
+        out.insert("atoms".to_owned(), accepted.posterior().weights().len().to_string());
         Ok(out)
     }
 

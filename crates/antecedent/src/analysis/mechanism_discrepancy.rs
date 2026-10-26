@@ -65,16 +65,14 @@ impl MechanismDiscrepancyRefusal {
     pub fn from_estimation(error: &EstimationError) -> Self {
         match error {
             EstimationError::Refused { code, message }
-            | EstimationError::RefusedWithFields { code, message, .. } => {
-                Self {
-                    code,
-                    detail: message
-                        .detail()
-                        .unwrap_or("mechanism_discrepancy.invalid_request")
-                        .to_owned(),
-                    message: message.explanation().to_owned(),
-                }
-            }
+            | EstimationError::RefusedWithFields { code, message, .. } => Self {
+                code,
+                detail: message
+                    .detail()
+                    .unwrap_or("mechanism_discrepancy.invalid_request")
+                    .to_owned(),
+                message: message.explanation().to_owned(),
+            },
             other => Self {
                 code: antecedent_core::reason_code!("invalid_argument"),
                 detail: "mechanism_discrepancy.invalid_request".to_owned(),
@@ -112,12 +110,11 @@ pub fn run_mechanism_discrepancy(
     if !source_ids.is_empty() && !target_ids.is_empty() {
         let ids: BTreeSet<&str> = source_ids.iter().map(String::as_str).collect();
         if target_ids.iter().any(|id| ids.contains(id.as_str())) {
-            return Err(MechanismDiscrepancyArtifactError::Refused {
-                code: antecedent_core::reason_code!("route_not_supported"),
-                message: "mechanism_discrepancy.dependence_unknown: source and target share \
-                          units, so their estimates are not independent"
-                    .to_owned(),
-            });
+            return Err(MechanismDiscrepancyArtifactError::refused(
+                antecedent_core::reason_code!("route_not_supported"),
+                "mechanism_discrepancy.dependence_unknown",
+                "source and target share units, so their estimates are not independent",
+            ));
         }
     }
     MechanismDiscrepancyArtifact::seal(request)

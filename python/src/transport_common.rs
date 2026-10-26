@@ -87,7 +87,7 @@ impl TransportPyErr for antecedent_estimate::EstimationError {
     fn into_transport_py_err(self) -> PyErr {
         use antecedent_estimate::EstimationError as E;
         match self {
-            E::Refused { code, message } => coded_refusal(code, message),
+            E::Refused { code, message } => coded_refusal(code, message.into_string()),
             other => crate::py_err(other),
         }
     }

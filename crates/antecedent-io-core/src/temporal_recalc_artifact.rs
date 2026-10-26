@@ -114,7 +114,9 @@ impl TryFrom<HistoryLayout> for TemporalHistoryWire {
                     y: l.y,
                 })
             }
-            _ => Err("a history is either the two-step fields or the actions and covariates".into()),
+            _ => {
+                Err("a history is either the two-step fields or the actions and covariates".into())
+            }
         }
     }
 }
@@ -310,7 +312,7 @@ impl TemporalRecalcArtifactWire {
                 bidirected,
                 &r.selection_targets,
                 r.horizon,
-                r.lag_alignment,
+                &r.lag_alignment,
                 r.period,
                 &r.functional,
                 r.benefit_per_unit.to_bits(),
@@ -335,7 +337,9 @@ impl TemporalRecalcArtifactWire {
         };
         let horizon = self.request.horizon;
         if horizon == 0 || horizon > MAX_HORIZON {
-            return Err(invalid_temporal_artifact("unsupported or unbounded empirical point shape"));
+            return Err(invalid_temporal_artifact(
+                "unsupported or unbounded empirical point shape",
+            ));
         }
         let (version, feature) = layout(horizon);
         if self.version != version {

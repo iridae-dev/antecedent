@@ -335,11 +335,7 @@ impl From<JointTransportRefusal> for EstimationError {
             implicated_columns: refusal.failure.failing_column.into_iter().collect(),
             ..RefusalFields::default()
         };
-        Self::RefusedWithFields {
-            code: refusal.code,
-            message: format!("{}: {}", refusal.detail, refusal.message),
-            fields: Box::new(fields),
-        }
+        Self::refused_detail_with_fields(refusal.code, refusal.detail, refusal.message, fields)
     }
 }
 
