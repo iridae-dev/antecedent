@@ -1,0 +1,34 @@
+Reviewer handoff record. [Integrated verification](validation.md) records executed results; pending root language below describes the handoff stage.
+
+# Facade methods refactor
+
+Ownership: functional_sensitivity.rs and the twelve explicitly assigned execute modules only. No Cargo, formatter, or commits run here. No new public API or lint allowance.
+
+Responsibility splits preserve original sequencing:
+- functional sensitivity: cross-world range fit versus scaling/report publication; observed marginal atom probabilities versus placebo refit replicates. Same outcome/row/atom loop nesting, rho grid, RNG domain/replicate keys, permutation order, cancellation and refit checks. Checked graph-node and replacement-column conversion replaces truncating usize→u32. The min replicate dimension now rejects a u32 overflow rather than wrapping. Least-squares coefficient/residual vectors use clone_from to preserve values while reusing destination capacity.
+- class attribution: member-run and result-accounting helpers are associated functions because they use no Study state. Series posterior atom decoding is a separate checked graph responsibility, with an explicit Member/Class result: the original outer loop still groups templates by first appearance, accumulates weights in the same order, records outside atoms at the same point, then enumerates classes. All DAG/TemporalAdmg/Cpdag/Pag refusals and isolated-target insertion preserved. Template type precedes runtime statements.
+- class derivative refutation: calculate disagreement/unchecked diagnostics after all original per-completion refits, keeping output ordering and tolerance. No wildcard/exhaustive scientific classification changed.
+- class path: completion fit products held in a private named record; interval assembly uses those same ordered products, rows and truncation flag. Selection/refusal before and after fitting remains in original order; functional and bootstrap draws unchanged.
+- interference: posterior annotation separated from executing/mixing the single design contrast; clustered calibration separated from the assignment-design dispatch. Counts, cluster order, significance calculations and messages unchanged.
+- transport posterior: typed atom weighting, representative selection, inference law, atom mixture, refutation and diagnostic publication have separate private responsibilities. Proof/certificate validation and error precedence remain before inference; one shared law is fitted at the same point. The representative IPW mutation remains only in Bayesian inference. Atom order, draws, weights, and typed structural mass distinctions are unchanged.
+- mixed mediation: component preparations and fits remain aligned in one named private record, and paired-law diagnostics operate on the same ordered slots before the requested contrast is removed. Refutation still reads every original proof before consumption. MemberProofs is Copy/Clone because it holds only a borrowed slice and two Copy IDs/indices.
+- cross-world posterior: typed DAG/ADMG dispatch after unchanged graph-membership conversion; component mixture selection; diagnostic/refutation publication; temporal-PAG replicate-member decoding; single-atom uncertainty adoption; shared standard-error reduction used by both original replicate paths; series replacement construction. No stream invocation or numerical reduction changed. Scalar-free distributions still clear scalar/set placeholders at the same point after diagnostics. Lost-mass and component absence semantics remain distinct. Duplicate standard-error implementations now call the same reduction with identical survivor threshold and arithmetic order.
+- class distribution: remove an unnecessary local explicit complex tuple type and let the existing push/contains callers infer it; coordinate tuple semantics unchanged.
+- counterfactual and front-door derivative: direct function map_err and Option::is_none_or replace equivalent closures/map_or without changing branch/error behavior.
+
+Retained entry checks and lowered/retained identification calls remain in their original entry bodies. No checked-route, canonical identity, registry, or scientific formula changes. git diff --check clean. Root must format and run strict facade Clippy plus affected functional sensitivity, class/path, transport/interference, cross-world and mediation suites; no passing result claimed here.
+
+## Additional five owned facade files
+
+- propagation_chain::family_table: source count/shape/finite validation stays at the entry before allocation or ledger checks; ledger authority/known observations and derived row covariance now live in apply_family_ledger_overlap, followed at the original point by check_family_dependence for independence/covariance declarations. Nested i,j order, correlation*SE arithmetic, factor naming/sort order and source-wire construction are unchanged. The normal-table RNG call remains once after every original check. New helpers are private and below 100 body lines.
+- target_validation: plant_common_cause owns outcome/continuous-treatment perturbation and retains the statement-scoped reason for exact 0/1 classification. Modality iteration, Gaussian draw count/order, free-name choice, append order, graph/posterior update and compiler execution remain in random_common_cause in their original order.
+- future_regime: exact canonical writer moved to a private future_regime_identity helper. Licensing, ledger independence, source dependency, per-slot count and functional arity checks stay in prepare_regime before projection/affine arithmetic. Canonical domain and byte/word sequence unchanged.
+- experiment/matrix: the retained-panel obligations are appended by a private helper after all native-design rows. Full catalog, loop nesting, original row payload and ordering remain identical. No filtering or summaries replace actual obligations.
+- experiment ranking: output ownership quote/admission and action-domain canonical identity have distinct private helpers called at their original points. Cancellation/catalog/mean arity validation stay in rank_law_next_studies; output lease remains held while the action identity is serialized, states/scratch are admitted and EVSI is sampled. Identical actual serialized action payload/type/question words, native streams, state reductions and ranking order.
+
+No Cargo/fmt/commits. No new public APIs/allowances. Existing exact numeric allowance moved with its scientific statement. New helper definitions precede test modules. git diff --check clean; root validation remains pending.
+
+The final private follow-through gives detached transport columns one owner, shares
+class-envelope contract conversion, and separates scalar-free placeholder cleanup
+at its original publication point. Panel preposterior scratch sizing is a checked
+quote helper at the original admission boundary. No execution or RNG order changes.

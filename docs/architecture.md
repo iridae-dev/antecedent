@@ -40,7 +40,7 @@ records the corresponding engineering rules; crate-level detail follows it.
 
 ```text
 antecedent-core          ids, schemas, queries, interventions, identities, execution policy, errors
-antecedent-contract      claim envelopes, external-evidence contracts, program bindings, obligations (no estimator uses it)
+antecedent-contract      claim envelopes, external-evidence contracts, program bindings, obligations (no estimator dependency)
 antecedent-kernels       borrowed views + scalar/portable/arch kernels (no causal semantics)
 antecedent-data          tabular / temporal / panel / multi-env views, sample planning, Arrow
 antecedent-graph         DAG/ADMG/CPDAG/PAG, separation, overlays, temporal unfold
@@ -77,6 +77,29 @@ families: it fits through the learner contract and stores only the provider-inde
 tree map (`PortablePredictor`), so it too never names a provider (ADR 0012).
 Bayesian discovery may use `antecedent-prob` without pulling `antecedent-model`.
 
+`scripts/check_architecture.py` checks these production ownership boundaries
+transitively, including renamed workspace dependencies, optional features,
+build dependencies and platform-specific edges. It runs in CI and the release
+inventory gate. Development dependencies may test independent consumers without
+becoming production dependencies. Its negative controls run with
+`python3 scripts/test_check_architecture.py`.
+
+The [engineering review](../parity/engineering_pass/README.md) records the
+reviewed caller chains, fixes, compatibility decisions and executing checks.
+
+Prepared functional operations retain their checked causal program separately
+from the data-bound empirical provider. Rebinding new data reuses that program;
+reading a contract on the producing snapshot reuses the provider's factor laws.
+Schema compatibility is checked separately from storage-content equality, and
+values, validity, masks and weights participate in the latter. Refresh publishes
+the rebound operation that produced its result. Scientific program identity,
+snapshot identity and physical preparation counters therefore remain distinct.
+
+Portable predictor deserialization validates the same numerical-map invariants
+as checked construction. Public declaration records remain compatible, and
+their consuming fallible operations validate shape and domain before indexing.
+An empty or failed posterior draw column cannot publish a finite probability.
+
 ## Analysis pipeline
 
 ```text
@@ -102,6 +125,9 @@ otherwise compilation returns `ReviewRequired`.
 - `ComputeBudget.wall_ms` is advisory: it is recorded on the resolved budget and
   is not a hard wall-clock stop. Use a cancellation token to abort.
 - Workspaces and prepared designs are reused across bootstrap / draw batches.
+- Residual-fit process reuse requires explicitly enabled unbounded caching and an
+  unlimited admission pool. Disabled/bounded caches and finite admission bypass
+  both lookup and retention; pure numerical equivalence does not override ownership.
 - SIMD is an implementation detail behind library-owned views (`KernelPolicy`).
 - Python callbacks are explicit slow paths; the physical plan marks them.
 
@@ -118,6 +144,13 @@ python/
 Algorithms stay in Rust. Bindings convert and release the GIL. Identification and
 validation surface through `analyze(...).identification` / `.validation`, not
 separate top-level modules.
+
+Each detached run owns its pending Python exceptions through attribution and
+worker join. Attribution can consume only that run's callback ids; formatting
+and Python object destruction happen outside ownership locks. Progress callbacks
+carry a weak run owner into native workers and restore their previous scope.
+Callback interruptions cancel linked work and survive successful native fallback;
+ordinary observer exceptions retain their print-and-continue contract.
 
 ## Where to look next
 

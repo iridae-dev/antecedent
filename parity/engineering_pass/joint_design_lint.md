@@ -1,0 +1,19 @@
+Reviewer handoff record. [Integrated verification](validation.md) records executed results; pending root language below describes the handoff stage.
+
+# Joint-design bounded validation ownership review
+
+Owner: methods_review agent. Only estimate/src/joint_design/{compiled,gaussian_longitudinal,instrumented,longitudinal,randomized,rollout}.rs edited. No Cargo, builds, formatting, tests or commits run. Source frozen for root serialized checks.
+
+compiled.rs: replaced eight wildcard imports with the exact types/functions used by retained recipe dispatch, using Clippy's concrete symbol inventory. No visibility, dispatch arm, recipe/wire field or public API changes.
+
+gaussian_longitudinal.rs: private validate_episodes owns original independent-episode identity/shape/finite-value/treatment-support admission. It is invoked at the original tail of validate, after unchanged regime/model/history-feature checks, with the same checked h/d/m axes. Episode and support traversal, failure strings and first-refusal order are unchanged; regression/integration and sampling code untouched. coefficient_scale doc quoted. Bootstrap replicate bound changed from r<2||r>100000 to !(2..=100000).contains(&r): r is an integer, so exact equivalence with no NaN semantics.
+
+instrumented.rs: private validate_structural_likelihood owns proper-prior/feature/dimension validation, actual endogenous/raw-dose polynomial binding, and disturbance symmetry before likelihood precision construction. The public coefficient posterior still runs native instrumented_joint_contrasts first, computes dimensions/overflow refusals next, then invokes the helper where the moved checks originally ran. Every check, tolerance, polynomial multiplication order, covariance traversal and refusal text/order is retained verbatim. Precision accumulation, Cholesky solves, RNG seed/normal draw sequence/backsolve/projection unchanged. Exact-intercept check remains exactly ==1.0 under a single statement-scoped float_cmp reason: an unconditional disturbance moment needs a coded intercept, not an approximately constant covariate.
+
+rollout.rs: private validate_rollout_likelihood owns proper-prior/residual-covariance/dimension checks and complete modeled observed treated cohort/time coverage. Native rollout identification, sorted calendar-axis creation and dimension calculation still precede those checks. No change to saturated effect ownership, untreated controls, AR1 whitening, arithmetic order, prior precision/RHS, Gaussian draws or error priority. Its copied finite check still precedes rho absolute-bound validation; no floating range rewrite was made.
+
+longitudinal.rs: exact outcome-category counting retains == between declared finite support values and observed category values; statement-scoped float_cmp reason records category identity. No epsilon approximation, bin merging or Dirichlet count/RNG change.
+
+randomized.rs: world count integer bound uses inclusive contains (exact same accepted integers); empty String predicate uses String::is_empty. Equal population weights remain exact; a statement-scoped predicate carries the reason that this common-arm-mean likelihood requires equal declared weights and unequal weights need another response model. The predicate is invoked at the original final OR position, preserving earlier malformed-prior short-circuit/refusal order; original randomized design validation still proves units nonempty/finite first. No floating NaN range transformation.
+
+No new public API, blanket lint allowances, generic abstraction, identity/encoding/version change or golden updates. Helpers separate coherent scientific-input admission from numerical execution; methods with different likelihood/causal semantics remain separate. Root should rerun strict workspace Clippy and existing joint-design unit/conformance/artifact checks in its serialized queue.
