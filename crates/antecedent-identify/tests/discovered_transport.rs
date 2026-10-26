@@ -573,3 +573,57 @@ fn temporal_requests_refuse_unknown_variables_and_unroll_only_the_declared_treat
     );
     assert_eq!(refused.detail, "discovered_transport.temporal_query_invalid");
 }
+
+#[test]
+fn static_class_transport_preserves_context_and_typed_completion_stops() {
+    use antecedent_core::ExecutionContext;
+    use antecedent_identify::discovered_transport::{
+        transport_across_class_with_context, transport_across_pag_with_context,
+    };
+    use antecedent_identify::{IdentificationBudget, IdentificationError};
+    let cpdag = chain(3);
+    let targets = [v(1)];
+    let cpdag_request = request(&cpdag, &targets);
+    let mut pag = Pag::with_variables(3);
+    pag.insert_circle_arrow(d(0), d(1)).unwrap();
+    pag.insert_circle_arrow(d(2), d(1)).unwrap();
+    let pag_targets = [v(2)];
+    let pag_request = pag_request(&pag, &pag_targets);
+    let pag_query = effect_query(1, 0);
+    let ctx = ExecutionContext::for_tests(17).with_memory_limit(Some(1 << 24));
+    let before = ctx.admission().available();
+    assert_eq!(
+        transport_across_class_with_context(&cpdag_request, &query(), &ctx).unwrap(),
+        transport_across_class(&cpdag_request, &query()).unwrap()
+    );
+    assert_eq!(
+        transport_across_pag_with_context(&pag_request, &pag_query, &ctx).unwrap(),
+        transport_across_pag(&pag_request, &pag_query).unwrap()
+    );
+    assert_eq!(ctx.admission().available(), before);
+
+    let tiny = ExecutionContext::for_tests(17).with_memory_limit(Some(1));
+    let before = tiny.admission().available();
+    for result in [
+        transport_across_class_with_context(&cpdag_request, &query(), &tiny),
+        transport_across_pag_with_context(&pag_request, &pag_query, &tiny),
+    ] {
+        assert!(matches!(
+            result,
+            Err(DiscoveredTransportError::Identification(IdentificationError::Budget {
+                budget: IdentificationBudget::Memory
+            }))
+        ));
+    }
+    assert_eq!(tiny.admission().available(), before);
+    ctx.cancellation.cancel();
+    for result in [
+        transport_across_class_with_context(&cpdag_request, &query(), &ctx),
+        transport_across_pag_with_context(&pag_request, &pag_query, &ctx),
+    ] {
+        assert!(matches!(
+            result,
+            Err(DiscoveredTransportError::Identification(IdentificationError::Cancelled))
+        ));
+    }
+}

@@ -207,6 +207,7 @@ impl GeneralizedAdjustmentIdentifier {
             &ctx,
         )?;
         let (envelope, indexers) = identify_temporal_completions(&mut sampler, query, self)?;
+        crate::generalized::check_completion_stop(sampler.search_stop())?;
         let mut envelope = envelope;
         let n = cpdag.undirected_edge_count();
         if n > 0 {
@@ -270,6 +271,7 @@ impl GeneralizedAdjustmentIdentifier {
                 weight: ProbabilityMass(self.config.per_completion_weight),
             });
         }
+        crate::generalized::check_completion_stop(sampler.search_stop())?;
         let indexers = vec![indexer; cases.len()];
         let mut envelope = IdentificationEnvelope::from_cases(cases);
         let report = sampler.validation_report();

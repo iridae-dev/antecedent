@@ -75,8 +75,11 @@ impl ResponseIdentifier {
         if matches!(response.functional, ResponseFunctional::InterventionResponse { .. })
             && response.functional.treatment_ids().len() > 1
         {
-            let mut result = crate::GeneralizedAdjustmentIdentifier::new()
-                .identify_joint_dag_response(prepared.dag(), response)?;
+            // Joint adjustment owns its existing scientific search limits; it shares the
+            // response caller's cancellation token and admission pool.
+            let mut joint = crate::GeneralizedAdjustmentIdentifier::new();
+            joint.config.context.clone_from(&self.backdoor.config.context);
+            let mut result = joint.identify_joint_dag_response(prepared.dag(), response)?;
             for record in &prepared.declared_assumptions().entries {
                 if !result.required_assumptions.entries.contains(record) {
                     result.required_assumptions.push(record.clone());

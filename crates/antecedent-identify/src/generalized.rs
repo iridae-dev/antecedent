@@ -71,6 +71,19 @@ pub(crate) const CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str =
 pub const CAPPED_COMPLETION_DIAGNOSTIC_CODE: &str =
     "identify.generalized_adjustment.completion_capped";
 
+/// Resource interruption cannot be read as a scientific or declared work-cap outcome.
+pub(crate) fn check_completion_stop(
+    stop: Option<antecedent_core::SearchStop>,
+) -> Result<(), IdentificationError> {
+    match stop {
+        Some(antecedent_core::SearchStop::Cancelled) => Err(IdentificationError::Cancelled),
+        Some(antecedent_core::SearchStop::Memory) => {
+            Err(IdentificationError::Budget { budget: crate::error::IdentificationBudget::Memory })
+        }
+        _ => Ok(()),
+    }
+}
+
 /// Config for PAG generalized-adjustment envelopes.
 #[derive(Clone, Debug)]
 pub struct GeneralizedAdjustmentConfig {
@@ -239,6 +252,7 @@ impl GeneralizedAdjustmentIdentifier {
                 });
             }
         }
+        check_completion_stop(sampler.search_stop())?;
         let mut envelope = IdentificationEnvelope::from_cases(cases);
         envelope.push_features(pag_circle_features(pag));
         let validation = sampler.validation_report();
@@ -417,6 +431,7 @@ impl GeneralizedAdjustmentIdentifier {
             let result = identify(&completion.graph)?;
             cases.push(GraphIdentificationCase { graph: completion.graph, result, weight: w });
         }
+        check_completion_stop(sampler.search_stop())?;
         let mut envelope = IdentificationEnvelope::from_cases(cases);
         envelope.push_features(cpdag_undirected_features(cpdag));
         if sampler.hit_cap() {
@@ -631,6 +646,23 @@ fn conditional_levels(query: &AverageEffectQuery) -> Result<(Value, Value), Iden
     }
 }
 
+/// A declared candidate cap is an undecided search outcome; inability to fund a search
+/// inside that cap is a physical failure and must not contribute unidentified class mass.
+fn fund_adjustment_enumeration(
+    search: &mut crate::exact_search::ExactSearch<'_>,
+    candidates: usize,
+    ceiling: usize,
+    max_results: usize,
+) -> Result<bool, IdentificationError> {
+    if candidates > ceiling {
+        return Ok(false);
+    }
+    if !search.fund_enumeration(candidates, ceiling, max_results)? {
+        return Err(IdentificationError::budget(crate::IdentificationBudget::Memory));
+    }
+    Ok(true)
+}
+
 enum ConditionalSearch {
     /// Certified sets, separation tests spent, and whether the examination budget cut the
     /// search for smaller sets short.
@@ -665,7 +697,12 @@ fn constrained_conditional_set(
     }
     let context = crate::exact_search::context_or_default(config.context.as_ref());
     let mut search = crate::exact_search::ExactSearch::open(&context)?;
-    if !search.fund_enumeration(candidates.len(), config.max_candidates, config.max_results)? {
+    if !fund_adjustment_enumeration(
+        &mut search,
+        candidates.len(),
+        config.max_candidates,
+        config.max_results,
+    )? {
         return Ok(ConditionalSearch::Capped(candidates.len()));
     }
     if config.max_results == 0 {
@@ -940,7 +977,7 @@ fn mag_adjustment_search(
         )));
     }
     // A single adjustment set is retained, so the enumeration's retained storage is one set.
-    if !exact.fund_enumeration(candidates.len(), max_candidates, 1)? {
+    if !fund_adjustment_enumeration(&mut exact, candidates.len(), max_candidates, 1)? {
         return Ok(MagAdjustment::Failed(capped_completion_result(
             query,
             candidates.len(),
@@ -1130,8 +1167,8 @@ pub(crate) fn not_identified(query: CausalQuery, detail: &str) -> Identification
     )
 }
 
-/// Execution-capped result: the candidate family exceeded the declared ceiling or the storage
-/// the context can lease before enumeration could start. Status stays [`IdentificationStatus::NotIdentified`].
+/// Execution-capped result: the candidate family exceeded the declared ceiling before
+/// enumeration could start. Status stays [`IdentificationStatus::NotIdentified`].
 /// Honesty is [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`] as
 /// [`DiagnosticKind::Execution`], not a scientific open-back-door.
 pub(crate) fn capped_completion_result(
@@ -1753,5 +1790,115 @@ mod conditional_search_tests {
             )
             .unwrap();
         assert_eq!(result.status, IdentificationStatus::NotIdentified);
+    }
+}
+
+#[cfg(test)]
+mod enumeration_admission_tests {
+    use super::*;
+    use antecedent_core::execution::AdmissionPool;
+
+    fn assert_same_functional(before: &IdentificationResult, after: &IdentificationResult) {
+        assert_eq!(before.query, after.query);
+        assert_eq!(before.status, after.status);
+        assert_eq!(before.performance, after.performance);
+        assert_eq!(before.estimands[0].adjustment_set, after.estimands[0].adjustment_set);
+        assert_eq!(
+            before.arena.pretty(before.estimands[0].functional),
+            after.arena.pretty(after.estimands[0].functional)
+        );
+    }
+
+    #[test]
+    fn conditional_enumeration_memory_is_not_a_candidate_cap_or_scientific_result() {
+        // Conditioning on W opens T <- A -> W <- B -> Y; A or B must be added.
+        let mut dag = antecedent_graph::Dag::with_variables(5);
+        for (a, b) in [(1, 0), (1, 2), (3, 2), (3, 4), (0, 4)] {
+            dag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(4))
+                .with_effect_modifiers([VariableId::from_raw(2)]);
+        let run = |context: Option<ExecutionContext>, max_candidates| {
+            let config = crate::backdoor::AdjustmentSearchConfig {
+                context,
+                max_candidates,
+                ..Default::default()
+            };
+            let mut result = not_identified(CausalQuery::AverageEffect(query.clone()), "fixture");
+            validate_dag_conditional_adjustment(&dag, &query, &mut result, &config)?;
+            Ok::<_, IdentificationError>(result)
+        };
+        let baseline = run(None, usize::MAX).unwrap();
+        assert_eq!(baseline.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(baseline.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(1)]);
+        let pool = AdmissionPool::fixed(1, 1);
+        let starved = ExecutionContext::for_tests(9).with_admission(pool.clone());
+        assert!(matches!(
+            run(Some(starved.clone()), usize::MAX),
+            Err(IdentificationError::Budget { budget: crate::IdentificationBudget::Memory })
+        ));
+        assert_eq!(pool.available().bytes(), 1);
+        let capped = run(Some(starved.clone()), 0).unwrap();
+        assert_eq!(capped.status, IdentificationStatus::NotIdentified);
+        assert!(
+            capped.diagnostics.iter().any(|d| d.code.as_ref() == CAPPED_COMPLETION_DIAGNOSTIC_CODE
+                && d.kind == DiagnosticKind::Execution)
+        );
+        starved.cancellation.cancel();
+        assert!(matches!(run(Some(starved), usize::MAX), Err(IdentificationError::Cancelled)));
+        assert_eq!(pool.available().bytes(), 1);
+        let funded_pool = AdmissionPool::fixed(1, 1_000_000);
+        let funded = ExecutionContext::for_tests(9).with_admission(funded_pool.clone());
+        assert_same_functional(&baseline, &run(Some(funded), usize::MAX).unwrap());
+        assert_eq!(funded_pool.available().bytes(), 1_000_000);
+    }
+
+    #[test]
+    fn mag_enumeration_memory_is_not_unidentified_completion_mass() {
+        // Z confounds T -> Y; R -> T witnesses the causal edge's visibility.
+        let mut mag = Pag::with_variables(4);
+        for (a, b) in [(0, 1), (0, 2), (1, 2), (3, 1)] {
+            mag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let run = |context, max_candidates| {
+            identify_on_mag_completion(
+                &mag,
+                MagTarget {
+                    t: VariableId::from_raw(1),
+                    y: VariableId::from_raw(2),
+                    t_d: DenseNodeId::from_raw(1),
+                    y_d: DenseNodeId::from_raw(2),
+                },
+                Value::f64(1.0),
+                Value::f64(0.0),
+                AdjustmentBudget { max_candidates, max_examinations: 1_000_000, context },
+            )
+        };
+        let baseline = run(None, usize::MAX).unwrap();
+        assert_eq!(baseline.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(baseline.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(0)]);
+        let pool = AdmissionPool::fixed(1, 1);
+        let starved = ExecutionContext::for_tests(9).with_admission(pool.clone());
+        assert!(matches!(
+            run(Some(&starved), usize::MAX),
+            Err(IdentificationError::Budget { budget: crate::IdentificationBudget::Memory })
+        ));
+        assert_eq!(pool.available().bytes(), 1);
+        let capped = run(Some(&starved), 0).unwrap();
+        let envelope = IdentificationEnvelope::from_cases(vec![GraphIdentificationCase {
+            graph: mag.clone(),
+            result: capped,
+            weight: ProbabilityMass(1.0),
+        }]);
+        assert_eq!(envelope.truncated_completions, 1);
+        assert_eq!(envelope.status, IdentificationStatus::NotIdentified);
+        starved.cancellation.cancel();
+        assert!(matches!(run(Some(&starved), usize::MAX), Err(IdentificationError::Cancelled)));
+        assert_eq!(pool.available().bytes(), 1);
+        let funded_pool = AdmissionPool::fixed(1, 1_000_000);
+        let funded = ExecutionContext::for_tests(9).with_admission(funded_pool.clone());
+        assert_same_functional(&baseline, &run(Some(&funded), usize::MAX).unwrap());
+        assert_eq!(funded_pool.available().bytes(), 1_000_000);
     }
 }

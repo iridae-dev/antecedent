@@ -1101,6 +1101,7 @@ pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn for_window(pag: ante
 pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn for_window_with_budget(pag: antecedent_graph::TemporalPag, max_completions: usize, indexer: &antecedent_core::temporal::TemporalIndexer, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn hit_cap(&self) -> bool
 pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn new(pag: antecedent_graph::TemporalPag, max_completions: usize) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn with_budget(pag: antecedent_graph::TemporalPag, max_completions: usize, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalPagReview>::fn from_pag(graph: antecedent_graph::TemporalPag, algorithm: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_graph::TemporalPagReview>::fn is_complete(&self) -> bool
 pub fn <antecedent_graph::TieredBackground>::fn from_named(schema: &antecedent_core::schema::CausalSchema, tiers: &[alloc::vec::Vec<&str>], within_tier: antecedent_graph::WithinTier) -> core::result::Result<Self, antecedent_graph::GraphError>

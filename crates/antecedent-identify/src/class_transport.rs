@@ -72,10 +72,14 @@ fn identify_member(
     admg: &Admg,
     selection_targets: &[VariableId],
     query: &TransportQuery,
+    context: Option<&antecedent_core::ExecutionContext>,
 ) -> Result<TransportIdentification, IdentificationError> {
     let diagram = SelectionDiagram::try_new(admg.clone(), selection_targets.to_vec())
         .map_err(|error| IdentificationError::msg(error.to_string()))?;
-    TransportIdentifier::new().identify(&diagram, query)
+    match context {
+        Some(ctx) => TransportIdentifier::new().identify_with_context(&diagram, query, ctx),
+        None => TransportIdentifier::new().identify(&diagram, query),
+    }
 }
 
 /// The identification a case states from its sID outcome: the certified formula lowered to an
@@ -193,7 +197,8 @@ impl GeneralizedAdjustmentIdentifier {
         let envelope = self.cpdag_envelope_with(cpdag, |dag| {
             let admg =
                 Admg::from_dag(dag).map_err(|error| IdentificationError::msg(error.to_string()))?;
-            let proof = identify_member(&admg, selection_targets, query)?;
+            let proof =
+                identify_member(&admg, selection_targets, query, self.config.context.as_ref())?;
             let result = case_result(query, &proof);
             proofs.push(proof);
             Ok(result)
@@ -251,7 +256,8 @@ impl GeneralizedAdjustmentIdentifier {
             let mut results = Vec::new();
             let mut completion_proofs = Vec::new();
             for admg in &found.members {
-                let proof = identify_member(admg, selection_targets, query)?;
+                let proof =
+                    identify_member(admg, selection_targets, query, self.config.context.as_ref())?;
                 let mut result = case_result(query, &proof);
                 if !matches!(proof, TransportIdentification::Transportable { .. }) {
                     result.diagnostics.push(Diagnostic::new(

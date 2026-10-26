@@ -24,7 +24,7 @@ use antecedent_core::{
     CausalQuery, IdentificationStatus, MediationContrast, MediationQuery, PathSpecificEffectQuery,
 };
 use path_specific_scm::latent_scm::{LatentScm, Rng};
-use path_specific_scm::{admg, d, evaluate, has_rule, identify, path_specific_truth, v};
+use path_specific_scm::{admg, evaluate, has_rule, identify, path_specific_truth, v};
 
 /// `T -> A -> Y`, `T -> B -> Y` with `A <-> Y`: the effect along the paths through `A`
 /// leaves the treatment into the district `{A, Y}` at the active level and into `{B}` at

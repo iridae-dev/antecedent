@@ -226,7 +226,7 @@ impl AutoIdentifier {
                             &contrast,
                             &mut acc,
                             &assumptions,
-                        );
+                        )?;
                     } else {
                         acc.diagnostics.push(Diagnostic::new(
                             "auto.rd.missing_config",
@@ -246,28 +246,28 @@ impl AutoIdentifier {
                         &contrast,
                         &mut acc,
                         &assumptions,
-                    );
+                    )?;
                     Self::try_method(
                         "backdoor.efficient",
                         || self.efficient.identify(&prepared.dag, &query_norm, workspace),
                         &contrast,
                         &mut acc,
                         &assumptions,
-                    );
+                    )?;
                     Self::try_method(
                         "frontdoor",
                         || self.frontdoor.identify(&prepared.dag, &query_norm, workspace),
                         &contrast,
                         &mut acc,
                         &assumptions,
-                    );
+                    )?;
                     Self::try_method(
                         "iv",
                         || self.iv.identify(&prepared.dag, &query_norm, workspace),
                         &contrast,
                         &mut acc,
                         &assumptions,
-                    );
+                    )?;
                     if self.rd.is_some() {
                         acc.diagnostics.push(Diagnostic::new(
                             "auto.rd.local_estimand_not_requested",
@@ -297,7 +297,7 @@ impl AutoIdentifier {
                         &contrast,
                         &mut acc,
                         &assumptions,
-                    );
+                    )?;
                 }
             }
             CausalQuery::Distribution(q) => {
@@ -339,6 +339,7 @@ impl AutoIdentifier {
                         acc.derivation
                             .push("auto.method", format!("{method}: unsupported ({message})"));
                     }
+                    Err(e) if is_caller_interruption(&e) => return Err(e),
                     Err(e) => {
                         acc.diagnostics.push(Diagnostic::new(
                             format!("auto.{method}.error"),
@@ -392,6 +393,7 @@ impl AutoIdentifier {
                             format!("path_specific.natural: unsupported ({message})"),
                         );
                     }
+                    Err(e) if is_caller_interruption(&e) => return Err(e),
                     Err(e) => {
                         acc.diagnostics.push(Diagnostic::new(
                             "auto.path_specific.error",
@@ -490,7 +492,7 @@ impl AutoIdentifier {
         contrast: &AteContrast<'_>,
         acc: &mut AutoRun,
         assumptions_declared: &AssumptionSet,
-    ) {
+    ) -> Result<(), IdentificationError> {
         let AteContrast { query: q, active, control } = *contrast;
         let AutoRun { arena, estimands, derivation, perf, claims, hedge, diagnostics } = acc;
         match run() {
@@ -566,6 +568,7 @@ impl AutoIdentifier {
                 ));
                 derivation.push("auto.method", format!("{name}: unsupported ({message})"));
             }
+            Err(e) if is_caller_interruption(&e) => return Err(e),
             Err(e) => {
                 diagnostics.push(Diagnostic::new(
                     format!("auto.{name}.error"),
@@ -576,7 +579,18 @@ impl AutoIdentifier {
                 derivation.push("auto.method", format!("{name}: error ({e})"));
             }
         }
+        Ok(())
     }
+}
+
+/// Admission failure or cancellation aborts the whole Auto run; a scientific
+/// unavailability or a declared per-method search cap remains that method's outcome.
+fn is_caller_interruption(error: &IdentificationError) -> bool {
+    matches!(
+        error,
+        IdentificationError::Cancelled
+            | IdentificationError::Budget { budget: crate::IdentificationBudget::Memory }
+    )
 }
 
 /// Whether a strategy stopped at a search budget before it could decide.
@@ -719,6 +733,116 @@ mod tests {
     use antecedent_graph::DenseNodeId;
 
     use super::*;
+
+    fn context_search_fixture() -> (Dag, CausalQuery) {
+        let mut graph = Dag::with_variables(3);
+        for (from, to) in [(0, 1), (0, 2), (1, 2)] {
+            graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        let query = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+        ));
+        (graph, query)
+    }
+
+    #[test]
+    fn auto_propagates_resource_interruptions_from_each_bounded_strategy() {
+        use antecedent_core::ExecutionContext;
+        use antecedent_core::execution::AdmissionPool;
+
+        let (graph, query) = context_search_fixture();
+        for interrupt_backdoor in [true, false] {
+            for cancel in [true, false] {
+                let pool = AdmissionPool::fixed(1, 1);
+                let context = ExecutionContext::for_tests(42).with_admission(pool.clone());
+                if cancel {
+                    context.cancellation.cancel();
+                }
+                let mut auto = AutoIdentifier::new();
+                // The efficient case first completes ordinary backdoor successfully. Its
+                // interruption must still refuse the whole listing, rather than publish
+                // that partial listing or continue to general ID under another context.
+                let config = if interrupt_backdoor {
+                    &mut auto.backdoor.config
+                } else {
+                    &mut auto.efficient.config
+                };
+                config.context = Some(context);
+                let prepared = auto.prepare(&graph).unwrap();
+                let error = auto
+                    .identify(&prepared, &query, &mut IdentificationWorkspace::default())
+                    .unwrap_err();
+                assert_eq!(
+                    error,
+                    if cancel {
+                        IdentificationError::Cancelled
+                    } else {
+                        IdentificationError::Budget { budget: crate::IdentificationBudget::Memory }
+                    }
+                );
+                assert_eq!(pool.available().bytes(), 1);
+            }
+        }
+    }
+
+    #[test]
+    fn auto_keeps_strategy_order_and_scientific_results_under_a_funded_context() {
+        let (graph, query) = context_search_fixture();
+        let ordinary = AutoIdentifier::new();
+        let prepared = ordinary.prepare(&graph).unwrap();
+        let expected =
+            ordinary.identify(&prepared, &query, &mut IdentificationWorkspace::default()).unwrap();
+        let mut contextual = ordinary.clone();
+        let context = antecedent_core::ExecutionContext::for_tests(43);
+        contextual.backdoor.config.context = Some(context.clone());
+        contextual.efficient.config.context = Some(context);
+        let actual = contextual
+            .identify(&prepared, &query, &mut IdentificationWorkspace::default())
+            .unwrap();
+        assert_eq!(expected.status, actual.status);
+        assert_eq!(expected.query, actual.query);
+        assert_eq!(expected.estimands, actual.estimands);
+        assert_eq!(expected.estimand_claims, actual.estimand_claims);
+        assert_eq!(expected.required_assumptions, actual.required_assumptions);
+        assert_eq!(expected.derivation, actual.derivation);
+        assert_eq!(expected.diagnostics, actual.diagnostics);
+        assert_eq!(expected.performance, actual.performance);
+        assert!(actual.diagnostics.iter().any(|d| d.code.as_ref() == "auto.rd.missing_config"));
+    }
+
+    #[test]
+    fn auto_preserves_unsupported_warnings_and_interruption_priority() {
+        let (_, query) = context_search_fixture();
+        let CausalQuery::AverageEffect(ref effect) = query else { unreachable!() };
+        let active = Value::f64(1.0);
+        let control = Value::f64(0.0);
+        let contrast = AteContrast { query: effect, active: &active, control: &control };
+        let mut run = AutoRun::default();
+        let assumptions = AssumptionSet::new();
+        AutoIdentifier::try_method(
+            "unavailable",
+            || Err(IdentificationError::unsupported("fixture")),
+            &contrast,
+            &mut run,
+            &assumptions,
+        )
+        .unwrap();
+        assert_eq!(run.diagnostics[0].code.as_ref(), "auto.unavailable.unsupported");
+        let before = run.derivation.clone();
+        assert_eq!(
+            AutoIdentifier::try_method(
+                "interrupted",
+                || Err(IdentificationError::Cancelled),
+                &contrast,
+                &mut run,
+                &assumptions
+            ),
+            Err(IdentificationError::Cancelled)
+        );
+        assert_eq!(run.derivation, before);
+        assert_eq!(run.diagnostics.len(), 1);
+    }
 
     #[test]
     fn auto_finds_backdoor_on_chain() {

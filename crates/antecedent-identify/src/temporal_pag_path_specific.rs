@@ -401,6 +401,7 @@ impl GeneralizedAdjustmentIdentifier {
                 });
             }
         }
+        crate::generalized::check_completion_stop(sampler.search_stop())?;
         let indexers = vec![inner.clone(); cases.len()];
         let mut envelope = IdentificationEnvelope::from_cases(cases);
         let report = sampler.validation_report();
@@ -595,5 +596,87 @@ mod tests {
             .edge_between(DenseNodeId::from_index(0), DenseNodeId::from_index(1))
             .expect("x(t-1) -> x(t) survives");
         assert_eq!((edge.at_a, edge.at_b), (Endpoint::Tail, Endpoint::Arrow));
+    }
+    #[test]
+    fn mediation_window_honors_caller_cancellation_and_memory_without_changing_enumeration() {
+        let graph = chain();
+        let window = temporal_pag_mediation_window(
+            &graph,
+            &pulse(),
+            &mediation(MediationContrast::Total),
+            3,
+        )
+        .unwrap();
+        let ordinary = GeneralizedAdjustmentIdentifier::new()
+            .identify_temporal_pag_path_specific_envelope(&graph, &window)
+            .unwrap();
+        let cancelled = antecedent_core::ExecutionContext::for_tests(84);
+        cancelled.cancellation.cancel();
+        let configured = |ctx| GeneralizedAdjustmentIdentifier {
+            config: crate::GeneralizedAdjustmentConfig { context: Some(ctx), ..Default::default() },
+        };
+        assert!(matches!(
+            configured(cancelled).identify_temporal_pag_path_specific_envelope(&graph, &window),
+            Err(IdentificationError::Cancelled)
+        ));
+        let limited = antecedent_core::ExecutionContext::for_tests(84).with_memory_limit(Some(1));
+        assert!(matches!(
+            configured(limited).identify_temporal_pag_path_specific_envelope(&graph, &window),
+            Err(IdentificationError::Budget { budget: crate::IdentificationBudget::Memory })
+        ));
+        let actual = configured(antecedent_core::ExecutionContext::for_tests(85))
+            .identify_temporal_pag_path_specific_envelope(&graph, &window)
+            .unwrap();
+        assert_eq!(ordinary.indexers, actual.indexers);
+        let (ordinary, actual) = (ordinary.envelope, actual.envelope);
+        assert_eq!(ordinary.status, actual.status);
+        assert_eq!(ordinary.invariant, actual.invariant);
+        assert_eq!(ordinary.identified_weight, actual.identified_weight);
+        assert_eq!(ordinary.unidentified_weight, actual.unidentified_weight);
+        assert_eq!(ordinary.truncated_completions, actual.truncated_completions);
+        assert_eq!(ordinary.critical_graph_features, actual.critical_graph_features);
+        assert_eq!(ordinary.cases.len(), actual.cases.len());
+        for (expected, observed) in ordinary.cases.iter().zip(&actual.cases) {
+            // Compare each slot's canonical marked graph, then its complete scientific
+            // result and ordered arena tables. Hash-cons lookup-map iteration is immaterial.
+            assert_eq!(expected.graph.digest(), observed.graph.digest());
+            assert_eq!(expected.weight, observed.weight);
+            let (expected, observed) = (&expected.result, &observed.result);
+            assert_eq!(expected.status, observed.status);
+            assert_eq!(expected.query, observed.query);
+            assert_eq!(expected.estimands, observed.estimands);
+            assert_eq!(expected.derivation, observed.derivation);
+            assert_eq!(expected.required_assumptions, observed.required_assumptions);
+            assert_eq!(expected.diagnostics, observed.diagnostics);
+            assert_eq!(expected.performance, observed.performance);
+            assert_eq!(expected.hedge, observed.hedge);
+            assert_eq!(expected.estimand_claims, observed.estimand_claims);
+            let (expected, observed) = (&expected.arena, &observed.arena);
+            assert_eq!(expected.len(), observed.len());
+            assert_eq!(expected.var_set_count(), observed.var_set_count());
+            assert_eq!(expected.intervention_set_count(), observed.intervention_set_count());
+            assert_eq!(expected.list_count(), observed.list_count());
+            for index in 0..expected.len() {
+                let id = antecedent_expr::ExprId::from_raw(u32::try_from(index).unwrap());
+                assert_eq!(expected.node(id), observed.node(id));
+                assert_eq!(expected.derivation(id), observed.derivation(id));
+            }
+            for index in 0..expected.var_set_count() {
+                let id = antecedent_expr::VarSetId::from_raw(u32::try_from(index).unwrap());
+                assert_eq!(expected.var_set(id), observed.var_set(id));
+            }
+            for index in 0..expected.intervention_set_count() {
+                let id =
+                    antecedent_expr::InterventionSetId::from_raw(u32::try_from(index).unwrap());
+                assert_eq!(
+                    expected.intervention_assignments(id),
+                    observed.intervention_assignments(id)
+                );
+            }
+            for index in 0..expected.list_count() {
+                let id = antecedent_expr::ExprListId::from_raw(u32::try_from(index).unwrap());
+                assert_eq!(expected.list(id), observed.list(id));
+            }
+        }
     }
 }

@@ -66,9 +66,9 @@
 use antecedent_core::{CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity};
 use antecedent_graph::{Admg, BitSet, DSeparationWorkspace, DenseNodeId, Endpoint, Pag};
 
-use crate::envelope::{carries_identified_mass, GraphFeature, IdentificationEnvelope};
+use crate::envelope::{GraphFeature, IdentificationEnvelope, carries_identified_mass};
 use crate::error::IdentificationError;
-use crate::generalized::{invisible_directed_edges, GeneralizedAdjustmentIdentifier};
+use crate::generalized::{GeneralizedAdjustmentIdentifier, invisible_directed_edges};
 use crate::identifier::IdentificationWorkspace;
 use crate::path_specific::PathSpecificIdentifier;
 use crate::result::IdentificationResult;
@@ -190,6 +190,7 @@ struct CandidateSearch<'a> {
     states: usize,
     members: Vec<Vec<bool>>,
     ws: DSeparationWorkspace,
+    context: Option<&'a antecedent_core::ExecutionContext>,
 }
 
 impl CandidateSearch<'_> {
@@ -216,6 +217,9 @@ impl CandidateSearch<'_> {
 
     /// Visit the branch with the first `decided` pool edges fixed. `false` once a bound is hit.
     fn visit(&mut self, decided: usize, include: &mut [bool]) -> Result<bool, IdentificationError> {
+        if self.context.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+            return Err(IdentificationError::Cancelled);
+        }
         self.states += 1;
         if self.states > MAX_CANDIDATE_STATES {
             return Ok(false);
@@ -299,6 +303,58 @@ fn pool_of(mag: &Pag) -> Result<(Vec<PoolEdge>, Vec<MagPair>), IdentificationErr
     Ok((pool, target))
 }
 
+/// Reserve the bounded search's live recursion scratch and masks before
+/// allocating the edge pool. This conservative quote covers both branches' graph/pair
+/// workspaces at every possible edge depth and all bounded masks. Result graphs
+/// are leased separately for the actual number of successful candidate masks.
+fn candidate_search_admission(
+    nodes: usize,
+    context: Option<&antecedent_core::ExecutionContext>,
+) -> Result<(Option<antecedent_core::execution::AdmissionLease>, u64), IdentificationError> {
+    let Some(ctx) = context else { return Ok((None, 0)) };
+    if ctx.cancellation.is_cancelled() {
+        return Err(IdentificationError::Cancelled);
+    }
+    let memory =
+        || IdentificationError::Budget { budget: crate::error::IdentificationBudget::Memory };
+    let n = u64::try_from(nodes).map_err(|_| memory())?;
+    let pairs = n.checked_mul(n).ok_or_else(memory)?;
+    let edges = n.checked_mul(n.saturating_sub(1)).ok_or_else(memory)?;
+    // Three adjacency families, labels, insertion scratch and Vec growth; the
+    // bound also covers the separation workspace and ancestor bitsets per level.
+    let graph = pairs
+        .checked_mul(64)
+        .and_then(|v| v.checked_add(n.checked_mul(256)?))
+        .and_then(|v| v.checked_add(std::mem::size_of::<Admg>() as u64))
+        .ok_or_else(memory)?;
+    let pair_bytes =
+        pairs.checked_mul(std::mem::size_of::<PairInfo>() as u64).ok_or_else(memory)?;
+    let per_depth =
+        graph.checked_add(pair_bytes).and_then(|v| v.checked_mul(2)).ok_or_else(memory)?;
+    let recursion =
+        per_depth.checked_mul(edges.checked_add(1).ok_or_else(memory)?).ok_or_else(memory)?;
+    let masks = edges.checked_add(std::mem::size_of::<Vec<bool>>() as u64).ok_or_else(memory)?;
+    let outputs = masks.checked_mul((MAX_CANDIDATE_MEMBERS + 1) as u64).ok_or_else(memory)?;
+    let pool = edges
+        .checked_mul((2 * std::mem::size_of::<PoolEdge>()) as u64)
+        .and_then(|v| v.checked_add(pairs.checked_mul(std::mem::size_of::<MagPair>() as u64)?))
+        .ok_or_else(memory)?;
+    let bytes =
+        recursion.checked_add(outputs).and_then(|v| v.checked_add(pool)).ok_or_else(memory)?;
+    let lease = candidate_bytes_admission(bytes, ctx)?;
+    Ok((Some(lease), graph))
+}
+
+fn candidate_bytes_admission(
+    bytes: u64,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_core::execution::AdmissionLease, IdentificationError> {
+    ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
+        _ => IdentificationError::Budget { budget: crate::error::IdentificationBudget::Memory },
+    })
+}
+
 impl GeneralizedAdjustmentIdentifier {
     /// Every ADMG whose MAG is `mag`: the graphs that share its m-separation model and so
     /// cannot be told apart from the PAG, one of which is the latent projection of the true
@@ -306,8 +362,11 @@ impl GeneralizedAdjustmentIdentifier {
     ///
     /// # Errors
     ///
-    /// A graph that is not a circle-free directed/bidirected MAG, or a graph error.
+    /// A graph that is not a circle-free directed/bidirected MAG, a graph error, or
+    /// cancellation/storage refusal under the configured caller context.
     pub fn admg_candidates_of_mag(&self, mag: &Pag) -> Result<AdmgCandidates, IdentificationError> {
+        let (_scratch_retention, graph_bytes) =
+            candidate_search_admission(mag.node_count(), self.config.context.as_ref())?;
         let (pool, target) = pool_of(mag)?;
         let blank = blank_admg(mag)?;
         let mut search = CandidateSearch {
@@ -318,9 +377,23 @@ impl GeneralizedAdjustmentIdentifier {
             states: 0,
             members: Vec::new(),
             ws: DSeparationWorkspace::default(),
+            context: self.config.context.as_ref(),
         };
         let mut include = vec![false; pool.len()];
         let complete = search.visit(0, &mut include)?;
+        let _result_retention = self
+            .config
+            .context
+            .as_ref()
+            .map(|ctx| {
+                let bytes = graph_bytes.checked_mul(search.members.len() as u64).ok_or(
+                    IdentificationError::Budget {
+                        budget: crate::error::IdentificationBudget::Memory,
+                    },
+                )?;
+                candidate_bytes_admission(bytes, ctx)
+            })
+            .transpose()?;
         let members = search
             .members
             .iter()
@@ -477,4 +550,44 @@ fn functional_form(result: &IdentificationResult) -> Option<String> {
     let estimand = result.estimands.first()?;
     ((estimand.functional.raw() as usize) < result.arena.len())
         .then(|| result.arena.pretty(estimand.functional))
+}
+
+#[cfg(test)]
+mod candidate_context_tests {
+    use super::*;
+    use antecedent_core::{CancellationToken, ExecutionContext};
+
+    fn mag() -> Pag {
+        let mut mag = Pag::with_variables(3);
+        mag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        mag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        mag
+    }
+
+    #[test]
+    fn mag_candidates_observe_context_before_allocating_and_return_admission() {
+        let mag = mag();
+        let mut identifier = GeneralizedAdjustmentIdentifier::new();
+        let baseline = identifier.admg_candidates_of_mag(&mag).unwrap();
+        let limited = ExecutionContext::for_tests(9).with_memory_limit(Some(1));
+        identifier.config.context = Some(limited.clone());
+        assert!(matches!(
+            identifier.admg_candidates_of_mag(&mag),
+            Err(IdentificationError::Budget { .. })
+        ));
+        assert_eq!(limited.admission.available().bytes(), 1);
+        let mut cancelled = ExecutionContext::for_tests(9);
+        cancelled.cancellation = CancellationToken::cancel_after_checks(1);
+        identifier.config.context = Some(cancelled);
+        assert!(matches!(
+            identifier.admg_candidates_of_mag(&mag),
+            Err(IdentificationError::Cancelled)
+        ));
+        let funded = ExecutionContext::for_tests(9).with_memory_limit(Some(1 << 24));
+        identifier.config.context = Some(funded.clone());
+        let actual = identifier.admg_candidates_of_mag(&mag).unwrap();
+        assert_eq!(actual.members, baseline.members);
+        assert_eq!(actual.bounded, baseline.bounded);
+        assert_eq!(funded.admission.available().bytes(), 1 << 24);
+    }
 }

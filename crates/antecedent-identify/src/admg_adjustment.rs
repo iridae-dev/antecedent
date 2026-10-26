@@ -167,10 +167,7 @@ pub fn identify_cpdag_derivative_pairs(
     cpdag: &Cpdag,
     query: &ResponseQuery,
 ) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, IdentificationError> {
-    GeneralizedAdjustmentIdentifier::new().cpdag_envelope_with(cpdag, |dag| {
-        let admg = crate::prepared::dag_to_admg(dag)?;
-        identify_admg_response_adjustment(&admg, query)
-    })
+    GeneralizedAdjustmentIdentifier::new().identify_cpdag_derivative_pairs(cpdag, query)
 }
 
 /// Identify a derivative or Jacobian over every MAG completion of a PAG.
@@ -191,30 +188,7 @@ pub fn identify_pag_derivative_pairs(
     pag: &Pag,
     query: &ResponseQuery,
 ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
-    GeneralizedAdjustmentIdentifier::new().pag_envelope_with(pag, |mag| {
-        let Some(admg) = mag_to_admg(mag) else {
-            return Ok(not_identified(
-                CausalQuery::Response(query.clone()),
-                "completion is not a directed/bidirected MAG; adjustment was not attempted",
-            ));
-        };
-        let dense = |variable: VariableId| pag_var_to_dense(mag, variable);
-        let variable = |node: DenseNodeId| mag_dense_to_var(mag, node);
-        for (treatment, outcome) in response_pairs(&query.functional)? {
-            let t = dense(treatment)?;
-            let ancestors_of_y = directed_closure(&admg, &[dense(outcome)?], true);
-            if admg.children(t).iter().any(|&child| {
-                ancestors_of_y.contains(child) && !crate::joint_response::visible(mag, t, child)
-            }) {
-                return Ok(not_identified(
-                    CausalQuery::Response(query.clone()),
-                    "MAG is not adjustment amenable: a causal path starts with an invisible \
-                     edge; no adjustment set identifies this effect",
-                ));
-            }
-        }
-        adjustment_on(&admg, query, &NodeMap { dense: &dense, variable: &variable })
-    })
+    GeneralizedAdjustmentIdentifier::new().identify_pag_derivative_pairs(pag, query)
 }
 
 /// A derivative response identified by adjustment on the unrolled window of a temporal ADMG.
@@ -629,6 +603,58 @@ fn adjustment_on(
         assumptions,
         performance,
     ))
+}
+
+impl GeneralizedAdjustmentIdentifier {
+    /// Identify under this identifier's configured completion and adjustment context.
+    ///
+    /// # Errors
+    /// Invalid graph/query, caller cancellation or resource exhaustion.
+    pub fn identify_cpdag_derivative_pairs(
+        &self,
+        cpdag: &Cpdag,
+        query: &ResponseQuery,
+    ) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, IdentificationError> {
+        self.cpdag_envelope_with(cpdag, |dag| {
+            let admg = crate::prepared::dag_to_admg(dag)?;
+            identify_admg_response_adjustment(&admg, query)
+        })
+    }
+
+    /// Identify under this identifier's configured completion and adjustment context.
+    ///
+    /// # Errors
+    /// Invalid graph/query, caller cancellation or resource exhaustion.
+    pub fn identify_pag_derivative_pairs(
+        &self,
+        pag: &Pag,
+        query: &ResponseQuery,
+    ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
+        self.pag_envelope_with(pag, |mag| {
+            let Some(admg) = mag_to_admg(mag) else {
+                return Ok(not_identified(
+                    CausalQuery::Response(query.clone()),
+                    "completion is not a directed/bidirected MAG; adjustment was not attempted",
+                ));
+            };
+            let dense = |variable: VariableId| pag_var_to_dense(mag, variable);
+            let variable = |node: DenseNodeId| mag_dense_to_var(mag, node);
+            for (treatment, outcome) in response_pairs(&query.functional)? {
+                let t = dense(treatment)?;
+                let ancestors_of_y = directed_closure(&admg, &[dense(outcome)?], true);
+                if admg.children(t).iter().any(|&child| {
+                    ancestors_of_y.contains(child) && !crate::joint_response::visible(mag, t, child)
+                }) {
+                    return Ok(not_identified(
+                        CausalQuery::Response(query.clone()),
+                        "MAG is not adjustment amenable: a causal path starts with an invisible \
+                         edge; no adjustment set identifies this effect",
+                    ));
+                }
+            }
+            adjustment_on(&admg, query, &NodeMap { dense: &dense, variable: &variable })
+        })
+    }
 }
 
 #[cfg(test)]

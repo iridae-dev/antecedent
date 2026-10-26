@@ -31,6 +31,20 @@ impl TemporalPagCompletionSampler {
     /// # Errors
     /// Conflict/selection marks or invalid graph coordinates.
     pub fn new(pag: TemporalPag, max_completions: usize) -> Result<Self, GraphError> {
+        let (limits, ctx) = default_completion_search();
+        Self::with_budget(pag, max_completions, limits, &ctx)
+    }
+
+    /// Enumerate the same default stationary window under the caller's search budget.
+    ///
+    /// # Errors
+    /// Conflict/selection marks or invalid graph coordinates.
+    pub fn with_budget(
+        pag: TemporalPag,
+        max_completions: usize,
+        limits: SearchLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, GraphError> {
         if pag.edges().iter().any(|e| e.is_conflict() || e.is_undirected()) {
             return Err(GraphError::InvalidEndpoints {
                 message: "temporal MAG completion requires non-conflict directed/bidirected-family marks; selection edges are unsupported",
@@ -47,7 +61,7 @@ impl TemporalPagCompletionSampler {
         }
         let indexer =
             TemporalIndexer::new(variables, history, 1).map_err(|_| GraphError::TooManyNodes)?;
-        Self::for_window(pag, max_completions, &indexer)
+        Self::for_window_with_budget(pag, max_completions, &indexer, limits, ctx)
     }
     /// Enumerate templates whose stationary copies are valid MAGs in a supplied window.
     ///
@@ -201,5 +215,34 @@ mod tests {
         assert!(sampler.validation_report().rejected_constraints > 0);
         assert!(sampler.next().is_some());
         assert!(sampler.hit_cap());
+    }
+    #[test]
+    fn default_window_budgeted_constructor_preserves_members_and_honors_context() {
+        let (mut graph, past, present) = pair();
+        graph.insert_circle_arrow(past, present).unwrap();
+        let expected: Vec<_> = TemporalPagCompletionSampler::new(graph.clone(), 32)
+            .unwrap()
+            .map(|completion| completion.graph)
+            .collect();
+        let (limits, _) = default_completion_search();
+        let ctx = ExecutionContext::for_tests(87);
+        let actual: Vec<_> =
+            TemporalPagCompletionSampler::with_budget(graph.clone(), 32, limits, &ctx)
+                .unwrap()
+                .map(|completion| completion.graph)
+                .collect();
+        assert_eq!(expected, actual);
+        let cancelled = ExecutionContext::for_tests(87);
+        cancelled.cancellation.cancel();
+        let mut stopped =
+            TemporalPagCompletionSampler::with_budget(graph.clone(), 32, limits, &cancelled)
+                .unwrap();
+        assert!(stopped.next().is_none());
+        assert_eq!(stopped.search_stop(), Some(SearchStop::Cancelled));
+        let limited = ExecutionContext::for_tests(87).with_memory_limit(Some(1));
+        let mut stopped =
+            TemporalPagCompletionSampler::with_budget(graph, 32, limits, &limited).unwrap();
+        assert!(stopped.next().is_none());
+        assert_eq!(stopped.search_stop(), Some(SearchStop::Memory));
     }
 }

@@ -278,16 +278,7 @@ pub fn identify_pag_response_general(
     pag: &Pag,
     query: &ResponseQuery,
 ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
-    let id = GeneralizedAdjustmentIdentifier::new();
-    id.pag_envelope_with(pag, |mag| {
-        identify_mag_response(
-            mag,
-            query,
-            id.config.max_candidates,
-            id.config.max_examinations,
-            id.config.context.as_ref(),
-        )
-    })
+    GeneralizedAdjustmentIdentifier::new().identify_pag_response_general(pag, query)
 }
 
 /// Identify a single-treatment CPDAG response by back-door, then general ID.
@@ -299,26 +290,60 @@ pub fn identify_cpdag_response_general(
     cpdag: &Cpdag,
     query: &ResponseQuery,
 ) -> Result<IdentificationEnvelope<Dag>, IdentificationError> {
-    let witness = response_ate_witness(query)?;
-    let cq = CausalQuery::AverageEffect(witness.clone());
-    let backdoor = crate::BackdoorIdentifier::new();
-    let mut workspace = IdentificationWorkspace::default();
-    let id = GeneralizedAdjustmentIdentifier::new();
-    id.cpdag_envelope_with(cpdag, |dag| {
-        let prepared = backdoor.prepare(dag)?;
-        let mut result = backdoor.identify(&prepared, &cq, &mut workspace)?;
-        if !is_identified(&result) {
-            result = identify_dag_via_id(dag, query)?;
-        } else if let Some((t, y, level)) = intervention_response_set(query) {
-            if let Some(first) = result.estimands.first() {
-                let z = Arc::clone(&first.adjustment_set);
-                let functional = result.arena.backdoor_mean(t, y, &z, level);
-                result.estimands[0].functional = functional;
+    GeneralizedAdjustmentIdentifier::new().identify_cpdag_response_general(cpdag, query)
+}
+
+impl GeneralizedAdjustmentIdentifier {
+    /// Identify under this identifier's configured completion and adjustment context.
+    ///
+    /// # Errors
+    /// Invalid graph/query, caller cancellation or resource exhaustion.
+    pub fn identify_pag_response_general(
+        &self,
+        pag: &Pag,
+        query: &ResponseQuery,
+    ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
+        self.pag_envelope_with(pag, |mag| {
+            identify_mag_response(
+                mag,
+                query,
+                self.config.max_candidates,
+                self.config.max_examinations,
+                self.config.context.as_ref(),
+            )
+        })
+    }
+
+    /// Identify under this identifier's configured completion and adjustment context.
+    ///
+    /// # Errors
+    /// Invalid graph/query, caller cancellation or resource exhaustion.
+    pub fn identify_cpdag_response_general(
+        &self,
+        cpdag: &Cpdag,
+        query: &ResponseQuery,
+    ) -> Result<IdentificationEnvelope<Dag>, IdentificationError> {
+        let witness = response_ate_witness(query)?;
+        let cq = CausalQuery::AverageEffect(witness.clone());
+        let mut backdoor = crate::BackdoorIdentifier::new();
+        backdoor.config.context.clone_from(&self.config.context);
+        let mut workspace = IdentificationWorkspace::default();
+        self.cpdag_envelope_with(cpdag, |dag| {
+            let prepared = backdoor.prepare(dag)?;
+            let mut result = backdoor.identify(&prepared, &cq, &mut workspace)?;
+            if !is_identified(&result) {
+                result = identify_dag_via_id(dag, query)?;
+            } else if let Some((t, y, level)) = intervention_response_set(query) {
+                if let Some(first) = result.estimands.first() {
+                    let z = Arc::clone(&first.adjustment_set);
+                    let functional = result.arena.backdoor_mean(t, y, &z, level);
+                    result.estimands[0].functional = functional;
+                }
             }
-        }
-        result.query = CausalQuery::Response(query.clone());
-        Ok(result)
-    })
+            result.query = CausalQuery::Response(query.clone());
+            Ok(result)
+        })
+    }
 }
 
 #[cfg(test)]

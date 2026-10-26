@@ -4,7 +4,9 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{ResponseFunctional, TransportOutcome, TransportQuery, VariableId};
+use antecedent_core::{
+    ExecutionContext, ResponseFunctional, TransportOutcome, TransportQuery, VariableId,
+};
 use antecedent_graph::{BitSet, DenseNodeId, SelectionDiagram};
 
 use crate::selection_separation::{
@@ -165,11 +167,44 @@ impl TransportIdentifier {
         diagram: &SelectionDiagram,
         query: &TransportQuery,
     ) -> Result<TransportIdentification, IdentificationError> {
+        Self::identify_in_context(diagram, query, None)
+    }
+
+    /// Identify under the caller's cancellation and exact-search storage budget.
+    ///
+    /// # Errors
+    /// The errors of [`Self::identify`], or a typed memory/cancellation outcome.
+    pub fn identify_with_context(
+        &self,
+        diagram: &SelectionDiagram,
+        query: &TransportQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<TransportIdentification, IdentificationError> {
+        let result = Self::identify_in_context(diagram, query, Some(ctx))?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
+        Ok(result)
+    }
+
+    fn identify_in_context(
+        diagram: &SelectionDiagram,
+        query: &TransportQuery,
+        context: Option<&ExecutionContext>,
+    ) -> Result<TransportIdentification, IdentificationError> {
+        if context.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+            return Err(IdentificationError::Cancelled);
+        }
         antecedent_core::execution_attempt::run_operation(
             antecedent_core::execution_attempt::Operation::Identification,
             || {
                 crate::execution_counts::note_check();
-                let result = Self::identify_structural(diagram, query)?;
+                let result = Self::identify_structural_within(
+                    diagram,
+                    query,
+                    standardizer_subset_budget(),
+                    context,
+                )?;
                 let bound = bind_catalog(result, query);
                 if matches!(bound, TransportIdentification::MissingEvidence(_))
                     && diagram.causal_graph().district_count()
@@ -197,13 +232,6 @@ impl TransportIdentifier {
         )
     }
 
-    fn identify_structural(
-        diagram: &SelectionDiagram,
-        query: &TransportQuery,
-    ) -> Result<TransportIdentification, IdentificationError> {
-        Self::identify_structural_within(diagram, query, standardizer_subset_budget())
-    }
-
     #[allow(
         clippy::too_many_lines,
         reason = "one linear identification pipeline whose stages share the prepared graph and workspace"
@@ -212,6 +240,7 @@ impl TransportIdentifier {
         diagram: &SelectionDiagram,
         query: &TransportQuery,
         subset_budget: usize,
+        context: Option<&ExecutionContext>,
     ) -> Result<TransportIdentification, IdentificationError> {
         query.validate().map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
         let graph = diagram.causal_graph();
@@ -343,8 +372,14 @@ impl TransportIdentifier {
         // P*(y | do(x)) = sum_z P(y | do(x), z) P*(z). We search all pre-treatment
         // observed subsets so that the target factor is observational P*(z), rather
         // than silently treating a post-treatment law as observational.
-        let search =
-            s_admissible_standardizers(diagram, &prepared, &outcomes, &treatments, subset_budget)?;
+        let search = s_admissible_standardizers(
+            diagram,
+            &prepared,
+            &outcomes,
+            &treatments,
+            subset_budget,
+            context,
+        )?;
         if let StandardizerSearch::Found(over) = &search {
             let over = Arc::clone(over);
             return Ok(TransportIdentification::Transportable {
@@ -579,6 +614,7 @@ fn s_admissible_standardizers(
     outcomes: &[VariableId],
     treatments: &[VariableId],
     subset_budget: usize,
+    context: Option<&ExecutionContext>,
 ) -> Result<StandardizerSearch, IdentificationError> {
     let graph = diagram.causal_graph();
     let n = graph.node_count();
@@ -604,6 +640,15 @@ fn s_admissible_standardizers(
         treated.insert(*node);
     }
     let targets = dense_all(prepared, diagram.selection_targets())?;
+    let mut search = context.map(crate::exact_search::ExactSearch::open).transpose()?;
+    if let Some(search) = &mut search {
+        let nodes = n.saturating_add(targets.len());
+        if !search.hold(crate::exact_search::graph_bytes(nodes))?
+            || !search.fund_enumeration(candidates.len(), usize::MAX, 1)?
+        {
+            return Err(IdentificationError::budget(crate::IdentificationBudget::Memory));
+        }
+    }
     let selection = MutilatedSelection::build(graph, &all, &treated, &targets)?;
     let mut found = None;
     let end = for_each_admissible_subset(
@@ -612,7 +657,7 @@ fn s_admissible_standardizers(
         &treatment_nodes,
         &candidates,
         subset_budget,
-        || Ok(()),
+        || search.as_mut().map_or(Ok(()), crate::exact_search::ExactSearch::observe),
         |subset| {
             found = Some(
                 subset
@@ -1175,6 +1220,7 @@ mod tests {
             &selected_collider_graph(25),
             &query,
             64,
+            None,
         )
         .unwrap();
         let TransportIdentification::NotCertified(refusal) = capped else {
@@ -1186,12 +1232,38 @@ mod tests {
             &selected_collider_graph(3),
             &query,
             usize::MAX,
+            None,
         )
         .unwrap();
         let TransportIdentification::NotCertified(refusal) = exhaustive else {
             panic!("expected a refusal: {exhaustive:?}");
         };
         assert_eq!(&*refusal.reason, "transport.sid.multinode_c_component_not_implemented");
+    }
+
+    #[test]
+    fn contextual_standardizer_search_keeps_its_result_and_returns_budget_leases() {
+        let diagram = selected_collider_graph(3);
+        let query = query_over(1, 2);
+        let identifier = TransportIdentifier::new();
+        let baseline = identifier.identify(&diagram, &query).unwrap();
+        let ample =
+            antecedent_core::ExecutionContext::for_tests(17).with_memory_limit(Some(1 << 20));
+        let before = ample.admission().available();
+        assert_eq!(identifier.identify_with_context(&diagram, &query, &ample).unwrap(), baseline);
+        assert_eq!(ample.admission().available(), before);
+        let tiny = antecedent_core::ExecutionContext::for_tests(17).with_memory_limit(Some(1));
+        let before = tiny.admission().available();
+        assert!(matches!(
+            identifier.identify_with_context(&diagram, &query, &tiny),
+            Err(IdentificationError::Budget { budget: crate::IdentificationBudget::Memory })
+        ));
+        assert_eq!(tiny.admission().available(), before);
+        ample.cancellation.cancel();
+        assert_eq!(
+            identifier.identify_with_context(&diagram, &query, &ample),
+            Err(IdentificationError::Cancelled)
+        );
     }
 
     #[test]

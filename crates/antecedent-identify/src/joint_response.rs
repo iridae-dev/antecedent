@@ -231,9 +231,14 @@ fn identify_joint_within(
         .collect();
     let context = crate::exact_search::context_or_default(context);
     let mut exact = crate::exact_search::ExactSearch::open(&context)?;
+    // A declared candidate ceiling retains the capped, undecided result. A denied
+    // storage lease is a resource refusal; joint adjustment has no ancestral fallback.
+    if candidates.len() > max_candidates {
+        return Ok(capped_completion_result(query, candidates.len(), max_candidates));
+    }
     // The joint search retains one set.
     if !exact.fund_enumeration(candidates.len(), max_candidates, 1)? {
-        return Ok(capped_completion_result(query, candidates.len(), max_candidates));
+        return Err(IdentificationError::budget(crate::IdentificationBudget::Memory));
     }
     let backdoor_graphs = targets
         .iter()
@@ -428,6 +433,59 @@ mod tests {
                 Intervention::set(t2, Value::f64(1.0)),
             ]),
         })
+    }
+
+    #[test]
+    fn joint_and_response_delegation_share_context_without_changing_the_claim() {
+        let mut dag = Dag::with_variables(4);
+        for child in [1, 2, 3] {
+            dag.insert_directed(n(0), n(child)).unwrap();
+        }
+        for parent in [1, 2] {
+            dag.insert_directed(n(parent), n(3)).unwrap();
+        }
+        let query =
+            joint(VariableId::from_raw(1), VariableId::from_raw(2), VariableId::from_raw(3));
+        for through_response in [false, true] {
+            let identify = |context: Option<antecedent_core::ExecutionContext>| {
+                if through_response {
+                    let mut identifier = crate::ResponseIdentifier::new();
+                    identifier.backdoor.config.context = context;
+                    let prepared = identifier
+                        .prepare_with_assumptions(&dag, antecedent_core::AssumptionSet::new())?;
+                    identifier.identify(
+                        &prepared,
+                        &CausalQuery::Response(query.clone()),
+                        &mut crate::IdentificationWorkspace::default(),
+                    )
+                } else {
+                    let mut identifier = GeneralizedAdjustmentIdentifier::new();
+                    identifier.config.context = context;
+                    identifier.identify_joint_dag_response(&dag, &query)
+                }
+            };
+            let baseline = identify(None).unwrap();
+            assert_eq!(baseline.status, IdentificationStatus::NonparametricallyIdentified);
+            assert_eq!(baseline.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(0)]);
+            let funded = identify(Some(antecedent_core::ExecutionContext::for_tests(86))).unwrap();
+            assert_eq!(funded.query, baseline.query);
+            assert_eq!(funded.status, baseline.status);
+            assert_eq!(funded.required_assumptions, baseline.required_assumptions);
+            assert_eq!(funded.derivation, baseline.derivation);
+            assert_eq!(funded.performance, baseline.performance);
+            assert_eq!(funded.estimands, baseline.estimands);
+            assert_eq!(funded.estimand_claims, baseline.estimand_claims);
+            assert_eq!(funded.diagnostics, baseline.diagnostics);
+            let cancelled = antecedent_core::ExecutionContext::for_tests(86);
+            cancelled.cancellation.cancel();
+            assert_eq!(identify(Some(cancelled)).unwrap_err(), IdentificationError::Cancelled);
+            let limited =
+                antecedent_core::ExecutionContext::for_tests(86).with_memory_limit(Some(1));
+            assert_eq!(
+                identify(Some(limited)).unwrap_err(),
+                IdentificationError::budget(crate::IdentificationBudget::Memory),
+            );
+        }
     }
 
     #[test]

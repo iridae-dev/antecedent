@@ -194,4 +194,39 @@ mod tests {
         id.identify_temporal_pag_envelope(&pag, &other).unwrap();
         assert_eq!(computations(), before + 2);
     }
+    #[test]
+    fn a_warm_envelope_cannot_bypass_the_callers_cancellation_memory_or_cache_policy() {
+        let pag = chain_pag();
+        let query = pulse();
+        let mut config = GeneralizedAdjustmentConfig::default();
+        config.completion_operations -= 83;
+        let warm = GeneralizedAdjustmentIdentifier { config: config.clone() }
+            .identify_temporal_pag_envelope(&pag, &query)
+            .unwrap();
+        let before = computations();
+
+        let cancelled = antecedent_core::ExecutionContext::for_tests(83);
+        cancelled.cancellation.cancel();
+        config.context = Some(cancelled);
+        assert!(matches!(
+            GeneralizedAdjustmentIdentifier { config: config.clone() }
+                .identify_temporal_pag_envelope(&pag, &query),
+            Err(crate::IdentificationError::Cancelled)
+        ));
+        config.context =
+            Some(antecedent_core::ExecutionContext::for_tests(83).with_memory_limit(Some(1)));
+        assert!(matches!(
+            GeneralizedAdjustmentIdentifier { config: config.clone() }
+                .identify_temporal_pag_envelope(&pag, &query),
+            Err(crate::IdentificationError::Budget { budget: crate::IdentificationBudget::Memory })
+        ));
+        let mut disabled = antecedent_core::ExecutionContext::for_tests(83);
+        disabled.cache_policy = antecedent_core::CachePolicy::disabled();
+        config.context = Some(disabled);
+        let recomputed = GeneralizedAdjustmentIdentifier { config }
+            .identify_temporal_pag_envelope(&pag, &query)
+            .unwrap();
+        assert_eq!(format!("{warm:?}"), format!("{recomputed:?}"));
+        assert_eq!(computations(), before, "caller-context attempts never enter the process memo");
+    }
 }

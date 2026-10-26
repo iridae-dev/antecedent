@@ -195,8 +195,8 @@ pub fn refuse_pag_transport(
 pub enum DiscoveredTransportError {
     /// A scientific refusal with its unresolved structure.
     Refused(DiscoveredTransportRefusal),
-    /// The structural identifier failed for a member (a malformed query or diagram). Never
-    /// reported as a member verdict.
+    /// Completion or member identification failed, including a malformed query/diagram,
+    /// caller memory exhaustion or cancellation. Never reported as a member verdict.
     Identification(IdentificationError),
     /// The estimation step failed for a reason that is not a scientific refusal: a resource
     /// bound, a cancellation or an internal check.
@@ -524,6 +524,16 @@ pub(crate) fn verdict_of(
     identifier: &TransportIdentifier,
     query: &TransportQuery,
 ) -> Result<MemberVerdict, DiscoveredTransportError> {
+    verdict_with_context(admg, selection, identifier, query, None)
+}
+
+fn verdict_with_context(
+    admg: Admg,
+    selection: &std::sync::Arc<[VariableId]>,
+    identifier: &TransportIdentifier,
+    query: &TransportQuery,
+    context: Option<&ExecutionContext>,
+) -> Result<MemberVerdict, DiscoveredTransportError> {
     let invalid = |error: antecedent_graph::GraphError| {
         DiscoveredTransportError::Identification(IdentificationError::invalid_input(
             error.to_string(),
@@ -531,8 +541,11 @@ pub(crate) fn verdict_of(
     };
     let diagram = SelectionDiagram::try_new(admg, selection.clone()).map_err(invalid)?;
     Ok(
-        match identifier
-            .identify(&diagram, query)
+        match context
+            .map_or_else(
+                || identifier.identify(&diagram, query),
+                |ctx| identifier.identify_with_context(&diagram, query, ctx),
+            )
             .map_err(DiscoveredTransportError::Identification)?
         {
             TransportIdentification::Transportable { formula, certificate } => {
@@ -555,13 +568,14 @@ fn member_of(
     selection: &std::sync::Arc<[VariableId]>,
     identifier: &TransportIdentifier,
     query: &TransportQuery,
+    ctx: &ExecutionContext,
 ) -> Result<EnvelopeMember, DiscoveredTransportError> {
     let admg = Admg::from_dag(dag).map_err(|error| {
         DiscoveredTransportError::Identification(IdentificationError::invalid_input(
             error.to_string(),
         ))
     })?;
-    let verdict = verdict_of(admg, selection, identifier, query)?;
+    let verdict = verdict_with_context(admg, selection, identifier, query, Some(ctx))?;
     let mut directed_edges: Vec<(VariableId, VariableId)> = dag
         .edges()
         .filter_map(antecedent_graph::MarkedEdge::parent_child)
@@ -589,6 +603,14 @@ fn sort_members(members: &mut [EnvelopeMember]) {
     members.sort_by_key(key);
 }
 
+fn check_transport_context(ctx: &ExecutionContext) -> Result<(), DiscoveredTransportError> {
+    if ctx.cancellation.is_cancelled() {
+        Err(DiscoveredTransportError::Identification(IdentificationError::Cancelled))
+    } else {
+        Ok(())
+    }
+}
+
 /// The structural transport verdict of `query` across every member of a discovered class.
 ///
 /// Members are enumerated up to `member_bound` and each is identified with the structural
@@ -606,6 +628,20 @@ pub fn transport_across_class(
     request: &DiscoveredTransportRequest<'_>,
     query: &TransportQuery,
 ) -> Result<StructuralTransportEnvelope, DiscoveredTransportError> {
+    transport_across_class_with_context(request, query, &ExecutionContext::production(0, 1))
+}
+
+/// [`transport_across_class`] using the caller's completion and member-search
+/// memory pool and cancellation. Resource stops never become scientific verdicts.
+///
+/// # Errors
+/// As [`transport_across_class`], including typed identification memory/cancellation errors.
+pub fn transport_across_class_with_context(
+    request: &DiscoveredTransportRequest<'_>,
+    query: &TransportQuery,
+    ctx: &ExecutionContext,
+) -> Result<StructuralTransportEnvelope, DiscoveredTransportError> {
+    check_transport_context(ctx)?;
     let class = request.class;
     let unresolved = unresolved_pairs(class);
     let facts = RequestFacts {
@@ -615,21 +651,36 @@ pub fn transport_across_class(
     };
     check_request(&facts, &unresolved, |target| class.nodes().contains(&NodeRef::Static(target)))?;
 
-    let mut sampler =
-        CpdagCompletionSampler::new(class.clone(), request.member_bound).map_err(|error| {
-            refusal(
-                "discovered_transport.class_too_large",
-                &facts,
-                unresolved.clone(),
-                format!(
-                    "the class cannot be enumerated ({error}). Orient edges with background \
+    let mut sampler = CpdagCompletionSampler::with_budget(
+        class.clone(),
+        request.member_bound,
+        SearchLimits {
+            operations: antecedent_graph::DEFAULT_COMPLETION_OPERATIONS,
+            depth: usize::MAX,
+        },
+        ctx,
+    )
+    .map_err(|error| {
+        refusal(
+            "discovered_transport.class_too_large",
+            &facts,
+            unresolved.clone(),
+            format!(
+                "the class cannot be enumerated ({error}). Orient edges with background \
                      knowledge or an intervention, or declare the graph"
-                ),
-            )
-        })?;
+            ),
+        )
+    })?;
     let dags: Vec<_> = sampler.by_ref().map(|completion| completion.graph).collect();
+    crate::generalized::check_completion_stop(sampler.search_stop())
+        .map_err(DiscoveredTransportError::Identification)?;
     let enumeration_complete = !sampler.hit_cap();
     if dags.is_empty() {
+        if sampler.search_stop().is_some() {
+            return Err(DiscoveredTransportError::Identification(IdentificationError::budget(
+                crate::IdentificationBudget::Steps,
+            )));
+        }
         return Err(refusal(
             "discovered_transport.no_members",
             &facts,
@@ -644,9 +695,11 @@ pub fn transport_across_class(
     let selection: std::sync::Arc<[VariableId]> = request.selection_targets.into();
     let mut members = Vec::with_capacity(dags.len());
     for dag in &dags {
-        members.push(member_of(dag, class, &selection, &identifier, query)?);
+        check_transport_context(ctx)?;
+        members.push(member_of(dag, class, &selection, &identifier, query, ctx)?);
     }
     sort_members(&mut members);
+    check_transport_context(ctx)?;
 
     Ok(StructuralTransportEnvelope {
         members,
@@ -850,6 +903,20 @@ pub fn transport_across_pag(
     request: &PagTransportRequest<'_>,
     query: &TransportQuery,
 ) -> Result<StructuralTransportEnvelope, DiscoveredTransportError> {
+    transport_across_pag_with_context(request, query, &ExecutionContext::production(0, 1))
+}
+
+/// [`transport_across_pag`] using the caller's completion and member-search
+/// memory pool and cancellation, preserving declared work-cap partial envelopes.
+///
+/// # Errors
+/// As [`transport_across_pag`], including typed identification memory/cancellation errors.
+pub fn transport_across_pag_with_context(
+    request: &PagTransportRequest<'_>,
+    query: &TransportQuery,
+    ctx: &ExecutionContext,
+) -> Result<StructuralTransportEnvelope, DiscoveredTransportError> {
+    check_transport_context(ctx)?;
     let class = request.class;
     let unresolved = pag_unresolved_pairs(class);
     let facts = RequestFacts {
@@ -860,8 +927,7 @@ pub fn transport_across_pag(
     check_request(&facts, &unresolved, |target| class.nodes().contains(&NodeRef::Static(target)))?;
 
     let limits = SearchLimits { operations: request.completion_operations, depth: usize::MAX };
-    let ctx = ExecutionContext::production(0, 1);
-    let mut sampler = CompletionSampler::with_budget(class, request.member_bound, limits, &ctx)
+    let mut sampler = CompletionSampler::with_budget(class, request.member_bound, limits, ctx)
         .map_err(|error| {
             refusal(
                 "discovered_transport.class_too_large",
@@ -874,6 +940,8 @@ pub fn transport_across_pag(
             )
         })?;
     let mags: Vec<Pag> = sampler.by_ref().map(|completion| completion.graph).collect();
+    crate::generalized::check_completion_stop(sampler.search_stop())
+        .map_err(DiscoveredTransportError::Identification)?;
     if sampler.validation_report().ambiguous_global_class {
         return Err(refusal(
             "discovered_transport.pag_class_ambiguous",
@@ -915,6 +983,7 @@ pub fn transport_across_pag(
     let selection: std::sync::Arc<[VariableId]> = request.selection_targets.into();
     let mut members = Vec::with_capacity(mags.len());
     for mag in &mags {
+        check_transport_context(ctx)?;
         let Some(member) = mag_member(mag, |id| static_variable(mag, id))? else {
             return Err(refusal(
                 "discovered_transport.pag_selection_bias_edge",
@@ -926,7 +995,7 @@ pub fn transport_across_pag(
                     .to_owned(),
             ));
         };
-        let verdict = verdict_of(member.admg, &selection, &identifier, query)?;
+        let verdict = verdict_with_context(member.admg, &selection, &identifier, query, Some(ctx))?;
         members.push(EnvelopeMember {
             directed_edges: member.directed,
             bidirected_edges: member.bidirected,
@@ -935,6 +1004,7 @@ pub fn transport_across_pag(
         });
     }
     sort_members(&mut members);
+    check_transport_context(ctx)?;
 
     Ok(StructuralTransportEnvelope {
         members,
