@@ -27,9 +27,12 @@ from ._from_raw import _wrap_ate
 from ._native import analyze_ate_many as _analyze_ate_many
 from ._native import prepare_ate_batch as _prepare_ate_batch
 from ._native import prepare_cells_batch as _prepare_cells_batch
-from .errors import CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .execution import Execution
 from .graph import Dag, TieredBackground
 from .ids import Estimator
+from .inference import Frequentist
+from .outcomes import Outcome, as_outcome, capture_outcome
 from .population import coerce_target_population
 from .query import AverageEffect, InterventionResponse
 from .results import AnalysisResult
@@ -52,12 +55,10 @@ def analyze_many(
     estimator: str | Estimator | Any | None = None,
     estimator_config: Mapping[str, Any] | None = None,
     refute: bool | Literal["full", "placebo", "none", "cheap"] | None = None,
-    seed: int = 1,
-    bootstrap: int | None = None,
-    threads: int | None = None,
-    latency: Literal["interactive", "standard", "report"] | None = None,
+    inference: Frequentist | None = None,
+    execution: Execution | None = None,
     candidate_screen: CandidateScreen | None = None,
-) -> list[AnalysisResult]:
+) -> tuple[Outcome[AnalysisResult], ...]:
     """Estimate many average effects on one shared table ingest.
 
     Queries that would fit the identical cross-fitted AIPW nuisance (same
@@ -93,17 +94,36 @@ def analyze_many(
         adjustment design, folds, learner options) are identical, and a penalized propensity
         is never shared. Each result's ``batch.shared_design`` diagnostic carries the
         canonical ``estimator_config`` fingerprint.
+    inference:
+        Frequentist bootstrap budget; omission keeps the native batch default.
+    execution:
+        Shared execution settings and native admission context.
     candidate_screen:
         Optional screen/estimate split recorded on every result.
+
+    Each tuple member is its own typed outcome. Native batch family metadata
+    and shared-fit diagnostics remain on those results. This one-shot native
+    route retains no executable per-member study.
     """
     if not queries:
         raise CausalValueError("analyze_many requires at least one query")
     if not all(isinstance(q, AverageEffect) for q in queries):
         raise _batch_route_refusal("analyze_many", "AverageEffect queries")
+    policy = Execution() if execution is None else execution
+    if not isinstance(policy, Execution):
+        raise CausalTypeError("execution must be an Execution declaration")
+    if inference is not None and not isinstance(inference, Frequentist):
+        raise CausalTypeError("batch inference must be a Frequentist declaration")
+    from ._study_lifecycle import replay_declaration, retain
+    from ._table_snapshot import table
+
+    queries = retain(queries)
+    graph = retain(graph)
     estimator, estimator_config = _unwrap_estimator(estimator, estimator_config)
     refuse_named_identifiers(estimator_config, "analyze_many")
     resolved_refute = None if refute is None else coerce_refute(refute)
-    names, columns = ingest_columns(data)
+    owned = policy._call(table, data)
+    names, columns = owned._native_columns()
     from .query import coerce_outcome_functional
 
     specs = [
@@ -120,28 +140,39 @@ def analyze_many(
     kwargs: dict[str, Any] = dict(
         identifier=identifier,
         estimator=estimator,
-        estimator_config=estimator_config,
+        estimator_config=replay_declaration(retain(estimator_config)),
         refute=resolved_refute,
-        seed=seed,
-        bootstrap=bootstrap,
-        threads=threads,
+        seed=policy.seed,
+        bootstrap=None if inference is None else inference.bootstrap,
+        threads=policy.threads,
     )
-    if latency is not None:
-        kwargs["latency"] = latency
     kwargs.update(_screen_kwargs(candidate_screen))
-    if isinstance(graph, TieredBackground):
-        raws = _analyze_ate_many(
-            names,
-            columns,
-            [],
-            specs,
-            tiers=[list(tier) for tier in graph.tiers],
-            within_tier=str(graph.within_tier),
-            **kwargs,
+
+    def invoke() -> list[Any]:
+        if isinstance(graph, TieredBackground):
+            return policy._call(
+                _analyze_ate_many,
+                names,
+                columns,
+                [],
+                specs,
+                tiers=[list(tier) for tier in graph.tiers],
+                within_tier=str(graph.within_tier),
+                **kwargs,
+            )
+        return policy._call(
+            _analyze_ate_many, names, columns, _static_edges(graph), specs, **kwargs
         )
-    else:
-        raws = _analyze_ate_many(names, columns, _static_edges(graph), specs, **kwargs)
-    return [_wrap_ate(r, query=q) for r, q in zip(raws, queries, strict=True)]
+
+    outcome = capture_outcome(invoke)
+    if outcome.refusal is not None:
+        # The native batch operation refused as a whole; no member was executed.
+        return tuple(Outcome(refusal=outcome.refusal) for _query in queries)
+    assert outcome.value is not None
+    return tuple(
+        as_outcome(_wrap_ate(raw, query=query))
+        for raw, query in zip(outcome.value, queries, strict=True)
+    )
 
 
 _BATCH_ROUTE_REMEDY = (

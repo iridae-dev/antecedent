@@ -42,15 +42,30 @@ def test_analyze_many_matches_solo():
         graph=edges,
         queries=[q1, q2],
         refute=False,
-        bootstrap=0,
-        seed=3,
+        inference=antecedent.Frequentist(bootstrap=0),
+        execution=antecedent.Execution(seed=3),
     )
+    batch = [require_success(result) for result in batch]
     assert len(batch) == 2
     solo1 = require_success(
-        antecedent.analyze(data, graph=edges, query=q1, refute=False, bootstrap=0, seed=3)
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=q1,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=3),
+        )
     )
     solo2 = require_success(
-        antecedent.analyze(data, graph=edges, query=q2, refute=False, bootstrap=0, seed=3)
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=q2,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=3),
+        )
     )
     assert abs(batch[0].ate - solo1.ate) < 1e-12
     assert abs(batch[1].ate - solo2.ate) < 1e-12
@@ -75,8 +90,14 @@ def test_analyze_many_shares_identical_nuisance_fits_bit_for_bit():
         antecedent.AverageEffect(treatment="t1", outcome="y2"),
         antecedent.AverageEffect(treatment="t2", outcome="y"),
     ]
-    common = dict(estimator="aipw", refute=False, bootstrap=0, seed=5)
+    common = dict(
+        estimator="aipw",
+        refute=False,
+        inference=antecedent.Frequentist(bootstrap=0),
+        execution=antecedent.Execution(seed=5),
+    )
     batch = antecedent.estimation.analyze_many(data, graph=edges, queries=queries, **common)
+    batch = [require_success(result) for result in batch]
     for result, query in zip(batch, queries, strict=True):
         solo = require_success(antecedent.analyze(data, graph=edges, query=query, **common))
         assert result.ate == solo.ate
@@ -130,3 +151,62 @@ def test_prepare_cells_refuses_non_joint_queries_naming_analyze():
             )
         assert caught.value.reason_code == "route_not_supported"
         assert "antecedent.analyze" in caught.value.remedy
+
+
+def test_native_batch_outcomes_inspect_each_claim_without_inventing_a_live_study():
+    from antecedent.outcomes import Outcome
+
+    data, graph = _two_treatment_scm()
+    outcomes = antecedent.estimation.analyze_many(
+        data,
+        graph=graph,
+        queries=[antecedent.AverageEffect("t1", "y"), antecedent.AverageEffect("t2", "y")],
+        inference=antecedent.Frequentist(bootstrap=0),
+        execution=antecedent.Execution(seed=3),
+        refute=False,
+    )
+    assert isinstance(outcomes, tuple)
+    for outcome in outcomes:
+        assert isinstance(outcome, Outcome)
+        assert outcome.accepted
+        assert outcome.answer.kind == "point"
+        assert outcome.inspect().identification.available
+        assert outcome.study is None
+
+
+@pytest.mark.parametrize("keyword", ["seed", "threads", "bootstrap", "latency"])
+def test_batch_rejects_removed_loose_operational_keywords(keyword):
+    data, graph = _two_treatment_scm()
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        antecedent.estimation.analyze_many(
+            data,
+            graph=graph,
+            queries=[antecedent.AverageEffect("t1", "y")],
+            **{keyword: 1},
+        )
+
+
+def test_batch_validates_execution_and_supported_inference_declarations():
+    from antecedent.errors import CausalTypeError
+
+    data, graph = _two_treatment_scm()
+    kwargs = dict(graph=graph, queries=[antecedent.AverageEffect("t1", "y")])
+    with pytest.raises(CausalTypeError, match="Execution"):
+        antecedent.estimation.analyze_many(data, **kwargs, execution={"seed": 1})
+    with pytest.raises(CausalTypeError, match="Frequentist"):
+        antecedent.estimation.analyze_many(data, **kwargs, inference=antecedent.Bayesian())
+
+
+def test_batch_execution_honors_cancellation():
+    from antecedent.errors import CausalCancelledError
+
+    data, graph = _two_treatment_scm()
+    token = antecedent.CancellationToken()
+    token.cancel()
+    with pytest.raises(CausalCancelledError):
+        antecedent.estimation.analyze_many(
+            data,
+            graph=graph,
+            queries=[antecedent.AverageEffect("t1", "y")],
+            execution=antecedent.Execution(cancel=token),
+        )
