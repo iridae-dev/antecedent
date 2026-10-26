@@ -60,6 +60,7 @@ mod cpdag_scenario_api;
 mod cross_world_api;
 mod cross_world_execution_api;
 mod cyclic_system_api;
+mod data_snapshot;
 mod decision_api;
 mod decision_reliability_api;
 #[cfg(test)]
@@ -80,6 +81,7 @@ mod effect_constancy_review_api;
 mod estimator_config;
 mod evidence_ledger_api;
 mod evidence_plan_api;
+mod execution_api;
 mod execution_attempt_api;
 mod experiment_api;
 mod external_api;
@@ -3182,6 +3184,9 @@ pub(crate) fn tabular_from_py_columns(
         // Preserve the pre-unification ValueError for NumPy callers that catch it.
         return Err(crate::value_err("names and columns must have the same length"));
     }
+    if let Some(snapshot) = data_snapshot::from_columns(&names, &columns)? {
+        return Ok((snapshot, None));
+    }
     let use_arrow = !columns.is_empty()
         && columns.iter().all(|c| c.hasattr("__arrow_c_array__").is_ok_and(|ok| ok));
     if use_arrow {
@@ -3240,6 +3245,7 @@ pub(crate) fn py_execution_context_ext(
     ctx.cache_policy = CachePolicy::enabled(cache_max_bytes);
     install_cancellation(&mut ctx, cancel);
     ctx.progress = interrupt::bind_progress(progress);
+    execution_api::apply(&mut ctx);
     ctx
 }
 
@@ -3289,6 +3295,8 @@ impl PyCancellationToken {
 
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    data_snapshot::register(m)?;
+    execution_api::register(m)?;
     contract_refusals_api::register(m)?;
     inspect_receipt_api::register(m)?;
     release_migration_api::register(m)?;

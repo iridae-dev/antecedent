@@ -10,6 +10,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ._table_file import TableFile
+from ._table_snapshot import Table
 from .errors import CausalTypeError, CausalValueError
 
 # Integers beyond this are not exactly representable as float64.
@@ -140,6 +141,8 @@ def project_columns(
     if chosen == available:
         return data
     positions = [available.index(name) for name in chosen]
+    if isinstance(data, Table):
+        return data.select(chosen)
     if isinstance(data, Mapping):
         keys = {str(key): key for key in data}
         return {name: data[keys[name]] for name in chosen}

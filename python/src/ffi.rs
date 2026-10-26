@@ -1,6 +1,6 @@
 //! The only `unsafe` in the Python extension.
 //!
-//! Arrow C Data Interface capsules and the posterior buffer protocol. Every
+//! Arrow C Data Interface capsules and read-only numeric buffer protocols. Every
 //! other module in this crate stays safe.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -16,7 +16,82 @@ use pyo3::types::PyCapsule;
 
 use crate::{CausalDataError, PosteriorArtifact};
 
-/// Zero-copy float64 view of `draws` for `np.asarray` / `memoryview`.
+/// Read-only buffers retain their exporting Python owner until CPython releases them.
+/// The two callers below own immutable storage whose allocation cannot move.
+unsafe fn readonly_f64_buffer(
+    owner: Bound<'_, PyAny>,
+    data: &[f64],
+    view: *mut pyo3::ffi::Py_buffer,
+    flags: std::os::raw::c_int,
+) -> PyResult<()> {
+    use pyo3::ffi;
+    if view.is_null() {
+        return Err(PyBufferError::new_err("View is null"));
+    }
+    if (flags & ffi::PyBUF_WRITABLE) == ffi::PyBUF_WRITABLE {
+        return Err(PyBufferError::new_err("native numeric views are read-only"));
+    }
+    let n = isize::try_from(data.len()).map_err(|_| PyBufferError::new_err("buffer too large"))?;
+    let itemsize = isize::try_from(std::mem::size_of::<f64>())
+        .map_err(|_| PyBufferError::new_err("f64 size does not fit isize"))?;
+    let nbytes =
+        n.checked_mul(itemsize).ok_or_else(|| PyBufferError::new_err("buffer size overflow"))?;
+    let format = if (flags & ffi::PyBUF_FORMAT) == ffi::PyBUF_FORMAT {
+        c"d".to_owned().into_raw()
+    } else {
+        std::ptr::null_mut()
+    };
+    // SAFETY: both callers derive data from owner's immutable retained allocation.
+    // The owned reference installed in obj pins that allocation until release.
+    // No writable buffer is exported, and shape/strides have exactly one dimension.
+    unsafe {
+        (*view).obj = owner.as_ptr();
+        ffi::Py_INCREF((*view).obj);
+        (*view).buf = data.as_ptr().cast::<std::ffi::c_void>().cast_mut();
+        (*view).len = nbytes;
+        (*view).readonly = 1;
+        (*view).itemsize = itemsize;
+        (*view).format = format;
+        (*view).ndim = 1;
+        (*view).shape = if (flags & ffi::PyBUF_ND) == ffi::PyBUF_ND {
+            Box::into_raw(Box::new([n])).cast()
+        } else {
+            std::ptr::null_mut()
+        };
+        (*view).strides = if (flags & ffi::PyBUF_STRIDES) == ffi::PyBUF_STRIDES {
+            Box::into_raw(Box::new([itemsize])).cast()
+        } else {
+            std::ptr::null_mut()
+        };
+        (*view).suboffsets = std::ptr::null_mut();
+        (*view).internal = std::ptr::null_mut();
+    }
+    Ok(())
+}
+
+unsafe fn release_readonly_buffer(view: *mut pyo3::ffi::Py_buffer) {
+    if view.is_null() {
+        return;
+    }
+    // SAFETY: these optional allocations were created only by readonly_f64_buffer.
+    // CPython calls release exactly once for each successfully acquired view.
+    unsafe {
+        if !(*view).format.is_null() {
+            drop(std::ffi::CString::from_raw((*view).format));
+            (*view).format = std::ptr::null_mut();
+        }
+        if !(*view).shape.is_null() {
+            drop(Box::from_raw((*view).shape.cast::<[isize; 1]>()));
+            (*view).shape = std::ptr::null_mut();
+        }
+        if !(*view).strides.is_null() {
+            drop(Box::from_raw((*view).strides.cast::<[isize; 1]>()));
+            (*view).strides = std::ptr::null_mut();
+        }
+    }
+}
+
+/// Zero-copy float64 view of posterior draws.
 #[pymethods]
 impl PosteriorArtifact {
     unsafe fn __getbuffer__(
@@ -24,71 +99,44 @@ impl PosteriorArtifact {
         view: *mut pyo3::ffi::Py_buffer,
         flags: std::os::raw::c_int,
     ) -> PyResult<()> {
-        use pyo3::ffi;
-        if view.is_null() {
-            return Err(PyBufferError::new_err("View is null"));
-        }
-        if (flags & ffi::PyBUF_WRITABLE) == ffi::PyBUF_WRITABLE {
-            return Err(PyBufferError::new_err("PosteriorArtifact draws are read-only"));
-        }
         let borrowed = slf.borrow();
-        let data = borrowed.draws.as_slice();
-        let n =
-            isize::try_from(data.len()).map_err(|_| PyBufferError::new_err("draws too large"))?;
-        let itemsize = isize::try_from(std::mem::size_of::<f64>())
-            .map_err(|_| PyBufferError::new_err("f64 size does not fit isize"))?;
-        let nbytes = n.saturating_mul(itemsize);
-        unsafe {
-            (*view).obj = slf.as_ptr();
-            ffi::Py_INCREF((*view).obj);
-            (*view).buf = data.as_ptr().cast::<std::ffi::c_void>().cast_mut();
-            (*view).len = nbytes;
-            (*view).readonly = 1;
-            (*view).itemsize = itemsize;
-            (*view).format = if (flags & ffi::PyBUF_FORMAT) == ffi::PyBUF_FORMAT {
-                std::ffi::CString::new("d")
-                    .map_err(|_| PyBufferError::new_err("buffer format is not a C string"))?
-                    .into_raw()
-            } else {
-                std::ptr::null_mut()
-            };
-            (*view).ndim = 1;
-            (*view).shape = if (flags & ffi::PyBUF_ND) == ffi::PyBUF_ND {
-                let shape = Box::new([n]);
-                Box::into_raw(shape).cast()
-            } else {
-                std::ptr::null_mut()
-            };
-            (*view).strides = if (flags & ffi::PyBUF_STRIDES) == ffi::PyBUF_STRIDES {
-                let strides = Box::new([itemsize]);
-                Box::into_raw(strides).cast()
-            } else {
-                std::ptr::null_mut()
-            };
-            (*view).suboffsets = std::ptr::null_mut();
-            (*view).internal = std::ptr::null_mut();
-        }
-        Ok(())
+        // SAFETY: PosteriorArtifact owns immutable draws and is retained by the view.
+        unsafe { readonly_f64_buffer(slf.clone().into_any(), &borrowed.draws, view, flags) }
     }
 
-    #[allow(clippy::unused_self)]
+    #[allow(
+        clippy::unused_self,
+        reason = "CPython buffer-release protocol requires an instance receiver"
+    )]
     unsafe fn __releasebuffer__(&self, view: *mut pyo3::ffi::Py_buffer) {
-        if view.is_null() {
-            return;
-        }
+        // SAFETY: CPython passes the buffer initialized by __getbuffer__.
         unsafe {
-            if !(*view).format.is_null() {
-                drop(std::ffi::CString::from_raw((*view).format));
-                (*view).format = std::ptr::null_mut();
-            }
-            if !(*view).shape.is_null() {
-                drop(Box::from_raw((*view).shape.cast::<[isize; 1]>()));
-                (*view).shape = std::ptr::null_mut();
-            }
-            if !(*view).strides.is_null() {
-                drop(Box::from_raw((*view).strides.cast::<[isize; 1]>()));
-                (*view).strides = std::ptr::null_mut();
-            }
+            release_readonly_buffer(view);
+        }
+    }
+}
+
+/// Snapshot columns share immutable native table allocations, including across branches.
+#[pymethods]
+impl crate::data_snapshot::SnapshotColumn {
+    unsafe fn __getbuffer__(
+        slf: Bound<'_, Self>,
+        view: *mut pyo3::ffi::Py_buffer,
+        flags: std::os::raw::c_int,
+    ) -> PyResult<()> {
+        let borrowed = slf.borrow();
+        // SAFETY: SnapshotColumn pins the table and its immutable F64Buffer.
+        unsafe { readonly_f64_buffer(slf.clone().into_any(), borrowed.values()?, view, flags) }
+    }
+
+    #[allow(
+        clippy::unused_self,
+        reason = "CPython buffer-release protocol requires an instance receiver"
+    )]
+    unsafe fn __releasebuffer__(&self, view: *mut pyo3::ffi::Py_buffer) {
+        // SAFETY: CPython passes the buffer initialized by __getbuffer__.
+        unsafe {
+            release_readonly_buffer(view);
         }
     }
 }

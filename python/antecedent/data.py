@@ -42,6 +42,8 @@ from ._table_file import (
     from_arrow_ipc,
     from_parquet,
 )
+from ._table_snapshot import Table as Table
+from ._table_snapshot import table as table
 
 
 @dataclass(frozen=True)

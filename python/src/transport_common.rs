@@ -523,6 +523,7 @@ pub(crate) fn execution_context(
     let mut ctx = ExecutionContext::production_default(seed);
     ctx.set_memory_limit(memory_bytes);
     crate::apply_cancel(&mut ctx, cancel);
+    crate::execution_api::apply(&mut ctx);
     ctx
 }
 

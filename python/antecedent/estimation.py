@@ -539,6 +539,11 @@ def _wrap_prepared_response(
 
 
 def _prepared_columns(data: Any) -> tuple[list[str], list[Any], bool]:
+    from ._table_snapshot import Table
+
+    if isinstance(data, Table):
+        names, columns = data._native_columns()
+        return names, columns, False
     arrow = try_as_arrow_c_columns(data)
     if arrow is not None:
         names, columns = arrow

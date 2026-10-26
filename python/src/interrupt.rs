@@ -281,12 +281,14 @@ where
     }));
     let slot: (Mutex<Option<PyResult<T>>>, Condvar) = (Mutex::new(None), Condvar::new());
     let observation = antecedent_core::execution_attempt::ObservationToken::capture();
+    let execution_policy = crate::execution_api::capture();
     // One worker only so the calling thread can poll signals; it runs the same work serially, so no extra parallelism is added and the work admits itself.
     let outcome = std::thread::scope(|s| {
         let worker_scope = Arc::clone(&scope);
         let slot = &slot;
         let spawned =
             std::thread::Builder::new().stack_size(WORKER_STACK_BYTES).spawn_scoped(s, move || {
+                let _execution_scope = crate::execution_api::enter(execution_policy);
                 ACTIVE.with(|active| *active.borrow_mut() = Some(worker_scope));
                 let result = observation.execute(|| catch_ffi(f));
                 *slot.0.lock().unwrap_or_else(PoisonError::into_inner) = Some(result);
