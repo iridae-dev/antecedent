@@ -68,6 +68,48 @@ class PreparedAnalysis(Generic[T]):
     def preflight(self) -> Any:
         return preflight(self)
 
+    def treatment_score_posterior(
+        self,
+        *,
+        prior_sd: float = 2.0,
+        draws: int = 4000,
+        clip: float = 0.05,
+        summary_rows: Sequence[int] = (),
+        execution: Execution | None = None,
+    ) -> Outcome[Any]:
+        from .nuisance_scores import treatment_score_posterior
+
+        return treatment_score_posterior(
+            self,
+            prior_sd=prior_sd,
+            draws=draws,
+            clip=clip,
+            summary_rows=summary_rows,
+            execution=execution,
+        )
+
+    def temporal_treatment_score(
+        self,
+        histories: Any,
+        *,
+        penalty: Any = None,
+        intercept_sd: float = 1.0,
+        slope_sd: float = 1.0,
+        draws: int = 4000,
+        execution: Execution | None = None,
+    ) -> Outcome[Any]:
+        from .nuisance_scores import temporal_treatment_score
+
+        return temporal_treatment_score(
+            self,
+            histories,
+            penalty=penalty,
+            intercept_sd=intercept_sd,
+            slope_sd=slope_sd,
+            draws=draws,
+            execution=execution,
+        )
+
     def preview_transform(self, intent: str) -> Mapping[str, Any]:
         return preview_transform(self, intent)
 

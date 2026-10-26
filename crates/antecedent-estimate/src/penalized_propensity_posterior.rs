@@ -30,14 +30,14 @@
 )]
 
 use antecedent_kernels::sigmoid;
+use antecedent_prob::laplace::fit_laplace_glm_owned;
 use antecedent_prob::{
-    BayesDesignRef, BayesFitOptions, BayesLikelihood, GaussianCoefficientPrior, LaplaceWorkspace,
-    PriorSet, PriorSpec, fit_laplace_glm,
+    BayesDesignRef, BayesFitOptions, BayesLikelihood, GaussianCoefficientPrior, PriorSet, PriorSpec,
 };
 
 use crate::error::EstimationError;
-use crate::util::refuse;
 use crate::util::dot;
+use crate::util::refuse;
 
 /// Column-major propensity design: an intercept of ones, then covariates. Treatment is 0 or 1.
 #[derive(Clone, Debug)]
@@ -125,7 +125,7 @@ impl PropensityCoefficientPrior {
             restrictions: Vec::new(),
         };
         prior.validate()?;
-        let fit = fit_laplace_glm(
+        let fit = fit_laplace_glm_owned(
             BayesLikelihood::BernoulliLogit,
             BayesDesignRef {
                 x_colmajor: &design.x_colmajor,
@@ -142,7 +142,6 @@ impl PropensityCoefficientPrior {
                 grad_tol: 1e-8,
                 seed: self.seed,
             },
-            &mut LaplaceWorkspace::default(),
         )?;
         if fit.map.len() != design.ncols {
             return Err(EstimationError::stats_msg(
@@ -152,6 +151,9 @@ impl PropensityCoefficientPrior {
         let _admitted = crate::util::admit_bound_array::<f64>(self.n_draws, design.ncols)?;
         let mut draws = Vec::with_capacity(self.n_draws * design.ncols);
         for draw in 0..self.n_draws {
+            if antecedent_core::numerical_admission::is_cancelled() {
+                return Err(EstimationError::data_msg("propensity posterior cancelled"));
+            }
             for column in 0..design.ncols {
                 draws.push(fit.draws.get(draw, column)?);
             }
@@ -217,6 +219,9 @@ impl PropensityCoefficientPosterior {
         let mut sum_squares = 0.0_f64;
         let mut outside = 0usize;
         for draw in 0..self.n_draws {
+            if antecedent_core::numerical_admission::is_cancelled() {
+                return Err(EstimationError::data_msg("propensity summary cancelled"));
+            }
             let start = draw * self.ncols;
             let score = sigmoid(dot(&self.draws[start..start + self.ncols], row));
             sum += score;

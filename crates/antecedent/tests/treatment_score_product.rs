@@ -8,7 +8,11 @@
 //! as an artifact that a loader refits.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+
 #![allow(clippy::float_cmp, reason = "exact sealed copies and exact zero band probabilities")]
+
+#[path = "treatment_score_row_semantics.rs"]
+mod row_semantics;
 
 use antecedent::analysis::array_fits::{
     ArrayFit, ArrayFitArtifactWire, ArrayFitConsumeLimits, ArrayFitError, ArrayFitRequestWire,

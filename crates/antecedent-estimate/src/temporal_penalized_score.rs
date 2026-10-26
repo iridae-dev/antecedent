@@ -27,9 +27,9 @@
 )]
 
 use antecedent_kernels::sigmoid;
+use antecedent_prob::laplace::fit_laplace_glm_owned;
 use antecedent_prob::{
-    BayesDesignRef, BayesFitOptions, BayesLikelihood, GaussianCoefficientPrior, LaplaceWorkspace,
-    PriorSet, PriorSpec, fit_laplace_glm,
+    BayesDesignRef, BayesFitOptions, BayesLikelihood, GaussianCoefficientPrior, PriorSet, PriorSpec,
 };
 use antecedent_stats::{
     FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace, fit_glm_ridge,
@@ -230,7 +230,7 @@ impl BayesianTemporalPropensity {
             restrictions: Vec::new(),
         };
         prior.validate()?;
-        let fit = fit_laplace_glm(
+        let fit = fit_laplace_glm_owned(
             BayesLikelihood::BernoulliLogit,
             BayesDesignRef {
                 x_colmajor: &design.x_colmajor,
@@ -247,7 +247,6 @@ impl BayesianTemporalPropensity {
                 grad_tol: 1e-8,
                 seed: self.seed,
             },
-            &mut LaplaceWorkspace::default(),
         )?;
         if fit.map.len() != design.ncols {
             return Err(EstimationError::stats_msg(
@@ -257,6 +256,9 @@ impl BayesianTemporalPropensity {
         let _admitted = crate::util::admit_bound_array::<f64>(self.n_draws, design.ncols)?;
         let mut draws = Vec::with_capacity(self.n_draws * design.ncols);
         for draw in 0..self.n_draws {
+            if antecedent_core::numerical_admission::is_cancelled() {
+                return Err(EstimationError::data_msg("temporal propensity posterior cancelled"));
+            }
             for column in 0..design.ncols {
                 draws.push(fit.draws.get(draw, column)?);
             }
@@ -299,6 +301,9 @@ impl PosteriorPropensity {
     pub fn at(&self, lags: &[f64]) -> Result<f64, EstimationError> {
         let mut sum = 0.0_f64;
         for draw in 0..self.n_draws {
+            if antecedent_core::numerical_admission::is_cancelled() {
+                return Err(EstimationError::data_msg("temporal propensity summary cancelled"));
+            }
             let start = draw * self.ncols;
             sum += sigmoid(linear_predictor(&self.draws[start..start + self.ncols], lags)?);
         }

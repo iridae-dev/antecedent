@@ -18,10 +18,17 @@ use crate::analysis::array_fits::{
 use crate::analysis::builder::DataInput;
 use crate::error::CausalError;
 use antecedent_core::{CausalQuery, ExecutionContext};
-use antecedent_data::{TableView, TabularData};
+use antecedent_data::{MissingPolicy, TableView, TabularData, first_missing_cell};
 
 impl PreparedStudy {
     /// The posterior of the treatment propensity on this study's adjustment set.
+    ///
+    /// Fitting uses the analysis mask and complete cases of treatment, outcome and the
+    /// certified adjustment set. The outcome selects the study cohort but is not a predictor.
+    /// `summary_rows` are physical input row positions, not positions in the selected cohort:
+    /// they may name masked or held-out rows, provided all adjustment predictors are observed.
+    /// Their treatment and outcome need not be observed. Sampling weights and nonunit storage
+    /// weights are refused because this product does not implement a weighted likelihood.
     ///
     /// # Errors
     /// A handle that is not a prepared tabular study, a schema change, a query that is not a
@@ -73,30 +80,89 @@ impl PreparedStudy {
                           static average effect",
             });
         };
-        // The retained identification names the adjustment set in the ids of the prepared
-        // data, so the columns are read from it directly.
-        let treatment: Vec<f64> = data.float64_values(query.treatment)?.clone();
-        let nrows = treatment.len();
-        let mut x_colmajor = vec![1.0_f64; nrows];
-        // The propensity conditions on the adjustment covariates. The treatment being
-        // scored and the outcome are not columns of that design.
-        for variable in cache.estimand.adjustment_set.iter().copied() {
-            if variable == query.treatment || variable == query.outcome {
-                continue;
-            }
-            x_colmajor.extend_from_slice(&data.float64_values(variable)?);
+        if self
+            .analysis
+            .estimator_spec
+            .as_deref()
+            .is_some_and(|estimator| estimator.sampling_weights_calibration_label().is_some())
+            || data.storage().weights().is_some_and(|weights| weights.iter().any(|&w| w != 1.0))
+        {
+            return Err(CausalError::Estimate(
+                antecedent_estimate::sampling_weights::unsupported_route(
+                    "the treatment score posterior does not implement a sampling-weighted \
+                     likelihood; next attempt: prepare an explicitly unweighted population",
+                ),
+            ));
         }
-        let columns = x_colmajor.len().checked_div(nrows).unwrap_or(0);
-        let mut rows = Vec::with_capacity(spec.summary_rows.len());
+        let predictors: Vec<_> = cache
+            .estimand
+            .adjustment_set
+            .iter()
+            .copied()
+            .filter(|&id| id != query.treatment && id != query.outcome)
+            .collect();
+        let mut variables = vec![query.treatment, query.outcome];
+        variables.extend_from_slice(&predictors);
+        use crate::analysis::missing_data::{MissingRoute, effective_policy};
+        let (policy, _) = effective_policy(MissingRoute::Static, self.analysis.missing.as_ref());
+        match policy {
+            MissingPolicy::CompleteCase => {}
+            MissingPolicy::ErrorOnMissing => {
+                if let Some(cell) = first_missing_cell(data, &variables)? {
+                    return Err(CausalError::Estimate(
+                        antecedent_estimate::missing_policy::policy_required(
+                            &cell,
+                            "the treatment score posterior",
+                            &[MissingPolicy::CompleteCase],
+                        ),
+                    ));
+                }
+            }
+            _ => {
+                return Err(CausalError::Estimate(
+                    antecedent_estimate::missing_policy::policy_not_applicable(
+                        policy,
+                        "the treatment score posterior",
+                        "this nuisance product fits complete cases, not imputed or weighted fits",
+                        &[MissingPolicy::ErrorOnMissing, MissingPolicy::CompleteCase],
+                    ),
+                ));
+            }
+        }
+        let keep = data.complete_case_mask(&variables)?;
+        let nrows = keep.iter().filter(|&&selected| selected).count();
+        let treatment_column = data.float64_cow(query.treatment)?;
+        let treatment = treatment_column
+            .iter()
+            .zip(&keep)
+            .filter_map(|(&value, &selected)| selected.then_some(value))
+            .collect();
+        let mut x_colmajor = vec![1.0_f64; nrows];
+        let mut rows = vec![vec![1.0]; spec.summary_rows.len()];
         for &row in &spec.summary_rows {
-            if row >= nrows {
+            if row >= data.row_count() {
                 return Err(CausalError::Unsupported {
                     message: "a summary row is outside the prepared data",
                 });
             }
-            rows.push(
-                (0..columns).filter_map(|c| x_colmajor.get(c * nrows + row).copied()).collect(),
+        }
+        for variable in predictors {
+            let column = data.float64_cow(variable)?;
+            x_colmajor.extend(
+                column
+                    .iter()
+                    .zip(&keep)
+                    .filter_map(|(&value, &selected)| selected.then_some(value)),
             );
+            let validity = data.column(variable)?.validity();
+            for (&row, summary) in spec.summary_rows.iter().zip(&mut rows) {
+                if !validity.is_valid(row) || !column[row].is_finite() {
+                    return Err(CausalError::Unsupported {
+                        message: "a summary row has a missing or non-finite adjustment predictor",
+                    });
+                }
+                summary.push(column[row]);
+            }
         }
         let request = PropensityPosteriorWire {
             x_colmajor,
@@ -129,6 +195,18 @@ impl PreparedStudy {
         &self,
         spec: &TemporalTreatmentScoreSpec,
     ) -> Result<ArrayFit, CausalError> {
+        self.temporal_treatment_score_with_context(spec, &ExecutionContext::production(0, 1))
+    }
+
+    /// Fit temporal nuisance scores under the caller's execution authority.
+    ///
+    /// # Errors
+    /// As [`Self::temporal_treatment_score`], including caller cancellation or admission refusal.
+    pub fn temporal_treatment_score_with_context(
+        &self,
+        spec: &TemporalTreatmentScoreSpec,
+        ctx: &ExecutionContext,
+    ) -> Result<ArrayFit, CausalError> {
         if self.modality == PreparedModality::Series {
             return Err(crate::unsupported_reason!(
                 "route_not_supported",
@@ -148,8 +226,7 @@ impl PreparedStudy {
         let graph = self.plan.temporal_graph().ok_or(CausalError::Compile {
             message: "the prepared panel plan has no resolved temporal graph".into(),
         })?;
-        let ctx = ExecutionContext::production(0, 1);
-        let subjects = self.analysis.panel_subject_columns(panel, graph, query, &ctx)?;
+        let subjects = self.analysis.panel_subject_columns(panel, graph, query, ctx)?;
         let (Some(treatment), true) = (subjects.columns.get(1), subjects.columns.len() > 2) else {
             return Err(CausalError::Unsupported {
                 message: "a temporal treatment score needs at least one identified adjustment lag \
@@ -180,6 +257,6 @@ impl PreparedStudy {
                 })
             }
         };
-        Ok(ArrayFit::fit(request)?)
+        antecedent_core::numerical_admission::with_context(ctx, || Ok(ArrayFit::fit(request)?))
     }
 }

@@ -2595,6 +2595,7 @@ class PreparedAnalysis:
         slope_sd: float = 1.0,
         draws: int = 4000,
         seed: int = 0,
+        threads: int | None = None,
     ) -> tuple[str, bytes]: ...
     def treatment_score_posterior(
         self,
@@ -2604,6 +2605,7 @@ class PreparedAnalysis:
         seed: int = 0,
         clip: float = 0.05,
         summary_rows: list[int] | None = None,
+        threads: int | None = None,
     ) -> tuple[str, bytes]: ...
     def snapshot(
         self,

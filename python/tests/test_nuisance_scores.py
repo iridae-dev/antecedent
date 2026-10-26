@@ -15,11 +15,11 @@ import sys
 import antecedent
 import numpy as np
 import pytest
+from _refusal import REGISTERED
 from antecedent import nuisance_scores
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError
+from antecedent.execution import Execution
 from antecedent.outcomes import require_success
-
-from _refusal import assert_registered_refusal
 
 
 def sigmoid(x):
@@ -53,6 +53,7 @@ def prepared():
         graph=GRAPH,
         query=antecedent.AverageEffect("t", "y"),
         inference=antecedent.Frequentist(bootstrap=0),
+        execution=Execution(seed=0),
         refute=False,
     )
 
@@ -61,8 +62,14 @@ def test_the_product_matches_newton_and_a_laplace_sample() -> None:
     data = study_data()
     design = np.column_stack([np.ones(200), data["z"]])
     for prior_sd in (2.0, 0.1):
-        product = prepared().treatment_score_posterior(
-            prior_sd=prior_sd, draws=4000, seed=13, clip=0.35, summary_rows=[0, 150]
+        product = require_success(
+            prepared().treatment_score_posterior(
+                prior_sd=prior_sd,
+                draws=4000,
+                execution=Execution(seed=13),
+                clip=0.35,
+                summary_rows=[0, 150],
+            )
         )
         mode, covariance = newton_mode(design, data["t"], np.eye(2) / prior_sd**2)
         sample = np.random.default_rng(0).multivariate_normal(mode, covariance, 400_000)
@@ -83,7 +90,9 @@ def test_the_product_matches_newton_and_a_laplace_sample() -> None:
 
 
 def test_the_artifact_is_refit_on_load_here_and_in_a_fresh_process() -> None:
-    product = prepared().treatment_score_posterior(summary_rows=[0, 150], draws=500)
+    product = require_success(
+        prepared().treatment_score_posterior(summary_rows=[0, 150], draws=500)
+    )
     loaded = nuisance_scores.load_artifact(bytes(product.export()))
     assert dict(loaded.values) == dict(product.values)
     assert loaded.request_digest == product.request_digest
@@ -105,7 +114,7 @@ def test_the_artifact_is_refit_on_load_here_and_in_a_fresh_process() -> None:
 
 
 def test_an_edited_or_truncated_artifact_is_refused() -> None:
-    product = prepared().treatment_score_posterior(summary_rows=[0], draws=500)
+    product = require_success(prepared().treatment_score_posterior(summary_rows=[0], draws=500))
     artifact = bytearray(bytes(product.export()))
     artifact[len(artifact) // 2] ^= 0x01
     with pytest.raises(CausalUnsupportedError):
@@ -115,25 +124,22 @@ def test_an_edited_or_truncated_artifact_is_refused() -> None:
 
 
 def test_a_bayesian_weighting_estimator_is_the_typed_boundary() -> None:
-    with pytest.raises(CausalUnsupportedError) as info:
-        require_success(
-            antecedent.analyze(
-                study_data(),
-                graph=GRAPH,
-                query=antecedent.AverageEffect("t", "y"),
-                estimator=antecedent.Estimator.PROPENSITY_WEIGHTING,
-                inference=antecedent.Bayesian(backend="conjugate", n_draws=2000),
-                refute=False,
-                bootstrap=0,
-            )
-        )
-    error = info.value
-    assert error.reason_code == "route_not_supported"
-    text = str(error)
+    result = antecedent.analyze(
+        study_data(),
+        graph=GRAPH,
+        query=antecedent.AverageEffect("t", "y"),
+        estimator=antecedent.Estimator.PROPENSITY_WEIGHTING,
+        inference=antecedent.Bayesian(backend="conjugate", n_draws=2000),
+        execution=Execution(seed=0),
+        refute=False,
+    )
+    assert result.value is None and result.refusal is not None
+    assert result.refusal.code == "route_not_supported"
+    text = result.refusal.message
     assert "penalized_propensity.effect_posterior" in text
     assert "ancillary" in text and "Next attempt" in text
     assert "Bayesian g-computation" in text
-    assert_registered_refusal(error)
+    assert result.refusal.code in REGISTERED
 
 
 def test_the_product_is_never_read_as_an_effect_score_artifact() -> None:
@@ -141,7 +147,9 @@ def test_the_product_is_never_read_as_an_effect_score_artifact() -> None:
     from antecedent import artifacts, recalc_cell
     from antecedent.recalc import Utility
 
-    product = prepared().treatment_score_posterior(summary_rows=[0, 150], draws=500)
+    product = require_success(
+        prepared().treatment_score_posterior(summary_rows=[0, 150], draws=500)
+    )
     names = ["z", "t", "y"]
     with pytest.raises(CausalSerializationError) as retarget:
         recalc_cell.resume_from_scores(
@@ -183,6 +191,7 @@ def prepared_panel(units):
             treatment="x", outcome="y", treatment_lag=1, horizon_steps=1, active_level=1.0
         ),
         inference=antecedent.Frequentist(bootstrap=0),
+        execution=Execution(seed=0),
         refute=False,
     )
 
@@ -195,7 +204,7 @@ def test_the_temporal_penalized_score_is_the_ridge_mode_and_the_posterior_is_a_l
     treated = np.array([u["x"][0] for u in units])
     prepared_study = prepared_panel(units)
     histories = [[0.0], [1.5]]
-    ridge = prepared_study.temporal_treatment_score(histories, penalty=2.0)
+    ridge = require_success(prepared_study.temporal_treatment_score(histories, penalty=2.0))
     mode, _ = newton_mode(rows, treated, np.diag([0.0, 2.0]))
     assert ridge["coefficient.0"] == pytest.approx(mode[0], abs=1e-6)
     assert ridge["coefficient.1"] == pytest.approx(mode[1], abs=1e-6)
@@ -205,8 +214,10 @@ def test_the_temporal_penalized_score_is_the_ridge_mode_and_the_posterior_is_a_l
     assert ridge.estimator_id == "temporal.penalized_propensity"
     assert ridge.licensing == "unlicensed" and ridge.calibration == "unmeasured"
 
-    posterior = prepared_study.temporal_treatment_score(
-        histories, intercept_sd=1.0, slope_sd=0.5, draws=4000, seed=3
+    posterior = require_success(
+        prepared_study.temporal_treatment_score(
+            histories, intercept_sd=1.0, slope_sd=0.5, draws=4000, execution=Execution(seed=3)
+        )
     )
     mode, hessian_inverse = newton_mode(rows, treated, np.diag([1.0, 4.0]))
     sample = np.random.default_rng(2).multivariate_normal(mode, hessian_inverse, 400_000)
@@ -234,10 +245,12 @@ def test_a_single_dependent_series_has_no_temporal_treatment_score() -> None:
             treatment="x", outcome="y", treatment_lag=1, horizon_steps=1, active_level=1.0
         ),
         inference=antecedent.Frequentist(bootstrap=0),
+        execution=Execution(seed=0),
         refute=False,
     )
-    with pytest.raises(CausalUnsupportedError) as info:
-        prepared_series.temporal_treatment_score([[0.0]], penalty=1.0)
-    assert info.value.reason_code == "route_not_supported"
-    assert "single dependent series" in str(info.value) and "Next attempt" in str(info.value)
-    assert_registered_refusal(info.value)
+    result = prepared_series.temporal_treatment_score([[0.0]], penalty=1.0)
+    assert result.value is None and result.refusal is not None
+    assert result.refusal.code == "route_not_supported"
+    assert "single dependent series" in result.refusal.message
+    assert "Next attempt" in result.refusal.message
+    assert result.refusal.code in REGISTERED
