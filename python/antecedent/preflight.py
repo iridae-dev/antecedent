@@ -786,14 +786,12 @@ def diagnose_fit(study: Any, *, execution: Execution | None = None) -> Outcome[A
         )
     # Invoke observers outside scientific refusal capture so even an observer-raised
     # scientific exception preserves its original identity and traceback as an error.
-    if policy.on_progress is not None:
-        policy.on_progress(0.0, "diagnose_fit")
+    policy._report_progress(0.0, "diagnose_fit")
     operation = diagnose_fit_batch if batch else diagnose_fit_prepared
     outcome = capture_outcome(
         policy._call, operation, native, seed=policy.seed, threads=policy.threads
     )
-    if policy.on_progress is not None:
-        policy.on_progress(1.0, "diagnose_fit")
+    policy._report_progress(1.0, "diagnose_fit")
     return outcome
 
 

@@ -14,7 +14,7 @@ from antecedent.errors import (
 )
 from antecedent.execution import Execution, ResourceLimits
 from antecedent.execution_attempt import observe_native_attempts
-from antecedent.outcomes import Outcome, require_success
+from antecedent.outcomes import Outcome, capture_outcome, require_success
 
 
 def _inputs(*, dependent=False):
@@ -178,7 +178,7 @@ def test_diagnostic_execution_honors_resource_cancellation_and_original_observer
         raise original
 
     with pytest.raises(CausalUnsupportedError) as raised:
-        pf.diagnose_fit(study, execution=Execution(on_progress=failed_progress))
+        capture_outcome(pf.diagnose_fit, study, execution=Execution(on_progress=failed_progress))
     assert raised.value is original
     assert any(frame.name == "failed_progress" for frame in raised.traceback)
     with pytest.raises(CausalUnsupportedError) as unavailable:

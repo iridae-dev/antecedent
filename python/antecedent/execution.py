@@ -116,3 +116,13 @@ class Execution:
 
     def _call(self, operation: Callable[P, T], /, *args: P.args, **kwargs: P.kwargs) -> T:
         return self._handle.call(operation, *args, **kwargs)
+
+    def _report_progress(self, fraction: float, stage: str) -> None:
+        if self.on_progress is not None:
+            try:
+                self.on_progress(fraction, stage)
+            except BaseException as error:
+                # A callback can raise the same class as a scientific refusal.
+                # Preserve its operational origin through composed outcome calls.
+                object.__setattr__(error, "_antecedent_operational_callback", True)
+                raise
