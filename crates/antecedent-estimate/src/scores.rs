@@ -144,6 +144,10 @@ impl ScoreTable {
     ///
     /// Weight length mismatch or empty mass.
     pub fn summarize(&self, weights: Option<&[f64]>) -> Result<ScoreSummary, EstimationError> {
+        // The returned Arc means have a distinct owner in an admitted workflow.
+        // These guards cover the construction Vec and temporary slice references.
+        let _means_scratch = crate::util::admit_bound_array::<f64>(self.n_columns(), 1)?;
+        let _column_refs = crate::util::admit_bound_array::<&[f64]>(self.n_columns(), 1)?;
         let mut means = Vec::with_capacity(self.n_columns());
         let mut cols: Vec<&[f64]> = Vec::with_capacity(self.n_columns());
         for j in 0..self.n_columns() {
@@ -350,23 +354,24 @@ fn simultaneous_bands(
     covariance: &JointCovariance,
     supported: &[bool],
 ) -> Result<(f64, Vec<f64>, Vec<f64>), EstimationError> {
-    let active: Vec<_> =
-        (0..means.len()).filter(|&j| supported[j] && covariance.se(j) > 0.0).collect();
+    let active_count = (0..means.len()).filter(|&j| supported[j] && covariance.se(j) > 0.0).count();
+    let _active_indices = crate::util::admit_bound_array::<usize>(active_count, 1)?;
+    let mut active = Vec::with_capacity(active_count);
+    active.extend((0..means.len()).filter(|&j| supported[j] && covariance.se(j) > 0.0));
     let critical_value = if active.is_empty() {
         0.0
     } else {
+        let _matrix_owner = crate::util::admit_bound_array::<f64>(active.len(), active.len())?;
+        let construction = crate::util::admit_bound_array::<f64>(active.len(), active.len())?;
         let mut values = Vec::with_capacity(active.len() * active.len());
         for &j in &active {
             for &i in &active {
                 values.push(covariance.get(i, j));
             }
         }
-        crate::joint_if::max_t_critical(
-            &JointCovariance { dim: active.len(), values: values.into() },
-            0.95,
-            4096,
-            0x15,
-        )?
+        let selected = JointCovariance { dim: active.len(), values: values.into() };
+        drop(construction);
+        crate::joint_if::max_t_critical(&selected, 0.95, 4096, 0x15)?
     };
     let mut lower = Vec::with_capacity(means.len());
     let mut upper = Vec::with_capacity(means.len());
@@ -436,6 +441,11 @@ impl ScoreTable {
 
     /// Simultaneous bands for the fixed declared family; does not cover data-driven selection.
     pub fn inference(&self, weights: Option<&[f64]>) -> Result<ScoreInference, EstimationError> {
+        // This summary is consumed here. Its Arc means/covariance must stay
+        // admitted until inference has finished, independently of result buffers.
+        let _summary_means = crate::util::admit_bound_array::<f64>(self.n_columns(), 1)?;
+        let _summary_covariance =
+            crate::util::admit_bound_array::<f64>(self.n_columns(), self.n_columns())?;
         let summary = self.summarize(weights)?;
         let support = self.support(weights);
         let (critical_value, lower, upper) =

@@ -82,12 +82,61 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         check_retarget_cancelled(ctx)?;
+        let (result, failure) =
+            antecedent_core::numerical_admission::with_context_and_failure(ctx, || {
+                self.retarget_with_bound_execution(weights, depends_on, ctx)
+            });
+        check_retarget_cancelled(ctx)?;
+        if let (true, Some(failure)) = (result.is_err(), failure) {
+            return Err(match failure {
+                antecedent_core::execution::AdmissionError::Cancelled => {
+                    CausalError::Cancelled { stage: "retarget" }
+                }
+                failure => CausalError::Resource { message: failure.to_string() },
+            });
+        }
+        result
+    }
+
+    fn retarget_with_bound_execution(
+        &self,
+        weights: &[f64],
+        depends_on: &[antecedent_core::VariableId],
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
         let table = self.retarget_score_table()?;
+        let _summary_means = admit_retarget_bytes(
+            ctx,
+            checked_retarget_bytes(table.n_columns(), size_of::<f64>())?,
+        )?;
+        let covariance_cells =
+            table.n_columns().checked_mul(table.n_columns()).ok_or_else(|| {
+                CausalError::Resource { message: "retarget covariance dimensions overflow".into() }
+            })?;
+        let covariance_retention =
+            admit_retarget_bytes(ctx, checked_retarget_bytes(covariance_cells, size_of::<f64>())?)?;
         let out = self.retarget_table(table, weights, depends_on)?;
         check_retarget_cancelled(ctx)?;
+        // These are the actual returned inference buffers, separate from the
+        // summary/correlation/simulation scratch used to construct them.
+        let inference_retention = admit_retarget_bytes(ctx, inference_output_bytes(table)?)?;
         let inference = table.inference(Some(weights))?;
         check_retarget_cancelled(ctx)?;
-        let result = self.retarget_to_result(out, inference, weights, depends_on)?;
+        let weight_retention = antecedent_estimate::changes_target(weights)
+            .then(|| {
+                admit_retarget_bytes(ctx, weight_output_bytes(weights.len(), depends_on.len())?)
+            })
+            .transpose()?;
+        let mut result = self.retarget_to_result(out, inference, weights, depends_on)?;
+        if result.estimate.as_effect().is_some_and(|effect| effect.scores.inference.is_some()) {
+            result.retained_resources.push(Arc::new(inference_retention));
+        }
+        if result.estimate.as_effect().is_some_and(|effect| effect.joint.covariance.is_some()) {
+            result.retained_resources.push(Arc::new(covariance_retention));
+        }
+        if let (Some(retention), Some(_)) = (weight_retention, result.row_weights.as_ref()) {
+            result.retained_resources.push(Arc::new(retention));
+        }
         check_retarget_cancelled(ctx)?;
         Ok(result)
     }
@@ -413,10 +462,9 @@ impl PreparedStudy {
         weights: &[f64],
         depends_on: &[antecedent_core::VariableId],
     ) -> Result<StudyResult, CausalError> {
-        let cache =
-            self.analysis.static_cache().ok_or(CausalError::Unsupported {
-                message: "retarget requires prepare-time identification",
-            })?;
+        let cache = self.analysis.static_cache().ok_or(CausalError::Unsupported {
+            message: "retarget requires prepare-time identification",
+        })?;
         let table = self
             .score_table
             .as_ref()
@@ -514,6 +562,61 @@ impl PreparedStudy {
         )?);
         Ok(result)
     }
+}
+
+fn checked_retarget_bytes(count: usize, width: usize) -> Result<u64, CausalError> {
+    count
+        .checked_mul(width)
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .ok_or_else(|| CausalError::Resource { message: "retarget buffer size overflow".into() })
+}
+
+fn add_retarget_bytes(first: u64, second: u64) -> Result<u64, CausalError> {
+    first
+        .checked_add(second)
+        .ok_or_else(|| CausalError::Resource { message: "retarget buffer size overflow".into() })
+}
+
+fn inference_output_bytes(table: &ScoreTable) -> Result<u64, CausalError> {
+    let columns = table.n_columns();
+    // raw_means, lower, upper, event_n_eff, threshold_supported, and the
+    // support object's per-distinct-arm effective sample sizes.
+    let arms = table
+        .columns
+        .iter()
+        .enumerate()
+        .filter(|(index, column)| {
+            !table.columns[..*index].iter().any(|earlier| earlier.arm == column.arm)
+        })
+        .count();
+    let real_fields = checked_retarget_bytes(columns, 4 * size_of::<f64>())?;
+    let flags = checked_retarget_bytes(columns, size_of::<bool>())?;
+    let arm_effective_sizes = checked_retarget_bytes(arms, size_of::<f64>())?;
+    add_retarget_bytes(add_retarget_bytes(real_fields, flags)?, arm_effective_sizes)
+}
+
+fn weight_output_bytes(rows: usize, dependencies: usize) -> Result<u64, CausalError> {
+    // The Arc weight values, Arc native dependencies, and the identity's raw
+    // dependencies are three distinct retained payloads.
+    add_retarget_bytes(
+        checked_retarget_bytes(rows, size_of::<f64>())?,
+        checked_retarget_bytes(
+            dependencies,
+            size_of::<antecedent_core::VariableId>() + size_of::<u32>(),
+        )?,
+    )
+}
+
+fn admit_retarget_bytes(
+    ctx: &ExecutionContext,
+    bytes: u64,
+) -> Result<antecedent_core::execution::AdmissionLease, CausalError> {
+    ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: "retarget" }
+        }
+        error => CausalError::Resource { message: error.to_string() },
+    })
 }
 
 fn check_retarget_cancelled(ctx: &ExecutionContext) -> Result<(), CausalError> {

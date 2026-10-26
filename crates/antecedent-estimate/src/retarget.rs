@@ -446,17 +446,17 @@ pub fn retarget(
 #[must_use]
 pub(crate) fn score_weighted_support(table: &ScoreTable, weights: &[f64]) -> WeightedSupport {
     let arms: std::collections::BTreeSet<_> = table.columns.iter().map(|c| c.arm).collect();
-    let n_eff_by_arm: Vec<f64> = arms
-        .iter()
-        .map(|&arm| {
-            let w: Vec<_> = weights
-                .iter()
-                .zip(table.observed_arm.iter())
-                .filter_map(|(&w, &a)| (a == arm).then_some(w))
-                .collect();
-            crate::joint_if::kish_n_eff(&w)
-        })
-        .collect();
+    // The retained-output admission counts one value per arm. Allocate that
+    // capacity explicitly: collection growth differs across supported toolchains.
+    let mut n_eff_by_arm = Vec::with_capacity(arms.len());
+    n_eff_by_arm.extend(arms.iter().map(|&arm| {
+        let w: Vec<_> = weights
+            .iter()
+            .zip(table.observed_arm.iter())
+            .filter_map(|(&w, &a)| (a == arm).then_some(w))
+            .collect();
+        crate::joint_if::kish_n_eff(&w)
+    }));
     let mut lo = f64::INFINITY;
     let mut hi = f64::NEG_INFINITY;
     for column in table.propensities.chunks(table.n_rows.max(1)) {
