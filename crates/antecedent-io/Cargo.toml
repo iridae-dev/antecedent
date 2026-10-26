@@ -31,6 +31,7 @@ calibration-internal = ["antecedent-estimate/calibration-internal", "antecedent-
 test-util = ["antecedent-io-core/test-util"]
 
 [dependencies]
+blake3 = { workspace = true }
 antecedent-core = { workspace = true }
 antecedent-contract = { workspace = true }
 antecedent-data = { workspace = true }

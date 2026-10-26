@@ -81,6 +81,11 @@ impl CyclicExecutionReport {
         self.retention.bytes()
     }
 
+    /// Share the existing output admissions with a native family bridge.
+    pub(crate) fn shared_retention(&self) -> crate::retained_allocation::RetainedAllocation {
+        self.retention.clone()
+    }
+
     /// Identity of the lowered program whose execution produced this report.
     ///
     /// `None` for a report no prepared handle stamped, such as an independently
@@ -136,6 +141,11 @@ fn invalid(e: impl std::fmt::Display) -> CyclicArtifactError {
     CyclicArtifactError::Invalid(e.to_string())
 }
 
+#[cfg(test)]
+std::thread_local! {
+    static SYSTEM_ENGINE_EXECUTIONS: std::cell::Cell<usize> = const {std::cell::Cell::new(0)};
+}
+
 impl CyclicExecutionRequest {
     /// Identity of the complete retained scientific/numerical request.
     pub fn identity(&self) -> Result<String, CyclicArtifactError> {
@@ -184,6 +194,8 @@ impl CyclicExecutionRequest {
         fit: Option<&CyclicFit>,
         ctx: &ExecutionContext,
     ) -> Result<CyclicExecutionReport, CyclicArtifactError> {
+        #[cfg(test)]
+        SYSTEM_ENGINE_EXECUTIONS.with(|count| count.set(count.get() + 1));
         let identity = self.identity()?;
         let n = self.model.order();
         let per_row = n
@@ -522,8 +534,30 @@ impl PreparedCyclicExecution {
             return Err(invalid("artifact id"));
         }
         let report = self.estimate(ctx)?;
-        let bytes = encode_report(&self.request, &report, artifact_id, ctx)?;
+        let bytes = self.encode_execution(&report, artifact_id, ctx)?;
         Ok((report, bytes))
+    }
+
+    /// Encode an already executed report without fitting or solving again.
+    ///
+    /// This writer checks the source binding; independent consumption still
+    /// verifies the numerical answer by replaying the encoded request.
+    ///
+    /// # Errors
+    /// Invalid artifact id, a report from another source, cancellation or encoding failure.
+    pub fn encode_execution(
+        &self,
+        report: &CyclicExecutionReport,
+        artifact_id: &str,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, CyclicArtifactError> {
+        if artifact_id.trim().is_empty() || artifact_id.len() > 256 {
+            return Err(invalid("artifact id"));
+        }
+        if report.identity != self.identity()? {
+            return Err(invalid("cyclic execution source identity mismatch"));
+        }
+        encode_report(&self.request, report, artifact_id, ctx)
     }
 }
 
@@ -603,6 +637,19 @@ pub fn consume_cyclic_artifact(
     expected_identity: &str,
     ctx: &ExecutionContext,
 ) -> Result<CyclicExecutionReport, CyclicArtifactError> {
+    consume_cyclic_artifact_with_request(bytes, expected_identity, ctx).map(|(_, report)| report)
+}
+
+/// Independently verify a system once and retain its original source declaration.
+///
+/// # Errors
+/// The same framing, identity, numerical replay, cancellation and resource failures
+/// as [`consume_cyclic_artifact`]. No prepared study is reconstructed.
+pub fn consume_cyclic_artifact_with_request(
+    bytes: &[u8],
+    expected_identity: &str,
+    ctx: &ExecutionContext,
+) -> Result<(CyclicExecutionRequest, CyclicExecutionReport), CyclicArtifactError> {
     if bytes.len() > MAX_CYCLIC_ARTIFACT_BYTES || expected_identity.len() != 64 {
         return Err(invalid("byte limit or expected identity"));
     }
@@ -623,7 +670,7 @@ pub fn consume_cyclic_artifact(
     if report != record.report {
         return Err(CyclicArtifactError::Mismatch);
     }
-    Ok(report)
+    Ok((record.request, report))
 }
 
 #[cfg(test)]
@@ -665,6 +712,43 @@ mod tests {
             factual: Some(vec![0.3, 0.7]),
         }
     }
+    #[test]
+    fn system_family_bridge_shares_output_and_never_dispatches_the_system_engine() {
+        use crate::cyclic_family_artifact::{
+            CompiledCyclicFamilyProgram, CyclicFamilyAnswer, CyclicFamilyRequest,
+            consume_cyclic_family,
+        };
+        use std::sync::Arc;
+        let ctx = ExecutionContext::for_tests(8);
+        let request = request();
+        let report = Arc::new(request.execute(&ctx).unwrap());
+        let family = CyclicFamilyRequest::System { request: request.clone() };
+        let expected = family.export(&ctx).unwrap().1;
+        let count = SYSTEM_ENGINE_EXECUTIONS.with(std::cell::Cell::get);
+        let program = CompiledCyclicFamilyProgram::compile(&family, &ctx).unwrap();
+        let bridged = program.bind_system_execution(Arc::clone(&report), &ctx).unwrap();
+        let CyclicFamilyAnswer::System(shared) = &bridged.answer else {
+            panic!("system bridge");
+        };
+        assert!(Arc::ptr_eq(shared, &report));
+        assert_eq!(shared.identity, request.identity().unwrap());
+        assert_eq!(bridged.identity, program.identity());
+        assert_ne!(bridged.identity, shared.identity);
+        let bytes = program.encode_execution(&bridged, &ctx).unwrap();
+        assert_eq!(bytes, expected);
+        assert_eq!(SYSTEM_ENGINE_EXECUTIONS.with(std::cell::Cell::get), count);
+        let mut other = request;
+        other.noise[0][0] += 1.0;
+        let other = CompiledCyclicFamilyProgram::compile(
+            &CyclicFamilyRequest::System { request: other },
+            &ctx,
+        )
+        .unwrap();
+        assert!(other.bind_system_execution(Arc::clone(&report), &ctx).is_err());
+        assert_eq!(SYSTEM_ENGINE_EXECUTIONS.with(std::cell::Cell::get), count);
+        assert_eq!(consume_cyclic_family(&bytes, &bridged.identity, &ctx).unwrap(), bridged);
+    }
+
     #[test]
     fn cyclic_compressed_payload_requires_logical_memory_before_inflation() {
         let payload = vec![b'0'; 1024 * 1024];

@@ -33,7 +33,7 @@ pub(super) enum FrozenFamilyFitValue {
     Polynomial(antecedent_estimate::constraint_likelihood::PolynomialFit),
     Ode(antecedent_estimate::cyclic_dynamics::OdeFit),
     OuFit(antecedent_estimate::cyclic_dynamics::OuFit),
-    Recovered(super::RecoveredLawProduct),
+    Recovered(Arc<super::RecoveredLawProduct>),
     Dynamic(super::DynamicFitAnswer),
     SystemOwner(crate::cyclic_system_artifact::PreparedCyclicExecution),
     System(antecedent_estimate::cyclic_likelihood::CyclicFit),
@@ -62,7 +62,8 @@ impl FrozenFit {
                 .checked_add(std::mem::size_of::<FrozenFamilyFitValue>() as u64)
                 .and_then(|bytes| bytes.checked_add(slots))
                 .ok_or_else(|| invalid("fit retention size overflow"))?;
-            let retention = ctx.acquire_admission(0, bytes).map_err(CyclicArtifactError::Admission)?;
+            let retention =
+                ctx.acquire_admission(0, bytes).map_err(CyclicArtifactError::Admission)?;
             Ok((wrap(value.clone()), retention))
         }
         let (value, retention) = match answer {
@@ -109,7 +110,16 @@ impl FrozenFit {
             A::OdeFit(fit) => retain(fit, ctx, 0, FrozenFamilyFitValue::Ode)?,
             A::OuFit(fit) => retain(fit, ctx, 0, FrozenFamilyFitValue::OuFit)?,
             A::ExperimentalRecovery(report) => {
-                retain(&report.law, ctx, 0, FrozenFamilyFitValue::Recovered)?
+                // Share the original law; this reservation follows that allocation
+                // when the original output owner is released. No draw is cloned.
+                let bytes = crate::retained_allocation::allocation_bytes(report.law.as_ref())
+                    .map_err(invalid)?
+                    .checked_add(std::mem::size_of::<FrozenFamilyFitValue>() as u64)
+                    .ok_or_else(|| invalid("fit retention size overflow"))?;
+                (
+                    FrozenFamilyFitValue::Recovered(Arc::clone(&report.law)),
+                    ctx.acquire_admission(0, bytes).map_err(CyclicArtifactError::Admission)?,
+                )
             }
             A::DynamicInference { fit, .. } => retain(fit, ctx, 0, FrozenFamilyFitValue::Dynamic)?,
             A::System(report) => match &report.fit {
@@ -166,9 +176,28 @@ impl CompiledCyclicFamilyProgram {
                 _ => None,
             }
         };
-        let (bytes, retention) = bounded_json(request, ctx)?;
-        let identity =
-            CanonicalWriter::digest_bytes_hex("antecedent.cyclic_family.request.v1", &bytes);
+        let (identity, retention) = if let R::RetainedExperimentalRecovery { worlds, .. } = request
+        {
+            // Source rows/draws and their leases remain with the retained source
+            // owner. Admit only newly allocated wrapper/target storage here.
+            let bytes = crate::retained_allocation::allocation_bytes(worlds)
+                .map_err(invalid)?
+                .checked_add(std::mem::size_of::<R>() as u64)
+                .ok_or_else(|| invalid("retained recovery target size overflow"))?;
+            let retention =
+                ctx.acquire_admission(0, bytes).map_err(CyclicArtifactError::Admission)?;
+            let digest = super::retained_recovery::json_digest(
+                "antecedent.cyclic_family.request.v1",
+                request,
+            )?;
+            (antecedent_core::to_hex(&digest), retention)
+        } else {
+            let (bytes, retention) = bounded_json(request, ctx)?;
+            (
+                CanonicalWriter::digest_bytes_hex("antecedent.cyclic_family.request.v1", &bytes),
+                retention,
+            )
+        };
         let fit_identity = fit_dependency_identity(request)?;
         Ok(Self {
             request: Arc::new(request.clone()),
@@ -198,6 +227,11 @@ impl CompiledCyclicFamilyProgram {
     #[must_use]
     pub fn request(&self) -> &R {
         &self.request
+    }
+    /// Share the exact request allocation, including observation storage.
+    #[must_use]
+    pub fn shared_request(&self) -> Arc<R> {
+        Arc::clone(&self.request)
     }
     /// Complete target/source/numerical-policy binding, inspectable before execution.
     #[must_use]
@@ -262,8 +296,64 @@ impl CompiledCyclicFamilyProgram {
         ctx: &ExecutionContext,
     ) -> Result<(CyclicFamilyReport, Vec<u8>), CyclicArtifactError> {
         let report = self.execute(ctx)?;
-        let bytes = self.request.encode_report(&report, &self.contract()?, ctx)?;
+        let bytes = self.encode_execution(&report, ctx)?;
         Ok((report, bytes))
+    }
+
+    /// Encode an existing execution using this program's unchanged version-two codec.
+    ///
+    /// No fit, sampling or solve is performed. Independent consumption still
+    /// verifies the numerical answer by replaying the encoded request.
+    ///
+    /// # Errors
+    /// A report from another source, cancellation, or encoding/resource failure.
+    pub fn encode_execution(
+        &self,
+        report: &CyclicFamilyReport,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, CyclicArtifactError> {
+        if report.identity != self.identity {
+            return Err(invalid("cyclic family execution source identity mismatch"));
+        }
+        self.request.encode_report(report, &self.contract()?, ctx)
+    }
+
+    /// Bind an existing system execution to its corresponding family metadata.
+    ///
+    /// The report remains shared with its original owner. Compilation and this
+    /// binding perform no fit, sample, solve or artifact encoding. Independent
+    /// consumption of the eventual family encoding verifies the original numbers.
+    ///
+    /// # Errors
+    /// A non-system program, mismatched original request/report identity,
+    /// cancellation, or admission failure.
+    pub fn bind_system_execution(
+        &self,
+        report: Arc<crate::cyclic_system_artifact::CyclicExecutionReport>,
+        ctx: &ExecutionContext,
+    ) -> Result<CyclicFamilyReport, CyclicArtifactError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CyclicArtifactError::Cancelled);
+        }
+        let R::System { request } = self.request() else {
+            return Err(invalid("system execution bridge requires a system family"));
+        };
+        if request.identity()? != report.identity {
+            return Err(invalid("system execution bridge source identity mismatch"));
+        }
+        let mut retention = report.shared_retention();
+        let wrapper_bytes = (std::mem::size_of::<CyclicFamilyReport>() as u64)
+            .checked_add(self.identity.len() as u64)
+            .ok_or_else(|| invalid("system bridge retention overflow"))?;
+        retention.0.push(Arc::new(
+            ctx.acquire_admission(0, wrapper_bytes).map_err(CyclicArtifactError::Admission)?,
+        ));
+        Ok(CyclicFamilyReport {
+            identity: self.identity.clone(),
+            answer: A::System(report),
+            retention,
+            lowered: super::LoweredStamp::default(),
+        })
     }
 
     /// Digest (lower hex) of the typed fit-dependency set: the request fields a
@@ -429,6 +519,14 @@ pub(super) fn output_bytes(request: &R) -> Result<u64, CyclicArtifactError> {
             worlds.len().max(1),
             width(&[(square(nodes.len())?, 32), (nodes.len(), 16)], 256)?,
         ])?,
+        R::RetainedExperimentalRecovery { inputs, worlds, .. } => {
+            let n = inputs.law().nodes.len();
+            product(&[
+                inputs.law().draws.len().max(1),
+                one_more(worlds.len())?,
+                width(&[(square(n)?, 64), (n, 32)], 512)?,
+            ])?
+        }
         R::ExperimentalRecovery { regimes, dropped, inference, worlds, .. } => {
             let n = super::worlds::retained_units(regimes, dropped).len();
             let draws = match inference {
@@ -544,6 +642,32 @@ fn compile_plans(request: &R) -> Result<Vec<CompiledSystemPlan>, CyclicArtifactE
             certifying_evidence,
             ..
         } => recovered_plans(nodes, draws, worlds, *outcome, source_id, certifying_evidence)?,
+        R::RetainedExperimentalRecovery { inputs, worlds, outcome, .. } => {
+            let R::ExperimentalRecovery {
+                regimes,
+                dropped,
+                samples,
+                options,
+                inference,
+                source_id,
+                certifying_evidence,
+                ..
+            } = inputs.recipe()
+            else {
+                return Err(invalid("retained recovery source recipe"));
+            };
+            super::worlds::experimental_recovery_plans(
+                regimes,
+                dropped,
+                samples,
+                *options,
+                inference,
+                worlds,
+                *outcome,
+                source_id,
+                certifying_evidence,
+            )?
+        }
         R::ExperimentalRecovery {
             regimes,
             dropped,
@@ -668,6 +792,7 @@ enum FitDependencies<'a> {
 
 impl<'a> FitDependencies<'a> {
     fn of(request: &'a R) -> Self {
+        let request = request.recovery_recipe();
         match request {
             R::FrequentistBootstrap {
                 design,
@@ -743,8 +868,11 @@ impl<'a> FitDependencies<'a> {
 }
 
 fn fit_dependency_identity(request: &R) -> Result<String, CyclicArtifactError> {
-    let bytes = serde_json::to_vec(&FitDependencies::of(request)).map_err(invalid)?;
-    Ok(CanonicalWriter::digest_bytes_hex("antecedent.cyclic_family.fit_dependencies", &bytes))
+    let digest = super::retained_recovery::json_digest(
+        "antecedent.cyclic_family.fit_dependencies",
+        &FitDependencies::of(request),
+    )?;
+    Ok(antecedent_core::to_hex(&digest))
 }
 
 fn recovered_plans(

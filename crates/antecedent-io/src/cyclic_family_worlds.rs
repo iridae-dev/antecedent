@@ -1023,11 +1023,29 @@ pub struct RecoveredKeyedWorld {
 #[serde(deny_unknown_fields)]
 pub struct ExperimentalRecoveryReport {
     /// The recovered law.
-    pub law: RecoveredLawProduct,
+    #[serde(with = "shared_recovered_law")]
+    pub law: std::sync::Arc<RecoveredLawProduct>,
     /// Evidence meaning of the draws.
     pub law_meaning: Option<String>,
     /// Worlds in request order.
     pub worlds: Vec<RecoveredKeyedWorld>,
+}
+
+mod shared_recovered_law {
+    use super::RecoveredLawProduct;
+    use serde::{Deserialize, Serialize};
+    use std::sync::Arc;
+    pub fn serialize<S: serde::Serializer>(
+        law: &Arc<RecoveredLawProduct>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        law.as_ref().serialize(serializer)
+    }
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Arc<RecoveredLawProduct>, D::Error> {
+        RecoveredLawProduct::deserialize(deserializer).map(Arc::new)
+    }
 }
 
 fn finite(value: f64) -> Option<f64> {
@@ -1494,6 +1512,13 @@ fn fit_error(error: &ExperimentalFitError) -> CyclicArtifactError {
     invalid(format!("experimental recovery refused: {error}"))
 }
 
+#[cfg(test)]
+std::thread_local! { static RECOVERY_FITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) }; }
+#[cfg(test)]
+pub(super) fn recovery_fit_count() -> usize {
+    RECOVERY_FITS.with(std::cell::Cell::get)
+}
+
 fn estimate_law(
     regimes: &[ExperimentRegimeWire],
     dropped: &[u32],
@@ -1502,6 +1527,8 @@ fn estimate_law(
     inference: &RecoveryInferenceWire,
     ctx: &ExecutionContext,
 ) -> Result<RecoveredLawProduct, CyclicArtifactError> {
+    #[cfg(test)]
+    RECOVERY_FITS.with(|count| count.set(count.get() + 1));
     check_recovery_design(options, inference)?;
     let contract = regime_contract(regimes, dropped);
     let columns: Vec<Vec<UnitColumn<'_>>> = samples
@@ -1589,13 +1616,15 @@ pub(super) fn execute_experimental_recovery(
     outcome: u32,
     source_id: &str,
     certifying_evidence: &[String],
-    frozen: Option<&RecoveredLawProduct>,
+    frozen: Option<&std::sync::Arc<RecoveredLawProduct>>,
     ctx: &ExecutionContext,
 ) -> Result<A, CyclicArtifactError> {
     check_experiment(regimes, samples, source_id, certifying_evidence)?;
     let law = match frozen {
         Some(retained) => retained.clone(),
-        None => estimate_law(regimes, dropped, samples, options, inference, ctx)?,
+        None => {
+            std::sync::Arc::new(estimate_law(regimes, dropped, samples, options, inference, ctx)?)
+        }
     };
     if ctx.cancellation.is_cancelled() {
         return Err(invalid("experimental recovery cancelled"));
@@ -1605,6 +1634,26 @@ pub(super) fn execute_experimental_recovery(
         law_meaning: law.origin.law_meaning().map(str::to_owned),
         law,
         worlds,
+    }))
+}
+
+/// Evaluate new worlds from the exact original law; no recovery or sampling.
+pub(super) fn execute_retained_recovery(
+    law: &std::sync::Arc<RecoveredLawProduct>,
+    worlds: &[CyclicWorldWire],
+    outcome: u32,
+    source_id: &str,
+    evidence: &[String],
+    ctx: &ExecutionContext,
+) -> Result<A, CyclicArtifactError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(CyclicArtifactError::Cancelled);
+    }
+    let answers = evaluate_recovered_worlds(law, worlds, outcome, source_id, evidence)?;
+    Ok(A::ExperimentalRecovery(ExperimentalRecoveryReport {
+        law: std::sync::Arc::clone(law),
+        law_meaning: law.origin.law_meaning().map(str::to_owned),
+        worlds: answers,
     }))
 }
 

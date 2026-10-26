@@ -63,9 +63,31 @@ fn refuse(reason: impl std::fmt::Display) -> CyclicArtifactError {
 ///
 /// A keyed world the scientific vocabulary refuses, an output bound that
 /// overflows, or a physical operator that does not declare its cancellation point.
+#[cfg(test)]
 pub(crate) fn lower_cyclic_family(
     program: &CompiledCyclicFamilyProgram,
 ) -> Result<LoweredProgram, CyclicArtifactError> {
+    Ok(lower_cyclic_family_payloads(program)?.0)
+}
+
+/// Lower and seal the exact contract from the same already-derived payloads.
+/// No second request/source encoding is performed by contract construction.
+pub(crate) fn lower_cyclic_family_with_contract(
+    program: &CompiledCyclicFamilyProgram,
+) -> Result<
+    (LoweredProgram, antecedent_io::contract_section::cyclic::CyclicContractWire),
+    CyclicArtifactError,
+> {
+    let (lowered, payloads) = lower_cyclic_family_payloads(program)?;
+    let contract =
+        antecedent_io::contract_section::seal_cyclic_contract(payloads, program.identity())
+            .map_err(refuse)?;
+    Ok((lowered, contract))
+}
+
+fn lower_cyclic_family_payloads(
+    program: &CompiledCyclicFamilyProgram,
+) -> Result<(LoweredProgram, CyclicContractPayloads), CyclicArtifactError> {
     let request = program.request();
     let payloads = cyclic_contract_payloads(
         request,
@@ -92,7 +114,7 @@ pub(crate) fn lower_cyclic_family(
             _ => ClaimKind::Response,
         }),
     };
-    Ok(CyclicLoweredParts {
+    let lowered = CyclicLoweredParts {
         family: request.family_name(),
         scientific,
         identification,
@@ -101,7 +123,8 @@ pub(crate) fn lower_cyclic_family(
         physical,
         claim,
     }
-    .finish())
+    .finish();
+    Ok((lowered, payloads))
 }
 
 /// Lower a single-system request as the `system` family it is carried as.
@@ -111,12 +134,25 @@ pub(crate) fn lower_cyclic_family(
 /// # Errors
 ///
 /// As [`lower_cyclic_family`], or the system request does not compile.
+#[cfg(test)]
 pub(crate) fn lower_cyclic_system(
     request: &CyclicExecutionRequest,
     ctx: &ExecutionContext,
 ) -> Result<LoweredProgram, CyclicArtifactError> {
     let family = CyclicFamilyRequest::System { request: request.clone() };
     lower_cyclic_family(&CompiledCyclicFamilyProgram::compile(&family, ctx)?)
+}
+
+/// Lower one system and seal its family contract during the same compilation.
+pub(crate) fn lower_cyclic_system_with_contract(
+    request: &CyclicExecutionRequest,
+    ctx: &ExecutionContext,
+) -> Result<
+    (LoweredProgram, antecedent_io::contract_section::cyclic::CyclicContractWire),
+    CyclicArtifactError,
+> {
+    let family = CyclicFamilyRequest::System { request: request.clone() };
+    lower_cyclic_family_with_contract(&CompiledCyclicFamilyProgram::compile(&family, ctx)?)
 }
 
 fn functional_kind(kind: &str) -> FunctionalKind {

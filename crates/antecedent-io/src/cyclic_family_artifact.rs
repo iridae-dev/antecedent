@@ -22,6 +22,10 @@ pub(crate) use compiled::FrozenGaussianDensity;
 #[path = "cyclic_family_worlds.rs"]
 mod worlds;
 
+#[path = "cyclic_retained_recovery.rs"]
+mod retained_recovery;
+pub use retained_recovery::{RetainedRecoveryInputs, RetainedRecoveryProvenance};
+
 #[path = "cyclic_family_contract.rs"]
 mod contract;
 pub use contract::{
@@ -409,6 +413,22 @@ pub enum CyclicFamilyRequest {
         #[serde(default, skip_serializing_if = "RecoveredDrawOriginWire::is_supplied")]
         uncertainty: RecoveredDrawOriginWire,
     },
+    /// Process-local borrowed continuation of an executed or independently verified law.
+    /// It encodes as the existing experimental-recovery request. Decoding always
+    /// selects that original variant and independently refits/replays its source.
+    #[serde(rename = "experimental_recovery", skip_deserializing)]
+    RetainedExperimentalRecovery {
+        /// Borrowed original regimes, observations and inference declaration.
+        #[serde(flatten)]
+        inputs: RetainedRecoveryInputs,
+        /// New hard-clamp worlds, preserving scientific ids.
+        worlds: Vec<CyclicWorldWire>,
+        /// Outcome id in the original retained-unit namespace.
+        outcome: u32,
+        /// Borrowed original source/evidence declarations, serialized last.
+        #[serde(flatten)]
+        provenance: RetainedRecoveryProvenance,
+    },
     /// Linear equilibrium recovered from randomized clamp experiments.
     ///
     /// Preparation admits the worlds and does not fit. Execution fits the
@@ -680,7 +700,29 @@ pub enum CyclicFamilyAnswer {
         inference: Box<DynamicInferenceAnswer>,
     },
     /// Single-system equilibrium answer.
-    System(crate::cyclic_system_artifact::CyclicExecutionReport),
+    System(
+        #[serde(with = "shared_system_report")]
+        std::sync::Arc<crate::cyclic_system_artifact::CyclicExecutionReport>,
+    ),
+}
+
+// Share the native system report while preserving its historical inline encoding.
+mod shared_system_report {
+    use crate::cyclic_system_artifact::CyclicExecutionReport;
+    use serde::{Deserialize, Serialize};
+    use std::sync::Arc;
+
+    pub fn serialize<S: serde::Serializer>(
+        report: &Arc<CyclicExecutionReport>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        report.as_ref().serialize(serializer)
+    }
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Arc<CyclicExecutionReport>, D::Error> {
+        CyclicExecutionReport::deserialize(deserializer).map(Arc::new)
+    }
 }
 
 /// Which algorithm certified one recovered draw.
@@ -888,7 +930,9 @@ impl CyclicFamilyRequest {
             Self::OuFit { .. } => "ou_fit",
             Self::Polynomial { .. } => "polynomial",
             Self::RecoveredLinear { .. } => "recovered_linear",
-            Self::ExperimentalRecovery { .. } => "experimental_recovery",
+            Self::ExperimentalRecovery { .. } | Self::RetainedExperimentalRecovery { .. } => {
+                "experimental_recovery"
+            }
             Self::LinearWorlds { .. } => "linear_worlds",
             Self::EquilibriumWorlds { .. } => "equilibrium_worlds",
             Self::OdeWorlds { .. } => "ode_worlds",
@@ -1393,6 +1437,16 @@ impl CyclicFamilyRequest {
                 source_id,
                 certifying_evidence,
             )?,
+            Self::RetainedExperimentalRecovery { inputs, worlds, outcome, .. } => {
+                worlds::execute_retained_recovery(
+                    inputs.law(),
+                    worlds,
+                    *outcome,
+                    inputs.source_id(),
+                    inputs.certifying_evidence(),
+                    ctx,
+                )?
+            }
             Self::ExperimentalRecovery {
                 regimes,
                 dropped,
@@ -1462,11 +1516,11 @@ impl CyclicFamilyRequest {
                 if matches!(frozen, Some(FrozenFamilyFitValue::SystemOwner(_))) =>
             {
                 let Some(FrozenFamilyFitValue::SystemOwner(owner)) = frozen else { unreachable!() };
-                CyclicFamilyAnswer::System(if owner.request() == request {
+                CyclicFamilyAnswer::System(std::sync::Arc::new(if owner.request() == request {
                     owner.estimate(ctx)?
                 } else {
                     owner.rebind(request.clone(), ctx)?.estimate(ctx)?
-                })
+                }))
             }
             Self::System { request } => {
                 let fit = match (&request.fit, frozen) {
@@ -1484,7 +1538,9 @@ impl CyclicFamilyRequest {
                         )?)
                     }
                 };
-                CyclicFamilyAnswer::System(request.execute_bound(fit.as_ref(), ctx)?)
+                CyclicFamilyAnswer::System(std::sync::Arc::new(
+                    request.execute_bound(fit.as_ref(), ctx)?,
+                ))
             }
         };
         let required = crate::retained_allocation::allocation_bytes(&answer)
@@ -1791,6 +1847,27 @@ pub fn consume_cyclic_family_with_request(
 ) -> Result<(CyclicFamilyRequest, CyclicFamilyReport), CyclicArtifactError> {
     let (decoded, report) = consume_decoded(bytes, expected_identity, ctx)?;
     Ok((decoded.record.request, report))
+}
+
+/// Consume once and retain the actual verified producer contract when carried.
+/// Historical version-one records remain replayable but have no contract section.
+///
+/// # Errors
+/// The same identity, proof, numerical replay and control errors as the ordinary consumer.
+pub fn consume_cyclic_family_with_request_and_contract(
+    bytes: &[u8],
+    expected_identity: &str,
+    ctx: &ExecutionContext,
+) -> Result<
+    (
+        CyclicFamilyRequest,
+        CyclicFamilyReport,
+        Option<antecedent_io_core::contract_section::CyclicContractWire>,
+    ),
+    CyclicArtifactError,
+> {
+    let (decoded, report) = consume_decoded(bytes, expected_identity, ctx)?;
+    Ok((decoded.record.request, report, decoded.contract))
 }
 
 #[cfg(test)]

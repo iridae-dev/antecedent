@@ -5,7 +5,9 @@
 
 use std::sync::Arc;
 
-use crate::analysis::lowering::cyclic::{lower_cyclic_family, lower_cyclic_system};
+use crate::analysis::lowering::cyclic::{
+    lower_cyclic_family_with_contract, lower_cyclic_system_with_contract,
+};
 use crate::analysis::{PreparedStudy, Study};
 use crate::planner::lowered::LoweredProgram;
 use antecedent_core::{ContractIdentities, ExecutionContext, SemanticDigest};
@@ -21,6 +23,61 @@ use antecedent_model::nonlinear_equilibrium::Clamp;
 pub struct CyclicPreparedState {
     product: PreparedCyclicExecution,
     lowered: Arc<LoweredProgram>,
+    contract: Arc<CyclicFamilyContract>,
+}
+
+/// An immutable cyclic execution and its exact prepared source.
+///
+/// Clones share the native report, its resource admissions and prepared state.
+/// Inspection borrows native values; artifact encoding is an explicit operation.
+#[derive(Clone, Debug)]
+pub struct ExecutedCyclicSystem {
+    prepared: PreparedStudy<CyclicPreparedState>,
+    report: Arc<CyclicExecutionReport>,
+    pub(super) family_bridge:
+        Arc<std::sync::Mutex<Option<Arc<super::cyclic_evidence::CyclicSystemFamilyBridge>>>>,
+}
+
+impl ExecutedCyclicSystem {
+    /// Borrow the exact preparation contract retained with this execution.
+    #[must_use]
+    pub fn contract_metadata(&self) -> &CyclicFamilyContract {
+        self.prepared.contract_metadata()
+    }
+
+    /// Native result, including every failed or unresolved row in its original slot.
+    #[must_use]
+    pub fn report(&self) -> &CyclicExecutionReport {
+        &self.report
+    }
+
+    pub(super) fn shared_report(&self) -> &Arc<CyclicExecutionReport> {
+        &self.report
+    }
+
+    /// Original prepared source; retaining this execution retains its data and fits.
+    #[must_use]
+    pub const fn prepared(&self) -> &PreparedStudy<CyclicPreparedState> {
+        &self.prepared
+    }
+
+    /// Stable source identity, without serialization or numerical execution.
+    #[must_use]
+    pub fn identity(&self) -> &str {
+        &self.report.identity
+    }
+
+    /// Encode this exact execution without executing the prepared source again.
+    ///
+    /// # Errors
+    /// Invalid artifact id, cancellation, or encoding/resource failure.
+    pub fn export(
+        &self,
+        artifact_id: &str,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, CyclicArtifactError> {
+        self.prepared.state.product.encode_execution(&self.report, artifact_id, ctx)
+    }
 }
 
 /// Inspection of a retained cyclic physical program.
@@ -107,9 +164,11 @@ impl Study {
         request: CyclicExecutionRequest,
         ctx: &ExecutionContext,
     ) -> Result<PreparedStudy<CyclicPreparedState>, CyclicArtifactError> {
-        let lowered = Arc::new(lower_cyclic_system(&request, ctx)?);
+        let (lowered, section) = lower_cyclic_system_with_contract(&request, ctx)?;
+        let contract = Arc::new(CyclicFamilyContract::of(section, &lowered));
+        let lowered = Arc::new(lowered);
         let product = PreparedCyclicExecution::prepare(request, ctx)?;
-        Ok(PreparedStudy { state: CyclicPreparedState { product, lowered } })
+        Ok(PreparedStudy { state: CyclicPreparedState { product, lowered, contract } })
     }
 }
 
@@ -148,6 +207,18 @@ impl PreparedStudy<CyclicPreparedState> {
             .map(|report| report.with_lowered_program_identity(identity))
     }
 
+    /// Execute once and retain the exact native result without encoding an artifact.
+    ///
+    /// # Errors
+    /// A refused numerical certificate, failed solve, cancellation or resource refusal.
+    pub fn execute_retained(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<ExecutedCyclicSystem, CyclicArtifactError> {
+        let report = Arc::new(self.estimate(ctx)?);
+        Ok(ExecutedCyclicSystem { prepared: self.clone(), report, family_bridge: Arc::default() })
+    }
+
     /// The lowered program this handle executes.
     #[must_use]
     pub fn lowered(&self) -> &LoweredProgram {
@@ -171,10 +242,14 @@ impl PreparedStudy<CyclicPreparedState> {
     ///
     /// The request does not compile as a family, or a payload does not encode.
     pub fn contract(&self) -> Result<CyclicFamilyContract, CyclicArtifactError> {
-        let family = CyclicFamilyRequest::System { request: self.request().clone() };
-        let program = CompiledCyclicFamilyProgram::compile(&family, &lowering_context())?;
-        Ok(CyclicFamilyContract::of(program.contract()?, &self.state.lowered))
+        Ok(self.contract_metadata().clone())
     }
+    /// Borrow the contract sealed during preparation, without request conversion.
+    #[must_use]
+    pub fn contract_metadata(&self) -> &CyclicFamilyContract {
+        &self.state.contract
+    }
+
     /// Execute with native facts on success, refusal or cancellation.
     #[must_use]
     pub fn estimate_observed(
@@ -197,8 +272,10 @@ impl PreparedStudy<CyclicPreparedState> {
         initial: Vec<f64>,
     ) -> Result<Self, CyclicArtifactError> {
         let product = self.state.product.retarget(worlds, noise, initial)?;
-        let lowered = Arc::new(lower_cyclic_system(product.request(), &lowering_context())?);
-        Ok(Self { state: CyclicPreparedState { product, lowered } })
+        let (lowered, section) =
+            lower_cyclic_system_with_contract(product.request(), &lowering_context())?;
+        let contract = Arc::new(CyclicFamilyContract::of(section, &lowered));
+        Ok(Self { state: CyclicPreparedState { product, lowered: Arc::new(lowered), contract } })
     }
     /// Branch scientific inputs and share unchanged native fitting inputs.
     pub fn rebind(
@@ -207,8 +284,9 @@ impl PreparedStudy<CyclicPreparedState> {
         ctx: &ExecutionContext,
     ) -> Result<Self, CyclicArtifactError> {
         let product = self.state.product.rebind(request, ctx)?;
-        let lowered = Arc::new(lower_cyclic_system(product.request(), ctx)?);
-        Ok(Self { state: CyclicPreparedState { product, lowered } })
+        let (lowered, section) = lower_cyclic_system_with_contract(product.request(), ctx)?;
+        let contract = Arc::new(CyclicFamilyContract::of(section, &lowered));
+        Ok(Self { state: CyclicPreparedState { product, lowered: Arc::new(lowered), contract } })
     }
     /// Export a result without refitting; the consumer independently refits/replays.
     ///
@@ -219,9 +297,13 @@ impl PreparedStudy<CyclicPreparedState> {
         artifact_id: &str,
         ctx: &ExecutionContext,
     ) -> Result<(CyclicExecutionReport, Vec<u8>), CyclicArtifactError> {
-        let identity = self.state.lowered.identity();
-        let (report, bytes) = self.state.product.export(artifact_id, ctx)?;
-        Ok((report.with_lowered_program_identity(identity), bytes))
+        // Reject an invalid encoding request before any numerical work, as before.
+        if artifact_id.trim().is_empty() || artifact_id.len() > 256 {
+            return Err(CyclicArtifactError::Invalid("artifact id".into()));
+        }
+        let execution = self.execute_retained(ctx)?;
+        let bytes = execution.export(artifact_id, ctx)?;
+        Ok((Arc::unwrap_or_clone(execution.report), bytes))
     }
 
     /// The same frozen request as a family program, which shares rebinding,
@@ -296,6 +378,28 @@ mod tests {
         let prepared = Study::prepare_cyclic(request.clone(), &ctx).unwrap();
         assert_eq!(prepared.inspect().unwrap().fits_performed, 0);
         let original = prepared.estimate(&ctx).unwrap();
+        assert_eq!(prepared.inspect().unwrap().fits_performed, 1);
+        let retained = prepared.execute_retained(&ctx).unwrap();
+        let retained_clone = retained.clone();
+        assert!(Arc::ptr_eq(&retained.report, &retained_clone.report));
+        assert_eq!(retained.report(), &original);
+        let legacy_bytes = prepared.state.product.export("retained", &ctx).unwrap().1;
+        let encoded = antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+            retained.export("retained", &ctx)
+        });
+        assert_eq!(
+            encoded
+                .report
+                .counts(antecedent_core::execution_attempt::Operation::AdjustedFit)
+                .attempted,
+            0
+        );
+        let bytes = encoded.result.unwrap();
+        assert_eq!(bytes, legacy_bytes);
+        assert_eq!(
+            consume_cyclic_artifact(&bytes, retained.identity(), &ctx).unwrap(),
+            *retained.report()
+        );
         assert_eq!(prepared.inspect().unwrap().fits_performed, 1);
         let retargeted = prepared
             .retarget_worlds(
@@ -384,12 +488,100 @@ pub struct CyclicFamilyPreparedState {
         std::sync::Arc<antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram>,
     /// The lowered program the retained program was lowered to.
     pub(super) lowered: Arc<LoweredProgram>,
+    contract: Arc<CyclicFamilyContract>,
+}
+
+/// An immutable family execution and the prepared program that produced it.
+///
+/// Report clones share native storage and admission leases. Export serializes
+/// this retained answer, rather than sampling, solving or fitting another answer.
+#[derive(Clone, Debug)]
+pub struct ExecutedCyclicFamily {
+    prepared: PreparedStudy<CyclicFamilyPreparedState>,
+    report: Arc<antecedent_io::cyclic_family_artifact::CyclicFamilyReport>,
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static CYCLIC_FAMILY_EXECUTIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(super) fn cyclic_family_execution_count() -> usize {
+    CYCLIC_FAMILY_EXECUTIONS.with(std::cell::Cell::get)
+}
+
+impl ExecutedCyclicFamily {
+    /// Borrow the exact preparation contract retained with this execution.
+    #[must_use]
+    pub fn contract_metadata(&self) -> &CyclicFamilyContract {
+        self.prepared.contract_metadata()
+    }
+
+    /// Exact native result, including its uncertainty origin and failed mass.
+    #[must_use]
+    pub fn report(&self) -> &antecedent_io::cyclic_family_artifact::CyclicFamilyReport {
+        &self.report
+    }
+
+    /// Original family declaration, borrowed without materializing its rows.
+    #[must_use]
+    pub fn request(&self) -> &CyclicFamilyRequest {
+        self.prepared.state.program.request()
+    }
+    /// Prepare new worlds from the exact retained law and original source data.
+    /// No recovery fit, sampling, source conversion or artifact encoding occurs.
+    /// # Errors
+    /// A result without an experimental law or unsupported/invalid world declarations.
+    pub fn prepare_recovered_worlds(
+        &self,
+        worlds: Vec<antecedent_io::cyclic_family_artifact::CyclicWorldWire>,
+        outcome: u32,
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedStudy<CyclicFamilyPreparedState>, CyclicArtifactError> {
+        let request = CyclicFamilyRequest::retained_recovery_worlds(
+            self.prepared.state.program.shared_request(),
+            Arc::clone(&self.report),
+            Arc::new(self.clone()),
+            worlds,
+            outcome,
+        )?;
+        Study::prepare_cyclic_family(&request, ctx)
+    }
+
+    /// Shared source storage for native projections, without duplicating draw payloads.
+    pub(super) fn shared_report(
+        &self,
+    ) -> &Arc<antecedent_io::cyclic_family_artifact::CyclicFamilyReport> {
+        &self.report
+    }
+
+    /// Exact retained source, for native scientific projection and inspection.
+    #[must_use]
+    pub const fn prepared(&self) -> &PreparedStudy<CyclicFamilyPreparedState> {
+        &self.prepared
+    }
+
+    /// Stable source identity without materializing the report.
+    #[must_use]
+    pub fn identity(&self) -> &str {
+        &self.report.identity
+    }
+
+    /// Encode the retained result with the existing independent-consumer codec.
+    ///
+    /// # Errors
+    /// Cancellation or encoding/resource failure.
+    pub fn export(&self, ctx: &ExecutionContext) -> Result<Vec<u8>, CyclicArtifactError> {
+        self.prepared.state.program.encode_execution(&self.report, ctx)
+    }
 }
 
 impl CyclicFamilyPreparedState {
     fn lower(program: CompiledCyclicFamilyProgram) -> Result<Self, CyclicArtifactError> {
-        let lowered = Arc::new(lower_cyclic_family(&program)?);
-        Ok(Self { program: Arc::new(program), lowered })
+        let (lowered, section) = lower_cyclic_family_with_contract(&program)?;
+        let contract = Arc::new(CyclicFamilyContract::of(section, &lowered));
+        Ok(Self { program: Arc::new(program), lowered: Arc::new(lowered), contract })
     }
 }
 /// Cheap inspection of a typed cyclic family preparation.
@@ -546,7 +738,13 @@ impl PreparedStudy<CyclicFamilyPreparedState> {
     ///
     /// A payload that does not encode.
     pub fn contract(&self) -> Result<CyclicFamilyContract, CyclicArtifactError> {
-        Ok(CyclicFamilyContract::of(self.state.program.contract()?, &self.state.lowered))
+        Ok(self.contract_metadata().clone())
+    }
+
+    /// Borrow the exact cached preparation contract without source serialization.
+    #[must_use]
+    pub fn contract_metadata(&self) -> &CyclicFamilyContract {
+        &self.state.contract
     }
 
     /// Coefficient rows the clamp design of an experimental recovery leaves
@@ -560,7 +758,7 @@ impl PreparedStudy<CyclicFamilyPreparedState> {
     pub fn design_unresolved(
         &self,
     ) -> Option<Vec<antecedent_io::contract_section::cyclic::CyclicUnresolvedWire>> {
-        match self.state.program.request() {
+        match self.state.program.request().recovery_recipe() {
             CyclicFamilyRequest::ExperimentalRecovery { regimes, dropped, .. } => {
                 Some(antecedent_io::cyclic_family_artifact::design_unresolved(regimes, dropped))
             }
@@ -577,8 +775,22 @@ impl PreparedStudy<CyclicFamilyPreparedState> {
     ) -> Result<antecedent_io::cyclic_family_artifact::CyclicFamilyReport, CyclicArtifactError>
     {
         let identity = self.state.lowered.identity();
+        #[cfg(test)]
+        CYCLIC_FAMILY_EXECUTIONS.with(|count| count.set(count.get() + 1));
         self.state.program.execute(ctx).map(|report| report.with_lowered_program_identity(identity))
     }
+    /// Execute once, retaining the native answer and source without artifact encoding.
+    ///
+    /// # Errors
+    /// Failed model execution, cancellation or resource refusal.
+    pub fn execute_retained(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<ExecutedCyclicFamily, CyclicArtifactError> {
+        let report = Arc::new(self.estimate(ctx)?);
+        Ok(ExecutedCyclicFamily { prepared: self.clone(), report })
+    }
+
     /// Preserve native facts even on refusal and cancellation.
     #[must_use]
     pub fn estimate_observed(
@@ -614,9 +826,9 @@ impl PreparedStudy<CyclicFamilyPreparedState> {
         (antecedent_io::cyclic_family_artifact::CyclicFamilyReport, Vec<u8>),
         CyclicArtifactError,
     > {
-        let identity = self.state.lowered.identity();
-        let (report, bytes) = self.state.program.export(ctx)?;
-        Ok((report.with_lowered_program_identity(identity), bytes))
+        let execution = self.execute_retained(ctx)?;
+        let bytes = execution.export(ctx)?;
+        Ok((Arc::unwrap_or_clone(execution.report), bytes))
     }
 }
 
@@ -724,7 +936,21 @@ mod recovered_linear {
         assert!((answer.worlds[0].withheld_mass - 0.5).abs() < 1e-12);
         let (exported, bytes) = prepared.export(&ctx).unwrap();
         assert_eq!(consume_cyclic_family(&bytes, &exported.identity, &ctx).unwrap(), exported);
-        assert_eq!(prepared.inspect().preparation_evaluations, 0);
+        let retained = prepared.execute_retained(&ctx).unwrap();
+        let retained_clone = retained.clone();
+        assert!(Arc::ptr_eq(&retained.report, &retained_clone.report));
+        assert_eq!(retained.report(), &exported);
+        let encoded = observe(&ctx, || retained.export(&ctx));
+        assert_eq!(encoded.report.counts(Operation::AdjustedFit).attempted, 0);
+        let retained_bytes = encoded.result.unwrap();
+        assert_eq!(retained_bytes, bytes);
+        drop(prepared);
+        drop(retained);
+        assert_eq!(
+            consume_cyclic_family(&retained_bytes, retained_clone.identity(), &ctx).unwrap(),
+            *retained_clone.report()
+        );
+        assert_eq!(retained_clone.prepared().inspect().preparation_evaluations, 0);
     }
 
     fn observe<T, E>(
@@ -732,5 +958,40 @@ mod recovered_linear {
         body: impl FnOnce() -> Result<T, E>,
     ) -> antecedent_core::execution_attempt::ExecutionAttempt<T, E> {
         antecedent_core::execution_attempt::observe_with_context(ctx, body)
+    }
+}
+
+#[cfg(test)]
+mod contract_cache_tests {
+    use super::*;
+    use antecedent_core::execution_attempt::observe_with_context;
+
+    #[test]
+    fn metadata_borrows_shared_native_contract_and_materialization_matches_original_codec() {
+        let ctx = ExecutionContext::for_tests(17);
+        let request = CyclicFamilyRequest::OuStationary {
+            model: antecedent_model::continuous_cyclic::OrnsteinUhlenbeck {
+                drift: vec![-2.0],
+                center: vec![3.0],
+                diffusion: vec![4.0],
+            },
+        };
+        let prepared = Study::prepare_cyclic_family(&request, &ctx).unwrap();
+        let cloned = prepared.clone();
+        assert!(std::ptr::eq(prepared.contract_metadata(), cloned.contract_metadata()));
+        let original = prepared.state.program.contract().unwrap();
+        assert_eq!(&prepared.contract_metadata().section, &original);
+        let observed = observe_with_context(&ctx, || {
+            for _ in 0..4 {
+                assert_eq!(prepared.contract_metadata().identities, original.contract_identities());
+                assert_eq!(prepared.contract().unwrap(), *prepared.contract_metadata());
+            }
+            Ok::<_, CyclicArtifactError>(())
+        });
+        assert!(observed.result.is_ok());
+        assert!(observed.report.is_empty());
+        let executed = prepared.execute_retained(&ctx).unwrap();
+        assert!(std::ptr::eq(prepared.contract_metadata(), executed.contract_metadata()));
+        assert_eq!(&executed.contract_metadata().section, &original);
     }
 }

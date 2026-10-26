@@ -92,8 +92,7 @@ fn json_digest<T: Serialize + ?Sized>(
     tag: &str,
     value: &T,
 ) -> Result<[u8; 32], CyclicArtifactError> {
-    let bytes = serde_json::to_vec(value).map_err(invalid)?;
-    Ok(CanonicalWriter::digest_bytes(tag, &bytes))
+    super::retained_recovery::json_digest(tag, value)
 }
 
 fn hex_bytes(hex: &str) -> Result<[u8; 32], CyclicArtifactError> {
@@ -105,6 +104,19 @@ fn hex_bytes(hex: &str) -> Result<[u8; 32], CyclicArtifactError> {
 /// The request is encoded once and read as a stream: unselected fields (the
 /// data of a large experiment among them) are skipped without being built.
 fn fields(request: &R, keys: &[&str]) -> Result<serde_json::Value, CyclicArtifactError> {
+    if let R::RetainedExperimentalRecovery { inputs, .. } = request {
+        let R::ExperimentalRecovery { options, inference, .. } = inputs.recipe() else {
+            return Err(invalid("retained recovery recipe"));
+        };
+        let mut selected = std::collections::BTreeMap::new();
+        if keys.contains(&"options") {
+            selected.insert("options", serde_json::to_value(options).map_err(invalid)?);
+        }
+        if keys.contains(&"inference") {
+            selected.insert("inference", serde_json::to_value(inference).map_err(invalid)?);
+        }
+        return serde_json::to_value(selected).map_err(invalid);
+    }
     use serde::de::{DeserializeSeed, IgnoredAny, MapAccess, Visitor};
 
     struct Select<'k>(&'k [&'k str]);
@@ -145,8 +157,10 @@ fn fields(request: &R, keys: &[&str]) -> Result<serde_json::Value, CyclicArtifac
 /// The data a family reads, as a typed view: observations, rows, samples, laws or
 /// supplied draws. A specified family reads none.
 fn data_digest(request: &R) -> Result<[u8; 32], CyclicArtifactError> {
+    let request = request.recovery_recipe();
     const TAG: &str = "antecedent.cyclic_family.data";
     match request {
+        R::RetainedExperimentalRecovery { inputs, .. } => data_digest(inputs.recipe()),
         R::FrequentistBootstrap { rows, .. }
         | R::ParameterPosterior { rows, .. }
         | R::GradientFit { rows, .. }
@@ -270,7 +284,9 @@ fn count(value: usize) -> Option<u64> {
 #[must_use]
 #[allow(clippy::too_many_lines, reason = "one exhaustive match over every cyclic family request")]
 pub fn cyclic_realization(request: &R) -> CyclicRealization {
+    let request = request.recovery_recipe();
     match request {
+        R::RetainedExperimentalRecovery { inputs, .. } => cyclic_realization(inputs.recipe()),
         R::FrequentistBootstrap { replicates, .. } => CyclicRealization {
             replicates: count(*replicates),
             resample_unit: Some("row"),
@@ -597,7 +613,8 @@ fn keyed_problem(request: &R) -> Result<Option<CyclicProblem>, CyclicArtifactErr
             let time = TimeFrame::continuous_time(horizon, law).map_err(refuse)?;
             joint_targets(&keyed(worlds, &laws)?, variables, &time, inference)
         }
-        R::ExperimentalRecovery { worlds, outcome, .. } => {
+        R::ExperimentalRecovery { worlds, outcome, .. }
+        | R::RetainedExperimentalRecovery { worlds, outcome, .. } => {
             Ok(CyclicProblem::Target(worlds_target(
                 &keyed(worlds, &[])?,
                 *outcome,
@@ -708,6 +725,7 @@ pub fn design_unresolved(
 ///
 /// A request field that does not encode.
 pub fn cyclic_identification(request: &R) -> Result<CyclicIdentificationWire, CyclicArtifactError> {
+    let request = request.recovery_recipe();
     Ok(match request {
         R::ExperimentalRecovery { regimes, dropped, .. } => {
             CyclicIdentificationWire::ExperimentalRecovery {
@@ -740,6 +758,7 @@ pub fn cyclic_identification(request: &R) -> Result<CyclicIdentificationWire, Cy
 }
 
 fn modality(request: &R) -> &'static str {
+    let request = request.recovery_recipe();
     match request {
         R::ExperimentalRecovery { .. } => "clamp_experiments",
         R::RecoveredLinear { .. } => "supplied_draws",
@@ -761,6 +780,7 @@ fn modality(request: &R) -> &'static str {
 }
 
 fn variables(request: &R) -> Vec<u32> {
+    let request = request.recovery_recipe();
     match request {
         R::LinearWorlds { variables, .. }
         | R::EquilibriumWorlds { variables, .. }
@@ -775,6 +795,7 @@ fn variables(request: &R) -> Vec<u32> {
 }
 
 fn solution_kind(request: &R) -> &'static str {
+    let request = request.recovery_recipe();
     match request {
         R::LinearWorlds { .. } => "linear_family_certificate",
         R::RecoveredLinear { .. } | R::ExperimentalRecovery { .. } => "hard_clamp_worlds",
@@ -820,11 +841,11 @@ pub fn cyclic_contract_payloads(
             query,
         },
     };
-    let units = match request {
+    let units = match request.recovery_recipe() {
         R::ExperimentalRecovery { regimes, dropped, .. } => retained(regimes, dropped),
         _ => Vec::new(),
     };
-    let recovery = match request {
+    let recovery = match request.recovery_recipe() {
         R::ExperimentalRecovery { regimes, dropped, samples, options, inference, .. } => {
             Some(CyclicRecoveryWire {
                 experiment_data: json_digest("antecedent.cyclic_family.experiment_data", samples)?,

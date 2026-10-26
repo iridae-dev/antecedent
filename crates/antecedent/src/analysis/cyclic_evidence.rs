@@ -3,7 +3,10 @@
 //! Numerical roots, posteriors, bootstrap laws and selected algebraic sets keep
 //! their distinct meanings. No adapter performs implicit root selection, drops
 //! failed draw slots or upgrades a specified model to graphical identification.
-use super::{PreparedStudy, cyclic::CyclicFamilyPreparedState};
+use super::{
+    PreparedStudy,
+    cyclic::{CyclicFamilyPreparedState, ExecutedCyclicFamily},
+};
 use antecedent_contract::{
     EvidenceBinding, EvidenceCalibration, EvidenceEnvelope, EvidenceOrigins, EvidencePort,
     EvidenceSupport, QuantityRole, ScientificQuantity, UncertaintyAxes, WorldTime,
@@ -12,7 +15,7 @@ use antecedent_core::{CanonicalWriter, ExecutionContext, SupportStatus};
 use antecedent_io::{
     cyclic_family_artifact::{
         CyclicFamilyAnswer as A, CyclicFamilyReport, CyclicFamilyRequest as R,
-        consume_cyclic_family_with_request,
+        consume_cyclic_family_with_request, consume_cyclic_family_with_request_and_contract,
     },
     cyclic_system_artifact::{
         CyclicArtifactError, MAX_CYCLIC_ARTIFACT_BYTES, cyclic_decode_admission,
@@ -190,7 +193,29 @@ pub struct CyclicEvidenceReport {
     /// Every original requested coordinate and unresolved sample slot.
     pub columns: Vec<CyclicEvidenceColumn>,
     /// Actual retained source diagnostics, including convergence and failed mass.
-    pub source: CyclicFamilyReport,
+    #[serde(with = "shared_family_report")]
+    pub source: Arc<CyclicFamilyReport>,
+}
+
+// Preserve the historical inline report encoding while sharing its native storage.
+// This does not require serde's optional `rc` feature or change the public wire format.
+mod shared_family_report {
+    use super::CyclicFamilyReport;
+    use serde::{Deserialize, Serialize};
+    use std::sync::Arc;
+
+    pub fn serialize<S: serde::Serializer>(
+        report: &Arc<CyclicFamilyReport>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        report.as_ref().serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Arc<CyclicFamilyReport>, D::Error> {
+        CyclicFamilyReport::deserialize(deserializer).map(Arc::new)
+    }
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -237,11 +262,388 @@ mod source_bytes {
 #[derive(Clone, Debug)]
 pub struct CyclicEvidence {
     report: CyclicEvidenceReport,
-    source: Arc<[u8]>,
+    source: CyclicEvidenceSource,
     schema: CyclicEvidenceSchema,
     selectors: Vec<CyclicEvidenceSelector>,
     envelopes: Vec<EvidenceEnvelope>,
     _retention: Arc<Vec<antecedent_core::execution::AdmissionLease>>,
+}
+
+/// Independently verified family source, with no reconstructed prepared study.
+#[derive(Clone, Debug)]
+pub struct ConsumedCyclicFamily {
+    request: Arc<R>,
+    report: Arc<CyclicFamilyReport>,
+    contract: Option<Arc<antecedent_io::contract_section::cyclic::CyclicContractWire>>,
+    bytes: Arc<[u8]>,
+    _retention: Arc<antecedent_core::execution::AdmissionLease>,
+}
+
+impl ConsumedCyclicFamily {
+    /// Verify through the existing independent native consumer exactly once.
+    ///
+    /// # Errors
+    /// Invalid source, identity mismatch, failed replay, cancellation or resource refusal.
+    pub fn consume(
+        bytes: &[u8],
+        expected_identity: &str,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CyclicArtifactError> {
+        let retention = Arc::new(cyclic_decode_admission(bytes, ctx)?);
+        let (request, report, contract) =
+            consume_cyclic_family_with_request_and_contract(bytes, expected_identity, ctx)?;
+        Ok(Self {
+            request: Arc::new(request),
+            report: Arc::new(report),
+            contract: contract.map(Arc::new),
+            bytes: Arc::from(bytes),
+            _retention: retention,
+        })
+    }
+
+    /// Actual independently verified producer section; absent on historical v1.
+    /// Reading it does not reconstruct a live study, compile schedules or replay.
+    #[must_use]
+    pub fn contract_metadata(
+        &self,
+    ) -> Option<&antecedent_io::contract_section::cyclic::CyclicContractWire> {
+        self.contract.as_deref()
+    }
+
+    /// The exact independently replayed result, retaining its native admissions.
+    #[must_use]
+    pub fn report(&self) -> &CyclicFamilyReport {
+        &self.report
+    }
+
+    /// Original independently checked declaration, without a reconstructed study.
+    #[must_use]
+    pub fn request(&self) -> &R {
+        &self.request
+    }
+
+    /// Source identity already checked by the independent consumer.
+    #[must_use]
+    pub fn identity(&self) -> &str {
+        &self.report.identity
+    }
+
+    /// Original verified encoding; re-export never reconstructs or executes a source.
+    #[must_use]
+    pub fn artifact(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    /// Prepare a new branch from an independently verified law without
+    /// reconstructing a live source study or repeating source recovery.
+    /// # Errors
+    /// A missing law, invalid/unsupported worlds, cancellation or admission failure.
+    pub fn prepare_recovered_worlds(
+        &self,
+        worlds: Vec<antecedent_io::cyclic_family_artifact::CyclicWorldWire>,
+        outcome: u32,
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedStudy<CyclicFamilyPreparedState>, CyclicArtifactError> {
+        let request = R::retained_recovery_worlds(
+            Arc::clone(&self.request),
+            Arc::clone(&self.report),
+            Arc::new(self.clone()),
+            worlds,
+            outcome,
+        )?;
+        crate::Study::prepare_cyclic_family(&request, ctx)
+    }
+
+    /// Project verified retained output without replaying, fitting or encoding again.
+    ///
+    /// # Errors
+    /// Invalid schema/selectors, cancellation or resource refusal.
+    pub fn evidence(
+        &self,
+        schema: CyclicEvidenceSchema,
+        selectors: Vec<CyclicEvidenceSelector>,
+        ctx: &ExecutionContext,
+    ) -> Result<CyclicEvidence, CyclicArtifactError> {
+        CyclicEvidence::build(
+            &self.request,
+            &self.report,
+            CyclicEvidenceSource::Replayed(Arc::clone(&self.bytes)),
+            schema,
+            selectors,
+            ctx,
+        )
+    }
+}
+
+/// Explicit provenance of the native system-to-family source bridge.
+/// Both identities are canonical native request identities, not replacement labels.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct CyclicSystemBridgeProvenance {
+    /// Identity of the original executed/independently verified system.
+    pub source_identity: String,
+    /// Identity of the corresponding compiled family request and contract.
+    pub family_identity: String,
+    /// Domain-separated binding of those two source identities.
+    pub identity: String,
+}
+
+fn system_bridge_provenance(
+    source_identity: &str,
+    family_identity: &str,
+) -> CyclicSystemBridgeProvenance {
+    let mut bytes = Vec::with_capacity(source_identity.len() + family_identity.len());
+    bytes.extend_from_slice(source_identity.as_bytes());
+    bytes.extend_from_slice(family_identity.as_bytes());
+    CyclicSystemBridgeProvenance {
+        source_identity: source_identity.into(),
+        family_identity: family_identity.into(),
+        identity: CanonicalWriter::digest_bytes_hex(
+            "antecedent.cyclic_system_family_bridge.v1",
+            &bytes,
+        ),
+    }
+}
+
+/// A compiled family view of the exact original system output, with no new execution.
+/// It retains metadata and the shared report; it contains no reconstructed study.
+#[derive(Clone, Debug)]
+pub struct CyclicSystemFamilyBridge {
+    program: Arc<antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram>,
+    report: Arc<CyclicFamilyReport>,
+    contract: Arc<antecedent_io::contract_section::cyclic::CyclicContractWire>,
+    provenance: CyclicSystemBridgeProvenance,
+}
+
+impl CyclicSystemFamilyBridge {
+    fn from_system(
+        request: &antecedent_io::cyclic_system_artifact::CyclicExecutionRequest,
+        report: Arc<antecedent_io::cyclic_system_artifact::CyclicExecutionReport>,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CyclicArtifactError> {
+        let program =
+            Arc::new(antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram::compile(
+                &R::System { request: request.clone() },
+                ctx,
+            )?);
+        let report = Arc::new(program.bind_system_execution(report, ctx)?);
+        let A::System(system) = &report.answer else {
+            return Err(invalid("system bridge answer"));
+        };
+        let provenance = system_bridge_provenance(&system.identity, &report.identity);
+        let contract = Arc::new(program.contract()?);
+        Ok(Self { program, report, contract, provenance })
+    }
+
+    /// Exact family report; its System answer shares the original report Arc.
+    #[must_use]
+    pub fn report(&self) -> &CyclicFamilyReport {
+        &self.report
+    }
+
+    /// Native compiled contract of the corresponding family source.
+    #[must_use]
+    pub fn contract_metadata(
+        &self,
+    ) -> &antecedent_io::contract_section::cyclic::CyclicContractWire {
+        &self.contract
+    }
+
+    /// The original source ID, corresponding family ID, and explicit bridge ID.
+    #[must_use]
+    pub fn provenance(&self) -> &CyclicSystemBridgeProvenance {
+        &self.provenance
+    }
+
+    /// Encode this exact source bridge through the existing family codec.
+    /// # Errors
+    /// Cancellation or encoding/resource failure.
+    pub fn export(&self, ctx: &ExecutionContext) -> Result<Vec<u8>, CyclicArtifactError> {
+        self.program.encode_execution(&self.report, ctx)
+    }
+
+    /// Project compatible native outputs without executing or exporting the source.
+    /// # Errors
+    /// Invalid schema/selectors, cancellation or resource refusal.
+    pub fn evidence(
+        &self,
+        schema: CyclicEvidenceSchema,
+        selectors: Vec<CyclicEvidenceSelector>,
+        ctx: &ExecutionContext,
+    ) -> Result<CyclicEvidence, CyclicArtifactError> {
+        CyclicEvidence::build(
+            self.program.request(),
+            &self.report,
+            CyclicEvidenceSource::SystemBridge(Arc::new(self.clone())),
+            schema,
+            selectors,
+            ctx,
+        )
+    }
+}
+
+impl super::cyclic::ExecutedCyclicSystem {
+    /// Retain compatible family metadata around this exact system execution.
+    /// # Errors
+    /// Invalid family metadata, cancellation or resource refusal.
+    pub fn family_bridge(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<Arc<CyclicSystemFamilyBridge>, CyclicArtifactError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CyclicArtifactError::Cancelled);
+        }
+        let mut cache =
+            self.family_bridge.lock().map_err(|_| invalid("system bridge cache lock poisoned"))?;
+        if let Some(bridge) = cache.as_ref() {
+            return Ok(Arc::clone(bridge));
+        }
+        let bridge = Arc::new(CyclicSystemFamilyBridge::from_system(
+            self.prepared().request(),
+            Arc::clone(self.shared_report()),
+            ctx,
+        )?);
+        *cache = Some(Arc::clone(&bridge));
+        Ok(bridge)
+    }
+
+    /// Compose the actual retained system output through its explicit native bridge.
+    /// # Errors
+    /// Invalid schema/selectors, cancellation or resource refusal.
+    pub fn evidence(
+        &self,
+        schema: CyclicEvidenceSchema,
+        selectors: Vec<CyclicEvidenceSelector>,
+        ctx: &ExecutionContext,
+    ) -> Result<CyclicEvidence, CyclicArtifactError> {
+        self.family_bridge(ctx)?.evidence(schema, selectors, ctx)
+    }
+}
+
+/// Independently verified system source with no reconstructed PreparedStudy.
+#[derive(Clone, Debug)]
+pub struct ConsumedCyclicSystem {
+    request: Arc<antecedent_io::cyclic_system_artifact::CyclicExecutionRequest>,
+    report: Arc<antecedent_io::cyclic_system_artifact::CyclicExecutionReport>,
+    bytes: Arc<[u8]>,
+    _retention: Arc<antecedent_core::execution::AdmissionLease>,
+    family_bridge: Arc<std::sync::Mutex<Option<Arc<CyclicSystemFamilyBridge>>>>,
+}
+
+impl ConsumedCyclicSystem {
+    /// Invoke the independent system consumer exactly once and retain its source.
+    /// # Errors
+    /// Framing, identity, replay, cancellation or resource failure.
+    pub fn consume(
+        bytes: &[u8],
+        expected_identity: &str,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CyclicArtifactError> {
+        let retention = Arc::new(cyclic_decode_admission(bytes, ctx)?);
+        let (request, report) =
+            antecedent_io::cyclic_system_artifact::consume_cyclic_artifact_with_request(
+                bytes,
+                expected_identity,
+                ctx,
+            )?;
+        Ok(Self {
+            request: Arc::new(request),
+            report: Arc::new(report),
+            bytes: Arc::from(bytes),
+            _retention: retention,
+            family_bridge: Arc::default(),
+        })
+    }
+
+    /// Exact independently replayed output, borrowing native immutable storage.
+    #[must_use]
+    pub fn report(&self) -> &antecedent_io::cyclic_system_artifact::CyclicExecutionReport {
+        &self.report
+    }
+
+    /// Independently verified original declaration, without a live study.
+    #[must_use]
+    pub fn request(&self) -> &antecedent_io::cyclic_system_artifact::CyclicExecutionRequest {
+        &self.request
+    }
+
+    /// Original verified source identity.
+    #[must_use]
+    pub fn identity(&self) -> &str {
+        &self.report.identity
+    }
+
+    /// Original verified bytes; exporting them never reconstructs or executes a study.
+    #[must_use]
+    pub fn artifact(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    /// Compile corresponding family metadata around the verified report once.
+    /// # Errors
+    /// Invalid metadata, cancellation or resource failure.
+    pub fn family_bridge(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<Arc<CyclicSystemFamilyBridge>, CyclicArtifactError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CyclicArtifactError::Cancelled);
+        }
+        let mut cache = self
+            .family_bridge
+            .lock()
+            .map_err(|_| invalid("consumed system bridge cache lock poisoned"))?;
+        if let Some(bridge) = cache.as_ref() {
+            return Ok(Arc::clone(bridge));
+        }
+        let bridge = Arc::new(CyclicSystemFamilyBridge::from_system(
+            &self.request,
+            Arc::clone(&self.report),
+            ctx,
+        )?);
+        *cache = Some(Arc::clone(&bridge));
+        Ok(bridge)
+    }
+
+    /// Project verified output directly without another replay, fit or solve.
+    /// # Errors
+    /// Invalid schema/selectors, cancellation or resource failure.
+    pub fn evidence(
+        &self,
+        schema: CyclicEvidenceSchema,
+        selectors: Vec<CyclicEvidenceSelector>,
+        ctx: &ExecutionContext,
+    ) -> Result<CyclicEvidence, CyclicArtifactError> {
+        self.family_bridge(ctx)?.evidence(schema, selectors, ctx)
+    }
+}
+
+/// Live sources retain the exact executed owner; consumed sources retain their
+/// original bytes. Only explicit export encodes a live source.
+#[derive(Clone, Debug)]
+enum CyclicEvidenceSource {
+    Live(Arc<ExecutedCyclicFamily>),
+    SystemBridge(Arc<CyclicSystemFamilyBridge>),
+    Replayed(Arc<[u8]>),
+}
+
+impl CyclicEvidenceSource {
+    fn retained_encoding_len(&self) -> usize {
+        match self {
+            Self::Live(_) | Self::SystemBridge(_) => 0,
+            Self::Replayed(bytes) => bytes.len(),
+        }
+    }
+
+    fn encoding(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<std::borrow::Cow<'_, [u8]>, CyclicArtifactError> {
+        match self {
+            Self::Live(executed) => executed.export(ctx).map(std::borrow::Cow::Owned),
+            Self::SystemBridge(bridge) => bridge.export(ctx).map(std::borrow::Cow::Owned),
+            Self::Replayed(bytes) => Ok(std::borrow::Cow::Borrowed(bytes.as_ref())),
+        }
+    }
 }
 
 /// Bytes an artifact admission reserves: four copies of the source, eight of the serialised
@@ -634,7 +1036,9 @@ fn recovered_response<'a>(
         });
     }
     let (port, axis, functional) = match origin.law_meaning() {
-        None => (EvidencePort::InterventionalLaw, Axis::Predictive, Functional::RecoveredIntervention),
+        None => {
+            (EvidencePort::InterventionalLaw, Axis::Predictive, Functional::RecoveredIntervention)
+        }
         Some("sampling_law") => {
             (EvidencePort::SamplingLaw, Axis::Sampling, Functional::RecoveredInterventionalMean)
         }
@@ -1018,13 +1422,9 @@ fn ou_mechanisms<'a>(
     match selector {
         CyclicEvidenceSelector::OuRegime { world, variable, other } => {
             let outcome = laws.get(*world).ok_or_else(selector_mismatch)?;
-            let functional = if other.is_some() {
-                Functional::PredictiveCovariance
-            } else {
-                Functional::Mean
-            };
-            let port =
-                if other.is_some() { EvidencePort::Likelihood } else { EvidencePort::Mean };
+            let functional =
+                if other.is_some() { Functional::PredictiveCovariance } else { Functional::Mean };
+            let port = if other.is_some() { EvidencePort::Likelihood } else { EvidencePort::Mean };
             let antecedent_estimate::ou_mechanisms::OuMechanismOutcome::Stationary(law) = outcome
             else {
                 let mut p = point(
@@ -1120,7 +1520,13 @@ fn ou_transient<'a>(
 ) -> Result<Projection<'a>, CyclicArtifactError> {
     match selector {
         CyclicEvidenceSelector::OuMean { time: Some(time), variable } => Ok(point(
-            Some(*path.means.get(*time).and_then(|s| s.get(*variable)).ok_or_else(selector_mismatch)?),
+            Some(
+                *path
+                    .means
+                    .get(*time)
+                    .and_then(|s| s.get(*variable))
+                    .ok_or_else(selector_mismatch)?,
+            ),
             *variable,
             World::Fixed("initial_law_world"),
             Time::At(*path.times.get(*time).ok_or_else(selector_mismatch)?),
@@ -1188,7 +1594,9 @@ fn polynomial_solutions<'a>(
                 .roots
                 .iter()
                 .chain(&solutions.unresolved)
-                .map(|region| region.get(*variable).copied().map(Some).ok_or_else(selector_mismatch))
+                .map(|region| {
+                    region.get(*variable).copied().map(Some).ok_or_else(selector_mismatch)
+                })
                 .collect::<Result<Vec<_>, _>>()?;
             p.diagnostics = detail(SolutionSetDetail {
                 certified_roots: solutions.roots.len(),
@@ -1303,7 +1711,9 @@ impl EvidenceSource for A {
                 p.diagnostics = detail(value);
                 Ok(p)
             }
-            A::AdamFit(fit) => log_likelihood(fit.training_log_likelihood, Time::Equilibrium, selector),
+            A::AdamFit(fit) => {
+                log_likelihood(fit.training_log_likelihood, Time::Equilibrium, selector)
+            }
             A::GradientFit(fit) => log_likelihood(fit.log_likelihood, Time::Static, selector),
             A::OdeFit(fit) => log_likelihood(fit.log_likelihood, Time::Trajectory, selector),
             A::OuFit(fit) => log_likelihood(fit.log_likelihood, Time::Stationary, selector),
@@ -1457,6 +1867,7 @@ impl EvidenceSource for A {
     }
 }
 fn source_order(request: &R) -> usize {
+    let request = request.recovery_recipe();
     use antecedent_io::cyclic_graph::CyclicGraphRequest as G;
     let graph_order = |graph: &G| match graph {
         G::Identify { graph, .. }
@@ -1469,6 +1880,7 @@ fn source_order(request: &R) -> usize {
         }
     };
     match request {
+        R::RetainedExperimentalRecovery { inputs, .. } => source_order(inputs.recipe()),
         R::AdamFit { model, .. }
         | R::EquilibriumRoots { model, .. }
         | R::EquilibriumActions { model, .. }
@@ -1520,17 +1932,32 @@ impl PreparedStudy<CyclicFamilyPreparedState> {
         selectors: Vec<CyclicEvidenceSelector>,
         ctx: &ExecutionContext,
     ) -> Result<CyclicEvidence, CyclicArtifactError> {
-        let (report, bytes) = self.export(ctx)?;
+        self.execute_retained(ctx)?.evidence(schema, selectors, ctx)
+    }
+}
+
+impl ExecutedCyclicFamily {
+    /// Project this exact execution without fitting, sampling, solving or encoding.
+    ///
+    /// # Errors
+    /// Invalid schema, incompatible selectors, cancellation or resource refusal.
+    pub fn evidence(
+        &self,
+        schema: CyclicEvidenceSchema,
+        selectors: Vec<CyclicEvidenceSelector>,
+        ctx: &ExecutionContext,
+    ) -> Result<CyclicEvidence, CyclicArtifactError> {
         CyclicEvidence::build(
-            self.state.program.request(),
-            &report,
-            bytes.into(),
+            self.prepared().state.program.request(),
+            self.shared_report(),
+            CyclicEvidenceSource::Live(Arc::new(self.clone())),
             schema,
             selectors,
             ctx,
         )
     }
 }
+
 impl CyclicEvidence {
     #[allow(
         clippy::too_many_lines,
@@ -1538,8 +1965,8 @@ impl CyclicEvidence {
     )]
     fn build(
         request: &R,
-        source: &CyclicFamilyReport,
-        artifact: Arc<[u8]>,
+        source: &Arc<CyclicFamilyReport>,
+        artifact: CyclicEvidenceSource,
         schema: CyclicEvidenceSchema,
         selectors: Vec<CyclicEvidenceSelector>,
         ctx: &ExecutionContext,
@@ -1603,8 +2030,8 @@ impl CyclicEvidence {
             return Err(invalid("cyclic evidence projection cell limit"));
         }
         let reserve = admission_reserve(
-            artifact.len(),
-            cyclic_serialized_size(&(source, &schema, &selectors), ctx)?,
+            artifact.retained_encoding_len(),
+            cyclic_serialized_size(&(source.as_ref(), &schema, &selectors), ctx)?,
             4096,
         );
         let mut retention =
@@ -1704,6 +2131,7 @@ impl CyclicEvidence {
                                 | R::JointCounterfactual { .. }
                                 | R::FrequentistBootstrap { .. }
                                 | R::ExperimentalRecovery { .. }
+                                | R::RetainedExperimentalRecovery { .. }
                                 | R::DynamicInference { .. }
                                 | R::System {
                                     request: antecedent_io::cyclic_system_artifact::CyclicExecutionRequest {
@@ -1764,7 +2192,7 @@ impl CyclicEvidence {
                 source_identity: source.identity.clone(),
                 scope,
                 columns,
-                source: source.clone(),
+                source: Arc::clone(source),
             },
             source: artifact,
             schema,
@@ -1778,6 +2206,47 @@ impl CyclicEvidence {
     pub fn report(&self) -> &CyclicEvidenceReport {
         &self.report
     }
+    /// Projection identity without serializing samples or the source report.
+    #[must_use]
+    pub fn identity(&self) -> &str {
+        &self.report.identity
+    }
+
+    /// Explicit provenance when the source is the family bridge of a system.
+    /// The original system ID is retained inside the verified family report.
+    #[must_use]
+    pub fn system_bridge(&self) -> Option<CyclicSystemBridgeProvenance> {
+        match &self.report.source.answer {
+            A::System(system) => {
+                Some(system_bridge_provenance(&system.identity, &self.report.source_identity))
+            }
+            _ => None,
+        }
+    }
+
+    /// Original source identity without materializing the source payload.
+    #[must_use]
+    pub fn source_identity(&self) -> &str {
+        &self.report.source_identity
+    }
+
+    /// Scientific scope; this never upgrades specified models to identification.
+    #[must_use]
+    pub fn scope(&self) -> &str {
+        &self.report.scope
+    }
+
+    /// Borrow projected coordinates and their original slot/port diagnostics.
+    #[must_use]
+    pub fn columns(&self) -> &[CyclicEvidenceColumn] {
+        &self.report.columns
+    }
+
+    /// Read scientific coordinates without copying or serializing any samples.
+    pub fn quantities(&self) -> impl ExactSizeIterator<Item = &ScientificQuantityWire> {
+        self.report.columns.iter().map(|column| &column.quantity)
+    }
+
     /// Existing contract envelopes, suitable for evidence binding/port checks.
     #[must_use]
     pub fn envelopes(&self) -> &[EvidenceEnvelope] {
@@ -1790,11 +2259,12 @@ impl CyclicEvidence {
         if ctx.cancellation.is_cancelled() {
             return Err(CyclicArtifactError::Cancelled);
         }
+        let source = self.source.encoding(ctx)?;
         let _admission = ctx
             .acquire_admission(
                 0,
                 admission_reserve(
-                    self.source.len(),
+                    source.len(),
                     cyclic_serialized_size(&(&self.report, &self.schema, &self.selectors), ctx)?,
                     65536,
                 ),
@@ -1802,7 +2272,7 @@ impl CyclicEvidence {
             .map_err(CyclicArtifactError::Admission)?;
         let bytes = antecedent_io::to_cbor(&Record {
             version: 2,
-            source: self.source.to_vec(),
+            source: source.into_owned(),
             source_identity: self.report.source_identity.clone(),
             schema: self.schema.clone(),
             selectors: self.selectors.clone(),
@@ -1872,8 +2342,8 @@ impl CyclicEvidence {
             consume_cyclic_family_with_request(&record.source, &record.source_identity, ctx)?;
         let evidence = Self::build(
             &request,
-            &source,
-            record.source.into(),
+            &Arc::new(source),
+            CyclicEvidenceSource::Replayed(record.source.into()),
             record.schema,
             record.selectors,
             ctx,
@@ -2125,6 +2595,94 @@ mod tests {
     use super::*;
     use crate::analysis::Study;
     #[test]
+    fn system_evidence_bridge_preserves_original_source_and_loaded_ownership() {
+        use antecedent_model::nonlinear_equilibrium::{
+            Activation, Equation, EquilibriumModel, SolvePolicy,
+        };
+        let ctx = ExecutionContext::for_tests(8);
+        let request = antecedent_io::cyclic_system_artifact::CyclicExecutionRequest {
+            model: EquilibriumModel {
+                equations: vec![
+                    Equation {
+                        id: "A".into(),
+                        intercept: 0.0,
+                        weights: vec![0.0, 0.4],
+                        activation: Activation::Identity,
+                        expression: None,
+                        parameters: vec![],
+                    },
+                    Equation {
+                        id: "B".into(),
+                        intercept: 0.0,
+                        weights: vec![0.5, 0.0],
+                        activation: Activation::Identity,
+                        expression: None,
+                        parameters: vec![],
+                    },
+                ],
+                noise_covariance: vec![1.0, 0.0, 0.0, 1.0],
+            },
+            fit: None,
+            worlds: vec![vec![]],
+            noise: vec![vec![1.0, 0.0]],
+            initial: vec![0.0; 2],
+            policy: SolvePolicy::default(),
+            factual: None,
+        };
+        let prepared = Study::prepare_cyclic(request, &ctx).unwrap();
+        let executed = prepared.execute_retained(&ctx).unwrap();
+        let source_identity = executed.identity().to_owned();
+        let original_bytes = executed.export("cyclic_equilibrium", &ctx).unwrap();
+        let bridge = executed.family_bridge(&ctx).unwrap();
+        assert!(Arc::ptr_eq(&bridge, &executed.family_bridge(&ctx).unwrap()));
+        let A::System(shared) = &bridge.report().answer else {
+            panic!("system bridge");
+        };
+        assert!(Arc::ptr_eq(shared, executed.shared_report()));
+        assert_eq!(bridge.provenance().source_identity, source_identity);
+        assert_eq!(
+            bridge.provenance().family_identity,
+            bridge.contract_metadata().request_identity
+        );
+        assert_ne!(bridge.provenance().family_identity, source_identity);
+        let schema = CyclicEvidenceSchema {
+            id: "physical-system".into(),
+            population: "system".into(),
+            variables: vec![("A".into(), "meter".into()), ("B".into(), "meter".into())],
+        };
+        let selectors = vec![CyclicEvidenceSelector::Action {
+            world: 0,
+            noise_row: 0,
+            variable: 1,
+            counterfactual: false,
+        }];
+        let evidence = executed.evidence(schema.clone(), selectors.clone(), &ctx).unwrap();
+        assert_eq!(evidence.system_bridge().as_ref(), Some(bridge.provenance()));
+        assert!((evidence.columns()[0].samples[0].unwrap() - 0.625).abs() < 1e-8);
+        assert_eq!(executed.export("cyclic_equilibrium", &ctx).unwrap(), original_bytes);
+        let evidence_bytes = evidence.export(&ctx).unwrap();
+        let loaded =
+            ConsumedCyclicSystem::consume(&original_bytes, &source_identity, &ctx).unwrap();
+        let loaded_bridge = loaded.family_bridge(&ctx).unwrap();
+        let A::System(loaded_shared) = &loaded_bridge.report().answer else {
+            panic!("loaded system bridge");
+        };
+        assert!(Arc::ptr_eq(loaded_shared, &loaded.report));
+        assert_eq!(loaded_bridge.provenance(), bridge.provenance());
+        drop(prepared);
+        drop(executed);
+        drop(bridge);
+        drop(evidence);
+        let composed = loaded.evidence(schema, selectors, &ctx).unwrap();
+        drop(loaded);
+        drop(loaded_bridge);
+        assert_eq!(composed.export(&ctx).unwrap(), evidence_bytes);
+        let consumed = CyclicEvidence::consume(&evidence_bytes, composed.identity(), &ctx).unwrap();
+        assert_eq!(consumed.report(), composed.report());
+        assert_eq!(consumed.system_bridge(), composed.system_bridge());
+    }
+
+    #[test]
     fn world_and_time_labels_keep_their_identity_spellings() {
         assert_eq!(World::Noise { world: 2, noise_row: 3 }.to_string(), "world:2:noise:3");
         assert_eq!(World::Draw { world: 1, draw: 4 }.to_string(), "world:1:draw:4");
@@ -2138,6 +2696,117 @@ mod tests {
         assert_eq!(Time::Equilibrium.to_string(), "equilibrium");
         assert_eq!(Functional::IdentifiedDensity.as_str(), "identified_density");
         assert_eq!(Axis::Parameter.as_str(), "parameter");
+    }
+
+    #[test]
+    fn consumed_contract_metadata_retains_verified_v2_and_historical_v1_absence() {
+        let ctx = ExecutionContext::for_tests(17);
+        let request = R::OuStationary {
+            model: antecedent_model::continuous_cyclic::OrnsteinUhlenbeck {
+                drift: vec![-2.0],
+                center: vec![3.0],
+                diffusion: vec![4.0],
+            },
+        };
+        let (report, v1) = request.export(&ctx).unwrap();
+        let old = ConsumedCyclicFamily::consume(&v1, &report.identity, &ctx).unwrap();
+        assert!(old.contract_metadata().is_none());
+        assert_eq!(old.artifact(), v1.as_slice());
+        let prepared = Study::prepare_cyclic_family(&request, &ctx).unwrap();
+        let executed = prepared.execute_retained(&ctx).unwrap();
+        let bytes = executed.export(&ctx).unwrap();
+        let loaded = ConsumedCyclicFamily::consume(&bytes, executed.identity(), &ctx).unwrap();
+        assert_eq!(loaded.contract_metadata(), Some(&prepared.contract_metadata().section));
+        let cloned = loaded.clone();
+        assert!(std::ptr::eq(
+            loaded.contract_metadata().unwrap(),
+            cloned.contract_metadata().unwrap()
+        ));
+        let observed = antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+            assert_eq!(loaded.contract_metadata(), Some(&prepared.contract_metadata().section));
+            assert_eq!(loaded.report(), executed.report());
+            Ok::<_, CyclicArtifactError>(())
+        });
+        assert!(observed.result.is_ok());
+        assert!(observed.report.is_empty());
+        assert_eq!(loaded.artifact(), bytes.as_slice());
+    }
+
+    #[test]
+    fn executed_evidence_shares_source_and_encodes_lazily_without_reexecution() {
+        use antecedent_core::execution_attempt::{Operation, observe_with_context};
+
+        let ctx = ExecutionContext::for_tests(8);
+        let request = R::OuStationary {
+            model: antecedent_model::continuous_cyclic::OrnsteinUhlenbeck {
+                drift: vec![-2.0],
+                center: vec![3.0],
+                diffusion: vec![4.0],
+            },
+        };
+        let prepared = Study::prepare_cyclic_family(&request, &ctx).unwrap();
+        let executed = prepared.execute_retained(&ctx).unwrap();
+        let source_bytes = executed.export(&ctx).unwrap();
+        let schema = CyclicEvidenceSchema {
+            id: "physical-system".into(),
+            population: "system".into(),
+            variables: vec![("position".into(), "meter".into())],
+        };
+        let selectors = vec![CyclicEvidenceSelector::OuMean { time: None, variable: 0 }];
+        let count = super::super::cyclic::cyclic_family_execution_count();
+        let projection = observe_with_context(&ctx, || {
+            executed.evidence(schema.clone(), selectors.clone(), &ctx)
+        });
+        for operation in [
+            Operation::AdjustedFit,
+            Operation::PosteriorFit,
+            Operation::PosteriorDraw,
+            Operation::LeastSquaresSolve,
+        ] {
+            assert_eq!(projection.report.counts(operation).attempted, 0);
+        }
+        let evidence = projection.result.unwrap();
+        assert!(matches!(evidence.source, CyclicEvidenceSource::Live(_)));
+        assert!(Arc::ptr_eq(&evidence.report.source, executed.shared_report()));
+        assert_eq!(evidence.identity(), evidence.report.identity);
+        assert_eq!(evidence.source_identity(), executed.identity());
+        assert_eq!(evidence.quantities().len(), 1);
+        assert_eq!(evidence.columns()[0].samples, vec![Some(3.0)]);
+        assert_eq!(super::super::cyclic::cyclic_family_execution_count(), count);
+
+        // The former byte-backed construction must produce exactly the same record.
+        let byte_backed = CyclicEvidence::build(
+            &request,
+            executed.shared_report(),
+            CyclicEvidenceSource::Replayed(source_bytes.into()),
+            schema,
+            selectors,
+            &ctx,
+        )
+        .unwrap();
+        let original_bytes = byte_backed.export(&ctx).unwrap();
+        let encoded = observe_with_context(&ctx, || evidence.export(&ctx));
+        for operation in [
+            Operation::AdjustedFit,
+            Operation::PosteriorFit,
+            Operation::PosteriorDraw,
+            Operation::LeastSquaresSolve,
+        ] {
+            assert_eq!(encoded.report.counts(operation).attempted, 0);
+        }
+        let bytes = encoded.result.unwrap();
+        assert_eq!(bytes, original_bytes);
+        assert_eq!(super::super::cyclic::cyclic_family_execution_count(), count);
+        drop(prepared);
+        drop(executed);
+        drop(byte_backed);
+        // The live evidence itself pins the original report, prepared source and leases.
+        assert_eq!(evidence.export(&ctx).unwrap(), bytes);
+        assert_eq!(super::super::cyclic::cyclic_family_execution_count(), count);
+        let consumed = CyclicEvidence::consume(&bytes, evidence.identity(), &ctx).unwrap();
+        assert!(matches!(consumed.source, CyclicEvidenceSource::Replayed(_)));
+        assert_eq!(consumed.report(), evidence.report());
+        assert_eq!(consumed.export(&ctx).unwrap(), bytes);
     }
 
     #[test]
