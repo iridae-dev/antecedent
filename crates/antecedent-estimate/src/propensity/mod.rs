@@ -429,7 +429,7 @@ mod tests {
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                 .with_target_population(TargetPopulation::Treated);
-        let est = PropensityMatching { bootstrap_replicates: 30, ..PropensityMatching::new() };
+        let est = PropensityMatching::new().with_bootstrap_replicates(30);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
@@ -444,7 +444,7 @@ mod tests {
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                 .with_target_population(TargetPopulation::Treated);
-        let est = PropensityMatching { bootstrap_replicates: 0, ..PropensityMatching::new() };
+        let est = PropensityMatching::new().with_bootstrap_replicates(0);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
         let _ = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
@@ -495,7 +495,7 @@ mod tests {
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                 .with_target_population(TargetPopulation::Treated);
-        let est = DistanceMatching { bootstrap_replicates: 30, ..DistanceMatching::new() };
+        let est = DistanceMatching::new().with_bootstrap_replicates(30);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
@@ -591,7 +591,7 @@ mod tests {
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                 .with_target_population(TargetPopulation::Treated);
-        let untrimmed = PropensityMatching { bootstrap_replicates: 0, ..PropensityMatching::new() };
+        let untrimmed = PropensityMatching::new().with_bootstrap_replicates(0);
         let trimmed = PropensityMatching { overlap: trim_overlap(), ..untrimmed.clone() };
 
         let mut ws = PropensityEstimationWorkspace::default();
@@ -615,13 +615,10 @@ mod tests {
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                 .with_target_population(TargetPopulation::Treated);
-        let est = PropensityMatching {
-            bootstrap_replicates: 0,
-            overlap: trim_overlap(),
-            se_kind: crate::se::AnalyticSeKind::Multiway,
-            multiway_ids: Some(vec![dim_a, dim_b]),
-            ..PropensityMatching::new()
-        };
+        let est = PropensityMatching { overlap: trim_overlap(), ..PropensityMatching::new() }
+            .with_bootstrap_replicates(0)
+            .with_se_kind(crate::se::AnalyticSeKind::Multiway)
+            .with_multiway_ids(vec![dim_a, dim_b]);
         let mut ws = PropensityEstimationWorkspace::default();
         // The trimmed labels align with the retained rows (a misaligned gather fails as a
         // length mismatch first); the multiway variance itself is then refused because
@@ -646,7 +643,7 @@ mod tests {
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                 .with_target_population(TargetPopulation::Treated);
-        let untrimmed = DistanceMatching { bootstrap_replicates: 0, ..DistanceMatching::new() };
+        let untrimmed = DistanceMatching::new().with_bootstrap_replicates(0);
         let trimmed = DistanceMatching { overlap: trim_overlap(), ..untrimmed.clone() };
 
         let mut ws = PropensityEstimationWorkspace::default();
@@ -670,13 +667,10 @@ mod tests {
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                 .with_target_population(TargetPopulation::Treated);
-        let est = DistanceMatching {
-            bootstrap_replicates: 0,
-            overlap: trim_overlap(),
-            se_kind: crate::se::AnalyticSeKind::Multiway,
-            multiway_ids: Some(vec![dim_a, dim_b]),
-            ..DistanceMatching::new()
-        };
+        let est = DistanceMatching { overlap: trim_overlap(), ..DistanceMatching::new() }
+            .with_bootstrap_replicates(0)
+            .with_se_kind(crate::se::AnalyticSeKind::Multiway)
+            .with_multiway_ids(vec![dim_a, dim_b]);
         let mut ws = PropensityEstimationWorkspace::default();
         // The trimmed labels align with the retained rows (a misaligned gather fails as a
         // length mismatch first); the multiway variance itself is then refused because
@@ -718,7 +712,7 @@ mod tests {
                     .with_target_population(target.clone());
             for kind in kinds {
                 let propensity =
-                    PropensityMatching { bootstrap_replicates: 0, ..PropensityMatching::new() }
+                    PropensityMatching::new().with_bootstrap_replicates(0)
                         .with_se_kind(kind)
                         .with_cluster_ids(clusters.clone())
                         .with_multiway_ids(vec![clusters.clone(), other.clone()])
@@ -735,7 +729,7 @@ mod tests {
                 );
 
                 let distance =
-                    DistanceMatching { bootstrap_replicates: 0, ..DistanceMatching::new() }
+                    DistanceMatching::new().with_bootstrap_replicates(0)
                         .with_se_kind(kind)
                         .with_cluster_ids(clusters.clone())
                         .with_multiway_ids(vec![clusters.clone(), other.clone()])
@@ -753,7 +747,7 @@ mod tests {
             }
             // The licensed Abadie–Imbens homoskedastic SE is still published on the same data.
             let licensed =
-                PropensityMatching { bootstrap_replicates: 0, ..PropensityMatching::new() };
+                PropensityMatching::new().with_bootstrap_replicates(0);
             let mut ws = PropensityEstimationWorkspace::default();
             let prep = licensed.prepare(&data, &estimand, &query).unwrap();
             let fit = licensed.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();

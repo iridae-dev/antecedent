@@ -178,7 +178,7 @@ pub mod temporal_sequential;
 mod temporal_sequential_tuples;
 mod temporal_slope_design;
 pub mod temporal_transport;
-pub mod tiled_prediction;
+mod tiled_prediction;
 pub mod trajectory_survival;
 pub mod transport;
 pub mod transport_scenarios;
@@ -310,7 +310,8 @@ pub use envelope::{
     aggregate_mixture_functional_envelope,
 };
 pub use error::{
-    CapacityFault, CapacityFaultKind, EstimationError, ExactF64, RefusalFields, RefusalMessage,
+    CapacityFault, CapacityFaultKind, EstimationError, ExactF64, HistoryOperatorFault,
+    RefusalFields, RefusalMessage, ResampleBufferFault,
 };
 pub use estimator::Estimator;
 pub use arm::TreatmentArm;

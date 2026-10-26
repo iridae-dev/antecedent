@@ -669,16 +669,20 @@ fn resampling_request(
                 (config.inference.bootstrap_replicates, declared(config.inference.sampling_design))
             }
             EstimatorSpec::FrontDoorTwoStage(config) => {
-                (config.bootstrap_replicates, declared(config.sampling_design))
+                (config.inference.bootstrap_replicates, declared(config.inference.sampling_design))
             }
             EstimatorSpec::PropensityMatching(config) => {
-                (config.bootstrap_replicates, study.sampling_design)
+                (config.inference.bootstrap_replicates, study.sampling_design)
             }
             EstimatorSpec::DistanceMatching(config) => {
-                (config.bootstrap_replicates, study.sampling_design)
+                (config.inference.bootstrap_replicates, study.sampling_design)
             }
-            EstimatorSpec::IvWald(config) => (config.bootstrap_replicates, study.sampling_design),
-            EstimatorSpec::Iv2Sls(config) => (config.bootstrap_replicates, study.sampling_design),
+            EstimatorSpec::IvWald(config) => {
+                (config.inference.bootstrap_replicates, study.sampling_design)
+            }
+            EstimatorSpec::Iv2Sls(config) => {
+                (config.inference.bootstrap_replicates, study.sampling_design)
+            }
             EstimatorSpec::Dml(_)
             | EstimatorSpec::DrLearner(_)
             | EstimatorSpec::CausalForest(_)

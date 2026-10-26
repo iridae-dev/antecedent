@@ -31,12 +31,12 @@ use crate::gcomp::linear_predictors;
 use crate::overlap::OverlapPolicy;
 use crate::util::require_explicit_override;
 
-/// Remedy named when the frequentist interaction regression is asked for more
-/// than one modifier. Its estimand, delta-method SE and calibration record are
-/// for one modifier; a joint-modifier frequentist interval would be an
-/// unmeasured coordinate, so the refusal points at the routes that take a
-/// modifier set instead. The adjustment handoff is named as a capability;
-/// Python appends the call.
+/// Remedy named when the frequentist interaction regression, configured with
+/// `joint_modifiers` off, is asked for more than one modifier. Its estimand,
+/// delta-method SE and calibration record are for one modifier; a joint-modifier
+/// frequentist interval would be an unmeasured coordinate, so the refusal points at
+/// the routes that take a modifier set instead. The adjustment handoff is named as a
+/// capability; Python appends the call.
 const MULTI_MODIFIER_REMEDY: &str = "the frequentist interaction regression fits one modifier; \
 for several modifiers use the Bayesian conditional estimator \
 (Rust: `.estimator(EstimatorId::BayesianConditional).inference(InferenceMode::Bayesian(..))`), \
@@ -75,11 +75,11 @@ pub struct ConditionalLinearAdjustment {
     pub backend: FaerBackend,
     /// Master seed of the cross-fit fold plan used by the binary AIPW arm scores.
     pub fold_seed: u64,
-    /// Accept a set of several effect modifiers. The regression, delta-method standard error and
-    /// influence functions are the exact vector generalization of the one-modifier model, but
-    /// the interval's coverage is measured for one modifier only, so a modifier set is refused
-    /// unless this is declared; a declared set carries an assumption record naming the
-    /// interval as uncalibrated.
+    /// Accept a set of several effect modifiers (the default). The regression, delta-method
+    /// standard error and influence functions are the exact vector generalization of the
+    /// one-modifier model, but the interval's coverage is measured for one modifier only, so an
+    /// accepted set carries an assumption record naming the interval as uncalibrated. Set this
+    /// to `false` to refuse a modifier set instead.
     pub joint_modifiers: bool,
 }
 
@@ -97,7 +97,7 @@ impl ConditionalLinearAdjustment {
             overlap: OverlapPolicy::ExplicitOverride,
             backend: FaerBackend,
             fold_seed: 0,
-            joint_modifiers: false,
+            joint_modifiers: true,
         }
     }
 
@@ -109,7 +109,7 @@ impl ConditionalLinearAdjustment {
     }
 
     /// Accept a set of several effect modifiers, with an interval whose coverage has not been
-    /// measured for a modifier set (see [`Self::joint_modifiers`]).
+    /// measured for a modifier set (see [`Self::joint_modifiers`]); this is the default.
     #[must_use]
     pub const fn with_joint_modifiers(mut self) -> Self {
         self.joint_modifiers = true;
@@ -995,8 +995,9 @@ mod tests {
         );
         let two = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
             .with_effect_modifiers([VariableId::from_raw(2), VariableId::from_raw(3)]);
-        let estimator =
+        let mut estimator =
             ConditionalLinearAdjustment::new().with_overlap(OverlapPolicy::ExplicitOverride);
+        estimator.joint_modifiers = false;
         let error = estimator.estimate_ate(&data, &estimand, &two).unwrap_err();
         assert_eq!(
             error.to_string(),
@@ -1020,7 +1021,14 @@ mod tests {
         assert!(!MULTI_MODIFIER_REMEDY.contains("antecedent.handoff.econml"));
     }
 
-    /// A declared modifier set fits the vector interaction model: the point estimate is the
+    /// The default estimator accepts a modifier set without a declaration.
+    #[test]
+    fn the_default_estimator_accepts_a_modifier_set() {
+        assert!(ConditionalLinearAdjustment::new().joint_modifiers);
+        assert!(ConditionalLinearAdjustment::default().joint_modifiers);
+    }
+
+    /// A modifier set fits the vector interaction model: the point estimate is the
     /// effect at the modifier means, the interval is flagged uncalibrated, and the
     /// one-modifier route is unchanged.
     #[test]

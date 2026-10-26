@@ -894,11 +894,9 @@ fn aipw_att_cluster_ci_coverage() {
 fn matching_homoskedastic_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
         .with_target_population(TargetPopulation::Treated);
-    let est = PropensityMatching {
-        bootstrap_replicates: 0,
-        se_kind: AnalyticSeKind::Homoskedastic,
-        ..PropensityMatching::new()
-    };
+    let est = PropensityMatching::new()
+        .with_bootstrap_replicates(0)
+        .with_se_kind(AnalyticSeKind::Homoskedastic);
     let ctx = ExecutionContext::for_tests(4);
     let mut tally = Tally::for_record("matching_homoskedastic_ci_coverage", "confounded_scm");
     let effects = map_replicates(n_sim(), |s| {
@@ -972,7 +970,7 @@ fn wald_coverage_on(
     let WaldDesign { dgp, make, min_weak_share, boundary } = *design;
     let query =
         AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
-    let est = WaldIv { bootstrap_replicates: 0, se_kind, ..WaldIv::new() };
+    let est = WaldIv::new().with_bootstrap_replicates(0).with_se_kind(se_kind);
     let ctx = ExecutionContext::for_tests(seed);
     let mut tally = Tally::for_record(test, dgp);
     let mut weak_f = 0u32;
@@ -1118,7 +1116,7 @@ fn two_sls_coverage(
     let query =
         AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
     let est =
-        TwoStageLeastSquares { bootstrap_replicates: 0, se_kind, ..TwoStageLeastSquares::new() };
+        TwoStageLeastSquares::new().with_bootstrap_replicates(0).with_se_kind(se_kind);
     let ctx = ExecutionContext::for_tests(seed);
     let mut tally = Tally::for_record(test, "two_sls_scm");
     // Per replicate: the point and the Anderson–Rubin set the tally scores
@@ -1232,7 +1230,7 @@ fn frontdoor_coverage(test: &'static str, label: &str, se_kind: AnalyticSeKind, 
         Arc::from([VariableId::from_raw(2)]),
         ExprId::from_raw(0),
     );
-    let est = FrontDoorTwoStage { bootstrap_replicates: 0, se_kind, ..FrontDoorTwoStage::new() };
+    let est = FrontDoorTwoStage::new().with_bootstrap_replicates(0).with_se_kind(se_kind);
     let ctx = ExecutionContext::for_tests(seed);
     let mut tally = Tally::for_record(test, "frontdoor_scm");
     let effects = map_replicates(n_sim(), |s| {
@@ -1814,11 +1812,9 @@ fn matching_coverage_on(
 ) {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
         .with_target_population(population);
-    let est = PropensityMatching {
-        bootstrap_replicates: 0,
-        se_kind: AnalyticSeKind::Homoskedastic,
-        ..PropensityMatching::new()
-    };
+    let est = PropensityMatching::new()
+        .with_bootstrap_replicates(0)
+        .with_se_kind(AnalyticSeKind::Homoskedastic);
     let ctx = ExecutionContext::for_tests(seed);
     let mut tally = Tally::for_record(test, dgp);
     let effects = map_replicates(n_sim(), |s| {
@@ -1927,11 +1923,9 @@ fn frontdoor_stacked_hc1_curved_mediator_ci_coverage() {
         Arc::from([VariableId::from_raw(2)]),
         ExprId::from_raw(0),
     );
-    let est = FrontDoorTwoStage {
-        bootstrap_replicates: 0,
-        se_kind: AnalyticSeKind::Hc1,
-        ..FrontDoorTwoStage::new()
-    };
+    let est = FrontDoorTwoStage::new()
+        .with_bootstrap_replicates(0)
+        .with_se_kind(AnalyticSeKind::Hc1);
     let ctx = ExecutionContext::for_tests(40);
     let mut tally = Tally::for_record(
         "frontdoor_stacked_hc1_curved_mediator_ci_coverage",

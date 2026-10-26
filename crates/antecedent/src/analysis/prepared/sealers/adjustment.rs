@@ -445,7 +445,7 @@ pub(super) fn checked_propensity(cx: &SealContext<'_>) -> SealOutcome {
                 }
                 (_, crate::strategy_table::EstimatorId::PropensityMatching) => {
                     let mut fitter = antecedent_estimate::PropensityMatching::new();
-                    fitter.bootstrap_replicates = analysis.bootstrap_replicates;
+                    fitter.inference.bootstrap_replicates = analysis.bootstrap_replicates;
                     CheckedPropensityEstimator::Matching(fitter)
                 }
                 _ => unreachable!(),
@@ -540,7 +540,7 @@ pub(super) fn frontdoor_linear(cx: &SealContext<'_>) -> SealOutcome {
                     (**config).clone()
                 } else {
                     let mut fitter = antecedent_estimate::FrontDoorTwoStage::new();
-                    fitter.sampling_design =
+                    fitter.inference.sampling_design =
                         crate::estimator_spec::declared_sampling(analysis.sampling_design);
                     fitter
                 };

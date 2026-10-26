@@ -5,7 +5,7 @@
 use antecedent_core::{ExecutionContext, ScratchLease, ScratchRefusal};
 
 use crate::bootstrap_wave::retained_index_slots;
-use crate::error::EstimationError;
+use crate::error::{EstimationError, ResampleBufferFault};
 
 /// Reserve the index bytes for one bootstrap.
 ///
@@ -30,11 +30,9 @@ pub(super) fn admit_bootstrap_scratch(
         }
         Err(ScratchRefusal::Cancelled) => Ok(None),
         Err(ScratchRefusal::PoolShort { .. }) => {
-            Err(EstimationError::data_msg("admission pool cannot fund the bootstrap scratch"))
+            Err(EstimationError::ResampleBuffer(ResampleBufferFault::IndexScratchPool))
         }
-        Err(_) => Err(EstimationError::data_msg(
-            "bootstrap index allocation exceeds addressable capacity",
-        )),
+        Err(_) => Err(EstimationError::ResampleBuffer(ResampleBufferFault::IndexCapacity)),
     }
 }
 
@@ -42,9 +40,7 @@ fn index_buffer_bytes(slots: usize) -> Result<u64, EstimationError> {
     u64::try_from(slots)
         .ok()
         .and_then(|slots| slots.checked_mul(u64::try_from(size_of::<u64>()).unwrap_or(8)))
-        .ok_or_else(|| {
-            EstimationError::data_msg("bootstrap index allocation exceeds addressable capacity")
-        })
+        .ok_or(EstimationError::ResampleBuffer(ResampleBufferFault::IndexCapacity))
 }
 
 /// Lease `count * width` values of `T` that a draw loop retains, before the buffer is built.
@@ -65,14 +61,12 @@ pub(crate) fn admit_array<T>(
         .checked_mul(width)
         .and_then(|cells| cells.checked_mul(size_of::<T>().max(1)))
         .and_then(|bytes| u64::try_from(bytes).ok())
-        .ok_or_else(|| EstimationError::data_msg("draw buffer size overflow"))?;
+        .ok_or(EstimationError::ResampleBuffer(ResampleBufferFault::DrawBufferOverflow))?;
     ctx.acquire_admission(0, bytes).map_err(|error| match error {
         antecedent_core::execution::AdmissionError::Cancelled => EstimationError::unsupported(
             "execution cancelled before the draw buffers were admitted",
         ),
-        other => EstimationError::data_msg(format!(
-            "admission pool cannot fund the draw buffers: {other}"
-        )),
+        other => EstimationError::ResampleBuffer(ResampleBufferFault::DrawBufferAdmission(other)),
     })
 }
 
@@ -91,9 +85,9 @@ pub(crate) fn admit_bound_array<T>(
         .checked_mul(width)
         .and_then(|cells| cells.checked_mul(size_of::<T>().max(1)))
         .and_then(|bytes| u64::try_from(bytes).ok())
-        .ok_or_else(|| EstimationError::data_msg("draw buffer size overflow"))?;
+        .ok_or(EstimationError::ResampleBuffer(ResampleBufferFault::DrawBufferOverflow))?;
     antecedent_core::numerical_admission::acquire(bytes).transpose().map_err(|error| {
-        EstimationError::data_msg(format!("admission pool cannot fund the draw buffers: {error}"))
+        EstimationError::ResampleBuffer(ResampleBufferFault::DrawBufferAdmission(error))
     })
 }
 
@@ -123,18 +117,14 @@ pub fn admit_gather_scratch(
         .checked_mul(cells_per_row)
         .and_then(|cells| cells.checked_mul(size_of::<f64>()))
         .and_then(|bytes| u64::try_from(bytes).ok())
-        .ok_or_else(|| {
-            EstimationError::data_msg("bootstrap gather allocation exceeds addressable capacity")
-        })?;
+        .ok_or(EstimationError::ResampleBuffer(ResampleBufferFault::GatherCapacity))?;
     let work_items = if ctx.adaptive_bootstrap.enabled { 1 } else { replicates as usize };
     match ctx.admit_index_bytes(work_items, per_worker) {
         Ok(lease) => Ok(Some(lease)),
         Err(ScratchRefusal::Cancelled) => Ok(None),
-        Err(ScratchRefusal::PoolShort { .. }) => Err(EstimationError::data_msg(
-            "admission pool cannot fund the bootstrap gather buffers",
-        )),
-        Err(_) => Err(EstimationError::data_msg(
-            "bootstrap gather allocation exceeds addressable capacity",
-        )),
+        Err(ScratchRefusal::PoolShort { .. }) => {
+            Err(EstimationError::ResampleBuffer(ResampleBufferFault::GatherPool))
+        }
+        Err(_) => Err(EstimationError::ResampleBuffer(ResampleBufferFault::GatherCapacity)),
     }
 }

@@ -879,7 +879,7 @@ mod tests {
         assert!(effect.se_analytic() < 0.05, "se={}", effect.se_analytic());
         assert!((effect.ate - 2.0).abs() < 4.0 * effect.se_analytic(), "ate={}", effect.ate);
 
-        let linear = FrontDoorTwoStage { bootstrap_replicates: 0, ..FrontDoorTwoStage::new() };
+        let linear = FrontDoorTwoStage::new().with_bootstrap_replicates(0);
         let prep = linear.prepare(&data, &frontdoor_estimand(), &query()).unwrap();
         let shortcut = linear
             .fit(&prep, &mut FrontDoorWorkspace::default(), &ctx(), AssumptionSet::new())

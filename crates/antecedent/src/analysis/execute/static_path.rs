@@ -200,7 +200,7 @@ impl<'a> StaticAteExecution<'a> {
             match &spec {
                 EstimatorSpec::Default(EstimatorId::FrontDoorTwoStage) => {
                     let mut fitter = antecedent_estimate::FrontDoorTwoStage::new();
-                    fitter.sampling_design =
+                    fitter.inference.sampling_design =
                         crate::estimator_spec::declared_sampling(self.study.sampling_design);
                     Some((fitter.clone(), fitter.prepare_checked(data, identification, 0)?))
                 }
@@ -698,9 +698,9 @@ impl<'a> StaticAteExecution<'a> {
         let ctx = self.run.ctx;
         self.clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
         let mut fitter = antecedent_estimate::FrontDoorTwoStage::new();
-        fitter.sampling_design =
+        fitter.inference.sampling_design =
             crate::estimator_spec::declared_sampling(self.study.sampling_design);
-        fitter.bootstrap_replicates = self.study.bootstrap_replicates;
+        fitter.inference.bootstrap_replicates = self.study.bootstrap_replicates;
         let filled = fitter
             .attach_bootstrap(receipt.problem(), &mut ws.frontdoor, ctx, point)
             .map_err(CausalError::from)?;

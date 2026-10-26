@@ -1275,7 +1275,6 @@ fn refuse_outcome_functional(
                 }
                 CausalQuery::ConditionalEffect(q) => {
                     q.inner.target_population == antecedent_core::TargetPopulation::AllObserved
-                        && q.inner.effect_modifiers.len() == 1
                         && matches!(
                             graph_class,
                             GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag
@@ -1291,7 +1290,7 @@ fn refuse_outcome_functional(
         let supported = bayesian_quantile || frequentist_supported;
         if !supported {
             return Err(CausalError::Unsupported {
-                message: "quantiles require Frequentist AllObserved AIPW AverageEffect, binary ConditionalEffect with one modifier, or cell-AIPW joint response; use prepare + retarget for score-table target weights",
+                message: "quantiles require Frequentist AllObserved AIPW AverageEffect, binary ConditionalEffect, or cell-AIPW joint response; use prepare + retarget for score-table target weights",
             });
         }
         if *refute != RefuteSuite::None {

@@ -85,6 +85,7 @@ impl AxisOrder {
     /// # Errors
     ///
     /// [`TileError::AxisOrder`] when an axis is repeated or missing.
+    #[cfg(test)]
     #[must_use = "an axis order that repeats an axis is refused"]
     pub fn try_new(axes: [EvalAxis; 4]) -> Result<Self, TileError> {
         let mut seen = [false; 4];
@@ -104,6 +105,7 @@ impl AxisOrder {
         self.axes
     }
 
+    #[cfg(test)]
     fn without_draw(self) -> [EvalAxis; 3] {
         let mut kept = [EvalAxis::Row; 3];
         let mut written = 0;
@@ -142,7 +144,9 @@ pub enum Encoding {
     },
     /// `factor` in the horizon column and zero elsewhere.
     ///
-    /// The coordinate is the horizon index `0..width`.
+    /// The coordinate is the horizon index `0..width`. Exercised by this module's tests only:
+    /// no estimator streams a horizon indicator.
+    #[cfg(test)]
     HorizonIndicator {
         /// Number of horizon columns.
         width: u64,
@@ -154,7 +158,7 @@ impl Encoding {
     ///
     /// # Errors
     ///
-    /// [`TileError::HorizonWidth`] when a horizon indicator has width zero.
+    /// A refusal when a horizon indicator has width zero (test-only encoding).
     /// [`TileError::SizeOverflow`] when `degree + 1` does not fit in `u64`.
     #[must_use = "a zero horizon width is refused"]
     pub const fn width(self) -> Result<u64, TileError> {
@@ -163,6 +167,7 @@ impl Encoding {
                 Some(width) => Ok(width),
                 None => Err(TileError::SizeOverflow),
             },
+            #[cfg(test)]
             Self::HorizonIndicator { width } => {
                 if width == 0 {
                     Err(TileError::HorizonWidth)
@@ -181,7 +186,7 @@ impl Encoding {
 pub struct GridPoint {
     /// Caller-declared identity emitted with every value at this site.
     pub id: u64,
-    /// Dose coordinate, or horizon index for [`Encoding::HorizonIndicator`].
+    /// Dose coordinate (a horizon index for a horizon indicator encoding).
     pub coordinate: f64,
     /// Factor applied to the encoding. It does not scale row features.
     pub factor: f64,
@@ -206,7 +211,9 @@ pub enum Reduction {
     /// Every row, draw, grid point, and outcome in the tile.
     Full,
     /// Arithmetic mean over every draw. A failed draw makes the mean non-finite and is not
-    /// removed from the divisor.
+    /// removed from the divisor. Exercised by this module's tests only: no estimator streams
+    /// a draw mean.
+    #[cfg(test)]
     DrawMean,
     /// Population covariance `Σ_k (y_k − mean)(y_k − mean)ᵀ / n` across the tile's grid points
     /// and outcomes.
@@ -244,7 +251,7 @@ pub struct TileRequest<'a> {
     pub grid_count: u64,
     /// Encoding shared by every outcome and formed once per site in the tile.
     pub encoding: Encoding,
-    /// Row-major axis order for [`Reduction::Full`] and [`Reduction::DrawMean`].
+    /// Row-major axis order for [`Reduction::Full`].
     pub order: AxisOrder,
     /// Reduction this tile streams.
     pub reduction: Reduction,
@@ -266,7 +273,8 @@ pub enum StreamedValue {
         /// Linear prediction, or NaN when the draw is failed.
         value: f64,
     },
-    /// One cell of [`Reduction::DrawMean`].
+    /// One cell of a draw-mean reduction.
+    #[cfg(test)]
     DrawMean {
         /// Absolute row index.
         row: u64,
@@ -297,7 +305,8 @@ pub enum StreamedValue {
 /// Counts from one streamed tile.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct StreamSummary {
-    /// Reduction that was streamed.
+    /// Reduction that was streamed. Read by this module's tests only.
+    #[cfg(test)]
     pub reduction: Reduction,
     /// Values passed to the sink.
     pub emitted: u64,
@@ -318,6 +327,7 @@ pub enum TileError {
         axis: &'static str,
     },
     /// The axis list was not a permutation of row, draw, grid, and outcome.
+    #[cfg(test)]
     #[error(
         "tiled prediction refuses an axis order that repeats or omits an axis; next attempt: \
          list row, draw, grid, and outcome once each"
@@ -409,6 +419,7 @@ pub enum TileError {
         grid_id: u64,
     },
     /// A horizon coordinate was not an index in `0..width`.
+    #[cfg(test)]
     #[error(
         "tiled prediction refuses a horizon at grid id {grid_id} outside the indicator width; \
          next attempt: pass an integer horizon in 0..width"
@@ -418,6 +429,7 @@ pub enum TileError {
         grid_id: u64,
     },
     /// A horizon indicator declared width zero.
+    #[cfg(test)]
     #[error(
         "tiled prediction refuses a horizon indicator of width zero; next attempt: declare one \
          column per horizon"
@@ -505,11 +517,13 @@ pub fn stream_tile(
     };
     let emitted = match frame.reduction {
         Reduction::Full => stream_full(&frame, &hoisted, &mut audited)?,
+        #[cfg(test)]
         Reduction::DrawMean => stream_mean(&frame, &hoisted, &mut audited)?,
         Reduction::DrawCovariance => stream_covariance(&frame, &hoisted, &mut audited)?,
     };
     audit.admit(&frame)?;
     Ok(StreamSummary {
+        #[cfg(test)]
         reduction: frame.reduction,
         emitted,
         invariant_evaluations: hoisted.evaluations,
@@ -522,8 +536,22 @@ pub struct PipelinedTile {
     /// Counts of the whole tile; `invariant_evaluations` is per row chunk, as each chunk
     /// forms its own encodings.
     pub summary: StreamSummary,
-    /// Row chunks consumed, the most alive at once, and the producers used.
+    /// Row chunks consumed, the most alive at once, and the producers used. Read by this
+    /// module's tests only.
+    #[cfg(test)]
     pub receipt: PipelineReceipt,
+}
+
+impl PipelinedTile {
+    fn new(summary: StreamSummary, receipt: PipelineReceipt) -> Self {
+        #[cfg(not(test))]
+        let _ = receipt;
+        Self {
+            summary,
+            #[cfg(test)]
+            receipt,
+        }
+    }
 }
 
 /// [`stream_tile`] with row chunks produced by leased workers ahead of the sink.
@@ -550,6 +578,7 @@ pub fn stream_tile_pipelined(
 ) -> Result<PipelinedTile, TileError> {
     let rows_first = match request.reduction {
         Reduction::Full => request.order.axes()[0] == EvalAxis::Row,
+        #[cfg(test)]
         Reduction::DrawMean => request.order.without_draw()[0] == EvalAxis::Row,
         Reduction::DrawCovariance => true,
     };
@@ -557,13 +586,14 @@ pub fn stream_tile_pipelined(
     if !rows_first || request.row_count <= rows_per_chunk {
         let summary = stream_tile(request, emit)?;
         let receipt = PipelineReceipt { items_consumed: 1, peak_live: 1, workers: 1 };
-        return Ok(PipelinedTile { summary, receipt });
+        return Ok(PipelinedTile::new(summary, receipt));
     }
     // Validate the whole request once so a refusal emits nothing.
     Frame::prepare(request)?;
     let outcomes = len_u64(request.outcomes)?;
     let cells_per_row = match request.reduction {
         Reduction::Full => product(&[request.draw_count, request.grid_count, outcomes])?,
+        #[cfg(test)]
         Reduction::DrawMean => product(&[request.grid_count, outcomes])?,
         Reduction::DrawCovariance => {
             let component = product(&[request.grid_count, outcomes])?;
@@ -611,14 +641,13 @@ pub fn stream_tile_pipelined(
         Err(MapExecutionError::Work(error)) => return Err(error),
         Err(MapExecutionError::Admission(_)) => return Err(TileError::Cancelled),
     };
-    Ok(PipelinedTile {
-        summary: StreamSummary {
-            reduction: request.reduction,
-            emitted,
-            invariant_evaluations: invariant,
-        },
-        receipt,
-    })
+    let summary = StreamSummary {
+        #[cfg(test)]
+        reduction: request.reduction,
+        emitted,
+        invariant_evaluations: invariant,
+    };
+    Ok(PipelinedTile::new(summary, receipt))
 }
 
 /// Cells the tile actually emitted, checked against the cells its request declares.
@@ -628,6 +657,7 @@ pub fn stream_tile_pipelined(
 struct TileAudit<'a> {
     failed: &'a [bool],
     /// Whether any draw in the tile's window is failed.
+    #[cfg(test)]
     any_failed: bool,
     executed: FrameLedger,
 }
@@ -641,8 +671,16 @@ impl<'a> TileAudit<'a> {
     fn new(frame: &Frame<'a>) -> Result<Self, TileError> {
         let window = as_usize(frame.draw_start)?
             ..as_usize(checked_add(frame.draw_start, frame.draw_count)?)?;
+        #[cfg(test)]
         let any_failed = frame.failed.get(window).is_some_and(|draws| draws.contains(&true));
-        Ok(Self { failed: frame.failed, any_failed, executed: tile_ledger()? })
+        #[cfg(not(test))]
+        let _ = window;
+        Ok(Self {
+            failed: frame.failed,
+            #[cfg(test)]
+            any_failed,
+            executed: tile_ledger()?,
+        })
     }
 
     fn see(&mut self, value: StreamedValue) {
@@ -665,6 +703,7 @@ impl<'a> TileAudit<'a> {
                     state,
                 );
             }
+            #[cfg(test)]
             StreamedValue::DrawMean { row, grid_id, outcome, value } => {
                 let state = match (self.any_failed, value.is_nan()) {
                     (false, _) => STATE_KEPT,
@@ -715,6 +754,7 @@ impl<'a> TileAudit<'a> {
                         }
                     }
                 }
+                #[cfg(test)]
                 Reduction::DrawMean => {
                     let state = if self.any_failed { STATE_FAILED_KEPT } else { STATE_KEPT };
                     for &outcome in &outcome_ids {
@@ -825,7 +865,7 @@ impl<'a> Frame<'a> {
                 full: full_draws,
             });
         }
-        if matches!(request.reduction, Reduction::DrawMean | Reduction::DrawCovariance)
+        if !matches!(request.reduction, Reduction::Full)
             && (request.draw_start != 0 || request.draw_count != full_draws)
         {
             return Err(TileError::PartialDraws {
@@ -834,7 +874,7 @@ impl<'a> Frame<'a> {
                 count: request.draw_count,
             });
         }
-        if matches!(request.reduction, Reduction::DrawMean | Reduction::DrawCovariance)
+        if !matches!(request.reduction, Reduction::Full)
             && request.draw_count > EXACT_DRAW_COUNT
         {
             return Err(TileError::DrawCountNotExact { count: request.draw_count });
@@ -933,6 +973,7 @@ fn write_encoding(out: &mut [f64], point: &GridPoint, encoding: Encoding) -> Res
                 power *= point.coordinate;
             }
         }
+        #[cfg(test)]
         Encoding::HorizonIndicator { width } => {
             let horizon = horizon_index(point, width)?;
             out[as_usize(horizon)?] = point.factor;
@@ -941,6 +982,7 @@ fn write_encoding(out: &mut [f64], point: &GridPoint, encoding: Encoding) -> Res
     Ok(())
 }
 
+#[cfg(test)]
 fn horizon_index(point: &GridPoint, width: u64) -> Result<u64, TileError> {
     if point.coordinate < 0.0 {
         return Err(TileError::Horizon { grid_id: point.id });
@@ -983,6 +1025,7 @@ fn stream_full(
     Ok(emitted)
 }
 
+#[cfg(test)]
 fn stream_mean(
     frame: &Frame<'_>,
     hoisted: &Hoisted,

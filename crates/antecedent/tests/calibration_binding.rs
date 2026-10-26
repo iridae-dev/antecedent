@@ -225,29 +225,23 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
         "matching_homoskedastic_ci_coverage"
         | "matching_heteroskedastic_adversarial_ci_coverage"
         | "matching_heterogeneous_att_ci_coverage" => builder(
-            PropensityMatching {
-                bootstrap_replicates: 0,
-                se_kind: AnalyticSeKind::Homoskedastic,
-                ..PropensityMatching::new()
-            }
+            PropensityMatching::new()
+                .with_bootstrap_replicates(0)
+                .with_se_kind(AnalyticSeKind::Homoskedastic)
             .into(),
             ate_query().with_target_population(TargetPopulation::Treated),
         ),
         "matching_heterogeneous_atc_ci_coverage" => builder(
-            PropensityMatching {
-                bootstrap_replicates: 0,
-                se_kind: AnalyticSeKind::Homoskedastic,
-                ..PropensityMatching::new()
-            }
+            PropensityMatching::new()
+                .with_bootstrap_replicates(0)
+                .with_se_kind(AnalyticSeKind::Homoskedastic)
             .into(),
             ate_query().with_target_population(TargetPopulation::Untreated),
         ),
         "matching_heterogeneous_ate_ci_coverage" => builder(
-            PropensityMatching {
-                bootstrap_replicates: 0,
-                se_kind: AnalyticSeKind::Homoskedastic,
-                ..PropensityMatching::new()
-            }
+            PropensityMatching::new()
+                .with_bootstrap_replicates(0)
+                .with_se_kind(AnalyticSeKind::Homoskedastic)
             .into(),
             ate_query(),
         ),
@@ -263,7 +257,7 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
                 .graph(iv_dag())
                 .query(continuous_query())
                 .identifier(IdentifierId::Iv)
-                .estimator(WaldIv { bootstrap_replicates: 0, se_kind, ..WaldIv::new() })
+                .estimator(WaldIv::new().with_bootstrap_replicates(0).with_se_kind(se_kind))
                 .refute(RefuteSuite::None)
         }
         "iv_2sls_analytic_ci_coverage" | "iv_2sls_hc1_heteroskedastic_ci_coverage" => {
@@ -276,11 +270,9 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
                 .graph(iv_dag())
                 .query(continuous_query())
                 .identifier(IdentifierId::Iv)
-                .estimator(TwoStageLeastSquares {
-                    bootstrap_replicates: 0,
-                    se_kind,
-                    ..TwoStageLeastSquares::new()
-                })
+                .estimator(TwoStageLeastSquares::new()
+                    .with_bootstrap_replicates(0)
+                    .with_se_kind(se_kind))
                 .refute(RefuteSuite::None)
         }
         "frontdoor_stacked_hc0_ci_coverage"
@@ -295,11 +287,9 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
                 .graph(frontdoor_dag())
                 .query(continuous_query())
                 .identifier(IdentifierId::Frontdoor)
-                .estimator(FrontDoorTwoStage {
-                    bootstrap_replicates: 0,
-                    se_kind,
-                    ..FrontDoorTwoStage::new()
-                })
+                .estimator(FrontDoorTwoStage::new()
+                    .with_bootstrap_replicates(0)
+                    .with_se_kind(se_kind))
                 .refute(RefuteSuite::None)
         }
         "frontdoor_functional_saturated_ci_coverage"

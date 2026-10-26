@@ -84,7 +84,9 @@ impl TwoStageLeastSquares {
     /// multiway ids and panel times are the only options the reduction cannot honour.
     #[must_use]
     pub fn supports_streamed_reduction(&self) -> bool {
-        self.cluster_ids.is_none() && self.multiway_ids.is_none() && self.panel_times.is_none()
+        self.inference.cluster_ids.is_none()
+            && self.inference.multiway_ids.is_none()
+            && self.inference.panel_times.is_none()
     }
 
     /// Estimate the instrumented effect by streaming the rows in batches of `batch_rows`,
@@ -157,7 +159,7 @@ impl TwoStageLeastSquares {
         let fit =
             antecedent_stats::fit_2sls_from_moments(&moments).map_err(crate::error::EstimationError::from)?;
         let mut first_stage = fit.first_stage_diagnostics;
-        if matches!(self.se_kind, AnalyticSeKind::Homoskedastic) {
+        if matches!(self.inference.se_kind, AnalyticSeKind::Homoskedastic) {
             let (set, reason) =
                 antecedent_stats::anderson_rubin_confidence_set_from_moments(&moments, AR_LEVEL)
                     .map_err(crate::error::EstimationError::from)?;
@@ -319,8 +321,11 @@ mod tests {
             other => panic!("the Anderson-Rubin sets disagree: {other:?}"),
         }
         // The published estimate carries no Wald or bootstrap standard error either way.
-        let published =
-            streamed.into_effect(AssumptionSet::new(), estimator.overlap, estimator.se_kind);
+        let published = streamed.into_effect(
+            AssumptionSet::new(),
+            estimator.overlap,
+            estimator.inference.se_kind,
+        );
         assert!(!published.se_analytic().is_finite());
         assert!(published.se_bootstrap().is_none());
     }

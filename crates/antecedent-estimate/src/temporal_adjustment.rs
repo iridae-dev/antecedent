@@ -32,7 +32,7 @@ use crate::adjustment::{
     EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, PreparedEstimationProblem,
     intervention_f64,
 };
-use crate::error::EstimationError;
+use crate::error::{EstimationError, HistoryOperatorFault};
 use crate::overlap::OverlapPolicy;
 use crate::se::AnalyticSeKind;
 
@@ -1087,7 +1087,7 @@ fn admit_temporal_history(
 }
 
 fn history_operator_refusal(error: &HistoryOperatorError) -> EstimationError {
-    EstimationError::data_msg(error.to_string())
+    EstimationError::HistoryOperator(HistoryOperatorFault(error.clone()))
 }
 
 /// Nanosecond end of `horizon_steps` on `cadence`.

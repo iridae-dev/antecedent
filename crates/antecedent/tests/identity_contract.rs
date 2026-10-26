@@ -5262,11 +5262,9 @@ fn matching_missing_row_padding_does_not_upgrade_calibration() {
                 VariableId::from_raw(0),
                 VariableId::from_raw(1),
             )))
-            .estimator(antecedent_estimate::PropensityMatching {
-                bootstrap_replicates: 0,
-                se_kind: antecedent_estimate::AnalyticSeKind::Homoskedastic,
-                ..antecedent_estimate::PropensityMatching::new()
-            })
+            .estimator(antecedent_estimate::PropensityMatching::new()
+                .with_bootstrap_replicates(0)
+                .with_se_kind(antecedent_estimate::AnalyticSeKind::Homoskedastic))
             .refute(RefuteSuite::None)
             .build()
             .unwrap()

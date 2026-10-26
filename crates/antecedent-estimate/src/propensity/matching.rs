@@ -7,7 +7,7 @@
 //! **Bootstrap caution:** the nonparametric bootstrap is invalid for nearest-neighbor
 //! matching with a fixed number of matches (Abadie–Imbens 2008). The licensed uncertainty
 //! product is the Abadie–Imbens analytic SE ([`EffectEstimate::se_analytic`]). Setting
-//! [`PropensityMatching::bootstrap_replicates`] does **not** populate
+//! `PropensityMatching`'s declared bootstrap replicates do **not** populate
 //! [`EffectEstimate::se_bootstrap`] — the invalid bootstrap is not retained as a CI.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -34,6 +34,7 @@ use super::prepare::{
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
+use crate::inference::InferenceSpec;
 use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::sampling_weights::SamplingWeights;
 use crate::se::{AnalyticSeKind, SeSpec};
@@ -87,9 +88,14 @@ pub enum CaliperScale {
 pub struct PropensityMatching {
     /// Dense linear-algebra backend used for the logistic IRLS fit.
     pub backend: FaerBackend,
-    /// Accepted for API compatibility; does not populate [`EffectEstimate::se_bootstrap`]
-    /// (Abadie–Imbens 2008 — see module docs). Prefer [`EffectEstimate::se_analytic`].
-    pub bootstrap_replicates: u32,
+    /// Inference declarations. The bootstrap size is accepted for API compatibility and does not
+    /// populate [`EffectEstimate::se_bootstrap`] (Abadie–Imbens 2008 — see module docs; prefer
+    /// [`EffectEstimate::se_analytic`]). The analytic standard-error kind must be
+    /// `Homoskedastic` (Abadie–Imbens): cluster, multiway and HAC kinds are refused because
+    /// donor outcomes belong to other clusters and times than the matched unit. Cluster,
+    /// multiway and panel labels are read (and checked against the kind); a bootstrap interval,
+    /// source-table cluster labels and a sampling design are refused rather than ignored.
+    pub inference: InferenceSpec,
     /// Overlap policy; must be [`OverlapPolicy::RequireDiagnostics`].
     pub overlap: OverlapPolicy,
     /// GLM fitting options for the propensity model.
@@ -100,21 +106,11 @@ pub struct PropensityMatching {
     /// Scale on which matching distance and `caliper` are computed. Defaults to
     /// [`CaliperScale::Logit`] — see the type-level docs.
     pub caliper_scale: CaliperScale,
-    /// Analytic SE kind. Only `Homoskedastic` (Abadie–Imbens) is supported: cluster,
-    /// multiway and HAC kinds are refused because donor outcomes belong to other
-    /// clusters and times than the matched unit.
-    pub se_kind: AnalyticSeKind,
     /// Separate outcome residual noise and population treatment-effect heterogeneity in the
     /// matching variance, declaring linear arm outcome models on the matching features.
     pub population_variance: bool,
-    /// Optional cluster ids aligned to prepared complete-case rows.
-    pub cluster_ids: Option<Vec<u32>>,
     /// Optional bindings for named predicates / custom target distributions.
     pub population_registry: Option<PopulationRegistry>,
-    /// Multiway cluster ids (one `Vec<u32>` per clustering dimension).
-    pub multiway_ids: Option<Vec<Vec<u32>>>,
-    /// Optional panel time labels for panel HAC.
-    pub panel_times: Option<Vec<i64>>,
     /// Policy for treatment rows at neither declared level. The default refuses; the
     /// exclusion that restricts the target population to the rows at the two declared levels
     /// must be declared.
@@ -135,17 +131,13 @@ impl PropensityMatching {
     pub fn new() -> Self {
         Self {
             backend: FaerBackend,
-            bootstrap_replicates: 200,
+            inference: InferenceSpec::new(200),
             overlap: default_propensity_overlap(),
             glm_options: GlmOptions::default(),
             caliper: None,
             caliper_scale: CaliperScale::Logit,
-            se_kind: AnalyticSeKind::Homoskedastic,
             population_variance: false,
-            cluster_ids: None,
             population_registry: None,
-            multiway_ids: None,
-            panel_times: None,
             other_levels: OtherLevels::default(),
             sampling_weights: None,
         }
@@ -166,7 +158,7 @@ impl PropensityMatching {
         self
     }
 
-    crate::inference::with_bootstrap_replicates!();
+    crate::inference::with_bootstrap_replicates!(inference);
 
     /// Set the overlap policy. Positivity is mandatory here:
     /// [`OverlapPolicy::ExplicitOverride`] is refused by `prepare`.
@@ -202,7 +194,7 @@ impl PropensityMatching {
         self
     }
 
-    crate::inference::with_se_kind!();
+    crate::inference::with_se_kind!(inference);
 
     /// Declare linear arm outcome models and include both residual donor-reuse noise and
     /// population treatment-effect heterogeneity in the analytic variance. The raw
@@ -213,11 +205,24 @@ impl PropensityMatching {
         self
     }
 
-    crate::inference::with_cluster_ids!();
+    crate::inference::with_cluster_ids!(inference);
 
-    crate::inference::with_multiway_ids!();
+    crate::inference::with_multiway_ids!(inference);
 
-    crate::inference::with_panel_times!();
+    crate::inference::with_panel_times!(inference);
+
+    /// Refuse the inference declarations matching does not read.
+    fn require_read_inference(&self) -> Result<(), EstimationError> {
+        self.inference.require_read_declarations(
+            "PropensityMatching",
+            crate::inference::ReadDeclarations {
+                cluster_ids: true,
+                multiway_ids: true,
+                panel_times: true,
+                ..crate::inference::ReadDeclarations::default()
+            },
+        )
+    }
 
     /// Prepare the covariate design.
     ///
@@ -230,6 +235,7 @@ impl PropensityMatching {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedPropensityProblem, EstimationError> {
+        self.require_read_inference()?;
         prepare_propensity_problem_with_levels(
             data,
             estimand,
@@ -257,7 +263,8 @@ impl PropensityMatching {
         // `bootstrap_replicates` is intentionally unread: the nonparametric bootstrap is
         // invalid for fixed-M NN matching (Abadie–Imbens 2008) and must not land in
         // `se_bootstrap` even when a caller still requests replicates.
-        let _ = self.bootstrap_replicates;
+        let _ = self.inference.bootstrap_replicates;
+        self.require_read_inference()?;
         validate_caliper(self.caliper)?;
         let trim = trim_of(problem.overlap);
         let model = PropensityModel::fit(
@@ -302,19 +309,19 @@ impl PropensityMatching {
                 ),
             };
         let clusters_used = gather_optional_row_labels(
-            self.cluster_ids.as_deref(),
+            self.inference.cluster_ids.as_deref(),
             problem.nrows,
             retained.as_deref(),
             "cluster_ids",
         )?;
         let times_used = gather_optional_row_labels(
-            self.panel_times.as_deref(),
+            self.inference.panel_times.as_deref(),
             problem.nrows,
             retained.as_deref(),
             "panel_times",
         )?;
         let multiway_used = gather_optional_multiway(
-            self.multiway_ids.as_deref(),
+            self.inference.multiway_ids.as_deref(),
             problem.nrows,
             retained.as_deref(),
         )?;
@@ -333,7 +340,7 @@ impl PropensityMatching {
             self.caliper,
             workspace,
             SeSpec {
-                kind: self.se_kind,
+                kind: self.inference.se_kind,
                 cluster_ids: clusters_used.as_deref(),
                 multiway_ids: multiway_used.as_deref(),
                 panel_times: times_used.as_deref(),
@@ -353,7 +360,7 @@ impl PropensityMatching {
 
         Ok(EffectEstimate::new(result.ate, result.se_analytic, assumptions, problem.overlap)
             .with_preparation(Some(problem.preparation_summary()))
-            .with_se_kind(self.se_kind)
+            .with_se_kind(self.inference.se_kind)
             .with_n_obs(u64::try_from(result.n_obs).unwrap_or(u64::MAX))
             .with_overlap_report(overlap_report)
             .with_treatment_levels(problem.treatment_levels)
@@ -1973,7 +1980,7 @@ mod tests {
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                 .with_target_population(TargetPopulation::Treated);
-        let est = PropensityMatching { bootstrap_replicates: 30, ..PropensityMatching::new() };
+        let est = PropensityMatching::new().with_bootstrap_replicates(30);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
         let effect =

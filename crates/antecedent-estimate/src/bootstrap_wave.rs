@@ -12,7 +12,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::error::EstimationError;
+use crate::error::{EstimationError, ResampleBufferFault};
 use antecedent_core::ExecutionContext;
 
 /// Slots in an addressable `n × workers` index buffer.
@@ -27,9 +27,7 @@ pub(crate) fn retained_index_slots(n: usize, workers: usize) -> Result<usize, Es
         .filter(|&slots| {
             slots.checked_mul(size_of::<u64>()).is_some_and(|bytes| isize::try_from(bytes).is_ok())
         })
-        .ok_or_else(|| {
-            EstimationError::data_msg("bootstrap index allocation exceeds addressable capacity")
-        })
+        .ok_or(EstimationError::ResampleBuffer(ResampleBufferFault::IndexCapacity))
 }
 
 /// Retained IID bootstrap indexes for at most `width` replicates.
@@ -59,9 +57,9 @@ impl BootstrapIndexWave {
         }
         let slots = retained_index_slots(n, width)?;
         let mut indexes = Vec::new();
-        indexes.try_reserve_exact(slots).map_err(|e| {
-            EstimationError::data_msg(format!("bootstrap index allocation failed: {e}"))
-        })?;
+        indexes
+            .try_reserve_exact(slots)
+            .map_err(|e| EstimationError::ResampleBuffer(ResampleBufferFault::IndexAllocation(e)))?;
         indexes.resize(slots, 0);
         Ok(Self { indexes, n, width, filled: 0 })
     }
@@ -139,9 +137,8 @@ pub(crate) fn fill_worker_replicate(
     out: &mut Vec<usize>,
 ) -> Result<(), EstimationError> {
     out.clear();
-    out.try_reserve_exact(n).map_err(|e| {
-        EstimationError::data_msg(format!("bootstrap index allocation failed: {e}"))
-    })?;
+    out.try_reserve_exact(n)
+        .map_err(|e| EstimationError::ResampleBuffer(ResampleBufferFault::IndexAllocation(e)))?;
     with_replicate_draws(n, replicate, ctx, stream_base, |index| {
         out.push(index);
         Ok(())
@@ -377,14 +374,14 @@ mod adaptive_resample {
             AdaptiveDesign::Bayesian { .. } => {
                 let count = retained_index_slots(n, slots)?;
                 weight_slots.try_reserve_exact(count).map_err(|error| {
-                    EstimationError::data_msg(format!("resample wave allocation failed: {error}"))
+                    EstimationError::ResampleBuffer(ResampleBufferFault::WaveAllocation(error))
                 })?;
                 weight_slots.resize(count, 0.0);
             }
             AdaptiveDesign::Indexes { .. } if !variable => {
                 let count = retained_index_slots(n, slots)?;
                 index_slots.try_reserve_exact(count).map_err(|error| {
-                    EstimationError::data_msg(format!("resample wave allocation failed: {error}"))
+                    EstimationError::ResampleBuffer(ResampleBufferFault::WaveAllocation(error))
                 })?;
                 index_slots.resize(count, GlobalId::new(0));
             }
@@ -564,11 +561,13 @@ mod adaptive_resample {
         let bytes = u64::try_from(slots)
             .ok()
             .and_then(|slots| slots.checked_mul(8))
-            .ok_or_else(|| EstimationError::data_msg("resample window bytes overflow"))?;
-        let held = ctx.acquire_admission(0, bytes).map_err(|error| {
-            EstimationError::data_msg(format!(
-                "the resample window of {window} draws needs {bytes} bytes: {error}"
-            ))
+            .ok_or(EstimationError::ResampleBuffer(ResampleBufferFault::WindowBytesOverflow))?;
+        let held = ctx.acquire_admission(0, bytes).map_err(|source| {
+            EstimationError::ResampleBuffer(ResampleBufferFault::WindowAdmission {
+                draws: window,
+                bytes,
+                source,
+            })
         })?;
         let design = request.design;
         let stream_base = request.stream_base;

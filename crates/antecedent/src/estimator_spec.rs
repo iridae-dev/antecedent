@@ -104,7 +104,7 @@ impl EstimatorSpec {
             Self::PropensityStratification(cfg) => &mut cfg.inference.sampling_design,
             Self::Aipw(cfg) => &mut cfg.inference.sampling_design,
             Self::GlmAdjustment(cfg) => &mut cfg.inference.sampling_design,
-            Self::FrontDoorTwoStage(cfg) => &mut cfg.sampling_design,
+            Self::FrontDoorTwoStage(cfg) => &mut cfg.inference.sampling_design,
             _ => return Ok(()),
         };
         match *slot {
@@ -210,14 +210,14 @@ impl EstimatorSpec {
             Self::Default(_) | Self::Dml(_) | Self::DrLearner(_) | Self::CausalForest(_) => None,
             Self::LinearAdjustmentAte(cfg) => Some(cfg.inference.bootstrap_replicates),
             Self::PropensityWeighting(cfg) => Some(cfg.inference.bootstrap_replicates),
-            Self::PropensityMatching(cfg) => Some(cfg.bootstrap_replicates),
+            Self::PropensityMatching(cfg) => Some(cfg.inference.bootstrap_replicates),
             Self::PropensityStratification(cfg) => Some(cfg.inference.bootstrap_replicates),
-            Self::DistanceMatching(cfg) => Some(cfg.bootstrap_replicates),
+            Self::DistanceMatching(cfg) => Some(cfg.inference.bootstrap_replicates),
             Self::Aipw(cfg) => Some(cfg.inference.bootstrap_replicates),
             Self::GlmAdjustment(cfg) => Some(cfg.inference.bootstrap_replicates),
-            Self::FrontDoorTwoStage(cfg) => Some(cfg.bootstrap_replicates),
-            Self::IvWald(cfg) => Some(cfg.bootstrap_replicates),
-            Self::Iv2Sls(cfg) => Some(cfg.bootstrap_replicates),
+            Self::FrontDoorTwoStage(cfg) => Some(cfg.inference.bootstrap_replicates),
+            Self::IvWald(cfg) => Some(cfg.inference.bootstrap_replicates),
+            Self::Iv2Sls(cfg) => Some(cfg.inference.bootstrap_replicates),
         }
     }
 

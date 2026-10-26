@@ -127,7 +127,7 @@ fn frontdoor_prepared_click_uses_retained_fit_after_study_config_changes() {
         panic!("expected retained checked front-door operation")
     };
     assert_eq!(operation.preparation.lowering().treatment, VariableId::from_raw(0));
-    assert_eq!(operation.fitter.bootstrap_replicates, 0);
+    assert_eq!(operation.fitter.inference.bootstrap_replicates, 0);
     prepared.analysis.estimator_spec = Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(
         Box::new(antecedent_estimate::LinearAdjustmentAte::new()),
     )));

@@ -6,6 +6,7 @@ use antecedent_core::QueryError;
 use antecedent_data::DataError;
 use antecedent_expr::provider::ProviderSnapshotError;
 use antecedent_expr::{EvalError, ExactLawError, ProgramError};
+use antecedent_model::history_operators::HistoryOperatorError;
 use antecedent_prob::ProbError;
 use antecedent_stats::{GlmRefusalKind, StatsError};
 use std::borrow::Cow;
@@ -75,6 +76,12 @@ pub enum EstimationError {
     /// Identification could not state the quantity the estimator was asked for.
     #[error(transparent)]
     Identification(#[from] antecedent_identify::IdentificationError),
+    /// A history operator (cadence, horizon, action time or weights) refused its inputs.
+    #[error(transparent)]
+    HistoryOperator(#[from] HistoryOperatorFault),
+    /// A resampling loop could not size, admit or allocate its index, gather or draw buffers.
+    #[error(transparent)]
+    ResampleBuffer(#[from] ResampleBufferFault),
     /// Missing overlap override when required.
     #[error("{message}")]
     Overlap {
@@ -334,6 +341,100 @@ impl std::fmt::Display for ExactF64 {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(formatter)
     }
+}
+
+/// A refusal of a history operator, compared exactly.
+///
+/// [`HistoryOperatorError`] carries `f64` values (a refused weight, level or coefficient), so it
+/// is only `PartialEq`: a refused `NaN` weight does not equal itself. This wrapper compares those
+/// values by bit pattern, like [`ExactF64`], so the refusal can sit in the `Eq` enum
+/// [`EstimationError`].
+#[derive(Clone, Debug, Error)]
+#[error(transparent)]
+pub struct HistoryOperatorFault(pub HistoryOperatorError);
+
+impl HistoryOperatorFault {
+    /// The operator's own refusal.
+    #[must_use]
+    pub const fn operator(&self) -> &HistoryOperatorError {
+        &self.0
+    }
+}
+
+impl PartialEq for HistoryOperatorFault {
+    fn eq(&self, other: &Self) -> bool {
+        use HistoryOperatorError as E;
+        match (&self.0, &other.0) {
+            (
+                E::NonFiniteWeight { role: left_role, value: left },
+                E::NonFiniteWeight { role: right_role, value: right },
+            )
+            | (
+                E::NonPositiveWeight { role: left_role, value: left },
+                E::NonPositiveWeight { role: right_role, value: right },
+            ) => left_role == right_role && ExactF64(*left) == ExactF64(*right),
+            (E::NonFiniteLevel { value: left }, E::NonFiniteLevel { value: right })
+            | (
+                E::NegativeInnovationVariance { value: left },
+                E::NegativeInnovationVariance { value: right },
+            )
+            | (
+                E::UnstableAutoregression { autoregression: left },
+                E::UnstableAutoregression { autoregression: right },
+            ) => ExactF64(*left) == ExactF64(*right),
+            (left, right) => left == right,
+        }
+    }
+}
+
+impl Eq for HistoryOperatorFault {}
+
+/// Why a resampling loop could not hold the buffers it retains.
+///
+/// Each variant renders the message the loop gave when these refusals were free text.
+#[derive(Clone, Debug, Error, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum ResampleBufferFault {
+    /// `n × workers` index slots do not fit an addressable allocation.
+    #[error("bootstrap index allocation exceeds addressable capacity")]
+    IndexCapacity,
+    /// The allocator refused the resample index buffer.
+    #[error("bootstrap index allocation failed: {0}")]
+    IndexAllocation(std::collections::TryReserveError),
+    /// A resampled row identity does not index the table.
+    #[error("a resampled row identity exceeds the addressable table size")]
+    RowIdentity,
+    /// The admission pool cannot fund the index scratch of the workers.
+    #[error("admission pool cannot fund the bootstrap scratch")]
+    IndexScratchPool,
+    /// The allocator refused the buffers of a resample wave.
+    #[error("resample wave allocation failed: {0}")]
+    WaveAllocation(std::collections::TryReserveError),
+    /// The bytes of a resample window do not fit in `u64`.
+    #[error("resample window bytes overflow")]
+    WindowBytesOverflow,
+    /// The admission pool refused the bytes of a resample window.
+    #[error("the resample window of {draws} draws needs {bytes} bytes: {source}")]
+    WindowAdmission {
+        /// Draws in the window.
+        draws: usize,
+        /// Bytes the window needs.
+        bytes: u64,
+        /// The pool's refusal.
+        source: antecedent_core::execution::AdmissionError,
+    },
+    /// The gather buffers of the workers do not fit an addressable allocation.
+    #[error("bootstrap gather allocation exceeds addressable capacity")]
+    GatherCapacity,
+    /// The admission pool cannot fund the gather buffers of the workers.
+    #[error("admission pool cannot fund the bootstrap gather buffers")]
+    GatherPool,
+    /// The byte size of a draw buffer overflows.
+    #[error("draw buffer size overflow")]
+    DrawBufferOverflow,
+    /// The admission pool refused a draw buffer.
+    #[error("admission pool cannot fund the draw buffers: {0}")]
+    DrawBufferAdmission(antecedent_core::execution::AdmissionError),
 }
 
 /// The cause class of a refusal of the out-of-core weighted-Gaussian reduction.
@@ -728,7 +829,30 @@ impl From<antecedent_learn::FittedEffectError> for EstimationError {
 
 #[cfg(test)]
 mod tests {
-    use super::{EstimationError, RefusalFields, RefusalMessage};
+    use super::{EstimationError, HistoryOperatorFault, RefusalFields, RefusalMessage};
+    use antecedent_model::history_operators::{HistoryOperatorError, WeightRole};
+
+    /// A refused `NaN` weight equals itself, and differs from a refused infinity, so the
+    /// refusal can sit in the `Eq` error enum.
+    #[test]
+    fn history_operator_fault_compares_refused_floats_by_bits() {
+        let weight = |value| {
+            EstimationError::from(HistoryOperatorFault(HistoryOperatorError::NonFiniteWeight {
+                role: WeightRole::Censoring,
+                value,
+            }))
+        };
+        assert_eq!(weight(f64::NAN), weight(f64::NAN));
+        assert_ne!(weight(f64::NAN), weight(f64::INFINITY));
+        assert_ne!(
+            weight(f64::INFINITY),
+            EstimationError::from(HistoryOperatorFault(HistoryOperatorError::NonFiniteWeight {
+                role: WeightRole::Assignment,
+                value: f64::INFINITY,
+            }))
+        );
+        assert!(weight(f64::NAN).to_string().contains("not finite"));
+    }
 
     /// Only a refusal built with a remedy carries one; every other error reads
     /// `None`, and attaching a remedy never changes the rendered message.

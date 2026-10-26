@@ -117,7 +117,7 @@ fn checked_iv_survives_builder_drop_and_refresh_with_selected_fitter() {
         let mut prepared = fitter.prepare(&context).unwrap();
         match &prepared.execution {
             PreparedExecution::Iv(CheckedIvOperation::Wald { fitter, preparation }) if is_wald => {
-                assert_eq!(fitter.se_kind, AnalyticSeKind::Hc1);
+                assert_eq!(fitter.inference.se_kind, AnalyticSeKind::Hc1);
                 assert_eq!(
                     preparation.lowering().procedure,
                     antecedent_estimate::CheckedIvProcedure::Wald
@@ -126,7 +126,7 @@ fn checked_iv_survives_builder_drop_and_refresh_with_selected_fitter() {
             PreparedExecution::Iv(CheckedIvOperation::TwoSls { fitter, preparation })
                 if !is_wald =>
             {
-                assert_eq!(fitter.se_kind, AnalyticSeKind::Hc1);
+                assert_eq!(fitter.inference.se_kind, AnalyticSeKind::Hc1);
                 assert_eq!(
                     preparation.lowering().procedure,
                     antecedent_estimate::CheckedIvProcedure::TwoStageLeastSquares

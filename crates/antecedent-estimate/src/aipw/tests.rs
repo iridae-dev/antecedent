@@ -827,3 +827,163 @@ fn aipw_bootstrap_follows_the_declared_sampling_design() {
         .unwrap();
     assert!(fit.se_bootstrap().is_some());
 }
+
+/// The refit the bootstrap replaced: gather the resampled design and outcome, refit the logistic
+/// propensity by IRLS on the repeated rows (weighted by the drawn rows' sampling weights, when
+/// declared), and score the contrast over every drawn row.
+fn gathered_replicate_ate(
+    est: &AipwAte,
+    problem: &PreparedPropensityProblem,
+    idx: &[usize],
+) -> Option<f64> {
+    let clip = clip_of(problem.overlap);
+    let trim = trim_of(problem.overlap);
+    let n = problem.nrows;
+    let ncols = problem.design_ncols;
+    let drawn = idx.len();
+    let mut design = vec![0.0; drawn * ncols];
+    crate::util::gather_cols(&mut design, &problem.design_matrix, n, ncols, idx);
+    let treatment = gather(&problem.treatment, idx);
+    let outcome = gather(&problem.outcome, idx);
+    let w_boot: Option<Vec<f64>> =
+        problem.sampling_weights.as_ref().map(|s| idx.iter().map(|&i| s.weights[i]).collect());
+    let mut workspace = AipwWorkspace::default();
+    let fit = match w_boot.as_deref() {
+        Some(w) => antecedent_stats::fit_propensity_weighted_in_place(
+            &design,
+            drawn,
+            ncols,
+            &treatment,
+            w,
+            &est.backend,
+            &mut workspace.propensity,
+            &est.glm_options,
+        ),
+        None => antecedent_stats::fit_propensity_in_place(
+            &design,
+            drawn,
+            ncols,
+            &treatment,
+            &est.backend,
+            &mut workspace.propensity,
+            &est.glm_options,
+        ),
+    };
+    fit.ok()?;
+    let raw = workspace.propensity.scores[..drawn].to_vec();
+    let mut scores = raw.clone();
+    if let Some(c) = clip {
+        clamp_scores(&mut scores, c);
+    }
+    let retained = trim_retained_rows(&raw, trim).ok()?;
+    let keep = |values: &[f64]| -> Vec<f64> {
+        match &retained {
+            Some(kept) => gather(values, kept),
+            None => values.to_vec(),
+        }
+    };
+    let mut design_used = Vec::new();
+    match &retained {
+        Some(kept) => select_rows_colmajor(&design, drawn, ncols, kept, &mut design_used),
+        None => design_used.clone_from(&design),
+    }
+    let (t_used, y_used, e_used) = (keep(&treatment), keep(&outcome), keep(&scores));
+    let nrows = t_used.len();
+    let w_used: Option<Vec<f64>> = w_boot.as_ref().map(|w| {
+        let mut used = keep(w);
+        let scale = used.len() as f64 / used.iter().sum::<f64>();
+        for value in &mut used {
+            *value *= scale;
+        }
+        used
+    });
+    let (beta0, beta1) = fit_outcome_models_weighted(
+        &design_used,
+        nrows,
+        ncols,
+        &t_used,
+        &y_used,
+        w_used.as_deref(),
+        est.backend,
+        &mut workspace,
+    )
+    .ok()?;
+    let (mut mu0, mut mu1) = (Vec::new(), Vec::new());
+    predict_colmajor(&design_used, nrows, ncols, &beta0, &mut mu0);
+    predict_colmajor(&design_used, nrows, ncols, &beta1, &mut mu1);
+    let mut psi = Vec::new();
+    aipw_psi_weighted(
+        &t_used,
+        &y_used,
+        &e_used,
+        &mu0,
+        &mu1,
+        &problem.target_population,
+        w_used.as_deref(),
+        &mut psi,
+    )
+    .ok()?;
+    if let Some(w) = w_used.as_deref() {
+        for (value, &m) in psi.iter_mut().zip(w) {
+            *value *= m;
+        }
+    }
+    Some(psi.iter().sum::<f64>() / psi.len() as f64)
+}
+
+/// A replicate refit on the distinct drawn rows, each carrying its multiplicity as a case
+/// weight, is the refit of the gathered resample: the weighted likelihood and squared residuals
+/// are sums over the repeated rows, and the ATT / ATC arm share divides by the number of draws.
+#[test]
+fn the_count_weighted_replicate_matches_the_gathered_resample() {
+    let n = 300;
+    let (data, estimand) = confounded_scm(n, 21);
+    let ate = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let trimmed = OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: Some(0.05) };
+    let weights: Vec<f64> = (0..n).map(|i| 0.4 + (i % 5) as f64 * 0.35).collect();
+    let cases = [
+        (ate.clone(), trimmed, false),
+        (ate.clone(), trimmed, true),
+        (ate.clone().with_target_population(TargetPopulation::Treated), trimmed, false),
+        (ate.clone().with_target_population(TargetPopulation::Treated), trimmed, true),
+        (
+            ate.clone().with_target_population(TargetPopulation::Untreated),
+            crate::propensity::default_propensity_overlap(),
+            false,
+        ),
+        (
+            ate.with_target_population(TargetPopulation::Untreated),
+            crate::propensity::default_propensity_overlap(),
+            true,
+        ),
+    ];
+    let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+    for (query, overlap, weighted) in cases {
+        let mut est = AipwAte::new().with_bootstrap_replicates(0);
+        est.overlap = overlap;
+        if weighted {
+            est = est.with_sampling_weights(
+                crate::sampling_weights::SamplingWeights::new(weights.clone()).unwrap(),
+            );
+        }
+        let problem = est.prepare(&data, &estimand, &query).unwrap();
+        let mut scratch = ReplicateScratch::new(problem.nrows, problem.design_ncols);
+        for _ in 0..4 {
+            let idx: Vec<usize> = (0..problem.nrows)
+                .map(|_| {
+                    state = state
+                        .wrapping_mul(6_364_136_223_846_793_005)
+                        .wrapping_add(1_442_695_040_888_963_407);
+                    usize::try_from(state >> 33).unwrap_or(0) % problem.nrows
+                })
+                .collect();
+            let counted = est.replicate_ate(&problem, &idx, &mut scratch).expect("counted fit");
+            let gathered = gathered_replicate_ate(&est, &problem, &idx).expect("gathered fit");
+            assert!(
+                (counted - gathered).abs() <= 1e-8 * (1.0 + gathered.abs()),
+                "{:?} weighted={weighted}: counted {counted} vs gathered {gathered}",
+                query.target_population
+            );
+        }
+    }
+}

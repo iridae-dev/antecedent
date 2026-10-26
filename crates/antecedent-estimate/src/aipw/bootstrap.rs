@@ -80,11 +80,11 @@ pub(super) fn fill_penalized_bootstrap_indexes(
     )?;
     idx.clear();
     idx.try_reserve_exact(ids.len()).map_err(|e| {
-        EstimationError::data_msg(format!("bootstrap index allocation failed: {e}"))
+        EstimationError::ResampleBuffer(crate::error::ResampleBufferFault::IndexAllocation(e))
     })?;
     for id in ids.iter() {
         idx.push(usize::try_from(id.get()).map_err(|_| {
-            EstimationError::data_msg("a resampled row identity exceeds the addressable table size")
+            EstimationError::ResampleBuffer(crate::error::ResampleBufferFault::RowIdentity)
         })?);
     }
     Ok(())
@@ -512,11 +512,12 @@ impl AipwAte {
         let ncols = problem.design_ncols;
         let clusters = self.bootstrap_clusters(problem)?;
         let series_block = self.series_block(n);
-        // Each worker gathers the design, three vectors, and four trimmed copies.
+        // Each worker gathers the design, three vectors, four trimmed copies, and the
+        // multiplicities, case weights and row lists of the distinct rows.
         let _gather = crate::util::admit_gather_scratch(
             ctx,
             n,
-            ncols + 8,
+            ncols + 12,
             self.inference.bootstrap_replicates,
         )?;
         // Replicates own a cold workspace; parallel workers cannot share the caller's.
@@ -539,7 +540,15 @@ impl AipwAte {
     /// One bootstrap replicate: refit the propensity and both outcome arms on the drawn rows
     /// (with the resampled sampling weights) and score the contrast. `None` is a failed
     /// replicate, counted by the caller and never a zero estimate.
-    fn replicate_ate(
+    ///
+    /// The refit runs on the distinct rows the resample drew, with each row's multiplicity as a
+    /// case weight through every stage, so no resampled design is gathered: the weighted
+    /// logistic propensity fit and the weighted outcome fits maximise and minimise the sums over
+    /// the repeated rows (a repeated row adds its likelihood term and squared residual once per
+    /// draw), the trim and clip rules read each row's own score, the arm shares of the ATT / ATC
+    /// score divide by the number of draws, and the sampling weights are renormalised to mean
+    /// one over the draws. The estimate is that of the gathered resample, to rounding.
+    pub(super) fn replicate_ate(
         &self,
         problem: &PreparedPropensityProblem,
         idx: &[usize],
@@ -551,6 +560,10 @@ impl AipwAte {
         let ncols = problem.design_ncols;
         let ReplicateScratch {
             workspace,
+            counts,
+            rows,
+            multiplicity,
+            case_weights,
             x_boot,
             t_boot,
             y_boot,
@@ -559,110 +572,140 @@ impl AipwAte {
             t_trim,
             y_trim,
             e_trim,
+            multiplicity_trim,
         } = scratch;
-        let drawn = idx.len();
-        x_boot.resize(drawn * ncols, 0.0);
-        for buffer in [&mut *t_boot, &mut *y_boot, &mut *e] {
-            buffer.resize(drawn, 0.0);
+        // The distinct rows drawn, in source order, with the number of times each was drawn.
+        crate::util::resample_counts(counts, n, idx);
+        rows.clear();
+        multiplicity.clear();
+        for (row, &count) in counts.iter().enumerate() {
+            if count > 0 {
+                rows.push(row);
+                multiplicity.push(f64::from(count));
+            }
         }
-        crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
-        crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
-        crate::util::gather_cols(x_boot, &problem.design_matrix, n, ncols, idx);
-        // The resample carries each drawn row's sampling weight.
-        let w_boot: Option<Vec<f64>> =
-            problem.sampling_weights.as_ref().map(|s| idx.iter().map(|&i| s.weights[i]).collect());
-        let propensity_fit = match w_boot.as_deref() {
-            Some(w) => antecedent_stats::fit_propensity_weighted_in_place(
+        let distinct = rows.len();
+        x_boot.resize(distinct * ncols, 0.0);
+        for buffer in [&mut *t_boot, &mut *y_boot, &mut *e] {
+            buffer.resize(distinct, 0.0);
+        }
+        crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, rows);
+        crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, rows);
+        crate::util::gather_cols(x_boot, &problem.design_matrix, n, ncols, rows);
+        // Each distinct row weighs its multiplicity times its sampling weight in the propensity
+        // fit, which is the weighted likelihood of the repeated rows.
+        let sampling = problem.sampling_weights.as_ref();
+        case_weights.clear();
+        for (&row, &count) in rows.iter().zip(multiplicity.iter()) {
+            case_weights.push(sampling.map_or(count, |s| count * s.weights[row]));
+        }
+        let mut fit_propensity = || {
+            antecedent_stats::fit_propensity_weighted_in_place(
                 x_boot,
-                drawn,
+                distinct,
                 ncols,
                 t_boot,
-                w,
+                case_weights,
                 &self.backend,
                 &mut workspace.propensity,
                 &self.glm_options,
-            ),
-            None => antecedent_stats::fit_propensity_in_place(
-                x_boot,
-                drawn,
-                ncols,
-                t_boot,
-                &self.backend,
-                &mut workspace.propensity,
-                &self.glm_options,
-            ),
+            )
+        };
+        // The unweighted fit this replaces was observed as a GLM fit attempt; the sampling-
+        // weighted one never was, and keeps that.
+        let propensity_fit = if sampling.is_some() {
+            fit_propensity()
+        } else {
+            antecedent_core::execution_attempt::run_operation(
+                antecedent_core::execution_attempt::Operation::GlmFit,
+                fit_propensity,
+            )
         };
         if propensity_fit.is_err() {
             return None;
         }
-        let raw = &workspace.propensity.scores[..drawn];
+        let raw = &workspace.propensity.scores[..distinct];
         e.copy_from_slice(raw);
         if let Some(c) = clip {
             clamp_scores(e, c);
         }
         let retained = trim_retained_rows(raw, trim).ok()?;
-        let (design_used, t_used, y_used, e_used): (&[f64], &[f64], &[f64], &[f64]) =
-            match &retained {
-                Some(kept) => {
-                    select_rows_colmajor(x_boot, drawn, ncols, kept, design_trim);
-                    gather_into(t_trim, t_boot, kept);
-                    gather_into(y_trim, y_boot, kept);
-                    gather_into(e_trim, e, kept);
-                    (design_trim, t_trim, y_trim, e_trim)
-                }
-                None => (x_boot, t_boot, y_boot, e),
-            };
-        let nrows = t_used.len();
-        // Weights of the rows the contrast uses, renormalized to mean one.
-        let w_used: Option<Vec<f64>> = w_boot.as_ref().map(|w| {
-            let mut used: Vec<f64> = match &retained {
-                Some(rows) => rows.iter().map(|&i| w[i]).collect(),
-                None => w.clone(),
-            };
-            let scale = used.len() as f64 / used.iter().sum::<f64>();
-            for value in &mut used {
-                *value *= scale;
+        let (design_used, t_used, y_used, e_used, draws_used): (
+            &[f64],
+            &[f64],
+            &[f64],
+            &[f64],
+            &[f64],
+        ) = match &retained {
+            Some(kept) => {
+                select_rows_colmajor(x_boot, distinct, ncols, kept, design_trim);
+                gather_into(t_trim, t_boot, kept);
+                gather_into(y_trim, y_boot, kept);
+                gather_into(e_trim, e, kept);
+                gather_into(multiplicity_trim, multiplicity, kept);
+                (design_trim, t_trim, y_trim, e_trim, multiplicity_trim)
             }
-            used
+            None => (x_boot, t_boot, y_boot, e, multiplicity),
+        };
+        let nrows = t_used.len();
+        let draws: f64 = draws_used.iter().sum();
+        // Sampling weights of the rows the contrast uses, renormalised to mean one over the
+        // draws (a row drawn twice counts twice in the mean).
+        let w_used: Option<Vec<f64>> = sampling.map(|s| {
+            let source = |k: usize| match &retained {
+                Some(kept) => rows[kept[k]],
+                None => rows[k],
+            };
+            let total: f64 = (0..nrows).map(|k| draws_used[k] * s.weights[source(k)]).sum();
+            let scale = draws / total;
+            (0..nrows).map(|k| s.weights[source(k)] * scale).collect()
         });
+        // Case weights of the outcome fits: the multiplicity times the renormalised weight.
+        case_weights.clear();
+        for (k, &count) in draws_used.iter().enumerate() {
+            case_weights.push(w_used.as_ref().map_or(count, |w| count * w[k]));
+        }
         let (beta0, beta1) = fit_outcome_models_weighted(
             design_used,
             nrows,
             ncols,
             t_used,
             y_used,
-            w_used.as_deref(),
+            Some(case_weights.as_slice()),
             self.backend,
             workspace,
         )
         .ok()?;
         predict_colmajor(design_used, nrows, ncols, &beta0, &mut workspace.mu0);
         predict_colmajor(design_used, nrows, ncols, &beta1, &mut workspace.mu1);
-        aipw_psi_weighted(
+        aipw_psi_counted(
             t_used,
             y_used,
             e_used,
             &workspace.mu0,
             &workspace.mu1,
             &problem.target_population,
-            w_used.as_deref(),
+            (w_used.as_deref(), Some(draws_used)),
             &mut workspace.psi,
         )
         .ok()?;
-        if let Some(w) = w_used.as_deref() {
-            for (value, &m) in workspace.psi.iter_mut().zip(w) {
-                *value *= m;
-            }
+        let mut total = 0.0;
+        for (k, (&psi, &count)) in workspace.psi.iter().zip(draws_used).enumerate() {
+            total += count * psi * w_used.as_ref().map_or(1.0, |w| w[k]);
         }
-        let m = workspace.psi.len() as f64;
-        Some(workspace.psi.iter().sum::<f64>() / m)
+        Some(total / draws)
     }
 }
 
-/// Per-worker scratch of one bootstrap replicate: a cold workspace, the resampled design and
-/// vectors, and the trimmed copies the contrast reads when a trim rule retains a subset.
+/// Per-worker scratch of one bootstrap replicate: a cold workspace, the distinct drawn rows with
+/// their multiplicities and case weights, the gathered distinct-row design and vectors, and the
+/// trimmed copies the contrast reads when a trim rule retains a subset.
 pub(super) struct ReplicateScratch {
     workspace: AipwWorkspace,
+    counts: Vec<u32>,
+    rows: Vec<usize>,
+    multiplicity: Vec<f64>,
+    case_weights: Vec<f64>,
     x_boot: Vec<f64>,
     t_boot: Vec<f64>,
     y_boot: Vec<f64>,
@@ -671,6 +714,7 @@ pub(super) struct ReplicateScratch {
     t_trim: Vec<f64>,
     y_trim: Vec<f64>,
     e_trim: Vec<f64>,
+    multiplicity_trim: Vec<f64>,
 }
 
 impl ReplicateScratch {
@@ -678,6 +722,10 @@ impl ReplicateScratch {
     pub(super) fn new(n: usize, ncols: usize) -> Self {
         Self {
             workspace: AipwWorkspace::default(),
+            counts: vec![0; n],
+            rows: Vec::with_capacity(n),
+            multiplicity: Vec::with_capacity(n),
+            case_weights: Vec::with_capacity(n),
             x_boot: vec![0.0; n * ncols],
             t_boot: vec![0.0; n],
             y_boot: vec![0.0; n],
@@ -686,6 +734,7 @@ impl ReplicateScratch {
             t_trim: Vec::new(),
             y_trim: Vec::new(),
             e_trim: Vec::new(),
+            multiplicity_trim: Vec::new(),
         }
     }
 }

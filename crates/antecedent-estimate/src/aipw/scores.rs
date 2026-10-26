@@ -35,8 +35,33 @@ pub(super) fn aipw_psi_weighted(
     weights: Option<&[f64]>,
     out: &mut Vec<f64>,
 ) -> Result<(), EstimationError> {
+    aipw_psi_counted(treatment, outcome, propensity, mu0, mu1, target, (weights, None), out)
+}
+
+/// [`aipw_psi_weighted`] over the distinct rows of a resample: `multiplicity[i]` is how many
+/// times row `i` was drawn, and `weights` are the per-draw sampling weights (mean one over the
+/// draws).
+///
+/// The per-row scores are those of the repeated rows. The ATT / ATC arm share is the share of
+/// the *drawn* rows, `Σ_i c_i m_i T_i / Σ_i c_i`, so it divides by the number of draws, not by
+/// the number of distinct rows. With no multiplicity every row counts once.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the score reads the six aligned nuisance and data columns, the target, and the weights with their multiplicities"
+)]
+pub(super) fn aipw_psi_counted(
+    treatment: &[f64],
+    outcome: &[f64],
+    propensity: &[f64],
+    mu0: &[f64],
+    mu1: &[f64],
+    target: &TargetPopulation,
+    (weights, multiplicity): (Option<&[f64]>, Option<&[f64]>),
+    out: &mut Vec<f64>,
+) -> Result<(), EstimationError> {
     let weight = |i: usize| weights.map_or(1.0, |w| w[i]);
-    let n_rows = treatment.len() as f64;
+    let draws = |i: usize| multiplicity.map_or(1.0, |c| c[i]);
+    let n_rows = multiplicity.map_or(treatment.len() as f64, |c| c.iter().sum::<f64>());
     out.clear();
     out.reserve(treatment.len());
     match target {
@@ -53,7 +78,7 @@ pub(super) fn aipw_psi_weighted(
                 .iter()
                 .enumerate()
                 .filter(|(_, t)| TreatmentArm::is_treated_indicator(**t))
-                .map(|(i, _)| weight(i))
+                .map(|(i, _)| draws(i) * weight(i))
                 .sum::<f64>()
                 / n_rows;
             if pi <= 0.0 {
@@ -72,7 +97,7 @@ pub(super) fn aipw_psi_weighted(
                 .iter()
                 .enumerate()
                 .filter(|(_, t)| **t <= 0.5)
-                .map(|(i, _)| weight(i))
+                .map(|(i, _)| draws(i) * weight(i))
                 .sum::<f64>()
                 / n_rows;
             if pi0 <= 0.0 {

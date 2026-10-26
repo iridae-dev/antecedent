@@ -63,6 +63,7 @@ use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
+use crate::inference::InferenceSpec;
 use crate::overlap::OverlapPolicy;
 use crate::se::{AnalyticSeKind, require_clusters};
 use crate::util::{BootstrapSeResult};
@@ -462,22 +463,14 @@ pub struct FrontDoorWorkspace {
 pub struct FrontDoorTwoStage {
     /// Dense linear-algebra backend used by both regression stages.
     pub backend: FaerBackend,
-    /// Bootstrap replicates (0 = skip bootstrap).
-    pub bootstrap_replicates: u32,
+    /// Inference declarations. The path-sum fit reads the bootstrap size, the analytic
+    /// standard-error kind for the stacked sandwich (default HC0), cluster labels (aligned to
+    /// the prepared rows, or to the source table's rows) and the sampling design of the
+    /// bootstrap. Multiway labels, panel times and a requested bootstrap interval are refused
+    /// rather than ignored.
+    pub inference: InferenceSpec,
     /// Overlap policy (must be [`OverlapPolicy::ExplicitOverride`]).
     pub overlap: OverlapPolicy,
-    /// Analytic SE policy for the stacked path-sum sandwich (default HC0).
-    pub se_kind: AnalyticSeKind,
-    /// Optional cluster ids (`length = nrows`) for [`AnalyticSeKind::Cluster`].
-    pub cluster_ids: Option<Arc<[u32]>>,
-    /// Optional cluster labels of every row of the source table (`length = source rows`),
-    /// subset to the complete-case rows by their original index. Exclusive with
-    /// [`Self::cluster_ids`].
-    pub source_cluster_ids: Option<Arc<[u32]>>,
-    /// Sampling design of the rows, for the bootstrap. Undeclared, the design is the one the
-    /// cluster labels or panel times imply; declared, a resample the design does not allow
-    /// (a row-level draw under a trajectory design, say) is refused.
-    pub sampling_design: crate::util::SamplingDeclaration,
 }
 
 impl Default for FrontDoorTwoStage {
@@ -492,16 +485,12 @@ impl FrontDoorTwoStage {
     pub fn new() -> Self {
         Self {
             backend: FaerBackend,
-            bootstrap_replicates: 200,
+            inference: InferenceSpec { se_kind: AnalyticSeKind::Hc0, ..InferenceSpec::new(200) },
             overlap: OverlapPolicy::ExplicitOverride,
-            se_kind: AnalyticSeKind::Hc0,
-            cluster_ids: None,
-            source_cluster_ids: None,
-            sampling_design: crate::util::SamplingDeclaration::Undeclared,
         }
     }
 
-    crate::inference::with_bootstrap_replicates!();
+    crate::inference::with_bootstrap_replicates!(inference);
 
     /// Set the overlap policy. Must remain [`OverlapPolicy::ExplicitOverride`] — front-door
     /// is not a propensity-based method.
@@ -511,24 +500,26 @@ impl FrontDoorTwoStage {
         self
     }
 
-    crate::inference::with_se_kind!();
+    crate::inference::with_se_kind!(inference);
 
-    /// Set cluster ids (length = prepared `nrows`) for [`AnalyticSeKind::Cluster`].
-    #[must_use]
-    pub fn with_cluster_ids(mut self, cluster_ids: Arc<[u32]>) -> Self {
-        self.cluster_ids = Some(cluster_ids);
-        self
+    crate::inference::with_cluster_ids!(inference);
+
+    crate::inference::with_source_cluster_ids!(inference);
+
+    crate::inference::with_sampling_design!(inference);
+
+    /// Refuse the inference declarations the front-door fit does not read.
+    fn require_read_inference(&self) -> Result<(), EstimationError> {
+        self.inference.require_read_declarations(
+            "FrontDoorTwoStage",
+            crate::inference::ReadDeclarations {
+                cluster_ids: true,
+                source_cluster_ids: true,
+                sampling_design: true,
+                ..crate::inference::ReadDeclarations::default()
+            },
+        )
     }
-
-    /// Set cluster labels for every row of the source table (length must equal its row
-    /// count); each complete-case row keeps the label of its original row.
-    #[must_use]
-    pub fn with_source_cluster_ids(mut self, cluster_ids: Arc<[u32]>) -> Self {
-        self.source_cluster_ids = Some(cluster_ids);
-        self
-    }
-
-    crate::inference::with_sampling_design!();
 
     /// Prepare the treatment/mediator/outcome design.
     ///
@@ -543,10 +534,11 @@ impl FrontDoorTwoStage {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedFrontDoorProblem, EstimationError> {
-        if let Some(source) = self.source_cluster_ids.as_deref() {
+        self.require_read_inference()?;
+        if let Some(source) = self.inference.source_cluster_ids.as_deref() {
             crate::se::require_source_labels(
                 source,
-                self.cluster_ids.as_deref(),
+                self.inference.cluster_ids.as_deref(),
                 data.row_count(),
             )?;
         }
@@ -560,6 +552,7 @@ impl FrontDoorTwoStage {
         identification: &IdentificationResult,
         estimand_index: usize,
     ) -> Result<CheckedFrontDoorPreparation, EstimationError> {
+        self.require_read_inference()?;
         prepare_frontdoor_checked(
             data,
             identification,
@@ -599,11 +592,12 @@ impl FrontDoorTwoStage {
         ctx: &ExecutionContext,
         mut assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        self.require_read_inference()?;
         let (ate, se_analytic) = self.point_estimate(problem, workspace)?;
         assumptions.extend_unique(&[linear_path_product_restriction()]);
         let point = EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_preparation(Some(crate::prepare::preparation_summary(&problem.preparation)))
-            .with_se_kind(self.se_kind);
+            .with_se_kind(self.inference.se_kind);
         self.attach_bootstrap(problem, workspace, ctx, point)
     }
 
@@ -636,7 +630,7 @@ impl FrontDoorTwoStage {
         ctx: &ExecutionContext,
         point: EffectEstimate,
     ) -> Result<EffectEstimate, EstimationError> {
-        if self.bootstrap_replicates == 0 {
+        if self.inference.bootstrap_replicates == 0 {
             return Ok(point);
         }
         let boot = self.bootstrap_se(problem, workspace, ctx)?;
@@ -693,13 +687,13 @@ impl FrontDoorTwoStage {
             treatment_delta: problem.treatment_delta,
         };
         let declared_clusters = crate::se::declared_row_labels(
-            self.cluster_ids.as_deref(),
-            self.source_cluster_ids.as_deref(),
+            self.inference.cluster_ids.as_deref(),
+            self.inference.source_cluster_ids.as_deref(),
             problem.row_selection.iter().copied(),
         )?;
         let se_analytic = stacked_path_sum_se(
             &stages,
-            self.se_kind,
+            self.inference.se_kind,
             declared_clusters.as_deref(),
             CrossStagePolicy::Empirical,
         )?;
@@ -741,23 +735,23 @@ impl FrontDoorTwoStage {
         let n = problem.nrows;
         let k = problem.mediators.len();
         let clusters = crate::se::declared_row_labels(
-            self.cluster_ids.as_deref(),
-            self.source_cluster_ids.as_deref(),
+            self.inference.cluster_ids.as_deref(),
+            self.inference.source_cluster_ids.as_deref(),
             problem.row_selection.iter().copied(),
         )?;
         if let Some(labels) = &clusters {
             crate::se::require_clusters(Some(labels.as_ref()), n)?;
         }
         // Each worker gathers treatment, outcome, and `k` mediator columns.
-        let _gather = crate::util::admit_gather_scratch(ctx, n, k + 2, self.bootstrap_replicates)?;
+        let _gather = crate::util::admit_gather_scratch(ctx, n, k + 2, self.inference.bootstrap_replicates)?;
         // Replicates own a cold workspace; parallel workers cannot share the caller's.
         crate::util::bootstrap_by_design(
             crate::util::BootstrapDesign {
                 clusters: clusters.as_deref(),
                 series_block: None,
-                declared: self.sampling_design,
+                declared: self.inference.sampling_design,
             },
-            self.bootstrap_replicates,
+            self.inference.bootstrap_replicates,
             ctx,
             0xF80D_u64,
             n,
@@ -1267,7 +1261,7 @@ pub(crate) mod tests {
     #[test]
     fn frontdoor_attached_bootstrap_equals_the_one_shot_fit() {
         let (data, estimand) = frontdoor_scm(600, 2);
-        let boot = FrontDoorTwoStage { bootstrap_replicates: 30, ..FrontDoorTwoStage::new() };
+        let boot = FrontDoorTwoStage::new().with_bootstrap_replicates(30);
         let prep = boot.prepare(&data, &estimand, &query()).unwrap();
         let mut ws = FrontDoorWorkspace::default();
         let full = boot.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
@@ -1287,7 +1281,7 @@ pub(crate) mod tests {
     #[test]
     fn frontdoor_two_stage_recovers_effect_six() {
         let (data, estimand) = frontdoor_scm(4000, 1);
-        let est = FrontDoorTwoStage { bootstrap_replicates: 30, ..FrontDoorTwoStage::new() };
+        let est = FrontDoorTwoStage::new().with_bootstrap_replicates(30);
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
         let mut ws = FrontDoorWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
@@ -1378,15 +1372,25 @@ pub(crate) mod tests {
     #[test]
     fn frontdoor_two_stage_refuses_homoskedastic_se() {
         let (data, estimand) = frontdoor_scm(200, 4);
-        let est = FrontDoorTwoStage {
-            bootstrap_replicates: 0,
-            se_kind: AnalyticSeKind::Homoskedastic,
-            ..FrontDoorTwoStage::new()
-        };
+        let est = FrontDoorTwoStage::new()
+            .with_bootstrap_replicates(0)
+            .with_se_kind(AnalyticSeKind::Homoskedastic);
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
         let mut ws = FrontDoorWorkspace::default();
         let err = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap_err();
         assert!(err.to_string().contains("Homoskedastic"), "err={err}");
+    }
+
+    #[test]
+    fn frontdoor_two_stage_refuses_inference_declarations_it_does_not_read() {
+        let (data, estimand) = frontdoor_scm(200, 4);
+        let mut est = FrontDoorTwoStage::new().with_bootstrap_replicates(0);
+        est.inference.multiway_ids = Some(vec![vec![0; 200]]);
+        let err = est.prepare(&data, &estimand, &query()).unwrap_err();
+        assert!(
+            matches!(err, EstimationError::Refused { code: "estimator_inference_mismatch", .. }),
+            "{err:?}"
+        );
     }
 
     #[test]
@@ -1487,7 +1491,7 @@ pub(crate) mod tests {
             Arc::from([VariableId::from_raw(2), VariableId::from_raw(3)]),
             ExprId::from_raw(0),
         );
-        let est = FrontDoorTwoStage { bootstrap_replicates: 0, ..FrontDoorTwoStage::new() };
+        let est = FrontDoorTwoStage::new().with_bootstrap_replicates(0);
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
         assert_eq!(prep.mediators.len(), 2);
         let mut ws = FrontDoorWorkspace::default();
@@ -1528,7 +1532,7 @@ pub(crate) mod tests {
         }
         let data = build_frontdoor_data(n, t, y, m);
         let estimand = frontdoor_estimand();
-        let est = FrontDoorTwoStage { bootstrap_replicates: 400, ..FrontDoorTwoStage::new() };
+        let est = FrontDoorTwoStage::new().with_bootstrap_replicates(400);
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
         let mut ws = FrontDoorWorkspace::default();
 
@@ -1682,7 +1686,7 @@ pub(crate) mod tests {
             Arc::from([VariableId::from_raw(2), VariableId::from_raw(3)]),
             ExprId::from_raw(0),
         );
-        let est = FrontDoorTwoStage { bootstrap_replicates: 350, ..FrontDoorTwoStage::new() };
+        let est = FrontDoorTwoStage::new().with_bootstrap_replicates(350);
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
         let mut ws = FrontDoorWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
@@ -1695,7 +1699,7 @@ pub(crate) mod tests {
     #[test]
     fn zeroing_cross_stage_meat_recovers_independent_path_delta() {
         let (data, estimand) = frontdoor_scm(2000, 21);
-        let est = FrontDoorTwoStage { bootstrap_replicates: 0, ..FrontDoorTwoStage::new() };
+        let est = FrontDoorTwoStage::new().with_bootstrap_replicates(0);
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
         let mut ws = FrontDoorWorkspace::default();
         let n = prep.nrows;
@@ -1764,7 +1768,7 @@ pub(crate) mod tests {
         // b²·Var(a) + a²·Var(b), and each coefficient's small-sample factor must be that of
         // its own regression: n/(n−2) for `M ~ 1 + T`, n/(n−3) for `Y ~ 1 + T + M`.
         let (data, estimand) = frontdoor_scm(40, 5);
-        let est = FrontDoorTwoStage { bootstrap_replicates: 0, ..FrontDoorTwoStage::new() };
+        let est = FrontDoorTwoStage::new().with_bootstrap_replicates(0);
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
         let mut ws = FrontDoorWorkspace::default();
         let n = prep.nrows;
@@ -1819,12 +1823,10 @@ pub(crate) mod tests {
         let prep = FrontDoorTwoStage::new().prepare(&data, &estimand, &query()).unwrap();
         let n = prep.nrows;
         let mut groups: Vec<u32> = (0..n as u32).map(|i| i % 40).collect();
-        let est = FrontDoorTwoStage {
-            bootstrap_replicates: 0,
-            se_kind: AnalyticSeKind::Cluster,
-            cluster_ids: Some(Arc::from(groups.as_slice())),
-            ..FrontDoorTwoStage::new()
-        };
+        let est = FrontDoorTwoStage::new()
+            .with_bootstrap_replicates(0)
+            .with_se_kind(AnalyticSeKind::Cluster)
+            .with_cluster_ids(groups.clone());
         let mut ws = FrontDoorWorkspace::default();
         let se1 =
             est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap().uncertainty.analytic.se;
@@ -1833,12 +1835,10 @@ pub(crate) mod tests {
         for g in &mut groups {
             *g = (*g * 7 + 3) % 40;
         }
-        let est2 = FrontDoorTwoStage {
-            bootstrap_replicates: 0,
-            se_kind: AnalyticSeKind::Cluster,
-            cluster_ids: Some(Arc::from(groups.as_slice())),
-            ..FrontDoorTwoStage::new()
-        };
+        let est2 = FrontDoorTwoStage::new()
+            .with_bootstrap_replicates(0)
+            .with_se_kind(AnalyticSeKind::Cluster)
+            .with_cluster_ids(groups.clone());
         let se2 =
             est2.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap().uncertainty.analytic.se;
         assert!((se1 - se2).abs() < 1e-12, "relabel changed SE: {se1} vs {se2}");
@@ -1889,7 +1889,7 @@ pub(crate) mod tests {
     fn linear_path_product_misses_truth_when_latent_modifies_mediator_effect() {
         let (data, truth) = interaction_scm_exact_table();
         assert!((truth - 0.315).abs() < 1e-12, "enumerated truth={truth}");
-        let est = FrontDoorTwoStage { bootstrap_replicates: 0, ..FrontDoorTwoStage::new() };
+        let est = FrontDoorTwoStage::new().with_bootstrap_replicates(0);
         let prep = est.prepare(&data, &frontdoor_estimand(), &query()).unwrap();
         let mut ws = FrontDoorWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();

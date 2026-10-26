@@ -90,7 +90,7 @@ fn prepared_frontdoor_keeps_checked_procedure_through_estimate_and_refresh() {
     let PreparedExecution::FrontDoorLinear(operation) = &prepared.execution else {
         panic!("linear front-door must prepare a checked execution variant")
     };
-    assert_eq!(operation.fitter.se_kind, AnalyticSeKind::Hc1);
+    assert_eq!(operation.fitter.inference.se_kind, AnalyticSeKind::Hc1);
     assert_eq!(
         operation.preparation.lowering().procedure,
         antecedent_estimate::frontdoor::CheckedFrontDoorProcedure::LinearPathProduct

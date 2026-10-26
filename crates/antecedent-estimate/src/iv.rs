@@ -59,6 +59,7 @@ use antecedent_stats::{
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::arm::TreatmentArm;
 use crate::error::EstimationError;
+use crate::inference::InferenceSpec;
 use crate::overlap::OverlapPolicy;
 use crate::se::AnalyticSeKind;
 use crate::util::arm_moments;
@@ -503,18 +504,13 @@ fn shared_slice(shared: &mut Arc<[f64]>) -> Result<&mut [f64], EstimationError> 
 /// pairwise Wald ratios.
 #[derive(Clone, Debug)]
 pub struct WaldIv {
-    /// Bootstrap replicates (0 = skip bootstrap).
-    pub bootstrap_replicates: u32,
+    /// Inference declarations. The Wald ratio reads the analytic standard-error kind (which
+    /// selects what the Anderson–Rubin set reports) and carries the bootstrap size; the fit
+    /// publishes no analytic or bootstrap standard error, so every other declaration (interval
+    /// request, cluster, multiway, panel and sampling labels) is refused rather than ignored.
+    pub inference: InferenceSpec,
     /// Overlap policy (must be [`OverlapPolicy::ExplicitOverride`]).
     pub overlap: OverlapPolicy,
-    /// Analytic SE kind (default: delta-method on Y arms).
-    pub se_kind: AnalyticSeKind,
-    /// Optional cluster ids for [`AnalyticSeKind::Cluster`] (length = prepared `nrows`).
-    pub cluster_ids: Option<Vec<u32>>,
-    /// Multiway cluster ids.
-    pub multiway_ids: Option<Vec<Vec<u32>>>,
-    /// Optional panel time labels for panel HAC.
-    pub panel_times: Option<Vec<i64>>,
 }
 
 impl Default for WaldIv {
@@ -527,17 +523,10 @@ impl WaldIv {
     /// Default: 200 bootstrap replicates, explicit overlap override.
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            bootstrap_replicates: 200,
-            overlap: OverlapPolicy::ExplicitOverride,
-            se_kind: AnalyticSeKind::Homoskedastic,
-            cluster_ids: None,
-            multiway_ids: None,
-            panel_times: None,
-        }
+        Self { inference: InferenceSpec::new(200), overlap: OverlapPolicy::ExplicitOverride }
     }
 
-    crate::inference::with_bootstrap_replicates!();
+    crate::inference::with_bootstrap_replicates!(inference);
 
     /// Set the overlap policy. Must remain [`OverlapPolicy::ExplicitOverride`] — IV is not a
     /// propensity-based method.
@@ -547,13 +536,19 @@ impl WaldIv {
         self
     }
 
-    crate::inference::with_se_kind!();
+    crate::inference::with_se_kind!(inference);
 
-    crate::inference::with_cluster_ids!();
+    crate::inference::with_cluster_ids!(inference);
 
-    crate::inference::with_multiway_ids!();
+    crate::inference::with_multiway_ids!(inference);
 
-    crate::inference::with_panel_times!();
+    crate::inference::with_panel_times!(inference);
+
+    /// Refuse the inference declarations the Wald fit does not read.
+    fn require_read_inference(&self) -> Result<(), EstimationError> {
+        self.inference
+            .require_read_declarations("WaldIv", crate::inference::ReadDeclarations::default())
+    }
 
     /// Prepare the instrument/outcome/treatment design.
     ///
@@ -568,6 +563,7 @@ impl WaldIv {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedIvProblem, EstimationError> {
+        self.require_read_inference()?;
         prepare_iv_problem(data, estimand, query, self.overlap)
     }
 
@@ -578,13 +574,14 @@ impl WaldIv {
         identification: &IdentificationResult,
         estimand_index: usize,
     ) -> Result<CheckedIvPreparation, EstimationError> {
+        self.require_read_inference()?;
         prepare_iv_checked(
             data,
             identification,
             estimand_index,
             self.overlap,
             CheckedIvProcedure::Wald,
-            self.se_kind,
+            self.inference.se_kind,
         )
     }
 
@@ -599,7 +596,7 @@ impl WaldIv {
         data: &TabularData,
     ) -> Result<CheckedIvPreparation, EstimationError> {
         if checked.lowering.procedure != CheckedIvProcedure::Wald
-            || checked.lowering.se_kind != self.se_kind
+            || checked.lowering.se_kind != self.inference.se_kind
             || checked.problem.overlap != self.overlap
             || checked.target.instruments.len() != 1
             || !checked.target.adjustment_set.is_empty()
@@ -618,7 +615,7 @@ impl WaldIv {
         ctx: &ExecutionContext,
     ) -> Result<EffectEstimate, EstimationError> {
         if checked.lowering.procedure != CheckedIvProcedure::Wald
-            || checked.lowering.se_kind != self.se_kind
+            || checked.lowering.se_kind != self.inference.se_kind
             || checked.problem.overlap != self.overlap
         {
             return Err(EstimationError::IncompatibleEstimand {
@@ -648,6 +645,7 @@ impl WaldIv {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        self.require_read_inference()?;
         let n = problem.nrows;
         // The arm of every row's instrument when there is exactly one instrument, no covariate
         // and the instrument is coded exactly 0 or 1.
@@ -665,12 +663,8 @@ impl WaldIv {
             // generalization, which is exactly what two-stage least squares estimates.
             let two_stage = TwoStageLeastSquares {
                 backend: FaerBackend,
-                bootstrap_replicates: self.bootstrap_replicates,
+                inference: self.inference.clone(),
                 overlap: self.overlap,
-                se_kind: self.se_kind,
-                cluster_ids: self.cluster_ids.clone(),
-                multiway_ids: self.multiway_ids.clone(),
-                panel_times: self.panel_times.clone(),
             };
             return two_stage.fit(
                 problem,
@@ -686,7 +680,7 @@ impl WaldIv {
         let mut first_stage_diagnostics = wald_first_stage_diagnostics(&z, &problem.treatment);
         attach_anderson_rubin(
             &mut first_stage_diagnostics,
-            self.se_kind,
+            self.inference.se_kind,
             &ArData {
                 y: &problem.outcome,
                 t: &problem.treatment,
@@ -705,7 +699,7 @@ impl WaldIv {
             .with_n_obs(u64::try_from(n).unwrap_or(u64::MAX))
             .with_preparation(Some(crate::prepare::preparation_summary(&problem.preparation)))
             .with_first_stage_diagnostics(first_stage_diagnostics)
-            .with_se_kind(self.se_kind))
+            .with_se_kind(self.inference.se_kind))
     }
 }
 
@@ -856,18 +850,14 @@ pub struct TwoStageLeastSquaresWorkspace {
 pub struct TwoStageLeastSquares {
     /// Dense linear-algebra backend used by both least-squares stages.
     pub backend: FaerBackend,
-    /// Bootstrap replicates (0 = skip bootstrap).
-    pub bootstrap_replicates: u32,
+    /// Inference declarations. Two-stage least squares reads the analytic standard-error kind
+    /// (which selects what the Anderson–Rubin set reports) and carries the bootstrap size; the
+    /// fit publishes no analytic or bootstrap standard error, so every other declaration
+    /// (interval request, cluster, multiway, panel and sampling labels) is refused rather than
+    /// ignored.
+    pub inference: InferenceSpec,
     /// Overlap policy (must be [`OverlapPolicy::ExplicitOverride`]).
     pub overlap: OverlapPolicy,
-    /// Analytic SE kind.
-    pub se_kind: AnalyticSeKind,
-    /// Optional cluster ids for cluster / panel SE.
-    pub cluster_ids: Option<Vec<u32>>,
-    /// Optional multiway cluster ids for [`AnalyticSeKind::Multiway`].
-    pub multiway_ids: Option<Vec<Vec<u32>>>,
-    /// Optional panel time labels for panel HAC.
-    pub panel_times: Option<Vec<i64>>,
 }
 
 impl Default for TwoStageLeastSquares {
@@ -882,16 +872,12 @@ impl TwoStageLeastSquares {
     pub fn new() -> Self {
         Self {
             backend: FaerBackend,
-            bootstrap_replicates: 200,
+            inference: InferenceSpec::new(200),
             overlap: OverlapPolicy::ExplicitOverride,
-            se_kind: AnalyticSeKind::Homoskedastic,
-            cluster_ids: None,
-            multiway_ids: None,
-            panel_times: None,
         }
     }
 
-    crate::inference::with_bootstrap_replicates!();
+    crate::inference::with_bootstrap_replicates!(inference);
 
     /// Set the overlap policy. Must remain [`OverlapPolicy::ExplicitOverride`] — IV is not a
     /// propensity-based method.
@@ -901,13 +887,21 @@ impl TwoStageLeastSquares {
         self
     }
 
-    crate::inference::with_se_kind!();
+    crate::inference::with_se_kind!(inference);
 
-    crate::inference::with_cluster_ids!();
+    crate::inference::with_cluster_ids!(inference);
 
-    crate::inference::with_multiway_ids!();
+    crate::inference::with_multiway_ids!(inference);
 
-    crate::inference::with_panel_times!();
+    crate::inference::with_panel_times!(inference);
+
+    /// Refuse the inference declarations the two-stage fit does not read.
+    fn require_read_inference(&self) -> Result<(), EstimationError> {
+        self.inference.require_read_declarations(
+            "TwoStageLeastSquares",
+            crate::inference::ReadDeclarations::default(),
+        )
+    }
 
     /// Prepare the instrument/exogenous/outcome/treatment design.
     ///
@@ -922,6 +916,7 @@ impl TwoStageLeastSquares {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedIvProblem, EstimationError> {
+        self.require_read_inference()?;
         prepare_iv_problem(data, estimand, query, self.overlap)
     }
 
@@ -932,13 +927,14 @@ impl TwoStageLeastSquares {
         identification: &IdentificationResult,
         estimand_index: usize,
     ) -> Result<CheckedIvPreparation, EstimationError> {
+        self.require_read_inference()?;
         prepare_iv_checked(
             data,
             identification,
             estimand_index,
             self.overlap,
             CheckedIvProcedure::TwoStageLeastSquares,
-            self.se_kind,
+            self.inference.se_kind,
         )
     }
 
@@ -953,7 +949,7 @@ impl TwoStageLeastSquares {
         data: &TabularData,
     ) -> Result<CheckedIvPreparation, EstimationError> {
         if checked.lowering.procedure != CheckedIvProcedure::TwoStageLeastSquares
-            || checked.lowering.se_kind != self.se_kind
+            || checked.lowering.se_kind != self.inference.se_kind
             || checked.problem.overlap != self.overlap
         {
             return Err(EstimationError::IncompatibleEstimand {
@@ -971,7 +967,7 @@ impl TwoStageLeastSquares {
         ctx: &ExecutionContext,
     ) -> Result<EffectEstimate, EstimationError> {
         if checked.lowering.procedure != CheckedIvProcedure::TwoStageLeastSquares
-            || checked.lowering.se_kind != self.se_kind
+            || checked.lowering.se_kind != self.inference.se_kind
             || checked.problem.overlap != self.overlap
         {
             return Err(EstimationError::IncompatibleEstimand {
@@ -999,6 +995,7 @@ impl TwoStageLeastSquares {
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
         let _ = ctx;
+        self.require_read_inference()?;
         // The exogenous block carries the intercept, so pass the excluded instruments
         // without their leading intercept column (fit_2sls appends the exogenous block
         // to form the full first-stage instrument set).
@@ -1022,7 +1019,7 @@ impl TwoStageLeastSquares {
         let mut diagnostics = Some(fit.first_stage_diagnostics);
         attach_anderson_rubin(
             &mut diagnostics,
-            self.se_kind,
+            self.inference.se_kind,
             &ArData {
                 y: &problem.outcome,
                 t: &problem.treatment,
@@ -1039,7 +1036,7 @@ impl TwoStageLeastSquares {
             .with_n_obs(u64::try_from(problem.nrows).unwrap_or(u64::MAX))
             .with_preparation(Some(crate::prepare::preparation_summary(&problem.preparation)))
             .with_first_stage_diagnostics(diagnostics)
-            .with_se_kind(self.se_kind))
+            .with_se_kind(self.inference.se_kind))
     }
 }
 
@@ -1274,7 +1271,7 @@ mod tests {
     #[test]
     fn two_sls_recovers_effect_two() {
         let (data, estimand) = continuous_iv_scm(2000, 1);
-        let est = TwoStageLeastSquares { bootstrap_replicates: 30, ..TwoStageLeastSquares::new() };
+        let est = TwoStageLeastSquares::new().with_bootstrap_replicates(30);
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
         let mut ws = TwoStageLeastSquaresWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
@@ -1360,7 +1357,7 @@ mod tests {
     #[test]
     fn two_sls_withholds_wald_and_bootstrap_se() {
         let (data, estimand) = continuous_iv_scm(2000, 7);
-        let est = TwoStageLeastSquares { bootstrap_replicates: 60, ..TwoStageLeastSquares::new() };
+        let est = TwoStageLeastSquares::new().with_bootstrap_replicates(60);
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
         let mut ws = TwoStageLeastSquaresWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
@@ -1453,7 +1450,7 @@ mod tests {
 
     #[test]
     fn wald_iv_first_stage_diagnostics_strong_vs_weak() {
-        let est = WaldIv { bootstrap_replicates: 0, ..WaldIv::new() };
+        let est = WaldIv::new().with_bootstrap_replicates(0);
 
         let (strong_data, strong_estimand) = binary_iv_scm(4000, 5);
         let strong_prep = est.prepare(&strong_data, &strong_estimand, &query()).unwrap();
@@ -1512,6 +1509,28 @@ mod tests {
     }
 
     #[test]
+    fn iv_refuses_inference_declarations_it_does_not_read() {
+        let (data, estimand) = continuous_iv_scm(100, 2);
+        let two_stage = TwoStageLeastSquares::new().with_cluster_ids(vec![0; 100]);
+        let err = two_stage.prepare(&data, &estimand, &query()).unwrap_err();
+        assert!(
+            matches!(err, EstimationError::Refused { code: "estimator_inference_mismatch", .. }),
+            "{err:?}"
+        );
+        let wald = WaldIv::new().with_panel_times(vec![0; 100]);
+        let err = wald.prepare(&data, &estimand, &query()).unwrap_err();
+        assert!(
+            matches!(err, EstimationError::Refused { code: "estimator_inference_mismatch", .. }),
+            "{err:?}"
+        );
+        // The declarations the fit reads stay accepted.
+        let read = TwoStageLeastSquares::new()
+            .with_bootstrap_replicates(0)
+            .with_se_kind(AnalyticSeKind::Hc1);
+        assert!(read.prepare(&data, &estimand, &query()).is_ok());
+    }
+
+    #[test]
     fn two_sls_rejects_non_iv_estimand() {
         let (data, mut estimand) = continuous_iv_scm(100, 3);
         estimand.method = Arc::from("backdoor.adjustment");
@@ -1532,7 +1551,7 @@ mod tests {
     #[test]
     fn wald_iv_recovers_effect_two() {
         let (data, estimand) = binary_iv_scm(4000, 5);
-        let est = WaldIv { bootstrap_replicates: 30, ..WaldIv::new() };
+        let est = WaldIv::new().with_bootstrap_replicates(30);
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
         let effect = est.fit(&prep, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.6, "ate={}", effect.ate);
@@ -1546,8 +1565,7 @@ mod tests {
     #[test]
     fn wald_iv_hc1_withholds_anderson_rubin() {
         let (data, estimand) = binary_iv_scm(800, 5);
-        let est =
-            WaldIv { bootstrap_replicates: 20, se_kind: AnalyticSeKind::Hc1, ..WaldIv::new() };
+        let est = WaldIv::new().with_bootstrap_replicates(20).with_se_kind(AnalyticSeKind::Hc1);
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
         let effect = est.fit(&prep, &ctx(), AssumptionSet::new()).unwrap();
         assert!(!effect.se_analytic().is_finite());
@@ -1567,7 +1585,7 @@ mod tests {
         let mut covered = 0u32;
         let mut weak_f = 0u32;
         let mut scored = 0u32;
-        let est = WaldIv { bootstrap_replicates: 0, ..WaldIv::new() };
+        let est = WaldIv::new().with_bootstrap_replicates(0);
         for s in 0..n_sim {
             let (data, estimand) = moderate_binary_iv_scm(n, 90_000 + u64::from(s));
             let prep = est.prepare(&data, &estimand, &query()).unwrap();
@@ -1703,7 +1721,7 @@ mod tests {
         let mut estimand = instrumental_estimand();
         estimand.adjustment_set = Arc::from([VariableId::from_raw(3)]);
         let q = query();
-        let wald = WaldIv { bootstrap_replicates: 8, ..WaldIv::new() };
+        let wald = WaldIv::new().with_bootstrap_replicates(8);
         let wald_prep = wald.prepare(&data, &estimand, &q).unwrap();
         let adjusted = wald.fit(&wald_prep, &ctx(), AssumptionSet::new()).unwrap();
         assert!((adjusted.ate - 2.0).abs() < 1e-12, "ate={}", adjusted.ate);

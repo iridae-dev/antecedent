@@ -183,7 +183,7 @@ impl PreparedStudy {
             CheckedStaticEffectRun {
                 estimator_id: crate::strategy_table::EstimatorId::FrontDoorTwoStage,
                 estimate,
-                bootstrap_requested: Some(operation.fitter.bootstrap_replicates),
+                bootstrap_requested: Some(operation.fitter.inference.bootstrap_replicates),
                 started,
             },
             ctx,
