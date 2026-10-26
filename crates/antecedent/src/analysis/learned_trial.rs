@@ -178,6 +178,44 @@ impl PreparedStudy<LearnedTrialState> {
         branch.state.seed = seed;
         Ok(branch)
     }
+    /// Reidentify and validate new declarations against the same owned input.
+    /// No rows are copied and no nuisance model is fitted. Variable coordinates
+    /// must retain their meaning; adapters must validate their display schema.
+    /// # Errors
+    /// Invalid query, certificate, learner, resource admission, or cancellation.
+    pub fn reconfigure(
+        &self,
+        diagram: SelectionDiagram,
+        query: TransportQuery,
+        options: TrialAipwOptions,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(err("trial transport cancelled"));
+        }
+        antecedent_estimate::validate_trial_query(&query).map_err(err)?;
+        let identification =
+            TransportIdentifier::new().identify_with_context(&diagram, &query, ctx).map_err(err)?;
+        antecedent_estimate::validate_trial_aipw(&identification, &self.state.input, &options)
+            .map_err(err)?;
+        antecedent_estimate::learned_trial::check_trial_aipw_resources(
+            &self.state.input,
+            &options,
+            ctx,
+        )
+        .map_err(super::transport_common::estimate_err)?;
+        Ok(Self {
+            state: LearnedTrialState {
+                diagram,
+                query,
+                identification,
+                input: Arc::clone(&self.state.input),
+                options,
+                seed: ctx.rng.master_seed(),
+            },
+        })
+    }
+
     /// Bind a compatible immutable snapshot without executing an estimate.
     /// # Errors
     /// Invalid rows, changed schema/sampling or cancellation.
@@ -330,6 +368,32 @@ mod tests {
         };
         (diagram, query, input, options)
     }
+    #[test]
+    fn scientific_reconfiguration_shares_owned_rows_and_keeps_the_source_unchanged() {
+        let (diagram, query, input, options) = fixture();
+        let ctx = ExecutionContext::for_tests(8);
+        let study = StudyBuilder::learned_trial_transport(
+            diagram.clone(),
+            query.clone(),
+            input,
+            options,
+            &ctx,
+        )
+        .unwrap();
+        let baseline = study.estimate(&ctx).unwrap();
+        let branch = study
+            .reconfigure(diagram, query, TrialAipwOptions { bootstrap: 0, ..options }, &ctx)
+            .unwrap();
+        assert!(Arc::ptr_eq(&study.state.input, &branch.state.input));
+        assert_eq!(study.state.options.bootstrap, 5);
+        assert_eq!(branch.state.options.bootstrap, 0);
+        assert_eq!(baseline.estimate().replicates.len(), 5);
+        let changed = branch.estimate(&ctx).unwrap();
+        assert!((changed.estimate().estimate - 2.0).abs() < 1e-10);
+        assert!(changed.estimate().replicates.is_empty());
+        assert_eq!(study.estimate(&ctx).unwrap().identity(), baseline.identity());
+    }
+
     #[test]
     fn trial_result_is_replayed_and_refresh_is_atomic() {
         let (diagram, query, input, options) = fixture();

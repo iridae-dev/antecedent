@@ -185,6 +185,7 @@ from .transport.advanced import (
     StatisticalTransportQuery,
     TransportQuery,
     TransportResponseGridQuery,
+    TrialAipwQuery,
 )
 
 # Compatibility alias consumed by the internal routing modules.
@@ -587,6 +588,7 @@ _PreparedQuery = (
     | ExactTransportQuery
     | StatisticalTransportQuery
     | TransportResponseGridQuery
+    | TrialAipwQuery
     | InterferenceQuery
     | RandomizedEffect
     | ComplierEffect
@@ -1295,7 +1297,7 @@ class PreparedAnalysis(Generic[ResultT]):
             )
         from .transport import ExactTransportData, StatisticalTransportData
         from .transport._day1 import prepare_transport, refuse_transport_only_kwargs
-        from .transport.advanced import (
+        from .transport._impl import (
             ExactTransportQuery,
             StatisticalTransportQuery,
             TransportResponseGridQuery,
@@ -1445,7 +1447,6 @@ class PreparedAnalysis(Generic[ResultT]):
                         regimes,
                     )
                 )
-                or seed != 1
                 or not accept_discovered
             ):
                 raise CausalUnsupportedError(
@@ -1461,6 +1462,7 @@ class PreparedAnalysis(Generic[ResultT]):
                 inference=inference,
                 controls=controls,
                 cancel=cancel,
+                seed=seed,
             )
 
         if isinstance(query, TransportResponseGridQuery):
@@ -1489,7 +1491,6 @@ class PreparedAnalysis(Generic[ResultT]):
                         regimes,
                     )
                 )
-                or seed != 1
                 or not accept_discovered
             ):
                 raise ValueError(
@@ -1502,7 +1503,7 @@ class PreparedAnalysis(Generic[ResultT]):
                 at=query.at,
                 bootstrap=query.bootstrap,
                 coverage_level=query.coverage_level,
-                seed=query.seed,
+                seed=seed,
                 estimator=query.estimator,
                 cancel=cancel,
             )
@@ -1551,7 +1552,7 @@ class PreparedAnalysis(Generic[ResultT]):
                 bootstrap=query.bootstrap,
                 coverage_level=query.coverage_level,
                 estimator=query.estimator,
-                seed=query.seed,
+                seed=seed,
             )
             statistical_prepared._controls = _Controls(cancel=cancel)
             return statistical_prepared
@@ -1586,7 +1587,6 @@ class PreparedAnalysis(Generic[ResultT]):
                         regimes,
                     )
                 )
-                or seed != 1
                 or not accept_discovered
             ):
                 raise ValueError(

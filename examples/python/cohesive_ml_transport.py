@@ -68,7 +68,8 @@ def transport_example():
         graph=ac.Admg.from_edges(["a", "y"], [("a", "y")]),
         query=query,
         provider=tr.TrialAipw(outcome=Linear(), folds=3),
-        inference=tr.TransportInference(bootstrap=9, seed=8),
+        inference=tr.TransportInference(bootstrap=9),
+        execution=ac.Execution(seed=8),
     )
     loaded = ac.load(result.export())
     assert loaded.answer.kind == result.answer.kind

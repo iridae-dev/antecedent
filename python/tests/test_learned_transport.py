@@ -5,7 +5,6 @@ import dataclasses
 import antecedent as ac
 import pytest
 from antecedent import transport as tr
-from antecedent.errors import CausalUnsupportedError
 from antecedent.learners import Linear, Logistic
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced
@@ -41,11 +40,12 @@ def trial_fixture(sampling="independent_samples"):
 @pytest.mark.parametrize("sampling", ["independent_samples", "nested_cohort"])
 def test_trial_lifecycle_retains_paired_score_and_atomic_refresh(sampling):
     query, data = trial_fixture(sampling)
-    study = advanced.prepare(
-        query,
+    study = ac.prepare(
         data,
+        query=query,
         provider=tr.TrialAipw(outcome=Linear(), folds=3),
-        inference=tr.TransportInference(bootstrap=5, seed=8),
+        inference=tr.TransportInference(bootstrap=5),
+        execution=ac.Execution(seed=8),
     )
     assert not study.inspect().uncertainty.available
     result = require_success(study.estimate())
@@ -57,11 +57,13 @@ def test_trial_lifecycle_retains_paired_score_and_atomic_refresh(sampling):
     assert loaded.replicates == result.replicates
     assert not loaded.inspect().uncertainty.payload.get("calibration_binding")
     with pytest.raises(ValueError, match="known randomization probabilities are invalid"):
-        require_success(study.refresh(dataclasses.replace(data, randomization=[0.0] * 200)))
+        require_success(
+            ac.estimate(ac.rebind(study, data=dataclasses.replace(data, randomization=[0.0] * 200)))
+        )
     assert require_success(study.estimate()).estimate == result.estimate
     assert study.plan.structure_source if hasattr(study.plan, "structure_source") else True
-    with pytest.raises(CausalUnsupportedError, match="Transport retains inference settings"):
-        require_success(study.estimate(seed=9))
+    alternative = ac.reconfigure(study, execution=ac.Execution(seed=9))
+    assert require_success(alternative.estimate()).estimate == pytest.approx(2.0)
 
 
 def test_trial_rejects_unsupported_sampling_and_uncertified_covariates():
@@ -160,14 +162,15 @@ def test_trial_transformation_preview_uses_common_contract():
     assert study.preview_transform("change_graph") != report
 
 
-def test_prepare_trial_executes_retained_checked_score_after_builder_disposal():
+def test_canonical_trial_executes_retained_checked_score_after_builder_disposal():
     """The prepared trial handle retains its certificate, snapshot, and seed."""
     query_builder, data = trial_fixture("independent_samples")
-    study = advanced.prepare_trial(
-        query_builder,
+    study = ac.prepare(
         data,
+        query=query_builder,
         provider=tr.TrialAipw(outcome=Linear(), folds=3),
-        inference=tr.TransportInference(bootstrap=5, seed=8),
+        inference=tr.TransportInference(bootstrap=5),
+        execution=ac.Execution(seed=8),
     )
     del query_builder
     plan = study.inspect()
@@ -180,9 +183,11 @@ def test_prepare_trial_executes_retained_checked_score_after_builder_disposal():
     loaded = require_success(ac.load(bytes(result.export())))
     assert loaded.estimate == result.estimate
     assert loaded.replicates == result.replicates
-    refreshed = require_success(study.refresh(data))
+    refreshed = require_success(ac.estimate(ac.rebind(study, data=data)))
     assert refreshed.estimate == result.estimate
     assert refreshed.replicates == result.replicates
     with pytest.raises(ValueError, match="reprepare_required"):
-        require_success(study.refresh(dataclasses.replace(data, sampling="nested_cohort")))
+        require_success(
+            ac.estimate(ac.rebind(study, data=dataclasses.replace(data, sampling="nested_cohort")))
+        )
     assert require_success(study.estimate()).estimate == result.estimate

@@ -125,6 +125,45 @@ impl PreparedLearnedTrial {
         let inner = crate::detach_catch(py, move || inner.bind_snapshot(input, &ctx).map_err(err))?;
         Ok(Self { inner: Some(inner), last: None, ..self.clone() })
     }
+    #[pyo3(signature=(graph, selections, source, target, treatment, outcome, options, *, seed=1, memory_bytes=None, cancel=None))]
+    fn reconfigure(
+        &self,
+        graph: &crate::graphs::Admg,
+        selections: Vec<String>,
+        source: String,
+        target: String,
+        treatment: String,
+        outcome: String,
+        options: String,
+        seed: u64,
+        memory_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<Self> {
+        if graph.names != self.names {
+            return Err(err(
+                "trial reconfiguration requires the retained variable coordinate schema",
+            ));
+        }
+        let (diagram, query) =
+            trial_request(graph, selections, source, target, treatment, outcome)?;
+        let options: TrialAipwOptions = serde_json::from_str(&options).map_err(err)?;
+        let mut ctx = ExecutionContext::production_default(seed);
+        ctx.set_memory_limit(memory_bytes);
+        crate::apply_cancel(&mut ctx, cancel);
+        crate::execution_api::apply(&mut ctx);
+        let inner = self
+            .inner
+            .as_ref()
+            .ok_or_else(|| {
+                crate::refusal(
+                    "route_not_supported",
+                    "loaded trial claims do not restore preparation",
+                )
+            })?
+            .reconfigure(diagram, query, options, &ctx)
+            .map_err(err)?;
+        Ok(Self { inner: Some(inner), seed, memory_bytes, last: None, names: self.names.clone() })
+    }
     fn last_result_summary(&self) -> PyResult<String> {
         trial_payload(self.last.as_ref().ok_or_else(|| err("execute before reading result"))?, true)
     }
@@ -199,25 +238,15 @@ impl PreparedLearnedTrial {
         Ok(())
     }
 }
-#[pyfunction]
-#[pyo3(signature=(graph, selections, source, target, treatment, outcome, data, options, *, seed=1, memory_bytes=None, cancel=None))]
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "node ids are u32 by construction (DenseNodeId), so node positions fit u32"
-)]
-fn prepare_learned_trial(
+#[allow(clippy::cast_possible_truncation, reason = "graph node ids fit u32 by construction")]
+fn trial_request(
     graph: &crate::graphs::Admg,
     selections: Vec<String>,
     source: String,
     target: String,
     treatment: String,
     outcome: String,
-    data: &Bound<'_, PyAny>,
-    options: String,
-    seed: u64,
-    memory_bytes: Option<u64>,
-    cancel: Option<crate::PyCancellationToken>,
-) -> PyResult<PreparedLearnedTrial> {
+) -> PyResult<(antecedent_graph::SelectionDiagram, TransportQuery)> {
     let resolve = |name: &str| -> PyResult<VariableId> {
         graph
             .names
@@ -237,6 +266,24 @@ fn prepare_learned_trial(
         selections.iter().map(|s| resolve(s)).collect::<PyResult<Vec<_>>>()?,
     )
     .map_err(err)?;
+    Ok((diagram, query))
+}
+#[pyfunction]
+#[pyo3(signature=(graph, selections, source, target, treatment, outcome, data, options, *, seed=1, memory_bytes=None, cancel=None))]
+fn prepare_learned_trial(
+    graph: &crate::graphs::Admg,
+    selections: Vec<String>,
+    source: String,
+    target: String,
+    treatment: String,
+    outcome: String,
+    data: &Bound<'_, PyAny>,
+    options: String,
+    seed: u64,
+    memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<PreparedLearnedTrial> {
+    let (diagram, query) = trial_request(graph, selections, source, target, treatment, outcome)?;
     let input = parse_input(data, &graph.names)?;
     let options: TrialAipwOptions = serde_json::from_str(&options).map_err(err)?;
     let mut ctx = ExecutionContext::production_default(seed);

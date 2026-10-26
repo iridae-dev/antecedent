@@ -169,7 +169,6 @@ class StatisticalTransportQuery:
     bootstrap: int = OMITTED["transport_bootstrap"]
     coverage_level: float = OMITTED["transport_coverage_level"]
     estimator: EmpiricalTable | LearnedCategorical | str = "plugin"
-    seed: int = 1
 
     def __post_init__(self) -> None:
         coerce_fields(self, at=MappingProxyType(dict(self.at)))

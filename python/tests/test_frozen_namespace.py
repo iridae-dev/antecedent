@@ -849,7 +849,6 @@ _EXPECTED_STAGE_ALL = {
         "prepare_statistical",
         "prepare_temporal_transport_sequence",
         "prepare_transport_scenarios",
-        "prepare_trial",
         "reload_lowered_expression",
         "reload_lowered_program",
         "replay_study_plan",

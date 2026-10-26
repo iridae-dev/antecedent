@@ -370,6 +370,7 @@ def prepare(
         StatisticalTransportQuery,
         TransportQuery,
         TransportResponseGridQuery,
+        TrialAipwQuery,
     )
 
     transport = isinstance(
@@ -380,6 +381,7 @@ def prepare(
             ExactTransportQuery,
             StatisticalTransportQuery,
             TransportResponseGridQuery,
+            TrialAipwQuery,
         ),
     )
     if transport or isinstance(data, (Table, PanelFrame, MultiEnvFrame, EventFrame)):
@@ -418,7 +420,7 @@ def prepare(
         options["accept_discovered"] = True
     # Resolved estimator defaults stay native. Explicit statistical budgets belong
     # to inference and are passed through the one existing native lowering path.
-    bootstrap = getattr(inference, "bootstrap", None)
+    bootstrap = None if transport else getattr(inference, "bootstrap", None)
 
     def build() -> Any:
         from .extensibility import ProviderQuery
@@ -432,6 +434,10 @@ def prepare(
                 execution=policy,
                 **{key: value for key, value in declarations.items() if key != "query"},
             )
+        if isinstance(query, TrialAipwQuery):
+            from ._prepared_trial import prepare_trial
+
+            return prepare_trial(owned, declarations=declarations, execution=policy)
         return Engine.prepare(
             owned,
             **options,
@@ -440,7 +446,7 @@ def prepare(
             # Legacy transport lowering rejects ordinary loose controls. The
             # active Execution owns its native context; execution forks bind
             # the requested RNG/thread policy before any statistical run.
-            seed=1 if transport else policy.seed,
+            seed=policy.seed,
             threads=None if transport else policy.threads,
             cancel=policy.cancel,
             on_progress=None if transport else policy.on_progress,
@@ -475,7 +481,9 @@ def _fork(study: PreparedAnalysis[Any]) -> Any:
     engine._seed = study.execution.seed
     engine._threads = study.execution.threads
     engine._controls = _Controls(
-        cancel=study.execution.cancel,
+        cancel=study.execution.cancel
+        if study.execution.cancel is not None
+        else engine._controls.cancel,
         on_progress=study.execution.on_progress,
         on_stage=study.execution.on_stage,
     )
@@ -517,6 +525,8 @@ def estimate(study: Any) -> Outcome[Any]:
         setattr(error, "study", study)  # noqa: B010 — public execution context on the original error
         raise
     completed = getattr(outcome.value, "_prepared", None)
+    if completed is None and getattr(engine, "_kind", None) == "learned_trial":
+        completed = engine
     execution = getattr(outcome.value, "_execution", None)
     if completed is not None and execution is not None:
         # Keep the actual materialized native snapshot, including retained
@@ -862,6 +872,11 @@ def reconfigure(study: Any, **declarations: Any) -> Any:
     policy = declarations.pop("execution", study.execution)
     if not isinstance(policy, Execution):
         raise CausalTypeError("execution must be an Execution declaration")
+    if study._refused is not None and getattr(study._engine, "_kind", None) == "learned_trial":
+        from ._prepared_trial import reconfigure_trial
+
+        request = {**replay_declaration(study._declarations), **declarations}
+        return reconfigure_trial(study, request, policy)
     if not declarations:
         if study._refused is not None:
             return prepare(study._data, execution=policy, **replay_declaration(study._declarations))
@@ -889,6 +904,10 @@ def reconfigure(study: Any, **declarations: Any) -> Any:
             ),
         )
     request = {**replay_declaration(study._declarations), **declarations}
+    if getattr(study._engine, "_kind", None) == "learned_trial":
+        from ._prepared_trial import reconfigure_trial
+
+        return reconfigure_trial(study, request, policy)
     data = study._data
     if data is None:
         raise CausalValueError(

@@ -45,6 +45,7 @@ def prepare(
     provider: TrialAipw | None = None,
     inference: TransportInference | None = None,
     controls: TransportControls | None = None,
+    seed: int = 1,
 ) -> PreparedAnalysis[LearnedTrialEstimate]: ...
 
 
@@ -54,6 +55,7 @@ def prepare(
     catalog: ExactTransportData,
     *,
     controls: TransportControls | None = None,
+    seed: int = 1,
 ) -> PreparedAnalysis[ExactTransportDistribution]: ...
 
 
@@ -65,6 +67,7 @@ def prepare(
     provider: EmpiricalTable | LearnedCategorical | str | None = None,
     inference: TransportInference | None = None,
     controls: TransportControls | None = None,
+    seed: int = 1,
 ) -> PreparedAnalysis[StatisticalTransportDistribution]: ...
 
 
@@ -76,6 +79,7 @@ def prepare(
     provider: EmpiricalTable | LearnedCategorical | str | None = None,
     inference: TransportInference | None = None,
     controls: TransportControls | None = None,
+    seed: int = 1,
 ) -> PreparedAnalysis[TransportResponseGrid]: ...
 
 
@@ -87,6 +91,7 @@ def prepare(
     *,
     at: Mapping[str, float],
     controls: TransportControls | None = None,
+    seed: int = 1,
 ) -> PreparedAnalysis[ExactTransportDistribution]: ...
 
 
@@ -100,6 +105,7 @@ def prepare(
     provider: EmpiricalTable | LearnedCategorical | str | None = None,
     inference: TransportInference | None = None,
     controls: TransportControls | None = None,
+    seed: int = 1,
 ) -> PreparedAnalysis[StatisticalTransportDistribution]: ...
 
 
@@ -120,6 +126,7 @@ def prepare(
     provider: EmpiricalTable | LearnedCategorical | TrialAipw | str | None = None,
     inference: TransportInference | None = None,
     controls: TransportControls | None = None,
+    seed: int = 1,
 ) -> PreparedAnalysis[
     ExactTransportDistribution
     | StatisticalTransportDistribution
@@ -153,6 +160,7 @@ def prepare(
             provider=provider or TrialAipw(),
             inference=inference or TransportInference(),
             controls=controls,
+            seed=seed,
         )
     if isinstance(
         request, (ExactTransportQuery, StatisticalTransportQuery, TransportResponseGridQuery)
@@ -161,9 +169,7 @@ def prepare(
             raise CausalValueError("The typed request already owns its catalog and coordinates")
         catalog = request.catalog
         if isinstance(request, (StatisticalTransportQuery, TransportResponseGridQuery)):
-            inference = inference or TransportInference(
-                request.bootstrap, request.coverage_level, request.seed
-            )
+            inference = inference or TransportInference(request.bootstrap, request.coverage_level)
             provider = provider or (
                 EmpiricalTable() if request.estimator == "plugin" else request.estimator
             )
@@ -193,7 +199,7 @@ def prepare(
                 estimator=provider or EmpiricalTable(),
                 bootstrap=settings.bootstrap,
                 coverage_level=settings.coverage_level,
-                seed=settings.seed,
+                seed=seed,
                 max_operations=controls.max_operations,
                 max_depth=controls.max_depth,
                 max_support_rows=controls.max_support_rows,
@@ -228,6 +234,6 @@ def prepare(
         estimator=provider or EmpiricalTable(),
         bootstrap=settings.bootstrap,
         coverage_level=settings.coverage_level,
-        seed=settings.seed,
+        seed=seed,
         **limits,
     )

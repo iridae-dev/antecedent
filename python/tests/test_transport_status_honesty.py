@@ -14,7 +14,7 @@ import json
 import math
 
 import pytest
-from antecedent import Admg, AverageEffect, analyze, identify, prepare, transport
+from antecedent import Admg, AverageEffect, Execution, analyze, identify, prepare, transport
 from antecedent.errors import CausalResourceError
 from antecedent.outcomes import require_success
 from antecedent.results import AnalysisResult
@@ -167,9 +167,8 @@ def _statistical_specialist():
     data = advanced.StatisticalTransportData(samples=(sample,))
     study = prepare(
         data,
-        query=advanced.StatisticalTransportQuery(
-            identified, catalog, {"x": 1.0}, bootstrap=39, seed=7
-        ),
+        query=advanced.StatisticalTransportQuery(identified, catalog, {"x": 1.0}, bootstrap=39),
+        execution=Execution(seed=7),
     )
     return identified, require_success(study.estimate())
 

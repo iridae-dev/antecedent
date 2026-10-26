@@ -36,7 +36,6 @@ class TransportResponseGridQuery:
     at: Sequence[Mapping[str, float]]
     bootstrap: int = OMITTED["transport_bootstrap"]
     coverage_level: float = OMITTED["transport_coverage_level"]
-    seed: int = 1
     estimator: EmpiricalTable | LearnedCategorical | str = "plugin"
 
     def __post_init__(self) -> None:

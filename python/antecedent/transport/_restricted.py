@@ -602,6 +602,7 @@ def prepare_restricted(
     provider: Any = None,
     inference: TransportInference | None = None,
     controls: TransportControls | None = None,
+    seed: int = 1,
 ) -> Any:
     """Prepare the licensed z-transport stage for a restricted experiment."""
 
@@ -638,7 +639,7 @@ def prepare_restricted(
         worlds=worlds,
         empirical=identified.empirical,
         limits=limits,
-        seed=(inference or TransportInference()).seed,
+        seed=seed,
         rules=identified.rules,
         rebuild=functools.partial(
             _rebuild, graph, replay_declaration(retain(query)), source_name=identified.source

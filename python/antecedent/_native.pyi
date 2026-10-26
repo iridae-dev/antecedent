@@ -6602,6 +6602,20 @@ class FittedEffectModel:
     def export(self) -> bytes: ...
 
 class PreparedLearnedTrial:
+    def reconfigure(
+        self,
+        graph: Admg,
+        selections: list[str],
+        source: str,
+        target: str,
+        treatment: str,
+        outcome: str,
+        options: str,
+        *,
+        seed: int = 1,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> PreparedLearnedTrial: ...
     def fork(self, seed: int | None = None) -> PreparedLearnedTrial: ...
     def bind_snapshot(
         self, data: Any, cancel: CancellationToken | None = None

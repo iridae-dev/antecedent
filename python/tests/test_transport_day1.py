@@ -3,7 +3,7 @@
 import json
 
 import pytest
-from antecedent import Admg, AverageEffect, ResponseCurve, analyze, identify, transport
+from antecedent import Admg, AverageEffect, Execution, ResponseCurve, analyze, identify, transport
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError
 from antecedent.outcomes import require_success
 from antecedent.results import AnalysisResult, CausalResponseView
@@ -353,7 +353,8 @@ def test_trial_aipw_on_analyze():
         graph=Admg.from_edges(["a", "y"], [("a", "y")]),
         query=query,
         provider=transport.TrialAipw(outcome=Linear(), folds=3),
-        inference=transport.TransportInference(bootstrap=0, seed=8),
+        inference=transport.TransportInference(bootstrap=0),
+        execution=Execution(seed=8),
     )
     assert isinstance(result, AnalysisResult)
     assert result.answer.kind == "point"

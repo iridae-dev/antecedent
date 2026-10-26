@@ -4,6 +4,7 @@ import dataclasses
 import gc
 import json
 
+import antecedent as ac
 import numpy as np
 import pytest
 from antecedent import transport as tr
@@ -94,19 +95,19 @@ def test_cyclic_buffers_match_legacy_report_artifact_and_request():
     del noise
     gc.collect()
     actual, expected = require_success(prepared.execute()), require_success(legacy.execute())
-    assert actual.report == expected.report
+    assert actual.to_dict() == expected.to_dict()
     assert bytes(actual.export()) == bytes(expected.export())
     assert (
         require_success(
             consume_artifact(bytes(actual.export()), expected_identity=actual.identity)
-        ).report
-        == actual.report
+        ).to_dict()
+        == actual.to_dict()
     )
     assert json.loads(request) == json.loads(prepared.request_json)
     retargeted = prepared.retarget([[]], [[0.2, 0.1]])
     assert (
-        require_success(retargeted.execute()).report
-        == require_success(PreparedCyclicSystem(retargeted.request_json).execute()).report
+        require_success(retargeted.execute()).to_dict()
+        == require_success(PreparedCyclicSystem(retargeted.request_json).execute()).to_dict()
     )
 
 
@@ -180,12 +181,12 @@ def test_cyclic_refresh_buffers_match_json_refit_and_own_rows():
         row["values"][:] = 0.0
     actual = require_success(refreshed.execute())
     assert refreshed.inspect()["fits_performed"] == 1
-    assert actual.report == expected.report
+    assert actual.to_dict() == expected.to_dict()
     assert bytes(actual.export()) == bytes(expected.export())
-    assert require_success(prepared.execute()).report["worlds"][0][0]["values"][1] == pytest.approx(
-        1.4, abs=1e-4
-    )
-    assert actual.report["worlds"][0][0]["values"][1] == pytest.approx(0.7, abs=1e-4)
+    assert require_success(prepared.execute()).to_dict()["worlds"][0][0]["values"][
+        1
+    ] == pytest.approx(1.4, abs=1e-4)
+    assert actual.to_dict()["worlds"][0][0]["values"][1] == pytest.approx(0.7, abs=1e-4)
 
 
 def test_trial_compact_output_preserves_full_native_compatibility_and_artifact():
@@ -194,8 +195,10 @@ def test_trial_compact_output_preserves_full_native_compatibility_and_artifact()
     from test_learned_transport import trial_fixture
 
     query, data = trial_fixture()
-    study = advanced.prepare(query, data, inference=tr.TransportInference(5, seed=8))
-    native = study._native
+    study = ac.prepare(
+        data, query=query, inference=tr.TransportInference(5), execution=ac.Execution(seed=8)
+    )
+    native = study._engine._native
     compact = native.estimate_summary()
     compact_result = _learned_trial(native, compact)
     full = require_success(native.estimate())

@@ -81,15 +81,13 @@ class TrialAipwQuery:
 
 @dataclass(frozen=True, slots=True)
 class TransportInference:
-    """Frozen joint outer bootstrap; intervals remain nominal and uncalibrated."""
+    """Joint outer bootstrap and nominal coverage; RNG belongs to Execution.seed."""
 
     bootstrap: int = OMITTED["transport_bootstrap"]
     coverage_level: float = OMITTED["transport_coverage_level"]
-    seed: int = 1
 
     def __post_init__(self) -> None:
         _non_negative("bootstrap", self.bootstrap)
-        _non_negative("seed", self.seed)
         if not isinstance(self.coverage_level, (int, float)) or not (
             0.0 < float(self.coverage_level) < 1.0
         ):
@@ -186,6 +184,7 @@ def prepare_trial(
     provider: TrialAipw | None = None,
     inference: TransportInference | None = None,
     controls: TransportControls | None = None,
+    seed: int = 1,
 ) -> PreparedAnalysis[LearnedTrialEstimate]:
     """Prepare a checked binary contrast; baseline covariates must match its certificate."""
     import json
@@ -221,7 +220,7 @@ def prepare_trial(
         query.outcome,
         data,
         json.dumps(options),
-        seed=inference.seed,
+        seed=seed,
         memory_bytes=controls.memory_bytes,
         cancel=controls.cancel,
     )

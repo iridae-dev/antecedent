@@ -806,6 +806,7 @@ def prepare_transport(
     inference: TransportInference | None = None,
     controls: TransportControls | None = None,
     cancel: Any = None,
+    seed: int = 1,
 ) -> Any:
     """Compile the T5–T9 request that PreparedAnalysis already knows."""
 
@@ -820,6 +821,7 @@ def prepare_transport(
             provider=provider,
             inference=inference,
             controls=controls or TransportControls(),
+            seed=seed,
         )
 
     catalog, bound = catalog_from_evidence(query, data, graph=graph)
@@ -883,6 +885,7 @@ def prepare_transport(
             provider=resolved,
             inference=settings or TransportInference(),
             controls=limits,
+            seed=seed,
         )
         study._query = query
         study._transport_stage = stage_snapshot
@@ -919,10 +922,14 @@ def prepare_transport(
                 bootstrap=inference_knobs.bootstrap,
                 coverage_level=inference_knobs.coverage_level,
                 estimator=resolved or EmpiricalTable(),
-                seed=inference_knobs.seed,
             )
         study = prepare_stage(
-            scalar_request, payload, provider=resolved, inference=settings, controls=limits
+            scalar_request,
+            payload,
+            provider=resolved,
+            inference=settings,
+            controls=limits,
+            seed=seed,
         )
     else:
         from ._impl import TransportResponseGridQuery
@@ -935,11 +942,10 @@ def prepare_transport(
             worlds,
             bootstrap=inference_knobs.bootstrap,
             coverage_level=inference_knobs.coverage_level,
-            seed=inference_knobs.seed,
             estimator=resolved or "plugin",
         )
         study = prepare_stage(
-            grid_request, payload, provider=resolved, inference=settings, controls=limits
+            grid_request, payload, provider=resolved, inference=settings, controls=limits, seed=seed
         )
     study._query = query
     study._transport_stage = stage_snapshot

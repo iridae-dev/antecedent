@@ -1,7 +1,7 @@
 """Empirical-table stages publish licensed pointwise intervals on the common handle."""
 
 import pytest
-from antecedent import Admg, load, prepare
+from antecedent import Admg, Execution, load, prepare
 from antecedent.errors import CausalCancelledError, CausalResourceError, CausalUnsupportedError
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
@@ -72,8 +72,8 @@ def test_statistical_prepare_estimate_and_inspect_license():
             catalog,
             {"x": 1.0},
             bootstrap=40,
-            seed=7,
         ),
+        execution=Execution(seed=7),
     )
     inspection = study.inspect()
     assert inspection.uncertainty.available
@@ -94,9 +94,9 @@ def test_prepare_statistical_retains_checked_plan_after_builder_disposal():
 
     identified, catalog, data = fixture()
     query_builder = transport.StatisticalTransportQuery(
-        identified, catalog, {"x": 1.0}, bootstrap=40, seed=7
+        identified, catalog, {"x": 1.0}, bootstrap=40
     )
-    plan = prepare(data, query=query_builder)
+    plan = prepare(data, query=query_builder, execution=Execution(seed=7))
     del query_builder, identified
     before = plan.inspect()
     assert before.identification.available
@@ -207,9 +207,8 @@ def test_unknown_dependence_keeps_identification_and_withholds_interval():
     )
     study = prepare(
         data,
-        query=transport.StatisticalTransportQuery(
-            identified, catalog, {"x": 1.0}, bootstrap=39, seed=3
-        ),
+        query=transport.StatisticalTransportQuery(identified, catalog, {"x": 1.0}, bootstrap=39),
+        execution=Execution(seed=3),
     )
     assert not study.inspect().uncertainty.available
     result = require_success(study.estimate())
