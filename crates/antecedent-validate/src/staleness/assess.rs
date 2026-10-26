@@ -87,6 +87,7 @@ pub(crate) fn assess(
     policy: &StalenessPolicy,
     ctx: &ExecutionContext,
 ) -> Result<StalenessReport, StalenessError> {
+    super::check_cancelled(ctx)?;
     let table = ReadTable::new(data)?;
     let plan = StalenessPlan {
         plan_identity: baseline.plan_identity.clone(),
@@ -106,6 +107,7 @@ pub(crate) fn assess(
         subsample_op: NEW_SUBSAMPLE_OP,
     };
     let new = profile(&table, new_snapshot.clone(), &inputs);
+    super::check_cancelled(ctx)?;
     let (ev, schema_ok) = diagnostics(baseline, &new, &table, &plan, policy, ctx)?;
 
     let recommendation = ev
@@ -145,6 +147,7 @@ pub(crate) fn assess(
         identity: String::new(),
     };
     report.identity = report.compute_identity();
+    super::check_cancelled(ctx)?;
     Ok(report)
 }
 
@@ -570,8 +573,7 @@ fn patterns(
         return;
     }
     let (old_counts, new_counts) = (old.word_patterns(), current.word_patterns());
-    let keys: BTreeSet<&Vec<u64>> =
-        old_counts.iter().chain(&new_counts).map(|(p, _)| p).collect();
+    let keys: BTreeSet<&Vec<u64>> = old_counts.iter().chain(&new_counts).map(|(p, _)| p).collect();
     if keys.iter().all(|p| p.is_empty()) {
         return;
     }

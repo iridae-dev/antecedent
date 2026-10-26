@@ -36,7 +36,9 @@ fn causal(error: StalenessError) -> CausalError {
         StalenessError::Data(error) => CausalError::Data(error),
         StalenessError::Unsupported(message) => CausalError::Unsupported { message },
         StalenessError::Cancelled => CausalError::Cancelled { stage: super::stage::STAGE_VALIDATE },
-        StalenessError::Admission { .. } => CausalError::Resource { message: error.to_string() },
+        StalenessError::Admission { .. } | StalenessError::ArtifactAdmission { .. } => {
+            CausalError::Resource { message: error.to_string() }
+        }
         other => CausalError::Compile { message: other.to_string() },
     }
 }

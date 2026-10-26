@@ -18,6 +18,9 @@
 use crate::IoError;
 use serde::{Deserialize, Serialize};
 
+mod admitted;
+pub use admitted::AdmittedStalenessBaseline;
+
 /// Byte marker ahead of the encoded baseline.
 pub const STALENESS_BASELINE_MAGIC: &[u8] = b"ANTSTALEBASE1";
 /// Largest encoded baseline accepted before decoding.
@@ -248,14 +251,53 @@ pub struct StalenessBaselineWire {
 /// Artifact kind of a staleness baseline.
 pub const STALENESS_BASELINE_KIND: &str = crate::artifact_kinds::STALENESS_BASELINE;
 
+/// The original wire order with an empty seal, borrowed for identity hashing.
+struct Unsealed<'a>(&'a StalenessBaselineWire);
+
+impl Serialize for Unsealed<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let wire = self.0;
+        let mut state = serializer.serialize_struct("StalenessBaselineWire", 21)?;
+        macro_rules! fields {
+            ($($field:ident),* $(,)?) => {
+                $(state.serialize_field(stringify!($field), &wire.$field)?;)*
+            };
+        }
+        fields!(
+            version,
+            required_features,
+            kind,
+            plan_identity,
+            snapshot,
+            policy,
+            treatment,
+            outcome,
+            adjustment,
+            bayesian,
+            period_column,
+            rows,
+            complete_rows,
+            arms,
+            columns,
+            joint,
+            missing,
+            overlap,
+            checks,
+            outcome_model
+        );
+        state.serialize_field("seal", "")?;
+        state.end()
+    }
+}
+
 impl StalenessBaselineWire {
     /// The seal this baseline should carry: the digest of every field but the seal.
     ///
     /// # Errors
     /// Encoding failure.
     pub fn expected_seal(&self) -> Result<String, IoError> {
-        let mut unsealed = self.clone();
-        unsealed.seal.clear();
+        let unsealed = Unsealed(self);
         let digest = crate::identity::payload_digest_of(STALENESS_BASELINE_KIND, &unsealed)?;
         Ok(antecedent_core::SemanticDigest::from_bytes(digest).to_hex())
     }
@@ -397,6 +439,13 @@ mod tests {
         let narrow = narrow.sealed().unwrap();
         assert_eq!(narrow.version, STALENESS_BASELINE_VERSION);
         assert_eq!(StalenessBaselineWire::consume(&narrow.export().unwrap()).unwrap(), narrow);
+        let ctx = antecedent_core::ExecutionContext::for_tests(17);
+        assert_eq!(
+            StalenessBaselineWire::consume_admitted(&narrow.export().unwrap(), &ctx)
+                .unwrap()
+                .wire(),
+            &narrow,
+        );
 
         let mut wide = minimal();
         wide.missing = Some(MissingPatternWire {
@@ -408,6 +457,10 @@ mod tests {
         assert_eq!(wide.version, STALENESS_BASELINE_WIDE_VERSION);
         let back = StalenessBaselineWire::consume(&wide.export().unwrap()).unwrap();
         assert_eq!(back, wide);
+        assert_eq!(
+            StalenessBaselineWire::consume_admitted(&wide.export().unwrap(), &ctx).unwrap().wire(),
+            &wide,
+        );
         let patterns = back.missing.as_ref().unwrap().word_patterns();
         assert_eq!(patterns, vec![(Vec::new(), 2), (vec![0, 1 << 5], 1)]);
         // A wide baseline stamped with the narrow version does not verify.
@@ -435,5 +488,125 @@ mod tests {
         assert!(StalenessBaselineWire::consume(&trailing).is_err());
         trailing.extend_from_slice(&bytes);
         assert!(StalenessBaselineWire::consume(&trailing).is_err());
+    }
+
+    #[test]
+    fn borrowed_seal_hash_is_identical_to_the_historical_cloned_wire() {
+        let wire = minimal().sealed().unwrap();
+        let mut old = wire.clone();
+        old.seal.clear();
+        let bytes = crate::identity::payload_digest_of(STALENESS_BASELINE_KIND, &old).unwrap();
+        assert_eq!(
+            wire.expected_seal().unwrap(),
+            antecedent_core::SemanticDigest::from_bytes(bytes).to_hex()
+        );
+    }
+
+    #[test]
+    fn admitted_decode_preserves_long_strings_and_missing_optional_fields() {
+        let mut wire = minimal();
+        wire.columns[0].name = "long-label-".repeat(1000);
+        let wire = wire.sealed().unwrap();
+        let bytes = wire.export().unwrap();
+        let ctx = antecedent_core::ExecutionContext::for_tests(17);
+        let owner = StalenessBaselineWire::consume_admitted(&bytes, &ctx).unwrap();
+        assert_eq!(owner.wire(), &wire);
+        assert_eq!(owner.wire().columns[0].name.capacity(), wire.columns[0].name.len());
+        let body = bytes.strip_prefix(STALENESS_BASELINE_MAGIC).unwrap();
+        let mut value: ciborium::Value = ciborium::from_reader(body).unwrap();
+        let ciborium::Value::Map(fields) = &mut value else {
+            panic!("baseline map");
+        };
+        fields.retain(|(key, _)| key.as_text() != Some("joint"));
+        let mut omitted = STALENESS_BASELINE_MAGIC.to_vec();
+        ciborium::into_writer(&value, &mut omitted).unwrap();
+        assert_eq!(StalenessBaselineWire::consume(&omitted).unwrap(), wire);
+        assert_eq!(StalenessBaselineWire::consume_admitted(&omitted, &ctx).unwrap().wire(), &wire);
+    }
+
+    #[test]
+    fn exact_decoded_budget_and_arc_owner_follow_real_buffer_lifetime() {
+        use antecedent_core::ExecutionContext;
+        use antecedent_core::execution::AdmissionPool;
+        use std::mem::size_of;
+        use std::sync::Arc;
+
+        let wire = minimal().sealed().unwrap();
+        let encoded = wire.export().unwrap();
+        // Independent fixture accounting: one feature String slot, one adjustment
+        // String slot, one inline column, one edge, two bin counts, and text bytes.
+        let payload = 2 * size_of::<String>()
+            + size_of::<StalenessColumnWire>()
+            + size_of::<f64>()
+            + 2 * size_of::<u64>()
+            + STALENESS_BASELINE_FEATURE.len()
+            + STALENESS_BASELINE_KIND.len()
+            + "plan".len()
+            + "snap".len()
+            + "policy".len()
+            + "t".len()
+            + "y".len()
+            + "z".len()
+            + "z".len()
+            + "continuous".len()
+            + "float64".len()
+            + "adjustment".len()
+            + 64;
+        let exact = u64::try_from(payload + 64).unwrap();
+        let pool = AdmissionPool::fixed(1, exact);
+        let ctx = ExecutionContext::for_tests(17).with_admission(pool.clone());
+        let owner = Arc::new(StalenessBaselineWire::consume_admitted(&encoded, &ctx).unwrap());
+        assert_eq!(owner.wire(), &wire);
+        assert_eq!(owner.wire().columns.capacity(), 1);
+        assert_eq!(owner.wire().columns[0].numeric.as_ref().unwrap().edges.capacity(), 1);
+        assert_eq!(pool.available().bytes(), 64, "only verification scratch was released");
+        let shared = Arc::clone(&owner);
+        drop(owner);
+        ctx.cancellation.cancel();
+        assert_eq!(pool.available().bytes(), 64, "cancellation cannot release live buffers");
+        assert_eq!(shared.wire().rows, 3);
+        drop(shared);
+        assert_eq!(pool.available().bytes(), exact);
+
+        let small = AdmissionPool::fixed(1, exact - 1);
+        let ctx = ExecutionContext::for_tests(17).with_admission(small.clone());
+        assert!(matches!(
+            StalenessBaselineWire::consume_admitted(&encoded, &ctx),
+            Err(IoError::StreamBudgetRefused { .. })
+        ));
+        assert_eq!(
+            small.available().bytes(),
+            exact - 1,
+            "failed verification admission drops decoded storage"
+        );
+    }
+
+    #[test]
+    fn malformed_collection_lengths_and_cancellation_leave_no_admission_behind() {
+        use antecedent_core::ExecutionContext;
+        use antecedent_core::execution::{AdmissionPool, CancellationToken};
+        let mut encoded = STALENESS_BASELINE_MAGIC.to_vec();
+        // {"columns": [<u64::MAX elements>]} with no element payload. A generic
+        // Vec size hint must never become an allocation before schema validation.
+        encoded.extend_from_slice(b"\xa1\x67columns\x9b\xff\xff\xff\xff\xff\xff\xff\xff");
+        let pool = AdmissionPool::fixed(1, 0);
+        let ctx = ExecutionContext::for_tests(17).with_admission(pool.clone());
+        assert!(matches!(
+            StalenessBaselineWire::consume_admitted(&encoded, &ctx),
+            Err(IoError::Convert(_))
+        ));
+        assert_eq!(pool.available().bytes(), 0);
+
+        let bytes = minimal().sealed().unwrap().export().unwrap();
+        for checks in [0, 8, 64] {
+            let pool = AdmissionPool::fixed(1, 1_000_000);
+            let mut ctx = ExecutionContext::for_tests(17).with_admission(pool.clone());
+            ctx.cancellation = CancellationToken::cancel_after_checks(checks);
+            assert!(matches!(
+                StalenessBaselineWire::consume_admitted(&bytes, &ctx),
+                Err(IoError::StreamCancelled)
+            ));
+            assert_eq!(pool.available().bytes(), 1_000_000);
+        }
     }
 }

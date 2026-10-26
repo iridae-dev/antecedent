@@ -101,6 +101,12 @@ pub enum StalenessError {
         /// The pool's refusal.
         reason: String,
     },
+    /// The admission pool cannot fund the independently decoded baseline.
+    #[error("staleness baseline admission refused: {reason}")]
+    ArtifactAdmission {
+        /// The decoder's resource refusal, without inventing a requested byte count.
+        reason: String,
+    },
     /// The execution context was cancelled.
     #[error("staleness diagnostic cancelled")]
     Cancelled,
@@ -179,6 +185,7 @@ impl StalenessBaseline {
         policy.validate()?;
         plan.validate(data)?;
         let _lease = lease(data, policy, ctx)?;
+        check_cancelled(ctx)?;
         let table = profile::ReadTable::new(data)?;
         if ctx.cancellation.is_cancelled() {
             return Err(StalenessError::Cancelled);
@@ -192,6 +199,7 @@ impl StalenessBaseline {
         let wire = profile::profile(&table, snapshot_identity(data), &inputs)
             .sealed()
             .map_err(|e| StalenessError::Artifact(e.to_string()))?;
+        check_cancelled(ctx)?;
         Ok(Self { wire })
     }
 
@@ -256,9 +264,7 @@ impl StalenessBaseline {
         policy: &StalenessPolicy,
         ctx: &ExecutionContext,
     ) -> Result<StalenessReport, StalenessError> {
-        policy.validate()?;
-        let _lease = lease(data, policy, ctx)?;
-        assess::assess(&self.wire, data, policy, ctx)
+        assess_wire(&self.wire, data, policy, ctx)
     }
 }
 
@@ -272,5 +278,42 @@ pub fn assess_exported_baseline(
     policy: &StalenessPolicy,
     ctx: &ExecutionContext,
 ) -> Result<StalenessReport, StalenessError> {
-    StalenessBaseline::consume(bytes)?.assess(data, policy, ctx)
+    // The independently verified owner funds its actual decoded collections for
+    // the entire comparison. Borrow its wire; cloning it would detach storage
+    // from admission, and dropping it before assessment would underquote the peak.
+    let baseline = StalenessBaselineWire::consume_admitted(bytes, ctx).map_err(|error| {
+        use antecedent_io_core::IoError;
+        match error {
+            IoError::StreamCancelled => StalenessError::Cancelled,
+            IoError::StreamBudgetRefused { message } => {
+                StalenessError::ArtifactAdmission { reason: message }
+            }
+            IoError::Admission(antecedent_core::execution::AdmissionError::Cancelled) => {
+                StalenessError::Cancelled
+            }
+            IoError::Admission(error) => {
+                StalenessError::ArtifactAdmission { reason: error.to_string() }
+            }
+            other => StalenessError::Artifact(other.to_string()),
+        }
+    })?;
+    assess_wire(baseline.wire(), data, policy, ctx)
+}
+
+fn check_cancelled(ctx: &ExecutionContext) -> Result<(), StalenessError> {
+    if ctx.cancellation.is_cancelled() { Err(StalenessError::Cancelled) } else { Ok(()) }
+}
+
+fn assess_wire(
+    wire: &StalenessBaselineWire,
+    data: &TabularData,
+    policy: &StalenessPolicy,
+    ctx: &ExecutionContext,
+) -> Result<StalenessReport, StalenessError> {
+    policy.validate()?;
+    let _lease = lease(data, policy, ctx)?;
+    check_cancelled(ctx)?;
+    let report = assess::assess(wire, data, policy, ctx)?;
+    check_cancelled(ctx)?;
+    Ok(report)
 }

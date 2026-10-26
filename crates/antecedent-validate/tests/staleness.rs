@@ -517,3 +517,110 @@ fn nonunit_active_observation_weights_refuse_unweighted_profiles() {
     assert_eq!(ordinary.wire().columns, unit_baseline.wire().columns);
     assert_eq!(ordinary.wire().overlap, unit_baseline.wire().overlap);
 }
+
+#[test]
+fn exported_assessment_funds_decoded_baseline_and_workspace_together_and_releases_both() {
+    use antecedent_io_core::staleness_artifact::StalenessBaselineWire;
+
+    let data = Scenario::null(80, 305).data();
+    let baseline = StalenessBaseline::build(&data, &plan(false), &policy(), &ctx()).unwrap();
+    let bytes = baseline.export().unwrap();
+    let generous = 16_000_000;
+    let pool = AdmissionPool::fixed(1, generous);
+    let context = ctx().with_admission(pool.clone());
+    let decoded = StalenessBaselineWire::consume_admitted(&bytes, &context).unwrap();
+    let decoded_bytes = generous - pool.available().bytes();
+    assert!(decoded_bytes > 0);
+    drop(decoded);
+    assert_eq!(pool.available().bytes(), generous);
+
+    let tiny = ctx().with_admission(AdmissionPool::fixed(1, 1));
+    let workspace = match baseline.assess(&data, &policy(), &tiny).unwrap_err() {
+        StalenessError::Admission { bytes, .. } => bytes,
+        other => panic!("expected workspace admission refusal, got {other:?}"),
+    };
+    // Either phase fits alone, including the decoder's 64-byte seal scratch;
+    // they cannot fit simultaneously. Releasing the decoded owner early would
+    // incorrectly allow the comparison to succeed.
+    let budget = workspace.max(decoded_bytes + 64);
+    assert!(budget < workspace + decoded_bytes);
+    let pool = AdmissionPool::fixed(1, budget);
+    let context = ctx().with_admission(pool.clone());
+    assert!(matches!(
+        assess_exported_baseline(&bytes, &data, &policy(), &context),
+        Err(StalenessError::Admission { .. })
+    ));
+    assert_eq!(pool.available().bytes(), budget);
+
+    let pool = AdmissionPool::fixed(1, 1);
+    let context = ctx().with_admission(pool.clone());
+    assert!(matches!(
+        assess_exported_baseline(&bytes, &data, &policy(), &context),
+        Err(StalenessError::ArtifactAdmission { .. })
+    ));
+    assert_eq!(pool.available().bytes(), 1);
+
+    let expected = baseline.assess(&data, &policy(), &ctx()).unwrap();
+    let pool = AdmissionPool::fixed(1, generous);
+    let context = ctx().with_admission(pool.clone());
+    let report = assess_exported_baseline(&bytes, &data, &policy(), &context).unwrap();
+    assert_eq!(report.identity, expected.identity);
+    assert_eq!(pool.available().bytes(), generous);
+}
+
+#[test]
+fn exported_assessment_post_decode_and_post_workspace_cancellation_release_all_leases() {
+    use antecedent_core::execution::CancellationToken;
+    use antecedent_io_core::{IoError, staleness_artifact::StalenessBaselineWire};
+
+    let data = Scenario::null(80, 306).data();
+    let bytes =
+        StalenessBaseline::build(&data, &plan(false), &policy(), &ctx()).unwrap().export().unwrap();
+    let budget = 16_000_000;
+    // Find the exact decoder observation boundary rather than hard-coding a
+    // schema traversal count. This probes decoding only, with no profiling.
+    let finishes_decode = |checks| {
+        let pool = AdmissionPool::fixed(1, budget);
+        let mut context = ctx().with_admission(pool.clone());
+        context.cancellation = CancellationToken::cancel_after_checks(checks);
+        let result = match StalenessBaselineWire::consume_admitted(&bytes, &context) {
+            Ok(owner) => {
+                drop(owner);
+                true
+            }
+            Err(IoError::StreamCancelled) => false,
+            Err(other) => panic!("unexpected decoder failure: {other:?}"),
+        };
+        assert_eq!(pool.available().bytes(), budget);
+        result
+    };
+    let mut low = 0;
+    let mut high = 1;
+    while !finishes_decode(high) {
+        high *= 2;
+        assert!(high <= 1_048_576, "decoder must have a bounded traversal");
+    }
+    while low < high {
+        let middle = low + (high - low) / 2;
+        if finishes_decode(middle) {
+            high = middle;
+        } else {
+            low = middle + 1;
+        }
+    }
+    // All four cuts permit complete decoded storage. The later cuts also
+    // permit workspace admission, then cancel before a report can be published.
+    for extra in 0..4 {
+        let pool = AdmissionPool::fixed(1, budget);
+        let mut context = ctx().with_admission(pool.clone());
+        context.cancellation = CancellationToken::cancel_after_checks(low + extra);
+        assert!(
+            matches!(
+                assess_exported_baseline(&bytes, &data, &policy(), &context),
+                Err(StalenessError::Cancelled)
+            ),
+            "cancellation cut {extra} must not return a scientific report"
+        );
+        assert_eq!(pool.available().bytes(), budget);
+    }
+}
