@@ -149,3 +149,73 @@ fn legacy_mean_curve_overlaps_the_static_dag_response_and_yields_to_it() {
     assert_eq!(admitting, [ExecutionKind::StaticDagResponse, ExecutionKind::StaticResponseCurve]);
     assert_eq!(seal_execution(&cx).unwrap().kind(), ExecutionKind::StaticDagResponse);
 }
+
+#[test]
+fn deferred_static_response_inspection_retains_checked_metadata_without_materialization() {
+    use crate::analysis::prepared::{PreparedExecution, RetainedOperation};
+    use crate::strategy_table::EstimatorId;
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct Stages(Mutex<Vec<String>>);
+    impl antecedent_core::ProgressSink for Stages {
+        fn report(&self, _fraction: f64, stage: &str) {
+            self.0.lock().unwrap().push(stage.to_owned());
+        }
+    }
+
+    let grid = [-0.5, 0.0, 0.5];
+    for intervention in [false, true] {
+        let mut source = study(data(0.0), &grid);
+        if intervention {
+            source.query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+                outcome: VariableId::from_raw(2),
+                interventions: Arc::from([antecedent_core::Intervention::set(
+                    VariableId::from_raw(1),
+                    antecedent_core::Value::f64(0.25),
+                )]),
+            })
+            .into();
+        }
+        let stages = Arc::new(Stages::default());
+        let mut context = ExecutionContext::for_tests(17);
+        context.progress = Some(stages.clone());
+        let prepared = source.prepare_deferred(&context).unwrap();
+        assert!(!prepared.materialized);
+        assert!(prepared.score_table.is_none());
+        assert!(matches!(prepared.execution, PreparedExecution::StaticDagResponse(_)));
+        let stages_before_inspection = stages.0.lock().unwrap().clone();
+        let RetainedOperation::StaticDagResponse(info) = prepared.retained_operation() else {
+            panic!("deferred response must retain its checked declaration");
+        };
+        let antecedent_core::CausalQuery::Response(expected_query) = prepared.query() else {
+            panic!("expected the frozen response query");
+        };
+        assert_eq!(info.query, *expected_query);
+        assert_eq!(info.identifier.as_str(), "response.backdoor");
+        assert_eq!(
+            info.estimator,
+            if intervention {
+                EstimatorId::ResponseInterventionGcomp
+            } else {
+                EstimatorId::ResponseKennedyDr
+            }
+        );
+        assert_eq!(info.validation, crate::analysis::builder::RefuteSuite::None);
+        assert_eq!(info.grid_members.as_ref(), if intervention { &[][..] } else { &grid[..] });
+        let before = prepared.plan_view().unwrap().identity();
+        assert_eq!(before, prepared.plan_view().unwrap().identity());
+        assert!(!prepared.materialized);
+        assert!(prepared.score_table.is_none());
+        assert_eq!(*stages.0.lock().unwrap(), stages_before_inspection);
+        let ready = prepared.materialize(&context).unwrap();
+        let RetainedOperation::StaticDagResponse(materialized_info) = ready.retained_operation()
+        else {
+            panic!("materialization must preserve the checked response declaration");
+        };
+        assert_eq!(info, materialized_info);
+        assert_eq!(before, ready.plan_view().unwrap().identity());
+        assert!(!prepared.materialized);
+        assert!(prepared.score_table.is_none());
+    }
+}

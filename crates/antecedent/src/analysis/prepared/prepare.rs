@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::sealers::{SealContext, seal_execution};
+use super::sealers::{SealContext, seal_deferred_execution, seal_execution};
 use super::{
     CachedTemporalClassIdentification, IdentificationCache, PreparedModality, PreparedStudy,
     SampledPreparedState, build_admg_graph_posterior_response_identification_cache,
@@ -150,21 +150,20 @@ impl Study {
         // when the plan retained none. A sharp-RD prepare builds no cache and
         // reports nothing: its clicks do.
         let binding = plan.binding();
+        let seal_context = SealContext {
+            source: self,
+            analysis: &analysis,
+            plan: &plan,
+            binding: &binding,
+            ctx,
+            route: self.route_input_classified(),
+            counterfactual: counterfactual.as_ref(),
+            nested_counterfactual: nested_counterfactual.as_ref(),
+        };
         let execution = if materialized {
-            seal_execution(&SealContext {
-                source: self,
-                analysis: &analysis,
-                plan: &plan,
-                binding: &binding,
-                ctx,
-                route: self.route_input_classified(),
-                counterfactual: counterfactual.as_ref(),
-                nested_counterfactual: nested_counterfactual.as_ref(),
-            })?
+            seal_execution(&seal_context)?
         } else {
-            super::PreparedExecution::EstimatorRoute(
-                crate::analysis::execute::CheckedRouteOperation::lowered(&analysis, &plan)?,
-            )
+            seal_deferred_execution(&seal_context)?
         };
         // A plan that streams its design holds no rows to cross-fit scores over: it keeps no
         // score table, and a retarget refuses as unavailable.

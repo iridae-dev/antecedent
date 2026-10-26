@@ -280,6 +280,25 @@ pub(super) const SEALERS: [Sealer; ExecutionKind::SEALED_COUNT] = [
     sealer(ExecutionKind::FreshRun, estimator::fresh_run),
 ];
 
+/// Retain declaration-only operation metadata without materializing statistical work.
+///
+/// The static DAG response checker reads only the frozen graph, query, cached
+/// identification and procedure. Its fitter is an unfitted declaration: checking
+/// it invokes no estimator or user callback and reads no observation values.
+/// Other routes keep their lowered-program guard until explicit materialization;
+/// offering them to the full sealer table here could fit or scan their data.
+pub(super) fn seal_deferred_execution(
+    cx: &SealContext<'_>,
+) -> Result<PreparedExecution, CausalError> {
+    if let Some(operation) = response::static_dag_response(cx)? {
+        return Ok(operation);
+    }
+    Ok(PreparedExecution::EstimatorRoute(crate::analysis::execute::CheckedRouteOperation::lowered(
+        cx.analysis,
+        cx.plan,
+    )?))
+}
+
 /// Select the sealed operation for `cx`. The estimator-family sealer admits what the
 /// route-cell sealers decline; a study none admits is refused, not dispatched.
 pub(super) fn seal_execution(cx: &SealContext<'_>) -> Result<PreparedExecution, CausalError> {

@@ -44,8 +44,8 @@ def test_checked_static_dag_response_python_lifecycle(accepted: bool, kind: str)
         query=query,
         estimator="response.kennedy_dr" if kind == "curve" else "response.intervention_gcomp",
         refute="none",
-        bootstrap=0,
-        seed=4,
+        inference=ant.Frequentist(bootstrap=0),
+        execution=ant.Execution(seed=4),
     )
     prepared = builder
     del builder, query, graph, dag
@@ -65,7 +65,8 @@ def test_checked_static_dag_response_python_lifecycle(accepted: bool, kind: str)
     assert info["validation"] == "none"
     assert info["grid_members"] == ([-0.5, 0.0, 0.5] if kind == "curve" else [])
 
-    first = require_success(prepared.estimate(data, seed=4))
+    original_inspection = prepared.inspect()
+    first = require_success(prepared.estimate())
     if kind == "curve":
         assert first.response is not None
         observed = np.asarray([row[0] for row in first.response.values])
@@ -76,7 +77,7 @@ def test_checked_static_dag_response_python_lifecycle(accepted: bool, kind: str)
     np.testing.assert_allclose(observed, expected, atol=0.03, rtol=0)
 
     shifted = {**data, "y": data["y"] + 0.3}
-    refreshed = require_success(prepared.refresh(shifted, seed=4))
+    refreshed = require_success(prepared.rebind(data=shifted).estimate())
     if kind == "curve":
         assert refreshed.response is not None
         refreshed_values = np.asarray([row[0] for row in refreshed.response.values])
@@ -87,3 +88,10 @@ def test_checked_static_dag_response_python_lifecycle(accepted: bool, kind: str)
     consumed = ant.artifacts.accept(bytes(refreshed.export()))
     assert consumed["accepts_as_verified_program"] == "false"
     assert dependency in consumed["unresolved"]
+    assert prepared.inspect() == original_inspection
+    assert first.study.inspect().data_snapshot_id == first.data_snapshot_id
+    repeated = require_success(prepared.estimate())
+    if kind == "curve":
+        assert repeated.response.values == first.response.values
+    else:
+        assert repeated.effect == first.effect

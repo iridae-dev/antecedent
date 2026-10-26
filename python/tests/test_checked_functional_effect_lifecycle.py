@@ -36,20 +36,24 @@ def test_path_specific_program_refreshes_and_replays_independently() -> None:
         graph=[("t", "m"), ("m", "y")],
         query=ant.PathSpecificEffect("t", "y", path_nodes=["m"]),
         refute="none",
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
     )
-    first = require_success(prepared.estimate(data))
+    original_inspection = prepared.inspect()
+    first = require_success(prepared.estimate())
     assert np.isfinite(first.effect)
     first_replay = ant.artifacts.accept(bytes(first.export()))
     assert first_replay["accepts_as_verified_program"] == "true"
 
     changed = {**data, "y": 1.0 - data["y"]}
-    refreshed = require_success(prepared.refresh(changed))
+    refreshed = require_success(prepared.rebind(data=changed).estimate())
     assert refreshed.effect == pytest.approx(-first.effect, abs=1e-12)
     replay = ant.artifacts.accept(bytes(refreshed.export()))
     assert replay["accepts_as_verified_program"] == "true"
     assert replay["program"] == first_replay["program"]
     assert refreshed.data_snapshot_id != first.data_snapshot_id
+    assert prepared.inspect() == original_inspection
+    assert first.study.inspect().data_snapshot_id == first.data_snapshot_id
+    assert require_success(prepared.estimate()).effect == pytest.approx(first.effect)
 
 
 def test_admg_response_grid_replays_each_member_after_refresh() -> None:
@@ -76,14 +80,18 @@ def test_admg_response_grid_replays_each_member_after_refresh() -> None:
         identifier="general.id",
         estimator="functional.effect",
         refute="none",
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
     )
-    result = require_success(prepared.estimate(data))
+    original_inspection = prepared.inspect()
+    result = require_success(prepared.estimate())
     assert np.asarray(result.response.values).flatten() == pytest.approx([0.314, 0.596], abs=1e-12)
-    refreshed = require_success(prepared.refresh(data))
+    refreshed = require_success(prepared.rebind(data=data).estimate())
     assert np.asarray(refreshed.response.values).flatten() == pytest.approx(
         [0.314, 0.596], abs=1e-12
     )
     receipt = ant.artifacts.accept(bytes(refreshed.export()))
     assert receipt["accepts_as_verified_program"] == "true"
     assert receipt["unresolved"] == ""
+    assert prepared.inspect() == original_inspection
+    assert result.study.inspect().data_snapshot_id == result.data_snapshot_id
+    assert require_success(prepared.estimate()).response.values == result.response.values

@@ -404,7 +404,9 @@ def test_inverse_query_accepts_complete_bridge_and_retains_mean_boundaries():
     assert direct.to_dict() == adapted.to_dict()
     with pytest.raises(iq.InverseQueryRefusal):
         require_success(
-            iq.InverseQuery(contract, ("use", "wait"), (iq.target_quantile(0.5, 0.0),)).evaluate(claim)
+            iq.InverseQuery(contract, ("use", "wait"), (iq.target_quantile(0.5, 0.0),)).evaluate(
+                claim
+            )
         )
 
 
