@@ -33,12 +33,15 @@ from ._artifact_protocol import (
     artifact_from_receipt,
     container_bytes,
 )
+from ._freeze import freeze, thaw
 from ._native import consume_array_fit_artifact as _consume
+from .outcomes import Answer
+from .results._report import InspectionReport, SlotModel
 
 __all__ = ["NuisanceScoreProduct", "load_artifact"]
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, repr=False)
 class NuisanceScoreProduct:
     """A retained nuisance-score posterior with its standing and its artifact."""
 
@@ -58,6 +61,94 @@ class NuisanceScoreProduct:
     request_digest: str
     #: The binary artifact; refit on load by :func:`load_artifact`.
     artifact: bytes
+    diagnostics: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "values", freeze(self.values))
+        object.__setattr__(self, "assumptions", freeze(self.assumptions))
+        object.__setattr__(self, "diagnostics", freeze(self.diagnostics))
+        object.__setattr__(self, "artifact", bytes(self.artifact))
+
+    @property
+    def answer(self) -> Answer:
+        """Named nuisance summaries, without publishing an effect or target draws."""
+        return Answer(
+            "structured",
+            detail=self.target,
+            structured={"target": self.target, "value_count": len(self.values)},
+        )
+
+    @property
+    def identities(self) -> Mapping[str, str]:
+        """The native request digest; no causal claim or dataset identity is implied."""
+        return freeze({"request_digest": self.request_digest})
+
+    @property
+    def provenance(self) -> Mapping[str, str]:
+        return freeze({"estimator_id": self.estimator_id, "request_digest": self.request_digest})
+
+    def inspect(self) -> InspectionReport:
+        """Read retained native standing without fitting or decoding the artifact."""
+        posterior = self.uncertainty == "nuisance_posterior_laplace_not_an_effect_posterior"
+        return InspectionReport(
+            identification=SlotModel(
+                available=False,
+                reason="nuisance_not_causal_effect",
+                summary="treatment-model nuisance; no causal-effect identification claim",
+            ),
+            support=SlotModel(
+                available=False,
+                reason=self.licensing,
+                summary=self.licensing,
+                payload={"licensing": self.licensing, "calibration": self.calibration},
+            ),
+            uncertainty=SlotModel(
+                available=posterior,
+                reason=None if posterior else self.uncertainty,
+                summary=self.uncertainty,
+                payload={"target": self.target, "kind": self.uncertainty},
+            ),
+            assumptions=SlotModel(
+                available=True,
+                summary="declared nuisance-model assumptions",
+                payload={"declarations": self.assumptions},
+            ),
+            answer=self.answer,
+            diagnostics=self.diagnostics,
+            contract={"provenance": self.provenance},
+            target={"kind": self.target},
+            calibration=self.calibration,
+            family="nuisance_scores",
+            stage="executed",
+            details={"value_count": len(self.values), "request_digest": self.request_digest},
+            operations=("inspect", "export", "to_dict"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Materialize named summaries; obtain the encoded design through export()."""
+        return thaw(
+            {
+                "estimator_id": self.estimator_id,
+                "target": self.target,
+                "uncertainty": self.uncertainty,
+                "licensing": self.licensing,
+                "calibration": self.calibration,
+                "values": self.values,
+                "assumptions": self.assumptions,
+                "diagnostics": self.diagnostics,
+                "request_digest": self.request_digest,
+            }
+        )
+
+    def __repr__(self) -> str:
+        return (
+            f"NuisanceScoreProduct(estimator_id={self.estimator_id!r}, "
+            f"target={self.target!r}, uncertainty={self.uncertainty!r}, "
+            f"value_count={len(self.values)})"
+        )
+
+    def _repr_html_(self) -> str:
+        return self.inspect()._repr_html_()
 
     @property
     def licensed(self) -> bool:
@@ -99,6 +190,7 @@ def _product(report_json: str, artifact: bytes) -> NuisanceScoreProduct:
         assumptions=tuple(result["assumptions"]),
         request_digest=report["request_digest"],
         artifact=bytes(artifact),
+        diagnostics=tuple(result["diagnostics"]),
     )
 
 
