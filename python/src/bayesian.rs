@@ -13,9 +13,7 @@ use antecedent_discovery::adjacency_mask::{
     adjacency_mask_from_admg, adjacency_mask_from_cpdag, adjacency_masks_from_pag, has_edge,
     mask_is_dag,
 };
-use antecedent_discovery::{
-    AdjacencyMask, GraphPosteriorAtomKind, n_directed_edges,
-};
+use antecedent_discovery::{AdjacencyMask, GraphPosteriorAtomKind, n_directed_edges};
 use antecedent_graph::Cpdag as RustCpdag;
 use antecedent_prob::InferenceDiagnostics;
 use antecedent_stats::{FdrAdjustment, PartialCorrelation};
@@ -25,8 +23,8 @@ use pyo3::types::{PyBytes, PyDict, PyList, PyModule};
 use crate::compiled_route_api::{DiscoverInput, RouteRecord};
 use crate::discovery_api::compiled_search;
 use crate::{
-    numeric_columns_to_batch, detach_catch, py_err, py_execution_context, py_msg, series_from_batch,
-    tabular_from_batch,
+    detach_catch, numeric_columns_to_batch, py_err, py_execution_context, py_msg,
+    series_from_batch, tabular_from_batch,
 };
 
 #[path = "bayesian_temporal_atoms.rs"]
@@ -107,11 +105,7 @@ fn mask_to_pyint(py: Python<'_>, mask: AdjacencyMask) -> PyResult<Bound<'_, PyAn
 
 /// Packed edge bits from a non-negative Python `int`.
 fn mask_from_pyint(value: &Bound<'_, PyAny>) -> PyResult<AdjacencyMask> {
-    let refuse = || {
-        crate::value_err(
-            "adjacency masks must be non-negative integers",
-        )
-    };
+    let refuse = || crate::value_err("adjacency masks must be non-negative integers");
     let bits: usize = value.call_method0("bit_length").map_err(|_| refuse())?.extract()?;
     let len = bits.div_ceil(8).max(32);
     let bytes: Vec<u8> =
@@ -155,11 +149,11 @@ impl PyGraphPosterior {
             ess: post.ess(),
             rejected_invalid: post.rejected_invalid(),
             converged: post.diagnostics().converged,
-            lagged_edge_marginals: post
-                .lagged_edge_marginals()
-                .map(|v| v.as_ref().to_vec()),
+            lagged_edge_marginals: post.lagged_edge_marginals().map(|v| v.as_ref().to_vec()),
             max_lag: post.max_lag(),
-            lag_masks: post.lag_masks().and_then(|v| v.iter().map(AdjacencyMask::to_word).collect()),
+            lag_masks: post
+                .lag_masks()
+                .and_then(|v| v.iter().map(AdjacencyMask::to_word).collect()),
             lag_bidirected_masks: post
                 .lag_bidirected_masks()
                 .and_then(|v| v.iter().map(AdjacencyMask::to_word).collect()),
@@ -369,6 +363,8 @@ impl PyGraphPosterior {
     }
 
     /// Pack typed graphs into a posterior. Every atom must share one class.
+    /// ADMG atoms must be bow-free: this encoding cannot retain a directed and
+    /// bidirected edge on the same pair. An explicit ADMG graph retains bows.
     #[classmethod]
     #[pyo3(signature = (names, weights, graphs, *, ess=None))]
     fn from_graphs(
@@ -581,7 +577,10 @@ fn pack_static_atoms(
         for graph in graphs {
             let admg = graph.extract::<crate::graphs::Admg>()?;
             require_graph_names(&admg.names, names, "Admg")?;
-            adjacency.push(adjacency_mask_from_admg(&admg.admg).map_err(py_msg)?);
+            adjacency.push(
+                adjacency_mask_from_admg(&admg.admg)
+                    .map_err(|error| crate::value_err(error.to_string()))?,
+            );
         }
         return Ok((GraphPosteriorAtomKind::Admg, adjacency, None));
     }

@@ -66,6 +66,11 @@ class PreparedProvider:
     _completed: bool = False
     _report: InspectionReport | None = None
 
+    @property
+    def validator_names(self) -> tuple[str, ...]:
+        # Provider requests reject sampled-data validators at preparation.
+        return ()
+
     @classmethod
     def prepare(
         cls, data: Any, *, query: ProviderQuery, execution: Execution, **declarations: Any

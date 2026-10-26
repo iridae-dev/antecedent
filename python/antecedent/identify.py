@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from ._claim import identification_statement
 from ._freeze import thaw
+from ._prepared_identification import PreparedIdentification
 from ._verdict import describe_status, verdict_for
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .estimation import IdentifyResult
@@ -1197,6 +1198,7 @@ __all__ = [
     "BinaryIvBounds",
     "Identification",
     "IdentifyResult",
+    "PreparedIdentification",
     "binary_iv_bounds",
     "identify",
 ]

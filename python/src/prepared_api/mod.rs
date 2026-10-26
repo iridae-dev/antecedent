@@ -22,6 +22,7 @@ mod contract;
 mod controls;
 mod execute;
 mod frame;
+mod identification;
 mod inspect;
 mod posterior;
 mod prepare_design;
@@ -299,5 +300,6 @@ fn finished_prepared(
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPreparedAnalysis>()?;
+    identification::register(m)?;
     Ok(())
 }

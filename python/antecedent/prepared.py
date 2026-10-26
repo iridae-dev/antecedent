@@ -12,6 +12,7 @@ from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, overload
 
 from ._freeze import freeze
+from ._prepared_inspection import InspectionPage
 from ._study_lifecycle import guard_design, replay_declaration, retain
 from .errors import CausalTypeError, CausalValueError
 from .execution import Execution
@@ -20,6 +21,7 @@ from .outcomes import Outcome, Refusal, as_outcome, capture_outcome
 T = TypeVar("T")
 if TYPE_CHECKING:
     from ._batch import BatchResult, PreparedBatch
+    from ._prepared_identification import PreparedIdentification
     from .cyclic import CyclicResult, PreparedCyclicFamily, PreparedCyclicSystem
 
 CyclicStudyT = TypeVar("CyclicStudyT", "PreparedCyclicFamily", "PreparedCyclicSystem")
@@ -84,6 +86,28 @@ class PreparedAnalysis(Generic[T]):
     def preflight(self) -> Any:
         return preflight(self)
 
+    def diagnose(self, *, execution: Execution | None = None) -> Any:
+        from .preflight import diagnose
+
+        return diagnose(self, execution=execution)
+
+    def diagnose_fit(self, *, execution: Execution | None = None) -> Outcome[Any]:
+        from .preflight import diagnose_fit
+
+        return diagnose_fit(self, execution=execution)
+
+    def plan_rank_drop(
+        self, priority: Sequence[str] | None = None, *, execution: Execution | None = None
+    ) -> Any:
+        from .preflight import plan_rank_drop
+
+        return plan_rank_drop(self, priority=priority, execution=execution)
+
+    def estimate_cost(self, *, execution: Execution | None = None) -> Any:
+        from .preflight import estimate_cost
+
+        return estimate_cost(self, execution=execution)
+
     def treatment_score_posterior(
         self,
         *,
@@ -134,6 +158,43 @@ class PreparedAnalysis(Generic[T]):
         """The retained original row labels, without reading or fitting observations."""
         return self._engine.participants
 
+    @property
+    def validator_names(self) -> tuple[str, ...]:
+        """Names retained by native preparation, without invoking their callbacks."""
+        if self._refused is not None:
+            return ()
+        return self._engine.validator_names
+
+    @property
+    def identification(self) -> PreparedIdentification:
+        """Navigate retained native proofs without executing or converting them.
+
+        Composite questions retain their horizons, graph samples and completion
+        cases. Select a child to inspect one proof; full conversion is explicit
+        through the view's ``to_dict()`` operation.
+        """
+        from ._prepared_identification import PreparedIdentification
+        from ._prepared_provider import PreparedProvider
+
+        if self._refused is not None:
+            return PreparedIdentification.unavailable(
+                "preparation_refused", refusal=self._refused.refusal, execution=self.execution
+            )
+        if isinstance(self._engine, PreparedProvider):
+            return PreparedIdentification.unavailable(
+                "provider_identification_not_independently_verified",
+                kind="provider",
+                execution=self.execution,
+            )
+        native = getattr(self._engine, "_native", None)
+        if native is None or not hasattr(native, "identification_view"):
+            from .errors import CausalStateError
+
+            raise CausalStateError(
+                "this scientific preparation does not expose a native identification view",
+            )
+        return PreparedIdentification.from_native(native.identification_view(), self.execution)
+
     def inspect(self) -> Any:
         if self._refused is not None:
             return self._refused.inspect().model_copy(
@@ -142,7 +203,42 @@ class PreparedAnalysis(Generic[T]):
                     "operations": ("inspect", "estimate", "rebind", "reconfigure"),
                 }
             )
-        return self._engine.inspect()
+        from ._prepared_inspection import inspect_prepared
+        from ._prepared_provider import PreparedProvider
+
+        if isinstance(self._engine, PreparedProvider):
+            return self._engine.inspect()
+        if getattr(self._engine, "_kind", None) == "learned_trial":
+            # This native family exposes its own bounded four-slot metadata.
+            return self._engine.inspect().model_copy(update={"stage": "prepared"})
+        completed = getattr(self._engine, "_last_result", None)
+        if completed is not None:
+            return completed.inspect().model_copy(update={"stage": "executed"})
+        return inspect_prepared(self)
+
+    def assumption_obligations(self, *, offset: int = 0, limit: int = 32) -> InspectionPage:
+        """Explicitly page retained scoped native assumption obligations."""
+        from ._prepared_inspection import inspection_page
+
+        return inspection_page(self, "assumption_obligations", offset, limit)
+
+    def uncertainty_components(self, *, offset: int = 0, limit: int = 32) -> InspectionPage:
+        """Explicitly page retained native uncertainty components."""
+        from ._prepared_inspection import inspection_page
+
+        return inspection_page(self, "uncertainty_components", offset, limit)
+
+    def evidence_obligations(self, *, offset: int = 0, limit: int = 32) -> InspectionPage:
+        """Explicitly page original proof-derived evidence obligations."""
+        from ._prepared_inspection import inspection_page
+
+        return inspection_page(self, "evidence_obligations", offset, limit)
+
+    def evidence_actions(self, *, offset: int = 0, limit: int = 32) -> InspectionPage:
+        """Explicitly page original evidence-gathering actions without running them."""
+        from ._prepared_inspection import inspection_page
+
+        return inspection_page(self, "evidence_actions", offset, limit)
 
     @property
     def refusal(self) -> Refusal | None:
