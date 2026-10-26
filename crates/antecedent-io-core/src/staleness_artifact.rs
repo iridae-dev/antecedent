@@ -330,7 +330,11 @@ impl StalenessBaselineWire {
         let body = bytes
             .strip_prefix(STALENESS_BASELINE_MAGIC)
             .ok_or_else(|| IoError::Convert("bytes are not a staleness baseline".into()))?;
-        let wire: Self = ciborium::from_reader(body).map_err(IoError::cbor_decode)?;
+        let mut reader = std::io::Cursor::new(body);
+        let wire: Self = ciborium::from_reader(&mut reader).map_err(IoError::cbor_decode)?;
+        if reader.position() != body.len() as u64 {
+            return Err(IoError::Convert("staleness baseline has trailing bytes".into()));
+        }
         wire.verify()?;
         Ok(wire)
     }
@@ -426,5 +430,10 @@ mod tests {
         assert!(StalenessBaselineWire::consume(&raw).is_err());
         assert!(StalenessBaselineWire::consume(b"not a baseline").is_err());
         assert!(StalenessBaselineWire::consume(&bytes[..bytes.len() - 3]).is_err());
+        let mut trailing = bytes.clone();
+        trailing.push(0);
+        assert!(StalenessBaselineWire::consume(&trailing).is_err());
+        trailing.extend_from_slice(&bytes);
+        assert!(StalenessBaselineWire::consume(&trailing).is_err());
     }
 }
