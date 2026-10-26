@@ -136,6 +136,47 @@ pub struct LaplaceWorkspace {
     immutable_gaussian: Option<ImmutableGaussianDesign>,
 }
 
+/// One ephemeral nuisance-fit workspace. Its private owner cannot be cloned,
+/// resized by callers, or reused under another admission pool. Field drop order
+/// releases the buffers before returning their admission.
+pub(crate) struct AdmittedLaplaceWorkspace {
+    pub(crate) workspace: LaplaceWorkspace,
+    _admission: Option<antecedent_core::execution::AdmissionLease>,
+}
+
+impl AdmittedLaplaceWorkspace {
+    pub(crate) fn new(nrows: usize, ncols: usize, draws: usize) -> Result<Self, ProbError> {
+        let overflow = || ProbError::Shape { message: "Laplace workspace size overflow" };
+        let square = ncols.checked_mul(ncols).ok_or_else(overflow)?;
+        let draw_cells = draws.checked_mul(ncols).ok_or_else(overflow)?.max(ncols);
+        let cells = square
+            .checked_mul(2)
+            .and_then(|cells| ncols.checked_mul(5).and_then(|cols| cells.checked_add(cols)))
+            .and_then(|cells| nrows.checked_mul(2).and_then(|rows| cells.checked_add(rows)))
+            .and_then(|cells| cells.checked_add(draw_cells))
+            .ok_or_else(overflow)?;
+        // Admit before allocating. Fresh boxed slices ensure each reported Vec
+        // capacity equals its declared buffer length, with no growth slack.
+        let admission = crate::admission::admit_cells(None, cells)?;
+        let buffer = |len| vec![0.0; len].into_boxed_slice().into_vec();
+        let workspace = LaplaceWorkspace {
+            grad: buffer(ncols),
+            neg_hessian: buffer(square),
+            factor: buffer(square),
+            step: buffer(ncols),
+            beta: buffer(ncols),
+            q: buffer(ncols),
+            p: buffer(ncols),
+            eta: buffer(nrows),
+            work_w: buffer(nrows),
+            draw_scratch: buffer(draw_cells),
+            grow_count: u32::from(cells > 0),
+            ..LaplaceWorkspace::default()
+        };
+        Ok(Self { workspace, _admission: admission })
+    }
+}
+
 #[derive(Clone, Debug)]
 struct ImmutableGaussianDesign {
     x: Arc<[f64]>,
@@ -333,6 +374,42 @@ fn resize_min(buf: &mut Vec<f64>, need: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nuisance_workspace_owner_charges_exact_capacities_until_buffers_drop() {
+        let ctx = ExecutionContext::for_tests(1).with_memory_limit(Some(4096));
+        let owner = antecedent_core::numerical_admission::with_context(&ctx, || {
+            AdmittedLaplaceWorkspace::new(10, 2, 3).unwrap()
+        });
+        let ws = &owner.workspace;
+        let buffers = [
+            &ws.grad,
+            &ws.neg_hessian,
+            &ws.factor,
+            &ws.step,
+            &ws.beta,
+            &ws.q,
+            &ws.p,
+            &ws.eta,
+            &ws.work_w,
+            &ws.draw_scratch,
+        ];
+        assert!(buffers.iter().all(|buffer| buffer.len() == buffer.capacity()));
+        let bytes = buffers.iter().map(|buffer| buffer.capacity() as u64 * 8).sum::<u64>();
+        assert_eq!(bytes, 352);
+        assert_eq!(ctx.admission().available().bytes(), 4096 - bytes);
+        let other = ExecutionContext::for_tests(2).with_memory_limit(Some(bytes - 1));
+        let refused = antecedent_core::numerical_admission::with_context(&other, || {
+            AdmittedLaplaceWorkspace::new(10, 2, 3)
+        });
+        assert!(refused.is_err(), "another pool must fund its own new workspace");
+        assert_eq!(ctx.admission().available().bytes(), 4096 - bytes);
+        assert_eq!(other.admission().available().bytes(), bytes - 1);
+        drop(owner);
+        assert_eq!(ctx.admission().available().bytes(), 4096);
+        let unbound = AdmittedLaplaceWorkspace::new(10, 2, 3).unwrap();
+        assert!(unbound._admission.is_none(), "direct unbound Rust allocations belong to caller");
+    }
 
     #[test]
     fn immutable_gaussian_binding_never_certifies_other_buffers_or_weights() {

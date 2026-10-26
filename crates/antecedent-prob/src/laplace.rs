@@ -62,6 +62,40 @@ pub fn fit_laplace_glm(
     options: &BayesFitOptions,
     workspace: &mut LaplaceWorkspace,
 ) -> Result<BayesFitResult, ProbError> {
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::PosteriorFit,
+        || fit_laplace_glm_inner(likelihood, design, prior, options, workspace),
+    )
+}
+
+/// Fit with an ephemeral workspace whose admission follows its owned buffers.
+/// Public caller-provided workspaces retain their existing caller-owned semantics.
+///
+/// # Errors
+/// As [`fit_laplace_glm`], or admission refusal before workspace allocation.
+#[doc(hidden)]
+pub fn fit_laplace_glm_owned(
+    likelihood: BayesLikelihood,
+    design: BayesDesignRef<'_>,
+    prior: &PriorSet,
+    options: &BayesFitOptions,
+) -> Result<BayesFitResult, ProbError> {
+    let mut owned =
+        crate::backend::AdmittedLaplaceWorkspace::new(design.nrows, design.ncols, options.n_draws)?;
+    fit_laplace_glm(likelihood, design, prior, options, &mut owned.workspace)
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "unchanged numerical Laplace fit with its iteration state"
+)]
+fn fit_laplace_glm_inner(
+    likelihood: BayesLikelihood,
+    design: BayesDesignRef<'_>,
+    prior: &PriorSet,
+    options: &BayesFitOptions,
+    workspace: &mut LaplaceWorkspace,
+) -> Result<BayesFitResult, ProbError> {
     let nrows = design.nrows;
     let ncols = design.ncols;
     if likelihood != BayesLikelihood::GaussianIdentity
@@ -99,6 +133,9 @@ pub fn fit_laplace_glm(
     let mut known_objective: Option<f64> = None;
 
     for iter in 0..options.max_iter {
+        if antecedent_core::numerical_admission::is_cancelled() {
+            return Err(ProbError::Numerical { message: "Laplace fit cancelled".into() });
+        }
         iterations = iter + 1;
         let _ = accumulate_likelihood(
             likelihood,
@@ -479,6 +516,12 @@ pub fn sample_gaussian_mvn(
     let mut values = vec![0.0; cells];
     let z = &mut workspace.draw_scratch[..ncols];
     for d in 0..n_draws {
+        if antecedent_core::numerical_admission::is_cancelled() {
+            return Err(ProbError::Numerical { message: "Laplace sampling cancelled".into() });
+        }
+        let draw = antecedent_core::execution_attempt::OperationGuard::begin(
+            antecedent_core::execution_attempt::Operation::PosteriorDraw,
+        );
         for j in 0..ncols {
             z[j] = standard_normal(&mut rng);
         }
@@ -489,16 +532,84 @@ pub fn sample_gaussian_mvn(
             }
             values[i * n_draws + d] = acc;
         }
+        draw.complete();
     }
     Ok(Arc::from(values))
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::linalg::invert_spd;
     use super::*;
     use crate::gaussian_target::{gaussian_target_from_model, prior_quadratic, rss_and_xtwr};
+    use crate::linalg::invert_spd;
     use crate::prior::PriorSpec;
+
+    #[test]
+    fn caller_admission_precedes_workspace_allocation_and_preserves_logistic_fit_bits() {
+        use antecedent_core::execution_attempt::{Operation, observe_with_context};
+        let x = [1.0; 8];
+        let y = [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0];
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 8,
+            ncols: 1,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let prior = PriorSet {
+            specs: vec![PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(
+                1, 2.0,
+            ))],
+            contrast: None,
+            categorical: Vec::new(),
+            restrictions: Vec::new(),
+        };
+        let options = BayesFitOptions { n_draws: 32, seed: 13, ..BayesFitOptions::default() };
+        let denied = ExecutionContext::for_tests(13).with_memory_limit(Some(0));
+        let (result, admission) =
+            antecedent_core::numerical_admission::with_context_and_failure(&denied, || {
+                fit_laplace_glm_owned(BayesLikelihood::BernoulliLogit, design, &prior, &options)
+            });
+        assert!(result.is_err() && admission.is_some());
+        let expected = fit_laplace_glm(
+            BayesLikelihood::BernoulliLogit,
+            design,
+            &prior,
+            &options,
+            &mut LaplaceWorkspace::default(),
+        )
+        .unwrap();
+        let ctx = ExecutionContext::for_tests(13).with_memory_limit(Some(100_000));
+        let observed = observe_with_context(&ctx, || {
+            fit_laplace_glm_owned(BayesLikelihood::BernoulliLogit, design, &prior, &options)
+        });
+        assert_eq!(observed.report.counts(Operation::PosteriorFit).completed, 1);
+        assert_eq!(observed.report.counts(Operation::PosteriorDraw).completed, 32);
+        let actual = observed.result.unwrap();
+        assert_eq!(actual.map, expected.map);
+        assert_eq!(actual.cov, expected.cov);
+        for draw in 0..32 {
+            assert_eq!(
+                actual.draws.get(draw, 0).unwrap().to_bits(),
+                expected.draws.get(draw, 0).unwrap().to_bits()
+            );
+        }
+    }
+
+    #[test]
+    fn active_cancellation_stops_original_gaussian_draw_loop() {
+        use antecedent_core::execution_attempt::{Operation, observe_with_context};
+        let mut ctx = ExecutionContext::for_tests(3);
+        ctx.cancellation = antecedent_core::CancellationToken::cancel_after_checks(20);
+        let attempt = observe_with_context(&ctx, || {
+            sample_gaussian_mvn(&[0.0], &[1.0], 1000, 3, &mut LaplaceWorkspace::default())
+        });
+        assert!(attempt.result.is_err());
+        let completed = attempt.report.counts(Operation::PosteriorDraw).completed;
+        assert!(completed > 0 && completed < 1000);
+        assert!(ctx.cancellation.is_cancelled());
+    }
 
     fn deterministic_unit(i: usize) -> f64 {
         // Cheap deterministic U(0,1) so Bernoulli labels overlap in x.
