@@ -20,8 +20,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::Arc;
-
 use antecedent::EstimatorSpec;
 use antecedent_estimate::{
     AipwAte, AnalyticSeKind, CaliperScale, CausalForest, DistanceMatching, DmlAte, DmlScore,
@@ -1387,10 +1385,10 @@ fn build_configured_spec(
                 est = est.with_se_kind(k);
             }
             if let Some(ids) = cluster_ids {
-                est = est.with_cluster_ids(Arc::from(ids));
+                est = est.with_cluster_ids(ids);
             }
             if let Some(ids) = source_cluster_ids {
-                est = est.with_source_cluster_ids(Arc::from(ids));
+                est = est.with_source_cluster_ids(ids);
             }
             est.into()
         }
