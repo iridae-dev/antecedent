@@ -837,6 +837,43 @@ fn deferred_preparation_keeps_statistical_operations_and_scores_unmaterialized()
 }
 
 #[test]
+fn deferred_inspection_cannot_stamp_a_stale_fit_snapshot_on_execution() {
+    let data = data();
+    let graph =
+        Dag::from_named_edges(data.schema(), &[("z", "t"), ("z", "y"), ("t", "y")]).unwrap();
+    let query = AverageEffectQuery::binary_ate(
+        data.schema().id_of("t").unwrap(),
+        data.schema().id_of("y").unwrap(),
+    );
+    let study = Study::tabular(data)
+        .graph(graph)
+        .query(query)
+        .estimator(EstimatorId::LinearAdjustmentAte)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
+    let ctx = ExecutionContext::for_tests(201);
+    let deferred = study.prepare_deferred(&ctx).unwrap();
+    let prepared_contract = deferred.contract().unwrap();
+    assert!(!deferred.materialized);
+    let ready = deferred.materialize(&ctx).unwrap();
+    let result = ready.estimate_retained(&ctx).unwrap();
+    let (contract, claim) = ready.execution_contract(&result, &ctx).unwrap();
+    let fresh = study.prepare_deferred(&ctx).unwrap().materialize(&ctx).unwrap();
+    let fresh_result = fresh.estimate_retained(&ctx).unwrap();
+    let (fresh_contract, fresh_claim) = fresh.execution_contract(&fresh_result, &ctx).unwrap();
+    assert_eq!(result.effect().to_bits(), fresh_result.effect().to_bits());
+    assert_eq!(contract.identities, fresh_contract.identities);
+    assert_eq!(claim.claim_id, fresh_claim.claim_id);
+    assert_eq!(prepared_contract.identities.target, contract.identities.target);
+    assert_eq!(prepared_contract.identities.identification, contract.identities.identification);
+    // The ready operation seals its actual statistical payload. The original
+    // declaration stays an unmaterialized, immutable preparation.
+    assert_eq!(deferred.contract().unwrap().identities, prepared_contract.identities);
+    assert!(!deferred.materialized);
+}
+
+#[test]
 fn deferred_preparation_cancelled_materialization_does_not_publish_state() {
     let data = data();
     let graph = Dag::from_named_edges(data.schema(), &[("t", "y")]).unwrap();

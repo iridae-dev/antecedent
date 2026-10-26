@@ -904,6 +904,12 @@ impl PreparedStudy {
                     });
                 }
                 ready.materialized = true;
+                // Inspection may have cached a contract on the deferred
+                // declaration. Materialization adds row-bound fit/score
+                // payloads, so its executed contract must derive those actual
+                // payloads rather than reuse the pre-execution projection.
+                ready.program_cache = std::sync::OnceLock::new();
+                ready.contract_cache = std::sync::OnceLock::new();
                 Ok(ready)
             },
         )
