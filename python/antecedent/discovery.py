@@ -15,7 +15,7 @@ import json
 import re
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypedDict
 
 from ._coerce import coerce_data, coerce_temporal_data
@@ -36,12 +36,6 @@ from ._native import (
     discover_ci_screened_posterior as _discover_ci_screened_posterior,
 )
 from ._native import (
-    discover_jpcmci_plus_stability as _discover_jpcmci_plus_stability,
-)
-from ._native import (
-    discover_rpcmci_stability as _discover_rpcmci_stability,
-)
-from ._native import (
     discover_dbn_posterior as _discover_dbn_posterior,
 )
 from ._native import (
@@ -57,13 +51,13 @@ from ._native import (
     discover_fci as _discover_fci,
 )
 from ._native import (
-    discover_pag_mcmc as _discover_pag_mcmc,
-)
-from ._native import (
     discover_ges as _discover_ges,
 )
 from ._native import (
     discover_jpcmci_plus as _discover_jpcmci_plus,
+)
+from ._native import (
+    discover_jpcmci_plus_stability as _discover_jpcmci_plus_stability,
 )
 from ._native import (
     discover_lingam as _discover_lingam,
@@ -76,6 +70,9 @@ from ._native import (
 )
 from ._native import (
     discover_order_mcmc as _discover_order_mcmc,
+)
+from ._native import (
+    discover_pag_mcmc as _discover_pag_mcmc,
 )
 from ._native import (
     discover_pc as _discover_pc,
@@ -93,6 +90,9 @@ from ._native import (
     discover_rpcmci as _discover_rpcmci,
 )
 from ._native import (
+    discover_rpcmci_stability as _discover_rpcmci_stability,
+)
+from ._native import (
     discover_structure_mcmc as _discover_structure_mcmc,
 )
 from ._validate import count as _count
@@ -107,19 +107,6 @@ if TYPE_CHECKING:
     from .graph import Dag
 
 CiSpec = str | Callable[..., Sequence[tuple[float, float]]]
-
-
-def _ci_str(ci: CiSpec) -> str:
-    """Collapse a possibly-callable ``ci`` to a plain string.
-
-    Only the ``run_static_discovery`` / ``run_temporal_discovery`` dispatchers
-    apply this, because the ``analyze`` and ``AcceptedGraph.rediscover`` paths
-    behind them have never carried a Python callable across. ``Config.run()``
-    forwards ``ci`` raw — native supports a callable there (``ci_name`` comes
-    back as ``python.callback``), and collapsing it would silently substitute
-    a different independence test.
-    """
-    return ci if isinstance(ci, str) else "parcorr"
 
 
 @dataclass(frozen=True, slots=True)
@@ -1510,14 +1497,18 @@ class BootstrapStability:
     :class:`NOTEARS`, :class:`PCMCI` or :class:`PCMCIPlus`.
     """
 
-    base: PC | FCI | RFCI | GES | LiNGAM | NOTEARS | PCMCI | PCMCIPlus | LPCMCI | JPCMCIPlus | RPCMCI
+    base: (
+        PC | FCI | RFCI | GES | LiNGAM | NOTEARS | PCMCI | PCMCIPlus | LPCMCI | JPCMCIPlus | RPCMCI
+    )
     replicates: int = 200
     kind: Literal["bootstrap_stability"] = "bootstrap_stability"
 
     algorithm_id: ClassVar[str] = "bootstrap_stability"
 
     def __post_init__(self) -> None:
-        if not isinstance(self.base, (PC, FCI, RFCI, GES, LiNGAM, NOTEARS, PCMCI, PCMCIPlus, LPCMCI, JPCMCIPlus, RPCMCI),
+        if not isinstance(
+            self.base,
+            (PC, FCI, RFCI, GES, LiNGAM, NOTEARS, PCMCI, PCMCIPlus, LPCMCI, JPCMCIPlus, RPCMCI),
         ):
             raise CausalUnsupportedError(
                 "a stability search re-runs PC, FCI, RFCI, GES, LiNGAM, NOTEARS, PCMCI, "
@@ -1610,7 +1601,9 @@ class BootstrapStability:
                     max_cond_size=base.max_cond_size,
                     max_lag=base.max_lag,
                     unit_lengths=unit_lengths,
-                    **({} if isinstance(base, LPCMCI) else _knowledge_kwargs(base.knowledge, names)),
+                    **(
+                        {} if isinstance(base, LPCMCI) else _knowledge_kwargs(base.knowledge, names)
+                    ),
                     **common,
                 )
         names, cols = coerce_data(data)
@@ -1686,18 +1679,6 @@ _ALL_DISCOVERY_TYPES = (
 )
 
 
-def _without_callable_ci(discovery: Any) -> Any:
-    """Config with a callable ``ci`` collapsed to its string form.
-
-    Preserves the dispatcher paths' long-standing behavior; ``run()`` itself
-    forwards a callable unchanged.
-    """
-    ci = getattr(discovery, "ci", None)
-    if ci is None or isinstance(ci, str):
-        return discovery
-    return replace(discovery, ci=_ci_str(ci))
-
-
 def run_static_discovery(
     data: Any,
     discovery: StaticDiscovery,
@@ -1712,8 +1693,7 @@ def run_static_discovery(
     """
     if not isinstance(discovery, _STATIC_DISCOVERY_TYPES):
         raise CausalTypeError(f"unsupported static discovery type: {type(discovery)!r}")
-    runnable = _without_callable_ci(discovery)
-    return runnable.run(data, seed=seed, threads=threads), discovery.algorithm_id
+    return discovery.run(data, seed=seed, threads=threads), discovery.algorithm_id
 
 
 def run_temporal_discovery(
@@ -1726,8 +1706,7 @@ def run_temporal_discovery(
     """Dispatch a PCMCI-family discovery config to its ``run()``."""
     if not isinstance(discovery, _TEMPORAL_DISCOVERY_TYPES):
         raise CausalTypeError(f"unsupported temporal discovery type: {type(discovery)!r}")
-    runnable = _without_callable_ci(discovery)
-    return runnable.run(data, seed=seed, threads=threads), discovery.algorithm_id
+    return discovery.run(data, seed=seed, threads=threads), discovery.algorithm_id
 
 
 def discovery_algorithm(discovery: Any) -> dict[str, Any]:

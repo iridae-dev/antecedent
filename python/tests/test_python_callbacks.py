@@ -142,3 +142,107 @@ def test_custom_validator_on_native_ate():
     assert result.worker_threads == 0
     assert result.expected_python_crossings >= 2  # base + validator mark
     assert any("exec.python_callback_serial" in d for d in result.diagnostics)
+
+
+@pytest.mark.parametrize("exception_type", [RuntimeError, KeyboardInterrupt, SystemExit])
+def test_decision_utility_preserves_original_callback_exception(exception_type):
+    original = exception_type("utility callback identity")
+
+    def failing_utility(_actions, _outcomes):
+        raise original
+
+    expected = (
+        antecedent.errors.CausalDesignError if exception_type is RuntimeError else exception_type
+    )
+    with pytest.raises(expected) as raised:
+        antecedent.design.evaluate_decision([0.0, 1.0], [2.0, 4.0], failing_utility)
+    if exception_type is RuntimeError:
+        assert raised.value.__cause__ is original
+    else:
+        assert raised.value is original
+    assert original.__traceback__ is not None
+
+
+@pytest.mark.parametrize("exception_type", [RuntimeError, KeyboardInterrupt, SystemExit])
+def test_custom_validator_report_cannot_swallow_interrupts(exception_type):
+    rng = np.random.default_rng(932)
+    n = 80
+    z = rng.normal(size=n)
+    t = (z + rng.normal(size=n) > 0).astype(np.float64)
+    y = t + 0.5 * z + rng.normal(size=n)
+    original = exception_type("validator callback identity")
+    invoked = []
+
+    def failing_validator(**_kwargs):
+        invoked.append(True)
+        raise original
+
+    def estimate():
+        return native_ate(
+            ["z", "t", "y"],
+            [z, t, y],
+            [("z", "t"), ("z", "y"), ("t", "y")],
+            "t",
+            "y",
+            validators=[failing_validator],
+            refute=False,
+            bootstrap=0,
+            threads=4,
+        )
+
+    if exception_type is RuntimeError:
+        result = estimate()
+        assert result.refutation_ran
+        assert result.refutation_count >= 1
+        assert result.refutation_passed is False
+    else:
+        with pytest.raises(exception_type) as raised:
+            estimate()
+        assert raised.value is original
+    assert invoked
+    assert original.__traceback__ is not None
+
+
+@pytest.mark.parametrize("sink", ["on_progress", "on_stage"])
+@pytest.mark.parametrize("exception_type", [RuntimeError, KeyboardInterrupt, SystemExit])
+def test_execution_observers_print_ordinary_errors_but_preserve_interrupts(
+    sink, exception_type, capsys
+):
+    from antecedent._native import PreparedAnalysis
+
+    rng = np.random.default_rng(934)
+    n = 80
+    z = rng.normal(size=n)
+    t = (z + rng.normal(size=n) > 0).astype(np.float64)
+    y = t + 0.5 * z + rng.normal(size=n)
+    names = ["z", "t", "y"]
+    columns = [z, t, y]
+    prepared = PreparedAnalysis.prepare(
+        names,
+        columns,
+        [("z", "t"), ("z", "y"), ("t", "y")],
+        "t",
+        "y",
+        options={"refute": False, "bootstrap": 40},
+        threads=4,
+    )
+    original = exception_type(f"{sink} callback identity")
+    invoked = []
+
+    def failing_observer(*_args):
+        invoked.append(True)
+        raise original
+
+    def estimate():
+        return prepared.estimate(names, columns, threads=4, **{sink: failing_observer})
+
+    if exception_type is RuntimeError:
+        result = estimate()
+        assert np.isfinite(result.ate)
+        assert f"{sink} callback identity" in capsys.readouterr().err
+    else:
+        with pytest.raises(exception_type) as raised:
+            estimate()
+        assert raised.value is original
+    assert invoked
+    assert original.__traceback__ is not None

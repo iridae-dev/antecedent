@@ -1,12 +1,13 @@
 //! Population reference-world transport and independently replayable artifacts.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use super::*;
+use super::{JointDesignResult, bounded_json, context, panel_error};
 use antecedent::analysis::joint_panel::{
     ChangeComponent, PopulationReferenceBindings, PopulationReferenceDecomposition,
     ReferenceComponentBindings,
 };
 use antecedent_design::scientific_source::ScientificConsumptionScope;
 use antecedent_graph::SelectionDiagram;
+use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

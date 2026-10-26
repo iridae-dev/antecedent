@@ -71,10 +71,11 @@ fn reason_label(reason: TrialLogicalBoundReason) -> &'static str {
     }
 }
 
+/// Typed refusal retained by the post-discovery estimation stage.
+type TrialWorkResult<T> = Result<T, Box<DiscoveredTransportError>>;
+
 /// The set as JSON together with its exported receipt.
-fn set_reply(
-    set: &TrialCompatibleTransportConfidenceSet,
-) -> Result<(String, Vec<u8>), DiscoveredTransportError> {
+fn set_reply(set: &TrialCompatibleTransportConfidenceSet) -> TrialWorkResult<(String, Vec<u8>)> {
     let receipt = set.export().map_err(estimation)?;
     let identity = set.identity().map_err(estimation)?;
     let (lower, upper) = set.bounds();
@@ -122,7 +123,7 @@ where
             &TransportQuery,
             &TransportEvidence<'_>,
             &ExecutionContext,
-        ) -> Result<T, DiscoveredTransportError>
+        ) -> TrialWorkResult<T>
         + Send,
 {
     let parsed = sd::parse_json(contract_json)?;
@@ -138,34 +139,32 @@ where
         discovery_columns.map(|columns| crate::columns_to_batch(names, columns)).transpose()?;
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-    let ran: Result<
-        (DiscoveredTransportRun, Option<Result<T, DiscoveredTransportError>>),
-        SelectiveDiscoveryError,
-    > = crate::detach_catch(py, move || {
-        let (source, _): (antecedent_data::TabularData, _) =
-            crate::discovery_api::tabular_from_batch(&source_batch)?;
-        let (target, _): (antecedent_data::TabularData, _) =
-            crate::discovery_api::tabular_from_batch(&target_batch)?;
-        let discovery_data = match &discovery_batch {
-            Some(batch) => {
-                let (data, _): (antecedent_data::TabularData, _) =
-                    crate::discovery_api::tabular_from_batch(batch)?;
-                Some(data)
-            }
-            None => None,
-        };
-        let basis = discovery_data.as_ref().unwrap_or(&source);
-        let run = match discover_and_transport(&contract, basis, &ids, &query, bound, &ctx) {
-            Ok(run) => run,
-            Err(error) => return Ok(Err(error)),
-        };
-        let result = run.transport.as_ref().ok().map(|report| {
-            let mut evidence = TransportEvidence::new(&source, &target);
-            evidence.bootstrap_replicates = bootstrap_replicates;
-            work(report, &query, &evidence, &ctx)
-        });
-        Ok(Ok((run, result)))
-    })?;
+    let ran: Result<(DiscoveredTransportRun, Option<TrialWorkResult<T>>), SelectiveDiscoveryError> =
+        crate::detach_catch(py, move || {
+            let (source, _): (antecedent_data::TabularData, _) =
+                crate::discovery_api::tabular_from_batch(&source_batch)?;
+            let (target, _): (antecedent_data::TabularData, _) =
+                crate::discovery_api::tabular_from_batch(&target_batch)?;
+            let discovery_data = match &discovery_batch {
+                Some(batch) => {
+                    let (data, _): (antecedent_data::TabularData, _) =
+                        crate::discovery_api::tabular_from_batch(batch)?;
+                    Some(data)
+                }
+                None => None,
+            };
+            let basis = discovery_data.as_ref().unwrap_or(&source);
+            let run = match discover_and_transport(&contract, basis, &ids, &query, bound, &ctx) {
+                Ok(run) => run,
+                Err(error) => return Ok(Err(error)),
+            };
+            let result = run.transport.as_ref().ok().map(|report| {
+                let mut evidence = TransportEvidence::new(&source, &target);
+                evidence.bootstrap_replicates = bootstrap_replicates;
+                work(report, &query, &evidence, &ctx)
+            });
+            Ok(Ok((run, result)))
+        })?;
     let (run, result) = match ran {
         Err(error) => {
             return match sd::error_json(&error) {
@@ -185,7 +184,9 @@ where
     match (&run.transport, result) {
         (Err(error), _) => Ok((None, Some(refusal_of(error)?), Some(discovery), None)),
         (Ok(_), Some(Ok(value))) => Ok((Some(value), None, Some(discovery), None)),
-        (Ok(_), Some(Err(error))) => Ok((None, Some(refusal_of(&error)?), Some(discovery), None)),
+        (Ok(_), Some(Err(error))) => {
+            Ok((None, Some(refusal_of(error.as_ref())?), Some(discovery), None))
+        }
         (Ok(_), None) => Err(crate::value_err("the transport request produced no result")),
     }
 }

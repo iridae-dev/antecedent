@@ -13,7 +13,6 @@
 //! reported Monte Carlo error) under the stated model, with no interval or
 //! coverage licence.
 
-use antecedent::analysis::adaptive_inference::AdaptiveInferenceRefusal;
 use antecedent::analysis::adaptive_procedure_declaration::{
     AdaptiveProcedure, ProcedureElements, Retention,
 };
@@ -39,28 +38,7 @@ use crate::measurement_model_api::{
 };
 use crate::transport_common::execution_context;
 
-type Refused<T> = (Option<T>, Option<String>);
-
-fn refusal_value(refusal: &AdaptiveInferenceRefusal) -> Json {
-    json!({
-        "code": refusal.code,
-        "stage": "adaptive_inference",
-        "detail": refusal.detail,
-        "message": refusal.message,
-        "offending": Json::Null,
-        "remedy": Json::Null,
-    })
-}
-
-fn refused<T>(refusal: &AdaptiveInferenceRefusal) -> Refused<T> {
-    (None, Some(refusal_value(refusal).to_string()))
-}
-
-fn refused_all<T>(refusals: &[AdaptiveInferenceRefusal]) -> Refused<T> {
-    let mut first = refusals.first().map_or_else(|| json!({}), refusal_value);
-    first["refusals"] = Json::Array(refusals.iter().map(refusal_value).collect());
-    (None, Some(first.to_string()))
-}
+use crate::adaptive_inference_api::{Refused, refused, refused_all};
 
 fn prior_of(map: &Map<String, Json>, alpha: &str, beta: &str) -> PyResult<BetaPrior> {
     Ok(BetaPrior { alpha: real(map, alpha)?, beta: real(map, beta)? })

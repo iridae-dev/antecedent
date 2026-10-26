@@ -29,6 +29,8 @@ const MAX_JSON_BYTES: usize = crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
 
 type EvaluatePayload = (Option<String>, Option<Vec<u8>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);
+/// `(artifact body, artifact bytes, lowered program identity, refusal)`.
+type StudyEvaluatePayload = (Option<String>, Option<Vec<u8>>, Option<String>, Option<String>);
 
 /// Identities the consumer retained independently of the artifact bytes.
 #[derive(Debug, Default, Deserialize)]
@@ -409,7 +411,7 @@ fn evaluate_design_ranking_for_study(
     checked_prior: Option<PyRef<'_, crate::prior_signal_api::CheckedPriorSignal>>,
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
-) -> PyResult<(Option<String>, Option<Vec<u8>>, Option<String>, Option<String>)> {
+) -> PyResult<StudyEvaluatePayload> {
     let mut request = parse_request(request_json)?;
     if let Some(prior) = checked_prior {
         if let Err(refusal) = prior.bind(&mut request) {

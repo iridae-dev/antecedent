@@ -719,7 +719,7 @@ impl PyNativeExperiment {
         let ctx = context(seed, threads, max_bytes, cancel)?;
         let ledger = ledger.ledger().clone();
         crate::detach_catch(py, || {
-            self.inner.consume_current(bytes, &ledger, &ctx).map(|_| ()).map_err(panel_error)
+            self.inner.consume_current(bytes, &ledger, &ctx).map_err(panel_error)
         })
     }
 }

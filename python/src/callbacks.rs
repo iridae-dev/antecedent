@@ -126,10 +126,46 @@ impl ConditionalIndependenceTest for PyConditionalIndependence {
                 let (stat, p): (f64, f64) = item.extract().map_err(|_| StatsError::Shape {
                     message: "each CI result must be (statistic: float, p_value: float)",
                 })?;
-                results.push(CiResult { statistic: stat, p_value: p, df: f64::NAN, ci: None });
+                results.push(callback_ci_result(stat, p)?);
             }
             Ok(CiBatchResult { results })
         })
+    }
+}
+
+/// Callback evidence is consumed directly by graph search; NaN or out-of-range
+/// probabilities must not silently choose the dependent/independent branch.
+fn callback_ci_result(statistic: f64, p_value: f64) -> Result<CiResult, StatsError> {
+    if !statistic.is_finite() || !p_value.is_finite() || !(0.0..=1.0).contains(&p_value) {
+        return Err(StatsError::Backend(
+            "Python CI callback must return a finite statistic and a finite p_value in [0, 1]"
+                .to_owned(),
+        ));
+    }
+    Ok(CiResult { statistic, p_value, df: f64::NAN, ci: None })
+}
+
+#[cfg(test)]
+mod ci_callback_tests {
+    use super::callback_ci_result;
+
+    #[test]
+    fn callback_evidence_rejects_invalid_numbers_before_graph_search() {
+        for (statistic, probability) in [
+            (f64::NAN, 0.5),
+            (f64::INFINITY, 0.5),
+            (0.0, f64::NAN),
+            (0.0, f64::INFINITY),
+            (0.0, -0.01),
+            (0.0, 1.01),
+        ] {
+            assert!(callback_ci_result(statistic, probability).is_err());
+        }
+        for probability in [0.0, 0.5, 1.0] {
+            let result = callback_ci_result(-2.0, probability).expect("valid evidence");
+            assert_eq!(result.statistic, -2.0);
+            assert_eq!(result.p_value, probability);
+        }
     }
 }
 
@@ -676,7 +712,11 @@ impl antecedent_core::ProgressSink for PyProgressSink {
             // (this also sets `sys.last_*`), so a broken `on_progress` callback is
             // diagnosable rather than appearing to just stop firing.
             if let Err(err) = self.callback.bind(py).call1((fraction, stage)) {
-                err.print(py);
+                if err.is_instance_of::<pyo3::exceptions::PyException>(py) {
+                    err.print(py);
+                } else {
+                    let _ = callback_failure("Python on_progress interrupted", err);
+                }
             }
         });
     }
@@ -738,7 +778,11 @@ impl antecedent::StageResultSink for PyStageResultSink {
             // returns `()`, so surface a failing `on_stage` callback via PyO3's
             // traceback-to-stderr path rather than discarding it silently.
             if let Err(err) = self.callback.bind(py).call1((event.stage_id(), payload)) {
-                err.print(py);
+                if err.is_instance_of::<pyo3::exceptions::PyException>(py) {
+                    err.print(py);
+                } else {
+                    let _ = callback_failure("Python on_stage interrupted", err);
+                }
             }
         });
     }

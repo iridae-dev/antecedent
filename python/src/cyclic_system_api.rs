@@ -846,16 +846,29 @@ fn execute_local_cyclic(
             })
             .collect(),
     };
-    py.detach(move || {
-        let inspection = model.inspect(&request.clamps)?;
-        let result = model.solve(&request.noise, &request.clamps, &request.initial, request.policy, &ctx)?;
-        let counterfactual = request.factual.as_ref().map(|factual| {
-            let shared = model.abduce(factual, request.policy, &ctx)?;
-            model.solve(&shared, &request.clamps, factual, request.policy, &ctx)
-        }).transpose()?;
-        serde_json::to_string(&serde_json::json!({"inspection":inspection,"result":result,"counterfactual":counterfactual}))
-            .map_err(|e| antecedent_model::nonlinear_equilibrium::EquilibriumError::Invalid(e.to_string()))
-    }).map_err(|e| crate::value_err(e.to_string()))
+    crate::detach_catch(py, move || {
+        let execute = || {
+            let inspection = model.inspect(&request.clamps)?;
+            let result = model.solve(
+                &request.noise,
+                &request.clamps,
+                &request.initial,
+                request.policy,
+                &ctx,
+            )?;
+            let counterfactual = request
+                .factual
+                .as_ref()
+                .map(|factual| {
+                    let shared = model.abduce(factual, request.policy, &ctx)?;
+                    model.solve(&shared, &request.clamps, factual, request.policy, &ctx)
+                })
+                .transpose()?;
+            serde_json::to_string(&serde_json::json!({"inspection":inspection,"result":result,"counterfactual":counterfactual}))
+                .map_err(|e| antecedent_model::nonlinear_equilibrium::EquilibriumError::Invalid(e.to_string()))
+        };
+        execute().map_err(|e| crate::value_err(e.to_string()))
+    })
 }
 
 #[pyclass(name = "_CyclicEvidence")]

@@ -26,7 +26,7 @@ use serde_json::{Value as Json, json};
 use crate::measurement_model_api::{object, parse, present, real, small, text};
 use crate::transport_common::execution_context;
 
-type Refused<T> = (Option<T>, Option<String>);
+pub(crate) type Refused<T> = (Option<T>, Option<String>);
 
 fn refusal_value(refusal: &AdaptiveInferenceRefusal) -> Json {
     json!({
@@ -39,11 +39,11 @@ fn refusal_value(refusal: &AdaptiveInferenceRefusal) -> Json {
     })
 }
 
-fn refused<T>(refusal: &AdaptiveInferenceRefusal) -> Refused<T> {
+pub(crate) fn refused<T>(refusal: &AdaptiveInferenceRefusal) -> Refused<T> {
     (None, Some(refusal_value(refusal).to_string()))
 }
 
-fn refused_all<T>(refusals: &[AdaptiveInferenceRefusal]) -> Refused<T> {
+pub(crate) fn refused_all<T>(refusals: &[AdaptiveInferenceRefusal]) -> Refused<T> {
     let mut first = refusals.first().map_or_else(|| json!({}), refusal_value);
     first["refusals"] = Json::Array(refusals.iter().map(refusal_value).collect());
     (None, Some(first.to_string()))

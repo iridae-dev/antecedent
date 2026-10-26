@@ -96,7 +96,7 @@ fn vector_json(vector: &antecedent::result::ImputationVectorReport) -> serde_jso
     serde_json::json!({
         "labels": vector.labels.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
         "covariance_basis": vector.covariance_basis.as_ref(),
-        "points": vector.points.iter().map(|point| point.as_ref()).collect::<Vec<&[f64]>>(),
+        "points": vector.points.iter().map(AsRef::as_ref).collect::<Vec<&[f64]>>(),
         "point": vector.point.as_ref(),
         "within": vector.within.as_ref(),
         "between": vector.between.as_ref(),

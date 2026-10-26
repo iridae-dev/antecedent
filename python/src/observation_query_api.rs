@@ -396,8 +396,7 @@ fn parse_retained(
                     });
                     parsed.ok_or_else(|| {
                         crate::value_err(
-                            "`rows` must hold [[[parent, level], ...], [[level, count], ...]] entries"
-                                .to_owned(),
+                            "`rows` must hold [[[parent, level], ...], [[level, count], ...]] entries",
                         )
                     })
                 })

@@ -220,6 +220,7 @@ pub(crate) struct FailureStage {
 impl FailureStage {
     /// `failure`.
     #[getter]
+    #[allow(clippy::unused_self, reason = "PyO3 instance-property getter preserves the Python ABI")]
     fn family(&self) -> &'static str {
         "failure"
     }
@@ -357,7 +358,7 @@ impl FailureStage {
             let ctx = execution_context(0, memory_bytes, cancel);
             let result = plan_over_routes(&routes, names.clone(), &request, &ctx)
                 .map_err(|e| facade_error(&e))?;
-            let artifact = result.artifact().map(Clone::clone).map_err(Clone::clone);
+            let artifact = result.artifact().cloned().map_err(Clone::clone);
             let unlocks = unlocks_json(&result.reports, &request.candidates, &observed, &names);
             Ok((result.plan, result.generation, artifact, unlocks))
         })?;

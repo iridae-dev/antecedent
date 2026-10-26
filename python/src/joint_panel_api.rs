@@ -549,7 +549,7 @@ impl PyJointPanelResult {
                 "identified_reference":checked.is_identified_reference(),
                 "identification_identity":checked.identification_identity.to_hex(),
                 "hybrid_support":checked.hybrids.iter().map(|h|serde_json::json!({"mask":h.mask,
-                    "source_world":h.source_world.map(|w|w.raw()),"unresolved":h.unresolved})).collect::<Vec<_>>(),
+                    "source_world":h.source_world.map(antecedent_core::ScientificWorldId::raw),"unresolved":h.unresolved})).collect::<Vec<_>>(),
                 "scope":"model_conditional_reference_decomposition",
                 "calibration":"unmeasured", "grants_unique_causal_attribution":false})
             .to_string())

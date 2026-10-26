@@ -1434,7 +1434,7 @@ def test_cyclic_native_facts_survive_execution_cancellation_and_bad_artifact():
 
     token = _native.CancellationToken()
     token.cancel()
-    with pytest.raises(ValueError) as cancelled:
+    with pytest.raises(ValueError, match="cancel") as cancelled:
         prepared.execute(cancel=token)
     assert cancelled.value.execution_facts.status() == "cancelled"
     with pytest.raises(_native.CausalSerializationError) as corrupt:
@@ -2078,3 +2078,28 @@ def test_committed_records_refuse_another_identity(tmp_path: Path) -> None:
     artifact = (root / "specified-feedback-pair" / "family.ant").read_bytes()
     with pytest.raises(Exception, match="identity|mismatch"):
         consume_family_artifact(artifact, expected_identity=other)
+
+
+@pytest.mark.parametrize("exception_type", [RuntimeError, KeyboardInterrupt, SystemExit])
+def test_local_cyclic_preserves_original_callback_exception(exception_type):
+    from antecedent.cyclic import LocalCyclicModel, LocalMechanism
+
+    original = exception_type("local cyclic callback identity")
+
+    def failing_mechanism(_inputs):
+        raise original
+
+    local = LocalCyclicModel(
+        (
+            LocalMechanism("a", (1,), failing_mechanism),
+            LocalMechanism("b", (0,), lambda inputs: (0.5 * inputs[0], [0.5])),
+        )
+    )
+    expected = CausalValueError if exception_type is RuntimeError else exception_type
+    with pytest.raises(expected) as raised:
+        local.execute([0.0, 0.0], [])
+    if exception_type is RuntimeError:
+        assert raised.value.__cause__ is original
+    else:
+        assert raised.value is original
+    assert original.__traceback__ is not None

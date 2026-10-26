@@ -48,6 +48,7 @@ mod candidate_screen_api;
 mod categorical_treatment_api;
 mod closed_pilot_api;
 mod cohort_decision_api;
+mod cohort_pushdown_api;
 mod compact_export_api;
 mod compiled_route_api;
 mod composition_api;
@@ -69,6 +70,7 @@ mod design_api;
 mod design_model_api;
 mod design_ranking_api;
 mod discovered_transport_api;
+mod discovered_transport_trial_api;
 mod discovery_api;
 mod discretized_composition_api;
 mod distribution_api;
@@ -84,11 +86,7 @@ mod external_api;
 mod factorial_api;
 mod ffi;
 mod file_source_api;
-mod cohort_pushdown_api;
-mod discovered_transport_trial_api;
 mod finite_discrete_api;
-mod published_decision_api;
-mod recipe_logistic_api;
 mod forward_source_api;
 mod functional_source_api;
 mod gcm_api;
@@ -141,6 +139,7 @@ mod program_claims_api;
 mod propagation_chain_api;
 mod proposal_arrival_api;
 mod provider_api;
+mod published_decision_api;
 mod quasi_api;
 mod recalc_adjusted_api;
 mod recalc_api;
@@ -154,11 +153,12 @@ mod recalc_external_api;
 mod recalc_family_api;
 mod recalc_static_api;
 mod recalc_temporal_api;
+mod recipe_logistic_api;
 mod recovery_api;
 mod recovery_chain_api;
 mod regimes_api;
-mod release_migration_api;
 mod registry;
+mod release_migration_api;
 mod sequential_evaluation_api;
 mod temporal_design_api;
 mod unlicensed_design_api;
@@ -2714,25 +2714,6 @@ impl ColumnBatch {
         self.receipt
     }
 
-    /// Rows `offset..offset + len` as their own batch (one owned buffer per column).
-    pub(crate) fn slice(&self, offset: usize, len: usize) -> Self {
-        let columns: Vec<Arc<[f64]>> = self
-            .columns
-            .iter()
-            .map(|column| Arc::<[f64]>::from(&column[offset..offset + len]))
-            .collect();
-        let ncols = columns.len() as u64;
-        Self {
-            names: self.names.clone(),
-            columns,
-            receipt: NumpyIngestReceipt {
-                owned_copies: ncols,
-                bytes_copied: ncols * (len * std::mem::size_of::<f64>()) as u64,
-                noncontiguous_columns: 0,
-            },
-        }
-    }
-
     /// The table over the owned columns. The buffers are shared, not copied again.
     pub(crate) fn loaded(&self) -> PyResult<NumpyTable> {
         // The same schema the Arrow route builds: continuous columns with the context role hint.
@@ -2810,9 +2791,10 @@ pub(crate) fn columns_to_batch(
     let mut noncontiguous = 0_u64;
     let owned: Vec<Arc<[f64]>> = columns
         .iter()
-        .map(|c| match c.as_slice() {
-            Ok(slice) => Arc::<[f64]>::from(slice),
-            Err(_) => {
+        .map(|c| {
+            if let Ok(slice) = c.as_slice() {
+                Arc::<[f64]>::from(slice)
+            } else {
                 noncontiguous += 1;
                 c.as_array().iter().copied().collect()
             }
@@ -2876,9 +2858,7 @@ impl<'py> NumericColumn<'py> {
             U8(u8),
             Bool(bool),
         );
-        Err(value_err(
-            "a column must be a one-dimensional float, integer or boolean NumPy array",
-        ))
+        Err(value_err("a column must be a one-dimensional float, integer or boolean NumPy array"))
     }
 
     fn len(&self) -> usize {
@@ -3061,9 +3041,10 @@ pub(crate) fn columns_to_ingested(
         let mut noncontiguous = 0_u64;
         let owned: Vec<Arc<[f64]>> = columns
             .iter()
-            .map(|c| match c.as_slice() {
-                Ok(slice) => Arc::<[f64]>::from(&slice[offset..offset + len]),
-                Err(_) => {
+            .map(|c| {
+                if let Ok(slice) = c.as_slice() {
+                    Arc::<[f64]>::from(&slice[offset..offset + len])
+                } else {
                     noncontiguous += 1;
                     c.as_array()
                         .slice(numpy::ndarray::s![offset..offset + len])
@@ -3258,7 +3239,7 @@ pub(crate) fn py_execution_context_ext(
     let mut ctx = ExecutionContext::production(seed, threads);
     ctx.cache_policy = CachePolicy::enabled(cache_max_bytes);
     install_cancellation(&mut ctx, cancel);
-    ctx.progress = progress;
+    ctx.progress = interrupt::bind_progress(progress);
     ctx
 }
 

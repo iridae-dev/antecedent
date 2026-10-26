@@ -540,8 +540,7 @@ pub(crate) fn rank_designs(
             graph_features,
             ranker,
         ))
-    })
-    .map_err(|e| crate::interrupt::attribute(py, e))?;
+    })?;
     let (
         graphs,
         parsed,

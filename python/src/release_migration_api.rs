@@ -10,21 +10,18 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
-    reason_code, AssumptionSet, Conditioning, GraphFamily, InferenceSelection, Intervention,
-    InterventionWorld, ModelAssumptions, ObservationUnit, OutcomeQuantity, QuantityUnits,
-    ScientificTarget, ScientificWorldId, TargetForm, TargetPopulation, TimeFrame, Value,
-    VariableId, WorldAction, WorldBinding,
-};
-use antecedent_io::recalc_receipt_artifact::{
-    RecalcReceiptArtifact, RecalcReceiptArtifactError,
+    AssumptionSet, Conditioning, GraphFamily, InferenceSelection, Intervention, InterventionWorld,
+    ModelAssumptions, ObservationUnit, OutcomeQuantity, QuantityUnits, ScientificTarget,
+    ScientificWorldId, TargetForm, TargetPopulation, TimeFrame, Value, VariableId, WorldAction,
+    WorldBinding, reason_code,
 };
 use antecedent_io::release_migration::{
+    CurrentMethod, MethodAssignment, PreviousReleaseError, RouteRecordError, RouteRecordOutcome,
     consume_previous_release_artifact, consume_previous_route_records, current_score_row_digest,
-    narrow_score_row_digest, CurrentMethod, MethodAssignment, PreviousReleaseError,
-    RouteRecordError, RouteRecordOutcome,
+    narrow_score_row_digest,
 };
 use pyo3::prelude::*;
-use serde_json::{json, Value as Json};
+use serde_json::{Value as Json, json};
 
 /// What a previous-release artifact adopted: score-row digest, target digest, boundary
 /// name and the `(stage, status)` rows in receipt order.
@@ -76,10 +73,6 @@ fn release_err(error: &PreviousReleaseError) -> PyErr {
         PreviousReleaseError::ArtifactNotDecoded => crate::serialization_err(error.to_string()),
         _ => crate::unsupported_message(error.to_string()),
     }
-}
-
-fn receipt_err(error: &RecalcReceiptArtifactError) -> PyErr {
-    crate::serialization_err(error.to_string())
 }
 
 /// Score-row digest of eight-byte row ids, as the current reader computes it.

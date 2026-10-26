@@ -24,13 +24,14 @@ use antecedent_validate::target_native::{
 use antecedent_validate::{
     AssumptionRange, ComponentModel, EffectInterval, EffectScale, LinearAdjustmentSummary,
     MediationComponent, MediationComponents, MediationPath, MediationPosterior, MsmWeightPeriod,
-    OvbPosterior, ValidationError,
-    amplify, benchmark_bound, component_evalue_posterior_range, component_evalue_range,
-    component_ovb_posterior_range, component_ovb_range, evalue_posterior_range, evalue_range,
-    evalue_vector_range, linear_adjustment_fit, matched_sets_break_even, matched_sets_upper_p,
-    mediation_components_fit, mediation_path_ovb_range, mediation_paths_fit, mediation_posterior_range, mediation_range,
-    mediation_sensitivity_fit, mediation_vector_range, msm_parameter_fit, msm_parameter_fit_refitting_weights, ovb_posterior_range,
-    ovb_range, ovb_vector_range, rosenbaum_range, rosenbaum_vector_range,
+    OvbPosterior, ValidationError, amplify, benchmark_bound, component_evalue_posterior_range,
+    component_evalue_range, component_ovb_posterior_range, component_ovb_range,
+    evalue_posterior_range, evalue_range, evalue_vector_range, linear_adjustment_fit,
+    matched_sets_break_even, matched_sets_upper_p, mediation_components_fit,
+    mediation_path_ovb_range, mediation_paths_fit, mediation_posterior_range, mediation_range,
+    mediation_sensitivity_fit, mediation_vector_range, msm_parameter_fit,
+    msm_parameter_fit_refitting_weights, ovb_posterior_range, ovb_range, ovb_vector_range,
+    rosenbaum_range, rosenbaum_vector_range,
 };
 use pyo3::prelude::*;
 use serde_json::{Value, json};
@@ -224,7 +225,9 @@ fn component_of(name: &str) -> PyResult<MediationComponent> {
     match name {
         "indirect" => Ok(MediationComponent::Indirect),
         "direct" => Ok(MediationComponent::Direct),
-        other => Err(value_err(format!("unknown component {other:?}; expected indirect or direct"))),
+        other => {
+            Err(value_err(format!("unknown component {other:?}; expected indirect or direct")))
+        }
     }
 }
 
@@ -372,7 +375,7 @@ fn sensitivity_ovb_vector(
     }
     .map_err(py_err)?;
     Ok(json!({
-        "partial_r2_treatment": summaries.iter().map(|s| s.partial_r2_treatment()).collect::<Vec<_>>(),
+        "partial_r2_treatment": summaries.iter().map(antecedent_validate::LinearAdjustmentSummary::partial_r2_treatment).collect::<Vec<_>>(),
         "robustness_value": summaries.iter().map(|s| s.robustness_value(q, None)).collect::<Vec<_>>(),
         "robustness_value_alpha":
             summaries.iter().map(|s| s.robustness_value(q, Some(alpha))).collect::<Vec<_>>(),
@@ -786,8 +789,7 @@ fn sensitivity_mediation_posterior(
         rho_tilde: &rho_tilde,
         total_effect: &total_effect,
     };
-    let range =
-        mediation_posterior_range(target, &posterior, component, level).map_err(py_err)?;
+    let range = mediation_posterior_range(target, &posterior, component, level).map_err(py_err)?;
     Ok(json!({ "level": level, "range": range_json(&range) }).to_string())
 }
 
@@ -823,7 +825,7 @@ fn sensitivity_msm_parameters(
         "estimate": summaries.iter().map(|s| s.estimate).collect::<Vec<_>>(),
         "standard_error": summaries.iter().map(|s| s.standard_error).collect::<Vec<_>>(),
         "dof": summaries.iter().map(|s| s.dof).collect::<Vec<_>>(),
-        "partial_r2_treatment": summaries.iter().map(|s| s.partial_r2_treatment()).collect::<Vec<_>>(),
+        "partial_r2_treatment": summaries.iter().map(antecedent_validate::LinearAdjustmentSummary::partial_r2_treatment).collect::<Vec<_>>(),
         "robustness_value": summaries.iter().map(|s| s.robustness_value(q, None)).collect::<Vec<_>>(),
         "robustness_value_alpha":
             summaries.iter().map(|s| s.robustness_value(q, Some(alpha))).collect::<Vec<_>>(),
