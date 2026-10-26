@@ -708,6 +708,33 @@ fn an_expression_edit_is_refused_resealed_or_not_and_its_terms_are_part_of_the_i
 }
 
 #[test]
+fn a_valid_expression_above_the_original_term_cap_seals_and_replays_its_numeric_result() {
+    let mut draft = correction_draft(0.5);
+    // One input and 32 (constant, add) pairs: 65 valid postfix terms, q + 4.
+    // Exercise the supported range beyond the old cap with a numerical oracle,
+    // rather than merely moving the overflow fixture to a larger allocation.
+    let mut terms = vec![ChainExprTermWire::input(0)];
+    for _ in 0..32 {
+        terms.push(ChainExprTermWire::constant(0.125));
+        terms.push(ChainExprTermWire::Add);
+    }
+    assert_eq!(terms.len(), 65);
+    draft.stages[0].op = ChainOpWire::expression(terms);
+    let record = PropagationChainRecordWire::seal(draft, &ctx()).expect("65 valid terms seal");
+    let (q, _, _) = rate_columns();
+    let mean = q.iter().sum::<f64>() / ROWS as f64;
+    let variance = q.iter().map(|value| (value - mean).powi(2)).sum::<f64>() / (ROWS - 1) as f64;
+    let result = stage(&record, "corrected");
+    near(value(result, "mean"), mean + 4.0, 1e-12);
+    near(value(result, "variance"), variance, 1e-12);
+    let decoded =
+        PropagationChainRecordWire::decode(&record.export().expect("exports")).expect("decodes");
+    assert_eq!(decoded, record);
+    let consumed = decoded.consume(Some(&record.identity), &ctx()).expect("consumer replays");
+    assert_eq!(consumed.results, record.results);
+}
+
+#[test]
 fn a_denominator_that_reaches_zero_seals_nothing() {
     let mut draft = correction_draft(0.0);
     // The Youden index is negative on some rows.
