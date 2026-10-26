@@ -45,6 +45,11 @@ cannot establish completion.
 
 ## Commands
 
+- `python3 scripts/check_python_capabilities.py --write-surface` regenerates
+  `rust_surface.json` from the facade snapshot and conditional public source,
+  then checks inventory integrity. Regenerate the facade snapshot first with
+  `scripts/gate_public_api.py --write --crate antecedent` when its source changes.
+  Neither operation supplies executing capability evidence.
 - `python3 scripts/check_python_capabilities.py` checks inventory integrity and
   reports open gaps. Its success **does not** mean the API pass is complete.
 - `python3 scripts/test_check_python_capabilities.py` runs dependency-free

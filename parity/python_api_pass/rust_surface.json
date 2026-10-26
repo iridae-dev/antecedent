@@ -12382,9 +12382,21 @@
       "declaration": "pub fn antecedent::analysis::discovered_transport_trial::verify_trial_compatible_transport_confidence_set_against(bytes: &[u8], report: &antecedent::analysis::discovered_transport::DiscoveredTransportReport, query: &antecedent_core::query::transport::TransportQuery, evidence: &antecedent::analysis::discovered_transport_estimate::TransportEvidence<'_>, options: antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions, support: antecedent::analysis::discovered_transport_trial::TransportOutcomeSupport, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::discovered_transport_trial::TrialCompatibleTransportConfidenceSet, antecedent_io_core::error::IoError>",
       "kind": "function"
     },
+    "antecedent::analysis::discovered_transport_trial::verify_trial_compatible_transport_confidence_set_against_within": {
+      "availability": "source-visible; reconcile conditional feature in executing build",
+      "declaration": "pub fn verify_trial_compatible_transport_confidence_set_against_within(",
+      "kind": "function",
+      "source": "crates/antecedent/src/analysis/discovered_transport_trial.rs"
+    },
     "antecedent::analysis::discovered_transport_trial::verify_trial_compatible_transport_estimate": {
       "declaration": "pub fn antecedent::analysis::discovered_transport_trial::verify_trial_compatible_transport_estimate(bytes: &[u8], limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof, antecedent::analysis::discovered_transport_estimate::VerifiedEstimate), antecedent_io_core::error::IoError>",
       "kind": "function"
+    },
+    "antecedent::analysis::discovered_transport_trial::verify_trial_compatible_transport_estimate_within": {
+      "availability": "source-visible; reconcile conditional feature in executing build",
+      "declaration": "pub fn verify_trial_compatible_transport_estimate_within(",
+      "kind": "function",
+      "source": "crates/antecedent/src/analysis/discovered_transport_trial.rs"
     },
     "antecedent::analysis::discretized_composition::DiscretizationRefusal": {
       "declaration": "pub enum antecedent::analysis::discretized_composition::DiscretizationRefusal",
@@ -13747,6 +13759,12 @@
     "antecedent::analysis::proposal_arrival::execute": {
       "declaration": "pub fn antecedent::analysis::proposal_arrival::execute(r: &antecedent::analysis::proposal_arrival::ArrivalRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::proposal_arrival::ArrivalPoint, antecedent_io_core::error::IoError>",
       "kind": "function"
+    },
+    "antecedent::analysis::proposal_arrival::execute_with_limits": {
+      "availability": "source-visible; reconcile conditional feature in executing build",
+      "declaration": "pub fn execute_with_limits(",
+      "kind": "function",
+      "source": "crates/antecedent/src/analysis/proposal_arrival.rs"
     },
     "antecedent::analysis::provider_callbacks::CallbackContext": {
       "declaration": "pub struct antecedent::analysis::provider_callbacks::CallbackContext<'a>",

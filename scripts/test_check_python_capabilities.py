@@ -3,12 +3,15 @@
 
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from check_python_capabilities import (
     MANIFEST,
+    SURFACE,
     check,
     digest,
     evidence_problems,
@@ -16,21 +19,45 @@ from check_python_capabilities import (
     export_owners,
     rust_surface,
     source_digest,
+    write_surface,
 )
 from run_python_capabilities import JourneyRecorder
 
 
 class CapabilityGateTests(unittest.TestCase):
+    def test_regeneration_replaces_stale_entries_and_is_deterministic(self):
+        target = self.root / SURFACE
+        target.write_text('{"items": {"stale": {}}}')
+        items = {
+            "antecedent::New": {
+                "kind": "type",
+                "declaration": "pub struct antecedent::New",
+            }
+        }
+        with patch("check_python_capabilities.current_surface", return_value=items) as source:
+            write_surface(self.root)
+            first = target.read_bytes()
+            write_surface(self.root)
+        self.assertEqual(source.call_args.args, (self.root,))
+        self.assertEqual(json.loads(first)["items"], items)
+        self.assertEqual(target.read_bytes(), first)
+
     def test_aliases_require_exact_canonical_owner_not_a_shared_leaf(self):
         items = {
             "antecedent::family::Claim": {"kind": "type"},
             "antecedent::other::Claim": {"kind": "type"},
-            "export:antecedent::api::Claim": {"kind": "reexport", "target": "super::family::Claim"},
+            "export:antecedent::api::Claim": {
+                "kind": "reexport",
+                "target": "super::family::Claim",
+            },
             "export:antecedent::prelude::Claim": {
                 "kind": "reexport",
                 "target": "antecedent::api::Claim",
             },
-            "export:antecedent::Unresolved": {"kind": "reexport", "target": "super::Claim"},
+            "export:antecedent::Unresolved": {
+                "kind": "reexport",
+                "target": "super::Claim",
+            },
         }
         owners = export_owners(items)
         self.assertEqual(owners["export:antecedent::api::Claim"], "antecedent::family::Claim")
@@ -98,7 +125,11 @@ class CapabilityGateTests(unittest.TestCase):
         self.assertTrue(evidence_problems(self.root, self.evidence))
 
     def test_skipped_and_expected_failure_evidence_is_refused(self):
-        for decorator in ["pytest.mark.skip", "pytest.mark.skipif(True)", "pytest.mark.xfail"]:
+        for decorator in [
+            "pytest.mark.skip",
+            "pytest.mark.skipif(True)",
+            "pytest.mark.xfail",
+        ]:
             with self.subTest(decorator=decorator):
                 self.source.write_text(f"@{decorator}\ndef test_live():\n    assert True\n")
                 self.evidence["assertion_scopes"] = ["test_live"]

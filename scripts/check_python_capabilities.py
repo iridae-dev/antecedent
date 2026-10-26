@@ -20,7 +20,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = Path("parity/python_api_pass/capabilities.toml")
 SURFACE = Path("parity/python_api_pass/rust_surface.json")
-DIMENSIONS = {"success", "inspection", "controls", "refusal", "branch", "lifecycle", "artifact"}
+DIMENSIONS = {
+    "success",
+    "inspection",
+    "controls",
+    "refusal",
+    "branch",
+    "lifecycle",
+    "artifact",
+}
 
 
 def digest(path: Path) -> str:
@@ -149,7 +157,9 @@ def current_surface(root: Path) -> dict[str, dict[str, str]]:
                 source = root / f"crates/antecedent/src/analysis/{module}/mod.rs"
             name = re.escape(parts[-1])
             text = source.read_text()
-            declaration = re.search(rf"^pub (?:const )?(?:fn|struct) {name}[^\n]*", text, re.M)
+            declaration = re.search(
+                rf"^pub (?:const )?(?:fn|struct) {name}[^\n]*", text, re.MULTILINE
+            )
             items[symbol] = {
                 "kind": "function" if kind == "fn" else kind,
                 "declaration": declaration[0] if declaration else symbol,
@@ -157,6 +167,16 @@ def current_surface(root: Path) -> dict[str, dict[str, str]]:
                 "availability": "source-visible; reconcile conditional feature in executing build",
             }
     return items
+
+
+def write_surface(root: Path) -> None:
+    """Regenerate the inventory from the facade snapshot and conditional source."""
+    inventory = {
+        "schema": 1,
+        "source": "parity/public_api/antecedent.txt plus conditional public analysis source",
+        "items": current_surface(root),
+    }
+    (root / SURFACE).write_text(json.dumps(inventory, indent=2, sort_keys=True) + "\n")
 
 
 def local_path(root: Path, name: str) -> Path:
@@ -235,7 +255,10 @@ def evidence_problems(root: Path, evidence: dict) -> list[str]:
         if re.search(r"\b(?:skip|skipif|xfail)\b", decorators):
             problems.append(f"{test}: skipped/xfail evidence scope {scope}")
         for call in (n for n in ast.walk(node) if isinstance(n, ast.Call)):
-            if isinstance(call.func, ast.Attribute) and call.func.attr in {"skip", "xfail"}:
+            if isinstance(call.func, ast.Attribute) and call.func.attr in {
+                "skip",
+                "xfail",
+            }:
                 problems.append(f"{test}: dynamic skip/xfail in {scope}")
     dimensions = set(evidence.get("dimensions", []))
     if not dimensions or dimensions - DIMENSIONS:
@@ -389,7 +412,14 @@ def main() -> int:
     parser.add_argument("--require-complete", action="store_true")
     parser.add_argument("--execution", type=Path)
     parser.add_argument("--list-gaps", action="store_true")
+    parser.add_argument(
+        "--write-surface",
+        action="store_true",
+        help="regenerate the Rust inventory before checking; does not close capability gaps",
+    )
     args = parser.parse_args()
+    if args.write_surface:
+        write_surface(ROOT)
     manifest = tomllib.loads((ROOT / MANIFEST).read_text())
     inventory = json.loads((ROOT / SURFACE).read_text())
     execution = json.loads(args.execution.read_text()) if args.execution else None
