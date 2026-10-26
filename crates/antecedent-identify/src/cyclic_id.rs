@@ -61,10 +61,10 @@ fn invalid(s: impl std::fmt::Display) -> CyclicIdError {
     CyclicIdError::Invalid(s.to_string())
 }
 fn id(i: usize) -> DenseNodeId {
-    DenseNodeId::from_raw(u32::try_from(i).expect("bounded graph order"))
+    crate::node_map::dense_at(i)
 }
 fn var(i: usize) -> VariableId {
-    VariableId::from_raw(u32::try_from(i).expect("bounded graph order"))
+    crate::node_map::variable_at(i)
 }
 
 fn induced(graph: &CyclicMixedGraph, active: &Set) -> CyclicMixedGraph {

@@ -9,7 +9,7 @@ use super::{
     RecoveredEffectRecord, RecoveryDecision, RecoveryDerivation, RecoveryDerivationRecord,
     RecoveryDetail, RecoveryError, RecoveryLimits, RecoveryWitness, Role, SearchLimits,
     SelectionDiagram, SharedSearch, VariableId, WITNESS_SCALE, WitnessCheck, WitnessMechanism,
-    budget_error, check_formula, decide_observation_recovery, identify_classical_transport_metered,
+    budget_error, check_formula, RECOVERY_DEFAULT_LIMITS, decide_observation_recovery, identify_classical_transport_metered,
     ids, observed_distribution, refuse, resolve_roles, var,
 };
 
@@ -65,9 +65,9 @@ pub(super) fn self_censoring_witness(
 /// shows non-recoverability over every model Markov to the m-graph, not under
 /// faithful or generic parameters.
 ///
-/// Not charged to a budget: the role bounds (at most three partially and two
-/// fully observed variables) cap the enumeration at eight non-proxy nodes,
-/// `2 * 2^8` configurations.
+/// Run under the default operation limit (one operation per enumerated
+/// configuration); a witness needing more is refused with a budget detail, never
+/// accepted or rejected as a theorem.
 ///
 /// # Errors
 ///
@@ -83,7 +83,17 @@ pub fn verify_recovery_witness(
     if graph.has_bidirected() {
         return Err(refuse(RecoveryDetail::InvalidDerivation, "a witness is checked on a DAG"));
     }
-    verify_witness_charged(&m, witness, &mut |_| Ok(()))
+    let mut remaining = RECOVERY_DEFAULT_LIMITS.search.operations;
+    verify_witness_charged(&m, witness, &mut |_| {
+        if remaining == 0 {
+            return Err(refuse(
+                RecoveryDetail::Budget,
+                "the witness enumeration exceeds the default operation limit",
+            ));
+        }
+        remaining -= 1;
+        Ok(())
+    })
 }
 
 #[allow(
@@ -102,8 +112,13 @@ pub(super) fn verify_witness_charged(
     let index: BTreeMap<VariableId, usize> =
         nodes.iter().enumerate().map(|(i, v)| (*v, i)).collect();
     let n = nodes.len();
-    if n > 16 {
-        return Err(bad("too many nodes to enumerate"));
+    // The configuration index is a `u64`; the budget stops the enumeration long
+    // before this addressing bound is reachable.
+    if n >= 63 {
+        return Err(refuse(
+            RecoveryDetail::Budget,
+            "the witness enumeration is not addressable within a 64-bit configuration index",
+        ));
     }
     let check_model = |model: &[WitnessMechanism]| -> Result<(), RecoveryError> {
         if model.len() != n {
@@ -159,7 +174,7 @@ pub(super) fn verify_witness_charged(
         let by_node: BTreeMap<u32, &WitnessMechanism> = model.iter().map(|m| (m.node, m)).collect();
         let mut observed = BTreeMap::new();
         let mut target = BTreeMap::new();
-        for config in 0u32..(1u32 << n) {
+        for config in 0u64..(1u64 << n) {
             charge_step(
                 u64::try_from(observed.len() + target.len()).unwrap_or(u64::MAX).saturating_mul(48),
             )?;

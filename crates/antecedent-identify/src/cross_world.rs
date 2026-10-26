@@ -49,7 +49,9 @@ use antecedent_core::{CrossWorldQuery, ExogenousCoupling, WorldId, WorldObservat
 use antecedent_graph::Dag;
 use serde::{Deserialize, Serialize};
 
-/// Most variables a graph may have under this contract.
+/// Most variables a stored witness artifact may carry for the exact two-world evidence
+/// stage. The graph-level check ([`check_cross_world_edges`]) is polynomial in the graph and
+/// does not apply it.
 pub const CROSS_WORLD_MAX_NODES: usize = 8;
 /// The contract the witness attests.
 pub(crate) const CROSS_WORLD_CONTRACT: &str = "path_specific_two_world_markovian_dag";
@@ -201,10 +203,8 @@ pub fn check_cross_world_edges(
     edges: &[(u32, u32)],
     query: &CrossWorldQuery,
 ) -> Result<CrossWorldWitness, CrossWorldRefusal> {
-    if node_count == 0 || node_count > CROSS_WORLD_MAX_NODES {
-        return Err(CrossWorldRefusal::graph(format!(
-            "the graph has {node_count} variables; the contract covers 1 to {CROSS_WORLD_MAX_NODES}"
-        )));
+    if node_count == 0 {
+        return Err(CrossWorldRefusal::graph("the graph has no variables"));
     }
     let n = u32::try_from(node_count).unwrap_or(u32::MAX);
     if edges.iter().any(|&(a, b)| a >= n || b >= n) {

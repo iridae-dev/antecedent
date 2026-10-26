@@ -2,7 +2,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -32,6 +34,64 @@ struct SubproblemKey {
     v: BitSet,
     assign: Assign,
     dist: DistCtx,
+}
+
+/// Memo table of solved subproblems.
+///
+/// Lookups hash and compare the borrowed query parts, so a hit allocates and
+/// clones nothing; the owned [`SubproblemKey`] is built only when a new
+/// outcome is stored. Outcomes are shared as `Arc`s.
+#[derive(Default)]
+struct IdMemo {
+    buckets: HashMap<u64, Vec<(SubproblemKey, Arc<IdOutcome>)>>,
+    len: usize,
+}
+
+fn subproblem_hash(
+    y: &BitSet,
+    x: &BitSet,
+    v: &BitSet,
+    assign: &Assign,
+    dist: &DistCtx,
+) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    y.hash(&mut hasher);
+    x.hash(&mut hasher);
+    v.hash(&mut hasher);
+    assign.hash(&mut hasher);
+    dist.hash(&mut hasher);
+    hasher.finish()
+}
+
+impl IdMemo {
+    const fn len(&self) -> usize {
+        self.len
+    }
+
+    fn get(
+        &self,
+        hash: u64,
+        y: &BitSet,
+        x: &BitSet,
+        v: &BitSet,
+        assign: &Assign,
+        dist: &DistCtx,
+    ) -> Option<&Arc<IdOutcome>> {
+        self.buckets.get(&hash)?.iter().find_map(|(key, outcome)| {
+            (key.y == *y && key.x == *x && key.v == *v && key.assign == *assign && key.dist == *dist)
+                .then_some(outcome)
+        })
+    }
+
+    fn insert(&mut self, hash: u64, key: SubproblemKey, outcome: Arc<IdOutcome>) {
+        let bucket = self.buckets.entry(hash).or_default();
+        if let Some(slot) = bucket.iter_mut().find(|(k, _)| *k == key) {
+            slot.1 = outcome;
+        } else {
+            bucket.push((key, outcome));
+            self.len += 1;
+        }
+    }
 }
 
 /// Hard-set values baked into emitted factors, one per intervened node.
@@ -97,7 +157,7 @@ pub(crate) struct IdRun<'a, 'm> {
     prepared: &'a PreparedAdmg,
     ancestors: AncestorMemo,
     arena: &'a mut CausalExprArena,
-    memo: &'a mut HashMap<SubproblemKey, IdOutcome>,
+    memo: &'a mut IdMemo,
     derivation: &'a mut DerivationTrace,
     perf: &'a mut IdentificationPerformanceRecord,
     ws: &'a mut GraphWorkspace,
@@ -192,7 +252,7 @@ pub(crate) fn identify_interventional_metered(
     require_disjoint(y, x)?;
     let mut arena = CausalExprArena::new();
     let mut derivation = DerivationTrace::default();
-    let mut memo: HashMap<SubproblemKey, IdOutcome> = HashMap::new();
+    let mut memo = IdMemo::default();
     let mut perf = IdentificationPerformanceRecord::default();
     let active = BitSet::full(prepared.admg().node_count());
     let mut meter = IdMeter { charge: Some(charge), depth: 0 };
@@ -254,7 +314,7 @@ pub(crate) fn identify_assigned_problems(
     ws: &mut GraphWorkspace,
     problems: &[AssignedProblem],
 ) -> Result<AssignedIds, IdentificationError> {
-    let mut memo: HashMap<SubproblemKey, IdOutcome> = HashMap::new();
+    let mut memo = IdMemo::default();
     let active = BitSet::full(prepared.admg().node_count());
     let mut meter = IdMeter::unmetered();
     let mut run = IdRun {
@@ -576,7 +636,7 @@ impl IdIdentifier {
         let mut arena = CausalExprArena::new();
         let mut derivation = DerivationTrace::default();
         derivation.push("general.id", "Shpitser–Pearl ID for ATE contrast");
-        let mut memo: HashMap<SubproblemKey, IdOutcome> = HashMap::new();
+        let mut memo = IdMemo::default();
         let mut perf = IdentificationPerformanceRecord::default();
 
         let active = BitSet::full(prepared.admg().node_count());
@@ -586,7 +646,7 @@ impl IdIdentifier {
         let mut side = |assign: Assign,
                         prepared: &PreparedAdmg,
                         arena: &mut CausalExprArena,
-                        memo: &mut HashMap<SubproblemKey, IdOutcome>,
+                        memo: &mut IdMemo,
                         derivation: &mut DerivationTrace,
                         perf: &mut IdentificationPerformanceRecord|
          -> Result<IdOutcome, IdentificationError> {
@@ -686,12 +746,12 @@ impl IdIdentifier {
     ) -> Result<IdentificationResult, IdentificationError> {
         let ScheduleContrast { schedule, active_level, control_level } = *contrast;
         if schedule.is_empty() {
-            return Err(IdentificationError::msg("empty treatment schedule"));
+            return Err(IdentificationError::EmptyTreatmentSchedule);
         }
         let mut arena = CausalExprArena::new();
         let mut derivation = DerivationTrace::default();
         derivation.push("general.id", "Shpitser–Pearl ID for schedule contrast");
-        let mut memo: HashMap<SubproblemKey, IdOutcome> = HashMap::new();
+        let mut memo = IdMemo::default();
         let mut perf = IdentificationPerformanceRecord::default();
         let active_set = BitSet::full(prepared.admg().node_count());
 
@@ -712,7 +772,7 @@ impl IdIdentifier {
         let mut side = |assign: Assign,
                         prepared: &PreparedAdmg,
                         arena: &mut CausalExprArena,
-                        memo: &mut HashMap<SubproblemKey, IdOutcome>,
+                        memo: &mut IdMemo,
                         derivation: &mut DerivationTrace,
                         perf: &mut IdentificationPerformanceRecord|
          -> Result<IdOutcome, IdentificationError> {
@@ -805,7 +865,7 @@ impl IdIdentifier {
                 let mut arena = CausalExprArena::new();
                 let mut derivation = DerivationTrace::default();
                 derivation.push("general.id", "Shpitser–Pearl ID");
-                let mut memo: HashMap<SubproblemKey, IdOutcome> = HashMap::new();
+                let mut memo = IdMemo::default();
                 let mut perf = IdentificationPerformanceRecord::default();
                 let active = BitSet::full(prepared.admg().node_count());
                 let mut run = IdRun {
@@ -916,7 +976,7 @@ fn expectation_contrast(
         right: right_exp,
         op: ContrastOp::Difference,
     });
-    arena.simplify(contrast).map_err(|e| IdentificationError::msg(e.to_string()))
+    arena.simplify(contrast).map_err(IdentificationError::expression)
 }
 
 fn intervention_value(intervention: &Intervention) -> Result<Value, IdentificationError> {
@@ -978,8 +1038,25 @@ fn id_recurse(
     run: &mut IdRun<'_, '_>,
     query: IdQuery<'_>,
 ) -> Result<IdOutcome, IdentificationError> {
+    Ok((*id_recurse_shared(run, query)?).clone())
+}
+
+/// [`id_recurse`] returning the memoized outcome without copying it.
+fn id_recurse_shared(
+    run: &mut IdRun<'_, '_>,
+    query: IdQuery<'_>,
+) -> Result<Arc<IdOutcome>, IdentificationError> {
     let IdQuery { y, x, v, dist, assign } = query;
     run.perf.candidates_examined = run.perf.candidates_examined.saturating_add(1);
+    run.meter.enter(run.arena.len(), run.memo.len())?;
+    let hash = subproblem_hash(y, x, v, &assign, dist);
+    if let Some(hit) = run.memo.get(hash, y, x, v, &assign, dist) {
+        let hit = Arc::clone(hit);
+        run.perf.sets_returned = run.perf.sets_returned.saturating_add(1);
+        run.meter.leave();
+        return Ok(hit);
+    }
+
     let key = SubproblemKey {
         y: y.clone(),
         x: x.clone(),
@@ -987,25 +1064,22 @@ fn id_recurse(
         assign: assign.clone(),
         dist: dist.clone(),
     };
-    run.meter.enter(run.arena.len(), run.memo.len())?;
-    if let Some(hit) = run.memo.get(&key) {
-        run.perf.sets_returned = run.perf.sets_returned.saturating_add(1);
-        run.meter.leave();
-        return Ok(hit.clone());
-    }
-
     let outcome = id_body(run, IdQuery { y, x, v, dist, assign })?;
     run.meter.leave();
-    run.memo.insert(key, outcome.clone());
+    run.memo.insert(hash, key, Arc::clone(&outcome));
     Ok(outcome)
 }
 
-fn id_body(run: &mut IdRun<'_, '_>, query: IdQuery<'_>) -> Result<IdOutcome, IdentificationError> {
+fn id_body(
+    run: &mut IdRun<'_, '_>,
+    query: IdQuery<'_>,
+) -> Result<Arc<IdOutcome>, IdentificationError> {
     let IdQuery { y, x, v, dist, assign } = query;
     // Line 1: x = ∅ → ∑_{v\y} of the *current* distribution
     if !x.any() {
         run.derivation.push("general.id.line1", "empty intervention; marginal of current dist");
-        return Ok(IdOutcome::Expr(dist_marginal(run.prepared, dist, y, v, run.arena, &assign)?));
+        let expr = dist_marginal(run.prepared, dist, y, v, run.arena, &assign)?;
+        return Ok(Arc::new(IdOutcome::Expr(expr)));
     }
 
     // Line 2: restrict to An(Y)_G; the current distribution marginalizes over
@@ -1018,7 +1092,7 @@ fn id_body(run: &mut IdRun<'_, '_>, query: IdQuery<'_>) -> Result<IdOutcome, Ide
         removed.difference_with(&an_y);
         let dist2 = dist.marginalize(&removed);
         run.derivation.push("general.id.line2", "restrict to ancestral set of Y");
-        return id_recurse(run, IdQuery { y, x: &x2, v: &an_y, dist: &dist2, assign });
+        return id_recurse_shared(run, IdQuery { y, x: &x2, v: &an_y, dist: &dist2, assign });
     }
 
     // Line 3: W = (V\X) \ An(Y)_{G_{\bar X}} — only X changes; dist unchanged.
@@ -1031,7 +1105,7 @@ fn id_body(run: &mut IdRun<'_, '_>, query: IdQuery<'_>) -> Result<IdOutcome, Ide
         let mut x2 = x.clone();
         x2.union_with(&w);
         run.derivation.push("general.id.line3", "add superfluous interventions");
-        return id_recurse(run, IdQuery { y, x: &x2, v, dist, assign });
+        return id_recurse_shared(run, IdQuery { y, x: &x2, v, dist, assign });
     }
 
     // Line 4 / 5–7: C-components of G[V\X]
@@ -1055,10 +1129,16 @@ fn id_body(run: &mut IdRun<'_, '_>, query: IdQuery<'_>) -> Result<IdOutcome, Ide
         for s_i in &comps {
             let mut x_i = v.clone();
             x_i.difference_with(s_i);
-            match id_recurse(run, IdQuery { y: s_i, x: &x_i, v, dist, assign: assign.clone() })? {
-                IdOutcome::Expr(e) => factors.push(e),
-                fail @ IdOutcome::Fail(_) => return Ok(fail),
-            }
+            let outcome =
+                id_recurse_shared(run, IdQuery { y: s_i, x: &x_i, v, dist, assign: assign.clone() })?;
+            let expr = match &*outcome {
+                IdOutcome::Expr(e) => Some(*e),
+                IdOutcome::Fail(_) => None,
+            };
+            let Some(expr) = expr else {
+                return Ok(outcome);
+            };
+            factors.push(expr);
         }
         let product = {
             let list = run.arena.intern_list(factors);
@@ -1068,13 +1148,8 @@ fn id_body(run: &mut IdRun<'_, '_>, query: IdQuery<'_>) -> Result<IdOutcome, Ide
         let mut sum_vars = v.clone();
         sum_vars.difference_with(y);
         sum_vars.difference_with(x);
-        let expr = if sum_vars.any() {
-            let vs = intern_nodes(run.prepared, &sum_vars, run.arena)?;
-            run.arena.intern(ExprNode::SumOut { variables: vs, expr: product })
-        } else {
-            product
-        };
-        return Ok(IdOutcome::Expr(expr));
+        let expr = sum_out_if_any(run.prepared, &sum_vars, product, run.arena)?;
+        return Ok(Arc::new(IdOutcome::Expr(expr)));
     }
 
     // Single C-component S of G[V\X]
@@ -1084,13 +1159,12 @@ fn id_body(run: &mut IdRun<'_, '_>, query: IdQuery<'_>) -> Result<IdOutcome, Ide
         run.derivation.push("general.id.line5", "hedge: G is a single C-component");
         // A certificate names real variables or is not issued: a node without
         // a variable identity fails the call rather than being given a made-up id.
-        for node in v.iter() {
-            run.prepared.dense_to_var(node)?;
-        }
-        let hedge = HedgeCertificate::from_sets(v, s, |d| {
-            run.prepared.dense_to_var(d).expect("every node of F was resolved above")
-        });
-        return Ok(IdOutcome::Fail(hedge));
+        let f_vars = v
+            .iter()
+            .map(|node| run.prepared.dense_to_var(node))
+            .collect::<Result<Vec<_>, _>>()?;
+        let hedge = HedgeCertificate::from_resolved_sets(v, s, &f_vars);
+        return Ok(Arc::new(IdOutcome::Fail(hedge)));
     }
 
     id_lines_5_to_7(run, IdQuery { y, x, v, dist, assign }, s)
@@ -1101,7 +1175,7 @@ fn id_lines_5_to_7(
     run: &mut IdRun<'_, '_>,
     query: IdQuery<'_>,
     s: &BitSet,
-) -> Result<IdOutcome, IdentificationError> {
+) -> Result<Arc<IdOutcome>, IdentificationError> {
     let IdQuery { y, x, v, dist, assign } = query;
     // Districts of G (on V)
     let g_comps = run.prepared.c_components(v);
@@ -1120,7 +1194,7 @@ fn id_lines_5_to_7(
                 sub.emit(run.prepared, &BitSet::with_len(v.bit_len()), run.arena, &assign)?
             }
         };
-        return Ok(IdOutcome::Expr(expr));
+        return Ok(Arc::new(IdOutcome::Expr(expr)));
     }
 
     // Line 7: ∃ S' ⊃ S, S' ∈ C(G). Recurse on G_{S'} against
@@ -1138,7 +1212,7 @@ fn id_lines_5_to_7(
         };
         let dist2 =
             DistCtx::CFactor(Arc::new(Law { sumset: BitSet::with_len(v.bit_len()), factors }));
-        return id_recurse(run, IdQuery { y, x: &x2, v: s_prime, dist: &dist2, assign });
+        return id_recurse_shared(run, IdQuery { y, x: &x2, v: s_prime, dist: &dist2, assign });
     }
 
     Err(IdentificationError::InvariantViolated {
@@ -1332,6 +1406,33 @@ fn intern_nodes(
     Ok(arena.intern_var_set(vars?))
 }
 
+/// `∏ factors`: `None` for no factors, the factor itself for one, a `Product` otherwise.
+fn product_of(arena: &mut CausalExprArena, factors: Vec<ExprId>) -> Option<ExprId> {
+    match factors.as_slice() {
+        [] => None,
+        [only] => Some(*only),
+        _ => {
+            let list = arena.intern_list(factors);
+            Some(arena.intern(ExprNode::Product(list)))
+        }
+    }
+}
+
+/// `∑_{nodes} body`, or `body` itself when `nodes` is empty.
+fn sum_out_if_any(
+    prepared: &PreparedAdmg,
+    nodes: &BitSet,
+    body: ExprId,
+    arena: &mut CausalExprArena,
+) -> Result<ExprId, IdentificationError> {
+    if nodes.any() {
+        let variables = intern_nodes(prepared, nodes, arena)?;
+        Ok(arena.intern(ExprNode::SumOut { variables, expr: body }))
+    } else {
+        Ok(body)
+    }
+}
+
 fn observational_marginal(
     prepared: &PreparedAdmg,
     y: &BitSet,
@@ -1353,21 +1454,13 @@ fn observational_marginal(
         for s in &comps {
             parts.push(q_component_product(prepared, s, v, arena, assign)?);
         }
-        if parts.len() == 1 {
-            parts[0]
-        } else {
-            let list = arena.intern_list(parts);
-            arena.intern(ExprNode::Product(list))
-        }
+        product_of(arena, parts).ok_or(IdentificationError::InvariantViolated {
+            message: "general ID: observational marginal has no C-component factors",
+        })?
     };
     let mut sum_vars = v.clone();
     sum_vars.difference_with(y);
-    if sum_vars.any() {
-        let vs = intern_nodes(prepared, &sum_vars, arena)?;
-        Ok(arena.intern(ExprNode::SumOut { variables: vs, expr: factors }))
-    } else {
-        Ok(factors)
-    }
+    sum_out_if_any(prepared, &sum_vars, factors, arena)
 }
 
 fn c_component_expression(
@@ -1382,12 +1475,7 @@ fn c_component_expression(
     let product = q_component_product(prepared, s, v, arena, assign)?;
     let mut sum_vars = s.clone();
     sum_vars.difference_with(y);
-    if sum_vars.any() {
-        let vs = intern_nodes(prepared, &sum_vars, arena)?;
-        Ok(arena.intern(ExprNode::SumOut { variables: vs, expr: product }))
-    } else {
-        Ok(product)
-    }
+    sum_out_if_any(prepared, &sum_vars, product, arena)
 }
 
 fn q_component_product(
@@ -1399,34 +1487,29 @@ fn q_component_product(
 ) -> Result<ExprId, IdentificationError> {
     let empty_i = arena.empty_intervention_set();
     let mut factors = Vec::new();
-    let mut preceding = BitSet::with_len(v.bit_len());
+    // Variables of the nodes already passed in topological order, maintained
+    // incrementally so each factor interns from a slice.
+    let mut preceding: Vec<VariableId> = Vec::new();
     for &vi in prepared.topo() {
         if !v.contains(vi) {
             continue;
         }
+        let var_i = prepared.dense_to_var(vi)?;
         if s.contains(vi) {
-            let var_i = prepared.dense_to_var(vi)?;
             let vars = arena.intern_var_set([var_i]);
-            let cond_vars: Result<Vec<_>, _> =
-                preceding.iter().map(|d| prepared.dense_to_var(d)).collect();
-            let cond_vars = cond_vars?;
-            let conditioned_on = arena.intern_var_set(cond_vars.clone());
+            let conditioned_on = arena.intern_var_set(preceding.iter().copied());
             let (intervention, domain) =
-                intervention_for_factor(arena, prepared, assign, vi, &cond_vars)?;
+                intervention_for_factor(arena, prepared, assign, vi, &preceding)?;
             factors.push(arena.intern_distribution(vars, conditioned_on, intervention, domain));
         }
-        preceding.insert(vi);
+        preceding.push(var_i);
     }
-    if factors.is_empty() {
-        let y = intern_nodes(prepared, s, arena)?;
-        let empty = arena.empty_var_set();
-        return Ok(arena.intern_distribution(y, empty, empty_i, DomainRef::Observational));
+    if let Some(product) = product_of(arena, factors) {
+        return Ok(product);
     }
-    if factors.len() == 1 {
-        return Ok(factors[0]);
-    }
-    let list = arena.intern_list(factors);
-    Ok(arena.intern(ExprNode::Product(list)))
+    let y = intern_nodes(prepared, s, arena)?;
+    let empty = arena.empty_var_set();
+    Ok(arena.intern_distribution(y, empty, empty_i, DomainRef::Observational))
 }
 
 fn markov_product(
@@ -1457,15 +1540,11 @@ fn markov_product(
             intervention_for_factor(arena, prepared, assign, vi, &parents)?;
         factors.push(arena.intern_distribution(vars, conditioned_on, intervention, domain));
     }
-    if factors.is_empty() {
-        let empty = arena.empty_var_set();
-        return Ok(arena.intern_distribution(empty, empty, empty_i, DomainRef::Observational));
+    if let Some(product) = product_of(arena, factors) {
+        return Ok(product);
     }
-    if factors.len() == 1 {
-        return Ok(factors[0]);
-    }
-    let list = arena.intern_list(factors);
-    Ok(arena.intern(ExprNode::Product(list)))
+    let empty = arena.empty_var_set();
+    Ok(arena.intern_distribution(empty, empty, empty_i, DomainRef::Observational))
 }
 
 /// Bake `do(T=t)` into the factor that generates `T`, or into factors that condition on `T`.

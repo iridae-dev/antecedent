@@ -263,15 +263,16 @@ fn each_unsupported_mechanism_is_refused() {
 }
 
 #[test]
-fn bounds_refuse_at_the_cap_plus_one() {
+fn role_counts_are_bounded_only_by_the_budget() {
     // Three partially observed and two fully observed are accepted.
     let at_cap = MModel::new(3, 2, &[(3, 0), (4, 1)], &[vec![3], vec![4], vec![0]], 2).unwrap();
     assert!(matches!(decide(&at_cap).unwrap(), RecoveryDecision::Recovered(_)));
     for (k, m) in [(4, 0), (1, 3)] {
         let over = MModel::new(k, m, &[], &vec![vec![]; k as usize], 2).unwrap();
-        let error = decide(&over).unwrap_err();
-        assert_eq!(error.detail, RecoveryDetail::BoundsExceeded, "k={k} m={m}");
-        assert_eq!(error.reason_code(), "route_not_supported");
+        assert!(
+            matches!(decide(&over).unwrap(), RecoveryDecision::Recovered(_)),
+            "k={k} m={m}"
+        );
     }
     let model = two_partial();
     for limits in [

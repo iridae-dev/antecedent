@@ -127,6 +127,30 @@ impl HedgeCertificate {
         }
     }
 
+    /// Build a certificate from `F`, `F' ⊆ F` and the already-resolved variable
+    /// of each node of `F` (`f_vars[i]` is the variable of the `i`-th node of
+    /// `f` in ascending dense order), so nothing is resolved twice.
+    pub(crate) fn from_resolved_sets(f: &BitSet, f_prime: &BitSet, f_vars: &[VariableId]) -> Self {
+        let f_dense = f.to_dense_ids();
+        debug_assert_eq!(f_dense.len(), f_vars.len());
+        debug_assert!(f_prime.is_subset_of(f));
+        let mut f_prime_dense = Vec::new();
+        let mut fp_vars = Vec::new();
+        for (&dense, &var) in f_dense.iter().zip(f_vars) {
+            if f_prime.contains(dense) {
+                f_prime_dense.push(dense);
+                fp_vars.push(var);
+            }
+        }
+        Self {
+            f: Arc::from(f_vars),
+            f_prime: Arc::from(fp_vars),
+            f_dense: Arc::from(f_dense),
+            f_prime_dense: Arc::from(f_prime_dense),
+            problem: None,
+        }
+    }
+
     /// Attach the problem (graph, treatments, outcomes) this hedge witnesses.
     #[must_use]
     pub fn with_problem(mut self, problem: HedgeProblem) -> Self {
@@ -141,7 +165,7 @@ impl HedgeCertificate {
     /// No problem is carried, the carried graph is invalid, or a hedge condition fails.
     pub fn verify_carried(&self) -> Result<(), IdentificationError> {
         let problem = self.problem.as_ref().ok_or_else(|| {
-            IdentificationError::msg("hedge certificate carries no graph to verify against")
+            IdentificationError::MissingHedgeGraph
         })?;
         self.verify(&problem.prepare()?, &problem.treatments, &problem.outcomes)
     }
@@ -170,7 +194,7 @@ impl HedgeCertificate {
         treatments: &[VariableId],
         outcomes: &[VariableId],
     ) -> Result<(), IdentificationError> {
-        let fail = |what: &str| Err(IdentificationError::msg(format!("not a hedge: {what}")));
+        let fail = |what: &str| Err(IdentificationError::NotAHedge { what: what.to_owned() });
         let n = prepared.admg().node_count();
         let to_set = |dense: &[DenseNodeId], vars: &[VariableId]| {
             if dense.len() != vars.len() {

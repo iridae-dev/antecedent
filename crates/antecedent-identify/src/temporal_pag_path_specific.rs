@@ -106,10 +106,10 @@ pub fn temporal_pag_mediation_window(
         if variable.raw() < variable_count {
             Ok(())
         } else {
-            Err(IdentificationError::msg(format!(
-                "variable {} is outside the series schema of {variable_count} variables",
-                variable.raw()
-            )))
+            Err(IdentificationError::VariableOutsideSchema {
+                variable: variable.raw(),
+                count: variable_count,
+            })
         }
     };
     let mut longest_lag = 0u32;
@@ -129,15 +129,15 @@ pub fn temporal_pag_mediation_window(
     }
     let history = longest_lag + treatment_offset.min(0).unsigned_abs();
     let last = u32::try_from(outcome_offset.max(0))
-        .map_err(|_| IdentificationError::msg("the outcome offset exceeds the window range"))?;
+        .map_err(|_| IdentificationError::out_of_range("the outcome offset exceeds the window range"))?;
     let indexer = TemporalIndexer::new(variable_count, history, last + 1)
-        .map_err(|error| IdentificationError::msg(error.to_string()))?;
+        .map_err(|error| IdentificationError::construction(error))?;
     let coordinate =
         |variable: VariableId, offset: i32| -> Result<VariableId, IdentificationError> {
             indexer
                 .dense_id(TemporalNodeKey { variable, offset })
                 .map(VariableId::from_raw)
-                .map_err(|error| IdentificationError::msg(error.to_string()))
+                .map_err(|error| IdentificationError::construction(error))
         };
     let treatment = coordinate(query.treatment, treatment_offset)?;
     let outcome = coordinate(query.outcome, outcome_offset)?;
@@ -185,7 +185,7 @@ fn longest_lag(template: &TemporalPag) -> u32 {
 /// `big` (a directed/bidirected MAG) as an ADMG over the same dense ids.
 fn mag_as_admg(big: &Pag) -> Result<Admg, IdentificationError> {
     let nodes = u32::try_from(big.node_count())
-        .map_err(|_| IdentificationError::msg("window exceeds the node id range"))?;
+        .map_err(|_| IdentificationError::out_of_range("window exceeds the node id range"))?;
     let mut admg = Admg::with_variables(nodes);
     for index in 0..big.node_count() {
         let a = DenseNodeId::from_index(index);
@@ -228,7 +228,7 @@ fn window_mag(
     let mut keep = vec![false; n];
     for &seed in seeds {
         if seed >= n {
-            return Err(IdentificationError::msg("a seed lies outside the window"));
+            return Err(IdentificationError::out_of_range("a seed lies outside the window"));
         }
         keep[seed] = true;
         for (inner, retained) in keep.iter_mut().enumerate() {
@@ -238,7 +238,7 @@ fn window_mag(
         }
     }
     let nodes = u32::try_from(n)
-        .map_err(|_| IdentificationError::msg("window exceeds the node id range"))?;
+        .map_err(|_| IdentificationError::out_of_range("window exceeds the node id range"))?;
     let mut marginal = Pag::with_variables(nodes);
     let mut workspace = DSeparationWorkspace::default();
     let kept: Vec<usize> = (0..n).filter(|&i| keep[i]).collect();
@@ -340,7 +340,7 @@ impl GeneralizedAdjustmentIdentifier {
         let depth = longest_lag(pag);
         let big =
             TemporalIndexer::new(inner.variable_count(), inner.history() + depth, inner.horizon())
-                .map_err(|error| IdentificationError::msg(error.to_string()))?;
+                .map_err(|error| IdentificationError::construction(error))?;
         let shift = depth as usize * inner.variable_count() as usize;
         let mut seeds = vec![window.query.treatment.as_usize(), window.query.outcome.as_usize()];
         seeds.extend(window.query.mediators.iter().map(|m| m.as_usize()));
@@ -445,18 +445,7 @@ impl GeneralizedAdjustmentIdentifier {
         let found = self.admg_candidates_of_mag(marginal)?;
         *candidates += found.members.len();
         if found.bounded {
-            let mut result = not_identified(
-                query.clone(),
-                "the ADMG candidates of this MAG exceed the enumeration bound",
-            );
-            result.diagnostics.push(Diagnostic::new(
-                crate::PAG_ADMG_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
-                DiagnosticKind::Execution,
-                DiagnosticSeverity::Warning,
-                "the ADMGs that share this MAG's m-separation model could not all be enumerated \
-                 within the search bound, so the path-specific effect was not decided on every \
-                 one of them; the completion is refused, not read as a point",
-            ));
+            let result = crate::pag_path_specific::search_bounded_result(query);
             return Ok(vec![result]);
         }
         let mut forms: Vec<Option<String>> = Vec::new();

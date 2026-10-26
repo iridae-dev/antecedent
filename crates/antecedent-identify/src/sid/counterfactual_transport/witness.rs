@@ -42,16 +42,16 @@ use serde::{Deserialize, Serialize};
 use super::CounterfactualTransportProblem as Problem;
 use super::network::{Built, Input, Network, WorldIdx, build_network};
 
-/// Most response-function tuples of the varied clique.
-const MAX_CLIQUE_STATES: usize = 256;
-/// Most response-function tuples of the independent baseline (uniform kind).
-const MAX_BASELINE_STATES: usize = 4096;
-/// Most parent-configuration rows of one variable's response function.
-const MAX_DOMAIN: usize = 16;
-/// Most regime-law cells (rows of the evidence matrix).
-const MAX_ROWS: usize = 4096;
-/// Most simulations one witness may need (states times regimes times levels).
-pub(super) const MAX_SIMULATIONS: u64 = 1 << 22;
+/// Simulations (one response-function tuple against one regime and level) one operation of
+/// the caller's budget pays for. A witness needs `states * baseline states * regimes`
+/// simulations; the search and the verifier refuse what the operations they are given
+/// cannot pay for, and the tables are charged to the memory budget before they are built.
+pub(super) const SIMULATIONS_PER_OPERATION: u64 = 1 << 8;
+
+/// The product of `factors`, or `None` when it does not fit `usize`.
+fn checked_product(factors: impl IntoIterator<Item = usize>) -> Option<usize> {
+    factors.into_iter().try_fold(1usize, usize::checked_mul)
+}
 
 /// What a verified witness established.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -98,6 +98,8 @@ pub(super) struct WitnessProblem<'a> {
     pub(super) numerator: &'a BTreeMap<(usize, usize), usize>,
     /// Conditioning atoms (empty for an unconditional query).
     pub(super) given: &'a BTreeMap<(usize, usize), usize>,
+    /// Simulations the caller's budget allows this search or verification.
+    pub(super) simulations: u64,
 }
 
 /// Result of a witness search.
@@ -287,13 +289,6 @@ impl<'a> Model<'a> {
                 .iter()
                 .try_fold(1usize, |acc, &p| acc.checked_mul(positions[p].len()))
                 .ok_or_else(|| "a response function has too many rows".to_owned())?;
-            if rows > MAX_DOMAIN {
-                return Err(format!(
-                    "variable {} has {rows} parent configurations; the witness model class \
-                     is bounded at {MAX_DOMAIN}",
-                    problem.variables[v].raw()
-                ));
-            }
             let count = pow_usize(positions[v].len(), rows)
                 .ok_or_else(|| "a response-function space overflows".to_owned())?;
             dom.push(rows);
@@ -419,7 +414,6 @@ impl<'a> Model<'a> {
             entries.push(LayoutEntry { population, zvars, fvars, zcount, ccount, offset });
             offset = offset
                 .checked_add(cells)
-                .filter(|&o| o <= MAX_ROWS)
                 .ok_or_else(|| "the declared family has too many regime-law cells".to_owned())?;
             simulations = simulations.saturating_add(zcount as u64);
         }
@@ -519,8 +513,8 @@ fn collect_counts(
 ) -> Option<(Counts, usize, usize)> {
     let n = model.n;
     let clique_radices: Vec<usize> = clique.iter().map(|&v| model.nfun[v]).collect();
-    let states: usize = clique_radices.iter().product();
-    if !(2..=MAX_CLIQUE_STATES).contains(&states) {
+    let states = checked_product(clique_radices.iter().copied())?;
+    if states < 2 {
         return None;
     }
     let rest: Vec<usize> = (0..n).filter(|v| !clique.contains(v)).collect();
@@ -528,14 +522,11 @@ fn collect_counts(
         Baseline::Uniform => rest.iter().map(|&v| model.nfun[v]).collect(),
         _ => Vec::new(),
     };
-    let rest_states: usize = rest_radices.iter().product();
-    if rest_states > MAX_BASELINE_STATES {
-        return None;
-    }
+    let rest_states = checked_product(rest_radices.iter().copied())?;
     let work = (states as u64)
         .saturating_mul(rest_states.max(1) as u64)
         .saturating_mul(layout.simulations.max(1));
-    if work > MAX_SIMULATIONS {
+    if work > model.wp.simulations {
         return None;
     }
     let mut counts = Counts {
@@ -671,8 +662,11 @@ pub(super) fn search_witness(
     cliques.sort_by(|a, b| b.len().cmp(&a.len()).then_with(|| a.cmp(b)));
     let mut reasons: Vec<String> = Vec::new();
     for clique in &cliques {
-        let states: usize = clique.iter().map(|&v| model.nfun[v]).product();
-        if !(2..=MAX_CLIQUE_STATES).contains(&states) {
+        let Some(states) = checked_product(clique.iter().map(|&v| model.nfun[v])) else {
+            reasons.push("a varied clique's state space is not representable".to_owned());
+            continue;
+        };
+        if states < 2 {
             continue;
         }
         for baseline in Baseline::ALL {
@@ -819,10 +813,9 @@ fn evaluate_pair(
         return Err("the recorded supports are not the query's supports".to_owned());
     }
     let radices: Vec<usize> = clique.iter().map(|&v| model.nfun[v]).collect();
-    let states: usize = radices.iter().product();
-    if !(2..=MAX_CLIQUE_STATES).contains(&states) {
-        return Err("the varied clique's state space is outside the bound".to_owned());
-    }
+    let states = checked_product(radices.iter().copied())
+        .filter(|states| *states >= 2)
+        .ok_or_else(|| "the varied clique's state space is not representable".to_owned())?;
     let law = |texts: &[String]| -> Result<Vec<Rat>, String> {
         if texts.len() != states {
             return Err("a law does not cover the clique's states".to_owned());
@@ -849,15 +842,13 @@ fn evaluate_pair(
         Baseline::Uniform => rest.iter().map(|&v| model.nfun[v]).collect(),
         _ => Vec::new(),
     };
-    let rest_states: usize = rest_radices.iter().product();
-    if rest_states > MAX_BASELINE_STATES {
-        return Err("the baseline state space is outside the bound".to_owned());
-    }
+    let rest_states = checked_product(rest_radices.iter().copied())
+        .ok_or_else(|| "the baseline state space is not representable".to_owned())?;
     let work = (states as u64)
         .saturating_mul(rest_states.max(1) as u64)
         .saturating_mul(layout.simulations.max(1));
-    if work > MAX_SIMULATIONS {
-        return Err("the witness exceeds the simulation bound".to_owned());
+    if work > wp.simulations {
+        return Err("the witness exceeds the simulations the budget allows".to_owned());
     }
     let weight = Rat::new(1, i128::try_from(rest_states.max(1)).map_err(|_| "overflow")?)
         .ok_or_else(|| "overflow".to_owned())?;

@@ -9,6 +9,7 @@ use antecedent_core::{AssumptionSet, VariableId};
 use antecedent_graph::{Admg, BitSet, Dag, DenseNodeId, GraphWorkspace, NodeRef};
 
 use crate::error::IdentificationError;
+use crate::node_map::NodeMap;
 
 /// Prepared semi-Markovian graph for ID/IDC.
 ///
@@ -21,7 +22,7 @@ pub struct PreparedAdmg {
     admg: Admg,
     declared_assumptions: AssumptionSet,
     /// Dense node of each static variable.
-    var_index: Arc<HashMap<VariableId, DenseNodeId>>,
+    var_index: Arc<NodeMap>,
     /// Topological order of all nodes (directed edges).
     topo: Arc<[DenseNodeId]>,
 }
@@ -56,7 +57,7 @@ impl PreparedAdmg {
     ) -> Result<Self, IdentificationError> {
         admg.validate().map_err(IdentificationError::from)?;
         let topo: Arc<[DenseNodeId]> = Arc::from(admg.topological_order().ok_or_else(|| {
-            IdentificationError::msg(
+            IdentificationError::construction(
                 antecedent_graph::error::CyclicDagRefusal::unlicensed(
                     antecedent_graph::error::DagOperation::Identification,
                     "prepared_admg",
@@ -67,12 +68,7 @@ impl PreparedAdmg {
                 .to_string(),
             )
         })?);
-        let mut var_index = HashMap::with_capacity(admg.node_count());
-        for i in 0..admg.node_count() {
-            if let Some(v) = node_variable_id(admg.nodes(), i) {
-                var_index.entry(v).or_insert_with(|| DenseNodeId::from_index(i));
-            }
-        }
+        let var_index = NodeMap::new(admg.nodes());
         Ok(Self { admg, declared_assumptions, var_index: Arc::new(var_index), topo })
     }
 
@@ -121,7 +117,7 @@ impl PreparedAdmg {
     ///
     /// Unknown variable.
     pub fn var_to_dense(&self, id: VariableId) -> Result<DenseNodeId, IdentificationError> {
-        self.var_index.get(&id).copied().ok_or(IdentificationError::UnknownVariable { id })
+        self.var_index.dense(id)
     }
 
     /// Dense node → variable id.
@@ -130,8 +126,7 @@ impl PreparedAdmg {
     ///
     /// Non-static or unknown node.
     pub fn dense_to_var(&self, id: DenseNodeId) -> Result<VariableId, IdentificationError> {
-        node_variable_id(self.admg.nodes(), id.as_usize())
-            .ok_or_else(|| IdentificationError::msg(format!("unknown dense node {}", id.raw())))
+        self.var_index.variable(id)
     }
 
     /// Ancestral closure of `seeds` within `active` (including seeds).
@@ -248,9 +243,17 @@ pub(crate) fn dense_of_static(
     nodes: &[NodeRef],
     id: VariableId,
 ) -> Result<DenseNodeId, IdentificationError> {
-    (0..nodes.len())
-        .find(|&i| node_variable_id(nodes, i) == Some(id))
-        .map(DenseNodeId::from_index)
+    // A single lookup needs no index; callers resolving many variables against one graph use
+    // [`crate::node_map::NodeMap`], which is built once and answers in O(1).
+    nodes
+        .iter()
+        .enumerate()
+        .find_map(|(index, node)| match node {
+            NodeRef::Static(v) => (*v == id).then(|| DenseNodeId::from_index(index)),
+            NodeRef::Unfolded { .. } => (u32::try_from(index).ok() == Some(id.raw()))
+                .then(|| DenseNodeId::from_index(index)),
+            NodeRef::Lagged { .. } | NodeRef::Context { .. } => None,
+        })
         .ok_or(IdentificationError::UnknownVariable { id })
 }
 

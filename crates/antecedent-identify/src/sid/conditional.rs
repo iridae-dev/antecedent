@@ -96,11 +96,14 @@ use antecedent_expr::{CausalExprArena, ExprId, ExprNode};
 use antecedent_graph::{Admg, DSeparationWorkspace, DenseNodeId, SelectionDiagram};
 use std::sync::Arc;
 
-/// Observed variables in the selection diagram.
+/// Observed variables a *stored artifact* of this route may declare. This is a
+/// parse bound for serialized records only; the decision itself applies no
+/// count cap and is bounded by its [`SearchLimits`] and memory charge.
 pub const ADMG_CONDITIONAL_MAX_OBSERVED: usize = 6;
-/// Treatments in one query.
+/// Treatments a stored artifact of this route may declare (parse bound only).
 pub const ADMG_CONDITIONAL_MAX_TREATMENTS: usize = 3;
-/// Conditioned variables in one query.
+/// Conditioned variables a stored artifact of this route may declare (parse
+/// bound only).
 pub const ADMG_CONDITIONAL_MAX_CONDITIONED: usize = 3;
 /// Search limits of one decision (every stage together). They are the defaults
 /// and the maxima; larger limits refuse. Memory and cancellation come from the
@@ -745,19 +748,14 @@ impl ConditionalTransportDecision {
     }
 }
 
-/// Validate the query against the diagram: coordinates, disjointness, populations
-/// and the declared bounds.
+/// Validate the query against the diagram: coordinates, disjointness and
+/// populations. There is no count cap: the work is charged to the decision's
+/// search budget.
 pub(super) fn validate(
     diagram: &SelectionDiagram,
     query: &ConditionalTransportQuery,
 ) -> Result<(), IdentificationError> {
     let graph = diagram.causal_graph();
-    if graph.node_count() > ADMG_CONDITIONAL_MAX_OBSERVED
-        || query.base.treatments.len() > ADMG_CONDITIONAL_MAX_TREATMENTS
-        || query.conditioned_on.len() > ADMG_CONDITIONAL_MAX_CONDITIONED
-    {
-        return Err(bounds_exceeded());
-    }
     let base = &query.base;
     if base.outcomes.is_empty() {
         return Err(invalid_query("at least one outcome is required"));
@@ -872,9 +870,8 @@ fn poll_cancellation(ctx: &ExecutionContext) -> Result<(), IdentificationError> 
 /// the decision's shared budget (operations, depth, memory, cancellation).
 /// On the record paths ([`ConditionalTransportDerivation::from_record_checked`],
 /// preparation and artifact consumption) it only polls cancellation: the check
-/// is at most `|W| (|W| + 1) / 2 + |W|` separation tests over a graph of at most
-/// [`ADMG_CONDITIONAL_MAX_OBSERVED`] nodes (both refused before any check), so
-/// it is not metered there.
+/// is at most `|W| (|W| + 1) / 2 + |W|` separation tests, where `W` is the
+/// conditioned set the record already declares, so it is not metered there.
 fn check_reduction(
     diagram: &SelectionDiagram,
     query: &ConditionalTransportQuery,
@@ -934,7 +931,7 @@ fn check_reduction(
 /// receipt of explored and unevaluated stages, never a verdict.
 ///
 /// # Errors
-/// Limits above [`ADMG_CONDITIONAL_DEFAULT_LIMITS`] or a query outside the bounds
+/// Limits above [`ADMG_CONDITIONAL_DEFAULT_LIMITS`]
 /// (`admg_transport.bounds_exceeded`), an invalid query or catalog, or a
 /// derivation that fails its own check.
 pub fn decide_admg_conditional_transport(

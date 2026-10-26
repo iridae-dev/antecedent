@@ -56,7 +56,7 @@ use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
 use antecedent_graph::SelectionDiagram;
 
 use super::z_transport::{
-    TrzCall, TrzDomain, TrzTerminalFailure, Z_TRANSPORT_MAX_CONTROLLABLE, ZTransportDecision,
+    TrzCall, TrzDomain, TrzTerminalFailure, ZTransportDecision,
     ZTransportDerivation, ZTransportLimitsReceipt, ZTransportMissingEvidence, ZTransportQuery,
     ZTransportSourceSpec, bind_recursive_expression, bind_z_transport_catalog, cited_regimes,
     decide_z_transport_reporting, search_trz_call, validate_z_transport_query,
@@ -69,11 +69,13 @@ use super::{IdentificationError, SearchCharge, SharedSearch, SidLimits, SidMeter
     note = "no longer enforced: the number of observed variables is bounded by the search budget"
 )]
 pub const MZ_TRANSPORT_MAX_OBSERVED: usize = 12;
-/// Source populations in one query. One source is the single-source z route.
+/// Source populations in one query under the earlier fixed ceiling. Not enforced: the number
+/// of sources is bounded by the search budget (one source is the single-source z route).
 pub const MZ_TRANSPORT_MAX_SOURCES: usize = 4;
-/// Controllable variables declared per source.
-pub const MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE: usize = Z_TRANSPORT_MAX_CONTROLLABLE;
-/// Available source regimes the search may consider as candidate evidence.
+/// Controllable variables declared per source under the earlier fixed ceiling. Not enforced.
+pub const MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE: usize = 4;
+/// Available source regimes under the earlier fixed ceiling. Not enforced: the regimes are
+/// the catalog the caller already holds, and the search charges what it uses.
 pub const MZ_TRANSPORT_MAX_CANDIDATE_REGIMES: usize = 64;
 /// Search limits for one whole decision: states charged across every stage, and
 /// recursion depth. They are the defaults and also the maxima; larger limits
@@ -219,18 +221,15 @@ pub struct ValidatedMzTransportQuery {
     pub query: MzTransportQuery,
     /// Each source's selection diagram, aligned with `query.sources`.
     pub diagrams: Vec<SelectionDiagram>,
-    /// Available source regimes the search may cite, counted against
-    /// [`MZ_TRANSPORT_MAX_CANDIDATE_REGIMES`].
+    /// Available source regimes the search may cite.
     pub candidate_regimes: usize,
 }
 
 /// Validate a multi-source query against the shared graph and supplied catalog.
 ///
-/// Bounds: two to [`MZ_TRANSPORT_MAX_SOURCES`] sources (one source is the
-/// single-source z route), one to [`MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE`]
-/// controllables per source, and at most [`MZ_TRANSPORT_MAX_CANDIDATE_REGIMES`]
-/// available source regimes. The number of observed variables is bounded only by the
-/// search budget the decision runs under. Each source must otherwise pass the single-source
+/// Shape: at least two sources (one source is the single-source z route) and at least one
+/// controllable per source. The numbers of sources, controllables, available source regimes
+/// and observed variables are bounded only by the search budget the decision runs under. Each source must otherwise pass the single-source
 /// z-transport contract on its own selection diagram; populations are distinct
 /// and none is the target; every available source experiment intervenes only
 /// on a subset of that source's declared controllable set; and the target
@@ -250,12 +249,7 @@ pub fn validate_mz_transport_query(
     catalog: &EvidenceCatalog,
 ) -> Result<ValidatedMzTransportQuery, IdentificationError> {
     let query = query.canonical();
-    if !(2..=MZ_TRANSPORT_MAX_SOURCES).contains(&query.sources.len())
-        || query.sources.iter().any(|s| {
-            s.controllable.is_empty()
-                || s.controllable.len() > MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE
-        })
-    {
+    if query.sources.len() < 2 || query.sources.iter().any(|s| s.controllable.is_empty()) {
         return Err(bounds_exceeded());
     }
     let invalid_query = |detail: &dyn std::fmt::Display| {
@@ -303,9 +297,6 @@ pub fn validate_mz_transport_query(
             )));
         }
         candidate_regimes += 1;
-    }
-    if candidate_regimes > MZ_TRANSPORT_MAX_CANDIDATE_REGIMES {
-        return Err(bounds_exceeded());
     }
     Ok(ValidatedMzTransportQuery { query, diagrams, candidate_regimes })
 }
@@ -1458,16 +1449,14 @@ mod tests {
         let one =
             validate_mz_transport_query(&graph(), &query(vec![source("a", &[2], &[])]), &evidence);
         assert_eq!(one.unwrap_err(), EXCEEDED);
+        // The source count has no ceiling; five distinct sources are admitted.
         let five = (0..5).map(|i| source(&format!("s{i}"), &[2], &[])).collect();
-        assert_eq!(
-            validate_mz_transport_query(&graph(), &query(five), &evidence).unwrap_err(),
-            EXCEEDED
-        );
+        assert!(validate_mz_transport_query(&graph(), &query(five), &evidence).is_ok());
         let duplicate = query(vec![source("a", &[2], &[]), source("a", &[0], &[])]);
         assert!(invalid_query(validate_mz_transport_query(&graph(), &duplicate, &evidence)));
         let as_target = query(vec![source("a", &[2], &[]), source("target", &[0], &[])]);
         assert!(invalid_query(validate_mz_transport_query(&graph(), &as_target, &evidence)));
-        // Every source declares one to four controllables.
+        // Every source declares at least one controllable.
         let no_controllable = query(vec![source("a", &[], &[]), source("b", &[0], &[])]);
         assert_eq!(
             validate_mz_transport_query(&graph(), &no_controllable, &evidence).unwrap_err(),
@@ -1496,7 +1485,7 @@ mod tests {
     }
 
     #[test]
-    fn candidate_regime_bound_refuses_rather_than_truncating() {
+    fn candidate_regimes_are_counted_without_a_ceiling() {
         let sources = query(vec![source("a", &[2], &[]), source("b", &[0], &[])]);
         let regimes = (0..=u32::try_from(MZ_TRANSPORT_MAX_CANDIDATE_REGIMES).unwrap())
             .map(|id| {
@@ -1508,10 +1497,8 @@ mod tests {
                 regime
             })
             .collect();
-        assert_eq!(
-            validate_mz_transport_query(&graph(), &sources, &catalog(regimes)).unwrap_err(),
-            EXCEEDED
-        );
+        let validated = validate_mz_transport_query(&graph(), &sources, &catalog(regimes)).unwrap();
+        assert_eq!(validated.candidate_regimes, MZ_TRANSPORT_MAX_CANDIDATE_REGIMES + 1);
     }
 
     /// A derivation citing one leaf of `population` intervening on `on`.

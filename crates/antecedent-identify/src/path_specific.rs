@@ -689,7 +689,7 @@ fn district_contrast(
             )),
         ),
     );
-    arena.simplify(contrast).map_err(|e| IdentificationError::msg(e.to_string()))
+    arena.simplify(contrast).map_err(IdentificationError::expression)
 }
 
 /// Edge g-formula for a path-specific natural effect (Avin, Shpitser & Pearl
@@ -814,7 +814,7 @@ fn edge_g_formula(
         ),
     );
     let functional =
-        arena.simplify(contrast).map_err(|e| IdentificationError::msg(e.to_string()))?;
+        arena.simplify(contrast).map_err(IdentificationError::expression)?;
     Ok((arena, functional))
 }
 

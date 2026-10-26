@@ -31,6 +31,7 @@ pub mod cyclic_id;
 pub mod efficient;
 pub(crate) mod enum_masks;
 pub(crate) mod exact_search;
+pub(crate) mod identification_run;
 pub mod envelope;
 pub mod error;
 /// Actual finite identification checker counters.
@@ -48,6 +49,7 @@ pub(crate) mod intervention_support;
 pub mod iv;
 mod pag_path_specific;
 pub mod path_specific;
+pub(crate) mod node_map;
 mod pow2;
 pub mod prepared;
 pub mod rd;
@@ -70,7 +72,7 @@ pub mod tiered;
 pub mod transport;
 pub use recovery::{
     ObservationRecoveryQuery, PartiallyObserved, RECOVERY_DEFAULT_LIMITS,
-    RECOVERY_MAX_FULLY_OBSERVED, RECOVERY_MAX_OBSERVED_CELLS, RECOVERY_MAX_PARTIALLY_OBSERVED,
+    RECOVERY_MAX_OBSERVED_CELLS,
     RECOVERY_RULE_VERSION, RecoveredEffect, RecoveredEffectQuery, RecoveredEffectRecord,
     RecoveryDecision, RecoveryDerivation, RecoveryDerivationRecord, RecoveryDetail, RecoveryError,
     RecoveryFactorRecord, RecoveryLimits, RecoveryMarginRecord, RecoveryReceiptRecord,
@@ -200,10 +202,11 @@ mod mag_id_bruteforce;
 pub mod oracle_dot;
 
 pub use admg_adjustment::{
-    TemporalAdmgAdjustment, identify_admg_front_door_derivative, identify_admg_response_adjustment,
+    FrontDoorSearch, TemporalAdmgAdjustment, default_front_door_limits,
+    identify_admg_front_door_derivative, identify_admg_response_adjustment,
     identify_cpdag_derivative_pairs, identify_pag_derivative_pairs,
     identify_temporal_admg_front_door_derivative, identify_temporal_admg_response_adjustment,
-    upgrade_id_only_derivative_cases,
+    search_admg_front_door_derivative, upgrade_id_only_derivative_cases,
 };
 pub use auto::{AutoIdentifier, PreparedAutoGraph};
 pub use backdoor::{AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph};

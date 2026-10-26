@@ -55,7 +55,9 @@ pub const WITNESS_VERIFY_DEFAULT_OPERATIONS: u64 = 1 << 14;
 /// Operations a bare charge function is taken to allow a witness search (see
 /// [`search_conditional_witness`]).
 pub const WITNESS_SEARCH_DEFAULT_OPERATIONS: u64 = 1 << 12;
-/// Most levels of one latent variable in a witness.
+/// Most levels of one latent variable in a *stored artifact* of a witness (a parse
+/// bound only). Verification applies no level cap: its enumeration is quoted against
+/// the caller's operations and the admission pool before any table is built.
 pub const CONDITIONAL_WITNESS_MAX_LATENT_LEVELS: usize = 8;
 /// Most free parameters of one perturbed block in the search.
 const SEARCH_MAX_BLOCK_PARAMETERS: usize = 256;
@@ -297,9 +299,8 @@ impl Shape {
 
     /// Enumeration work of one model with these latent cardinalities.
     fn work(&self, cards: &[usize]) -> u64 {
-        // `1 << (2n)` overflows once `n >= 32`. The public routes cap `n` at
-        // [`super::conditional::ADMG_CONDITIONAL_MAX_OBSERVED`] before this runs, so an
-        // in-cap diagram gets the same cell count; a larger one is over every work bound.
+        // `1 << (2n)` overflows once `n >= 32`; such a diagram is over every work bound,
+        // so it quotes `u64::MAX` and the budget refuses it before any table exists.
         let Some(cells) = crate::pow2::checked_pow2_u64(self.n.saturating_mul(2))
             .zip(crate::pow2::checked_pow2_u64(self.n))
             .map(|(wide, narrow)| wide.saturating_add(narrow))
@@ -435,7 +436,7 @@ fn parse_model(shape: &Shape, record: &WitnessModelRecord) -> Result<Model, Iden
             return Err(rejected("a latent does not realize its bidirected edge"));
         }
         let k = latent.probabilities.len();
-        if !(2..=CONDITIONAL_WITNESS_MAX_LATENT_LEVELS).contains(&k) {
+        if k < 2 {
             return Err(rejected("latent cardinality"));
         }
         let law = latent

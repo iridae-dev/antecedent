@@ -148,7 +148,7 @@ impl TemporalMediationIdentifier {
                 .indexer
                 .dense_id(key)
                 .map(DenseNodeId::from_raw)
-                .map_err(|e| IdentificationError::msg(e.to_string()))
+                .map_err(|e| IdentificationError::construction(e))
         };
         let t = dense(temporal.treatment_key)?;
         let y = dense(temporal.outcome_key)?;
@@ -480,7 +480,7 @@ impl TemporalMediationIdentifier {
             history = history.max(lag);
             let key = TemporalNodeKey {
                 variable: source,
-                offset: -i32::try_from(lag).map_err(|e| IdentificationError::msg(e.to_string()))?,
+                offset: -i32::try_from(lag).map_err(|e| IdentificationError::construction(e))?,
             };
             has_t_m |= target == *mediator && key == treatment;
             has_m_y |= target == query.outcome && key == mediator_key;
@@ -494,9 +494,9 @@ impl TemporalMediationIdentifier {
             ));
         }
         let indexer = antecedent_data::TemporalIndexer::new(variable_count, history, 1)
-            .map_err(|e| IdentificationError::msg(e.to_string()))?;
+            .map_err(|e| IdentificationError::construction(e))?;
         let dense =
-            |key| indexer.dense_id(key).map_err(|e| IdentificationError::msg(e.to_string()));
+            |key| indexer.dense_id(key).map_err(|e| IdentificationError::construction(e));
         let t = dense(treatment)?;
         let m = dense(mediator_key)?;
         for &key in &adjustment {

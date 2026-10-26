@@ -610,18 +610,6 @@ fn one_budget_is_shared_by_every_stage() {
 fn bounds_refuse_as_bounds_exceeded() {
     let ctx = ExecutionContext::for_tests(1);
     let bounds = IdentificationError::UnsupportedInput { code: "mixed_search.bounds_exceeded" };
-    let big = graph(11, &[], &[]);
-    let q = MixedSourceQuery {
-        outcomes: Arc::from([v(1)]),
-        treatments: Arc::from([v(0)]),
-        target: Arc::from("target"),
-        sources: Arc::from([]),
-    };
-    let c = catalog(vec![regime(1, "study", &[], &[0, 1])]);
-    assert_eq!(
-        decide_mixed_source(&big, &q, &c, MIXED_SOURCE_DEFAULT_LIMITS, &ctx).unwrap_err(),
-        bounds
-    );
     let g = chain();
     for limits in [
         SearchLimits { operations: MIXED_SOURCE_DEFAULT_LIMITS.operations + 1, depth: 16 },
@@ -632,11 +620,6 @@ fn bounds_refuse_as_bounds_exceeded() {
             bounds
         );
     }
-    let many = catalog((1..=17).map(|i| regime(i, &format!("s{i}"), &[], &[X, Z])).collect());
-    assert_eq!(
-        decide_mixed_source(&g, &query(), &many, MIXED_SOURCE_DEFAULT_LIMITS, &ctx).unwrap_err(),
-        bounds
-    );
 }
 
 #[test]

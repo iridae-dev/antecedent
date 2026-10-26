@@ -10,8 +10,8 @@
 //! class this module decides is: response indicators whose parents are
 //! substantive variables (`X`, `O`) only, no `R -> R` edge, proxies with exactly
 //! the parents `X_i`, `R_i` and no children, substantive variables with
-//! substantive parents only, at most three partially observed and two fully
-//! observed variables. Selection nodes (a selected-sample law), bidirected edges,
+//! substantive parents only; the number of partially and fully observed
+//! variables is bounded only by the search budget. Selection nodes (a selected-sample law), bidirected edges,
 //! non-binary variables, `R -> R` edges and noisy proxies are refused as
 //! unsupported mechanisms, never decided.
 //!
@@ -75,8 +75,8 @@
 //! [`SearchBudget`]; a stop is a receipt naming the stages completed
 //! (`explored`) and the stage it stopped in followed by the ones left
 //! (`unevaluated`), never a verdict. The standalone [`verify_recovery_witness`]
-//! is not charged: the class bounds cap it at eight non-proxy nodes, so it
-//! enumerates at most `2 * 2^8` configurations.
+//! runs the same enumeration under the default operation limit and refuses with
+//! a budget detail, never a verdict, when the witness needs more configurations.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -97,11 +97,9 @@ use crate::sid::{
     identify_classical_transport_metered,
 };
 
-/// Most partially observed variables one query may declare.
-pub const RECOVERY_MAX_PARTIALLY_OBSERVED: usize = 3;
-/// Most fully observed variables one query may declare.
-pub const RECOVERY_MAX_FULLY_OBSERVED: usize = 2;
-/// Most cells the observed pattern law may carry (`6^3 * 2^2`).
+/// Most cells a dense observed pattern law may carry in the numeric estimation
+/// stage (`6^3 * 2^2`). Graph-level recovery does not use it: the number of
+/// partially and fully observed variables is bounded only by the search budget.
 pub const RECOVERY_MAX_OBSERVED_CELLS: usize = 864;
 /// Default search limits of one decision; they are also the maxima.
 pub const RECOVERY_DEFAULT_LIMITS: RecoveryLimits = RecoveryLimits {
@@ -710,23 +708,8 @@ fn resolve_roles<'g>(
     graph: &'g Admg,
     query: &ObservationRecoveryQuery,
 ) -> Result<MGraph<'g>, RecoveryError> {
-    use RecoveryDetail::{BoundsExceeded, InvalidQuery};
+    use RecoveryDetail::InvalidQuery;
     let k = query.partially_observed.len();
-    if k > RECOVERY_MAX_PARTIALLY_OBSERVED {
-        return Err(refuse(
-            BoundsExceeded,
-            format!("{k} partially observed variables; at most {RECOVERY_MAX_PARTIALLY_OBSERVED}"),
-        ));
-    }
-    if query.fully_observed.len() > RECOVERY_MAX_FULLY_OBSERVED {
-        return Err(refuse(
-            BoundsExceeded,
-            format!(
-                "{} fully observed variables; at most {RECOVERY_MAX_FULLY_OBSERVED}",
-                query.fully_observed.len()
-            ),
-        ));
-    }
     if query.population.trim().is_empty() {
         return Err(refuse(InvalidQuery, "the population must be named"));
     }

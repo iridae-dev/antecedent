@@ -55,6 +55,10 @@ use crate::experiment_regime::{
 /// Bytes in one assembled `f64` entry.
 const F64_BYTES: u64 = 8;
 
+/// Largest 1-norm condition number of the equilibrated intervention covariance accepted
+/// for solving experimental effects; beyond it fewer than two digits survive in `f64`.
+const MAX_INTERVENTION_CONDITION: f64 = 1e14;
+
 /// Relative floor for a pivot of an assembled constraint matrix.
 ///
 /// Multiplied by the largest absolute coefficient. A column that does not clear
@@ -136,6 +140,14 @@ pub enum MomentAssemblyRefusal {
     DegenerateIntervention {
         /// Index into the accepted regimes.
         regime: usize,
+    },
+    /// The intervened columns' correlation matrix is nonsingular to the pivot floor but so
+    /// ill conditioned that the experimental effects would carry fewer than two correct digits.
+    IllConditionedIntervention {
+        /// Index into the accepted regimes.
+        regime: usize,
+        /// Base-10 exponent of the estimated 1-norm condition number (rounded down).
+        condition_exponent: u32,
     },
     /// The byte estimate overflowed.
     ResourceOverflow,
@@ -294,6 +306,13 @@ impl fmt::Display for MomentAssemblyRefusal {
             }
             Self::DegenerateIntervention { regime } => {
                 write!(f, "regime {regime} has a singular intervention covariance")
+            }
+            Self::IllConditionedIntervention { regime, condition_exponent } => {
+                write!(
+                    f,
+                    "regime {regime} has an intervention covariance with condition number \
+                     about 1e{condition_exponent}"
+                )
             }
             Self::ResourceOverflow => {
                 write!(f, "the moment and constraint byte estimate overflowed")
@@ -843,17 +862,42 @@ fn experimental_effects(
             factor[row * j + col] = covariance[left * n + right] / spread[row] / spread[col];
         }
     }
-    // One right-hand side per passive column: `rhs[k * j + row]`.
-    let mut solved = vec![0.0; length_product(u, j)?];
+    // One right-hand side per passive column: `rhs[k * j + row]`, followed by the `j`
+    // columns of the identity so the same elimination yields the inverse for a 1-norm
+    // condition estimate `‖A‖₁ ‖A⁻¹‖₁`.
+    let mut solved = vec![0.0; length_product(u + j, j)?];
     for (passive_slot, &passive_index) in passive.iter().enumerate() {
         for (probe_slot, &probe_index) in intervened.iter().enumerate() {
             solved[passive_slot * j + probe_slot] =
                 covariance[probe_index * n + passive_index] / spread[probe_slot];
         }
     }
-    if !gauss_jordan_solve(&mut factor, &mut solved, j, u) {
+    for k in 0..j {
+        solved[(u + k) * j + k] = 1.0;
+    }
+    let norm_a = (0..j)
+        .map(|col| (0..j).map(|row| factor[row * j + col].abs()).sum::<f64>())
+        .fold(0.0_f64, f64::max);
+    if !gauss_jordan_solve(&mut factor, &mut solved, j, u + j) {
         return Err(MomentAssemblyRefusal::DegenerateIntervention { regime });
     }
+    let norm_inverse = (0..j)
+        .map(|k| solved[(u + k) * j..(u + k + 1) * j].iter().map(|v| v.abs()).sum::<f64>())
+        .fold(0.0_f64, f64::max);
+    let condition = norm_a * norm_inverse;
+    if !condition.is_finite() {
+        return Err(MomentAssemblyRefusal::DegenerateIntervention { regime });
+    }
+    if condition > MAX_INTERVENTION_CONDITION {
+        // Truncation to the decimal exponent is the documented rounding.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let condition_exponent = condition.log10().floor() as u32;
+        return Err(MomentAssemblyRefusal::IllConditionedIntervention {
+            regime,
+            condition_exponent,
+        });
+    }
+    solved.truncate(u * j);
     for passive_slot in 0..u {
         for (probe_slot, &scale) in spread.iter().enumerate() {
             // Undo the column scaling: the solved row is `D_jj` times the effect.

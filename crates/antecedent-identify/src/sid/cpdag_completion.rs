@@ -277,8 +277,11 @@ impl Skeleton {
         if variables.is_empty() {
             return Err(not_a_cpdag("a CPDAG needs a node"));
         }
+        // The shared variable <-> dense-node mapping; a variable's rank in the sorted order
+        // is the skeleton's index.
+        let node_map = crate::node_map::NodeMap::new(cpdag.nodes());
         let index_of = |dense_id: DenseNodeId| {
-            dense.get(dense_id.as_usize()).and_then(|v| variables.binary_search(v).ok())
+            node_map.variable(dense_id).ok().and_then(|v| variables.binary_search(&v).ok())
         };
         let (mut fixed, mut undirected) = (Vec::new(), Vec::new());
         let mut adjacent = vec![BitSet::with_len(variables.len()); variables.len()];

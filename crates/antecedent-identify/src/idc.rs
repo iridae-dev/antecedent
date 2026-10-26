@@ -339,7 +339,7 @@ fn idc_recurse(
     let y_vars = intern_bitset_vars(prepared, y, &mut arena)?;
     let denom = arena.intern(ExprNode::SumOut { variables: y_vars, expr: functional });
     let ratio = arena.intern(ExprNode::Ratio { numerator: functional, denominator: denom });
-    let functional = arena.simplify(ratio).map_err(|e| IdentificationError::msg(e.to_string()))?;
+    let functional = arena.simplify(ratio).map_err(IdentificationError::expression)?;
     Ok(IdcOk::Identified { functional, arena })
 }
 

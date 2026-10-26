@@ -127,10 +127,6 @@ impl AutoIdentifier {
     /// # Errors
     ///
     /// Unsupported query when the query type is not handled.
-    #[allow(
-        clippy::too_many_lines,
-        reason = "one linear identification pipeline whose stages share the prepared graph and workspace"
-    )]
     pub fn identify(
         &self,
         prepared: &PreparedAutoGraph,
@@ -144,160 +140,15 @@ impl AutoIdentifier {
 
         match query {
             CausalQuery::AverageEffect(q) => {
-                let (active_do, control_do, bernoulli_scale) =
-                    crate::intervention_support::normalize_ate_pair(&q.active, &q.control)?;
-                let active = set_value(&active_do)?;
-                let control = set_value(&control_do)?;
-                if let Some(scale) = bernoulli_scale {
-                    // `scale = w_a - w_c` is exactly 1 only when the pair already *is*
-                    // the hard do(1)/do(0) contrast (e.g. a degenerate Bernoulli(1)
-                    // matched with Set(0)): the functional every strategy below builds
-                    // is then already the requested estimand. For any other weight the
-                    // true stochastic contrast is `scale * (hard ATE)`, and nothing in
-                    // the expression algebra can multiply a functional by a free-standing
-                    // scalar, so shipping the hard functional under an "identified" status
-                    // would silently return the wrong number. Refuse instead of guessing.
-                    if (scale - 1.0).abs() > 1e-9 {
-                        acc.diagnostics.push(Diagnostic::new(
-                            "auto.stochastic.bernoulli_scale_unsupported",
-                            DiagnosticKind::Execution,
-                            DiagnosticSeverity::Warning,
-                            format!(
-                                "Bernoulli / binary mixture ATE: the true effect is \
-                                 scale * E[Y|do(1)] − E[Y|do(0)] with scale = {scale}, but no \
-                                 returned functional can carry that scalar factor; refusing \
-                                 rather than returning the unscaled hard contrast as if it \
-                                 were the requested stochastic effect"
-                            ),
-                        ));
-                        acc.derivation.push(
-                            "auto.stochastic",
-                            format!(
-                                "bernoulli mixture scale={scale}: not applied to any functional, refusing"
-                            ),
-                        );
-                        let mut out = IdentificationResult::not_identified(
-                            query.clone(),
-                            acc.derivation,
-                            assumptions,
-                            acc.perf,
-                        );
-                        out.diagnostics = acc.diagnostics;
-                        return Ok(out);
-                    }
-                    acc.diagnostics.push(Diagnostic::new(
-                        "auto.stochastic.bernoulli_scale",
-                        DiagnosticKind::Execution,
-                        DiagnosticSeverity::Info,
-                        format!(
-                            "Bernoulli / binary mixture ATE: identified hard do(1)−do(0); \
-                             stochastic effect scale = {scale} (multiply hard ATE by scale)"
-                        ),
-                    ));
-                    acc.derivation.push(
-                        "auto.stochastic",
-                        format!("bernoulli mixture scale={scale} on hard unit contrast"),
-                    );
-                }
-                // Rebuild query with normalized Sets so sub-identifiers see hard interventions.
-                let q_norm = AverageEffectQuery::new(
-                    q.treatment,
-                    q.outcome,
-                    Arc::clone(&q.effect_modifiers),
-                    control_do,
-                    active_do,
-                    q.target_population.clone(),
-                );
-                let query_norm = CausalQuery::AverageEffect(q_norm.clone());
-                let q = &q_norm;
-                let contrast = AteContrast { query: q, active: &active, control: &control };
-                // A sharp RD design speaks for units at its cutoff; the graph strategies
-                // speak for the population the query names. They answer different
-                // questions, so which ones run is decided by the population asked for and
-                // their acc.estimands are never listed side by side.
-                if matches!(q.target_population, TargetPopulation::LocalAtCutoff { .. }) {
-                    if let Some(cfg) = &self.rd {
-                        Self::try_method(
-                            "rd.sharp",
-                            || {
-                                SharpRdIdentifier::new(*cfg)
-                                    .identify_on(prepared.dag.dag(), query_norm.clone())
-                            },
-                            &contrast,
-                            &mut acc,
-                            &assumptions,
-                        )?;
-                    } else {
-                        acc.diagnostics.push(Diagnostic::new(
-                            "auto.rd.missing_config",
-                            DiagnosticKind::Execution,
-                            DiagnosticSeverity::Warning,
-                            "the effect at a running-variable cutoff needs a sharp RD design \
-                             (running variable, cutoff, bandwidth); none was supplied and none \
-                             is inferred",
-                        ));
-                        acc.derivation
-                            .push("auto.method", "rd.sharp: not applicable (missing RD config)");
-                    }
-                } else {
-                    Self::try_method(
-                        "backdoor.adjustment",
-                        || self.backdoor.identify(&prepared.dag, &query_norm, workspace),
-                        &contrast,
-                        &mut acc,
-                        &assumptions,
-                    )?;
-                    Self::try_method(
-                        "backdoor.efficient",
-                        || self.efficient.identify(&prepared.dag, &query_norm, workspace),
-                        &contrast,
-                        &mut acc,
-                        &assumptions,
-                    )?;
-                    Self::try_method(
-                        "frontdoor",
-                        || self.frontdoor.identify(&prepared.dag, &query_norm, workspace),
-                        &contrast,
-                        &mut acc,
-                        &assumptions,
-                    )?;
-                    Self::try_method(
-                        "iv",
-                        || self.iv.identify(&prepared.dag, &query_norm, workspace),
-                        &contrast,
-                        &mut acc,
-                        &assumptions,
-                    )?;
-                    if self.rd.is_some() {
-                        acc.diagnostics.push(Diagnostic::new(
-                            "auto.rd.local_estimand_not_requested",
-                            DiagnosticKind::Scientific,
-                            DiagnosticSeverity::Info,
-                            "sharp RD not used: the design identifies the effect for units at \
-                             its cutoff, not the requested population effect; ask for \
-                             TargetPopulation::LocalAtCutoff to use it",
-                        ));
-                        acc.derivation.push(
-                            "auto.method",
-                            "rd.sharp: not applicable (the query does not target the cutoff)",
-                        );
-                    } else {
-                        acc.diagnostics.push(Diagnostic::new(
-                            "auto.rd.missing_config",
-                            DiagnosticKind::Execution,
-                            DiagnosticSeverity::Info,
-                            "sharp RD skipped: no running-variable / cutoff / bandwidth config on AutoIdentifier",
-                        ));
-                        acc.derivation
-                            .push("auto.method", "rd.sharp: not applicable (missing RD config)");
-                    }
-                    Self::try_method(
-                        "general.id",
-                        || self.general_id.identify(&prepared.admg, &query_norm, workspace),
-                        &contrast,
-                        &mut acc,
-                        &assumptions,
-                    )?;
+                if let Some(refusal) = self.identify_average_effect(
+                    prepared,
+                    query,
+                    q,
+                    workspace,
+                    &mut acc,
+                    &assumptions,
+                )? {
+                    return Ok(refusal);
                 }
             }
             CausalQuery::Distribution(q) => {
@@ -307,133 +158,20 @@ impl AutoIdentifier {
                 } else {
                     self.idc.identify(&prepared.admg, query, workspace)
                 };
-                match run {
-                    Ok(res) if res.status == IdentificationStatus::NonparametricallyIdentified => {
-                        acc.derivation.push(
-                            "auto.method",
-                            format!("{method}: identified ({} estimand(s))", res.estimands.len()),
-                        );
-                        acc.arena = res.arena;
-                        acc.estimands = res.estimands;
-                        assumptions = res.required_assumptions;
-                        acc.perf = res.performance;
-                        acc.diagnostics.extend(res.diagnostics);
-                    }
-                    Ok(res) => {
-                        acc.derivation.push(
-                            "auto.method",
-                            format!("{method}: not identified ({:?})", res.status),
-                        );
-                        acc.diagnostics.push(not_identified_diagnostic(method, method, &res));
-                        acc.hedge = res.hedge;
-                        acc.perf = res.performance;
-                        acc.diagnostics.extend(res.diagnostics);
-                    }
-                    Err(IdentificationError::UnsupportedQuery { message }) => {
-                        acc.diagnostics.push(Diagnostic::new(
-                            format!("auto.{method}.unsupported"),
-                            DiagnosticKind::Execution,
-                            DiagnosticSeverity::Warning,
-                            format!("{method}: unsupported ({message})"),
-                        ));
-                        acc.derivation
-                            .push("auto.method", format!("{method}: unsupported ({message})"));
-                    }
-                    Err(e) if is_caller_interruption(&e) => return Err(e),
-                    Err(e) => {
-                        acc.diagnostics.push(Diagnostic::new(
-                            format!("auto.{method}.error"),
-                            DiagnosticKind::Execution,
-                            DiagnosticSeverity::Warning,
-                            format!("{method}: error ({e})"),
-                        ));
-                        acc.derivation.push("auto.method", format!("{method}: error ({e})"));
-                    }
-                }
+                absorb_whole_query(&mut acc, &mut assumptions, method, method, run)?;
             }
             CausalQuery::PathSpecific(_) => {
-                match self.path_specific.identify(&prepared.admg, query, workspace) {
-                    Ok(res) if res.status == IdentificationStatus::NonparametricallyIdentified => {
-                        acc.derivation.push(
-                            "auto.method",
-                            format!(
-                                "path_specific.natural: identified ({} estimand(s))",
-                                res.estimands.len()
-                            ),
-                        );
-                        acc.arena = res.arena;
-                        acc.estimands = res.estimands;
-                        assumptions = res.required_assumptions;
-                        acc.perf = res.performance;
-                        acc.diagnostics.extend(res.diagnostics);
-                    }
-                    Ok(res) => {
-                        acc.derivation.push(
-                            "auto.method",
-                            format!("path_specific.natural: not identified ({:?})", res.status),
-                        );
-                        acc.diagnostics.push(not_identified_diagnostic(
-                            "path_specific",
-                            "path_specific.natural",
-                            &res,
-                        ));
-                        acc.hedge = res.hedge;
-                        acc.perf = res.performance;
-                        acc.diagnostics.extend(res.diagnostics);
-                    }
-                    Err(IdentificationError::UnsupportedQuery { message }) => {
-                        acc.diagnostics.push(Diagnostic::new(
-                            "auto.path_specific.unsupported",
-                            DiagnosticKind::Execution,
-                            DiagnosticSeverity::Warning,
-                            format!("path_specific.natural: unsupported ({message})"),
-                        ));
-                        acc.derivation.push(
-                            "auto.method",
-                            format!("path_specific.natural: unsupported ({message})"),
-                        );
-                    }
-                    Err(e) if is_caller_interruption(&e) => return Err(e),
-                    Err(e) => {
-                        acc.diagnostics.push(Diagnostic::new(
-                            "auto.path_specific.error",
-                            DiagnosticKind::Execution,
-                            DiagnosticSeverity::Warning,
-                            format!("path_specific.natural: error ({e})"),
-                        ));
-                        acc.derivation
-                            .push("auto.method", format!("path_specific.natural: error ({e})"));
-                    }
-                }
+                let run = self.path_specific.identify(&prepared.admg, query, workspace);
+                absorb_whole_query(
+                    &mut acc,
+                    &mut assumptions,
+                    "path_specific",
+                    "path_specific.natural",
+                    run,
+                )?;
             }
             CausalQuery::Response(_) => {
-                let id = ResponseIdentifier { backdoor: self.backdoor.clone() };
-                match id.identify(&prepared.dag, query, workspace) {
-                    Ok(res) if res.status == IdentificationStatus::NonparametricallyIdentified => {
-                        acc.derivation.push(
-                            "auto.method",
-                            format!(
-                                "response.backdoor: identified ({} pair(s))",
-                                res.estimands.len()
-                            ),
-                        );
-                        acc.arena = res.arena;
-                        acc.estimands = res.estimands;
-                        assumptions = res.required_assumptions;
-                        acc.perf = res.performance;
-                        acc.diagnostics.extend(res.diagnostics);
-                    }
-                    Ok(res) => {
-                        acc.derivation.push(
-                            "auto.method",
-                            format!("response.backdoor: not identified ({:?})", res.status),
-                        );
-                        acc.diagnostics.extend(res.diagnostics);
-                    }
-                    Err(e) => {
-                        return Err(e);
-                    }
-                }
+                self.identify_response(prepared, query, workspace, &mut acc, &mut assumptions)?;
             }
             _ => {
                 return Err(IdentificationError::unsupported(
@@ -442,6 +180,211 @@ impl AutoIdentifier {
             }
         }
 
+        Ok(Self::finish(query, acc, assumptions))
+    }
+
+    /// Run every strategy that applies to an average-effect query.
+    ///
+    /// Returns the refusal result when the query cannot be answered by any strategy (a
+    /// Bernoulli mixture whose scale the functionals cannot carry), otherwise `None` with the
+    /// strategies' estimands accumulated in `acc`.
+    fn identify_average_effect(
+        &self,
+        prepared: &PreparedAutoGraph,
+        query: &CausalQuery,
+        q: &AverageEffectQuery,
+        workspace: &mut IdentificationWorkspace,
+        acc: &mut AutoRun,
+        assumptions: &AssumptionSet,
+    ) -> Result<Option<IdentificationResult>, IdentificationError> {
+        let (active_do, control_do, bernoulli_scale) =
+            crate::intervention_support::normalize_ate_pair(&q.active, &q.control)?;
+        let active = set_value(&active_do)?;
+        let control = set_value(&control_do)?;
+        if let Some(scale) = bernoulli_scale {
+            // `scale = w_a - w_c` is exactly 1 only when the pair already *is*
+            // the hard do(1)/do(0) contrast (e.g. a degenerate Bernoulli(1)
+            // matched with Set(0)): the functional every strategy below builds
+            // is then already the requested estimand. For any other weight the
+            // true stochastic contrast is `scale * (hard ATE)`, and nothing in
+            // the expression algebra can multiply a functional by a free-standing
+            // scalar, so shipping the hard functional under an "identified" status
+            // would silently return the wrong number. Refuse instead of guessing.
+            if (scale - 1.0).abs() > 1e-9 {
+                acc.diagnostics.push(Diagnostic::new(
+                    "auto.stochastic.bernoulli_scale_unsupported",
+                    DiagnosticKind::Execution,
+                    DiagnosticSeverity::Warning,
+                    format!(
+                        "Bernoulli / binary mixture ATE: the true effect is \
+                         scale * E[Y|do(1)] − E[Y|do(0)] with scale = {scale}, but no \
+                         returned functional can carry that scalar factor; refusing \
+                         rather than returning the unscaled hard contrast as if it \
+                         were the requested stochastic effect"
+                    ),
+                ));
+                acc.derivation.push(
+                    "auto.stochastic",
+                    format!("bernoulli mixture scale={scale}: not applied to any functional, refusing"),
+                );
+                let mut out = IdentificationResult::not_identified(
+                    query.clone(),
+                    std::mem::take(&mut acc.derivation),
+                    assumptions.clone(),
+                    std::mem::take(&mut acc.perf),
+                );
+                out.diagnostics = std::mem::take(&mut acc.diagnostics);
+                return Ok(Some(out));
+            }
+            acc.diagnostics.push(Diagnostic::new(
+                "auto.stochastic.bernoulli_scale",
+                DiagnosticKind::Execution,
+                DiagnosticSeverity::Info,
+                format!(
+                    "Bernoulli / binary mixture ATE: identified hard do(1)−do(0); \
+                     stochastic effect scale = {scale} (multiply hard ATE by scale)"
+                ),
+            ));
+            acc.derivation.push(
+                "auto.stochastic",
+                format!("bernoulli mixture scale={scale} on hard unit contrast"),
+            );
+        }
+        // Rebuild query with normalized Sets so sub-identifiers see hard interventions.
+        let q_norm = AverageEffectQuery::new(
+            q.treatment,
+            q.outcome,
+            Arc::clone(&q.effect_modifiers),
+            control_do,
+            active_do,
+            q.target_population.clone(),
+        );
+        let query_norm = CausalQuery::AverageEffect(q_norm.clone());
+        let contrast = AteContrast { query: &q_norm, active: &active, control: &control };
+        // A sharp RD design speaks for units at its cutoff; the graph strategies
+        // speak for the population the query names. They answer different
+        // questions, so which ones run is decided by the population asked for and
+        // their acc.estimands are never listed side by side.
+        if matches!(q_norm.target_population, TargetPopulation::LocalAtCutoff { .. }) {
+            self.run_cutoff_design(prepared, &query_norm, &contrast, acc, assumptions)?;
+            return Ok(None);
+        }
+        for &(name, strategy) in GRAPH_CRITERION_STRATEGIES {
+            Self::try_method(
+                name,
+                || strategy(self, prepared, &query_norm, workspace),
+                &contrast,
+                acc,
+                assumptions,
+            )?;
+        }
+        Self::note_rd_not_applicable(self.rd.is_some(), acc);
+        Self::try_method(
+            "general.id",
+            || self.general_id.identify(&prepared.admg, &query_norm, workspace),
+            &contrast,
+            acc,
+            assumptions,
+        )?;
+        Ok(None)
+    }
+
+    /// The effect at a running-variable cutoff: only the sharp RD design answers it.
+    fn run_cutoff_design(
+        &self,
+        prepared: &PreparedAutoGraph,
+        query_norm: &CausalQuery,
+        contrast: &AteContrast<'_>,
+        acc: &mut AutoRun,
+        assumptions: &AssumptionSet,
+    ) -> Result<(), IdentificationError> {
+        if let Some(cfg) = &self.rd {
+            Self::try_method(
+                "rd.sharp",
+                || {
+                    SharpRdIdentifier::new(*cfg)
+                        .identify_on(prepared.dag.dag(), query_norm.clone())
+                },
+                contrast,
+                acc,
+                assumptions,
+            )
+        } else {
+            acc.diagnostics.push(Diagnostic::new(
+                "auto.rd.missing_config",
+                DiagnosticKind::Execution,
+                DiagnosticSeverity::Warning,
+                "the effect at a running-variable cutoff needs a sharp RD design \
+                 (running variable, cutoff, bandwidth); none was supplied and none \
+                 is inferred",
+            ));
+            acc.derivation.push("auto.method", "rd.sharp: not applicable (missing RD config)");
+            Ok(())
+        }
+    }
+
+    /// Record why sharp RD was not used for a query that does not target the cutoff.
+    fn note_rd_not_applicable(has_design: bool, acc: &mut AutoRun) {
+        if has_design {
+            acc.diagnostics.push(Diagnostic::new(
+                "auto.rd.local_estimand_not_requested",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "sharp RD not used: the design identifies the effect for units at \
+                 its cutoff, not the requested population effect; ask for \
+                 TargetPopulation::LocalAtCutoff to use it",
+            ));
+            acc.derivation.push(
+                "auto.method",
+                "rd.sharp: not applicable (the query does not target the cutoff)",
+            );
+        } else {
+            acc.diagnostics.push(Diagnostic::new(
+                "auto.rd.missing_config",
+                DiagnosticKind::Execution,
+                DiagnosticSeverity::Info,
+                "sharp RD skipped: no running-variable / cutoff / bandwidth config on AutoIdentifier",
+            ));
+            acc.derivation.push("auto.method", "rd.sharp: not applicable (missing RD config)");
+        }
+    }
+
+    fn identify_response(
+        &self,
+        prepared: &PreparedAutoGraph,
+        query: &CausalQuery,
+        workspace: &mut IdentificationWorkspace,
+        acc: &mut AutoRun,
+        assumptions: &mut AssumptionSet,
+    ) -> Result<(), IdentificationError> {
+        let id = ResponseIdentifier { backdoor: self.backdoor.clone() };
+        let res = id.identify(&prepared.dag, query, workspace)?;
+        if res.status == IdentificationStatus::NonparametricallyIdentified {
+            acc.derivation.push(
+                "auto.method",
+                format!("response.backdoor: identified ({} pair(s))", res.estimands.len()),
+            );
+            acc.arena = res.arena;
+            acc.estimands = res.estimands;
+            *assumptions = res.required_assumptions;
+            acc.perf = res.performance;
+            acc.diagnostics.extend(res.diagnostics);
+        } else {
+            acc.derivation.push(
+                "auto.method",
+                format!("response.backdoor: not identified ({:?})", res.status),
+            );
+            acc.diagnostics.extend(res.diagnostics);
+        }
+        Ok(())
+    }
+
+    /// Assemble the result from what the strategies accumulated.
+    fn finish(
+        query: &CausalQuery,
+        acc: AutoRun,
+        mut assumptions: AssumptionSet,
+    ) -> IdentificationResult {
         if acc.estimands.is_empty() {
             let mut out = IdentificationResult::not_identified(
                 query.clone(),
@@ -451,7 +394,7 @@ impl AutoIdentifier {
             );
             out.hedge = acc.hedge;
             out.diagnostics = acc.diagnostics;
-            return Ok(out);
+            return out;
         }
 
         // The listing is nonparametric when any alternative is; each estimand's own status
@@ -483,7 +426,7 @@ impl AutoIdentifier {
         })
         .with_estimand_claims(acc.claims);
         out.diagnostics = acc.diagnostics;
-        Ok(out)
+        out
     }
 
     fn try_method(
@@ -581,6 +524,83 @@ impl AutoIdentifier {
         }
         Ok(())
     }
+}
+
+/// One graph-criterion strategy: how Auto runs it on the prepared graph.
+type GraphStrategy = fn(
+    &AutoIdentifier,
+    &PreparedAutoGraph,
+    &CausalQuery,
+    &mut IdentificationWorkspace,
+) -> Result<IdentificationResult, IdentificationError>;
+
+/// The graph-criterion strategies Auto tries for a population average effect, in the order
+/// their estimands are listed and their diagnostics recorded.
+const GRAPH_CRITERION_STRATEGIES: &[(&str, GraphStrategy)] = &[
+    ("backdoor.adjustment", |auto, prepared, query, workspace| {
+        auto.backdoor.identify(&prepared.dag, query, workspace)
+    }),
+    ("backdoor.efficient", |auto, prepared, query, workspace| {
+        auto.efficient.identify(&prepared.dag, query, workspace)
+    }),
+    ("frontdoor", |auto, prepared, query, workspace| {
+        auto.frontdoor.identify(&prepared.dag, query, workspace)
+    }),
+    ("iv", |auto, prepared, query, workspace| auto.iv.identify(&prepared.dag, query, workspace)),
+];
+
+/// Record the outcome of a strategy that answers the whole query (distribution and
+/// path-specific queries), replacing the accumulated estimands when it identifies.
+///
+/// `key` names the strategy in diagnostic codes, `label` in their messages.
+fn absorb_whole_query(
+    acc: &mut AutoRun,
+    assumptions: &mut AssumptionSet,
+    key: &str,
+    label: &str,
+    run: Result<IdentificationResult, IdentificationError>,
+) -> Result<(), IdentificationError> {
+    match run {
+        Ok(res) if res.status == IdentificationStatus::NonparametricallyIdentified => {
+            acc.derivation.push(
+                "auto.method",
+                format!("{label}: identified ({} estimand(s))", res.estimands.len()),
+            );
+            acc.arena = res.arena;
+            acc.estimands = res.estimands;
+            *assumptions = res.required_assumptions;
+            acc.perf = res.performance;
+            acc.diagnostics.extend(res.diagnostics);
+        }
+        Ok(res) => {
+            acc.derivation
+                .push("auto.method", format!("{label}: not identified ({:?})", res.status));
+            acc.diagnostics.push(not_identified_diagnostic(key, label, &res));
+            acc.hedge = res.hedge;
+            acc.perf = res.performance;
+            acc.diagnostics.extend(res.diagnostics);
+        }
+        Err(IdentificationError::UnsupportedQuery { message }) => {
+            acc.diagnostics.push(Diagnostic::new(
+                format!("auto.{key}.unsupported"),
+                DiagnosticKind::Execution,
+                DiagnosticSeverity::Warning,
+                format!("{label}: unsupported ({message})"),
+            ));
+            acc.derivation.push("auto.method", format!("{label}: unsupported ({message})"));
+        }
+        Err(e) if is_caller_interruption(&e) => return Err(e),
+        Err(e) => {
+            acc.diagnostics.push(Diagnostic::new(
+                format!("auto.{key}.error"),
+                DiagnosticKind::Execution,
+                DiagnosticSeverity::Warning,
+                format!("{label}: error ({e})"),
+            ));
+            acc.derivation.push("auto.method", format!("{label}: error ({e})"));
+        }
+    }
+    Ok(())
 }
 
 /// Admission failure or cancellation aborts the whole Auto run; a scientific

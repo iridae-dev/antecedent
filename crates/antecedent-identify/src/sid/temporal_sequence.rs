@@ -40,7 +40,8 @@ use super::{
 
 /// The one licensed horizon: two steps.
 pub const TEMPORAL_HORIZON: usize = 2;
-/// Most actions in the discrete alphabet.
+/// Most actions in the discrete alphabet under the earlier fixed ceiling.
+#[deprecated(since = "2.4.1", note = "no longer enforced: the alphabet is bounded by the search budget")]
 pub const TEMPORAL_MAX_ACTIONS: usize = 8;
 /// Most coordinates the unrolled diagram had under the earlier fixed ceiling.
 #[deprecated(
@@ -48,7 +49,11 @@ pub const TEMPORAL_MAX_ACTIONS: usize = 8;
     note = "no longer enforced: the number of coordinates is bounded by the search budget"
 )]
 pub const TEMPORAL_MAX_OBSERVED: usize = 12;
-/// Most complete covariate histories (baseline, step-1 and step-2 covariates).
+/// Most complete covariate histories under the earlier fixed ceiling.
+#[deprecated(
+    since = "2.4.1",
+    note = "no longer enforced: every history state is charged to the search budget"
+)]
 pub const TEMPORAL_MAX_HISTORY_STATES: usize = 4096;
 
 /// Detail: a required history has no certified support.
@@ -256,11 +261,11 @@ impl TemporalSequenceSpec {
     /// The declared `horizon` must be two. The slots must partition the
     /// diagram's coordinates; every coordinate is declared once with a unique
     /// name and a finite (binary or categorical) domain; the two actions share
-    /// one alphabet of at most [`TEMPORAL_MAX_ACTIONS`] actions; no directed
+    /// one alphabet; no directed
     /// edge runs backward in time; and no selection target is an action, whose
-    /// mechanism the sequence replaces. The number of coordinates is bounded only
-    /// by the search budget the decision runs under; the complete covariate
-    /// histories number at most [`TEMPORAL_MAX_HISTORY_STATES`].
+    /// mechanism the sequence replaces. The number of coordinates, actions and
+    /// complete covariate histories is bounded only by the search budget the
+    /// decision runs under: every history state is charged before it is built.
     ///
     /// # Errors
     /// `route_not_supported` / `temporal_transport.horizon` for another horizon,
@@ -322,23 +327,10 @@ impl TemporalSequenceSpec {
                 "both steps use one action alphabet: the action domains must be equal",
             ));
         }
-        if first.len() > TEMPORAL_MAX_ACTIONS {
-            return Err(TemporalRefusal::bounds_exceeded(format!(
-                "{} actions exceed the alphabet bound of {TEMPORAL_MAX_ACTIONS}",
-                first.len()
-            )));
-        }
-        let mut states = 1usize;
         for v in self.slots.history_coordinates() {
-            states = states.saturating_mul(levels(v)?.len());
+            levels(v)?;
         }
         levels(self.slots.outcome)?;
-        if states > TEMPORAL_MAX_HISTORY_STATES {
-            return Err(TemporalRefusal::bounds_exceeded(format!(
-                "{states} complete covariate histories exceed the bound of \
-                 {TEMPORAL_MAX_HISTORY_STATES}"
-            )));
-        }
         Ok(())
     }
 
@@ -892,28 +884,37 @@ fn grow_histories(
                   search: &mut SharedSearch<'_>|
      -> Result<Vec<Vec<Value>>, (SearchStop, &'static str)> {
         let mut grown = Vec::new();
+        let levels = coordinates.iter().map(|v| spec.levels(*v)).collect::<Vec<_>>();
+        if levels.iter().any(Vec::is_empty) {
+            return Ok(grown);
+        }
         for state in &states {
-            let mut suffixes: Vec<Vec<Value>> = vec![Vec::new()];
-            for v in coordinates {
-                let levels = spec.levels(*v);
-                suffixes = suffixes
-                    .into_iter()
-                    .flat_map(|prefix| {
-                        levels.iter().map(move |level| {
-                            let mut next = prefix.clone();
-                            next.push(level.clone());
-                            next
-                        })
-                    })
-                    .collect();
-            }
-            for suffix in suffixes {
+            // Mixed-radix walk over the suffixes: each state is charged before it is
+            // built, so the product of levels is never materialized ahead of the budget.
+            let mut digits = vec![0usize; levels.len()];
+            loop {
                 search
                     .charge(depth, lattice_bytes(base, retained + grown.len() + 1, width))
                     .map_err(|stop| (stop, step))?;
                 let mut full = state.clone();
-                full.extend(suffix);
+                full.extend(digits.iter().zip(&levels).map(|(d, l)| l[*d].clone()));
                 grown.push(full);
+                let mut place = digits.len();
+                loop {
+                    if place == 0 {
+                        break;
+                    }
+                    place -= 1;
+                    digits[place] += 1;
+                    if digits[place] < levels[place].len() {
+                        place = usize::MAX;
+                        break;
+                    }
+                    digits[place] = 0;
+                }
+                if place != usize::MAX {
+                    break;
+                }
             }
         }
         Ok(grown)

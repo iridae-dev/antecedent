@@ -46,11 +46,16 @@
 //!    ratio are found, so the frozen rules do reach ratio forms, just not this
 //!    one. Five-node napkin embeddings account for 1 of 16,239 five-node queries
 //!    with at most three treatments (99.994%). `NotCertified`.
-//! 2. **The intervention bound** [`MIXED_SOURCE_MAX_DO`] = 3: a derived quantity
-//!    carries at most three actions, so a query with four or more treatments is
-//!    unreachable even when its effect is trivially `P(y)`. Five nodes: 437 of the
-//!    438 misses, every one of the 437 ID-identifiable queries with four
-//!    treatments. `NotCertified`.
+//! 2. **The intervention and move bounds** [`MIXED_SOURCE_MAX_DO`] = 3 actions and
+//!    [`MIXED_SOURCE_MAX_MOVE`] = 2 variables per rule application are the *initial*
+//!    bounds of the search, not limits of it. A first pass that reaches its fixpoint
+//!    having skipped an application only because of a bound is repeated with both
+//!    bounds raised by one, up to the number of observed variables, on the same
+//!    shared budget; the search ends `NotCertified` only at a fixpoint that no bound
+//!    cut short, and `Exhausted` (a receipt naming the deeper bounds left
+//!    unevaluated) when the budget stops it first. The measured misses below
+//!    (437 of the 438 five-node misses had four treatments) are those of the first
+//!    pass alone.
 //! 3. **The operation budget**: at six nodes the default 20,000 operations run out
 //!    before the closure does in about two thirds of the ID-identifiable queries
 //!    (344 of 534 in the sample), even for trivial effects. `Exhausted`, a receipt.
@@ -117,9 +122,11 @@ use super::z_transport::{
 };
 use super::{IdentificationError, MzTransportQuery};
 
-/// Observed variables in the graph.
+/// Observed variables in the graph under the earlier fixed ceiling. Not enforced: the
+/// search is bounded by its budget (the mask representation holds 63 variables).
 pub const MIXED_SOURCE_MAX_OBSERVED: usize = 10;
-/// Usable input distributions (regimes of the target population) in one query.
+/// Usable input distributions in one query under the earlier fixed ceiling. Not enforced:
+/// every input is a step charged to the search budget.
 pub const MIXED_SOURCE_MAX_DISTRIBUTIONS: usize = 16;
 /// Search limits of one whole decision: rule applications charged across every
 /// stage, and derivation generations. They are the defaults and also the
@@ -128,10 +135,11 @@ pub const MIXED_SOURCE_DEFAULT_LIMITS: SearchLimits =
     SearchLimits { operations: 20_000, depth: 16 };
 /// Version of the frozen rule set. It is bound into every proof record.
 pub const MIXED_SOURCE_RULE_SET: &str = "mixed_source_proof_rules.v1";
-/// Most variables one rule application moves (marginalize, condition, insert,
-/// delete or exchange). A larger move is reached by repeated applications.
+/// Variables one rule application moves (marginalize, condition, insert, delete or
+/// exchange) in the search's first pass; deeper passes raise it on demand.
 pub const MIXED_SOURCE_MAX_MOVE: usize = 2;
-/// Largest hard-intervention set a derived quantity may carry.
+/// Hard-intervention set size of a derived quantity in the search's first pass; deeper
+/// passes raise it on demand.
 pub const MIXED_SOURCE_MAX_DO: usize = 3;
 /// Alternative last steps recorded for the target, when found.
 const MAX_ALTERNATIVES: usize = 4;
@@ -239,10 +247,10 @@ pub fn mixed_source_rule_names() -> Vec<&'static str> {
 
 // -------------------------------------------------------------------- masks
 
-type Mask = u16;
+type Mask = u64;
 
 const fn bit(index: usize) -> Mask {
-    assert!(index < Mask::BITS as usize, "mixed-source mask index exceeds u16");
+    assert!(index < Mask::BITS as usize, "mixed-source mask index exceeds the mask width");
     1 << index
 }
 
@@ -256,15 +264,43 @@ fn size(mask: Mask) -> usize {
 
 /// Non-empty submasks of `pool` with at most `max` members, smallest first.
 fn subsets(pool: Mask, max: usize) -> Vec<Mask> {
+    subsets_within(pool, max, usize::MAX, |_| true)
+}
+
+/// The first `cap` non-empty submasks of `pool` with at most `max` members that satisfy
+/// `keep`, in the order of [`subsets`] (size, then mask value). They are produced one size
+/// at a time (Gosper's hack over the pool's positions, which preserves the numeric order of
+/// the masks), so a caller that can only pay for `cap` of them never builds the rest.
+fn subsets_within(
+    pool: Mask,
+    max: usize,
+    cap: usize,
+    keep: impl Fn(Mask) -> bool,
+) -> Vec<Mask> {
+    let positions = members(pool).collect::<Vec<_>>();
+    let width = positions.len();
     let mut out = Vec::new();
-    let mut sub = pool;
-    while sub != 0 {
-        if size(sub) <= max {
-            out.push(sub);
+    for count in 1..=max.min(width) {
+        let limit = 1u128 << width;
+        let mut combination = (1u128 << count) - 1;
+        while combination < limit {
+            let mut mask: Mask = 0;
+            let mut rest = combination;
+            while rest != 0 {
+                mask |= bit(positions[rest.trailing_zeros() as usize]);
+                rest &= rest - 1;
+            }
+            if keep(mask) {
+                if out.len() >= cap {
+                    return out;
+                }
+                out.push(mask);
+            }
+            let low = combination & combination.wrapping_neg();
+            let ripple = combination + low;
+            combination = ripple | (((combination ^ ripple) >> 2) / low);
         }
-        sub = (sub - 1) & pool;
     }
-    out.sort_unstable_by_key(|s| (size(*s), *s));
     out
 }
 
@@ -371,9 +407,9 @@ fn dense_variables(graph: &Admg) -> Result<Vec<VariableId>, IdentificationError>
 
 /// Validate a query against the graph and catalog and classify every regime.
 ///
-/// Bounds: at most [`MIXED_SOURCE_MAX_OBSERVED`] observed variables and
-/// [`MIXED_SOURCE_MAX_DISTRIBUTIONS`] usable distributions, and for declared
-/// sources the z / mz bounds. A regime is an input when it is an available,
+/// There is no count bound on observed variables, usable distributions, sources or
+/// controllables: the search charges its budget for everything it builds. A regime is
+/// an input when it is an available,
 /// measured, whole-population, unconditioned joint law of the target population
 /// whose interventions, if any, cover every level (a regime restricted to named
 /// levels is excluded as `restricted_levels`); every other regime is excluded
@@ -394,15 +430,6 @@ pub fn validate_mixed_source_query(
     catalog: &EvidenceCatalog,
 ) -> Result<ValidatedMixedSourceQuery, IdentificationError> {
     let query = query.canonical();
-    if graph.node_count() > MIXED_SOURCE_MAX_OBSERVED
-        || query.sources.len() > super::MZ_TRANSPORT_MAX_SOURCES
-        || query
-            .sources
-            .iter()
-            .any(|s| s.controllable.len() > super::MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE)
-    {
-        return Err(bounds_exceeded());
-    }
     let variables = dense_variables(graph)?;
     let known = |v: &VariableId| variables.contains(v);
     let distinct = |vs: &[VariableId]| vs.iter().collect::<BTreeSet<_>>().len() == vs.len();
@@ -504,9 +531,6 @@ pub fn validate_mixed_source_query(
         } else {
             inputs.push(input);
         }
-    }
-    if inputs.len() > MIXED_SOURCE_MAX_DISTRIBUTIONS {
-        return Err(bounds_exceeded());
     }
     let meta_scope = meta_applies(&query, &variables);
     Ok(ValidatedMixedSourceQuery { query, inputs, marginal_inputs, exclusions, meta_scope })

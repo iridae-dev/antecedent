@@ -423,7 +423,7 @@ fn a_missing_source_experiment_is_missing_evidence_naming_the_leaf() {
 }
 
 #[test]
-fn graph_treatment_conditioned_and_limit_bounds_refuse_as_bounds_exceeded() {
+fn only_limit_bounds_refuse_as_bounds_exceeded() {
     let ctx = ExecutionContext::for_tests(1);
     let bounds = Some(("route_not_supported", "admg_transport.bounds_exceeded"));
     let chain = |n: u32| {
@@ -434,17 +434,13 @@ fn graph_treatment_conditioned_and_limit_bounds_refuse_as_bounds_exceeded() {
         decide_admg_conditional_transport(diagram, q, &full_catalog(3, &[]), limits, &ctx)
     };
     let limits = ADMG_CONDITIONAL_DEFAULT_LIMITS;
-    // Six observed variables are admitted; seven refuse.
+    // The graph size and the numbers of treatments and conditioned variables have no
+    // ceiling: the work is charged to the decision's budget.
     let q = query(&[5], &[0], &[4]);
     assert!(run(&chain(6), &q, limits).is_ok());
-    assert_eq!(admg_conditional_refusal(&run(&chain(7), &q, limits).unwrap_err()), bounds);
-    // Three treatments and three conditioned variables are admitted; four refuse.
-    assert!(run(&chain(6), &query(&[5], &[0, 1, 2], &[3]), limits).is_ok());
-    let error = run(&chain(6), &query(&[5], &[0, 1, 2, 3], &[4]), limits).unwrap_err();
-    assert_eq!(admg_conditional_refusal(&error), bounds);
-    assert!(run(&chain(6), &query(&[5], &[0], &[1, 2, 3]), limits).is_ok());
-    let error = run(&chain(6), &query(&[5], &[], &[0, 1, 2, 3]), limits).unwrap_err();
-    assert_eq!(admg_conditional_refusal(&error), bounds);
+    assert!(run(&chain(7), &q, limits).is_ok());
+    assert!(run(&chain(6), &query(&[5], &[0, 1, 2, 3], &[4]), limits).is_ok());
+    assert!(run(&chain(6), &query(&[5], &[0], &[1, 2, 3, 4]), limits).is_ok());
     // Limits at the maxima run; one more operation or depth level refuses.
     let small = chain(3);
     let q = query(&[2], &[0], &[1]);

@@ -79,18 +79,14 @@ use std::sync::Arc;
 pub const PAG_ADMG_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str =
     "identify.path_specific_pag.search_bounded";
 
-/// Backtracking states the candidate search may visit for one MAG.
-const MAX_CANDIDATE_STATES: usize = 1 << 15;
-/// ADMGs the candidate search may collect for one MAG.
-const MAX_CANDIDATE_MEMBERS: usize = 1 << 9;
-
 /// The ADMGs a circle-free MAG cannot distinguish from the latent projection of the model.
 #[derive(Clone, Debug)]
 pub struct AdmgCandidates {
     /// Every ADMG whose MAG is the given MAG (node labels preserved).
     pub members: Vec<Admg>,
-    /// The search stopped at its bound; `members` is then incomplete and must not be read as
-    /// the full set.
+    /// The search stopped at its budget (the configured completion operations, or the storage
+    /// the context could lease for another candidate); `members` is then incomplete and must
+    /// not be read as the full set. This is the not-certified outcome of the enumeration.
     pub bounded: bool,
 }
 
@@ -188,7 +184,11 @@ struct CandidateSearch<'a> {
     target: &'a [MagPair],
     blank: &'a Admg,
     states: usize,
+    /// Backtracking states the search may visit (the configured completion operations).
+    max_states: usize,
     members: Vec<Vec<bool>>,
+    /// Storage leased for each retained member mask, held until the search is dropped.
+    member_leases: Vec<antecedent_core::execution::AdmissionLease>,
     ws: DSeparationWorkspace,
     context: Option<&'a antecedent_core::ExecutionContext>,
 }
@@ -221,7 +221,7 @@ impl CandidateSearch<'_> {
             return Err(IdentificationError::Cancelled);
         }
         self.states += 1;
-        if self.states > MAX_CANDIDATE_STATES {
+        if self.states > self.max_states {
             return Ok(false);
         }
         let upper = self.graph(include, decided, true)?;
@@ -241,8 +241,21 @@ impl CandidateSearch<'_> {
         }
         if decided == self.pool.len() {
             // Nothing is undecided: both bounds are the graph itself, so it has the MAG.
+            if let Some(ctx) = self.context {
+                // Each retained candidate leases its own mask storage, so the number of
+                // members is bounded by the context's admission pool, not a constant.
+                let bytes = (include.len() as u64)
+                    .saturating_add(std::mem::size_of::<Vec<bool>>() as u64);
+                match ctx.acquire_admission(0, bytes) {
+                    Ok(lease) => self.member_leases.push(lease),
+                    Err(antecedent_core::execution::AdmissionError::Cancelled) => {
+                        return Err(IdentificationError::Cancelled);
+                    }
+                    Err(_) => return Ok(false),
+                }
+            }
             self.members.push(include.to_vec());
-            return Ok(self.members.len() <= MAX_CANDIDATE_MEMBERS);
+            return Ok(true);
         }
         include[decided] = true;
         if !self.visit(decided + 1, include)? {
@@ -303,9 +316,9 @@ fn pool_of(mag: &Pag) -> Result<(Vec<PoolEdge>, Vec<MagPair>), IdentificationErr
     Ok((pool, target))
 }
 
-/// Reserve the bounded search's live recursion scratch and masks before
+/// Reserve the bounded search's live recursion scratch before
 /// allocating the edge pool. This conservative quote covers both branches' graph/pair
-/// workspaces at every possible edge depth and all bounded masks. Result graphs
+/// workspaces at every possible edge depth. Result graphs
 /// are leased separately for the actual number of successful candidate masks.
 fn candidate_search_admission(
     nodes: usize,
@@ -333,14 +346,11 @@ fn candidate_search_admission(
         graph.checked_add(pair_bytes).and_then(|v| v.checked_mul(2)).ok_or_else(memory)?;
     let recursion =
         per_depth.checked_mul(edges.checked_add(1).ok_or_else(memory)?).ok_or_else(memory)?;
-    let masks = edges.checked_add(std::mem::size_of::<Vec<bool>>() as u64).ok_or_else(memory)?;
-    let outputs = masks.checked_mul((MAX_CANDIDATE_MEMBERS + 1) as u64).ok_or_else(memory)?;
     let pool = edges
         .checked_mul((2 * std::mem::size_of::<PoolEdge>()) as u64)
         .and_then(|v| v.checked_add(pairs.checked_mul(std::mem::size_of::<MagPair>() as u64)?))
         .ok_or_else(memory)?;
-    let bytes =
-        recursion.checked_add(outputs).and_then(|v| v.checked_add(pool)).ok_or_else(memory)?;
+    let bytes = recursion.checked_add(pool).ok_or_else(memory)?;
     let lease = candidate_bytes_admission(bytes, ctx)?;
     Ok((Some(lease), graph))
 }
@@ -353,6 +363,25 @@ fn candidate_bytes_admission(
         antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
         _ => IdentificationError::Budget { budget: crate::error::IdentificationBudget::Memory },
     })
+}
+
+/// The not-certified outcome of a completion whose ADMG candidates could not all be
+/// enumerated within the search budget: an execution diagnostic marks it, so it is not read as
+/// a scientific non-identification of the graph.
+pub(crate) fn search_bounded_result(query: &CausalQuery) -> IdentificationResult {
+    let mut result = crate::generalized::not_identified(
+        query.clone(),
+        "the ADMG candidates of this MAG exceed the enumeration budget",
+    );
+    result.diagnostics.push(Diagnostic::new(
+        PAG_ADMG_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
+        DiagnosticKind::Execution,
+        DiagnosticSeverity::Warning,
+        "the ADMGs that share this MAG's m-separation model could not all be enumerated within \
+         the search budget, so the effect was not decided on every one of them; the completion \
+         is not certified, never read as a point",
+    ));
+    result
 }
 
 impl GeneralizedAdjustmentIdentifier {
@@ -375,7 +404,9 @@ impl GeneralizedAdjustmentIdentifier {
             target: &target,
             blank: &blank,
             states: 0,
+            max_states: self.config.completion_operations,
             members: Vec::new(),
+            member_leases: Vec::new(),
             ws: DSeparationWorkspace::default(),
             context: self.config.context.as_ref(),
         };
@@ -430,18 +461,7 @@ impl GeneralizedAdjustmentIdentifier {
             let found = self.admg_candidates_of_mag(mag)?;
             candidates += found.members.len();
             if found.bounded {
-                let mut result = crate::generalized::not_identified(
-                    query.clone(),
-                    "the ADMG candidates of this MAG exceed the enumeration bound",
-                );
-                result.diagnostics.push(Diagnostic::new(
-                    PAG_ADMG_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
-                    DiagnosticKind::Execution,
-                    DiagnosticSeverity::Warning,
-                    "the ADMGs that share this MAG's m-separation model could not all be \
-                     enumerated within the search bound, so the path-specific effect was not \
-                     decided on every one of them; the completion is refused, not read as a point",
-                ));
+                let result = search_bounded_result(query);
                 return Ok(vec![result]);
             }
             let mut forms: Vec<Option<String>> = Vec::new();
@@ -521,10 +541,7 @@ impl GeneralizedAdjustmentIdentifier {
         self.pag_envelope_with_candidates(pag, |mag| {
             let found = self.admg_candidates_of_mag(mag)?;
             if found.bounded {
-                return Ok(vec![crate::generalized::not_identified(
-                    query.clone(),
-                    "the ADMG candidates of this MAG exceed the enumeration bound",
-                )]);
+                return Ok(vec![search_bounded_result(query)]);
             }
             let mut forms: Vec<Option<String>> = Vec::new();
             let mut results = Vec::new();

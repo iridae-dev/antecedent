@@ -48,7 +48,7 @@ pub(crate) fn grow_window(
     let mut depth = base_history;
     let history = loop {
         let indexer = TemporalIndexer::new(variable_count, depth, horizon)
-            .map_err(|e| IdentificationError::msg(e.to_string()))?;
+            .map_err(|e| IdentificationError::construction(e))?;
         for seed in seeds {
             indexer
                 .dense_id(*seed)
@@ -64,8 +64,8 @@ pub(crate) fn grow_window(
     };
 
     let indexer = TemporalIndexer::new(variable_count, history, horizon)
-        .map_err(|e| IdentificationError::msg(e.to_string()))?;
-    let unfolded = template.unfold(indexer).map_err(|e| IdentificationError::msg(e.to_string()))?;
+        .map_err(|e| IdentificationError::construction(e))?;
+    let unfolded = template.unfold(indexer).map_err(|e| IdentificationError::construction(e))?;
     let mut dense = Vec::with_capacity(seeds.len());
     for seed in seeds {
         dense.push(

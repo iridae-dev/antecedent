@@ -3,8 +3,10 @@
 //! # Scope
 //!
 //! One frozen contract, [`COUNTERFACTUAL_TRANSPORT_CONTRACT`]: finitely many
-//! observed variables (at most [`COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES`]) with
-//! finitely many declared levels (at most [`COUNTERFACTUAL_TRANSPORT_MAX_LEVELS`]),
+//! observed variables (the declared model class holds at most
+//! [`COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES`]) with finitely many declared levels (at most
+//! [`COUNTERFACTUAL_TRANSPORT_MAX_LEVELS`]); the numbers of worlds, atoms, sources,
+//! controllable variables and regimes are bounded only by the search budget,
 //! an acyclic graph with bidirected edges for latent confounding, one selection
 //! diagram per source population (the variables whose mechanism may differ from
 //! the target's), and population- and regime-labelled evidence laws. The query is a
@@ -85,29 +87,41 @@ use witness::{WitnessOutcome, WitnessProblem, search_witness, verify_witness};
 /// The contract a derivation attests.
 pub const COUNTERFACTUAL_TRANSPORT_CONTRACT: &str =
     "static_finite_semi_markovian_counterfactual_transport_v1";
-/// Most observed variables.
+/// Most observed variables of the declared model class. The closure enumerates the
+/// ancestrally closed subsets of every law (`2^n`) before it can charge them one by one, and
+/// the witness model enumerates `2^n` cliques, so this is the enumeration bound of the class
+/// itself, not a count of the request.
 pub const COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES: usize = 8;
-/// Most declared levels of one variable.
+/// Most declared levels of one variable in the declared model class (with
+/// [`COUNTERFACTUAL_TRANSPORT_MAX_CELLS`] the joint cells of the declared levels).
 pub const COUNTERFACTUAL_TRANSPORT_MAX_LEVELS: usize = 4;
-/// Most worlds of one query.
+/// Worlds of one query under the earlier fixed ceiling. Not enforced by the decision: the
+/// work grows with the request and is charged to the search budget (a bound of stored
+/// artifacts only).
 pub const COUNTERFACTUAL_TRANSPORT_MAX_WORLDS: usize = 6;
-/// Most atoms of the event and conditioning conjunctions together.
+/// Atoms of the event and conditioning conjunctions under the earlier fixed ceiling. Not
+/// enforced by the decision (a bound of stored artifacts only).
 pub const COUNTERFACTUAL_TRANSPORT_MAX_ATOMS: usize = 16;
-/// Most nodes of one conjunction's kept network.
+/// Nodes of one conjunction's kept network under the earlier fixed ceiling. Not enforced.
 pub const COUNTERFACTUAL_TRANSPORT_MAX_NODES: usize = 24;
-/// Most source populations.
+/// Source populations under the earlier fixed ceiling. Not enforced by the decision (a bound
+/// of stored artifacts only).
 pub const COUNTERFACTUAL_TRANSPORT_MAX_SOURCES: usize = 4;
-/// Most controllable variables declared per source.
+/// Controllable variables per source under the earlier fixed ceiling. Not enforced by the
+/// decision (a bound of stored artifacts only).
 pub const COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE: usize = 4;
-/// Most catalog regimes.
+/// Catalog regimes under the earlier fixed ceiling. Not enforced by the decision (a bound of
+/// stored artifacts only).
 pub const COUNTERFACTUAL_TRANSPORT_MAX_REGIMES: usize = 64;
 /// Former ceiling on the joint level cells of the variables a derivation sums over. No longer
 /// enforced: a summation is quoted from the caller's search budget.
 pub const COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS: usize = 1 << 16;
 /// Most joint cells of the declared levels (the dense evaluation table).
 pub const COUNTERFACTUAL_TRANSPORT_MAX_CELLS: usize = 1 << 16;
-/// Nesting of the binary consistency complement.
-const MAX_COMPLEMENT_DEPTH: usize = 2;
+/// Nesting of the binary consistency complement tried first. A derivation that fails with a
+/// complement left untried at this nesting is retried one level deeper, on the same budget,
+/// until no complement is cut off (the binary atoms bound the nesting) or the budget stops it.
+const INITIAL_COMPLEMENT_DEPTH: usize = 2;
 /// Default search limits: operations charged across every stage, and depth.
 pub const COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS: SearchLimits =
     SearchLimits { operations: 50_000, depth: 64 };
@@ -571,16 +585,21 @@ impl CounterfactualTransportQuery {
         out.push_str(&canonical.event.canonical_text());
         for source in canonical.sources.iter() {
             let _ = write!(out, ";source={}:select=[", source.population);
-            for v in source.selection_targets.iter() {
-                let _ = write!(out, "{},", v.raw());
-            }
+            push_id_list(&mut out, source.selection_targets.iter().copied());
             out.push_str("];control=[");
-            for v in source.controllable.iter() {
-                let _ = write!(out, "{},", v.raw());
-            }
+            push_id_list(&mut out, source.controllable.iter().copied());
             out.push(']');
         }
         out
+    }
+}
+
+/// Append each id as `raw,` — the list rendering every versioned canonical text of this
+/// module shares, byte for byte.
+fn push_id_list(out: &mut String, ids: impl IntoIterator<Item = VariableId>) {
+    use std::fmt::Write as _;
+    for id in ids {
+        let _ = write!(out, "{},", id.raw());
     }
 }
 
@@ -1049,26 +1068,6 @@ fn validate(
         ));
     }
     event.validate().map_err(invalid_query)?;
-    if event.worlds().len() > COUNTERFACTUAL_TRANSPORT_MAX_WORLDS
-        || event.event().len() + event.given().len() > COUNTERFACTUAL_TRANSPORT_MAX_ATOMS
-        || query.sources.len() > COUNTERFACTUAL_TRANSPORT_MAX_SOURCES
-        || query
-            .sources
-            .iter()
-            .any(|s| s.controllable.len() > COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE)
-        || catalog.regimes.len() > COUNTERFACTUAL_TRANSPORT_MAX_REGIMES
-    {
-        return Err(Rejection::Unsupported(
-            BOUNDS_EXCEEDED,
-            format!(
-                "the request exceeds a declared bound (at most {COUNTERFACTUAL_TRANSPORT_MAX_WORLDS} worlds, \
-                 {COUNTERFACTUAL_TRANSPORT_MAX_ATOMS} atoms, \
-                 {COUNTERFACTUAL_TRANSPORT_MAX_SOURCES} sources, \
-                 {COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE} controllable variables per source, \
-                 {COUNTERFACTUAL_TRANSPORT_MAX_REGIMES} catalog regimes)"
-            ),
-        ));
-    }
     if query.target.trim().is_empty() {
         return Err(invalid_query("the target population must be named").into());
     }
@@ -1390,6 +1389,21 @@ impl Search<'_> {
 struct DeriveCtx<'a> {
     problem: &'a CounterfactualTransportProblem,
     closure: &'a Closure,
+    /// Nesting of the binary consistency complement allowed in the current attempt.
+    complement_depth: std::cell::Cell<usize>,
+    /// Some complement was left untried because of `complement_depth`.
+    complement_pruned: std::cell::Cell<bool>,
+}
+
+impl<'a> DeriveCtx<'a> {
+    fn new(problem: &'a CounterfactualTransportProblem, closure: &'a Closure) -> Self {
+        Self {
+            problem,
+            closure,
+            complement_depth: std::cell::Cell::new(INITIAL_COMPLEMENT_DEPTH),
+            complement_pruned: std::cell::Cell::new(false),
+        }
+    }
 }
 
 fn mask_text(problem: &CounterfactualTransportProblem, mask: u32) -> String {
@@ -1476,12 +1490,16 @@ fn derive_conjunction(
             problem.variables[variable].raw()
         )),
     }
-    if depth < MAX_COMPLEMENT_DEPTH {
+    {
         for (&(world, variable), &level) in atoms {
             if problem.levels[variable].len() != 2
                 || used.contains(&(world, variable))
                 || worlds[world].fixed.contains_key(&variable)
             {
+                continue;
+            }
+            if depth >= ctx.complement_depth.get() {
+                ctx.complement_pruned.set(true);
                 continue;
             }
             let mut whole = atoms.clone();
@@ -1609,7 +1627,26 @@ fn reduce_conditioning(
     Ok((worlds, given, moved))
 }
 
+/// [`derive_query_within`] with the complement nesting deepened on demand: a failure that cut
+/// off a complement is retried one level deeper, so the nesting is bounded by the search
+/// budget (an `Exhausted` stop) and never by a constant.
 fn derive_query(
+    ctx: &DeriveCtx<'_>,
+    search: &mut Search<'_>,
+    validated: &Validated,
+) -> Result<Option<QueryPlan>, Abort> {
+    ctx.complement_depth.set(INITIAL_COMPLEMENT_DEPTH);
+    loop {
+        ctx.complement_pruned.set(false);
+        let plan = derive_query_within(ctx, search, validated)?;
+        if plan.is_some() || !ctx.complement_pruned.get() {
+            return Ok(plan);
+        }
+        ctx.complement_depth.set(ctx.complement_depth.get() + 1);
+    }
+}
+
+fn derive_query_within(
     ctx: &DeriveCtx<'_>,
     search: &mut Search<'_>,
     validated: &Validated,
@@ -1916,7 +1953,7 @@ fn run_stages(
         search.charge(depth, bytes)
     })?;
     search.stage("supplied_regimes");
-    let ctx = DeriveCtx { problem, closure: &closure };
+    let ctx = DeriveCtx::new(problem, &closure);
     if let Some(plan) = derive_query(&ctx, search, validated)? {
         let derivation = assemble(problem, catalog, validated, &closure, plan, limits, search);
         return Ok(CounterfactualTransportDecision::Identified(Box::new(derivation)));
@@ -1928,7 +1965,7 @@ fn run_stages(
             search.charge(depth, bytes)
         })?;
     search.stage("declared_family");
-    let declared_ctx = DeriveCtx { problem, closure: &declared_closure };
+    let declared_ctx = DeriveCtx::new(problem, &declared_closure);
     if let Some(plan) = derive_query(&declared_ctx, search, validated)? {
         let mut roots = Vec::new();
         collect_items(&plan.numerator, &mut roots);
@@ -1996,6 +2033,9 @@ fn run_stages(
         worlds: &validated.worlds,
         numerator: &numerator,
         given: &given,
+        simulations: u64::try_from(search.budget.operations_remaining())
+            .unwrap_or(u64::MAX)
+            .saturating_mul(witness::SIMULATIONS_PER_OPERATION),
     };
     match search_witness(&wp, &mut |depth, bytes| search.charge(depth, bytes))? {
         WitnessOutcome::Found(witness) => {
@@ -2157,6 +2197,10 @@ pub fn verify_counterfactual_transport_witness(
         worlds: &validated.worlds,
         numerator: &numerator,
         given: &given,
+        // A witness is verified against the most simulations any permitted search could pay for.
+        simulations: u64::try_from(COUNTERFACTUAL_TRANSPORT_MAX_LIMITS.operations)
+            .unwrap_or(u64::MAX)
+            .saturating_mul(witness::SIMULATIONS_PER_OPERATION),
     };
     verify_witness(&wp, witness).map_err(|_| bad())
 }

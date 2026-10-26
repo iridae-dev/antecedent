@@ -4,10 +4,13 @@
 //! # What is licensed
 //!
 //! One query shape, `P(Y_x = y | X = x')` with `x != x'` (and, through every
-//! level of `Y`, `E[Y_x | X = x'] - E[Y | X = x']`), on an explicit ADMG of at
-//! most [`COUNTERFACTUAL_ID_MAX_VARIABLES`] variables with at most
-//! [`COUNTERFACTUAL_ID_MAX_LEVELS`] levels each, from the observational joint
-//! `P(V)`. The numerator `P(Y_x = y, X = x')` is the two-event conjunction
+//! level of `Y`, `E[Y_x | X = x'] - E[Y | X = x']`), on an explicit ADMG with
+//! finitely many levels per variable, from the observational joint `P(V)`.
+//! Graph-level identification has no count cap on variables or levels: it is
+//! bounded by the caller's [`SearchLimits`] and memory budget and stops with a
+//! budget refusal, never a verdict. [`COUNTERFACTUAL_ID_MAX_VARIABLES`] and
+//! [`COUNTERFACTUAL_ID_MAX_LEVELS`] are the sizes the stored-artifact intake of
+//! the exact finite-state evidence stage accepts; this module does not apply them. The numerator `P(Y_x = y, X = x')` is the two-event conjunction
 //! ID* (Shpitser and Pearl 2007/2008) decides; the division by `P(X = x')`
 //! happens outside the algorithm. A conjunction that contradicts itself within
 //! one world (a variable read at two levels in one world, or read at a level
@@ -103,9 +106,11 @@ use crate::id::{MeteredId, identify_interventional_metered};
 use crate::prepared::PreparedAdmg;
 use crate::sid::{SearchCharge, SharedSearch};
 
-/// Most observed variables the contract covers.
+/// Most observed variables the exact finite-state evidence stage accepts from a stored
+/// artifact. Graph-level identification in this module does not apply it.
 pub const COUNTERFACTUAL_ID_MAX_VARIABLES: usize = 6;
-/// Most levels one variable may have.
+/// Most levels per variable the exact finite-state evidence stage accepts from a stored
+/// artifact. Graph-level identification in this module does not apply it.
 pub const COUNTERFACTUAL_ID_MAX_LEVELS: usize = 4;
 /// Largest operation limit a caller may ask for.
 pub const COUNTERFACTUAL_ID_MAX_OPERATIONS: usize = 100_000;
@@ -285,7 +290,6 @@ impl CounterfactualIdProblem {
     ///
     /// # Errors
     ///
-    /// `counterfactual_id.bounds_exceeded` beyond 6 variables or 4 levels,
     /// `counterfactual_id.invalid_query` for no variables, an empty, repeated or
     /// non-finite level list or an edge naming an unknown variable or a
     /// self-loop, `counterfactual_id.graph_outside_contract` for a directed
@@ -299,21 +303,13 @@ impl CounterfactualIdProblem {
         if n == 0 {
             return Err(CounterfactualIdRefusal::invalid_query("the graph has no variables"));
         }
-        if n > COUNTERFACTUAL_ID_MAX_VARIABLES {
+        if u32::try_from(n).is_err() {
             return Err(CounterfactualIdRefusal::bounds(format!(
-                "the graph has {n} variables; the contract covers at most \
-                 {COUNTERFACTUAL_ID_MAX_VARIABLES}"
+                "the graph has {n} variables; a variable id cannot name them"
             )));
         }
         let mut canonical_levels = Vec::with_capacity(n);
         for (variable, list) in levels.into_iter().enumerate() {
-            if list.len() > COUNTERFACTUAL_ID_MAX_LEVELS {
-                return Err(CounterfactualIdRefusal::bounds(format!(
-                    "variable {variable} has {} levels; the contract covers at most \
-                     {COUNTERFACTUAL_ID_MAX_LEVELS}",
-                    list.len()
-                )));
-            }
             let bits: Vec<u64> = list.iter().map(|x| (x + 0.0).to_bits()).collect();
             let distinct: BTreeSet<u64> = bits.iter().copied().collect();
             if list.is_empty()
@@ -321,7 +317,7 @@ impl CounterfactualIdProblem {
                 || distinct.len() != bits.len()
             {
                 return Err(CounterfactualIdRefusal::invalid_query(format!(
-                    "variable {variable} needs one to four distinct finite levels"
+                    "variable {variable} needs one or more distinct finite levels"
                 )));
             }
             canonical_levels.push(bits);
@@ -462,7 +458,7 @@ impl CounterfactualIdProblem {
         let mut admg = Admg::empty();
         for i in 0..self.levels.len() {
             let raw = u32::try_from(i).map_err(|_| {
-                IdentificationError::msg(
+                IdentificationError::out_of_range(
                     "counterfactual graph has more nodes than a variable id can name",
                 )
             })?;

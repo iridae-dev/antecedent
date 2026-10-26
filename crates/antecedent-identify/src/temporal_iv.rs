@@ -107,10 +107,10 @@ impl Window {
         let max_lag = template_max_lag(template);
         let span = max_lag.max(1);
         let span_offset = i32::try_from(span)
-            .map_err(|_| IdentificationError::msg("instrument window span exceeds i32"))?;
+            .map_err(|_| IdentificationError::out_of_range("instrument window span exceeds i32"))?;
         let earliest = treatment_at.min(outcome_at).min(0).saturating_sub(span_offset);
         let horizon = u32::try_from(treatment_at.max(outcome_at).max(0))
-            .map_err(|_| IdentificationError::msg("negative horizon"))?
+            .map_err(|_| IdentificationError::out_of_range("negative horizon"))?
             .saturating_add(1);
         let base_history = earliest.unsigned_abs().max(max_lag);
         let chain_cap =

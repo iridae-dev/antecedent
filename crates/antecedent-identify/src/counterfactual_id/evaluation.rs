@@ -108,7 +108,7 @@ pub(crate) fn dense_joint(
     let mut axis_of = vec![usize::MAX; n];
     let mut level_map = vec![Vec::new(); n];
     for (a, axis) in axes.iter().enumerate() {
-        let v = axis.variable.raw() as usize;
+        let v = variable_slot(axis.variable.raw());
         if v >= n || axis_of[v] != usize::MAX {
             return Err(CounterfactualIdRefusal::invalid_query(
                 "the law's axes are not the problem's variables",
@@ -178,7 +178,7 @@ pub fn evaluate_counterfactual_functional(
         .map(|&(v, bits)| {
             problem
                 .level_index(v, bits)
-                .map(|l| (v as usize, l))
+                .map(|l| (variable_slot(v), l))
                 .ok_or_else(|| CounterfactualIdRefusal::invalid_query("an unknown given level"))
         })
         .collect::<Result<_, _>>()?;
@@ -223,11 +223,11 @@ pub fn evaluate_counterfactual_functional(
         .map_or(f64::NAN, |(_, p)| p / conditioning);
     let counterfactual_mean =
         numerators.iter().map(|(level, p)| level * p).sum::<f64>() / conditioning;
-    let observed_mean = (0..joint.levels[outcome as usize].len())
+    let observed_mean = (0..joint.levels[variable_slot(outcome)].len())
         .map(|l| {
             let mut fixed = given.clone();
-            fixed.push((outcome as usize, l));
-            joint.levels[outcome as usize][l] * joint.mass(&fixed)
+            fixed.push((variable_slot(outcome), l));
+            joint.levels[variable_slot(outcome)][l] * joint.mass(&fixed)
         })
         .sum::<f64>()
         / conditioning;
@@ -293,6 +293,22 @@ const NUMERATOR_SUM_TOLERANCE: f64 = 1e-9;
 /// is refused as incompatible with the graph.
 const COMPLEMENT_TOLERANCE: f64 = 1e-12;
 
+/// Position of a declared level within one variable's level list.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) struct LevelIx(usize);
+
+/// Identifier of a summation symbol bound by an enclosing sum.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub(super) struct SymbolId(u32);
+
+/// Level positions currently bound to the summation symbols in scope.
+type Bindings = HashMap<SymbolId, LevelIx>;
+
+/// Index of a variable in the joint law's variable and level tables.
+const fn variable_slot(variable: u32) -> usize {
+    variable as usize
+}
+
 impl<'j> TermEvaluator<'j> {
     pub(super) fn new(joint: &'j DenseJoint) -> Self {
         Self { joint, compiled: HashMap::new(), polls: 0 }
@@ -301,7 +317,7 @@ impl<'j> TermEvaluator<'j> {
     fn functional(
         &mut self,
         functional: &CounterfactualFunctional,
-        symbols: &mut HashMap<u32, usize>,
+        symbols: &mut Bindings,
         ctx: &ExecutionContext,
     ) -> Result<f64, CounterfactualIdRefusal> {
         match functional {
@@ -312,7 +328,10 @@ impl<'j> TermEvaluator<'j> {
                 let interventional = self.term(interventional, symbols, ctx)?;
                 let mut fixed = Vec::with_capacity(observed.len());
                 for &(variable, value) in observed {
-                    fixed.push((variable as usize, self.level_index(variable, value, symbols)?));
+                    fixed.push((
+                        variable_slot(variable),
+                        self.level_index(variable, value, symbols)?.0,
+                    ));
                 }
                 let value = interventional - self.joint.mass(&fixed);
                 if value < -COMPLEMENT_TOLERANCE * (1.0 + interventional.abs()) {
@@ -325,28 +344,39 @@ impl<'j> TermEvaluator<'j> {
             }
             CounterfactualFunctional::Sum { symbols: summed, factors } => {
                 let cards: Vec<usize> =
-                    summed.iter().map(|s| self.joint.levels[s.variable as usize].len()).collect();
+                    summed.iter().map(|s| self.joint.levels[variable_slot(s.variable)].len()).collect();
                 let mut index = vec![0usize; summed.len()];
-                let mut total = 0.0;
+                let mut total = antecedent_kernels::numeric::CompensatedSum::default();
                 loop {
                     for (s, &l) in summed.iter().zip(&index) {
-                        symbols.insert(s.id, l);
+                        symbols.insert(SymbolId(s.id), LevelIx(l));
                     }
+                    // A factor that is exactly zero makes the term a structural
+                    // zero and the remaining factors are not evaluated. A
+                    // product that merely underflows keeps multiplying, so a
+                    // later non-finite factor is reported instead of skipped.
                     let mut product = 1.0;
                     for factor in factors {
-                        product *= self.functional(factor, symbols, ctx)?;
-                        if product == 0.0 {
+                        let value = self.functional(factor, symbols, ctx)?;
+                        if value == 0.0 {
+                            product = 0.0;
                             break;
                         }
+                        product *= value;
                     }
-                    total += product;
+                    if !product.is_finite() {
+                        return Err(CounterfactualIdRefusal::invalid_query(format!(
+                            "a product of probability functionals is not finite ({product})"
+                        )));
+                    }
+                    total.add(product);
                     let mut k = summed.len();
                     loop {
                         if k == 0 {
                             for s in summed {
-                                symbols.remove(&s.id);
+                                symbols.remove(&SymbolId(s.id));
                             }
-                            return Ok(total);
+                            return Ok(total.total());
                         }
                         k -= 1;
                         index[k] += 1;
@@ -364,12 +394,14 @@ impl<'j> TermEvaluator<'j> {
         &self,
         variable: u32,
         value: CfValue,
-        symbols: &HashMap<u32, usize>,
-    ) -> Result<usize, CounterfactualIdRefusal> {
-        let levels = &self.joint.levels[variable as usize];
+        symbols: &Bindings,
+    ) -> Result<LevelIx, CounterfactualIdRefusal> {
+        let levels = &self.joint.levels[variable_slot(variable)];
         match value {
-            CfValue::Level(bits) => levels.iter().position(|l| l.to_bits() == bits),
-            CfValue::Symbol(id) => symbols.get(&id).copied(),
+            CfValue::Level(bits) => {
+                levels.iter().position(|l| l.to_bits() == bits).map(LevelIx)
+            }
+            CfValue::Symbol(id) => symbols.get(&SymbolId(id)).copied(),
         }
         .ok_or_else(|| {
             CounterfactualIdRefusal::invalid_query("a functional level is not a level of the law")
@@ -380,16 +412,16 @@ impl<'j> TermEvaluator<'j> {
         &self,
         variable: u32,
         value: CfValue,
-        symbols: &HashMap<u32, usize>,
+        symbols: &Bindings,
     ) -> Result<f64, CounterfactualIdRefusal> {
         let index = self.level_index(variable, value, symbols)?;
-        Ok(self.joint.levels[variable as usize][index])
+        Ok(self.joint.levels[variable_slot(variable)][index.0])
     }
 
     pub(super) fn term(
         &mut self,
         term: &CfTerm,
-        symbols: &HashMap<u32, usize>,
+        symbols: &Bindings,
         ctx: &ExecutionContext,
     ) -> Result<f64, CounterfactualIdRefusal> {
         self.polls += 1;
@@ -441,13 +473,13 @@ impl<'j> TermEvaluator<'j> {
         // event (ID line 3 then 7) does not change its value wherever the
         // conditionals exist: the first level where the term is defined is used.
         let cards: Vec<usize> =
-            extra.iter().map(|v| self.joint.levels[v.raw() as usize].len()).collect();
+            extra.iter().map(|v| self.joint.levels[variable_slot(v.raw())].len()).collect();
         let mut index = vec![0usize; extra.len()];
         let mut last_error = String::new();
         loop {
             let mut full = env.clone();
             for (v, &l) in extra.iter().zip(&index) {
-                full.push((*v, Value::f64(self.joint.levels[v.raw() as usize][l])));
+                full.push((*v, Value::f64(self.joint.levels[variable_slot(v.raw())][l])));
             }
             let assignment = Assignment::from_pairs(full);
             let value = |provider: &EmpiricalTableProvider| {
@@ -547,8 +579,8 @@ fn insert_conditional(
     fill: NullExtension,
 ) -> bool {
     let mut touched_null = false;
-    let all: Vec<usize> = vars.iter().chain(cond).map(|v| v.raw() as usize).collect();
-    let cond_dense: Vec<usize> = cond.iter().map(|v| v.raw() as usize).collect();
+    let all: Vec<usize> = vars.iter().chain(cond).map(|v| variable_slot(v.raw())).collect();
+    let cond_dense: Vec<usize> = cond.iter().map(|v| variable_slot(v.raw())).collect();
     let joint_table = joint.marginal(&all);
     let cond_table = joint.marginal(&cond_dense);
     let cond_size = cond_table.len();

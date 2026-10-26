@@ -141,16 +141,73 @@ pub enum IdentificationError {
         /// Stable code naming the failed check.
         code: &'static str,
     },
-    /// Index / configuration message that is not a raw [`GraphError`].
-    #[error("{0}")]
-    Message(String),
+    /// A prepared graph node was expected to be a static variable but is lagged.
+    #[error("expected static node")]
+    ExpectedStaticNode,
+    /// A dense node id does not name a node of the prepared graph.
+    #[error("unknown dense node {id}")]
+    UnknownDenseNode {
+        /// Raw dense node id.
+        id: u32,
+    },
+    /// A treatment schedule names no steps.
+    #[error("empty treatment schedule")]
+    EmptyTreatmentSchedule,
+    /// A temporal offset, horizon, window, or node count does not fit its
+    /// integer range or the unrolled window.
+    #[error("{what}")]
+    OutOfRange {
+        /// Which quantity left its range.
+        what: &'static str,
+    },
+    /// A variable lies outside the series schema.
+    #[error("variable {variable} is outside the series schema of {count} variables")]
+    VariableOutsideSchema {
+        /// Raw variable id.
+        variable: u32,
+        /// Number of schema variables.
+        count: u32,
+    },
+    /// An expression arena refused to build or simplify a functional.
+    #[error("{message}")]
+    Expression {
+        /// The expression layer's refusal text.
+        message: String,
+    },
+    /// A graph, template, or unfolding construction was refused.
+    #[error("{message}")]
+    Construction {
+        /// The constructing layer's refusal text.
+        message: String,
+    },
+    /// A hedge certificate does not carry the graph it is verified against.
+    #[error("hedge certificate carries no graph to verify against")]
+    MissingHedgeGraph,
+    /// A hedge certificate fails a hedge condition.
+    #[error("not a hedge: {what}")]
+    NotAHedge {
+        /// The failed condition.
+        what: String,
+    },
 }
 
 impl IdentificationError {
-    /// Ad-hoc message helper.
+    /// An integer-range or window-range failure.
     #[must_use]
-    pub fn msg(message: impl Into<String>) -> Self {
-        Self::Message(message.into())
+    pub const fn out_of_range(what: &'static str) -> Self {
+        Self::OutOfRange { what }
+    }
+
+    /// An expression-layer refusal.
+    #[must_use]
+    pub fn expression(error: impl std::fmt::Display) -> Self {
+        Self::Expression { message: error.to_string() }
+    }
+
+    /// A graph, template, or unfolding construction refusal.
+    #[must_use]
+    pub fn construction(error: impl std::fmt::Display) -> Self {
+        Self::Construction { message: error.to_string() }
     }
 
     /// Fixed unsupported query.
@@ -215,7 +272,15 @@ impl IdentificationError {
             | Self::ResultLimitExceeded { .. }
             | Self::InvariantViolated { .. }
             | Self::InvalidDerivation { .. }
-            | Self::Message(_) => TransportOutcomeKind::NotCertified,
+            | Self::ExpectedStaticNode
+            | Self::UnknownDenseNode { .. }
+            | Self::EmptyTreatmentSchedule
+            | Self::OutOfRange { .. }
+            | Self::VariableOutsideSchema { .. }
+            | Self::Expression { .. }
+            | Self::Construction { .. }
+            | Self::MissingHedgeGraph
+            | Self::NotAHedge { .. } => TransportOutcomeKind::NotCertified,
         }
     }
 }

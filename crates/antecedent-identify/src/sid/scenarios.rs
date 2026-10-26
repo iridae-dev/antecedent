@@ -80,7 +80,12 @@ use super::{
     identify_catalog_transport_metered, identify_classical_transport_metered,
 };
 
-/// Scenarios in one set.
+/// Scenarios in one set under the earlier fixed ceiling. Kept for callers that wish to
+/// bound a *supplied* list themselves through [`TransportScenarioSet::try_new_within`].
+#[deprecated(
+    since = "2.4.1",
+    note = "no longer enforced by try_new: the decision charges each scenario to its search budget"
+)]
 pub const SCENARIO_MAX_COUNT: usize = 64;
 /// Observed variables in each scenario graph under the earlier fixed ceiling.
 #[deprecated(
@@ -291,16 +296,15 @@ impl TransportScenarioSet {
     ///
     /// # Errors
     /// A [`ScenarioSetRefusal`]: `schema_mismatch` / `scenarios.coordinate_mismatch`
-    /// for disagreeing coordinates, `route_not_supported` for an exceeded bound,
+    /// for disagreeing coordinates, `route_not_supported` for an exceeded caller bound,
     /// and `invalid_argument` otherwise.
     pub fn try_new(scenarios: Vec<TransportScenario>) -> Result<Self, ScenarioSetRefusal> {
-        Self::try_new_within(scenarios, SCENARIO_MAX_COUNT)
+        Self::try_new_within(scenarios, usize::MAX)
     }
 
-    /// [`Self::try_new`] with the scenario count bounded by `max_scenarios` instead of
-    /// [`SCENARIO_MAX_COUNT`]. The 64-scenario bound limits a *supplied* list; a set derived
-    /// from an enumerated equivalence class is already bounded by the budget that charged
-    /// each completion's memory, so that route passes `usize::MAX`.
+    /// [`Self::try_new`] with the scenario count bounded by `max_scenarios`. `try_new`
+    /// applies no count bound: every scenario's decision is charged to the search budget,
+    /// which stops with a receipt of the scenarios left unevaluated.
     ///
     /// # Errors
     ///
@@ -776,9 +780,7 @@ pub fn decide_transport_scenarios(
 /// [`ScenarioOutcome::StructurallyUnidentified`] is never returned here.
 ///
 /// # Errors
-/// As [`decide_transport_scenarios`], plus the conditional route's bounds
-/// (`admg_transport.bounds_exceeded`: more than 6 observed variables, 3
-/// treatments or 3 conditioned variables) and query checks
+/// As [`decide_transport_scenarios`], plus the conditional route's query checks
 /// (`admg_transport.invalid_query`), refused for the whole set before any
 /// scenario is entered.
 pub fn decide_conditional_transport_scenarios(
@@ -1087,7 +1089,7 @@ mod tests {
     }
 
     #[test]
-    fn the_frozen_scenario_bound_admits_64_and_refuses_65() {
+    fn the_scenario_count_is_bounded_by_the_budget_not_a_constant() {
         // Six nodes give 64 distinct selection sets, one per scenario.
         let set = |count: usize| {
             TransportScenarioSet::try_new(
@@ -1100,9 +1102,10 @@ mod tests {
                     .collect(),
             )
         };
-        assert_eq!(SCENARIO_MAX_COUNT, 64);
-        assert_eq!(set(SCENARIO_MAX_COUNT).unwrap().scenarios().len(), 64);
-        assert_eq!(code(set(SCENARIO_MAX_COUNT + 1)), ("route_not_supported", "scenarios.count"));
+        assert_eq!(set(64).unwrap().scenarios().len(), 64);
+        // Six nodes give only 64 distinct selection sets, so a 65th scenario is refused as
+        // a duplicate, not as a count bound.
+        assert_eq!(code(set(65)), ("invalid_argument", "scenarios.duplicate_scenario"));
     }
 
     #[test]

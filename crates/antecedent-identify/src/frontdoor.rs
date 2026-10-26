@@ -23,10 +23,10 @@ use antecedent_expr::CausalExprArena;
 use antecedent_graph::{DSeparationWorkspace, Dag, DenseNodeId};
 
 use crate::backdoor::{
-    PreparedIdentificationGraph, dense_to_var, remove_nodes, remove_outgoing, remove_outgoing_set,
-    var_to_dense,
+    PreparedIdentificationGraph, remove_nodes, remove_outgoing, remove_outgoing_set,
 };
 use crate::error::IdentificationError;
+use crate::identification_run::IdentificationRun;
 use crate::identifier::IdentificationWorkspace;
 use crate::result::{
     DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
@@ -134,9 +134,9 @@ impl FrontDoorIdentifier {
         query: CausalQuery,
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
-        let dag = prepared.dag();
-        let t = var_to_dense(ate.treatment, dag)?;
-        let y = var_to_dense(ate.outcome, dag)?;
+        let run = IdentificationRun::open(prepared, ate, "frontdoor")?;
+        let dag = run.dag();
+        let (t, y) = (run.t, run.y);
 
         let mut candidates: Vec<Vec<DenseNodeId>> = Vec::new();
         let mut seen = std::collections::BTreeSet::<Vec<u32>>::new();
@@ -204,11 +204,7 @@ impl FrontDoorIdentifier {
             }
         }
 
-        let mut assumptions = AssumptionSet::new();
-        assumptions.push(crate::assumptions::causal_markov("frontdoor"));
-        for record in &prepared.declared_assumptions().entries {
-            assumptions.push(record.clone());
-        }
+        let assumptions = run.base_assumptions();
 
         let mut derivation = DerivationTrace::default();
         derivation.push(
@@ -236,19 +232,9 @@ impl FrontDoorIdentifier {
         let mut arena = CausalExprArena::new();
         let mut estimands = Vec::with_capacity(valid.len());
         for m in &valid {
-            let vars: Vec<VariableId> =
-                m.iter().map(|d| dense_to_var(*d, dag)).collect::<Result<_, _>>()?;
-            let (active, control) = match (&ate.active, &ate.control) {
-                (
-                    antecedent_core::Intervention::Set { value: active, .. },
-                    antecedent_core::Intervention::Set { value: control, .. },
-                ) => (active.clone(), control.clone()),
-                _ => {
-                    return Err(IdentificationError::UnsupportedQuery {
-                        message: "front-door ATE requires Set interventions",
-                    });
-                }
-            };
+            let vars: Vec<VariableId> = run.variables(m)?;
+            let (active, control) =
+                run.hard_set_levels("front-door ATE requires Set interventions")?;
             let functional =
                 arena.frontdoor_ate(ate.treatment, ate.outcome, &vars, active, control);
             estimands.push(IdentifiedEstimand::frontdoor("frontdoor", Arc::from(vars), functional));

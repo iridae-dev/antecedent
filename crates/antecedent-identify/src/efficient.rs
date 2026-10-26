@@ -31,10 +31,11 @@ use antecedent_expr::CausalExprArena;
 use antecedent_graph::{BitSet, Dag, DenseNodeId, GraphWorkspace};
 
 use crate::backdoor::{
-    AdjustmentProblem, AdjustmentSearchConfig, PreparedIdentificationGraph, dense_to_var,
-    is_backdoor_adjustment, screen_ancestor_candidates,
+    AdjustmentProblem, AdjustmentSearchConfig, PreparedIdentificationGraph, is_backdoor_adjustment,
+    screen_ancestor_candidates,
 };
 use crate::error::IdentificationError;
+use crate::identification_run::IdentificationRun;
 use crate::identifier::IdentificationWorkspace;
 use crate::result::{
     DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
@@ -143,7 +144,8 @@ impl EfficientBackdoorIdentifier {
         query: CausalQuery,
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
-        let dag = prepared.dag();
+        let run = IdentificationRun::open(prepared, ate, "backdoor.efficient")?;
+        let dag = run.dag();
         let context = crate::exact_search::context_or_default(self.config.context.as_ref());
         let mut search = crate::exact_search::ExactSearch::open(&context)?;
         if !search.hold(crate::exact_search::graph_bytes(dag.node_count()))? {
@@ -151,6 +153,7 @@ impl EfficientBackdoorIdentifier {
         }
         let problem = AdjustmentProblem::new(
             dag,
+            prepared.node_map(),
             ate.treatment,
             ate.outcome,
             &self.config,
@@ -160,8 +163,8 @@ impl EfficientBackdoorIdentifier {
         let y = problem.y;
         let forbidden = &problem.forbidden;
         let mutilated = &problem.mutilated;
-        let mut candidates = problem.candidates.clone();
-        candidates.retain(|id| !problem.exceeds_lag(*id));
+        let mut candidates: Vec<DenseNodeId> =
+            problem.candidates.iter().copied().filter(|id| !problem.exceeds_lag(*id)).collect();
 
         let mut examined = 0u64;
 
@@ -172,10 +175,8 @@ impl EfficientBackdoorIdentifier {
             && is_backdoor_adjustment(mutilated, t, y, &o_set, &mut workspace.dsep)?
         {
             return Self::finish(
-                ate,
+                &run,
                 query,
-                prepared,
-                dag,
                 &EfficientChoice {
                     chosen: &[o_set],
                     examined,
@@ -188,7 +189,6 @@ impl EfficientBackdoorIdentifier {
         // Fallback: minimum-cardinality search, sizes ascending, stopping at
         // the first size class that yields a valid set. Collection is capped
         // at `max_results`; hitting the cap truncates rather than errors.
-        let mut candidates: Vec<DenseNodeId> = candidates;
         let mut m = candidates.len();
         let cap = self.config.max_candidates;
         let max_results = self.config.max_results;
@@ -201,10 +201,7 @@ impl EfficientBackdoorIdentifier {
             screen_ancestor_candidates(dag, t, y, forbidden, &problem, true, &mut workspace.graph);
         examined += 1;
         if !is_backdoor_adjustment(mutilated, t, y, &constructive, &mut workspace.dsep)? {
-            let mut assumptions = default_assumptions();
-            for record in &prepared.declared_assumptions().entries {
-                assumptions.push(record.clone());
-            }
+            let assumptions = run.base_assumptions();
             let mut derivation = DerivationTrace::default();
             derivation.push(
                 "backdoor.efficient",
@@ -226,10 +223,8 @@ impl EfficientBackdoorIdentifier {
         }
         if !funded {
             return Self::finish(
-                ate,
+                &run,
                 query,
-                prepared,
-                dag,
                 &EfficientChoice {
                     chosen: &[constructive],
                     examined,
@@ -300,10 +295,8 @@ impl EfficientBackdoorIdentifier {
             // The budget stopped the search for a minimum-cardinality set, but the ancestral
             // set is already known valid: identifiability is decided, the choice is not.
             let mut result = Self::finish(
-                ate,
+                &run,
                 query,
-                prepared,
-                dag,
                 &EfficientChoice {
                     chosen: &[constructive],
                     examined,
@@ -326,54 +319,44 @@ impl EfficientBackdoorIdentifier {
             }
             b
         };
-        valid.sort_by(|a, b| {
-            let pa = a.iter().filter(|n| parent_set.contains(**n)).count();
-            let pb = b.iter().filter(|n| parent_set.contains(**n)).count();
-            a.len()
-                .cmp(&b.len())
-                .then_with(|| pb.cmp(&pa))
-                .then_with(|| {
-                    problem
-                        .total_cost(a)
-                        .partial_cmp(&problem.total_cost(b))
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                })
-                .then_with(|| {
-                    let mut aa: Vec<_> = a.iter().map(|n| n.as_usize()).collect();
-                    let mut bb: Vec<_> = b.iter().map(|n| n.as_usize()).collect();
-                    aa.sort_unstable();
-                    bb.sort_unstable();
-                    aa.cmp(&bb)
-                })
-        });
-        let best = vec![valid.into_iter().next().expect("non-empty")];
+        // Order: fewest nodes, then most parents of T, then lowest cost, then lexicographic
+        // ids. The keys are computed once per set; only the first-ranked set is reported, and
+        // `min_by` keeps the earliest of equal keys like the stable sort it replaces.
+        let keys: Vec<SetRank> = valid
+            .iter()
+            .map(|z| {
+                let mut ids: Vec<usize> = z.iter().map(|n| n.as_usize()).collect();
+                ids.sort_unstable();
+                SetRank {
+                    len: z.len(),
+                    parents_of_t: z.iter().filter(|n| parent_set.contains(**n)).count(),
+                    cost: problem.total_cost(z),
+                    ids,
+                }
+            })
+            .collect();
+        let Some(best_index) = (0..valid.len()).min_by(|&a, &b| keys[a].compare(&keys[b])) else {
+            return Err(IdentificationError::InvariantViolated {
+                message: "the ancestral set passed its separation test but no valid set was kept",
+            });
+        };
+        let best = vec![valid.swap_remove(best_index)];
         let choice =
             EfficientChoice { chosen: &best, examined, rule: "min_cardinality", truncated };
-        Self::finish(ate, query, prepared, dag, &choice)
+        Self::finish(&run, query, &choice)
     }
 
     fn finish(
-        ate: &AverageEffectQuery,
+        run: &IdentificationRun<'_>,
         query: CausalQuery,
-        prepared: &PreparedIdentificationGraph,
-        dag: &antecedent_graph::Dag,
         choice: &EfficientChoice<'_>,
     ) -> Result<IdentificationResult, IdentificationError> {
         let EfficientChoice { chosen, examined, rule, truncated } = *choice;
+        let ate = run.ate();
         let z = &chosen[0];
-        let vars: Vec<VariableId> =
-            z.iter().map(|d| dense_to_var(*d, dag)).collect::<Result<_, _>>()?;
-        let (active, control) = match (&ate.active, &ate.control) {
-            (
-                antecedent_core::Intervention::Set { value: active, .. },
-                antecedent_core::Intervention::Set { value: control, .. },
-            ) => (active.clone(), control.clone()),
-            _ => {
-                return Err(IdentificationError::UnsupportedQuery {
-                    message: "efficient backdoor ATE requires Set interventions",
-                });
-            }
-        };
+        let vars: Vec<VariableId> = run.variables(z)?;
+        let (active, control) =
+            run.hard_set_levels("efficient backdoor ATE requires Set interventions")?;
         let mut arena = CausalExprArena::new();
         let functional = arena.backdoor_ate(ate.treatment, ate.outcome, &vars, active, control);
         let mut derivation = DerivationTrace::default();
@@ -386,10 +369,7 @@ impl EfficientBackdoorIdentifier {
                 "enumeration truncated at max_results; smaller-cost sets may exist beyond the cap",
             );
         }
-        let mut assumptions = default_assumptions();
-        for record in &prepared.declared_assumptions().entries {
-            assumptions.push(record.clone());
-        }
+        let assumptions = run.base_assumptions();
         Ok(IdentificationResult::identified(
             query,
             vec![IdentifiedEstimand::backdoor("backdoor.efficient", Arc::from(vars), functional)],
@@ -401,21 +381,11 @@ impl EfficientBackdoorIdentifier {
     }
 }
 
-/// The O-set of Henckel, Perković & Maathuis (2022) (public for backdoor over-cap fallback).
-pub(crate) fn optimal_adjustment_set_pub(
-    dag: &Dag,
-    t: DenseNodeId,
-    y: DenseNodeId,
-    gws: &mut GraphWorkspace,
-) -> Vec<DenseNodeId> {
-    optimal_adjustment_set(dag, t, y, gws)
-}
-
 /// The O-set of Henckel, Perković & Maathuis (2022): `pa(cn) \ (de(cn) ∪ {T})`,
 /// where `cn = de(T) ∩ an(Y) \ {T}` are the nodes on proper causal paths from
 /// `T` to `Y` (including `Y` itself). In a fully observed DAG this is the
 /// valid backdoor set with the smallest asymptotic variance.
-fn optimal_adjustment_set(
+pub(crate) fn optimal_adjustment_set(
     dag: &Dag,
     t: DenseNodeId,
     y: DenseNodeId,
@@ -450,10 +420,23 @@ fn optimal_adjustment_set(
     o_set
 }
 
-fn default_assumptions() -> AssumptionSet {
-    let mut assumptions = AssumptionSet::new();
-    assumptions.push(crate::assumptions::causal_markov("backdoor.efficient"));
-    assumptions
+/// Sort key of one candidate set in the min-cardinality fallback.
+struct SetRank {
+    len: usize,
+    parents_of_t: usize,
+    cost: f64,
+    /// Ascending dense ids, the final tie-break.
+    ids: Vec<usize>,
+}
+
+impl SetRank {
+    fn compare(&self, other: &Self) -> std::cmp::Ordering {
+        self.len
+            .cmp(&other.len)
+            .then_with(|| other.parents_of_t.cmp(&self.parents_of_t))
+            .then_with(|| self.cost.total_cmp(&other.cost))
+            .then_with(|| self.ids.cmp(&other.ids))
+    }
 }
 
 #[cfg(test)]

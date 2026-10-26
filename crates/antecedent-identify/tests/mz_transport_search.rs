@@ -468,7 +468,7 @@ fn limits_above_the_declared_maxima_refuse_as_bounds_exceeded() {
 }
 
 #[test]
-fn controllable_bounds_refuse_as_bounds_exceeded_and_the_graph_size_is_not_capped() {
+fn neither_the_controllable_count_nor_the_graph_size_is_capped() {
     use antecedent_identify::validate_mz_transport_query;
     let exceeded = IdentificationError::UnsupportedInput { code: "mz_transport.bounds_exceeded" };
     let ctx = ExecutionContext::for_tests(1);
@@ -479,7 +479,7 @@ fn controllable_bounds_refuse_as_bounds_exceeded_and_the_graph_size_is_not_cappe
     }
     let q = query(vec![source_a(), source_b()]);
     assert!(validate_mz_transport_query(&large, &q, &catalog(vec![])).is_ok());
-    // Five controllables in one source.
+    // Five controllables in one source are admitted: the count has no ceiling.
     let mut wide = Admg::with_variables(6);
     for (a, b) in [(Z1, X), (X, Z2), (Z2, Y)] {
         wide.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
@@ -487,7 +487,7 @@ fn controllable_bounds_refuse_as_bounds_exceeded_and_the_graph_size_is_not_cappe
     let q = query(vec![source("a", &[0, 2, 3, 4, 5], &[]), source_b()]);
     let refused =
         decide_mz_transport(&wide, &q, &catalog(vec![]), MZ_TRANSPORT_DEFAULT_LIMITS, &ctx);
-    assert_eq!(refused.unwrap_err(), exceeded);
+    assert!(refused.as_ref().err() != Some(&exceeded), "{refused:?}");
 }
 
 /// The observable content of a decision, which must not depend on source order.
@@ -811,7 +811,7 @@ fn every_identification_detail_pairs_with_its_recorded_reason_code() {
         ("transport_budget_cancel", "mz_transport.budget")
     );
     // Errors the route does not own carry no pair.
-    assert_eq!(mz_transport_refusal(&IdentificationError::msg("other")), None);
+    assert_eq!(mz_transport_refusal(&IdentificationError::out_of_range("other")), None);
     // Every decision outcome carries its own frozen pair.
     for (decision, expected) in [
         (decide(&query(vec![source_a(), unhelpful()]), &full), "mz_transport.checked_obstruction"),

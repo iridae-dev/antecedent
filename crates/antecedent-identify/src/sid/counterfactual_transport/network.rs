@@ -29,7 +29,6 @@
 
 use std::collections::BTreeMap;
 
-use super::COUNTERFACTUAL_TRANSPORT_MAX_NODES;
 use super::CounterfactualTransportProblem as Problem;
 use crate::error::IdentificationError;
 
@@ -97,8 +96,8 @@ fn invariant(message: &'static str) -> IdentificationError {
 ///
 /// # Errors
 ///
-/// `counterfactual_transport.bounds_exceeded` when the kept network is larger
-/// than the contract's node bound, or an internal invariant violation.
+/// An internal invariant violation. The kept network has no node bound: the work that
+/// reads it is charged to the decision's search budget.
 pub(super) fn build_network(
     problem: &Problem,
     worlds: &[WorldIdx],
@@ -221,9 +220,6 @@ fn finalize(
                 }
             }
         }
-    }
-    if keep.iter().filter(|k| **k).count() > COUNTERFACTUAL_TRANSPORT_MAX_NODES {
-        return Err(IdentificationError::UnsupportedInput { code: super::BOUNDS_EXCEEDED });
     }
     let mut rank: Vec<Option<usize>> = vec![None; m];
     let mut ordered: Vec<NetNode> = Vec::new();

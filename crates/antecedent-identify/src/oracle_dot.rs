@@ -39,7 +39,7 @@ impl OracleGraph {
         let idx = self.names.iter().position(|n| n == name).unwrap_or_else(|| {
             panic!("oracle DOT has no observed node `{name}`; names={:?}", self.names)
         });
-        VariableId::from_raw(u32::try_from(idx).expect("node index fits u32"))
+        crate::node_map::variable_at(idx)
     }
 
     #[cfg(test)]
@@ -123,7 +123,7 @@ fn dense(names: &[String], name: &str) -> DenseNodeId {
         .iter()
         .position(|n| n == name)
         .unwrap_or_else(|| panic!("name `{name}` is not an observed oracle node; names={names:?}"));
-    DenseNodeId::from_index(idx)
+    crate::node_map::dense_at(idx)
 }
 
 /// Parse a latent-free oracle DOT into a DAG.

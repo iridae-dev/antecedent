@@ -6,37 +6,53 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::prepared::AncestorMemo;
-use crate::selection_separation::{
-    MutilatedSelection, SubsetSearchEnd, for_each_admissible_subset_preferring,
-    independently_separated,
-};
+
+use crate::selection_separation::{MutilatedSelection, SubsetSearchEnd, for_each_admissible_subset_preferring, independently_separated};
+
 use crate::{IdentificationBudget, IdentificationError, PreparedAdmg};
-use antecedent_core::{
-    ExecutionContext, SearchBudget, SearchLimits, SearchReceipt, SearchStop, VariableId,
-};
+
+use antecedent_core::{ExecutionContext, SearchBudget, SearchLimits, SearchReceipt, SearchStop, VariableId};
+
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
+
 use antecedent_graph::algo::components_by;
-use antecedent_graph::{
-    Admg, BitSet, DSeparationWorkspace, DenseNodeId, GraphWorkspace, SelectionDiagram,
-};
+
+use antecedent_graph::{Admg, BitSet, DSeparationWorkspace, DenseNodeId, GraphWorkspace, SelectionDiagram};
+
 use std::cell::RefCell;
+
 use std::collections::HashMap;
+
 use std::sync::Arc;
 
 mod conditional;
+
 mod conditional_witness;
+
 mod counterfactual_transport;
+
 pub mod cpdag_completion;
+
 mod meta;
+
 mod mixed_source;
+
 mod mz_transport;
+
 pub mod scenario_invariance;
+
 pub mod scenarios;
+
 mod static_nodes;
+
 mod study_planning;
+
 pub mod temporal_initial_shift;
+
 pub mod temporal_sequence;
+
 mod z_transport;
+
 pub use conditional::{
     ADMG_CONDITIONAL_DEFAULT_LIMITS, ADMG_CONDITIONAL_MAX_CONDITIONED,
     ADMG_CONDITIONAL_MAX_OBSERVED, ADMG_CONDITIONAL_MAX_TREATMENTS,
@@ -45,7 +61,9 @@ pub use conditional::{
     ConditionalTransportDerivation, ConditionalTransportInspection, ConditionalTransportQuery,
     ConditionalTransportRecord, admg_conditional_refusal, decide_admg_conditional_transport,
 };
+
 pub use conditional::{ConditionalNonTransportabilityProof, ConditionalNonTransportabilityRecord};
+
 pub use conditional_witness::{
     CONDITIONAL_WITNESS_MAX_LATENT_LEVELS, ConditionalWitnessCheck, ConditionalWitnessRecord,
     WITNESS_SEARCH_DEFAULT_OPERATIONS, WITNESS_VERIFY_DEFAULT_OPERATIONS,
@@ -54,6 +72,7 @@ pub use conditional_witness::{
     search_conditional_witness_within, verify_conditional_witness,
     verify_conditional_witness_within,
 };
+
 pub use counterfactual_transport::{
     COUNTERFACTUAL_TRANSPORT_CONTRACT, COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS,
     COUNTERFACTUAL_TRANSPORT_MAX_ATOMS, COUNTERFACTUAL_TRANSPORT_MAX_CELLS,
@@ -74,11 +93,14 @@ pub use counterfactual_transport::{
     counterfactual_transport_refusal, identify_counterfactual_transport,
     replay_counterfactual_transport, verify_counterfactual_transport_witness,
 };
+
 use meta::{CLASSICAL_SETTING, META_SETTING, validate_meta_sources};
+
 pub use meta::{
     MetaSource, MetaTransportQuery, identify_meta_catalog, identify_meta_transport,
     verify_meta_s_hedge, verify_meta_transport,
 };
+
 pub use mixed_source::{
     BoundMixedSourceFunctional, MIXED_SOURCE_DEFAULT_LIMITS, MIXED_SOURCE_MAX_DISTRIBUTIONS,
     MIXED_SOURCE_MAX_DO, MIXED_SOURCE_MAX_MOVE, MIXED_SOURCE_MAX_OBSERVED, MIXED_SOURCE_RULE_SET,
@@ -89,8 +111,10 @@ pub use mixed_source::{
     mixed_source_rule_names, render_quantity, validate_mixed_source_query,
     verify_mixed_source_derivation,
 };
+
 #[allow(deprecated, reason = "the retained released name stays reachable")]
 pub use mz_transport::MZ_TRANSPORT_MAX_OBSERVED;
+
 pub use mz_transport::{
     BoundMzTransportFunctional, MZ_TRANSPORT_DEFAULT_LIMITS, MZ_TRANSPORT_MAX_CANDIDATE_REGIMES,
     MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE, MZ_TRANSPORT_MAX_SOURCES, MZ_TRANSPORT_MEMORY_BYTES,
@@ -99,6 +123,7 @@ pub use mz_transport::{
     ValidatedMzTransportQuery, bind_mz_transport_catalog, decide_mz_transport,
     mz_transport_refusal, validate_mz_transport_query, verify_mz_transport_obstruction,
 };
+
 pub use study_planning::{
     STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES, STUDY_PLAN_MAX_PROPOSALS,
     STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE, STUDY_PLAN_MAX_SUBSET, STUDY_PLAN_MEMORY_BYTES,
@@ -107,6 +132,7 @@ pub use study_planning::{
     StudyProposalDerivation, StudyRepair, StudySubsetOutcome, StudySubsetRecord,
     plan_study_additions,
 };
+
 pub use z_transport::{
     BoundZTransportFunctional, ComponentFactorization, TwoSourceZTransportComponent,
     TwoSourceZTransportDecision, TwoSourceZTransportQuery, ZExperimentFamilyError,
@@ -135,6 +161,7 @@ pub struct ClassicalTransportQuery {
     /// Target population possessing its observational law.
     pub target: Arc<str>,
 }
+
 /// Search and verification limits, in addition to execution memory/cancellation.
 #[derive(Clone, Copy, Debug)]
 pub struct SidLimits {
@@ -146,11 +173,13 @@ pub struct SidLimits {
     /// Maximum recursion depth.
     pub depth: usize,
 }
+
 impl Default for SidLimits {
     fn default() -> Self {
         Self { steps: 100_000, depth: 256 }
     }
 }
+
 /// A checked successful classical derivation. Fields are private execution authority.
 #[derive(Clone, Debug)]
 pub struct ClassicalTransportDerivation {
@@ -163,6 +192,7 @@ pub struct ClassicalTransportDerivation {
     root_step: usize,
     sources: Vec<MetaSource>,
 }
+
 impl ClassicalTransportDerivation {
     /// Frozen theoretical evidence/query scope.
     #[must_use]
@@ -199,6 +229,7 @@ impl ClassicalTransportDerivation {
             .collect()
     }
 }
+
 /// Classical recursion result; an unchecked obstruction is explicitly inconclusive.
 #[derive(Clone, Debug)]
 pub enum ClassicalTransportResult {
@@ -227,6 +258,7 @@ impl ClassicalTransportResult {
         }
     }
 }
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[allow(
     missing_docs,
@@ -247,6 +279,7 @@ pub enum Rule {
     DirectTransport,
     Standardize,
 }
+
 impl Rule {
     fn name(self) -> &'static str {
         match self {
@@ -262,6 +295,7 @@ impl Rule {
         }
     }
 }
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct State {
     y: BitSet,
@@ -269,6 +303,7 @@ struct State {
     v: BitSet,
     kernel: ExprId,
 }
+
 #[derive(Clone, Debug)]
 struct ProofStep {
     state: State,
@@ -478,110 +513,6 @@ pub(crate) fn identify_classical_transport_metered(
     Ok(ClassicalTransportResult::Identified(Box::new(derivation)))
 }
 
-impl Engine<'_> {
-    /// The verified derivation rooted at `root_step`: the reachable proof steps
-    /// with the engine's arena, exported for the sources the search declared.
-    /// Every identifier builds its positive result through this one path.
-    pub(crate) fn solved_derivation(
-        &mut self,
-        root_step: usize,
-        sources: Vec<MetaSource>,
-    ) -> Result<ClassicalTransportDerivation, IdentificationError> {
-        let (proof, root_step) = reachable_proof(&self.proof, root_step);
-        let derivation = ClassicalTransportDerivation {
-            query: self.query.clone(),
-            graph_signature: graph_signature(self.diagram),
-            selection_targets: Arc::from(self.diagram.selection_targets()),
-            root: proof[root_step].output,
-            arena: self.arena.clone(),
-            proof,
-            root_step,
-            sources,
-        };
-        self.verify(&derivation)?;
-        Ok(derivation)
-    }
-
-    /// Replay `derivation`'s checker against this engine's meter: its own
-    /// limits (unchanged legacy accounting), or the shared budget, charged at
-    /// this engine's depth on top of its live bytes.
-    pub(crate) fn verify(
-        &mut self,
-        derivation: &ClassicalTransportDerivation,
-    ) -> Result<(), IdentificationError> {
-        let (diagram, query, ctx, limits) = (self.diagram, self.query, self.ctx, self.limits);
-        let (offset, bytes) = (self.depth_offset, self.live_bytes());
-        match self.shared.as_deref_mut() {
-            Some(shared) => verify_charged(
-                diagram,
-                query,
-                derivation,
-                SidMeter::Shared(shared),
-                (offset, bytes),
-                ctx,
-            ),
-            None => verify_classical_transport(diagram, query, derivation, limits, ctx),
-        }
-    }
-}
-
-/// The proof steps reachable from `root_step`, in their original order, with
-/// child indexes remapped. Steps a cleared memo left behind are not exported.
-fn reachable_proof(proof: &[ProofStep], root_step: usize) -> (Vec<ProofStep>, usize) {
-    let mut used = vec![false; proof.len()];
-    let mut pending = vec![root_step];
-    while let Some(step) = pending.pop() {
-        if step >= used.len() || used[step] {
-            continue;
-        }
-        used[step] = true;
-        pending.extend(proof[step].children.iter().copied());
-    }
-    let mut remap = vec![usize::MAX; proof.len()];
-    let mut compact = Vec::new();
-    for (index, step) in proof.iter().enumerate() {
-        if used[index] {
-            remap[index] = compact.len();
-            let mut step = step.clone();
-            step.children = step.children.iter().map(|child| remap[*child]).collect();
-            compact.push(step);
-        }
-    }
-    (compact, remap[root_step])
-}
-
-/// Whether the two leaves of a standardization over `over` bind in `catalog`:
-/// the source conditional `P^s(y | over, do(x))` and the target law `P*(over)`.
-fn standardization_binds(
-    catalog: &antecedent_core::EvidenceCatalog,
-    query: &ClassicalTransportQuery,
-    outcomes: &[VariableId],
-    treatments: &[VariableId],
-    over: &[VariableId],
-) -> bool {
-    let source = antecedent_core::FactorNeed {
-        population: &query.source,
-        variables: outcomes,
-        conditioned_on: over,
-        interventions: treatments,
-    };
-    if catalog.satisfying_regime(&source).is_none() {
-        return false;
-    }
-    over.is_empty()
-        || (catalog
-            .target_sampling
-            .is_none_or(antecedent_core::TargetSampling::represents_target_law)
-            && catalog
-                .satisfying_regime(&antecedent_core::FactorNeed {
-                    population: &query.target,
-                    variables: over,
-                    conditioned_on: &[],
-                    interventions: &[],
-                })
-                .is_some())
-}
-
 struct Engine<'a> {
     diagram: &'a SelectionDiagram,
     query: &'a ClassicalTransportQuery,
@@ -616,947 +547,6 @@ struct Engine<'a> {
     obstruction: Option<State>,
     source_catalog: Option<&'a antecedent_core::EvidenceCatalog>,
     sources: Vec<MetaSource>,
-}
-impl<'a> Engine<'a> {
-    fn new(
-        diagram: &'a SelectionDiagram,
-        query: &'a ClassicalTransportQuery,
-        limits: SidLimits,
-        ctx: &'a ExecutionContext,
-    ) -> Result<Self, IdentificationError> {
-        Self::new_metered(diagram, query, SidMeter::Limits(limits), ctx)
-    }
-    /// An engine charging `meter`: its own [`SidLimits`], or a shared budget
-    /// that every engine of one decision charges.
-    fn new_metered<'m: 'a>(
-        diagram: &'a SelectionDiagram,
-        query: &'a ClassicalTransportQuery,
-        meter: SidMeter<'m>,
-        ctx: &'a ExecutionContext,
-    ) -> Result<Self, IdentificationError> {
-        let limits = meter.limits();
-        let shared = match meter {
-            SidMeter::Limits(_) => None,
-            SidMeter::Shared(shared) => Some(shared as &'a mut (dyn SearchCharge + 'a)),
-        };
-        check_sid_memory(diagram, 1, ctx)?;
-        let prepared = PreparedAdmg::new(diagram.causal_graph().clone())?;
-        if query.outcomes.is_empty()
-            || query.source.is_empty()
-            || query.target.is_empty()
-            || query.source == query.target
-        {
-            return Err(IdentificationError::invalid_input(
-                "transport.invalid_query: invalid classical transport query",
-            ));
-        }
-        for variables in [&query.outcomes, &query.treatments] {
-            for (i, v) in variables.iter().enumerate() {
-                prepared.var_to_dense(*v)?;
-                if variables[..i].contains(v) {
-                    return Err(IdentificationError::invalid_input(
-                        "transport.invalid_query: duplicate classical query coordinate",
-                    ));
-                }
-            }
-        }
-        if query.outcomes.iter().any(|v| query.treatments.contains(v)) {
-            return Err(IdentificationError::invalid_input(
-                "transport.invalid_query: outcomes overlap interventions",
-            ));
-        }
-        let topo: Arc<[DenseNodeId]> = Arc::from(prepared.topo());
-        let mut all = BitSet::with_len(diagram.causal_graph().node_count());
-        for node in topo.iter() {
-            all.insert(*node);
-        }
-        Ok(Self {
-            diagram,
-            query,
-            prepared,
-            ancestors: AncestorMemo::default(),
-            topo,
-            all,
-            arena: CausalExprArena::new(),
-            proof: Vec::new(),
-            memo: HashMap::new(),
-            limits,
-            shared,
-            depth_offset: 0,
-            base_bytes: 0,
-            ctx,
-            steps: 0,
-            max_depth: 0,
-            cross_source_joint: false,
-            obstruction: None,
-            source_catalog: None,
-            sources: Vec::new(),
-        })
-    }
-    fn cached_ancestors(
-        &mut self,
-        seeds: &BitSet,
-        active: &BitSet,
-        ws: &mut GraphWorkspace,
-    ) -> BitSet {
-        self.prepared.ancestors_cached(seeds, active, ws, &mut self.ancestors)
-    }
-    fn charge(&mut self, depth: usize) -> Result<(), IdentificationError> {
-        self.steps = self.steps.saturating_add(1);
-        self.max_depth = self.max_depth.max(depth);
-        // Under a shared budget the operation, depth, memory and cancellation
-        // bounds are the budget's, with its `depth > limit` semantics, and the
-        // bytes are this engine's live state on top of its enclosing engines'.
-        let (bytes, at) = (self.live_bytes(), self.depth_offset.saturating_add(depth));
-        if let Some(shared) = self.shared.as_deref_mut() {
-            return shared.charge(at, bytes).map_err(stop_error);
-        }
-        if self.ctx.cancellation.is_cancelled() {
-            return Err(IdentificationError::Cancelled);
-        }
-        if self.steps > self.limits.steps || depth >= self.limits.depth {
-            return Err(IdentificationError::budget(IdentificationBudget::Steps));
-        }
-        check_sid_memory(self.diagram, self.steps, self.ctx)?;
-        Ok(())
-    }
-    /// Charge one operation at `depth` when this engine runs under a shared
-    /// budget; an engine on its own [`SidLimits`] keeps its unchanged accounting.
-    fn charge_shared(&mut self, depth: usize) -> Result<(), IdentificationError> {
-        if self.shared.is_some() { self.charge(depth) } else { Ok(()) }
-    }
-    /// Estimated live bytes of this engine and the engines it runs inside.
-    fn live_bytes(&self) -> u64 {
-        let own = u64::try_from(sid_memory_bytes(self.diagram, self.steps)).unwrap_or(u64::MAX);
-        self.base_bytes.saturating_add(own)
-    }
-    /// Record a region a stop left unevaluated with the shared budget, if any.
-    fn defer(&mut self, region: impl FnOnce() -> String) {
-        if let Some(shared) = self.shared.as_deref_mut() {
-            shared.defer(region());
-        }
-    }
-    /// The meter a nested engine rooted at `depth` of this one charges: the
-    /// same shared budget, or limits reduced by what this engine consumed.
-    fn nested_meter(&mut self, depth: usize) -> (SidMeter<'_>, usize, u64) {
-        let (offset, bytes) = (self.depth_offset.saturating_add(depth), self.live_bytes());
-        let meter = match self.shared.as_deref_mut() {
-            Some(shared) => SidMeter::Shared(shared),
-            None => SidMeter::Limits(SidLimits {
-                steps: self.limits.steps.saturating_sub(self.steps).max(1),
-                depth: self.limits.depth.saturating_sub(depth).max(1),
-            }),
-        };
-        (meter, offset, bytes)
-    }
-    fn set(&self, variables: &[VariableId]) -> Result<BitSet, IdentificationError> {
-        let mut set = BitSet::with_len(self.diagram.causal_graph().node_count());
-        for v in variables {
-            set.insert(self.prepared.var_to_dense(*v)?);
-        }
-        Ok(set)
-    }
-    fn vars(&self, set: &BitSet) -> Result<Vec<VariableId>, IdentificationError> {
-        set.iter().map(|v| self.prepared.dense_to_var(v)).collect()
-    }
-    fn initial(&mut self) -> Result<State, IdentificationError> {
-        let mut v = BitSet::with_len(self.diagram.causal_graph().node_count());
-        for d in self.prepared.topo() {
-            v.insert(*d);
-        }
-        let variables = self.arena.intern_var_set(self.vars(&v)?);
-        let conditioned_on = self.arena.empty_var_set();
-        let intervention = self.arena.intern_intervention_set([]);
-        let population = self.arena.intern_population(self.query.target.clone());
-        let kernel = self.arena.intern(ExprNode::Distribution {
-            variables,
-            conditioned_on,
-            intervention,
-            domain: DomainRef::Observational,
-            population,
-            regime: None,
-        });
-        Ok(State {
-            y: self.set(&self.query.outcomes)?,
-            x: self.set(&self.query.treatments)?,
-            v,
-            kernel,
-        })
-    }
-    /// Initial state whose kernel is a source law under the concrete or
-    /// symbolic interventions `assignments`, over every node of the diagram.
-    /// The z-transport exchange identifies a source c-factor from it.
-    pub(super) fn initial_source_kernel(
-        &mut self,
-        population: &Arc<str>,
-        assignments: &[antecedent_expr::InterventionAssignment],
-    ) -> Result<State, IdentificationError> {
-        let mut v = BitSet::with_len(self.diagram.causal_graph().node_count());
-        for d in self.prepared.topo() {
-            v.insert(*d);
-        }
-        let variables = self.arena.intern_var_set(self.vars(&v)?);
-        let conditioned_on = self.arena.empty_var_set();
-        let intervention = crate::intervention_support::intern_assignments(
-            &mut self.arena,
-            assignments.iter().cloned(),
-        )?;
-        let population = self.arena.intern_population(Arc::clone(population));
-        let kernel = self.arena.intern(ExprNode::Distribution {
-            variables,
-            conditioned_on,
-            intervention,
-            domain: DomainRef::Interventional,
-            population,
-            regime: None,
-        });
-        Ok(State {
-            y: self.set(&self.query.outcomes)?,
-            x: self.set(&self.query.treatments)?,
-            v,
-            kernel,
-        })
-    }
-    /// Rule names of the proof steps reachable from `root_step`, in step order.
-    pub(super) fn reachable_rules(&self, root_step: usize) -> Vec<&'static str> {
-        let mut used = vec![false; self.proof.len()];
-        let mut pending = vec![root_step];
-        while let Some(step) = pending.pop() {
-            if step >= used.len() || used[step] {
-                continue;
-            }
-            used[step] = true;
-            pending.extend(self.proof[step].children.iter().copied());
-        }
-        self.proof
-            .iter()
-            .enumerate()
-            .filter(|(index, _)| used[*index])
-            .map(|(_, step)| step.rule.name())
-            .collect()
-    }
-    fn marginal(
-        &mut self,
-        expression: ExprId,
-        remove: &BitSet,
-    ) -> Result<ExprId, IdentificationError> {
-        if !remove.any() {
-            return Ok(expression);
-        }
-        let variables = self.arena.intern_var_set(self.vars(remove)?);
-        Ok(self.arena.intern(ExprNode::SumOut { variables, expr: expression }))
-    }
-    fn product(&mut self, expressions: Vec<ExprId>) -> ExprId {
-        let list = self.arena.intern_list(expressions);
-        self.arena.intern(ExprNode::Product(list))
-    }
-    fn factor(&mut self, state: &State, district: &BitSet) -> Result<ExprId, IdentificationError> {
-        let mut suffix = state.v.clone();
-        let mut factors = Vec::new();
-        let topological_order = Arc::clone(&self.topo);
-        for v in topological_order.iter().copied() {
-            if !state.v.contains(v) {
-                continue;
-            }
-            suffix.remove(v);
-            if district.contains(v) {
-                // P(v | predecessors) = N / Σ_v N. The denominator literally
-                // marginalizes the numerator, which is what lets the exact
-                // evaluator treat a null-event conditional as a bounded
-                // extension rather than an undefined 0/0.
-                let numerator = self.marginal(state.kernel, &suffix)?;
-                let mut summed = BitSet::with_len(self.diagram.causal_graph().node_count());
-                summed.insert(v);
-                let denominator = self.marginal(numerator, &summed)?;
-                factors.push(self.arena.intern(ExprNode::Ratio { numerator, denominator }));
-            }
-        }
-        Ok(self.product(factors))
-    }
-    /// Line 3 result. Rule 3 makes the child functional constant in `w`, so any
-    /// normalized weight over `w` returns it without leaving a free parameter.
-    /// The weight is `P(w | x)` from the carried kernel: it is zero exactly where
-    /// the child is a conditional on a null event, so the answer never requires
-    /// the child to be defined at a level of `w` that the data cannot reach
-    /// under the intervention values being asked about.
-    fn enlarge_output(
-        &mut self,
-        state: &State,
-        w: &BitSet,
-        child: ExprId,
-    ) -> Result<ExprId, IdentificationError> {
-        let joint = self.marginal(state.kernel, &difference(&difference(&state.v, &state.x), w))?;
-        let denominator = self.marginal(joint, w)?;
-        let weight = self.arena.intern(ExprNode::Ratio { numerator: joint, denominator });
-        let product = self.product(vec![child, weight]);
-        self.marginal(product, w)
-    }
-    fn source(&mut self, state: &State) -> Result<ExprId, IdentificationError> {
-        let population = self.query.source.clone();
-        self.source_from(state, population)
-    }
-    fn source_from(
-        &mut self,
-        state: &State,
-        population: Arc<str>,
-    ) -> Result<ExprId, IdentificationError> {
-        // A district kernel fixes its external parents. Nonparents in the
-        // original complement cannot affect it after those parents are fixed;
-        // retaining them would demand irrelevant experimental coordinates.
-        let mut interventions = state.x.clone();
-        for node in state.v.iter() {
-            for parent in self.diagram.causal_graph().parents(node) {
-                if !state.v.contains(*parent) {
-                    interventions.insert(*parent);
-                }
-            }
-        }
-        if !self.sources.is_empty() {
-            let mut ws = GraphWorkspace::default();
-            let relevant =
-                self.prepared.ancestors_bar_x(&state.y, &self.all, &interventions, &mut ws);
-            interventions.intersect_with(&relevant);
-        }
-        let variables = self.arena.intern_var_set(self.vars(&state.y)?);
-        let domain =
-            if interventions.any() { DomainRef::Interventional } else { DomainRef::Observational };
-        let intervention = self.arena.intern_intervention_set(self.vars(&interventions)?);
-        let conditioned_on = self.arena.empty_var_set();
-        let population = self.arena.intern_population(population);
-        Ok(self.arena.intern(ExprNode::Distribution {
-            variables,
-            intervention,
-            conditioned_on,
-            domain,
-            population,
-            regime: None,
-        }))
-    }
-    fn source_admissible(&self, state: &State) -> Result<bool, IdentificationError> {
-        self.source_admissible_given(state, &[])
-    }
-    fn source_admissible_given(
-        &self,
-        state: &State,
-        given: &[VariableId],
-    ) -> Result<bool, IdentificationError> {
-        self.admissible_selections(state, given, self.diagram.selection_targets())
-    }
-    fn admissible_selections(
-        &self,
-        state: &State,
-        given: &[VariableId],
-        selections: &[VariableId],
-    ) -> Result<bool, IdentificationError> {
-        let targets = self.dense_all(selections)?;
-        let selection =
-            MutilatedSelection::build(self.diagram.causal_graph(), &state.v, &state.x, &targets)?;
-        let mut conditions = state.x.to_dense_ids();
-        conditions.extend(self.dense_all(given)?);
-        selection.separates(
-            &state.y.to_dense_ids(),
-            &conditions,
-            &mut DSeparationWorkspace::default(),
-        )
-    }
-    /// Second implementation of [`Self::admissible_selections`] for the checker:
-    /// it builds no graph and calls no m-separation, so a defect in the search's
-    /// separation code cannot also pass verification.
-    fn independently_admissible(
-        &self,
-        state: &State,
-        given: &[VariableId],
-        selections: &[VariableId],
-    ) -> Result<bool, IdentificationError> {
-        Ok(independently_separated(
-            self.diagram.causal_graph(),
-            &state.v,
-            &state.x,
-            &self.dense_all(selections)?,
-            &state.y.to_dense_ids(),
-            &self.dense_all(given)?,
-        ))
-    }
-    fn dense_all(&self, variables: &[VariableId]) -> Result<Vec<DenseNodeId>, IdentificationError> {
-        variables.iter().map(|v| self.prepared.var_to_dense(*v)).collect()
-    }
-    /// The standardization formula over `over`, when `over` is a valid
-    /// pretreatment set. `admissible_known` skips the separation test a caller
-    /// has already run for exactly this subset.
-    fn standardized(
-        &mut self,
-        state: &State,
-        over: &[VariableId],
-        admissible_known: bool,
-    ) -> Result<Option<ExprId>, IdentificationError> {
-        let mut ws = GraphWorkspace::default();
-        let x_nodes = state.x.to_dense_ids();
-        for (i, z) in over.iter().enumerate() {
-            let dense = self.prepared.var_to_dense(*z)?;
-            if over[..i].contains(z)
-                || state.y.contains(dense)
-                || state.x.contains(dense)
-                || x_nodes
-                    .iter()
-                    .any(|x| self.diagram.causal_graph().reaches_with(*x, dense, &mut ws))
-            {
-                return Ok(None);
-            }
-        }
-        if !admissible_known && !self.source_admissible_given(state, over)? {
-            return Ok(None);
-        }
-        let variables = self.arena.intern_var_set(self.vars(&state.y)?);
-        let conditioned_on = self.arena.intern_var_set(over.iter().copied());
-        let intervention = self.arena.intern_intervention_set(self.vars(&state.x)?);
-        let population = self.arena.intern_population(self.query.source.clone());
-        let source = self.arena.intern(ExprNode::Distribution {
-            variables,
-            conditioned_on,
-            intervention,
-            domain: if state.x.any() {
-                DomainRef::Interventional
-            } else {
-                DomainRef::Observational
-            },
-            population,
-            regime: None,
-        });
-        if over.is_empty() {
-            return Ok(Some(source));
-        }
-        let variables = conditioned_on;
-        let conditioned_on = self.arena.empty_var_set();
-        let intervention = self.arena.intern_intervention_set([]);
-        let population = self.arena.intern_population(self.query.target.clone());
-        let target = self.arena.intern(ExprNode::Distribution {
-            variables,
-            conditioned_on,
-            intervention,
-            domain: DomainRef::Observational,
-            population,
-            regime: None,
-        });
-        let list = self.arena.intern_list([source, target]);
-        let expr = self.arena.intern(ExprNode::Product(list));
-        Ok(Some(self.arena.intern(ExprNode::SumOut { variables, expr })))
-    }
-    fn record(&mut self, state: State, rule: Rule, children: Vec<usize>, output: ExprId) -> usize {
-        let index = self.proof.len();
-        self.proof.push(ProofStep { state, rule, children, output, parameters: Vec::new() });
-        index
-    }
-    fn available_source(&mut self, state: &State) -> Result<Option<ExprId>, IdentificationError> {
-        let sources = if self.sources.is_empty() {
-            vec![MetaSource {
-                population: self.query.source.to_string(),
-                selections: self.diagram.selection_targets().iter().map(|v| v.raw()).collect(),
-            }]
-        } else {
-            self.sources.clone()
-        };
-        for source in sources {
-            self.charge(0)?;
-            let selections: Vec<_> =
-                source.selections.iter().copied().map(VariableId::from_raw).collect();
-            if self.admissible_selections(state, &[], &selections)? {
-                let output = self.source_from(state, Arc::from(source.population))?;
-                if self.source_catalog.is_none_or(|catalog| {
-                    bind_distribution(output, &self.arena, catalog, &self.query.target).is_ok()
-                }) {
-                    return Ok(Some(output));
-                }
-            }
-        }
-        Ok(None)
-    }
-    fn solve(
-        &mut self,
-        state: State,
-        source: bool,
-        depth: usize,
-    ) -> Result<Option<usize>, IdentificationError> {
-        self.charge(depth)?;
-        if let Some(hit) = self.memo.get(&(state.clone(), source)) {
-            return Ok(*hit);
-        }
-        if source && self.source_catalog.is_some() {
-            if let Some(output) = self.available_source(&state)? {
-                let step = self.record(state.clone(), Rule::DirectTransport, Vec::new(), output);
-                self.memo.insert((state, source), Some(step));
-                return Ok(Some(step));
-            }
-        }
-        let result = self.solve_body(&state, source, depth)?;
-        self.memo.insert((state, source), result);
-        Ok(result)
-    }
-    #[allow(clippy::if_not_else, reason = "Keep the pinned pseudocode branch order")]
-    #[allow(
-        clippy::too_many_lines,
-        reason = "One match implementing the pinned recursive algorithm"
-    )]
-    fn solve_body(
-        &mut self,
-        state: &State,
-        source: bool,
-        depth: usize,
-    ) -> Result<Option<usize>, IdentificationError> {
-        let mut ws = GraphWorkspace::default();
-        let (rule, children, output) = if !state.x.any() {
-            (Rule::Marginal, vec![], self.marginal(state.kernel, &difference(&state.v, &state.y))?)
-        } else {
-            let ancestors = self.cached_ancestors(&state.y, &state.v, &mut ws);
-            let mut non_x = difference(&state.v, &state.x);
-            let bar = self.prepared.ancestors_bar_x(&state.y, &state.v, &state.x, &mut ws);
-            non_x.difference_with(&bar);
-            if !ancestors.equal_set(&state.v) {
-                let next = State {
-                    y: state.y.clone(),
-                    x: intersection(&state.x, &ancestors),
-                    v: ancestors.clone(),
-                    kernel: self.marginal(state.kernel, &difference(&state.v, &ancestors))?,
-                };
-                let Some(child) = self.solve(next, source, depth + 1)? else {
-                    return Ok(None);
-                };
-                (Rule::Ancestors, vec![child], self.proof[child].output)
-            } else if non_x.any() {
-                let mut next = state.clone();
-                next.x.union_with(&non_x);
-                // Direct transport needs no enlargement: it answers the query
-                // as posed, without demanding experiments or laws at every
-                // level of the irrelevant variables.
-                if source {
-                    if let Some(output) = self.available_source(state)? {
-                        return Ok(Some(self.record(
-                            state.clone(),
-                            Rule::DirectTransport,
-                            vec![],
-                            output,
-                        )));
-                    }
-                }
-                let Some(child) = self.solve(next, source, depth + 1)? else {
-                    return Ok(None);
-                };
-                let output = self.enlarge_output(state, &non_x, self.proof[child].output)?;
-                (Rule::Enlarge, vec![child], output)
-            } else {
-                let districts = self.prepared.c_components(&difference(&state.v, &state.x));
-                if districts.len() > 1 {
-                    let mut children = Vec::new();
-                    for district in districts {
-                        let next = State {
-                            y: district.clone(),
-                            x: difference(&state.v, &district),
-                            ..state.clone()
-                        };
-                        let Some(child) = self.solve(next, source, depth + 1)? else {
-                            return Ok(None);
-                        };
-                        children.push(child);
-                    }
-                    let product =
-                        self.product(children.iter().map(|i| self.proof[*i].output).collect());
-                    let output = self.marginal(
-                        product,
-                        &difference(&difference(&state.v, &state.x), &state.y),
-                    )?;
-                    (Rule::Districts, children, output)
-                } else {
-                    let district =
-                        districts.first().ok_or(IdentificationError::InvariantViolated {
-                            message: "empty sID district",
-                        })?;
-                    if source && !self.sources.is_empty() {
-                        if let Some(output) = self.available_source(state)? {
-                            return Ok(Some(self.record(
-                                state.clone(),
-                                Rule::DirectTransport,
-                                vec![],
-                                output,
-                            )));
-                        }
-                    }
-                    let containing = self.prepared.c_components(&state.v);
-                    if containing.len() == 1 {
-                        if !source || !self.sources.is_empty() || !self.source_admissible(state)? {
-                            if source {
-                                self.obstruction = Some(state.clone());
-                            }
-                            return Ok(None);
-                        }
-                        (Rule::Source, vec![], self.source(state)?)
-                    } else if containing.iter().any(|d| d.equal_set(district)) {
-                        let kernel = self.factor(state, district)?;
-                        (
-                            Rule::Factor,
-                            vec![],
-                            self.marginal(kernel, &difference(district, &state.y))?,
-                        )
-                    } else {
-                        let larger = containing.iter().find(|d| district.is_subset_of(d)).ok_or(
-                            IdentificationError::InvariantViolated {
-                                message: "missing containing district",
-                            },
-                        )?;
-                        let next = State {
-                            y: state.y.clone(),
-                            x: intersection(&state.x, larger),
-                            v: larger.clone(),
-                            kernel: self.factor(state, larger)?,
-                        };
-                        let Some(child) = self.solve(next, source, depth + 1)? else {
-                            return Ok(None);
-                        };
-                        (Rule::Recurse, vec![child], self.proof[child].output)
-                    }
-                }
-            }
-        };
-        Ok(Some(self.record(state.clone(), rule, children, output)))
-    }
-}
-fn difference(a: &BitSet, b: &BitSet) -> BitSet {
-    let mut c = a.clone();
-    c.difference_with(b);
-    c
-}
-fn intersection(a: &BitSet, b: &BitSet) -> BitSet {
-    let mut c = a.clone();
-    c.intersect_with(b);
-    c
-}
-
-/// Verify recorded local premises and expression transformations without rerunning sID.
-///
-/// # Errors
-/// A changed query, graph premise, child state, expression, or exceeded budget.
-pub fn verify_classical_transport(
-    diagram: &SelectionDiagram,
-    query: &ClassicalTransportQuery,
-    derivation: &ClassicalTransportDerivation,
-    limits: SidLimits,
-    ctx: &ExecutionContext,
-) -> Result<(), IdentificationError> {
-    verify_charged(diagram, query, derivation, SidMeter::Limits(limits), (0, 0), ctx)
-}
-
-/// [`verify_classical_transport`] charging `meter`, with the checker rooted at
-/// `(depth offset, live bytes)` of the search it verifies for.
-#[allow(
-    clippy::too_many_lines,
-    reason = "One auditable premise dispatch for the seven pinned rules"
-)]
-fn verify_charged(
-    diagram: &SelectionDiagram,
-    query: &ClassicalTransportQuery,
-    derivation: &ClassicalTransportDerivation,
-    meter: SidMeter<'_>,
-    (depth_offset, base_bytes): (usize, u64),
-    ctx: &ExecutionContext,
-) -> Result<(), IdentificationError> {
-    let limits = meter.limits();
-    let bad = || IdentificationError::invalid_derivation("transport.invalid_derivation");
-    let mut recorded_selections = derivation.selection_targets.to_vec();
-    recorded_selections.sort_unstable();
-    let mut input_selections = diagram.selection_targets().to_vec();
-    input_selections.sort_unstable();
-    if recorded_selections != input_selections {
-        return Err(bad());
-    }
-    if &derivation.query != query
-        || derivation.graph_signature != graph_signature(diagram)
-        || derivation.root_step >= derivation.proof.len()
-    {
-        return Err(bad());
-    }
-    meta::check_meta_resources(diagram.causal_graph(), &derivation.sources, limits.steps, ctx)?;
-    validate_meta_sources(diagram.causal_graph(), query, &derivation.sources)?;
-    if let Some(first) = derivation.sources.first() {
-        let mut selections: Vec<_> = diagram.selection_targets().iter().map(|v| v.raw()).collect();
-        selections.sort_unstable();
-        if first.selections != selections {
-            return Err(bad());
-        }
-    }
-    let mut checker = Engine::new_metered(diagram, query, meter, ctx)?;
-    checker.depth_offset = depth_offset;
-    checker.base_bytes = base_bytes;
-    checker.sources.clone_from(&derivation.sources);
-    checker.arena = derivation.arena.clone();
-    let initial = checker.initial()?;
-    let root_step = &derivation.proof[derivation.root_step];
-    if root_step.state != initial || root_step.output != derivation.root {
-        return Err(bad());
-    }
-    let mut depths = Vec::<usize>::new();
-    for (index, step) in derivation.proof.iter().enumerate() {
-        if step.children.iter().any(|i| *i >= index) {
-            return Err(bad());
-        }
-        let depth = step.children.iter().map(|i| depths[*i]).max().unwrap_or(0) + 1;
-        checker.charge(depth)?;
-        depths.push(depth);
-        let state = &step.state;
-        if state.v.bit_len() != initial.v.bit_len()
-            || state.x.bit_len() != initial.v.bit_len()
-            || state.y.bit_len() != initial.v.bit_len()
-            || !state.y.is_subset_of(&state.v)
-            || !state.x.is_subset_of(&state.v)
-            || intersection(&state.x, &state.y).any()
-            || state.kernel.raw() as usize >= checker.arena.len()
-            || step.output.raw() as usize >= checker.arena.len()
-        {
-            return Err(bad());
-        }
-        let children = step.children.iter().map(|i| &derivation.proof[*i]).collect::<Vec<_>>();
-        let mut ws = GraphWorkspace::default();
-        if step.rule != Rule::Standardize && !step.parameters.is_empty() {
-            return Err(bad());
-        }
-        let expected = match step.rule {
-            Rule::Standardize => {
-                if !children.is_empty() || state != &initial || !derivation.sources.is_empty() {
-                    return Err(bad());
-                }
-                let selections: Vec<_> = diagram.selection_targets().to_vec();
-                if !checker.independently_admissible(state, &step.parameters, &selections)? {
-                    return Err(bad());
-                }
-                checker.standardized(state, &step.parameters, false)?.ok_or_else(bad)?
-            }
-            Rule::Marginal => {
-                if state.x.any() || !children.is_empty() {
-                    return Err(bad());
-                }
-                checker.marginal(state.kernel, &difference(&state.v, &state.y))?
-            }
-            Rule::Ancestors => {
-                let ancestors = checker.cached_ancestors(&state.y, &state.v, &mut ws);
-                let expected = State {
-                    y: state.y.clone(),
-                    x: intersection(&state.x, &ancestors),
-                    v: ancestors.clone(),
-                    kernel: checker.marginal(state.kernel, &difference(&state.v, &ancestors))?,
-                };
-                if ancestors.equal_set(&state.v)
-                    || children.len() != 1
-                    || children[0].state != expected
-                {
-                    return Err(bad());
-                }
-                children[0].output
-            }
-            Rule::Enlarge => {
-                let ancestors =
-                    checker.prepared.ancestors_bar_x(&state.y, &state.v, &state.x, &mut ws);
-                let w = difference(&difference(&state.v, &state.x), &ancestors);
-                let mut expected = state.clone();
-                expected.x.union_with(&w);
-                if !w.any() || children.len() != 1 || children[0].state != expected {
-                    return Err(bad());
-                }
-                checker.enlarge_output(state, &w, children[0].output)?
-            }
-            Rule::Districts => {
-                let districts = checker.prepared.c_components(&difference(&state.v, &state.x));
-                if districts.len() < 2 || children.len() != districts.len() {
-                    return Err(bad());
-                }
-                for (child, district) in children.iter().zip(districts.iter()) {
-                    let expected = State {
-                        y: district.clone(),
-                        x: difference(&state.v, district),
-                        ..state.clone()
-                    };
-                    if child.state != expected {
-                        return Err(bad());
-                    }
-                }
-                let product = checker.product(children.iter().map(|child| child.output).collect());
-                checker.marginal(product, &difference(&difference(&state.v, &state.x), &state.y))?
-            }
-            Rule::Factor | Rule::Recurse => {
-                let districts = checker.prepared.c_components(&difference(&state.v, &state.x));
-                if districts.len() != 1 {
-                    return Err(bad());
-                }
-                let district = &districts[0];
-                let containing = checker.prepared.c_components(&state.v);
-                if containing.len() <= 1 {
-                    return Err(bad());
-                }
-                if step.rule == Rule::Factor {
-                    if !containing.iter().any(|d| d.equal_set(district)) || !children.is_empty() {
-                        return Err(bad());
-                    }
-                    let kernel = checker.factor(state, district)?;
-                    checker.marginal(kernel, &difference(district, &state.y))?
-                } else {
-                    let larger = containing
-                        .iter()
-                        .find(|d| district.is_subset_of(d) && !district.equal_set(d))
-                        .ok_or_else(bad)?;
-                    let expected = State {
-                        y: state.y.clone(),
-                        x: intersection(&state.x, larger),
-                        v: larger.clone(),
-                        kernel: checker.factor(state, larger)?,
-                    };
-                    if children.len() != 1 || children[0].state != expected {
-                        return Err(bad());
-                    }
-                    children[0].output
-                }
-            }
-            Rule::Source | Rule::DirectTransport => {
-                if !children.is_empty() {
-                    return Err(bad());
-                }
-                if step.rule == Rule::Source {
-                    // Figure 5 line 10 fires only after lines 2-4 declined: the
-                    // vertices are their own ancestors, nothing is enlargeable,
-                    // and both C(D minus X) and C(D) are single components.
-                    let ancestors = checker.cached_ancestors(&state.y, &state.v, &mut ws);
-                    let bar =
-                        checker.prepared.ancestors_bar_x(&state.y, &state.v, &state.x, &mut ws);
-                    let mut non_x = difference(&state.v, &state.x);
-                    non_x.difference_with(&bar);
-                    if !state.x.any()
-                        || !ancestors.equal_set(&state.v)
-                        || non_x.any()
-                        || checker.prepared.c_components(&difference(&state.v, &state.x)).len() != 1
-                        || checker.prepared.c_components(&state.v).len() != 1
-                    {
-                        return Err(bad());
-                    }
-                }
-                let population = match checker.arena.node(step.output) {
-                    ExprNode::Distribution { population, .. } => {
-                        checker.arena.population(*population).to_string()
-                    }
-                    _ => return Err(bad()),
-                };
-                let selections: Vec<_> = if derivation.sources.is_empty() {
-                    if population != query.source.as_ref() {
-                        return Err(bad());
-                    }
-                    diagram.selection_targets().to_vec()
-                } else {
-                    derivation
-                        .sources
-                        .iter()
-                        .find(|s| s.population == population)
-                        .ok_or_else(bad)?
-                        .selections
-                        .iter()
-                        .copied()
-                        .map(VariableId::from_raw)
-                        .collect()
-                };
-                if !checker.admissible_selections(state, &[], &selections)?
-                    || !checker.independently_admissible(state, &[], &selections)?
-                {
-                    return Err(bad());
-                }
-                // Compare the source leaf explicitly: symbolic values use the
-                // dedicated intervention marker, not a NaN float payload.
-                let expected = checker.source_from(state, Arc::from(population))?;
-                let (
-                    ExprNode::Distribution {
-                        variables: av,
-                        conditioned_on: ac,
-                        intervention: ai,
-                        domain: ad,
-                        population: ap,
-                        regime: ar,
-                    },
-                    ExprNode::Distribution {
-                        variables: bv,
-                        conditioned_on: bc,
-                        intervention: bi,
-                        domain: bd,
-                        population: bp,
-                        regime: br,
-                    },
-                ) = (checker.arena.node(expected), checker.arena.node(step.output))
-                else {
-                    return Err(bad());
-                };
-                if av != bv
-                    || ac != bc
-                    || ad != bd
-                    || ap != bp
-                    || ar != br
-                    || checker.arena.intervention_set(*ai) != checker.arena.intervention_set(*bi)
-                    || checker.arena.intervention_assignments(*bi).iter().any(|a| !a.is_symbolic())
-                {
-                    return Err(bad());
-                }
-                step.output
-            }
-        };
-        if expected != step.output
-            && !(step.rule == Rule::Standardize
-                && standardization_equal(&checker.arena, expected, step.output))
-        {
-            return Err(bad());
-        }
-    }
-    Ok(())
-}
-
-// Standardization has at most a sum, a product and two distribution leaves.
-// Compare symbolic assignment values via the explicit marker, not NaN equality.
-fn standardization_equal(arena: &CausalExprArena, a: ExprId, b: ExprId) -> bool {
-    match (arena.node(a), arena.node(b)) {
-        (
-            ExprNode::SumOut { variables: av, expr: ae },
-            ExprNode::SumOut { variables: bv, expr: be },
-        ) => av == bv && standardization_equal(arena, *ae, *be),
-        (ExprNode::Product(al), ExprNode::Product(bl)) => {
-            arena.list(*al).len() == arena.list(*bl).len()
-                && arena
-                    .list(*al)
-                    .iter()
-                    .zip(arena.list(*bl))
-                    .all(|(a, b)| standardization_equal(arena, *a, *b))
-        }
-        (
-            ExprNode::Distribution {
-                variables: av,
-                conditioned_on: ac,
-                intervention: ai,
-                domain: ad,
-                population: ap,
-                regime: ar,
-            },
-            ExprNode::Distribution {
-                variables: bv,
-                conditioned_on: bc,
-                intervention: bi,
-                domain: bd,
-                population: bp,
-                regime: br,
-            },
-        ) => {
-            let aa = arena.intervention_assignments(*ai);
-            let ba = arena.intervention_assignments(*bi);
-            av == bv
-                && ac == bc
-                && ad == bd
-                && ap == bp
-                && ar == br
-                && aa.len() == ba.len()
-                && aa.iter().zip(ba).all(|(a, b)| {
-                    a.variable == b.variable
-                        && (a.value == b.value || (a.is_symbolic() && b.is_symbolic()))
-                })
-        }
-        _ => false,
-    }
 }
 
 /// Durable identity of a selection diagram, stored in every portable proof.
@@ -1602,6 +592,7 @@ pub struct BoundTransportFunctional {
     catalog: antecedent_core::EvidenceCatalog,
     searched: Arc<[Arc<str>]>,
 }
+
 impl BoundTransportFunctional {
     /// Original checked theorem derivation.
     #[must_use]
@@ -1808,6 +799,7 @@ pub struct SelectionForest {
     /// Bidirected edges forming one connected district.
     pub bidirected: Arc<[(VariableId, VariableId)]>,
 }
+
 /// Classical single-source obstruction, bound to its exact immutable inputs.
 #[derive(Clone, Debug)]
 pub struct SHedgeCertificate {
@@ -1832,6 +824,7 @@ pub struct SelectionForestRecord {
     pub directed: Vec<(u32, u32)>,
     pub bidirected: Vec<(u32, u32)>,
 }
+
 impl SelectionForestRecord {
     fn encode(forest: &SelectionForest) -> Self {
         let edges = |edges: &[(VariableId, VariableId)]| {
@@ -1857,6 +850,7 @@ impl SelectionForestRecord {
         }
     }
 }
+
 /// Portable negative claim. Deserialization conveys no authority; its forest,
 /// query, graph and full-source-experimental evidence scope must all check.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1877,6 +871,7 @@ pub struct SHedgeRecord {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sources: Vec<MetaSource>,
 }
+
 impl SHedgeCertificate {
     /// Export a checked obstruction with its exact evidence and query scope.
     #[must_use]
@@ -1932,257 +927,19 @@ impl SHedgeCertificate {
         Ok(witness)
     }
 }
-impl Engine<'_> {
-    fn negative_witness(
-        &self,
-        state: &State,
-    ) -> Result<Option<SHedgeCertificate>, IdentificationError> {
-        let graph = self.diagram.causal_graph();
-        let small = difference(&state.v, &state.x);
-        // Shortest directed distance to `Y` through parents inside `within`: a layered BFS
-        // that needs the hop count of every node, so it is not a closure (which keeps
-        // only membership) and stays here.
-        let distances = |within: &BitSet| {
-            let mut distances = vec![usize::MAX; graph.node_count()];
-            let mut queue = std::collections::VecDeque::new();
-            for root in state.y.iter() {
-                distances[root.as_usize()] = 0;
-                queue.push_back(root);
-            }
-            while let Some(node) = queue.pop_front() {
-                for parent in graph.parents(node) {
-                    if within.contains(*parent) && distances[parent.as_usize()] == usize::MAX {
-                        distances[parent.as_usize()] = distances[node.as_usize()] + 1;
-                        queue.push_back(*parent);
-                    }
-                }
-            }
-            distances
-        };
-        let small_distance = distances(&small);
-        let large_distance = distances(&state.v);
-        let mut directed = Vec::new();
-        let mut bidirected = Vec::new();
-        for node in state.v.iter() {
-            if self.ctx.cancellation.is_cancelled() {
-                return Err(IdentificationError::Cancelled);
-            }
-            let distance = if small.contains(node) { &small_distance } else { &large_distance };
-            if distance[node.as_usize()] == usize::MAX {
-                return Ok(None);
-            }
-            let child = if state.y.contains(node) {
-                None
-            } else {
-                graph
-                    .children(node)
-                    .iter()
-                    .filter(|child| {
-                        state.v.contains(**child)
-                            && (!small.contains(node) || small.contains(**child))
-                            && distance[child.as_usize()] < distance[node.as_usize()]
-                    })
-                    .min_by_key(|child| child.raw())
-            };
-            if let Some(child) = child {
-                directed
-                    .push((self.prepared.dense_to_var(node)?, self.prepared.dense_to_var(*child)?));
-            }
-            for other in graph.bidirected_neighbors(node) {
-                if node.raw() < other.raw() && state.v.contains(*other) {
-                    bidirected.push((
-                        self.prepared.dense_to_var(node)?,
-                        self.prepared.dense_to_var(*other)?,
-                    ));
-                }
-            }
-        }
-        let small_nodes = self.vars(&small)?;
-        let smaller = SelectionForest {
-            nodes: small_nodes.clone().into(),
-            directed: directed
-                .iter()
-                .copied()
-                .filter(|(a, b)| small_nodes.contains(a) && small_nodes.contains(b))
-                .collect(),
-            bidirected: bidirected
-                .iter()
-                .copied()
-                .filter(|(a, b)| small_nodes.contains(a) && small_nodes.contains(b))
-                .collect(),
-        };
-        let witness = SHedgeCertificate {
-            query: self.query.clone(),
-            graph_signature: graph_signature(self.diagram),
-            larger: SelectionForest {
-                nodes: self.vars(&state.v)?.into(),
-                directed: directed.into(),
-                bidirected: bidirected.into(),
-            },
-            smaller,
-            sources: Vec::new(),
-        };
-        match verify_s_hedge(self.diagram, self.query, &witness, self.ctx) {
-            Ok(()) => Ok(Some(witness)),
-            Err(error) if self.ctx.cancellation.is_cancelled() => Err(error),
-            Err(_) => Ok(None),
-        }
-    }
-}
-
-/// Check an s-hedge's forest, selection, nesting, root, and query conditions.
-/// No identifier is invoked and no success flag is trusted.
-///
-/// # Errors
-/// Invalid witness, different evidence/query/graph scope, or cancellation.
-#[allow(clippy::too_many_lines, reason = "Keep the independent forest conditions together")]
-pub fn verify_s_hedge(
-    diagram: &SelectionDiagram,
-    query: &ClassicalTransportQuery,
-    witness: &SHedgeCertificate,
-    ctx: &ExecutionContext,
-) -> Result<(), IdentificationError> {
-    let bad = || IdentificationError::invalid_derivation("transport.invalid_s_hedge");
-    if ctx.cancellation.is_cancelled() {
-        return Err(IdentificationError::Cancelled);
-    }
-    if &witness.query != query || witness.graph_signature != graph_signature(diagram) {
-        return Err(bad());
-    }
-    check_sid_memory(diagram, 1, ctx)?;
-    if let Some(first) = witness.sources.first() {
-        meta::check_meta_resources(diagram.causal_graph(), &witness.sources, usize::MAX, ctx)?;
-        validate_meta_sources(diagram.causal_graph(), query, &witness.sources)?;
-        let mut selections: Vec<_> = diagram.selection_targets().iter().map(|v| v.raw()).collect();
-        selections.sort_unstable();
-        if first.selections != selections {
-            return Err(bad());
-        }
-        for source in &witness.sources {
-            let source_diagram = SelectionDiagram::try_new(
-                diagram.causal_graph().clone(),
-                source.selections.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>(),
-            )?;
-            let mut local = witness.clone();
-            local.sources.clear();
-            local.query.source = Arc::from(source.population.as_str());
-            local.graph_signature = graph_signature(&source_diagram);
-            verify_s_hedge(&source_diagram, &local.query, &local, ctx)?;
-        }
-        return Ok(());
-    }
-    let n = diagram.causal_graph().node_count();
-    for forest in [&witness.larger, &witness.smaller] {
-        if forest.nodes.len() > n
-            || forest.directed.len() > n
-            || forest.bidirected.len() > n.saturating_mul(n.saturating_sub(1)) / 2
-        {
-            return Err(bad());
-        }
-    }
-    let prepared = PreparedAdmg::new(diagram.causal_graph().clone())?;
-    let check_forest = |forest: &SelectionForest| -> Result<Vec<VariableId>, IdentificationError> {
-        let nodes = &forest.nodes;
-        let position: HashMap<VariableId, usize> =
-            nodes.iter().enumerate().map(|(i, v)| (*v, i)).collect();
-        if nodes.is_empty()
-            || position.len() != nodes.len()
-            || !nodes.iter().any(|v| diagram.selection_targets().contains(v))
-        {
-            return Err(bad());
-        }
-        for v in nodes.iter() {
-            prepared.var_to_dense(*v)?;
-        }
-        // At most one child per node: a forest edge list has distinct sources.
-        let mut has_child = vec![false; nodes.len()];
-        for (a, b) in forest.directed.iter() {
-            if ctx.cancellation.is_cancelled() {
-                return Err(IdentificationError::Cancelled);
-            }
-            let (Some(&from), Some(_)) = (position.get(a), position.get(b)) else {
-                return Err(bad());
-            };
-            if std::mem::replace(&mut has_child[from], true)
-                || !diagram
-                    .causal_graph()
-                    .children(prepared.var_to_dense(*a)?)
-                    .contains(&prepared.var_to_dense(*b)?)
-            {
-                return Err(bad());
-            }
-        }
-        let mut unique_edges = std::collections::BTreeSet::new();
-        let mut adjacency = vec![Vec::new(); nodes.len()];
-        for (a, b) in forest.bidirected.iter() {
-            let (Some(&i), Some(&j)) = (position.get(a), position.get(b)) else {
-                return Err(bad());
-            };
-            if !unique_edges.insert(((*a).min(*b), (*a).max(*b)))
-                || !diagram
-                    .causal_graph()
-                    .bidirected_neighbors(prepared.var_to_dense(*a)?)
-                    .contains(&prepared.var_to_dense(*b)?)
-            {
-                return Err(bad());
-            }
-            adjacency[i].push(j);
-            adjacency[j].push(i);
-        }
-        // One bidirected component must span every node.
-        if ctx.cancellation.is_cancelled() {
-            return Err(IdentificationError::Cancelled);
-        }
-        if components_by(nodes.len(), |i| adjacency[i].iter().copied()).len() != 1 {
-            return Err(bad());
-        }
-        let mut roots = nodes
-            .iter()
-            .copied()
-            .enumerate()
-            .filter(|(i, _)| !has_child[*i])
-            .map(|(_, v)| v)
-            .collect::<Vec<_>>();
-        roots.sort_unstable();
-        Ok(roots)
-    };
-    let roots = check_forest(&witness.larger)?;
-    let larger_nodes: std::collections::HashSet<_> = witness.larger.nodes.iter().collect();
-    let larger_directed: std::collections::HashSet<_> = witness.larger.directed.iter().collect();
-    let larger_bidirected: std::collections::HashSet<_> =
-        witness.larger.bidirected.iter().collect();
-    if roots != check_forest(&witness.smaller)?
-        || roots.is_empty()
-        || !witness.larger.nodes.iter().any(|v| query.treatments.contains(v))
-        || witness.smaller.nodes.iter().any(|v| query.treatments.contains(v))
-        || !witness.smaller.nodes.iter().all(|v| larger_nodes.contains(v))
-        || !witness.smaller.directed.iter().all(|e| larger_directed.contains(e))
-        || !witness.smaller.bidirected.iter().all(|e| larger_bidirected.contains(e))
-    {
-        return Err(bad());
-    }
-    let mut all = BitSet::with_len(diagram.causal_graph().node_count());
-    let mut y = all.clone();
-    let mut x = all.clone();
-    for d in prepared.topo() {
-        all.insert(*d);
-    }
-    for v in query.outcomes.iter() {
-        y.insert(prepared.var_to_dense(*v)?);
-    }
-    for v in query.treatments.iter() {
-        x.insert(prepared.var_to_dense(*v)?);
-    }
-    let ancestors = prepared.ancestors_bar_x(&y, &all, &x, &mut GraphWorkspace::default());
-    if roots.iter().any(|v| prepared.var_to_dense(*v).map_or(true, |v| !ancestors.contains(v))) {
-        return Err(bad());
-    }
-    Ok(())
-}
 
 mod catalog;
+
 use catalog::bind_distribution;
+
+mod engine;
+mod verify;
+use engine::{difference, intersection, standardization_binds};
+pub use verify::{verify_classical_transport, verify_s_hedge};
+use verify::verify_charged;
+
 pub(crate) use catalog::identify_catalog_transport_metered;
+
 pub use catalog::{
     CatalogTransportResult, identify_catalog_transport,
     identify_catalog_transport_selection_standardization_first,
@@ -2439,144 +1196,4 @@ pub(crate) fn refuse_over_budget(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test_support::{d, v};
-    fn query() -> ClassicalTransportQuery {
-        ClassicalTransportQuery {
-            outcomes: Arc::from([v(2)]),
-            treatments: Arc::from([v(0)]),
-            source: Arc::from("source"),
-            target: Arc::from("target"),
-        }
-    }
-    #[test]
-    fn live_bytes_are_cumulative_across_the_stages_of_one_decision() {
-        use antecedent_core::SearchBudget;
-        let mut ctx = ExecutionContext::for_tests(1);
-        ctx.set_memory_limit(Some(250));
-        let limits = SearchLimits { operations: 100, depth: 8 };
-        // Each stage alone fits 250 bytes; the retained first stage does not leave
-        // room for the second.
-        let mut alone = SharedSearch::new(SearchBudget::new(limits, &ctx).unwrap());
-        alone.begin_stage();
-        alone.charge(0, 200).unwrap();
-        alone.charge(0, 200).unwrap();
-        let mut staged = SharedSearch::new(SearchBudget::new(limits, &ctx).unwrap());
-        staged.begin_stage();
-        staged.charge(0, 200).unwrap();
-        staged.end_stage();
-        staged.begin_stage();
-        assert_eq!(staged.charge(0, 100), Err(SearchStop::Memory));
-        assert_eq!(staged.peak_bytes(), 300);
-        // Without a context limit the mandatory default cap still bounds it.
-        let free = ExecutionContext::for_tests(1);
-        let mut capped = SharedSearch::new(SearchBudget::new(limits, &free).unwrap());
-        assert_eq!(capped.charge(0, u64::MAX), Err(SearchStop::Memory));
-    }
-
-    #[test]
-    fn a_shared_budget_is_charged_by_every_pretreatment_subset_test() {
-        use antecedent_core::{
-            DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime, RegimeId,
-            RegimeKind, SearchBudget,
-        };
-        // X, Y and 17 pretreatment parents of Y, the first selected: no standardizer
-        // binds, so the subset search runs to its cap. Under its own limits that is an
-        // obligation; under a shared budget every separation test is charged to it.
-        let n = 19u32;
-        let mut graph = Admg::with_variables(n);
-        graph.insert_directed(d(0), d(1)).unwrap();
-        for z in 2..n {
-            graph.insert_directed(d(z), d(1)).unwrap();
-        }
-        let diagram = SelectionDiagram::try_new(graph, [v(2)]).unwrap();
-        let query = ClassicalTransportQuery { outcomes: Arc::from([v(1)]), ..query() };
-        let regime = EvidenceRegime::try_new(
-            RegimeId::from_raw(1),
-            RegimeKind::Experimental,
-            EvidenceKind::Available,
-            [v(0)],
-            [],
-            [v(1)],
-            "source",
-            DistributionAvailability::Joint,
-        )
-        .unwrap();
-        let catalog = EvidenceCatalog::try_new([], [regime], [], None).unwrap();
-        let ctx = ExecutionContext::for_tests(1);
-        let limits = SidLimits { steps: 2_000, depth: 256 };
-        let own = identify_catalog_transport(&diagram, &query, &catalog, limits, &ctx).unwrap();
-        assert!(matches!(own, CatalogTransportResult::MissingEvidence { .. }), "{own:?}");
-
-        let budget =
-            SearchBudget::new(SearchLimits { operations: 2_000, depth: 256 }, &ctx).unwrap();
-        let mut search = SharedSearch::new(budget);
-        let error =
-            identify_catalog_transport_metered(&diagram, &query, &catalog, search.meter(), &ctx)
-                .expect_err("the subset tests exhaust the shared budget");
-        assert!(error.is_budget_or_cancel(), "{error:?}");
-        assert_eq!(search.stop_of(&error), SearchStop::Operations);
-    }
-    #[test]
-    fn target_frontdoor_uses_recursive_multinode_district() {
-        let mut graph = Admg::with_variables(3);
-        graph.insert_directed(d(0), d(1)).unwrap();
-        graph.insert_directed(d(1), d(2)).unwrap();
-        graph.insert_bidirected(d(0), d(2)).unwrap();
-        let diagram = SelectionDiagram::try_new(graph, [v(2)]).unwrap();
-        let ctx = ExecutionContext::for_tests(1);
-        let ClassicalTransportResult::Identified(proof) =
-            identify_classical_transport(&diagram, &query(), SidLimits::default(), &ctx).unwrap()
-        else {
-            panic!("frontdoor must identify");
-        };
-        assert!(proof.rules().contains(&"sid.line8"));
-        assert!(
-            proof
-                .arena()
-                .leaf_bindings(proof.root())
-                .iter()
-                .all(|b| b.population.as_ref() == "target")
-        );
-        verify_classical_transport(&diagram, &query(), &proof, SidLimits::default(), &ctx).unwrap();
-        let mut corrupted = proof.clone();
-        corrupted.proof[corrupted.root_step].output = corrupted.proof[0].output;
-        assert!(
-            verify_classical_transport(&diagram, &query(), &corrupted, SidLimits::default(), &ctx)
-                .is_err()
-        );
-    }
-    #[test]
-    fn source_rescues_unconfounded_selection_mechanism_and_rejects_changed_premise() {
-        let mut graph = Admg::with_variables(3);
-        graph.insert_directed(d(0), d(2)).unwrap();
-        graph.insert_bidirected(d(0), d(2)).unwrap();
-        let diagram = SelectionDiagram::try_new(graph.clone(), []).unwrap();
-        let ctx = ExecutionContext::for_tests(1);
-        let ClassicalTransportResult::Identified(proof) =
-            identify_classical_transport(&diagram, &query(), SidLimits::default(), &ctx).unwrap()
-        else {
-            panic!("direct transport");
-        };
-        assert!(proof.rules().contains(&"sid.line10"));
-        let changed = SelectionDiagram::try_new(graph, [v(2)]).unwrap();
-        assert!(
-            verify_classical_transport(&changed, &query(), &proof, SidLimits::default(), &ctx)
-                .is_err()
-        );
-        assert!(
-            identify_classical_transport(
-                &diagram,
-                &query(),
-                SidLimits { steps: 1, depth: 1 },
-                &ctx
-            )
-            .is_err()
-        );
-        ctx.cancellation.cancel();
-        assert!(
-            identify_classical_transport(&diagram, &query(), SidLimits::default(), &ctx).is_err()
-        );
-    }
-}
+mod tests;

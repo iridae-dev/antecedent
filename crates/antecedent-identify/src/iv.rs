@@ -11,8 +11,9 @@ use antecedent_core::{
 use antecedent_expr::CausalExprArena;
 use antecedent_graph::{BitSet, DSeparationWorkspace, Dag, DenseNodeId, GraphWorkspace};
 
-use crate::backdoor::{PreparedIdentificationGraph, dense_to_var, remove_outgoing, var_to_dense};
+use crate::backdoor::{PreparedIdentificationGraph, dense_to_var, remove_outgoing};
 use crate::error::IdentificationError;
+use crate::identification_run::IdentificationRun;
 use crate::identifier::IdentificationWorkspace;
 use crate::result::{
     DerivationTrace, EstimandClaim, IdentificationPerformanceRecord, IdentificationResult,
@@ -108,9 +109,9 @@ impl InstrumentalVariableIdentifier {
         query: CausalQuery,
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
-        let dag = prepared.dag();
-        let t = var_to_dense(ate.treatment, dag)?;
-        let y = var_to_dense(ate.outcome, dag)?;
+        let run = IdentificationRun::open(prepared, ate, "iv")?;
+        let dag = run.dag();
+        let (t, y) = (run.t, run.y);
 
         // Candidates: all nodes except T,Y, with parents of T checked first.
         let parents_of_t: Vec<DenseNodeId> =
@@ -137,11 +138,7 @@ impl InstrumentalVariableIdentifier {
             }
         }
 
-        let mut assumptions = AssumptionSet::new();
-        assumptions.push(crate::assumptions::causal_markov("iv"));
-        for record in &prepared.declared_assumptions().entries {
-            assumptions.push(record.clone());
-        }
+        let mut assumptions = run.base_assumptions();
 
         let mut derivation = DerivationTrace::default();
         derivation.push(
@@ -181,17 +178,7 @@ impl InstrumentalVariableIdentifier {
                 status: IdentificationStatus::IdentifiedUnderParametricRestrictions,
                 required_assumptions: claim_assumptions,
             });
-            let (active, control) = match (&ate.active, &ate.control) {
-                (
-                    antecedent_core::Intervention::Set { value: active, .. },
-                    antecedent_core::Intervention::Set { value: control, .. },
-                ) => (active.clone(), control.clone()),
-                _ => {
-                    return Err(IdentificationError::UnsupportedQuery {
-                        message: "IV ATE requires Set interventions",
-                    });
-                }
-            };
+            let (active, control) = run.hard_set_levels("IV ATE requires Set interventions")?;
             let functional = arena
                 .iv_wald(ate.treatment, ate.outcome, &[z_var], &active, &control)
                 .map_err(|_| IdentificationError::UnsupportedQuery {

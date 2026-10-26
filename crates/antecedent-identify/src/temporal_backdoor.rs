@@ -166,7 +166,7 @@ impl TemporalBackdoorIdentifier {
         let min_offset = treatment_at.min(outcome_at).min(0);
         let max_offset = treatment_at.max(outcome_at).max(0);
         let horizon = u32::try_from(max_offset)
-            .map_err(|_| IdentificationError::msg("negative horizon"))?
+            .map_err(|_| IdentificationError::out_of_range("negative horizon"))?
             .saturating_add(1);
 
         let variable_count = required_variable_count(template, [query.treatment, query.outcome]);
@@ -303,7 +303,7 @@ impl TemporalBackdoorIdentifier {
         let min_offset = treatment_at.min(outcome_at).min(0);
         let max_offset = treatment_at.max(outcome_at).max(0);
         let horizon = u32::try_from(max_offset)
-            .map_err(|_| IdentificationError::msg("negative horizon"))?
+            .map_err(|_| IdentificationError::out_of_range("negative horizon"))?
             .saturating_add(1);
         let variable_count = required_variable_count(template, [query.treatment, query.outcome]);
         // Every template parent of T[treatment_at] sits at most template_max_lag
@@ -313,9 +313,9 @@ impl TemporalBackdoorIdentifier {
         let treatment_key = TemporalNodeKey { variable: query.treatment, offset: treatment_at };
         let outcome_key = TemporalNodeKey { variable: query.outcome, offset: outcome_at };
         let indexer = TemporalIndexer::new(variable_count, history, horizon)
-            .map_err(|e| IdentificationError::msg(e.to_string()))?;
+            .map_err(|e| IdentificationError::construction(e))?;
         let unfolded =
-            template.unfold(indexer).map_err(|e| IdentificationError::msg(e.to_string()))?;
+            template.unfold(indexer).map_err(|e| IdentificationError::construction(e))?;
         let treatment_dense = unfolded
             .indexer
             .dense_id(treatment_key)
@@ -341,7 +341,7 @@ impl TemporalBackdoorIdentifier {
             let key = unfolded
                 .indexer
                 .key_of(parent.raw())
-                .map_err(|e| IdentificationError::msg(e.to_string()))?;
+                .map_err(|e| IdentificationError::construction(e))?;
             let lag = u32::try_from(reference.saturating_sub(key.offset)).unwrap_or(0);
             if query.max_history_lag.is_some_and(|cap| lag > cap) {
                 return Err(IdentificationError::NotCertified {
@@ -487,7 +487,7 @@ impl TemporalBackdoorIdentifier {
         target_population: antecedent_core::TargetPopulation,
     ) -> Result<TemporalIdentificationResult, IdentificationError> {
         if schedule.is_empty() {
-            return Err(IdentificationError::msg("empty treatment schedule"));
+            return Err(IdentificationError::EmptyTreatmentSchedule);
         }
         let (treatment, first_offset, _) = schedule[0];
         let offsets: Vec<i32> = {
@@ -514,7 +514,7 @@ impl TemporalBackdoorIdentifier {
             control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
             active: Intervention::set(treatment, antecedent_core::Value::f64(active_level)),
             horizon_steps: u32::try_from(outcome_at.saturating_add(1))
-                .map_err(|_| IdentificationError::msg("outcome offset does not fit horizon"))?,
+                .map_err(|_| IdentificationError::out_of_range("outcome offset does not fit horizon"))?,
             max_history_lag,
             target_population,
             effect_modifiers: std::sync::Arc::from([]),
@@ -537,14 +537,14 @@ impl TemporalBackdoorIdentifier {
         outcome_at: i32,
     ) -> Result<TemporalIdentificationResult, IdentificationError> {
         if schedule.is_empty() {
-            return Err(IdentificationError::msg("empty treatment schedule"));
+            return Err(IdentificationError::EmptyTreatmentSchedule);
         }
         let from = schedule.iter().map(|&(_, offset)| offset).min().expect("non-empty");
         let until = schedule.iter().map(|&(_, offset)| offset).max().expect("non-empty");
         let min_offset = from.min(outcome_at).min(0);
         let max_offset = until.max(outcome_at).max(0);
         let horizon = u32::try_from(max_offset)
-            .map_err(|_| IdentificationError::msg("negative horizon"))?
+            .map_err(|_| IdentificationError::out_of_range("negative horizon"))?
             .saturating_add(1);
 
         let mut variables = vec![query.treatment, query.outcome];
@@ -574,10 +574,10 @@ impl TemporalBackdoorIdentifier {
         )?;
         let crate::temporal_window::GrownWindow { history, unfolded, dense } = grown;
         let Some((&outcome_dense, treatment_nodes)) = dense.split_last() else {
-            return Err(IdentificationError::msg("empty treatment schedule"));
+            return Err(IdentificationError::EmptyTreatmentSchedule);
         };
         if treatment_nodes.is_empty() {
-            return Err(IdentificationError::msg("empty treatment schedule"));
+            return Err(IdentificationError::EmptyTreatmentSchedule);
         }
 
         // Both sides of the temporal contrast, not just the active level: the

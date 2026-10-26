@@ -1,10 +1,11 @@
 //! Study planning over the mz-transport and mixed-source catalogs.
 //!
-//! A planner receives a failed mz-transport or mixed-source decision and a declared universe of at
-//! most [`STUDY_PLAN_MAX_CANDIDATES`] candidate studies, each already compiled
-//! to a typed [`EvidenceCatalogDelta`] with an integer cost. It enumerates every
-//! feasible subset of at most [`STUDY_PLAN_MAX_SUBSET`] candidates in cost
-//! order and re-runs the same route's decision on each subset's preview
+//! A planner receives a failed mz-transport or mixed-source decision and a declared universe of
+//! candidate studies, each already compiled
+//! to a typed [`EvidenceCatalogDelta`] with an integer cost. It enumerates the
+//! feasible subsets in cost order, by increasing subset size as far as the plan's operation
+//! budget can pay for (all of them when the budget covers the whole power set, otherwise the
+//! plan ends with a budget receipt naming the sizes left unexamined) and re-runs the same route's decision on each subset's preview
 //! catalog, all under ONE shared [`SearchBudget`]: the base decision, every
 //! subset entry and every step of every re-run decision charge it, with the
 //! live bytes of the proposals already kept retained under every later charge.
@@ -27,10 +28,11 @@
 //!   population or a wider controllable set is outside this universe.
 //! - Minimality is claimed only when every feasible subset strictly cheaper
 //!   than the top proposal was evaluated to a conclusive outcome without a stop:
-//!   "cost-minimal among the verified-derivable subsets of at most three
-//!   candidates of this declared universe, under this search and rule set",
-//!   never "minimal sufficient evidence". A cheaper subset of four or more
-//!   candidates is never examined, and a cheaper subset the route refuses (for
+//!   "cost-minimal among the verified-derivable subsets of this declared
+//!   universe, under this search and rule set", never "minimal sufficient
+//!   evidence". When the subset sizes were truncated by the budget, minimality is
+//!   claimed only if no unexamined subset can be cheaper than the top proposal,
+//!   and a cheaper subset the route refuses (for
 //!   example over the mixed-source usable-distribution bound) or leaves underivable keeps
 //!   the claim: it is only not sufficient under this search.
 //! - Supersets of a sufficient subset are not evaluated and are listed
@@ -55,7 +57,7 @@ use antecedent_core::{
     SearchBudget, SearchLimits, SearchReceipt, SearchStop, VariableId, reason_code,
 };
 use antecedent_expr::{CausalExprArena, ExprId, ExprNode};
-use antecedent_graph::{Admg, SelectionDiagram};
+use antecedent_graph::{Admg, BitSet, DenseNodeId, SelectionDiagram};
 
 use super::meta::{MetaSource, MetaTransportQuery, identify_meta_catalog_metered};
 use super::mixed_source::decide_mixed_source_shared;
@@ -70,11 +72,14 @@ use super::{
     bind_z_transport_catalog, identify_catalog_transport_metered,
 };
 
-/// Candidate studies in one declared universe.
+/// Candidate studies in one universe under the earlier fixed ceiling. Not enforced: the
+/// universe is bounded by the plan's search budget.
 pub const STUDY_PLAN_MAX_CANDIDATES: usize = 16;
-/// Regimes one candidate study may propose (one per declared level combination).
+/// Regimes one candidate study could propose under the earlier fixed ceiling. Not enforced.
 pub const STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE: usize = 8;
-/// Largest subset of candidates evaluated together.
+/// Largest subset size under the earlier fixed ceiling. Not enforced: subsets are enumerated
+/// by increasing size as far as the operation budget pays for them, and a truncation is a
+/// budget stop with a receipt.
 pub const STUDY_PLAN_MAX_SUBSET: usize = 3;
 /// Sufficient proposals one plan retains; evaluation ends after the last one.
 pub const STUDY_PLAN_MAX_PROPOSALS: usize = 32;
@@ -278,16 +283,15 @@ impl StudyPlanLimits {
     /// Check a request against the declared bounds before any work: these
     /// limits against the route's maxima (at most
     /// [`STUDY_PLAN_DEFAULT_LIMITS`] operations, the route's depth and
-    /// [`STUDY_PLAN_MEMORY_BYTES`]), at most [`STUDY_PLAN_MAX_CANDIDATES`]
-    /// candidates (one entry of `regimes_per_candidate` each) and at most
-    /// [`STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE`] regimes in any one.
+    /// [`STUDY_PLAN_MEMORY_BYTES`]). The number of candidates and of regimes per
+    /// candidate is not bounded here: the plan charges them to its budget.
     ///
     /// # Errors
     /// `study_plan.bounds_exceeded` naming the first bound exceeded.
     pub fn check_bounds(
         &self,
         route: &StudyPlanRoute,
-        regimes_per_candidate: &[usize],
+        _regimes_per_candidate: &[usize],
     ) -> Result<(), StudyPlanRefusal> {
         if self.search.operations > STUDY_PLAN_DEFAULT_LIMITS.operations
             || self.search.depth > route.max_depth()
@@ -298,20 +302,6 @@ impl StudyPlanLimits {
                  {STUDY_PLAN_MEMORY_BYTES} bytes",
                 STUDY_PLAN_DEFAULT_LIMITS.operations,
                 route.max_depth()
-            )));
-        }
-        if regimes_per_candidate.len() > STUDY_PLAN_MAX_CANDIDATES {
-            return Err(StudyPlanRefusal::bounds_exceeded(format!(
-                "{} candidates exceed the bound of {STUDY_PLAN_MAX_CANDIDATES}",
-                regimes_per_candidate.len()
-            )));
-        }
-        if let Some(count) =
-            regimes_per_candidate.iter().find(|&&n| n > STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE)
-        {
-            return Err(StudyPlanRefusal::bounds_exceeded(format!(
-                "a candidate proposes {count} regimes, above the bound of \
-                 {STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE}"
             )));
         }
         Ok(())
@@ -511,9 +501,8 @@ pub struct StudyPlan {
     /// Why the plan ended early, if it did.
     pub stop: Option<StudyPlanStop>,
     /// Whether the top proposal is certified cost-minimal among the feasible
-    /// subsets of at most [`STUDY_PLAN_MAX_SUBSET`] candidates (every strictly
-    /// cheaper one decided without a stop or an over-cap decision); a cheaper
-    /// subset of four or more candidates is never examined.
+    /// subsets (every strictly cheaper one decided without a stop or an over-cap
+    /// decision, and no subset left unexamined by a size truncation can be cheaper).
     pub minimal: bool,
     /// Operations the plan budget charged in total.
     pub operations_consumed: usize,
@@ -678,17 +667,52 @@ fn validate_candidates(
     Ok(sorted)
 }
 
-/// Every non-empty subset of at most [`STUDY_PLAN_MAX_SUBSET`] candidates, as
+/// The next `k`-combination of `0..n` in lexicographic order; false after the last.
+fn next_combination(indices: &mut [usize], n: usize) -> bool {
+    let k = indices.len();
+    let mut i = k;
+    while i > 0 {
+        i -= 1;
+        if indices[i] < n - k + i {
+            indices[i] += 1;
+            for j in i + 1..k {
+                indices[j] = indices[j - 1] + 1;
+            }
+            return true;
+        }
+    }
+    false
+}
+
+/// The largest subset size whose cumulative subset count (sizes one to that size, out of `n`
+/// candidates) fits `operations`. Every evaluated subset charges at least one operation, so a
+/// larger enumeration could not be paid for; at least singletons are always listed.
+fn subset_size_limit(n: usize, operations: usize) -> usize {
+    let budget = operations as u128;
+    let (mut total, mut choose, mut size) = (0u128, 1u128, 0usize);
+    while size < n {
+        let next = choose.saturating_mul((n - size) as u128) / (size as u128 + 1);
+        if total.saturating_add(next) > budget {
+            break;
+        }
+        total += next;
+        choose = next;
+        size += 1;
+    }
+    size.max(1).min(n)
+}
+
+/// Every non-empty subset of at most `max_size` candidates, as
 /// sorted index lists, in ranking order.
-fn subsets(candidates: &[StudyPlanCandidate]) -> Vec<(Vec<usize>, u64, u64)> {
+fn subsets(candidates: &[StudyPlanCandidate], max_size: usize) -> Vec<(Vec<usize>, u64, u64)> {
     let n = candidates.len();
     let mut out = Vec::new();
-    for a in 0..n {
-        out.push(vec![a]);
-        for b in a + 1..n {
-            out.push(vec![a, b]);
-            for c in b + 1..n {
-                out.push(vec![a, b, c]);
+    for size in 1..=max_size.min(n) {
+        let mut indices = (0..size).collect::<Vec<_>>();
+        loop {
+            out.push(indices.clone());
+            if !next_combination(&mut indices, n) {
+                break;
             }
         }
     }
@@ -814,7 +838,8 @@ fn plan_with_caps(
     require_base_lineage(catalog)?;
     let route = route.canonical();
     let candidates = validate_candidates(&route, catalog, candidates)?;
-    let order = subsets(&candidates);
+    let max_size = subset_size_limit(candidates.len(), limits.search.operations);
+    let order = subsets(&candidates, max_size);
     let ids_of = |members: &[usize]| {
         members.iter().map(|&i| Arc::clone(&candidates[i].id)).collect::<Vec<_>>()
     };
@@ -845,7 +870,8 @@ fn plan_with_caps(
 
     let mut records = Vec::with_capacity(order.len());
     let mut proposals: Vec<StudyProposal> = Vec::new();
-    let mut sufficient: Vec<BTreeSet<usize>> = Vec::new();
+    // Each sufficient subset as a word-wise mask over the candidates, with its members.
+    let mut sufficient: Vec<(BitSet, Vec<usize>)> = Vec::new();
     let mut explored = vec!["stage:base".to_owned()];
     let mut stop = None;
     let mut retained = search.peak_bytes();
@@ -866,8 +892,11 @@ fn plan_with_caps(
             records.push(record(StudySubsetOutcome::Infeasible { reason }));
             continue;
         }
-        let set = members.iter().copied().collect::<BTreeSet<_>>();
-        if let Some(by) = sufficient.iter().find(|s| s.is_subset(&set)) {
+        let mut mask = BitSet::with_len(candidates.len());
+        for &i in members {
+            mask.insert(DenseNodeId::from_index(i));
+        }
+        if let Some((_, by)) = sufficient.iter().find(|(prev, _)| prev.is_subset_of(&mask)) {
             let by = by.iter().map(|&i| Arc::clone(&candidates[i].id)).collect();
             records.push(record(StudySubsetOutcome::Dominated { by }));
             continue;
@@ -916,7 +945,7 @@ fn plan_with_caps(
                             *sample_budget,
                             found,
                         ));
-                        sufficient.push(set);
+                        sufficient.push((mask, members.clone()));
                         retained = retained.saturating_add(search.peak_bytes());
                         StudySubsetOutcome::Sufficient { proposal: proposals.len() - 1 }
                     }
@@ -957,7 +986,21 @@ fn plan_with_caps(
             progress.report((index + 1) as f64 / total as f64, "study planning");
         }
     }
-    let minimal = certified_minimal(&records, proposals.first());
+    // Subsets larger than `max_size` were not enumerated: say so as a budget stop, and
+    // withhold minimality unless even the cheapest unexamined subset cannot undercut the top.
+    let unexamined_floor = (max_size < candidates.len()).then(|| {
+        let mut costs = candidates.iter().map(|c| c.cost_units).collect::<Vec<_>>();
+        costs.sort_unstable();
+        costs.iter().take(max_size + 1).fold(0u64, |acc, c| acc.saturating_add(*c))
+    });
+    if unexamined_floor.is_some() && stop.is_none() {
+        stop = Some(StudyPlanStop::Budget(search.receipt(
+            SearchStop::Operations,
+            explored.clone(),
+            vec![format!("subsets:size>{max_size}")],
+        )));
+    }
+    let minimal = certified_minimal(&records, proposals.first(), unexamined_floor);
     Ok(StudyPlan {
         route,
         limits: effective,
@@ -1018,9 +1061,14 @@ fn recheck_mz_citations(bound: &[RegimeId], cited: &[RegimeId]) -> Result<(), Id
 /// The minimality claim of the top proposal: every feasible subset strictly
 /// cheaper than it was decided to a conclusive outcome (no stop, no decision
 /// over its cap). Infeasible subsets are outside the universe.
-fn certified_minimal(records: &[StudySubsetRecord], top: Option<&StudyProposal>) -> bool {
+fn certified_minimal(
+    records: &[StudySubsetRecord],
+    top: Option<&StudyProposal>,
+    unexamined_floor: Option<u64>,
+) -> bool {
     top.is_some_and(|top| {
-        records.iter().filter(|r| r.cost_units < top.cost_units).all(|r| r.outcome.conclusive())
+        unexamined_floor.is_none_or(|floor| floor >= top.cost_units)
+            && records.iter().filter(|r| r.cost_units < top.cost_units).all(|r| r.outcome.conclusive())
     })
 }
 
@@ -1560,7 +1608,7 @@ mod tests {
     #[test]
     fn subsets_are_ranked_by_cost_then_samples_then_size_then_ids() {
         let candidates = vec![candidate("a", 2, 0), candidate("b", 1, 5), candidate("c", 1, 0)];
-        let order = subsets(&candidates)
+        let order = subsets(&candidates, usize::MAX)
             .into_iter()
             .map(|(m, cost, samples)| {
                 (m.iter().map(|&i| candidates[i].id.to_string()).collect::<Vec<_>>(), cost, samples)
@@ -1593,7 +1641,26 @@ mod tests {
     #[test]
     fn a_universe_of_sixteen_has_six_hundred_ninety_six_subsets_of_at_most_three() {
         let candidates = (0..16).map(|i| candidate(&format!("c{i:02}"), 1, 0)).collect::<Vec<_>>();
-        assert_eq!(subsets(&candidates).len(), 16 + 120 + 560);
+        assert_eq!(subsets(&candidates, 3).len(), 16 + 120 + 560);
+        assert_eq!(subsets(&candidates, usize::MAX).len(), (1 << 16) - 1);
+    }
+
+    #[test]
+    fn the_subset_size_limit_follows_the_operation_budget() {
+        // 16 + 120 + 560 = 696 subsets of size at most three; 4: 2516.
+        assert_eq!(subset_size_limit(16, 696), 3);
+        assert_eq!(subset_size_limit(16, 695), 2);
+        assert_eq!(subset_size_limit(16, 200_000), 16);
+        assert_eq!(subset_size_limit(16, 0), 1);
+        assert_eq!(subset_size_limit(500, 200_000), 2);
+        assert_eq!(subset_size_limit(0, 10), 0);
+    }
+
+    #[test]
+    fn a_size_truncation_withholds_minimality_unless_the_floor_clears_the_top() {
+        let decided = [record(1, StudySubsetOutcome::Insufficient { code: "c", detail: "d" })];
+        assert!(!certified_minimal(&decided, Some(&top(2)), Some(1)));
+        assert!(certified_minimal(&decided, Some(&top(2)), Some(2)));
     }
 
     fn record(cost: u64, outcome: StudySubsetOutcome) -> StudySubsetRecord {
@@ -1628,19 +1695,19 @@ mod tests {
             record(2, StudySubsetOutcome::Sufficient { proposal: 0 }),
             record(3, StudySubsetOutcome::Unevaluated),
         ];
-        assert!(certified_minimal(&decided, Some(&top(2))));
-        assert!(!certified_minimal(&decided, None));
+        assert!(certified_minimal(&decided, Some(&top(2)), None));
+        assert!(!certified_minimal(&decided, None, None));
         // An inconclusive decision below the top withdraws the claim ...
         let mut over = decided.clone();
         over[0].outcome = StudySubsetOutcome::OverDecisionCap { operations: 4097 };
-        assert!(!certified_minimal(&over, Some(&top(2))));
+        assert!(!certified_minimal(&over, Some(&top(2)), None));
         // ... as does an unevaluated cheaper subset; an equal-cost one does not.
         let mut left = decided.clone();
         left[0].outcome = StudySubsetOutcome::Unevaluated;
-        assert!(!certified_minimal(&left, Some(&top(2))));
+        assert!(!certified_minimal(&left, Some(&top(2)), None));
         let mut tie = decided.to_vec();
         tie.push(record(2, StudySubsetOutcome::Unevaluated));
-        assert!(certified_minimal(&tie, Some(&top(2))));
+        assert!(certified_minimal(&tie, Some(&top(2)), None));
     }
 
     #[test]

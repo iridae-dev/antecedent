@@ -90,7 +90,7 @@ pub fn plan_temporal_admg_window(
     let offsets = query
         .policy
         .active_offsets()
-        .map_err(|error| IdentificationError::msg(error.to_string()))?;
+        .map_err(|error| IdentificationError::construction(error))?;
     let history = template
         .nodes()
         .iter()
@@ -104,7 +104,7 @@ pub fn plan_temporal_admg_window(
     let origin = history + earliest.unsigned_abs();
     let periods_of = |offset: i32| -> Result<u32, IdentificationError> {
         u32::try_from(i64::from(origin) + i64::from(offset))
-            .map_err(|_| IdentificationError::msg("a treated step precedes the unrolled window"))
+            .map_err(|_| IdentificationError::out_of_range("a treated step precedes the unrolled window"))
     };
     // The same reading as every temporal route: the outcome sits at offset `horizon_steps - 1`
     // from the policy origin, the offset the treated steps are counted from.
@@ -170,7 +170,7 @@ pub fn identify_temporal_admg_contrast_over(
     let control = set_level(&query.control)?;
     let window = template
         .unroll_window_over(plan.periods, variable_count)
-        .map_err(|error| IdentificationError::msg(error.to_string()))?;
+        .map_err(|error| IdentificationError::construction(error))?;
     let unknown = |variable: VariableId| IdentificationError::UnknownVariable { id: variable };
     let schedule = plan
         .treated
@@ -343,7 +343,7 @@ fn identify_conditional_contrast(
     });
     let contrast = arena.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
     let functional =
-        arena.simplify(contrast).map_err(|error| IdentificationError::msg(error.to_string()))?;
+        arena.simplify(contrast).map_err(IdentificationError::expression)?;
     arena.set_derivation(
         functional,
         DerivationMeta::rule(

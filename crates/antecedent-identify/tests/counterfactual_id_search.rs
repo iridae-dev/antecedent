@@ -964,19 +964,20 @@ fn the_memory_charged_is_cumulative_across_the_decision() {
 // ---------------------------------------------------------------- bounds
 
 #[test]
-fn bounds_admit_the_cap_and_refuse_one_more() {
+fn graph_size_is_unbounded_and_search_limits_are_capped() {
     let bounds = |r: CounterfactualIdRefusal| {
         assert_eq!(
             (r.code, r.detail),
             ("route_not_supported", "counterfactual_id.bounds_exceeded")
         );
     };
-    // Six variables pass; seven refuse.
+    // Graph size is not capped: six and seven variables are both admitted.
     let chain: Vec<(u32, u32)> = (0..5).map(|i| (i, i + 1)).collect();
     let six = CounterfactualIdProblem::new(binary(6), &chain, &[(0, 5)]).unwrap();
     assert!(decide(&six, &ett(1, 1.0, 0.0, 5, 1.0)).is_ok());
-    bounds(CounterfactualIdProblem::new(binary(7), &chain, &[]).unwrap_err());
-    // Four levels pass; five refuse.
+    let chain7: Vec<(u32, u32)> = (0..6).map(|i| (i, i + 1)).collect();
+    assert!(CounterfactualIdProblem::new(binary(7), &chain7, &[]).is_ok());
+    // Level counts are not capped either.
     let four = CounterfactualIdProblem::new(
         vec![vec![0.0, 1.0], vec![0.0, 1.0, 2.0, 3.0]],
         &[(0, 1)],
@@ -984,13 +985,13 @@ fn bounds_admit_the_cap_and_refuse_one_more() {
     )
     .unwrap();
     assert!(decide(&four, &ett(0, 1.0, 0.0, 1, 3.0)).is_ok());
-    bounds(
+    assert!(
         CounterfactualIdProblem::new(
             vec![vec![0.0, 1.0], vec![0.0, 1.0, 2.0, 3.0, 4.0]],
             &[(0, 1)],
             &[],
         )
-        .unwrap_err(),
+        .is_ok()
     );
     // Search limits at the caps pass; one more refuses before any search.
     let at_cap = SearchLimits {

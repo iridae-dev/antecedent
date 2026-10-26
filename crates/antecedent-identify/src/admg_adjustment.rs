@@ -24,7 +24,7 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AssumptionSet, CausalQuery, DerivativeScale, ResponseFunctional, ResponseQuery,
+    AssumptionSet, CausalQuery, DerivativeScale, ResponseFunctional, ResponseQuery, SearchLimits,
     TemporalEffectQuery, Value, VariableId,
 };
 use antecedent_expr::{CausalExprArena, IdentifiedEstimand};
@@ -227,7 +227,7 @@ pub fn identify_temporal_admg_response_adjustment(
     let plan = plan_temporal_admg_window(template, probe)?;
     let window = template
         .unroll_window_over(plan.periods, variable_count)
-        .map_err(|error| IdentificationError::msg(error.to_string()))?;
+        .map_err(|error| IdentificationError::construction(error))?;
     let treated_period = plan.treated.first().copied().ok_or(IdentificationError::unsupported(
         "a temporal derivative needs a treated period in its policy",
     ))?;
@@ -261,8 +261,53 @@ pub fn identify_temporal_admg_response_adjustment(
     Ok(TemporalAdmgAdjustment { result, plan, window })
 }
 
-/// Largest front-door mediator set the search tries.
-const FRONT_DOOR_MAX_MEDIATORS: usize = 3;
+/// Separation tests the front-door set search may run before it reports the search as not
+/// certified, when the caller supplies no limits.
+const DEFAULT_FRONT_DOOR_TESTS: usize = 1 << 20;
+
+/// Diagnostic code of a front-door mediator search that spent its test budget before deciding.
+pub(crate) const FRONT_DOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str =
+    "identify.frontdoor_admg.search_bounded";
+
+/// How a bounded front-door mediator-set search ended.
+#[derive(Clone, Debug, PartialEq)]
+pub enum FrontDoorSearch<T> {
+    /// A front-door set was found; the smallest one in lexicographic order.
+    Found(T),
+    /// The search finished and no front-door set exists.
+    Absent,
+    /// The test budget ran out first: whether a front-door set exists is undecided, which is
+    /// not a statement about the graph.
+    NotCertified {
+        /// Candidate sets tested before the budget stopped the search.
+        examined: u64,
+    },
+}
+
+impl<T> FrontDoorSearch<T> {
+    /// The found value, mapping `Absent` and `NotCertified` to `None`.
+    #[must_use]
+    pub fn found(self) -> Option<T> {
+        match self {
+            Self::Found(value) => Some(value),
+            Self::Absent | Self::NotCertified { .. } => None,
+        }
+    }
+
+    fn map<U>(self, f: impl FnOnce(T) -> U) -> FrontDoorSearch<U> {
+        match self {
+            Self::Found(value) => FrontDoorSearch::Found(f(value)),
+            Self::Absent => FrontDoorSearch::Absent,
+            Self::NotCertified { examined } => FrontDoorSearch::NotCertified { examined },
+        }
+    }
+}
+
+/// The default budget of the front-door set search.
+#[must_use]
+pub const fn default_front_door_limits() -> SearchLimits {
+    SearchLimits { operations: DEFAULT_FRONT_DOOR_TESTS, depth: usize::MAX }
+}
 
 /// Whether `m` satisfies the front-door criterion on `admg`: it intercepts every directed path
 /// from `t` to `y`, no back-door path leaves `t` into `m`, and every back-door path from `m` to
@@ -302,36 +347,61 @@ fn is_front_door_set(
     Ok(true)
 }
 
-/// The smallest front-door mediator set of `treatment -> outcome` on the ADMG, if any.
+/// The smallest front-door mediator set of `treatment -> outcome` on the ADMG.
+///
+/// Mediators are drawn from the nodes on a proper causal path from the treatment to the outcome
+/// (a front-door set restricted to those nodes still intercepts every directed path, and the
+/// two back-door conditions are per mediator). A node that has an open back-door path from the
+/// treatment can be in no front-door set, so those are dropped first; the remaining pool is
+/// searched by increasing set size with no cap on the size or on the pool, and `limits` bounds
+/// the number of candidate sets tested. A pool that does not intercept every directed path
+/// proves no set exists without any enumeration.
 fn front_door_set_on(
     admg: &Admg,
     nodes: &NodeMap<'_>,
     treatment: VariableId,
     outcome: VariableId,
-) -> Result<Option<Vec<VariableId>>, IdentificationError> {
+    limits: SearchLimits,
+) -> Result<FrontDoorSearch<Vec<VariableId>>, IdentificationError> {
     let t = (nodes.dense)(treatment)?;
     let y = (nodes.dense)(outcome)?;
     let descendants = directed_closure(admg, &[t], false);
     let ancestors = directed_closure(admg, &[y], true);
-    let mut pool: Vec<DenseNodeId> = DenseNodeId::all(admg.node_count())
-        .filter(|&node| {
-            node != t && node != y && descendants.contains(node) && ancestors.contains(node)
-        })
-        .collect();
-    if pool.len() > 12 {
-        pool.retain(|node| admg.children(t).contains(node));
-    }
     let mut workspace = DSeparationWorkspace::default();
-    for size in 1..=FRONT_DOOR_MAX_MEDIATORS.min(pool.len()) {
+    let t_mutilated =
+        admg.copy_filtered(CopyLabels::StaticIndex { extra: 0 }, |from, _| from != t, |_, _| true)?;
+    let mut pool: Vec<DenseNodeId> = Vec::new();
+    for node in DenseNodeId::all(admg.node_count()) {
+        if node != t
+            && node != y
+            && descendants.contains(node)
+            && ancestors.contains(node)
+            && t_mutilated.is_m_separated(t, node, &[], &mut workspace)?
+        {
+            pool.push(node);
+        }
+    }
+    let budget = u64::try_from(limits.operations).unwrap_or(u64::MAX);
+    let mut examined = 0u64;
+    // Intercepting every directed path is monotone in the mediator set, so the whole pool is
+    // the best case: when it fails, nothing smaller can pass.
+    if pool.is_empty() || admg_without(admg, &pool)?.reaches(t, y) {
+        return Ok(FrontDoorSearch::Absent);
+    }
+    for size in 1..=pool.len() {
         let mut chosen: Vec<usize> = (0..size).collect();
         loop {
+            if examined >= budget {
+                return Ok(FrontDoorSearch::NotCertified { examined });
+            }
+            examined += 1;
             let candidate: Vec<DenseNodeId> = chosen.iter().map(|&i| pool[i]).collect();
             if is_front_door_set(admg, t, y, &candidate, &mut workspace)? {
                 return candidate
                     .iter()
                     .map(|&node| (nodes.variable)(node))
                     .collect::<Result<Vec<_>, _>>()
-                    .map(Some);
+                    .map(FrontDoorSearch::Found);
             }
             // Next combination in lexicographic order.
             let mut position = size;
@@ -347,7 +417,16 @@ fn front_door_set_on(
             }
         }
     }
-    Ok(None)
+    Ok(FrontDoorSearch::Absent)
+}
+
+/// `admg` with every node of `removed` deleted (ids preserved).
+fn admg_without(admg: &Admg, removed: &[DenseNodeId]) -> Result<Admg, IdentificationError> {
+    Ok(admg.copy_filtered(
+        CopyLabels::StaticIndex { extra: 0 },
+        |from, to| !removed.contains(&from) && !removed.contains(&to),
+        |_, _| true,
+    )?)
 }
 
 /// The identified result of a front-door mediator set for the pair of a single-pair
@@ -386,7 +465,10 @@ fn front_door_result(
 }
 
 /// Front-door identification of a single-pair derivative on an ADMG, for the case that no
-/// adjustment set exists: `Ok(None)` when no front-door set of at most three mediators exists.
+/// adjustment set exists: `Ok(None)` when no front-door set was found, whether because none
+/// exists or because the default test budget ran out first.
+///
+/// A caller that must tell those apart uses [`search_admg_front_door_derivative`].
 ///
 /// # Errors
 ///
@@ -395,9 +477,27 @@ pub fn identify_admg_front_door_derivative(
     admg: &Admg,
     query: &ResponseQuery,
 ) -> Result<Option<IdentificationResult>, IdentificationError> {
+    Ok(search_admg_front_door_derivative(admg, query, default_front_door_limits())?.found())
+}
+
+/// Front-door identification of a single-pair derivative on an ADMG under an explicit test
+/// budget (`limits.operations` candidate sets), with a distinct status when the budget ends the
+/// search before it decides.
+///
+/// A query that is not a single-pair derivative has no front-door estimand, which is
+/// [`FrontDoorSearch::Absent`].
+///
+/// # Errors
+///
+/// A missing variable or a graph error.
+pub fn search_admg_front_door_derivative(
+    admg: &Admg,
+    query: &ResponseQuery,
+    limits: SearchLimits,
+) -> Result<FrontDoorSearch<IdentificationResult>, IdentificationError> {
     let pairs = response_pairs(&query.functional)?;
     let &[(treatment, outcome)] = pairs.as_slice() else {
-        return Ok(None);
+        return Ok(FrontDoorSearch::Absent);
     };
     let dense = |variable: VariableId| {
         admg.dense_of_static(variable).ok_or(IdentificationError::UnknownVariable { id: variable })
@@ -407,7 +507,7 @@ pub fn identify_admg_front_door_derivative(
             .ok_or(IdentificationError::UnknownVariable { id: VariableId::from_raw(node.raw()) })
     };
     let nodes = NodeMap { dense: &dense, variable: &variable };
-    Ok(front_door_set_on(admg, &nodes, treatment, outcome)?
+    Ok(front_door_set_on(admg, &nodes, treatment, outcome, limits)?
         .map(|mediators| front_door_result(query, treatment, outcome, mediators)))
 }
 
@@ -439,8 +539,21 @@ pub fn upgrade_id_only_derivative_cases(
         let dense = |variable: VariableId| pag_var_to_dense(mag, variable);
         let variable = |node: DenseNodeId| mag_dense_to_var(mag, node);
         let nodes = NodeMap { dense: &dense, variable: &variable };
-        if let Some(mediators) = front_door_set_on(&admg, &nodes, treatment, outcome)? {
-            case.result = front_door_result(query, treatment, outcome, mediators);
+        match front_door_set_on(&admg, &nodes, treatment, outcome, default_front_door_limits())? {
+            FrontDoorSearch::Found(mediators) => {
+                case.result = front_door_result(query, treatment, outcome, mediators);
+            }
+            FrontDoorSearch::Absent => {}
+            FrontDoorSearch::NotCertified { examined } => {
+                // The general-ID result stands, and says the front-door search was undecided.
+                case.result.diagnostics.push(crate::result::search_bounded_diagnostic(
+                    FRONT_DOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
+                    format!(
+                        "front-door mediator search stopped after {examined} candidate sets \
+                         at its test budget; a front-door set may exist"
+                    ),
+                ));
+            }
         }
     }
     Ok(())
@@ -448,7 +561,7 @@ pub fn upgrade_id_only_derivative_cases(
 
 /// Front-door identification of a single-pair derivative at one horizon of a temporal ADMG, on
 /// its unrolled window, for the case that no adjustment set exists: `Ok(None)` when no
-/// front-door set of at most three mediators exists on the window. The mediators are window
+/// front-door set was found on the window. The mediators are window
 /// coordinates.
 ///
 /// # Errors
@@ -467,7 +580,7 @@ pub fn identify_temporal_admg_front_door_derivative(
     let plan = plan_temporal_admg_window(template, probe)?;
     let window = template
         .unroll_window_over(plan.periods, variable_count)
-        .map_err(|error| IdentificationError::msg(error.to_string()))?;
+        .map_err(|error| IdentificationError::construction(error))?;
     let treated_period = plan.treated.first().copied().ok_or(IdentificationError::unsupported(
         "a temporal derivative needs a treated period in its policy",
     ))?;

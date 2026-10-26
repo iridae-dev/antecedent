@@ -11,7 +11,7 @@ use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram, TemporalDag};
 use antecedent_identify::sid::{
     scenarios::ScenarioCoordinate,
     temporal_sequence::{
-        TEMPORAL_BOUNDS_EXCEEDED, TEMPORAL_HORIZON_DETAIL, TEMPORAL_INVALID_SEQUENCE,
+        TEMPORAL_HORIZON_DETAIL, TEMPORAL_INVALID_SEQUENCE,
         TEMPORAL_INVALID_SPEC, TemplateRoles, TemporalRefusal, TemporalSequenceSpec, TemporalSlots,
         unroll_two_slice,
     },
@@ -94,29 +94,26 @@ fn sequences_are_one_action_per_step_over_the_alphabet() {
 }
 
 #[test]
-fn caps_on_actions_and_histories_refuse_as_bounds_exceeded() {
+fn actions_and_histories_have_no_count_ceiling() {
     let (slots, graph) = chain();
     let diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
     let mut wide = coordinates(6);
     for a in [2usize, 4] {
         wide[a].domain = VariableDomain::Categorical { cardinality: 9 };
     }
-    let refused = TemporalSequenceSpec::try_new(2, slots.clone(), diagram.clone(), wide);
-    assert_eq!(detail(refused), TEMPORAL_BOUNDS_EXCEEDED);
+    assert!(TemporalSequenceSpec::try_new(2, slots.clone(), diagram.clone(), wide).is_ok());
     let mut eight = coordinates(6);
     for a in [2usize, 4] {
         eight[a].domain = VariableDomain::Categorical { cardinality: 8 };
     }
     assert!(TemporalSequenceSpec::try_new(2, slots.clone(), diagram.clone(), eight).is_ok());
-    // Three covariates of 20 levels give 8000 complete histories.
+    // Three covariates of 20 levels give 8000 complete histories: each is charged to the
+    // decision's budget when the lattice grows, not refused at declaration.
     let mut large = coordinates(6);
     for c in [0usize, 1, 3] {
         large[c].domain = VariableDomain::Categorical { cardinality: 20 };
     }
-    assert_eq!(
-        detail(TemporalSequenceSpec::try_new(2, slots, diagram, large)),
-        TEMPORAL_BOUNDS_EXCEEDED
-    );
+    assert!(TemporalSequenceSpec::try_new(2, slots, diagram, large).is_ok());
 }
 
 #[test]
@@ -157,7 +154,7 @@ fn a_template_unrolls_through_the_temporal_dag_unfolding() {
 }
 
 #[test]
-fn the_history_cap_admits_exactly_the_bound_and_refuses_one_more() {
+fn the_history_count_has_no_ceiling() {
     // The number of coordinates is not capped: the old limit of twelve admits thirteen.
     let twelve = TemporalSlots {
         baseline: (0..7).map(v).collect(),
@@ -181,7 +178,7 @@ fn the_history_cap_admits_exactly_the_bound_and_refuses_one_more() {
         outcome: v(12),
     };
     assert!(build(13, thirteen).is_ok());
-    // Complete histories: 16 * 16 * 16 = 4096 is admitted; 17 * 241 = 4097 is one more.
+    // Complete histories: 4096 and 4097 are both admitted; each is charged to the budget.
     let (slots, graph) = chain();
     let with_levels = |baseline: u32, first: u32, second: u32| {
         let mut declared = coordinates(6);
@@ -193,5 +190,5 @@ fn the_history_cap_admits_exactly_the_bound_and_refuses_one_more() {
         TemporalSequenceSpec::try_new(2, slots.clone(), diagram, declared)
     };
     assert!(with_levels(16, 16, 16).is_ok());
-    assert_eq!(detail(with_levels(17, 241, 1)), TEMPORAL_BOUNDS_EXCEEDED);
+    assert!(with_levels(17, 241, 1).is_ok());
 }

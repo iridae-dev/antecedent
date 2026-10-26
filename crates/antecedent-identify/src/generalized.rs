@@ -18,13 +18,14 @@
 //! with an Execution diagnostic. Completions that are not MAGs, or MAGs with no qualifying
 //! set in this candidate family, contribute unidentified mass. A completion whose
 //! ancestral candidates pass that test but whose candidate family exceeds
-//! `max_candidates` is folded into unidentified mass with status [`IdentificationStatus::NotIdentified`]
-//! (there is no third identification outcome). Enumeration
-//! was never attempted, so this is not a scientific open-back-door: the result
-//! carries an Execution diagnostic [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`] and is
-//! counted in [`IdentificationEnvelope::truncated_completions`]. A completed
-//! search that finds no set is also [`IdentificationStatus::NotIdentified`], but
-//! with a Scientific diagnostic.
+//! `max_candidates` is identified by the ancestral set, which the test already certified
+//! (valid, not minimal): only the choice of a smaller set is skipped, and the result carries
+//! an Execution diagnostic [`MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE`]. The joint multi-treatment
+//! search has no such certified set, so above `max_candidates` it stays undecided: status
+//! [`IdentificationStatus::NotIdentified`] with an Execution diagnostic
+//! [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`], counted in
+//! [`IdentificationEnvelope::truncated_completions`]. A completed search that finds no set is
+//! also [`IdentificationStatus::NotIdentified`], but with a Scientific diagnostic.
 //!
 //! This is **generalized adjustment**, not the full ID/IDC algorithm (see roadmap P5.3).
 //! Sets outside the ancestor candidate family are not searched.
@@ -406,7 +407,7 @@ impl GeneralizedAdjustmentIdentifier {
         let mut workspace = IdentificationWorkspace::default();
         self.cpdag_envelope_with(cpdag, |dag| {
             let admg = antecedent_graph::Admg::from_dag(dag)
-                .map_err(|error| IdentificationError::msg(error.to_string()))?;
+                .map_err(|error| IdentificationError::construction(error))?;
             crate::pag_path_specific::identify_distribution_on(&admg, query, &mut workspace)
         })
     }
@@ -591,9 +592,10 @@ fn validate_conditional_adjustment(
                     result.diagnostics.push(crate::result::search_bounded_diagnostic(
                         CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
                         format!(
-                            "conditional adjustment search reached max_examinations={} before it \
-                             finished; the returned set separates treatment from outcome but a \
-                             smaller one may exist",
+                            "conditional adjustment search stopped (max_examinations={}, declared \
+                             candidate ceiling or leasable storage) before it finished; the \
+                             returned set separates treatment from outcome but a smaller one may \
+                             exist",
                             config.max_examinations
                         ),
                     ));
@@ -603,14 +605,6 @@ fn validate_conditional_adjustment(
                         .required_assumptions
                         .push(crate::assumptions::causal_markov("conditional.adjustment"));
                 }
-            }
-            ConditionalSearch::Capped(n) => {
-                *result = capped_completion_result(
-                    CausalQuery::AverageEffect(query.clone()),
-                    n,
-                    config.max_candidates,
-                );
-                return Ok(());
             }
             ConditionalSearch::Absent => {}
         }
@@ -667,7 +661,6 @@ enum ConditionalSearch {
     /// Certified sets, separation tests spent, and whether the examination budget cut the
     /// search for smaller sets short.
     Found(Vec<Vec<VariableId>>, u64, bool),
-    Capped(usize),
     /// Proved: no admissible set exists.
     Absent,
 }
@@ -680,6 +673,7 @@ fn constrained_conditional_set(
     modifiers: &[DenseNodeId],
     config: &crate::backdoor::AdjustmentSearchConfig,
 ) -> Result<ConditionalSearch, IdentificationError> {
+    config.validate()?;
     let dense = |v| crate::prepared::dense_of_static(nodes, v);
     let t = dense(query.treatment)?;
     let y = dense(query.outcome)?;
@@ -703,30 +697,39 @@ fn constrained_conditional_set(
         config.max_candidates,
         config.max_results,
     )? {
-        return Ok(ConditionalSearch::Capped(candidates.len()));
+        // Over the declared ceiling the subset search is skipped, not the decision: the
+        // candidates were just certified as a conditioning set, so they are the answer.
+        return Ok(finish_conditional_search(&[], &candidates, nodes, examined, true, config));
     }
     if config.max_results == 0 {
         return Ok(ConditionalSearch::Absent);
     }
     let mut found: Vec<Vec<DenseNodeId>> = Vec::new();
+    // Found sets as bit masks, so each superset/subset test is word-wise.
+    let mut found_masks: Vec<BitSet> = Vec::new();
+    let mut z_mask = BitSet::with_len(graph.node_count());
     let mut budget_exhausted = false;
-    let sizes: Vec<_> = if config.maximal_only && !config.minimal_only {
-        (0..=candidates.len()).rev().collect()
-    } else {
-        (0..=candidates.len()).collect()
-    };
-    for size in sizes {
+    let m = candidates.len();
+    let descending = config.maximal_only && !config.minimal_only;
+    for step in 0..=m {
+        let size = if descending { m - step } else { step };
         let mut error = None;
         crate::enum_masks::for_each_mask_of_size(&candidates, size, |z| {
             if let Err(e) = search.observe() {
                 error = Some(e);
                 return true;
             }
-            if config.minimal_only && found.iter().any(|old| old.iter().all(|v| z.contains(v))) {
-                return false;
-            }
-            if config.maximal_only && found.iter().any(|old| z.iter().all(|v| old.contains(v))) {
-                return false;
+            if !found_masks.is_empty() {
+                z_mask.clear();
+                for &d in z {
+                    z_mask.insert(d);
+                }
+                if config.minimal_only && found_masks.iter().any(|old| old.is_subset_of(&z_mask)) {
+                    return false;
+                }
+                if config.maximal_only && found_masks.iter().any(|old| z_mask.is_subset_of(old)) {
+                    return false;
+                }
             }
             // The ancestral set was tested above; it is not tested twice.
             let known_valid = z == candidates.as_slice();
@@ -745,6 +748,11 @@ fn constrained_conditional_set(
             match separated {
                 Ok(true) => {
                     found.push(z.to_vec());
+                    let mut mask = BitSet::with_len(graph.node_count());
+                    for &d in z {
+                        mask.insert(d);
+                    }
+                    found_masks.push(mask);
                     config.minimal_only && z.is_empty() || found.len() >= config.max_results
                 }
                 Ok(false) => false,
@@ -977,12 +985,16 @@ fn mag_adjustment_search(
         )));
     }
     // A single adjustment set is retained, so the enumeration's retained storage is one set.
+    // Above the declared ceiling the subset search is skipped, not the decision: the ancestral
+    // set just tested is a valid adjustment set, so the effect is identified by it (valid, not
+    // minimal) and the unfinished search is reported as a bounded search.
     if !fund_adjustment_enumeration(&mut exact, candidates.len(), max_candidates, 1)? {
-        return Ok(MagAdjustment::Failed(capped_completion_result(
-            query,
-            candidates.len(),
-            max_candidates,
-        )));
+        let z_vars: Arc<[VariableId]> = constructive
+            .iter()
+            .map(|&d| mag_dense_to_var(mag, d))
+            .collect::<Result<Vec<_>, _>>()?
+            .into();
+        return Ok(MagAdjustment::Found { z_vars, examined: 1, budget_exhausted: true });
     }
 
     let search = crate::enum_masks::first_set_by_size(&candidates, 1, max_examinations, |z| {
@@ -1037,9 +1049,10 @@ fn mag_adjustment_identified(
         result.diagnostics.push(crate::result::search_bounded_diagnostic(
             MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
             format!(
-                "generalized adjustment search reached its examination budget after {examined} \
-                 separation tests before it found a smaller set; the returned set m-separates \
-                 treatment from outcome but is not minimal"
+                "generalized adjustment search stopped after {examined} separation tests (its \
+                 examination budget, declared candidate ceiling or leasable storage) before it \
+                 found a smaller set; the returned set m-separates treatment from outcome but \
+                 is not minimal"
             ),
         ));
     }
@@ -1614,10 +1627,11 @@ mod tests {
     }
 
     #[test]
-    fn capped_enumeration_is_distinguishable_from_genuine_nonidentification() {
-        // Case A: Z → T, Z → Y, T → Y, but max_candidates=0 forces the single-candidate set
-        // {Z} over the cap before enumeration can even start — the search was truncated, not
-        // exhausted.
+    fn a_declared_ceiling_keeps_the_certified_set_and_proved_nonidentification_stays_distinct() {
+        // Case A: Z → T, Z → Y, T → Y, but max_candidates=0 puts the candidate set {Z} over the
+        // declared ceiling before enumeration can start. The ancestral set was already tested
+        // valid, so the effect is identified by it; only the search for a smaller set is
+        // reported as bounded.
         let mut capped_pag = Pag::with_variables(4);
         let z = DenseNodeId::from_raw(0);
         let t = DenseNodeId::from_raw(1);
@@ -1636,39 +1650,27 @@ mod tests {
         };
         let q = AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(2));
         let capped_env = capped_id.identify_pag_envelope(&capped_pag, &q).unwrap();
-        assert!(capped_env.unidentified_weight.0 > 0.0);
-        assert_eq!(
-            capped_env.truncated_completions,
-            capped_env.cases.len(),
-            "every case in this fixture should be capped"
-        );
-        assert_eq!(
-            capped_env.cases[0].result.status,
-            IdentificationStatus::NotIdentified,
-            "cap keeps NotIdentified, honesty is the Execution diagnostic"
-        );
-        assert_eq!(capped_env.status, IdentificationStatus::NotIdentified);
+        assert_eq!(capped_env.unidentified_weight.0, 0.0);
+        assert_eq!(capped_env.status, IdentificationStatus::NonparametricallyIdentified);
+        let capped_case = &capped_env.cases[0].result;
+        assert_eq!(capped_case.status, IdentificationStatus::NonparametricallyIdentified);
         assert!(
-            capped_env.cases[0].result.diagnostics.iter().any(|d| {
-                d.code.as_ref() == CAPPED_COMPLETION_DIAGNOSTIC_CODE
+            capped_case.diagnostics.iter().any(|d| {
+                d.code.as_ref() == MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE
                     && d.kind == DiagnosticKind::Execution
             }),
-            "capped case should carry the capped-completion execution diagnostic"
+            "the unfinished search is an execution diagnostic: {:?}",
+            capped_case.diagnostics
         );
         assert!(
-            !capped_env.cases[0]
-                .result
-                .diagnostics
-                .iter()
-                .any(|d| d.kind == DiagnosticKind::Scientific),
-            "cap must not be stamped scientific: {:?}",
-            capped_env.cases[0].result.diagnostics
+            !capped_case.diagnostics.iter().any(|d| d.kind == DiagnosticKind::Scientific),
+            "the bound must not be stamped scientific: {:?}",
+            capped_case.diagnostics
         );
 
-        // Case B: bare T ↔ Y (unmeasured confounding, no other variables). The search is
-        // never truncated (candidates.len() == 0 never exceeds the default max_candidates),
-        // but no adjustment set can ever separate T from Y, so this is a genuine
-        // non-identification — proved, not merely "could not tell".
+        // Case B: bare T ↔ Y (unmeasured confounding, no other variables). No adjustment set
+        // can ever separate T from Y, so this is a genuine non-identification — proved, not
+        // merely "could not tell".
         let mut confounded_pag = Pag::with_variables(2);
         confounded_pag
             .insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
@@ -1682,10 +1684,8 @@ mod tests {
             "genuinely-blocked completions must not count as truncated"
         );
 
-        // Both envelopes report positive unidentified mass (neither is silently dropped), but
-        // only the capped one is flagged as truncated -- proving the two are distinguishable
-        // rather than both being folded indistinguishably into `unidentified_weight`.
-        assert!(capped_env.truncated_completions > genuine_env.truncated_completions);
+        // Only the proved non-identification carries unidentified mass.
+        assert!(genuine_env.unidentified_weight.0 > capped_env.unidentified_weight.0);
     }
 
     #[test]
@@ -1839,10 +1839,17 @@ mod enumeration_admission_tests {
             Err(IdentificationError::Budget { budget: crate::IdentificationBudget::Memory })
         ));
         assert_eq!(pool.available().bytes(), 1);
+        // Over a declared ceiling the certified conditioning set is returned, with the
+        // unfinished search reported as an execution diagnostic.
         let capped = run(Some(starved.clone()), 0).unwrap();
-        assert_eq!(capped.status, IdentificationStatus::NotIdentified);
+        assert_eq!(capped.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(
+            capped.estimands[0].adjustment_set.as_ref(),
+            &[VariableId::from_raw(1), VariableId::from_raw(3)]
+        );
         assert!(
-            capped.diagnostics.iter().any(|d| d.code.as_ref() == CAPPED_COMPLETION_DIAGNOSTIC_CODE
+            capped.diagnostics.iter().any(|d| d.code.as_ref()
+                == CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE
                 && d.kind == DiagnosticKind::Execution)
         );
         starved.cancellation.cancel();
@@ -1885,14 +1892,20 @@ mod enumeration_admission_tests {
             Err(IdentificationError::Budget { budget: crate::IdentificationBudget::Memory })
         ));
         assert_eq!(pool.available().bytes(), 1);
+        // Over a declared ceiling the certified ancestral set is the answer, so no mass becomes
+        // unidentified; the unfinished search is an execution diagnostic.
         let capped = run(Some(&starved), 0).unwrap();
+        assert_eq!(capped.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(capped.diagnostics.iter().any(|d| {
+            d.code.as_ref() == MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE
+                && d.kind == DiagnosticKind::Execution
+        }));
         let envelope = IdentificationEnvelope::from_cases(vec![GraphIdentificationCase {
             graph: mag.clone(),
             result: capped,
             weight: ProbabilityMass(1.0),
         }]);
-        assert_eq!(envelope.truncated_completions, 1);
-        assert_eq!(envelope.status, IdentificationStatus::NotIdentified);
+        assert_eq!(envelope.status, IdentificationStatus::NonparametricallyIdentified);
         starved.cancellation.cancel();
         assert!(matches!(run(Some(&starved), usize::MAX), Err(IdentificationError::Cancelled)));
         assert_eq!(pool.available().bytes(), 1);
