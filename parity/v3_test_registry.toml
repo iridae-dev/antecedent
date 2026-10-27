@@ -17265,3 +17265,24 @@ crate = "python"
 cargo_target = "script"
 path = "python/tests/test_real_data_routes.py"
 gates = ["inventory"]
+
+[[test]]
+id = "audit-crates-antecedent-identify-src-iv-enumeration-tests-rs"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/iv_enumeration_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-identify-src-rd-design-tests-rs"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/rd_design_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-learn-src-transported-effect-premise-tests-rs"
+crate = "antecedent-learn"
+cargo_target = "lib"
+path = "crates/antecedent-learn/src/transported_effect_premise_tests.rs"
+gates = ["inventory", "named"]
