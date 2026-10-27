@@ -1,6 +1,6 @@
 //! Unit tests.
 
-#![allow(clippy::float_cmp, reason = "values are copied bit-for-bit")]
+#![cfg_attr(test, allow(clippy::float_cmp, reason = "values are copied bit-for-bit"))]
 
 use super::chunks::*;
 

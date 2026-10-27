@@ -890,7 +890,11 @@ fn experimental_effects(
     }
     if condition > MAX_INTERVENTION_CONDITION {
         // Truncation to the decimal exponent is the documented rounding.
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "condition is finite and greater than the condition limit; its base-10 exponent is positive and at most 308"
+        )]
         let condition_exponent = condition.log10().floor() as u32;
         return Err(MomentAssemblyRefusal::IllConditionedIntervention {
             regime,

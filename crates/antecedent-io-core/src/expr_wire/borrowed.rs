@@ -1,8 +1,4 @@
 //! Borrowed encoding of the canonical expression wire, without owned DTO tables.
-#![allow(
-    clippy::cast_possible_truncation,
-    reason = "constructor validates every table index before iteration"
-)]
 use super::*;
 use serde::ser::{SerializeSeq, SerializeStruct};
 
@@ -43,6 +39,10 @@ where
 }
 
 impl Serialize for BorrowedExprArenaWire<'_> {
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "BorrowedExprArenaWire::new validates all arena table indices before serialization"
+    )]
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let arena = self.0;
         let derivation_count = (0..arena.len())
@@ -100,6 +100,10 @@ impl Serialize for BorrowedExprArenaWire<'_> {
 
 struct Derivations<'a>(&'a CausalExprArena, usize);
 impl Serialize for Derivations<'_> {
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "BorrowedExprArenaWire::new validates all arena table indices before serialization"
+    )]
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut sequence = serializer.serialize_seq(Some(self.1))?;
         for index in 0..self.0.len() {
