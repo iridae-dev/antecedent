@@ -77,3 +77,28 @@ previous = "crates/antecedent-validate/src/bayesian_checks/tests.rs::pinned_exte
 replacement = "crates/antecedent-validate/src/bayesian_checks/tests.rs::mcmc_publication_gate_checks_numeric_boundaries_and_missing_values"
 disposition = "constant_comparison_removed"
 reason = "The removed case only compared frozen policy numbers with locally constructed constants, exercising no product algorithm or upstream oracle. The existing replacement executes the real gate at inclusive boundaries and faults R-hat, ESS, missing tail ESS and missing divergences. Historical context numbers remain in the software-only fixture."
+
+[[case]]
+previous = "scripts/test_calibration_recipe_receipts.py::RecipeReceiptTests.test_real_registry_accepts_nine_exact_receipts_including_fresh_family"
+replacement = "scripts/test_calibration_recipe_receipts.py::RecipeReceiptTests.test_historical_registry_accepts_nine_exact_receipts_on_frozen_source"
+additional_replacements = ["scripts/test_calibration_recipe_receipts.py::RecipeReceiptTests.test_changed_current_numerical_implementation_cannot_borrow_old_receipt", "scripts/test_calibration_recipe_receipts.py::RecipeReceiptTests.test_missing_current_numerical_dependency_cannot_borrow_old_receipt"]
+disposition = "historical_positive_control_separated_from_current_applicability"
+reason = "Preserve all nine original receipt validations on their frozen source footprint. Changed or moved current source must fail applicability rather than break fixture setup or borrow historical calibration. No measurement, receipt or attestation is regenerated."
+
+[[case]]
+previous = "scripts/test_rust_equivalence.py::TerminalObserverTests.test_actual_exact_two_terminal_primitive_observers"
+replacement = "scripts/test_rust_equivalence.py::TerminalObserverTests.test_historical_exact_two_terminal_primitive_observers"
+disposition = "historical_positive_control_pinned"
+reason = "Bind the success control to the immutable reviewed witness source used by count_observer_proof, retaining full-tree checks and every mutation rejection. A moving HEAD with source changes cannot be assumed equivalent or gain a replay waiver from this test."
+
+[[case]]
+previous = "python/tests/test_native_interrupts_and_callbacks.py::test_a_long_native_estimator_lets_other_python_threads_run"
+replacement = "python/tests/test_native_interrupts_and_callbacks.py::test_a_long_native_estimator_lets_other_python_threads_run"
+disposition = "thread_throughput_ratio_replaced_by_controlled_concurrency_witness"
+reason = "Preserve the single exact-randomization call and its 20-row/2**20 allocation workload. A delayed Python witness must execute during it; a deliberately GIL-holding PyDLL call is the negative control. A GIL-holding substitution is rejected. Contended counter throughput is not a performance acceptance proposition. Restore the interpreter switch interval and join the witness on every path."
+
+[[case]]
+previous = "python/tests/test_panel_future_study.py::_updated"
+replacement = "python/tests/test_panel_future_study.py::test_updates_keep_the_cached_fit_and_other_ledgers_unchanged"
+disposition = "shared_immutable_fit_with_private_update_state"
+reason = "Retain every future-study ranking, regime identity, withdrawal and foreign-source refusal assertion. Fit once per module and create a fresh ledger for every update, with explicit source/ledger isolation checks. Increase retained draws from 24 to 128 so the 5 percent CDF tail indicators are nonconstant; the corrected ESS gate legitimately refused the original fixture. Keep the existing declared permissive routing thresholds unchanged and assert the actual gate passes; this is not sampling convergence or calibration evidence."

@@ -288,7 +288,10 @@ class TerminalObserverTests(unittest.TestCase):
     def setUpClass(cls):
         repo = facets.Repo()
         cls.old = repo.rust_sources("c30e10304f4bd85a01ad81dd133a360ddc95c2f1")
-        cls.new = repo.rust_sources("HEAD")
+        # Positive controls bind the retained, reviewed observer source; HEAD
+        # legitimately changes during development and requires its own proof.
+        from calibration_recipe_receipts import COUNT_WITNESS_SOURCE
+        cls.new = repo.rust_sources(COUNT_WITNESS_SOURCE)
         cls.path = "crates/antecedent-stats/src/ci/calibration.rs"
 
     def check(self, path=None, before=None, after=None, extra=None, complete=False):
@@ -317,7 +320,7 @@ class TerminalObserverTests(unittest.TestCase):
         old[path], new[path] = before, after
         return proof.prove("rust_terminal_test_observer", path, before, after, old, new)
 
-    def test_actual_exact_two_terminal_primitive_observers(self):
+    def test_historical_exact_two_terminal_primitive_observers(self):
         for path in proof._TERMINAL_TEST_OBSERVERS:
             with self.subTest(path=path):
                 self.assertIsNone(self.check(path, complete=True))

@@ -45,8 +45,12 @@ class RecipeReceiptTests(unittest.TestCase):
             path = item.partition("::")[0]
             target = self.root / path
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(ROOT / path, target)
-        shutil.copyfile(ROOT / "Cargo.lock", self.root / "Cargo.lock")
+            # Frozen success controls validate the recorded numerical footprint,
+            # never assume that the current branch still attests old receipts.
+            target.write_bytes(receipts.family.read_source(ROOT, path, receipts.COUNT_ORIGINAL_SOURCE))
+        (self.root / "Cargo.lock").write_bytes(
+            receipts.family.read_source(ROOT, "Cargo.lock", receipts.COUNT_ORIGINAL_SOURCE)
+        )
         path = "crates/antecedent-estimate/tests/knn_matching_calibration.rs"
         (self.root / path).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / path, self.root / path)
@@ -59,7 +63,8 @@ class RecipeReceiptTests(unittest.TestCase):
         ):
             target = self.root / path
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(ROOT / path, target)
+            target.write_bytes(receipts.family.read_source(ROOT, path, receipts.COUNT_WITNESS_SOURCE))
+        shutil.copyfile(ROOT / receipts.REGISTRY, self.root / receipts.REGISTRY)
         self.recipe = copy.deepcopy(
             next(
                 r
@@ -104,6 +109,12 @@ class RecipeReceiptTests(unittest.TestCase):
         path = self.root / "crates/antecedent-estimate/src/observational_policy.rs"
         path.write_bytes(path.read_bytes() + b"\n// changed numerical-source footprint\n")
         with self.assertRaisesRegex(ValueError, "numerical recipe dependency changed"):
+            self.validate()
+
+    def test_missing_current_numerical_dependency_cannot_borrow_old_receipt(self) -> None:
+        path = self.root / "crates/antecedent-core/src/execution.rs"
+        path.unlink()
+        with self.assertRaisesRegex(ValueError, "numerical recipe dependency missing"):
             self.validate()
 
     def test_nearby_size_or_another_level_never_borrows_a_receipt(self) -> None:
@@ -180,9 +191,9 @@ class RecipeReceiptTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unknown or missing"):
             self.validate()
 
-    def test_real_registry_accepts_nine_exact_receipts_including_fresh_family(self) -> None:
+    def test_historical_registry_accepts_nine_exact_receipts_on_frozen_source(self) -> None:
         valid, problems = receipts.validate_registry(
-            ROOT, list(self.cases.values()), closure.case_size
+            self.root, list(self.cases.values()), closure.case_size
         )
         self.assertEqual(problems, [])
         self.assertEqual(valid, {r["case_id"] for r in self.recipes})

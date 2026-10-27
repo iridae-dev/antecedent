@@ -12,14 +12,20 @@ import functools
 from pathlib import Path
 
 _active: list[dict] = []
+_validation: dict = {}
 
 
 def signature(path: Path):
+    if path in _validation:
+        return _validation[path]
     try:
         stat = path.stat()
     except FileNotFoundError:
-        return None
-    return stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size, stat.st_ino
+        value = None
+    else:
+        value = stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size, stat.st_ino
+    _validation[path] = value
+    return value
 
 
 def source_cache(function):
@@ -27,6 +33,8 @@ def source_cache(function):
 
     @functools.wraps(function)
     def wrapped(*args, **kwargs):
+        if not _active:
+            _validation.clear()
         key = args, tuple(sorted(kwargs.items()))
         saved = entries.get(key)
         if saved is not None:

@@ -15,6 +15,7 @@ from __future__ import annotations
 import csv
 import math
 from dataclasses import replace
+from functools import lru_cache
 from pathlib import Path
 
 import pytest
@@ -28,7 +29,10 @@ from antecedent.outcomes import require_success
 
 ROOT = Path(__file__).resolve().parents[2]
 WORLDS = 2
-SAMPLER = {"chains": 2, "warmup": 20, "draws": 24, "proposal_scale": 0.01}
+# This routing fixture uses explicit permissive diagnostic thresholds, not a
+# convergence/calibration claim. Keep enough retained draws for nonconstant 5%
+# tail indicators; the original 24 draws legitimately failed the tail-ESS gate.
+SAMPLER = {"chains": 2, "warmup": 20, "draws": 128, "proposal_scale": 0.01}
 
 
 def _declarations():
@@ -115,8 +119,9 @@ def _bridge(target):
     )
 
 
-def _updated():
-    """A contrast-path panel with a real Bayesian fit, conditioned on one experiment."""
+@lru_cache(maxsize=1)
+def _fitted():
+    """One immutable actual fit; each update below receives a fresh evidence ledger."""
     groups, worlds = _declarations()
     prepared = joint_panel.prepare(
         groups,
@@ -148,6 +153,13 @@ def _updated():
         execution=Execution(seed=20261021),
     )
     result = require_success(prepared.estimate(execution=Execution(seed=20261021)))
+    assert result.report()["diagnostics"]["posterior_converged"] is True
+    return result
+
+
+def _updated():
+    """A contrast-path panel conditioned on one experiment with private ledger state."""
+    result = _fitted()
     report = result.report()
     dependency = report["dependency"]
     draws = report["draws"]
@@ -300,3 +312,13 @@ def test_declarations_that_are_not_future_studies_are_refused():
             1.0,
             regime="elsewhere",  # type: ignore[arg-type]
         )._wire()
+
+
+def test_updates_keep_the_cached_fit_and_other_ledgers_unchanged():
+    fitted = _fitted()
+    before = fitted.report()
+    first, first_ledger, *_ = _updated()
+    second, second_ledger, *_ = _updated()
+    assert first_ledger is not second_ledger
+    assert first.report(first_ledger) == second.report(second_ledger)
+    assert fitted.report() == before

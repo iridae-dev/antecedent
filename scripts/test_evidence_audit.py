@@ -57,6 +57,27 @@ class Classification(unittest.TestCase):
             helper.write_text("other", encoding="utf-8")
             self.assertEqual(transitive(path)[1], "other")
 
+    def test_script_inventory_names_exact_unittest_assertions_and_rejects_helpers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "test_control.py"
+            path.write_text(
+                "import unittest\nclass Control(unittest.TestCase):\n"
+                "    def test_actual(self):\n        self.assertEqual(run(), 2)\n"
+                "    @unittest.skip('required assertion skipped')\n"
+                "    def test_skipped(self):\n        self.assertTrue(run())\n"
+                "class Helper:\n    def test_fake(self):\n        assert True\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(evidence.script_test_declaration_problems(path, "Control.test_actual"), [])
+            for name in ["Helper.test_fake", "Control.test_skipped", "Control.missing"]:
+                self.assertTrue(evidence.script_test_declaration_problems(path, name))
+            rows = evidence.python_test_declarations(path)
+            self.assertEqual(rows[0]["assertion_nodes"], 1)
+            self.assertFalse(rows[0]["discovery_verified"])
+            path.write_text(path.read_text(encoding="utf-8") +
+                "\nclass Control(unittest.TestCase):\n    def test_actual(self):\n        self.assertTrue(run())\n", encoding="utf-8")
+            self.assertTrue(evidence.script_test_declaration_problems(path, "Control.test_actual"))
+
     def test_primary_review_rejects_stale_code_and_altered_citation_sections(self):
         import hashlib
 

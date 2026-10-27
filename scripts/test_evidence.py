@@ -566,6 +566,83 @@ def python_test_markers(path: Path) -> dict[str, set[str]]:
 
 
 @source_cache
+def python_test_declarations(path: Path) -> list[dict]:
+    """Source declarations for pytest and imported unittest TestCase methods.
+
+    This supports software inventory/dispositions. It does not certify runtime
+    discovery, inherited tests, assertion quality or scientific propositions.
+    """
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    unittest_names = {
+        alias.asname or alias.name
+        for node in tree.body if isinstance(node, ast.Import)
+        for alias in node.names if alias.name == "unittest"
+    }
+    testcase_names = {
+        alias.asname or alias.name
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom) and node.module == "unittest"
+        for alias in node.names if alias.name == "TestCase"
+    }
+    rows = []
+    module_marks = set()
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == "pytestmark" for target in node.targets
+        ):
+            module_marks.update(_mark_names(node.value))
+
+    def add(function, prefix="", runner="pytest", class_marks=None):
+        if not function.name.startswith("test"):
+            return
+        marks = module_marks | (class_marks or set())
+        marks = marks.union(*(_mark_names(d) for d in function.decorator_list))
+        rows.append({
+            "selector": prefix + function.name,
+            "runner": runner,
+            "line": function.lineno,
+            "static_skip_or_xfail": bool(marks & (_SKIP_ATTRS | {"skipIf", "skipUnless"})),
+            "assertion_nodes": sum(
+                isinstance(n, ast.Assert) or (
+                    isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                    and (n.func.attr.startswith("assert") or n.func.attr == "raises")
+                ) for n in ast.walk(function)
+            ),
+            "discovery_verified": False,
+        })
+
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            add(node)
+        elif isinstance(node, ast.ClassDef):
+            bases = {ast.unparse(base) for base in node.bases}
+            unittest_case = bool(bases & testcase_names) or any(
+                f"{alias}.TestCase" in bases for alias in unittest_names
+            )
+            pytest_case = node.name.startswith("Test") and not any(
+                isinstance(member, ast.FunctionDef) and member.name == "__init__"
+                for member in node.body
+            )
+            if unittest_case or pytest_case:
+                marks = set().union(*(_mark_names(d) for d in node.decorator_list))
+                for member in node.body:
+                    if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        add(member, node.name + ".", "unittest" if unittest_case else "pytest", marks)
+    return rows
+
+
+def script_test_declaration_problems(path: Path, selector: str) -> list[str]:
+    if not path.is_file() or not path.name.startswith("test_"):
+        return ["script assertion requires an existing test_*.py source"]
+    matches = [row for row in python_test_declarations(path) if row["selector"] == selector]
+    if len(matches) != 1:
+        return [f"script assertion missing or ambiguous: {selector}"]
+    if matches[0]["static_skip_or_xfail"]:
+        return [f"script assertion is skipped or xfailed: {selector}"]
+    return []
+
+
+@source_cache
 def static_python_test(path: Path, name: str) -> list[str]:
     """Why `name` in `path` is not a collected, runnable pytest function (empty = it is).
 

@@ -84,6 +84,8 @@ def validate_numerical_source(root: Path, recipe: dict[str, Any]) -> None:
     for item, row in proof["same_source_files_and_functions"].items():
         path, separator, name = item.partition("::")
         measured = source_blob(root, path, recipe["calibration_sha"])
+        if not (root / path).is_file():
+            raise ValueError(f"numerical recipe dependency missing: {item}")
         current = (root / path).read_bytes()
         if separator:
             measured, current = function_bytes(measured, name), function_bytes(current, name)

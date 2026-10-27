@@ -62,7 +62,7 @@ reason_code = "route_not_supported"
 
 def git(repo: Path, *args: str) -> str:
     out = subprocess.run(
-        ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.com", *args],
+        ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", *args],
         check=True,
         capture_output=True,
         text=True,

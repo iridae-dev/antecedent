@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import os
 import signal
 import sys
@@ -169,37 +170,55 @@ def test_seed_governs_a_mechanism_that_accepts_an_rng():
     assert not np.array_equal(a, c)
 
 
-def test_a_long_native_estimator_lets_other_python_threads_run():
-    """`exact_randomization_test` enumerates 2**20 allocations; the GIL must not be held for it.
+def _holds_gil_for_control():
+    """PyDLL deliberately retains the GIL; this is the negative control."""
+    if sys.platform == "win32":
+        pause = ctypes.PyDLL("kernel32").Sleep
+        pause.argtypes = [ctypes.c_uint32]
+        pause.restype = None
+        pause(200)
+    else:
+        pause = ctypes.PyDLL(None).usleep
+        pause.argtypes = [ctypes.c_uint]
+        pause.restype = ctypes.c_int
+        assert pause(200_000) == 0
 
-    A busy counter thread runs at some rate while the main thread sleeps. During one native call
-    it must keep a comparable share of that rate; a call that held the GIL would starve it down
-    to at most a single interpreter time slice.
-    """
-    progress = [0]
-    stop = threading.Event()
 
-    def spin():
-        while not stop.is_set():
-            progress[0] += 1
+def _python_thread_progresses_during(operation):
+    ready = threading.Event()
+    progressed = threading.Event()
 
-    worker = threading.Thread(target=spin, daemon=True)
-    worker.start()
+    def witness():
+        ready.set()
+        time.sleep(0.01)
+        progressed.set()
+
+    worker = threading.Thread(target=witness)
+    previous_interval = sys.getswitchinterval()
+    # Prevent the worker from winning an interpreter timeslice immediately
+    # after a GIL-holding call returns. The worker does no busy-loop work.
+    sys.setswitchinterval(1.0)
     try:
-        time.sleep(0.05)
-        start = progress[0]
-        time.sleep(0.2)
-        rate = (progress[0] - start) / 0.2
-        assert rate > 0
-
-        rng = np.random.default_rng(3)
-        outcome = rng.normal(size=20)
-        assignment = [bool(i % 2) for i in range(20)]
-        start = progress[0]
-        began = time.monotonic()
-        _native.exact_randomization_test(outcome, assignment, np.full(20, 0.5))
-        elapsed = time.monotonic() - began
-        assert (progress[0] - start) > 0.3 * rate * elapsed
+        worker.start()
+        assert ready.wait(timeout=5.0)
+        assert not progressed.is_set(), "scheduler missed the witness start window"
+        operation()
+        return progressed.is_set()
     finally:
-        stop.set()
-        worker.join()
+        sys.setswitchinterval(previous_interval)
+        worker.join(timeout=5.0)
+        assert not worker.is_alive()
+
+
+def test_a_long_native_estimator_lets_other_python_threads_run():
+    """Observe a delayed Python witness during one 2**20-allocation native call.
+
+    A GIL-holding native sleep is the negative control. This tests concurrency,
+    without treating a busy counter's contended throughput as a release budget.
+    """
+    assert not _python_thread_progresses_during(_holds_gil_for_control)
+    outcome = np.random.default_rng(3).normal(size=20)
+    assignment = [bool(i % 2) for i in range(20)]
+    assert _python_thread_progresses_during(
+        lambda: _native.exact_randomization_test(outcome, assignment, np.full(20, 0.5))
+    )

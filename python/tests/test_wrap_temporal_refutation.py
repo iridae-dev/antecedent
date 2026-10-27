@@ -35,6 +35,7 @@ def _raw_temporal_result(*, refutations, passed, ran):
             method="temporal.linear.adjustment",
             overlap_ess=None,
             overlap_propensity_min=None,
+            overlap_excluded_fraction=None,
         ),
         posterior=SimpleNamespace(n_draws=None),
         validation=SimpleNamespace(

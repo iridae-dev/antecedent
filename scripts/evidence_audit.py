@@ -33,6 +33,8 @@ from evidence_kinds import (
 from provenance_links import method_review_problems
 from test_evidence import (
     python_test_markers,
+    python_test_declarations,
+    script_test_declaration_problems,
     rust_test_declaration_problems,
     static_python_test,
 )
@@ -65,6 +67,8 @@ def disposition_problems(root: Path, cases: list[dict]) -> list[str]:
             findings = (
                 rust_test_declaration_problems(path, name)
                 if path.suffix == ".rs"
+                else script_test_declaration_problems(path, name)
+                if rel.startswith("scripts/")
                 else static_python_test(path, name)
             )
             if case.get("disposition") == "explicit_calibration_only":
@@ -356,6 +360,11 @@ def build_report(root: Path) -> dict:
                 "claims": claims_by_test.get(rel, []),
                 "roles": sorted(roles_by_test[rel] | {"software"}),
                 "required_target_features": features,
+                "assertion_declarations": (
+                    python_test_declarations(path)
+                    if path and path.suffix == ".py" and path.is_file()
+                    else []
+                ),
                 "discovery_verified": False,
             }
         )
