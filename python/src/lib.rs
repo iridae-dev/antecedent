@@ -41,6 +41,7 @@ mod ate_api;
 mod attribution_api;
 mod batch_retarget_api;
 pub(crate) mod bayesian;
+mod bound_study_ranking_api;
 mod bounds_api;
 mod bridge;
 mod callbacks;
@@ -54,6 +55,7 @@ mod compiled_route_api;
 mod composition_api;
 mod composition_bundle_api;
 mod composition_verification_api;
+mod composition_effects_api;
 mod contract_refusals_api;
 mod counterfactual_id_api;
 mod cpdag_scenario_api;
@@ -62,6 +64,7 @@ mod cross_world_execution_api;
 mod cyclic_system_api;
 mod data_snapshot;
 mod decision_api;
+mod decision_compile_api;
 mod decision_reliability_api;
 #[cfg(test)]
 mod defaults;
@@ -96,6 +99,7 @@ mod gcm_api;
 mod graph_build;
 mod graph_falsification_api;
 mod graph_io;
+mod graph_score_api;
 mod graphs;
 mod horizon_composition_api;
 mod identification_details;
@@ -108,6 +112,7 @@ mod inverse_outcome_api;
 mod inverse_query_api;
 mod joint_law_propagation_api;
 mod joint_panel_api;
+mod joint_response_api;
 mod joint_transport_api;
 mod latent_class_api;
 mod learned_continuous_api;
@@ -130,6 +135,7 @@ mod observation_query_api;
 mod observational_interference_api;
 mod observational_policy_api;
 mod observational_survival_api;
+mod pag_completion_api;
 mod planning_api;
 mod policy_api;
 mod pooled_measurement_api;
@@ -144,6 +150,7 @@ mod program_claims_api;
 mod propagation_chain_api;
 mod proposal_arrival_api;
 mod provider_api;
+mod mixed_decision_api;
 mod published_decision_api;
 mod quasi_api;
 mod recalc_adjusted_api;
@@ -156,6 +163,8 @@ mod recalc_design_api;
 mod recalc_dr_api;
 mod recalc_external_api;
 mod recalc_family_api;
+#[cfg(feature = "calibration-internal")]
+mod recalc_joint_bayesian_api;
 mod recalc_static_api;
 mod recalc_temporal_api;
 mod recipe_logistic_api;
@@ -178,6 +187,7 @@ mod posterior_row_api;
 mod provider_callbacks_api;
 mod repair_api;
 mod response_api;
+mod retained_refresh_api;
 mod rollout_api;
 mod scalar_decision_api;
 mod scenario_invariance_api;
@@ -193,6 +203,7 @@ mod staleness_api;
 mod state_api;
 mod structure_stability_api;
 mod study_planning_api;
+mod support_matrix_api;
 mod survival_api;
 mod target_validation_api;
 mod temporal_api;
@@ -663,6 +674,10 @@ pub(crate) struct AteAnalysisResult {
     #[pyo3(get)]
     prior_ppc_n_sims: Option<u32>,
     #[pyo3(get)]
+    prior_ppc_dispersion_p_value: Option<f64>,
+    #[pyo3(get)]
+    prior_ppc_noise: Option<String>,
+    #[pyo3(get)]
     posterior_ppc_p_value: Option<f64>,
     #[pyo3(get)]
     posterior_ppc_observed: Option<f64>,
@@ -672,6 +687,10 @@ pub(crate) struct AteAnalysisResult {
     posterior_ppc_predictive_sd: Option<f64>,
     #[pyo3(get)]
     posterior_ppc_n_sims: Option<u32>,
+    #[pyo3(get)]
+    posterior_ppc_dispersion_p_value: Option<f64>,
+    #[pyo3(get)]
+    posterior_ppc_noise: Option<String>,
     #[pyo3(get)]
     prior_sensitivity_scales: Option<Vec<f64>>,
     #[pyo3(get)]

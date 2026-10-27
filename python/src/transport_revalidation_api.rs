@@ -13,8 +13,10 @@ use std::collections::BTreeMap;
 
 use antecedent::analysis::transport_revalidation::{
     SceneCalibration, TransportClaimState, TransportRevalidationRefusal,
-    TransportRevalidationReport, TransportScene, TransportSceneBuilder, revalidate,
+    TransportRevalidationReport, TransportScene, TransportSceneBuilder, response_coordinate,
+    revalidate, transported_claim_node, transported_claim_standing,
 };
+use antecedent_contract::ProviderTrust;
 use antecedent_contract::composition_verification::{
     ObservedEffect, SupportStanding, TrustStanding,
 };
@@ -84,6 +86,13 @@ enum ClaimIn {
         #[serde(default)]
         trust: Option<String>,
     },
+    TransportedClaim {
+        key: String,
+        response: usize,
+        calibration: CalibrationIn,
+        #[serde(default)]
+        provider_trust: Option<String>,
+    },
     Decision {
         key: String,
         identity: String,
@@ -125,6 +134,96 @@ fn calibration_of(wire: CalibrationIn, own_target: SemanticDigest) -> PyResult<S
             }
         }
     })
+}
+
+fn provider_of(name: Option<&str>) -> PyResult<Option<ProviderTrust>> {
+    name.map(|name| {
+        ProviderTrust::from_wire(name)
+            .ok_or_else(|| crate::value_err(format!("unknown provider trust level `{name}`")))
+    })
+    .transpose()
+}
+
+/// The coordinate a transported response is evaluated at outside any scene: a calibration
+/// record established for exactly this response at its target is declared at it.
+#[pyfunction]
+fn transported_response_coordinate(
+    response: PyRef<'_, TransportedResponseHandle>,
+) -> Refused<String> {
+    match response_coordinate(&response.inner) {
+        Ok(coordinate) => (Some(coordinate.to_hex()), None),
+        Err(error) => (None, Some(refusal_json(&error))),
+    }
+}
+
+/// The standing of a standalone transported response (support, provenance trust and the
+/// declared calibration) as JSON.
+#[pyfunction]
+#[pyo3(signature = (response, calibration_json, provider_trust=None))]
+fn transported_response_standing(
+    response: PyRef<'_, TransportedResponseHandle>,
+    calibration_json: &str,
+    provider_trust: Option<&str>,
+) -> PyResult<Refused<String>> {
+    let calibration = standalone_calibration(calibration_json)?;
+    Ok(
+        match transported_claim_standing(
+            &response.inner,
+            calibration.clone(),
+            provider_of(provider_trust)?,
+        ) {
+            Ok(standing) => {
+                let support = match &standing.support {
+                    SupportStanding::Supported => json!({"kind": "supported", "coordinates": []}),
+                    SupportStanding::Unsupported { coordinates } => {
+                        json!({"kind": "unsupported", "coordinates": coordinates})
+                    }
+                };
+                let wire = json!({
+                    "support": support,
+                    "trust": standing.trust.as_str(),
+                    "calibration": crate::composition_verification_api::calibration_wire(&calibration),
+                });
+                (Some(wire.to_string()), None)
+            }
+            Err(error) => (None, Some(refusal_json(&error))),
+        },
+    )
+}
+
+/// The composition-verification node of a standalone transported response, in the node
+/// declaration form the composition graph reads.
+#[pyfunction]
+#[pyo3(signature = (key, response, calibration_json, provider_trust=None))]
+fn transported_response_node(
+    key: &str,
+    response: PyRef<'_, TransportedResponseHandle>,
+    calibration_json: &str,
+    provider_trust: Option<&str>,
+) -> PyResult<Refused<String>> {
+    let calibration = standalone_calibration(calibration_json)?;
+    Ok(
+        match transported_claim_node(
+            key,
+            &response.inner,
+            calibration,
+            provider_of(provider_trust)?,
+        ) {
+            Ok(node) => {
+                (Some(crate::composition_verification_api::node_wire(&node).to_string()), None)
+            }
+            Err(error) => (None, Some(refusal_json(&error))),
+        },
+    )
+}
+
+fn standalone_calibration(
+    text: &str,
+) -> PyResult<antecedent_contract::composition_verification::CalibrationDeclaration> {
+    check_size(text, "calibration declaration")?;
+    let parsed: Json = serde_json::from_str(text)
+        .map_err(|e| crate::value_err(format!("invalid calibration declaration: {e}")))?;
+    crate::composition_verification_api::parse_calibration(&parsed)
 }
 
 /// The identity a scene gives its target, from the population and the content identity of its
@@ -177,6 +276,17 @@ fn transport_scene_build(
                     trust,
                 );
             }
+            ClaimIn::TransportedClaim { key, response, calibration, provider_trust } => {
+                let held = responses.get(response).ok_or_else(|| {
+                    crate::value_err(format!("claim `{key}` names response {response}"))
+                })?;
+                builder = builder.transported_claim(
+                    key,
+                    &held.inner,
+                    calibration_of(calibration, own_target)?,
+                    provider_of(provider_trust.as_deref())?,
+                );
+            }
             ClaimIn::Decision { key, identity, quantity, rests_on } => {
                 let rests: Vec<&str> = rests_on.iter().map(String::as_str).collect();
                 builder = builder.decision(
@@ -214,6 +324,7 @@ impl TransportSceneHandle {
                 "structure": c.structure.map(|d| d.to_hex()),
                 "sources": c.sources,
                 "rests_on": c.rests_on,
+                "trust": c.trust.as_str(),
             })).collect::<Vec<_>>(),
         })
         .to_string()
@@ -369,5 +480,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(transport_scene_target_identity, module)?)?;
     module.add_function(wrap_pyfunction!(transport_scene_build, module)?)?;
     module.add_function(wrap_pyfunction!(transport_revalidate, module)?)?;
+    module.add_function(wrap_pyfunction!(transported_response_coordinate, module)?)?;
+    module.add_function(wrap_pyfunction!(transported_response_standing, module)?)?;
+    module.add_function(wrap_pyfunction!(transported_response_node, module)?)?;
     Ok(())
 }

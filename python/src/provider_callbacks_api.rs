@@ -12,15 +12,16 @@
 use std::collections::BTreeMap;
 
 use antecedent::analysis::provider_callbacks::{
-    CallbackContext, CallbackDeclaration, CallbackDependency, CallbackExecution,
-    CallbackExecutionError, CallbackExecutionPolicy, CallbackFailure, CallbackInput, CallbackKind,
-    CallbackOperation, CallbackOutcome, CallbackOutput, CallbackPhase, CallbackPlan, CallbackQuery,
-    CallbackRegistrationError, CallbackRequest, CallbackResultArtifact, CallbackResultRecord,
-    CallbackResume, CallbackSession, CallbackTrust, DependencyDeclaration, DependencyKind,
-    InputSupplier, ProviderCallback, ReplayContract, RetryContract, UpdateDeclaration,
-    ValidatedOutput, check_claim_to_callback, forecast_law_from_sample, output_values_digest,
-    predictive_law_source, refuse_identification_licence, refuse_interval, refuse_joint_law,
-    refuse_native_trust, refuse_posterior_guarantee,
+    CallbackConnectionError, CallbackContext, CallbackDeclaration, CallbackDependency,
+    CallbackExecution, CallbackExecutionError, CallbackExecutionPolicy, CallbackFailure,
+    CallbackInput, CallbackKind, CallbackOperation, CallbackOutcome, CallbackOutput, CallbackPhase,
+    CallbackPlan, CallbackQuery, CallbackRegistrationError, CallbackRequest,
+    CallbackResultArtifact, CallbackResultRecord, CallbackResume, CallbackSession, CallbackTrust,
+    DependencyDeclaration, DependencyKind, FnCallback, InputSupplier, ProviderCallback,
+    ReplayContract, RetryContract, UpdateDeclaration, ValidatedOutput, check_claim_to_callback,
+    export_callback_result, forecast_law_from_sample, output_values_digest, predictive_law_source,
+    refuse_identification_licence, refuse_interval, refuse_joint_law, refuse_native_trust,
+    refuse_posterior_guarantee, verification_holds,
 };
 use antecedent::analysis::transport_handoff::{
     TransportHandoffRefusal, TransportedClaimOffer, TransportedInputPolicy, consume_for_callback,
@@ -30,8 +31,12 @@ use antecedent_contract::evidence_ledger::{SourceId, TransportIdentity, parse_di
 use antecedent_contract::interface_contract::{
     CalibrationStatus, ContractOperation, EvidenceBasis, SupportDomain, UncertaintyMeaning,
 };
-use antecedent_contract::{ExternalRefusal, ProviderObjectIdentity, ScientificQuantity};
+use antecedent_contract::{
+    ExternalRefusal, ProviderObjectIdentity, ScientificQuantity, VerificationProbe,
+    probe_from_name, verify_external_object,
+};
 use antecedent_core::{CancellationToken, ExecutionContext};
+use antecedent_io::external_claim_artifact::VerificationProbeWire;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_validate::predictive_assessment::{ForecastLaw, LawSource};
 use pyo3::prelude::*;
@@ -43,6 +48,7 @@ use crate::bridge::RefusalJson;
 use crate::evidence_ledger_api::EvidenceLedgerHandle;
 use crate::interface_contract_api::{connection_json, contract_of};
 use crate::measurement_model_api::parse;
+use crate::provider_api::PyProviderVerificationReceipt;
 
 /// An exported record `(bytes, identity)` or the refusal JSON.
 type ExportedRecord = (Option<(Py<PyBytes>, String)>, Option<String>);
@@ -667,64 +673,50 @@ impl CallbackToken {
     }
 }
 
-struct PyProvider {
-    identity: ProviderObjectIdentity,
-    invoke: Py<PyAny>,
-    state: Option<Py<PyAny>>,
-    token: CallbackToken,
-}
+/// A provider that answers with a Python callable: the library's closure adapter around
+/// [`invoke_python`], reporting the state identity through the caller's state callable.
+type PyProvider = FnCallback<
+    Box<
+        dyn FnMut(
+            &CallbackQuery,
+            &mut CallbackContext<'_>,
+        ) -> Result<CallbackOutput, CallbackFailure>,
+    >,
+>;
 
-impl ProviderCallback for PyProvider {
-    fn identity(&self) -> &ProviderObjectIdentity {
-        &self.identity
-    }
-
-    fn invoke(
-        &mut self,
-        query: &CallbackQuery,
-        ctx: &mut CallbackContext<'_>,
-    ) -> Result<CallbackOutput, CallbackFailure> {
-        let inputs: BTreeMap<&String, Json> =
-            ctx.inputs.iter().map(|(name, value)| (name, output_json(value))).collect();
-        let context = json!({
-            "stream_seed": ctx.rng.as_ref().map(antecedent_core::CausalRng::state),
-            "attempt": ctx.attempt,
-            "idempotency_key": ctx.idempotency_key,
-            "inputs": inputs,
-        });
-        let query_text = serde_json::to_string(&query_json(query))
-            .map_err(|error| CallbackFailure::new(error.to_string()))?;
-        let token = self.token.clone();
-        // The caller's thread holds the GIL; attach is re-entrant.
-        Python::attach(|py| {
-            let called = self
-                .invoke
-                .bind(py)
-                .call1((query_text, context.to_string(), token))
-                .map_err(|error| CallbackFailure::new(format!("{}", error.value(py))))?;
-            let text: String = called
-                .extract()
-                .map_err(|_| CallbackFailure::new("the callable must return a JSON string"))?;
-            if text.len() > 64 * 1024 * 1024 {
-                return Err(CallbackFailure::new("the callable's answer is over the bound"));
-            }
-            let parsed: OutputBitsJson = serde_json::from_str(&text)
-                .map_err(|error| CallbackFailure::new(format!("unparseable answer: {error}")))?;
-            output_of(&parsed).map_err(CallbackFailure::new)
-        })
-    }
-
-    fn state_identity(&self) -> Option<String> {
-        let state = self.state.as_ref()?;
-        Python::attach(|py| {
-            state
-                .bind(py)
-                .call0()
-                .ok()
-                .and_then(|value| value.extract::<Option<String>>().ok())
-                .flatten()
-        })
-    }
+fn invoke_python(
+    invoke: &Py<PyAny>,
+    token: &CallbackToken,
+    query: &CallbackQuery,
+    ctx: &mut CallbackContext<'_>,
+) -> Result<CallbackOutput, CallbackFailure> {
+    let inputs: BTreeMap<&String, Json> =
+        ctx.inputs.iter().map(|(name, value)| (name, output_json(value))).collect();
+    let context = json!({
+        "stream_seed": ctx.rng.as_ref().map(antecedent_core::CausalRng::state),
+        "attempt": ctx.attempt,
+        "idempotency_key": ctx.idempotency_key,
+        "inputs": inputs,
+    });
+    let query_text = serde_json::to_string(&query_json(query))
+        .map_err(|error| CallbackFailure::new(error.to_string()))?;
+    let token = token.clone();
+    // The caller's thread holds the GIL; attach is re-entrant.
+    Python::attach(|py| {
+        let called = invoke
+            .bind(py)
+            .call1((query_text, context.to_string(), token))
+            .map_err(|error| CallbackFailure::new(format!("{}", error.value(py))))?;
+        let text: String = called
+            .extract()
+            .map_err(|_| CallbackFailure::new("the callable must return a JSON string"))?;
+        if text.len() > 64 * 1024 * 1024 {
+            return Err(CallbackFailure::new("the callable's answer is over the bound"));
+        }
+        let parsed: OutputBitsJson = serde_json::from_str(&text)
+            .map_err(|error| CallbackFailure::new(format!("unparseable answer: {error}")))?;
+        output_of(&parsed).map_err(CallbackFailure::new)
+    })
 }
 
 fn provider_of(
@@ -736,17 +728,35 @@ fn provider_of(
     let value = parse(identity_json, "provider identity")?;
     let identity: IdentityJson =
         serde_json::from_value(value).map_err(|error| bad("provider identity", error))?;
-    Ok(PyProvider {
-        identity: ProviderObjectIdentity {
+    let token = token.clone();
+    let call: Box<
+        dyn FnMut(
+            &CallbackQuery,
+            &mut CallbackContext<'_>,
+        ) -> Result<CallbackOutput, CallbackFailure>,
+    > = Box::new(move |query, ctx| invoke_python(&invoke, &token, query, ctx));
+    let provider = FnCallback::new(
+        ProviderObjectIdentity {
             provider_id: identity.provider_id,
             object_id: identity.object_id,
             version_id: identity.version_id,
             snapshot_id: identity.snapshot_id,
             request_id: identity.request_id,
         },
-        invoke,
-        state,
-        token: token.clone(),
+        call,
+    );
+    Ok(match state {
+        None => provider,
+        Some(state) => provider.with_state_identity(move || {
+            Python::attach(|py| {
+                state
+                    .bind(py)
+                    .call0()
+                    .ok()
+                    .and_then(|value| value.extract::<Option<String>>().ok())
+                    .flatten()
+            })
+        }),
     })
 }
 
@@ -946,6 +956,70 @@ impl CallbackSessionHandle {
         )
     }
 
+    /// Check the connection of the declared callback to a consumer through the interface
+    /// contract, then execute. A mismatched population, regime, support or operation is
+    /// refused before the provider is invoked. The payload is the connection and the
+    /// execution; a connection refusal lists every defect.
+    #[pyo3(signature = (identity_json, invoke, state, declaration_json, consumer_json, consumed_port, request_json, inputs_json, policy_json, token))]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "one coordinate per declared input of an execution and one for the consumer"
+    )]
+    fn execute_for_consumer(
+        &mut self,
+        identity_json: &str,
+        invoke: Py<PyAny>,
+        state: Option<Py<PyAny>>,
+        declaration_json: &str,
+        consumer_json: &str,
+        consumed_port: &str,
+        request_json: &str,
+        inputs_json: &str,
+        policy_json: &str,
+        token: &CallbackToken,
+    ) -> PyResult<Checked> {
+        let declaration = declaration_of(declaration_json)?;
+        let consumer = contract_of(consumer_json, "consumer contract")?;
+        let request = request_of(request_json)?;
+        let policy = policy_of(policy_json)?;
+        let inputs = inputs_of(&self.inner, inputs_json)?;
+        let mut provider = provider_of(identity_json, invoke, state, token)?;
+        let ctx = context_of(token);
+        Ok(
+            match self.inner.execute_for_consumer(
+                &mut provider,
+                &declaration,
+                &consumer,
+                consumed_port,
+                &request,
+                &inputs,
+                &policy,
+                &ctx,
+            ) {
+                Ok((connection, execution)) => (
+                    Some(
+                        json!({
+                            "connection": serde_json::from_str::<Json>(&connection_json(&connection))
+                                .unwrap_or(Json::Null),
+                            "execution": serde_json::from_str::<Json>(&execution_json(&self.inner, &execution))
+                                .unwrap_or(Json::Null),
+                        })
+                        .to_string(),
+                    ),
+                    None,
+                ),
+                Err(CallbackConnectionError::Connection(refusals)) => (
+                    None,
+                    Some(
+                        json!({"connection_refusals": refusals.iter().map(refusal_json).collect::<Vec<_>>()})
+                            .to_string(),
+                    ),
+                ),
+                Err(CallbackConnectionError::Execution(error)) => (None, Some(error_json(&error))),
+            },
+        )
+    }
+
     /// Resume a stored result in this process. With no provider the stage is
     /// recorded unavailable.
     #[pyo3(signature = (artifact, expected_identity, identity_json, invoke, state, inputs_json, policy_json, token))]
@@ -1034,7 +1108,7 @@ impl CallbackSessionHandle {
             .history()
             .get(index)
             .ok_or_else(|| crate::value_err("history index out of range"))?;
-        Ok(match CallbackResultArtifact::to_bytes(record, artifact_id) {
+        Ok(match export_callback_result(record, artifact_id) {
             Ok(bytes) => {
                 let identity = CallbackResultArtifact::from_bytes(&bytes, None)
                     .map(|a| a.identity().to_owned())
@@ -1120,7 +1194,7 @@ fn callback_result_consume(artifact: &[u8], expected_identity: Option<&str>) -> 
 /// Read the stored metadata of a result without replaying it.
 #[pyfunction]
 fn callback_result_inspect(artifact: &[u8]) -> Checked {
-    match CallbackResultArtifact::inspect(artifact) {
+    match antecedent::analysis::inspect_callback_result(artifact) {
         Ok(meta) => (Some(serde_json::to_value(&meta).unwrap_or(Json::Null).to_string()), None),
         Err(error) => (None, Some(artifact_error_json(&error))),
     }
@@ -1141,14 +1215,49 @@ fn callback_closed_refusal(route: &str) -> PyResult<String> {
     Ok(refusal_json(&refusal).to_string())
 }
 
-/// The predictive-assessment law source of a declared callback, as the law-source JSON, or the
-/// refusal of a malformed declaration or a diagnostic standing. Runs nothing.
+/// Verify the exact provider object of a declared callback against independently computed
+/// probes. The library issues the receipt (or the structured refusal JSON): whether the probes
+/// pass, what the receipt covers and its digest are decided natively. Runs nothing.
 #[pyfunction]
+fn callback_verify_provider(
+    py: Python<'_>,
+    declaration_json: &str,
+    probes_json: &str,
+) -> PyResult<(Option<Py<PyProviderVerificationReceipt>>, Option<String>)> {
+    let declaration = declaration_of(declaration_json)?;
+    let wires: Vec<VerificationProbeWire> =
+        serde_json::from_value(parse(probes_json, "verification probes")?)
+            .map_err(|error| bad("verification probes", error))?;
+    let mut probes = Vec::with_capacity(wires.len());
+    for wire in &wires {
+        let kind = probe_from_name(&wire.kind)
+            .ok_or_else(|| bad("verification probe", format!("unknown kind `{}`", wire.kind)))?;
+        probes.push(VerificationProbe {
+            kind,
+            observed: wire.observed,
+            expected: wire.expected,
+            tolerance: wire.tolerance,
+        });
+    }
+    Ok(match verify_external_object(&declaration.provider_object(), &probes) {
+        Ok(inner) => (Some(Py::new(py, PyProviderVerificationReceipt { inner })?), None),
+        Err(error) => (None, Some(refusal_json(&error.to_refusal()).to_string())),
+    })
+}
+
+/// The predictive-assessment law source of a declared callback, as the law-source JSON, or the
+/// refusal of a malformed declaration or a diagnostic standing. A verified-extension claim
+/// stands only when `receipt` is the library-issued verification the declaration names for the
+/// exact provider object. Runs nothing.
+#[pyfunction]
+#[pyo3(signature = (declaration_json, receipt=None))]
 fn callback_predictive_law_source(
     declaration_json: &str,
-    verification_confirmed: bool,
+    receipt: Option<PyRef<'_, PyProviderVerificationReceipt>>,
 ) -> PyResult<Checked> {
     let declaration = declaration_of(declaration_json)?;
+    let verification_confirmed =
+        receipt.is_some_and(|receipt| verification_holds(&declaration, &receipt.inner));
     Ok(match predictive_law_source(&declaration, verification_confirmed) {
         Ok(LawSource::Provider { identity, trust }) => (
             Some(
@@ -1430,6 +1539,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(callback_result_consume, module)?)?;
     module.add_function(wrap_pyfunction!(callback_result_inspect, module)?)?;
     module.add_function(wrap_pyfunction!(callback_closed_refusal, module)?)?;
+    module.add_function(wrap_pyfunction!(callback_verify_provider, module)?)?;
     module.add_function(wrap_pyfunction!(callback_predictive_law_source, module)?)?;
     module.add_function(wrap_pyfunction!(callback_check_claim_connection, module)?)?;
     module.add_function(wrap_pyfunction!(callback_register_source, module)?)?;

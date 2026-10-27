@@ -1,5 +1,5 @@
 //! Observe original synchronous native component work without issuing scientific authority.
-use antecedent_core::execution_attempt::{Operation, observe_execution};
+use antecedent::analysis::recalc_attempt::{Operation, execute_with_attempt};
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
@@ -42,7 +42,7 @@ fn observe_native_attempts(
         ));
     }
     // Execute once. Original callbacks, cancellation and transaction policies remain in force.
-    let execution = observe_execution(|| operation.call0().map(Bound::unbind));
+    let execution = execute_with_attempt(|| operation.call0().map(Bound::unbind));
     let rows = execution
         .report
         .operations()

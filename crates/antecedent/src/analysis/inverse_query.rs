@@ -31,8 +31,8 @@ pub use antecedent_design::inverse_query::{
     ActionReport, Comparison, ConstraintValue, EnumeratedForwardValue, ExistenceClaim,
     FeasibilityStatus, ForwardClaim, ForwardEvidence, GridScope, INVERSE_QUERY_SCOPE_NOTE,
     IdentifiedSet, IntervalRegion, InverseConstraint, InverseQuery, InverseQueryError,
-    InverseResult, MemberStatus, PosteriorFeasibility, SelectionOutcome,
-    SelectionRule, evaluate_inverse_query, finite_enumeration_baseline,
+    InverseResult, MemberStatus, PosteriorFeasibility, SelectionOutcome, SelectionRule,
+    evaluate_inverse_query, finite_enumeration_baseline,
 };
 pub use antecedent_design::inverse_query_artifact::{
     INVERSE_QUERY_ARTIFACT_FEATURE, INVERSE_QUERY_ARTIFACT_VERSION, INVERSE_QUERY_INFERENCE_CLAIM,
@@ -41,28 +41,11 @@ pub use antecedent_design::inverse_query_artifact::{
 };
 pub use antecedent_io::distribution_artifact::DistributionArtifact;
 
-/// Evaluate a query on forward evidence through the shared functional engine.
-///
-/// Equivalent to [`evaluate_inverse_query`].
-///
-/// # Errors
-///
-/// An invalid grid, constraint, tolerance or scenario declaration, no forward
-/// evidence, and any engine refusal on a point or interval-endpoint claim
-/// (`decision_evaluation.joint_law_required`,
-/// `decision_evaluation.mean_source_insufficient`, ...).
-pub fn evaluate(
-    query: &InverseQuery,
-    evidence: &ForwardEvidence,
-) -> Result<InverseResult, InverseQueryError> {
-    evaluate_inverse_query(query, evidence)
-}
-
 /// Evaluate and seal a query, its evidence and its result as a durable artifact.
 ///
 /// # Errors
 ///
-/// As [`evaluate`], plus more embedded claims than [`MAX_INVERSE_QUERY_CLAIMS`].
+/// As [`evaluate_inverse_query`], plus more embedded claims than [`MAX_INVERSE_QUERY_CLAIMS`].
 pub fn seal(
     query: InverseQuery,
     evidence: ForwardEvidence,

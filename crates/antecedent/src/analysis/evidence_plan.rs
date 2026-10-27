@@ -560,7 +560,8 @@ impl Study {
 ///
 /// # Errors
 /// As [`failure_routes`] and [`plan_over_routes`].
-pub fn plan_for_failure(
+#[cfg(test)]
+fn plan_for_failure(
     result: &antecedent_identify::IdentificationResult,
     graph: &Admg,
     names: &[Arc<str>],

@@ -1,6 +1,6 @@
 //! Exact heterogeneous-design Gaussian transfer and independent replay.
 
-use antecedent::inference::mapped_posterior_transfer;
+use antecedent::inference::{MappedTransferSpec, mapped_posterior_transfer_with};
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
@@ -89,12 +89,34 @@ fn exact_source() -> DistributionArtifact {
     .unwrap()
 }
 
+fn transfer(
+    bytes: &[u8],
+    expected_source: &DistributionIdentity,
+    source_to_target: &[(String, String)],
+    target_quantities: &[ScientificQuantityWire],
+    target_snapshot_id: &str,
+    target_contract_id: &str,
+    baseline: &PriorSet,
+) -> Result<PriorSet, antecedent::error::CausalError> {
+    mapped_posterior_transfer_with(
+        bytes,
+        &MappedTransferSpec {
+            expected_source,
+            source_to_target,
+            target_quantities,
+            target_snapshot_id,
+            target_contract_id,
+            baseline,
+        },
+    )
+}
+
 fn mapped(
     bytes: &[u8],
     expected: &DistributionIdentity,
     prior: &PriorSet,
 ) -> Result<PriorSet, antecedent::error::CausalError> {
-    mapped_posterior_transfer(
+    transfer(
         bytes,
         expected,
         &[("source:x".into(), "target:x".into()), ("source:y".into(), "target:y".into())],
@@ -182,7 +204,7 @@ fn incompatible_sources_and_mapping_refuse() {
     );
     let reused = [("source:x".into(), "target:x".into()), ("source:x".into(), "target:y".into())];
     assert!(
-        mapped_posterior_transfer(
+        transfer(
             &bytes,
             &identity(),
             &reused,
@@ -195,7 +217,7 @@ fn incompatible_sources_and_mapping_refuse() {
     );
     let partial = [("source:x".into(), "target:x".into())];
     assert!(
-        mapped_posterior_transfer(
+        transfer(
             &bytes,
             &identity(),
             &partial,
@@ -207,7 +229,7 @@ fn incompatible_sources_and_mapping_refuse() {
         .is_err()
     );
     assert!(
-        mapped_posterior_transfer(
+        transfer(
             &bytes,
             &identity(),
             &[("source:x".into(), "target:x".into()), ("source:y".into(), "target:y".into())],
@@ -221,7 +243,7 @@ fn incompatible_sources_and_mapping_refuse() {
     let mut changed_target = targets();
     changed_target[0].units = "meters".into();
     assert!(
-        mapped_posterior_transfer(
+        transfer(
             &bytes,
             &identity(),
             &[("source:x".into(), "target:x".into()), ("source:y".into(), "target:y".into())],

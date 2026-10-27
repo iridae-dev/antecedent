@@ -244,5 +244,10 @@ impl PyBayesianSession {
     }
 }
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_class::<PyBayesianSession>()
+    module.add_class::<PyBayesianSession>()?;
+    // The joint-transport candidate is part of the calibration-internal family: its law is
+    // unmeasured, so ordinary wheels omit it together with every other candidate hook.
+    #[cfg(feature = "calibration-internal")]
+    crate::recalc_joint_bayesian_api::register(module)?;
+    Ok(())
 }

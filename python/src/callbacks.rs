@@ -546,7 +546,7 @@ pub fn resolve_ci_arg(
         let impl_ =
             antecedent::discovery_defaults::resolve_ci("parcorr", weights).map_err(|e| {
                 crate::with_reason_code(
-                    crate::CausalCompileError::new_err(e.to_string()),
+                    crate::py_err(e),
                     antecedent_core::reason_code!("invalid_argument"),
                 )
             })?;
@@ -555,7 +555,7 @@ pub fn resolve_ci_arg(
     if let Ok(name) = ci.extract::<&str>() {
         let impl_ = antecedent::discovery_defaults::resolve_ci(name, weights).map_err(|e| {
             crate::with_reason_code(
-                crate::CausalCompileError::new_err(e.to_string()),
+                crate::py_err(e),
                 antecedent_core::reason_code!("invalid_argument"),
             )
         })?;

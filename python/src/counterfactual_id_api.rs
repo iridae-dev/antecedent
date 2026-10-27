@@ -9,7 +9,8 @@
 
 use antecedent::counterfactual_id::{
     CounterfactualIdConsumeLimits, CounterfactualIdEffect, CounterfactualIdOptions,
-    PreparedCounterfactualId, consume_counterfactual_id_artifact, prepare_counterfactual_id,
+    PreparedCounterfactualId, consume_counterfactual_id_artifact,
+    consume_counterfactual_id_artifact_for_data, prepare_counterfactual_id,
 };
 use antecedent_core::{CounterfactualEventQuery, RegimeId, SearchLimits, Value, VariableId};
 use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, LawTolerance};
@@ -239,20 +240,25 @@ fn prepare_counterfactual_id_native(
 }
 
 /// Consume a counterfactual identification artifact by re-deriving and
-/// recomputing it: `(json, artifact bytes)`.
+/// recomputing it: `(json, artifact bytes)`. With `expected_data_digest` the
+/// artifact's law must also carry that digest.
 #[pyfunction]
-#[pyo3(signature = (artifact, *, seed=0))]
+#[pyo3(signature = (artifact, *, seed=0, expected_data_digest=None))]
 fn consume_counterfactual_id_artifact_native(
     py: Python<'_>,
     artifact: Vec<u8>,
     seed: u64,
+    expected_data_digest: Option<String>,
 ) -> PyResult<(String, Vec<u8>)> {
     detach_catch(py, move || {
-        let effect = consume_counterfactual_id_artifact(
-            &artifact,
-            CounterfactualIdConsumeLimits::default(),
-            &py_execution_context(seed, 1),
-        )
+        let ctx = py_execution_context(seed, 1);
+        let limits = CounterfactualIdConsumeLimits::default();
+        let effect = match &expected_data_digest {
+            Some(digest) => {
+                consume_counterfactual_id_artifact_for_data(&artifact, digest, limits, &ctx)
+            }
+            None => consume_counterfactual_id_artifact(&artifact, limits, &ctx),
+        }
         .map_err(|e| artifact_refused(&e))?;
         payload(&effect)
     })

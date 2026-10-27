@@ -1,5 +1,5 @@
-//! Internal checked joint transport recalculation inspection.
-//! No calibrated public posterior route is issued by this candidate adapter.
+//! Checked joint transport recalculation with a native aligned candidate posterior.
+//! No calibrated public posterior or interval is issued: calibration stays unmeasured.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use super::recalc_bayesian::{BayesianLaw, PosteriorSummarySpec};
 use super::recalc_common::{Fields, literal};
@@ -52,7 +52,7 @@ struct JointBayesianLive {
     law: BayesianLaw,
     decision: DecisionValue,
 }
-/// Internal retention boundary of a genuine raw-query checked transport fit.
+/// Retention boundary of a genuine raw-query checked transport fit.
 pub struct JointBayesianSession {
     previous: antecedent_core::recalc::StageIdentities,
     live: Option<JointBayesianLive>,
@@ -308,6 +308,33 @@ impl JointBayesianSession {
             boundary: antecedent_core::recalc::Boundary::InProcess,
         }
     }
+    /// Resume semantic identities. Caller flags cannot create a retained posterior.
+    #[must_use]
+    pub fn resume(
+        previous: antecedent_core::recalc::StageIdentities,
+        context: antecedent_core::recalc::ResumeContext,
+    ) -> Self {
+        Self {
+            previous,
+            live: None,
+            boundary: antecedent_core::recalc::Boundary::FreshProcess(
+                antecedent_core::recalc::ResumeContext {
+                    supplied_data: context.supplied_data,
+                    ..antecedent_core::recalc::ResumeContext::default()
+                },
+            ),
+        }
+    }
+    /// Actual native state boundary.
+    #[must_use]
+    pub const fn boundary(&self) -> antecedent_core::recalc::Boundary {
+        self.boundary
+    }
+    /// Whether a native candidate fit is retained, never an optimistic supplied flag.
+    #[must_use]
+    pub const fn is_live(&self) -> bool {
+        self.live.is_some()
+    }
     /// Actual native retained candidate fit for inspection only.
     #[must_use]
     pub fn fit(&self) -> Option<&JointTransportFit> {
@@ -329,7 +356,7 @@ impl JointBayesianSession {
     }
 }
 /// Execute a raw-query checked candidate model or inspect its retained target-effect draws.
-/// This internal route publishes no calibrated posterior or confidence interval.
+/// This route publishes no calibrated posterior or confidence interval.
 /// # Errors
 /// Original identification/likelihood/prior ownership refusals, bounds, or receipt errors.
 #[allow(

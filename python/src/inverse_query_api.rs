@@ -340,7 +340,7 @@ impl PyInverseQueryArtifact {
                 .transpose()?,
             scenarios: scenarios.map(|atoms| atoms_from(&atoms)).transpose()?,
         };
-        match InverseQueryArtifact::new(wire.into_query(contract), evidence) {
+        match antecedent::analysis::inverse_query::seal(wire.into_query(contract), evidence) {
             Ok(artifact) => Ok((Some(Self { artifact, source_claims, external_sources }), None)),
             Err(error) => Ok((None, Some(query_refusal(&error)))),
         }
@@ -363,7 +363,7 @@ impl PyInverseQueryArtifact {
             }
             None => None,
         };
-        match InverseQueryArtifact::from_bytes(data, expected.as_ref()) {
+        match antecedent::analysis::inverse_query::consume(data, expected.as_ref()) {
             Ok(artifact) => Ok((
                 Some(Self { artifact, source_claims: Vec::new(), external_sources: Vec::new() }),
                 None,
@@ -409,7 +409,8 @@ impl PyInverseQueryArtifact {
 
     /// Serialize through the bounded sectioned container.
     fn export<'py>(&self, py: Python<'py>, artifact_id: &str) -> PyResult<Bound<'py, PyBytes>> {
-        let bytes = self.with_sources()?.to_bytes(artifact_id).map_err(serialization)?;
+        let bytes = antecedent::analysis::inverse_query::export(&self.with_sources()?, artifact_id)
+            .map_err(serialization)?;
         Ok(PyBytes::new(py, &bytes))
     }
 }

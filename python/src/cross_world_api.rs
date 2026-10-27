@@ -7,7 +7,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::cross_world::{
-    CrossWorldEffect, CrossWorldOptions, consume_cross_world_artifact, evaluate_cross_world_effect,
+    CrossWorldEffect, CrossWorldOptions, consume_cross_world_artifact,
+    consume_cross_world_artifact_for_data, evaluate_cross_world_effect,
 };
 use antecedent::gcm::NestedOutcomeMechanism;
 use antecedent_core::CrossWorldQuery;
@@ -141,15 +142,20 @@ fn evaluate_cross_world_edge_contrast(
 
 /// Consume a cross-world artifact by recomputing it: `(json, artifact bytes)`.
 #[pyfunction]
-#[pyo3(signature = (artifact, *, seed=0))]
+#[pyo3(signature = (artifact, *, seed=0, expected_data_digest=None))]
 fn consume_cross_world_edge_contrast_artifact(
     py: Python<'_>,
     artifact: Vec<u8>,
     seed: u64,
+    expected_data_digest: Option<String>,
 ) -> PyResult<(String, Vec<u8>)> {
     detach_catch(py, move || {
-        let effect = consume_cross_world_artifact(&artifact, &py_execution_context(seed, 1))
-            .map_err(|e| crate::serialization_err(e.to_string()))?;
+        let ctx = py_execution_context(seed, 1);
+        let effect = match expected_data_digest {
+            Some(digest) => consume_cross_world_artifact_for_data(&artifact, &digest, &ctx),
+            None => consume_cross_world_artifact(&artifact, &ctx),
+        }
+        .map_err(|e| crate::serialization_err(e.to_string()))?;
         payload(&effect)
     })
 }

@@ -485,12 +485,13 @@ impl<'a> PreparedIdentificationView<'a> {
         Ok(accessor_page(proof.derivation.steps.len(), offset, end, items))
     }
 
-    /// Explicit complete conversion of this subtree, preserving every retained
-    /// case, horizon and posterior sample. This allocates and is never inspection.
+    /// Complete conversion of this subtree with no caller context, for unit tests of the
+    /// converter; hosts use [`Self::materialize_with_context`].
     ///
     /// # Errors
     /// A retained proof cannot be encoded by the native wire converter.
-    pub fn materialize(&self) -> Result<Value, crate::CausalError> {
+    #[cfg(test)]
+    pub(crate) fn materialize(&self) -> Result<Value, crate::CausalError> {
         self.materialize_inner(None)
     }
 

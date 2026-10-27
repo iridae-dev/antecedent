@@ -333,9 +333,15 @@ impl HistoricalJointLawExperiment {
     }
 }
 
+/// The `format` discriminator of a native law experiment artifact.
+const LAW_EXPERIMENT_FORMAT: &str = "joint_panel_law_experiment_v1";
+
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct LawExperimentWire {
+    /// Artifact discriminator the Python inspection layer reads; absent in early encodings.
+    #[serde(default)]
+    format: Option<String>,
     version: u16,
     #[serde(default)]
     native_design: Option<Vec<u8>>,
@@ -417,6 +423,7 @@ impl JointLawExperimentResult {
             antecedent_io::evidence_ledger_artifact::EvidenceLedgerArtifact::seal(ledger, &[])
                 .map_err(JointPanelError::compile)?;
         let wire = LawExperimentWire {
+            format: Some(LAW_EXPERIMENT_FORMAT.to_owned()),
             version: 2,
             native_design: self.native_design.as_ref().map(|n| n.bytes.clone()),
             prior_metadata: prior.metadata().clone(),
@@ -640,6 +647,9 @@ fn decode_wire(
     let retention = Arc::new(admit(ctx, quote)?);
     let wire: LawExperimentWire =
         serde_json::from_slice(bytes).map_err(JointPanelError::compile)?;
+    if wire.format.as_deref().is_some_and(|format| format != LAW_EXPERIMENT_FORMAT) {
+        return Err(JointPanelError::compile("unknown native experiment artifact format"));
+    }
     if ![1, 2].contains(&wire.version) || (wire.version == 1 && wire.native_design.is_some()) {
         return Err(JointPanelError::compile("unknown native experiment artifact version"));
     }

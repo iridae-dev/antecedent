@@ -507,7 +507,12 @@ pub(crate) fn uncoded_py_err(error: RustCausalError) -> PyErr {
         RustCausalError::SchemaMismatch { detail } => CausalDataError::new_err(detail),
         RustCausalError::Compile { message } => CausalCompileError::new_err(message),
         RustCausalError::Rejected(failure) => {
-            CausalCompileError::new_err(failure.message().to_owned())
+            let err = CausalCompileError::new_err(failure.message().to_owned());
+            // The typed cause family stays observable: `error.cause_kind` is `graph`, `data`...
+            Python::attach(|py| {
+                let _ = err.value(py).setattr("cause_kind", failure.cause().kind());
+            });
+            err
         }
         RustCausalError::NotIdentified { status, search_capped, message } => {
             not_identified_py_err(status.as_str(), search_capped, message)

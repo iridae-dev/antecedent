@@ -21,12 +21,13 @@ use antecedent::analysis::sample_split_effect::{
     SplitEffect, estimate_effect_on_split, measure_source,
 };
 use antecedent::analysis::sample_split_parent_set_effect::{
-    Knowledge, ParentSetEffect, ParentSetOptions, Transformation,
+    Knowledge, ParentSetEffect, ParentSetOptions, Transformation, estimate_parent_set_effect,
     estimate_parent_set_effect_with_knowledge, measure_source as measure_parent_set_source,
 };
 use antecedent::analysis::selective_discovery::{
-    DeclaredCompletion, DiscoveryClaimKeys, DiscoverySnapshot, add_discovery_claims,
-    discovered_graph_source, discovery_data_source, discovery_rows_source,
+    DeclaredCompletion, DiscoveryClaimKeys, DiscoverySnapshot, GraphAcceptance,
+    accepted_graph_stage_identity, add_discovery_claims, discovered_graph_source,
+    discovered_structure_refusal, discovery_data_source, discovery_rows_source,
 };
 use antecedent_contract::composition_verification::{CompositionGraph, GraphError};
 use antecedent_contract::evidence_ledger::{SourceDeclaration, SourceId, parse_digest_hex};
@@ -116,17 +117,13 @@ fn structure_refusal(refusal: &DiscoveredStructureRefusal) -> String {
             })
         })
         .collect();
-    let offending: Vec<String> = refusal
-        .unresolved_edges
-        .iter()
-        .map(|u| format!("{}~{}:{}", u.edge.a.label(), u.edge.b.label(), u.reason))
-        .collect();
+    let external = discovered_structure_refusal(refusal);
     json!({
-        "code": refusal.code,
-        "stage": "bind",
-        "detail": refusal.detail,
+        "code": external.code,
+        "stage": external.stage,
+        "detail": external.detail,
         "message": refusal.remedy,
-        "offending": if offending.is_empty() { Json::Null } else { Json::String(offending.join(";")) },
+        "offending": external.offending,
         "remedy": refusal.remedy,
         "unresolved_edges": edges,
         "bounded_search_receipts": refusal.bounded_search_receipts,
@@ -707,6 +704,27 @@ impl SelectiveDiscoveryHandle {
             Err(error) => {
                 Ok((None, Some(crate::composition_verification_api::graph_refusal(&error))))
             }
+        }
+    }
+
+    /// The `Stage::Graph` identity of the retained structure accepted by `declared_by`
+    /// (with the declared completion, when given), or the refusal of an unresolved or
+    /// bound-exhausted structure.
+    #[pyo3(signature = (declared_by, completion_label=None, completion_identity=None))]
+    fn accepted_graph_stage_identity(
+        &self,
+        declared_by: &str,
+        completion_label: Option<&str>,
+        completion_identity: Option<&str>,
+    ) -> Reply {
+        let Some(outcome) = self.inner.as_ref().and_then(Adapter::outcome) else {
+            return Err(input_err("run discovery before accepting its graph"));
+        };
+        let completion = declared_completion(completion_label, completion_identity)?;
+        let acceptance = GraphAcceptance { declared_by: declared_by.to_owned(), completion };
+        match accepted_graph_stage_identity(outcome, &acceptance) {
+            Ok(identity) => Ok((Some(identity.to_hex()), None)),
+            Err(refusal) => Ok((None, Some(structure_refusal(&refusal)))),
         }
     }
 
@@ -1755,15 +1773,15 @@ fn sample_split_parent_set_effect(
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
     let result = crate::detach_catch(py, move || {
         let (data, _): (TabularData, _) = crate::discovery_api::tabular_from_batch(&batch)?;
-        Ok(estimate_parent_set_effect_with_knowledge(
-            &data,
-            VariableId::from_raw(treatment),
-            VariableId::from_raw(outcome),
-            options,
-            knowledge,
-            split_seed,
-            &ctx,
-        ))
+        let (treatment, outcome) = (VariableId::from_raw(treatment), VariableId::from_raw(outcome));
+        Ok(match knowledge {
+            None => {
+                estimate_parent_set_effect(&data, treatment, outcome, options, split_seed, &ctx)
+            }
+            declared => estimate_parent_set_effect_with_knowledge(
+                &data, treatment, outcome, options, declared, split_seed, &ctx,
+            ),
+        })
     })?;
     match result {
         Ok(estimate) => Ok((

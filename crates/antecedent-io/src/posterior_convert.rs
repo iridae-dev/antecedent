@@ -52,18 +52,6 @@ pub fn encode_causal_posterior_bytes_with_payload(
     Ok(buf)
 }
 
-/// Encode a [`CausalPosterior`] to a durable artifact (full draws).
-///
-/// # Errors
-///
-/// IO failures.
-pub fn encode_causal_posterior(
-    posterior: &CausalPosterior,
-    artifact_id: &str,
-) -> Result<EncodedArtifact, IoError> {
-    encode_causal_posterior_with_payload(posterior, artifact_id, PosteriorPayload::FullDraws)
-}
-
 /// Encode a [`CausalPosterior`] with an explicit payload mode.
 ///
 /// # Errors

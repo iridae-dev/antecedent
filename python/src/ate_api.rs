@@ -64,11 +64,23 @@ struct PpcFields {
     prior_ppc_predictive_mean: Option<f64>,
     prior_ppc_predictive_sd: Option<f64>,
     prior_ppc_n_sims: Option<u32>,
+    prior_ppc_dispersion_p_value: Option<f64>,
+    prior_ppc_noise: Option<String>,
     posterior_ppc_p_value: Option<f64>,
     posterior_ppc_observed: Option<f64>,
     posterior_ppc_predictive_mean: Option<f64>,
     posterior_ppc_predictive_sd: Option<f64>,
     posterior_ppc_n_sims: Option<u32>,
+    posterior_ppc_dispersion_p_value: Option<f64>,
+    posterior_ppc_noise: Option<String>,
+}
+
+/// Stable wire name of how a predictive check's replicates carry observation noise.
+fn predictive_noise_name(noise: antecedent_validate::PredictiveNoise) -> &'static str {
+    match noise {
+        antecedent_validate::PredictiveNoise::Likelihood => "likelihood",
+        antecedent_validate::PredictiveNoise::MeanOnlyImproperScale => "mean_only_improper_scale",
+    }
 }
 
 fn ppc_fields_from_checks(checks: &[antecedent_validate::PredictiveCheckReport]) -> PpcFields {
@@ -78,11 +90,15 @@ fn ppc_fields_from_checks(checks: &[antecedent_validate::PredictiveCheckReport])
         prior_ppc_predictive_mean: None,
         prior_ppc_predictive_sd: None,
         prior_ppc_n_sims: None,
+        prior_ppc_dispersion_p_value: None,
+        prior_ppc_noise: None,
         posterior_ppc_p_value: None,
         posterior_ppc_observed: None,
         posterior_ppc_predictive_mean: None,
         posterior_ppc_predictive_sd: None,
         posterior_ppc_n_sims: None,
+        posterior_ppc_dispersion_p_value: None,
+        posterior_ppc_noise: None,
     };
     for pc in checks {
         match pc.kind {
@@ -92,6 +108,8 @@ fn ppc_fields_from_checks(checks: &[antecedent_validate::PredictiveCheckReport])
                 fields.prior_ppc_predictive_mean = Some(pc.predictive_mean);
                 fields.prior_ppc_predictive_sd = Some(pc.predictive_sd);
                 fields.prior_ppc_n_sims = Some(pc.n_sims);
+                fields.prior_ppc_dispersion_p_value = Some(pc.dispersion_p_value);
+                fields.prior_ppc_noise = Some(predictive_noise_name(pc.noise).to_owned());
             }
             PredictiveCheckKind::Posterior => {
                 fields.posterior_ppc_p_value = Some(pc.p_value);
@@ -99,6 +117,8 @@ fn ppc_fields_from_checks(checks: &[antecedent_validate::PredictiveCheckReport])
                 fields.posterior_ppc_predictive_mean = Some(pc.predictive_mean);
                 fields.posterior_ppc_predictive_sd = Some(pc.predictive_sd);
                 fields.posterior_ppc_n_sims = Some(pc.n_sims);
+                fields.posterior_ppc_dispersion_p_value = Some(pc.dispersion_p_value);
+                fields.posterior_ppc_noise = Some(predictive_noise_name(pc.noise).to_owned());
             }
         }
     }
@@ -878,11 +898,15 @@ pub(crate) fn ate_result_from_analysis(
         prior_ppc_predictive_mean: ppc.prior_ppc_predictive_mean,
         prior_ppc_predictive_sd: ppc.prior_ppc_predictive_sd,
         prior_ppc_n_sims: ppc.prior_ppc_n_sims,
+        prior_ppc_dispersion_p_value: ppc.prior_ppc_dispersion_p_value,
+        prior_ppc_noise: ppc.prior_ppc_noise,
         posterior_ppc_p_value: ppc.posterior_ppc_p_value,
         posterior_ppc_observed: ppc.posterior_ppc_observed,
         posterior_ppc_predictive_mean: ppc.posterior_ppc_predictive_mean,
         posterior_ppc_predictive_sd: ppc.posterior_ppc_predictive_sd,
         posterior_ppc_n_sims: ppc.posterior_ppc_n_sims,
+        posterior_ppc_dispersion_p_value: ppc.posterior_ppc_dispersion_p_value,
+        posterior_ppc_noise: ppc.posterior_ppc_noise,
         prior_sensitivity_scales,
         prior_sensitivity_alphas,
         prior_sensitivity_means,

@@ -177,11 +177,11 @@ impl RetainedBootstrap {
         Ok(())
     }
 
-    /// Bytes the frame of this result is expected to take: what a spill or a reload asks the
-    /// admission pool for.
+    /// Upper bound of the bytes the frame of this result takes: what a spill or a reload asks the
+    /// admission pool for. The constant covers the encoder framing, as for the refresh family.
     #[must_use]
     pub fn frame_bytes(&self) -> u64 {
-        8 * self.estimates.len() as u64 + 128
+        8 * self.estimates.len() as u64 + 256
     }
 
     /// Write the replicates under `registry` as a disk-backed result, after admitting the frame

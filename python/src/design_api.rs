@@ -18,6 +18,7 @@ use pyo3::types::{PyAny, PyDict, PyList, PyModule};
 
 use crate::callbacks::PyUtility;
 use crate::gcm_api::{DesignConstraintViolation, DesignRanking, RankedDesign};
+use crate::prepared_api::PyPreparedAnalysis;
 use crate::{catch_ffi, detach_catch, py_err, py_execution_context, py_msg};
 
 type QueryVarUnlock = (QueryId, Arc<[VariableId]>);
@@ -310,9 +311,7 @@ fn parse_model_loglik(raw: Option<Bound<'_, PyAny>>) -> PyResult<Option<ModelLog
         .get_item("n_draws")?
         .ok_or_else(|| crate::value_err("model_loglik requires n_draws"))?
         .extract()?;
-    if models.is_empty()
-        || n_draws == 0
-        || models.len().checked_mul(n_draws) != Some(loglik.len())
+    if models.is_empty() || n_draws == 0 || models.len().checked_mul(n_draws) != Some(loglik.len())
     {
         return Err(crate::value_err("model_loglik loglik length must equal len(models)*n_draws"));
     }
@@ -324,7 +323,7 @@ fn parse_model_loglik(raw: Option<Bound<'_, PyAny>>) -> PyResult<Option<ModelLog
 }
 
 /// Decision model for `reduce_decision_regret`: the utility decides the action type.
-enum PyDecision {
+pub(crate) enum PyDecision {
     /// Python utility callback over float actions.
     Callback(DecisionRegistry<f64, f64>),
     /// Declared affine utility over action indices.
@@ -427,11 +426,203 @@ fn candidate_kind(c: &CandidateDesign) -> String {
     }
 }
 
+/// Parsed ranking inputs shared by the contract-free and the contract-bound entries.
+pub(crate) struct RankInputs {
+    graphs: WeightedGraphSamples,
+    pub(crate) candidates: Vec<CandidateDesign>,
+    pub(crate) objective: DesignObjective,
+    unlock_vars: Option<Vec<QueryVarUnlock>>,
+    unlock_envs: Option<Vec<QueryEnvUnlock>>,
+    effect_width: Option<EffectWidthContext>,
+    model_loglik: Option<ModelLoglikDraws>,
+    pub(crate) decision: Option<PyDecision>,
+    intervene_flags: Option<Vec<GraphIdentFlag>>,
+    graph_features: Option<Vec<u32>>,
+}
+
+impl RankInputs {
+    /// Parse the declared posterior ensemble, candidates, objective and evaluation context.
+    /// Python objects stay on the calling thread.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn parse(
+        graph_weights: Vec<f64>,
+        identified: Vec<u8>,
+        graph_keys: Vec<u64>,
+        candidates: Option<&Bound<'_, PyList>>,
+        objective: Option<Bound<'_, PyAny>>,
+        query_id: Option<u32>,
+        model_ids: Option<Vec<u32>>,
+        decision_id: Option<u32>,
+        query_id_unlock: Option<Bound<'_, PyAny>>,
+        env_id_unlock: Option<Bound<'_, PyAny>>,
+        identified_under_intervention: Option<Vec<u8>>,
+        graph_features: Option<Vec<u32>>,
+        effect_width: Option<Bound<'_, PyAny>>,
+        model_loglik: Option<Bound<'_, PyAny>>,
+        decision: Option<Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
+        let flags: Vec<GraphIdentFlag> = identified
+            .into_iter()
+            .map(|v| if v == 0 { GraphIdentFlag::Unidentified } else { GraphIdentFlag::Identified })
+            .collect();
+        let graphs = WeightedGraphSamples::new(graph_weights, flags, graph_keys).map_err(py_msg)?;
+        let mut parsed = Vec::new();
+        if let Some(candidates) = candidates {
+            for (i, item) in candidates.iter().enumerate() {
+                parsed.push(parse_candidate(&item, u64::try_from(i).unwrap_or(0))?);
+            }
+            if parsed.is_empty() {
+                return Err(crate::value_err("no candidates"));
+            }
+        }
+        let objective = match objective {
+            Some(obj) => parse_objective(&obj, query_id, model_ids, decision_id)?,
+            None => DesignObjective::from_label("reduce_graph_entropy", None, None, None)
+                .expect("reduce_graph_entropy is a registered objective label"),
+        };
+        let intervene_flags: Option<Vec<GraphIdentFlag>> =
+            identified_under_intervention.map(|v| {
+                v.into_iter()
+                    .map(|x| {
+                        if x == 0 {
+                            GraphIdentFlag::Unidentified
+                        } else {
+                            GraphIdentFlag::Identified
+                        }
+                    })
+                    .collect()
+            });
+        Ok(Self {
+            graphs,
+            candidates: parsed,
+            objective,
+            unlock_vars: parse_unlock_vars(query_id_unlock)?,
+            unlock_envs: parse_unlock_envs(env_id_unlock)?,
+            effect_width: parse_effect_width(effect_width)?,
+            model_loglik: parse_model_loglik(model_loglik)?,
+            decision: parse_decision(decision)?,
+            intervene_flags,
+            graph_features,
+        })
+    }
+
+    pub(crate) fn context<'a, A, O>(
+        &'a self,
+        decisions: Option<&'a DecisionRegistry<A, O>>,
+    ) -> DesignEvaluationContext<'a, A, O> {
+        DesignEvaluationContext {
+            graphs: &self.graphs,
+            effect_width: self.effect_width.as_ref(),
+            model_loglik: self.model_loglik.as_ref(),
+            decisions,
+            query_id_unlock: self.unlock_vars.as_deref(),
+            env_id_unlock: self.unlock_envs.as_deref(),
+            identified_under_intervention: self.intervene_flags.as_deref(),
+            graph_features: self.graph_features.as_deref(),
+        }
+    }
+}
+
+/// Evaluate `$body` with `$eval` bound to the evaluation context of whichever decision
+/// registry the inputs declare (none, a callback utility or an affine utility).
+macro_rules! over_decisions {
+    ($inputs:expr, $eval:ident => $body:expr) => {
+        match &$inputs.decision {
+            None => {
+                let $eval: DesignEvaluationContext<'_, (), ()> = $inputs.context(None);
+                $body
+            }
+            Some(PyDecision::Callback(registry)) => {
+                let $eval = $inputs.context(Some(registry));
+                $body
+            }
+            Some(PyDecision::Affine(registry)) => {
+                let $eval = $inputs.context(Some(registry));
+                $body
+            }
+        }
+    };
+}
+
+pub(crate) use over_decisions;
+
+pub(crate) fn ranker_for(
+    max_cost: Option<f64>,
+    max_sample_budget: Option<u64>,
+    min_batches: u32,
+    max_batches: u32,
+    batch_size: u32,
+    rank_uncertainty_threshold: f64,
+) -> DesignRanker {
+    DesignRanker::new()
+        .with_config(DesignRankConfig {
+            min_batches,
+            max_batches,
+            batch_size,
+            rank_uncertainty_threshold,
+        })
+        .with_constraints(DesignConstraints { max_cost, max_sample_budget })
+}
+
+pub(crate) fn ranking_view(ranking: &antecedent::design::ScoredDesignRanking) -> DesignRanking {
+    let scores: Vec<f64> = ranking.ranked.iter().map(|r| r.score).collect();
+    let best = ranking.ranked.first().map_or(0, |r| r.candidate_index);
+    let ranked: Vec<RankedDesign> = ranking
+        .ranked
+        .iter()
+        .map(|r| RankedDesign {
+            candidate_index: r.candidate_index,
+            kind: candidate_kind(&r.candidate),
+            tag: r.candidate.tag(),
+            score: r.score,
+            stderr: r.monte_carlo.stderr,
+            rank: r.rank,
+            rank_uncertain: r.rank_uncertain,
+            implemented_functional: r.implemented_functional.to_string(),
+            evaluation: r.evaluation.as_str().to_owned(),
+        })
+        .collect();
+    let violations: Vec<DesignConstraintViolation> = ranking
+        .violations
+        .iter()
+        .map(|v| DesignConstraintViolation {
+            candidate_index: v.candidate_index,
+            constraint: v.constraint.to_string(),
+            detail: v.detail.to_string(),
+        })
+        .collect();
+    DesignRanking {
+        best_index: best,
+        scores,
+        mc_samples: ranking.budget.samples,
+        early_stopped: ranking.early_stopped,
+        ranked,
+        violations,
+    }
+}
+
+pub(crate) fn decision_target_digest(
+    hex: Option<&str>,
+) -> PyResult<Option<antecedent_core::SemanticDigest>> {
+    hex.map(|hex| {
+        antecedent_core::digest_from_hex(hex)
+            .map(antecedent_core::SemanticDigest::from_bytes)
+            .ok_or_else(|| crate::value_err("decision_target must be 64 hexadecimal characters"))
+    })
+    .transpose()
+}
+
 /// Rank candidate designs under a full [`DesignRanker`] objective / context.
 ///
 /// `reduce_decision_regret` scores each candidate's preposterior expected value of
 /// sample information and needs `decision` (see [`parse_decision`]) with
 /// `decision_id=0`.
+///
+/// With `prepared` the ranking is bound to that prepared study's contract: an unlicensed
+/// support cell or a missing identification product is refused, a width ranking across a
+/// decision target other than the study's own is refused (`decision_target` is that
+/// target's 64-hex identity), candidates the objective cannot score are reported as
+/// violations, and the rest are ranked and remapped to the declared positions.
 #[pyfunction]
 #[pyo3(signature = (
     graph_weights,
@@ -458,6 +649,8 @@ fn candidate_kind(c: &CandidateDesign) -> String {
     rank_uncertainty_threshold=0.05,
     seed=0,
     threads=None,
+    prepared=None,
+    decision_target=None,
 ))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn rank_designs(
@@ -485,151 +678,171 @@ pub(crate) fn rank_designs(
     rank_uncertainty_threshold: f64,
     seed: u64,
     threads: Option<u32>,
+    prepared: Option<PyRef<'_, PyPreparedAnalysis>>,
+    decision_target: Option<String>,
 ) -> PyResult<DesignRanking> {
     // Python objects stay on this thread. The Monte Carlo ranking below releases the GIL.
-    let inputs = catch_ffi(|| {
-        let flags: Vec<GraphIdentFlag> = identified
-            .into_iter()
-            .map(|v| if v == 0 { GraphIdentFlag::Unidentified } else { GraphIdentFlag::Identified })
-            .collect();
-        let graphs = WeightedGraphSamples::new(graph_weights, flags, graph_keys).map_err(py_msg)?;
-        let mut parsed = Vec::with_capacity(candidates.len());
-        for (i, item) in candidates.iter().enumerate() {
-            parsed.push(parse_candidate(&item, u64::try_from(i).unwrap_or(0))?);
-        }
-        if parsed.is_empty() {
-            return Err(crate::value_err("no candidates"));
-        }
-        let objective = match objective {
-            Some(obj) => parse_objective(&obj, query_id, model_ids, decision_id)?,
-            None => DesignObjective::from_label("reduce_graph_entropy", None, None, None)
-                .expect("reduce_graph_entropy is a registered objective label"),
-        };
-        let unlock_vars = parse_unlock_vars(query_id_unlock)?;
-        let unlock_envs = parse_unlock_envs(env_id_unlock)?;
-        let effect_width = parse_effect_width(effect_width)?;
-        let model_loglik = parse_model_loglik(model_loglik)?;
-        let decision = parse_decision(decision)?;
-        let intervene_flags: Option<Vec<GraphIdentFlag>> =
-            identified_under_intervention.map(|v| {
-                v.into_iter()
-                    .map(|x| {
-                        if x == 0 {
-                            GraphIdentFlag::Unidentified
-                        } else {
-                            GraphIdentFlag::Identified
-                        }
-                    })
-                    .collect()
-            });
-        let ranker = DesignRanker::new()
-            .with_config(DesignRankConfig {
-                min_batches,
-                max_batches,
-                batch_size,
-                rank_uncertainty_threshold,
-            })
-            .with_constraints(DesignConstraints { max_cost, max_sample_budget });
-        Ok((
-            graphs,
-            parsed,
+    let (inputs, ranker, target, study) = catch_ffi(|| {
+        let inputs = RankInputs::parse(
+            graph_weights,
+            identified,
+            graph_keys,
+            Some(&candidates),
             objective,
-            unlock_vars,
-            unlock_envs,
+            query_id,
+            model_ids,
+            decision_id,
+            query_id_unlock,
+            env_id_unlock,
+            identified_under_intervention,
+            graph_features,
             effect_width,
             model_loglik,
             decision,
-            intervene_flags,
-            graph_features,
-            ranker,
-        ))
+        )?;
+        let ranker = ranker_for(
+            max_cost,
+            max_sample_budget,
+            min_batches,
+            max_batches,
+            batch_size,
+            rank_uncertainty_threshold,
+        );
+        let target = decision_target_digest(decision_target.as_deref())?;
+        if target.is_some() && prepared.is_none() {
+            return Err(crate::value_err(
+                "decision_target applies only to a contract-bound ranking",
+            ));
+        }
+        Ok((inputs, ranker, target, prepared.as_ref().map(|p| Arc::clone(&p.inner))))
     })?;
-    let (
-        graphs,
-        parsed,
-        objective,
-        unlock_vars,
-        unlock_envs,
-        effect_width,
-        model_loglik,
-        decision,
-        intervene_flags,
-        graph_features,
-        ranker,
-    ) = inputs;
 
     detach_catch(py, move || {
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let unlock_var_slice = unlock_vars.as_deref();
-        let unlock_env_slice = unlock_envs.as_deref();
-        let intervene_slice = intervene_flags.as_deref();
-        let features_slice = graph_features.as_deref();
-        macro_rules! eval_with {
-            ($decisions:expr) => {
-                DesignEvaluationContext {
-                    graphs: &graphs,
-                    effect_width: effect_width.as_ref(),
-                    model_loglik: model_loglik.as_ref(),
-                    decisions: $decisions,
-                    query_id_unlock: unlock_var_slice,
-                    env_id_unlock: unlock_env_slice,
-                    identified_under_intervention: intervene_slice,
-                    graph_features: features_slice,
-                }
-            };
-        }
-        let ranking = match &decision {
-            None => {
-                let eval: DesignEvaluationContext<'_, (), ()> = eval_with!(None);
-                ranker.rank(&objective, &parsed, &eval, &ctx)
+        let ranking = over_decisions!(inputs, eval => match &study {
+            Some(study) => {
+                study.rank_designs_bound(&ranker, &inputs.objective, &inputs.candidates, &eval, &ctx, target)
             }
-            Some(PyDecision::Callback(registry)) => {
-                ranker.rank(&objective, &parsed, &eval_with!(Some(registry)), &ctx)
-            }
-            Some(PyDecision::Affine(registry)) => {
-                ranker.rank(&objective, &parsed, &eval_with!(Some(registry)), &ctx)
-            }
-        }
-        .map_err(antecedent::CausalError::from)
-        .map_err(py_err)?;
-        let scores: Vec<f64> = ranking.ranked.iter().map(|r| r.score).collect();
-        let best = ranking.ranked.first().map_or(0, |r| r.candidate_index);
-        let ranked: Vec<RankedDesign> = ranking
-            .ranked
-            .iter()
-            .map(|r| RankedDesign {
-                candidate_index: r.candidate_index,
-                kind: candidate_kind(&r.candidate),
-                tag: r.candidate.tag(),
-                score: r.score,
-                stderr: r.monte_carlo.stderr,
-                rank: r.rank,
-                rank_uncertain: r.rank_uncertain,
-                implemented_functional: r.implemented_functional.to_string(),
-                evaluation: r.evaluation.as_str().to_owned(),
-            })
-            .collect();
-        let violations: Vec<DesignConstraintViolation> = ranking
-            .violations
-            .iter()
-            .map(|v| DesignConstraintViolation {
-                candidate_index: v.candidate_index,
-                constraint: v.constraint.to_string(),
-                detail: v.detail.to_string(),
-            })
-            .collect();
-        Ok(DesignRanking {
-            best_index: best,
-            scores,
-            mc_samples: ranking.budget.samples,
-            early_stopped: ranking.early_stopped,
-            ranked,
-            violations,
+            None => ranker
+                .rank(&inputs.objective, &inputs.candidates, &eval, &ctx)
+                .map_err(antecedent::CausalError::from),
         })
+        .map_err(py_err)?;
+        Ok(ranking_view(&ranking))
     })
+}
+
+/// Obligations a contract-bound ranking inspects before it scores, as JSON.
+///
+/// Reads the prepared contract and the declared evaluation context; nothing is scored. The
+/// refusals are the bound ranking's: an unlicensed contract, a missing identification
+/// product, incomparable width targets and a renormalized identification mass.
+#[pyfunction]
+#[pyo3(signature = (
+    prepared,
+    graph_weights,
+    identified,
+    graph_keys,
+    candidates,
+    objective=None,
+    *,
+    query_id=None,
+    model_ids=None,
+    decision_id=None,
+    query_id_unlock=None,
+    env_id_unlock=None,
+    identified_under_intervention=None,
+    graph_features=None,
+    effect_width=None,
+    model_loglik=None,
+    decision=None,
+    decision_target=None,
+))]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn preview_design_rank(
+    prepared: PyRef<'_, PyPreparedAnalysis>,
+    graph_weights: Vec<f64>,
+    identified: Vec<u8>,
+    graph_keys: Vec<u64>,
+    candidates: Bound<'_, PyList>,
+    objective: Option<Bound<'_, PyAny>>,
+    query_id: Option<u32>,
+    model_ids: Option<Vec<u32>>,
+    decision_id: Option<u32>,
+    query_id_unlock: Option<Bound<'_, PyAny>>,
+    env_id_unlock: Option<Bound<'_, PyAny>>,
+    identified_under_intervention: Option<Vec<u8>>,
+    graph_features: Option<Vec<u32>>,
+    effect_width: Option<Bound<'_, PyAny>>,
+    model_loglik: Option<Bound<'_, PyAny>>,
+    decision: Option<Bound<'_, PyAny>>,
+    decision_target: Option<String>,
+) -> PyResult<String> {
+    let study = Arc::clone(&prepared.inner);
+    let (inputs, target) = catch_ffi(|| {
+        let inputs = RankInputs::parse(
+            graph_weights,
+            identified,
+            graph_keys,
+            Some(&candidates),
+            objective,
+            query_id,
+            model_ids,
+            decision_id,
+            query_id_unlock,
+            env_id_unlock,
+            identified_under_intervention,
+            graph_features,
+            effect_width,
+            model_loglik,
+            decision,
+        )?;
+        Ok((inputs, decision_target_digest(decision_target.as_deref())?))
+    })?;
+    let preview = over_decisions!(inputs, eval => study.preview_rank_designs(
+        &inputs.objective,
+        &inputs.candidates,
+        &eval,
+        target,
+    ))
+    .map_err(py_err)?;
+    let obligations: Vec<serde_json::Value> = preview
+        .obligations
+        .iter()
+        .map(|o| {
+            serde_json::json!({
+                "id": o.id.as_ref(),
+                "scope": o.scope.as_str(),
+                "kind": o.kind.as_str(),
+                "status": o.status.as_str(),
+                "required_check": o.required_check.as_deref(),
+                "description": o.description.as_ref(),
+            })
+        })
+        .collect();
+    let violations: Vec<serde_json::Value> = preview
+        .violations
+        .iter()
+        .map(|v| {
+            serde_json::json!({
+                "candidate_index": v.candidate_index,
+                "constraint": v.constraint.as_ref(),
+                "detail": v.detail.as_ref(),
+            })
+        })
+        .collect();
+    serde_json::to_string(&serde_json::json!({
+        "obligations": obligations,
+        "unidentified_mass": preview.unidentified_mass,
+        "target": preview.target.to_hex(),
+        "violations": violations,
+        "unresolved": preview.unresolved,
+    }))
+    .map_err(|error| crate::value_err(error.to_string()))
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rank_designs, m)?)?;
+    m.add_function(wrap_pyfunction!(preview_design_rank, m)?)?;
     Ok(())
 }

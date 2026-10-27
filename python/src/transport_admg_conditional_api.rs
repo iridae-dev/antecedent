@@ -395,9 +395,10 @@ impl AdmgConditionalTransportStage {
             (self.diagram.clone(), proof.as_ref().clone(), self.graph.names.clone());
         let raw = crate::detach_catch(py, move || {
             let ctx = execution_context(0, None, None);
-            AdmgConditionalObstructionWire::checked(&diagram, &proof, &names, &ctx)
-                .and_then(|wire| wire.export())
-                .map_err(io_error)
+            antecedent::analysis::api::export_admg_conditional_obstruction(
+                &diagram, &proof, &names, &ctx,
+            )
+            .map_err(io_error)
         })?;
         let framed = frame_named_artifact(OBSTRUCTION_PREFIX, &self.graph.names, raw)?;
         Ok(pyo3::types::PyBytes::new(py, &framed).unbind())

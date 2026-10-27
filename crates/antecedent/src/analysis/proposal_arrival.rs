@@ -416,15 +416,11 @@ fn bind_arrival_program(
     };
     Ok(BoundArrivalProgram { arena, root, outcomes, treatments, proof, data })
 }
-/// Execute the original checked transport formula on actual delivered counts.
+/// Execute the original checked transport formula on actual delivered counts, under
+/// caller-declared byte limits.
 /// # Errors
-/// Original consumer/proof failures, changed premises, sample/provider mismatch, support and bounds.
-pub fn execute(r: &ArrivalRequest, ctx: &ExecutionContext) -> Result<ArrivalPoint, IoError> {
-    execute_with_limits(r, ctx, ArrivalLimits::default())
-}
-/// [`execute`] under caller-declared byte limits.
-/// # Errors
-/// As [`execute`], with `limits.max_source_artifact_bytes` as the source artifact bound.
+/// Original consumer/proof failures, changed premises, sample/provider mismatch, support and
+/// bounds, with `limits.max_source_artifact_bytes` as the source artifact bound.
 pub fn execute_with_limits(
     r: &ArrivalRequest,
     ctx: &ExecutionContext,

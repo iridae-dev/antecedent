@@ -208,9 +208,9 @@ fn unlocks_json(
 /// A failed identification and the theorem routes a study could repair.
 #[pyclass(skip_from_py_object)]
 pub(crate) struct FailureStage {
-    routes: FailureRoutes,
-    observed: Vec<VariableId>,
-    names: Vec<String>,
+    pub(crate) routes: FailureRoutes,
+    pub(crate) observed: Vec<VariableId>,
+    pub(crate) names: Vec<String>,
     population: String,
     treatment: VariableId,
     outcome: VariableId,

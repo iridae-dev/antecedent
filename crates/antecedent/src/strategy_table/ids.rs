@@ -121,7 +121,7 @@ all_doc = "Every closed-set identifier, in declaration order (powers [`UnknownSt
 }
 
 /// Per-identifier data-only facts backing [`IdentifierId::as_str`],
-/// [`IdentifierId::is_dag_only`], and [`identify_provenance_step`].
+/// [`IdentifierId::is_dag_only`], and `identify_provenance_step`.
 ///
 /// Purely descriptive — the real behavioral dispatch lives in
 /// [`identify_static_query_with_rd`] / [`identify_pag`] / [`identify_admg`], which stay
@@ -561,7 +561,7 @@ impl EstimatorId {
 
 /// Per-estimator data-only facts backing [`EstimatorId::as_str`],
 /// [`EstimatorId::parallel_task_dimension`], [`EstimatorId::kernel_label`], and
-/// [`estimate_provenance_step`].
+/// `estimate_provenance_step`.
 ///
 /// The static-ATE identifier allow-list is [`Self::compatible`]. Fit dispatch in
 /// [`estimate_static_effect`] / [`estimate_static_effect_default`] and

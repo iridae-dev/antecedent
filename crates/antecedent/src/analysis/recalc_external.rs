@@ -272,13 +272,6 @@ impl Default for ExternalCallbackSession {
         Self::new()
     }
 }
-thread_local! { static INVOCATIONS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
-/// Observe actual callback entries; nested observers see the same actual calls.
-pub fn count_external_invocations<T>(work: impl FnOnce() -> T) -> (T, u64) {
-    let before = INVOCATIONS.get();
-    let result = work();
-    (result, INVOCATIONS.get().saturating_sub(before))
-}
 fn text_identity(domain: &str, text: &str) -> StageIdentity {
     StageIdentity::of(domain, &[text.as_bytes()])
 }
@@ -496,16 +489,12 @@ impl ExternalCallbackRequest {
                 || name.len() > limits.max_text_bytes
                 || values.len() != rows
                 || values.iter().any(|v| !v.is_finite())
+        }) || self.model_parameters.iter().any(|(name, value)| {
+            name.is_empty() || name.len() > limits.max_text_bytes || !value.is_finite()
         }) || self
-            .model_parameters
-            .iter()
-            .any(|(name, value)| {
-                name.is_empty() || name.len() > limits.max_text_bytes || !value.is_finite()
-            })
-            || self
-                .idempotency_key
-                .as_ref()
-                .is_some_and(|key| key.is_empty() || key.len() > limits.max_text_bytes)
+            .idempotency_key
+            .as_ref()
+            .is_some_and(|key| key.is_empty() || key.len() > limits.max_text_bytes)
         {
             return Err(ExternalCallbackError::Request("external_recalc.invalid_request"));
         }
@@ -827,7 +816,8 @@ impl ExternalCallbackSession {
         let provider =
             provider.ok_or(ExternalCallbackError::Request("recalc.unavailable_provider"))?;
         let digest = self.admit_attempt(request, &*provider, ctx)?;
-        let (response, report) = invoke_attested_provider(request, provider, digest, ctx, &self.metadata_limits)?;
+        let (response, report) =
+            invoke_attested_provider(request, provider, digest, ctx, &self.metadata_limits)?;
         let (claim, artifact) = self.bind_attested_output(request, response, digest, report)?;
         recorder.record(Counter::ExternalInvocation(request.branch), 1);
         let receipt = recorder
@@ -889,7 +879,6 @@ impl ExternalCallbackSession {
             }
         }
         self.epoch = self.epoch.saturating_add(1);
-        INVOCATIONS.set(INVOCATIONS.get().saturating_add(1));
         Ok(digest)
     }
 

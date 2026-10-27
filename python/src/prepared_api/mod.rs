@@ -24,6 +24,7 @@ mod execute;
 mod frame;
 mod identification;
 mod inspect;
+mod operation_detail;
 mod posterior;
 mod prepare_design;
 mod prepare_effect;

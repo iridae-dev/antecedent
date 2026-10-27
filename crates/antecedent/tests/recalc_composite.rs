@@ -1,9 +1,7 @@
 //! Exact finite SCM, two real attested providers and one measured shared workflow.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::recalc_composite::*;
-use antecedent::analysis::recalc_external::{
-    CallbackPolicy, ExternalMeanProvider, count_external_invocations,
-};
+use antecedent::analysis::recalc_external::{CallbackPolicy, ExternalMeanProvider};
 use antecedent::analysis::recalc_receipt::UtilitySpec;
 use antecedent::analysis::recalc_static::{
     StaticResponseRequest, StaticResponseSession, execute_static_response_with_receipt,
@@ -110,21 +108,22 @@ fn execute(
     p1: &mut reference::Provider,
     p2: &mut reference::Provider,
 ) -> CompositeOutcome {
+    let before = p1.calls + p2.calls;
     let mut providers: BTreeMap<Branch, &mut dyn ExternalMeanProvider> = BTreeMap::new();
-    providers.insert(request.externals[0].branch, p1);
-    providers.insert(request.externals[1].branch, p2);
-    let ((((out, fits), calls), work), ids) =
+    providers.insert(request.externals[0].branch, &mut *p1);
+    providers.insert(request.externals[1].branch, &mut *p2);
+    let (((out, fits), work), ids) =
         antecedent_identify::execution_counts::count_checked_identifications(|| {
             antecedent_expr::execution_counts::count_static_work(|| {
-                count_external_invocations(|| {
-                    observe_resolved_fits(|| {
-                        session
-                            .execute(request, &mut providers, &ExecutionContext::for_tests(7))
-                            .unwrap()
-                    })
+                observe_resolved_fits(|| {
+                    session
+                        .execute(request, &mut providers, &ExecutionContext::for_tests(7))
+                        .unwrap()
                 })
             })
         });
+    drop(providers);
+    let calls = p1.calls + p2.calls - before;
     assert_eq!(fits, 0);
     assert_eq!(calls, out.receipt.totals().external_invocations);
     assert_eq!(work.factor_builds, out.receipt.totals().factor_builds);
@@ -193,13 +192,13 @@ fn callback_failure_preserves_combined_native_and_foreign_success() {
     let native_receipt = session.native().producing_receipt().unwrap().identity();
     request.externals[0].columns[0].1 = vec![0.0, 2.0];
     p1.fail = true;
+    let before = p1.calls + p2.calls;
     let mut providers: BTreeMap<Branch, &mut dyn ExternalMeanProvider> = BTreeMap::new();
     providers.insert(request.externals[0].branch, &mut p1);
     providers.insert(request.externals[1].branch, &mut p2);
-    let (failure, calls) = count_external_invocations(|| {
-        session.execute(&request, &mut providers, &ExecutionContext::for_tests(7))
-    });
-    assert_eq!(calls, 1);
+    let failure = session.execute(&request, &mut providers, &ExecutionContext::for_tests(7));
+    drop(providers);
+    assert_eq!(p1.calls + p2.calls - before, 1);
     assert!(matches!(failure, Err(CompositeError::External { .. })));
     assert_eq!(native_pointer, std::ptr::from_ref(session.native().result().unwrap()));
     assert_eq!(native_receipt, session.native().producing_receipt().unwrap().identity());
@@ -417,11 +416,10 @@ fn declared_source_preference_selects_all_three_actual_sources_and_is_terminal_o
     absent.dose_grid = vec![99.0];
     request.decision_contract.actions[0].inputs = absent.expected_quantities();
     let mut providers: BTreeMap<Branch, &mut dyn ExternalMeanProvider> = BTreeMap::new();
-    let (refused, calls) = count_external_invocations(|| {
-        session.execute(&request, &mut providers, &ExecutionContext::for_tests(7))
-    });
+    let before = p1.calls + p2.calls;
+    let refused = session.execute(&request, &mut providers, &ExecutionContext::for_tests(7));
     assert!(matches!(refused, Err(CompositeError::Binding(_))));
-    assert_eq!(calls, 0);
+    assert_eq!(p1.calls + p2.calls, before);
     assert_eq!(execute(&mut session, &published, &mut p1, &mut p2).receipt.totals().total(), 0);
 }
 

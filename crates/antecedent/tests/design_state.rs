@@ -15,8 +15,9 @@ use antecedent::state::{
     CausalState, DataVersion, GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LgssmParams,
     LinearOlsSuffStats, LocalScoreCache, ParentSetOp, ParticleFilterState,
     RollingMechanismDiagnostics, StateEvent, apply_state_event, full_graph_score,
-    insert_mechanism_diag, new_antecedent_state,
+    new_antecedent_state,
 };
+use antecedent_state::insert_mechanism_diag;
 use antecedent_core::{
     AverageEffectQuery, CacheBudget, CausalQuery, ExecutionContext, QueryId, VariableId,
 };

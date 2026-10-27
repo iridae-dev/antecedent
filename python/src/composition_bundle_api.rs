@@ -11,10 +11,10 @@ use std::collections::BTreeMap;
 
 use crate::bridge::{check_declared_size, external_refusal_json};
 use antecedent::analysis::composition::{
-    BundleBuilder, BundleError, BundleStage, ClaimLabel, CompositionBundle, ConsumedBundle,
-    ConsumedNode, EvidenceRelationship, NodeKind, NodeSource, NodeStatus, ProviderOrData,
-    SuppliedSources, consume, describe_artifact, detect_node_kind, export_bundle,
-    mean_decision_bytes,
+    BundleBuilder, BundleError, BundleLimits, BundleStage, ClaimLabel, CompositionBundle,
+    ConsumedBundle, ConsumedNode, EvidenceRelationship, NodeKind, NodeSource, NodeStatus,
+    ProviderOrData, SuppliedSources, consume, consume_with_limits, describe_artifact,
+    detect_node_kind, export_bundle, mean_decision_bytes,
 };
 use antecedent_contract::ExternalRefusal;
 use antecedent_core::reason_code;
@@ -343,17 +343,38 @@ impl PyCompositionBundle {
     }
 }
 
-/// Consume exported bytes under the identity the consumer retained independently.
-/// Returns `(consumed_json, refusal)`.
+/// Consume exported bytes under the identity the consumer retained independently and the
+/// consumer's own bounds (each omitted bound keeps its default). Returns
+/// `(consumed_json, refusal)`.
 #[pyfunction]
-#[pyo3(signature = (data, expected_identity, supplied_json=None))]
+#[pyo3(signature = (data, expected_identity, supplied_json=None, *, max_bundle_bytes=None, max_nodes=None, max_edges=None, max_embedded_bytes=None))]
 fn consume_composition_bundle(
     data: &[u8],
     expected_identity: &str,
     supplied_json: Option<&str>,
+    max_bundle_bytes: Option<usize>,
+    max_nodes: Option<usize>,
+    max_edges: Option<usize>,
+    max_embedded_bytes: Option<usize>,
 ) -> PyResult<(Option<String>, Refusal)> {
     let supplied = supplied_from(supplied_json)?;
-    Ok(match consume(data, expected_identity, &supplied) {
+    let consumed = if max_bundle_bytes.is_none()
+        && max_nodes.is_none()
+        && max_edges.is_none()
+        && max_embedded_bytes.is_none()
+    {
+        consume(data, expected_identity, &supplied)
+    } else {
+        let defaults = BundleLimits::default();
+        let limits = BundleLimits {
+            max_bundle_bytes: max_bundle_bytes.unwrap_or(defaults.max_bundle_bytes),
+            max_nodes: max_nodes.unwrap_or(defaults.max_nodes),
+            max_edges: max_edges.unwrap_or(defaults.max_edges),
+            max_embedded_bytes: max_embedded_bytes.unwrap_or(defaults.max_embedded_bytes),
+        };
+        consume_with_limits(data, &limits, expected_identity, &supplied)
+    };
+    Ok(match consumed {
         Ok(consumed) => (Some(consumed_json(&consumed)), None),
         Err(error) => (None, Some(error_refusal(&error))),
     })

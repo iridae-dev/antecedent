@@ -19,7 +19,7 @@
 
 use std::sync::Arc;
 
-use antecedent_contract::{DecisionRequest, EvidencePort, EvidencePortError};
+use antecedent_contract::EvidencePort;
 use antecedent_core::execution::{AdmissionError, AdmissionLease};
 use antecedent_core::{
     EncodedWidth, ExecutionContext, RegimeId, RouteBudget, RouteMemoryDeclaration, Value,
@@ -560,14 +560,6 @@ pub(crate) fn finite_discrete_origin(name: &str) -> Result<LawOrigin, &'static s
     LawOrigin::parse(name).ok_or("unknown evidence is not a finite-discrete law")
 }
 
-/// Offer a confidence interval as a parameter posterior.
-///
-/// The offer is refused. The interval is unchanged, and the request stays a
-/// parameter posterior.
-pub(crate) fn confidence_interval_as_posterior() -> Result<EvidencePort, EvidencePortError> {
-    EvidencePort::ConfidenceRegion.try_coerce(DecisionRequest::ParameterPosterior)
-}
-
 /// Parse an export produced by [`FiniteDiscreteSlice::export_static_frequentist`].
 ///
 /// # Errors
@@ -955,11 +947,7 @@ fn plan_world(
 /// An exact plan's refusal, or the cancellation that stopped it: a plan that observes a
 /// cancelled context reports a provider fault, which the caller must see as cancellation.
 fn exact_failure(error: antecedent_expr::EvalError, ctx: &ExecutionContext) -> crate::CausalError {
-    if ctx.cancellation.is_cancelled() {
-        cancelled()
-    } else {
-        crate::CausalError::from(error)
-    }
+    if ctx.cancellation.is_cancelled() { cancelled() } else { crate::CausalError::from(error) }
 }
 
 fn outcome_level(atom: &Arc<[Value]>) -> Result<i64, crate::CausalError> {
@@ -1177,8 +1165,8 @@ mod tests {
 
     use super::{
         DecisionDemand, DiscreteAction, DiscreteCell, DiscreteInputs, MAX_EXACT_COUNT,
-        MissingCarrier, confidence_interval_as_posterior, effect_of_exported_law, enumerated_atoms,
-        finite_discrete_origin, finite_discrete_slice, finite_discrete_slice_over, load_exported,
+        MissingCarrier, effect_of_exported_law, enumerated_atoms, finite_discrete_origin,
+        finite_discrete_slice, finite_discrete_slice_over, load_exported,
     };
 
     fn hand_frequency_contrast() -> (f64, f64, f64) {
@@ -1324,7 +1312,9 @@ mod tests {
 
     #[test]
     fn confidence_interval_offered_as_posterior_is_rejected_and_risk_needs_an_outcome_law() {
-        let refused = confidence_interval_as_posterior().unwrap_err();
+        let refused = EvidencePort::ConfidenceRegion
+            .try_coerce(DecisionRequest::ParameterPosterior)
+            .unwrap_err();
         assert_eq!(refused.source_port, EvidencePort::ConfidenceRegion);
         assert_eq!(refused.request, DecisionRequest::ParameterPosterior);
         assert_eq!(refused.legal_ports, &[EvidencePort::ParameterPosterior]);

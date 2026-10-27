@@ -12,7 +12,7 @@
 //!
 //! `batch_retarget_max_t_simultaneous_band` is registered in `scripts/gate_calibration.sh`
 //! (`run_br`, measured over the sample-size grid); its coverage is unmeasured, so the
-//! published interval stays closed (`cell_not_licensed`) and no coverage record exists. The evaluator is `antecedent::simultaneous_band_unpublished`.
+//! published interval stays closed (`cell_not_licensed`) and no coverage record exists. The evaluator is `BatchRetargetReport::simultaneous_interval`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -20,7 +20,7 @@ mod common;
 
 use antecedent::{
     BatchRetargetRequest, BatchStudy, EstimatorId, PreparedBatch, RefuteSuite, RetargetClaim,
-    SimultaneousBand, simultaneous_band_unpublished,
+    SimultaneousBand,
 };
 use antecedent_core::{AverageEffectQuery, ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::TabularData;
@@ -120,7 +120,7 @@ fn replicate(n: usize, data_seed: u64, band_seed: u64) -> Option<SimultaneousBan
     let scores = prepared.prepared_scores();
     let rows = scores.common_rows().ok()??;
     let report = prepared.retarget(&scores, &request(&fx, &rows), &ctx).ok()?;
-    simultaneous_band_unpublished(&report, REPORTED_LEVEL, band_seed, BAND_DRAWS, &ctx).ok()
+    report.simultaneous_interval(REPORTED_LEVEL, band_seed, BAND_DRAWS, &ctx).ok()
 }
 
 fn construction() -> Construction {

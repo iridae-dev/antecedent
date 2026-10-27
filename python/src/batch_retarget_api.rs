@@ -211,6 +211,34 @@ impl PyCompletedBatch {
             u32::try_from(at).map_err(|_| crate::value_err("too many columns"))?,
         ))
     }
+
+    /// The declared family as a retarget request (claims resolved to column ids).
+    fn request_of(
+        &self,
+        claims: Vec<ClaimSpec>,
+        contrasts: Vec<ContrastSpec>,
+        expected_snapshot: Option<String>,
+    ) -> PyResult<BatchRetargetRequest> {
+        let claims = claims
+            .into_iter()
+            .map(|(name, query_index, weights, depends_on)| {
+                Ok::<_, PyErr>(RetargetClaim {
+                    name,
+                    query_index,
+                    weights,
+                    depends_on: depends_on
+                        .iter()
+                        .map(|n| self.variable_id(n))
+                        .collect::<PyResult<Vec<_>>>()?,
+                })
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let contrasts = contrasts
+            .into_iter()
+            .map(|(name, coefficients)| RetargetContrast { name, coefficients })
+            .collect();
+        Ok(BatchRetargetRequest { claims, contrasts, expected_snapshot })
+    }
 }
 
 #[pymethods]
@@ -236,6 +264,22 @@ impl PyCompletedBatch {
         self.current_scores().snapshot_id().map_err(retarget_error)
     }
 
+    /// Planning-time cost counts of retargeting the declared family: zero nuisance fits (the
+    /// retained scores are reused) and the claim, contrast and row counts the reweighting and
+    /// the family covariance read. The request is counted as declared, not validated.
+    fn retarget_cost(
+        &self,
+        py: Python<'_>,
+        claims: Vec<ClaimSpec>,
+        contrasts: Vec<ContrastSpec>,
+    ) -> PyResult<Py<PyAny>> {
+        let request = self.request_of(claims, contrasts, None)?;
+        let estimate = self.current_scores().estimate_retarget_cost(&request);
+        let value =
+            serde_json::to_value(&estimate).map_err(|error| crate::value_err(error.to_string()))?;
+        to_py_json(py, &value)
+    }
+
     /// Retarget a declared family of claims; the report as a dictionary.
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (
@@ -257,25 +301,7 @@ impl PyCompletedBatch {
         simultaneous_seed: u64,
         simultaneous_draws: u32,
     ) -> PyResult<Py<PyAny>> {
-        let claims = claims
-            .into_iter()
-            .map(|(name, query_index, weights, depends_on)| {
-                Ok::<_, PyErr>(RetargetClaim {
-                    name,
-                    query_index,
-                    weights,
-                    depends_on: depends_on
-                        .iter()
-                        .map(|n| self.variable_id(n))
-                        .collect::<PyResult<Vec<_>>>()?,
-                })
-            })
-            .collect::<PyResult<Vec<_>>>()?;
-        let contrasts = contrasts
-            .into_iter()
-            .map(|(name, coefficients)| RetargetContrast { name, coefficients })
-            .collect();
-        let request = BatchRetargetRequest { claims, contrasts, expected_snapshot };
+        let request = self.request_of(claims, contrasts, expected_snapshot)?;
         let inner = std::sync::Arc::clone(&self.inner);
         let payload = crate::detach_catch(py, move || {
             let ctx = crate::py_execution_context(1, 1);

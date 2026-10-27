@@ -58,8 +58,8 @@ use crate::graph::{Dag, DenseNodeId};
 
 use super::recalc_common::{Fields, float_bytes, identity as digest, literal, table_from_columns};
 use super::recalc_receipt::{
-    Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRequestCode, RecalcRunError, RecalcSession,
-    ReceiptRecorder, TargetWeights, UtilitySpec, decide,
+    Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRequestCode, RecalcRunError,
+    RecalcSession, ReceiptRecorder, TargetWeights, UtilitySpec, decide,
 };
 
 type Columns = Vec<(String, Vec<f64>)>;
@@ -538,13 +538,6 @@ fn run_cell_stages(
         held.map(|(_, decision)| decision).ok_or(RecalcRunError::NoLiveState(Stage::Decision))?
     };
     Ok(CellLive { table, law, decision })
-}
-
-/// The registered reason code of a malformed cell or resume request (`invalid_argument`): the
-/// `recalc.*` request details this module emits all carry it.
-#[must_use]
-pub fn cell_request_reason_code() -> &'static str {
-    antecedent_core::reason_code!("invalid_argument")
 }
 
 /// Plan `request` against the session, run only what the plan says must run, count the work,

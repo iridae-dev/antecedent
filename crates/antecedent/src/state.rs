@@ -14,21 +14,18 @@ pub use antecedent_state::{
     CachedResult, CausalState, ChangedInput, ConstraintId, DataBatchRef, DataCatalog, DataVersion,
     GraphConstraintRecord, GraphEvidenceRecord, GraphEvidenceStore, GraphScoreCacheKey,
     GraphScoreData, GraphScoreFamily, InterventionRecord, InvalidationEntry, InvalidationLog,
-    InvalidationTarget, LagIndexCacheEntry, LagIndexCacheKey, LgssmParams, LinearOlsSuffStats,
-    LocalScoreCache, ModelRecord, ModelStore, ParentSetOp, ParticleFilterState, QueryRecord,
-    QueryStore, ResultPublication, ResultStore, RetentionPolicy, RollingMechanismDiagnostics,
-    StateError, StateEvent, StreamingCovariance, SuffStatStore, evict_mechanism_diag,
-    full_graph_score, insert_mechanism_diag,
+    InvalidationTarget, LagIndexCacheEntry, LgssmParams, LinearOlsSuffStats, LocalScoreCache,
+    ModelStore, ParentSetOp, ParticleFilterState, QueryRecord, QueryStore, ResultPublication,
+    ResultStore, RetentionPolicy, RollingMechanismDiagnostics, StateError, StateEvent,
+    StreamingCovariance, SuffStatStore, full_graph_score,
 };
 pub use antecedent_state::{
     ConjugateOlsPosterior, ConjugateOlsPrior, ConjugateOlsSummary, OlsLedgerState, OlsRefresh,
-    OlsSnapshot, RefreshChange, RefreshDisposition, RefreshOutcome, RefreshRoute, RefreshRow,
-    route_contract,
+    OlsSnapshot, RefreshChange, RefreshDisposition, RefreshOutcome, RefreshRow, route_contract,
 };
 pub use antecedent_state::{
     ConjugateBlockRefresh, CovarianceRefresh, CovarianceRow, CovarianceSnapshot, SpillHandle,
-    SpillRegistry, SpillStats, Spillable, WeightedLedger, WeightedOlsRefresh, WeightedRow,
-    WeightedSnapshot,
+    SpillRegistry, SpillStats, Spillable, WeightedOlsRefresh, WeightedRow, WeightedSnapshot,
 };
 
 /// Construct a fresh [`CausalState`] with the given cache budget.

@@ -141,6 +141,7 @@ pub trait ProviderCallback {
 pub struct FnCallback<F> {
     identity: ProviderObjectIdentity,
     call: F,
+    state: Option<Box<dyn Fn() -> Option<String>>>,
 }
 
 impl<F> FnCallback<F>
@@ -150,7 +151,15 @@ where
     /// A provider that answers with `call`.
     #[must_use]
     pub fn new(identity: ProviderObjectIdentity, call: F) -> Self {
-        Self { identity, call }
+        Self { identity, call, state: None }
+    }
+
+    /// Report the state identity of the provider through `state` (a version counter, a
+    /// weights digest). A stateful provider that reports none cannot be shown current.
+    #[must_use]
+    pub fn with_state_identity(mut self, state: impl Fn() -> Option<String> + 'static) -> Self {
+        self.state = Some(Box::new(state));
+        self
     }
 }
 
@@ -168,6 +177,10 @@ where
         ctx: &mut CallbackContext<'_>,
     ) -> Result<CallbackOutput, CallbackFailure> {
         (self.call)(query, ctx)
+    }
+
+    fn state_identity(&self) -> Option<String> {
+        self.state.as_ref().and_then(|state| state())
     }
 }
 

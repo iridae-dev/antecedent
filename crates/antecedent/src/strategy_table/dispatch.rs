@@ -440,13 +440,13 @@ pub fn identify_admg_query(
 
 /// Provenance `(artifact_id, operation)` for an identifier id.
 #[must_use]
-pub fn identify_provenance_step(identifier: IdentifierId) -> (&'static str, &'static str) {
+pub(crate) fn identify_provenance_step(identifier: IdentifierId) -> (&'static str, &'static str) {
     identifier_data(identifier).provenance
 }
 
 /// Provenance `(artifact_id, operation)` for an estimator id.
 #[must_use]
-pub fn estimate_provenance_step(estimator: EstimatorId) -> (&'static str, &'static str) {
+pub(crate) fn estimate_provenance_step(estimator: EstimatorId) -> (&'static str, &'static str) {
     estimator_data(estimator).provenance
 }
 

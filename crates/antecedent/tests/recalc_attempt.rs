@@ -275,7 +275,7 @@ mod external_reference;
 #[test]
 fn original_provider_failure_and_post_callback_cancellation_preserve_exact_attempts() {
     use antecedent::analysis::recalc_external::{
-        CallbackPolicy, ExternalCallbackError, ExternalCallbackSession, count_external_invocations,
+        CallbackPolicy, ExternalCallbackError, ExternalCallbackSession,
     };
     let request = external_reference::request(0, CallbackPolicy::Deterministic);
     let mut provider = external_reference::Provider::new(&request);
@@ -286,20 +286,18 @@ fn original_provider_failure_and_post_callback_cancellation_preserve_exact_attem
     let mut changed = request.clone();
     changed.columns[0].1 = vec![0.0, 2.0];
     provider.fail = true;
-    let (failed, calls) = count_external_invocations(|| {
-        execute_with_attempt(|| session.execute(&changed, Some(&mut provider), &ctx))
-    });
-    assert_eq!(calls, 1);
+    let before = provider.calls;
+    let failed = execute_with_attempt(|| session.execute(&changed, Some(&mut provider), &ctx));
+    assert_eq!(provider.calls - before, 1);
     assert!(matches!(failed.result, Err(ExternalCallbackError::Attempt { .. })));
     let work = failed.report.counts(Operation::ProviderInvocation);
     assert_eq!((work.attempted, work.completed, work.failed), (1, 0, 1));
     assert_eq!(std::ptr::from_ref(session.issued_claim().unwrap()), claim);
     provider.fail = false;
     provider.cancel = true;
-    let (cancelled, calls) = count_external_invocations(|| {
-        execute_with_attempt(|| session.execute(&changed, Some(&mut provider), &ctx))
-    });
-    assert_eq!(calls, 1);
+    let before = provider.calls;
+    let cancelled = execute_with_attempt(|| session.execute(&changed, Some(&mut provider), &ctx));
+    assert_eq!(provider.calls - before, 1);
     assert!(ctx.cancellation.is_cancelled());
     assert!(matches!(
         cancelled.result,

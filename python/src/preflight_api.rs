@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use antecedent::{
-    CausalError, ColumnPriority, EstimatorId, PreflightInput, RankDropPolicy,
+    CausalError, ColumnPriority, CostModel, EstimatorId, PreflightInput, RankDropPolicy,
     estimate_with_rank_drop, fit_diagnostics_design, plan_rank_drop, preflight_design,
 };
 use antecedent_core::{CausalSchema, VariableId};
@@ -139,9 +139,17 @@ impl PyPreparedAnalysis {
         })
     }
 
-    /// Planning-time cost counts, as JSON.
-    fn estimate_cost_json(&self) -> PyResult<String> {
-        to_json(&self.inner.estimate_cost().map_err(py_err)?)
+    /// Planning-time cost counts, as JSON. `cost_model` replaces the process-wide model
+    /// (see `build_cost_model`), so the seconds do not depend on the working directory.
+    #[pyo3(signature = (cost_model=None))]
+    fn estimate_cost_json(&self, cost_model: Option<CostModelParts>) -> PyResult<String> {
+        match cost_model {
+            None => to_json(&self.inner.estimate_cost().map_err(py_err)?),
+            Some(parts) => {
+                let model = model_from_parts(parts)?;
+                to_json(&self.inner.estimate_cost_with(Some(&model)).map_err(py_err)?)
+            }
+        }
     }
 }
 
@@ -195,10 +203,62 @@ impl PyPreparedBatch {
         })
     }
 
-    /// Planning-time cost counts of every plan and their totals, as JSON.
-    fn estimate_cost_json(&self) -> PyResult<String> {
-        to_json(&self.inner.estimate_cost().map_err(py_err)?)
+    /// Planning-time cost counts of every plan and their totals, as JSON. `cost_model`
+    /// replaces the process-wide model for every plan.
+    #[pyo3(signature = (cost_model=None))]
+    fn estimate_cost_json(&self, cost_model: Option<CostModelParts>) -> PyResult<String> {
+        match cost_model {
+            None => to_json(&self.inner.estimate_cost().map_err(py_err)?),
+            Some(parts) => {
+                let model = model_from_parts(parts)?;
+                to_json(&self.inner.estimate_cost_with(Some(&model)).map_err(py_err)?)
+            }
+        }
     }
+}
+
+/// `(benchmark, platform, cpu_count, [(estimator id, a, b)])` of a cost model.
+type CostModelParts = (String, String, u64, Vec<(String, f64, f64)>);
+
+fn cost_model_error(error: &antecedent::CostModelError) -> PyErr {
+    crate::value_err_code(antecedent_core::reason_code!("invalid_argument"), error.to_string())
+}
+
+fn model_from_parts(
+    (benchmark, platform, cpu_count, coefficients): CostModelParts,
+) -> PyResult<CostModel> {
+    CostModel::new(&benchmark, &platform, cpu_count, coefficients).map_err(|e| cost_model_error(&e))
+}
+
+fn parts_of(model: &CostModel) -> CostModelParts {
+    (
+        model.benchmark().to_owned(),
+        model.platform().to_owned(),
+        model.cpu_count(),
+        model.coefficients().map(|(id, a, b)| (id.to_owned(), a, b)).collect(),
+    )
+}
+
+/// A cost model from its declared parts; refuses an empty benchmark or platform, a zero CPU
+/// count, no coefficients and a negative or non-finite coefficient.
+#[pyfunction]
+fn build_cost_model(
+    benchmark: &str,
+    platform: &str,
+    cpu_count: u64,
+    coefficients: Vec<(String, f64, f64)>,
+) -> PyResult<CostModelParts> {
+    let model =
+        model_from_parts((benchmark.to_owned(), platform.to_owned(), cpu_count, coefficients))?;
+    Ok(parts_of(&model))
+}
+
+/// A cost model from the TOML `scripts/bench_cost_model.py` writes; refuses malformed text and
+/// a model without a benchmark, a machine or valid coefficients.
+#[pyfunction]
+fn parse_cost_model(text: &str) -> PyResult<CostModelParts> {
+    let model = CostModel::from_toml(text).map_err(|e| cost_model_error(&e))?;
+    Ok(parts_of(&model))
 }
 
 /// A table and the resolved columns of a binary-effect design.
@@ -348,5 +408,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(fit_diagnostics_json, module)?)?;
     module.add_function(wrap_pyfunction!(rank_drop_json, module)?)?;
     module.add_function(wrap_pyfunction!(estimate_with_rank_drop_json, module)?)?;
+    module.add_function(wrap_pyfunction!(build_cost_model, module)?)?;
+    module.add_function(wrap_pyfunction!(parse_cost_model, module)?)?;
     Ok(())
 }

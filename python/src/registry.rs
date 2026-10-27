@@ -34,29 +34,28 @@ use super::{
     experiment_api, external_api, factorial_api, forward_source_api, gcm_api,
     graph_falsification_api, graph_io, graphs, horizon_composition_api, interface_contract_api,
     interference_saturation_api, inverse_outcome_api, inverse_query_api, joint_law_propagation_api,
-    joint_transport_api, latent_class_api, learned_continuous_api, learned_joint_api,
-    learned_trial_api, load_float64_arrow_c_columns, load_float64_columns,
-    load_float64_panel_columns,
-    matched_case_control_api, measured_inference_api, measurement_model_api,
-    mechanism_composition_api, mechanism_discrepancy_api, msm_sensitivity_api,
-    multi_level_treatment_api, nested_bayesian_api, nested_fisher_api, nonlinear_mediation_api,
-    observation_api, observation_query_api, observational_interference_api,
-    observational_policy_api, observational_survival_api, policy_api, posterior_boundary_api,
-    posterior_row_api, predictive_assessment_api, preflight_api, prepared_api, prior_bank,
-    prior_signal_api, program_claims_api, propagation_chain_api, proposal_arrival_api,
-    provider_api, provider_callbacks_api, quasi_api, recalc_adjusted_api, recalc_api,
-    recalc_bayesian_api, recalc_cell_api, recalc_composite_api, recalc_design_api, recalc_dr_api,
-    recalc_external_api, recalc_static_api, recalc_temporal_api, recovery_api, recovery_chain_api,
-    regimes_api, repair_api, response_api, scenario_invariance_api, scientific_bridge_api,
-    selective_discovery_api, sensitivity_decision_api, sensitivity_source_api,
-    set_not_identified_error_class, set_review_error_class, set_unsupported_error_class,
-    set_value_error_class, smoothed_dose_api, source_evidence_api, source_projection_api,
-    stability, state_api, study_planning_api, survival_api, temporal_api,
-    temporal_counterfactual_api, temporal_extension_api, temporal_license, temporal_transport_api,
-    transport_admg_conditional_api, transport_counterfactual_api,
-    transport_counterfactual_sampled_api, transport_exact_api, transport_grid_api,
-    transport_interference_api, transport_joint_sensitivity_api, transport_mixed_api,
-    transport_mz_api, transport_revalidation_api, transport_scenario_api,
+    joint_response_api, joint_transport_api, latent_class_api, learned_continuous_api,
+    learned_joint_api, learned_trial_api, load_float64_arrow_c_columns, load_float64_columns,
+    load_float64_panel_columns, matched_case_control_api, measured_inference_api,
+    measurement_model_api, mechanism_composition_api, mechanism_discrepancy_api,
+    msm_sensitivity_api, multi_level_treatment_api, nested_bayesian_api, nested_fisher_api,
+    nonlinear_mediation_api, observation_api, observation_query_api,
+    observational_interference_api, observational_policy_api, observational_survival_api,
+    policy_api, posterior_boundary_api, posterior_row_api, predictive_assessment_api,
+    preflight_api, prepared_api, prior_bank, prior_signal_api, program_claims_api,
+    propagation_chain_api, proposal_arrival_api, provider_api, provider_callbacks_api, quasi_api,
+    recalc_adjusted_api, recalc_api, recalc_bayesian_api, recalc_cell_api, recalc_composite_api,
+    recalc_design_api, recalc_dr_api, recalc_external_api, recalc_static_api, recalc_temporal_api,
+    recovery_api, recovery_chain_api, regimes_api, repair_api, response_api,
+    scenario_invariance_api, scientific_bridge_api, selective_discovery_api,
+    sensitivity_decision_api, sensitivity_source_api, set_not_identified_error_class,
+    set_review_error_class, set_unsupported_error_class, set_value_error_class, smoothed_dose_api,
+    source_evidence_api, source_projection_api, stability, state_api, study_planning_api,
+    survival_api, temporal_api, temporal_counterfactual_api, temporal_extension_api,
+    temporal_license, temporal_transport_api, transport_admg_conditional_api,
+    transport_counterfactual_api, transport_counterfactual_sampled_api, transport_exact_api,
+    transport_grid_api, transport_interference_api, transport_joint_sensitivity_api,
+    transport_mixed_api, transport_mz_api, transport_revalidation_api, transport_scenario_api,
     transport_statistical_api, transport_z_api, transported_constructors_api,
     transported_counterfactual_api, transported_response_api, value_err, vector_treatment_api,
 };
@@ -70,6 +69,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     graph_falsification_api::register(m)?;
     super::intrinsic_influence_api::register(m)?;
     super::file_source_api::register(m)?;
+    super::pag_completion_api::register(m)?;
     super::cohort_pushdown_api::register(m)?;
     super::discovered_transport_trial_api::register(m)?;
     super::finite_discrete_api::register(m)?;
@@ -78,6 +78,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     super::intervention_callback_api::register(m)?;
     super::intervention_program_api::register(m)?;
     state_api::register(m)?;
+    super::retained_refresh_api::register(m)?;
     prepared_api::register(m)?;
     bayesian::register(m)?;
     stability::register(m)?;
@@ -148,6 +149,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     recalc_dr_api::register(m)?;
     recalc_design_api::register(m)?;
     recalc_bayesian_api::register(m)?;
+    joint_response_api::register(m)?;
     recalc_temporal_api::register(m)?;
     recalc_external_api::register(m)?;
     recalc_composite_api::register(m)?;
@@ -185,6 +187,9 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     sequential_evaluation_api::register(m)?;
     scientific_bridge_api::register(m)?;
     composition_verification_api::register(m)?;
+    super::composition_effects_api::register(m)?;
+    super::decision_compile_api::register(m)?;
+    super::mixed_decision_api::register(m)?;
     interface_contract_api::register(m)?;
     provider_callbacks_api::register(m)?;
     selective_discovery_api::register(m)?;
@@ -384,6 +389,9 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     survival_api::register(m)?;
     posterior_row_api::register(m)?;
     posterior_boundary_api::register(m)?;
+    super::support_matrix_api::register(m)?;
+    super::bound_study_ranking_api::register(m)?;
+    super::graph_score_api::register(m)?;
     Ok(())
 }
 

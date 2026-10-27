@@ -13,17 +13,20 @@
 use antecedent::analysis::cohort_decision::{
     CohortBinding, CohortDecisionSource, CohortExpectation, CohortOptions, CohortRefusal,
     CovariateShiftDeclaration, FittedEffectModel, LawRequest, cohort_forward_claim,
-    cohort_mean_source,
+    cohort_mean_source, evaluate_cohort_decision,
 };
 use antecedent::analysis::transported_cohort::{
     SelectionShiftDeclaration, TRANSPORTED_POINT_SCOPE, TransportRefusal, TransportedCohort,
     TransportedRequest, transport_cohort_effect_from_result, verify_cohort_transport,
 };
 use antecedent_core::ExecutionContext;
+use antecedent_design::composition_boundary::SupportPolicy;
+use antecedent_design::decision_artifact::contract_from_json_refusal;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use pyo3::prelude::*;
 
-use crate::bridge::{RefusalJson, check_declared_size};
+use crate::bridge::{RefusalJson, check_declared_size, external_refusal_json};
+use crate::composition_api::{boundary_refusal, parse_support, parse_unsupported, supported_json};
 use crate::{detach_catch, value_err_code};
 
 const MAX_JSON_BYTES: usize = crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
@@ -321,6 +324,58 @@ fn cohort_decision_forward_claim(
     })
 }
 
+/// Decide a contract on a replayed cohort-mean source under a support policy:
+/// `(supported decision json, refusal json)`.
+///
+/// The source is replayed from `artifact` under `expectation_json` (every number recomputed),
+/// then handed to the evaluator as one mean-source input, so an action whose cohort support is
+/// weaker than `weakest_support` is unsupported and left out or refused per `unsupported`
+/// (`compare_supported` or `require_all`). Only an affine utility of the cohort coordinate is
+/// answered; every other criterion refuses.
+#[pyfunction]
+fn cohort_decision_evaluate(
+    py: Python<'_>,
+    contract_json: &str,
+    artifact: Vec<u8>,
+    expectation_json: &str,
+    unsupported: &str,
+    weakest_support: &str,
+) -> PyResult<ConsumePayload> {
+    check_size(contract_json, "decision contract")?;
+    check_size(expectation_json, "cohort expectation")?;
+    let parsed: ExpectationJson = serde_json::from_str(expectation_json)
+        .map_err(|e| invalid_argument(format!("cohort_decision.invalid_request: {e}")))?;
+    let expectation = CohortExpectation {
+        identity: parsed.identity,
+        parent_claim: parsed.parent_claim,
+        population_id: parsed.population_id,
+        outcome_units: parsed.outcome_units,
+        contrast_regime: parsed.contrast_regime,
+        cohort_digest: parsed.cohort_digest,
+    };
+    let policy = SupportPolicy {
+        unsupported: parse_unsupported(unsupported)?,
+        weakest_support: parse_support(weakest_support)?,
+    };
+    let contract = match contract_from_json_refusal(contract_json) {
+        Ok(contract) => contract,
+        Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
+    };
+    detach_catch(py, move || {
+        let source = match antecedent::analysis::cohort_decision::consume_cohort_decision_source(
+            &artifact,
+            &expectation,
+        ) {
+            Ok(source) => source,
+            Err(error) => return Ok((None, Some(refusal_json(&error, "consume")))),
+        };
+        Ok(match evaluate_cohort_decision(&contract, &source, &policy) {
+            Ok(decision) => (Some(supported_json(&decision).to_string()), None),
+            Err(error) => (None, Some(boundary_refusal(&error))),
+        })
+    })
+}
+
 // ---------------------------------------------------------------------------
 // Transported cohort mean under a declared selection-diagram premise.
 // ---------------------------------------------------------------------------
@@ -502,6 +557,62 @@ fn transport_cohort_effect_verify(
         ) {
             Ok(transported) => Ok((Some(transport_summary(&transported).to_string()), None)),
             Err(error) => Ok((None, Some(transport_refusal_json(&error, "verify")))),
+        }
+    })
+}
+
+/// The composition-graph node a transported cohort value states under `key`, with the standing
+/// of a point the library carried to another population (supported at the strongest label a
+/// carried value states, no provider trust, no calibration record): `(node json, refusal json)`.
+///
+/// The transport is derived again from the retained inputs, so the node's identity is the
+/// transported value's own identity and a changed model, cohort, declaration or population
+/// recomputes it.
+#[pyfunction]
+#[pyo3(signature = (model_bytes, expected_claim, source_population, cohort_json, shift_json, key))]
+fn transport_cohort_composition_node(
+    py: Python<'_>,
+    model_bytes: Vec<u8>,
+    expected_claim: Option<String>,
+    source_population: &str,
+    cohort_json: &str,
+    shift_json: Option<&str>,
+    key: &str,
+) -> PyResult<ConsumePayload> {
+    let cohort = match parse_cohort(cohort_json)? {
+        Ok(cohort) => cohort,
+        Err(error) => return Ok((None, Some(refusal_json(&error, "bind")))),
+    };
+    let shift = selection_shift_of(shift_json)?;
+    let source_population = source_population.to_owned();
+    let key = key.to_owned();
+    detach_catch(py, move || {
+        let ctx = ExecutionContext::production_default(0);
+        match transport_cohort_effect_from_result(
+            &model_bytes,
+            expected_claim.as_deref(),
+            &source_population,
+            &cohort,
+            shift.as_ref(),
+            &ctx,
+        ) {
+            Ok(transported) => {
+                let node = transported.composition_node(&key);
+                let standing = transported.claim_standing();
+                let mut wire = crate::composition_verification_api::node_wire(&node);
+                wire["standing"] = serde_json::json!({
+                    "support": match standing.support {
+                        antecedent_contract::composition_verification::SupportStanding::Supported =>
+                            "supported",
+                        _ => "unsupported",
+                    },
+                    "trust": standing.trust.as_str(),
+                    "calibration":
+                        crate::composition_verification_api::calibration_wire(&standing.calibration),
+                });
+                Ok((Some(wire.to_string()), None))
+            }
+            Err(error) => Ok((None, Some(transport_refusal_json(&error, "transport")))),
         }
     })
 }
@@ -703,7 +814,9 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(normalize_cohort_weights, m)?)?;
     m.add_function(wrap_pyfunction!(cohort_decision_law_refusal, m)?)?;
     m.add_function(wrap_pyfunction!(cohort_decision_forward_claim, m)?)?;
+    m.add_function(wrap_pyfunction!(cohort_decision_evaluate, m)?)?;
     m.add_function(wrap_pyfunction!(transport_cohort_effect, m)?)?;
     m.add_function(wrap_pyfunction!(transport_cohort_effect_verify, m)?)?;
+    m.add_function(wrap_pyfunction!(transport_cohort_composition_node, m)?)?;
     m.add_function(wrap_pyfunction!(transported_cohort_refusal, m)?)
 }

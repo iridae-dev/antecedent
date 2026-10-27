@@ -1,7 +1,9 @@
 //! Original checked transport arrival estimation and independently replayed raw counts.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::design_ranking::{DesignRankingRequestWire, evaluate};
-use antecedent::analysis::proposal_arrival::{ArrivalArtifact, ArrivalRequest, execute};
+use antecedent::analysis::proposal_arrival::{
+    ArrivalArtifact, ArrivalLimits, ArrivalPoint, ArrivalRequest, execute_with_limits,
+};
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_core::{
     DependenceGroup, Environment, EvidenceCatalog, EvidenceKind, ExecutionContext, RegimeBinding,
@@ -9,9 +11,8 @@ use antecedent_core::{
 };
 use antecedent_design::{
     DurableStudyCandidate, ExpectedEvidence, RepairFamily, RepairFamilyRef, RepairLimits,
-    RepairObjective,
-    RepairReportArtifact, StudyCostDeclaration, StudyKind, TransportRepairFamily, UnitRules,
-    repair,
+    RepairObjective, RepairReportArtifact, StudyCostDeclaration, StudyKind, TransportRepairFamily,
+    UnitRules, repair,
 };
 use antecedent_expr::execution_counts::count_static_work;
 use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, LawTolerance};
@@ -23,6 +24,9 @@ use antecedent_io::{
 };
 use serde_json::json;
 use std::sync::Arc;
+fn execute(r: &ArrivalRequest, ctx: &ExecutionContext) -> Result<ArrivalPoint, IoError> {
+    execute_with_limits(r, ctx, ArrivalLimits::default())
+}
 fn pin(key: &str) -> serde_json::Value {
     let expected: serde_json::Value =
         serde_json::from_str(include_str!("../../../conformance/proposals/arrival/expected.json"))

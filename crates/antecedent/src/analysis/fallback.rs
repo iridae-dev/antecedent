@@ -431,7 +431,7 @@ pub fn failure_capability_parts(
 /// `base` with the failure's evidence needs appended: the report a refused study's host
 /// record carries (actions, neighbors and unmet obligations), the base entries first.
 #[must_use]
-pub fn failure_capability(
+pub(super) fn failure_capability(
     base: &antecedent_contract::OperationReport,
     obligations: &[EvidenceObligation],
     observed: &[VariableId],

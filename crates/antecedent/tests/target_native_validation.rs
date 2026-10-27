@@ -8,8 +8,8 @@ use std::sync::Arc;
 use antecedent::analysis::target_validation::{
     PreparedTargetData, RefutationTarget, TargetCertificationError, TargetFamily,
     TargetRefitOptions, TargetRefutationConfig, TargetRefuterKind, TargetSuite,
-    certify_result_refutations, refuse_scalar_refutations_for_result, refute_prepared_target,
-    result_refutation_target, result_target_family, result_target_values,
+    certify_result_refutations, refute_prepared_target, result_refutation_target,
+    result_target_family, result_target_values,
 };
 use antecedent::{RefuteSuite, Study};
 use antecedent_core::{
@@ -186,7 +186,6 @@ fn a_report_the_route_produced_for_its_own_target_is_accepted() {
     let mut own = report();
     own.stamp_producer(program);
     native.refutations.push(own);
-    assert!(refuse_scalar_refutations_for_result(&native).is_ok());
     if let Err(error) = native.claim(&contract, &ctx) {
         assert!(!error.to_string().contains("cannot certify"), "{error}");
     }
@@ -197,7 +196,7 @@ fn a_report_the_route_produced_for_its_own_target_is_accepted() {
     theirs.stamp_producer([7; 32]);
     foreign.refutations.push(theirs);
     assert!(matches!(
-        refuse_scalar_refutations_for_result(&foreign),
+        certify_result_refutations(&foreign, &[]),
         Err(TargetCertificationError::ScalarRefuterForOtherTarget { .. })
     ));
 }

@@ -153,7 +153,7 @@ fn discovered_graph_builds_under_every_latency_tier() {
     // is flagged rather than silently preserved. See the migration report for detail.
     use antecedent::discovery::{StaticDiscoverParams, discover_pc};
     use antecedent::discovery_defaults::resolve_ci;
-    use antecedent::{AcceptedGraph, FdrControl};
+    use antecedent::AcceptedGraph;
 
     let (data, dag, query) = confounded_scm(200, 23);
     let ctx = ExecutionContext::for_tests(23);
@@ -161,7 +161,7 @@ fn discovered_graph_builds_under_every_latency_tier() {
     let params = StaticDiscoverParams {
         alpha: 0.05,
         max_cond_size: 3,
-        fdr: FdrControl::Off.adjustment(),
+        fdr: None,
         ci: resolve_ci("parcorr", None).unwrap(),
         screen_pc: false,
         max_subset: None,

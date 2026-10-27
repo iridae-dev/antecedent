@@ -16,7 +16,8 @@
 //! * [`certify_result_refutations`] binds target-native reports to the result's claim and
 //!   refuses any report on another target; the claim itself refuses a refutation its own
 //!   program did not produce when its target is not the scalar average effect
-//!   ([`refuse_scalar_refutations_for_result`], enforced by [`StudyResult::claim`]). Route
+//!   (`refuse_scalar_refutations_for_result`, enforced by [`StudyResult::claim`] and
+//!   [`certify_result_refutations`]). Route
 //!   reports are stamped with the producing lowered program where an execution returns its
 //!   result, so a route's own reports always pass.
 //!
@@ -416,7 +417,7 @@ pub fn result_refutation_target(result: &StudyResult) -> Result<RefutationTarget
 ///
 /// [`TargetCertificationError::ScalarRefuterForOtherTarget`] for the first such report on a
 /// result whose target is not the scalar average effect.
-pub fn refuse_scalar_refutations_for_result(
+pub(crate) fn refuse_scalar_refutations_for_result(
     result: &StudyResult,
 ) -> Result<(), TargetCertificationError> {
     let family = result_target_family(result);

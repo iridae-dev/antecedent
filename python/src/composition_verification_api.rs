@@ -61,7 +61,12 @@ fn remedy_for(detail: &str) -> &'static str {
     }
 }
 
-fn refusal_json(code: &str, detail: &str, message: &str, offending: Option<&str>) -> String {
+pub(crate) fn refusal_json(
+    code: &str,
+    detail: &str,
+    message: &str,
+    offending: Option<&str>,
+) -> String {
     json!({
         "code": code,
         "stage": STAGE,
@@ -116,7 +121,7 @@ fn claim_refusal(claim: &ClaimRevalidation) -> Option<String> {
 // Declarations.
 // ---------------------------------------------------------------------------
 
-fn digest(value: &str, what: &str) -> PyResult<SemanticDigest> {
+pub(crate) fn digest(value: &str, what: &str) -> PyResult<SemanticDigest> {
     parse_digest_hex(value)
         .ok_or_else(|| crate::value_err(format!("{what} must be 64 hexadecimal characters")))
 }
@@ -137,7 +142,7 @@ fn opt_texts(map: &Map<String, Json>, key: &str) -> PyResult<Vec<String>> {
     }
 }
 
-fn parse_calibration(value: &Json) -> PyResult<CalibrationDeclaration> {
+pub(crate) fn parse_calibration(value: &Json) -> PyResult<CalibrationDeclaration> {
     let map = object(value, "calibration declaration")?;
     let pair = || -> PyResult<(SemanticDigest, SemanticDigest)> {
         Ok((
@@ -225,7 +230,7 @@ pub(crate) fn parse_graph(
     Ok(graph.validate().map(|()| graph))
 }
 
-fn calibration_wire(calibration: &CalibrationDeclaration) -> Json {
+pub(crate) fn calibration_wire(calibration: &CalibrationDeclaration) -> Json {
     match calibration {
         CalibrationDeclaration::PointOnly => json!({"kind": "point_only"}),
         CalibrationDeclaration::Required => json!({"kind": "required"}),
@@ -239,37 +244,55 @@ fn calibration_wire(calibration: &CalibrationDeclaration) -> Json {
     }
 }
 
+/// A node in the declaration form [`parse_graph`] reads back.
+pub(crate) fn node_wire(node: &CompositionNode) -> Json {
+    let mut wire = json!({
+        "key": node.key,
+        "kind": node.kind.as_str(),
+        "identity": node.identity.to_hex(),
+        "trust": node.trust.as_str(),
+        "calibration": calibration_wire(&node.calibration),
+        "assumptions": node.assumptions,
+        "evidence": node.evidence.iter().map(SourceId::to_hex).collect::<Vec<_>>(),
+        "coordinate": node.coordinate.to_hex(),
+    });
+    let map = wire.as_object_mut().expect("a node is an object");
+    if let Some(structure) = &node.structure {
+        map.insert("structure".to_owned(), json!(structure.to_hex()));
+    }
+    if let Some(representation) = &node.representation {
+        map.insert("representation".to_owned(), json!(representation));
+    }
+    if let SupportStanding::Unsupported { coordinates } = &node.support {
+        map.insert("unsupported".to_owned(), json!(coordinates));
+    }
+    if let Some(transformation) = &node.transformation {
+        map.insert("transformation".to_owned(), json!(transformation));
+    }
+    wire
+}
+
+/// The observed effects in the declaration form [`parse_effects`] reads back.
+pub(crate) fn effects_wire(effects: &BTreeMap<String, ObservedEffect>) -> Json {
+    Json::Array(
+        effects
+            .iter()
+            .filter_map(|(key, effect)| {
+                let (kind, body) = match effect {
+                    ObservedEffect::Recomputed { cause } => ("recomputed", cause),
+                    ObservedEffect::Withdrawn { cause } => ("withdrawn", cause),
+                    ObservedEffect::Refused { detail } => ("refused", detail),
+                    _ => return None,
+                };
+                Some(json!({"key": key, "kind": kind, "text": body}))
+            })
+            .collect(),
+    )
+}
+
 /// A graph in the declaration form [`parse_graph`] reads back.
 pub(crate) fn graph_wire(graph: &CompositionGraph) -> Json {
-    let nodes: Vec<Json> = graph
-        .nodes()
-        .map(|node| {
-            let mut wire = json!({
-                "key": node.key,
-                "kind": node.kind.as_str(),
-                "identity": node.identity.to_hex(),
-                "trust": node.trust.as_str(),
-                "calibration": calibration_wire(&node.calibration),
-                "assumptions": node.assumptions,
-                "evidence": node.evidence.iter().map(SourceId::to_hex).collect::<Vec<_>>(),
-                "coordinate": node.coordinate.to_hex(),
-            });
-            let map = wire.as_object_mut().expect("a node is an object");
-            if let Some(structure) = &node.structure {
-                map.insert("structure".to_owned(), json!(structure.to_hex()));
-            }
-            if let Some(representation) = &node.representation {
-                map.insert("representation".to_owned(), json!(representation));
-            }
-            if let SupportStanding::Unsupported { coordinates } = &node.support {
-                map.insert("unsupported".to_owned(), json!(coordinates));
-            }
-            if let Some(transformation) = &node.transformation {
-                map.insert("transformation".to_owned(), json!(transformation));
-            }
-            wire
-        })
-        .collect();
+    let nodes: Vec<Json> = graph.nodes().map(node_wire).collect();
     let edges: Vec<Json> = graph
         .edges()
         .map(|e| {
@@ -339,7 +362,7 @@ fn calibration_json(c: &CalibrationLineage) -> Json {
     })
 }
 
-fn claim_json(claim: &ClaimRevalidation) -> Json {
+pub(crate) fn claim_json(claim: &ClaimRevalidation) -> Json {
     let numerical: Vec<Json> = claim
         .numerical
         .iter()

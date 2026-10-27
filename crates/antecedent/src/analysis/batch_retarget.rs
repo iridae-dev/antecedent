@@ -1202,24 +1202,6 @@ pub struct SimultaneousBand {
     pub members: Vec<BandMember>,
 }
 
-/// Calibration-wiring entry to [`BatchRetargetReport::simultaneous_interval`] (same
-/// evaluator; kept under its original name for the wired coverage harness).
-///
-/// # Errors
-///
-/// As [`BatchRetargetReport::simultaneous_interval`].
-// doc(hidden): calibration harness entry for the closed family band.
-#[doc(hidden)]
-pub fn simultaneous_band_unpublished(
-    report: &BatchRetargetReport,
-    level: f64,
-    seed: u64,
-    draws: u32,
-    ctx: &ExecutionContext,
-) -> Result<SimultaneousBand, BatchRetargetError> {
-    report.simultaneous_interval(level, seed, draws, ctx)
-}
-
 impl BatchRetargetReport {
     /// The max-t band `point_j ± c · se_j` of a complete family from its plug-in score
     /// covariance. For iid rows, `c` is the `level` quantile of `max_j |Z_j|` for
@@ -1771,7 +1753,7 @@ mod tests {
     #[test]
     fn the_band_half_widths_are_the_critical_value_times_each_standard_error() {
         let report = two_claim_report();
-        let band = simultaneous_band_unpublished(&report, 0.95, 17, DRAWS, &ctx()).unwrap();
+        let band = report.simultaneous_interval(0.95, 17, DRAWS, &ctx()).unwrap();
         // The critical value is the evaluator's value on the hand-computed correlation 0.2.
         let expected = critical(&equicorrelation(2, 0.2), 0.95, 17);
         assert_eq!(band.critical_value.to_bits(), expected.to_bits());

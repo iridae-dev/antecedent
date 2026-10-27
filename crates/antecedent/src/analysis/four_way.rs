@@ -23,8 +23,7 @@ use antecedent_graph::ensure_lagged;
 use antecedent_stats::fit_counts::count_least_squares_solves;
 
 use crate::analysis::execute::{
-    DecisionDemand, MissingCarrier, PublishedCarriers, ScoredDecision,
-    confidence_interval_as_posterior, score_decision,
+    DecisionDemand, MissingCarrier, PublishedCarriers, ScoredDecision, score_decision,
 };
 use crate::planner::PhysicalExecutionPlan;
 use crate::planner::lowered::ProblemTarget;
@@ -679,8 +678,8 @@ mod tests {
     };
     use super::{
         DecisionDemand, FourWayCell, MissingCarrier, PublishedScalarUncertainty, bayesian_fit,
-        confidence_interval_as_posterior, contrast_of_loaded_artifact, effect_of, finish_study,
-        frequentist_cell, linear_study, same_target_slice, static_builder,
+        contrast_of_loaded_artifact, effect_of, finish_study, frequentist_cell, linear_study,
+        same_target_slice, static_builder,
     };
 
     #[test]
@@ -844,7 +843,9 @@ mod tests {
 
     #[test]
     fn confidence_interval_offered_as_posterior_is_rejected_and_the_decision_proceeds() {
-        let refused = confidence_interval_as_posterior().unwrap_err();
+        let refused = EvidencePort::ConfidenceRegion
+            .try_coerce(DecisionRequest::ParameterPosterior)
+            .unwrap_err();
         assert_eq!(refused.source_port, EvidencePort::ConfidenceRegion);
         assert_eq!(refused.request, DecisionRequest::ParameterPosterior);
         assert_eq!(refused.legal_ports, &[EvidencePort::ParameterPosterior]);

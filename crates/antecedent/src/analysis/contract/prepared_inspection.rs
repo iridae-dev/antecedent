@@ -110,9 +110,11 @@ fn page_end(length: usize, offset: usize, limit: usize) -> Result<usize, CausalE
 }
 
 impl PreparedInspection {
-    /// Borrow the complete native slots without converting any payload.
+    /// Borrow the complete native slots without converting any payload; hosts read the
+    /// bounded summary and pages instead.
+    #[cfg(test)]
     #[must_use]
-    pub const fn reasoning(&self) -> &ReasoningView {
+    pub(crate) const fn reasoning(&self) -> &ReasoningView {
         &self.reasoning
     }
 

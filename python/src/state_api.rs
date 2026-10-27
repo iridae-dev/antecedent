@@ -8,18 +8,93 @@ use std::sync::Arc;
 
 use antecedent::state::{
     CausalState, ConstraintId, DataBatchRef, GraphConstraintRecord, GraphEvidenceRecord,
-    InterventionRecord, LgssmParams, LinearOlsSuffStats, ParticleFilterState, StateEvent,
-    StreamingCovariance, apply_state_event, new_antecedent_state,
+    InterventionRecord, InvalidationTarget, LgssmParams, LinearOlsSuffStats, ParticleFilterState,
+    StateEvent, StreamingCovariance, apply_state_event, new_antecedent_state,
+    publish_recomputed_results, result_lineage_fingerprint,
 };
+use antecedent_contract::composition_verification::ObservedEffect;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
-    AverageEffectQuery, CacheBudget, CausalQuery, QueryId, VariableId,
+    AverageEffectQuery, CacheBudget, CausalQuery, ContractIdentities, ModelId, QueryId,
+    SemanticDigest, StateVersion, VariableId,
 };
 use numpy::PyArray1;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 
 use crate::{catch_ffi, numeric_columns_to_batch, py_err};
+
+type IdentityMap = HashMap<String, Option<String>>;
+
+/// The seven identity layers of a contract from their hex spellings (`None` for the two
+/// layers a cheap inspection leaves absent).
+fn identities_of(map: &IdentityMap) -> PyResult<ContractIdentities> {
+    const LAYERS: [&str; 7] = [
+        "target",
+        "identification",
+        "identification_product",
+        "program",
+        "inference_binding",
+        "observation",
+        "data_snapshot",
+    ];
+    if let Some(unknown) = map.keys().find(|k| !LAYERS.contains(&k.as_str())) {
+        return Err(crate::value_err(format!("unknown identity layer `{unknown}`")));
+    }
+    let layer = |name: &str, required: bool| -> PyResult<Option<SemanticDigest>> {
+        match map.get(name).and_then(Option::as_deref) {
+            Some(hex) => antecedent_core::digest_from_hex(hex)
+                .map(|bytes| Some(SemanticDigest::from_bytes(bytes)))
+                .ok_or_else(|| {
+                    crate::value_err(format!("identity `{name}` must be 64 hexadecimal characters"))
+                }),
+            None if required => Err(crate::value_err(format!("identity `{name}` is required"))),
+            None => Ok(None),
+        }
+    };
+    let required = |name: &str| -> PyResult<SemanticDigest> {
+        layer(name, true).map(|digest| digest.expect("required layer present"))
+    };
+    Ok(ContractIdentities::new(
+        required("target")?,
+        required("identification")?,
+        layer("identification_product", false)?,
+        layer("program", false)?,
+        required("inference_binding")?,
+        required("observation")?,
+        required("data_snapshot")?,
+    ))
+}
+
+fn query_id_of(raw: u64) -> PyResult<QueryId> {
+    u32::try_from(raw)
+        .map(QueryId::from_raw)
+        .map_err(|_| crate::value_err(format!("query id {raw} does not fit in 32 bits")))
+}
+
+/// A state target a claim rests on: `(kind, id)` with `id` a query id, model id or
+/// sufficient-statistic key as the kind needs.
+fn target_of(kind: &str, id: Option<&str>) -> PyResult<InvalidationTarget> {
+    let need = |what: &str| {
+        id.ok_or_else(|| crate::value_err(format!("target `{kind}` needs a {what} id")))
+    };
+    let number = |what: &str| -> PyResult<u32> {
+        need(what)?
+            .parse::<u32>()
+            .map_err(|_| crate::value_err(format!("{what} id must be a non-negative integer")))
+    };
+    Ok(match kind {
+        "query" => InvalidationTarget::QueryResult(QueryId::from_raw(number("query")?)),
+        "model" => InvalidationTarget::Model(ModelId::from_raw(number("model")?)),
+        "suff_stat" => InvalidationTarget::SuffStat(Arc::from(need("sufficient-statistic")?)),
+        "all_results" => InvalidationTarget::AllResults,
+        "lag_indexes" => InvalidationTarget::LagIndexes,
+        "graph_scores" => InvalidationTarget::GraphScores,
+        "particle_filters" => InvalidationTarget::ParticleFilters,
+        "mechanism_diagnostics" => InvalidationTarget::MechanismDiagnostics,
+        other => return Err(crate::value_err(format!("unknown invalidation target `{other}`"))),
+    })
+}
 
 type BatchColumnsPy<'py> = (Vec<String>, Vec<Bound<'py, PyArray1<f64>>>);
 
@@ -339,6 +414,69 @@ impl PyCausalState {
     }
 
     /// Ensure an OLS sufficient-stat slot exists with `ncols` predictors.
+    /// Publish recomputed results at `expected_version`, binding each query to the
+    /// identity layers it was recomputed under: `(query_id, identities, bytes)`.
+    ///
+    /// Refuses (raising) a stale expected version, a data snapshot recorded before the latest
+    /// data event, an identity layer that predates a changed stage input, an unknown query and
+    /// a cache budget overrun; nothing is published then. A query published here is
+    /// lineage-bound and `refresh_results` refuses it.
+    fn publish_recomputed(
+        &mut self,
+        expected_version: u64,
+        updates: Vec<(u64, IdentityMap, u64)>,
+    ) -> PyResult<()> {
+        let bound = updates
+            .into_iter()
+            .map(|(q, map, bytes)| Ok((query_id_of(q)?, identities_of(&map)?, bytes)))
+            .collect::<PyResult<Vec<_>>>()?;
+        let refs: Vec<_> = bound.iter().map(|(q, ids, bytes)| (*q, ids, *bytes)).collect();
+        publish_recomputed_results(&mut self.inner, StateVersion::from_raw(expected_version), &refs)
+            .map_err(py_err)
+    }
+
+    /// The effects of the invalidation log after version `since` on the claims bound to
+    /// state targets: `(claim_key, target_kind, target_id)` per claim. Returns JSON
+    /// `[{"key": "claim:<key>", "kind": "recomputed"|"withdrawn", "text": cause}]`, the
+    /// observed effects a transport revalidation takes.
+    #[pyo3(signature = (since, bindings))]
+    fn claim_invalidation_effects(
+        &self,
+        since: u64,
+        bindings: Vec<(String, String, Option<String>)>,
+    ) -> PyResult<String> {
+        if since > self.inner.version.raw() {
+            return Err(crate::value_err(format!(
+                "since {since} is after the state version {}",
+                self.inner.version.raw()
+            )));
+        }
+        let targets = bindings
+            .iter()
+            .map(|(key, kind, id)| Ok((key.as_str(), target_of(kind, id.as_deref())?)))
+            .collect::<PyResult<Vec<_>>>()?;
+        let effects = antecedent::analysis::transport_revalidation::invalidation_effects_for_claims(
+            &self.inner.invalidations,
+            StateVersion::from_raw(since),
+            &targets,
+        );
+        let items = effects
+            .into_iter()
+            .map(|(key, effect)| {
+                let (kind, text) = match effect {
+                    ObservedEffect::Recomputed { cause } => ("recomputed", cause),
+                    ObservedEffect::Withdrawn { cause } => ("withdrawn", cause),
+                    ObservedEffect::Refused { detail } => ("refused", detail),
+                    other => {
+                        return Err(crate::value_err(format!("unsupported effect {other:?}")));
+                    }
+                };
+                Ok(serde_json::json!({"key": key, "kind": kind, "text": text}))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(serde_json::Value::Array(items).to_string())
+    }
+
     fn ols_ensure(&mut self, key: String, ncols: usize) -> PyResult<()> {
         let stats = LinearOlsSuffStats::new(ncols).map_err(py_err)?;
         self.inner.suff_stats.ols.entry(Arc::from(key)).or_insert(stats);
@@ -496,8 +634,16 @@ pub(crate) fn antecedent_state_append(n_appends: u64, cache_bytes: u64) -> PyRes
     })
 }
 
+/// The lineage digest (hex) of a contract's identity layers: every layer, so two estimands,
+/// two priors or two bootstrap budgets never share a lineage key.
+#[pyfunction(name = "state_result_lineage_fingerprint")]
+fn state_result_lineage_fingerprint(identities: IdentityMap) -> PyResult<String> {
+    Ok(result_lineage_fingerprint(&identities_of(&identities)?).to_hex())
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCausalState>()?;
     m.add_function(wrap_pyfunction!(antecedent_state_append, m)?)?;
+    m.add_function(wrap_pyfunction!(state_result_lineage_fingerprint, m)?)?;
     Ok(())
 }

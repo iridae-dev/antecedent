@@ -16,8 +16,12 @@ use antecedent_estimate::joint_panel::{
 use pyo3::{prelude::*, types::PyBytes};
 use serde::Deserialize;
 use std::{collections::BTreeMap, sync::Arc};
+mod attempts;
+mod contrast_target;
 mod designs;
 mod experiment;
+mod finite_search;
+mod replay;
 mod search;
 mod selection;
 
@@ -734,6 +738,8 @@ fn consume_panel_program_certificate(
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     selection::register(module)?;
     experiment::register(module)?;
+    replay::register(module)?;
+    contrast_target::register(module)?;
     designs::register(module)?;
     module.add_class::<PyPanelProgramCertificate>()?;
     module.add_class::<PyPreparedJointPanel>()?;

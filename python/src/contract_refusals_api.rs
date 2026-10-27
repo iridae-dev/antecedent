@@ -169,8 +169,8 @@ fn accepted_features(
 }
 
 #[pyclass(name = "RetentionPolicy", frozen)]
-struct PyRetentionPolicy {
-    inner: RetentionPolicy,
+pub(crate) struct PyRetentionPolicy {
+    pub(crate) inner: RetentionPolicy,
 }
 
 #[pymethods]

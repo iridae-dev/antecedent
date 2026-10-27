@@ -149,6 +149,15 @@ fn to_value(value: &impl serde::Serialize) -> serde_json::Value {
     serde_json::to_value(value).unwrap_or(serde_json::Value::Null)
 }
 
+fn invalidation_target_label(target: &antecedent_state::InvalidationTarget) -> String {
+    use antecedent_state::InvalidationTarget as T;
+    match target {
+        T::TemporalProduct(product) => format!("temporal_product:{}", product.label()),
+        T::AllResults => "all_results".to_owned(),
+        other => format!("{other:?}"),
+    }
+}
+
 fn state_payload(state: &TemporalInitialState) -> String {
     let marginalized = state.marginalized();
     let refresh = state.receipt().map(|receipt| {
@@ -156,6 +165,13 @@ fn state_payload(state: &TemporalInitialState) -> String {
             "receipt": to_value(&ReceiptWire::from_receipt(receipt)),
             "previous_value": state.previous_value(),
             "interval_invalidated": state.interval_invalidated(),
+            "invalidations": state.refresh_invalidations().map(|log| {
+                log.entries.iter().map(|entry| serde_json::json!({
+                    "at_version": entry.at_version.raw(),
+                    "target": invalidation_target_label(&entry.target),
+                    "reason": &*entry.reason,
+                })).collect::<Vec<_>>()
+            }),
         })
     });
     serde_json::json!({

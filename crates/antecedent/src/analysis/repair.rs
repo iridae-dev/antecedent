@@ -18,9 +18,9 @@
 //! name never repairs a contract, and a search that a budget stopped keeps its
 //! unevaluated subsets: exhaustion is never impossibility.
 //!
-//! [`repair_with_artifact`] also seals the finished report as a portable
+//! [`RepairReportArtifact::build`] seals a finished report as a portable
 //! `repair_search_receipt_v1` artifact that [`consume_repair_artifact`] replays
-//! independently. The specialized planners ([`crate::design::StudyPlanResult`]
+//! independently; a report is kept even when its artifact cannot be built. The specialized planners ([`crate::design::StudyPlanResult`]
 //! and the transport and z-transport planners) are untouched.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -39,38 +39,6 @@ pub use antecedent_design::{
     StudyCandidateError, StudyCostDeclaration, StudyKind, TransportRepairFamily, UnitRules,
     ZTransportRepairFamily, latent_expansion,
 };
-
-/// A refused repair or artifact operation: the registered reason code and the
-/// stable `identification_repair.*` or `repair_artifact.*` detail.
-#[derive(Clone, Debug, PartialEq, thiserror::Error)]
-pub enum RepairFacadeError {
-    /// The repair request was refused.
-    #[error(transparent)]
-    Repair(#[from] RepairError),
-    /// The artifact could not be built, read or replayed.
-    #[error(transparent)]
-    Artifact(#[from] RepairArtifactError),
-}
-
-impl RepairFacadeError {
-    /// Registered runtime-refusal reason code.
-    #[must_use]
-    pub const fn code(&self) -> &'static str {
-        match self {
-            Self::Repair(error) => error.code,
-            Self::Artifact(error) => error.code,
-        }
-    }
-
-    /// Stable detail.
-    #[must_use]
-    pub const fn detail(&self) -> &'static str {
-        match self {
-            Self::Repair(error) => error.detail,
-            Self::Artifact(error) => error.detail,
-        }
-    }
-}
 
 /// The unresolved evidence obligations of a failed contract, each with its
 /// source proof step. A study never satisfies an
@@ -95,32 +63,6 @@ pub fn repair_contract(
     ctx: &ExecutionContext,
 ) -> Result<RepairReport, RepairError> {
     antecedent_design::repair(family, candidates, objective, limits, ctx)
-}
-
-/// [`repair_contract`] and the sealed artifact of its report.
-///
-/// # Errors
-/// A refused repair, or a report that cannot be exported (cancellation stopped
-/// it, or its graph cannot be stored).
-pub fn repair_with_artifact(
-    family: RepairFamilyRef<'_>,
-    candidates: &[DurableStudyCandidate],
-    objective: RepairObjective,
-    limits: RepairLimits,
-    ctx: &ExecutionContext,
-) -> Result<(RepairReport, RepairReportArtifact), RepairFacadeError> {
-    let owner: &dyn RepairFamily = match family {
-        RepairFamilyRef::Transport(f) => f,
-        RepairFamilyRef::Backdoor(f) => f,
-        RepairFamilyRef::ZTransport(f) => f,
-        RepairFamilyRef::FrontDoor(f) => f,
-        RepairFamilyRef::Instrument(f) => f,
-        RepairFamilyRef::Hedge(f) => f,
-        RepairFamilyRef::Sensitivity(f) => f,
-    };
-    let report = repair_contract(owner, candidates, objective, limits, ctx)?;
-    let artifact = RepairReportArtifact::build(family, candidates, &report)?;
-    Ok((report, artifact))
 }
 
 /// Read a `repair_search_receipt_v1` container and replay it under the

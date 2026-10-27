@@ -178,6 +178,11 @@ fn width_targets_incomparable(
         && decision_target.is_some_and(|target| target != contract.identities.target)
 }
 
+/// Unidentified share of the ensemble: graph weights need not be normalized, a mass is a share.
+fn normalized_unidentified_mass(graphs: &antecedent_prob::WeightedGraphSamples) -> f64 {
+    graphs.unidentified_mass() / graphs.total_weight()
+}
+
 fn id_mass_renormalized<A, O>(
     objective: &DesignObjective,
     contract: &CausalContract,
@@ -189,7 +194,8 @@ fn id_mass_renormalized<A, O>(
     let Some(slot) = contract.reasoning.identification.as_ref() else {
         return false;
     };
-    slot.unidentified_mass > 0.0 && eval.graphs.unidentified_mass() + 1e-12 < slot.unidentified_mass
+    slot.unidentified_mass > 0.0
+        && normalized_unidentified_mass(&eval.graphs) + 1e-12 < slot.unidentified_mass
 }
 
 fn inspect_rank_binding<A, O>(
@@ -287,7 +293,8 @@ fn inspect_rank_binding<A, O>(
     }
     DesignRankPreview {
         obligations: obligations.into(),
-        unidentified_mass: (eval.graphs.n_samples > 0).then(|| eval.graphs.unidentified_mass()),
+        unidentified_mass: (eval.graphs.n_samples > 0)
+            .then(|| normalized_unidentified_mass(&eval.graphs)),
         target: contract.identities.target,
         violations: violations.into(),
         unresolved,

@@ -5,8 +5,7 @@
 
 use std::sync::Arc;
 
-use antecedent::inference::{hydrate_mapping_from_io, hydrate_prior_from_posterior_bytes};
-use antecedent::io::{encode_causal_posterior_bytes, prior_set_from_posterior_bytes};
+use antecedent::io::encode_causal_posterior_bytes;
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     Assumption, AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
@@ -17,7 +16,6 @@ use antecedent_data::{
 };
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_io::{PosteriorPayload, PriorMapping, encode_causal_posterior_bytes_with_payload};
-use antecedent_prob::PriorSet;
 
 /// `Z → T`, `Z → Y`, `T → Y` with `T` strongly driven by `Z`, so the
 /// treatment and `Z` coefficients are correlated in the posterior.
@@ -94,29 +92,6 @@ fn artifact_hydration_carries_dense_v0_and_summary_artifacts_stay_diagonal() {
         encode_causal_posterior_bytes_with_payload(post_a, "source-a", PosteriorPayload::Summary)
             .unwrap();
 
-    let names: Vec<Arc<str>> =
-        ["intercept", "coef_T", "coef_Z"].into_iter().map(Arc::from).collect();
-    let mapping = hydrate_mapping_from_io(&PriorMapping::IdenticalCoefficientSubspace);
-    let baseline = PriorSet::weakly_informative(3);
-    let dense =
-        hydrate_prior_from_posterior_bytes(&full, &mapping, &baseline, &names, Some(1), None)
-            .unwrap();
-    let corr = dense.coefficient_correlation().expect("draws give a dense V0");
-    assert!(corr.matrix()[3 + 2].abs() > 0.3, "T/Z coefficients correlated: {:?}", corr.matrix());
-    assert!(prior_set_from_posterior_bytes(&full).unwrap().coefficient_correlation().is_some());
-
-    // Compatibility: a summary-only artifact has no draws, hence no covariance.
-    let diagonal =
-        hydrate_prior_from_posterior_bytes(&summary, &mapping, &baseline, &names, Some(1), None)
-            .unwrap();
-    assert!(diagonal.coefficient_correlation().is_none());
-    assert_eq!(
-        diagonal.gaussian_coefficients().unwrap(),
-        dense.gaussian_coefficients().unwrap(),
-        "the per-coefficient V0 diagonal is unchanged by the dense hydration"
-    );
-    assert!(prior_set_from_posterior_bytes(&summary).unwrap().coefficient_correlation().is_none());
-
     // The facade's sequential path uses the dense prior and says so.
     let (data_b, _, _) = confounded(60, 500);
     let seq = run(
@@ -135,5 +110,21 @@ fn artifact_hydration_carries_dense_v0_and_summary_artifacts_stay_diagonal() {
     assert!(post.assumptions.entries.iter().any(|a| matches!(
         &a.assumption,
         Assumption::PriorRestriction(pa) if pa.description.contains("dense V0")
+    )));
+
+    // A summary-only artifact has no draws, hence no covariance: the prior stays diagonal.
+    let (data_c, _, _) = confounded(60, 500);
+    let diagonal = run(
+        data_c,
+        t,
+        y,
+        BayesianConfig::conjugate()
+            .n_draws(500)
+            .prior_from_artifact(summary, Some(PriorMapping::IdenticalCoefficientSubspace)),
+    );
+    let diagonal_post = diagonal.posterior.as_ref().unwrap();
+    assert!(!diagonal_post.assumptions.entries.iter().any(|a| matches!(
+        &a.assumption,
+        Assumption::PriorRestriction(pa) if pa.id.as_ref() == "hydrated_coefficient_covariance"
     )));
 }

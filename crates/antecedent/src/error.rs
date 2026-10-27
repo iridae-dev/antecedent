@@ -181,6 +181,35 @@ pub enum CompileCause {
     Decision(Box<crate::analysis::DecisionCarrierError>),
 }
 
+impl CompileCause {
+    /// The family of the typed error that made the compile refuse, as a stable snake_case
+    /// name (`graph`, `data`, `identification`, ...).
+    #[must_use]
+    pub const fn kind(&self) -> &'static str {
+        match self {
+            Self::Query(_) => "query",
+            Self::Probability(_) => "probability",
+            Self::Schema(_) => "schema",
+            Self::Data(_) => "data",
+            Self::Graph(_) => "graph",
+            Self::TemporalIndex(_) => "temporal_index",
+            Self::Attribution(_) => "attribution",
+            Self::Model(_) => "model",
+            Self::Counterfactual(_) => "counterfactual",
+            Self::Learn(_) => "learn",
+            Self::Discovery(_) => "discovery",
+            Self::Stats(_) => "stats",
+            Self::Program(_) => "program",
+            Self::Estimation(_) => "estimation",
+            Self::ExactLaw(_) => "exact_law",
+            Self::ExactEvaluation(_) => "exact_evaluation",
+            Self::Identification(_) => "identification",
+            Self::Serialization(_) => "serialization",
+            Self::Decision(_) => "decision",
+        }
+    }
+}
+
 impl From<crate::analysis::DecisionCarrierError> for CompileCause {
     fn from(error: crate::analysis::DecisionCarrierError) -> Self {
         Self::Decision(Box::new(error))

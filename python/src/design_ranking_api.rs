@@ -251,7 +251,7 @@ fn rank_structural_designs(py: Python<'_>, candidates_json: &str) -> PyResult<Co
 /// `treatment` on `outcome` over the named columns and DAG edges, with a Bayesian posterior
 /// (`posterior`) or the default sampling realization.
 #[allow(clippy::too_many_arguments, reason = "one study: columns, graph, query and inference")]
-fn evsi_study(
+pub(crate) fn evsi_study(
     names: &[String],
     columns: &[Vec<f64>],
     edges: &[(String, String)],

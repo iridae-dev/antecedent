@@ -403,6 +403,29 @@ impl CostModel {
         })
     }
 
+    /// Name of the benchmark the model was measured with.
+    #[must_use]
+    pub fn benchmark(&self) -> &str {
+        &self.benchmark
+    }
+
+    /// Platform the benchmark ran on.
+    #[must_use]
+    pub fn platform(&self) -> &str {
+        &self.platform
+    }
+
+    /// CPU count of the machine the benchmark ran on.
+    #[must_use]
+    pub const fn cpu_count(&self) -> u64 {
+        self.cpu_count
+    }
+
+    /// `(estimator id, a, b)` of every fitted estimator, in declaration order.
+    pub fn coefficients(&self) -> impl Iterator<Item = (&str, f64, f64)> {
+        self.coefficients.iter().map(|(id, fit)| (id.as_str(), fit.a, fit.b))
+    }
+
     /// `fits * (a + b * rows * columns^2)` for the estimator, when the model covers it.
     #[allow(
         clippy::cast_precision_loss,

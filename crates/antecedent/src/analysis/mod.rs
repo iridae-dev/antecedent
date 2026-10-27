@@ -492,7 +492,7 @@ pub use batch_retarget::{
 // Max-t evaluator entries kept for the calibration wiring (the published route is
 // `BatchRetargetReport::simultaneous_interval`).
 #[doc(hidden)]
-pub use batch_retarget::{max_t_critical_value, simultaneous_band_unpublished};
+pub use batch_retarget::max_t_critical_value;
 pub use builder::{InterferenceSpec, RdConfig, RefuteSuite, StudyBuilder, TransportTrialSpec};
 pub use candidate_screen_units::{ScreenSplitReceipt, ScreenUnits};
 pub(crate) use contract::assumption_label;
@@ -519,7 +519,7 @@ pub use execute::Study;
 pub use execute::{
     BAYESIAN_REALIZATION, DECISION_NEXT_ATTEMPTS, DISTRIBUTIONAL_CARRIER, DecisionCarrierError,
     DecisionCompileRequest, DecisionDemand, INTERVENTIONAL_LAW, MissingCarrier, PublishedCarriers,
-    ROBUST_OVER_IDENTIFIED_SET, ScoredDecision, confidence_interval_as_posterior, score_decision,
+    ROBUST_OVER_IDENTIFIED_SET, ScoredDecision, score_decision,
 };
 pub use latency::{
     ComputeBudget, INTERACTIVE_BOOTSTRAP, INTERACTIVE_MAX_ENVELOPE_GRAPHS, INTERACTIVE_N_DRAWS,

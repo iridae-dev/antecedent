@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{JointDesignResult, bounded_json, context, panel_error};
 use antecedent::analysis::joint_panel::{
-    ChangeComponent, PopulationReferenceBindings, PopulationReferenceDecomposition,
-    ReferenceComponentBindings,
+    ChangeComponent, PopulationReferenceAttempt, PopulationReferenceBindings,
+    PopulationReferenceDecomposition, ReferenceComponentBindings,
 };
 use antecedent_design::scientific_source::ScientificConsumptionScope;
 use antecedent_graph::SelectionDiagram;
@@ -247,4 +247,60 @@ fn replay_reference_decomposition(
             .map_err(panel_error)
     })?;
     serde_json::to_string(&serde_json::json!({"decomposition":{"point":result.decomposition.point,"draws":result.decomposition.draws,"weights":result.decomposition.weights},"covariance":result.covariance,"procedure_failures":result.procedure_failures,"question_identity":result.question_identity.to_hex(),"current_authorization":false})).map_err(|error|crate::serialization_err(error.to_string()))
+}
+#[pymethods]
+impl super::PyJointDesignResult {
+    /// Population-standardized reference worlds when the selection diagram earns them,
+    /// otherwise the explicit coarser component decomposition under the same scope.
+    #[pyo3(signature=(declaration_json,fallback_json,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+    fn attempt_population_reference(
+        &self,
+        py: Python<'_>,
+        declaration_json: &str,
+        fallback_json: &str,
+        seed: u64,
+        threads: u32,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<String> {
+        let ctx = context(seed, threads, max_bytes, cancel)?;
+        let (bindings, diagram, scope) = parse(declaration_json, &ctx)?;
+        let (fallback, _) = components(fallback_json)?;
+        crate::detach_catch(py, || {
+            let attempt = self
+                .inner
+                .attempt_population_reference(&bindings, &diagram, scope, &fallback, &ctx)
+                .map_err(panel_error)?;
+            match attempt {
+                PopulationReferenceAttempt::Supported(result) => {
+                    let mut value: serde_json::Value = serde_json::from_str(&report(&result)?)
+                        .map_err(|error| crate::serialization_err(error.to_string()))?;
+                    value["route"] = "population_reference".into();
+                    Ok(value.to_string())
+                }
+                PopulationReferenceAttempt::Coarser { refusal, executed } => Ok(serde_json::json!({
+                    "route": "coarser_components",
+                    "refusal": refusal,
+                    "executed": {
+                        "decomposition": {
+                            "point": executed.decomposition.point,
+                            "draws": executed.decomposition.draws,
+                            "weights": executed.decomposition.weights,
+                        },
+                        "covariance": executed.covariance,
+                        "joint_uncertainty": executed.decomposition.joint_uncertainty(),
+                        "procedure_failures": executed.procedure_failures,
+                        "question_identity": executed.question_identity.to_hex(),
+                        "scope": if scope == ScientificConsumptionScope::IdentifiedCausal {
+                            "identified"
+                        } else {
+                            "model_conditional"
+                        },
+                    },
+                    "grants_unique_causal_attribution": false,
+                })
+                .to_string()),
+            }
+        })
+    }
 }

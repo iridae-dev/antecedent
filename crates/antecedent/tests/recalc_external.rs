@@ -13,11 +13,11 @@ fn execute(
     request: &ExternalCallbackRequest,
     provider: &mut Provider,
 ) -> ExternalCallbackOutcome {
-    let ((out, fits), calls) = count_external_invocations(|| {
-        observe_resolved_fits(|| {
-            session.execute(request, Some(provider), &ExecutionContext::for_tests(999)).unwrap()
-        })
+    let before = provider.calls;
+    let (out, fits) = observe_resolved_fits(|| {
+        session.execute(request, Some(&mut *provider), &ExecutionContext::for_tests(999)).unwrap()
     });
+    let calls = provider.calls - before;
     assert_eq!(fits, 0);
     assert_eq!(calls, out.receipt.totals().external_invocations);
     out
@@ -140,10 +140,9 @@ fn seeded_callback_rng_mutations_and_actual_fresh_replay() {
     let mut fresh = ExternalCallbackSession::resume(&bytes, &request).unwrap();
     assert!(fresh.issued_claim().is_none());
     assert!(!fresh.plan(&request).is_executable());
-    let ((), calls) = count_external_invocations(|| {
-        assert!(fresh.execute(&request, None, &ExecutionContext::for_tests(1)).is_err());
-    });
-    assert_eq!(calls, 0);
+    let before = provider.calls;
+    assert!(fresh.execute(&request, None, &ExecutionContext::for_tests(1)).is_err());
+    assert_eq!(provider.calls, before);
     let replayed = execute(&mut fresh, &request, &mut provider);
     assert_eq!(replayed.claim.values(), changed.claim.values());
     assert_eq!(replayed.receipt.totals().external_invocations, 1);
@@ -155,14 +154,13 @@ fn seeded_callback_rng_mutations_and_actual_fresh_replay() {
     ));
     let mut stale = ExternalCallbackSession::resume(&bytes, &request).unwrap();
     provider.offset = 1.0;
-    let (failure, calls) = count_external_invocations(|| {
-        stale.execute(&request, Some(&mut provider), &ExecutionContext::for_tests(1))
-    });
+    let before = provider.calls;
+    let failure = stale.execute(&request, Some(&mut provider), &ExecutionContext::for_tests(1));
     assert!(matches!(
         failure,
         Err(ExternalCallbackError::Attempt { detail: "external_recalc.replay_mismatch", .. })
     ));
-    assert_eq!(calls, 1);
+    assert_eq!(provider.calls - before, 1);
     assert!(stale.issued_claim().is_none());
 }
 #[test]
@@ -197,9 +195,8 @@ fn failures_preserve_success_and_keep_actual_attempt_evidence() {
     let original = execute(&mut session, &request, &mut provider);
     request.columns[0].1[0] = 0.0;
     provider.fail = true;
-    let (failure, calls) = count_external_invocations(|| {
-        session.execute(&request, Some(&mut provider), &ExecutionContext::for_tests(1))
-    });
+    let before = provider.calls;
+    let failure = session.execute(&request, Some(&mut provider), &ExecutionContext::for_tests(1));
     assert!(matches!(
         failure,
         Err(ExternalCallbackError::Attempt {
@@ -208,7 +205,7 @@ fn failures_preserve_success_and_keep_actual_attempt_evidence() {
             ..
         })
     ));
-    assert_eq!(calls, 1);
+    assert_eq!(provider.calls - before, 1);
     assert_eq!(session.issued_claim().unwrap().values(), original.claim.values());
     provider.fail = false;
     provider.wrong_quantity = true;
@@ -271,13 +268,13 @@ fn pure_invalid_planning_and_cooperative_budget_and_cancel_refusals() {
     assert_eq!(provider.calls, 0);
     provider.cancel = true;
     let ctx = ExecutionContext::for_tests(1);
-    let (failure, calls) =
-        count_external_invocations(|| session.execute(&request, Some(&mut provider), &ctx));
+    let before = provider.calls;
+    let failure = session.execute(&request, Some(&mut provider), &ctx);
     assert!(matches!(
         failure,
         Err(ExternalCallbackError::Attempt { detail: "recalc.cancelled", .. })
     ));
-    assert_eq!(calls, 1);
+    assert_eq!(provider.calls - before, 1);
     assert!(session.issued_claim().is_none());
 }
 
@@ -292,13 +289,10 @@ fn idempotency_key_is_bound_to_actual_first_attempt_payload() {
     execute(&mut session, &request, &mut provider);
     assert_eq!(provider.calls, 2);
     request.columns[0].1 = vec![0.0, 2.0];
-    let (refusal, calls) = count_external_invocations(|| {
-        session.execute(&request, Some(&mut provider), &ExecutionContext::for_tests(1))
-    });
+    let refusal = session.execute(&request, Some(&mut provider), &ExecutionContext::for_tests(1));
     assert!(matches!(
         refusal,
         Err(ExternalCallbackError::Request("external_recalc.idempotency_conflict"))
     ));
-    assert_eq!(calls, 0);
     assert_eq!(provider.calls, 2);
 }

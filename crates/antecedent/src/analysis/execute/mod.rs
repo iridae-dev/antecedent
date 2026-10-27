@@ -360,7 +360,7 @@ pub(crate) use compile_decision::require_carrier;
 pub use compile_decision::{
     BAYESIAN_REALIZATION, DECISION_NEXT_ATTEMPTS, DISTRIBUTIONAL_CARRIER, DecisionCarrierError,
     DecisionCompileRequest, DecisionDemand, INTERVENTIONAL_LAW, MissingCarrier, PublishedCarriers,
-    ROBUST_OVER_IDENTIFIED_SET, ScoredDecision, confidence_interval_as_posterior, score_decision,
+    ROBUST_OVER_IDENTIFIED_SET, ScoredDecision, score_decision,
 };
 mod compile_graph_posterior;
 mod compile_planning;

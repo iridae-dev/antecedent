@@ -28,9 +28,7 @@ fn encode_model_bundle(
     catch_ffi(|| {
         use antecedent::gcm::{CompiledMechanismStore, MechanismSlot};
         use antecedent_core::{CausalSchemaBuilder, MeasurementSpec, SmallRoleSet, ValueType};
-        use antecedent_io::{
-            ModelBundleEncode, ModelBundleHeaderWire, ModelKindWire, encode_model_bundle as enc,
-        };
+        use antecedent_io::{ModelBundleEncode, ModelBundleHeaderWire, ModelKindWire};
         use std::sync::Arc;
 
         let mut b = CausalSchemaBuilder::new();
@@ -60,7 +58,7 @@ fn encode_model_bundle(
             })
             .collect();
         let store = CompiledMechanismStore { slots: slots.into() };
-        let art = enc(&ModelBundleEncode {
+        antecedent::io::encode_model_bundle_bytes(&ModelBundleEncode {
             header: ModelBundleHeaderWire { model_kind: ModelKindWire::Scm, label: None },
             schema: &schema,
             dag: &dag,
@@ -80,10 +78,7 @@ fn encode_model_bundle(
             posterior: None,
             discovery: None,
         })
-        .map_err(py_err)?;
-        let mut buf = Vec::new();
-        art.write_to(&mut buf).map_err(py_err)?;
-        Ok(buf)
+        .map_err(py_err)
     })
 }
 

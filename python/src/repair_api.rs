@@ -18,7 +18,7 @@ use antecedent::analysis::repair::{
     RepairConsumeLimits, RepairError, RepairFamily, RepairFamilyRef, RepairLimits, RepairObjective,
     RepairReport, RepairReportArtifact, SensitivityFinding, SensitivityMethod,
     SensitivityRepairFamily, StudyCostDeclaration, StudyKind, TransportRepairFamily, UnitRules,
-    ZTransportRepairFamily, repair_contract,
+    ZTransportRepairFamily, repair_contract, unresolved_obligations,
 };
 use antecedent_contract::{ObligationKind, ObligationRecord, ObligationScope};
 use antecedent_core::assumption::{AssumptionSource, AssumptionStatus};
@@ -34,7 +34,7 @@ use std::sync::Arc;
 /// bytes, framed with the variable names the repair was declared under.
 pub(crate) const REPAIR_PREFIX: &[u8] = b"ANTECEDENT-REPAIR\x01";
 
-fn repair_error(error: &RepairError) -> PyErr {
+pub(crate) fn repair_error(error: &RepairError) -> PyErr {
     let mut text = format!("{}: {}", error.detail, error.message);
     if let Some(receipt) = &error.receipt {
         text.push_str("; ");
@@ -349,7 +349,7 @@ impl RepairContractStage {
             coordinates.insert(VariableId::from_raw(variable), quantity);
         }
         let mut values = Vec::new();
-        for obligation in self.contract.family().unresolved_obligations() {
+        for obligation in unresolved_obligations(self.contract.family()) {
             let obligation = if coordinates.is_empty() {
                 obligation
             } else {

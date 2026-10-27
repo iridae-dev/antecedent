@@ -4,6 +4,9 @@
 
 use std::collections::BTreeMap;
 
+use antecedent::inference::{MappedTransferSpec, mapped_posterior_transfer_with};
+use antecedent_io::distribution_artifact::DistributionIdentity;
+use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_io::{
     CompatibilityReport, DesignVariableRole, DesignVariableSummary, EstimandFingerprint,
     PriorCatalog, PriorMapping, PriorSourceMeta, PriorSourceRef, TargetDesign,
@@ -785,12 +788,86 @@ pub(crate) fn apply_owned_composed_prior(
     Ok(cfg.prior_from_composed(owned.sources, prior_composed, owned.conflict))
 }
 
+/// Transfer an aligned parameter-posterior artifact into a known-variance Gaussian prior.
+///
+/// The source identity is supplied independently of the artifact bytes; `source_to_target` is
+/// one stable source-to-target variable-id pair per coefficient and `target_quantities_json` the
+/// target's coefficient quantities in design-column order. Returns the prior's coefficient
+/// moments (conjugate scale `V0`, correlation and the known residual variance) and the
+/// assumptions it records. Refusals (identity, meaning, map, scale, alignment) raise.
+#[pyfunction(name = "mapped_posterior_transfer")]
+#[pyo3(signature = (
+    artifact,
+    expected_source_json,
+    source_to_target,
+    target_quantities_json,
+    target_snapshot_id,
+    target_contract_id,
+    baseline_variance,
+    known_residual_variance,
+))]
+#[allow(clippy::too_many_arguments)]
+fn mapped_posterior_transfer_py<'py>(
+    py: Python<'py>,
+    artifact: &[u8],
+    expected_source_json: &str,
+    source_to_target: Vec<(String, String)>,
+    target_quantities_json: &str,
+    target_snapshot_id: &str,
+    target_contract_id: &str,
+    baseline_variance: f64,
+    known_residual_variance: f64,
+) -> PyResult<Bound<'py, PyDict>> {
+    let expected: DistributionIdentity =
+        serde_json::from_str(expected_source_json).map_err(pyvalue)?;
+    let targets: Vec<ScientificQuantityWire> =
+        serde_json::from_str(target_quantities_json).map_err(pyvalue)?;
+    let n = targets.len();
+    let mut baseline = prior_set_from_moments(&vec![0.0; n], &vec![baseline_variance; n])?;
+    baseline.push(PriorSpec::KnownResidualVariance(known_residual_variance));
+    let prior = mapped_posterior_transfer_with(
+        artifact,
+        &MappedTransferSpec {
+            expected_source: &expected,
+            source_to_target: &source_to_target,
+            target_quantities: &targets,
+            target_snapshot_id,
+            target_contract_id,
+            baseline: &baseline,
+        },
+    )
+    .map_err(py_err)?;
+    let coefficients = prior
+        .gaussian_coefficients()
+        .ok_or_else(|| crate::value_err("the transferred prior has no coefficient prior"))?;
+    let out = PyDict::new(py);
+    out.set_item("mean", coefficients.mean.to_vec())?;
+    out.set_item("scale_variance", coefficients.variance.to_vec())?;
+    out.set_item(
+        "correlation",
+        prior.coefficient_correlation().map(|correlation| {
+            correlation.matrix().chunks(correlation.dim()).map(<[f64]>::to_vec).collect::<Vec<_>>()
+        }),
+    )?;
+    out.set_item("known_residual_variance", prior.known_residual_variance())?;
+    let restrictions = PyList::empty(py);
+    for restriction in &prior.restrictions {
+        let item = PyDict::new(py);
+        item.set_item("id", restriction.id.as_ref())?;
+        item.set_item("description", restriction.description.as_ref())?;
+        restrictions.append(item)?;
+    }
+    out.set_item("restrictions", restrictions)?;
+    Ok(out)
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(prior_catalog_filter, m)?)?;
     m.add_function(wrap_pyfunction!(prior_catalog_rank, m)?)?;
     m.add_function(wrap_pyfunction!(encode_prior_source_meta, m)?)?;
     m.add_function(wrap_pyfunction!(decode_prior_source_meta, m)?)?;
     m.add_function(wrap_pyfunction!(compose_external_priors_py, m)?)?;
+    m.add_function(wrap_pyfunction!(mapped_posterior_transfer_py, m)?)?;
     m.add_function(wrap_pyfunction!(shrink_alpha_py, m)?)?;
     m.add_function(wrap_pyfunction!(beta_from_moments_py, m)?)?;
     m.add_function(wrap_pyfunction!(beta_from_mean_and_ess_py, m)?)?;

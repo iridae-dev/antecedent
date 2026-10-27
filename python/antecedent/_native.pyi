@@ -258,11 +258,15 @@ class AteAnalysisResult:
     prior_ppc_predictive_mean: float | None
     prior_ppc_predictive_sd: float | None
     prior_ppc_n_sims: int | None
+    prior_ppc_dispersion_p_value: float | None
+    prior_ppc_noise: str | None
     posterior_ppc_p_value: float | None
     posterior_ppc_observed: float | None
     posterior_ppc_predictive_mean: float | None
     posterior_ppc_predictive_sd: float | None
     posterior_ppc_n_sims: int | None
+    posterior_ppc_dispersion_p_value: float | None
+    posterior_ppc_noise: str | None
     identification: IdentificationSection
     estimate: EstimateSection
     posterior: PosteriorSection
@@ -1482,7 +1486,9 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int | None = None,
     ) -> str: ...
-    def estimate_cost_json(self) -> str: ...
+    def estimate_cost_json(
+        self, cost_model: tuple[str, str, int, list[tuple[str, float, float]]] | None = None
+    ) -> str: ...
     def contract(
         self,
     ) -> dict[str, str]: ...
@@ -3184,7 +3190,9 @@ class PreparedBatch:
         seed: int = 1,
         threads: int | None = None,
     ) -> str: ...
-    def estimate_cost_json(self) -> str: ...
+    def estimate_cost_json(
+        self, cost_model: tuple[str, str, int, list[tuple[str, float, float]]] | None = None
+    ) -> str: ...
     def n_plans(self) -> int: ...
     def shares_covariates(self) -> bool: ...
     def shared_n_folds(self) -> int | None: ...
@@ -3218,6 +3226,11 @@ class CompletedBatch:
     def retarget_rows(self) -> list[int] | None: ...
     def retarget_scores_source(self) -> str: ...
     def retarget_snapshot(self) -> str | None: ...
+    def retarget_cost(
+        self,
+        claims: list[tuple[str, int, list[float], list[str]]],
+        contrasts: list[tuple[str, list[tuple[str, float]]]],
+    ) -> dict[str, Any]: ...
     def retarget_family(
         self,
         claims: list[tuple[str, int, list[float], list[str]]],
@@ -3996,7 +4009,65 @@ def rank_designs(
     rank_uncertainty_threshold: float = 0.05,
     seed: int = 0,
     threads: int | None = None,
+    prepared: PreparedAnalysis | None = None,
+    decision_target: str | None = None,
 ) -> DesignRanking: ...
+def preview_design_rank(
+    prepared: PreparedAnalysis,
+    graph_weights: list[float],
+    identified: list[int],
+    graph_keys: list[int],
+    candidates: list[dict[str, Any]],
+    objective: str | dict[str, Any] | None = None,
+    *,
+    query_id: int | None = None,
+    model_ids: list[int] | None = None,
+    decision_id: int | None = None,
+    query_id_unlock: list[tuple[int, list[int]]] | None = None,
+    env_id_unlock: list[tuple[int, list[int]]] | None = None,
+    identified_under_intervention: list[int] | None = None,
+    graph_features: list[int] | None = None,
+    effect_width: dict[str, Any] | None = None,
+    model_loglik: dict[str, Any] | None = None,
+    decision: dict[str, Any] | None = None,
+    decision_target: str | None = None,
+) -> str: ...
+def rank_studies_bound(
+    stage: FailureStage,
+    prepared: PreparedAnalysis,
+    candidates_json: str,
+    repair_objective: str,
+    max_operations: int,
+    max_depth: int,
+    graph_weights: list[float],
+    identified: list[int],
+    graph_keys: list[int],
+    *,
+    route: str | None = None,
+    query_id: int = 0,
+    identified_under_intervention: list[int] | None = None,
+    graph_features: list[int] | None = None,
+    max_cost: float | None = None,
+    max_sample_budget: int | None = None,
+    min_batches: int = 2,
+    max_batches: int = 64,
+    batch_size: int = 8,
+    rank_uncertainty_threshold: float = 0.05,
+    seed: int = 0,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    decision_target: str | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[DesignRanking, str]: ...
+def support_licensed_cells() -> list[str]: ...
+def support_cell_report(coordinate: str) -> str: ...
+def build_cost_model(
+    benchmark: str,
+    platform: str,
+    cpu_count: int,
+    coefficients: list[tuple[str, float, float]],
+) -> tuple[str, str, int, list[tuple[str, float, float]]]: ...
+def parse_cost_model(text: str) -> tuple[str, str, int, list[tuple[str, float, float]]]: ...
 def evaluate_decision_py(
     actions: list[float],
     outcomes: list[float],
@@ -4287,6 +4358,8 @@ class Pag:
         max_len: int = 6,
     ) -> Literal["separated", "connected", "undetermined"]: ...
 
+def pag_completions(pag: Pag, max_completions: int = 64) -> tuple[list[Pag], str]: ...
+
 class Admg:
     @classmethod
     def from_edges(
@@ -4400,6 +4473,12 @@ class CausalState:
     ) -> tuple[int, int]: ...
     def record_intervention(self, intervention_id: str, fingerprint: int) -> int: ...
     def refresh_results(self, entries: list[tuple[int, int, int]]) -> None: ...
+    def publish_recomputed(
+        self, expected_version: int, updates: list[tuple[int, dict[str, str | None], int]]
+    ) -> None: ...
+    def claim_invalidation_effects(
+        self, since: int, bindings: list[tuple[str, str, str | None]]
+    ) -> str: ...
     def ols_ensure(self, key: str, ncols: int) -> None: ...
     def ols_append_row(self, key: str, row: list[float], y: float) -> None: ...
     def ols_get(self, key: str) -> dict[str, Any]: ...
@@ -4548,6 +4627,16 @@ def prior_catalog_rank(
 ) -> list[dict[str, Any]]: ...
 def encode_prior_source_meta(meta: dict[str, Any]) -> bytes: ...
 def decode_prior_source_meta(bytes: bytes | list[int]) -> dict[str, Any]: ...
+def mapped_posterior_transfer(
+    artifact: bytes,
+    expected_source_json: str,
+    source_to_target: list[tuple[str, str]],
+    target_quantities_json: str,
+    target_snapshot_id: str,
+    target_contract_id: str,
+    baseline_variance: float,
+    known_residual_variance: float,
+) -> dict[str, Any]: ...
 def compose_external_priors(
     sources: list[dict[str, Any]],
     baseline_mean: list[float],
@@ -5212,6 +5301,64 @@ class NativePeriodRefreshSummary:
     def replay_rows(self) -> tuple[bool | None, str | None]: ...
 
 def consume_period_refresh_artifact(artifact: bytes) -> tuple[str | None, str | None]: ...
+
+class SpillRegistryHandle:
+    def directory(self) -> str: ...
+    def stats_json(self) -> str: ...
+    def contains(self, key: str) -> bool: ...
+    def keys_by_recency(self) -> list[str]: ...
+
+class RetainedRefreshHandle:
+    def family(self) -> str: ...
+    def apply(self, mutation_json: str) -> str: ...
+    def result_json(self) -> str: ...
+    def fresh_result_json(self) -> str: ...
+    def check_against_fresh(self) -> None: ...
+    def summary_only(self) -> RetainedRefreshHandle: ...
+    def with_retention(self, policy: RetentionPolicy) -> RetainedRefreshHandle: ...
+    def require(self, operation: str) -> None: ...
+    def frame_bytes(self) -> int: ...
+    def spill(self, registry: SpillRegistryHandle, key: str) -> SpilledRefreshHandle: ...
+
+class SpilledRefreshHandle:
+    def family(self) -> str: ...
+    def mode(self) -> str: ...
+    def on_disk(self) -> bool: ...
+    def evicted(self) -> list[str]: ...
+    def key(self) -> str: ...
+    def require(self, operation: str) -> None: ...
+    def reload(self) -> RetainedRefreshHandle: ...
+
+class RetainedBootstrapHandle:
+    def __init__(self, estimates: list[float], failed: int = 0) -> None: ...
+    def retention(self) -> str: ...
+    def estimates(self) -> list[float]: ...
+    def summary_only(self) -> RetainedBootstrapHandle: ...
+    def append(self, estimates: list[float], failed: int) -> None: ...
+    def accounting_json(self) -> str: ...
+    def mean(self) -> float | None: ...
+    def percentile_interval(self, level: float) -> tuple[float, float]: ...
+    def check_against_fresh(self) -> None: ...
+    def frame_bytes(self) -> int: ...
+    def spill(self, registry: SpillRegistryHandle, key: str) -> SpilledBootstrapHandle: ...
+
+class SpilledBootstrapHandle:
+    def mode(self) -> str: ...
+    def on_disk(self) -> bool: ...
+    def evicted(self) -> list[str]: ...
+    def require(self, operation: str) -> None: ...
+    def reload(self) -> RetainedBootstrapHandle: ...
+
+def spill_registry_open(directory: str, requested_bytes: int) -> SpillRegistryHandle: ...
+def retained_refresh_start(
+    study: PreparedAnalysis,
+    source: str,
+    width: int,
+    rows_json: str,
+    prior_json: str | None = None,
+) -> RetainedRefreshHandle: ...
+def retained_refresh_family(study: PreparedAnalysis) -> str: ...
+def state_result_lineage_fingerprint(identities: dict[str, str | None]) -> str: ...
 def staleness_from_artifact(
     artifact: bytes,
     names: list[str],
@@ -5508,6 +5655,7 @@ def consume_cross_world_edge_contrast_artifact(
     artifact: bytes,
     *,
     seed: int = 0,
+    expected_data_digest: str | None = None,
 ) -> tuple[str, bytes]: ...
 
 class NativePreparedCounterfactualId:
@@ -5544,6 +5692,7 @@ def consume_counterfactual_id_artifact_native(
     artifact: bytes,
     *,
     seed: int = 0,
+    expected_data_digest: str | None = None,
 ) -> tuple[str, bytes]: ...
 
 class MixedSourceStage:
@@ -7368,6 +7517,13 @@ def cohort_decision_interval(
 def cohort_decision_forward_claim(
     artifact: bytes, expectation_json: str
 ) -> tuple[str | None, str | None]: ...
+def cohort_decision_evaluate(
+    contract_json: str,
+    artifact: bytes,
+    expectation_json: str,
+    unsupported: str,
+    weakest_support: str,
+) -> tuple[str | None, str | None]: ...
 def transport_cohort_effect(
     model_bytes: bytes,
     expected_claim: str | None,
@@ -7384,6 +7540,14 @@ def transport_cohort_effect_verify(
     cohort_json: str,
     shift_json: str | None,
     expected_identity: str,
+) -> tuple[str | None, str | None]: ...
+def transport_cohort_composition_node(
+    model_bytes: bytes,
+    expected_claim: str | None,
+    source_population: str,
+    cohort_json: str,
+    shift_json: str | None,
+    key: str,
 ) -> tuple[str | None, str | None]: ...
 def transported_cohort_refusal(kind: str) -> str: ...
 def evaluate_nonlinear_mediation(
@@ -7550,7 +7714,14 @@ class CompositionBundleBuilder:
     def build(self) -> tuple[CompositionBundle | None, str | None]: ...
 
 def consume_composition_bundle(
-    data: bytes, expected_identity: str, supplied_json: str | None = None
+    data: bytes,
+    expected_identity: str,
+    supplied_json: str | None = None,
+    *,
+    max_bundle_bytes: int | None = None,
+    max_nodes: int | None = None,
+    max_edges: int | None = None,
+    max_embedded_bytes: int | None = None,
 ) -> tuple[str | None, str | None]: ...
 def composition_describe_artifact(kind: str, data: bytes) -> tuple[str | None, str | None]: ...
 def composition_mean_decision(
@@ -7785,6 +7956,26 @@ class BayesianSessionHandle:
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_prior_source(self) -> tuple[bytes | None, str | None]: ...
     def effect_draws(self) -> list[float] | None: ...
+    def export_result(
+        self, *, seed: int = 1, threads: int | None = None
+    ) -> tuple[bytes | None, str | None]: ...
+
+class JointBayesianSessionHandle:
+    def __init__(self) -> None: ...
+    @staticmethod
+    def resume(previous_json: str, resume_json: str) -> JointBayesianSessionHandle: ...
+    def is_live(self) -> bool: ...
+    def identities_json(self) -> str: ...
+    def capabilities_json(self) -> str: ...
+    def execute(
+        self,
+        specification: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_result(
         self, *, seed: int = 1, threads: int | None = None
     ) -> tuple[bytes | None, str | None]: ...
@@ -8290,6 +8481,31 @@ def scientific_bridge_distribution_consume(
 ) -> tuple[BridgedDistributionHandle | None, str | None]: ...
 def scientific_bridge_shape(artifact: bytes) -> tuple[str | None, str | None]: ...
 
+class MixedDecisionWorkflowHandle:
+    def summary_json(self) -> str: ...
+    def decision_json(self) -> tuple[str | None, str | None]: ...
+    def export_decision(self) -> tuple[tuple[bytes, str] | None, str | None]: ...
+    def export_historical_replay(self) -> tuple[tuple[bytes, str] | None, str | None]: ...
+    def load(
+        self, artifact: bytes, expected_identity: str | None = None
+    ) -> tuple[str | None, str | None]: ...
+    def utility_only(self, benefit: float) -> tuple[str | None, str | None]: ...
+    def prior_change(self, prior_scale: float) -> tuple[str | None, str | None]: ...
+    def period_change(self, start: int, end: int) -> tuple[str | None, str | None]: ...
+    def withdraw_cluster(self) -> tuple[tuple[bytes, str] | None, str | None]: ...
+
+def mixed_decision_execute(
+    dependence_json: str,
+    seed: int = 1,
+    threads: int | None = None,
+    memory_limit_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+    policy_json: str | None = None,
+) -> tuple[MixedDecisionWorkflowHandle | None, str | None]: ...
+def mixed_decision_replay(
+    artifact: bytes, expected_identity: str | None = None, seed: int = 1
+) -> tuple[tuple[float, float] | None, str | None]: ...
+
 class CompositionVerificationHandle:
     def summary_json(self) -> str: ...
     def view_json(self, key: str) -> tuple[str | None, str | None]: ...
@@ -8302,6 +8518,19 @@ def composition_verification_verify(
 def composition_verification_consume(
     artifact: bytes, expected_identity: str | None = None
 ) -> tuple[CompositionVerificationHandle | None, str | None]: ...
+def composition_plan_declaration(
+    previous_json: str, requested_json: str, capabilities_json: str, bindings_json: str
+) -> tuple[str | None, str | None]: ...
+def composition_ledger_effects(
+    ledger: EvidenceLedgerHandle, bindings_json: str
+) -> tuple[str | None, str | None]: ...
+def composition_freshness_effects(bindings_json: str) -> str: ...
+def composition_contract_effects(bindings_json: str) -> str: ...
+def composition_invalidation_effects(log_json: str, since: int, bindings_json: str) -> str: ...
+def composition_query_revalidation(log_json: str, query: int, since: int) -> str: ...
+def selective_discovery_revalidate(
+    previous_json: str, current_json: str
+) -> tuple[str | None, str | None]: ...
 def composition_registry_record_identity(record_id: str) -> str: ...
 def composition_registry_record_attests(record: str) -> bool: ...
 def composition_registry_resolved_calibration(calibration_json: str) -> str: ...
@@ -8360,6 +8589,19 @@ class CallbackSessionHandle:
         policy_json: str,
         token: CallbackToken,
     ) -> tuple[str | None, str | None]: ...
+    def execute_for_consumer(
+        self,
+        identity_json: str,
+        invoke: object,
+        state: object | None,
+        declaration_json: str,
+        consumer_json: str,
+        consumed_port: str,
+        request_json: str,
+        inputs_json: str,
+        policy_json: str,
+        token: CallbackToken,
+    ) -> tuple[str | None, str | None]: ...
     def resume(
         self,
         artifact: bytes,
@@ -8383,8 +8625,11 @@ def callback_result_consume(
 ) -> tuple[str | None, str | None]: ...
 def callback_result_inspect(artifact: bytes) -> tuple[str | None, str | None]: ...
 def callback_closed_refusal(route: str) -> str: ...
+def callback_verify_provider(
+    declaration_json: str, probes_json: str
+) -> tuple[ProviderVerificationReceipt | None, str | None]: ...
 def callback_predictive_law_source(
-    declaration_json: str, verification_confirmed: bool
+    declaration_json: str, receipt: ProviderVerificationReceipt | None = None
 ) -> tuple[str | None, str | None]: ...
 def callback_check_claim_connection(
     producer_json: str, produced_port: str, callback_json: str, input: str
@@ -9048,6 +9293,25 @@ def compile_design_ranking_for_study(
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
+def compile_decision_for_study(
+    carrier: str,
+    contract_identity: str,
+    utility_unit: str,
+    intercepts: list[float],
+    slopes: list[float],
+    names: list[str],
+    columns: list[list[float]],
+    edges: list[tuple[str, str]],
+    treatment: str,
+    outcome: str,
+    *,
+    chance_threshold: float = 1.0,
+    posterior: bool = True,
+    n_draws: int = 256,
+    prior_scale: float = 10.0,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
 def evaluate_design_ranking_for_study(
     request_json: str,
     artifact_id: str,
@@ -9240,6 +9504,12 @@ class SelectiveDiscoveryHandle:
         self,
         graph_json: str | None,
         prefix: str,
+        completion_label: str | None = None,
+        completion_identity: str | None = None,
+    ) -> tuple[str | None, str | None]: ...
+    def accepted_graph_stage_identity(
+        self,
+        declared_by: str,
         completion_label: str | None = None,
         completion_identity: str | None = None,
     ) -> tuple[str | None, str | None]: ...
@@ -9643,6 +9913,20 @@ def transport_scene_target_identity(target_population: str, target_data_identity
 def transport_scene_build(
     scene_json: str, responses: list[TransportedResponseHandle]
 ) -> tuple[TransportSceneHandle | None, str | None]: ...
+def transported_response_coordinate(
+    response: TransportedResponseHandle,
+) -> tuple[str | None, str | None]: ...
+def transported_response_standing(
+    response: TransportedResponseHandle,
+    calibration_json: str,
+    provider_trust: str | None = None,
+) -> tuple[str | None, str | None]: ...
+def transported_response_node(
+    key: str,
+    response: TransportedResponseHandle,
+    calibration_json: str,
+    provider_trust: str | None = None,
+) -> tuple[str | None, str | None]: ...
 def transport_revalidate(
     previous: TransportSceneHandle | None,
     current: TransportSceneHandle,
@@ -10318,6 +10602,42 @@ class _JointPanelResult:
         max_bytes: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> str: ...
+    def attempt_explanation(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def attempt_identified_reference(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def attempt_design_adaptive_reference(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def search_declared_programs(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
     def decompose_reference(
         self,
         declaration_json: str,
@@ -10620,6 +10940,16 @@ class _JointDesignResult:
         max_bytes: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> _JointDesignExperiment: ...
+    def attempt_population_reference(
+        self,
+        declaration_json: str,
+        fallback_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
     def decompose_population_reference(
         self,
         declaration_json: str,
@@ -10695,6 +11025,55 @@ class _NativeJointDesignResult:
     def report(self) -> str: ...
     def export(self) -> bytes: ...
 
+class _PreparedJointResponse:
+    def inspect(self) -> str: ...
+    def execute(
+        self,
+        *,
+        seed: int = 0,
+        threads: int | None = None,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _JointResponseResult: ...
+    def retarget(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int | None = None,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _PreparedJointResponse: ...
+    def consume_current(
+        self,
+        artifact: bytes,
+        *,
+        seed: int = 0,
+        threads: int | None = None,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _JointResponseResult: ...
+
+class _JointResponseResult:
+    def report(self) -> str: ...
+    def export(
+        self,
+        *,
+        seed: int = 0,
+        threads: int | None = None,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+
+def compile_joint_response(
+    prepared: PreparedAnalysis,
+    declaration_json: str,
+    *,
+    seed: int = 0,
+    threads: int | None = None,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _PreparedJointResponse: ...
 def prepare_joint_design(
     target_json: str,
     proof_json: str,
@@ -10713,6 +11092,23 @@ def prepare_joint_design_for_panel(
     max_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> _PreparedJointDesign: ...
+def joint_target_contrast(target_json: str, contrast_json: str) -> str: ...
+def replay_joint_law_experiment(
+    artifact: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def replay_native_joint_experiment(
+    artifact: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
 def replay_joint_design(
     artifact: bytes,
     *,
@@ -10836,3 +11232,49 @@ class _SnapshotColumn:
 class _IndexSnapshot:
     def __init__(self, values: Any) -> None: ...
     def __len__(self) -> int: ...
+
+class GraphScoreCache:
+    def __init__(
+        self,
+        columns: Sequence[Sequence[float]],
+        *,
+        family: str = "gaussian_bic",
+        byte_budget: int | None = None,
+    ) -> None: ...
+    @property
+    def n_rows(self) -> int: ...
+    @property
+    def n_vars(self) -> int: ...
+    @property
+    def retained_bytes(self) -> int: ...
+    def score(self) -> float: ...
+    def set_parents(self, node: int, parents: list[int]) -> tuple[float, float]: ...
+    def parents_of(self, node: int) -> list[int]: ...
+    def full_score(self, parents: dict[int, list[int]]) -> float: ...
+    def clear(self) -> None: ...
+
+class RollingMechanismDiagnostics:
+    def __init__(self, ncols: int, window: int) -> None: ...
+    def append_row(self, row: list[float], y: float) -> None: ...
+    def append_batch(self, rows: list[float], y: list[float]) -> None: ...
+    def refresh(self) -> None: ...
+    @property
+    def ncols(self) -> int: ...
+    @property
+    def window(self) -> int: ...
+    @property
+    def n(self) -> int: ...
+    @property
+    def beta(self) -> list[float]: ...
+    @property
+    def residual_sse(self) -> float: ...
+    @property
+    def residual_var(self) -> float | None: ...
+    @property
+    def mean_abs_residual(self) -> float: ...
+    @property
+    def max_abs_cusum(self) -> float | None: ...
+    @property
+    def bytes(self) -> int: ...
+    @property
+    def worst_case_bytes(self) -> int: ...

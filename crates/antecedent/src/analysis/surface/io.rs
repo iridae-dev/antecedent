@@ -17,10 +17,10 @@ pub use antecedent_io::{
     dag_to_networkx_adjacency, dag_to_networkx_node_link, decode_analysis_result_artifact,
     decode_analysis_result_contract, decode_causal_posterior_bytes,
     encode_analysis_result_artifact, encode_analysis_result_artifact_with_contract,
-    encode_causal_posterior, encode_causal_posterior_bytes, interference_estimate_from_wire,
-    interference_estimate_to_wire, interference_query_from_wire, interference_query_to_wire,
-    pag_from_dot, pag_from_gml, pag_from_json, pag_from_networkx_node_link, pag_to_dot, pag_to_gml,
-    pag_to_json, pag_to_networkx_node_link, transport_effect_from_wire, transport_effect_to_wire,
+    encode_causal_posterior_bytes, interference_estimate_from_wire, interference_estimate_to_wire,
+    interference_query_from_wire, interference_query_to_wire, pag_from_dot, pag_from_gml,
+    pag_from_json, pag_from_networkx_node_link, pag_to_dot, pag_to_gml, pag_to_json,
+    pag_to_networkx_node_link, transport_effect_from_wire, transport_effect_to_wire,
     transport_identification_from_wire, transport_identification_to_wire,
     transport_query_from_wire, transport_query_to_wire,
 };
@@ -62,60 +62,6 @@ pub fn encode_model_bundle_bytes(
 pub fn decode_model_bundle_bytes(bytes: &[u8]) -> Result<antecedent_io::ModelBundle, CausalError> {
     let art = antecedent_io::read_and_migrate(bytes).map_err(CausalError::from)?;
     antecedent_io::decode_model_bundle(&art).map_err(CausalError::from)
-}
-
-/// Hydrate a coefficient [`antecedent_prob::PriorSet`] from posterior artifact bytes.
-///
-/// Uses per-coefficient posterior means and SDs (identical-subspace mapping)
-/// and, when the artifact carries draws, their coefficient covariance as a
-/// dense `V0`; a summary-only artifact hydrates the diagonal prior.
-/// Effect columns are ignored. Prefer [`hydrate_prior_from_posterior_bytes`](crate::inference::hydrate_prior_from_posterior_bytes) when
-/// a heterogeneous mapping is required.
-///
-/// # Errors
-///
-/// Decode failures or hydrate failures (no coefficients / non-finite summaries).
-pub fn prior_set_from_posterior_bytes(
-    bytes: &[u8],
-) -> Result<antecedent_prob::PriorSet, CausalError> {
-    use std::sync::Arc;
-
-    use antecedent_estimate::{
-        coefficient_covariance_from_draws, hydrate_prior_from_coefficient_moments,
-    };
-    use antecedent_io::PosteriorQuantityWire;
-    use antecedent_prob::PosteriorQuantityKind;
-
-    let (wire, draws) = decode_causal_posterior_bytes(bytes)?;
-    let quantities: Vec<PosteriorQuantityKind> = wire
-        .quantities
-        .iter()
-        .map(|q| match q {
-            PosteriorQuantityWire::Coefficient { index, name } => {
-                PosteriorQuantityKind::Coefficient {
-                    index: *index as usize,
-                    name: name.as_ref().map(|s| Arc::<str>::from(s.as_str())),
-                }
-            }
-            PosteriorQuantityWire::ResidualVariance => PosteriorQuantityKind::ResidualVariance,
-            PosteriorQuantityWire::Effect { name } => {
-                PosteriorQuantityKind::Effect { name: Arc::from(name.as_str()) }
-            }
-            PosteriorQuantityWire::Scalar { name } => {
-                PosteriorQuantityKind::Scalar { name: Arc::from(name.as_str()) }
-            }
-        })
-        .collect();
-    let covariance = coefficient_covariance_from_draws(&quantities, &draws, wire.n_draws as usize)
-        .map_err(CausalError::from)?;
-    hydrate_prior_from_coefficient_moments(
-        &quantities,
-        &wire.mean,
-        &wire.sd,
-        covariance.as_deref(),
-        None,
-    )
-    .map_err(CausalError::from)
 }
 
 /// Portable checked transport proof and supplied exact-law records.

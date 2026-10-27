@@ -65,7 +65,6 @@ pub mod gcm;
 mod graph_identity;
 pub mod host;
 pub mod inference;
-pub mod options;
 pub mod period_refresh;
 pub mod planner;
 pub mod prelude;
@@ -100,7 +99,7 @@ pub use analysis::api::*;
 #[doc(hidden)]
 pub use analysis::temporal_dependent_interval_candidate;
 #[doc(hidden)]
-pub use analysis::{max_t_critical_value, simultaneous_band_unpublished};
+pub use analysis::max_t_critical_value;
 pub use antecedent_estimate::{IvBoundsEstimate, IvBoundsInterval, IvBoundsPosterior};
 pub use class_prior::ClassPrior;
 pub use design_posterior_model::DesignPosteriorModel;
@@ -112,7 +111,6 @@ pub use estimator_spec::EstimatorSpec;
 pub use graph::{Dag, DenseNodeId, TemporalDag};
 pub use identify_api::Identification;
 pub use inference::{BayesianConfig, InferenceMode, PosteriorDrawControls};
-pub use options::FdrControl;
 pub use query::IvBoundsQuery;
 pub use query::{
     AnomalyAttributionQuery, AssignmentDesign, AverageEffectQuery, CausalQuery,

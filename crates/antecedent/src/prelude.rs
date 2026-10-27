@@ -16,7 +16,6 @@ pub use crate::class_prior::ClassPrior;
 pub use crate::error::CausalError;
 pub use crate::identify_api::Identification;
 pub use crate::inference::{BayesianConfig, InferenceMode};
-pub use crate::options::FdrControl;
 pub use crate::result::StudyResult;
 pub use crate::strategy_table::{EstimatorId, IdentifierId};
 

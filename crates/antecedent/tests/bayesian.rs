@@ -1085,7 +1085,6 @@ fn prior_bank_catalog() {
 fn prior_bank_effect_map() {
     use std::sync::Arc;
 
-    use antecedent::inference::{hydrate_mapping_from_io, hydrate_prior_from_posterior_bytes};
     use antecedent::io::encode_causal_posterior_bytes;
     use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
     use antecedent_core::{
@@ -1097,7 +1096,6 @@ fn prior_bank_effect_map() {
     };
     use antecedent_graph::{Dag, DenseNodeId};
     use antecedent_io::PriorMapping;
-    use antecedent_prob::PriorSet;
 
     let expected = load_expected_json(&fixture_dir("prior_bank_effect_map"));
     let tol = expected["mapped_mean_tol"].as_f64().unwrap();
@@ -1230,8 +1228,8 @@ fn prior_bank_effect_map() {
     }
 
     // Unset mapping auto-selects EffectFunctional for heterogeneous designs.
-    let auto = Study::tabular(data_b)
-        .graph(dag_b)
+    let auto = Study::tabular(data_b.clone())
+        .graph(dag_b.clone())
         .query(AverageEffectQuery::binary_ate(t, y))
         .inference(InferenceMode::Bayesian(
             BayesianConfig::conjugate()
@@ -1260,22 +1258,20 @@ fn prior_bank_effect_map() {
         "auto-mapped path should record external_effect_prior"
     );
 
-    let names: Vec<Arc<str>> =
-        ["intercept", "coef_T", "coef_Z", "coef_W"].into_iter().map(Arc::from).collect();
-    let baseline_prior = PriorSet::weakly_informative(4);
-    let mapping = hydrate_mapping_from_io(&PriorMapping::IdenticalCoefficientSubspace);
-    assert!(
-        hydrate_prior_from_posterior_bytes(
-            &bytes,
-            &mapping,
-            &baseline_prior,
-            &names,
-            Some(1),
-            None
-        )
-        .is_err(),
-        "identical mapping should fail on ncols mismatch"
-    );
+    // An identical-subspace mapping onto a target with a different column count is refused.
+    let refused = Study::tabular(data_b)
+        .graph(dag_b)
+        .query(AverageEffectQuery::binary_ate(t, y))
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate()
+                .n_draws(80)
+                .prior_scale(10.0)
+                .prior_from_artifact(bytes, Some(PriorMapping::IdenticalCoefficientSubspace)),
+        ))
+        .refute(RefuteSuite::None)
+        .build()
+        .map_or(true, |study| study.run(&ExecutionContext::for_tests(1)).is_err());
+    assert!(refused, "identical mapping should fail on ncols mismatch");
 }
 
 #[test]

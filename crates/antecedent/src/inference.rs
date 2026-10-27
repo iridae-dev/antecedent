@@ -471,7 +471,8 @@ fn default_hydrate_mapping(
     }
 }
 
-/// Resolve the coefficient prior for a prepared Bayesian problem.
+/// Resolve the coefficient prior for a prepared Bayesian problem, running conflict shrink when `ctx`
+/// is provided and a [`ConflictPolicy`] is configured on the external compose.
 ///
 /// Precedence: [`BayesianConfig::external_compose`] (with optional conflict) →
 /// explicit [`BayesianConfig::prior`] → mapped [`BayesianConfig::prior_artifact`]
@@ -480,20 +481,6 @@ fn default_hydrate_mapping(
 /// When a conflict policy is set, α is re-shrunk using prior-PPC / KL against
 /// the bound design; the returned [`ConflictSummary`] should be attached to the
 /// fitted posterior.
-///
-/// # Errors
-///
-/// Decode / hydrate / conflict composition failures.
-pub fn resolve_bayesian_prior(
-    cfg: &BayesianConfig,
-    prep: &PreparedBayesianProblem,
-) -> Result<Option<PriorSet>, CausalError> {
-    let (prior, _) = resolve_bayesian_prior_with_conflict(cfg, prep, None)?;
-    Ok(prior)
-}
-
-/// Like [`resolve_bayesian_prior`], but runs conflict shrink when `ctx` is
-/// provided and a [`ConflictPolicy`] is configured on the external compose.
 ///
 /// # Errors
 ///
@@ -723,7 +710,11 @@ pub fn decode_prior_hydrate_source(
     }))
 }
 
-/// Hydrate from an already decoded posterior. See [`hydrate_prior_from_posterior_bytes`].
+/// Hydrate a [`PriorSet`] from an already decoded posterior under a [`HydrateMapping`].
+///
+/// Identical-subspace hydration reads the coefficient covariance from the artifact's draws and
+/// carries it as a dense `V0`; an artifact without draws (summary-only) hydrates the diagonal
+/// prior.
 fn hydrate_prior_from_decoded(
     source: &DecodedPriorSource,
     mapping: &HydrateMapping,
@@ -745,34 +736,6 @@ fn hydrate_prior_from_decoded(
         &HydrateTarget { baseline, coef_names: target_coef_names, treatment_col },
     )
     .map_err(CausalError::from)
-}
-
-/// Hydrate a [`PriorSet`] from posterior artifact bytes under a [`HydrateMapping`].
-///
-/// Identical-subspace hydration reads the coefficient covariance from the
-/// artifact's draws and carries it as a dense `V0`; an artifact without draws
-/// (summary-only) hydrates the diagonal prior, as before.
-///
-/// # Errors
-///
-/// Decode failures or hydrate validation errors.
-pub fn hydrate_prior_from_posterior_bytes(
-    bytes: &[u8],
-    mapping: &HydrateMapping,
-    baseline: &PriorSet,
-    target_coef_names: &[Arc<str>],
-    treatment_col: Option<usize>,
-    fallback_contrast: Option<f64>,
-) -> Result<PriorSet, CausalError> {
-    let source = decode_prior_source(bytes, MappingDeclaration::CallerSupplied)?;
-    hydrate_prior_from_decoded(
-        &source,
-        mapping,
-        baseline,
-        target_coef_names,
-        treatment_col,
-        fallback_contrast,
-    )
 }
 
 /// What a mapped posterior transfer targets: the independently supplied source identity, the
@@ -956,11 +919,9 @@ fn check_residual_variance(
     {
         return Err(variance_refuse("mapped transfer residual-variance coordinate differs"));
     }
-    if source
-        .draws()
-        .chunks_exact(source.shape()[1])
-        .any(|row| (row[residual_col] - sigma2).abs() > RESIDUAL_VARIANCE_TOLERANCE * sigma2.max(1.0))
-    {
+    if source.draws().chunks_exact(source.shape()[1]).any(|row| {
+        (row[residual_col] - sigma2).abs() > RESIDUAL_VARIANCE_TOLERANCE * sigma2.max(1.0)
+    }) {
         return Err(variance_refuse(
             "mapped transfer residual variance differs from target known variance",
         ));
@@ -1048,30 +1009,4 @@ pub fn mapped_posterior_transfer_with(
     let coefficients = build_coefficient_map(&source, spec)?;
     check_residual_variance(&source, spec, coefficients.len(), sigma2)?;
     hydrate_mapped_prior(&source, spec, coefficients, sigma2)
-}
-
-/// [`mapped_posterior_transfer_with`] with the target described by positional arguments.
-///
-/// # Errors
-/// As [`mapped_posterior_transfer_with`].
-pub fn mapped_posterior_transfer(
-    bytes: &[u8],
-    expected_source: &DistributionIdentity,
-    source_to_target: &[(String, String)],
-    target_quantities: &[ScientificQuantityWire],
-    target_snapshot_id: &str,
-    target_contract_id: &str,
-    baseline: &PriorSet,
-) -> Result<PriorSet, CausalError> {
-    mapped_posterior_transfer_with(
-        bytes,
-        &MappedTransferSpec {
-            expected_source,
-            source_to_target,
-            target_quantities,
-            target_snapshot_id,
-            target_contract_id,
-            baseline,
-        },
-    )
 }

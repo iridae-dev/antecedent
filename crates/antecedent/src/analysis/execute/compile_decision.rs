@@ -190,15 +190,6 @@ pub fn score_decision(
     }
 }
 
-/// Offer a confidence interval as a parameter posterior.
-///
-/// # Errors
-///
-/// Always: the interval is unchanged, and the request stays a parameter posterior.
-pub fn confidence_interval_as_posterior() -> Result<EvidencePort, EvidencePortError> {
-    EvidencePort::ConfidenceRegion.try_coerce(DecisionRequest::ParameterPosterior)
-}
-
 /// A decision demand the statistical program cannot supply.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DecisionCarrierError {
