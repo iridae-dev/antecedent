@@ -29,7 +29,7 @@ pub use multinomial::{
 };
 
 #[cfg(test)]
-use self::{binomial::*, count::*, gaussian::*, multinomial::*};
+use self::{binomial::*, multinomial::*};
 
 use binomial::{fit_logistic, fit_probit, fit_probit_weighted};
 use count::{fit_negbin, fit_negbin_prior, fit_poisson, fit_poisson_weighted};

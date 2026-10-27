@@ -3,7 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::binomial::fit_logistic;
-use super::{GlmDesignRef, GlmFit, GlmOptions, SATURATION_MARGIN, design_column};
+use super::{GlmDesignRef, GlmOptions, SATURATION_MARGIN, design_column};
 use crate::error::{GlmRefusalKind, StatsError};
 use crate::gram::invert_square;
 use crate::linalg::{DenseLinearAlgebra, LeastSquaresWorkspace};

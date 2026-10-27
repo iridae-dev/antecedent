@@ -51,6 +51,7 @@ mod schema;
 mod tests;
 
 pub(crate) use self::convert::finish_load;
+#[cfg(any(feature = "parquet", feature = "ipc"))]
 pub(crate) use self::convert::level_text;
 pub use self::convert::tabular_from_arrow_c_columns;
 pub use self::convert::tabular_from_record_batch;

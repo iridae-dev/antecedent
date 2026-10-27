@@ -36,13 +36,9 @@ pub use self::indexes::circular_block_length;
 pub use self::indexes::fill_circular_block_indexes;
 pub use self::replicates::fill_resample_index_batch;
 pub use self::replicates::fill_resample_index_replicate;
-#[cfg(test)]
-pub(crate) use self::replicates::fill_resample_weight_batch;
 pub use self::replicates::fill_resample_weight_replicate;
 pub(crate) use self::replicates::fill_resample_weights;
 pub use self::series::resample_timeseries;
-pub(crate) use self::series::resample_timeseries_grouped;
-pub(crate) use self::series::resample_timeseries_with_policy;
 
 use self::indexes::{
     declared_design_error, design_independent_of_time_column, draw_contiguous_block,
