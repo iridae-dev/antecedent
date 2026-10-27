@@ -64,7 +64,7 @@
         {
           "role": "generator",
           "path": "conformance/discovery/pcmci_lag1/reference.py",
-          "sha256": "da7f08bc88f14ff5f24d683f24d5cde4bac6a459ef549b24fd1efc1cb46248d1"
+          "sha256": "f3f5b5a333b3a82810046e33df624637e6c1a017884315f628081195a3fa298c"
         },
         {
           "role": "environment_lock",

@@ -347,3 +347,12 @@ than verbatim. The audit discloses that API searches exposed upstream helper
 source excerpts; the fixture also preserves its older source-inferred Zero
 hypothesis as unverified. No algorithm/test code was copied or translated. These fixed
 finite cases do not establish general completeness or calibration.
+
+The next full Python software run completed 7,823 assertions successfully, with
+159 explicit skips and 39 calibration deselections. Its sole failure was the
+UTF-8 source-I/O guard: three newly retained harnesses omitted explicit encoding.
+Those reads are repaired; all four source-only encoding checks pass, and the
+scalar Tigramite, DoWhy identification and y0 generators pass again with refreshed
+review digests. Later concurrent observation-source edits make the native build
+stale, which the guard correctly reports; this run is not current frozen-source
+verification of those later edits.

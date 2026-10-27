@@ -59,7 +59,7 @@
         {
           "role": "generator",
           "path": "conformance/identify/general_id_backdoor_chain/reference.py",
-          "sha256": "e940c420d6d422fb3b2ed0b35f51bec25c142b0738f538d76f39f0c5bd37e23a"
+          "sha256": "1e83bf079cd996ec7fea9d3ccdcbe3ed27d74a0a1da50b4296cf2d397a21229c"
         },
         {
           "role": "environment_lock",

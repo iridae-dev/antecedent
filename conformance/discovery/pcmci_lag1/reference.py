@@ -10,6 +10,7 @@ SPDX-License-Identifier: MIT OR Apache-2.0
 """
 
 from __future__ import annotations
+
 import argparse
 import copy
 import hashlib
@@ -17,6 +18,7 @@ import importlib.metadata
 import io
 import json
 from pathlib import Path
+
 import numpy as np
 from tigramite import data_processing as pp
 from tigramite.independence_tests.parcorr import ParCorr
@@ -78,14 +80,14 @@ def regenerate(name: str, csv: bytes) -> dict:
         ),
         verbosity=0,
     )
-    options = dict(
-        tau_min=spec.get("min_lag", 1),
-        tau_max=spec["max_lag"],
-        pc_alpha=spec["alpha"],
-        alpha_level=spec["alpha"],
-        max_conds_dim=2,
-        fdr_method="none",
-    )
+    options = {
+        "tau_min": spec.get("min_lag", 1),
+        "tau_max": spec["max_lag"],
+        "pc_alpha": spec["alpha"],
+        "alpha_level": spec["alpha"],
+        "max_conds_dim": 2,
+        "fdr_method": "none",
+    }
     if name == "pcmci_plus_lag0":
         options.pop("alpha_level")  # This release uses pc_alpha for PCMCI+ tests.
         result = engine.run_pcmciplus(**options)
@@ -99,16 +101,21 @@ def regenerate(name: str, csv: bytes) -> dict:
                 mark = str(graph[i, j, lag])
                 if not mark:
                     continue
-                link = dict(source=source, source_lag=lag, target=target, target_lag=0)
+                link = {
+                    "source": source,
+                    "source_lag": lag,
+                    "target": target,
+                    "target_lag": 0,
+                }
                 links.append(dict(link, mark=mark))
                 if lag > 0 and mark == "-->":
                     parents.append(link)
-    outputs = dict(
-        graph_shape=list(graph.shape),
-        recovered_parents=parents,
-        alpha=spec["alpha"],
-        max_lag=spec["max_lag"],
-    )
+    outputs = {
+        "graph_shape": list(graph.shape),
+        "recovered_parents": parents,
+        "alpha": spec["alpha"],
+        "max_lag": spec["max_lag"],
+    }
     if name == "pcmci_plus_lag0":
         outputs["graph_links"] = links
     return outputs
@@ -163,7 +170,7 @@ def main() -> int:
     problems = []
     for name in SPECS:
         directory = HERE.parent / name
-        document = json.loads((directory / "expected.json").read_text())
+        document = json.loads((directory / "expected.json").read_text(encoding="utf-8"))
         csv = (directory / "data.csv").read_bytes()
         if hashlib.sha256(csv).hexdigest() != SPECS[name]["csv_sha256"]:
             problems.append(f"{name}: corrupt input; refusing regeneration")

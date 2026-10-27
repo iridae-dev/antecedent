@@ -270,7 +270,7 @@ def main() -> int:
     ):
         if importlib.metadata.version(name) != version:
             raise ValueError(f"wrong pinned package version: {name}")
-    document = json.loads((HERE / "expected.json").read_text())
+    document = json.loads((HERE / "expected.json").read_text(encoding="utf-8"))
     if input_digest(document.get("cases", [])) != INPUT_SHA256:
         raise ValueError("frozen input grid changed; refusing regeneration")
     actual = {case["id"]: regenerate(case) for case in document["cases"]}

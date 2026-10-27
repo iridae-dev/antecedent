@@ -9,11 +9,13 @@ SPDX-License-Identifier: MIT OR Apache-2.0
 """
 
 from __future__ import annotations
+
 import argparse
 import copy
 import importlib.metadata
 import json
 from pathlib import Path
+
 import pandas as pd
 from dowhy import CausalModel
 
@@ -104,7 +106,9 @@ def main() -> int:
         raise AssertionError("incorrect DoWhy version")
     problems = []
     for name in SCENARIOS:
-        document = json.loads((HERE.parent / name / "expected.json").read_text())
+        document = json.loads(
+            (HERE.parent / name / "expected.json").read_text(encoding="utf-8")
+        )
         actual = regenerate(name)
         problems.extend(f"{name}: {p}" for p in check(name, document, actual))
         if args.self_test:
